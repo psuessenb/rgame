@@ -1,10 +1,25 @@
 #include <stdio.h>
-#include <time.h>
 
 #include "rgame/core.h"
 
-static double seconds_since(struct timespec start, struct timespec end) {
-    return (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+/*
+ * Standalone entry point. Its whole job is to create the app, hand the engine
+ * per-frame callbacks, and clean up — the loop and timing live in the engine
+ * (src/core.c). A future Ruby extension drives the same rgame_app_run seam,
+ * just with Ruby-side callbacks instead of these.
+ *
+ * The callbacks are intentionally empty for now: there are no draw primitives
+ * yet (see docs/c_engine_feature_specs.md section 2), so the window just shows
+ * the engine's clear color. update/draw fill in as those primitives land.
+ */
+
+static void on_update(void *userdata, double dt_seconds) {
+    (void)userdata;
+    (void)dt_seconds;
+}
+
+static void on_draw(void *userdata) {
+    (void)userdata;
 }
 
 int main(void) {
@@ -14,18 +29,8 @@ int main(void) {
         return 1;
     }
 
-    struct timespec prev;
-    clock_gettime(CLOCK_MONOTONIC, &prev);
-
-    while (rgame_app_poll_events(app)) {
-        struct timespec now;
-        clock_gettime(CLOCK_MONOTONIC, &now);
-        double dt = seconds_since(prev, now);
-        prev = now;
-
-        rgame_app_update(app, dt);
-        rgame_app_render(app);
-    }
+    /* NULL needs_redraw = redraw every frame. */
+    rgame_app_run(app, on_update, on_draw, NULL, NULL);
 
     rgame_app_destroy(app);
     return 0;

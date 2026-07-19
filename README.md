@@ -3,9 +3,10 @@
 A small learning project for using SDL2 and OpenGL from C — structured so
 the core engine can later be exposed as a Ruby C extension.
 
-Right now it's pure C: it opens a window and draws a rotating triangle.
-The Ruby bindings are a planned future step (see `ext/README.md`), not
-implemented yet.
+Right now it's pure C: it opens a window and runs a fixed-timestep main
+loop. There are no draw primitives yet, so the window just shows a blank
+clear color. The Ruby bindings are a planned future step (see
+`ext/README.md`), not implemented yet.
 
 ## Requirements
 
@@ -59,16 +60,17 @@ Controls: `Esc` or closing the window quits.
 
 ```
 include/rgame/core.h   Public C API of the engine (opaque handle, no SDL/GL
-                        types leaked) — this is also what the future Ruby
-                        extension will bind against.
-src/core.c              Engine implementation: SDL window + OpenGL context
-                        setup, update/render loop internals.
-src/main.c               Standalone executable entry point. Only talks to
-                        include/rgame/core.h, never touches SDL/GL directly.
-src/internal.h           Pure-logic helpers shared by core.c and the tests
-                        (not part of the public API).
-test/test_core.c        Check unit tests for the pure logic in src/internal.h.
-ext/                    Reserved for the future Ruby C extension.
+                       types leaked) — this is also what the future Ruby
+                       extension will bind against.
+src/core.c             Engine implementation: SDL window + OpenGL context
+                       setup; owns the main loop and calls back to the
+                       caller's update/draw callbacks.
+src/frame_loop.h/.c    Pure fixed-timestep + FPS logic, no SDL/GL — unit-
+                       tested without a window (see CLAUDE.md's layering).
+src/main.c             Standalone executable entry point. Only talks to
+                       include/rgame/core.h, never touches SDL/GL directly.
+test/test_frame_loop.c Check unit tests for the pure logic in src/frame_loop.
+ext/                   Reserved for the future Ruby C extension.
 ```
 
 ## Roadmap

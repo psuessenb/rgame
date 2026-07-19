@@ -1,16 +1,21 @@
 #include "rgame/core.h"
-#include "internal.h"
+#include "frame_loop.h"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
-#include <math.h>
 #include <stdlib.h>
+
+/* Fixed simulation step and the cap on catch-up steps per rendered frame.
+ * 1/60 s tick; at most 5 sim steps before we drop backlog (see frame_loop.h). */
+#define RGAME_TICK_SECONDS (1.0 / 60.0)
+#define RGAME_MAX_TICKS_PER_FRAME 5
 
 struct rgame_app {
     SDL_Window *window;
     SDL_GLContext gl_context;
     int running;
-    double angle_degrees;
+    rgame_frame_loop frame_loop;
+    rgame_fps_counter fps_counter;
 };
 
 rgame_app *rgame_app_create(int width, int height, const char *title) {
@@ -53,7 +58,8 @@ rgame_app *rgame_app_create(int width, int height, const char *title) {
     glEnable(GL_DEPTH_TEST);
 
     app->running = 1;
-    app->angle_degrees = 0.0;
+    rgame_frame_loop_init(&app->frame_loop);
+    rgame_fps_counter_init(&app->fps_counter);
     return app;
 }
 
@@ -71,7 +77,8 @@ void rgame_app_destroy(rgame_app *app) {
     SDL_Quit();
 }
 
-int rgame_app_poll_events(rgame_app *app) {
+/* Drains the SDL event queue, updating app->running. Internal to the loop. */
+static void rgame_app_poll_events(rgame_app *app) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_QUIT) {
@@ -84,36 +91,48 @@ int rgame_app_poll_events(rgame_app *app) {
             glViewport(0, 0, event.window.data1, event.window.data2);
         }
     }
-    return app->running;
 }
 
-double rgame_wrap_angle_degrees(double angle_degrees, double delta_degrees) {
-    double result = angle_degrees + delta_degrees;
-    result = fmod(result, 360.0);
-    if (result < 0.0) {
-        result += 360.0;
+void rgame_app_run(rgame_app *app, rgame_update_fn update, rgame_draw_fn draw,
+                   rgame_needs_redraw_fn needs_redraw, void *userdata) {
+    Uint32 prev_ms = SDL_GetTicks();
+
+    while (app->running) {
+        rgame_app_poll_events(app);
+        if (!app->running) {
+            break;
+        }
+
+        Uint32 now_ms = SDL_GetTicks();
+        double elapsed_seconds = (now_ms - prev_ms) / 1000.0;
+        prev_ms = now_ms;
+
+        /* Fixed-timestep simulation: run whole ticks the accumulator has banked. */
+        int ticks = rgame_frame_loop_advance(&app->frame_loop, elapsed_seconds,
+                                             RGAME_TICK_SECONDS, RGAME_MAX_TICKS_PER_FRAME);
+        for (int i = 0; i < ticks; i++) {
+            update(userdata, RGAME_TICK_SECONDS);
+        }
+
+        /* Count every loop iteration toward FPS. With the current always-draw
+         * behavior this equals the render rate; if needs_redraw skipping is
+         * added later, revisit whether FPS should track loop vs. render rate. */
+        rgame_fps_counter_tick(&app->fps_counter, elapsed_seconds);
+
+        if (!needs_redraw || needs_redraw(userdata)) {
+            glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            draw(userdata);
+            SDL_GL_SwapWindow(app->window);
+        }
     }
-    return result;
 }
 
-void rgame_app_update(rgame_app *app, double dt_seconds) {
-    double delta_degrees = dt_seconds * 90.0; /* 90 degrees/sec */
-    app->angle_degrees = rgame_wrap_angle_degrees(app->angle_degrees, delta_degrees);
+unsigned int rgame_app_ticks_ms(const rgame_app *app) {
+    (void)app; /* SDL's clock is global; app is taken for API consistency. */
+    return SDL_GetTicks();
 }
 
-void rgame_app_render(rgame_app *app) {
-    glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    glRotated(app->angle_degrees, 0.0, 0.0, 1.0);
-
-    glBegin(GL_TRIANGLES);
-        glColor3f(1.0f, 0.0f, 0.0f); glVertex2f(0.0f, 0.6f);
-        glColor3f(0.0f, 1.0f, 0.0f); glVertex2f(-0.6f, -0.4f);
-        glColor3f(0.0f, 0.0f, 1.0f); glVertex2f(0.6f, -0.4f);
-    glEnd();
-
-    SDL_GL_SwapWindow(app->window);
+double rgame_app_fps(const rgame_app *app) {
+    return app->fps_counter.fps;
 }
