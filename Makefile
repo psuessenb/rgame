@@ -13,9 +13,9 @@ CHECK_LIBS := $(shell pkg-config --libs check)
 BUILD_DIR := build
 
 CORE_OBJ := $(BUILD_DIR)/core.o
-CORE_LIB := $(BUILD_DIR)/libctest_core.a
+CORE_LIB := $(BUILD_DIR)/librgame_core.a
 APP_OBJ := $(BUILD_DIR)/main.o
-APP_BIN := $(BUILD_DIR)/ctest
+APP_BIN := $(BUILD_DIR)/rgame
 
 TEST_OBJ := $(BUILD_DIR)/test_core.o
 TEST_BIN := $(BUILD_DIR)/test_core
@@ -27,13 +27,13 @@ all: $(APP_BIN)
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-$(CORE_OBJ): src/core.c src/internal.h include/ctest/core.h | $(BUILD_DIR)
+$(CORE_OBJ): src/core.c src/internal.h include/rgame/core.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
 $(CORE_LIB): $(CORE_OBJ)
 	ar rcs $@ $^
 
-$(APP_OBJ): src/main.c include/ctest/core.h | $(BUILD_DIR)
+$(APP_OBJ): src/main.c include/rgame/core.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
 $(APP_BIN): $(APP_OBJ) $(CORE_LIB)

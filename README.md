@@ -1,4 +1,4 @@
-# ctest
+# rgame
 
 A small learning project for using SDL2 and OpenGL from C — structured so
 the core engine can later be exposed as a Ruby C extension.
@@ -47,7 +47,7 @@ OpenGL headers/libs ship with Xcode Command Line Tools (`xcode-select --install`
 ## Build & run
 
 ```
-make        # builds build/ctest
+make        # builds build/rgame
 make run    # build and run
 make test   # build and run the Check unit tests
 make clean  # remove build artifacts
@@ -58,13 +58,13 @@ Controls: `Esc` or closing the window quits.
 ## Project structure
 
 ```
-include/ctest/core.h   Public C API of the engine (opaque handle, no SDL/GL
+include/rgame/core.h   Public C API of the engine (opaque handle, no SDL/GL
                         types leaked) — this is also what the future Ruby
                         extension will bind against.
 src/core.c              Engine implementation: SDL window + OpenGL context
                         setup, update/render loop internals.
 src/main.c               Standalone executable entry point. Only talks to
-                        include/ctest/core.h, never touches SDL/GL directly.
+                        include/rgame/core.h, never touches SDL/GL directly.
 src/internal.h           Pure-logic helpers shared by core.c and the tests
                         (not part of the public API).
 test/test_core.c        Check unit tests for the pure logic in src/internal.h.
@@ -74,5 +74,5 @@ ext/                    Reserved for the future Ruby C extension.
 ## Roadmap
 
 1. **C core** (current) — SDL2 window, OpenGL rendering, basic app loop.
-2. **Ruby C extension** — wrap `include/ctest/core.h` with `ext/ctest/extconf.rb`
+2. **Ruby C extension** — wrap `include/rgame/core.h` with `ext/rgame/extconf.rb`
    + glue code so the engine can be driven from Ruby.

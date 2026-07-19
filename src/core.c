@@ -1,4 +1,4 @@
-#include "ctest/core.h"
+#include "rgame/core.h"
 #include "internal.h"
 
 #include <SDL2/SDL.h>
@@ -6,14 +6,14 @@
 #include <math.h>
 #include <stdlib.h>
 
-struct ctest_app {
+struct rgame_app {
     SDL_Window *window;
     SDL_GLContext gl_context;
     int running;
     double angle_degrees;
 };
 
-ctest_app *ctest_app_create(int width, int height, const char *title) {
+rgame_app *rgame_app_create(int width, int height, const char *title) {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         SDL_Log("SDL_Init failed: %s", SDL_GetError());
         return NULL;
@@ -22,7 +22,7 @@ ctest_app *ctest_app_create(int width, int height, const char *title) {
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
-    ctest_app *app = calloc(1, sizeof(ctest_app));
+    rgame_app *app = calloc(1, sizeof(rgame_app));
     if (!app) {
         SDL_Quit();
         return NULL;
@@ -57,7 +57,7 @@ ctest_app *ctest_app_create(int width, int height, const char *title) {
     return app;
 }
 
-void ctest_app_destroy(ctest_app *app) {
+void rgame_app_destroy(rgame_app *app) {
     if (!app) {
         return;
     }
@@ -71,7 +71,7 @@ void ctest_app_destroy(ctest_app *app) {
     SDL_Quit();
 }
 
-int ctest_app_poll_events(ctest_app *app) {
+int rgame_app_poll_events(rgame_app *app) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_QUIT) {
@@ -87,7 +87,7 @@ int ctest_app_poll_events(ctest_app *app) {
     return app->running;
 }
 
-double ctest_wrap_angle_degrees(double angle_degrees, double delta_degrees) {
+double rgame_wrap_angle_degrees(double angle_degrees, double delta_degrees) {
     double result = angle_degrees + delta_degrees;
     result = fmod(result, 360.0);
     if (result < 0.0) {
@@ -96,12 +96,12 @@ double ctest_wrap_angle_degrees(double angle_degrees, double delta_degrees) {
     return result;
 }
 
-void ctest_app_update(ctest_app *app, double dt_seconds) {
+void rgame_app_update(rgame_app *app, double dt_seconds) {
     double delta_degrees = dt_seconds * 90.0; /* 90 degrees/sec */
-    app->angle_degrees = ctest_wrap_angle_degrees(app->angle_degrees, delta_degrees);
+    app->angle_degrees = rgame_wrap_angle_degrees(app->angle_degrees, delta_degrees);
 }
 
-void ctest_app_render(ctest_app *app) {
+void rgame_app_render(rgame_app *app) {
     glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 

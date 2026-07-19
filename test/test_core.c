@@ -4,19 +4,19 @@
 #include "internal.h"
 
 START_TEST(wrap_stays_within_range) {
-    double result = ctest_wrap_angle_degrees(10.0, 20.0);
+    double result = rgame_wrap_angle_degrees(10.0, 20.0);
     ck_assert_double_eq_tol(result, 30.0, 1e-9);
 }
 END_TEST
 
 START_TEST(wrap_crosses_360) {
-    double result = ctest_wrap_angle_degrees(350.0, 20.0);
+    double result = rgame_wrap_angle_degrees(350.0, 20.0);
     ck_assert_double_eq_tol(result, 10.0, 1e-9);
 }
 END_TEST
 
 START_TEST(wrap_handles_negative_delta) {
-    double result = ctest_wrap_angle_degrees(10.0, -20.0);
+    double result = rgame_wrap_angle_degrees(10.0, -20.0);
     ck_assert_double_eq_tol(result, 350.0, 1e-9);
 }
 END_TEST
