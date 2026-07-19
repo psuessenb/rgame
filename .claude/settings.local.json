@@ -9,7 +9,8 @@
       "Bash(pkg-config --modversion sdl2)",
       "Bash(echo \"sdl2 found: $\\(pkg-config --modversion sdl2\\)\")",
       "Bash(pkg-config --exists gl)",
-      "Bash(make)"
+      "Bash(make)",
+      "Bash(make clean *)"
     ]
   }
 }

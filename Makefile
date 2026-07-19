@@ -1,5 +1,5 @@
 CC ?= gcc
-CFLAGS ?= -std=c11 -Wall -Wextra -g -fPIC
+CFLAGS ?= -std=c17 -Wall -Wextra -g -fPIC
 INCLUDES := -Iinclude
 
 SDL_CFLAGS := $(shell pkg-config --cflags sdl2)

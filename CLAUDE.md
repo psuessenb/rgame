@@ -61,7 +61,7 @@ verified manually via `make run`.
 
 ## Conventions
 
-- C11, `-Wall -Wextra`, keep it warning-clean.
+- C17, `-Wall -Wextra`, keep it warning-clean.
 - No OpenGL loader (GLAD/GLEW) yet — using legacy/compatibility-profile GL
   calls (`glBegin`/`glEnd`) since that's what's available without extra
   dependencies. If/when the project moves to core-profile modern GL, a
