@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gcc --version)",
+      "Bash(clang --version)",
+      "Bash(make --version)",
+      "Bash(pkg-config --version)",
+      "Bash(pkg-config --exists sdl2)",
+      "Bash(pkg-config --modversion sdl2)",
+      "Bash(echo \"sdl2 found: $\\(pkg-config --modversion sdl2\\)\")",
+      "Bash(pkg-config --exists gl)",
+      "Bash(make)"
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+# Build output
+/build/
+*.o
+*.a
+*.so
+*.bundle
+*.dylib
+
+# Ruby extension build artifacts (ext/<name>/extconf.rb output)
+ext/**/Makefile
+ext/**/mkmf.log
+ext/**/*.o
+ext/**/*.so
+ext/**/*.bundle
+
+# Editor / OS
+.DS_Store
+*.swp
+compile_commands.json
