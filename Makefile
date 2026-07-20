@@ -21,7 +21,7 @@ APP_BIN := $(BUILD_DIR)/rgame
 TEST_OBJ := $(BUILD_DIR)/test_frame_loop.o
 TEST_BIN := $(BUILD_DIR)/test_frame_loop
 
-.PHONY: all run test clean
+.PHONY: all run test clean ext ext-clean
 
 all: $(APP_BIN)
 
@@ -55,5 +55,20 @@ run: all
 test: $(TEST_BIN)
 	./$(TEST_BIN)
 
-clean:
+# Ruby C extension. mkmf generates ext/rgame/Makefile from extconf.rb, which
+# then builds rgame.so (compiling the core sources straight in). Needs `ruby`
+# on PATH (installed via mise — see README).
+EXT_DIR := ext/rgame
+
+ext: $(EXT_DIR)/Makefile
+	$(MAKE) -C $(EXT_DIR)
+
+$(EXT_DIR)/Makefile: $(EXT_DIR)/extconf.rb
+	cd $(EXT_DIR) && ruby extconf.rb
+
+ext-clean:
+	[ -f $(EXT_DIR)/Makefile ] && $(MAKE) -C $(EXT_DIR) distclean || true
+	rm -f $(EXT_DIR)/Makefile
+
+clean: ext-clean
 	rm -rf $(BUILD_DIR)
