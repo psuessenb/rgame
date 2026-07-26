@@ -7,28 +7,28 @@ both halves.
 Everything Ruby-visible lives under the `RGame` module, split in two by what it
 depends on:
 
-| | `RGame::Platform` | `RGame::Util` |
+| | `RGame::Core` | `RGame::Util` |
 |---|---|---|
 | For | anything depending on SDL/OpenGL (or on something that does) | everything else |
-| C source | `ext/rgame_platform/` | `ext/rgame_util/` |
-| Extension | `rgame/platform_ext` | `rgame/util_ext` |
+| C source | `ext/rgame_core/` | `ext/rgame_util/` |
+| Extension | `rgame/core_ext` | `rgame/util_ext` |
 | Links | SDL2 + OpenGL | nothing but Ruby |
 | Holds today | `App` — window, GL context, fixed-timestep main loop | `Tensor` |
 
 That split is load-bearing, not cosmetic: `require "rgame"` gives you
 `RGame::Util` with **no graphics libraries loaded into the process at all**, so
 pure-logic code and its specs run with no display and no SDL present.
-`RGame::Platform` is an explicit opt-in:
+`RGame::Core` is an explicit opt-in:
 
 ```ruby
-require "rgame"           # RGame::Util only
-require "rgame/platform"  # adds RGame::Platform, pulls in SDL2 + OpenGL
+require "rgame"       # RGame::Util only
+require "rgame/core"  # adds RGame::Core, pulls in SDL2 + OpenGL
 ```
 
 The engine currently opens a window and runs its main loop; there are no draw
 primitives yet, so the window just shows a blank clear color. Its C sources
 build two ways from one copy: a standalone binary (`build/rgame`, via the root
-`Makefile`) and the `platform_ext` extension (via `extconf.rb`).
+`Makefile`) and the `core_ext` extension (via `extconf.rb`).
 
 There's no `.gemspec` yet — everything is used in place from a checkout.
 
@@ -90,8 +90,8 @@ make              # builds build/rgame (standalone C binary)
 make run          # build and run it
 make test         # build and run the Check unit tests (C, pure logic)
 make ext          # build both Ruby extensions
-make ext-platform # build only ext/rgame_platform -> lib/rgame/platform_ext.so
-make ext-util     # build only ext/rgame_util     -> lib/rgame/util_ext.so
+make ext-core     # build only ext/rgame_core -> lib/rgame/core_ext.so
+make ext-util     # build only ext/rgame_util -> lib/rgame/util_ext.so
 make clean        # remove build artifacts, including both extensions'
 ```
 
@@ -110,38 +110,38 @@ bundle exec rubocop  # lint; configured in .rubocop.yml, which also loads the
 
 Each `make ext-*` target compiles its extension and copies the resulting `.so`
 into `lib/rgame/`, which is where `require "rgame/util_ext"` and `require
-"rgame/platform_ext"` look for it. That mirrors how rake-compiler installs a
+"rgame/core_ext"` look for it. That mirrors how rake-compiler installs a
 compiled extension into `lib/<gem>/`. Without that step the specs can't even
 load, since `RGame::Util::Tensor` now lives in C.
 
-The specs only need `ext-util` — they never touch `RGame::Platform`, which is
+The specs only need `ext-util` — they never touch `RGame::Core`, which is
 what keeps them runnable with no display and no SDL. To drive the *engine* from
 Ruby (opens a real window):
 
 ```
-make ext-platform
-ruby ext/rgame_platform/example.rb
+make ext-core
+ruby ext/rgame_core/example.rb
 ```
 
 ## Project structure
 
-The engine C lives under `ext/rgame_platform/` — a Ruby C extension directory —
+The engine C lives under `ext/rgame_core/` — a Ruby C extension directory —
 rather than a top-level `src/`. That's deliberate: `gem install` unpacks the gem
 and runs each `extconf.rb`, which can only build sources inside its own
 directory, so keeping the C there means one copy of the code serves both the
 standalone binary and the gem.
 
 ```
-ext/rgame_platform/          RGame::Platform — the SDL/GL half.
+ext/rgame_core/              RGame::Core — the SDL/GL half.
   include/rgame/core.h       Public C API (opaque handle, no SDL/GL types
                              leaked) — what both src/main.c and the extension
                              bind against.
-  core.c                     Engine implementation: SDL window + OpenGL context
+  app.c                      Engine implementation: SDL window + OpenGL context
                              setup; owns the main loop and calls back to the
                              caller's update/draw callbacks.
   frame_loop.h/.c            Pure fixed-timestep + FPS logic, no SDL/GL — unit-
                              tested without a window (see CLAUDE.md's layering).
-  platform_ext.c             Ruby glue: VALUE wrappers + callback trampolines.
+  core_ext.c                 Ruby glue: VALUE wrappers + callback trampolines.
   extconf.rb                 mkmf script; pkg_config("sdl2"), -lGL.
   example.rb                 Manual smoke test driven from Ruby.
 
@@ -153,8 +153,8 @@ ext/rgame_util/              RGame::Util — the graphics-free half, so pure-dat
 lib/rgame.rb                 `require "rgame"` — loads RGame::Util only.
 lib/rgame/util.rb            Namespace loader.
 lib/rgame/util/tensor.rb     Requires the compiled rgame/util_ext.
-lib/rgame/platform.rb        `require "rgame/platform"` — opt-in, loads SDL/GL.
-lib/rgame/platform/app.rb    Requires the compiled rgame/platform_ext.
+lib/rgame/core.rb            `require "rgame/core"` — opt-in, loads SDL/GL.
+lib/rgame/core/app.rb        Requires the compiled rgame/core_ext.
 lib/rgame/*.so               Build artifacts, copied here by `make ext`.
 
 src/main.c                   Standalone executable entry point — the C
@@ -176,14 +176,14 @@ display.
 
 1. **C core** (in progress) — SDL2 window, OpenGL rendering, basic app loop.
    Drawing primitives are the current gap.
-2. **Ruby C extensions** (done in first form) — `RGame::Platform::App` wraps
+2. **Ruby C extensions** (done in first form) — `RGame::Core::App` wraps
    `include/rgame/core.h`, so the engine can be driven from Ruby
-   (`ext/rgame_platform/example.rb`); `RGame::Util::Tensor` covers the
+   (`ext/rgame_core/example.rb`); `RGame::Util::Tensor` covers the
    graphics-free half.
 3. **Pure-Ruby half** (started) — `lib/` holds the namespace loaders; so far
    the classes underneath them are all C-backed.
 4. **Gem** — not started. Needs a top-level `.gemspec` with
-   `spec.extensions = ["ext/rgame_platform/extconf.rb",
+   `spec.extensions = ["ext/rgame_core/extconf.rb",
    "ext/rgame_util/extconf.rb"]`, installing both compiled `.so`s into
    `lib/rgame/` the way `make ext` already does. One gem, both halves.
 
@@ -192,9 +192,9 @@ display.
 See [ext/README.md](ext/README.md) for detail.
 
 ```ruby
-require "rgame/platform"
+require "rgame/core"
 
-app = RGame::Platform::App.new(800, 600, "title")
+app = RGame::Core::App.new(800, 600, "title")
 app.run(
   ->(dt) { ... },     # update: fixed-timestep tick, dt is the fixed step
   -> { ... },         # draw: render one frame

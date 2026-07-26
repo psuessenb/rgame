@@ -3,8 +3,8 @@
         {
             "name": "Linux",
             "includePath": [
-                "${workspaceFolder}/ext/rgame_platform/include",
-                "${workspaceFolder}/ext/rgame_platform",
+                "${workspaceFolder}/ext/rgame_core/include",
+                "${workspaceFolder}/ext/rgame_core",
                 "${workspaceFolder}/ext/rgame_util",
                 "/usr/include/SDL2"
             ],

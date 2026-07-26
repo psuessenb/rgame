@@ -5,7 +5,7 @@
 /*
  * Standalone entry point. Its whole job is to create the app, hand the engine
  * per-frame callbacks, and clean up — the loop and timing live in the engine
- * (src/core.c). A future Ruby extension drives the same rgame_app_run seam,
+ * (ext/rgame_core/app.c). The Ruby extension drives the same rgame_app_run seam,
  * just with Ruby-side callbacks instead of these.
  *
  * The callbacks are intentionally empty for now: there are no draw primitives

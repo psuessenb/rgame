@@ -35,8 +35,8 @@ before touching SDL.
 **Tier 2 — RSpec, `spec/`.** The Ruby-visible API contract: argument shapes,
 keyword defaults, return values, error classes. Also where C-extension
 lifetime checks live (see "Leaks", below). Specs must not touch
-`RGame::Platform`/`RGame::Core` — if something there needs a spec, the testable
-part belongs in `Util`.
+`RGame::Core` — if something there needs a spec, the testable part belongs in
+`Util`.
 
 **Tier 3 — live window.** "Did a real SDL window open, take real input, and
 render without a GL error." Use it for the layer-3 shim only. Do not use it for

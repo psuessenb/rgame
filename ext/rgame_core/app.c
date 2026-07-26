@@ -1,3 +1,24 @@
+/*
+ * app.c — the engine itself: SDL window + OpenGL context, and the main loop.
+ *
+ * This is the implementation behind the opaque `rgame_app` handle declared in
+ * include/rgame/core.h. It owns the loop and calls back out to the caller's
+ * update/draw functions, which is what lets the same engine be driven from a C
+ * main() (src/main.c) and from Ruby (core_ext.c) without either of them
+ * knowing about SDL or GL.
+ *
+ * Three files in this directory have "core"-ish names and it's worth being
+ * clear which is which:
+ *
+ *   include/rgame/core.h  the public API — no SDL/GL types, safe to include
+ *                         anywhere (this file implements it)
+ *   app.c                 this file: the real SDL/GL engine behind that API
+ *   core_ext.c            the Ruby binding, which only ever calls core.h
+ *
+ * The pure timing logic (accumulator, FPS counter) deliberately lives in
+ * frame_loop.{c,h} instead of here, so it can be unit-tested without a window.
+ */
+
 #include "rgame/core.h"
 #include "frame_loop.h"
 

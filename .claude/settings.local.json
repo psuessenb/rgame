@@ -20,7 +20,9 @@
       "Bash(make ext-util *)",
       "Bash(make -C ext/rgame_util)",
       "Bash(echo \"=== exit: $? ===\")",
-      "Bash(ruby -Ilib -e ' *)"
+      "Bash(ruby -Ilib -e ' *)",
+      "Bash(ruby -Ilib -e 'require \"rgame\"; puts \"zero-graphics: #{File.read\\(\"/proc/self/maps\"\\).scan\\(/libSDL2|libGL\\\\./\\).uniq.inspect}\"')",
+      "Bash(timeout 120 ruby .claude/skills/verify/scripts/smoke_live_window.rb)"
     ]
   }
 }
