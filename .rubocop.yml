@@ -1,0 +1,102 @@
+plugins:
+  - rubocop-rspec
+  - rubocop-performance
+
+require:
+  - ./rubocop/cop/game/no_interpolation_in_hot_path.rb
+  - ./rubocop/cop/game/no_needless_allocation.rb
+  - ./rubocop/cop/game/prefer_gosu_module_method.rb
+  - ./rubocop/cop/game/use_absolute_coords.rb
+
+AllCops:
+  NewCops: enable
+  TargetRubyVersion: 4.0
+
+# Per-frame allocation guards. The pre-engine standalone examples (01–08) predate this
+# discipline and are kept as-is for reference, so they're exempt. Engine::CachedLabel is
+# the sanctioned place to build-on-change a label string, so it's exempt too.
+#
+# - NoInterpolationInHotPath: no string interpolation in per-frame methods.
+# - NoNeedlessAllocation: no needless Array/Range literals (receiver literals anywhere,
+#   any literal inside a per-frame method).
+# - PreferGosuModuleMethod: in per-frame methods, call Gosu.<m> not the allocating
+#   Window#<m> compat shim.
+# Specs are headless test code (their `on_draw`/`update` stubs and array fixtures aren't a
+# shipping per-frame path), so these runtime guards don't police spec/.
+Game/NoInterpolationInHotPath:
+  Exclude:
+    - 'examples/0[1-8]_*/**/*'
+    - 'lib/engine/cached_label.rb'
+    - 'spec/**/*'
+Game/NoNeedlessAllocation:
+  Exclude:
+    - 'examples/0[1-8]_*/**/*'
+    - 'lib/engine/cached_label.rb'
+    - 'spec/**/*'
+Game/PreferGosuModuleMethod:
+  Exclude:
+    - 'examples/0[1-8]_*/**/*'
+    - 'spec/**/*'
+
+# Relative-vs-absolute coordinate guard: in draw/update/contains?, use the resolved
+# `@abs_*`, never the parent-relative `@x`/`@y`/`@z`. The pre-engine examples (01–08)
+# predate the scene graph and use their own absolute `@x`/`@y`, so they're exempt.
+Game/UseAbsoluteCoords:
+  Exclude:
+    - 'examples/0[1-8]_*/**/*'
+
+# This is a code-driven game engine, not a Rails app: update/draw methods and
+# Window/Scene classes naturally run long, and short coordinate/loop variable
+# names (x, y, dt, id) are idiomatic. Relax the size/naming cops accordingly.
+Metrics/AbcSize:
+  Enabled: false
+Metrics/BlockLength:
+  Enabled: false
+Metrics/ClassLength:
+  Enabled: false
+Metrics/CyclomaticComplexity:
+  Enabled: false
+Metrics/MethodLength:
+  Enabled: false
+Metrics/ModuleLength:
+  Enabled: false
+Metrics/ParameterLists:
+  Enabled: false
+Metrics/PerceivedComplexity:
+  Enabled: false
+Naming/MethodParameterName:
+  Enabled: false
+
+# Math-heavy engine/graphics code reads fine on standard operator precedence
+# (row * cols + col, x + w / 2); requiring parens everywhere is just noise.
+Lint/AmbiguousOperatorPrecedence:
+  Enabled: false
+
+RSpec/MultipleExpectations:
+  Enabled: false
+# Integration / setup-heavy specs in a game naturally run longer than 5 lines.
+RSpec/ExampleLength:
+  Enabled: false
+# Integration specs describe a scenario spanning several classes, not one class.
+RSpec/DescribeClass:
+  Exclude:
+    - 'spec/integration/**/*'
+# Classes with a trailing dimension (Node2D, Scene2D) map to node2d_spec.rb, not
+# the cop's default node2_d_spec.rb.
+RSpec/SpecFilePathFormat:
+  CustomTransform:
+    Node2D: node2d
+
+Style/Documentation:
+  Enabled: false
+
+# Grouping a small family of related classes in one file (e.g. a UI widget set)
+# is intentional here; lib/ already follows one-class-per-file by convention.
+Style/OneClassPerFile:
+  Enabled: false
+
+# The engine's i18n uses %{name} placeholders — the standard i18n / String#% template
+# style — in translation strings. Accept template tokens over the default annotated
+# %<name>s; the codebase uses no other %-format tokens.
+Style/FormatStringToken:
+  EnforcedStyle: template
