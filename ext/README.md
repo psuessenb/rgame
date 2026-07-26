@@ -1,22 +1,35 @@
 # ext/
 
-The Ruby C extension: a thin `VALUE`-level wrapper around the public engine
-API in [include/rgame/core.h](../include/rgame/core.h).
+The Ruby C extension **and** the engine it wraps. `rgame_ext.c` is a thin
+`VALUE`-level wrapper around the public engine API in
+[rgame/core.h](rgame/include/rgame/core.h).
 
 ```
 ext/rgame/
-  extconf.rb    # mkmf script -> generates the Makefile
-  rgame_ext.c   # Ruby-facing glue: VALUE wrappers + callback trampolines
-  example.rb    # manual/visual smoke test (opens a real window)
+  extconf.rb            # mkmf script -> generates the Makefile
+  rgame_ext.c           # Ruby-facing glue: VALUE wrappers + trampolines
+  core.c                # engine: SDL window/GL context + main loop
+  frame_loop.c/.h       # pure fixed-timestep + FPS logic (unit-tested)
+  include/rgame/core.h  # the public C API
+  example.rb            # manual/visual smoke test (opens a real window)
 ```
+
+## Why the engine lives here and not in `src/`
+
+A gem's C extension is built by `gem install` running `extconf.rb` from
+*inside its own directory* — it can't reach up to a sibling `src/`. Putting
+the engine sources here means one copy serves both the gem and the standalone
+binary the root `Makefile` builds. `src/` keeps only `main.c`, which stays out
+of this directory precisely so mkmf doesn't compile its `main()` into
+`rgame.so`.
 
 ## How it's wired
 
-`extconf.rb` runs `mkmf` to generate a Makefile that compiles `rgame_ext.c`
-**together with** the core sources (`src/core.c`, `src/frame_loop.c`) into a
-single loadable `rgame.so`, linked against SDL2 + OpenGL the same way the root
-`Makefile` links the standalone binary. It compiles the sources directly
-rather than linking a prebuilt `librgame_core.a`, so there's one build step.
+`extconf.rb` runs `mkmf` to generate a Makefile. mkmf's default is to compile
+*every* `.c` in this directory into a single loadable `rgame.so` — which is
+exactly `rgame_ext.c` + `core.c` + `frame_loop.c` — linked against SDL2 +
+OpenGL the same way the root `Makefile` links the standalone binary. No
+prebuilt `librgame_core.a` in the middle, so there's one build step.
 
 The glue only ever calls the public API — the `rgame_app` struct stays opaque
 here exactly as it does for `src/main.c`. The one interesting part is the

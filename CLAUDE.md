@@ -12,34 +12,48 @@ the current work unless asked for.
 
 ## Structure and why it looks like this
 
-- `include/rgame/core.h` — the *only* public API. Opaque `rgame_app` handle,
-  plain C types only (no SDL/GL types in the signature). This is what a
-  future Ruby extension in `ext/` will call — keeping SDL/GL details out of
-  the header means `ext/rgame/rgame_ext.c` can `#include` it without also
-  pulling in `SDL.h` conflicts or exposing internals.
-- `src/core.c` — the actual engine (SDL window/GL context setup; owns the
-  main loop and drives caller-supplied `update`/`draw` callbacks). Compiled
-  with `-fPIC` so the resulting `.a` can be linked into a shared object
-  (`.so`) later without recompiling.
+**All engine C lives in `ext/rgame/`**, not a top-level `src/`. This is
+because the project is headed for a single gem containing both the C and the
+Ruby half: `gem install` runs `ext/rgame/extconf.rb`, and an extension can
+only build sources within its own directory. Keeping the C there means one
+copy of the code feeds both the standalone binary and the gem. New engine
+sources go in `ext/rgame/`.
+
+- `ext/rgame/include/rgame/core.h` — the *only* public API. Opaque
+  `rgame_app` handle, plain C types only (no SDL/GL types in the signature).
+  This is what the Ruby extension calls — keeping SDL/GL details out of the
+  header means `ext/rgame/rgame_ext.c` can `#include` it without also pulling
+  in `SDL.h` conflicts or exposing internals. It sits under its own
+  `include/` subdirectory so `#include "rgame/core.h"` works while mkmf's
+  "compile every `.c` here" default still picks up only the sources.
+- `ext/rgame/core.c` — the actual engine (SDL window/GL context setup; owns
+  the main loop and drives caller-supplied `update`/`draw` callbacks).
+  Compiled with `-fPIC` so the resulting `.a` can be linked into a shared
+  object (`.so`) without recompiling.
+- `ext/rgame/frame_loop.{c,h}` — pure-logic helpers (no SDL/GL, no I/O)
+  factored out of `core.c` specifically so they're unit-testable without a
+  display/GL context (currently the fixed-timestep accumulator + FPS
+  counter). `test/` links against these directly. When adding engine logic,
+  prefer putting the parts that don't touch SDL/GL here so they stay
+  testable — see `test/test_frame_loop.c` for the pattern.
+- `ext/rgame/rgame_ext.c` + `extconf.rb` — the Ruby C extension itself; see
+  `ext/README.md`.
 - `src/main.c` — thin standalone entry point; only talks to `core.h`'s API,
-  never touches SDL/GL directly. This is intentionally what a Ruby extension
-  would also do, just driven from Ruby instead of a C `main()`.
-- `ext/` — empty for now. Reserved for the Ruby extension (`extconf.rb` +
-  glue code) — see `ext/README.md`.
-- `src/frame_loop.{c,h}` — pure-logic helpers (no SDL/GL, no I/O) factored
-  out of `core.c` specifically so they're unit-testable without a display/GL
-  context (currently the fixed-timestep accumulator + FPS counter). `test/`
-  links against these directly. When adding engine logic, prefer putting the
-  parts that don't touch SDL/GL here so they stay testable — see
-  `test/test_frame_loop.c` for the pattern.
+  never touches SDL/GL directly. This is intentionally what the Ruby
+  extension also does, just driven from Ruby instead of a C `main()`. It
+  stays *outside* `ext/rgame/` so mkmf doesn't compile its `main()` into
+  `rgame.so`.
+- `lib/` — doesn't exist yet. When the pure-Ruby half of the API arrives it
+  goes here, next to a top-level `.gemspec`; the compiled `rgame.so` installs
+  into `lib/rgame/` and the two halves ship as one gem.
 - `docs/c_engine_feature_specs.md` — the feature spec this engine is being
   built out to satisfy (2D primitives to replace Gosu under a Ruby game
   engine). Large surface area, implemented incrementally. Consult it when
   adding a new subsystem rather than guessing scope.
 
-When adding new engine features, put the implementation in `src/core.c` and
-extend `include/rgame/core.h`'s public API rather than adding logic to
-`main.c` — that's what keeps the future Ruby wrapper thin.
+When adding new engine features, put the implementation in `ext/rgame/core.c`
+and extend `ext/rgame/include/rgame/core.h`'s public API rather than adding
+logic to `main.c` — that's what keeps the Ruby wrapper thin.
 
 ## Abstraction & testability strategy
 
@@ -53,8 +67,9 @@ layers:
    tile-grid slicing, glyph cache eviction, the fixed-timestep accumulator's
    catch-up/skip decisions, etc. This is most of what's actually hard to get
    right in a 2D engine, and none of it needs a window to test. Give it its
-   own small module (`src/<subsystem>.c` + header) and Check tests, the same
-   way `src/frame_loop.{c,h}` is covered by `test/test_frame_loop.c` today.
+   own small module (`ext/rgame/<subsystem>.c` + header) and Check tests, the
+   same way `ext/rgame/frame_loop.{c,h}` is covered by
+   `test/test_frame_loop.c` today.
 2. **Fake/recording backend** — once a subsystem's logic drives real SDL/GL/
    audio calls, put a small function-pointer table ("backend" struct)
    between the pure logic and the real implementation, so tests can link a

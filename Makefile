@@ -1,6 +1,11 @@
 CC ?= gcc
 CFLAGS ?= -std=c17 -Wall -Wextra -g -fPIC
-INCLUDES := -Iinclude
+
+# The engine sources live in ext/rgame/ (the Ruby extension directory) so that
+# `gem install` can build them via extconf.rb without reaching outside ext/.
+# This Makefile builds those same sources into a standalone binary.
+EXT_DIR := ext/rgame
+INCLUDES := -I$(EXT_DIR)/include
 
 SDL_CFLAGS := $(shell pkg-config --cflags sdl2)
 SDL_LIBS := $(shell pkg-config --libs sdl2)
@@ -28,23 +33,23 @@ all: $(APP_BIN)
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-$(CORE_OBJ): src/core.c src/frame_loop.h include/rgame/core.h | $(BUILD_DIR)
+$(CORE_OBJ): $(EXT_DIR)/core.c $(EXT_DIR)/frame_loop.h $(EXT_DIR)/include/rgame/core.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
-$(FRAME_LOOP_OBJ): src/frame_loop.c src/frame_loop.h | $(BUILD_DIR)
+$(FRAME_LOOP_OBJ): $(EXT_DIR)/frame_loop.c $(EXT_DIR)/frame_loop.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 $(CORE_LIB): $(CORE_OBJ) $(FRAME_LOOP_OBJ)
 	ar rcs $@ $^
 
-$(APP_OBJ): src/main.c include/rgame/core.h | $(BUILD_DIR)
+$(APP_OBJ): src/main.c $(EXT_DIR)/include/rgame/core.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
 $(APP_BIN): $(APP_OBJ) $(CORE_LIB)
 	$(CC) $(CFLAGS) -o $@ $(APP_OBJ) $(CORE_LIB) $(SDL_LIBS) $(GL_LIBS) $(MATH_LIBS)
 
-$(TEST_OBJ): test/test_frame_loop.c src/frame_loop.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -Isrc $(CHECK_CFLAGS) -c $< -o $@
+$(TEST_OBJ): test/test_frame_loop.c $(EXT_DIR)/frame_loop.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -I$(EXT_DIR) $(CHECK_CFLAGS) -c $< -o $@
 
 $(TEST_BIN): $(TEST_OBJ) $(CORE_LIB)
 	$(CC) $(CFLAGS) -o $@ $(TEST_OBJ) $(CORE_LIB) $(SDL_LIBS) $(GL_LIBS) $(MATH_LIBS) $(CHECK_LIBS)
@@ -56,10 +61,8 @@ test: $(TEST_BIN)
 	./$(TEST_BIN)
 
 # Ruby C extension. mkmf generates ext/rgame/Makefile from extconf.rb, which
-# then builds rgame.so (compiling the core sources straight in). Needs `ruby`
-# on PATH (installed via mise — see README).
-EXT_DIR := ext/rgame
-
+# then builds rgame.so out of every .c in that directory. Needs `ruby` on PATH
+# (installed via mise — see README).
 ext: $(EXT_DIR)/Makefile
 	$(MAKE) -C $(EXT_DIR)
 

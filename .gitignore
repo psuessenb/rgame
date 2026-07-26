@@ -6,14 +6,24 @@
 *.bundle
 *.dylib
 
-# Ruby extension build artifacts (ext/<name>/extconf.rb output)
+# Ruby extension build artifacts (ext/<name>/extconf.rb output).
+# Note: only the *generated* Makefile is ignored — the root Makefile is
+# tracked, and the leading ext/** keeps this scoped to the extension dir.
 ext/**/Makefile
 ext/**/mkmf.log
 ext/**/*.o
 ext/**/*.so
 ext/**/*.bundle
+ext/**/*.dylib
+
+# Gem packaging (once there's a .gemspec)
+/pkg/
+*.gem
+/.bundle/
+/vendor/bundle/
 
 # Editor / OS
 .DS_Store
 *.swp
 compile_commands.json
+/.ruby-lsp/

@@ -58,23 +58,36 @@ Controls: `Esc` or closing the window quits.
 
 ## Project structure
 
+The engine itself lives under `ext/rgame/` — the directory a Ruby C extension
+is built from. That's a deliberate choice: `gem install` unpacks the gem and
+runs `ext/rgame/extconf.rb`, which can only build sources inside its own
+directory, so keeping the C there means one copy of the code serves both the
+standalone binary and the gem.
+
 ```
-include/rgame/core.h   Public C API of the engine (opaque handle, no SDL/GL
-                       types leaked) — this is also what the future Ruby
-                       extension will bind against.
-src/core.c             Engine implementation: SDL window + OpenGL context
-                       setup; owns the main loop and calls back to the
-                       caller's update/draw callbacks.
-src/frame_loop.h/.c    Pure fixed-timestep + FPS logic, no SDL/GL — unit-
-                       tested without a window (see CLAUDE.md's layering).
-src/main.c             Standalone executable entry point. Only talks to
-                       include/rgame/core.h, never touches SDL/GL directly.
-test/test_frame_loop.c Check unit tests for the pure logic in src/frame_loop.
-ext/                   Reserved for the future Ruby C extension.
+ext/rgame/
+  include/rgame/core.h  Public C API of the engine (opaque handle, no SDL/GL
+                        types leaked) — what both src/main.c and the Ruby
+                        extension bind against.
+  core.c                Engine implementation: SDL window + OpenGL context
+                        setup; owns the main loop and calls back to the
+                        caller's update/draw callbacks.
+  frame_loop.h/.c       Pure fixed-timestep + FPS logic, no SDL/GL — unit-
+                        tested without a window (see CLAUDE.md's layering).
+  rgame_ext.c           Ruby glue: VALUE wrappers + callback trampolines.
+  extconf.rb            mkmf script; generates the extension's Makefile.
+  example.rb            Manual smoke test driven from Ruby.
+src/main.c              Standalone executable entry point — the C equivalent
+                        of example.rb. Only talks to rgame/core.h, never
+                        touches SDL/GL directly. Kept outside ext/rgame/ so
+                        mkmf doesn't compile its main() into rgame.so.
+test/test_frame_loop.c  Check unit tests for the pure logic in frame_loop.c.
 ```
 
 ## Roadmap
 
 1. **C core** (current) — SDL2 window, OpenGL rendering, basic app loop.
-2. **Ruby C extension** — wrap `include/rgame/core.h` with `ext/rgame/extconf.rb`
-   + glue code so the engine can be driven from Ruby.
+2. **Ruby C extension** — wrap `ext/rgame/include/rgame/core.h` with
+   `ext/rgame/extconf.rb` + glue code so the engine can be driven from Ruby.
+3. **Gem** — add a `.gemspec` (`spec.extensions = ["ext/rgame/extconf.rb"]`)
+   and a `lib/` holding the pure-Ruby half of the API. One gem, both halves.

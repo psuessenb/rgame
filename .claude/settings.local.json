@@ -12,7 +12,8 @@
       "Bash(make)",
       "Bash(make clean *)",
       "Bash(make all *)",
-      "Bash(make test *)"
+      "Bash(make test *)",
+      "Bash(make ext *)"
     ]
   }
 }
