@@ -22,7 +22,13 @@
       "Bash(echo \"=== exit: $? ===\")",
       "Bash(ruby -Ilib -e ' *)",
       "Bash(ruby -Ilib -e 'require \"rgame\"; puts \"zero-graphics: #{File.read\\(\"/proc/self/maps\"\\).scan\\(/libSDL2|libGL\\\\./\\).uniq.inspect}\"')",
-      "Bash(timeout 120 ruby .claude/skills/verify/scripts/smoke_live_window.rb)"
+      "Bash(timeout 120 ruby .claude/skills/verify/scripts/smoke_live_window.rb)",
+      "Bash(timeout 300 ruby /tmp/claude-1001/-home-paul-Projects-rgame/05628d2c-880f-4052-856b-0bc3b8298771/scratchpad/phase1_check.rb)",
+      "Bash(DISPLAY=:93 LIBGL_ALWAYS_SOFTWARE=1 timeout 30 ruby /tmp/t_two.rb)",
+      "Bash(DISPLAY=:93 LIBGL_ALWAYS_SOFTWARE=1 timeout 30 ruby /tmp/t_boom2.rb)",
+      "Bash(echo \"---exit=$?\")",
+      "Bash(make CFLAGS=\"-std=c17 -Wall -Wextra -g -fPIC -fsanitize=address,undefined -fno-omit-frame-pointer\")",
+      "Bash(timeout 150 ruby .claude/skills/verify/scripts/smoke_live_window.rb)"
     ]
   }
 }

@@ -194,6 +194,15 @@ it by plugging controllers in and out by hand.
   buttons and dpad. (The range mouse buttons would have occupied stays unused.)
 - `int rgame_input_down(const rgame_app*, int device, int button_id)`.
 
+**Already in place from phase 1.** The keyboard half of that id space exists:
+`button_down`/`button_up` deliver SDL scancodes today, and `core.h` defines
+`RGAME_KEY_ESCAPE` / `RGAME_KEY_F1`, each backed by a `_Static_assert` in
+`app.c` against the SDL constant it mirrors. That was forced rather than
+planned — `src/main.c` includes only `core.h`, so it cannot name a key without
+the header defining it. Phase 2 therefore *extends* that set and adds the
+`0x1000+` controller range; it does not introduce the scheme. Copy the
+`_Static_assert` pattern for every new key id.
+
 ### 2.3 `gamepad.{c,h}` — the thin real shim
 
 `SDL_INIT_GAMECONTROLLER`, `SDL_GameControllerOpen`/`Close` driven by

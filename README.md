@@ -194,12 +194,16 @@ See [ext/README.md](ext/README.md) for detail.
 ```ruby
 require "rgame/core"
 
-app = RGame::Core::App.new(800, 600, "title")
-app.run(
-  ->(dt) { ... },     # update: fixed-timestep tick, dt is the fixed step
-  -> { ... },         # draw: render one frame
-  -> { true },        # needs_redraw (optional): false skips the draw
-)
+class MyGame < RGame::Core::App
+  def initialize = super(width: 800, height: 600, caption: "title")
+
+  def update(dt); end      # one fixed simulation tick
+  def draw; end            # render one frame
+  def needs_redraw?; end   # false skips the draw
+  def button_down(id); end # discrete key press
+end
+
+MyGame.new.run
 ```
 
 The util half, with no graphics libraries loaded:

@@ -83,14 +83,19 @@ how rake-compiler installs a compiled extension into `lib/<gem>/`.
 require "rgame"       # RGame::Util only — no SDL/GL loaded
 require "rgame/core"  # adds RGame::Core, pulls in SDL2 + OpenGL
 
-app = RGame::Core::App.new(800, 600, "title")
-app.run(
-  ->(dt) { ... },     # update: fixed-timestep tick, dt is the fixed step
-  -> { ... },         # draw: render one frame
-  -> { true },        # needs_redraw (optional): false skips the draw
-)
-app.ticks_ms          # => Integer, monotonic ms since startup
-app.fps               # => Float, most recent FPS reading
+class MyGame < RGame::Core::App
+  def initialize = super(width: 800, height: 600, caption: "title")
+
+  def update(dt); end      # one fixed simulation tick
+  def draw; end            # render one frame
+  def needs_redraw?; end   # false skips the draw
+  def button_down(id); end # discrete key press
+end
+
+app = MyGame.new
+app.run                # loops until #close or the window is closed
+app.ticks_ms           # => Integer, monotonic ms since startup
+app.fps                # => Float, most recent FPS reading
 
 grid = RGame::Util::Tensor.new(width, height, depth, initial: nil)
 grid[x, y, z] = value

@@ -98,28 +98,67 @@ void rgame_app_destroy(rgame_app *app) {
     SDL_Quit();
 }
 
-/* Drains the SDL event queue, updating app->running. Internal to the loop. */
-static void rgame_app_poll_events(rgame_app *app) {
+/*
+ * The button ids in core.h are SDL scancodes, but core.h can't say so in a way
+ * the compiler checks — it must not include SDL. These assertions close that
+ * gap at compile time, so the two can never drift apart silently.
+ */
+_Static_assert(RGAME_KEY_ESCAPE == SDL_SCANCODE_ESCAPE,
+               "RGAME_KEY_ESCAPE must match SDL_SCANCODE_ESCAPE");
+_Static_assert(RGAME_KEY_F1 == SDL_SCANCODE_F1,
+               "RGAME_KEY_F1 must match SDL_SCANCODE_F1");
+
+/*
+ * Drains the SDL event queue, dispatching to the caller's event callbacks.
+ *
+ * Closing the window still stops the loop here — that really is the platform's
+ * decision. Quitting on a *key*, though, is a game decision and deliberately
+ * isn't handled: the caller gets the button_down and closes if it wants to.
+ */
+static void rgame_app_poll_events(rgame_app *app, const rgame_app_callbacks *cb) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
-        if (event.type == SDL_QUIT) {
+        switch (event.type) {
+        case SDL_QUIT:
             app->running = 0;
-        }
-        if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE) {
-            app->running = 0;
-        }
-        if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_RESIZED) {
-            glViewport(0, 0, event.window.data1, event.window.data2);
+            break;
+        case SDL_KEYDOWN:
+            /* event.key.repeat is non-zero for auto-repeats while a key is
+             * held. A discrete press must fire exactly once, so drop those. */
+            if (!event.key.repeat && cb->button_down) {
+                cb->button_down(cb->userdata, (int)event.key.keysym.scancode);
+            }
+            break;
+        case SDL_KEYUP:
+            if (cb->button_up) {
+                cb->button_up(cb->userdata, (int)event.key.keysym.scancode);
+            }
+            break;
+        case SDL_WINDOWEVENT:
+            if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
+                glViewport(0, 0, event.window.data1, event.window.data2);
+                if (cb->resize) {
+                    cb->resize(cb->userdata, event.window.data1, event.window.data2);
+                }
+            }
+            break;
+        default:
+            break;
         }
     }
 }
 
-void rgame_app_run(rgame_app *app, rgame_update_fn update, rgame_draw_fn draw,
-                   rgame_needs_redraw_fn needs_redraw, void *userdata) {
+void rgame_app_run(rgame_app *app, const rgame_app_callbacks *cb) {
+    if (!app || !cb) {
+        return;
+    }
+
     Uint32 prev_ms = SDL_GetTicks();
 
+    /* Every step re-checks `running`, because any callback may have asked to
+     * close — including a Ruby callback that raised and unwound into one. */
     while (app->running) {
-        rgame_app_poll_events(app);
+        rgame_app_poll_events(app, cb);
         if (!app->running) {
             break;
         }
@@ -128,11 +167,25 @@ void rgame_app_run(rgame_app *app, rgame_update_fn update, rgame_draw_fn draw,
         double elapsed_seconds = (now_ms - prev_ms) / 1000.0;
         prev_ms = now_ms;
 
+        /* Once per frame, before the tick batch: the caller's chance to sample
+         * input once and reuse it across every catch-up tick below. */
+        if (cb->frame_begin) {
+            cb->frame_begin(cb->userdata);
+        }
+        if (!app->running) {
+            break;
+        }
+
         /* Fixed-timestep simulation: run whole ticks the accumulator has banked. */
         int ticks = rgame_frame_loop_advance(&app->frame_loop, elapsed_seconds,
                                              RGAME_TICK_SECONDS, RGAME_MAX_TICKS_PER_FRAME);
-        for (int i = 0; i < ticks; i++) {
-            update(userdata, RGAME_TICK_SECONDS);
+        for (int i = 0; i < ticks && app->running; i++) {
+            if (cb->update) {
+                cb->update(cb->userdata, RGAME_TICK_SECONDS);
+            }
+        }
+        if (!app->running) {
+            break;
         }
 
         /* Count every loop iteration toward FPS. With the current always-draw
@@ -140,13 +193,46 @@ void rgame_app_run(rgame_app *app, rgame_update_fn update, rgame_draw_fn draw,
          * added later, revisit whether FPS should track loop vs. render rate. */
         rgame_fps_counter_tick(&app->fps_counter, elapsed_seconds);
 
-        if (!needs_redraw || needs_redraw(userdata)) {
+        int redraw = cb->needs_redraw ? cb->needs_redraw(cb->userdata) : 1;
+        if (!app->running) {
+            break;
+        }
+
+        if (redraw) {
             glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            draw(userdata);
+            if (cb->draw) {
+                cb->draw(cb->userdata);
+            }
             SDL_GL_SwapWindow(app->window);
         }
     }
+}
+
+void rgame_app_close(rgame_app *app) {
+    if (app) {
+        app->running = 0;
+    }
+}
+
+int rgame_app_width(const rgame_app *app) {
+    int width = 0;
+    SDL_GetWindowSize(app->window, &width, NULL);
+    return width;
+}
+
+int rgame_app_height(const rgame_app *app) {
+    int height = 0;
+    SDL_GetWindowSize(app->window, NULL, &height);
+    return height;
+}
+
+const char *rgame_app_title(const rgame_app *app) {
+    return SDL_GetWindowTitle(app->window);
+}
+
+void rgame_app_set_title(rgame_app *app, const char *title) {
+    SDL_SetWindowTitle(app->window, title);
 }
 
 unsigned int rgame_app_ticks_ms(const rgame_app *app) {
