@@ -12,7 +12,8 @@ Whole-repo Gosu usage, for scale — every one of these must be replaced:
 | `Gosu::Window` (subclass, `update`/`draw`/`needs_redraw?`/`button_down`, `width`/`height`/`caption=`/`close`) | `GameWindow` |
 | `Gosu.milliseconds` | `Clock`, `TileMapRenderer` |
 | `Gosu.fps` | `GameWindow` |
-| `Gosu.button_down?`, `Gosu::KB_*` / `Gosu::MS_LEFT` | `GosuInput`, `GameWindow` |
+| `Gosu.button_down?`, `Gosu::KB_*` | `GosuInput`, `GameWindow` |
+| `Gosu::MS_LEFT`, `Window#mouse_x`/`#mouse_y` | `GosuInput` — **dropped, not ported** |
 | `Gosu::Image.new(path, retro:)`, `#draw`, `#draw_rot`, `#subimage`, `#width`/`#height`, `.load_tiles` | `SpriteSheet`, `NineSlice`, `TileMapRenderer`, `AssetManager`, `GosuRenderer` |
 | `Gosu::Font.new(size)`, `#draw_text`, `#text_width`, `#height` | `GosuRenderer` |
 | `Gosu::Color`, `Gosu::Color.rgba`, `Gosu::Color::WHITE` | `GosuRenderer`, `NineSlice` |
@@ -43,14 +44,25 @@ Needs from below: window creation with a caption, a monotonic clock, an FPS
 readout, discrete key-down events, `#close`, `#width`/`#height`, and a
 `needs_redraw?` hook.
 
+**The accumulator itself does not survive.** `#update`'s add-elapsed /
+loop-0-to-5-steps / drop-the-backlog logic moves into C, where `frame_loop.c`
+already implements it — a settled decision, see
+[the brief](README.md#the-fixed-timestep-accumulator-lives-in-c). `#update`
+becomes `#update(dt)`, called once per fixed tick. `STEP` and `MAX_STEPS` become
+the existing C constants.
+
 Three details that must survive the port:
 
 - **Input is polled once per rendered frame**, not once per simulation step, and
   the resulting `actions` object is reused across all catch-up steps
   (`game_window.rb:31`). This is deliberate: a key held for one frame must not
-  register differently depending on how many catch-up steps ran.
+  register differently depending on how many catch-up steps ran. With the
+  accumulator in C, this is preserved by a per-frame input snapshot plus a
+  `frame_begin` hook rather than by the shape of the Ruby loop.
 - **`@dirty` is set only when at least one simulation step ran**
-  (`game_window.rb:47`). "Nothing simulated → nothing new to show."
+  (`game_window.rb:47`). "Nothing simulated → nothing new to show." This gets
+  *simpler* under a C accumulator: `update` being called at all means a step
+  ran, so the body is just `@dirty = true`.
 - **The overlay forces a redraw while visible** (`game_window.rb:56`), so its
   live FPS/allocation readouts keep ticking even when the sim is idle.
 
@@ -63,9 +75,10 @@ belongs in Ruby — `GameWindow#button_down` is where it lives today.
 ### `Platform::Clock` → deleted
 
 19 lines wrapping `Gosu.milliseconds` into a seconds delta. The C loop already
-computes elapsed time itself (`core.c:106-108`) and feeds `frame_loop.c`. Once
-the accumulator stays in C, nothing calls this. Its one other consumer — the
-"what time is it for animation phase" question — is served by `App#ticks_ms`.
+computes elapsed time itself (`core.c:106-108`) and feeds `frame_loop.c`. With
+the accumulator settled in C, nothing calls this. Its one other consumer — the
+"what time is it for animation phase" question, which `TileMapRenderer` asks —
+is served by `App#ticks_ms`.
 
 ### `Platform::GosuInput` → `RGame::Core::Input`
 
@@ -79,6 +92,19 @@ the accumulator stays in C, nothing calls this. Its one other consumer — the
 Note the `BINDINGS` hash is *configuration*, not mechanism — it names which
 physical key means `:fire` for this game. The mechanism is
 `Gosu.button_down?(constant)` and `window.mouse_x/y`.
+
+**The mouse half is dropped, not ported** — see
+[the brief](README.md#mouse-input-is-not-carried-over). So `pointer_x`,
+`pointer_y` and the `:pointer` → `MS_LEFT` binding all disappear, and the
+replacement is `#down?` over six keyboard bindings.
+
+**This class is also where the layer gets extended rather than ported.** The
+feature spec's gamepad requirement lands squarely on it: `down?` grows a device
+dimension (keyboard, or controller *n*), analog axes appear as a new query
+alongside it, and hot-plug becomes something the input layer tracks. Designing
+that in at the same time as the port is the whole reason gamepads are phase 2
+work and not a follow-up — see
+[the brief](README.md#gamepads-and-split-screen-are-in-scope--this-is-an-extension-not-just-a-port).
 
 The comment at `gosu_input.rb:21-25` is worth reading: it explains why the
 module method is used instead of `Window#button_down?`, because the compat

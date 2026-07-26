@@ -12,13 +12,24 @@ parts (z ordering, transform composition, clip intersection) testable at all.
 Dependency shape, so the ordering rationale is visible:
 
 ```
-0 rename ─→ 1 App ─→ 2 Input
-                └──→ 3 Renderer ─→ 4 Text ─→ 6 Port ─→ 7 Optimise
-                └──→ 5 Audio ───────────────┘
+0 rename ─→ 1 App ─→ 2 Input + gamepads ──┐
+                └──→ 3 Renderer ─→ 4 Text ─┴→ 6 Port ─→ 7 Optimise
+                └──→ 5 Audio ──────────────┘
 ```
 
 Phase 5 (audio) touches nothing the renderer touches and can be slotted in
 wherever it is convenient.
+
+Two things are **extensions**, not ports, and are scheduled early on purpose
+because both change the shape of code written before them (see
+[the brief](README.md#gamepads-and-split-screen-are-in-scope--this-is-an-extension-not-just-a-port)):
+**gamepad support is part of phase 2**, and **split-screen is a stated
+requirement on phase 3's transform/clip design** even though no Ruby scene uses
+it yet.
+
+One thing is deliberately **removed**: mouse input is not ported at all
+([why](README.md#mouse-input-is-not-carried-over)). Phases 1 and 2 below simply
+never mention it, which is the point.
 
 ---
 
@@ -78,7 +89,13 @@ typedef void (*rgame_resize_fn)(void *userdata, int width, int height);
 
 The growing callback count argues for grouping them into a
 `rgame_app_callbacks` struct passed once to `rgame_app_run`, rather than seven
-positional parameters. Do that now while there are only a handful.
+positional parameters. Do that now while there are only a handful — phase 2
+adds two more for controller hot-plug.
+
+The accumulator stays where it is. `rgame_app_run` keeps driving
+`frame_loop.c` and keeps calling `update` once per fixed tick; there is nothing
+to move, and `frame_loop.{c,h}` and its Check tests are untouched by this whole
+phase. See [the brief](README.md#the-fixed-timestep-accumulator-lives-in-c).
 
 ### 1.2 Fix `app.c`
 
@@ -86,9 +103,9 @@ positional parameters. Do that now while there are only a handful.
   game policy; it moves to a Ruby `button_down` override, which is where
   `GameWindow` has it. `SDL_QUIT` (window close button) stays in C — that one
   really is the platform's.
-- Emit `button_down`/`button_up` from `SDL_KEYDOWN`/`SDL_KEYUP`/
-  `SDL_MOUSEBUTTONDOWN`/`SDL_MOUSEBUTTONUP`. Ignore key repeats
-  (`event.key.repeat`) — a discrete press must fire once.
+- Emit `button_down`/`button_up` from `SDL_KEYDOWN`/`SDL_KEYUP`. Ignore key
+  repeats (`event.key.repeat`) — a discrete press must fire once. No mouse
+  events; `SDL_MOUSE*` is not handled.
 - Call `frame_begin` once per frame, before the tick batch.
 - Keep `glViewport` on resize, but also emit the resize callback.
 
@@ -136,50 +153,89 @@ a hang or a leak.
 
 ---
 
-## Phase 2 — Input
+## Phase 2 — Input, keyboard and controllers
 
-Small, self-contained, and unblocks writing a real `example.rb` that responds to
-keys.
+Self-contained, and it unblocks writing a real `example.rb` that responds to
+input. Bigger than a straight port, because this is where the layer gets
+extended: **gamepads are part of this phase, not a follow-up**, and **mouse
+support is dropped**.
 
-### 2.1 `input.{c,h}`
+Doing controllers here rather than later is the whole point. The device
+dimension has to be in `down?`'s signature from the first call site, or every
+caller gets touched twice.
 
-- Snapshot `SDL_GetKeyboardState` and `SDL_GetMouseState` once per frame at
-  event-pump time. Reading a snapshot rather than live state is what gives
-  `GameWindow`'s "poll once, reuse across catch-up steps" property for free —
-  see [02](02-architecture.md#input-is-snapshotted-per-frame).
-- `int rgame_input_down(const rgame_app*, int button_id)`,
-  `rgame_input_mouse_x/y`.
-- A button-id space covering keyboard + mouse buttons in one numbering, so the
-  single `down?` query serves both — that is how `GosuInput` uses it
-  (`:pointer` is `MS_LEFT` riding the normal button path).
+### 2.1 `device_slots.{c,h}` — pure, and first
 
-### 2.2 `RGame::Core::Input` (C) + `lib/rgame/core/input.rb`
+Before any SDL: the player-slot table. A fixed 4-slot array, each slot holding
+the joystick GUID that last filled it. On connect, a pad reclaims the slot
+matching its GUID, else takes the lowest free one; on disconnect the slot
+empties but keeps the GUID. That is what makes the feature spec's "indices
+stable across a momentary disconnect/reconnect" true, and SDL gives none of it
+for free — its joystick indices renumber on every device change.
+
+Pure integer/byte bookkeeping, no SDL, so it is layer 1 with Check tests:
+
+- reconnecting the same pad reclaims its previous slot
+- a *different* pad takes a free slot rather than stealing a remembered one
+- slots fill lowest-first
+- a fifth pad is rejected without disturbing the four
+
+Writing this before touching `SDL_GameController` is far easier than verifying
+it by plugging controllers in and out by hand.
+
+### 2.2 `input.{c,h}` — the button-id space and the keyboard snapshot
+
+- Snapshot `SDL_GetKeyboardState` once per frame at event-pump time. Reading a
+  snapshot rather than live state is what gives `GameWindow`'s "poll once, reuse
+  across catch-up steps" property for free — see
+  [02](02-architecture.md#input-is-snapshotted-per-frame).
+- One flat button-id space in ranges, so later devices never renumber what
+  exists: `0x0000–0x0FFF` keyboard scancodes, `0x1000–0x10FF` controller
+  buttons and dpad. (The range mouse buttons would have occupied stays unused.)
+- `int rgame_input_down(const rgame_app*, int device, int button_id)`.
+
+### 2.3 `gamepad.{c,h}` — the thin real shim
+
+`SDL_INIT_GAMECONTROLLER`, `SDL_GameControllerOpen`/`Close` driven by
+`SDL_CONTROLLERDEVICEADDED`/`REMOVED` through the slot table from 2.1, plus
+`GetButton` / `GetAxis` snapshotted per frame alongside the keyboard, and a name
+string per slot for "Player 2: connect a controller" UI.
+
+Two new fixed-arity callbacks on the app: `gamepad_connected(slot)` /
+`gamepad_disconnected(slot)`.
+
+Deliberately dumb — all the decisions live in 2.1.
+
+### 2.4 `RGame::Core::Input` (C) + `lib/rgame/core/input.rb`
 
 C exposes the constants (`KEY_LEFT`, `KEY_RETURN`, `KEY_SPACE`, `KEY_ESCAPE`,
-`KEY_F1`, `MOUSE_LEFT`, …) and the raw queries. Ruby keeps the binding table,
-because it is *configuration* — which physical key means `:fire` — and reads far
-better as a Ruby hash than as a C table:
+`KEY_F1`, `PAD_A`, `PAD_DPAD_LEFT`, …) and the raw queries. Ruby keeps the
+binding table, because it is *configuration* — which physical input means
+`:fire` — and reads far better as a Ruby hash than as a C table:
 
 ```ruby
-BINDINGS = { left: KEY_LEFT, ..., pointer: MOUSE_LEFT }.freeze
-def down?(physical_id) = key_down?(BINDINGS.fetch(physical_id))
-def pointer_x = ...
-def pointer_y = ...
+KEYBOARD = { left: KEY_LEFT, right: KEY_RIGHT, up: KEY_UP, down: KEY_DOWN,
+             confirm: KEY_RETURN, fire: KEY_SPACE }.freeze
+PAD      = { left: PAD_DPAD_LEFT, ..., confirm: PAD_A, fire: PAD_A }.freeze
+
+def down?(physical_id, device: 0) = ...
+def axis(physical_id, device: 0) = ...   # Float, -1.0..1.0
 ```
 
-Public API identical to `GosuInput`'s. Note `GosuInput.new(window)` takes the
-window; keep that constructor shape.
+`device:` defaults to 0, so every existing single-player call site
+(`input.down?(:fire)`) keeps working unchanged — which is what constraint 1
+asks for. `GosuInput.new(window)` takes the window; keep that constructor shape.
 
-### 2.3 Deferred: gamepads
+**Gone:** `pointer_x`, `pointer_y`, and the `:pointer` → `MS_LEFT` binding.
 
-The feature spec asks for 4-controller support with hot-plug. It is not needed
-for Gosu parity and nothing in `lib/platform/` touches it. Design the button-id
-space in 2.1 so controller buttons can extend it later without renumbering, then
-stop.
+### 2.5 `RGame::Core::Gamepad`
 
-**Verify:** Check tests for the binding table and the button-id mapping;
-`example.rb` moves a rectangle with the arrow keys and quits on Escape via
-`button_down`.
+`connected?(slot)`, `name(slot)`, `count`. Small; mostly a readout for UI.
+
+**Verify:** Check tests for the slot table (2.1) and the binding/button-id
+mapping; `example.rb` moves a rectangle with the arrow keys *or* a controller
+stick, prints connect/disconnect events, and quits on Escape via `button_down`.
+Unplugging and replugging a pad mid-run keeps it on the same slot.
 
 ---
 
@@ -195,8 +251,18 @@ once phase 2 lands. Sub-order matters more than sub-detail:
   coverage. This is the piece the whole engine's correctness rests on and the
   reason `glEnable(GL_DEPTH_TEST)` has to go; see
   [02](02-architecture.md#the-draw-queue). Build it before anything is drawn.
+  The clip rect must travel *with* each command into the queue and form part of
+  the batch key — sorting reorders commands across viewports, so a clip left as
+  ambient state would scissor the wrong quads. That is a split-screen
+  requirement landing on the very first renderer module.
 - **3c `transform.{c,h}` + `clip.{c,h}`.** Pure C, Check-tested. Push/pop
-  translate, rotate-about-pivot, scale, and intersecting clip rects.
+  translate, rotate-about-pivot, scale, and intersecting clip rects. **Real
+  stacks, because split-screen is in scope** — several clip+transform regions
+  composed and torn down within one frame, cleanly and repeatably, not one
+  global "current region" that only works while a single viewport is active.
+  See [02](02-architecture.md#split-screen-is-a-requirement-on-this-design-not-a-later-feature).
+  Check tests should include the split-screen shape directly: two viewports,
+  two camera offsets, one world draw each, asserting on the recorded batches.
 - **3d `backend.h` + a recording fake.** Layer 2, added exactly here — the point
   at which real GL calls first appear.
 - **3e `gl_backend.c`.** Layer 3, thin. Client-side vertex arrays
@@ -213,10 +279,11 @@ once phase 2 lands. Sub-order matters more than sub-detail:
   circle texture.
 
 After 3g, most of `GosuRenderer` is portable: `rect`, `line`, `sprite`,
-`image`, `background`, `rotated`, `translated`, `debug_box`. After 3h,
-`circle` — though with a real batching renderer, a per-call triangle fan may be
-cheap enough to drop the cached-texture trick entirely, which would be a genuine
-simplification.
+`image`, `background`, `rotated`, `translated`, `debug_box` — plus `clipped`,
+the one method the rewrite *adds* to the Ruby API, which is all split-screen
+needs from Ruby's side. After 3h, `circle` — though with a real batching
+renderer, a per-call triangle fan may be cheap enough to drop the cached-texture
+trick entirely, which would be a genuine simplification.
 
 This is also the point where the **headless integration tier** CLAUDE.md
 describes but hasn't built (Xvfb + Mesa llvmpipe, `glReadPixels` spot checks)
@@ -273,6 +340,12 @@ point at paths this repo doesn't have.
 The `Engine::` references (`DebugOverlay`, `TileMap`, `Tileset`) stay as they
 are — they name the pure-Ruby engine layer that will sit on top, and the whole
 point of constraint 1 is that it doesn't have to change.
+
+The **one** thing that layer will have to change is anything built on the mouse:
+the `:pointer` binding and `pointer_x`/`pointer_y` existed to serve click-based
+UI hit-testing somewhere above, and that has to become keyboard/controller
+navigation. Outside this plan's scope, but it is the visible cost of the
+mouse decision and it is easier to plan for now than to discover here.
 
 ---
 

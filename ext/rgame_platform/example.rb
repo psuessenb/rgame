@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Manual/visual smoke test for the platform extension (layer 3 — the real
 # SDL/GL path). Build it first, then run this from the project root:
 #
@@ -12,16 +14,16 @@
 # copies the built platform_ext.so to lib/rgame/, so this runs against exactly
 # the layout a user of the library would see.
 
-$LOAD_PATH.unshift File.expand_path("../../lib", __dir__)
-require "rgame/platform"
+$LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
+require 'rgame/platform'
 
-app = RGame::Platform::App.new(800, 600, "rgame via Ruby")
+app = RGame::Platform::App.new(800, 600, 'rgame via Ruby')
 
 frames = 0
 
 app.run(
-  ->(dt) {},              # update: fixed-timestep tick (no state yet)
-  -> { frames += 1 },     # draw: one frame (no primitives yet)
+  ->(dt) {}, # update: fixed-timestep tick (no state yet)
+  -> { frames += 1 } # draw: one frame (no primitives yet)
 )
 
 puts "drew #{frames} frames, last fps: #{app.fps.round(1)}"

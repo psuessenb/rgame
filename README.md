@@ -103,8 +103,9 @@ The Ruby specs:
 bundle install
 make ext-util        # required first: lib/rgame/util_ext.so is what lib/ requires
 bundle exec rspec
-bundle exec rubocop  # lint; no .rubocop.yml yet, so it runs on defaults and
-                     # currently reports a couple of unaddressed offenses
+bundle exec rubocop  # lint; configured in .rubocop.yml, which also loads the
+                     # project's own cops from rubocop/cop/game/. Currently
+                     # reports a backlog of unaddressed offenses.
 ```
 
 Each `make ext-*` target compiles its extension and copies the resulting `.so`

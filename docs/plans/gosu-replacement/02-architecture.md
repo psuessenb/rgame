@@ -12,7 +12,9 @@ ext/rgame_core/                 RGame::Core — links SDL2 + OpenGL (+ audio)
   include/rgame/core.h          the public C API (opaque handles, no SDL/GL types)
   app.c                         window, GL context, main loop, event pump
   frame_loop.{c,h}              [pure] fixed-timestep accumulator + FPS counter
-  input.{c,h}                   keyboard/mouse snapshot, key constants
+  input.{c,h}                   keyboard snapshot, button-id space, constants
+  gamepad.{c,h}                 SDL_GameController open/close, axis + button state
+  device_slots.{c,h}            [pure] player-slot ↔ device-instance mapping
   color.{c,h}                   [pure] RGBA packing
   transform.{c,h}               [pure] 2D affine transform stack
   clip.{c,h}                    [pure] clip-rect stack + intersection
@@ -32,6 +34,7 @@ lib/rgame.rb                    require "rgame"      → Util only, no SDL/GL
 lib/rgame/core.rb               require "rgame/core" → opt-in, pulls SDL/GL
 lib/rgame/core/app.rb           C-backed
 lib/rgame/core/input.rb         C-backed + Ruby binding table
+lib/rgame/core/gamepad.rb       C-backed
 lib/rgame/core/renderer.rb      Ruby, delegating to C primitives
 lib/rgame/core/sprite_sheet.rb  Ruby
 lib/rgame/core/nine_slice.rb    Ruby façade over C tiling
@@ -68,7 +71,7 @@ class GameWindow < RGame::Core::App
   def update(dt); end      # called once per fixed simulation tick
   def draw; end            # called once per rendered frame
   def needs_redraw?; end   # polled before draw
-  def button_down(id); end # discrete key/mouse press
+  def button_down(id); end # discrete key press (no mouse — see 01)
   def button_up(id); end   # discrete release
 
   # inherited, C-backed:
@@ -81,35 +84,33 @@ trampolines call `rb_funcall(self, id_update, ...)` instead of reading procs out
 of ivars. Default no-op implementations are defined in C (or in
 `lib/rgame/core/app.rb`) so a subclass only overrides what it cares about.
 
-### Who owns the fixed-timestep accumulator
+### The fixed-timestep accumulator lives in C — decided
 
-There is a genuine tension here worth naming. `docs/c_engine_feature_specs.md`
-§1 says *"the accumulator logic itself stays on the engine side of the
-boundary"* — i.e. in Ruby, which is how `GameWindow` does it today. But
-`frame_loop.c` already implements it in C, with Check tests, and it is
-currently what drives `rgame_app_run`.
+`frame_loop.c` keeps the accumulator and keeps driving `rgame_app_run`.
+`GameWindow`'s Ruby-side add-elapsed/loop-steps/drop-backlog code does not come
+across; `update(dt)` is called once per fixed tick and `dt` is always
+`RGAME_TICK_SECONDS`.
 
-**Recommendation: keep the accumulator in C.** Reasons:
+Why: it already exists and is the best-tested code in the project; it makes
+`update(dt)` mean one unambiguous thing; and `@dirty` collapses from
+`@dirty = true if steps.positive?` to `@dirty = true`. The feature spec's §1
+line about the accumulator staying "on the engine side of the boundary"
+predates `frame_loop.c` and should be amended — its real concern, that the game
+never sees variable frame time, is better served by C handing Ruby a guaranteed
+fixed `dt`.
 
-- It already exists, and it is the best-tested code in the project.
-- It makes `update(dt)` mean "one fixed tick", which is simpler than
-  `GameWindow#update`'s "figure out how many ticks are due and loop".
-- `@dirty` falls out for free: if `update` was called at all, a step ran, so
-  `@dirty = true` in `update` reproduces `steps.positive?` exactly.
-- The spec's concern is that the *game* shouldn't see variable frame time. That
-  holds either way.
+`Platform::Clock` disappears as a consequence, and `STEP` / `MAX_STEPS` become
+the C constants that already exist.
 
-`Platform::Clock` disappears as a consequence.
-
-The one thing this loses is `GameWindow`'s "poll input once per frame, reuse
-across catch-up steps". Two ways to get it back:
+The one thing this would otherwise lose is `GameWindow`'s "poll input once per
+frame, reuse across catch-up steps". Two ways to get it back:
 
 ### Input is snapshotted per frame
 
-**Recommended:** make the C input layer snapshot keyboard/mouse state once per
-frame, at event-pump time, and have every `down?` read the snapshot. Then
-calling `@mapper.poll(@backend)` inside `update` returns identical results for
-every catch-up step of the same frame — the property is preserved by
+**Recommended:** make the C input layer snapshot keyboard and controller state
+once per frame, at event-pump time, and have every `down?` read the snapshot.
+Then calling `@mapper.poll(@backend)` inside `update` returns identical results
+for every catch-up step of the same frame — the property is preserved by
 construction rather than by Ruby-side caching, and `SDL_GetKeyboardState`
 already works exactly this way.
 
@@ -128,11 +129,15 @@ line-for-line translation, so it is flagged rather than done quietly.
 ```c
 typedef void (*rgame_button_fn)(void *userdata, int button_id);
 typedef void (*rgame_resize_fn)(void *userdata, int width, int height);
+typedef void (*rgame_gamepad_fn)(void *userdata, int slot);  /* connect/disconnect */
 ```
 
 and `rgame_app_close(rgame_app *)`, `rgame_app_width/height`,
 `rgame_app_set_title`. The Escape-quit hardcoded in `rgame_app_poll_events`
 comes out — Ruby's `button_down` decides that.
+
+No mouse events. `SDL_MOUSEBUTTONDOWN`/`UP`/`MOTION` are not handled at all, per
+[the brief](README.md#mouse-input-is-not-carried-over).
 
 Fixed arity throughout, per feature spec §4. Not negotiable, and cheap to just
 keep doing.
@@ -146,6 +151,70 @@ window until GC. Each trampoline runs its callback under `rb_protect`, stores
 the exception, tells the loop to stop, and `#run` re-raises after
 `rgame_app_run` returns cleanly. This mirrors what Gosu's `protected_*`
 wrappers were doing — including the part `gosu_patches.rb` faithfully preserved.
+
+---
+
+## Input
+
+Keyboard and **controllers**; no mouse. This is one of the two places the layer
+is genuinely extended rather than ported, so it gets designed for multiple
+devices from the start — retrofitting a device dimension into a single-device
+`down?(id)` touches every caller, which is exactly the kind of rework worth
+spending a little design on now.
+
+### The button-id space
+
+One flat integer space covering keyboard keys and controller buttons, so a
+single `down?` query serves both — that is how `GosuInput` already works
+(`:pointer` rode the same path as `:fire`). Ranges, not a packed bitfield, so
+adding devices later never renumbers what exists:
+
+```
+0x0000–0x0FFF   keyboard (SDL scancodes)
+0x1000–0x10FF   controller buttons + dpad
+                (mouse would have gone here; it doesn't)
+```
+
+`Core::Input` exposes the constants (`KEY_LEFT`, `KEY_RETURN`, `KEY_SPACE`,
+`KEY_ESCAPE`, `KEY_F1`, `PAD_A`, `PAD_DPAD_LEFT`, …).
+
+### Device selection
+
+The feature spec's framing is "one input device — keyboard or a specific
+controller index — bound per player", which is what local co-op needs. So the
+query takes a device:
+
+```ruby
+input.down?(:fire)             # device 0 — the default, matches GosuInput's API
+input.down?(:fire, device: 1)  # player 2's controller
+input.axis(:move_x, device: 1) # => Float in -1.0..1.0
+```
+
+Defaulting `device:` keeps every existing single-player call site working
+unchanged, which is what constraint 1 asks for.
+
+### Hot-plug and slot stability
+
+The spec asks for indices "stable across a momentary disconnect/reconnect". SDL
+does *not* give this for free — its joystick indices renumber on every device
+change, and instance IDs are unique per connection, so unplugging and replugging
+one pad hands you a different number.
+
+So `device_slots.{c,h}`: a fixed table of *player slots*, each remembering the
+joystick GUID it was last filled by. On connect, a pad reclaims the slot holding
+its GUID if there is one, otherwise takes the lowest free slot; on disconnect the
+slot is marked empty but keeps the GUID.
+
+That is pure bookkeeping over integers and byte arrays — no SDL — so it is a
+layer-1 module with Check tests ("reconnect reclaims the same slot", "a
+different pad takes a free slot rather than stealing", "slots fill lowest-first",
+"a fifth pad is rejected"). Sensible to write before touching
+`SDL_GameController` at all, and much easier to get right that way than by
+plugging controllers in and out by hand.
+
+`gamepad.{c,h}` is then the thin real shim: `SDL_GameControllerOpen`/`Close`,
+`GetButton`, `GetAxis`, and a name string per slot for "Player 2: connect a
+controller" UI.
 
 ---
 
@@ -196,10 +265,45 @@ pop restores exactly, identity push is a no-op).
 top, empty-intersection short-circuiting to "draw nothing". Pure;
 Check-testable in about ten lines.
 
-Together these cover the feature spec's split-screen requirement — "several
-concurrent clip+transform regions composed and torn down within a single frame"
-is just push/pop used twice — and they are what `NineSlice`'s tiling, the
-camera, and `Renderer#rotated`/`#translated` all sit on.
+These are what `NineSlice`'s tiling, the camera, and
+`Renderer#rotated`/`#translated` all sit on — and they are also the **entire**
+mechanism split-screen needs.
+
+#### Split-screen is a requirement on this design, not a later feature
+
+Per [the brief](README.md#gamepads-and-split-screen-are-in-scope--this-is-an-extension-not-just-a-port),
+split-screen is in scope for the rewrite. Architecturally it adds no new
+primitive at all — for each player's viewport, clip to that viewport's screen
+rect, translate by that player's camera offset, and run the *same* world-draw
+code as single-player:
+
+```ruby
+players.each do |p|
+  renderer.clipped(p.vx, p.vy, p.vw, p.vh) do
+    renderer.translated(-p.camera.x, -p.camera.y) { world.draw(renderer) }
+  end
+end
+```
+
+What it demands is that the stacks are **real push/pop stacks**, not a single
+global "current region" that happens to work when only one is active. Concretely:
+
+- Pushing and popping several clip+transform regions within one frame must be
+  clean and repeatable — no state left behind between viewports.
+- The clip must intersect, not replace, so a `NineSlice` tiling inside a
+  viewport is bounded by both.
+- Because vertices are transformed at append time, the draw queue can still
+  z-sort freely across viewports. **But the clip cannot be**: a command's clip
+  rect has to travel with it into the queue and become part of the batch key,
+  or sorting will draw a player-1 quad under player-2's scissor.
+
+That last point is the one thing a single-viewport implementation would get
+wrong and a rewrite would be needed to fix, which is why it is stated here
+rather than discovered later. Nothing in Ruby has to use two cameras yet; the C
+layer just has to be able to express it.
+
+A `Renderer#clipped(x, y, w, h) { }` is added alongside `rotated`/`translated`
+to expose it — a genuine addition to the Ruby API, and the only one.
 
 ### The backend seam
 
@@ -298,10 +402,12 @@ both, the Ruby half stays as a thin façade over a C hot path.
 
 | Today | Becomes | Where | Why |
 |---|---|---|---|
-| `GameWindow` | `Core::App` | **C**, subclassed in Ruby | Owns the loop, the window, the event pump |
+| `GameWindow` | `Core::App` | **C**, subclassed in Ruby | Owns the loop, the window, the event pump, and now the accumulator |
 | `Clock` | — | **deleted** | The C loop already measures elapsed time |
 | `gosu_patches.rb` | — | **deleted** | Fixed-arity callbacks by construction |
-| `GosuInput` | `Core::Input` | **C** mechanism + **Ruby** binding table | `down?`/`pointer_x` are per-frame; `BINDINGS` is config and reads better in Ruby |
+| `GosuInput` | `Core::Input` | **C** mechanism + **Ruby** binding table | `down?` is per-frame; `BINDINGS` is config and reads better in Ruby |
+| — *(mouse half of `GosuInput`)* | — | **dropped** | Not carried over; keyboard + controllers only |
+| — | `Core::Gamepad` | **C** + **[pure]** slot table | New capability; per-frame state, and hot-plug slot stability needs real logic |
 | `GosuRenderer` | `Core::Renderer` | **Ruby** façade over C primitives | The id registry is bookkeeping; primitives are C. Revisit if the per-draw hash lookup shows up in a profile |
 | `SpriteSheet` | `Core::SpriteSheet` | **Ruby** | JSON parse at load time; `#draw` is an array index plus one C call |
 | `NineSlice` | `Core::NineSlice` | **Ruby** façade, **C** tiling | Five clipped tiling loops per call per frame — the clearest C win in the Ruby layer |

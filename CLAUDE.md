@@ -5,6 +5,93 @@ is not an experienced C programmer — prefer explaining unfamiliar C/SDL/GL
 idioms briefly when introducing them, and favor straightforward code over
 clever code.
 
+## Code comments, documentation and code style
+
+Add top-level comments to modules, classes and C files describing what they are
+and do. Public methods of Ruby classes — and their C-layer equivalents, the
+functions exposed via `rb_define_method` — get an explaining comment when
+they're non-trivial and the name doesn't already tell the whole story. Apart
+from that, keep comments to a minimum.
+
+Prefer code that speaks for itself through variable and method names over
+lengthy comments. Use comments to document gotchas (for instance when the
+obvious implementation didn't work for an unforeseen reason), tricky parts of
+the code, or cases where clarity through naming isn't an option.
+
+**Exception — the teaching layer.** C, SDL, OpenGL and Ruby-C-API idioms get
+explained when first introduced, even at length. This is a learning project
+(see the top of this file) and those explanations are load-bearing:
+`ext/rgame_util/tensor.c` spends its header explaining why the GC needs a
+`mark` function, and `ext/rgame_platform/platform_ext.c` explains TypedData and
+the alloc/initialize split. Existing implementation files run roughly 35–80%
+comment lines by design — treat them as the target density and don't thin them
+out. "Minimal" applies to comments that restate what the code already says, not
+to ones that teach an unfamiliar mechanism.
+
+Write documentation alongside code. Reference documentation lives under
+`docs/`; the top-level `README.md` and `ext/README.md` stay where they are and
+cover setup and orientation. Documentation describes the state of the code, not
+the road that got it there — it must not reference prompts, previous
+implementations that are now gone, or throwaway example code. Code examples in
+documentation must stand on their own: complete enough to read without outside
+context, and valid against the current code. Rule of thumb: the documentation
+is written for a reader who has *only* the current code and took no part in
+writing it, and it should help them understand and use that code.
+
+The exception is everything under `docs/plans`. Documentation there serves an
+implementation or refactoring effort, so it can and should reference previous
+iterations of the code, raise open questions, and record decisions taken in
+prompts. Plans are working documents: when the work lands, fold whatever is
+still true into the real documentation and delete the plan — git history keeps
+it. A plan that outlives its refactor is just a stale description of code that
+no longer exists.
+
+## RuboCop
+
+Run RuboCop over the Ruby files you touched, as a finishing step:
+
+```
+bundle exec rubocop path/to/changed_file.rb
+```
+
+**Scope it to the files you changed.** There is a backlog of pre-existing
+offenses elsewhere in the project; leave those alone unless clearing them is
+the actual task, so unrelated churn stays out of the diff.
+
+`-a` (safe autocorrect) is fine unprompted. `-A` (unsafe autocorrect) can change
+semantics, so only with a deliberate look at what it did.
+
+Attempt to fix offenses, but watch for rules that don't fit this codebase. A lot
+of RuboCop is written with web applications in mind and this is a game engine,
+so some rules make the code worse. In that case add an exception rather than
+write worse code:
+
+- a justified one-off → inline `# rubocop:disable Cop/Name -- reason`
+- a codebase-wide rule → an entry in `.rubocop.yml`
+
+**Either way, say why.** `.rubocop.yml` already models this: its `Metrics/*`
+block explains that a game engine's `update`/`draw` methods run long and its
+coordinate variables are idiomatically short. An exception without a reason is
+indistinguishable from having given up.
+
+### The custom cops are house rules — don't disable them
+
+`rubocop/cop/game/` holds four project-specific cops (plus a shared `HotPath`
+mixin), loaded by `.rubocop.yml`:
+
+| Cop | Enforces |
+|---|---|
+| `Game/NoInterpolationInHotPath` | no string interpolation in per-frame methods |
+| `Game/NoNeedlessAllocation` | no throwaway Array/Range literals on a per-frame path |
+| `Game/PreferGosuModuleMethod` | call `Gosu.<m>`, not the allocating `Window#<m>` compat shim |
+| `Game/UseAbsoluteCoords` | in `draw`/`update`/`contains?` use the resolved `@abs_*`, never parent-relative `@x`/`@y` |
+
+These exist because a steady 60fps frame that allocates is a GC pause waiting to
+happen, and the cost is invisible without a guard. Unlike stock cops, these are
+the ones that *do* fit here — fix the code, not the cop.
+(`Game/PreferGosuModuleMethod` retires along with Gosu itself; see
+`docs/plans/gosu-replacement/`.)
+
 ## Current phase
 
 Both halves exist. The C engine (window + fixed-timestep loop, no draw
@@ -216,8 +303,9 @@ to crash while learning pointers/SDL/GL).
   loader will need to be added — flag that as a deliberate decision, not a
   drive-by change.
 - Ruby: `# frozen_string_literal: true` at the top of every file, single
-  quotes, RuboCop (+ `-performance`, `-rspec`) available via the `Gemfile`.
-  There's no `.rubocop.yml` yet, so it runs on defaults.
+  quotes, RuboCop (+ `-performance`, `-rspec`) via the `Gemfile`. Configured in
+  `.rubocop.yml`, which also loads the project's own cops from
+  `rubocop/cop/game/` — see the RuboCop section above.
 - `gosu` is in the `Gemfile` but intentionally unused — it's the library being
   replaced (`docs/c_engine_feature_specs.md`), kept as the reference point. No
   file under `lib/`, `spec/`, or `ext/` may require it.

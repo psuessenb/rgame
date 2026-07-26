@@ -12,38 +12,27 @@ AllCops:
   NewCops: enable
   TargetRubyVersion: 4.0
 
-# Per-frame allocation guards. The pre-engine standalone examples (01–08) predate this
-# discipline and are kept as-is for reference, so they're exempt. Engine::CachedLabel is
-# the sanctioned place to build-on-change a label string, so it's exempt too.
+# Per-frame allocation guards (the project's own cops, see rubocop/cop/game/).
 #
 # - NoInterpolationInHotPath: no string interpolation in per-frame methods.
 # - NoNeedlessAllocation: no needless Array/Range literals (receiver literals anywhere,
 #   any literal inside a per-frame method).
 # - PreferGosuModuleMethod: in per-frame methods, call Gosu.<m> not the allocating
-#   Window#<m> compat shim.
+#   Window#<m> compat shim. (Retires with Gosu — see docs/plans/gosu-replacement/.)
+# - UseAbsoluteCoords: in draw/update/contains?, use the resolved `@abs_*`, never the
+#   parent-relative `@x`/`@y`/`@z`.
+#
 # Specs are headless test code (their `on_draw`/`update` stubs and array fixtures aren't a
 # shipping per-frame path), so these runtime guards don't police spec/.
 Game/NoInterpolationInHotPath:
   Exclude:
-    - 'examples/0[1-8]_*/**/*'
-    - 'lib/engine/cached_label.rb'
     - 'spec/**/*'
 Game/NoNeedlessAllocation:
   Exclude:
-    - 'examples/0[1-8]_*/**/*'
-    - 'lib/engine/cached_label.rb'
     - 'spec/**/*'
 Game/PreferGosuModuleMethod:
   Exclude:
-    - 'examples/0[1-8]_*/**/*'
     - 'spec/**/*'
-
-# Relative-vs-absolute coordinate guard: in draw/update/contains?, use the resolved
-# `@abs_*`, never the parent-relative `@x`/`@y`/`@z`. The pre-engine examples (01–08)
-# predate the scene graph and use their own absolute `@x`/`@y`, so they're exempt.
-Game/UseAbsoluteCoords:
-  Exclude:
-    - 'examples/0[1-8]_*/**/*'
 
 # This is a code-driven game engine, not a Rails app: update/draw methods and
 # Window/Scene classes naturally run long, and short coordinate/loop variable
@@ -72,6 +61,13 @@ Naming/MethodParameterName:
 Lint/AmbiguousOperatorPrecedence:
   Enabled: false
 
+# mkmf's API *is* globals: $CFLAGS, $INCFLAGS and $libs are how an extconf.rb tells
+# mkmf how to build the extension. There is no non-global alternative, so this cop
+# can't be satisfied in extconf.rb without breaking the build.
+Style/GlobalVars:
+  Exclude:
+    - 'ext/**/extconf.rb'
+
 RSpec/MultipleExpectations:
   Enabled: false
 # Integration / setup-heavy specs in a game naturally run longer than 5 lines.
@@ -81,10 +77,19 @@ RSpec/ExampleLength:
 RSpec/DescribeClass:
   Exclude:
     - 'spec/integration/**/*'
-# Classes with a trailing dimension (Node2D, Scene2D) map to node2d_spec.rb, not
-# the cop's default node2_d_spec.rb.
+# Spec paths mirror lib/ paths, and two of our names don't survive the cop's default
+# snake_casing:
+#
+# - RGame -> the cop wants `r_game/`, but the directory is `rgame/` on purpose: a gem's
+#   lib/ directory is named after the gem, not after a snake_case of its module. RSpec
+#   itself is the precedent (module RSpec lives in lib/rspec/, not lib/r_spec/), as are
+#   oauth2/OAuth2 and sqlite3/SQLite3. Renaming the directory would change the public
+#   require path (`require "rgame"`) and both C extensions' install paths for nothing.
+# - Classes with a trailing dimension (Node2D, Scene2D) map to node2d_spec.rb, not the
+#   cop's default node2_d_spec.rb.
 RSpec/SpecFilePathFormat:
   CustomTransform:
+    RGame: rgame
     Node2D: node2d
 
 Style/Documentation:

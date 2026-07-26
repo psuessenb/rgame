@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # extconf.rb — run by `ruby extconf.rb` to generate a Makefile via mkmf.
 #
 # mkmf is Ruby's "make makefile" library. It probes the system (headers,
@@ -11,7 +13,7 @@
 # The graphics-free half lives in ../rgame_util (RGame::Util) and links none of
 # these libraries.
 
-require "mkmf"
+require 'mkmf'
 
 # The engine sources (core.c, frame_loop.c) live in this directory alongside
 # the Ruby glue (platform_ext.c), so mkmf's default behaviour — compile every .c
@@ -24,29 +26,27 @@ require "mkmf"
 # resolves. core.c finds its *private* "frame_loop.h" on its own, because a
 # quoted #include searches the including file's own directory first.
 # $(srcdir) stays literal here — make expands it, not Ruby.
-$INCFLAGS << " -I$(srcdir)/include"
+$INCFLAGS << ' -I$(srcdir)/include'
 
 # SDL2: pkg_config("sdl2") shells out to pkg-config and folds the resulting
 # cflags and libs into mkmf's globals ($CFLAGS/$libs) for us. Returns nil if
 # SDL2 isn't found, so we can fail with a clear message instead of a confusing
 # later compile error.
-unless pkg_config("sdl2")
-  abort "SDL2 not found (pkg-config --exists sdl2 failed). Install libsdl2-dev."
-end
+abort 'SDL2 not found (pkg-config --exists sdl2 failed). Install libsdl2-dev.' unless pkg_config('sdl2')
 
 # OpenGL + libm, matching the link line in the root Makefile. append_library
 # adds `-lGL`/`-lm` in the right spot on the link command.
-$libs = append_library($libs, "GL")
-$libs = append_library($libs, "m")
+$libs = append_library($libs, 'GL')
+$libs = append_library($libs, 'm')
 
 # Match the project's C standard and warning flags. Note: gnu17, not plain
 # c17 — Ruby's headers occasionally lean on GNU extensions, and gnu17 is a
 # superset of c17 so core.c (which targets c17) still compiles fine.
-$CFLAGS << " -std=gnu17 -Wall -Wextra"
+$CFLAGS << ' -std=gnu17 -Wall -Wextra'
 
 # Emits the Makefile. "rgame/platform_ext" -> loaded via
 # `require "rgame/platform_ext"`, entry point Init_platform_ext (the basename)
 # in platform_ext.c. Namespacing it under rgame/ mirrors rgame/util_ext, keeps
 # both extensions off the top of the load path, and — importantly — leaves the
 # bare name "rgame" to lib/rgame.rb, which is the pure-Ruby entry point.
-create_makefile("rgame/platform_ext")
+create_makefile('rgame/platform_ext')
