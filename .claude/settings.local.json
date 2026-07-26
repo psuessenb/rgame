@@ -19,7 +19,8 @@
       "Bash(bundle exec *)",
       "Bash(make ext-util *)",
       "Bash(make -C ext/rgame_util)",
-      "Bash(echo \"=== exit: $? ===\")"
+      "Bash(echo \"=== exit: $? ===\")",
+      "Bash(ruby -Ilib -e ' *)"
     ]
   }
 }

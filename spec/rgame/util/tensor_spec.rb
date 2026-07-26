@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe RGame::Tensor do
+RSpec.describe RGame::Util::Tensor do
   subject(:matrix) { described_class.new(4, 3, 2) }
 
   it 'exposes its dimensions' do

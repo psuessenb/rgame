@@ -2,16 +2,20 @@
 #
 # mkmf is Ruby's "make makefile" library. It probes the system (headers,
 # libraries, pkg-config) and writes a Makefile that knows how to compile a
-# loadable extension (`rgame.so`) against the running Ruby's headers. This is
-# the same tool that `gem install` uses under the hood, which is why the root
-# Makefile was written to look like what mkmf emits — the mental model carries
-# straight over.
+# loadable extension (`platform_ext.so`) against the running Ruby's headers.
+# This is the same tool that `gem install` uses under the hood, which is why the
+# root Makefile was written to look like what mkmf emits — the mental model
+# carries straight over.
+#
+# This is the SDL/OpenGL half of the project: everything under RGame::Platform.
+# The graphics-free half lives in ../rgame_util (RGame::Util) and links none of
+# these libraries.
 
 require "mkmf"
 
 # The engine sources (core.c, frame_loop.c) live in this directory alongside
-# the Ruby glue (rgame_ext.c), so mkmf's default behaviour — compile every .c
-# in the extension directory into rgame.so — picks them all up with no extra
+# the Ruby glue (platform_ext.c), so mkmf's default behaviour — compile every .c
+# in the extension directory into one .so — picks them all up with no extra
 # configuration. That's also why they live here rather than in a top-level
 # src/: `gem install` unpacks the gem and runs this script, and an extension
 # must be buildable from its own directory.
@@ -40,6 +44,9 @@ $libs = append_library($libs, "m")
 # superset of c17 so core.c (which targets c17) still compiles fine.
 $CFLAGS << " -std=gnu17 -Wall -Wextra"
 
-# Emits the Makefile. The name here ("rgame") must match the Init_rgame
-# function in rgame_ext.c and the eventual `require "rgame"`.
-create_makefile("rgame")
+# Emits the Makefile. "rgame/platform_ext" -> loaded via
+# `require "rgame/platform_ext"`, entry point Init_platform_ext (the basename)
+# in platform_ext.c. Namespacing it under rgame/ mirrors rgame/util_ext, keeps
+# both extensions off the top of the load path, and — importantly — leaves the
+# bare name "rgame" to lib/rgame.rb, which is the pure-Ruby entry point.
+create_makefile("rgame/platform_ext")

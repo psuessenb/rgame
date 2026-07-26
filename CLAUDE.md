@@ -1,59 +1,119 @@
 # rgame
 
-A learning project: SDL2 + OpenGL in C, structured so the core can later be
-wrapped as a Ruby C extension. The user is not an experienced C programmer —
-prefer explaining unfamiliar C/SDL/GL idioms briefly when introducing them,
-and favor straightforward code over clever code.
+A learning project: SDL2 + OpenGL in C, wrapped as Ruby C extensions. The user
+is not an experienced C programmer — prefer explaining unfamiliar C/SDL/GL
+idioms briefly when introducing them, and favor straightforward code over
+clever code.
 
 ## Current phase
 
-Pure C, no Ruby yet. Ruby bindings are a deliberate future step, not part of
-the current work unless asked for.
+Both halves exist. The C engine (window + fixed-timestep loop, no draw
+primitives yet) is wrapped by `ext/rgame_platform/platform_ext.c`, and there's
+a Ruby half under `lib/` backed by a second, graphics-free extension in
+`ext/rgame_util/`. No `.gemspec` yet — everything runs from a checkout.
+
+Work is still mostly C-side: the engine's drawing surface is the gap. When
+adding a feature, the default is to build it in C under `ext/rgame_platform/`
+and only extend the Ruby wrapper once the C API for it is settled.
+
+## The Platform / Util split
+
+**This is the first question to answer about any new code: does it depend on
+SDL, OpenGL, or on something that does?**
+
+- **Yes** → `RGame::Platform`, built from `ext/rgame_platform/`, required as
+  `rgame/platform_ext`, loaded via `require "rgame/platform"`.
+- **No** → `RGame::Util`, built from `ext/rgame_util/`, required as
+  `rgame/util_ext`, loaded via `require "rgame"`.
+
+Everything Ruby-visible is under the `RGame` module — no other top-level
+constant. Both `Init_` functions call `rb_define_module("RGame")`, which is
+idempotent, so load order between the two extensions doesn't matter.
+
+The split is load-bearing, not cosmetic. `require "rgame"` loads
+`RGame::Util` with **zero graphics libraries in the process**, which is what
+lets pure-logic code and its specs run with no display and no SDL present.
+So `lib/rgame.rb` must never require `rgame/platform`, directly or
+transitively — that would silently destroy the property for every consumer.
+It's checkable, and worth re-checking after touching `lib/`:
+
+```
+ruby -Ilib -e 'require "rgame"; puts File.read("/proc/self/maps").scan(/libSDL2|libGL\./).uniq.inspect'
+# => []
+```
+
+If a subsystem has both a pure part and an SDL-driven part, split it across
+the two rather than putting the whole thing in Platform — that's the same
+layering rule as below, applied at the extension boundary.
 
 ## Structure and why it looks like this
 
-**All engine C lives in `ext/rgame/`**, not a top-level `src/`. This is
+**All engine C lives in `ext/rgame_platform/`**, not a top-level `src/`. This is
 because the project is headed for a single gem containing both the C and the
-Ruby half: `gem install` runs `ext/rgame/extconf.rb`, and an extension can
+Ruby half: `gem install` runs each `extconf.rb`, and an extension can
 only build sources within its own directory. Keeping the C there means one
 copy of the code feeds both the standalone binary and the gem. New engine
-sources go in `ext/rgame/`.
+sources go in `ext/rgame_platform/`.
 
-- `ext/rgame/include/rgame/core.h` — the *only* public API. Opaque
+- `ext/rgame_platform/include/rgame/core.h` — the *only* public API. Opaque
   `rgame_app` handle, plain C types only (no SDL/GL types in the signature).
   This is what the Ruby extension calls — keeping SDL/GL details out of the
-  header means `ext/rgame/rgame_ext.c` can `#include` it without also pulling
-  in `SDL.h` conflicts or exposing internals. It sits under its own
+  header means `ext/rgame_platform/platform_ext.c` can `#include` it without
+  also pulling in `SDL.h` conflicts or exposing internals. It sits under its own
   `include/` subdirectory so `#include "rgame/core.h"` works while mkmf's
   "compile every `.c` here" default still picks up only the sources.
-- `ext/rgame/core.c` — the actual engine (SDL window/GL context setup; owns
+- `ext/rgame_platform/core.c` — the actual engine (SDL window/GL context setup; owns
   the main loop and drives caller-supplied `update`/`draw` callbacks).
   Compiled with `-fPIC` so the resulting `.a` can be linked into a shared
   object (`.so`) without recompiling.
-- `ext/rgame/frame_loop.{c,h}` — pure-logic helpers (no SDL/GL, no I/O)
+- `ext/rgame_platform/frame_loop.{c,h}` — pure-logic helpers (no SDL/GL, no I/O)
   factored out of `core.c` specifically so they're unit-testable without a
   display/GL context (currently the fixed-timestep accumulator + FPS
   counter). `test/` links against these directly. When adding engine logic,
   prefer putting the parts that don't touch SDL/GL here so they stay
   testable — see `test/test_frame_loop.c` for the pattern.
-- `ext/rgame/rgame_ext.c` + `extconf.rb` — the Ruby C extension itself; see
-  `ext/README.md`.
+- `ext/rgame_platform/platform_ext.c` + `extconf.rb` — the Ruby glue for the
+  engine (`RGame::Platform::App`); see `ext/README.md`.
 - `src/main.c` — thin standalone entry point; only talks to `core.h`'s API,
   never touches SDL/GL directly. This is intentionally what the Ruby
   extension also does, just driven from Ruby instead of a C `main()`. It
-  stays *outside* `ext/rgame/` so mkmf doesn't compile its `main()` into
-  `rgame.so`.
-- `lib/` — doesn't exist yet. When the pure-Ruby half of the API arrives it
-  goes here, next to a top-level `.gemspec`; the compiled `rgame.so` installs
-  into `lib/rgame/` and the two halves ship as one gem.
+  stays *outside* `ext/` so mkmf doesn't compile its `main()` into the
+  extension.
+- `ext/rgame_util/` — the graphics-free extension (`RGame::Util`). Its
+  `extconf.rb` has no `pkg_config` and no `-lGL`, which is what enforces the
+  split above. `Tensor` (`tensor.c`) lives here, and so does any future
+  pure-data/pure-logic code Ruby needs to call.
+- Both extensions build to a `.so` that `make ext` copies into `lib/rgame/`
+  (`platform_ext.so`, `util_ext.so`) — the path where `require
+  "rgame/platform_ext"` / `require "rgame/util_ext"` find them, mirroring how
+  rake-compiler installs a compiled ext into `lib/<gem>/`. Naming both under
+  `rgame/` in `create_makefile` also leaves the bare name `rgame` to
+  `lib/rgame.rb`; don't take it for an extension.
+- `lib/` — the pure-Ruby half, currently just namespace loaders:
+  `lib/rgame.rb` → `lib/rgame/util.rb` → `lib/rgame/util/tensor.rb`, and
+  separately `lib/rgame/platform.rb` → `lib/rgame/platform/app.rb`. Each
+  leaf is a `require` of the compiled extension plus a comment saying what
+  the class is and what moved to C. Keep that pattern — one Ruby file per
+  C-backed class — so the load path stays readable and there's an obvious
+  place to add pure-Ruby methods to a C-backed class later.
+- `spec/` — RSpec specs for the Ruby half (`bundle exec rspec`). Note
+  `spec/spec_helper.rb` requires only `lib/rgame`, deliberately: if any core
+  file ever reaches for Gosu, the specs fail to load. Preserve that property.
 - `docs/c_engine_feature_specs.md` — the feature spec this engine is being
   built out to satisfy (2D primitives to replace Gosu under a Ruby game
   engine). Large surface area, implemented incrementally. Consult it when
   adding a new subsystem rather than guessing scope.
 
-When adding new engine features, put the implementation in `ext/rgame/core.c`
-and extend `ext/rgame/include/rgame/core.h`'s public API rather than adding
-logic to `main.c` — that's what keeps the Ruby wrapper thin.
+The gem step is still ahead: a top-level `.gemspec` listing *both*
+`extconf.rb` files, installing both `.so`s into `lib/rgame/` the way
+`make ext` already does.
+
+When adding new engine features, put the implementation in
+`ext/rgame_platform/core.c` and extend
+`ext/rgame_platform/include/rgame/core.h`'s public API rather than adding
+logic to `main.c` — that's what keeps the Ruby wrapper thin. `src/main.c` and
+`ext/rgame_platform/example.rb` are parallel drivers of the same API; when the
+API changes, they generally both need the change.
 
 ## Abstraction & testability strategy
 
@@ -67,9 +127,11 @@ layers:
    tile-grid slicing, glyph cache eviction, the fixed-timestep accumulator's
    catch-up/skip decisions, etc. This is most of what's actually hard to get
    right in a 2D engine, and none of it needs a window to test. Give it its
-   own small module (`ext/rgame/<subsystem>.c` + header) and Check tests, the
-   same way `ext/rgame/frame_loop.{c,h}` is covered by
-   `test/test_frame_loop.c` today.
+   own small module (`ext/rgame_platform/<subsystem>.c` + header) and Check
+   tests, the same way `ext/rgame_platform/frame_loop.{c,h}` is covered by
+   `test/test_frame_loop.c` today. If the logic is also useful from Ruby on its
+   own, `ext/rgame_util/` is where it belongs instead — same reasoning, one
+   level up.
 2. **Fake/recording backend** — once a subsystem's logic drives real SDL/GL/
    audio calls, put a small function-pointer table ("backend" struct)
    between the pure logic and the real implementation, so tests can link a
@@ -90,17 +152,25 @@ tests first, before touching SDL/GL at all.
 
 ## Build
 
-Plain Makefile (mirrors what Ruby's `mkmf`-generated Makefile will look like
-later, so the mental model carries over):
+Plain Makefile for the C (written to mirror what `mkmf` emits, so the mental
+model carries over), with targets that shell out to the mkmf-generated
+Makefiles for the extensions:
 
 ```
-make        # builds build/rgame
-make run    # build + run
-make test   # build + run the Check unit tests
-make clean
+make              # builds build/rgame (standalone C binary)
+make run          # build + run
+make test         # build + run the Check unit tests
+make ext          # build both extensions
+make ext-platform # ext/rgame_platform -> lib/rgame/platform_ext.so
+make ext-util     # ext/rgame_util     -> lib/rgame/util_ext.so
+make clean        # includes ext-clean
 ```
 
-Requirements are listed in README.md.
+`make ext-util` is a prerequisite for the RSpec suite — `lib/` requires the
+compiled `rgame/util_ext`, so specs can't even load without it. `ext-platform`
+is *not* needed for specs, only for `ext/rgame_platform/example.rb`. Ruby is
+4.0.5, pinned in `.ruby-version` and installed via mise. Requirements are
+listed in README.md.
 
 ## Testing
 
@@ -114,7 +184,16 @@ to crash while learning pointers/SDL/GL).
 - `make test` — Check suite covering layer 1 (pure logic) and layer 2 (fake
   backends: assert on recorded calls, no display involved). Fast,
   deterministic, expected to pass for every change.
-- `make run` — manual verification of layer 3, the real SDL/GL/audio path.
+- `bundle exec rspec` — RSpec over `RGame::Util` and the pure-Ruby half
+  (`RGame::Util::Tensor` today). Same tier as `make test`: fast,
+  deterministic, no display, expected to pass for every change. Requires
+  `make ext-util` first. C code that Ruby will call and that doesn't need
+  SDL/GL can be verified from either side — prefer Check for the C-internal
+  invariants and RSpec for the Ruby-visible API contract. Specs must not
+  reach into `RGame::Platform`; if something there needs testing, that's a
+  sign the testable part belongs in Util.
+- `make run` / `ruby ext/rgame_platform/example.rb` — manual verification of
+  layer 3, the real SDL/GL/audio path, from C and from Ruby respectively.
   Subjective/visual, run by a human, not automated.
 - Automated integration/smoke tier — **documented pattern, not yet built.**
   Once there's real rendering worth checking without a human watching,
@@ -128,9 +207,17 @@ to crash while learning pointers/SDL/GL).
 
 ## Conventions
 
-- C17, `-Wall -Wextra`, keep it warning-clean.
+- C17, `-Wall -Wextra`, keep it warning-clean. The extensions compile with
+  `-std=gnu17` instead — Ruby's headers lean on GNU extensions, and gnu17 is a
+  superset, so the same sources still satisfy C17.
 - No OpenGL loader (GLAD/GLEW) yet — using legacy/compatibility-profile GL
   calls (`glBegin`/`glEnd`) since that's what's available without extra
   dependencies. If/when the project moves to core-profile modern GL, a
   loader will need to be added — flag that as a deliberate decision, not a
   drive-by change.
+- Ruby: `# frozen_string_literal: true` at the top of every file, single
+  quotes, RuboCop (+ `-performance`, `-rspec`) available via the `Gemfile`.
+  There's no `.rubocop.yml` yet, so it runs on defaults.
+- `gosu` is in the `Gemfile` but intentionally unused — it's the library being
+  replaced (`docs/c_engine_feature_specs.md`), kept as the reference point. No
+  file under `lib/`, `spec/`, or `ext/` may require it.

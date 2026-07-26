@@ -1,5 +1,5 @@
 /*
- * rgame_ext.c — the Ruby C extension glue for the rgame core engine.
+ * platform_ext.c — the Ruby C extension glue for the rgame core engine.
  *
  * This is the ONLY file where Ruby-extension concerns (ruby.h, VALUE, the GC)
  * meet the engine. Like src/main.c, it talks exclusively to the public API in
@@ -7,9 +7,13 @@
  * drives the engine from a C main(); this file drives the same seams from
  * Ruby, which is the whole point of keeping SDL/GL out of core.h.
  *
+ * Everything here lands under RGame::Platform — the namespace for code that
+ * depends on SDL/OpenGL. Anything that doesn't belongs in RGame::Util instead
+ * (ext/rgame_util/), which links no graphics libraries at all.
+ *
  * Ruby surface it defines:
  *
- *   app = Rgame::App.new(width, height, title)
+ *   app = RGame::Platform::App.new(width, height, title)
  *   app.run(update_proc, draw_proc, needs_redraw_proc = nil)
  *   app.ticks_ms   # => Integer
  *   app.fps        # => Float
@@ -162,18 +166,26 @@ static VALUE app_fps(VALUE self) {
 }
 
 /* ------------------------------------------------------------------------- *
- * Entry point. Ruby calls Init_<name> when the .so is required; the name must
- * match create_makefile("rgame") in extconf.rb.
+ * Entry point. Ruby calls Init_<basename of the required path> when the .so is
+ * loaded; we require it as "rgame/platform_ext", so this must be
+ * Init_platform_ext, matching create_makefile("rgame/platform_ext") in
+ * extconf.rb.
  * ------------------------------------------------------------------------- */
 
-void Init_rgame(void) {
+void Init_platform_ext(void) {
     id_iv_update = rb_intern("@update");
     id_iv_draw = rb_intern("@draw");
     id_iv_needs_redraw = rb_intern("@needs_redraw");
     id_call = rb_intern("call");
 
-    VALUE mRgame = rb_define_module("Rgame");
-    VALUE cApp = rb_define_class_under(mRgame, "App", rb_cObject);
+    /*
+     * rb_define_module is idempotent — it returns the existing RGame if some
+     * other extension or Ruby file defined it first, so load order between the
+     * two extensions doesn't matter.
+     */
+    VALUE mRGame = rb_define_module("RGame");
+    VALUE mPlatform = rb_define_module_under(mRGame, "Platform");
+    VALUE cApp = rb_define_class_under(mPlatform, "App", rb_cObject);
 
     rb_define_alloc_func(cApp, app_alloc);
     rb_define_method(cApp, "initialize", app_initialize, 3);

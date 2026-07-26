@@ -1,17 +1,33 @@
 # ext/
 
-The Ruby C extension **and** the engine it wraps. `rgame_ext.c` is a thin
-`VALUE`-level wrapper around the public engine API in
-[rgame/core.h](rgame/include/rgame/core.h).
+The project's two Ruby C extensions. They are split by **dependency**, and that
+split is the rule for deciding where new code goes:
+
+| | `rgame_platform` | `rgame_util` |
+|---|---|---|
+| Ruby namespace | `RGame::Platform` | `RGame::Util` |
+| Required as | `rgame/platform_ext` | `rgame/util_ext` |
+| Entry point | `Init_platform_ext` | `Init_util_ext` |
+| Links | SDL2 + OpenGL + libm | nothing but Ruby |
+| Holds | `App` (window, GL context, main loop) | `Tensor` |
+
+Anything that depends on SDL/OpenGL — or on something that does — belongs in
+`rgame_platform`. Everything else belongs in `rgame_util`. The point of the
+split is that `RGame::Util` can be required, and its specs run, in a process
+with no graphics libraries loaded and no display available:
 
 ```
-ext/rgame/
-  extconf.rb            # mkmf script -> generates the Makefile
-  rgame_ext.c           # Ruby-facing glue: VALUE wrappers + trampolines
+ext/rgame_platform/
+  extconf.rb            # mkmf script -> Makefile; pkg_config("sdl2"), -lGL
+  platform_ext.c        # Ruby-facing glue: VALUE wrappers + trampolines
   core.c                # engine: SDL window/GL context + main loop
   frame_loop.c/.h       # pure fixed-timestep + FPS logic (unit-tested)
   include/rgame/core.h  # the public C API
   example.rb            # manual/visual smoke test (opens a real window)
+
+ext/rgame_util/
+  extconf.rb            # mkmf script -> Makefile; no pkg_config, no -lGL
+  tensor.c              # RGame::Util::Tensor — flat-array 3D grid
 ```
 
 ## Why the engine lives here and not in `src/`
@@ -20,42 +36,54 @@ A gem's C extension is built by `gem install` running `extconf.rb` from
 *inside its own directory* — it can't reach up to a sibling `src/`. Putting
 the engine sources here means one copy serves both the gem and the standalone
 binary the root `Makefile` builds. `src/` keeps only `main.c`, which stays out
-of this directory precisely so mkmf doesn't compile its `main()` into
-`rgame.so`.
+of this directory precisely so mkmf doesn't compile its `main()` into the
+extension.
 
 ## How it's wired
 
 `extconf.rb` runs `mkmf` to generate a Makefile. mkmf's default is to compile
-*every* `.c` in this directory into a single loadable `rgame.so` — which is
-exactly `rgame_ext.c` + `core.c` + `frame_loop.c` — linked against SDL2 +
-OpenGL the same way the root `Makefile` links the standalone binary. No
-prebuilt `librgame_core.a` in the middle, so there's one build step.
+*every* `.c` in the extension's directory into a single loadable `.so` — for
+`rgame_platform` that's `platform_ext.c` + `core.c` + `frame_loop.c`, linked
+against SDL2 + OpenGL the same way the root `Makefile` links the standalone
+binary. No prebuilt `librgame_core.a` in the middle, so there's one build step.
+
+Both extensions name themselves under `rgame/` in `create_makefile`, which
+namespaces them on the load path and leaves the bare name `rgame` to
+`lib/rgame.rb`, the pure-Ruby entry point. Each `Init_` function calls
+`rb_define_module("RGame")` — idempotent, so it returns the same module
+whichever extension loads first.
 
 The glue only ever calls the public API — the `rgame_app` struct stays opaque
 here exactly as it does for `src/main.c`. The one interesting part is the
 callback bridge: `rgame_app_run` owns the loop and calls C function pointers,
-so `rgame_ext.c` installs small **trampolines** that call back into
-Ruby procs (stashed as instance variables, which also keeps them alive for the
-GC). See the comments in `rgame_ext.c` for the details and the current
+so `platform_ext.c` installs small **trampolines** that call back into Ruby
+procs (stashed as instance variables, which also keeps them alive for the GC).
+See the comments in `platform_ext.c` for the details and the current
 exception-safety caveat.
 
 ## Build & run
 
+From the project root:
+
 ```
-cd ext/rgame
-ruby extconf.rb      # writes ./Makefile
-make                 # builds ./rgame.so
-ruby example.rb      # opens a window; Esc or close to quit
+make ext            # both extensions, each copied to lib/rgame/
+make ext-platform   # just this one
+make ext-util       # just this one
+
+ruby ext/rgame_platform/example.rb   # opens a window; Esc or close to quit
 ```
 
-Or from the project root: `make ext` (see the root `Makefile`).
+`make ext-*` copies each built `.so` into `lib/rgame/`, which is where
+`require "rgame/platform_ext"` / `require "rgame/util_ext"` find it — mirroring
+how rake-compiler installs a compiled extension into `lib/<gem>/`.
 
 ## Ruby API
 
 ```ruby
-require "rgame"
+require "rgame"           # RGame::Util only — no SDL/GL loaded
+require "rgame/platform"  # adds RGame::Platform, pulls in SDL2 + OpenGL
 
-app = Rgame::App.new(800, 600, "title")
+app = RGame::Platform::App.new(800, 600, "title")
 app.run(
   ->(dt) { ... },     # update: fixed-timestep tick, dt is the fixed step
   -> { ... },         # draw: render one frame
@@ -63,4 +91,7 @@ app.run(
 )
 app.ticks_ms          # => Integer, monotonic ms since startup
 app.fps               # => Float, most recent FPS reading
+
+grid = RGame::Util::Tensor.new(width, height, depth, initial: nil)
+grid[x, y, z] = value
 ```

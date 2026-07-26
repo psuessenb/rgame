@@ -1,6 +1,6 @@
 /*
- * tensor.c — RGame::Tensor, a C-backed re-implementation of what used to live
- * in lib/rgame/util/tensor.rb.
+ * tensor.c — RGame::Util::Tensor, a C-backed re-implementation of what used to
+ * live in lib/rgame/util/tensor.rb.
  *
  * A fixed-size 3-D grid backed by a single flat C array, addressed as [x, y, z].
  * Layout is x-fastest then y then z, so one z-slice ([*, *, z]) is a contiguous
@@ -20,9 +20,9 @@
 #include <ruby.h>
 
 /*
- * The C struct each RGame::Tensor Ruby object wraps. `data` is a flat array of
- * `size` VALUEs (size == plane * depth, plane == width * height). Dimensions are
- * `long` to match Ruby's integer width and NUM2LONG.
+ * The C struct each RGame::Util::Tensor Ruby object wraps. `data` is a flat
+ * array of `size` VALUEs (size == plane * depth, plane == width * height).
+ * Dimensions are `long` to match Ruby's integer width and NUM2LONG.
  */
 typedef struct {
     long width;
@@ -61,7 +61,7 @@ static size_t tensor_memsize(const void *ptr) {
 }
 
 static const rb_data_type_t tensor_data_type = {
-    .wrap_struct_name = "RGame::Tensor",
+    .wrap_struct_name = "RGame::Util::Tensor",
     .function = {
         .dmark = tensor_mark,
         .dfree = tensor_free,
@@ -89,7 +89,7 @@ static VALUE tensor_alloc(VALUE klass) {
 }
 
 /*
- * RGame::Tensor.new(width, height, depth, initial: nil)
+ * RGame::Util::Tensor.new(width, height, depth, initial: nil)
  *
  * rb_scan_args "30:" = 3 required positional args plus a trailing keyword/options
  * hash (the ":"). We read :initial out of that hash; an absent key yields nil via
@@ -175,8 +175,14 @@ static VALUE tensor_depth(VALUE self) {
  * name here matches create_makefile("rgame/util_ext") in extconf.rb.
  */
 void Init_util_ext(void) {
+    /*
+     * rb_define_module is idempotent — it returns the existing RGame if some
+     * other extension or Ruby file defined it first, so load order between the
+     * two extensions doesn't matter.
+     */
     VALUE mRGame = rb_define_module("RGame");
-    VALUE cTensor = rb_define_class_under(mRGame, "Tensor", rb_cObject);
+    VALUE mUtil = rb_define_module_under(mRGame, "Util");
+    VALUE cTensor = rb_define_class_under(mUtil, "Tensor", rb_cObject);
 
     rb_define_alloc_func(cTensor, tensor_alloc);
     rb_define_method(cTensor, "initialize", tensor_initialize, -1);
