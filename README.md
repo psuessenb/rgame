@@ -25,12 +25,6 @@ To build the current (C-only) version you need:
 sudo apt install build-essential pkg-config libsdl2-dev libgl1-mesa-dev check
 ```
 
-### Fedora
-
-```
-sudo dnf install gcc make pkgconf-pkg-config SDL2-devel mesa-libGL-devel check-devel
-```
-
 ### macOS (Homebrew)
 
 ```

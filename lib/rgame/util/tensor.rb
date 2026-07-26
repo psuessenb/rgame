@@ -1,27 +1,11 @@
 # frozen_string_literal: true
 
-module RGame
-  # A fixed-size 3-D grid backed by a single flat array, addressed as [x, y, z] —
-  # Matrix's sibling for data that is naturally three-dimensional, e.g. a tile map's
-  # stacked layers ([col, row, layer]). Layout is x-fastest then y then z, so one
-  # z-slice ([*, *, z]) is a contiguous run. Pure; no bounds checking on the hot path.
-  class Tensor
-    attr_reader :width, :height, :depth
-
-    def initialize(width, height, depth, initial: nil)
-      @width = width
-      @height = height
-      @depth = depth
-      @plane = width * height
-      @data = Array.new(@plane * depth, initial)
-    end
-
-    def [](x, y, z)
-      @data[(z * @plane) + (y * @width) + x]
-    end
-
-    def []=(x, y, z, value)
-      @data[(z * @plane) + (y * @width) + x] = value
-    end
-  end
-end
+# RGame::Tensor is implemented in C — see ext/rgame_util/tensor.c. It used to be
+# a pure-Ruby class here; the public API (RGame::Tensor.new(width, height, depth,
+# initial: nil), #[], #[]=, #width/#height/#depth) is unchanged, only the backing
+# implementation moved to C for speed and a compact flat-array layout.
+#
+# The compiled extension is a separate .so from the SDL/GL engine, so requiring
+# Tensor pulls in no graphics libraries. It loads from lib/rgame/util_ext.so,
+# which the build (`make ext`) copies out of ext/rgame_util/.
+require 'rgame/util_ext'

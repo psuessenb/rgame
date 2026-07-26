@@ -16,6 +16,11 @@ ext/**/*.so
 ext/**/*.bundle
 ext/**/*.dylib
 
+# Compiled extension copied onto the load path by `make ext-util`
+# (lib/rgame/util_ext.so). Already covered by the global *.so above; called
+# out here so it's clear the .so under lib/ is a build artifact, not source.
+/lib/rgame/*.so
+
 # Gem packaging (once there's a .gemspec)
 /pkg/
 *.gem

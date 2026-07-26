@@ -26,7 +26,11 @@ APP_BIN := $(BUILD_DIR)/rgame
 TEST_OBJ := $(BUILD_DIR)/test_frame_loop.o
 TEST_BIN := $(BUILD_DIR)/test_frame_loop
 
-.PHONY: all run test clean ext ext-clean
+EXT_UTIL_DIR := ext/rgame_util
+EXT_UTIL_SO := $(EXT_UTIL_DIR)/util_ext.so
+LIB_UTIL_SO := lib/rgame/util_ext.so
+
+.PHONY: all run test clean ext ext-util ext-clean
 
 all: $(APP_BIN)
 
@@ -60,18 +64,34 @@ run: all
 test: $(TEST_BIN)
 	./$(TEST_BIN)
 
-# Ruby C extension. mkmf generates ext/rgame/Makefile from extconf.rb, which
-# then builds rgame.so out of every .c in that directory. Needs `ruby` on PATH
+# Ruby C extensions. mkmf generates each ext dir's Makefile from its extconf.rb.
+# `make ext` builds both: the SDL/GL engine (ext/rgame -> rgame.so) and the
+# pure-data util extension (ext/rgame_util -> util_ext.so). Needs `ruby` on PATH
 # (installed via mise — see README).
-ext: $(EXT_DIR)/Makefile
+ext: ext-util $(EXT_DIR)/Makefile
 	$(MAKE) -C $(EXT_DIR)
 
 $(EXT_DIR)/Makefile: $(EXT_DIR)/extconf.rb
 	cd $(EXT_DIR) && ruby extconf.rb
 
+# util extension: build util_ext.so, then copy it onto the Ruby load path at
+# lib/rgame/util_ext.so, which is where `require "rgame/util_ext"` looks for it
+# (mirrors how rake-compiler installs a compiled ext into lib/<gem>/).
+ext-util: $(LIB_UTIL_SO)
+
+$(LIB_UTIL_SO): $(EXT_UTIL_SO)
+	cp $(EXT_UTIL_SO) $@
+
+$(EXT_UTIL_SO): $(EXT_UTIL_DIR)/tensor.c $(EXT_UTIL_DIR)/Makefile
+	$(MAKE) -C $(EXT_UTIL_DIR)
+
+$(EXT_UTIL_DIR)/Makefile: $(EXT_UTIL_DIR)/extconf.rb
+	cd $(EXT_UTIL_DIR) && ruby extconf.rb
+
 ext-clean:
 	[ -f $(EXT_DIR)/Makefile ] && $(MAKE) -C $(EXT_DIR) distclean || true
-	rm -f $(EXT_DIR)/Makefile
+	[ -f $(EXT_UTIL_DIR)/Makefile ] && $(MAKE) -C $(EXT_UTIL_DIR) distclean || true
+	rm -f $(EXT_DIR)/Makefile $(EXT_UTIL_DIR)/Makefile $(LIB_UTIL_SO)
 
 clean: ext-clean
 	rm -rf $(BUILD_DIR)

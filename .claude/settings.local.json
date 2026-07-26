@@ -13,7 +13,13 @@
       "Bash(make clean *)",
       "Bash(make all *)",
       "Bash(make test *)",
-      "Bash(make ext *)"
+      "Bash(make ext *)",
+      "Bash(ruby -v)",
+      "Bash(bundle -v)",
+      "Bash(bundle exec *)",
+      "Bash(make ext-util *)",
+      "Bash(make -C ext/rgame_util)",
+      "Bash(echo \"=== exit: $? ===\")"
     ]
   }
 }
