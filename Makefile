@@ -22,6 +22,7 @@ APP_OBJ := $(BUILD_DIR)/app.o
 FRAME_LOOP_OBJ := $(BUILD_DIR)/frame_loop.o
 DEVICE_SLOTS_OBJ := $(BUILD_DIR)/device_slots.o
 INPUT_OBJ := $(BUILD_DIR)/input.o
+GAMEPAD_OBJ := $(BUILD_DIR)/gamepad.o
 CORE_LIB := $(BUILD_DIR)/librgame_core.a
 
 # The standalone binary and its entry point (src/main.c).
@@ -52,7 +53,7 @@ all: $(MAIN_BIN)
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-$(APP_OBJ): $(EXT_CORE_DIR)/app.c $(EXT_CORE_DIR)/frame_loop.h $(EXT_CORE_DIR)/input.h $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
+$(APP_OBJ): $(EXT_CORE_DIR)/app.c $(EXT_CORE_DIR)/frame_loop.h $(EXT_CORE_DIR)/input.h $(EXT_CORE_DIR)/gamepad.h $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
 $(FRAME_LOOP_OBJ): $(EXT_CORE_DIR)/frame_loop.c $(EXT_CORE_DIR)/frame_loop.h | $(BUILD_DIR)
@@ -64,7 +65,10 @@ $(DEVICE_SLOTS_OBJ): $(EXT_CORE_DIR)/device_slots.c $(EXT_CORE_DIR)/device_slots
 $(INPUT_OBJ): $(EXT_CORE_DIR)/input.c $(EXT_CORE_DIR)/input.h $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-$(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ)
+$(GAMEPAD_OBJ): $(EXT_CORE_DIR)/gamepad.c $(EXT_CORE_DIR)/gamepad.h $(EXT_CORE_DIR)/input.h $(EXT_CORE_DIR)/device_slots.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
+
+$(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ) $(GAMEPAD_OBJ)
 	ar rcs $@ $^
 
 $(MAIN_OBJ): src/main.c $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)

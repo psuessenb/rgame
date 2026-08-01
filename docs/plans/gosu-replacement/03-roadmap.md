@@ -253,9 +253,11 @@ Unplugging and replugging a pad mid-run keeps it on the same slot.
 The bulk of the work. Detail here is deliberately thinner; it gets re-planned
 once phase 2 lands. Sub-order matters more than sub-detail:
 
-- **3a `color.{c,h}` + `Core::Color`.** Trivial, unblocks every other
+- **3a `color.{c,h}` + `Util::Color`.** Trivial, unblocks every other
   signature. `Color.rgba(r,g,b,a)`, `Color::WHITE`, and the tri-modal
   `nil`/`Array`/`Color` acceptance `GosuRenderer#resolve_color` promises.
+  Built in `ext/rgame_util/`, not `ext/rgame_core/`: a colour is a value, and
+  the engine layer must be able to hold one as an attribute.
 - **3b `draw_queue.{c,h}` — z-sort + batching.** Pure C, zero GL, full Check
   coverage. This is the piece the whole engine's correctness rests on and the
   reason `glEnable(GL_DEPTH_TEST)` has to go; see

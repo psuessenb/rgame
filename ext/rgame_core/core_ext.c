@@ -24,6 +24,8 @@
  *     def button_up(id); end
  *     def frame_begin; end       # once per frame, before the tick batch
  *     def resize(w, h); end
+ *     def gamepad_connected(slot); end
+ *     def gamepad_disconnected(slot); end
  *   end
  *
  *   MyGame.new.run
@@ -48,6 +50,8 @@ static ID id_needs_redraw;
 static ID id_button_down;
 static ID id_button_up;
 static ID id_resize;
+static ID id_gamepad_connected;
+static ID id_gamepad_disconnected;
 static ID id_width;
 static ID id_height;
 static ID id_caption;
@@ -259,6 +263,16 @@ static void tramp_resize(void *userdata, int width, int height) {
     protected_call((run_state *)userdata, id_resize, 2, args);
 }
 
+static void tramp_gamepad_connected(void *userdata, int slot) {
+    VALUE arg = INT2NUM(slot);
+    protected_call((run_state *)userdata, id_gamepad_connected, 1, &arg);
+}
+
+static void tramp_gamepad_disconnected(void *userdata, int slot) {
+    VALUE arg = INT2NUM(slot);
+    protected_call((run_state *)userdata, id_gamepad_disconnected, 1, &arg);
+}
+
 /* ------------------------------------------------------------------------- *
  * app.run
  * ------------------------------------------------------------------------- */
@@ -275,6 +289,8 @@ static VALUE app_run(VALUE self) {
         .button_down = tramp_button_down,
         .button_up = tramp_button_up,
         .resize = tramp_resize,
+        .gamepad_connected = tramp_gamepad_connected,
+        .gamepad_disconnected = tramp_gamepad_disconnected,
         .userdata = &rs,
     };
 
@@ -314,6 +330,22 @@ static VALUE app_caption(VALUE self) {
 static VALUE app_set_caption(VALUE self, VALUE title) {
     rgame_app_set_title(app_unwrap(self), StringValueCStr(title));
     return title;
+}
+
+/*
+ * Raw input queries. These take the numeric device and button/axis ids from
+ * RGame::Core::Input rather than symbolic action names — turning `:fire` into
+ * an id is the binding table's job, and that lives in Ruby (see
+ * lib/rgame/core/input.rb) because it is configuration, not mechanism.
+ */
+static VALUE app_input_down_p(VALUE self, VALUE device, VALUE button_id) {
+    return rgame_app_input_down(app_unwrap(self), NUM2INT(device), NUM2INT(button_id))
+               ? Qtrue
+               : Qfalse;
+}
+
+static VALUE app_input_axis(VALUE self, VALUE device, VALUE axis_id) {
+    return DBL2NUM(rgame_app_input_axis(app_unwrap(self), NUM2INT(device), NUM2INT(axis_id)));
 }
 
 static VALUE app_ticks_ms(VALUE self) {
@@ -366,6 +398,12 @@ static VALUE app_default_resize(VALUE self, VALUE width, VALUE height) {
     return Qnil;
 }
 
+static VALUE app_default_gamepad(VALUE self, VALUE slot) {
+    (void)self;
+    (void)slot;
+    return Qnil;
+}
+
 /* ------------------------------------------------------------------------- *
  * Entry point. Ruby calls Init_<basename of the required path> when the .so is
  * loaded; we require it as "rgame/core_ext", so this must be
@@ -381,6 +419,8 @@ void Init_core_ext(void) {
     id_button_down = rb_intern("button_down");
     id_button_up = rb_intern("button_up");
     id_resize = rb_intern("resize");
+    id_gamepad_connected = rb_intern("gamepad_connected");
+    id_gamepad_disconnected = rb_intern("gamepad_disconnected");
     id_width = rb_intern("width");
     id_height = rb_intern("height");
     id_caption = rb_intern("caption");
@@ -405,6 +445,54 @@ void Init_core_ext(void) {
     rb_define_method(cApp, "caption=", app_set_caption, 1);
     rb_define_method(cApp, "ticks_ms", app_ticks_ms, 0);
     rb_define_method(cApp, "fps", app_fps, 0);
+    rb_define_method(cApp, "input_down?", app_input_down_p, 2);
+    rb_define_method(cApp, "input_axis", app_input_axis, 2);
+
+    /*
+     * RGame::Core::Input is opened here only to hang the id constants off it,
+     * so they cannot drift from the C values they mirror. Everything else
+     * about the class — the binding table and the query methods — is Ruby,
+     * in lib/rgame/core/input.rb, which reopens this same class.
+     */
+    VALUE cInput = rb_define_class_under(mCore, "Input", rb_cObject);
+#define DEFINE_INPUT_CONST(name, value) rb_define_const(cInput, name, INT2NUM(value))
+    DEFINE_INPUT_CONST("KEY_RETURN", RGAME_KEY_RETURN);
+    DEFINE_INPUT_CONST("KEY_ESCAPE", RGAME_KEY_ESCAPE);
+    DEFINE_INPUT_CONST("KEY_SPACE", RGAME_KEY_SPACE);
+    DEFINE_INPUT_CONST("KEY_F1", RGAME_KEY_F1);
+    DEFINE_INPUT_CONST("KEY_RIGHT", RGAME_KEY_RIGHT);
+    DEFINE_INPUT_CONST("KEY_LEFT", RGAME_KEY_LEFT);
+    DEFINE_INPUT_CONST("KEY_DOWN", RGAME_KEY_DOWN);
+    DEFINE_INPUT_CONST("KEY_UP", RGAME_KEY_UP);
+
+    DEFINE_INPUT_CONST("PAD_A", RGAME_PAD_A);
+    DEFINE_INPUT_CONST("PAD_B", RGAME_PAD_B);
+    DEFINE_INPUT_CONST("PAD_X", RGAME_PAD_X);
+    DEFINE_INPUT_CONST("PAD_Y", RGAME_PAD_Y);
+    DEFINE_INPUT_CONST("PAD_BACK", RGAME_PAD_BACK);
+    DEFINE_INPUT_CONST("PAD_GUIDE", RGAME_PAD_GUIDE);
+    DEFINE_INPUT_CONST("PAD_START", RGAME_PAD_START);
+    DEFINE_INPUT_CONST("PAD_LEFT_STICK", RGAME_PAD_LEFT_STICK);
+    DEFINE_INPUT_CONST("PAD_RIGHT_STICK", RGAME_PAD_RIGHT_STICK);
+    DEFINE_INPUT_CONST("PAD_LEFT_SHOULDER", RGAME_PAD_LEFT_SHOULDER);
+    DEFINE_INPUT_CONST("PAD_RIGHT_SHOULDER", RGAME_PAD_RIGHT_SHOULDER);
+    DEFINE_INPUT_CONST("PAD_DPAD_UP", RGAME_PAD_DPAD_UP);
+    DEFINE_INPUT_CONST("PAD_DPAD_DOWN", RGAME_PAD_DPAD_DOWN);
+    DEFINE_INPUT_CONST("PAD_DPAD_LEFT", RGAME_PAD_DPAD_LEFT);
+    DEFINE_INPUT_CONST("PAD_DPAD_RIGHT", RGAME_PAD_DPAD_RIGHT);
+
+    DEFINE_INPUT_CONST("AXIS_LEFT_X", RGAME_AXIS_LEFT_X);
+    DEFINE_INPUT_CONST("AXIS_LEFT_Y", RGAME_AXIS_LEFT_Y);
+    DEFINE_INPUT_CONST("AXIS_RIGHT_X", RGAME_AXIS_RIGHT_X);
+    DEFINE_INPUT_CONST("AXIS_RIGHT_Y", RGAME_AXIS_RIGHT_Y);
+    DEFINE_INPUT_CONST("AXIS_TRIGGER_LEFT", RGAME_AXIS_TRIGGER_LEFT);
+    DEFINE_INPUT_CONST("AXIS_TRIGGER_RIGHT", RGAME_AXIS_TRIGGER_RIGHT);
+
+    /* Device ids: the keyboard, then one per player slot. */
+    DEFINE_INPUT_CONST("KEYBOARD", RGAME_INPUT_KEYBOARD);
+    DEFINE_INPUT_CONST("GAMEPAD_FIRST", RGAME_INPUT_GAMEPAD_FIRST);
+    DEFINE_INPUT_CONST("MAX_GAMEPADS", RGAME_INPUT_MAX_GAMEPADS);
+#undef DEFINE_INPUT_CONST
 
     rb_define_method(cApp, "frame_begin", app_default_frame_begin, 0);
     rb_define_method(cApp, "update", app_default_update, 1);
@@ -413,4 +501,6 @@ void Init_core_ext(void) {
     rb_define_method(cApp, "button_down", app_default_button, 1);
     rb_define_method(cApp, "button_up", app_default_button, 1);
     rb_define_method(cApp, "resize", app_default_resize, 2);
+    rb_define_method(cApp, "gamepad_connected", app_default_gamepad, 1);
+    rb_define_method(cApp, "gamepad_disconnected", app_default_gamepad, 1);
 }

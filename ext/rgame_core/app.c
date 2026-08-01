@@ -22,6 +22,7 @@
 #include "rgame/core.h"
 #include "frame_loop.h"
 #include "input.h"
+#include "gamepad.h"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
@@ -32,6 +33,18 @@
 #define RGAME_TICK_SECONDS (1.0 / 60.0)
 #define RGAME_MAX_TICKS_PER_FRAME 5
 
+/*
+ * How many apps are alive. SDL_Init is safe to call repeatedly, but SDL_Quit
+ * is not paired with it — it tears down *everything* regardless of how many
+ * callers still need SDL. Destroying one app while another lived therefore
+ * pulled the video subsystem out from under it and segfaulted inside GC, which
+ * is exactly the shape a spec suite produces (many short-lived Apps, collected
+ * at unpredictable times). So SDL is shut down only when the last app goes.
+ *
+ * Single-threaded by assumption, like the rest of the engine.
+ */
+static int rgame_live_apps = 0;
+
 struct rgame_app {
     SDL_Window *window;
     SDL_GLContext gl_context;
@@ -39,10 +52,11 @@ struct rgame_app {
     rgame_frame_loop frame_loop;
     rgame_fps_counter fps_counter;
     rgame_input_state input;
+    rgame_gamepads gamepads;
 };
 
 rgame_app *rgame_app_create(int width, int height, const char *title) {
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) {
         SDL_Log("SDL_Init failed: %s", SDL_GetError());
         return NULL;
     }
@@ -80,8 +94,11 @@ rgame_app *rgame_app_create(int width, int height, const char *title) {
     SDL_GL_SetSwapInterval(1); /* vsync */
     glEnable(GL_DEPTH_TEST);
 
+    rgame_live_apps++;
+
     app->running = 1;
     rgame_input_state_clear(&app->input);
+    rgame_gamepads_init(&app->gamepads);
     rgame_frame_loop_init(&app->frame_loop);
     rgame_fps_counter_init(&app->fps_counter);
     return app;
@@ -91,6 +108,7 @@ void rgame_app_destroy(rgame_app *app) {
     if (!app) {
         return;
     }
+    rgame_gamepads_shutdown(&app->gamepads);
     if (app->gl_context) {
         SDL_GL_DeleteContext(app->gl_context);
     }
@@ -98,7 +116,11 @@ void rgame_app_destroy(rgame_app *app) {
         SDL_DestroyWindow(app->window);
     }
     free(app);
-    SDL_Quit();
+
+    if (--rgame_live_apps <= 0) {
+        rgame_live_apps = 0;
+        SDL_Quit();
+    }
 }
 
 /*
@@ -141,6 +163,7 @@ static void rgame_app_snapshot_input(rgame_app *app) {
     if (keys && count == RGAME_KEYBOARD_KEY_COUNT) {
         rgame_input_state_set_keys(&app->input, keys);
     }
+    rgame_gamepads_snapshot(&app->gamepads, &app->input);
 }
 
 /*
@@ -169,6 +192,27 @@ static void rgame_app_poll_events(rgame_app *app, const rgame_app_callbacks *cb)
                 cb->button_up(cb->userdata, (int)event.key.keysym.scancode);
             }
             break;
+        case SDL_CONTROLLERDEVICEADDED: {
+            /* For ADDED, `which` is a device *index*. */
+            int slot = rgame_gamepads_add(&app->gamepads, event.cdevice.which);
+            if (slot != RGAME_DEVICE_SLOT_NONE && cb->gamepad_connected) {
+                cb->gamepad_connected(cb->userdata, slot);
+            }
+            break;
+        }
+        case SDL_CONTROLLERDEVICEREMOVED: {
+            /* ...but for REMOVED, the same field is an *instance id*. Passing
+             * one where the other is expected is silent and wrong. */
+            int slot = rgame_gamepads_remove(&app->gamepads, event.cdevice.which);
+            if (slot != RGAME_DEVICE_SLOT_NONE) {
+                /* Drop any buttons that were held at the moment it vanished. */
+                rgame_input_state_clear_pad(&app->input, slot);
+                if (cb->gamepad_disconnected) {
+                    cb->gamepad_disconnected(cb->userdata, slot);
+                }
+            }
+            break;
+        }
         case SDL_WINDOWEVENT:
             if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
                 glViewport(0, 0, event.window.data1, event.window.data2);
@@ -275,6 +319,22 @@ void rgame_app_set_title(rgame_app *app, const char *title) {
 
 int rgame_app_input_down(const rgame_app *app, int device, int button_id) {
     return rgame_input_state_down(&app->input, device, button_id);
+}
+
+float rgame_app_input_axis(const rgame_app *app, int device, int axis_id) {
+    return rgame_input_state_axis(&app->input, device, axis_id);
+}
+
+int rgame_app_gamepad_connected(const rgame_app *app, int slot) {
+    return rgame_gamepads_connected(&app->gamepads, slot);
+}
+
+const char *rgame_app_gamepad_name(const rgame_app *app, int slot) {
+    return rgame_gamepads_name(&app->gamepads, slot);
+}
+
+int rgame_app_gamepad_count(const rgame_app *app) {
+    return rgame_gamepads_count(&app->gamepads);
 }
 
 unsigned int rgame_app_ticks_ms(const rgame_app *app) {

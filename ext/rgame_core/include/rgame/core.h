@@ -59,6 +59,41 @@ void rgame_app_destroy(rgame_app *app);
 #define RGAME_KEY_DOWN 81
 #define RGAME_KEY_UP 82
 
+/* Gamepad button ids: the gamepad range plus SDL's controller button number.
+ * app.c asserts each against the SDL constant it mirrors, as with the keys. */
+#define RGAME_PAD_A (RGAME_BUTTON_GAMEPAD_FIRST + 0)
+#define RGAME_PAD_B (RGAME_BUTTON_GAMEPAD_FIRST + 1)
+#define RGAME_PAD_X (RGAME_BUTTON_GAMEPAD_FIRST + 2)
+#define RGAME_PAD_Y (RGAME_BUTTON_GAMEPAD_FIRST + 3)
+#define RGAME_PAD_BACK (RGAME_BUTTON_GAMEPAD_FIRST + 4)
+#define RGAME_PAD_GUIDE (RGAME_BUTTON_GAMEPAD_FIRST + 5)
+#define RGAME_PAD_START (RGAME_BUTTON_GAMEPAD_FIRST + 6)
+#define RGAME_PAD_LEFT_STICK (RGAME_BUTTON_GAMEPAD_FIRST + 7)
+#define RGAME_PAD_RIGHT_STICK (RGAME_BUTTON_GAMEPAD_FIRST + 8)
+#define RGAME_PAD_LEFT_SHOULDER (RGAME_BUTTON_GAMEPAD_FIRST + 9)
+#define RGAME_PAD_RIGHT_SHOULDER (RGAME_BUTTON_GAMEPAD_FIRST + 10)
+#define RGAME_PAD_DPAD_UP (RGAME_BUTTON_GAMEPAD_FIRST + 11)
+#define RGAME_PAD_DPAD_DOWN (RGAME_BUTTON_GAMEPAD_FIRST + 12)
+#define RGAME_PAD_DPAD_LEFT (RGAME_BUTTON_GAMEPAD_FIRST + 13)
+#define RGAME_PAD_DPAD_RIGHT (RGAME_BUTTON_GAMEPAD_FIRST + 14)
+
+/*
+ * Analog axes are their own small id space rather than part of the button
+ * space: they are float-valued and read through a different call, so folding
+ * them in would only invite asking for an axis as if it were a button.
+ *
+ * Stick axes read -1.0 to 1.0 (Y is positive *downwards*, as SDL reports it);
+ * triggers read 0.0 to 1.0. No dead zone is applied — where to put one is a
+ * game decision, and a resting stick genuinely does report small non-zero
+ * values.
+ */
+#define RGAME_AXIS_LEFT_X 0
+#define RGAME_AXIS_LEFT_Y 1
+#define RGAME_AXIS_RIGHT_X 2
+#define RGAME_AXIS_RIGHT_Y 3
+#define RGAME_AXIS_TRIGGER_LEFT 4
+#define RGAME_AXIS_TRIGGER_RIGHT 5
+
 /*
  * Which device a query is about. The keyboard is device 0 so single-player
  * code can ignore the parameter entirely; gamepads follow, one per player
@@ -85,6 +120,7 @@ typedef void (*rgame_draw_fn)(void *userdata);
 typedef int (*rgame_needs_redraw_fn)(void *userdata);
 typedef void (*rgame_button_fn)(void *userdata, int button_id);
 typedef void (*rgame_resize_fn)(void *userdata, int width, int height);
+typedef void (*rgame_gamepad_fn)(void *userdata, int slot);
 
 /*
  * The callbacks rgame_app_run drives, gathered into one struct rather than
@@ -104,6 +140,9 @@ typedef void (*rgame_resize_fn)(void *userdata, int width, int height);
  *  - `button_down`/`button_up` report discrete key presses and releases. Key
  *    repeats are filtered out, so holding a key reports exactly one press.
  *  - `resize` reports a new window size; the GL viewport is already updated.
+ *  - `gamepad_connected`/`gamepad_disconnected` report a controller arriving
+ *    at or leaving a player slot. A slot is stable across a momentary
+ *    unplug/replug, so "player 2" stays player 2.
  *  - `userdata` is forwarded to every callback; may be NULL.
  */
 typedef struct {
@@ -114,6 +153,8 @@ typedef struct {
     rgame_button_fn button_down;
     rgame_button_fn button_up;
     rgame_resize_fn resize;
+    rgame_gamepad_fn gamepad_connected;
+    rgame_gamepad_fn gamepad_disconnected;
     void *userdata;
 } rgame_app_callbacks;
 
@@ -154,6 +195,26 @@ void rgame_app_set_title(rgame_app *app, const char *title);
  * about a keyboard key is 0 rather than an error.
  */
 int rgame_app_input_down(const rgame_app *app, int device, int button_id);
+
+/*
+ * Current value of an analog axis on `device`, read from the same per-frame
+ * snapshot as rgame_app_input_down. Sticks read -1.0..1.0, triggers 0.0..1.0.
+ * An unknown device or axis, or a slot with no controller, reads 0.0.
+ */
+float rgame_app_input_axis(const rgame_app *app, int device, int axis_id);
+
+/* Is a controller plugged into player `slot` (0-based, < RGAME_INPUT_MAX_GAMEPADS)? */
+int rgame_app_gamepad_connected(const rgame_app *app, int slot);
+
+/*
+ * Human-readable name of the controller in `slot`, for "Player 2: connect a
+ * controller" UI. Returns NULL when the slot is empty. The string is owned by
+ * the engine and is only valid while that controller stays connected.
+ */
+const char *rgame_app_gamepad_name(const rgame_app *app, int slot);
+
+/* How many controllers are currently connected. */
+int rgame_app_gamepad_count(const rgame_app *app);
 
 /* Monotonic milliseconds since startup. For time-based animation phase, etc. */
 unsigned int rgame_app_ticks_ms(const rgame_app *app);

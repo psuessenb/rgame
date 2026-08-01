@@ -4,6 +4,7 @@ plugins:
 
 require:
   - ./rubocop/cop/game/no_interpolation_in_hot_path.rb
+  - ./rubocop/cop/game/no_core_in_engine_layer.rb
   - ./rubocop/cop/game/no_needless_allocation.rb
   - ./rubocop/cop/game/prefer_gosu_module_method.rb
   - ./rubocop/cop/game/use_absolute_coords.rb
@@ -22,17 +23,31 @@ AllCops:
 # - UseAbsoluteCoords: in draw/update/contains?, use the resolved `@abs_*`, never the
 #   parent-relative `@x`/`@y`/`@z`.
 #
-# Specs are headless test code (their `on_draw`/`update` stubs and array fixtures aren't a
-# shipping per-frame path), so these runtime guards don't police spec/.
+# Specs are test code (their `on_draw`/`update` stubs and array fixtures aren't a
+# shipping per-frame path), so these runtime guards don't police either suite.
 Game/NoInterpolationInHotPath:
   Exclude:
     - 'spec/**/*'
+    - 'spec_core/**/*'
 Game/NoNeedlessAllocation:
   Exclude:
     - 'spec/**/*'
+    - 'spec_core/**/*'
 Game/PreferGosuModuleMethod:
   Exclude:
     - 'spec/**/*'
+    - 'spec_core/**/*'
+
+# The engine layer must stay headless: it may never name RGame::Core, in lib or
+# in its specs. Everything else is allowed to (Core's own code, its specs, the
+# example driver), so the cop is scoped to where the rule applies rather than
+# excluded from where it doesn't.
+Game/NoCoreInEngineLayer:
+  Include:
+    - 'lib/rgame/engine/**/*.rb'
+    - 'spec/**/*.rb'
+  Exclude:
+    - 'spec/rubocop/**/*.rb'
 
 # This is a code-driven game engine, not a Rails app: update/draw methods and
 # Window/Scene classes naturally run long, and short coordinate/loop variable

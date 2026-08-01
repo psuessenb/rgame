@@ -13,7 +13,7 @@ depends on:
 | C source | `ext/rgame_core/` | `ext/rgame_util/` |
 | Extension | `rgame/core_ext` | `rgame/util_ext` |
 | Links | SDL2 + OpenGL | nothing but Ruby |
-| Holds today | `App` — window, GL context, fixed-timestep main loop | `Tensor` |
+| Holds today | `App` — window, GL context, fixed-timestep main loop; `Input` | `Tensor` |
 
 That split is load-bearing, not cosmetic: `require "rgame"` gives you
 `RGame::Util` with **no graphics libraries loaded into the process at all**, so
@@ -101,12 +101,21 @@ The Ruby specs:
 
 ```
 bundle install
-make ext-util        # required first: lib/rgame/util_ext.so is what lib/ requires
-bundle exec rspec
+make ext             # both extensions; the suites need the compiled .so files
+rake spec            # headless specs: RGame::Util + RGame::Engine, no SDL loaded
+rake spec:core       # RGame::Core specs; opens real windows, boots its own Xvfb
+rake                 # everything: make test, rake spec, rake spec:core
 bundle exec rubocop  # lint; configured in .rubocop.yml, which also loads the
-                     # project's own cops from rubocop/cop/game/. Currently
-                     # reports a backlog of unaddressed offenses.
+                     # project's own cops from rubocop/cop/game/.
 ```
+
+The two Ruby suites are two directories and two processes on purpose. `spec/`
+must never load SDL — the engine layer's whole value is that it can be
+specified with no window — and RSpec loads one root into one process, so a
+single `require "rgame/core"` anywhere would define `RGame::Core` for every
+other example in the run. Separate runners cannot be forgotten the way an
+exclude rule can. `rake spec` needs `make ext-util`; `rake spec:core` needs
+`make ext-core`.
 
 Each `make ext-*` target compiles its extension and copies the resulting `.so`
 into `lib/rgame/`, which is where `require "rgame/util_ext"` and `require
@@ -114,9 +123,9 @@ into `lib/rgame/`, which is where `require "rgame/util_ext"` and `require
 compiled extension into `lib/<gem>/`. Without that step the specs can't even
 load, since `RGame::Util::Tensor` now lives in C.
 
-The specs only need `ext-util` — they never touch `RGame::Core`, which is
-what keeps them runnable with no display and no SDL. To drive the *engine* from
-Ruby (opens a real window):
+`rake spec` needs only `ext-util` — it never touches `RGame::Core`, which is
+what keeps it runnable with no display and no SDL. To drive the *engine* from
+Ruby by hand (opens a real window):
 
 ```
 make ext-core
@@ -145,6 +154,8 @@ ext/rgame_core/              RGame::Core — the SDL/GL half.
                              player on the same slot across a disconnect. No SDL.
   input.h/.c                 Pure input snapshot + the flat button-id space
                              (keyboard and gamepad ranges). No SDL.
+  gamepad.h/.c               Thin SDL_GameController shim: opens/closes pads on
+                             hot-plug and copies their state into the snapshot.
   core_ext.c                 Ruby glue: VALUE wrappers + callback trampolines.
   extconf.rb                 mkmf script; pkg_config("sdl2"), -lGL.
   example.rb                 Manual smoke test driven from Ruby.
@@ -159,6 +170,8 @@ lib/rgame/util.rb            Namespace loader.
 lib/rgame/util/tensor.rb     Requires the compiled rgame/util_ext.
 lib/rgame/core.rb            `require "rgame/core"` — opt-in, loads SDL/GL.
 lib/rgame/core/app.rb        Requires the compiled rgame/core_ext.
+lib/rgame/core/input.rb      Symbolic action -> button binding table; the id
+                             constants themselves come from C.
 lib/rgame/*.so               Build artifacts, copied here by `make ext`.
 
 src/main.c                   Standalone executable entry point — the C
@@ -170,7 +183,10 @@ src/main.c                   Standalone executable entry point — the C
 test/                        Check unit tests for the pure C logic (`make test`).
   test_main.c                Runs every suite; one binary, build/test_rgame.
   suites.h                   Each test_<x>.c exposes a Suite, declared here.
-spec/                        RSpec specs for the Ruby half (`bundle exec rspec`).
+spec/                        Headless RSpec specs: RGame::Util and
+                             RGame::Engine (`rake spec`). Never loads SDL.
+spec_core/                   RSpec specs for RGame::Core (`rake spec:core`).
+                             Opens real windows; boots its own Xvfb.
 docs/                        The feature spec the engine is being built out to.
 ```
 

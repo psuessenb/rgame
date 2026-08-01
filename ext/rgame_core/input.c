@@ -16,8 +16,53 @@ int rgame_input_device_valid(int device) {
     return device >= 0 && device < RGAME_INPUT_DEVICE_COUNT;
 }
 
+int rgame_input_device_slot(int device) {
+    if (device < RGAME_INPUT_GAMEPAD_FIRST || device >= RGAME_INPUT_DEVICE_COUNT) {
+        return -1;
+    }
+    return device - RGAME_INPUT_GAMEPAD_FIRST;
+}
+
+float rgame_input_axis_normalize(int raw) {
+    float value = (float)raw / 32767.0f;
+    if (value < -1.0f) {
+        return -1.0f; /* raw == -32768 is one step past the positive limit */
+    }
+    if (value > 1.0f) {
+        return 1.0f;
+    }
+    return value;
+}
+
 void rgame_input_state_clear(rgame_input_state *state) {
     memset(state->keys, 0, sizeof(state->keys));
+    memset(state->pad_buttons, 0, sizeof(state->pad_buttons));
+    memset(state->pad_axes, 0, sizeof(state->pad_axes));
+}
+
+void rgame_input_state_set_pad(rgame_input_state *state, int slot,
+                               const unsigned char *buttons, const float *axes) {
+    if (slot < 0 || slot >= RGAME_INPUT_MAX_GAMEPADS) {
+        return;
+    }
+    memcpy(state->pad_buttons[slot], buttons, sizeof(state->pad_buttons[slot]));
+    memcpy(state->pad_axes[slot], axes, sizeof(state->pad_axes[slot]));
+}
+
+void rgame_input_state_clear_pad(rgame_input_state *state, int slot) {
+    if (slot < 0 || slot >= RGAME_INPUT_MAX_GAMEPADS) {
+        return;
+    }
+    memset(state->pad_buttons[slot], 0, sizeof(state->pad_buttons[slot]));
+    memset(state->pad_axes[slot], 0, sizeof(state->pad_axes[slot]));
+}
+
+float rgame_input_state_axis(const rgame_input_state *state, int device, int axis_id) {
+    int slot = rgame_input_device_slot(device);
+    if (slot < 0 || axis_id < 0 || axis_id >= RGAME_GAMEPAD_AXIS_COUNT) {
+        return 0.0f;
+    }
+    return state->pad_axes[slot][axis_id];
 }
 
 void rgame_input_state_set_keys(rgame_input_state *state, const unsigned char *keys) {
@@ -25,15 +70,6 @@ void rgame_input_state_set_keys(rgame_input_state *state, const unsigned char *k
 }
 
 int rgame_input_state_down(const rgame_input_state *state, int device, int button_id) {
-    /* Looks redundant today — every non-keyboard device falls through to the
-     * "nothing held" return below anyway — but it is what will keep the
-     * per-slot gamepad arrays in bounds once the pad shim indexes by slot.
-     * Deleting it now would be invisible; deleting it then would be a buffer
-     * overrun. */
-    if (!rgame_input_device_valid(device)) {
-        return 0;
-    }
-
     if (device == RGAME_INPUT_KEYBOARD) {
         /* A gamepad button asked of the keyboard is simply not held. */
         if (!rgame_button_is_keyboard(button_id)) {
@@ -47,8 +83,27 @@ int rgame_input_state_down(const rgame_input_state *state, int device, int butto
         return state->keys[button_id] ? 1 : 0;
     }
 
-    /* Gamepad devices: the slot table and per-pad button state land with the
-     * gamepad shim. Until then a pad reports nothing held, which is also the
-     * correct answer for a slot with no controller plugged into it. */
-    return 0;
+    /*
+     * A gamepad answers only for gamepad buttons — and this check has to come
+     * *before* the subtraction below, not merely alongside the bound check.
+     * For a hugely negative id, `button_id - RGAME_BUTTON_GAMEPAD_FIRST` is
+     * signed overflow, i.e. undefined behaviour, before any bound check gets a
+     * chance to reject it. (Confirmed by removing this guard: UBSan reports
+     * "signed integer overflow: -2147483648 - 4096".)
+     */
+    if (!rgame_button_is_gamepad(button_id)) {
+        return 0;
+    }
+
+    /* rgame_input_device_slot rejects the keyboard and any out-of-range device
+     * by returning -1, so no separate device-validity check is needed here. */
+    int slot = rgame_input_device_slot(device);
+    int index = button_id - RGAME_BUTTON_GAMEPAD_FIRST;
+    /* The gamepad range (256 ids) is wider than the buttons SDL defines, so
+     * the array bound is checked separately from the range — same split as the
+     * keyboard above. A slot with no pad simply holds zeroes. */
+    if (slot < 0 || index < 0 || index >= RGAME_GAMEPAD_BUTTON_COUNT) {
+        return 0;
+    }
+    return state->pad_buttons[slot][index] ? 1 : 0;
 }

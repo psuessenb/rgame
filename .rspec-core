@@ -1,0 +1,4 @@
+--require core_spec_helper
+--format documentation
+--default-path spec_core
+-I spec_core

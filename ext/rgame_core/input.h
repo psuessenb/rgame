@@ -26,14 +26,21 @@
  * callers outside this directory need to name them.
  */
 
-/* == SDL_NUM_SCANCODES; asserted against SDL in app.c. */
+/* All three == the matching SDL maxima; asserted against SDL in app.c. */
 #define RGAME_KEYBOARD_KEY_COUNT 512
+#define RGAME_GAMEPAD_BUTTON_COUNT 21
+#define RGAME_GAMEPAD_AXIS_COUNT 6
 
 typedef struct {
     /* One byte per scancode: non-zero means held. A byte array rather than a
      * bitset because it is what SDL_GetKeyboardState already hands us, so the
      * snapshot is a straight copy with no packing step on the frame path. */
     unsigned char keys[RGAME_KEYBOARD_KEY_COUNT];
+
+    /* Per player slot, not per SDL device index — the slot table owns that
+     * mapping, so a pad that is unplugged and replugged keeps writing here. */
+    unsigned char pad_buttons[RGAME_INPUT_MAX_GAMEPADS][RGAME_GAMEPAD_BUTTON_COUNT];
+    float pad_axes[RGAME_INPUT_MAX_GAMEPADS][RGAME_GAMEPAD_AXIS_COUNT];
 } rgame_input_state;
 
 /* Clears every button to "not held". */
@@ -44,12 +51,38 @@ void rgame_input_state_clear(rgame_input_state *state);
  * SDL_GetKeyboardState returns. */
 void rgame_input_state_set_keys(rgame_input_state *state, const unsigned char *keys);
 
+/* Replaces one slot's gamepad state. `buttons` and `axes` must have
+ * RGAME_GAMEPAD_BUTTON_COUNT / RGAME_GAMEPAD_AXIS_COUNT entries. */
+void rgame_input_state_set_pad(rgame_input_state *state, int slot,
+                               const unsigned char *buttons, const float *axes);
+
+/* Zeroes one slot — what a disconnect must do, so a pad unplugged mid-press
+ * does not leave that button stuck held forever. */
+void rgame_input_state_clear_pad(rgame_input_state *state, int slot);
+
 /*
  * Whether `button_id` is held on `device`. Returns 0 rather than raising for
  * every out-of-range case: an unknown device, a button outside any range, or a
  * button belonging to a different device class than the one asked about.
  */
 int rgame_input_state_down(const rgame_input_state *state, int device, int button_id);
+
+/* Current value of `axis_id` on `device`; 0.0 for anything out of range. */
+float rgame_input_state_axis(const rgame_input_state *state, int device, int axis_id);
+
+/*
+ * Converts a raw SDL axis reading (-32768..32767) to -1.0..1.0.
+ *
+ * The range is asymmetric — there is one more negative value than positive —
+ * so dividing by 32767 would make full-left read slightly past -1.0. The
+ * result is clamped instead, which costs nothing and keeps callers from having
+ * to special-case a single value.
+ */
+float rgame_input_axis_normalize(int raw);
+
+/* The player slot a gamepad device id refers to, or -1 for the keyboard or an
+ * invalid device. */
+int rgame_input_device_slot(int device);
 
 /* Range predicates for the flat button-id space. Exposed because they are the
  * part worth testing directly, and because app.c uses them too. */

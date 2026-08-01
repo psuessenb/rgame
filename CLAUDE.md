@@ -46,6 +46,30 @@ still true into the real documentation and delete the plan — git history keeps
 it. A plan that outlives its refactor is just a stale description of code that
 no longer exists.
 
+## Design out misuse: the right thing must be the easy thing
+
+Aim for a design that admits little or no misuse. When something *must* happen
+for the engine to work, making it happen is the engine's job — never a rule the
+calling code is asked to remember.
+
+Two examples of the shape this takes:
+
+- **Give the user a blank hook, keep the machinery separate.** A node exposes
+  an empty `on_draw` to override, while `draw` does the bookkeeping and calls
+  it. That is better than one `draw` the user overrides and must remember to
+  `super` from — because forgetting `super` is silent, and the failure shows up
+  somewhere else entirely.
+- **The engine makes its own required calls.** A node that can be rotated
+  applies that rotation inside its own `draw`; it does not depend on the author
+  remembering to wrap their drawing in `renderer.rotated`.
+
+The same principle governs project structure, not just class design, and that
+is the test to apply when adding any convention: *if following the rule depends
+on someone remembering, the design is wrong.* Concretely — the headless spec
+suite lives in its own directory with its own runner, rather than in a shared
+one with an `exclude_pattern` that must not be forgotten. A convention that
+fails loudly beats one that has to be observed.
+
 ## RuboCop
 
 Run RuboCop over the Ruby files you touched, as a finishing step:
@@ -76,7 +100,7 @@ indistinguishable from having given up.
 
 ### The custom cops are house rules — don't disable them
 
-`rubocop/cop/game/` holds four project-specific cops (plus a shared `HotPath`
+`rubocop/cop/game/` holds five project-specific cops (plus a shared `HotPath`
 mixin), loaded by `.rubocop.yml`:
 
 | Cop | Enforces |
@@ -85,6 +109,7 @@ mixin), loaded by `.rubocop.yml`:
 | `Game/NoNeedlessAllocation` | no throwaway Array/Range literals on a per-frame path |
 | `Game/PreferGosuModuleMethod` | call `Gosu.<m>`, not the allocating `Window#<m>` compat shim |
 | `Game/UseAbsoluteCoords` | in `draw`/`update`/`contains?` use the resolved `@abs_*`, never parent-relative `@x`/`@y` |
+| `Game/NoCoreInEngineLayer` | no `RGame::Core` reference in `lib/rgame/engine/` or `spec/` — the engine layer must stay headless |
 
 These exist because a steady 60fps frame that allocates is a GC pause waiting to
 happen, and the cost is invisible without a guard. Unlike stock cops, these are
@@ -133,6 +158,66 @@ If a subsystem has both a pure part and an SDL-driven part, split it across
 the two rather than putting the whole thing in Core — that's the same
 layering rule as below, applied at the extension boundary.
 
+### Value objects go in Util; only handle-owners go in Core
+
+The sharper form of the same question, and the one to apply when a type could
+plausibly sit on either side:
+
+> **Anything that is a shareable *value* belongs in `Util`. Only something that
+> owns a GPU or OS *handle* belongs in `Core`.**
+
+A colour, a vector, a rect, a grid are values: cheap, comparable, no resources.
+A window, a texture, a font, an audio device own something the OS gave us and
+must give back. `Tensor` is a value and lives in Util; `App` owns a window and
+lives in Core.
+
+This is not tidiness — it is what makes the engine layer below usable. Engine
+code may hold Util types as attributes but may **not** hold Core types at all,
+so putting a value type in Core would put it permanently out of reach of the
+scene graph that wants to store it.
+
+## The three layers, and who may talk to whom
+
+```
+RGame::Engine   scene tree, signals, sprites, tile maps, pathfinding — pure
+                game concepts, no SDL, fully spec-able headless
+      |  may hold Util types as attributes
+      |  may CALL methods on Core objects it is handed, by name
+      |  may NOT name, require or hold a Core class
+      v
+RGame::Core     App, Input, Renderer, ... — owns windows, GPU and OS handles
+RGame::Util     Tensor, and every other shareable value type
+```
+
+`RGame::Engine` lives in `lib/rgame/engine/` and is the layer a game is
+actually written against. Its hard rule:
+
+- **It may hold `RGame::Util` types.** A node may have a `Tensor` attribute.
+- **It may not name `RGame::Core` at all** — no `require`, no constant
+  reference, no attribute. Not even in its specs.
+- **It reaches Core only through objects handed to it**, duck-typed. A node's
+  `draw` receives a `renderer` and calls methods on it that it knows by name.
+  It never stores that renderer, and never asks what class it is.
+
+That is what keeps the whole engine layer, and any game built on it,
+spec-able with no window, no GPU and no clock — specs drive `update(dt)`
+directly and can run a simulated hour in milliseconds.
+
+Two things enforce it rather than merely asking for it:
+
+- Engine specs never load `rgame/core`, so `RGame::Core` is simply an
+  undefined constant during those runs — a stray reference raises `NameError`
+  instead of quietly working.
+- `Game/NoCoreInEngineLayer` (see the RuboCop section) flags any `RGame::Core`
+  reference under `lib/rgame/engine/` or `spec/`, which also catches the
+  branches a test run never reaches.
+
+Because the engine may only call a renderer by name, that method list is a real
+interface with more than one implementation — the live `RGame::Core::Renderer`
+and every recording fake a spec substitutes. Both must be checked against the
+same shared example group, or the fake drifts and a fully green headless suite
+stops predicting whether the game runs. See "Testing" below.
+
 ## Structure and why it looks like this
 
 **All engine C lives in `ext/rgame_core/`**, not a top-level `src/`. This is
@@ -165,6 +250,11 @@ sources go in `ext/rgame_core/`.
 - `ext/rgame_core/input.{c,h}` — the input snapshot and the flat button-id
   space, again pure: `app.c` copies SDL's keyboard state into it once per
   frame, and every query reads that copy. Covered by `test/test_input.c`.
+- `ext/rgame_core/gamepad.{c,h}` — the controller shim, and the one place
+  `SDL_GameController` appears. Deliberately thin: which player a pad belongs
+  to is `device_slots`, what a button id means is `input`, and both are pure.
+  Its own correctness is checked end-to-end with an SDL *virtual* controller
+  under Xvfb — no hardware needed, see `.claude/skills/verify/`.
 - `ext/rgame_core/core_ext.c` + `extconf.rb` — the Ruby glue for the
   engine (`RGame::Core::App`); see `ext/README.md`.
 - `src/main.c` — thin standalone entry point; only talks to `core.h`'s API,
@@ -184,7 +274,8 @@ sources go in `ext/rgame_core/`.
   `lib/rgame.rb`; don't take it for an extension.
 - `lib/` — the pure-Ruby half, currently just namespace loaders:
   `lib/rgame.rb` → `lib/rgame/util.rb` → `lib/rgame/util/tensor.rb`, and
-  separately `lib/rgame/core.rb` → `lib/rgame/core/app.rb`. Each
+  separately `lib/rgame/core.rb` → `lib/rgame/core/app.rb` and
+  `lib/rgame/core/input.rb`. Each
   leaf is a `require` of the compiled extension plus a comment saying what
   the class is and what moved to C. Keep that pattern — one Ruby file per
   C-backed class — so the load path stays readable and there's an obvious
@@ -262,9 +353,17 @@ make ext-util     # ext/rgame_util     -> lib/rgame/util_ext.so
 make clean        # includes ext-clean
 ```
 
-`make ext-util` is a prerequisite for the RSpec suite — `lib/` requires the
-compiled `rgame/util_ext`, so specs can't even load without it. `ext-core`
-is *not* needed for specs, only for `ext/rgame_core/example.rb`. Ruby is
+`make ext-util` is a prerequisite for `rake spec` — `lib/` requires the
+compiled `rgame/util_ext`, so those specs can't even load without it.
+`make ext-core` is a prerequisite for `rake spec:core`.
+
+Ruby-side tasks come from the `Rakefile`:
+
+```
+rake spec         # headless: RGame::Util + RGame::Engine, no SDL in the process
+rake spec:core    # RGame::Core; opens real windows, boots its own Xvfb
+rake              # make test, then both suites
+``` Ruby is
 4.0.5, pinned in `.ruby-version` and installed via mise. Requirements are
 listed in README.md.
 
@@ -280,26 +379,75 @@ to crash while learning pointers/SDL/GL).
 - `make test` — Check suite covering layer 1 (pure logic) and layer 2 (fake
   backends: assert on recorded calls, no display involved). Fast,
   deterministic, expected to pass for every change.
-- `bundle exec rspec` — RSpec over `RGame::Util` and the pure-Ruby half
-  (`RGame::Util::Tensor` today). Same tier as `make test`: fast,
-  deterministic, no display, expected to pass for every change. Requires
-  `make ext-util` first. C code that Ruby will call and that doesn't need
-  SDL/GL can be verified from either side — prefer Check for the C-internal
-  invariants and RSpec for the Ruby-visible API contract. Specs must not
-  reach into `RGame::Core`; if something there needs testing, that's a
-  sign the testable part belongs in Util.
+- `rake spec` — the **headless** RSpec suite in `spec/`, covering
+  `RGame::Util` and `RGame::Engine`. Fast, deterministic, no display, no SDL
+  in the process at all. Requires `make ext-util` first. Expected to pass for
+  every change.
+- `rake spec:core` — the RSpec suite in `spec_core/`, covering
+  `RGame::Core`'s Ruby-visible surface: the App lifecycle, `Input`'s binding
+  table, hot-plug. Requires `make ext-core`, and boots its own Xvfb, so it
+  needs no display of its own either. Slower — it opens real windows.
 - `make run` / `ruby ext/rgame_core/example.rb` — manual verification of
-  layer 3, the real SDL/GL/audio path, from C and from Ruby respectively.
-  Subjective/visual, run by a human, not automated.
-- Automated integration/smoke tier — **documented pattern, not yet built.**
-  Once there's real rendering worth checking without a human watching,
-  Mesa's software rasterizer (llvmpipe) under Xvfb can drive a real
-  `SDL_CreateWindow`/GL context headlessly, for a small number of true
-  end-to-end checks (a frame renders without a GL error, a `glReadPixels`
-  spot-check on a known scene). Add this once there's enough real drawing
-  to justify it, not preemptively. Note: `SDL_VIDEODRIVER=dummy` alone only
-  covers window/event-pump smoke tests — it cannot create a real GL
-  context, so it doesn't help for verifying actual draw calls.
+  layer 3 from C and from Ruby respectively. Subjective/visual, run by a
+  human, not automated.
+
+`rake` with no argument runs everything: `make test`, `rake spec`,
+`rake spec:core`.
+
+### Why the Ruby specs are two suites, in two directories
+
+They are two *processes*, and that is the entire point. RSpec loads everything
+under its root into one process, so a single `require "rgame/core"` anywhere
+would define `RGame::Core` for every other example in the run — and the
+engine layer's guarantee (that it cannot even name Core) would silently
+evaporate. An `exclude_pattern` would technically work and is exactly the kind
+of rule someone forgets; separate directories with separate runners cannot be
+forgotten. See "Design out misuse" above.
+
+So:
+
+| | `spec/` | `spec_core/` |
+|---|---|---|
+| Runner | `rake spec` | `rake spec:core` |
+| Covers | `RGame::Util`, `RGame::Engine` | `RGame::Core` |
+| Loads | `require "rgame"` only | `require "rgame/core"` |
+| SDL in process | **never** | yes |
+| Display | none | its own Xvfb |
+| Needs | `make ext-util` | `make ext-core` |
+
+`RGame::Core` used to be untested here because Gosu sat in that position and
+was covered by its own gem. Replacing Gosu made it ours to test, which is why
+`spec_core/` exists at all.
+
+### Fakes must be checked against the same contract as the real thing
+
+The engine layer only ever calls a renderer (or audio server, or input
+backend) by method name, so every such interface has at least two
+implementations: the real `RGame::Core` one and the recording fake that
+headless specs substitute. If the fake drifts from the real one, `rake spec`
+stays green while the game no longer runs — the classic failure of this
+pattern, and the one thing the split cannot catch by itself.
+
+So each of those interfaces gets a **shared example group** in
+`spec/support/`, and both implementations are run against it: the fake from
+`spec/`, the real one from `spec_core/`. A method added to the real renderer
+is not done until the shared contract and the fake have it too.
+
+### Platform support
+
+The automated tiers are Linux-first today. `make test` is portable; the
+headless `rake spec` suite is portable (it is pure Ruby with no display); the
+parts that are not are in `rake spec:core`:
+
+- **Xvfb is X11, so Linux/BSD only.** It is also only *needed* there: macOS and
+  Windows CI runners have a real window server, so Core specs can open windows
+  directly without it. The spec helper picks a display strategy per platform.
+- **Synthetic keyboard input via XTEST is X11 only.** The macOS equivalent is
+  Quartz `CGEvent` (and needs accessibility permission); on Windows it is
+  `SendInput`. Until one of those is written, keyboard-driven Core specs skip
+  themselves off Linux rather than fail.
+- **Virtual gamepads are already portable** — `SDL_JoystickAttachVirtual` is
+  SDL-level, not OS-level, so those specs work anywhere SDL does.
 
 ## Conventions
 

@@ -11,7 +11,8 @@ cheap tiers are the ones that stay green.
 | Tier | Command | Covers | Speed |
 |---|---|---|---|
 | 1. C unit | `make test` | Pure logic in C (no SDL/GL) | instant |
-| 2. Ruby unit | `bundle exec rspec` | Ruby-visible API contract | fast |
+| 2a. Ruby, headless | `rake spec` | `RGame::Util` + `RGame::Engine`; no SDL in the process | fast |
+| 2b. Ruby, Core | `rake spec:core` | `RGame::Core`; real windows, own Xvfb | ~1s |
 | 3. Live window | `ruby .claude/skills/verify/scripts/smoke_live_window.rb` | Real SDL window + GL + input, **headless** | ~5s |
 | 4. Manual | `make run` / `ruby ext/.../example.rb` | Does it look right | human |
 
@@ -32,11 +33,18 @@ z-sort and batching, glyph cache eviction, tile culling, the gamepad slot
 table. This is most of what is actually hard to get right. Write these first,
 before touching SDL.
 
-**Tier 2 — RSpec, `spec/`.** The Ruby-visible API contract: argument shapes,
-keyword defaults, return values, error classes. Also where C-extension
-lifetime checks live (see "Leaks", below). Specs must not touch
-`RGame::Core` — if something there needs a spec, the testable part belongs in
-`Util`.
+**Tier 2a — `rake spec`, in `spec/`.** `RGame::Util` and `RGame::Engine`.
+Must never load SDL: `require "rgame/core"` here would define `RGame::Core`
+for the whole process and destroy the engine layer's headless guarantee. Also
+where C-extension lifetime checks live (see "Leaks", below).
+
+**Tier 2b — `rake spec:core`, in `spec_core/`.** `RGame::Core`'s Ruby-visible
+surface: the App lifecycle, `Input`'s binding table, gamepad hot-plug. Opens
+real windows and boots its own Xvfb. A separate directory and runner precisely
+so tier 2a cannot be contaminated — see CLAUDE.md, "Design out misuse".
+
+Reusable support lives in `spec_core/support/`: `HeadlessDisplay` (Xvfb),
+`XKeys` (XTEST keystrokes) and `VirtualGamepad` (a synthetic SDL controller).
 
 **Tier 3 — live window.** "Did a real SDL window open, take real input, and
 render without a GL error." Use it for the layer-3 shim only. Do not use it for
@@ -87,6 +95,39 @@ paragraph is *reasoning, not measurement* (xdotool is not installed here):
 nothing; plain `xdotool key` is XTEST and should work. Either way `fiddle`
 gives us XTEST with no package to install, so the question stays academic.
 
+### Gamepads: use an SDL virtual controller
+
+XTEST cannot synthesise controller input, but SDL can fabricate a whole
+controller in-process — verified working here (SDL 2.0.20):
+
+```c
+int index = SDL_JoystickAttachVirtual(SDL_JOYSTICK_TYPE_GAMECONTROLLER,
+                                      SDL_CONTROLLER_AXIS_MAX,
+                                      SDL_CONTROLLER_BUTTON_MAX, 0);
+SDL_Joystick *v = SDL_JoystickOpen(index);      /* drive it through this */
+SDL_JoystickSetVirtualButton(v, SDL_CONTROLLER_BUTTON_A, 1);
+SDL_JoystickSetVirtualAxis(v, SDL_CONTROLLER_AXIS_LEFTX, 32767);
+SDL_JoystickClose(v);
+SDL_JoystickDetachVirtual(index);               /* an unplug event */
+```
+
+A virtual pad reports `SDL_IsGameController() == 1` and raises real
+`SDL_CONTROLLERDEVICEADDED` / `REMOVED` events, so the entire hot-plug path
+runs unmodified. Attach and detach it from inside the frame callback, one
+action per frame, so each change is visible to the next frame's snapshot.
+
+Still needs Xvfb, not `SDL_VIDEODRIVER=dummy` — the app creates a GL context.
+
+The same works from **Ruby**, via `fiddle` against the libSDL2 the extension
+already loaded (so it drives the engine's own SDL state) — that is how the
+`RGame::Core::Input` binding table is checked against a real pad:
+
+```ruby
+SDL = Fiddle.dlopen('libSDL2-2.0.so.0')
+attach = Fiddle::Function.new(SDL['SDL_JoystickAttachVirtual'],
+                              [Fiddle::TYPE_INT] * 4, Fiddle::TYPE_INT)
+```
+
 ### The app must report what it saw
 
 The harness can only assert on the app's output, so the app under test has to
@@ -105,12 +146,29 @@ check below before it is called done.
 ### C code — AddressSanitizer (reliable, use this)
 
 ```
+SAN="-std=c17 -Wall -Wextra -g -fPIC -fsanitize=address,undefined,bounds-strict -fno-sanitize-recover=all -fno-omit-frame-pointer"
+
 make clean
-make CFLAGS="-std=c17 -Wall -Wextra -g -fPIC -fsanitize=address,undefined -fno-omit-frame-pointer"
-make test CFLAGS="-std=c17 -Wall -Wextra -g -fPIC -fsanitize=address,undefined -fno-omit-frame-pointer"
+make      CFLAGS="$SAN"
+make test CFLAGS="$SAN"
 ruby .claude/skills/verify/scripts/smoke_live_window.rb   # also checks the SDL path
 make clean && make                                        # restore a normal build
 ```
+
+**`-fno-sanitize-recover=all` is not optional.** ASan aborts on a finding, but
+UBSan by default *prints and carries on*, so undefined behaviour is reported
+to stderr while the suite still exits 0 and `make test` still says 100%.
+Measured here: removing a guard against signed overflow produced
+`runtime error: signed integer overflow` in the log and a passing build. With
+the flag, the same mutation fails the run.
+
+**`bounds-strict` covers what ASan structurally cannot.** ASan validates
+*allocations*, so an index that walks out of one array field and into another
+field of the same struct is, to ASan, a perfectly legal read. Measured here:
+deleting a negative-slot guard made `pad_axes[-1]` read backwards into the
+`pad_buttons` field of the same struct — no ASan report, and the value it found
+happened to be zero, so the test passed too. `-fsanitize=bounds-strict` catches
+it directly: `index -1 out of bounds for type 'float [4][6]'`.
 
 ASan + UBSan are already available (`gcc -print-file-name=libasan.so`) — nothing
 to install, and no valgrind needed.
@@ -140,7 +198,7 @@ cp /tmp/orig.c ext/rgame_core/<mod>.c
 **Run the mutations under the sanitizer build too**, not just the plain one:
 
 ```
-make test CFLAGS="-std=c17 -Wall -Wextra -g -fPIC -fsanitize=address,undefined -fno-omit-frame-pointer"
+make test CFLAGS="$SAN"    # the SAN above, with -fno-sanitize-recover=all
 ```
 
 Measured, twice, on real modules here:
@@ -152,6 +210,11 @@ Measured, twice, on real modules here:
   under ASan (`stack-buffer-underflow`). Out-of-bounds reads usually return a
   plausible zero, so a guard against them looks like dead code until the
   sanitizer is watching.
+- Two guards that looked equally defensive turned out different: one prevented
+  signed-overflow UB and was load-bearing, the other was genuinely dead because
+  a helper already validated its input. Mutation testing is what told them
+  apart — the dead one was deleted, the live one got a comment explaining what
+  it prevents.
 
 If a mutation survives for a reason you can explain and accept — a guard that
 only becomes load-bearing in later work, say — write the reason into a comment

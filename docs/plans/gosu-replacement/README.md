@@ -95,8 +95,12 @@ extensions — real complexity for little gain. So the rule becomes:
 > fully testable headlessly; it just isn't Ruby-visible from `Util`.
 > `ext/rgame_util/` is for pure logic that **Ruby** calls on its own.
 
-`Color` is the concrete case: it is pure arithmetic, but it is part of the draw
-vocabulary and every draw call takes one, so it belongs in `Core`.
+`Color` looked like the concrete case for that, and was originally placed in
+`Core` on those grounds. That was reversed: the deciding question is not "who
+uses it" but "is it a value or a handle". A colour is a value, the engine layer
+may hold Util values but may not name `Core` at all, so `Color` belongs in
+`Util`. See CLAUDE.md, "Value objects go in Util; only handle-owners go in
+Core".
 
 ### `App` absorbs `GameWindow`'s shape, not the other way round
 

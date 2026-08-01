@@ -9,7 +9,7 @@ split is the rule for deciding where new code goes:
 | Required as | `rgame/core_ext` | `rgame/util_ext` |
 | Entry point | `Init_core_ext` | `Init_util_ext` |
 | Links | SDL2 + OpenGL + libm | nothing but Ruby |
-| Holds | `App` (window, GL context, main loop) | `Tensor` |
+| Holds | `App` (window, GL context, main loop), `Input` | `Tensor` |
 
 Anything that depends on SDL/OpenGL — or on something that does — belongs in
 `rgame_core`. Everything else belongs in `rgame_util`. The point of the
@@ -24,6 +24,7 @@ ext/rgame_core/
   frame_loop.c/.h       # pure fixed-timestep + FPS logic (unit-tested)
   device_slots.c/.h     # pure controller-slot table, no SDL (unit-tested)
   input.c/.h            # pure button-id space + input snapshot (unit-tested)
+  gamepad.c/.h          # thin SDL_GameController shim (open/close/poll)
   include/rgame/core.h  # the public C API
   example.rb            # manual/visual smoke test (opens a real window)
 
@@ -46,7 +47,7 @@ extension.
 `extconf.rb` runs `mkmf` to generate a Makefile. mkmf's default is to compile
 *every* `.c` in the extension's directory into a single loadable `.so` — for
 `rgame_core` that's `core_ext.c` + `app.c` + `frame_loop.c` +
-`device_slots.c` + `input.c`, linked
+`device_slots.c` + `input.c` + `gamepad.c`, linked
 against SDL2 + OpenGL the same way the root `Makefile` links the standalone
 binary. No prebuilt `librgame_core.a` in the middle, so there's one build step.
 
@@ -99,6 +100,12 @@ app = MyGame.new
 app.run                # loops until #close or the window is closed
 app.ticks_ms           # => Integer, monotonic ms since startup
 app.fps                # => Float, most recent FPS reading
+
+# Symbolic actions, resolved through Input's binding table:
+input = RGame::Core::Input.new(app)
+input.down?(:fire)                                   # keyboard (the default)
+input.down?(:fire, device: RGame::Core::Input.gamepad(0))
+input.axis(:move_x, device: RGame::Core::Input.gamepad(0))  # => Float
 
 grid = RGame::Util::Tensor.new(width, height, depth, initial: nil)
 grid[x, y, z] = value

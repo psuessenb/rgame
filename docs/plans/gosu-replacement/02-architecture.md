@@ -15,7 +15,6 @@ ext/rgame_core/                 RGame::Core — links SDL2 + OpenGL (+ audio)
   input.{c,h}                   keyboard snapshot, button-id space, constants
   gamepad.{c,h}                 SDL_GameController open/close, axis + button state
   device_slots.{c,h}            [pure] player-slot ↔ device-instance mapping
-  color.{c,h}                   [pure] RGBA packing
   transform.{c,h}               [pure] 2D affine transform stack
   clip.{c,h}                    [pure] clip-rect stack + intersection
   draw_queue.{c,h}              [pure] z-sorted, batched draw-call list
@@ -28,7 +27,10 @@ ext/rgame_core/                 RGame::Core — links SDL2 + OpenGL (+ audio)
   extconf.rb
   example.rb
 
-ext/rgame_util/                 RGame::Util — links nothing but Ruby (unchanged)
+ext/rgame_util/                 RGame::Util — links nothing but Ruby
+  tensor.c                      RGame::Util::Tensor
+  color.c                       [pure] RGBA packing — a value, so it lives here
+                                and the engine layer may hold one
 
 lib/rgame.rb                    require "rgame"      → Util only, no SDL/GL
 lib/rgame/core.rb               require "rgame/core" → opt-in, pulls SDL/GL
@@ -415,7 +417,7 @@ both, the Ruby half stays as a thin façade over a C hot path.
 | `TileMapRenderer` | `Core::TileMapRenderer` | **Ruby** façade, **C** tile layer | Per-visible-animated-tile loop every frame; feature spec §4's named sore point. TMX/TSX parsing stays Ruby |
 | `AssetManager` | `Core::AssetManager` | **Ruby**, logic unchanged | Load-time caching and refcounting; nothing to gain in C |
 | `GosuAudio` | `Core::Audio` | **Ruby** registry over **C** handles | A hash lookup and a play call |
-| — | `Core::Color` | **C** | Every draw call takes one; pack to a uint32 |
+| — | `Util::Color` | **C**, in `ext/rgame_util/` | A value, not a handle: the engine layer must be able to hold one, and it may not name `Core` |
 | — | `Core::Image` | **C** | GL texture handle |
 | — | `Core::Font` | **C** | Glyph atlas |
 
