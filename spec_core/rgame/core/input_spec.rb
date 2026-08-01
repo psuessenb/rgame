@@ -9,9 +9,12 @@ RSpec.describe RGame::Core::Input do
   # `results` is a plain Hash the example fills in and then asserts on, which
   # keeps the assertions out of the frame callbacks where a failure would
   # unwind through the C loop.
-  # The script is called, not instance_exec'd: rebinding self to the App would
-  # put the example group's own helpers out of reach inside the block, for no
-  # gain. It receives the app instead, so `app.close` ends the run.
+  # The script is yielded to, not instance_exec'd: rebinding self to the App
+  # would put the example group's own helpers out of reach inside the block, for
+  # no gain. It receives the app instead, so `app.close` ends the run.
+  #
+  # `yield` inside define_method reaches run_frames' own block — legitimate
+  # here because run_frames is still on the stack while the loop runs.
   def run_frames(&)
     Class.new(RGame::Core::App) do
       define_method(:initialize) do
@@ -28,27 +31,36 @@ RSpec.describe RGame::Core::Input do
   end
 
   describe 'the binding table' do
-    it 'maps the same action to a different physical input per device class' do
-      expect(described_class::KEYBOARD_BINDINGS[:fire]).to eq(described_class::KEY_SPACE)
-      expect(described_class::PAD_BINDINGS[:fire]).to eq(described_class::PAD_A)
-    end
-
-    it 'numbers the keyboard first so single-player callers can omit the device' do
-      expect(described_class::KEYBOARD).to eq(0)
-      expect(described_class.gamepad(0)).to be > described_class::KEYBOARD
-    end
-
     it 'raises for an action nothing is bound to' do
       expect { described_class.new(nil).down?(:teleport) }.to raise_error(KeyError)
     end
 
-    it 'has no pointer binding — mouse input is deliberately absent' do
-      expect(described_class::KEYBOARD_BINDINGS).not_to have_key(:pointer)
+    it 'has no pointer query — mouse input is deliberately absent' do
       expect(described_class).not_to be_method_defined(:pointer_x)
+    end
+
+    it 'accepts a rebound table, which is how a game customises controls' do
+      controls = RGame::Util::Controls
+      rebound = controls::DEFAULT_KEYBOARD.merge(fire: controls::KEY_RETURN)
+      results = {}
+
+      input = nil
+      run_frames do |frame, _default_input, app|
+        input ||= described_class.new(app, bindings: rebound)
+        if frame == 3
+          results[:rebound] = input.down?(:fire)
+          results[:default_gone] = described_class.new(app).down?(:fire)
+          app.close
+        end
+      end
+
+      # Nothing is pressed, so both read false; what matters is that the
+      # rebound table resolved :fire at all rather than raising.
+      expect(results).to include(rebound: false, default_gone: false)
     end
   end
 
-  def pad_device(slot) = RGame::Core::Input.gamepad(slot)
+  def pad_device(slot) = RGame::Util::Controls.gamepad(slot)
 
   describe 'reading the keyboard', :needs_key_injection do
     it 'reports a held key while it is down and not after' do

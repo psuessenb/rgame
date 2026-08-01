@@ -9,7 +9,7 @@ split is the rule for deciding where new code goes:
 | Required as | `rgame/core_ext` | `rgame/util_ext` |
 | Entry point | `Init_core_ext` | `Init_util_ext` |
 | Links | SDL2 + OpenGL + libm | nothing but Ruby |
-| Holds | `App` (window, GL context, main loop), `Input` | `Tensor` |
+| Holds | `App` (window, GL context, main loop) | `Tensor` |
 
 Anything that depends on SDL/OpenGL — or on something that does — belongs in
 `rgame_core`. Everything else belongs in `rgame_util`. The point of the
@@ -50,6 +50,11 @@ extension.
 `device_slots.c` + `input.c` + `gamepad.c`, linked
 against SDL2 + OpenGL the same way the root `Makefile` links the standalone
 binary. No prebuilt `librgame_core.a` in the middle, so there's one build step.
+
+Not everything in a namespace comes from its extension: `RGame::Core::Input`,
+`RGame::Core::Gamepad` and `RGame::Util::Controls` are pure Ruby in `lib/`,
+layered on top. The tables
+above list what each *extension* provides.
 
 Both extensions name themselves under `rgame/` in `create_makefile`, which
 namespaces them on the load path and leaves the bare name `rgame` to
@@ -101,11 +106,22 @@ app.run                # loops until #close or the window is closed
 app.ticks_ms           # => Integer, monotonic ms since startup
 app.fps                # => Float, most recent FPS reading
 
-# Symbolic actions, resolved through Input's binding table:
+# Symbolic actions, resolved through Input's binding table. The id vocabulary
+# lives in RGame::Util::Controls — ids are values, so a game (or the engine
+# layer, which may not name Core) can name one:
+controls = RGame::Util::Controls
 input = RGame::Core::Input.new(app)
-input.down?(:fire)                                   # keyboard (the default)
-input.down?(:fire, device: RGame::Core::Input.gamepad(0))
-input.axis(:move_x, device: RGame::Core::Input.gamepad(0))  # => Float
+input.down?(:fire)                                        # keyboard (the default)
+input.down?(:fire, device: controls.gamepad(0))
+input.axis(:move_x, device: controls.gamepad(0))          # => Float
+
+# Rebinding is just a different table:
+RGame::Core::Input.new(app, bindings: controls::DEFAULT_KEYBOARD.merge(fire: controls::KEY_RETURN))
+
+# Which controllers are plugged in — a readout for menus, not the frame path:
+pads = RGame::Core::Gamepad.new(app)
+pads.count                                   # => 1
+pads.each_connected { |slot, name| ... }     # "Player 2: <name>"
 
 grid = RGame::Util::Tensor.new(width, height, depth, initial: nil)
 grid[x, y, z] = value

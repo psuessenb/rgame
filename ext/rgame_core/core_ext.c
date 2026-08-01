@@ -348,6 +348,26 @@ static VALUE app_input_axis(VALUE self, VALUE device, VALUE axis_id) {
     return DBL2NUM(rgame_app_input_axis(app_unwrap(self), NUM2INT(device), NUM2INT(axis_id)));
 }
 
+/*
+ * Gamepad readout. Named `gamepad_present?` rather than `gamepad_connected?`
+ * on purpose: `gamepad_connected` is already the hot-plug *callback* a subclass
+ * overrides, and two methods differing only by a trailing `?` is a trap. The
+ * friendly name lives on RGame::Core::Gamepad, which reads better anyway.
+ */
+static VALUE app_gamepad_present_p(VALUE self, VALUE slot) {
+    return rgame_app_gamepad_connected(app_unwrap(self), NUM2INT(slot)) ? Qtrue : Qfalse;
+}
+
+/* nil for an empty slot, or for a pad SDL has no name for. */
+static VALUE app_gamepad_name(VALUE self, VALUE slot) {
+    const char *name = rgame_app_gamepad_name(app_unwrap(self), NUM2INT(slot));
+    return name ? rb_utf8_str_new_cstr(name) : Qnil;
+}
+
+static VALUE app_gamepad_count(VALUE self) {
+    return INT2NUM(rgame_app_gamepad_count(app_unwrap(self)));
+}
+
 static VALUE app_ticks_ms(VALUE self) {
     return UINT2NUM(rgame_app_ticks_ms(app_unwrap(self)));
 }
@@ -447,52 +467,10 @@ void Init_core_ext(void) {
     rb_define_method(cApp, "fps", app_fps, 0);
     rb_define_method(cApp, "input_down?", app_input_down_p, 2);
     rb_define_method(cApp, "input_axis", app_input_axis, 2);
+    rb_define_method(cApp, "gamepad_present?", app_gamepad_present_p, 1);
+    rb_define_method(cApp, "gamepad_name", app_gamepad_name, 1);
+    rb_define_method(cApp, "gamepad_count", app_gamepad_count, 0);
 
-    /*
-     * RGame::Core::Input is opened here only to hang the id constants off it,
-     * so they cannot drift from the C values they mirror. Everything else
-     * about the class — the binding table and the query methods — is Ruby,
-     * in lib/rgame/core/input.rb, which reopens this same class.
-     */
-    VALUE cInput = rb_define_class_under(mCore, "Input", rb_cObject);
-#define DEFINE_INPUT_CONST(name, value) rb_define_const(cInput, name, INT2NUM(value))
-    DEFINE_INPUT_CONST("KEY_RETURN", RGAME_KEY_RETURN);
-    DEFINE_INPUT_CONST("KEY_ESCAPE", RGAME_KEY_ESCAPE);
-    DEFINE_INPUT_CONST("KEY_SPACE", RGAME_KEY_SPACE);
-    DEFINE_INPUT_CONST("KEY_F1", RGAME_KEY_F1);
-    DEFINE_INPUT_CONST("KEY_RIGHT", RGAME_KEY_RIGHT);
-    DEFINE_INPUT_CONST("KEY_LEFT", RGAME_KEY_LEFT);
-    DEFINE_INPUT_CONST("KEY_DOWN", RGAME_KEY_DOWN);
-    DEFINE_INPUT_CONST("KEY_UP", RGAME_KEY_UP);
-
-    DEFINE_INPUT_CONST("PAD_A", RGAME_PAD_A);
-    DEFINE_INPUT_CONST("PAD_B", RGAME_PAD_B);
-    DEFINE_INPUT_CONST("PAD_X", RGAME_PAD_X);
-    DEFINE_INPUT_CONST("PAD_Y", RGAME_PAD_Y);
-    DEFINE_INPUT_CONST("PAD_BACK", RGAME_PAD_BACK);
-    DEFINE_INPUT_CONST("PAD_GUIDE", RGAME_PAD_GUIDE);
-    DEFINE_INPUT_CONST("PAD_START", RGAME_PAD_START);
-    DEFINE_INPUT_CONST("PAD_LEFT_STICK", RGAME_PAD_LEFT_STICK);
-    DEFINE_INPUT_CONST("PAD_RIGHT_STICK", RGAME_PAD_RIGHT_STICK);
-    DEFINE_INPUT_CONST("PAD_LEFT_SHOULDER", RGAME_PAD_LEFT_SHOULDER);
-    DEFINE_INPUT_CONST("PAD_RIGHT_SHOULDER", RGAME_PAD_RIGHT_SHOULDER);
-    DEFINE_INPUT_CONST("PAD_DPAD_UP", RGAME_PAD_DPAD_UP);
-    DEFINE_INPUT_CONST("PAD_DPAD_DOWN", RGAME_PAD_DPAD_DOWN);
-    DEFINE_INPUT_CONST("PAD_DPAD_LEFT", RGAME_PAD_DPAD_LEFT);
-    DEFINE_INPUT_CONST("PAD_DPAD_RIGHT", RGAME_PAD_DPAD_RIGHT);
-
-    DEFINE_INPUT_CONST("AXIS_LEFT_X", RGAME_AXIS_LEFT_X);
-    DEFINE_INPUT_CONST("AXIS_LEFT_Y", RGAME_AXIS_LEFT_Y);
-    DEFINE_INPUT_CONST("AXIS_RIGHT_X", RGAME_AXIS_RIGHT_X);
-    DEFINE_INPUT_CONST("AXIS_RIGHT_Y", RGAME_AXIS_RIGHT_Y);
-    DEFINE_INPUT_CONST("AXIS_TRIGGER_LEFT", RGAME_AXIS_TRIGGER_LEFT);
-    DEFINE_INPUT_CONST("AXIS_TRIGGER_RIGHT", RGAME_AXIS_TRIGGER_RIGHT);
-
-    /* Device ids: the keyboard, then one per player slot. */
-    DEFINE_INPUT_CONST("KEYBOARD", RGAME_INPUT_KEYBOARD);
-    DEFINE_INPUT_CONST("GAMEPAD_FIRST", RGAME_INPUT_GAMEPAD_FIRST);
-    DEFINE_INPUT_CONST("MAX_GAMEPADS", RGAME_INPUT_MAX_GAMEPADS);
-#undef DEFINE_INPUT_CONST
 
     rb_define_method(cApp, "frame_begin", app_default_frame_begin, 0);
     rb_define_method(cApp, "update", app_default_update, 1);

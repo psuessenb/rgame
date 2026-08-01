@@ -13,7 +13,7 @@ depends on:
 | C source | `ext/rgame_core/` | `ext/rgame_util/` |
 | Extension | `rgame/core_ext` | `rgame/util_ext` |
 | Links | SDL2 + OpenGL | nothing but Ruby |
-| Holds today | `App` — window, GL context, fixed-timestep main loop; `Input` | `Tensor` |
+| Holds today | `App` — window, GL context, fixed-timestep main loop; `Input`, `Gamepad` | `Tensor`, `Controls` |
 
 That split is load-bearing, not cosmetic: `require "rgame"` gives you
 `RGame::Util` with **no graphics libraries loaded into the process at all**, so
@@ -168,8 +168,13 @@ ext/rgame_util/              RGame::Util — the graphics-free half, so pure-dat
 lib/rgame.rb                 `require "rgame"` — loads RGame::Util only.
 lib/rgame/util.rb            Namespace loader.
 lib/rgame/util/tensor.rb     Requires the compiled rgame/util_ext.
+lib/rgame/util/controls.rb   Input id vocabulary (keys, pad buttons, axes,
+                             device slots) + default bindings. Pure Ruby
+                             values, so a game may name them without Core.
 lib/rgame/core.rb            `require "rgame/core"` — opt-in, loads SDL/GL.
 lib/rgame/core/app.rb        Requires the compiled rgame/core_ext.
+lib/rgame/core/input.rb      Symbolic action -> button, over the C queries.
+lib/rgame/core/gamepad.rb    Which controllers are plugged in, and their names.
 lib/rgame/core/input.rb      Symbolic action -> button binding table; the id
                              constants themselves come from C.
 lib/rgame/*.so               Build artifacts, copied here by `make ext`.

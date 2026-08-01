@@ -10,3 +10,4 @@
 # graphics dependencies.
 require_relative 'core/app'
 require_relative 'core/input'
+require_relative 'core/gamepad'

@@ -171,6 +171,23 @@ A window, a texture, a font, an audio device own something the OS gave us and
 must give back. `Tensor` is a value and lives in Util; `App` owns a window and
 lives in Core.
 
+`RGame::Util::Controls` is the worked example. It is nothing but integers — the
+ids for keys, pad buttons, axes and device slots, plus the default binding
+tables. Those started in Core, because the C engine defines them and asserts
+them against SDL's own scancodes. But an id is a value, and a game's control
+config has to be able to name one:
+
+```ruby
+controls = RGame::Util::Controls
+bindings = controls::DEFAULT_KEYBOARD.merge(fire: controls::KEY_J)
+```
+
+In Core that is impossible for engine-layer code, which may not name Core at
+all. In Util it is ordinary. The C `#define`s stay where they are — `src/main.c`
+includes only `rgame/core.h` and needs them — so the numbers exist twice, and
+`spec/rgame/util/controls_spec.rb` parses the header and compares every one.
+Duplication with a guard beat putting a value out of reach.
+
 This is not tidiness — it is what makes the engine layer below usable. Engine
 code may hold Util types as attributes but may **not** hold Core types at all,
 so putting a value type in Core would put it permanently out of reach of the
@@ -274,8 +291,8 @@ sources go in `ext/rgame_core/`.
   `lib/rgame.rb`; don't take it for an extension.
 - `lib/` — the pure-Ruby half, currently just namespace loaders:
   `lib/rgame.rb` → `lib/rgame/util.rb` → `lib/rgame/util/tensor.rb`, and
-  separately `lib/rgame/core.rb` → `lib/rgame/core/app.rb` and
-  `lib/rgame/core/input.rb`. Each
+  separately `lib/rgame/core.rb` → `lib/rgame/core/app.rb`,
+  `lib/rgame/core/input.rb` and `lib/rgame/core/gamepad.rb`. Each
   leaf is a `require` of the compiled extension plus a comment saying what
   the class is and what moved to C. Keep that pattern — one Ruby file per
   C-backed class — so the load path stays readable and there's an obvious

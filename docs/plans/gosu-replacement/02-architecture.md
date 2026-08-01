@@ -35,8 +35,8 @@ ext/rgame_util/                 RGame::Util — links nothing but Ruby
 lib/rgame.rb                    require "rgame"      → Util only, no SDL/GL
 lib/rgame/core.rb               require "rgame/core" → opt-in, pulls SDL/GL
 lib/rgame/core/app.rb           C-backed
-lib/rgame/core/input.rb         C-backed + Ruby binding table
-lib/rgame/core/gamepad.rb       C-backed
+lib/rgame/core/input.rb         Ruby binding table over the C queries
+lib/rgame/core/gamepad.rb       Ruby readout over the C queries
 lib/rgame/core/renderer.rb      Ruby, delegating to C primitives
 lib/rgame/core/sprite_sheet.rb  Ruby
 lib/rgame/core/nine_slice.rb    Ruby façade over C tiling
@@ -407,7 +407,7 @@ both, the Ruby half stays as a thin façade over a C hot path.
 | `GameWindow` | `Core::App` | **C**, subclassed in Ruby | Owns the loop, the window, the event pump, and now the accumulator |
 | `Clock` | — | **deleted** | The C loop already measures elapsed time |
 | `gosu_patches.rb` | — | **deleted** | Fixed-arity callbacks by construction |
-| `GosuInput` | `Core::Input` | **C** mechanism + **Ruby** binding table | `down?` is per-frame; `BINDINGS` is config and reads better in Ruby |
+| `GosuInput` | `Core::Input` | **C** mechanism + **Ruby** binding table | `down?` is per-frame; the table is config and reads better in Ruby. The id vocabulary itself is `Util::Controls` — ids are values |
 | — *(mouse half of `GosuInput`)* | — | **dropped** | Not carried over; keyboard + controllers only |
 | — | `Core::Gamepad` | **C** + **[pure]** slot table | New capability; per-frame state, and hot-plug slot stability needs real logic |
 | `GosuRenderer` | `Core::Renderer` | **Ruby** façade over C primitives | The id registry is bookkeeping; primitives are C. Revisit if the per-draw hash lookup shows up in a profile |

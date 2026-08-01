@@ -16,31 +16,34 @@
 # the layout a user of the library would see.
 
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
+require 'rgame'
 require 'rgame/core'
 
 # An App subclass overrides only the hooks it needs; the rest are inherited
 # no-ops, so this class is the smallest useful driver of the engine.
 class Example < RGame::Core::App
-  Input = RGame::Core::Input
+  Controls = RGame::Util::Controls
 
   attr_reader :frames, :ticks, :x, :y
 
   def initialize
     super(width: 800, height: 600, caption: 'rgame via Ruby')
-    @input = Input.new(self)
+    @input = RGame::Core::Input.new(self)
+    @pads = RGame::Core::Gamepad.new(self)
     @frames = 0
     @ticks = 0
     @x = 0.0
     @y = 0.0
-    @device = Input::KEYBOARD
-    @pad_slot = nil
+    @device = Controls::KEYBOARD
   end
 
   # Once per frame, before the tick batch: pick which device to read. Doing it
   # here rather than per tick is the pattern the engine is shaped around — one
   # sample per frame, reused by however many catch-up ticks follow.
   def frame_begin
-    @device = @pad_slot ? Input.gamepad(@pad_slot) : Input::KEYBOARD
+    # Poll rather than track: Gamepad answers straight from the engine, so
+    # there is no local copy of the connection state to keep in step.
+    @device = @pads.connected?(0) ? @pads.device(0) : Controls::KEYBOARD
   end
 
   # One fixed simulation tick. dt is always the engine's fixed step.
@@ -62,18 +65,17 @@ class Example < RGame::Core::App
   end
 
   def button_down(id)
-    close if id == Input::KEY_ESCAPE
+    close if id == Controls::KEY_ESCAPE
   end
 
-  # Drive the first controller that shows up; fall back to the keyboard when it
-  # leaves. Slots are stable across a replug, so this keeps hold of the same one.
+  # The callbacks are for reacting to the change; the polling above is for
+  # reading the current state. Slots are stable across a replug, so a pad that
+  # falls out and returns comes back as the same player.
   def gamepad_connected(slot)
-    @pad_slot ||= slot
-    puts "controller connected in slot #{slot}"
+    puts "controller connected in slot #{slot}: #{@pads.name(slot)}"
   end
 
   def gamepad_disconnected(slot)
-    @pad_slot = nil if @pad_slot == slot
     puts "controller disconnected from slot #{slot}"
   end
 
