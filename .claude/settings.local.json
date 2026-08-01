@@ -28,7 +28,10 @@
       "Bash(DISPLAY=:93 LIBGL_ALWAYS_SOFTWARE=1 timeout 30 ruby /tmp/t_boom2.rb)",
       "Bash(echo \"---exit=$?\")",
       "Bash(make CFLAGS=\"-std=c17 -Wall -Wextra -g -fPIC -fsanitize=address,undefined -fno-omit-frame-pointer\")",
-      "Bash(timeout 150 ruby .claude/skills/verify/scripts/smoke_live_window.rb)"
+      "Bash(timeout 150 ruby .claude/skills/verify/scripts/smoke_live_window.rb)",
+      "Bash(python3 -)",
+      "Bash(ruby -Ilib -e 'require \"rgame\"; puts File.read\\(\"/proc/self/maps\"\\).scan\\(/libSDL2|libGL\\\\./\\).uniq.inspect')",
+      "Bash(nm -u build/device_slots.o)"
     ]
   }
 }

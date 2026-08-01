@@ -141,6 +141,10 @@ ext/rgame_core/              RGame::Core — the SDL/GL half.
                              caller's update/draw callbacks.
   frame_loop.h/.c            Pure fixed-timestep + FPS logic, no SDL/GL — unit-
                              tested without a window (see CLAUDE.md's layering).
+  device_slots.h/.c          Pure player-slot table for controllers: keeps a
+                             player on the same slot across a disconnect. No SDL.
+  input.h/.c                 Pure input snapshot + the flat button-id space
+                             (keyboard and gamepad ranges). No SDL.
   core_ext.c                 Ruby glue: VALUE wrappers + callback trampolines.
   extconf.rb                 mkmf script; pkg_config("sdl2"), -lGL.
   example.rb                 Manual smoke test driven from Ruby.
@@ -163,7 +167,9 @@ src/main.c                   Standalone executable entry point — the C
                              outside ext/ so mkmf doesn't compile its main()
                              into the extension.
 
-test/test_frame_loop.c       Check unit tests for the pure C logic (`make test`).
+test/                        Check unit tests for the pure C logic (`make test`).
+  test_main.c                Runs every suite; one binary, build/test_rgame.
+  suites.h                   Each test_<x>.c exposes a Suite, declared here.
 spec/                        RSpec specs for the Ruby half (`bundle exec rspec`).
 docs/                        The feature spec the engine is being built out to.
 ```

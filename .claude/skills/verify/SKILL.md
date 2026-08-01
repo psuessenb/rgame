@@ -124,6 +124,39 @@ after the summary line.
 **Verified:** the current engine's full create → run → destroy cycle under
 Xvfb is clean — no leaks, no UB.
 
+### Mutation-check a new suite — and do it under ASan
+
+A Check suite that goes green the first time has not been shown to be
+load-bearing. Break the implementation deliberately, once per behaviour you
+believe is covered, and confirm the suite fails:
+
+```
+cp ext/rgame_core/<mod>.c /tmp/orig.c
+# edit in a bug, then:
+make test          # must FAIL
+cp /tmp/orig.c ext/rgame_core/<mod>.c
+```
+
+**Run the mutations under the sanitizer build too**, not just the plain one:
+
+```
+make test CFLAGS="-std=c17 -Wall -Wextra -g -fPIC -fsanitize=address,undefined -fno-omit-frame-pointer"
+```
+
+Measured, twice, on real modules here:
+
+- A reconnect test passed for the wrong reason — the slot it expected was also
+  the lowest free slot, so "reclaimed by GUID" and "took the first gap" were
+  indistinguishable. Fixed by making the expected slot *not* the obvious one.
+- Deleting a negative-index guard **survived a plain build** and was caught only
+  under ASan (`stack-buffer-underflow`). Out-of-bounds reads usually return a
+  plausible zero, so a guard against them looks like dead code until the
+  sanitizer is watching.
+
+If a mutation survives for a reason you can explain and accept — a guard that
+only becomes load-bearing in later work, say — write the reason into a comment
+at the guard, so the next person doesn't delete it as redundant.
+
 ### Ruby extensions — a live-object counter (reliable, use this)
 
 Sanitizers do **not** work through Ruby (see "Dead ends"). Instead, have the

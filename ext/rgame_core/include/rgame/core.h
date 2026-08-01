@@ -23,19 +23,52 @@ rgame_app *rgame_app_create(int width, int height, const char *title);
 void rgame_app_destroy(rgame_app *app);
 
 /*
- * Button identifiers passed to the button_down/button_up callbacks.
+ * ---------------------------------------------------------------------------
+ * Input: devices and buttons
+ * ---------------------------------------------------------------------------
  *
- * Keyboard ids are SDL scancode values, but callers must not need SDL to name
- * them — src/main.c deliberately includes only this header, so the constants
- * it uses have to live here. app.c carries a _Static_assert for each one, so
- * these can never silently drift from the SDL values they mirror.
+ * One flat button-id space covers every input device, so a single "is this
+ * held" query serves them all. It is partitioned into ranges rather than
+ * packed into bit fields, which means adding a device class later appends to
+ * an unused range instead of renumbering anything that already exists:
  *
- * Only the keys the current drivers actually use are defined. The full,
- * range-partitioned id space (keyboard + gamepad) arrives with the input
- * layer; these ids are a subset of it, so nothing renumbers later.
+ *   0x0000–0x0FFF  keyboard (SDL scancode values)
+ *   0x1000–0x10FF  gamepad buttons and dpad
+ *
+ * (The range a mouse would have occupied is deliberately left unused — mouse
+ * input is not part of this engine; see docs/plans/gosu-replacement/.)
+ *
+ * Keyboard ids are SDL scancodes, but callers must not need SDL to name them:
+ * src/main.c includes only this header, so the constants it uses have to live
+ * here. app.c carries a _Static_assert for every one, so these can never
+ * silently drift from the SDL values they mirror.
  */
+#define RGAME_BUTTON_KEYBOARD_FIRST 0x0000
+#define RGAME_BUTTON_KEYBOARD_LAST 0x0FFF
+#define RGAME_BUTTON_GAMEPAD_FIRST 0x1000
+#define RGAME_BUTTON_GAMEPAD_LAST 0x10FF
+
+/* Keyboard ids == SDL scancodes. Only the keys the engine actually binds are
+ * named; adding one is a #define plus a _Static_assert in app.c. */
+#define RGAME_KEY_RETURN 40
 #define RGAME_KEY_ESCAPE 41
+#define RGAME_KEY_SPACE 44
 #define RGAME_KEY_F1 58
+#define RGAME_KEY_RIGHT 79
+#define RGAME_KEY_LEFT 80
+#define RGAME_KEY_DOWN 81
+#define RGAME_KEY_UP 82
+
+/*
+ * Which device a query is about. The keyboard is device 0 so single-player
+ * code can ignore the parameter entirely; gamepads follow, one per player
+ * slot, in the stable slot order the hot-plug table hands out.
+ */
+#define RGAME_INPUT_KEYBOARD 0
+#define RGAME_INPUT_GAMEPAD_FIRST 1
+#define RGAME_INPUT_MAX_GAMEPADS 4
+#define RGAME_INPUT_GAMEPAD(slot) (RGAME_INPUT_GAMEPAD_FIRST + (slot))
+#define RGAME_INPUT_DEVICE_COUNT (RGAME_INPUT_GAMEPAD_FIRST + RGAME_INPUT_MAX_GAMEPADS)
 
 /*
  * Per-frame and event callbacks.
@@ -106,6 +139,21 @@ int rgame_app_height(const rgame_app *app);
 /* Window title. The returned string is owned by the window, not the caller. */
 const char *rgame_app_title(const rgame_app *app);
 void rgame_app_set_title(rgame_app *app, const char *title);
+
+/*
+ * Is `button_id` currently held on `device`?
+ *
+ * This reads a snapshot taken once per frame, when the event queue is pumped —
+ * not live hardware state. That is deliberate: the answer is then identical
+ * for every simulation tick within one frame, so a key held for a single frame
+ * behaves the same whether that frame ran one catch-up tick or five. Sampling
+ * live state would make the result depend on tick count, which is exactly the
+ * nondeterminism a fixed timestep exists to remove.
+ *
+ * A device only answers for buttons in its own range, so asking a gamepad
+ * about a keyboard key is 0 rather than an error.
+ */
+int rgame_app_input_down(const rgame_app *app, int device, int button_id);
 
 /* Monotonic milliseconds since startup. For time-based animation phase, etc. */
 unsigned int rgame_app_ticks_ms(const rgame_app *app);

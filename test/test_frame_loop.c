@@ -1,7 +1,7 @@
 #include <check.h>
-#include <stdlib.h>
 
 #include "frame_loop.h"
+#include "suites.h"
 
 /* --- rgame_frame_loop (fixed-timestep accumulator) --- */
 
@@ -64,7 +64,7 @@ START_TEST(fps_reports_rate_after_one_second_window) {
 }
 END_TEST
 
-static Suite *frame_loop_suite(void) {
+Suite *frame_loop_suite(void) {
     Suite *suite = suite_create("frame_loop");
 
     TCase *tc_loop = tcase_create("accumulator");
@@ -79,15 +79,4 @@ static Suite *frame_loop_suite(void) {
     suite_add_tcase(suite, tc_fps);
 
     return suite;
-}
-
-int main(void) {
-    Suite *suite = frame_loop_suite();
-    SRunner *runner = srunner_create(suite);
-
-    srunner_run_all(runner, CK_NORMAL);
-    int failed = srunner_ntests_failed(runner);
-    srunner_free(runner);
-
-    return failed == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

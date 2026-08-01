@@ -21,6 +21,7 @@
 
 #include "rgame/core.h"
 #include "frame_loop.h"
+#include "input.h"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
@@ -37,6 +38,7 @@ struct rgame_app {
     int running;
     rgame_frame_loop frame_loop;
     rgame_fps_counter fps_counter;
+    rgame_input_state input;
 };
 
 rgame_app *rgame_app_create(int width, int height, const char *title) {
@@ -79,6 +81,7 @@ rgame_app *rgame_app_create(int width, int height, const char *title) {
     glEnable(GL_DEPTH_TEST);
 
     app->running = 1;
+    rgame_input_state_clear(&app->input);
     rgame_frame_loop_init(&app->frame_loop);
     rgame_fps_counter_init(&app->fps_counter);
     return app;
@@ -103,10 +106,42 @@ void rgame_app_destroy(rgame_app *app) {
  * the compiler checks — it must not include SDL. These assertions close that
  * gap at compile time, so the two can never drift apart silently.
  */
-_Static_assert(RGAME_KEY_ESCAPE == SDL_SCANCODE_ESCAPE,
-               "RGAME_KEY_ESCAPE must match SDL_SCANCODE_ESCAPE");
-_Static_assert(RGAME_KEY_F1 == SDL_SCANCODE_F1,
-               "RGAME_KEY_F1 must match SDL_SCANCODE_F1");
+_Static_assert(RGAME_KEY_RETURN == SDL_SCANCODE_RETURN, "key id must match SDL scancode");
+_Static_assert(RGAME_KEY_ESCAPE == SDL_SCANCODE_ESCAPE, "key id must match SDL scancode");
+_Static_assert(RGAME_KEY_SPACE == SDL_SCANCODE_SPACE, "key id must match SDL scancode");
+_Static_assert(RGAME_KEY_F1 == SDL_SCANCODE_F1, "key id must match SDL scancode");
+_Static_assert(RGAME_KEY_RIGHT == SDL_SCANCODE_RIGHT, "key id must match SDL scancode");
+_Static_assert(RGAME_KEY_LEFT == SDL_SCANCODE_LEFT, "key id must match SDL scancode");
+_Static_assert(RGAME_KEY_DOWN == SDL_SCANCODE_DOWN, "key id must match SDL scancode");
+_Static_assert(RGAME_KEY_UP == SDL_SCANCODE_UP, "key id must match SDL scancode");
+
+/* The snapshot array must be exactly as long as SDL's keyboard state array,
+ * since filling it is a straight copy. */
+_Static_assert(RGAME_KEYBOARD_KEY_COUNT == SDL_NUM_SCANCODES,
+               "RGAME_KEYBOARD_KEY_COUNT must match SDL_NUM_SCANCODES");
+
+/* Every keyboard id must land inside the keyboard range of the flat id space,
+ * or rgame_input_state_down would reject it as belonging to another device. */
+_Static_assert(SDL_NUM_SCANCODES - 1 <= RGAME_BUTTON_KEYBOARD_LAST,
+               "SDL scancodes must fit the keyboard button-id range");
+
+/*
+ * Copies SDL's live keyboard state into the app's snapshot. Called once per
+ * frame, right after the event queue is drained, so every simulation tick in
+ * that frame sees identical input — see input.h for why that matters.
+ *
+ * SDL_GetKeyboardState returns a pointer to SDL's own internal array, which
+ * SDL updates as events are pumped; it must not be freed, and holding onto it
+ * across frames would defeat the whole point, so it is copied here and then
+ * forgotten.
+ */
+static void rgame_app_snapshot_input(rgame_app *app) {
+    int count = 0;
+    const Uint8 *keys = SDL_GetKeyboardState(&count);
+    if (keys && count == RGAME_KEYBOARD_KEY_COUNT) {
+        rgame_input_state_set_keys(&app->input, keys);
+    }
+}
 
 /*
  * Drains the SDL event queue, dispatching to the caller's event callbacks.
@@ -162,6 +197,9 @@ void rgame_app_run(rgame_app *app, const rgame_app_callbacks *cb) {
         if (!app->running) {
             break;
         }
+
+        /* One sample per frame, after the events that produced it. */
+        rgame_app_snapshot_input(app);
 
         Uint32 now_ms = SDL_GetTicks();
         double elapsed_seconds = (now_ms - prev_ms) / 1000.0;
@@ -233,6 +271,10 @@ const char *rgame_app_title(const rgame_app *app) {
 
 void rgame_app_set_title(rgame_app *app, const char *title) {
     SDL_SetWindowTitle(app->window, title);
+}
+
+int rgame_app_input_down(const rgame_app *app, int device, int button_id) {
+    return rgame_input_state_down(&app->input, device, button_id);
 }
 
 unsigned int rgame_app_ticks_ms(const rgame_app *app) {

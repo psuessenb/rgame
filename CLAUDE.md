@@ -159,6 +159,12 @@ sources go in `ext/rgame_core/`.
   counter). `test/` links against these directly. When adding engine logic,
   prefer putting the parts that don't touch SDL/GL here so they stay
   testable — see `test/test_frame_loop.c` for the pattern.
+- `ext/rgame_core/device_slots.{c,h}` — the same shape, for controllers: a
+  pure player-slot table that keeps a player on one slot across a
+  disconnect/reconnect. No SDL, covered by `test/test_device_slots.c`.
+- `ext/rgame_core/input.{c,h}` — the input snapshot and the flat button-id
+  space, again pure: `app.c` copies SDL's keyboard state into it once per
+  frame, and every query reads that copy. Covered by `test/test_input.c`.
 - `ext/rgame_core/core_ext.c` + `extconf.rb` — the Ruby glue for the
   engine (`RGame::Core::App`); see `ext/README.md`.
 - `src/main.c` — thin standalone entry point; only talks to `core.h`'s API,
@@ -215,8 +221,11 @@ layers:
    catch-up/skip decisions, etc. This is most of what's actually hard to get
    right in a 2D engine, and none of it needs a window to test. Give it its
    own small module (`ext/rgame_core/<subsystem>.c` + header) and Check
-   tests, the same way `ext/rgame_core/frame_loop.{c,h}` is covered by
-   `test/test_frame_loop.c` today. If the logic is also useful from Ruby on its
+   tests, the same way `ext/rgame_core/frame_loop.{c,h}` and
+   `device_slots.{c,h}` are covered by `test/test_frame_loop.c` and
+   `test/test_device_slots.c` today. Each test file exposes a Check `Suite`
+   declared in `test/suites.h`; `test/test_main.c` runs them all as one binary,
+   so a new module adds a file and two lines rather than another `main()`. If the logic is also useful from Ruby on its
    own, `ext/rgame_util/` is where it belongs instead — same reasoning, one
    level up.
 2. **Fake/recording backend** — once a subsystem's logic drives real SDL/GL/

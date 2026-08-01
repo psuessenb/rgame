@@ -20,14 +20,22 @@ BUILD_DIR := build
 # Engine objects, named after their sources in $(EXT_CORE_DIR).
 APP_OBJ := $(BUILD_DIR)/app.o
 FRAME_LOOP_OBJ := $(BUILD_DIR)/frame_loop.o
+DEVICE_SLOTS_OBJ := $(BUILD_DIR)/device_slots.o
+INPUT_OBJ := $(BUILD_DIR)/input.o
 CORE_LIB := $(BUILD_DIR)/librgame_core.a
 
 # The standalone binary and its entry point (src/main.c).
 MAIN_OBJ := $(BUILD_DIR)/main.o
 MAIN_BIN := $(BUILD_DIR)/rgame
 
-TEST_OBJ := $(BUILD_DIR)/test_frame_loop.o
-TEST_BIN := $(BUILD_DIR)/test_frame_loop
+# One Check binary for every layer-1 suite: each test/test_<x>.c exposes a
+# Suite, declared in test/suites.h, that test_main.c runs. Adding a module
+# means adding to TEST_OBJS, not adding another binary.
+TEST_OBJS := $(BUILD_DIR)/test_main.o \
+             $(BUILD_DIR)/test_frame_loop.o \
+             $(BUILD_DIR)/test_device_slots.o \
+             $(BUILD_DIR)/test_input.o
+TEST_BIN := $(BUILD_DIR)/test_rgame
 
 EXT_UTIL_DIR := ext/rgame_util
 
@@ -44,13 +52,19 @@ all: $(MAIN_BIN)
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-$(APP_OBJ): $(EXT_CORE_DIR)/app.c $(EXT_CORE_DIR)/frame_loop.h $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
+$(APP_OBJ): $(EXT_CORE_DIR)/app.c $(EXT_CORE_DIR)/frame_loop.h $(EXT_CORE_DIR)/input.h $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
 $(FRAME_LOOP_OBJ): $(EXT_CORE_DIR)/frame_loop.c $(EXT_CORE_DIR)/frame_loop.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-$(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ)
+$(DEVICE_SLOTS_OBJ): $(EXT_CORE_DIR)/device_slots.c $(EXT_CORE_DIR)/device_slots.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+$(INPUT_OBJ): $(EXT_CORE_DIR)/input.c $(EXT_CORE_DIR)/input.h $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+$(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ)
 	ar rcs $@ $^
 
 $(MAIN_OBJ): src/main.c $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
@@ -59,11 +73,11 @@ $(MAIN_OBJ): src/main.c $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
 $(MAIN_BIN): $(MAIN_OBJ) $(CORE_LIB)
 	$(CC) $(CFLAGS) -o $@ $(MAIN_OBJ) $(CORE_LIB) $(SDL_LIBS) $(GL_LIBS) $(MATH_LIBS)
 
-$(TEST_OBJ): test/test_frame_loop.c $(EXT_CORE_DIR)/frame_loop.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -I$(EXT_CORE_DIR) $(CHECK_CFLAGS) -c $< -o $@
+$(BUILD_DIR)/test_%.o: test/test_%.c test/suites.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -I$(EXT_CORE_DIR) -I$(EXT_CORE_DIR)/include -Itest $(CHECK_CFLAGS) -c $< -o $@
 
-$(TEST_BIN): $(TEST_OBJ) $(CORE_LIB)
-	$(CC) $(CFLAGS) -o $@ $(TEST_OBJ) $(CORE_LIB) $(SDL_LIBS) $(GL_LIBS) $(MATH_LIBS) $(CHECK_LIBS)
+$(TEST_BIN): $(TEST_OBJS) $(CORE_LIB)
+	$(CC) $(CFLAGS) -o $@ $(TEST_OBJS) $(CORE_LIB) $(SDL_LIBS) $(GL_LIBS) $(MATH_LIBS) $(CHECK_LIBS)
 
 run: all
 	./$(MAIN_BIN)
