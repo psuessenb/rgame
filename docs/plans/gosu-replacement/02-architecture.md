@@ -18,6 +18,8 @@ ext/rgame_core/                 RGame::Core — links SDL2 + OpenGL (+ audio)
   transform.{c,h}               [pure] 2D affine transform stack
   clip.{c,h}                    [pure] clip-rect stack + intersection
   draw_queue.{c,h}              [pure] z-sorted, batched draw-call list
+  canvas.{c,h}                  [pure] composes transform + clip + queue; the
+                                seam the drawing API is written against
   backend.h                     the function-pointer seam (layer 2)
   gl_backend.c                  the real GL implementation (layer 3)
   texture.{c,h}                 PNG decode + upload; subimage views; tile grids
@@ -306,6 +308,16 @@ layer just has to be able to express it.
 
 A `Renderer#clipped(x, y, w, h) { }` is added alongside `rotated`/`translated`
 to expose it — a genuine addition to the Ruby API, and the only one.
+
+### The canvas: where transform, clip and queue meet
+
+`canvas.{c,h}` owns one of each and is what the drawing API actually calls. It
+transforms vertices **at append time**, which is what lets the queue reorder
+commands freely afterwards, and stamps the current clip onto each command so
+the clip survives that reordering. It is still pure — arithmetic plus an append
+— so the whole composition, split-screen included, is Check-testable against a
+recording backend before any GL exists. One `pop` undoes any kind of push, so a
+caller cannot pop the wrong stack.
 
 ### The backend seam
 

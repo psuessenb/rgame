@@ -1,8 +1,10 @@
 # 03 — Roadmap
 
-Detailed for phases 0–2, which are the next things to actually do. Rough after
-that on purpose: the later phases will be re-planned once the render foundation
-exists and the shape of the problem is concrete rather than imagined.
+Detailed for phases 0–3. Phases 4–7 stay deliberately rough: they get
+re-planned once the render foundation exists and the shape of the problem is
+concrete rather than imagined — which is exactly what happened to phase 3,
+re-written from eight bullets into nine landable steps once phase 2 was done
+and the GL situation had been measured rather than assumed.
 
 Throughout: **layer 1 (pure logic + Check tests) before layer 3 (real SDL/GL)**,
 per CLAUDE.md. The recurring temptation in a graphics rewrite is to open a
@@ -250,56 +252,351 @@ Unplugging and replugging a pad mid-run keeps it on the same slot.
 
 ## Phase 3 — The render foundation
 
-The bulk of the work. Detail here is deliberately thinner; it gets re-planned
-once phase 2 lands. Sub-order matters more than sub-detail:
+The bulk of the work, and the part where a wrong foundation is expensive to
+undo. Nine steps, each meant to land on its own with the suites green.
 
-- **3a `color.{c,h}` + `Util::Color`.** Trivial, unblocks every other
-  signature. `Color.rgba(r,g,b,a)`, `Color::WHITE`, and the tri-modal
-  `nil`/`Array`/`Color` acceptance `GosuRenderer#resolve_color` promises.
-  Built in `ext/rgame_util/`, not `ext/rgame_core/`: a colour is a value, and
-  the engine layer must be able to hold one as an attribute.
-- **3b `draw_queue.{c,h}` — z-sort + batching.** Pure C, zero GL, full Check
-  coverage. This is the piece the whole engine's correctness rests on and the
-  reason `glEnable(GL_DEPTH_TEST)` has to go; see
-  [02](02-architecture.md#the-draw-queue). Build it before anything is drawn.
-  The clip rect must travel *with* each command into the queue and form part of
-  the batch key — sorting reorders commands across viewports, so a clip left as
-  ambient state would scissor the wrong quads. That is a split-screen
-  requirement landing on the very first renderer module.
-- **3c `transform.{c,h}` + `clip.{c,h}`.** Pure C, Check-tested. Push/pop
-  translate, rotate-about-pivot, scale, and intersecting clip rects. **Real
-  stacks, because split-screen is in scope** — several clip+transform regions
-  composed and torn down within one frame, cleanly and repeatably, not one
-  global "current region" that only works while a single viewport is active.
-  See [02](02-architecture.md#split-screen-is-a-requirement-on-this-design-not-a-later-feature).
-  Check tests should include the split-screen shape directly: two viewports,
-  two camera offsets, one world draw each, asserting on the recorded batches.
-- **3d `backend.h` + a recording fake.** Layer 2, added exactly here — the point
-  at which real GL calls first appear.
-- **3e `gl_backend.c`.** Layer 3, thin. Client-side vertex arrays
-  (`glVertexPointer` + `glDrawArrays`), no loader — the decision and its
-  rationale are in [02](02-architecture.md#the-gl-shim).
-- **3f `texture.{c,h}` + `Core::Image`.** `stb_image` decode, `GL_NEAREST`
-  upload, subimage-as-UV-view, `load_tiles`. The rect arithmetic is pure and
-  tested; only decode+upload is not.
-- **3g Primitives.** Textured quad (position, rotate about arbitrary pivot,
-  non-uniform scale, flip, tint), filled rect, filled quad from four points,
-  filled triangle.
-- **3h Record + render-to-texture.** `Core.record` (retained batch) and
-  `Core.render` (FBO → texture). Unblocks the tile-map static bake and the
-  circle texture.
+Ground rules for the whole phase:
 
-After 3g, most of `GosuRenderer` is portable: `rect`, `line`, `sprite`,
-`image`, `background`, `rotated`, `translated`, `debug_box` — plus `clipped`,
-the one method the rewrite *adds* to the Ruby API, which is all split-screen
-needs from Ruby's side. After 3h, `circle` — though with a real batching
-renderer, a per-call triangle fan may be cheap enough to drop the cached-texture
-trick entirely, which would be a genuine simplification.
+- **Pure before impure.** Steps 3.1–3.4 contain no GL at all. The hard parts of
+  a 2D renderer — z ordering, transform composition, clip intersection,
+  batching — are arithmetic, and every one of them is Check-tested before a
+  single `gl*` call is written.
+- **No per-frame allocation in steady state.** Every buffer here grows by
+  doubling and is *reset*, not freed, at end of frame. A renderer that mallocs
+  per frame is a GC-pause equivalent, and it is the one thing this design
+  cannot retrofit later.
+- **Mutation-check each new Check suite** under the full sanitizer flags before
+  calling a step done — see `.claude/skills/verify/SKILL.md`. Two of the four
+  suites written so far had a test that passed for the wrong reason.
 
-This is also the point where the **headless integration tier** CLAUDE.md
-describes but hasn't built (Xvfb + Mesa llvmpipe, `glReadPixels` spot checks)
-becomes worth standing up: there is finally real rendering to check without a
-human watching.
+### Measured facts this plan rests on
+
+Probed on this machine, under Xvfb + Mesa llvmpipe — i.e. exactly what
+`rake spec:core` sees, not what a GPU box would give:
+
+| | |
+|---|---|
+| `GL_VERSION` | **4.5 (Compatibility Profile)**, Mesa 23.2.1 |
+| `GL_MAX_TEXTURE_SIZE` | 16384 |
+| FBO (`ARB_` and `EXT_framebuffer_object`) | present, and a colour-attached FBO reports `GL_FRAMEBUFFER_COMPLETE` |
+| VBO, NPOT textures | present |
+| GL 1.1 client-side vertex arrays | compile warning-clean against `SDL2/SDL_opengl.h`, no loader |
+| FBO/VBO entry points | **do not compile** against `SDL_opengl.h` alone — implicit-declaration warnings |
+
+Two consequences:
+
+1. **The client-side vertex-array plan needs no loader and no new dependency.**
+   `glVertexPointer`/`glTexCoordPointer`/`glColorPointer`/`glDrawArrays` are GL
+   1.1 and declared already. That settles the layer-3 approach.
+2. **Anything past GL 1.1 needs one extra line**: `#define GL_GLEXT_PROTOTYPES 1`
+   before `<SDL2/SDL_opengl.h>`, which was verified to compile warning-clean
+   *and* work at runtime under llvmpipe. Mesa also happens to export those
+   symbols so they link directly — but that is a Linux/Mesa accident, not a
+   portable fact (Windows' `opengl32.dll` exports only GL 1.1). **Only step
+   3.9 needs this**; if the project ever targets Windows, that step is where a
+   loader or `SDL_GL_GetProcAddress` table has to appear.
+
+`stb_image` is not packaged on this machine and gets **vendored** as a single
+header (public domain / MIT). See 3.7 for the one wrinkle that creates.
+
+---
+
+### 3.1 `Util::Color` — the value every draw call takes
+
+Pure Ruby-visible value in `ext/rgame_util/color.c`, not Core: a colour is a
+value, and the engine layer must be able to hold one (CLAUDE.md, "Value
+objects go in Util; only handle-owners go in Core").
+
+```ruby
+c = RGame::Util::Color.rgba(255, 128, 0, 200)
+c = RGame::Util::Color.new(0xFFC80080)     # packed 0xRRGGBBAA
+RGame::Util::Color::WHITE
+c.r; c.g; c.b; c.a                         # => Integer 0..255
+c.packed                                   # => Integer, what the C layer stores
+c == other                                 # value equality
+```
+
+Also the tri-modal coercion `GosuRenderer#resolve_color` promises, since every
+draw method accepts it: `nil` → white, `[r,g,b]`/`[r,g,b,a]` → a Color, a Color
+→ itself. Put that in one place (`Color.coerce`) rather than in each primitive.
+
+- **Pure C**: `color.{c,h}` packing/unpacking, Check-tested.
+- **Tests**: `spec/rgame/util/color_spec.rb` (fast suite — no SDL) for the Ruby
+  API; Check for the packing arithmetic.
+- **Watch**: the packed byte order must match what the vertex format feeds GL
+  (`GL_UNSIGNED_BYTE` × 4, RGBA). Assert it once, in C, rather than discovering
+  it as blue-tinted sprites.
+
+### 3.2 `transform.{c,h}` — the 2D affine stack (pure)
+
+```c
+typedef struct { float a, b, c, d, tx, ty; } rgame_transform;  /* 2x3 affine */
+
+void rgame_transform_stack_init(rgame_transform_stack *s);   /* top = identity */
+int  rgame_transform_push_translate(rgame_transform_stack *s, float dx, float dy);
+int  rgame_transform_push_rotate(rgame_transform_stack *s, float degrees,
+                                 float pivot_x, float pivot_y);
+int  rgame_transform_push_scale(rgame_transform_stack *s, float sx, float sy);
+void rgame_transform_pop(rgame_transform_stack *s);
+void rgame_transform_apply(const rgame_transform_stack *s,
+                           float x, float y, float *out_x, float *out_y);
+```
+
+Each push composes with the current top and pushes the result, so `apply` is
+one matrix-multiply regardless of nesting depth. Push returns 0 if the stack is
+full — a depth limit is fine (say 32) and better than unbounded growth.
+
+- **Tests** (`test/test_transform.c`): identity leaves a point alone; translate
+  then rotate composes in the right order (a known point to a known place); pop
+  restores exactly; rotate about a pivot leaves the pivot fixed; degrees not
+  radians (Gosu's convention, and the ported `Renderer#rotated` passes degrees);
+  overflowing the stack is reported, not silently wrong.
+- **Watch**: rotation direction. Gosu rotates *clockwise* for positive angles
+  with y pointing down. Pin it with a test asserting an actual coordinate, not
+  a matrix, or every sprite ends up mirrored.
+
+### 3.3 `clip.{c,h}` — the intersecting clip stack (pure)
+
+```c
+typedef struct { int x, y, w, h; } rgame_rect;
+
+void rgame_clip_stack_init(rgame_clip_stack *s, int width, int height);
+int  rgame_clip_push(rgame_clip_stack *s, rgame_rect r);  /* intersects with top */
+void rgame_clip_pop(rgame_clip_stack *s);
+rgame_rect rgame_clip_current(const rgame_clip_stack *s);
+int  rgame_clip_is_empty(const rgame_clip_stack *s);
+```
+
+- **Tests** (`test/test_clip.c`): a pushed rect intersects rather than replaces;
+  nested pushes intersect cumulatively; disjoint rects give an empty clip and
+  `is_empty` says so; pop restores; the base rect is the window, so an
+  unclipped draw is still bounded.
+- **Watch**: empty must be a first-class answer (`w` or `h` ≤ 0), because the
+  queue uses it to drop commands early.
+
+### 3.4 `draw_queue.{c,h}` — z-sort and batching (pure)
+
+**The single most important module in the rewrite.** Gosu's contract is that
+every draw call carries a `z` and the renderer sorts by it regardless of call
+order; `glEnable(GL_DEPTH_TEST)` does *not* provide that, because depth-testing
+and alpha blending are mutually exclusive — a depth-tested translucent quad
+rejects the fragments behind it instead of blending. Every UI panel in this
+engine is translucent chrome over gameplay.
+
+Concrete shape:
+
+```c
+typedef struct { float x, y, u, v; unsigned int rgba; } rgame_vertex;  /* 20 bytes */
+
+typedef struct {
+    double z;             /* Gosu-compatible Float */
+    unsigned int order;   /* insertion index — the stable-sort tiebreak */
+    unsigned int texture; /* GL name; 0 = untextured */
+    rgame_rect clip;      /* travels WITH the command, see below */
+    unsigned int first_vertex, vertex_count;
+} rgame_draw_command;
+```
+
+Vertices live in one growable array; commands index into it. That handles
+triangles (3) and quads (6, as two triangles) uniformly, keeps the sorted
+records small, and means the flush is a linear walk.
+
+```c
+void rgame_draw_queue_reset(rgame_draw_queue *q);          /* per frame; keeps capacity */
+rgame_vertex *rgame_draw_queue_alloc(rgame_draw_queue *q, unsigned count,
+                                     double z, unsigned texture, rgame_rect clip);
+void rgame_draw_queue_flush(rgame_draw_queue *q, const rgame_draw_backend *backend);
+```
+
+`alloc` returns a writable span so the caller fills vertices in place — no
+temporary array, no copy.
+
+Three rules the tests must pin:
+
+1. **Sort ascending by `z`.**
+2. **Stable within a `z`** — ties break by insertion order. Gosu behaves this
+   way, and without it same-z sprites flicker between frames as the sort
+   reshuffles them.
+3. **The clip rect is part of the command and part of the batch key.** Sorting
+   reorders commands across viewports, so a clip left as ambient state would
+   scissor the wrong quads. This is a split-screen requirement landing on the
+   very first renderer module — and the thing a single-viewport implementation
+   gets wrong in a way that needs a rebuild to fix.
+
+Batching: after sorting, consecutive commands sharing `(texture, clip)` merge
+into one `draw_batch` call.
+
+- **Tests** (`test/test_draw_queue.c`): ascending z; equal z keeps insertion
+  order; three same-texture same-clip commands become one batch; a texture
+  change splits a batch; a *clip* change splits a batch; an empty clip drops the
+  command entirely; reset keeps capacity so a second frame allocates nothing
+  (assert on a capacity counter, not on malloc).
+
+### 3.5 `canvas.{c,h}` — composition, still pure
+
+The piece that ties 3.2–3.4 together, and the one the rest of the engine talks
+to. Owns a transform stack, a clip stack and a draw queue; transforms vertices
+**at append time** so the queue can reorder freely.
+
+```c
+void rgame_canvas_begin_frame(rgame_canvas *c, int width, int height);
+void rgame_canvas_push_translate(rgame_canvas *c, float dx, float dy);
+void rgame_canvas_push_rotate(rgame_canvas *c, float deg, float px, float py);
+void rgame_canvas_push_clip(rgame_canvas *c, rgame_rect r);
+void rgame_canvas_pop(rgame_canvas *c);                     /* one pop for any push */
+void rgame_canvas_quad(rgame_canvas *c, const float *xy8, unsigned rgba, double z);
+void rgame_canvas_triangle(rgame_canvas *c, const float *xy6, unsigned rgba, double z);
+void rgame_canvas_textured_quad(rgame_canvas *c, unsigned texture,
+                                const float *xy8, const float *uv8,
+                                unsigned rgba, double z);
+void rgame_canvas_end_frame(rgame_canvas *c, const rgame_draw_backend *backend);
+```
+
+One `pop` for every kind of push keeps the Ruby side's block form honest and
+means a caller can never pop the wrong stack.
+
+- **Tests** (`test/test_canvas.c`): a quad drawn inside `push_translate` lands
+  translated; nested transforms compose; pop unwinds; a quad drawn inside a clip
+  carries that clip into its command; **the split-screen shape end-to-end** —
+  two viewports, each `push_clip` + `push_translate`, the same world draw in
+  both, asserting the recorded batches have the right clips and offsets.
+
+### 3.6 `backend.h` + a recording fake — the layer-2 seam
+
+Added exactly here, per CLAUDE.md: the point at which real GL calls first
+appear, not speculatively before.
+
+```c
+typedef struct {
+    void (*begin_frame)(void *ctx, int width, int height);
+    void (*set_clip)(void *ctx, rgame_rect clip);
+    void (*draw_batch)(void *ctx, unsigned texture,
+                       const rgame_vertex *verts, unsigned count);
+    void (*end_frame)(void *ctx);
+    void *ctx;
+} rgame_draw_backend;
+```
+
+`test/support/recording_backend.{c,h}` appends every call to an array so Check
+tests can assert "these batches, in this order, with these vertices" with no
+display involved. 3.4 and 3.5's tests are written against it.
+
+### 3.7 `texture.{c,h}` + `Core::Image` — decode, upload, views
+
+The rect arithmetic is pure and Check-tested; only decode+upload touches GL.
+
+```ruby
+img = RGame::Core::Image.new('hero.png')       # nearest-neighbour, always
+img.width; img.height
+sub = img.subimage(x, y, w, h)                 # a VIEW: same GL texture, new UVs
+tiles = RGame::Core::Image.load_tiles('sheet.png', 16, 16)   # => [Image, ...]
+```
+
+A subimage is a view — same texture name, a sub-rect of UV space, no re-decode
+and no second upload. `subimage` on a subimage composes rects. `retro: true` is
+not a parameter: nearest is the only mode the feature spec needs, so it is the
+only mode there is.
+
+- **Pure part** (`test/test_texture.c`): pixel rect → UV rect; a subimage of a
+  subimage composes; `load_tiles` slices a grid in the right order (row-major);
+  an out-of-bounds sub-rect is rejected rather than producing garbage UVs.
+- **Impure part**: `stbi_load` + `glTexImage2D` + `GL_NEAREST`. Covered in
+  `spec_core/` by loading a small fixture PNG and asserting `width`/`height`.
+- **Wrinkle — vendoring `stb_image.h`.** mkmf compiles every `.c` in the ext
+  directory, so the implementation TU (`#define STB_IMAGE_IMPLEMENTATION`) will
+  be compiled with the project's `-Wall -Wextra`, and third-party headers rarely
+  survive that. Plan: put it in `ext/rgame_core/vendor/`, wrap it in one small
+  `stb_image_impl.c`, and give that file relaxed warnings in `extconf.rb`.
+  Keeping the project warning-clean is a stated convention; carving out exactly
+  one vendored TU is the honest way to hold it. Record the licence.
+
+### 3.8 Primitives and the Ruby `Core::Renderer`
+
+Now that the machinery exists, the drawing API is thin. Ruby-side
+`lib/rgame/core/renderer.rb` over the C canvas:
+
+| Method | Notes |
+|---|---|
+| `rect(x, y, w, h, z:, color:)` | one quad |
+| `quad(x1..y4, z:, color:)` | four arbitrary points |
+| `triangle(x1..y3, z:, color:)` | three points |
+| `line(x1, y1, x2, y2, thickness:, z:, color:)` | a quad; keep the `-0.0` note from `gosu_renderer.rb:149-157` if it stays in Ruby |
+| `image(id, cx, cy, angle:, scale:, z:)` | centred, rotated, scaled |
+| `background(id, z:)` | at the origin |
+| `sprite(id, row, col, x, y, flip_x:, z:)` | via `SpriteSheet` |
+| `rotated(deg, px, py) { }` / `translated(dx, dy) { }` / `clipped(x, y, w, h) { }` | push/pop around a block |
+| `debug_box(x, y, w, h)` | tinted rect |
+
+`clipped` is the one method the rewrite *adds* to the Ruby API, and all
+split-screen needs from Ruby's side.
+
+**This is where the renderer interface contract gets written** — the piece
+deliberately left unbuilt until there was a renderer to write it against.
+`spec/support/shared_examples/a_renderer.rb` states the method list and its
+argument shapes; the recording fake in `spec/` and the real `Core::Renderer` in
+`spec_core/` are both run against it. Per CLAUDE.md, a method added to the real
+renderer is not done until the shared contract and the fake have it too.
+
+Keep the zero-angle/zero-offset fast paths from `gosu_renderer.rb:77,:91` — and
+the `yield`-without-block-capture trick, which exists to avoid allocating a Proc
+per rotated draw.
+
+### 3.9 `record` — retained batches
+
+`Gosu.record` is what makes the tile map affordable: bake the static layers once
+and redraw them as one call. With a batching queue this is nearly free — capture
+the commands a block produces, keep the vertex array, replay it later offset by
+the current transform.
+
+```ruby
+baked = renderer.record { ...many draws... }
+baked.draw(x, y, z)
+```
+
+- **Tests**: pure (a recorded block produces the same batches on replay, offset
+  correctly); plus a `spec_core/` check that replaying is one `draw_batch`, not
+  N.
+- **Note**: Gosu's recorded images draw white-only (no tint), which
+  `tile_map_renderer.rb:11` documents working around. Ours has no reason to
+  inherit that limitation.
+
+### Deferred out of phase 3: render-to-texture
+
+`Gosu.render` (FBO → texture) has exactly one caller in the current engine: the
+cached unit-circle used by `Renderer#circle`. With a real batching renderer, a
+per-call triangle fan is cheap enough that the cached texture may be pure
+overhead — so **`circle` becomes a fan, and FBOs wait until something actually
+needs them**. This is also the only step that would need the
+`GL_GLEXT_PROTOTYPES` line and a portability decision, so deferring it keeps
+phase 3 entirely inside GL 1.1.
+
+Revisit if text (phase 4) wants to bake a glyph atlas via GL rather than
+uploading a CPU-rasterised one. It should not — stb_truetype rasterises to
+memory, and uploading that is an ordinary `glTexImage2D`.
+
+### Verification tiers for this phase
+
+The headless integration tier CLAUDE.md used to describe as "not yet built" now
+exists as `spec_core/` (Xvfb + llvmpipe, booted by the suite itself). Phase 3 is
+what makes it worth using for rendering:
+
+- **`make test`** — everything in 3.1–3.6, 3.9's pure half. The bulk.
+- **`rake spec`** — `Util::Color`; the renderer contract against the fake.
+- **`rake spec:core`** — real texture upload; the renderer contract against the
+  real renderer; **`glReadPixels` spot checks**: draw a red quad at a known
+  place and assert the pixel is red; draw a blue quad at higher z over it and
+  assert the pixel is blue; clip a quad away and assert the pixel is unchanged.
+  Three of those catch more layer-3 mistakes than any amount of staring.
+- **`ruby ext/rgame_core/example.rb`** — the human check that it looks right.
+
+### What phase 3 does *not* deliver
+
+Text (phase 4), audio (phase 5), and the ported Ruby classes — `SpriteSheet`,
+`NineSlice`, `UiAtlas`, `TileMapRenderer`, `AssetManager` (phase 6). 3.8's
+`sprite` and `background` need a `SpriteSheet` and an image registry to be
+useful; either stub them against a trivial registry in 3.8 and port properly in
+phase 6, or leave those two rows until then. Prefer leaving them: a stub that
+looks like the real thing is how phase 6 acquires silent drift.
 
 ---
 
