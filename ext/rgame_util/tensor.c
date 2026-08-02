@@ -17,7 +17,7 @@
  * `mark` function so the GC walks our array and keeps every stored value alive.
  */
 
-#include <ruby.h>
+#include "util_ext.h"
 
 /*
  * The C struct each RGame::Util::Tensor Ruby object wraps. `data` is a flat
@@ -170,18 +170,10 @@ static VALUE tensor_depth(VALUE self) {
 }
 
 /*
- * Entry point. Ruby calls Init_<basename of the required path> when the .so is
- * loaded; we require it as "rgame/util_ext", so this must be Init_util_ext. The
- * name here matches create_makefile("rgame/util_ext") in extconf.rb.
+ * Class init, called by Init_util_ext in util_ext.c. Splitting the entry point
+ * out means adding another Util class does not mean editing this file.
  */
-void Init_util_ext(void) {
-    /*
-     * rb_define_module is idempotent — it returns the existing RGame if some
-     * other extension or Ruby file defined it first, so load order between the
-     * two extensions doesn't matter.
-     */
-    VALUE mRGame = rb_define_module("RGame");
-    VALUE mUtil = rb_define_module_under(mRGame, "Util");
+void rgame_init_tensor(VALUE mUtil) {
     VALUE cTensor = rb_define_class_under(mUtil, "Tensor", rb_cObject);
 
     rb_define_alloc_func(cTensor, tensor_alloc);

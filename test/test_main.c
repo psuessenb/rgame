@@ -16,6 +16,7 @@ int main(void) {
     SRunner *runner = srunner_create(frame_loop_suite());
     srunner_add_suite(runner, device_slots_suite());
     srunner_add_suite(runner, input_suite());
+    srunner_add_suite(runner, color_suite());
 
     srunner_run_all(runner, CK_NORMAL);
     int failed = srunner_ntests_failed(runner);

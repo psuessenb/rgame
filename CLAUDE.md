@@ -281,8 +281,12 @@ sources go in `ext/rgame_core/`.
   extension.
 - `ext/rgame_util/` — the graphics-free extension (`RGame::Util`). Its
   `extconf.rb` has no `pkg_config` and no `-lGL`, which is what enforces the
-  split above. `Tensor` (`tensor.c`) lives here, and so does any future
-  pure-data/pure-logic code Ruby needs to call.
+  split above. `util_ext.c` is the entry point and does nothing but hand the
+  module to each class's init, so adding a class means adding a file rather
+  than editing an unrelated one. `Tensor` and `Color` live here, and so does
+  any future pure-data/pure-logic code Ruby needs to call. Note `color.{c,h}`
+  is pure and has no `ruby.h`, so the Check suite covers it directly — the
+  same layer-1 split the engine side uses.
 - Both extensions build to a `.so` that `make ext` copies into `lib/rgame/`
   (`core_ext.so`, `util_ext.so`) — the path where `require
   "rgame/core_ext"` / `require "rgame/util_ext"` find them, mirroring how

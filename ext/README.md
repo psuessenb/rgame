@@ -9,7 +9,7 @@ split is the rule for deciding where new code goes:
 | Required as | `rgame/core_ext` | `rgame/util_ext` |
 | Entry point | `Init_core_ext` | `Init_util_ext` |
 | Links | SDL2 + OpenGL + libm | nothing but Ruby |
-| Holds | `App` (window, GL context, main loop) | `Tensor` |
+| Holds | `App` (window, GL context, main loop) | `Tensor`, `Color` |
 
 Anything that depends on SDL/OpenGL — or on something that does — belongs in
 `rgame_core`. Everything else belongs in `rgame_util`. The point of the
@@ -30,7 +30,10 @@ ext/rgame_core/
 
 ext/rgame_util/
   extconf.rb            # mkmf script -> Makefile; no pkg_config, no -lGL
+  util_ext.c            # entry point; calls each class's init
   tensor.c              # RGame::Util::Tensor — flat-array 3D grid
+  color.c/.h            # pure RGBA packing, no ruby.h (unit-tested)
+  color_ext.c           # RGame::Util::Color — the Ruby binding
 ```
 
 ## Why the engine lives here and not in `src/`
@@ -125,4 +128,7 @@ pads.each_connected { |slot, name| ... }     # "Player 2: <name>"
 
 grid = RGame::Util::Tensor.new(width, height, depth, initial: nil)
 grid[x, y, z] = value
+
+colour = RGame::Util::Color.new(255, 128, 0)   # frozen, compares by value
+RGame::Util::Color.coerce([255, 128, 0])       # nil / [r,g,b] / [r,g,b,a] / Color
 ```

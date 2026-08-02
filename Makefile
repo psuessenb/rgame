@@ -22,6 +22,8 @@ APP_OBJ := $(BUILD_DIR)/app.o
 FRAME_LOOP_OBJ := $(BUILD_DIR)/frame_loop.o
 DEVICE_SLOTS_OBJ := $(BUILD_DIR)/device_slots.o
 INPUT_OBJ := $(BUILD_DIR)/input.o
+# Util is a separate extension, but its pure modules are Check-tested too.
+COLOR_OBJ := $(BUILD_DIR)/color.o
 GAMEPAD_OBJ := $(BUILD_DIR)/gamepad.o
 CORE_LIB := $(BUILD_DIR)/librgame_core.a
 
@@ -35,7 +37,8 @@ MAIN_BIN := $(BUILD_DIR)/rgame
 TEST_OBJS := $(BUILD_DIR)/test_main.o \
              $(BUILD_DIR)/test_frame_loop.o \
              $(BUILD_DIR)/test_device_slots.o \
-             $(BUILD_DIR)/test_input.o
+             $(BUILD_DIR)/test_input.o \
+             $(BUILD_DIR)/test_color.o
 TEST_BIN := $(BUILD_DIR)/test_rgame
 
 EXT_UTIL_DIR := ext/rgame_util
@@ -77,11 +80,14 @@ $(MAIN_OBJ): src/main.c $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
 $(MAIN_BIN): $(MAIN_OBJ) $(CORE_LIB)
 	$(CC) $(CFLAGS) -o $@ $(MAIN_OBJ) $(CORE_LIB) $(SDL_LIBS) $(GL_LIBS) $(MATH_LIBS)
 
-$(BUILD_DIR)/test_%.o: test/test_%.c test/suites.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -I$(EXT_CORE_DIR) -I$(EXT_CORE_DIR)/include -Itest $(CHECK_CFLAGS) -c $< -o $@
+$(COLOR_OBJ): $(EXT_UTIL_DIR)/color.c $(EXT_UTIL_DIR)/color.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-$(TEST_BIN): $(TEST_OBJS) $(CORE_LIB)
-	$(CC) $(CFLAGS) -o $@ $(TEST_OBJS) $(CORE_LIB) $(SDL_LIBS) $(GL_LIBS) $(MATH_LIBS) $(CHECK_LIBS)
+$(BUILD_DIR)/test_%.o: test/test_%.c test/suites.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -I$(EXT_CORE_DIR) -I$(EXT_CORE_DIR)/include -I$(EXT_UTIL_DIR) -Itest $(CHECK_CFLAGS) -c $< -o $@
+
+$(TEST_BIN): $(TEST_OBJS) $(CORE_LIB) $(COLOR_OBJ)
+	$(CC) $(CFLAGS) -o $@ $(TEST_OBJS) $(CORE_LIB) $(COLOR_OBJ) $(SDL_LIBS) $(GL_LIBS) $(MATH_LIBS) $(CHECK_LIBS)
 
 run: all
 	./$(MAIN_BIN)
@@ -112,7 +118,10 @@ $(EXT_CORE_SO): $(EXT_CORE_DIR)/core_ext.c $(EXT_CORE_DIR)/app.c \
                 $(EXT_CORE_DIR)/frame_loop.c $(EXT_CORE_DIR)/Makefile
 	$(MAKE) -C $(EXT_CORE_DIR)
 
-$(EXT_CORE_DIR)/Makefile: $(EXT_CORE_DIR)/extconf.rb
+# Regenerate when a source is *added*, not just when extconf.rb changes: mkmf
+# bakes the object list in at generation time, so a new .c would otherwise be
+# silently left out and surface as an undefined symbol at require time.
+$(EXT_CORE_DIR)/Makefile: $(EXT_CORE_DIR)/extconf.rb $(wildcard $(EXT_CORE_DIR)/*.c)
 	cd $(EXT_CORE_DIR) && ruby extconf.rb
 
 # util extension: pure data, no graphics libraries linked in.
@@ -121,10 +130,12 @@ ext-util: $(LIB_UTIL_SO)
 $(LIB_UTIL_SO): $(EXT_UTIL_SO)
 	cp $(EXT_UTIL_SO) $@
 
-$(EXT_UTIL_SO): $(EXT_UTIL_DIR)/tensor.c $(EXT_UTIL_DIR)/Makefile
+$(EXT_UTIL_SO): $(EXT_UTIL_DIR)/tensor.c $(EXT_UTIL_DIR)/color.c \
+                $(EXT_UTIL_DIR)/color_ext.c $(EXT_UTIL_DIR)/util_ext.c \
+                $(EXT_UTIL_DIR)/Makefile
 	$(MAKE) -C $(EXT_UTIL_DIR)
 
-$(EXT_UTIL_DIR)/Makefile: $(EXT_UTIL_DIR)/extconf.rb
+$(EXT_UTIL_DIR)/Makefile: $(EXT_UTIL_DIR)/extconf.rb $(wildcard $(EXT_UTIL_DIR)/*.c)
 	cd $(EXT_UTIL_DIR) && ruby extconf.rb
 
 ext-clean:

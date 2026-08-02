@@ -13,7 +13,7 @@ depends on:
 | C source | `ext/rgame_core/` | `ext/rgame_util/` |
 | Extension | `rgame/core_ext` | `rgame/util_ext` |
 | Links | SDL2 + OpenGL | nothing but Ruby |
-| Holds today | `App` — window, GL context, fixed-timestep main loop; `Input`, `Gamepad` | `Tensor`, `Controls` |
+| Holds today | `App` — window, GL context, fixed-timestep main loop; `Input`, `Gamepad` | `Tensor`, `Controls`, `Color` |
 
 That split is load-bearing, not cosmetic: `require "rgame"` gives you
 `RGame::Util` with **no graphics libraries loaded into the process at all**, so
@@ -162,7 +162,10 @@ ext/rgame_core/              RGame::Core — the SDL/GL half.
 
 ext/rgame_util/              RGame::Util — the graphics-free half, so pure-data
                              helpers can be required without pulling in SDL/GL.
+  util_ext.c                 Entry point; hands RGame::Util to each class init.
   tensor.c                   RGame::Util::Tensor — flat-array 3D grid.
+  color.c/.h                 Pure RGBA packing, no Ruby — Check-tested.
+  color_ext.c                RGame::Util::Color — the Ruby binding over it.
   extconf.rb                 mkmf script; no pkg_config, no -lGL.
 
 lib/rgame.rb                 `require "rgame"` — loads RGame::Util only.
@@ -171,6 +174,7 @@ lib/rgame/util/tensor.rb     Requires the compiled rgame/util_ext.
 lib/rgame/util/controls.rb   Input id vocabulary (keys, pad buttons, axes,
                              device slots) + default bindings. Pure Ruby
                              values, so a game may name them without Core.
+lib/rgame/util/color.rb      Requires the compiled rgame/util_ext for Color.
 lib/rgame/core.rb            `require "rgame/core"` — opt-in, loads SDL/GL.
 lib/rgame/core/app.rb        Requires the compiled rgame/core_ext.
 lib/rgame/core/input.rb      Symbolic action -> button, over the C queries.
