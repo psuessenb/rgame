@@ -276,6 +276,11 @@ sources go in `ext/rgame_core/`.
   screen space. Pure; covered by `test/test_clip.c`. A push always *narrows*,
   so a child can never draw outside the region its parent allowed, and "empty"
   is a canonical value because the draw queue uses it to drop commands.
+- `ext/rgame_core/canvas.{c,h}` — composes the transform stack, the clip stack
+  and the draw queue, and is the seam the drawing API is written against. Pure;
+  covered by `test/test_canvas.c`, including the split-screen shape end to end.
+  It transforms vertices on the way *in*, which is what lets the queue reorder
+  them freely afterwards.
 - `ext/rgame_core/draw_queue.{c,h}` — z-ordering and batching, and the reason
   the depth buffer is not used: depth testing and alpha blending are mutually
   exclusive, so translucent UI over gameplay needs a CPU sort. Pure; covered by

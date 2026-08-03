@@ -24,10 +24,18 @@ typedef uint32_t rgame_color;
  * Ruby caller passing 300 has a bug worth hearing about. */
 rgame_color rgame_color_rgba(int r, int g, int b, int a);
 
-int rgame_color_r(rgame_color color);
-int rgame_color_g(rgame_color color);
-int rgame_color_b(rgame_color color);
-int rgame_color_a(rgame_color color);
+/*
+ * The accessors are `static inline` in the header rather than functions in the
+ * .c, because the engine half of the project needs them too — the renderer
+ * writes these four bytes into every vertex. Core and Util are separate shared
+ * objects, so a real function would mean linking one into the other; an inline
+ * definition costs nothing and keeps a single source of truth for the byte
+ * order, which is the part that must not drift.
+ */
+static inline int rgame_color_r(rgame_color color) { return (int)((color >> 24) & 0xFFu); }
+static inline int rgame_color_g(rgame_color color) { return (int)((color >> 16) & 0xFFu); }
+static inline int rgame_color_b(rgame_color color) { return (int)((color >> 8) & 0xFFu); }
+static inline int rgame_color_a(rgame_color color) { return (int)(color & 0xFFu); }
 
 /*
  * Writes the four components into `out` in R, G, B, A order — the order
@@ -38,7 +46,12 @@ int rgame_color_a(rgame_color color);
  * A, B, G, R, so GL would read the alpha as red. Going through bytes sidesteps
  * the question entirely and is endian-independent.
  */
-void rgame_color_bytes(rgame_color color, unsigned char out[4]);
+static inline void rgame_color_bytes(rgame_color color, unsigned char out[4]) {
+    out[0] = (unsigned char)rgame_color_r(color);
+    out[1] = (unsigned char)rgame_color_g(color);
+    out[2] = (unsigned char)rgame_color_b(color);
+    out[3] = (unsigned char)rgame_color_a(color);
+}
 
 #define RGAME_COLOR_WHITE ((rgame_color)0xFFFFFFFFu)
 #define RGAME_COLOR_BLACK ((rgame_color)0x000000FFu)

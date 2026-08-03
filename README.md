@@ -160,6 +160,8 @@ ext/rgame_core/              RGame::Core — the SDL/GL half.
                              screen space. No SDL.
   draw_queue.h/.c            Pure z-sort and batching: collects draw commands,
                              orders them by z, merges what can share a GL call.
+  canvas.h/.c                Pure composition of transform + clip + queue; the
+                             seam the drawing API is written against.
   gamepad.h/.c               Thin SDL_GameController shim: opens/closes pads on
                              hot-plug and copies their state into the snapshot.
   core_ext.c                 Ruby glue: VALUE wrappers + callback trampolines.

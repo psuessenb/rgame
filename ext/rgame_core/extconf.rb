@@ -28,6 +28,12 @@ require 'mkmf'
 # $(srcdir) stays literal here — make expands it, not Ruby.
 $INCFLAGS << ' -I$(srcdir)/include'
 
+# RGame::Util's colour header, for the RGBA byte order the renderer writes into
+# every vertex. It is header-only (static inline), so this creates no link
+# dependency between the two extensions — they stay separate .so files. Both
+# directories ship together in the gem, so the relative path holds there too.
+$INCFLAGS << ' -I$(srcdir)/../rgame_util'
+
 # SDL2: pkg_config("sdl2") shells out to pkg-config and folds the resulting
 # cflags and libs into mkmf's globals ($CFLAGS/$libs) for us. Returns nil if
 # SDL2 isn't found, so we can fail with a clear message instead of a confusing

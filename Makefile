@@ -5,7 +5,9 @@ CFLAGS ?= -std=c17 -Wall -Wextra -g -fPIC
 # that `gem install` can build them via extconf.rb without reaching outside ext/.
 # This Makefile builds those same sources into a standalone binary.
 EXT_CORE_DIR := ext/rgame_core
-INCLUDES := -I$(EXT_CORE_DIR)/include
+EXT_UTIL_DIR := ext/rgame_util
+# Util's colour header is header-only; see ext/rgame_core/extconf.rb.
+INCLUDES := -I$(EXT_CORE_DIR)/include -I$(EXT_UTIL_DIR)
 
 SDL_CFLAGS := $(shell pkg-config --cflags sdl2)
 SDL_LIBS := $(shell pkg-config --libs sdl2)
@@ -25,6 +27,7 @@ INPUT_OBJ := $(BUILD_DIR)/input.o
 TRANSFORM_OBJ := $(BUILD_DIR)/transform.o
 CLIP_OBJ := $(BUILD_DIR)/clip.o
 DRAW_QUEUE_OBJ := $(BUILD_DIR)/draw_queue.o
+CANVAS_OBJ := $(BUILD_DIR)/canvas.o
 # Util is a separate extension, but its pure modules are Check-tested too.
 COLOR_OBJ := $(BUILD_DIR)/color.o
 GAMEPAD_OBJ := $(BUILD_DIR)/gamepad.o
@@ -44,10 +47,9 @@ TEST_OBJS := $(BUILD_DIR)/test_main.o \
              $(BUILD_DIR)/test_color.o \
              $(BUILD_DIR)/test_transform.o \
              $(BUILD_DIR)/test_clip.o \
-             $(BUILD_DIR)/test_draw_queue.o
+             $(BUILD_DIR)/test_draw_queue.o \
+             $(BUILD_DIR)/test_canvas.o
 TEST_BIN := $(BUILD_DIR)/test_rgame
-
-EXT_UTIL_DIR := ext/rgame_util
 
 EXT_CORE_SO := $(EXT_CORE_DIR)/core_ext.so
 EXT_UTIL_SO := $(EXT_UTIL_DIR)/util_ext.so
@@ -87,8 +89,14 @@ $(DRAW_QUEUE_OBJ): $(EXT_CORE_DIR)/draw_queue.c $(EXT_CORE_DIR)/draw_queue.h \
                    $(EXT_CORE_DIR)/clip.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
+$(CANVAS_OBJ): $(EXT_CORE_DIR)/canvas.c $(EXT_CORE_DIR)/canvas.h \
+               $(EXT_CORE_DIR)/draw_queue.h $(EXT_CORE_DIR)/transform.h \
+               $(EXT_CORE_DIR)/clip.h $(EXT_UTIL_DIR)/color.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
 $(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ) $(GAMEPAD_OBJ) \
-             $(TRANSFORM_OBJ) $(CLIP_OBJ) $(DRAW_QUEUE_OBJ)
+             $(TRANSFORM_OBJ) $(CLIP_OBJ) $(DRAW_QUEUE_OBJ) \
+             $(CANVAS_OBJ)
 	ar rcs $@ $^
 
 $(MAIN_OBJ): src/main.c $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
