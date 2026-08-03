@@ -20,6 +20,14 @@ require_relative '../lib/rgame/core'
 
 Dir[File.join(__dir__, 'support', '**', '*.rb')].each { |f| require f }
 
+# The renderer contract lives in spec/, and is deliberately shared: the
+# recording fake there and the real renderer here are both run against it, so
+# the fake cannot drift into describing a renderer that no longer exists. See
+# CLAUDE.md, "Fakes must be checked against the same contract as the real
+# thing". Only the shared examples cross the line — no spec/ *_spec.rb is
+# loaded here, and nothing in spec/ ever loads Core.
+require_relative '../spec/support/shared_examples/a_renderer'
+
 RSpec.configure do |config|
   config.expect_with(:rspec) { |c| c.syntax = :expect }
   config.disable_monkey_patching!

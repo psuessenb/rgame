@@ -21,9 +21,13 @@
 
 #include "rgame/core.h"
 #include "app_gl.h"
+#include "canvas.h"
 #include "frame_loop.h"
-#include "input.h"
 #include "gamepad.h"
+#include "gl_backend.h"
+#include "image_internal.h"
+#include "input.h"
+#include "primitives.h"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
@@ -67,6 +71,18 @@ struct rgame_app {
     rgame_fps_counter fps_counter;
     rgame_input_state input;
     rgame_gamepads gamepads;
+
+    /* The drawing surface, and the GL backend it is submitted to. Both live
+     * for the app's lifetime; the canvas reuses its buffers across frames
+     * rather than reallocating (see draw_queue.h). */
+    rgame_canvas canvas;
+    rgame_gl_backend gl;
+    /*
+     * Whether a frame is currently open. Drawing outside `draw` would append to
+     * a queue that is about to be reset — silently drawing nothing — so every
+     * primitive checks this, and the Ruby binding turns it into an error.
+     */
+    int drawing;
 };
 
 rgame_app *rgame_app_create(int width, int height, const char *title) {
@@ -106,12 +122,13 @@ rgame_app *rgame_app_create(int width, int height, const char *title) {
     }
 
     SDL_GL_SetSwapInterval(1); /* vsync */
-    glEnable(GL_DEPTH_TEST);
 
     rgame_live_apps++;
 
     app->running = 1;
     app->refs = 1;
+    app->drawing = 0;
+    rgame_canvas_init(&app->canvas);
     rgame_input_state_clear(&app->input);
     rgame_gamepads_init(&app->gamepads);
     rgame_frame_loop_init(&app->frame_loop);
@@ -139,6 +156,7 @@ void rgame_app_destroy(rgame_app *app) {
     }
 
     rgame_gamepads_shutdown(&app->gamepads);
+    rgame_canvas_destroy(&app->canvas);
     if (app->gl_context) {
         SDL_GL_DeleteContext(app->gl_context);
         app->gl_context = NULL;
@@ -269,7 +287,8 @@ static void rgame_app_poll_events(rgame_app *app, const rgame_app_callbacks *cb)
         }
         case SDL_WINDOWEVENT:
             if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
-                glViewport(0, 0, event.window.data1, event.window.data2);
+                /* The viewport is set from the current size every frame, in the
+                 * backend's begin_frame, so there is nothing to update here. */
                 if (cb->resize) {
                     cb->resize(cb->userdata, event.window.data1, event.window.data2);
                 }
@@ -335,13 +354,152 @@ void rgame_app_run(rgame_app *app, const rgame_app_callbacks *cb) {
         }
 
         if (redraw) {
-            glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            /*
+             * Open the frame, let the caller draw into it, then sort, batch and
+             * submit. Re-stating the window size every frame is also how a
+             * resize takes effect, so there is no separate path to forget.
+             *
+             * The caller's draw callback only ever appends to the queue; the
+             * bracketing is the engine's job. That is deliberate — a hook the
+             * user must remember to open and close is a hook someone forgets.
+             */
+            rgame_canvas_begin_frame(&app->canvas, rgame_app_width(app), rgame_app_height(app));
+            app->drawing = 1;
             if (cb->draw) {
                 cb->draw(cb->userdata);
             }
+            app->drawing = 0;
+            rgame_canvas_end_frame(&app->canvas);
+
+            rgame_draw_backend backend = rgame_gl_backend_table(&app->gl);
+            rgame_canvas_submit(&app->canvas, &backend);
             SDL_GL_SwapWindow(app->window);
         }
+    }
+}
+
+/* ------------------------------------------------------------------------- *
+ * Drawing
+ *
+ * Each of these is a guard plus one call into primitives.c, which is pure and
+ * Check-tested. The guard is the interesting part: outside a frame the canvas
+ * would happily accept the vertices and throw them away at the next
+ * begin_frame, so refusing here is what turns "my draw call does nothing" into
+ * something a caller can be told about.
+ * ------------------------------------------------------------------------- */
+
+int rgame_app_is_drawing(const rgame_app *app) {
+    return app && app->drawing;
+}
+
+/* The canvas to draw into, or NULL if no frame is open. */
+static rgame_canvas *drawing_canvas(rgame_app *app) {
+    return rgame_app_is_drawing(app) ? &app->canvas : NULL;
+}
+
+void rgame_app_draw_rect(rgame_app *app, float x, float y, float width, float height,
+                         unsigned int color, double z) {
+    rgame_canvas *canvas = drawing_canvas(app);
+    if (canvas) {
+        rgame_prim_rect(canvas, x, y, width, height, color, z);
+    }
+}
+
+void rgame_app_draw_quad(rgame_app *app, const float *xy8, unsigned int color, double z) {
+    rgame_canvas *canvas = drawing_canvas(app);
+    if (canvas && xy8) {
+        rgame_canvas_quad(canvas, xy8, color, z);
+    }
+}
+
+void rgame_app_draw_triangle(rgame_app *app, const float *xy6, unsigned int color, double z) {
+    rgame_canvas *canvas = drawing_canvas(app);
+    if (canvas && xy6) {
+        rgame_canvas_triangle(canvas, xy6, color, z);
+    }
+}
+
+void rgame_app_draw_line(rgame_app *app, float x1, float y1, float x2, float y2,
+                         float thickness, unsigned int color, double z) {
+    rgame_canvas *canvas = drawing_canvas(app);
+    if (canvas) {
+        rgame_prim_line(canvas, x1, y1, x2, y2, thickness, color, z);
+    }
+}
+
+void rgame_app_draw_circle(rgame_app *app, float cx, float cy, float radius, int segments,
+                           unsigned int color, double z) {
+    rgame_canvas *canvas = drawing_canvas(app);
+    if (canvas) {
+        rgame_prim_circle(canvas, cx, cy, radius, segments, color, z);
+    }
+}
+
+/* An image may only be drawn by the app that uploaded it; see core.h. A NULL
+ * image is "nothing to draw", not a mismatch, and simply draws nothing. */
+static int image_belongs_here(const rgame_app *app, const rgame_image *image) {
+    return !image || rgame_image_owner(image) == app;
+}
+
+int rgame_app_draw_image(rgame_app *app, const rgame_image *image, float x, float y,
+                         unsigned int color, double z) {
+    if (!image_belongs_here(app, image)) {
+        return 0;
+    }
+
+    rgame_canvas *canvas = drawing_canvas(app);
+    if (canvas) {
+        rgame_prim_image(canvas, rgame_image_view(image), x, y, color, z);
+    }
+    return 1;
+}
+
+int rgame_app_draw_image_rot(rgame_app *app, const rgame_image *image, float cx, float cy,
+                             float angle_degrees, float scale, unsigned int color, double z) {
+    if (!image_belongs_here(app, image)) {
+        return 0;
+    }
+
+    rgame_canvas *canvas = drawing_canvas(app);
+    if (canvas) {
+        rgame_prim_image_rot(canvas, rgame_image_view(image), cx, cy, angle_degrees, scale, color,
+                             z);
+    }
+    return 1;
+}
+
+void rgame_app_push_translate(rgame_app *app, float dx, float dy) {
+    rgame_canvas *canvas = drawing_canvas(app);
+    if (canvas) {
+        rgame_canvas_push_translate(canvas, dx, dy);
+    }
+}
+
+void rgame_app_push_rotate(rgame_app *app, float degrees, float pivot_x, float pivot_y) {
+    rgame_canvas *canvas = drawing_canvas(app);
+    if (canvas) {
+        rgame_canvas_push_rotate(canvas, degrees, pivot_x, pivot_y);
+    }
+}
+
+void rgame_app_push_scale(rgame_app *app, float sx, float sy) {
+    rgame_canvas *canvas = drawing_canvas(app);
+    if (canvas) {
+        rgame_canvas_push_scale(canvas, sx, sy);
+    }
+}
+
+void rgame_app_push_clip(rgame_app *app, int x, int y, int width, int height) {
+    rgame_canvas *canvas = drawing_canvas(app);
+    if (canvas) {
+        rgame_canvas_push_clip(canvas, rgame_rect_make(x, y, width, height));
+    }
+}
+
+void rgame_app_pop(rgame_app *app) {
+    rgame_canvas *canvas = drawing_canvas(app);
+    if (canvas) {
+        rgame_canvas_pop(canvas);
     }
 }
 

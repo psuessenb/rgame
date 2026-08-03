@@ -487,4 +487,5 @@ void Init_core_ext(void) {
     rb_define_method(cApp, "gamepad_disconnected", app_default_gamepad, 1);
 
     rgame_init_image(mCore);
+    rgame_init_renderer(mCore);
 }

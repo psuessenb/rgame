@@ -119,14 +119,17 @@ the ones that *do* fit here — fix the code, not the cop.
 
 ## Current phase
 
-Both halves exist. The C engine (window + fixed-timestep loop, no draw
-primitives yet) is wrapped by `ext/rgame_core/core_ext.c`, and there's
-a Ruby half under `lib/` backed by a second, graphics-free extension in
-`ext/rgame_util/`. No `.gemspec` yet — everything runs from a checkout.
+Both halves exist. The C engine — window, fixed-timestep loop, input, images
+and a z-sorted batching renderer — is wrapped by `ext/rgame_core/core_ext.c`
+and its per-class siblings, and there's a Ruby half under `lib/` backed by a
+second, graphics-free extension in `ext/rgame_util/`. No `.gemspec` yet —
+everything runs from a checkout.
 
-Work is still mostly C-side: the engine's drawing surface is the gap. When
-adding a feature, the default is to build it in C under `ext/rgame_core/`
-and only extend the Ruby wrapper once the C API for it is settled.
+The gaps now are text (`Core::Font`), audio, and the whole `RGame::Engine`
+layer: the scene graph a game is actually written against does not exist yet.
+When adding a feature, the default is still to build it in C under
+`ext/rgame_core/` and only extend the Ruby wrapper once the C API for it is
+settled — unless it is engine-layer work, which is pure Ruby by definition.
 
 ## The Core / Util split
 
@@ -308,6 +311,16 @@ sources go in `ext/rgame_core/`.
   project compiled without `-Wall -Wextra`**, carved out in both `extconf.rb`
   and the root `Makefile` so everything we wrote stays warning-clean. See
   `ext/rgame_core/vendor/README.md`.
+- `ext/rgame_core/primitives.{c,h}` — the shapes a game asks for (rect, thick
+  line, circle, sprite) in terms of the two the canvas knows. Pure; covered by
+  `test/test_primitives.c`. A rotated sprite goes through the canvas's own
+  transform stack rather than its own sin/cos, so which way a positive angle
+  turns is decided in exactly one place.
+- `ext/rgame_core/gl_backend.{c,h}` — layer 3 for drawing: the real
+  `glOrtho`/`glDrawArrays`/`glScissor` calls behind `backend.h`'s table, and
+  the only file on the draw path that calls `gl*`. Verified by looking at
+  pixels (`rake spec:core`, `make run`), not by unit tests — the call sequence
+  itself is already checked against the recording backend.
 - `ext/rgame_core/gamepad.{c,h}` — the controller shim, and the one place
   `SDL_GameController` appears. Deliberately thin: which player a pad belongs
   to is `device_slots`, what a button id means is `input`, and both are pure.
@@ -498,6 +511,22 @@ So each of those interfaces gets a **shared example group** in
 `spec/support/`, and both implementations are run against it: the fake from
 `spec/`, the real one from `spec_core/`. A method added to the real renderer
 is not done until the shared contract and the fake have it too.
+
+The renderer is the worked example, and the one to copy:
+
+| | |
+|---|---|
+| Contract | `spec/support/shared_examples/a_renderer.rb` |
+| Fake | `spec/support/fake_renderer.rb`, run against it by `fake_renderer_spec.rb` |
+| Real | `RGame::Core::Renderer`, run against it by `spec_core/rgame/core/renderer_spec.rb` |
+
+`spec_core/core_spec_helper.rb` requires the contract across the directory
+boundary. That is the *only* thing that crosses: no `spec/` example file is
+loaded there, and nothing in `spec/` ever names Core.
+
+The contract states the method list and its argument shapes; it cannot state
+pixels, because the fake has none. That is why `renderer_spec.rb` also reads
+the framebuffer back — the two halves together are the guarantee.
 
 ### Platform support
 

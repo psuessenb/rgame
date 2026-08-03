@@ -17,6 +17,7 @@
  */
 
 void rgame_init_image(VALUE mCore);
+void rgame_init_renderer(VALUE mCore);
 
 /*
  * The engine handle behind a Ruby RGame::Core::App. Raises TypeError if the
@@ -24,5 +25,9 @@ void rgame_init_image(VALUE mCore);
  * needing an app takes the Ruby object and calls this rather than duck-typing.
  */
 rgame_app *rgame_app_unwrap(VALUE app);
+
+/* The engine handle behind a Ruby RGame::Core::Image, for the renderer to draw.
+ * Raises TypeError on anything that is not an Image. */
+rgame_image *rgame_image_unwrap(VALUE image);
 
 #endif /* RGAME_CORE_EXT_H */

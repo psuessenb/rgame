@@ -29,6 +29,8 @@ CLIP_OBJ := $(BUILD_DIR)/clip.o
 DRAW_QUEUE_OBJ := $(BUILD_DIR)/draw_queue.o
 CANVAS_OBJ := $(BUILD_DIR)/canvas.o
 TEXTURE_OBJ := $(BUILD_DIR)/texture.o
+PRIMITIVES_OBJ := $(BUILD_DIR)/primitives.o
+GL_BACKEND_OBJ := $(BUILD_DIR)/gl_backend.o
 IMAGE_OBJ := $(BUILD_DIR)/image.o
 STB_IMAGE_OBJ := $(BUILD_DIR)/stb_image_impl.o
 BACKEND_OBJ := $(BUILD_DIR)/backend.o
@@ -55,6 +57,7 @@ TEST_OBJS := $(BUILD_DIR)/test_main.o \
              $(BUILD_DIR)/test_canvas.o \
              $(BUILD_DIR)/test_backend.o \
              $(BUILD_DIR)/test_texture.o \
+             $(BUILD_DIR)/test_primitives.o \
              $(BUILD_DIR)/recording_backend.o
 TEST_BIN := $(BUILD_DIR)/test_rgame
 
@@ -71,7 +74,10 @@ all: $(MAIN_BIN)
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-$(APP_OBJ): $(EXT_CORE_DIR)/app.c $(EXT_CORE_DIR)/frame_loop.h $(EXT_CORE_DIR)/input.h $(EXT_CORE_DIR)/gamepad.h $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
+$(APP_OBJ): $(EXT_CORE_DIR)/app.c $(EXT_CORE_DIR)/frame_loop.h $(EXT_CORE_DIR)/input.h \
+            $(EXT_CORE_DIR)/gamepad.h $(EXT_CORE_DIR)/canvas.h $(EXT_CORE_DIR)/primitives.h \
+            $(EXT_CORE_DIR)/gl_backend.h $(EXT_CORE_DIR)/image_internal.h \
+            $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
 $(FRAME_LOOP_OBJ): $(EXT_CORE_DIR)/frame_loop.c $(EXT_CORE_DIR)/frame_loop.h | $(BUILD_DIR)
@@ -114,6 +120,15 @@ $(TEXTURE_OBJ): $(EXT_CORE_DIR)/texture.c $(EXT_CORE_DIR)/texture.h \
                 $(EXT_CORE_DIR)/clip.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
+$(PRIMITIVES_OBJ): $(EXT_CORE_DIR)/primitives.c $(EXT_CORE_DIR)/primitives.h \
+                   $(EXT_CORE_DIR)/canvas.h $(EXT_CORE_DIR)/texture.h \
+                   $(EXT_UTIL_DIR)/color.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+$(GL_BACKEND_OBJ): $(EXT_CORE_DIR)/gl_backend.c $(EXT_CORE_DIR)/gl_backend.h \
+                   $(EXT_CORE_DIR)/backend.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
+
 $(IMAGE_OBJ): $(EXT_CORE_DIR)/image.c $(EXT_CORE_DIR)/texture.h $(EXT_CORE_DIR)/app_gl.h \
               $(EXT_CORE_DIR)/vendor/stb_image.h $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -I$(EXT_CORE_DIR) $(SDL_CFLAGS) -c $< -o $@
@@ -127,7 +142,8 @@ $(STB_IMAGE_OBJ): $(EXT_CORE_DIR)/stb_image_impl.c $(EXT_CORE_DIR)/vendor/stb_im
 
 $(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ) $(GAMEPAD_OBJ) \
              $(TRANSFORM_OBJ) $(CLIP_OBJ) $(DRAW_QUEUE_OBJ) \
-             $(CANVAS_OBJ) $(BACKEND_OBJ) $(TEXTURE_OBJ) $(IMAGE_OBJ) $(STB_IMAGE_OBJ)
+             $(CANVAS_OBJ) $(BACKEND_OBJ) $(TEXTURE_OBJ) $(PRIMITIVES_OBJ) \
+             $(GL_BACKEND_OBJ) $(IMAGE_OBJ) $(STB_IMAGE_OBJ)
 	ar rcs $@ $^
 
 $(MAIN_OBJ): src/main.c $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)

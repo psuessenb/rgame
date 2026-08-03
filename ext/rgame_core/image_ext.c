@@ -74,6 +74,13 @@ static rgame_image_ref *image_ref_unwrap(VALUE self) {
     return ref;
 }
 
+/* The accessor other files in this extension use (see core_ext.h) — the
+ * renderer needs the C handle to draw. TypedData_Get_Struct raises TypeError on
+ * anything that is not an Image, so the type check comes for free. */
+rgame_image *rgame_image_unwrap(VALUE image) {
+    return image_ref_unwrap(image)->image;
+}
+
 /*
  * Wraps a C handle in a fresh Ruby object. Takes ownership: if allocating the
  * Ruby side raises, the handle would leak, so the payload is filled in before

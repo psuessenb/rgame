@@ -117,6 +117,10 @@ rgame_texture rgame_texture_clone(const rgame_texture *view);
 int rgame_texture_subimage(const rgame_texture *view, int x, int y, int w, int h,
                            rgame_texture *out);
 
+/* The GL texture name to bind when drawing this view, or 0 if it has no sheet
+ * — which the draw queue reads as "untextured". */
+unsigned int rgame_texture_name(const rgame_texture *view);
+
 int rgame_texture_width(const rgame_texture *view);
 int rgame_texture_height(const rgame_texture *view);
 

@@ -1,0 +1,171 @@
+# frozen_string_literal: true
+
+require 'rgame/core_ext'
+require_relative '../util/color'
+
+module RGame
+  module Core
+    # What a game draws with.
+    #
+    #   class MyGame < RGame::Core::App
+    #     def initialize
+    #       super(width: 800, height: 600, caption: 'demo')
+    #       @renderer = RGame::Core::Renderer.new(self)
+    #       @hero = RGame::Core::Image.new(self, 'hero.png')
+    #     end
+    #
+    #     def draw
+    #       @renderer.rect(10, 10, 100, 40, color: RGame::Util::Color::WHITE)
+    #       @renderer.image(@hero, 400, 300, angle: 45)
+    #     end
+    #   end
+    #
+    # Drawing is only legal inside `draw`, and calling one of these outside it
+    # raises. That is on purpose: the frame is not open, so the vertices would
+    # be silently discarded, and an invisible failure is the worst kind.
+    #
+    # Nothing is drawn immediately. Calls accumulate and are z-sorted when the
+    # frame closes, so `z:` decides what ends up on top — not call order. Equal
+    # z keeps call order, which is what stops same-layer sprites flickering
+    # between frames.
+    #
+    # The C half of this class (ext/rgame_core/renderer_ext.c) has the `draw_*`
+    # and `push_*` primitives; everything here is the comfortable surface over
+    # them.
+    #
+    # ## Colours
+    #
+    # Every drawing method takes `color:`, accepting whatever `Color.coerce`
+    # does: `nil` (white — an untinted draw), `[r, g, b]`, `[r, g, b, a]`, or a
+    # `RGame::Util::Color`. Passing a `Color` is the allocation-free path and is
+    # what per-frame code should do; an array allocates one colour per call.
+    class Renderer
+      Color = RGame::Util::Color
+
+      # Shapes default above sprites, so a debug box or a health bar drawn
+      # without a `z:` lands on top of the scene rather than under it. The
+      # values match the layer this replaces.
+      SHAPE_Z = 50
+      IMAGE_Z = 0
+
+      # Enough segments that a circle reads as round at the sizes a 2D game
+      # draws one, and few enough that a screenful of them is still one batch.
+      CIRCLE_SEGMENTS = 64
+
+      # Translucent red, for #debug_box.
+      DEBUG_BOX_COLOR = Color.new(255, 40, 40, 120)
+
+      # A filled axis-aligned rectangle.
+      def rect(x, y, width, height, z: SHAPE_Z, color: nil)
+        draw_rect(x, y, width, height, z, packed(color))
+      end
+
+      # Four arbitrary points, in loop order: listing them in Z order gives an
+      # hourglass rather than a shape.
+      def quad(x1, y1, x2, y2, x3, y3, x4, y4, z: SHAPE_Z, color: nil)
+        draw_quad(x1, y1, x2, y2, x3, y3, x4, y4, z, packed(color))
+      end
+
+      def triangle(x1, y1, x2, y2, x3, y3, z: SHAPE_Z, color: nil)
+        draw_triangle(x1, y1, x2, y2, x3, y3, z, packed(color))
+      end
+
+      # A line of real thickness — drawn as a quad, because GL's own line width
+      # is a suggestion drivers may ignore above one pixel.
+      def line(x1, y1, x2, y2, thickness: 1.0, z: SHAPE_Z, color: nil)
+        draw_line(x1, y1, x2, y2, thickness, z, packed(color))
+      end
+
+      # A filled circle, as a fan of triangles around its centre.
+      def circle(cx, cy, radius, z: SHAPE_Z, color: nil, segments: CIRCLE_SEGMENTS)
+        draw_circle(cx, cy, radius, segments, z, packed(color))
+      end
+
+      # An image centred on (cx, cy), rotated `angle` degrees clockwise about
+      # that centre and uniformly scaled. Unrotated and unscaled is a fast path
+      # that skips the transform stack entirely.
+      def image(image, cx, cy, angle: 0, scale: 1, z: IMAGE_Z, color: nil)
+        draw_image_rot(image, cx, cy, angle, scale, z, packed(color))
+      end
+
+      # An image with its top-left at (x, y) — a full-screen backdrop by
+      # default.
+      def background(image, x = 0, y = 0, z: IMAGE_Z, color: nil)
+        draw_image(image, x, y, z, packed(color))
+      end
+
+      # Everything drawn in the block is rotated `angle` degrees about
+      # (pivot_x, pivot_y), so a node can spin all of its parts coherently
+      # around one point.
+      #
+      # A zero angle skips the push entirely — unrotated drawing pays nothing,
+      # which matters because most drawing is unrotated.
+      def rotated(angle, pivot_x, pivot_y)
+        return yield if angle.zero?
+
+        push_rotate(angle, pivot_x, pivot_y)
+        begin
+          yield
+        ensure
+          # An ensure, not a plain pop: a scene that raises mid-draw would
+          # otherwise leave the stack deeper than it found it, and every
+          # later frame would draw askew for a reason nothing points at.
+          pop
+        end
+      end
+
+      # Everything drawn in the block is shifted by (dx, dy) screen pixels —
+      # the camera's view transform. Because it is a draw-time transform rather
+      # than something baked into positions, the same world can be drawn again
+      # under a different offset and clip, which is what split-screen is.
+      def translated(dx, dy)
+        return yield if dx.zero? && dy.zero?
+
+        push_translate(dx, dy)
+        begin
+          yield
+        ensure
+          pop
+        end
+      end
+
+      def scaled(sx, sy = sx)
+        return yield if sx == 1 && sy == 1
+
+        push_scale(sx, sy)
+        begin
+          yield
+        ensure
+          pop
+        end
+      end
+
+      # Everything drawn in the block is confined to the given rectangle.
+      #
+      # A clip only ever narrows: nesting one inside another intersects them, so
+      # a child cannot draw outside the region its parent allowed. Give each
+      # player a clipped block and you have split-screen.
+      def clipped(x, y, width, height)
+        push_clip(x, y, width, height)
+        begin
+          yield
+        ensure
+          pop
+        end
+      end
+
+      # A translucent overlay for visualising a collision box, so a scene can
+      # ask for one without knowing what colour "debug" is.
+      def debug_box(x, y, width, height, z: SHAPE_Z)
+        rect(x, y, width, height, z: z, color: DEBUG_BOX_COLOR)
+      end
+
+      private
+
+      # Colours cross into C as a packed integer. `Color.coerce` is the single
+      # place nil/array/Color are turned into one, so no drawing method has its
+      # own idea of what a colour is.
+      def packed(color) = Color.coerce(color).packed
+    end
+  end
+end

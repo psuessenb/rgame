@@ -31,8 +31,11 @@ ext/rgame_core/
   backend.h/.c          # the GL seam: function-pointer table + submit loop
   gamepad.c/.h          # thin SDL_GameController shim (open/close/poll)
   texture.c/.h          # pure texture sheets, sub-rects and UVs (unit-tested)
+  primitives.c/.h       # pure rects/lines/circles/sprites -> canvas (unit-tested)
+  gl_backend.c/.h       # the real GL calls: the only gl* on the draw path
   image.c               # decode a PNG + upload it: the thin GL shim
   image_ext.c           # RGame::Core::Image — the Ruby binding
+  renderer_ext.c        # RGame::Core::Renderer — the drawing primitives
   core_ext.h            # one init function per Ruby-visible class here
   stb_image_impl.c      # instantiates the vendored decoder (warnings off)
   vendor/               # third-party sources + licences (stb_image.h)
@@ -64,7 +67,8 @@ extension.
 `rgame_core` that's `core_ext.c` + `image_ext.c` + `app.c` + `frame_loop.c` +
 `device_slots.c` + `input.c` + `gamepad.c` + `transform.c` +
 `clip.c` + `draw_queue.c` + `canvas.c` + `backend.c` + `texture.c` +
-`image.c` + `stb_image_impl.c`, linked
+`primitives.c` + `gl_backend.c` + `image.c` + `image_ext.c` +
+`renderer_ext.c` + `stb_image_impl.c`, linked
 against SDL2 + OpenGL the same way the root `Makefile` links the standalone
 binary. No prebuilt `librgame_core.a` in the middle, so there's one build step.
 
@@ -154,6 +158,16 @@ sheet = RGame::Core::Image.new(app, "tiles.png")
 sheet.width; sheet.height
 sheet.subimage(16, 0, 16, 16)                             # a view, not a copy
 RGame::Core::Image.load_tiles(app, "tiles.png", 16, 16)   # => [Image, ...]
+
+# Drawing, from inside App#draw only. Nothing is immediate: the frame is
+# z-sorted and batched once, after #draw returns.
+renderer = RGame::Core::Renderer.new(app)
+renderer.rect(10, 10, 100, 40, color: RGame::Util::Color::WHITE)
+renderer.circle(200, 200, 30, color: [255, 0, 0])
+renderer.line(0, 0, 100, 100, thickness: 4)
+renderer.image(sheet, 400, 300, angle: 45, scale: 2)      # centred, clockwise
+renderer.rotated(30, 400, 300) { renderer.rect(380, 280, 40, 40) }
+renderer.clipped(0, 0, 400, 600) { renderer.background(sheet) }
 
 grid = RGame::Util::Tensor.new(width, height, depth, initial: nil)
 grid[x, y, z] = value

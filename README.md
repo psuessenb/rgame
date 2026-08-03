@@ -13,7 +13,7 @@ depends on:
 | C source | `ext/rgame_core/` | `ext/rgame_util/` |
 | Extension | `rgame/core_ext` | `rgame/util_ext` |
 | Links | SDL2 + OpenGL | nothing but Ruby |
-| Holds today | `App` — window, GL context, fixed-timestep main loop; `Input`, `Gamepad`, `Image` | `Tensor`, `Controls`, `Color` |
+| Holds today | `App` — window, GL context, fixed-timestep main loop; `Input`, `Gamepad`, `Image`, `Renderer` | `Tensor`, `Controls`, `Color` |
 
 That split is load-bearing, not cosmetic: `require "rgame"` gives you
 `RGame::Util` with **no graphics libraries loaded into the process at all**, so
@@ -25,11 +25,11 @@ require "rgame"       # RGame::Util only
 require "rgame/core"  # adds RGame::Core, pulls in SDL2 + OpenGL
 ```
 
-The engine currently opens a window, runs its main loop, and loads PNGs onto
-the GPU; there are no draw primitives yet, so the window just shows a blank
-clear color. Its C sources build two ways from one copy: a standalone binary
-(`build/rgame`, via the root `Makefile`) and the `core_ext` extension (via
-`extconf.rb`).
+The engine opens a window, runs a fixed-timestep loop, reads keyboard and
+controllers, loads PNGs onto the GPU and draws shapes and sprites through a
+z-sorted batching renderer. Text and audio are still ahead. Its C sources build
+two ways from one copy: a standalone binary (`build/rgame`, via the root
+`Makefile`) and the `core_ext` extension (via `extconf.rb`).
 
 There's no `.gemspec` yet — everything is used in place from a checkout.
 
@@ -103,7 +103,10 @@ make ext-util     # build only ext/rgame_util -> lib/rgame/util_ext.so
 make clean        # remove build artifacts, including both extensions'
 ```
 
-Controls in `make run`: `Esc` or closing the window quits.
+`make run` opens a window with one of each drawing primitive in it — a
+rotating square, a clipped rectangle, a circle, a thick line. `Esc` or closing
+the window quits. `ruby ext/rgame_core/example.rb` is the same scene driven
+from Ruby.
 
 The Ruby specs:
 
@@ -177,6 +180,10 @@ ext/rgame_core/              RGame::Core — the SDL/GL half.
                              hot-plug and copies their state into the snapshot.
   texture.h/.c               Pure: refcounted texture sheets, the sub-rects
                              sprites cut out of them, and pixels -> UVs.
+  primitives.h/.c            Pure: rects, thick lines, circles and sprites, in
+                             terms of the canvas's triangles and quads.
+  gl_backend.h/.c            The real GL calls — the only file that issues
+                             them on the drawing path.
   image.c                    Decode a PNG and upload it — the thin GL shim
                              over texture.h. Views share one upload.
   stb_image_impl.c           Instantiates the vendored decoder; the one file
@@ -186,6 +193,7 @@ ext/rgame_core/              RGame::Core — the SDL/GL half.
                              and the extension's entry point.
   core_ext.h                 One init function per Ruby-visible class here.
   image_ext.c                RGame::Core::Image — the Ruby binding.
+  renderer_ext.c             RGame::Core::Renderer — the drawing primitives.
   extconf.rb                 mkmf script; pkg_config("sdl2"), -lGL.
   example.rb                 Manual smoke test driven from Ruby.
 
@@ -209,6 +217,8 @@ lib/rgame/core/app.rb        Requires the compiled rgame/core_ext.
 lib/rgame/core/input.rb      Symbolic action -> button, over the C queries.
 lib/rgame/core/gamepad.rb    Which controllers are plugged in, and their names.
 lib/rgame/core/image.rb      Sprite-sheet slicing over the C-backed Image.
+lib/rgame/core/renderer.rb   Keyword args, colours and transform blocks over
+                             the C-backed Renderer.
 lib/rgame/*.so               Build artifacts, copied here by `make ext`.
 
 src/main.c                   Standalone executable entry point — the C

@@ -9,13 +9,13 @@ any C.
 | This page | Loading the library, the two namespaces, a working program, testing |
 | [App](app.md) | `RGame::Core::App` — the window and the frame loop |
 | [Input](input.md) | `RGame::Core::Input`, `RGame::Util::Controls`, `RGame::Core::Gamepad` |
+| [Drawing](drawing.md) | `RGame::Core::Renderer` — shapes, images, transforms, clipping |
 | [Images](images.md) | `RGame::Core::Image` — loading PNGs, subimages, sprite sheets |
 | [Values](values.md) | `RGame::Util::Color`, `RGame::Util::Tensor` |
 
-**The engine is a work in progress.** There are no drawing primitives yet: a
-window opens, the loop runs, input works, and images load onto the GPU — but
-nothing puts them on screen. Pages here describe what exists today and grow as
-more lands.
+**The engine is a work in progress.** A window opens, the loop runs, input
+works, and shapes and images can be drawn. Text, audio and a scene graph are
+still to come. Pages here describe what exists today and grow as more lands.
 
 ## Loading it
 
@@ -48,7 +48,7 @@ Everything lives under `RGame`, split in two by what it depends on:
 | | `RGame::Util` | `RGame::Core` |
 |---|---|---|
 | Contains | shareable *values* — no window, no GPU, nothing to release | things owning a window, GPU or OS handle |
-| Today | `Color`, `Tensor`, `Controls` | `App`, `Input`, `Gamepad`, `Image` |
+| Today | `Color`, `Tensor`, `Controls` | `App`, `Input`, `Gamepad`, `Image`, `Renderer` |
 | Loading it costs | nothing | SDL2 + OpenGL in your process |
 
 The rule for deciding where something belongs: **a value goes in `Util`; only a
@@ -72,6 +72,7 @@ class MyGame < RGame::Core::App
   def initialize
     super(width: 800, height: 600, caption: 'My Game')
     @input = RGame::Core::Input.new(self)
+    @renderer = RGame::Core::Renderer.new(self)
     @x = 400.0
     @y = 300.0
   end
@@ -86,8 +87,11 @@ class MyGame < RGame::Core::App
     @y += speed if @input.down?(:down)
   end
 
-  # There are no drawing primitives yet, so this is where they will go.
-  def draw; end
+  # Everything is drawn here, through a renderer built in initialize. See
+  # docs/api/drawing.md.
+  def draw
+    @renderer.rect(@x - 8, @y - 8, 16, 16)
+  end
 
   def button_down(id)
     close if id == Controls::KEY_ESCAPE

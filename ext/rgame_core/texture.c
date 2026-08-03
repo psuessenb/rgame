@@ -113,6 +113,10 @@ int rgame_texture_subimage(const rgame_texture *view, int x, int y, int w, int h
     return 1;
 }
 
+unsigned int rgame_texture_name(const rgame_texture *view) {
+    return view && view->sheet ? view->sheet->name : 0;
+}
+
 int rgame_texture_width(const rgame_texture *view) {
     return view && view->sheet ? view->rect.w : 0;
 }

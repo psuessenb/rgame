@@ -254,6 +254,14 @@ int rgame_image_height(const rgame_image *image) {
     return image ? rgame_texture_height(&image->view) : 0;
 }
 
+const rgame_texture *rgame_image_view(const rgame_image *image) {
+    return image ? &image->view : NULL;
+}
+
+rgame_app *rgame_image_owner(const rgame_image *image) {
+    return image ? image->app : NULL;
+}
+
 void rgame_image_destroy(rgame_image *image) {
     if (!image) {
         return;

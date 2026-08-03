@@ -598,6 +598,44 @@ Keep the zero-angle/zero-offset fast paths from `gosu_renderer.rb:77,:91` — an
 the `yield`-without-block-capture trick, which exists to avoid allocating a Proc
 per rotated draw.
 
+**Landed.** Deviations from the sketch above, and what they mean for 3.9:
+
+- **Two new C modules, not one.** `primitives.{c,h}` (pure: rect, thick line,
+  circle fan, sprite quad — 20 Check tests, all 22 mutations caught) and
+  `gl_backend.{c,h}` (layer 3: `glOrtho` with y flipped so the origin is
+  top-left, `glDrawArrays` over interleaved client arrays, `glScissor` with its
+  bottom-up flip, blending on and depth testing **off**). `app.c` now owns a
+  canvas and brackets the draw callback with begin/end/submit, so a game never
+  opens or closes a frame itself.
+- **`sprite` and `background(id)` are not built**, as the note below this
+  section recommends: they need a `SpriteSheet` and an asset registry, which are
+  phase 6. `image` and `background` take an `Image` object instead, so both are
+  usable today and neither is a stub that phase 6 has to un-drift.
+- **`circle` is a fan**, and the whole fan is one batch — the cached
+  unit-circle texture (and the `Gosu.render` support it needed) is not
+  replaced, it is simply unnecessary. `scaled { }` was added alongside
+  `rotated`/`translated`/`clipped`; the trio had an odd gap without it.
+- **The `-0.0` note retires.** It described a CRuby flonum concern — a computed
+  negative zero heap-allocating on an axis-aligned line — and the line's corner
+  arithmetic is now in C, where it costs nothing. The corner *order* still
+  matters and is pinned by a test, since listing the four points in Z order
+  gives an hourglass.
+- **Drawing outside `draw` raises**, and so does drawing an image that belongs
+  to another App. The second one was found by the pixel tests: a texture lives
+  in one GL context, so a cross-app draw sampled nothing and painted a plain
+  white quad with no error anywhere.
+
+The contract is written and both implementations run against it —
+`spec/support/shared_examples/a_renderer.rb`, the fake in `spec/`, the real one
+in `spec_core/`. `spec_core/support/rendered_frame.rb` is the new pixel tier: it
+runs a frame, reads the back buffer through `glReadPixels` (via fiddle) at the
+start of the next one, and checks placement, y direction, z order, blending, the
+scissor flip and sprite orientation. That also closes the gap 3.7 left open —
+images are now proven to draw the right way up.
+
+Documentation is `docs/api/drawing.md`; `src/main.c` and `example.rb` both draw
+a scene now, so `make run` is a real layer-3 check rather than a blank window.
+
 ### 3.9 `record` — retained batches
 
 `Gosu.record` is what makes the tile map affordable: bake the static layers once

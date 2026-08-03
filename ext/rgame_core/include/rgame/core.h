@@ -285,6 +285,86 @@ int rgame_image_height(const rgame_image *image);
 /* Releases this handle's share of the texture. Safe to call with NULL. */
 void rgame_image_destroy(rgame_image *image);
 
+/*
+ * ---------------------------------------------------------------------------
+ * Drawing
+ * ---------------------------------------------------------------------------
+ *
+ * Every call here is only valid **inside the draw callback**. The app opens a
+ * frame before calling it and closes the frame afterwards, sorting and
+ * submitting what was drawn; outside that window there is no frame to draw
+ * into, and these calls do nothing. `rgame_app_is_drawing` says which state the
+ * app is in, so a binding can raise instead of silently discarding.
+ *
+ * Drawing is not immediate. A call appends to a queue that is z-sorted and
+ * batched when the frame closes, so the order calls are made in does not
+ * decide what ends up on top — `z` does, and equal z keeps call order.
+ *
+ * Colours are packed 0xRRGGBBAA, matching RGame::Util::Color#packed.
+ *
+ * Coordinates are in screen pixels with (0,0) at the top-left and y growing
+ * downwards, transformed by whatever is on the stack (see the push/pop calls
+ * below). Angles are in degrees, and positive turns clockwise on screen.
+ */
+
+/* Is the app between opening and closing a frame — that is, inside `draw`? */
+int rgame_app_is_drawing(const rgame_app *app);
+
+void rgame_app_draw_rect(rgame_app *app, float x, float y, float width, float height,
+                         unsigned int color, double z);
+
+/*
+ * `xy8` is four points, `xy6` three, as flat x,y pairs. A quad's corners are
+ * taken in loop order — for a rectangle: top-left, top-right, bottom-right,
+ * bottom-left — so listing them in Z order gives an hourglass, not a shape.
+ */
+void rgame_app_draw_quad(rgame_app *app, const float *xy8, unsigned int color, double z);
+void rgame_app_draw_triangle(rgame_app *app, const float *xy6, unsigned int color, double z);
+
+/* A line of real thickness, drawn as a quad — GL's own line width is a
+ * suggestion drivers may ignore above 1px. */
+void rgame_app_draw_line(rgame_app *app, float x1, float y1, float x2, float y2,
+                         float thickness, unsigned int color, double z);
+
+/* A filled circle as a fan of `segments` triangles. */
+void rgame_app_draw_circle(rgame_app *app, float cx, float cy, float radius, int segments,
+                           unsigned int color, double z);
+
+/*
+ * Images. Both return 0 without drawing if the image belongs to a *different*
+ * app, and 1 otherwise.
+ *
+ * That check is not pedantry. A GL texture lives in one context and is not
+ * shared with another, so drawing another window's image samples nothing and
+ * paints a plain white quad — no GL error, nothing in a log, just a white
+ * rectangle where the sprite should be. Reporting it lets a binding raise.
+ */
+
+/* An image with its top-left at (x, y), at its natural size. */
+int rgame_app_draw_image(rgame_app *app, const rgame_image *image, float x, float y,
+                         unsigned int color, double z);
+
+/* An image centred on (cx, cy), rotated clockwise about that centre and
+ * uniformly scaled. */
+int rgame_app_draw_image_rot(rgame_app *app, const rgame_image *image, float cx, float cy,
+                             float angle_degrees, float scale, unsigned int color, double z);
+
+/*
+ * The transform and clip stacks. Every push is undone by the same
+ * `rgame_app_pop`, so a caller can never pop the wrong one; a push that cannot
+ * be honoured (a full stack) is still counted, so pops stay balanced and the
+ * drawing comes out untransformed rather than desynchronised.
+ *
+ * A clip *narrows*: pushing one can only shrink the visible region, never widen
+ * it, so a child can never draw outside what its parent allowed. That is what
+ * makes split-screen a matter of one push per viewport.
+ */
+void rgame_app_push_translate(rgame_app *app, float dx, float dy);
+void rgame_app_push_rotate(rgame_app *app, float degrees, float pivot_x, float pivot_y);
+void rgame_app_push_scale(rgame_app *app, float sx, float sy);
+void rgame_app_push_clip(rgame_app *app, int x, int y, int width, int height);
+void rgame_app_pop(rgame_app *app);
+
 #ifdef __cplusplus
 }
 #endif
