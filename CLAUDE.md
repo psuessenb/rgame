@@ -267,6 +267,11 @@ sources go in `ext/rgame_core/`.
 - `ext/rgame_core/input.{c,h}` — the input snapshot and the flat button-id
   space, again pure: `app.c` copies SDL's keyboard state into it once per
   frame, and every query reads that copy. Covered by `test/test_input.c`.
+- `ext/rgame_core/transform.{c,h}` — the 2D affine transform stack that
+  rotation, scale and the camera all run through. Pure; covered by
+  `test/test_transform.c`, which asserts on coordinates rather than matrix
+  entries because a matrix assertion passes just as happily with the rotation
+  going the wrong way.
 - `ext/rgame_core/gamepad.{c,h}` — the controller shim, and the one place
   `SDL_GameController` appears. Deliberately thin: which player a pad belongs
   to is `device_slots`, what a button id means is `input`, and both are pure.

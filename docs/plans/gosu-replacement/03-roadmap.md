@@ -351,9 +351,13 @@ full — a depth limit is fine (say 32) and better than unbounded growth.
   restores exactly; rotate about a pivot leaves the pivot fixed; degrees not
   radians (Gosu's convention, and the ported `Renderer#rotated` passes degrees);
   overflowing the stack is reported, not silently wrong.
-- **Watch**: rotation direction. Gosu rotates *clockwise* for positive angles
-  with y pointing down. Pin it with a test asserting an actual coordinate, not
-  a matrix, or every sprite ends up mirrored.
+- **Settled**: rotation direction. Measured against Gosu by rendering
+  `Gosu.rotate` off-screen and reading back the inked pixel: a positive angle
+  turns **clockwise on screen** — a point right of the pivot lands below it.
+  That is the textbook matrix with no sign flip, because screen y points down.
+  `test_transform.c` pins it with coordinates rather than matrix entries, and
+  the implementation was cross-checked against Gosu at 30/90/150/250/-45
+  degrees.
 
 ### 3.3 `clip.{c,h}` — the intersecting clip stack (pure)
 
@@ -521,7 +525,7 @@ Now that the machinery exists, the drawing API is thin. Ruby-side
 | `quad(x1..y4, z:, color:)` | four arbitrary points |
 | `triangle(x1..y3, z:, color:)` | three points |
 | `line(x1, y1, x2, y2, thickness:, z:, color:)` | a quad; keep the `-0.0` note from `gosu_renderer.rb:149-157` if it stays in Ruby |
-| `image(id, cx, cy, angle:, scale:, z:)` | centred, rotated, scaled |
+| `image(id, cx, cy, angle:, scale:, z:)` | centred, rotated, scaled. Gosu's `draw_rot` was measured to use the same angle convention as `Gosu.rotate` — 0 is unrotated, positive is clockwise — so this is the transform stack, with no second convention to translate |
 | `background(id, z:)` | at the origin |
 | `sprite(id, row, col, x, y, flip_x:, z:)` | via `SpriteSheet` |
 | `rotated(deg, px, py) { }` / `translated(dx, dy) { }` / `clipped(x, y, w, h) { }` | push/pop around a block |

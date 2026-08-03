@@ -154,6 +154,8 @@ ext/rgame_core/              RGame::Core — the SDL/GL half.
                              player on the same slot across a disconnect. No SDL.
   input.h/.c                 Pure input snapshot + the flat button-id space
                              (keyboard and gamepad ranges). No SDL.
+  transform.h/.c             Pure 2D affine transform stack — rotate, scale,
+                             translate, composed. No SDL.
   gamepad.h/.c               Thin SDL_GameController shim: opens/closes pads on
                              hot-plug and copies their state into the snapshot.
   core_ext.c                 Ruby glue: VALUE wrappers + callback trampolines.

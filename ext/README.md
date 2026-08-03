@@ -24,6 +24,7 @@ ext/rgame_core/
   frame_loop.c/.h       # pure fixed-timestep + FPS logic (unit-tested)
   device_slots.c/.h     # pure controller-slot table, no SDL (unit-tested)
   input.c/.h            # pure button-id space + input snapshot (unit-tested)
+  transform.c/.h        # pure 2D affine transform stack (unit-tested)
   gamepad.c/.h          # thin SDL_GameController shim (open/close/poll)
   include/rgame/core.h  # the public C API
   example.rb            # manual/visual smoke test (opens a real window)
@@ -50,7 +51,7 @@ extension.
 `extconf.rb` runs `mkmf` to generate a Makefile. mkmf's default is to compile
 *every* `.c` in the extension's directory into a single loadable `.so` — for
 `rgame_core` that's `core_ext.c` + `app.c` + `frame_loop.c` +
-`device_slots.c` + `input.c` + `gamepad.c`, linked
+`device_slots.c` + `input.c` + `gamepad.c` + `transform.c`, linked
 against SDL2 + OpenGL the same way the root `Makefile` links the standalone
 binary. No prebuilt `librgame_core.a` in the middle, so there's one build step.
 

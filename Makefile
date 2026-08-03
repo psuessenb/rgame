@@ -22,6 +22,7 @@ APP_OBJ := $(BUILD_DIR)/app.o
 FRAME_LOOP_OBJ := $(BUILD_DIR)/frame_loop.o
 DEVICE_SLOTS_OBJ := $(BUILD_DIR)/device_slots.o
 INPUT_OBJ := $(BUILD_DIR)/input.o
+TRANSFORM_OBJ := $(BUILD_DIR)/transform.o
 # Util is a separate extension, but its pure modules are Check-tested too.
 COLOR_OBJ := $(BUILD_DIR)/color.o
 GAMEPAD_OBJ := $(BUILD_DIR)/gamepad.o
@@ -38,7 +39,8 @@ TEST_OBJS := $(BUILD_DIR)/test_main.o \
              $(BUILD_DIR)/test_frame_loop.o \
              $(BUILD_DIR)/test_device_slots.o \
              $(BUILD_DIR)/test_input.o \
-             $(BUILD_DIR)/test_color.o
+             $(BUILD_DIR)/test_color.o \
+             $(BUILD_DIR)/test_transform.o
 TEST_BIN := $(BUILD_DIR)/test_rgame
 
 EXT_UTIL_DIR := ext/rgame_util
@@ -71,7 +73,11 @@ $(INPUT_OBJ): $(EXT_CORE_DIR)/input.c $(EXT_CORE_DIR)/input.h $(EXT_CORE_DIR)/in
 $(GAMEPAD_OBJ): $(EXT_CORE_DIR)/gamepad.c $(EXT_CORE_DIR)/gamepad.h $(EXT_CORE_DIR)/input.h $(EXT_CORE_DIR)/device_slots.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
-$(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ) $(GAMEPAD_OBJ)
+$(TRANSFORM_OBJ): $(EXT_CORE_DIR)/transform.c $(EXT_CORE_DIR)/transform.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+$(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ) $(GAMEPAD_OBJ) \
+             $(TRANSFORM_OBJ)
 	ar rcs $@ $^
 
 $(MAIN_OBJ): src/main.c $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)

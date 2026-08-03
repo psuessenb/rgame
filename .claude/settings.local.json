@@ -38,7 +38,9 @@
       "Bash(timeout 400 bundle exec rake)",
       "Bash(ruby -Ilib -e 'require \"rgame\"; print \"   \"; puts File.read\\(\"/proc/self/maps\"\\).scan\\(/libSDL2|libGL\\\\./\\).uniq.inspect')",
       "Bash(nm -u build/color.o)",
-      "Bash(sed 's/^/   external SDL\\\\/GL\\\\/Ruby refs: /')"
+      "Bash(sed 's/^/   external SDL\\\\/GL\\\\/Ruby refs: /')",
+      "Bash(python3 -c ' *)",
+      "Bash(sed -n '/^APP_OBJ/,/^CORE_LIB/p' Makefile)"
     ]
   }
 }
