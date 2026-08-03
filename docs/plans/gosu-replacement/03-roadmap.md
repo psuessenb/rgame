@@ -532,6 +532,41 @@ only mode there is.
   Keeping the project warning-clean is a stated convention; carving out exactly
   one vendored TU is the honest way to hold it. Record the licence.
 
+**Landed.** What shipped differs from the sketch above in five ways worth
+carrying into 3.8:
+
+- **`Image.new(app, path)` takes the app**, rather than implying "the window
+  that happens to be open". A texture lives in one GL context, so an image is an
+  image *of* an app — which is also what makes two windows work, and what lets
+  the Ruby object keep its app reachable. `load_tiles(app, path, w, h)` likewise.
+- **The refcount is in the pure layer.** `texture.{c,h}` owns a refcounted
+  `rgame_texture_sheet` and cheap `rgame_texture` views over it, so "the upload
+  dies exactly when the last sprite using it does" is Check-tested with no GPU.
+  `rgame_texture_sheet_release` hands the GL name *back* rather than deleting
+  it; image.c does the one-line deletion. 22 tests, mutation-checked under
+  ASan+UBSan (one survivor, a redundant negative-index guard, kept with a
+  comment saying so).
+- **The app handle is refcounted too.** Ruby can sweep an app and its images in
+  one pass in an unspecified order, so `rgame_app_gl_retain`/`_release` (private,
+  `app_gl.h`) keep the *struct* alive while an image points at it. The window and
+  context still close the moment `rgame_app_destroy` runs; an image left over
+  then skips its `glDeleteTextures`, correctly — a destroyed GL context has
+  already freed its textures.
+- **Out-of-range slicing raises**, it does not return nil: `ArgumentError` for a
+  subimage that does not fit, `IndexError` for a tile index. A nil travels too
+  far before failing.
+- **`Image.debug_live_textures`** exposes the sheet counter to specs. A leaked
+  GPU texture is otherwise invisible until video memory runs out.
+
+`load_tiles`, `tiles` and `each_tile` are pure Ruby in `lib/rgame/core/image.rb`
+over the C `tile_count`/`tile`. Documentation is `docs/api/images.md`.
+
+Not covered yet, deliberately: whether the *pixels* land the right way up. That
+needs `glReadPixels` after a real draw, so it belongs with 3.8's spot checks —
+the UV convention (`v` increases downwards, row 0 at `v = 0`) is pinned in
+`test_texture.c` and asserted against the upload order in image.c's comments,
+but nothing has yet drawn a texture to prove the two agree.
+
 ### 3.8 Primitives and the Ruby `Core::Renderer`
 
 Now that the machinery exists, the drawing API is thin. Ruby-side

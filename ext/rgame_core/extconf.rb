@@ -45,6 +45,18 @@ abort 'SDL2 not found (pkg-config --exists sdl2 failed). Install libsdl2-dev.' u
 $libs = append_library($libs, 'GL')
 $libs = append_library($libs, 'm')
 
+# The vendored PNG decoder. stb_image is a single header that becomes an
+# implementation in exactly one .c file (stb_image_impl.c). That file is the
+# only one in the project compiled without -Wall -Wextra — third-party code
+# rarely survives them, and everything we wrote is meant to stay warning-clean.
+# The carve-out itself is at the bottom of this file. See vendor/README.md.
+#
+# What is needed *here* is the include path: stb_image_impl.c and image.c both
+# say #include "vendor/stb_image.h", so the extension directory has to be on
+# the path. A quoted include finds it relative to the including file when
+# compiling in place, but mkmf may compile from elsewhere, so say it outright.
+$INCFLAGS << ' -I$(srcdir)'
+
 # Match the project's C standard and warning flags. Note: gnu17, not plain
 # c17 — Ruby's headers occasionally lean on GNU extensions, and gnu17 is a
 # superset of c17 so core.c (which targets c17) still compiles fine.
@@ -56,3 +68,21 @@ $CFLAGS << ' -std=gnu17 -Wall -Wextra'
 # both extensions off the top of the load path, and — importantly — leaves the
 # bare name "rgame" to lib/rgame.rb, which is the pure-Ruby entry point.
 create_makefile('rgame/core_ext')
+
+# One object compiled with warnings off: the vendored stb_image implementation
+# (see stb_image_impl.c and vendor/README.md). mkmf has no per-file flag
+# setting, so the rule is appended to the Makefile it just wrote. An explicit
+# rule for a specific target beats mkmf's generic .c.o suffix rule, so this is
+# what gets used for that one object and nothing else.
+#
+# `-w` comes last on the command line and switches every warning back off,
+# which is simpler and more robust than trying to subtract -Wall -Wextra from
+# $(CFLAGS) — everything else about how the extension compiles stays identical.
+File.open('Makefile', 'a') do |makefile|
+  makefile.puts <<~MAKE
+
+    stb_image_impl.#{$OBJEXT}: $(srcdir)/stb_image_impl.c $(srcdir)/vendor/stb_image.h
+    \t$(ECHO) compiling vendored stb_image with warnings off
+    \t$(Q) $(CC) $(INCFLAGS) $(CPPFLAGS) $(CFLAGS) -w $(COUTFLAG)$@ -c $(srcdir)/stb_image_impl.c
+  MAKE
+end

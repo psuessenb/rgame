@@ -293,13 +293,32 @@ sources go in `ext/rgame_core/`.
   `test/test_draw_queue.c`. Its buffers are reset rather than freed each frame,
   and a test asserts capacities do not grow on a second identical frame — a
   renderer that allocates per frame is a stutter nothing else would notice.
+- `ext/rgame_core/texture.{c,h}` — what part of an uploaded image a sprite
+  covers, and who owns the upload: a refcounted sheet plus cheap views into it,
+  so slicing a sprite sheet costs no second decode. Pure — including the
+  refcount, because "free the GPU texture exactly when the last sprite using it
+  goes" is bookkeeping that needs no GPU to get wrong. Covered by
+  `test/test_texture.c`; `rgame_texture_live_sheets` is the counter that makes
+  a leaked texture visible from a spec.
+- `ext/rgame_core/image.c` — layer 3 for images: read the file, `stbi_load`,
+  `glTexImage2D`, `GL_NEAREST`. Kept dumb on purpose; the interesting parts are
+  in `texture.c` above. Covered end to end by `spec_core/rgame/core/image_spec.rb`.
+- `ext/rgame_core/vendor/` + `stb_image_impl.c` — the vendored PNG decoder and
+  the single translation unit that instantiates it. **The only file in the
+  project compiled without `-Wall -Wextra`**, carved out in both `extconf.rb`
+  and the root `Makefile` so everything we wrote stays warning-clean. See
+  `ext/rgame_core/vendor/README.md`.
 - `ext/rgame_core/gamepad.{c,h}` — the controller shim, and the one place
   `SDL_GameController` appears. Deliberately thin: which player a pad belongs
   to is `device_slots`, what a button id means is `input`, and both are pure.
   Its own correctness is checked end-to-end with an SDL *virtual* controller
   under Xvfb — no hardware needed, see `.claude/skills/verify/`.
 - `ext/rgame_core/core_ext.c` + `extconf.rb` — the Ruby glue for the
-  engine (`RGame::Core::App`); see `ext/README.md`.
+  engine (`RGame::Core::App`) and the extension's entry point; see
+  `ext/README.md`. Every *other* Ruby-visible class here gets its own file with
+  one init function declared in `core_ext.h` (`image_ext.c` is the first), the
+  same shape as `ext/rgame_util/util_ext.h` — so adding a class means adding a
+  file rather than growing an unrelated one.
 - `src/main.c` — thin standalone entry point; only talks to `core.h`'s API,
   never touches SDL/GL directly. This is intentionally what the Ruby
   extension also does, just driven from Ruby instead of a C `main()`. It

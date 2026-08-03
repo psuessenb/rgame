@@ -28,6 +28,9 @@ TRANSFORM_OBJ := $(BUILD_DIR)/transform.o
 CLIP_OBJ := $(BUILD_DIR)/clip.o
 DRAW_QUEUE_OBJ := $(BUILD_DIR)/draw_queue.o
 CANVAS_OBJ := $(BUILD_DIR)/canvas.o
+TEXTURE_OBJ := $(BUILD_DIR)/texture.o
+IMAGE_OBJ := $(BUILD_DIR)/image.o
+STB_IMAGE_OBJ := $(BUILD_DIR)/stb_image_impl.o
 BACKEND_OBJ := $(BUILD_DIR)/backend.o
 # Util is a separate extension, but its pure modules are Check-tested too.
 COLOR_OBJ := $(BUILD_DIR)/color.o
@@ -51,6 +54,7 @@ TEST_OBJS := $(BUILD_DIR)/test_main.o \
              $(BUILD_DIR)/test_draw_queue.o \
              $(BUILD_DIR)/test_canvas.o \
              $(BUILD_DIR)/test_backend.o \
+             $(BUILD_DIR)/test_texture.o \
              $(BUILD_DIR)/recording_backend.o
 TEST_BIN := $(BUILD_DIR)/test_rgame
 
@@ -106,9 +110,24 @@ $(CANVAS_OBJ): $(EXT_CORE_DIR)/canvas.c $(EXT_CORE_DIR)/canvas.h \
                $(EXT_CORE_DIR)/clip.h $(EXT_UTIL_DIR)/color.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
+$(TEXTURE_OBJ): $(EXT_CORE_DIR)/texture.c $(EXT_CORE_DIR)/texture.h \
+                $(EXT_CORE_DIR)/clip.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+$(IMAGE_OBJ): $(EXT_CORE_DIR)/image.c $(EXT_CORE_DIR)/texture.h $(EXT_CORE_DIR)/app_gl.h \
+              $(EXT_CORE_DIR)/vendor/stb_image.h $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -I$(EXT_CORE_DIR) $(SDL_CFLAGS) -c $< -o $@
+
+# The one vendored translation unit, and the only place warnings are relaxed.
+# stb_image is public-domain third-party code that does not survive -Wall
+# -Wextra; carving out exactly this file keeps everything we wrote clean.
+# See ext/rgame_core/vendor/README.md.
+$(STB_IMAGE_OBJ): $(EXT_CORE_DIR)/stb_image_impl.c $(EXT_CORE_DIR)/vendor/stb_image.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -w -I$(EXT_CORE_DIR) -c $< -o $@
+
 $(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ) $(GAMEPAD_OBJ) \
              $(TRANSFORM_OBJ) $(CLIP_OBJ) $(DRAW_QUEUE_OBJ) \
-             $(CANVAS_OBJ) $(BACKEND_OBJ)
+             $(CANVAS_OBJ) $(BACKEND_OBJ) $(TEXTURE_OBJ) $(IMAGE_OBJ) $(STB_IMAGE_OBJ)
 	ar rcs $@ $^
 
 $(MAIN_OBJ): src/main.c $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)

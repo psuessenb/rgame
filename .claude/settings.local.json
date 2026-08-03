@@ -40,7 +40,9 @@
       "Bash(nm -u build/color.o)",
       "Bash(sed 's/^/   external SDL\\\\/GL\\\\/Ruby refs: /')",
       "Bash(python3 -c ' *)",
-      "Bash(sed -n '/^APP_OBJ/,/^CORE_LIB/p' Makefile)"
+      "Bash(sed -n '/^APP_OBJ/,/^CORE_LIB/p' Makefile)",
+      "Bash(make ext-core *)",
+      "Bash(timeout 600 bundle exec rake)"
     ]
   }
 }

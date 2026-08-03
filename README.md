@@ -13,7 +13,7 @@ depends on:
 | C source | `ext/rgame_core/` | `ext/rgame_util/` |
 | Extension | `rgame/core_ext` | `rgame/util_ext` |
 | Links | SDL2 + OpenGL | nothing but Ruby |
-| Holds today | `App` — window, GL context, fixed-timestep main loop; `Input`, `Gamepad` | `Tensor`, `Controls`, `Color` |
+| Holds today | `App` — window, GL context, fixed-timestep main loop; `Input`, `Gamepad`, `Image` | `Tensor`, `Controls`, `Color` |
 
 That split is load-bearing, not cosmetic: `require "rgame"` gives you
 `RGame::Util` with **no graphics libraries loaded into the process at all**, so
@@ -25,10 +25,11 @@ require "rgame"       # RGame::Util only
 require "rgame/core"  # adds RGame::Core, pulls in SDL2 + OpenGL
 ```
 
-The engine currently opens a window and runs its main loop; there are no draw
-primitives yet, so the window just shows a blank clear color. Its C sources
-build two ways from one copy: a standalone binary (`build/rgame`, via the root
-`Makefile`) and the `core_ext` extension (via `extconf.rb`).
+The engine currently opens a window, runs its main loop, and loads PNGs onto
+the GPU; there are no draw primitives yet, so the window just shows a blank
+clear color. Its C sources build two ways from one copy: a standalone binary
+(`build/rgame`, via the root `Makefile`) and the `core_ext` extension (via
+`extconf.rb`).
 
 There's no `.gemspec` yet — everything is used in place from a checkout.
 
@@ -46,6 +47,9 @@ there if you want to write a game rather than work on the engine.
 - SDL2 development headers (`sdl2` pkg-config package)
 - OpenGL development headers/libs (provided by Mesa on Linux)
 - [Check](https://libcheck.github.io/check/) (`check` pkg-config package) — C unit test framework, only needed for `make test`
+
+PNG decoding needs no system library: `stb_image.h` is vendored in
+`ext/rgame_core/vendor/` (public domain / MIT — see the README there).
 
 ### Ruby side
 
@@ -171,7 +175,17 @@ ext/rgame_core/              RGame::Core — the SDL/GL half.
                              the loop that drives it from a prepared frame.
   gamepad.h/.c               Thin SDL_GameController shim: opens/closes pads on
                              hot-plug and copies their state into the snapshot.
-  core_ext.c                 Ruby glue: VALUE wrappers + callback trampolines.
+  texture.h/.c               Pure: refcounted texture sheets, the sub-rects
+                             sprites cut out of them, and pixels -> UVs.
+  image.c                    Decode a PNG and upload it — the thin GL shim
+                             over texture.h. Views share one upload.
+  stb_image_impl.c           Instantiates the vendored decoder; the one file
+                             built without -Wall -Wextra.
+  vendor/                    Third-party sources (stb_image.h) + their licences.
+  core_ext.c                 Ruby glue: VALUE wrappers + callback trampolines,
+                             and the extension's entry point.
+  core_ext.h                 One init function per Ruby-visible class here.
+  image_ext.c                RGame::Core::Image — the Ruby binding.
   extconf.rb                 mkmf script; pkg_config("sdl2"), -lGL.
   example.rb                 Manual smoke test driven from Ruby.
 
@@ -194,8 +208,7 @@ lib/rgame/core.rb            `require "rgame/core"` — opt-in, loads SDL/GL.
 lib/rgame/core/app.rb        Requires the compiled rgame/core_ext.
 lib/rgame/core/input.rb      Symbolic action -> button, over the C queries.
 lib/rgame/core/gamepad.rb    Which controllers are plugged in, and their names.
-lib/rgame/core/input.rb      Symbolic action -> button binding table; the id
-                             constants themselves come from C.
+lib/rgame/core/image.rb      Sprite-sheet slicing over the C-backed Image.
 lib/rgame/*.so               Build artifacts, copied here by `make ext`.
 
 src/main.c                   Standalone executable entry point — the C

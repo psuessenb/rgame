@@ -5,6 +5,9 @@
 extern "C" {
 #endif
 
+/* size_t only — this header still exposes no SDL or GL types. */
+#include <stddef.h>
+
 /*
  * Public API of the core engine.
  *
@@ -221,6 +224,66 @@ unsigned int rgame_app_ticks_ms(const rgame_app *app);
 
 /* Most recent frames-per-second reading (updated ~once per second). */
 double rgame_app_fps(const rgame_app *app);
+
+/*
+ * ---------------------------------------------------------------------------
+ * Images
+ * ---------------------------------------------------------------------------
+ *
+ * An image is a rectangle of an uploaded texture. `rgame_image_load` decodes a
+ * PNG and uploads it; `rgame_image_subimage` and `rgame_image_tile` carve that
+ * upload into sprites *without decoding or uploading anything again* — they
+ * are views sharing one GPU texture, which is what makes slicing a sprite
+ * sheet into hundreds of frames cheap.
+ *
+ * Every handle returned here, views included, must be passed to
+ * `rgame_image_destroy`. The shared texture is deleted when the last of them
+ * goes, in whatever order they go — so a sheet can be dropped while its tiles
+ * are still in use.
+ *
+ * Images belong to the `app` whose GL context they were uploaded into, but they
+ * do not have to be destroyed before it. Destroying the app first closes the
+ * window immediately and takes its textures with it — a GL context frees
+ * everything in it — and the images left behind stay valid handles that free
+ * cleanly afterwards. Either order works, which matters because a garbage
+ * collector picks the order, not the programmer.
+ *
+ * Images are scaled with nearest-neighbour sampling, always: the engine exists
+ * to draw pixel art, and smoothing it is never the intent.
+ */
+typedef struct rgame_image rgame_image;
+
+/*
+ * Decodes the PNG at `path` and uploads it. Returns NULL on failure, writing a
+ * human-readable reason into `err` (which may be NULL if the caller does not
+ * want one). Failure is ordinary — a missing or corrupt asset file — so it is
+ * reported rather than logged and swallowed.
+ */
+rgame_image *rgame_image_load(rgame_app *app, const char *path, char *err, size_t err_size);
+
+/*
+ * A view of part of `image`, in pixels relative to `image` itself — so a
+ * subimage of a subimage composes, and none of them can address pixels outside
+ * what they were cut from. Returns NULL if the rectangle does not fit.
+ */
+rgame_image *rgame_image_subimage(const rgame_image *image, int x, int y, int width, int height);
+
+/*
+ * Grid slicing, for sprite sheets. `rgame_image_tile_count` reports how many
+ * whole tiles of that size fit (a partial tile at the right or bottom edge is
+ * padding and is not counted); `rgame_image_tile` returns the index-th of
+ * them, counting left to right and then top to bottom, or NULL if the index is
+ * out of range.
+ */
+int rgame_image_tile_count(const rgame_image *image, int tile_width, int tile_height);
+rgame_image *rgame_image_tile(const rgame_image *image, int tile_width, int tile_height,
+                              int index);
+
+int rgame_image_width(const rgame_image *image);
+int rgame_image_height(const rgame_image *image);
+
+/* Releases this handle's share of the texture. Safe to call with NULL. */
+void rgame_image_destroy(rgame_image *image);
 
 #ifdef __cplusplus
 }

@@ -30,6 +30,13 @@ ext/rgame_core/
   canvas.c/.h           # pure transform+clip+queue composition (unit-tested)
   backend.h/.c          # the GL seam: function-pointer table + submit loop
   gamepad.c/.h          # thin SDL_GameController shim (open/close/poll)
+  texture.c/.h          # pure texture sheets, sub-rects and UVs (unit-tested)
+  image.c               # decode a PNG + upload it: the thin GL shim
+  image_ext.c           # RGame::Core::Image — the Ruby binding
+  core_ext.h            # one init function per Ruby-visible class here
+  stb_image_impl.c      # instantiates the vendored decoder (warnings off)
+  vendor/               # third-party sources + licences (stb_image.h)
+  app_gl.h              # private: the GL context behind the opaque app handle
   include/rgame/core.h  # the public C API
   example.rb            # manual/visual smoke test (opens a real window)
 
@@ -54,17 +61,26 @@ extension.
 
 `extconf.rb` runs `mkmf` to generate a Makefile. mkmf's default is to compile
 *every* `.c` in the extension's directory into a single loadable `.so` — for
-`rgame_core` that's `core_ext.c` + `app.c` + `frame_loop.c` +
+`rgame_core` that's `core_ext.c` + `image_ext.c` + `app.c` + `frame_loop.c` +
 `device_slots.c` + `input.c` + `gamepad.c` + `transform.c` +
-`clip.c` + `draw_queue.c` +
-`canvas.c` + `backend.c`, linked
+`clip.c` + `draw_queue.c` + `canvas.c` + `backend.c` + `texture.c` +
+`image.c` + `stb_image_impl.c`, linked
 against SDL2 + OpenGL the same way the root `Makefile` links the standalone
 binary. No prebuilt `librgame_core.a` in the middle, so there's one build step.
 
+One object is compiled differently: `stb_image_impl.c`, the single translation
+unit that instantiates the vendored PNG decoder, is built with warnings off.
+mkmf has no per-file flag setting, so `extconf.rb` appends an explicit rule for
+that object to the Makefile it just generated — an explicit rule beats mkmf's
+generic `.c.o` one, so it applies to that file and nothing else. The project
+stays `-Wall -Wextra`-clean everywhere we wrote the code; see
+`rgame_core/vendor/README.md`.
+
 Not everything in a namespace comes from its extension: `RGame::Core::Input`,
 `RGame::Core::Gamepad` and `RGame::Util::Controls` are pure Ruby in `lib/`,
-layered on top. The tables
-above list what each *extension* provides.
+layered on top, and `RGame::Core::Image` is C with a few sheet-slicing methods
+added in `lib/rgame/core/image.rb`. The tables above list what each *extension*
+provides.
 
 Both extensions name themselves under `rgame/` in `create_makefile`, which
 namespaces them on the load path and leaves the bare name `rgame` to
@@ -132,6 +148,12 @@ RGame::Core::Input.new(app, bindings: controls::DEFAULT_KEYBOARD.merge(fire: con
 pads = RGame::Core::Gamepad.new(app)
 pads.count                                   # => 1
 pads.each_connected { |slot, name| ... }     # "Player 2: <name>"
+
+# Images: one decode and one upload, sliced into as many views as you like.
+sheet = RGame::Core::Image.new(app, "tiles.png")
+sheet.width; sheet.height
+sheet.subimage(16, 0, 16, 16)                             # a view, not a copy
+RGame::Core::Image.load_tiles(app, "tiles.png", 16, 16)   # => [Image, ...]
 
 grid = RGame::Util::Tensor.new(width, height, depth, initial: nil)
 grid[x, y, z] = value

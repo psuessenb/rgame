@@ -22,6 +22,7 @@ int main(void) {
     srunner_add_suite(runner, draw_queue_suite());
     srunner_add_suite(runner, canvas_suite());
     srunner_add_suite(runner, backend_suite());
+    srunner_add_suite(runner, texture_suite());
 
     srunner_run_all(runner, CK_NORMAL);
     int failed = srunner_ntests_failed(runner);

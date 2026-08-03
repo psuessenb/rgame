@@ -20,6 +20,7 @@
  */
 
 #include "rgame/core.h"
+#include "app_gl.h"
 #include "frame_loop.h"
 #include "input.h"
 #include "gamepad.h"
@@ -49,6 +50,19 @@ struct rgame_app {
     SDL_Window *window;
     SDL_GLContext gl_context;
     int running;
+    /*
+     * How many things still hold this pointer: the creator, plus every image
+     * uploaded into this app's context. The window and context are torn down
+     * the moment rgame_app_destroy is called — this refcount only governs when
+     * the *struct* is freed, so that an image outliving its app finds a valid
+     * pointer saying "the context is gone" rather than freed memory.
+     *
+     * This matters because Ruby's collector may sweep an app and its images in
+     * the same pass, in an order nothing guarantees. Nothing leaks when the app
+     * goes first: destroying a GL context frees every texture in it, which is
+     * why the image side can simply skip its glDeleteTextures.
+     */
+    int refs;
     rgame_frame_loop frame_loop;
     rgame_fps_counter fps_counter;
     rgame_input_state input;
@@ -97,6 +111,7 @@ rgame_app *rgame_app_create(int width, int height, const char *title) {
     rgame_live_apps++;
 
     app->running = 1;
+    app->refs = 1;
     rgame_input_state_clear(&app->input);
     rgame_gamepads_init(&app->gamepads);
     rgame_frame_loop_init(&app->frame_loop);
@@ -104,23 +119,62 @@ rgame_app *rgame_app_create(int width, int height, const char *title) {
     return app;
 }
 
+/* Frees the struct once nothing points at it any more. The window and context
+ * are already gone by this point; see the refs comment above. */
+static void app_unref(rgame_app *app) {
+    if (--app->refs <= 0) {
+        free(app);
+    }
+}
+
 void rgame_app_destroy(rgame_app *app) {
     if (!app) {
         return;
     }
+
+    /* Idempotent: the window is NULLed below, so a second call falls out here
+     * rather than shutting SDL down twice or dropping a reference twice. */
+    if (!app->window && !app->gl_context) {
+        return;
+    }
+
     rgame_gamepads_shutdown(&app->gamepads);
     if (app->gl_context) {
         SDL_GL_DeleteContext(app->gl_context);
+        app->gl_context = NULL;
     }
     if (app->window) {
         SDL_DestroyWindow(app->window);
+        app->window = NULL;
     }
-    free(app);
 
     if (--rgame_live_apps <= 0) {
         rgame_live_apps = 0;
         SDL_Quit();
     }
+
+    app_unref(app);
+}
+
+void rgame_app_gl_retain(rgame_app *app) {
+    if (app) {
+        app->refs++;
+    }
+}
+
+void rgame_app_gl_release(rgame_app *app) {
+    if (app) {
+        app_unref(app);
+    }
+}
+
+int rgame_app_gl_make_current(rgame_app *app) {
+    /* Both are NULLed by rgame_app_destroy, so this also answers "is there
+     * still a context to draw into?" for anything holding a retained app. */
+    if (!app || !app->window || !app->gl_context) {
+        return 0;
+    }
+    return SDL_GL_MakeCurrent(app->window, app->gl_context) == 0;
 }
 
 /*

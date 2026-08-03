@@ -9,12 +9,13 @@ any C.
 | This page | Loading the library, the two namespaces, a working program, testing |
 | [App](app.md) | `RGame::Core::App` — the window and the frame loop |
 | [Input](input.md) | `RGame::Core::Input`, `RGame::Util::Controls`, `RGame::Core::Gamepad` |
+| [Images](images.md) | `RGame::Core::Image` — loading PNGs, subimages, sprite sheets |
 | [Values](values.md) | `RGame::Util::Color`, `RGame::Util::Tensor` |
 
 **The engine is a work in progress.** There are no drawing primitives yet: a
-window opens, the loop runs, input works, but everything is drawn in the
-background colour. Pages here describe what exists today and grow as more
-lands.
+window opens, the loop runs, input works, and images load onto the GPU — but
+nothing puts them on screen. Pages here describe what exists today and grow as
+more lands.
 
 ## Loading it
 
@@ -47,7 +48,7 @@ Everything lives under `RGame`, split in two by what it depends on:
 | | `RGame::Util` | `RGame::Core` |
 |---|---|---|
 | Contains | shareable *values* — no window, no GPU, nothing to release | things owning a window, GPU or OS handle |
-| Today | `Color`, `Tensor`, `Controls` | `App`, `Input`, `Gamepad` |
+| Today | `Color`, `Tensor`, `Controls` | `App`, `Input`, `Gamepad`, `Image` |
 | Loading it costs | nothing | SDL2 + OpenGL in your process |
 
 The rule for deciding where something belongs: **a value goes in `Util`; only a

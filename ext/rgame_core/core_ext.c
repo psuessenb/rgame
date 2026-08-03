@@ -36,6 +36,7 @@
 
 #include <ruby.h>
 
+#include "core_ext.h"
 #include "rgame/core.h"
 
 /*
@@ -81,8 +82,11 @@ static const rb_data_type_t app_data_type = {
     .flags = RUBY_TYPED_FREE_IMMEDIATELY,
 };
 
-/* Pull the C pointer back out of the Ruby object, raising if it's not set up. */
-static rgame_app *app_unwrap(VALUE self) {
+/* Pull the C pointer back out of the Ruby object, raising if it's not set up.
+ * Also the accessor other files in this extension use (see core_ext.h), which
+ * is why it is not static: TypedData_Get_Struct raises TypeError on anything
+ * that is not an App, so callers get that check for free. */
+rgame_app *rgame_app_unwrap(VALUE self) {
     rgame_app *app;
     TypedData_Get_Struct(self, rgame_app, &app_data_type, app);
     if (!app) {
@@ -278,7 +282,7 @@ static void tramp_gamepad_disconnected(void *userdata, int slot) {
  * ------------------------------------------------------------------------- */
 
 static VALUE app_run(VALUE self) {
-    rgame_app *app = app_unwrap(self);
+    rgame_app *app = rgame_app_unwrap(self);
     run_state rs = { self, app, 0, Qnil };
 
     rgame_app_callbacks callbacks = {
@@ -310,25 +314,25 @@ static VALUE app_run(VALUE self) {
  * ------------------------------------------------------------------------- */
 
 static VALUE app_close(VALUE self) {
-    rgame_app_close(app_unwrap(self));
+    rgame_app_close(rgame_app_unwrap(self));
     return self;
 }
 
 static VALUE app_width(VALUE self) {
-    return INT2NUM(rgame_app_width(app_unwrap(self)));
+    return INT2NUM(rgame_app_width(rgame_app_unwrap(self)));
 }
 
 static VALUE app_height(VALUE self) {
-    return INT2NUM(rgame_app_height(app_unwrap(self)));
+    return INT2NUM(rgame_app_height(rgame_app_unwrap(self)));
 }
 
 static VALUE app_caption(VALUE self) {
-    const char *title = rgame_app_title(app_unwrap(self));
+    const char *title = rgame_app_title(rgame_app_unwrap(self));
     return rb_utf8_str_new_cstr(title ? title : "");
 }
 
 static VALUE app_set_caption(VALUE self, VALUE title) {
-    rgame_app_set_title(app_unwrap(self), StringValueCStr(title));
+    rgame_app_set_title(rgame_app_unwrap(self), StringValueCStr(title));
     return title;
 }
 
@@ -339,13 +343,13 @@ static VALUE app_set_caption(VALUE self, VALUE title) {
  * lib/rgame/core/input.rb) because it is configuration, not mechanism.
  */
 static VALUE app_input_down_p(VALUE self, VALUE device, VALUE button_id) {
-    return rgame_app_input_down(app_unwrap(self), NUM2INT(device), NUM2INT(button_id))
+    return rgame_app_input_down(rgame_app_unwrap(self), NUM2INT(device), NUM2INT(button_id))
                ? Qtrue
                : Qfalse;
 }
 
 static VALUE app_input_axis(VALUE self, VALUE device, VALUE axis_id) {
-    return DBL2NUM(rgame_app_input_axis(app_unwrap(self), NUM2INT(device), NUM2INT(axis_id)));
+    return DBL2NUM(rgame_app_input_axis(rgame_app_unwrap(self), NUM2INT(device), NUM2INT(axis_id)));
 }
 
 /*
@@ -355,25 +359,25 @@ static VALUE app_input_axis(VALUE self, VALUE device, VALUE axis_id) {
  * friendly name lives on RGame::Core::Gamepad, which reads better anyway.
  */
 static VALUE app_gamepad_present_p(VALUE self, VALUE slot) {
-    return rgame_app_gamepad_connected(app_unwrap(self), NUM2INT(slot)) ? Qtrue : Qfalse;
+    return rgame_app_gamepad_connected(rgame_app_unwrap(self), NUM2INT(slot)) ? Qtrue : Qfalse;
 }
 
 /* nil for an empty slot, or for a pad SDL has no name for. */
 static VALUE app_gamepad_name(VALUE self, VALUE slot) {
-    const char *name = rgame_app_gamepad_name(app_unwrap(self), NUM2INT(slot));
+    const char *name = rgame_app_gamepad_name(rgame_app_unwrap(self), NUM2INT(slot));
     return name ? rb_utf8_str_new_cstr(name) : Qnil;
 }
 
 static VALUE app_gamepad_count(VALUE self) {
-    return INT2NUM(rgame_app_gamepad_count(app_unwrap(self)));
+    return INT2NUM(rgame_app_gamepad_count(rgame_app_unwrap(self)));
 }
 
 static VALUE app_ticks_ms(VALUE self) {
-    return UINT2NUM(rgame_app_ticks_ms(app_unwrap(self)));
+    return UINT2NUM(rgame_app_ticks_ms(rgame_app_unwrap(self)));
 }
 
 static VALUE app_fps(VALUE self) {
-    return DBL2NUM(rgame_app_fps(app_unwrap(self)));
+    return DBL2NUM(rgame_app_fps(rgame_app_unwrap(self)));
 }
 
 /* ------------------------------------------------------------------------- *
@@ -481,4 +485,6 @@ void Init_core_ext(void) {
     rb_define_method(cApp, "resize", app_default_resize, 2);
     rb_define_method(cApp, "gamepad_connected", app_default_gamepad, 1);
     rb_define_method(cApp, "gamepad_disconnected", app_default_gamepad, 1);
+
+    rgame_init_image(mCore);
 }
