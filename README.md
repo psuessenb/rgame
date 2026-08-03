@@ -156,6 +156,10 @@ ext/rgame_core/              RGame::Core — the SDL/GL half.
                              (keyboard and gamepad ranges). No SDL.
   transform.h/.c             Pure 2D affine transform stack — rotate, scale,
                              translate, composed. No SDL.
+  clip.h/.c                  Pure rects and the intersecting clip stack, in
+                             screen space. No SDL.
+  draw_queue.h/.c            Pure z-sort and batching: collects draw commands,
+                             orders them by z, merges what can share a GL call.
   gamepad.h/.c               Thin SDL_GameController shim: opens/closes pads on
                              hot-plug and copies their state into the snapshot.
   core_ext.c                 Ruby glue: VALUE wrappers + callback trampolines.

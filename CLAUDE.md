@@ -272,6 +272,16 @@ sources go in `ext/rgame_core/`.
   `test/test_transform.c`, which asserts on coordinates rather than matrix
   entries because a matrix assertion passes just as happily with the rotation
   going the wrong way.
+- `ext/rgame_core/clip.{c,h}` — rectangles and the intersecting clip stack, in
+  screen space. Pure; covered by `test/test_clip.c`. A push always *narrows*,
+  so a child can never draw outside the region its parent allowed, and "empty"
+  is a canonical value because the draw queue uses it to drop commands.
+- `ext/rgame_core/draw_queue.{c,h}` — z-ordering and batching, and the reason
+  the depth buffer is not used: depth testing and alpha blending are mutually
+  exclusive, so translucent UI over gameplay needs a CPU sort. Pure; covered by
+  `test/test_draw_queue.c`. Its buffers are reset rather than freed each frame,
+  and a test asserts capacities do not grow on a second identical frame — a
+  renderer that allocates per frame is a stutter nothing else would notice.
 - `ext/rgame_core/gamepad.{c,h}` — the controller shim, and the one place
   `SDL_GameController` appears. Deliberately thin: which player a pad belongs
   to is `device_slots`, what a button id means is `input`, and both are pure.

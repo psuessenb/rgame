@@ -15,5 +15,7 @@ Suite *device_slots_suite(void);
 Suite *input_suite(void);
 Suite *color_suite(void);
 Suite *transform_suite(void);
+Suite *clip_suite(void);
+Suite *draw_queue_suite(void);
 
 #endif /* RGAME_TEST_SUITES_H */

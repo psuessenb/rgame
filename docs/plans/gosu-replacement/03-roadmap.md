@@ -377,6 +377,14 @@ int  rgame_clip_is_empty(const rgame_clip_stack *s);
   unclipped draw is still bounded.
 - **Watch**: empty must be a first-class answer (`w` or `h` ≤ 0), because the
   queue uses it to drop commands early.
+- **Measured**: Gosu's `clip_to` **is transformed** by the surrounding
+  transform stack — a clip at x 0..20 inside `translate(50, 0)` clips x 50..70,
+  confirmed by reading pixels back from a real window. So `clip.{c,h}` works in
+  *screen* space and the canvas (3.5) transforms the caller's rect before
+  pushing it. Under translate and scale that stays exact; under rotation a
+  scissor rect cannot represent the result, so the canvas will take the
+  axis-aligned bounding box — conservative, and untested against Gosu because
+  nothing in the engine rotates a clip.
 
 ### 3.4 `draw_queue.{c,h}` — z-sort and batching (pure)
 

@@ -195,6 +195,15 @@ make test          # must FAIL
 cp /tmp/orig.c ext/rgame_core/<mod>.c
 ```
 
+**Assert the anchor is unique before patching.** A scripted mutation that does
+`text.replace(old, new, 1)` silently patches the *first* match, which may be in
+a different function entirely — and a mutation applied somewhere harmless looks
+exactly like a mutation the suite failed to catch. Measured: a "prepare does
+not reset its batch count" mutation reported SURVIVED three times before the
+anchor turned out to also match two identical lines in `reset`, further up the
+file. With a unique anchor the same mutation is caught immediately, as a
+heap-buffer-overflow. Check `text.count(old) == 1` and fail loudly otherwise.
+
 **Run the mutations under the sanitizer build too**, not just the plain one:
 
 ```

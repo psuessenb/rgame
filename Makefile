@@ -23,6 +23,8 @@ FRAME_LOOP_OBJ := $(BUILD_DIR)/frame_loop.o
 DEVICE_SLOTS_OBJ := $(BUILD_DIR)/device_slots.o
 INPUT_OBJ := $(BUILD_DIR)/input.o
 TRANSFORM_OBJ := $(BUILD_DIR)/transform.o
+CLIP_OBJ := $(BUILD_DIR)/clip.o
+DRAW_QUEUE_OBJ := $(BUILD_DIR)/draw_queue.o
 # Util is a separate extension, but its pure modules are Check-tested too.
 COLOR_OBJ := $(BUILD_DIR)/color.o
 GAMEPAD_OBJ := $(BUILD_DIR)/gamepad.o
@@ -40,7 +42,9 @@ TEST_OBJS := $(BUILD_DIR)/test_main.o \
              $(BUILD_DIR)/test_device_slots.o \
              $(BUILD_DIR)/test_input.o \
              $(BUILD_DIR)/test_color.o \
-             $(BUILD_DIR)/test_transform.o
+             $(BUILD_DIR)/test_transform.o \
+             $(BUILD_DIR)/test_clip.o \
+             $(BUILD_DIR)/test_draw_queue.o
 TEST_BIN := $(BUILD_DIR)/test_rgame
 
 EXT_UTIL_DIR := ext/rgame_util
@@ -76,8 +80,15 @@ $(GAMEPAD_OBJ): $(EXT_CORE_DIR)/gamepad.c $(EXT_CORE_DIR)/gamepad.h $(EXT_CORE_D
 $(TRANSFORM_OBJ): $(EXT_CORE_DIR)/transform.c $(EXT_CORE_DIR)/transform.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
+$(CLIP_OBJ): $(EXT_CORE_DIR)/clip.c $(EXT_CORE_DIR)/clip.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+$(DRAW_QUEUE_OBJ): $(EXT_CORE_DIR)/draw_queue.c $(EXT_CORE_DIR)/draw_queue.h \
+                   $(EXT_CORE_DIR)/clip.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
 $(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ) $(GAMEPAD_OBJ) \
-             $(TRANSFORM_OBJ)
+             $(TRANSFORM_OBJ) $(CLIP_OBJ) $(DRAW_QUEUE_OBJ)
 	ar rcs $@ $^
 
 $(MAIN_OBJ): src/main.c $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
