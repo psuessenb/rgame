@@ -281,6 +281,12 @@ sources go in `ext/rgame_core/`.
   covered by `test/test_canvas.c`, including the split-screen shape end to end.
   It transforms vertices on the way *in*, which is what lets the queue reorder
   them freely afterwards.
+- `ext/rgame_core/backend.{c,h}` — the layer-2 seam where arithmetic stops and
+  real GL calls begin: a function-pointer table, plus `rgame_draw_submit`,
+  which walks a prepared frame and issues a scissor only when the clip actually
+  changes. `test/support/recording_backend.{c,h}` is the fake that stands in
+  for GL, and is what makes "the right calls in the right order" checkable with
+  no display — a state-change optimisation is invisible to a pixel test.
 - `ext/rgame_core/draw_queue.{c,h}` — z-ordering and batching, and the reason
   the depth buffer is not used: depth testing and alpha blending are mutually
   exclusive, so translucent UI over gameplay needs a CPU sort. Pure; covered by

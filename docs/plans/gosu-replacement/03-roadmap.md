@@ -491,7 +491,17 @@ typedef struct {
 
 `test/support/recording_backend.{c,h}` appends every call to an array so Check
 tests can assert "these batches, in this order, with these vertices" with no
-display involved. 3.4 and 3.5's tests are written against it.
+display involved.
+
+**Correction to the original plan**: 3.4 and 3.5 are *not* written against the
+fake. Both hand back their prepared batches directly and are tested with no
+backend at all, which keeps the dependency one-directional — `draw_queue` and
+`canvas` do not include `backend.h`. What the seam is actually for is the
+submit loop, `rgame_draw_submit`: the small amount of logic between a prepared
+frame and the GPU, including issuing a scissor only when the clip changes. That
+last part is a state-change optimisation invisible to any pixel test, since the
+picture is identical either way — a call recorder is the only thing that can
+see it.
 
 ### 3.7 `texture.{c,h}` + `Core::Image` — decode, upload, views
 

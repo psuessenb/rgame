@@ -1,6 +1,7 @@
 #ifndef RGAME_CANVAS_H
 #define RGAME_CANVAS_H
 
+#include "backend.h"
 #include "clip.h"
 #include "color.h"
 #include "draw_queue.h"
@@ -68,6 +69,9 @@ typedef struct {
     int push_depth;
     /* Pushes with nowhere to be recorded. Counted so pop still balances. */
     int unrecorded_pushes;
+
+    /* Remembered from begin_frame, so submit needs no repeat of the size. */
+    int width, height;
 } rgame_canvas;
 
 void rgame_canvas_init(rgame_canvas *canvas);
@@ -107,6 +111,12 @@ void rgame_canvas_triangle(rgame_canvas *canvas, const float *xy6, rgame_color c
 void rgame_canvas_quad(rgame_canvas *canvas, const float *xy8, rgame_color color, double z);
 void rgame_canvas_textured_quad(rgame_canvas *canvas, unsigned int texture, const float *xy8,
                                 const float *uv8, rgame_color color, double z);
+
+/*
+ * Hands the finished frame to a backend. Call after end_frame; equivalent to
+ * rgame_draw_submit with the size this frame was begun at.
+ */
+void rgame_canvas_submit(const rgame_canvas *canvas, const rgame_draw_backend *backend);
 
 const rgame_draw_queue *rgame_canvas_queue(const rgame_canvas *canvas);
 

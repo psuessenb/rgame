@@ -28,6 +28,7 @@ TRANSFORM_OBJ := $(BUILD_DIR)/transform.o
 CLIP_OBJ := $(BUILD_DIR)/clip.o
 DRAW_QUEUE_OBJ := $(BUILD_DIR)/draw_queue.o
 CANVAS_OBJ := $(BUILD_DIR)/canvas.o
+BACKEND_OBJ := $(BUILD_DIR)/backend.o
 # Util is a separate extension, but its pure modules are Check-tested too.
 COLOR_OBJ := $(BUILD_DIR)/color.o
 GAMEPAD_OBJ := $(BUILD_DIR)/gamepad.o
@@ -48,7 +49,9 @@ TEST_OBJS := $(BUILD_DIR)/test_main.o \
              $(BUILD_DIR)/test_transform.o \
              $(BUILD_DIR)/test_clip.o \
              $(BUILD_DIR)/test_draw_queue.o \
-             $(BUILD_DIR)/test_canvas.o
+             $(BUILD_DIR)/test_canvas.o \
+             $(BUILD_DIR)/test_backend.o \
+             $(BUILD_DIR)/recording_backend.o
 TEST_BIN := $(BUILD_DIR)/test_rgame
 
 EXT_CORE_SO := $(EXT_CORE_DIR)/core_ext.so
@@ -89,6 +92,15 @@ $(DRAW_QUEUE_OBJ): $(EXT_CORE_DIR)/draw_queue.c $(EXT_CORE_DIR)/draw_queue.h \
                    $(EXT_CORE_DIR)/clip.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
+$(BACKEND_OBJ): $(EXT_CORE_DIR)/backend.c $(EXT_CORE_DIR)/backend.h \
+                $(EXT_CORE_DIR)/draw_queue.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+# Test-only: the recording backend the Check suite substitutes for real GL.
+$(BUILD_DIR)/recording_backend.o: test/support/recording_backend.c \
+                                  test/support/recording_backend.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -I$(EXT_CORE_DIR) -I$(EXT_UTIL_DIR) -Itest/support $(CHECK_CFLAGS) -c $< -o $@
+
 $(CANVAS_OBJ): $(EXT_CORE_DIR)/canvas.c $(EXT_CORE_DIR)/canvas.h \
                $(EXT_CORE_DIR)/draw_queue.h $(EXT_CORE_DIR)/transform.h \
                $(EXT_CORE_DIR)/clip.h $(EXT_UTIL_DIR)/color.h | $(BUILD_DIR)
@@ -96,7 +108,7 @@ $(CANVAS_OBJ): $(EXT_CORE_DIR)/canvas.c $(EXT_CORE_DIR)/canvas.h \
 
 $(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ) $(GAMEPAD_OBJ) \
              $(TRANSFORM_OBJ) $(CLIP_OBJ) $(DRAW_QUEUE_OBJ) \
-             $(CANVAS_OBJ)
+             $(CANVAS_OBJ) $(BACKEND_OBJ)
 	ar rcs $@ $^
 
 $(MAIN_OBJ): src/main.c $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
@@ -109,7 +121,8 @@ $(COLOR_OBJ): $(EXT_UTIL_DIR)/color.c $(EXT_UTIL_DIR)/color.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/test_%.o: test/test_%.c test/suites.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -I$(EXT_CORE_DIR) -I$(EXT_CORE_DIR)/include -I$(EXT_UTIL_DIR) -Itest $(CHECK_CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -I$(EXT_CORE_DIR) -I$(EXT_CORE_DIR)/include -I$(EXT_UTIL_DIR) -Itest \
+	       -Itest/support $(CHECK_CFLAGS) -c $< -o $@
 
 $(TEST_BIN): $(TEST_OBJS) $(CORE_LIB) $(COLOR_OBJ)
 	$(CC) $(CFLAGS) -o $@ $(TEST_OBJS) $(CORE_LIB) $(COLOR_OBJ) $(SDL_LIBS) $(GL_LIBS) $(MATH_LIBS) $(CHECK_LIBS)

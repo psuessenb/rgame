@@ -17,6 +17,8 @@ void rgame_canvas_init(rgame_canvas *canvas) {
     rgame_clip_stack_init(&canvas->clips, 0, 0);
     canvas->push_depth = 0;
     canvas->unrecorded_pushes = 0;
+    canvas->width = 0;
+    canvas->height = 0;
 }
 
 void rgame_canvas_destroy(rgame_canvas *canvas) {
@@ -29,6 +31,8 @@ void rgame_canvas_begin_frame(rgame_canvas *canvas, int width, int height) {
     rgame_clip_stack_init(&canvas->clips, width, height);
     canvas->push_depth = 0;
     canvas->unrecorded_pushes = 0;
+    canvas->width = width;
+    canvas->height = height;
 }
 
 void rgame_canvas_end_frame(rgame_canvas *canvas) {
@@ -186,6 +190,10 @@ void rgame_canvas_textured_quad(rgame_canvas *canvas, unsigned int texture, cons
         write_vertex(canvas, &out[i], xy8[corner * 2], xy8[(corner * 2) + 1], uv8[corner * 2],
                      uv8[(corner * 2) + 1], color);
     }
+}
+
+void rgame_canvas_submit(const rgame_canvas *canvas, const rgame_draw_backend *backend) {
+    rgame_draw_submit(&canvas->queue, backend, canvas->width, canvas->height);
 }
 
 const rgame_draw_queue *rgame_canvas_queue(const rgame_canvas *canvas) {

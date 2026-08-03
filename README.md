@@ -162,6 +162,9 @@ ext/rgame_core/              RGame::Core — the SDL/GL half.
                              orders them by z, merges what can share a GL call.
   canvas.h/.c                Pure composition of transform + clip + queue; the
                              seam the drawing API is written against.
+  backend.h/.c               The layer-2 seam: a function-pointer table a real
+                             GL backend or a recording fake plugs into, plus
+                             the loop that drives it from a prepared frame.
   gamepad.h/.c               Thin SDL_GameController shim: opens/closes pads on
                              hot-plug and copies their state into the snapshot.
   core_ext.c                 Ruby glue: VALUE wrappers + callback trampolines.
@@ -200,6 +203,8 @@ src/main.c                   Standalone executable entry point — the C
 test/                        Check unit tests for the pure C logic (`make test`).
   test_main.c                Runs every suite; one binary, build/test_rgame.
   suites.h                   Each test_<x>.c exposes a Suite, declared here.
+  support/                   Test-only helpers, e.g. the recording draw backend
+                             that stands in for OpenGL.
 spec/                        Headless RSpec specs: RGame::Util and
                              RGame::Engine (`rake spec`). Never loads SDL.
 spec_core/                   RSpec specs for RGame::Core (`rake spec:core`).

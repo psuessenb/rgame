@@ -28,6 +28,7 @@ ext/rgame_core/
   clip.c/.h             # pure rects + intersecting clip stack (unit-tested)
   draw_queue.c/.h       # pure z-sort + batching of draw commands (unit-tested)
   canvas.c/.h           # pure transform+clip+queue composition (unit-tested)
+  backend.h/.c          # the GL seam: function-pointer table + submit loop
   gamepad.c/.h          # thin SDL_GameController shim (open/close/poll)
   include/rgame/core.h  # the public C API
   example.rb            # manual/visual smoke test (opens a real window)
@@ -56,7 +57,7 @@ extension.
 `rgame_core` that's `core_ext.c` + `app.c` + `frame_loop.c` +
 `device_slots.c` + `input.c` + `gamepad.c` + `transform.c` +
 `clip.c` + `draw_queue.c` +
-`canvas.c`, linked
+`canvas.c` + `backend.c`, linked
 against SDL2 + OpenGL the same way the root `Makefile` links the standalone
 binary. No prebuilt `librgame_core.a` in the middle, so there's one build step.
 
