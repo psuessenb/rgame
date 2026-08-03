@@ -32,6 +32,10 @@ build two ways from one copy: a standalone binary (`build/rgame`, via the root
 
 There's no `.gemspec` yet — everything is used in place from a checkout.
 
+**[docs/api/](docs/api/README.md) is the reference documentation** for using the
+engine from Ruby: the frame loop, the hooks, input, and the value types. Start
+there if you want to write a game rather than work on the engine.
+
 ## Requirements
 
 ### C engine
@@ -210,11 +214,12 @@ spec/                        Headless RSpec specs: RGame::Util and
 spec_core/                   RSpec specs for RGame::Core (`rake spec:core`).
                              Opens real windows; boots its own Xvfb.
 docs/                        The feature spec the engine is being built out to.
+  api/                       Reference documentation for using it from Ruby.
 ```
 
-Two test suites, split by language, not by layer: `make test` covers the C
-(Check), `bundle exec rspec` covers what's reachable from Ruby. Neither needs a
-display.
+Three test suites: `make test` covers the C (Check), `rake spec` the headless
+Ruby half, `rake spec:core` the parts that open a window. None needs a display
+of its own — `spec:core` boots Xvfb itself. `rake` runs all three.
 
 ## Roadmap
 
