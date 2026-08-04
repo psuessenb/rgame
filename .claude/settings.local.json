@@ -42,7 +42,8 @@
       "Bash(python3 -c ' *)",
       "Bash(sed -n '/^APP_OBJ/,/^CORE_LIB/p' Makefile)",
       "Bash(make ext-core *)",
-      "Bash(timeout 600 bundle exec rake)"
+      "Bash(timeout 600 bundle exec rake)",
+      "Bash(python3 /tmp/claude-1001/mut_rec.py)"
     ]
   }
 }

@@ -5,6 +5,7 @@
 #include "clip.h"
 #include "color.h"
 #include "draw_queue.h"
+#include "recording.h"
 #include "transform.h"
 
 /*
@@ -111,6 +112,21 @@ void rgame_canvas_triangle(rgame_canvas *canvas, const float *xy6, rgame_color c
 void rgame_canvas_quad(rgame_canvas *canvas, const float *xy8, rgame_color color, double z);
 void rgame_canvas_textured_quad(rgame_canvas *canvas, unsigned int texture, const float *xy8,
                                 const float *uv8, rgame_color color, double z);
+
+/*
+ * Replays a baked recording (see recording.h) offset by (dx, dy), at `z`, tinted
+ * by `color` — RGAME_COLOR_WHITE leaves the recorded colours alone.
+ *
+ * The offset is applied *before* the current transform, so a baked layer moves
+ * with the camera it is drawn under and can be placed anywhere without being
+ * re-baked. Every batch becomes one command at the same z, and because equal z
+ * keeps insertion order, the painter order baked into the recording survives.
+ *
+ * The clip is the one current at replay time; recordings do not carry their own
+ * (recording.h says why).
+ */
+void rgame_canvas_replay(rgame_canvas *canvas, const rgame_recording *recording, float dx,
+                         float dy, rgame_color color, double z);
 
 /*
  * Hands the finished frame to a backend. Call after end_frame; equivalent to

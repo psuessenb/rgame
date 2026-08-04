@@ -147,8 +147,12 @@ static rgame_image *wrap(rgame_app *app, rgame_texture view) {
     rgame_image *image = malloc(sizeof(rgame_image));
     if (!image) {
         unsigned int orphan = 0;
-        if (rgame_texture_destroy(&view, &orphan) && rgame_app_gl_make_current(app)) {
-            glDeleteTextures(1, &orphan);
+        if (rgame_texture_destroy(&view, &orphan)) {
+            rgame_gl_context_save saved;
+            if (rgame_app_gl_make_current(app, &saved)) {
+                glDeleteTextures(1, &orphan);
+            }
+            rgame_app_gl_restore(&saved);
         }
         return NULL;
     }
@@ -165,7 +169,12 @@ rgame_image *rgame_image_load(rgame_app *app, const char *path, char *err, size_
         return NULL;
     }
 
-    if (!rgame_app_gl_make_current(app)) {
+    /* Loading is allowed mid-frame, and a game with two windows may well be
+     * mid-frame in the *other* one, so whatever was current goes back at every
+     * exit below. */
+    rgame_gl_context_save saved;
+    if (!rgame_app_gl_make_current(app, &saved)) {
+        rgame_app_gl_restore(&saved);
         set_error(err, err_size, "%s", "could not make the app's GL context current");
         return NULL;
     }
@@ -173,6 +182,7 @@ rgame_image *rgame_image_load(rgame_app *app, const char *path, char *err, size_
     long size = 0;
     unsigned char *bytes = read_whole_file(path, &size);
     if (!bytes) {
+        rgame_app_gl_restore(&saved);
         set_error(err, err_size, "could not read %s", path);
         return NULL;
     }
@@ -185,6 +195,7 @@ rgame_image *rgame_image_load(rgame_app *app, const char *path, char *err, size_
                                                   &channels_in_file, 4);
     free(bytes);
     if (!pixels) {
+        rgame_app_gl_restore(&saved);
         set_error(err, err_size, "could not decode %s", path);
         return NULL;
     }
@@ -192,6 +203,7 @@ rgame_image *rgame_image_load(rgame_app *app, const char *path, char *err, size_
     unsigned int name = upload_rgba(pixels, width, height);
     stbi_image_free(pixels);
     if (name == 0) {
+        rgame_app_gl_restore(&saved);
         set_error(err, err_size, "%s", "GL refused to allocate a texture");
         return NULL;
     }
@@ -199,6 +211,7 @@ rgame_image *rgame_image_load(rgame_app *app, const char *path, char *err, size_
     rgame_texture_sheet *sheet = rgame_texture_sheet_create(name, width, height);
     if (!sheet) {
         glDeleteTextures(1, &name);
+        rgame_app_gl_restore(&saved);
         set_error(err, err_size, "%s", "out of memory");
         return NULL;
     }
@@ -209,6 +222,7 @@ rgame_image *rgame_image_load(rgame_app *app, const char *path, char *err, size_
     rgame_texture_sheet_release(sheet, NULL);
 
     rgame_image *image = wrap(app, view);
+    rgame_app_gl_restore(&saved);
     if (!image) {
         set_error(err, err_size, "%s", "out of memory");
     }
@@ -274,8 +288,16 @@ void rgame_image_destroy(rgame_image *image) {
      * deletion is then the right answer rather than a leak: tearing down a GL
      * context takes its textures with it. */
     unsigned int name = 0;
-    if (rgame_texture_destroy(&image->view, &name) && rgame_app_gl_make_current(image->app)) {
-        glDeleteTextures(1, &name);
+    if (rgame_texture_destroy(&image->view, &name)) {
+        rgame_gl_context_save saved;
+        if (rgame_app_gl_make_current(image->app, &saved)) {
+            glDeleteTextures(1, &name);
+        }
+        /* Always restored, including when the switch failed: a collector runs
+         * this at an arbitrary moment, quite possibly in the middle of another
+         * window's frame, and that frame still has to be submitted into its own
+         * context. */
+        rgame_app_gl_restore(&saved);
     }
     rgame_app_gl_release(image->app);
     free(image);

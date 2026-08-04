@@ -192,6 +192,48 @@ void rgame_canvas_textured_quad(rgame_canvas *canvas, unsigned int texture, cons
     }
 }
 
+/* Multiplies two colour components, 0..255 in and out: 255 leaves the other
+ * untouched, which is what makes WHITE the "no tint" value. */
+static unsigned char modulate(unsigned char value, int tint) {
+    return (unsigned char)((value * tint) / 255);
+}
+
+void rgame_canvas_replay(rgame_canvas *canvas, const rgame_recording *recording, float dx,
+                         float dy, rgame_color color, double z) {
+    if (!recording) {
+        return;
+    }
+
+    int tint[4] = { rgame_color_r(color), rgame_color_g(color), rgame_color_b(color),
+                    rgame_color_a(color) };
+
+    for (unsigned int b = 0; b < recording->batch_count; b++) {
+        const rgame_recording_batch *batch = &recording->batches[b];
+
+        /* One command per baked batch, rather than one per original draw call:
+         * the whole point of a recording is that the per-tile work happened
+         * once, at bake time. */
+        rgame_vertex *out = rgame_draw_queue_alloc(&canvas->queue, batch->vertex_count, z,
+                                                   batch->texture,
+                                                   rgame_clip_current(&canvas->clips));
+
+        for (unsigned int i = 0; i < batch->vertex_count; i++) {
+            const rgame_vertex *baked = &recording->vertices[batch->first_vertex + i];
+
+            /* Offset first, then the current transform — so the offset is in
+             * the recording's own coordinates and the transform is the world's,
+             * which is the order a camera needs. */
+            rgame_transform_apply(&canvas->transforms, baked->x + dx, baked->y + dy, &out[i].x,
+                                  &out[i].y);
+            out[i].u = baked->u;
+            out[i].v = baked->v;
+            for (int c = 0; c < 4; c++) {
+                out[i].rgba[c] = modulate(baked->rgba[c], tint[c]);
+            }
+        }
+    }
+}
+
 void rgame_canvas_submit(const rgame_canvas *canvas, const rgame_draw_backend *backend) {
     rgame_draw_submit(&canvas->queue, backend, canvas->width, canvas->height);
 }

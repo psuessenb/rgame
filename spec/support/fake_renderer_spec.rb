@@ -49,6 +49,53 @@ RSpec.describe FakeRenderer do
     end
   end
 
+  describe 'baking with #record' do
+    it 'collects what the block drew, and does not put it in this frame' do
+      baked = renderer.record do
+        renderer.rect(0, 0, 10, 10)
+        renderer.circle(5, 5, 3)
+      end
+
+      expect(baked.calls.map(&:name)).to eq(%i[rect circle])
+      expect(renderer.calls).to be_empty
+    end
+
+    it 'records each replay, on the recording and on the renderer' do
+      baked = renderer.record { renderer.rect(0, 0, 1, 1) }
+      baked.draw(10, 20, z: 3)
+
+      expect(baked.draws.map(&:args)).to eq([[10, 20]])
+      expect(baked.draws.first.options).to eq(z: 3, color: nil)
+      expect(renderer.calls_to(:recording_draw).first.args).to eq([baked, 10, 20])
+    end
+
+    it 'defaults the replay to the origin' do
+      baked = renderer.record { renderer.rect(0, 0, 1, 1) }
+      baked.draw
+
+      expect(baked.draws.first.args).to eq([0, 0])
+    end
+
+    it 'goes back to recording into the frame afterwards' do
+      renderer.record { renderer.rect(0, 0, 1, 1) }
+      renderer.circle(0, 0, 1)
+
+      expect(renderer.calls.map(&:name)).to eq([:circle])
+    end
+
+    it 'says whether anything was baked' do
+      expect(renderer.record { nil }).to be_empty
+      expect(renderer.record { renderer.rect(0, 0, 1, 1) }).not_to be_empty
+    end
+
+    it 'stops recording when the block raises' do
+      expect { renderer.record { raise 'boom' } }.to raise_error('boom')
+
+      renderer.rect(0, 0, 1, 1)
+      expect(renderer.calls.map(&:name)).to eq([:rect])
+    end
+  end
+
   describe 'transform depth' do
     it 'records what was drawn inside a block, and how deep' do
       renderer.rotated(45, 0, 0) { renderer.rect(0, 0, 1, 1) }

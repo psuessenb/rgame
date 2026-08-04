@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdio.h>
 
 #include "rgame/core.h"
@@ -33,8 +34,23 @@ static void on_update(void *userdata, double dt_seconds) {
 #define COLOR_YELLOW 0xE0C040FFu
 #define COLOR_TRANSLUCENT_WHITE 0xFFFFFF80u
 
+/* Baked on the first frame and replayed after that; see the Ruby twin in
+ * ext/rgame_core/example.rb. Freed in main() once the loop has finished. */
+static rgame_recording *baked_strip = NULL;
+
 static void on_draw(void *userdata) {
     rgame_app *app = userdata;
+
+    if (!baked_strip) {
+        rgame_app_begin_record(app);
+        for (int i = 0; i < 40; i++) {
+            rgame_app_draw_rect(app, (float)(i * 18), 0.0f, 12.0f, 12.0f, COLOR_GREEN, 0.0);
+        }
+        baked_strip = rgame_app_end_record(app);
+    }
+    /* Forty rectangles, one call per frame. */
+    rgame_app_draw_recording(app, baked_strip, fmodf(spin_degrees, 18.0f) - 18.0f, 560.0f,
+                             0xFFFFFFFFu, 0.0);
 
     rgame_app_draw_rect(app, 40.0f, 40.0f, 160.0f, 100.0f, COLOR_RED, 0.0);
 
@@ -82,6 +98,7 @@ int main(void) {
 
     rgame_app_run(app, &callbacks);
 
+    rgame_recording_free(baked_strip);
     rgame_app_destroy(app);
     return 0;
 }

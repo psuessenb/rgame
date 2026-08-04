@@ -111,6 +111,25 @@ RSpec.describe RGame::Core::Renderer do
     end
   end
 
+  describe 'a garbage collection in the middle of a frame' do
+    it 'does not disturb the frame, even with another window in play' do
+      # Freeing an image has to make its own window's GL context current to
+      # delete the texture. Leaving it current would submit *this* frame into
+      # the other window's context, and the window would come out blank — a
+      # collector picks the moment, so it would be an occasional mystery. This
+      # is the regression: an image from another app, collected mid-draw.
+      other = RGame::Core::App.new(width: 16, height: 16, caption: 'elsewhere')
+      RGame::Core::Image.new(other, PngFixture.write(2, 2) { [0, 255, 0, 255] })
+
+      frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        3.times { GC.start(full_mark: true, immediate_sweep: true) }
+        renderer.rect(0, 0, 64, 64, color: [255, 0, 0])
+      end
+
+      expect(frame.about?(32, 32, [255, 0, 0, 255])).to be(true)
+    end
+  end
+
   describe 'z ordering' do
     it 'puts a higher z on top regardless of the order calls were made' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
@@ -253,6 +272,132 @@ RSpec.describe RGame::Core::Renderer do
       end
 
       expect(frame.about?(4, 4, [255, 0, 0, 255])).to be(true)
+    end
+  end
+
+  describe 'recordings' do
+    # The pure half — what a recording holds and how a replay is offset — is in
+    # test/test_recording.c. What needs a real window is the payoff: that a
+    # baked layer reaches the GPU as one call, and looks the same as drawing it
+    # by hand.
+    it 'bakes a block into one call per texture' do
+      baked = nil
+      RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        baked = renderer.record { 20.times { |i| renderer.rect(i * 2, 0, 1, 8) } }
+      end
+
+      # Twenty rectangles in, one GL call out — the whole reason to bake.
+      expect(baked.batch_count).to eq(1)
+      expect(baked.vertex_count).to eq(20 * 6)
+    end
+
+    it 'looks the same replayed as drawn directly' do
+      direct = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        renderer.rect(10, 10, 20, 20, color: [255, 0, 0])
+      end
+
+      replayed = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        renderer.record { renderer.rect(10, 10, 20, 20, color: [255, 0, 0]) }.draw
+      end
+
+      expect(replayed.at(20, 20)).to eq(direct.at(20, 20))
+      expect(replayed.at(50, 50)).to eq(direct.at(50, 50))
+    end
+
+    it 'draws nothing at the moment it is baked' do
+      frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        renderer.record { renderer.rect(0, 0, 64, 64, color: [255, 0, 0]) }
+      end
+
+      expect(frame.about?(32, 32, background)).to be(true)
+    end
+
+    it 'replays where it is put, not where it was baked' do
+      frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        renderer.record { renderer.rect(0, 0, 8, 8, color: [255, 0, 0]) }.draw(40, 40)
+      end
+
+      expect(frame.about?(44, 44, [255, 0, 0, 255])).to be(true)
+      expect(frame.about?(4, 4, background)).to be(true)
+    end
+
+    it 'moves with the transform in effect at replay time' do
+      # The camera case: bake the layer once in world coordinates, scroll it by
+      # drawing it under a translate.
+      frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        baked = renderer.record { renderer.rect(0, 0, 8, 8, color: [255, 0, 0]) }
+        renderer.translated(32, 32) { baked.draw }
+      end
+
+      expect(frame.about?(36, 36, [255, 0, 0, 255])).to be(true)
+    end
+
+    it 'can be clipped at replay time even though a clip cannot be baked' do
+      frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        baked = renderer.record { renderer.rect(0, 0, 64, 64, color: [255, 0, 0]) }
+        renderer.clipped(0, 0, 32, 32) { baked.draw }
+      end
+
+      expect(frame.about?(16, 16, [255, 0, 0, 255])).to be(true)
+      expect(frame.about?(48, 48, background)).to be(true)
+    end
+
+    it 'tints a replay, which the layer it replaces could not do' do
+      frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        baked = renderer.record { renderer.rect(0, 0, 64, 64, color: [255, 255, 255]) }
+        baked.draw(0, 0, color: [255, 0, 0])
+      end
+
+      expect(frame.about?(32, 32, [255, 0, 0, 255])).to be(true)
+    end
+
+    it 'obeys the z it is replayed at, not the one it was baked at' do
+      frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        baked = renderer.record { renderer.rect(0, 0, 64, 64, z: 900, color: [255, 0, 0]) }
+        baked.draw(0, 0, z: 1)
+        renderer.rect(0, 0, 64, 64, z: 2, color: [0, 0, 255])
+      end
+
+      expect(frame.about?(32, 32, [0, 0, 255, 255])).to be(true)
+    end
+
+    it 'bakes images, and keeps their textures alive afterwards' do
+      # A baked batch holds a GL texture *number*. If the Image were collected
+      # the number would refer to nothing, and the replay would draw whatever
+      # the driver put there next — silently.
+      png = PngFixture.write(2, 2) { [255, 0, 0, 255] }
+      frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, app|
+        baked = renderer.record do
+          renderer.scaled(32) { renderer.background(RGame::Core::Image.new(app, png)) }
+        end
+        3.times { GC.start(full_mark: true, immediate_sweep: true) }
+        baked.draw
+      end
+
+      expect(frame.about?(32, 32, [255, 0, 0, 255])).to be(true)
+    end
+
+    it 'reports the size of what it holds' do
+      baked = nil
+      RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        baked = renderer.record { renderer.rect(10, 20, 30, 40) }
+      end
+
+      expect([baked.width, baked.height]).to eq([30.0, 40.0])
+      expect(baked).not_to be_empty
+    end
+
+    it 'is created by #record, never by .new' do
+      expect { RGame::Core::Recording.new }.to raise_error(NoMethodError, /#record/)
+    end
+
+    it 'cannot be replayed outside a frame' do
+      baked = nil
+      RenderedFrame.capture(width: 16, height: 16) do |renderer, _app|
+        baked = renderer.record { renderer.rect(0, 0, 4, 4) }
+      end
+
+      expect { baked.draw }.to raise_error(RuntimeError, /only allowed inside #draw/)
     end
   end
 

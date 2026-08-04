@@ -30,8 +30,16 @@ module RuboCop
               'which allocates an args Array per call.'
 
         # The instance methods gosu/compat.rb turns into allocating shims.
+        #
+        # `record` is deliberately *not* in this list any more: the engine's own
+        # RGame::Core::Renderer#record now owns that name, and a renderer is
+        # exactly the kind of explicit receiver this cop flags. Keeping it would
+        # mean every baked tile layer in the project reporting an offence about
+        # a library it does not use — the opposite of the "leave unrelated
+        # `obj.record` calls alone" intent stated above. The rest of the list
+        # has no such collision, and all of it retires with Gosu.
         SHIMS = %i[
-          draw_line draw_triangle draw_quad draw_rect flush gl clip_to record
+          draw_line draw_triangle draw_quad draw_rect flush gl clip_to
           transform translate rotate scale button_id_to_char char_to_button_id button_down?
         ].freeze
 

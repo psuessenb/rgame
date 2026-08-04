@@ -13,7 +13,7 @@ depends on:
 | C source | `ext/rgame_core/` | `ext/rgame_util/` |
 | Extension | `rgame/core_ext` | `rgame/util_ext` |
 | Links | SDL2 + OpenGL | nothing but Ruby |
-| Holds today | `App` — window, GL context, fixed-timestep main loop; `Input`, `Gamepad`, `Image`, `Renderer` | `Tensor`, `Controls`, `Color` |
+| Holds today | `App` — window, GL context, fixed-timestep main loop; `Input`, `Gamepad`, `Image`, `Renderer`, `Recording` | `Tensor`, `Controls`, `Color` |
 
 That split is load-bearing, not cosmetic: `require "rgame"` gives you
 `RGame::Util` with **no graphics libraries loaded into the process at all**, so
@@ -103,10 +103,10 @@ make ext-util     # build only ext/rgame_util -> lib/rgame/util_ext.so
 make clean        # remove build artifacts, including both extensions'
 ```
 
-`make run` opens a window with one of each drawing primitive in it — a
-rotating square, a clipped rectangle, a circle, a thick line. `Esc` or closing
-the window quits. `ruby ext/rgame_core/example.rb` is the same scene driven
-from Ruby.
+`make run` opens a window with one of each drawing primitive in it — a rotating
+square, a clipped rectangle, a circle, a thick line, and a baked strip replayed
+every frame. `Esc` or closing the window quits. `ruby ext/rgame_core/example.rb`
+is the same scene driven from Ruby.
 
 The Ruby specs:
 
@@ -182,6 +182,8 @@ ext/rgame_core/              RGame::Core — the SDL/GL half.
                              sprites cut out of them, and pixels -> UVs.
   primitives.h/.c            Pure: rects, thick lines, circles and sprites, in
                              terms of the canvas's triangles and quads.
+  recording.h/.c             Pure: a baked block of drawing, kept between
+                             frames and replayed as one call per texture.
   gl_backend.h/.c            The real GL calls — the only file that issues
                              them on the drawing path.
   image.c                    Decode a PNG and upload it — the thin GL shim
@@ -194,6 +196,7 @@ ext/rgame_core/              RGame::Core — the SDL/GL half.
   core_ext.h                 One init function per Ruby-visible class here.
   image_ext.c                RGame::Core::Image — the Ruby binding.
   renderer_ext.c             RGame::Core::Renderer — the drawing primitives.
+  recording_ext.c            RGame::Core::Recording — baked, replayable draws.
   extconf.rb                 mkmf script; pkg_config("sdl2"), -lGL.
   example.rb                 Manual smoke test driven from Ruby.
 
@@ -219,6 +222,7 @@ lib/rgame/core/gamepad.rb    Which controllers are plugged in, and their names.
 lib/rgame/core/image.rb      Sprite-sheet slicing over the C-backed Image.
 lib/rgame/core/renderer.rb   Keyword args, colours and transform blocks over
                              the C-backed Renderer.
+lib/rgame/core/recording.rb  #draw over the C-backed Recording.
 lib/rgame/*.so               Build artifacts, copied here by `make ext`.
 
 src/main.c                   Standalone executable entry point — the C

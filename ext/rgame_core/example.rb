@@ -43,6 +43,7 @@ class Example < RGame::Core::App
     @cursor_x = 400.0
     @cursor_y = 300.0
     @spin = 0.0
+    @baked = nil
     @device = Controls::KEYBOARD
   end
 
@@ -75,6 +76,17 @@ class Example < RGame::Core::App
   # and allocates nothing when it is drawn, which is what per-frame code wants.
   def draw
     r = @renderer
+
+    # Baked on the first frame and replayed after that: forty rectangles cost
+    # one call per frame instead of forty. A real game bakes its tile layers
+    # this way. Recording has to happen inside #draw, which is why it is here
+    # rather than in initialize.
+    @baked ||= r.record do
+      40.times { |i| r.rect(i * 18, 0, 12, 12, color: GREEN, z: 0) }
+    end
+    # Scrolls with the same value the spinning square turns by, so it is
+    # visibly the *replay* moving and not a rebake.
+    @baked.draw((@spin % 18) - 18, 560)
     r.rect(40, 40, 160, 100, color: RED, z: 0)
     # Higher z wins wherever they overlap, whatever order the calls came in.
     r.rect(120, 90, 160, 100, color: TRANSLUCENT_WHITE, z: 1)

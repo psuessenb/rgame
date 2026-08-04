@@ -154,6 +154,32 @@ module RGame
         end
       end
 
+      # Bakes everything the block draws into a RGame::Core::Recording, which
+      # can then be replayed for the cost of one call per texture however many
+      # draws went into it. Nothing is drawn *now* — the block's output goes
+      # into the recording instead of into this frame.
+      #
+      #   ground = renderer.record { tiles.each { |t| renderer.image(t.img, t.x, t.y) } }
+      #   ground.draw(-camera.x, -camera.y)
+      #
+      # Recording happens inside `draw` like everything else, and does not
+      # nest. A clip pushed inside the block raises: clipping cannot be baked,
+      # so clip the replay instead. See RGame::Core::Recording.
+      def record
+        begin_record
+        completed = false
+        begin
+          yield
+          completed = true
+        ensure
+          # A block that raised leaves a half-built recording open, and the
+          # next frame would keep drawing into it. Unwinding here means the
+          # exception is the only thing the caller has to deal with.
+          cancel_record unless completed
+        end
+        end_record
+      end
+
       # A translucent overlay for visualising a collision box, so a scene can
       # ask for one without knowing what colour "debug" is.
       def debug_box(x, y, width, height, z: SHAPE_Z)

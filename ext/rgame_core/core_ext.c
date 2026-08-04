@@ -488,4 +488,5 @@ void Init_core_ext(void) {
 
     rgame_init_image(mCore);
     rgame_init_renderer(mCore);
+    rgame_init_recording(mCore);
 }

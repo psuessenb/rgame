@@ -18,6 +18,15 @@
 
 void rgame_init_image(VALUE mCore);
 void rgame_init_renderer(VALUE mCore);
+void rgame_init_recording(VALUE mCore);
+
+/*
+ * Wraps a baked recording in a Ruby object. Only Renderer#record calls this:
+ * `images` is the Array of Images drawn while recording, which the new object
+ * marks so their GPU textures outlive it (recording_ext.c says why).
+ */
+VALUE rgame_recording_wrap(rgame_recording *recording, VALUE app_object, rgame_app *app,
+                           VALUE images);
 
 /*
  * The engine handle behind a Ruby RGame::Core::App. Raises TypeError if the

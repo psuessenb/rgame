@@ -362,8 +362,62 @@ int rgame_app_draw_image_rot(rgame_app *app, const rgame_image *image, float cx,
 void rgame_app_push_translate(rgame_app *app, float dx, float dy);
 void rgame_app_push_rotate(rgame_app *app, float degrees, float pivot_x, float pivot_y);
 void rgame_app_push_scale(rgame_app *app, float sx, float sy);
-void rgame_app_push_clip(rgame_app *app, int x, int y, int width, int height);
+/*
+ * Returns 0 without pushing if a recording is open — see the recording section
+ * below for why a clip cannot be baked — and 1 otherwise. The other pushes
+ * always succeed as far as the caller is concerned.
+ */
+int rgame_app_push_clip(rgame_app *app, int x, int y, int width, int height);
 void rgame_app_pop(rgame_app *app);
+
+/*
+ * ---------------------------------------------------------------------------
+ * Recordings: drawing baked once and replayed cheaply
+ * ---------------------------------------------------------------------------
+ *
+ * A tile layer is a couple of thousand quads that have not changed since the
+ * level loaded. Between `rgame_app_begin_record` and `rgame_app_end_record`,
+ * draw calls are captured instead of added to the frame; what comes back is the
+ * finished, already-batched geometry, which replays as one call per texture
+ * however many draws went into it.
+ *
+ * Recording happens *inside* a frame (there is drawing to capture, after all),
+ * and nests nowhere: begin_record returns 0 if the app is not drawing or is
+ * already recording.
+ *
+ * Transforms inside the block are baked in; the transform in effect at replay
+ * is applied on top, which is what lets a baked layer scroll under a camera.
+ * Clips are not baked — clipping happens when pixels are rasterised, so a clip
+ * rectangle captured at one place on screen would be wrong everywhere else the
+ * recording is drawn. `rgame_app_push_clip` refuses while recording; clip the
+ * replay instead.
+ */
+typedef struct rgame_recording rgame_recording;
+
+/* Starts capturing. Returns 1 on success, 0 if not drawing or already
+ * recording. */
+int rgame_app_begin_record(rgame_app *app);
+
+/*
+ * Ends capturing and returns the baked result, which the caller owns and must
+ * pass to `rgame_recording_free`. Returns NULL if no recording was open or if
+ * memory ran out.
+ */
+rgame_recording *rgame_app_end_record(rgame_app *app);
+
+/* Ends capturing and throws the result away — for unwinding when whatever was
+ * being recorded failed part-way through. */
+void rgame_app_cancel_record(rgame_app *app);
+
+void rgame_recording_free(rgame_recording *recording);
+
+/*
+ * Replays a recording with its origin at (x, y), at `z`, tinted by `color`
+ * (0xFFFFFFFF leaves the recorded colours alone). Unlike the layer this
+ * replaces, a recording is not limited to drawing white.
+ */
+void rgame_app_draw_recording(rgame_app *app, const rgame_recording *recording, float x,
+                              float y, unsigned int color, double z);
 
 #ifdef __cplusplus
 }

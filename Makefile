@@ -31,6 +31,7 @@ CANVAS_OBJ := $(BUILD_DIR)/canvas.o
 TEXTURE_OBJ := $(BUILD_DIR)/texture.o
 PRIMITIVES_OBJ := $(BUILD_DIR)/primitives.o
 GL_BACKEND_OBJ := $(BUILD_DIR)/gl_backend.o
+RECORDING_OBJ := $(BUILD_DIR)/recording.o
 IMAGE_OBJ := $(BUILD_DIR)/image.o
 STB_IMAGE_OBJ := $(BUILD_DIR)/stb_image_impl.o
 BACKEND_OBJ := $(BUILD_DIR)/backend.o
@@ -58,6 +59,7 @@ TEST_OBJS := $(BUILD_DIR)/test_main.o \
              $(BUILD_DIR)/test_backend.o \
              $(BUILD_DIR)/test_texture.o \
              $(BUILD_DIR)/test_primitives.o \
+             $(BUILD_DIR)/test_recording.o \
              $(BUILD_DIR)/recording_backend.o
 TEST_BIN := $(BUILD_DIR)/test_rgame
 
@@ -113,7 +115,8 @@ $(BUILD_DIR)/recording_backend.o: test/support/recording_backend.c \
 
 $(CANVAS_OBJ): $(EXT_CORE_DIR)/canvas.c $(EXT_CORE_DIR)/canvas.h \
                $(EXT_CORE_DIR)/draw_queue.h $(EXT_CORE_DIR)/transform.h \
-               $(EXT_CORE_DIR)/clip.h $(EXT_UTIL_DIR)/color.h | $(BUILD_DIR)
+               $(EXT_CORE_DIR)/clip.h $(EXT_CORE_DIR)/recording.h \
+               $(EXT_UTIL_DIR)/color.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 $(TEXTURE_OBJ): $(EXT_CORE_DIR)/texture.c $(EXT_CORE_DIR)/texture.h \
@@ -123,6 +126,10 @@ $(TEXTURE_OBJ): $(EXT_CORE_DIR)/texture.c $(EXT_CORE_DIR)/texture.h \
 $(PRIMITIVES_OBJ): $(EXT_CORE_DIR)/primitives.c $(EXT_CORE_DIR)/primitives.h \
                    $(EXT_CORE_DIR)/canvas.h $(EXT_CORE_DIR)/texture.h \
                    $(EXT_UTIL_DIR)/color.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+$(RECORDING_OBJ): $(EXT_CORE_DIR)/recording.c $(EXT_CORE_DIR)/recording.h \
+                  $(EXT_CORE_DIR)/draw_queue.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 $(GL_BACKEND_OBJ): $(EXT_CORE_DIR)/gl_backend.c $(EXT_CORE_DIR)/gl_backend.h \
@@ -143,7 +150,7 @@ $(STB_IMAGE_OBJ): $(EXT_CORE_DIR)/stb_image_impl.c $(EXT_CORE_DIR)/vendor/stb_im
 $(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ) $(GAMEPAD_OBJ) \
              $(TRANSFORM_OBJ) $(CLIP_OBJ) $(DRAW_QUEUE_OBJ) \
              $(CANVAS_OBJ) $(BACKEND_OBJ) $(TEXTURE_OBJ) $(PRIMITIVES_OBJ) \
-             $(GL_BACKEND_OBJ) $(IMAGE_OBJ) $(STB_IMAGE_OBJ)
+             $(RECORDING_OBJ) $(GL_BACKEND_OBJ) $(IMAGE_OBJ) $(STB_IMAGE_OBJ)
 	ar rcs $@ $^
 
 $(MAIN_OBJ): src/main.c $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)

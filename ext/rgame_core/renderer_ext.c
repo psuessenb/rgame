@@ -30,11 +30,20 @@
 typedef struct {
     rgame_app *app;
     VALUE app_object; /* marked: the window must outlive anything drawing into it */
+    /*
+     * While a recording is open, every Image drawn is collected here and handed
+     * to the finished Recording, which then keeps them alive. A baked batch
+     * holds a GL texture *number*, so an Image collected out from under it
+     * would leave the recording drawing whatever the driver put there next.
+     * Qnil when not recording.
+     */
+    VALUE recorded_images;
 } rgame_renderer_ref;
 
 static void renderer_mark(void *ptr) {
     rgame_renderer_ref *ref = ptr;
     rb_gc_mark(ref->app_object);
+    rb_gc_mark(ref->recorded_images);
 }
 
 static size_t renderer_size(const void *ptr) {
@@ -81,6 +90,7 @@ static VALUE renderer_alloc(VALUE klass) {
     VALUE object = TypedData_Make_Struct(klass, rgame_renderer_ref, &renderer_data_type, ref);
     ref->app = NULL;
     ref->app_object = Qnil;
+    ref->recorded_images = Qnil;
     return object;
 }
 
@@ -91,6 +101,7 @@ static VALUE renderer_initialize(VALUE self, VALUE app) {
 
     ref->app = rgame_app_unwrap(app); /* raises TypeError on anything else */
     ref->app_object = app;
+    ref->recorded_images = Qnil;
     return self;
 }
 
@@ -169,12 +180,23 @@ static void check_drawn(int drawn, VALUE image) {
     }
 }
 
+/* If a recording is open, remember the image so the finished Recording can keep
+ * its texture alive. Cheap and only while recording — a bake happens once. */
+static void note_recorded_image(VALUE self, VALUE image) {
+    rgame_renderer_ref *ref;
+    TypedData_Get_Struct(self, rgame_renderer_ref, &renderer_data_type, ref);
+    if (!NIL_P(ref->recorded_images)) {
+        rb_ary_push(ref->recorded_images, image);
+    }
+}
+
 static VALUE renderer_draw_image(VALUE self, VALUE image, VALUE x, VALUE y, VALUE z,
                                  VALUE color) {
     check_drawn(rgame_app_draw_image(drawing_app(self), rgame_image_unwrap(image),
                                      (float)NUM2DBL(x), (float)NUM2DBL(y), packed_color(color),
                                      NUM2DBL(z)),
                 image);
+    note_recorded_image(self, image);
     return self;
 }
 
@@ -186,6 +208,7 @@ static VALUE renderer_draw_image_rot(int argc, VALUE *argv, VALUE self) {
                                          (float)NUM2DBL(argv[3]), (float)NUM2DBL(argv[4]),
                                          packed_color(argv[6]), NUM2DBL(argv[5])),
                 argv[0]);
+    note_recorded_image(self, argv[0]);
     return self;
 }
 
@@ -206,8 +229,57 @@ static VALUE renderer_push_scale(VALUE self, VALUE sx, VALUE sy) {
 }
 
 static VALUE renderer_push_clip(VALUE self, VALUE x, VALUE y, VALUE width, VALUE height) {
-    rgame_app_push_clip(drawing_app(self), NUM2INT(x), NUM2INT(y), NUM2INT(width),
-                        NUM2INT(height));
+    if (!rgame_app_push_clip(drawing_app(self), NUM2INT(x), NUM2INT(y), NUM2INT(width),
+                             NUM2INT(height))) {
+        /* Clipping cannot be baked into a recording; see core.h. Saying so
+         * beats recording geometry that quietly ignores the clip. */
+        rb_raise(rb_eRuntimeError,
+                 "a clip cannot be recorded — wrap the replay in #clipped instead");
+    }
+    return self;
+}
+
+/* ------------------------------------------------------------------------- *
+ * Recording
+ *
+ * Three primitives rather than one block-taking method: Renderer#record in
+ * lib/rgame/core/renderer.rb wraps them in begin/ensure, which is where a
+ * `raise` mid-bake gets unwound. Doing that in C would mean rb_protect for no
+ * benefit.
+ * ------------------------------------------------------------------------- */
+
+static VALUE renderer_begin_record(VALUE self) {
+    rgame_renderer_ref *ref;
+    TypedData_Get_Struct(self, rgame_renderer_ref, &renderer_data_type, ref);
+
+    if (!rgame_app_begin_record(drawing_app(self))) {
+        rb_raise(rb_eRuntimeError, "already recording (recordings do not nest)");
+    }
+    ref->recorded_images = rb_ary_new();
+    return self;
+}
+
+static VALUE renderer_end_record(VALUE self) {
+    rgame_renderer_ref *ref;
+    TypedData_Get_Struct(self, rgame_renderer_ref, &renderer_data_type, ref);
+
+    VALUE images = ref->recorded_images;
+    ref->recorded_images = Qnil;
+
+    rgame_recording *recording = rgame_app_end_record(ref->app);
+    if (!recording) {
+        rb_raise(rb_eRuntimeError, "no recording is open");
+    }
+
+    return rgame_recording_wrap(recording, ref->app_object, ref->app, images);
+}
+
+static VALUE renderer_cancel_record(VALUE self) {
+    rgame_renderer_ref *ref;
+    TypedData_Get_Struct(self, rgame_renderer_ref, &renderer_data_type, ref);
+
+    ref->recorded_images = Qnil;
+    rgame_app_cancel_record(ref->app);
     return self;
 }
 
@@ -236,4 +308,8 @@ void rgame_init_renderer(VALUE mCore) {
     rb_define_method(cRenderer, "push_scale", renderer_push_scale, 2);
     rb_define_method(cRenderer, "push_clip", renderer_push_clip, 4);
     rb_define_method(cRenderer, "pop", renderer_pop, 0);
+
+    rb_define_method(cRenderer, "begin_record", renderer_begin_record, 0);
+    rb_define_method(cRenderer, "end_record", renderer_end_record, 0);
+    rb_define_method(cRenderer, "cancel_record", renderer_cancel_record, 0);
 }

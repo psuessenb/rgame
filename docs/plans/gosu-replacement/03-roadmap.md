@@ -655,6 +655,33 @@ baked.draw(x, y, z)
   `tile_map_renderer.rb:11` documents working around. Ours has no reason to
   inherit that limitation.
 
+**Landed, and phase 3 with it.** How it came out:
+
+- **`recording.{c,h}`** (pure, 21 Check tests, all 20 mutations caught) stores
+  the *prepared* frame — the already-sorted, already-grouped vertex array — so
+  the sorting and batching is the work being saved rather than repeated.
+  `rgame_canvas_replay` appends one command per baked batch.
+- **Clips are not captured**, and pushing one inside a bake raises rather than
+  being dropped. A clip rectangle is decided at rasterisation, so one recorded
+  at a given place on screen is wrong everywhere else the recording is replayed.
+  `clipped { baked.draw(...) }` is the thing the caller meant anyway.
+- **The offset is applied before the current transform**, which is what makes a
+  baked layer scroll under a camera. Replaying at `z` puts every batch at that
+  z, and equal-z insertion order keeps the painter order baked into it.
+- **Tinting works**, as the note above hoped: each recorded colour is multiplied
+  by the replay's, so a whole baked layer can be faded at once.
+- **A recording holds the Images baked into it** (`recording_ext.c`). A baked
+  batch stores a GL texture *number*, so a collected Image would leave it
+  drawing whatever the driver put there next — silently. The renderer collects
+  the images drawn during a bake and hands them to the finished Recording.
+
+The pixel tier found a second real bug, unrelated to recordings but caught by
+them: freeing an image made its own window's GL context current and **left it
+current**, so the rest of that frame was submitted into the wrong context and
+came out blank. A garbage collector picks the moment, so it would have been an
+occasional mystery. `rgame_app_gl_make_current` now takes a save to restore, and
+`spec_core` pins it with a GC mid-frame.
+
 ### Deferred out of phase 3: render-to-texture
 
 `Gosu.render` (FBO → texture) has exactly one caller in the current engine: the

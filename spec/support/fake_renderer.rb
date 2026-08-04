@@ -34,42 +34,61 @@ class FakeRenderer
   def initialize
     @calls = []
     @transforms = []
+    @recording = nil
   end
 
   # --- shapes -------------------------------------------------------------
 
   def rect(x, y, width, height, z: 50, color: nil)
-    record(:rect, [x, y, width, height], z: z, color: color)
+    remember(:rect, [x, y, width, height], z: z, color: color)
   end
 
   def quad(x1, y1, x2, y2, x3, y3, x4, y4, z: 50, color: nil)
-    record(:quad, [x1, y1, x2, y2, x3, y3, x4, y4], z: z, color: color)
+    remember(:quad, [x1, y1, x2, y2, x3, y3, x4, y4], z: z, color: color)
   end
 
   def triangle(x1, y1, x2, y2, x3, y3, z: 50, color: nil)
-    record(:triangle, [x1, y1, x2, y2, x3, y3], z: z, color: color)
+    remember(:triangle, [x1, y1, x2, y2, x3, y3], z: z, color: color)
   end
 
   def line(x1, y1, x2, y2, thickness: 1.0, z: 50, color: nil)
-    record(:line, [x1, y1, x2, y2], thickness: thickness, z: z, color: color)
+    remember(:line, [x1, y1, x2, y2], thickness: thickness, z: z, color: color)
   end
 
   def circle(cx, cy, radius, z: 50, color: nil, segments: 64)
-    record(:circle, [cx, cy, radius], z: z, color: color, segments: segments)
+    remember(:circle, [cx, cy, radius], z: z, color: color, segments: segments)
   end
 
   def debug_box(x, y, width, height, z: 50)
-    record(:debug_box, [x, y, width, height], z: z)
+    remember(:debug_box, [x, y, width, height], z: z)
   end
 
   # --- images -------------------------------------------------------------
 
   def image(image, cx, cy, angle: 0, scale: 1, z: 0, color: nil)
-    record(:image, [image, cx, cy], angle: angle, scale: scale, z: z, color: color)
+    remember(:image, [image, cx, cy], angle: angle, scale: scale, z: z, color: color)
   end
 
   def background(image, x = 0, y = 0, z: 0, color: nil)
-    record(:background, [image, x, y], z: z, color: color)
+    remember(:background, [image, x, y], z: z, color: color)
+  end
+
+  # --- recording ----------------------------------------------------------
+
+  # Bakes the block into a FakeRecording. The calls made inside are recorded on
+  # the recording rather than here, which is what lets a spec check both what a
+  # scene baked *and* where it later drew it.
+  def record
+    raise 'already recording (recordings do not nest)' if @recording
+
+    @recording = FakeRecording.new(self)
+    begin
+      yield
+    rescue StandardError
+      @recording = nil
+      raise
+    end
+    @recording.tap { @recording = nil }
   end
 
   # --- transform blocks ---------------------------------------------------
@@ -77,7 +96,15 @@ class FakeRenderer
   def rotated(angle, pivot_x, pivot_y, &) = within(:rotated, [angle, pivot_x, pivot_y], &)
   def translated(dx, dy, &) = within(:translated, [dx, dy], &)
   def scaled(sx, sy = sx, &) = within(:scaled, [sx, sy], &)
-  def clipped(x, y, width, height, &) = within(:clipped, [x, y, width, height], &)
+
+  def clipped(x, y, width, height, &)
+    # The real renderer cannot bake a clip — clipping happens when pixels are
+    # rasterised — so neither may this, or a scene would pass its specs and
+    # then raise in the game.
+    raise 'a clip cannot be recorded — wrap the replay in #clipped instead' if @recording
+
+    within(:clipped, [x, y, width, height], &)
+  end
 
   # --- reading it back ----------------------------------------------------
 
@@ -89,15 +116,21 @@ class FakeRenderer
     self
   end
 
+  # `remember` is private, but FakeRecording reaches it through `send` when a
+  # replay happens — the two are one mechanism split across two files.
   private
 
-  def record(name, args, **options)
-    @calls << Call.new(name, args, options, @transforms.dup)
+  def remember(name, args, **options)
+    call = Call.new(name, args, options, @transforms.dup)
+    # While baking, calls belong to the recording rather than to this frame —
+    # the real renderer diverts them the same way, by swapping the canvas they
+    # land on.
+    (@recording ? @recording.calls : @calls) << call
     self
   end
 
   def within(name, args)
-    record(name, args)
+    remember(name, args)
     @transforms.push(Call.new(name, args, {}, []))
     begin
       yield

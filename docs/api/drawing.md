@@ -161,6 +161,60 @@ def draw
 end
 ```
 
+## Recordings: bake once, replay cheaply
+
+A tile layer is a couple of thousand quads that have not changed since the level
+loaded. `record` bakes a block of drawing so that replaying it costs one call
+per texture, however many draws went into it:
+
+```ruby
+def draw
+  @ground ||= @renderer.record do
+    @tiles.each { |tile| @renderer.image(tile.image, tile.x, tile.y) }
+  end
+
+  @ground.draw(-@camera.x, -@camera.y)
+end
+```
+
+Nothing is drawn at bake time — the block's output goes into the recording
+instead of into the frame. `record` must be called inside `draw` like everything
+else, which is why the example bakes on the first frame rather than in
+`initialize`.
+
+```ruby
+baked.draw(x = 0, y = 0, z: 0, color: nil)
+baked.batch_count   # GL calls one replay costs
+baked.width         # the size of what was baked
+baked.empty?
+```
+
+**Positions, texture coordinates, colours and any transforms inside the block
+are baked in.** The transform in effect when the recording is *drawn* applies on
+top, so a baked layer scrolls under a camera without being rebuilt, and the same
+recording can be stamped in several places:
+
+```ruby
+5.times { |i| @bush.draw(i * 120, 300) }
+```
+
+**`color:` tints the replay** — each recorded colour is multiplied by it, so a
+whole baked layer can be faded out at once. (Gosu's recorded images could only
+draw white; there was no reason to inherit that.)
+
+**Clipping cannot be baked.** Clipping happens when pixels are rasterised, so a
+clip rectangle captured in one place would be wrong everywhere else the
+recording is drawn. Pushing a clip inside a `record` block raises; clip the
+replay instead, which is what was meant anyway:
+
+```ruby
+@renderer.clipped(0, 0, 400, 600) { @ground.draw(-@camera.x, -@camera.y) }
+```
+
+Recordings do not nest, and a block that raises leaves nothing half-recorded
+behind. A recording keeps the images baked into it alive, so a sprite sheet
+dropped after baking does not take its texture with it.
+
 ## Testing what a scene draws
 
 The renderer is an interface, not a class your game should name. Game logic
@@ -174,6 +228,16 @@ health_bar.draw(renderer)
 expect(renderer.calls_to(:rect).map(&:args)).to eq([[10, 10, 64, 8]])
 ```
 
+Recordings are faked too, and the fake keeps the two questions apart — what was
+baked, and where it was replayed:
+
+```ruby
+ground = renderer.record { ... }   # => a FakeRecording
+
+expect(ground.calls.size).to eq(tiles.size)   # baked once, not per frame
+expect(ground.draws.map(&:args)).to eq([[-camera.x, -camera.y]])
+```
+
 That runs with no window, no GPU and no clock. The fake and the real renderer
 are both checked against one shared contract (`spec/support/shared_examples/
 a_renderer.rb`), so the fake cannot drift into describing a renderer that does
@@ -182,6 +246,5 @@ not exist — which would leave a green test suite and a game that no longer run
 ## What is not here yet
 
 Text, audio, and drawing by asset id (`sprite(:hero, row, col, …)`) are still to
-come; so is `record`, which bakes a block of static draws into one retained
-batch. Today an image is passed as an object rather than looked up in a
+come. Today an image is passed as an object rather than looked up in a
 registry.

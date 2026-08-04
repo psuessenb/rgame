@@ -161,4 +161,78 @@ RSpec.shared_examples 'a renderer' do
       end
     end
   end
+
+  describe 'recording' do
+    # A recording bakes a block of drawing so it can be replayed for a fraction
+    # of the cost. What the contract can state is the shape: `record` takes a
+    # block and returns something that draws itself at a position.
+    it 'returns something that can draw itself' do
+      render do |renderer, _image|
+        baked = renderer.record { renderer.rect(0, 0, 10, 10) }
+
+        expect(baked).to respond_to(:draw)
+        baked.draw(100, 100)
+      end
+    end
+
+    it 'accepts a position, z: and color: on the replay' do
+      expect do
+        render do |renderer, _image|
+          baked = renderer.record { renderer.rect(0, 0, 10, 10) }
+          baked.draw
+          baked.draw(5, 5)
+          baked.draw(5, 5, z: 3)
+          baked.draw(5, 5, z: 3, color: [255, 0, 0, 128])
+        end
+      end.not_to raise_error
+    end
+
+    it 'bakes images as happily as shapes' do
+      expect do
+        render do |renderer, image|
+          renderer.record { renderer.background(image) }.draw(0, 0)
+        end
+      end.not_to raise_error
+    end
+
+    it 'can be replayed more than once, anywhere' do
+      expect do
+        render do |renderer, _image|
+          baked = renderer.record { renderer.rect(0, 0, 8, 8) }
+          5.times { |i| baked.draw(i * 10, 0) }
+        end
+      end.not_to raise_error
+    end
+
+    it 'draws nothing at record time' do
+      # The block's output goes into the recording, not into this frame. A
+      # renderer that drew it as well would double every baked layer.
+      render do |renderer, _image|
+        expect(renderer.record { renderer.rect(0, 0, 10, 10) }).not_to be_nil
+      end
+    end
+
+    it 'refuses to nest' do
+      render do |renderer, _image|
+        expect { renderer.record { renderer.record { renderer.rect(0, 0, 1, 1) } } }
+          .to raise_error(RuntimeError, /nest/)
+      end
+    end
+
+    it 'refuses a clip inside the block, because a clip cannot be baked' do
+      render do |renderer, _image|
+        expect { renderer.record { renderer.clipped(0, 0, 5, 5) { nil } } }
+          .to raise_error(RuntimeError, /clip/)
+      end
+    end
+
+    it 'unwinds a block that raises, and can record again afterwards' do
+      render do |renderer, _image|
+        expect { renderer.record { raise 'from inside the bake' } }
+          .to raise_error(RuntimeError, 'from inside the bake')
+
+        renderer.record { renderer.rect(0, 0, 1, 1) }.draw(0, 0)
+      end
+    end
+  end
 end

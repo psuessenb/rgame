@@ -316,6 +316,12 @@ sources go in `ext/rgame_core/`.
   `test/test_primitives.c`. A rotated sprite goes through the canvas's own
   transform stack rather than its own sin/cos, so which way a positive angle
   turns is decided in exactly one place.
+- `ext/rgame_core/recording.{c,h}` — a block of drawing baked once and
+  replayed as one call per texture, which is what makes a tile map affordable.
+  Pure; covered by `test/test_recording.c`. It stores no clip on purpose:
+  clipping happens at rasterisation, so a rect captured in one place is wrong
+  everywhere else the recording is drawn, and pushing one inside a bake is
+  refused rather than silently dropped.
 - `ext/rgame_core/gl_backend.{c,h}` — layer 3 for drawing: the real
   `glOrtho`/`glDrawArrays`/`glScissor` calls behind `backend.h`'s table, and
   the only file on the draw path that calls `gl*`. Verified by looking at

@@ -28,6 +28,7 @@
 #include "image_internal.h"
 #include "input.h"
 #include "primitives.h"
+#include "recording.h"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
@@ -77,6 +78,14 @@ struct rgame_app {
      * rather than reallocating (see draw_queue.h). */
     rgame_canvas canvas;
     rgame_gl_backend gl;
+
+    /*
+     * Where draws go while a recording is open. Kept for the app's lifetime
+     * like the frame canvas, so baking a layer between levels does not
+     * allocate a queue from scratch each time.
+     */
+    rgame_canvas record_canvas;
+    int recording;
     /*
      * Whether a frame is currently open. Drawing outside `draw` would append to
      * a queue that is about to be reset — silently drawing nothing — so every
@@ -128,7 +137,9 @@ rgame_app *rgame_app_create(int width, int height, const char *title) {
     app->running = 1;
     app->refs = 1;
     app->drawing = 0;
+    app->recording = 0;
     rgame_canvas_init(&app->canvas);
+    rgame_canvas_init(&app->record_canvas);
     rgame_input_state_clear(&app->input);
     rgame_gamepads_init(&app->gamepads);
     rgame_frame_loop_init(&app->frame_loop);
@@ -157,6 +168,7 @@ void rgame_app_destroy(rgame_app *app) {
 
     rgame_gamepads_shutdown(&app->gamepads);
     rgame_canvas_destroy(&app->canvas);
+    rgame_canvas_destroy(&app->record_canvas);
     if (app->gl_context) {
         SDL_GL_DeleteContext(app->gl_context);
         app->gl_context = NULL;
@@ -186,13 +198,27 @@ void rgame_app_gl_release(rgame_app *app) {
     }
 }
 
-int rgame_app_gl_make_current(rgame_app *app) {
+int rgame_app_gl_make_current(rgame_app *app, rgame_gl_context_save *saved) {
+    if (saved) {
+        /* Captured before the switch, and captured even if the switch then
+         * fails — restoring a no-op is free, and forgetting to capture is not
+         * recoverable. */
+        saved->window = SDL_GL_GetCurrentWindow();
+        saved->context = SDL_GL_GetCurrentContext();
+    }
+
     /* Both are NULLed by rgame_app_destroy, so this also answers "is there
      * still a context to draw into?" for anything holding a retained app. */
     if (!app || !app->window || !app->gl_context) {
         return 0;
     }
     return SDL_GL_MakeCurrent(app->window, app->gl_context) == 0;
+}
+
+void rgame_app_gl_restore(const rgame_gl_context_save *saved) {
+    if (saved && saved->context) {
+        SDL_GL_MakeCurrent((SDL_Window *)saved->window, (SDL_GLContext)saved->context);
+    }
 }
 
 /*
@@ -392,9 +418,18 @@ int rgame_app_is_drawing(const rgame_app *app) {
     return app && app->drawing;
 }
 
-/* The canvas to draw into, or NULL if no frame is open. */
+/*
+ * The canvas to draw into, or NULL if no frame is open.
+ *
+ * While a recording is open this is the recording's own canvas, which is the
+ * entire mechanism: every draw function below is unchanged, and capture is a
+ * matter of where their vertices land.
+ */
 static rgame_canvas *drawing_canvas(rgame_app *app) {
-    return rgame_app_is_drawing(app) ? &app->canvas : NULL;
+    if (!rgame_app_is_drawing(app)) {
+        return NULL;
+    }
+    return app->recording ? &app->record_canvas : &app->canvas;
 }
 
 void rgame_app_draw_rect(rgame_app *app, float x, float y, float width, float height,
@@ -489,17 +524,84 @@ void rgame_app_push_scale(rgame_app *app, float sx, float sy) {
     }
 }
 
-void rgame_app_push_clip(rgame_app *app, int x, int y, int width, int height) {
+int rgame_app_push_clip(rgame_app *app, int x, int y, int width, int height) {
+    /* A clip cannot be baked: see the recording section of core.h. Refusing
+     * keeps the push/pop pairing honest — nothing was pushed, so the caller's
+     * matching pop has nothing to undo either. */
+    if (app && app->recording) {
+        return 0;
+    }
+
     rgame_canvas *canvas = drawing_canvas(app);
     if (canvas) {
         rgame_canvas_push_clip(canvas, rgame_rect_make(x, y, width, height));
     }
+    return 1;
 }
 
 void rgame_app_pop(rgame_app *app) {
     rgame_canvas *canvas = drawing_canvas(app);
     if (canvas) {
         rgame_canvas_pop(canvas);
+    }
+}
+
+/* ------------------------------------------------------------------------- *
+ * Recordings
+ * ------------------------------------------------------------------------- */
+
+int rgame_app_begin_record(rgame_app *app) {
+    if (!rgame_app_is_drawing(app) || app->recording) {
+        return 0;
+    }
+
+    /* The size only decides the recording canvas's base clip. Nothing inside
+     * may narrow it and the recorded clips are discarded at capture, so it
+     * simply has to be big enough not to drop anything — the window is. */
+    rgame_canvas_begin_frame(&app->record_canvas, rgame_app_width(app), rgame_app_height(app));
+    app->recording = 1;
+    return 1;
+}
+
+rgame_recording *rgame_app_end_record(rgame_app *app) {
+    if (!app || !app->recording) {
+        return NULL;
+    }
+    app->recording = 0;
+
+    /* Sorting and grouping is exactly the work a recording exists to do once,
+     * so it happens here rather than on every replay. */
+    rgame_canvas_end_frame(&app->record_canvas);
+
+    rgame_recording *recording = calloc(1, sizeof(rgame_recording));
+    if (!recording) {
+        return NULL;
+    }
+    if (!rgame_recording_capture(recording, rgame_canvas_queue(&app->record_canvas))) {
+        free(recording);
+        return NULL;
+    }
+    return recording;
+}
+
+void rgame_app_cancel_record(rgame_app *app) {
+    if (app) {
+        app->recording = 0;
+    }
+}
+
+void rgame_recording_free(rgame_recording *recording) {
+    if (recording) {
+        rgame_recording_destroy(recording);
+        free(recording);
+    }
+}
+
+void rgame_app_draw_recording(rgame_app *app, const rgame_recording *recording, float x,
+                              float y, unsigned int color, double z) {
+    rgame_canvas *canvas = drawing_canvas(app);
+    if (canvas) {
+        rgame_canvas_replay(canvas, recording, x, y, color, z);
     }
 }
 
