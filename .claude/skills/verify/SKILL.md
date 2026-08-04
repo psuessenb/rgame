@@ -29,7 +29,7 @@ usually a sign the pure-logic part has not been separated out yet.
 
 **Tier 1 — Check, `test/test_*.c`.** Anything with no SDL/GL/IO: the
 fixed-timestep accumulator, transform composition, clip-rect intersection,
-z-sort and batching, glyph cache eviction, tile culling, the gamepad slot
+z-sort and batching, glyph atlas packing, tile culling, the gamepad slot
 table. This is most of what is actually hard to get right. Write these first,
 before touching SDL.
 

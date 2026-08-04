@@ -365,10 +365,14 @@ explicit, and the reason is in `gosu_renderer.rb:113-117`: an engine draws many
 short-lived changing strings (scores, timers), so a per-glyph cache stays
 bounded by the character set while a per-string cache grows forever.
 
-Pure and testable: glyph-atlas packing, cache lookup/eviction, string width
-from summed advances, line height from font metrics. Only rasterisation and
-upload are impure. Note the open question about a default font in
-[the brief](README.md#open-questions).
+Pure and testable: glyph-atlas packing, cache lookup, string width from summed
+advances, line height from font metrics. Only rasterisation and upload are
+impure.
+
+The default font is **shipped with the gem** rather than looked up in the
+system's font database — Liberation Sans 2.x, SIL OFL 1.1. See
+["The default font is vendored, not looked up"](README.md#the-default-font-is-vendored-not-looked-up),
+which also records how Gosu does it and why we are not copying that.
 
 ### Record / render-to-texture
 

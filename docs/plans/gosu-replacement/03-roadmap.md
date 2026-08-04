@@ -1,10 +1,17 @@
 # 03 — Roadmap
 
-Detailed for phases 0–3. Phases 4–7 stay deliberately rough: they get
-re-planned once the render foundation exists and the shape of the problem is
-concrete rather than imagined — which is exactly what happened to phase 3,
-re-written from eight bullets into nine landable steps once phase 2 was done
-and the GL situation had been measured rather than assumed.
+Detailed for phases 0–4. Phases 5–7 stay deliberately rough: they get
+re-planned once the layer beneath them exists and the shape of the problem is
+concrete rather than imagined. That is what happened to phase 3 — re-written
+from eight bullets into nine landable steps once phase 2 was done and the GL
+situation had been measured rather than assumed — and to phase 4, which stayed
+one paragraph until the default-font question had been answered by reading
+Gosu's sources instead of guessing at them.
+
+**Phases 0–3 are implemented.** Each of their steps carries a "Landed" note
+recording how the result differed from the sketch; those notes are the useful
+part to read before starting the next step, because most of them are decisions
+the sketch got wrong.
 
 Throughout: **layer 1 (pure logic + Check tests) before layer 3 (real SDL/GL)**,
 per CLAUDE.md. The recurring temptation in a graphics rewrite is to open a
@@ -724,14 +731,290 @@ looks like the real thing is how phase 6 acquires silent drift.
 
 ## Phase 4 — Text
 
-`stb_truetype` + a glyph atlas. `Core::Font` with `#draw_text`, `#text_width`,
-`#height`. Pure/testable parts: atlas packing, glyph cache lookup and eviction,
-string width from advances.
+`stb_truetype` rasterising into a glyph atlas, `RGame::Core::Font`, and
+`Renderer#text`. The shape is the same as phase 3: most of it is arithmetic that
+needs no GPU, and the part that does is four GL calls wide.
 
-Blocked on the default-font question in
-[the brief](README.md#open-questions) — `Gosu::Font.new(18)` needed no path,
-and preserving `GosuRenderer#initialize`'s signature means the new `Font` needs
-some default too.
+The default-font question that used to block this is
+[settled](README.md#the-default-font-is-vendored-not-looked-up): the gem ships
+Liberation Sans 2.x and there is no font-name lookup. That is what makes 4.1
+mostly a packaging step.
+
+### Decisions to take before writing any of it
+
+Recorded here so they are not re-argued in the middle of 4.4.
+
+- **Cache per glyph, never per string.** Feature spec §2 is explicit, and
+  `gosu_renderer.rb:113-117` says why: a game draws many short-lived changing
+  strings (scores, timers), so a per-glyph cache stays bounded by the character
+  set while a per-string cache grows forever.
+- **No eviction.** A game's glyph set is small (a few hundred) and stable, so
+  the bound the cache needs already exists. Pages are added on demand and never
+  reclaimed until the font is dropped. This overrides CLAUDE.md's speculative
+  mention of "glyph cache eviction" as a thing to test — there is nothing to
+  evict. A `debug_live_font_pages` counter makes the growth observable, the way
+  `debug_live_textures` does for images.
+- **One `Font` is one typeface at one pixel height**, as in Gosu. Two sizes are
+  two Fonts with two atlases. Sharing one atlas across sizes would need a key
+  wider than a codepoint for no benefit anyone has asked for.
+- **A Font belongs to an app**, like an Image, because its atlas pages are GL
+  textures. Same ownership rules, same cross-app refusal.
+- **Rasterise at the requested pixel height, 1:1.** Gosu renders glyphs at 2x
+  and draws them scaled down (`Font.cpp:14`, `FONT_RENDER_SCALE`) so that scaled
+  text stays smooth. Skipped for now: our text is drawn at its native size, and
+  the supersample costs 4x the atlas for a case nothing in the port needs.
+  Revisit if UI text ever gets drawn inside `scaled`.
+- **Atlas pages are 512x512, single-channel `GL_ALPHA`, with a 1px gutter.**
+  An alpha texture under the fixed-function default (`GL_MODULATE`) gives
+  `rgb = vertex colour, a = vertex alpha * coverage`, which is exactly coloured
+  text, at a quarter the memory of RGBA. The gutter is because the atlas samples
+  with `GL_LINEAR` (text is not pixel art, and stb antialiases), so a glyph
+  packed flush against its neighbour bleeds into it. Note for the day the
+  project moves to core-profile GL: `GL_ALPHA` goes away there and becomes
+  `GL_RED` plus a shader swizzle.
+- **Kerning is applied**, via `stbtt_GetCodepointKernAdvance`. It is one call
+  per pair, it is pure, and without it "AV" reads wrong.
+- **`(x, y)` is the top-left of the line box**, matching what `Gosu::Font#draw_text`
+  does and therefore what `GosuRenderer#text` callers already assume. The
+  baseline sits at `y + ascent`.
+- **Out of scope, explicitly**: markup (`<b>`, `<c=ff0000>`), bold/italic flags,
+  multi-line layout, text input, bidi and shaping. A string is one line of
+  left-to-right glyphs; a caller that wants two lines splits it and uses
+  `#height`, which is what `#height` is for.
+
+---
+
+### 4.1 Vendor the font and `stb_truetype`
+
+Two vendored things with two different homes, and the difference matters:
+
+| | Where | Why |
+|---|---|---|
+| `stb_truetype.h` | `ext/rgame_core/vendor/` | compiled in, like `stb_image.h` |
+| `LiberationSans-Regular.ttf` + `OFL.txt` | `lib/rgame/fonts/` | **data read at runtime**, so it belongs where a gem installs data, not in an ext directory that only exists to be compiled |
+
+- `stb_truetype_impl.c` alongside `stb_image_impl.c`, same one-TU-per-header
+  pattern. Both need warnings off, so generalise the carve-out rather than
+  copying it: a `stb_%_impl.$(OBJEXT)` pattern rule in `extconf.rb`'s appended
+  block and in the root `Makefile`. Two hand-written copies of the same rule is
+  how the second one rots.
+- `ext/rgame_core/vendor/README.md` gets an entry for `stb_truetype.h` and a
+  pointer to where the font lives and why it is not here.
+- **Watch**: the font must end up in the gem. Until there is a `.gemspec` this
+  is only a `lib/` path, but note it in the gemspec checklist — a default font
+  that is missing from the packaged gem fails at the first `Font.new`, on
+  someone else's machine.
+
+### 4.2 `atlas.{c,h}` — where a glyph goes (pure)
+
+A shelf packer. Glyphs arrive one at a time and are mostly the same height, so
+shelves are the right amount of cleverness: fill a row left to right, start a
+new row when it runs out, report "full" when the page does.
+
+```c
+typedef struct {
+    int width, height;
+    int shelf_y;      /* top of the row being filled */
+    int shelf_height; /* tallest glyph on it so far */
+    int cursor_x;     /* next free x on that row */
+} rgame_atlas;
+
+void rgame_atlas_init(rgame_atlas *atlas, int width, int height);
+/* Reserves w x h (plus the gutter) and writes where it went. 0 if the page is
+ * full — the caller then opens another page. */
+int rgame_atlas_place(rgame_atlas *atlas, int w, int h, rgame_rect *out);
+```
+
+- **Tests** (`test/test_atlas.c`): the first glyph lands at the origin; a second
+  sits to its right with exactly one pixel between them; a row that fills opens
+  a new shelf below the tallest glyph of the previous one; a page that fills
+  refuses rather than overlapping; a glyph taller or wider than the whole page
+  is refused rather than looping forever; a zero-sized glyph (the space
+  character rasterises to nothing) is handled without consuming a slot.
+- **Watch**: the gutter belongs *inside* `place`, not at the call site. A caller
+  that has to remember to add one is a caller that eventually does not, and
+  bilinear bleed between two glyphs looks like a rendering bug, not a packing
+  one.
+
+### 4.3 `glyph_cache.{c,h}` — what is already rasterised (pure)
+
+```c
+typedef struct {
+    int codepoint;
+    int page;             /* which atlas page it landed on */
+    rgame_rect rect;      /* where, in that page's pixels */
+    float advance;        /* how far the pen moves, already scaled */
+    float bearing_x;      /* pen -> left edge of the bitmap */
+    float bearing_y;      /* line top -> top edge of the bitmap */
+} rgame_glyph;
+
+int rgame_glyph_cache_find(const rgame_glyph_cache *cache, int codepoint,
+                           rgame_glyph *out);
+int rgame_glyph_cache_insert(rgame_glyph_cache *cache, const rgame_glyph *glyph);
+unsigned int rgame_glyph_cache_count(const rgame_glyph_cache *cache);
+```
+
+Open addressing on a fixed-capacity table keyed by codepoint, grown by
+doubling — no allocation per glyph, and no pointer chasing on the draw path.
+
+- **Tests** (`test/test_glyph_cache.c`): a miss reports a miss and leaves `out`
+  alone; insert then find round-trips every field; two codepoints that collide
+  in the table both survive; re-inserting the same codepoint replaces rather
+  than duplicating; the count tracks distinct codepoints, not calls — draw
+  "aaaa" and it is 1; the table grows without losing entries.
+- **Watch**: key on the codepoint, not on the byte. The whole point of the cache
+  is that `ä` and `€` behave like `a`.
+
+### 4.4 `font.{c,h}` — the typeface (pure, and testable *because* the font is vendored)
+
+Wraps `stb_truetype`. No GL, no atlas, no cache — just "what does this glyph
+measure and what does it look like". Called `rgame_typeface` so that the public
+`rgame_font` (4.5) can be the composed, app-bound thing.
+
+```c
+typedef struct rgame_typeface rgame_typeface;
+
+rgame_typeface *rgame_typeface_open(const unsigned char *ttf, size_t length,
+                                    int pixel_height);
+void rgame_typeface_close(rgame_typeface *typeface);
+
+int   rgame_typeface_height(const rgame_typeface *typeface);  /* line height, px */
+float rgame_typeface_ascent(const rgame_typeface *typeface);
+
+/* Metrics and bitmap size for one glyph, without rasterising it. */
+int rgame_typeface_glyph(const rgame_typeface *typeface, int codepoint,
+                         rgame_glyph *out, int *bitmap_w, int *bitmap_h);
+
+/* Rasterises into a caller-provided 8-bit coverage buffer. */
+void rgame_typeface_render(const rgame_typeface *typeface, int codepoint,
+                           unsigned char *out, int stride, int width, int height);
+
+/* Advance from `previous` to `codepoint`, kerning included. 0 for the first. */
+float rgame_typeface_kern(const rgame_typeface *typeface, int previous, int codepoint);
+
+/* One UTF-8 codepoint. Returns 0 at the end or on a malformed sequence. */
+int rgame_utf8_next(const char *text, size_t length, size_t *offset, int *codepoint);
+```
+
+The stb calls behind these are `stbtt_InitFont`, `stbtt_ScaleForPixelHeight`,
+`stbtt_GetFontVMetrics`, `stbtt_GetCodepointHMetrics`,
+`stbtt_GetCodepointKernAdvance`, `stbtt_GetCodepointBitmapBox` and
+`stbtt_MakeCodepointBitmap` — all deterministic, which is what makes the tests
+below assertions rather than approximations.
+
+- **Tests** (`test/test_font.c`), against the shipped Liberation Sans — a real
+  TTF the suite can rely on, which is a side benefit of vendoring it:
+  - line height and ascent are positive, and ascent < height
+  - `i` advances less than `W`; both advance more than zero
+  - a space has an advance but rasterises to an empty box
+  - kerning is applied and is negative for `AV`
+  - a codepoint the font lacks resolves to glyph 0 and still returns *some*
+    advance, rather than a zero-width nothing that silently swallows characters
+  - `ä` (2 bytes), `€` (3) and an emoji (4) decode to the right codepoints
+  - a truncated UTF-8 sequence stops rather than reading past the end — this is
+    the one place in the engine that walks attacker-shaped data, since a string
+    can come from anywhere
+  - the same string measured twice gives the same answer (no accumulated
+    rounding between calls)
+- **Watch**: **`text_width` and the draw path must walk the same function.** If
+  measurement and drawing disagree by a rounding rule, every centred label in
+  the game drifts by a pixel or two and nothing points at why. One
+  `advance`-summing loop, used by both.
+
+### 4.5 `font_atlas.c` + `Core::Font` — the impure quarter
+
+The one file in the text stack that touches GL: it owns the atlas pages
+(`glGenTextures` + `glTexImage2D` of an empty `GL_ALPHA` page, `glTexSubImage2D`
+per glyph), and composes typeface + atlas + cache into the public handle.
+
+```c
+typedef struct rgame_font rgame_font;   /* opaque in core.h */
+
+rgame_font *rgame_font_load(rgame_app *app, const char *path, int pixel_height,
+                            char *err, size_t err_size);
+void  rgame_font_destroy(rgame_font *font);
+int   rgame_font_height(const rgame_font *font);
+float rgame_font_measure(rgame_font *font, const char *utf8, size_t length);
+```
+
+`rgame_font_glyph(font, codepoint, out)` is the internal one that matters: cache
+hit returns immediately; a miss rasterises, places, uploads and inserts. Misses
+happen *during* a frame, which is fine — uploads are immediate and drawing is
+deferred, so the page is complete by the time the frame is submitted.
+
+Ruby side, `font_ext.c` + `lib/rgame/core/font.rb`:
+
+```ruby
+font = RGame::Core::Font.new(app, 18)                       # the shipped font
+font = RGame::Core::Font.new(app, 18, path: 'assets/pixel.ttf')
+font.height        # => 18
+font.text_width('Score: 1200')   # => Float
+```
+
+- **Reuse, do not reinvent**: the app-retain/GL-context-save discipline from
+  3.7–3.9 applies unchanged. A Font marks its app, `rgame_app_gl_make_current`
+  is called *with a save* around every upload, and a Font from another app is
+  refused rather than drawn blank.
+- **Tests**: `spec_core/rgame/core/font_spec.rb` — a font loads at a size and
+  reports it; a missing path raises `Font::LoadError` naming the file; the
+  default needs no path; `text_width` grows with the string and is zero for an
+  empty one; `debug_live_font_pages` returns to its baseline after GC.
+- **Watch**: `Font.new` must work *outside* a frame (a game builds its fonts in
+  `initialize`), which means the load path makes its own context current rather
+  than assuming one. Measuring must work outside a frame too — it touches no
+  GL at all, only metrics.
+
+### 4.6 `Renderer#text` — and the contract
+
+```ruby
+renderer.text(string, x, y, z: 10, color: nil, font: nil)
+renderer.text_width(string, font: nil)
+renderer.text_height(font: nil)
+```
+
+`z: 10` and the method names come straight from `gosu_renderer.rb:120-127`;
+constraint 1 says they survive. `font:` defaults to the renderer's own, which is
+the shipped font at `FONT_SIZE` (18) — created lazily on first use, because
+creating it needs a GL context that does not exist when `Renderer.new` runs.
+`Renderer.new(app, font: my_font)` overrides it.
+
+Drawing walks the string once, emitting one textured quad per glyph from the
+atlas page. Every glyph of one font shares one page until the page fills, so a
+string is one batch — the same property the sprite path already has, for the
+same reason.
+
+- **Tests**: the shared contract in `spec/support/shared_examples/a_renderer.rb`
+  grows `text`, `text_width` and `text_height`, and the recording fake grows
+  them too — per CLAUDE.md, a method added to the real renderer is not done
+  until the contract and the fake have it. Then `spec_core` reads pixels:
+  - text at a known position puts ink there and none well outside it
+  - an empty string draws nothing at all
+  - `color:` tints the glyphs
+  - **the inked extent matches `text_width`** — render a string, scan for the
+    leftmost and rightmost inked columns, and compare. This is the assertion
+    that catches measure and draw disagreeing, which is the failure mode with
+    the longest fuse.
+  - a string with `ä` and `€` draws ink, so the vendored font's coverage is
+    checked by the suite rather than by the earlier cmap analysis alone
+- **Watch**: `text` on the hot path must not allocate per call. Ruby hands the
+  string to C as bytes; the codepoint walk and the glyph lookups happen there.
+  No `each_char`, no `codepoints` array.
+
+### Verification tiers for this phase
+
+- **`make test`** — 4.2, 4.3, 4.4. Most of the phase, and all of the parts that
+  are easy to get subtly wrong.
+- **`rake spec`** — the renderer contract against the fake.
+- **`rake spec:core`** — font loading, and the pixel checks above.
+- **`make run` / `example.rb`** — both drivers get a line of text, including one
+  with accented characters, so a human sees kerning and coverage.
+
+### What phase 4 does not deliver
+
+Markup, bold and italic, multi-line layout, text input, shaping and bidi, and
+any script outside the shipped font's coverage. `SpriteSheet`, `NineSlice` and
+the rest of the Ruby layer are still phase 6 — a widget that centres a label
+will exist then, and `text_width` is the thing it will need.
 
 ---
 

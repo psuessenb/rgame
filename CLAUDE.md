@@ -393,7 +393,7 @@ layers:
 
 1. **Pure logic** — math/state transforms with no SDL, no GL, no I/O:
    transform-stack composition, clip-rect intersection, z-sort/batching,
-   tile-grid slicing, glyph cache eviction, the fixed-timestep accumulator's
+   tile-grid slicing, glyph atlas packing, the fixed-timestep accumulator's
    catch-up/skip decisions, etc. This is most of what's actually hard to get
    right in a 2D engine, and none of it needs a window to test. Give it its
    own small module (`ext/rgame_core/<subsystem>.c` + header) and Check

@@ -10,9 +10,11 @@ Read in order:
 | [00 — Brief and decisions](README.md) *(this file)* | Goal, hard constraints, decisions already taken, open questions |
 | [01 — Inventory](01-inventory.md) | What `lib/platform/` actually is today, every Gosu call it makes, and what each class needs from a C layer |
 | [02 — Target architecture](02-architecture.md) | The shape of `RGame::Core`: module layout, the layers inside the renderer, and the C-vs-Ruby split per class |
-| [03 — Roadmap](03-roadmap.md) | Phased implementation order. Detailed for phases 0–2, deliberately rough after that |
+| [03 — Roadmap](03-roadmap.md) | Phased implementation order. Detailed for phases 0–4 (0–3 implemented), deliberately rough after that |
 
-Nothing in here has been implemented yet. This is a documentation-only pass.
+Phases 0–3 are implemented: the window and loop, input and gamepads, and the
+whole renderer — images, primitives, transforms, clipping and recordings. The
+roadmap's per-step "Landed" notes say where the result differed from the plan.
 
 ---
 
@@ -59,7 +61,7 @@ boundary. It is the *what*; this folder is the *how* and the *in what order*.
 5. **The layering discipline in CLAUDE.md applies to all of it**: pure logic
    first (Check-tested, no SDL/GL), then a recording fake backend, then a thin
    real SDL/GL shim. Most of what is hard in a 2D renderer — z-sorting,
-   transform composition, clip intersection, glyph cache eviction, tile
+   transform composition, clip intersection, glyph atlas packing, tile
    culling — is pure arithmetic and needs no window to test.
 
 ## Decisions already taken
@@ -188,6 +190,62 @@ The RuboCop cop `Game/PreferGosuModuleMethod` becomes obsolete at the same time
 and should be retired with it. The *principle* it enforced — no allocating
 shim on a per-frame path — is preserved structurally rather than by lint.
 
+### The default font is vendored, not looked up
+
+`Gosu::Font.new(18)` needs no path, and constraint 1 says
+`GosuRenderer#initialize`'s signature survives the port — so the new `Font`
+needs a default from somewhere. There were three candidates: ask the operating
+system the way Gosu does, embed a font, or require an explicit path and accept
+the API change.
+
+**How Gosu does it** (read from gosu 1.4.6's sources, not from memory):
+
+- It ships **no font file at all**. `Font.hpp:25` defaults the name to
+  `default_font_name()`, a per-platform constant: `"Liberation Sans"` on
+  Linux/BSD, `"Arial"` on macOS and Windows. Liberation Sans is the Linux choice
+  because it is metric-compatible with Arial, so a layout measured on one
+  platform occupies the same space on the others.
+- Name → file goes through the OS font database, one backend per platform:
+  **fontconfig** on Linux (`TrueTypeFontUnix.cpp`), **CoreText** on macOS,
+  **GDI** on Windows. The gem's `.so` links `libfontconfig` and `libfreetype`.
+- It is not one lookup but a **fallback stack**, walked per glyph
+  (`TrueTypeFont.cpp:237`). On Linux: Arial Unicode MS → DejaVu → Unifont →
+  fontconfig's `sans-serif` match → the hardcoded path
+  `/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf`. A literal
+  Debian path in a cross-platform library is a fair summary of how well this
+  goes.
+- Rasterisation is `stb_truetype`, vendored in the gem's `dependencies/stb` —
+  the same upstream `stb_image.h` came from.
+
+**The decision: vendor Liberation Sans 2.x and do no lookup at all.**
+
+Copying Gosu means three platform backends plus a **fontconfig system
+dependency on Linux** — exactly what `ext/rgame_core/vendor/README.md` credits
+itself with avoiding for PNG ("the only dependency the gem does not have to ask
+for"). The font is the same trade at a comparable size:
+
+| | |
+|---|---|
+| `LiberationSans-Regular.ttf` (Liberation 2.x) | 410 KB — against the 276 KB `stb_image.h` already vendored |
+| Licence | SIL OFL 1.1 (Liberation **1.x** is GPL-2+-with-exception; take 2.x) |
+| Coverage | 2327 codepoints, verified from the cmap |
+
+Coverage was checked rather than assumed: Latin-1 Supplement and Latin
+Extended-A are complete, so English, German, French, Italian, Spanish,
+Portuguese, Nordic and Polish are covered in full, including `ß`, capital `ẞ`,
+`« »`, curly quotes and `€`. Greek and Cyrillic come along too. Not covered:
+CJK, Arabic, Hebrew, Devanagari — no font of this size covers those, DejaVu
+Sans (739 KB) included. A game needing them passes its own font path.
+
+Vendoring also buys something the system lookup structurally cannot: **text
+renders identically on every machine.** Gosu's own five-deep fallback chain is
+the evidence — a UI laid out against one font on the developer's box and
+another on a player's is a layout bug nobody can reproduce.
+
+So `Font.new(app, 18)` uses the shipped font, `Font.new(app, 18, path: '…')`
+loads a file, and there is **no font-name lookup** — "find me something called
+Arial" is not something this engine offers.
+
 ## What is NOT in this repo (and matters)
 
 `lib/platform/` references an `Engine::` namespace that does not exist here:
@@ -215,11 +273,9 @@ free, and it is worth knowing before phase 2 rather than after.
 
 Recorded here rather than guessed at. None of them block phase 0–2.
 
-1. **Default font.** `Gosu::Font.new(18)` with no path picks a system default
-   font. A from-scratch text layer has no such thing. Options: require an
-   explicit TTF path (API change, breaks constraint 1 for `Renderer#initialize`
-   only), embed a small TTF in the extension, or probe fontconfig. See
-   [03, phase 4](03-roadmap.md#phase-4--text).
+1. ~~**Default font.**~~ **Settled — the engine ships a font.** See
+   ["The default font is vendored, not looked up"](#the-default-font-is-vendored-not-looked-up)
+   under decisions already taken.
 2. **Audio dependency.** SDL_mixer gets ogg + looping + `playing?` almost for
    free but adds a system dependency; a hand-rolled mixer over `SDL_audio` +
    `stb_vorbis` adds none but is real work. Recommendation in
