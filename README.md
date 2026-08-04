@@ -31,7 +31,8 @@ z-sorted batching renderer. Text and audio are still ahead. Its C sources build
 two ways from one copy: a standalone binary (`build/rgame`, via the root
 `Makefile`) and the `core_ext` extension (via `extconf.rb`).
 
-There's no `.gemspec` yet — everything is used in place from a checkout.
+Both halves ship as one gem — `rgame.gemspec` builds both extensions — though
+nothing is published yet, so it is installed from a checkout or a built `.gem`.
 
 **[docs/api/](docs/api/README.md) is the reference documentation** for using the
 engine from Ruby: the frame loop, the hooks, input, and the value types. Start
@@ -143,6 +144,33 @@ make ext-core
 ruby ext/rgame_core/example.rb
 ```
 
+## Packaging
+
+Both extensions and the Ruby layer ship as one gem, built from `rgame.gemspec`:
+
+```
+rake build                      # package into pkg/rgame-<version>.gem
+gem install pkg/rgame-0.1.0.gem # compiles both extensions on this machine
+```
+
+`gem install` runs each `extconf.rb` and installs the resulting `.so` into the
+gem's own `lib/rgame/`, which is the same layout `make ext` produces in a
+checkout — so `require "rgame"` and `require "rgame/core"` behave identically
+either way, including the guarantee that the first of those loads no graphics
+libraries. The system dependencies are the same ones the C engine needs
+(SDL2, OpenGL, pkg-config, a compiler); `extconf.rb` aborts with the package to
+install if one is missing, rather than failing later at the link step.
+
+What ships is a glob over `lib/`, `ext/` and `docs/api/`, not a hand-written
+list: a new C source or a runtime asset dropped into either tree is packaged
+without being registered anywhere. `spec/packaging_spec.rb` holds that up from
+the other side — it asserts every source, header and data file is in the gem and
+that no build artifact, spec directory or plan is, so the parts of this that
+would otherwise be a checklist fail the suite instead.
+
+The version is `RGame::VERSION` in [lib/rgame/version.rb](lib/rgame/version.rb).
+Nothing is published to RubyGems.
+
 ## Project structure
 
 The engine C lives under `ext/rgame_core/` — a Ruby C extension directory —
@@ -209,6 +237,8 @@ ext/rgame_util/              RGame::Util — the graphics-free half, so pure-dat
   extconf.rb                 mkmf script; no pkg_config, no -lGL.
 
 lib/rgame.rb                 `require "rgame"` — loads RGame::Util only.
+lib/rgame/version.rb         RGame::VERSION, and nothing else — the gemspec
+                             loads this file before anything is compiled.
 lib/rgame/util.rb            Namespace loader.
 lib/rgame/util/tensor.rb     Requires the compiled rgame/util_ext.
 lib/rgame/util/controls.rb   Input id vocabulary (keys, pad buttons, axes,
@@ -238,10 +268,16 @@ test/                        Check unit tests for the pure C logic (`make test`)
                              that stands in for OpenGL.
 spec/                        Headless RSpec specs: RGame::Util and
                              RGame::Engine (`rake spec`). Never loads SDL.
+  packaging_spec.rb          What the gem ships, asserted against the tree so a
+                             new source or data file cannot be left out of it.
 spec_core/                   RSpec specs for RGame::Core (`rake spec:core`).
                              Opens real windows; boots its own Xvfb.
 docs/                        The feature spec the engine is being built out to.
   api/                       Reference documentation for using it from Ruby.
+
+rgame.gemspec                Packages both halves as one gem: both extconf.rb
+                             files, and a globbed file list so a new source or
+                             asset ships without being listed anywhere.
 ```
 
 Three test suites: `make test` covers the C (Check), `rake spec` the headless
@@ -258,10 +294,9 @@ of its own — `spec:core` boots Xvfb itself. `rake` runs all three.
    graphics-free half.
 3. **Pure-Ruby half** (started) — `lib/` holds the namespace loaders; so far
    the classes underneath them are all C-backed.
-4. **Gem** — not started. Needs a top-level `.gemspec` with
-   `spec.extensions = ["ext/rgame_core/extconf.rb",
-   "ext/rgame_util/extconf.rb"]`, installing both compiled `.so`s into
-   `lib/rgame/` the way `make ext` already does. One gem, both halves.
+4. **Gem** (done) — `rgame.gemspec` packages both halves, building each
+   extension into `lib/rgame/` on install the way `make ext` does in a
+   checkout. Not published to RubyGems.
 
 ## Ruby API
 

@@ -800,10 +800,12 @@ Two vendored things with two different homes, and the difference matters:
   how the second one rots.
 - `ext/rgame_core/vendor/README.md` gets an entry for `stb_truetype.h` and a
   pointer to where the font lives and why it is not here.
-- **Watch**: the font must end up in the gem. Until there is a `.gemspec` this
-  is only a `lib/` path, but note it in the gemspec checklist — a default font
-  that is missing from the packaged gem fails at the first `Font.new`, on
-  someone else's machine.
+- **Handled**: the font ending up in the gem needs no action. `rgame.gemspec`
+  globs `lib/**/*`, so dropping the `.ttf` and its `OFL.txt` into
+  `lib/rgame/fonts/` packages them, and `spec/packaging_spec.rb` asserts that
+  every non-Ruby file under `lib/` is in the gem — the check exists precisely
+  because a missing default font fails at the first `Font.new`, on someone
+  else's machine. Put them in `lib/rgame/fonts/` and the suite covers it.
 
 ### 4.2 `atlas.{c,h}` — where a glyph goes (pure)
 

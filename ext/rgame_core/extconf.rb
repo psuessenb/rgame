@@ -42,7 +42,30 @@ abort 'SDL2 not found (pkg-config --exists sdl2 failed). Install libsdl2-dev.' u
 
 # OpenGL + libm, matching the link line in the root Makefile. append_library
 # adds `-lGL`/`-lm` in the right spot on the link command.
-$libs = append_library($libs, 'GL')
+#
+# Checked rather than assumed, unlike in the root Makefile. This script is what
+# runs on someone else's machine during `gem install`, and a missing OpenGL
+# development package is a routine thing to hit there. Without a check it
+# surfaces as a linker error about an undefined `glClear` at the end of a long
+# build; with one, the install stops on a sentence naming the package to
+# install. Same reasoning as the SDL2 abort above.
+#
+# The header probed is the one the sources actually include — SDL's own
+# <SDL2/SDL_opengl.h>, which resolves to GL/gl.h or OpenGL/gl.h per platform, so
+# probing GL/gl.h directly would ask the wrong question off Linux. It needs
+# SDL's cflags, which pkg_config folded into $CFLAGS just above.
+abort 'SDL2 OpenGL header not found (SDL2/SDL_opengl.h). Install libsdl2-dev.' unless have_header('SDL2/SDL_opengl.h')
+
+# `-lGL` is how OpenGL is linked on Linux and the BSDs; macOS wants
+# `-framework OpenGL` instead. Only the first is implemented — as in the root
+# Makefile, which hardcodes -lGL — so this aborts on a platform it cannot link
+# rather than emitting undefined symbols for every gl* call. have_library
+# appends -lGL to $libs itself when the probe succeeds.
+unless have_library('GL', 'glClear')
+  abort 'OpenGL library not found (-lGL). Install libgl1-mesa-dev. ' \
+        '(macOS needs -framework OpenGL, which is not implemented yet.)'
+end
+
 $libs = append_library($libs, 'm')
 
 # The vendored PNG decoder. stb_image is a single header that becomes an

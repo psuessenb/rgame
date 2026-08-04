@@ -122,8 +122,9 @@ the ones that *do* fit here — fix the code, not the cop.
 Both halves exist. The C engine — window, fixed-timestep loop, input, images
 and a z-sorted batching renderer — is wrapped by `ext/rgame_core/core_ext.c`
 and its per-class siblings, and there's a Ruby half under `lib/` backed by a
-second, graphics-free extension in `ext/rgame_util/`. No `.gemspec` yet —
-everything runs from a checkout.
+second, graphics-free extension in `ext/rgame_util/`. `rgame.gemspec` packages
+both, so the project installs as a gem as well as running from a checkout —
+though nothing is published yet.
 
 The gaps now are text (`Core::Font`), audio, and the whole `RGame::Engine`
 layer: the scene graph a game is actually written against does not exist yet.
@@ -373,9 +374,9 @@ sources go in `ext/rgame_core/`.
   engine). Large surface area, implemented incrementally. Consult it when
   adding a new subsystem rather than guessing scope.
 
-The gem step is still ahead: a top-level `.gemspec` listing *both*
-`extconf.rb` files, installing both `.so`s into `lib/rgame/` the way
-`make ext` already does.
+- `rgame.gemspec` — packages both halves as one gem: both `extconf.rb` files in
+  `spec.extensions`, so `gem install` compiles each and drops its `.so` into
+  `lib/rgame/` exactly where `make ext` puts it. See "Packaging" below.
 
 When adding new engine features, put the implementation in
 `ext/rgame_core/app.c` and extend
@@ -447,10 +448,48 @@ Ruby-side tasks come from the `Rakefile`:
 ```
 rake spec         # headless: RGame::Util + RGame::Engine, no SDL in the process
 rake spec:core    # RGame::Core; opens real windows, boots its own Xvfb
+rake build        # package the gem into pkg/ (from bundler/gem_tasks)
 rake              # make test, then both suites
 ``` Ruby is
 4.0.5, pinned in `.ruby-version` and installed via mise. Requirements are
 listed in README.md.
+
+## Packaging
+
+`rgame.gemspec` ships both halves as one gem. Both `extconf.rb` files are in
+`spec.extensions`, so `gem install` compiles each one and lands its `.so` in
+`lib/rgame/` — the same place `make ext` puts it, which is why nothing about
+the load path changes between a checkout and an installed gem.
+
+**`spec.files` is a glob over whole directories, never a list.** Anything the
+installed gem compiles from or reads at runtime — a new `.c`, a font, any data
+file — must ship, and the failure mode when it doesn't is invisible locally: the
+checkout still has the file, so it only breaks on someone else's machine, at
+`require` time or at the first call that reads it. Dropping a file under `lib/`
+or `ext/` is therefore enough to get it packaged, by design. Do not replace the
+glob with an enumeration, and do not keep a "remember to add it to the gemspec"
+checklist — that is exactly the remembered rule "Design out misuse" rejects.
+
+`spec/packaging_spec.rb` is what makes that safe rather than merely intended. It
+re-derives what must ship from the directory tree and asserts it against the
+gemspec's own derivation, in both directions: every C source and header, every
+`extconf.rb`, everything under `lib/` including non-Ruby data, the vendored
+sources and their licences — and, the other way, that no build artifact, spec
+directory or plan is in the gem. If the two derivations ever disagree, one of
+them is wrong and the suite says which file.
+
+Two exclusions are deliberate and both are asserted:
+
+- **build artifacts** (`lib/rgame/*.so` and friends) — that is *this* machine's
+  binary, and shipping it would shadow the one `gem install` compiles.
+- **`lib/platform/`** — the Gosu-backed code from the game this engine came out
+  of, still in use in the checkout. It could not work in the gem anyway: gosu is
+  not a dependency. When it goes, the exclusion in `rgame.gemspec` and the
+  matching expectation in the packaging spec go with it.
+
+The version lives in `lib/rgame/version.rb` and nothing else may go in that
+file: the gemspec loads it directly, long before either extension is compiled,
+so a require reaching for `rgame/util_ext` there would break `gem build`.
 
 ## Testing
 
@@ -465,9 +504,10 @@ to crash while learning pointers/SDL/GL).
   backends: assert on recorded calls, no display involved). Fast,
   deterministic, expected to pass for every change.
 - `rake spec` — the **headless** RSpec suite in `spec/`, covering
-  `RGame::Util` and `RGame::Engine`. Fast, deterministic, no display, no SDL
-  in the process at all. Requires `make ext-util` first. Expected to pass for
-  every change.
+  `RGame::Util`, `RGame::Engine` and what the gem packages
+  (`spec/packaging_spec.rb`; see "Packaging"). Fast, deterministic, no display,
+  no SDL in the process at all. Requires `make ext-util` first. Expected to pass
+  for every change.
 - `rake spec:core` — the RSpec suite in `spec_core/`, covering
   `RGame::Core`'s Ruby-visible surface: the App lifecycle, `Input`'s binding
   table, hot-plug. Requires `make ext-core`, and boots its own Xvfb, so it

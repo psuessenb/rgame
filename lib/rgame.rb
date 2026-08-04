@@ -11,4 +11,5 @@
 # Keeping graphics off the default require is the whole point of splitting the
 # two extensions: pure-logic code, and the specs that cover it, must be usable
 # with no display and no SDL present.
+require_relative 'rgame/version'
 require_relative 'rgame/util'

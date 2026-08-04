@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+# Packaging tasks from rgame.gemspec: `rake build` (gem into pkg/), plus
+# `install` and `release`. Note `build` only packages sources — the extensions
+# are compiled by `gem install` on the target machine, or by `make ext` here.
+require 'bundler/gem_tasks'
 require 'rspec/core/rake_task'
 
 # Two Ruby spec suites, deliberately two separate processes.

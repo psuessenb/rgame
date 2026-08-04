@@ -43,7 +43,17 @@
       "Bash(sed -n '/^APP_OBJ/,/^CORE_LIB/p' Makefile)",
       "Bash(make ext-core *)",
       "Bash(timeout 600 bundle exec rake)",
-      "Bash(python3 /tmp/claude-1001/mut_rec.py)"
+      "Bash(python3 /tmp/claude-1001/mut_rec.py)",
+      "Bash(bundle install *)",
+      "Read(//home/paul/**)",
+      "Bash(gem build *)",
+      "Bash(gem contents *)",
+      "Bash(tar -xOf rgame-0.1.0.gem data.tar.gz)",
+      "Bash(tar tz *)",
+      "Bash(rake spec *)",
+      "Bash(rake spec:core)",
+      "Bash(rake)",
+      "Bash(rake build *)"
     ]
   }
 }

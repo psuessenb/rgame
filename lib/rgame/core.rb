@@ -8,6 +8,7 @@
 #
 # Its counterpart is RGame::Util (see lib/rgame/util.rb), which stays free of
 # graphics dependencies.
+require_relative 'version'
 require_relative 'core/app'
 require_relative 'core/input'
 require_relative 'core/gamepad'
