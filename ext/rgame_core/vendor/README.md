@@ -35,6 +35,18 @@ No feature macros are set. The defaults are what a glyph atlas wants, and
 `STBTT_STATIC` is deliberately *not* defined so that `font.c` can call into it
 from another translation unit.
 
+## Coming in phase 5
+
+`miniaudio.h` and `stb_vorbis.c` join this directory when audio lands, on the
+same terms and for the same reason — the alternative was SDL_mixer, a system
+dependency that pulls ~8 MB and a MIDI soundfont on Debian. The decision and the
+measurements behind it are in
+[docs/plans/gosu-replacement/README.md](../../../docs/plans/gosu-replacement/README.md#audio-is-vendored-too-and-it-is-not-sdl_mixer).
+
+Note miniaudio is ~4 MB of source, an order of magnitude more than everything
+else here. That is known and accepted; the fallback if it ever stops being worth
+it is MojoAL, which is a tenth the size.
+
 ## How they are built
 
 Each header becomes code in exactly one file, `stb_<name>_impl.c`, which

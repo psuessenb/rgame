@@ -10,11 +10,12 @@ Read in order:
 | [00 — Brief and decisions](README.md) *(this file)* | Goal, hard constraints, decisions already taken, open questions |
 | [01 — Inventory](01-inventory.md) | What `lib/platform/` actually is today, every Gosu call it makes, and what each class needs from a C layer |
 | [02 — Target architecture](02-architecture.md) | The shape of `RGame::Core`: module layout, the layers inside the renderer, and the C-vs-Ruby split per class |
-| [03 — Roadmap](03-roadmap.md) | Phased implementation order. Detailed for phases 0–4 (0–3 implemented), deliberately rough after that |
+| [03 — Roadmap](03-roadmap.md) | Phased implementation order. Detailed for phases 0–5 (0–4 implemented), deliberately rough after that |
 
-Phases 0–3 are implemented: the window and loop, input and gamepads, and the
-whole renderer — images, primitives, transforms, clipping and recordings. The
-roadmap's per-step "Landed" notes say where the result differed from the plan.
+Phases 0–4 are implemented: the window and loop, input and gamepads, the whole
+renderer — images, primitives, transforms, clipping and recordings — and text.
+The roadmap's per-step "Landed" notes say where the result differed from the
+plan.
 
 ---
 
@@ -246,6 +247,86 @@ So `Font.new(app, 18)` uses the shipped font, `Font.new(app, 18, path: '…')`
 loads a file, and there is **no font-name lookup** — "find me something called
 Arial" is not something this engine offers.
 
+### Audio is vendored too, and it is not SDL_mixer
+
+The roadmap originally recommended SDL_mixer "for v1", on the grounds that it
+gives ogg, looping and a playing-query almost free and that audio is not where
+this rewrite's interesting problems are. Both halves of that are true. The
+recommendation was still wrong, and measuring is what showed it.
+
+**What SDL_mixer actually costs.** It is a *system* dependency, needed twice:
+`libsdl2-mixer-dev` to build the gem and `libsdl2-mixer-2.0-0` to run it. On
+this machine `apt install libsdl2-mixer-dev` pulls **~8 MB**, six of which is
+`timgm6mb-soundfont` — a General MIDI instrument bank, because SDL_mixer plays
+MIDI. For an engine that wants to play a few ogg files.
+
+**What everyone else does.** Read from sources, not memory:
+
+| Engine | Device layer | Codecs | New system deps |
+|---|---|---|---|
+| raylib | `miniaudio.h`, vendored | stb_vorbis, dr_wav, dr_mp3, dr_flac — vendored | none |
+| DragonRuby | MojoAL, vendored | stb_vorbis, vendored | none (ships one binary) |
+| Gosu | MojoAL, vendored | SDL_sound, vendored | libvorbis, libsndfile, mpg123 |
+| SFML 3 | `miniaudio.h`, bundled | dr_mp3 bundled; Vorbis/FLAC found by CMake | vorbis, FLAC |
+| Godot | its own ALSA/Pulse/CoreAudio/WASAPI drivers, `dlopen`ed | libogg + libvorbis vendored | none |
+| LÖVE | OpenAL | ModPlug, Vorbis, mpg123 | several |
+| **ruby2d** | **SDL_mixer** | via SDL_mixer | **SDL2 + image + mixer + ttf** |
+
+Nobody in the small-C-engine category uses SDL_mixer. The one that does is
+ruby2d — the closest peer to this project — and the price is visible in its
+`extconf.rb`: a hand-maintained table of package names for yum, pacman, zypper,
+apt and pkg, plus **~20 prebuilt static archives** shipped in the gem for macOS
+and Windows because system libraries are hopeless there. That is the real cost
+of depending on the SDL satellite libraries: either your users fight their
+package manager or you become a distributor of binaries.
+
+**The two finalists, both prototyped and measured** against the whole feature
+set this engine needs — load an ogg, overlapping one-shots, looping music,
+`playing?`, stop, volume:
+
+| | miniaudio + stb_vorbis | MojoAL + stb_vorbis |
+|---|---|---|
+| New system dependencies | **none** | **none** (SDL2 is already required) |
+| Source vendored | 4200 KB | 393 KB |
+| Object code added | 983 KB | 188 KB |
+| Compile time for the vendored TU | 5.5 s | 0.6 s |
+| Links | `libm`, `libc` — ALSA/Pulse are `dlopen`ed | libSDL2, already linked |
+| Glue for the feature set | **149 lines, written and working** | 83 lines *without* streaming or real voice management |
+| Streaming music | free (`MA_SOUND_FLAG_STREAM`) | must be written: queue/unqueue buffers plus a pump |
+| Overlapping one-shots | free | must be written: a voice pool and a stealing policy |
+| Maintenance | active (0.11.25, 2026-03) | active; the `sdl2` branch still gets fixes (2026-04) |
+
+**Decision: miniaudio, with stb_vorbis for ogg.**
+
+The deciding factor is not the table's top half but its bottom. MojoAL is ten
+times smaller and compiles ten times faster, and if that were the whole story it
+would win. But OpenAL hands back exactly the two things the roadmap called "a
+real project on its own": streaming and voice management. Streaming in
+particular needs a pump, and a pump driven from our frame loop turns a slow
+frame into an audio dropout — a quality problem, not a line-count one. miniaudio
+runs its own device thread and gives both away.
+
+Two things worth knowing before implementing:
+
+- **miniaudio does not decode Ogg Vorbis out of the box.** It does wav, mp3 and
+  flac; vorbis needs a custom decoding backend, and miniaudio's own reference
+  one uses *system* libvorbis, which would give the dependency straight back.
+  The 149 lines above are a backend over vendored stb_vorbis instead. It works —
+  one-shots, streaming, looping, `playing?`, stop and volume all verified
+  against a real `.ogg`.
+- **It needs both `onInitFile` and `onInit`.** The low-level `ma_decoder` path
+  uses the first; the high-level `ma_engine` (which is where voices and
+  streaming live) reads through miniaudio's VFS and calls the second, with
+  read/seek callbacks. stb_vorbis has no callback-based open, so `onInit` reads
+  the *compressed* file into memory and uses `stb_vorbis_open_memory`. That is a
+  few MB per music track, not the ~40 MB a full PCM decode would cost.
+
+**What would reverse this**: 983 KB of object code roughly doubles `core_ext.so`
+(761 KB today), and 4 MB of vendored source would be ten times everything else
+vendored here combined. If that weight turns out to matter more than the
+streaming work, MojoAL is the fallback and Gosu and DragonRuby both prove it
+viable. It is a reversible decision — the glue is small on either side.
+
 ## What is NOT in this repo (and matters)
 
 `lib/platform/` references an `Engine::` namespace that does not exist here:
@@ -276,10 +357,9 @@ Recorded here rather than guessed at. None of them block phase 0–2.
 1. ~~**Default font.**~~ **Settled — the engine ships a font.** See
    ["The default font is vendored, not looked up"](#the-default-font-is-vendored-not-looked-up)
    under decisions already taken.
-2. **Audio dependency.** SDL_mixer gets ogg + looping + `playing?` almost for
-   free but adds a system dependency; a hand-rolled mixer over `SDL_audio` +
-   `stb_vorbis` adds none but is real work. Recommendation in
-   [03, phase 5](03-roadmap.md#phase-5--audio).
+2. ~~**Audio dependency.**~~ **Settled — miniaudio, vendored.** See
+   ["Audio is vendored too, and it is not SDL_mixer"](#audio-is-vendored-too-and-it-is-not-sdl_mixer)
+   under decisions already taken.
 3. **Whether `Renderer` stays one class.** Today `GosuRenderer` mixes an
    asset-id registry (Ruby-ish bookkeeping) with draw primitives (C-ish hot
    path). The plan keeps it as one Ruby class delegating to C, but a later

@@ -1,12 +1,14 @@
 # 03 — Roadmap
 
-Detailed for phases 0–4. Phases 5–7 stay deliberately rough: they get
+Detailed for phases 0–5. Phases 6–7 stay deliberately rough: they get
 re-planned once the layer beneath them exists and the shape of the problem is
 concrete rather than imagined. That is what happened to phase 3 — re-written
 from eight bullets into nine landable steps once phase 2 was done and the GL
 situation had been measured rather than assumed — and to phase 4, which stayed
 one paragraph until the default-font question had been answered by reading
-Gosu's sources instead of guessing at them.
+Gosu's sources instead of guessing at them — and to phase 5, which was a
+recommendation for the wrong library until six other engines had been read and
+both alternatives built.
 
 **Phases 0–3 are implemented.** Each of their steps carries a "Landed" note
 recording how the result differed from the sketch; those notes are the useful
@@ -1167,17 +1169,216 @@ will exist then, and `text_width` is the thing it will need.
 stop, and volume (feature spec §3 recommends volume as near-free at mixer
 level; add it now rather than retrofit).
 
-**Recommendation: SDL_mixer for v1.** It gives ogg decode, streaming, looping
-and a playing-query almost for free. The cost is one more system dependency in
-the README's install lists. A hand-rolled mixer over `SDL_audio` +
-`stb_vorbis` adds no dependency but is a real project on its own, and audio is
-not where this rewrite's interesting problems are.
+**Settled: vendor miniaudio, with stb_vorbis for ogg.** Not SDL_mixer, which
+this section used to recommend — see
+["Audio is vendored too, and it is not SDL_mixer"](README.md#audio-is-vendored-too-and-it-is-not-sdl_mixer)
+for the survey of what other engines do and the measurements behind the change.
+The short version: SDL_mixer is a system dependency that pulls 8 MB and a MIDI
+soundfont on Debian, no comparable engine uses it, and the two dependency-free
+finalists were both prototyped. miniaudio won because OpenAL/MojoAL hands back
+streaming and voice management — exactly the "real project on its own" this
+paragraph used to be worried about.
+
+The prototype that settled it is not committed, but everything it established
+is written into 5.2 and 5.5 below — including the two things that would
+otherwise cost a day each: miniaudio cannot read ogg without a backend we write,
+and the whole stack can be tested with no sound card.
 
 Independent of phases 3–4; schedule it wherever convenient.
 
-Fix `SDL_Init`/`SDL_Quit` scoping here — audio wants `SDL_INIT_AUDIO`
-initialised separately from video, and the current per-app `SDL_Quit`
-(`core.c:77`) tears down everything.
+### Decisions to take before writing any of it
+
+- **Audio is not app-bound, and this is the one subsystem that touches neither
+  SDL nor GL.** miniaudio talks to ALSA/PulseAudio/CoreAudio/WASAPI directly,
+  loading them at runtime. So a `Sample` has no GL context to belong to and no
+  window to outlive: it takes an `Audio`, not an `App`, and none of the
+  retain/context-save discipline from 3.7–3.9 applies.
+
+  This also **retires the note that used to be here** about fixing
+  `SDL_Init`/`SDL_Quit` scoping for `SDL_INIT_AUDIO`. There is no
+  `SDL_INIT_AUDIO`: the engine never asks SDL for audio at all. (The scoping
+  itself was already fixed in phase 3.7, by refcounting the app handle.)
+
+- **One `Audio` owns one device.** Not a process-wide global the way Gosu does
+  it. A game makes one; making two is allowed and gives two devices, the same
+  way two `App`s give two windows.
+
+- **`Sample` is decoded, `Song` is streamed.** That is Gosu's split and it maps
+  exactly onto miniaudio's `MA_SOUND_FLAG_STREAM`: a short effect played fifty
+  times a second should be decoded once and kept, and a three-minute track
+  should not become 40 MB of PCM.
+
+- **"One song at a time" is Ruby's policy, not C's.** `Gosu::Song.current_song`
+  is a global the port has to reproduce, but it is bookkeeping, not device
+  management. `Core::Song` stays a plain handle with `play`/`stop`/`playing?`;
+  the registry that stops the previous song is phase 6's `Audio` class. Keeps
+  the C layer free of a global it would otherwise have to own.
+
+- **ogg and wav, nothing else.** mp3 and flac are compiled out
+  (`MA_NO_MP3`, `MA_NO_FLAC`), along with encoding and the waveform generators —
+  measured at **215 KB** of object code saved, and every format left in is
+  another parser reachable from a game's asset files.
+
+- **Volume everywhere it is free**: per `Sample#play`, per `Song`, and a master
+  on `Audio`. Feature spec §3 asks for it and retrofitting it later would touch
+  every signature.
+
+### 5.1 Vendor miniaudio and stb_vorbis, and make a test fixture
+
+Mechanically the same step as 4.1, and it should reuse its machinery: both go in
+`ext/rgame_core/vendor/`, each gets a one-line implementation TU, and both names
+join `VENDOR_OBJS` in the root `Makefile` and `VENDORED_STB` in `extconf.rb` —
+which is exactly the "add a name to two lists" that 4.1's generalised carve-out
+was built for. `stb_vorbis.c` is a `.c` rather than a `.h`, so check the pattern
+rule copes or adjust it once.
+
+Compile flags for the vendored TU, all measured:
+
+```
+-DMA_NO_FLAC -DMA_NO_MP3 -DMA_NO_ENCODING -DMA_NO_GENERATION
+-DMA_ENABLE_ONLY_SPECIFIC_BACKENDS -DMA_ENABLE_ALSA -DMA_ENABLE_PULSEAUDIO -DMA_ENABLE_NULL
+```
+
+`MA_ENABLE_NULL` is not optional — see the test strategy below. Link needs
+`-lpthread` and `-ldl` on Linux/BSD; nothing at all on Windows and macOS.
+
+**The fixture is the awkward part.** The image specs generate PNGs in Ruby with
+`zlib`, and the font tests use the font the engine ships. Neither trick works
+here: there is no Ogg Vorbis encoder in Ruby's stdlib, and stb_vorbis only
+decodes. `libvorbisenc` *is* available as a dev package (verified), so the
+answer is a one-off generator committed as a tool, not as a dependency:
+
+- a small C program under `tools/` that links `libvorbisenc` and writes a
+  couple of seconds of a known waveform to `spec_core/fixtures/tone.ogg`
+- the generated file is committed; the tool is not built by `make`
+- a README line saying how to regenerate it, the way `vendor/README.md` records
+  how to update the stb headers
+
+A WAV fixture needs no such thing — `dr_wav` is in miniaudio and a WAV can be
+written from Ruby in twenty lines, like `PngFixture`.
+
+### 5.2 `vorbis_decoder.{c,h}` — teaching miniaudio to read ogg
+
+miniaudio does **not** decode Ogg Vorbis. It does wav, mp3 and flac; vorbis
+needs a custom decoding backend, and miniaudio's own reference implementation
+uses *system* libvorbis, which would hand back the dependency this whole
+decision was about. So the backend is ours, over vendored stb_vorbis.
+
+This is prototyped and working — roughly 150 lines. What the prototype
+established, and what would otherwise cost a day of confusion:
+
+- **Both `onInitFile` and `onInit` are needed.** `ma_decoder_init_file` uses the
+  first; `ma_engine` — which is where voices and streaming live — reads through
+  miniaudio's VFS and calls the second, with read/seek/tell callbacks. A backend
+  with only `onInitFile` loads through `ma_decoder` and fails through the engine,
+  with `MA_INVALID_FILE` and no hint as to why.
+- **stb_vorbis has no callback-based open.** It offers filename, memory, and a
+  pushdata API. So `onInit` reads the *compressed* file into memory and uses
+  `stb_vorbis_open_memory` — a few MB per track, against the ~40 MB a full PCM
+  decode of a three-minute song would cost. Those bytes must outlive the
+  `stb_vorbis` handle, so the data source owns them and frees them in `uninit`.
+- The data-source vtable needs `onRead`, `onSeek`, `onGetDataFormat`,
+  `onGetCursor` and `onGetLength`. Format is `ma_format_f32` via
+  `stb_vorbis_get_samples_float_interleaved`.
+
+- **Tests** (`test/test_vorbis_decoder.c`): the fixture decodes to the expected
+  channel count, sample rate and frame count; reading returns PCM and then
+  reports the end; seeking to the start and re-reading gives the same first
+  frames; a truncated or garbage file is refused rather than crashing; a file
+  that is not there is refused. Run under the sanitizers like everything else —
+  this is the one part of the audio stack parsing untrusted bytes.
+
+### 5.3 `audio.{c,h}` — the device, and the two handles
+
+```c
+typedef struct rgame_audio rgame_audio;   /* one device + engine */
+typedef struct rgame_sound rgame_sound;   /* one Sample or Song */
+
+rgame_audio *rgame_audio_create(char *err, size_t err_size);
+void  rgame_audio_destroy(rgame_audio *audio);
+void  rgame_audio_set_volume(rgame_audio *audio, float volume);
+
+/* Decoded up front and playable many times over, overlapping. */
+rgame_sound *rgame_sound_load(rgame_audio *audio, const char *path, char *err, size_t n);
+/* Streamed from disk, for music. */
+rgame_sound *rgame_sound_stream(rgame_audio *audio, const char *path, char *err, size_t n);
+void rgame_sound_destroy(rgame_sound *sound);
+
+void rgame_sound_play(rgame_sound *sound, float volume, int looping);
+void rgame_sound_stop(rgame_sound *sound);
+int  rgame_sound_playing(const rgame_sound *sound);
+```
+
+One wrinkle worth deciding here rather than discovering: a **decoded** sample
+played twice while the first is still sounding needs two voices, and a
+`ma_sound` is one voice. miniaudio's answer is `ma_engine_play_sound`, which
+spawns a fire-and-forget voice from the resource manager and cleans it up
+itself — verified in the prototype with eight overlapping one-shots. So
+`rgame_sound_play` on a loaded sample goes through the engine's
+fire-and-forget path, while a streamed song owns a persistent `ma_sound` it can
+be asked about and told to stop. That asymmetry is the reason the two are
+loaded by different functions even though they share a handle type.
+
+### 5.4 `Core::Audio`, `Core::Sample`, `Core::Song`
+
+```ruby
+audio  = RGame::Core::Audio.new
+audio.volume = 0.8
+
+hit    = RGame::Core::Sample.new(audio, 'assets/hit.ogg')
+hit.play(volume: 0.5)
+
+music  = RGame::Core::Song.new(audio, 'assets/theme.ogg')
+music.play(looping: true)
+music.playing?
+music.stop
+```
+
+`Sample` and `Song` are one C class each over `rgame_sound`, differing only in
+which loader they call — the same shape as `Image` and its views. `LoadError`
+per class, named after the file, like `Image::LoadError` and `Font::LoadError`.
+
+A `Sample`/`Song` marks its `Audio` so the device outlives it. No GL context
+save/restore, no app retain: there is no context.
+
+- **Tests**: `spec_core/rgame/core/audio_spec.rb`. Loading a missing or
+  malformed file raises; a loaded sample plays without a device present; a song
+  reports `playing?` true after `play` and false after `stop`; volume out of
+  range is clamped or refused (decide, then test it); `debug_live_sounds`
+  returns to baseline after GC, like `Image.debug_live_textures`.
+
+### 5.5 The audio contract, the fake, and where the tests run
+
+The engine layer reaches audio the same way it reaches drawing — by method name
+on an object handed to it — so audio gets the same treatment as the renderer:
+`spec/support/shared_examples/an_audio_server.rb`, a `FakeAudio` in `spec/`, and
+both run against it. Per CLAUDE.md a method added to the real one is not done
+until the contract and the fake have it too.
+
+**The test strategy is unusually good here, and it is worth knowing why.**
+miniaudio ships a **null backend** — a device that consumes frames on a timer
+and produces silence. Verified: with `ma_backend_null` forced, loading,
+overlapping one-shots, streaming, looping, `playing?` and `stop` all behave
+correctly. So:
+
+- the real audio stack can be exercised **with no sound card**, which makes it
+  layer 2 in CLAUDE.md's scheme — a fake backend, exactly like
+  `recording_backend.c` for drawing, except that this one comes with the library
+- `make test` can therefore cover real loading and playback, not just
+  arithmetic, and CI needs no audio device
+- `rake spec:core` gets the Ruby-visible surface, again with no device
+
+One caveat to design around: with the null backend a sound "plays" against a
+simulated clock, so a test that waits for a short sample to *finish* is timing
+dependent. Assert on the transitions the caller controls — play makes it
+playing, stop makes it stopped — and not on natural completion.
+
+### What phase 5 does not deliver
+
+Positional or 3D audio (miniaudio has it; nothing in the feature spec asks for
+it), effects and filters, fade in/out, mp3 and flac, and the play-by-id registry
+— that last one is `GosuAudio`'s job and lands in phase 6 along with the rest of
+the Ruby layer.
 
 ---
 
