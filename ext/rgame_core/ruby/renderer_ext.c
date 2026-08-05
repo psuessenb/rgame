@@ -250,6 +250,12 @@ static VALUE renderer_draw_text(int argc, VALUE *argv, VALUE self) {
 
     VALUE font = argv[0];
     VALUE string = argv[1];
+    /* RSTRING_PTR on a non-String reads whatever the object's second word
+     * happens to be and hands it to C as a char* — a segfault, not an
+     * exception. Everything else here goes through NUM2DBL or an unwrap, which
+     * type-check on the way; this is the one argument that has to say so.
+     * StringValue converts what can convert and raises TypeError otherwise. */
+    StringValue(string);
     const char *text = RSTRING_PTR(string);
     long length = RSTRING_LEN(string);
 

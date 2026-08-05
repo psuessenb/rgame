@@ -11,6 +11,7 @@ an image is a GPU handle. Game logic names them by id and never holds one — se
 | Page section | Class |
 |---|---|
 | [Sprite sheets](#sprite-sheets) | `RGame::Core::SpriteSheet` |
+| [Nine-slices](#nine-slices) | `RGame::Core::NineSlice` |
 
 *This page grows as the rest lands.*
 
@@ -113,3 +114,71 @@ RGame::Core::SpriteSheet.new(image, atlas) # from an already-loaded image
 Use `.load` for a game with a sheet or two and no asset manager. The asset
 manager uses the second form, with an image it has already cached, so a sheet's
 PNG is shared with a standalone load of the same file rather than decoded twice.
+
+## Nine-slices
+
+A bordered texture drawn at any size, by cutting it into nine pieces and
+treating each differently.
+
+```ruby
+panel = RGame::Core::NineSlice.new(image, x: 0, y: 0, w: 26, h: 28,
+                                   border: 7, scale: 3)
+
+panel.draw(renderer, x, y, width, height, z: 0, color: nil)
+```
+
+```
+  ┌──┬────────┬──┐   corners: fixed size
+  │tl│  top   │tr│   top / bottom: tiled across
+  ├──┼────────┼──┤   left / right: tiled down
+  │l │ centre │ r│   centre: tiled both ways
+  ├──┼────────┼──┤
+  │bl│ bottom │br│
+  └──┴────────┴──┘
+```
+
+One small piece of art fills a button, a dialog or a health bar of any size,
+without the corners smearing.
+
+`(x, y, w, h)` is the source rectangle **inside** the image, so one sheet can
+hold many of them — which is what a UI atlas does with it.
+
+### Tiled, not stretched
+
+Edges and the centre **repeat**. Stretching a 7-pixel motif would blur exactly
+the detail the art was drawn for; repeating it keeps pixel art crisp at every
+widget size. Each band is clipped to itself, so the last tile in a row is
+cropped cleanly rather than spilling into the corner beside it — and the loops
+always start one more tile rather than stopping short, because a gap at the seam
+is more visible than an overhang that gets cropped.
+
+### `border` and `scale`
+
+`border` is either a uniform integer or a hash:
+
+```ruby
+border: 7
+border: { left: 2, right: 6, top: 4, bottom: 4 }
+```
+
+`scale` is an **integer pixel scale for the chrome itself**. Source art is
+small — corners are often 7 pixels — so a scale of 2 or 3 gives legible borders
+on a 640x480 screen with no blurring at all, because every source pixel becomes
+a whole square of screen pixels. It scales the pieces *and* the step between
+tiles, so the tiling stays seamless.
+
+### Edge cases, and what they do
+
+| | |
+|---|---|
+| A rectangle smaller than its own borders | draws its corners and no bands |
+| A border with no room for a centre (`left + right == w`) | fine — a bar that stretches only vertically |
+| Borders wider than the source rect | `ArgumentError`, naming the borders and the rect |
+| `scale` of zero or less | `ArgumentError` — the tiling loop would never advance |
+
+### What it costs
+
+The nine pieces are cut once at construction, as views onto the one upload, so
+`#draw` allocates nothing. It issues one call per tile, which is what makes
+`scale` worth having: a panel drawn at 3x is a ninth of the tiles of the same
+panel drawn at 1x.

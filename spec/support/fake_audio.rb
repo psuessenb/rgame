@@ -18,8 +18,8 @@
 # subsystem — a spec never has to hold on to the individual sounds to find out
 # what happened to them.
 #
-# Paths are opaque. The fake never opens one, so a spec can use whatever names
-# its assertions read best with, `:hit` as readily as 'assets/hit.ogg'.
+# Paths are opaque but must be Strings — the fake never opens one, so any name
+# will do, and `nil` is refused because the real loader refuses it too.
 #
 # It is checked against the same shared contract as the real device (see
 # fake_audio_spec.rb). If the two drift, `rake spec` would stay green while the
@@ -49,12 +49,12 @@ class FakeAudio
   end
 
   def sample(path)
-    remember(:sample, path, [])
+    remember(:sample, FakeAudio.path(path), [])
     FakeSample.new(self, path)
   end
 
   def song(path)
-    remember(:song, path, [])
+    remember(:song, FakeAudio.path(path), [])
     FakeSong.new(self, path)
   end
 
@@ -79,7 +79,27 @@ class FakeAudio
   # Negative volumes clamp to silence and volumes above one are allowed, the
   # same way the real mixer treats them — see the 'an audio server' contract for
   # why. Shared by the device and both kinds of sound.
-  def self.clamp(value) = value.negative? ? 0.0 : value
+  #
+  # The type check is not incidental. The real device's volume crosses into C
+  # through NUM2DBL, which raises TypeError on anything that is not a number;
+  # without this, `audio.volume = @config[:volume]` with a missing key would
+  # pass a headless spec and raise in the game. See CLAUDE.md, "A fake must
+  # refuse what the real thing refuses".
+  def self.clamp(value)
+    raise TypeError, "no implicit conversion of #{value.class} into Float" unless value.is_a?(Numeric)
+
+    value.negative? ? 0.0 : value
+  end
+
+  # Paths reach the real loader through StringValueCStr, so nil — an asset that
+  # failed to resolve — is a TypeError there and has to be one here. What the
+  # path *names* is not checked: the fake opens nothing, so any String will do,
+  # which is what lets a spec use whatever reads best.
+  def self.path(value)
+    raise TypeError, "no implicit conversion of #{value.class} into String" unless value.is_a?(String)
+
+    value
+  end
 
   def remember(name, path, args)
     @calls << Call.new(name, path, args)

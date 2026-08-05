@@ -26,7 +26,18 @@ class StubImage
     @parent = parent
   end
 
+  # Refuses exactly what RGame::Core::Image#subimage refuses, and with the same
+  # message. A stand-in that is *more* permissive than the real thing is the
+  # drift this whole fake-checking discipline exists to prevent: a guard written
+  # because the real image raises would go untested against a stub that does
+  # not, and the failure would surface in a game rather than in a spec.
   def subimage(x, y, width, height)
+    if width <= 0 || height <= 0 || x.negative? || y.negative? ||
+       x + width > @width || y + height > @height
+      raise ArgumentError,
+            "subimage #{x},#{y} #{width}x#{height} does not fit in a #{@width}x#{@height} image"
+    end
+
     StubImage.new(width, height, region: [x, y, width, height], parent: self)
   end
 

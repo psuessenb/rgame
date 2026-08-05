@@ -37,50 +37,102 @@ class FakeRenderer
     @recording = nil
   end
 
+  # --- refusing what the real renderer refuses ------------------------------
+  #
+  # The real renderer's arguments cross into C through NUM2DBL, StringValue and
+  # an Image unwrap, every one of which raises TypeError on the wrong kind of
+  # object. A fake that accepted them would let `renderer.text(nil, x, y)` — a
+  # label that was never set, an i18n lookup that missed — pass a headless spec
+  # and then raise in the game. See CLAUDE.md, "A fake must refuse what the real
+  # thing refuses".
+  #
+  # These validate without converting: the recorded call keeps exactly what the
+  # caller passed, so assertions read as written.
+
+  def number(value)
+    raise TypeError, "no implicit conversion of #{value.class} into Float" unless value.is_a?(Numeric)
+
+    value
+  end
+
+  def string(value)
+    raise TypeError, "no implicit conversion of #{value.class} into String" unless value.is_a?(String)
+
+    value
+  end
+
+  # The one place the fake cannot match the real thing: it never looks at an
+  # image, so anything non-nil has to be acceptable — a Symbol, a StubImage,
+  # whatever a spec finds readable. `nil` is refused because that is the
+  # realistic bug: an asset that failed to resolve.
+  def image_arg(value)
+    raise TypeError, 'no implicit conversion of nil into Image' if value.nil?
+
+    value
+  end
+
+  # Runs the *same* coercion the real renderer runs, so the two cannot disagree
+  # about what a colour is, then records what the caller actually passed.
+  def color_arg(value)
+    RGame::Util::Color.coerce(value)
+    value
+  end
+
   # --- shapes -------------------------------------------------------------
 
   def rect(x, y, width, height, z: 50, color: nil)
-    remember(:rect, [x, y, width, height], z: z, color: color)
+    remember(:rect, [number(x), number(y), number(width), number(height)],
+             z: number(z), color: color_arg(color))
   end
 
   def quad(x1, y1, x2, y2, x3, y3, x4, y4, z: 50, color: nil)
-    remember(:quad, [x1, y1, x2, y2, x3, y3, x4, y4], z: z, color: color)
+    remember(:quad, [number(x1), number(y1), number(x2), number(y2),
+                     number(x3), number(y3), number(x4), number(y4)],
+             z: number(z), color: color_arg(color))
   end
 
   def triangle(x1, y1, x2, y2, x3, y3, z: 50, color: nil)
-    remember(:triangle, [x1, y1, x2, y2, x3, y3], z: z, color: color)
+    remember(:triangle, [number(x1), number(y1), number(x2), number(y2), number(x3), number(y3)],
+             z: number(z), color: color_arg(color))
   end
 
   def line(x1, y1, x2, y2, thickness: 1.0, z: 50, color: nil)
-    remember(:line, [x1, y1, x2, y2], thickness: thickness, z: z, color: color)
+    remember(:line, [number(x1), number(y1), number(x2), number(y2)],
+             thickness: number(thickness), z: number(z), color: color_arg(color))
   end
 
   def circle(cx, cy, radius, z: 50, color: nil, segments: 64)
-    remember(:circle, [cx, cy, radius], z: z, color: color, segments: segments)
+    remember(:circle, [number(cx), number(cy), number(radius)],
+             z: number(z), color: color_arg(color), segments: number(segments))
   end
 
   def debug_box(x, y, width, height, z: 50)
-    remember(:debug_box, [x, y, width, height], z: z)
+    remember(:debug_box, [number(x), number(y), number(width), number(height)], z: number(z))
   end
 
   # --- images -------------------------------------------------------------
 
   def image(image, cx, cy, angle: 0, scale: 1, z: 0, color: nil)
-    remember(:image, [image, cx, cy], angle: angle, scale: scale, z: z, color: color)
+    remember(:image, [image_arg(image), number(cx), number(cy)],
+             angle: number(angle), scale: number(scale), z: number(z), color: color_arg(color))
   end
 
   def image_at(image, x, y, scale_x: 1, scale_y: 1, z: 0, color: nil)
-    remember(:image_at, [image, x, y], scale_x: scale_x, scale_y: scale_y, z: z, color: color)
+    remember(:image_at, [image_arg(image), number(x), number(y)],
+             scale_x: number(scale_x), scale_y: number(scale_y), z: number(z),
+             color: color_arg(color))
   end
 
   def background(image, x = 0, y = 0, z: 0, color: nil)
-    remember(:background, [image, x, y], z: z, color: color)
+    remember(:background, [image_arg(image), number(x), number(y)],
+             z: number(z), color: color_arg(color))
   end
 
   # --- text ---------------------------------------------------------------
 
   def text(string, x, y, z: 10, color: nil, font: nil)
-    remember(:text, [string, x, y], z: z, color: color, font: font)
+    remember(:text, [string(string), number(x), number(y)],
+             z: number(z), color: color_arg(color), font: font)
   end
 
   # Stand-in metrics. They are not the real font's — a fake has no glyphs — but
@@ -96,7 +148,7 @@ class FakeRenderer
 
   def text_width(string, font: nil)
     _ = font
-    string.length * CHARACTER_WIDTH
+    string(string).length * CHARACTER_WIDTH
   end
 
   def text_height(font: nil)
@@ -124,15 +176,20 @@ class FakeRenderer
 
   # --- transform blocks ---------------------------------------------------
 
-  def rotated(angle, pivot_x, pivot_y, &) = within(:rotated, [angle, pivot_x, pivot_y], &)
-  def translated(dx, dy, &) = within(:translated, [dx, dy], &)
-  def scaled(sx, sy = sx, &) = within(:scaled, [sx, sy], &)
+  def rotated(angle, pivot_x, pivot_y, &)
+    within(:rotated, [number(angle), number(pivot_x), number(pivot_y)], &)
+  end
+
+  def translated(dx, dy, &) = within(:translated, [number(dx), number(dy)], &)
+  def scaled(sx, sy = sx, &) = within(:scaled, [number(sx), number(sy)], &)
 
   def clipped(x, y, width, height, &)
     # The real renderer cannot bake a clip — clipping happens when pixels are
     # rasterised — so neither may this, or a scene would pass its specs and
     # then raise in the game.
     raise 'a clip cannot be recorded — wrap the replay in #clipped instead' if @recording
+
+    [x, y, width, height].each { |value| number(value) }
 
     within(:clipped, [x, y, width, height], &)
   end

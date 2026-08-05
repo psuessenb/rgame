@@ -120,6 +120,43 @@ RSpec.shared_examples 'a renderer' do
     end
   end
 
+  # Every example here was a real difference between the fake and the live
+  # renderer, found by calling the same bad input on both. They are in the
+  # contract rather than in either spec because that is the only place that
+  # keeps them from drifting apart again — see CLAUDE.md, "A fake must refuse
+  # what the real thing refuses".
+  describe 'arguments it refuses' do
+    it 'refuses a coordinate that is not a number' do
+      expect { render { |renderer, _image| renderer.rect(nil, 0, 1, 1) } }.to raise_error(TypeError)
+    end
+
+    it 'refuses a label that is not a String' do
+      # The realistic version of this is an unset label or a translation lookup
+      # that missed, and it used to segfault the process rather than raise.
+      expect { render { |renderer, _image| renderer.text(nil, 0, 0) } }.to raise_error(TypeError)
+    end
+
+    it 'refuses to measure a label that is not a String' do
+      expect { render { |renderer, _image| renderer.text_width(nil) } }.to raise_error(TypeError)
+    end
+
+    it 'refuses a nil image' do
+      # An asset that failed to resolve. Anything non-nil is accepted, because
+      # the fake has no way to know what an image is.
+      expect { render { |renderer, _image| renderer.background(nil) } }.to raise_error(TypeError)
+    end
+
+    it 'refuses a colour that is not one' do
+      expect { render { |renderer, _image| renderer.rect(0, 0, 1, 1, color: :red) } }
+        .to raise_error(TypeError)
+    end
+
+    it 'refuses a colour with too few components' do
+      expect { render { |renderer, _image| renderer.rect(0, 0, 1, 1, color: [1, 2]) } }
+        .to raise_error(ArgumentError)
+    end
+  end
+
   describe 'text' do
     it 'draws a line of text at a position' do
       expect { render { |renderer, _image, _font| renderer.text('Score: 1200', 10, 20) } }

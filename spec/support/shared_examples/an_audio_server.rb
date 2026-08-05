@@ -79,6 +79,27 @@ RSpec.shared_examples 'an audio server' do
     end
   end
 
+  # As with the renderer contract: each of these was a real difference between
+  # FakeAudio and the live device, and the contract is what stops them drifting
+  # apart again.
+  describe 'arguments it refuses' do
+    it 'refuses a volume that is not a number' do
+      # `audio.volume = settings[:volume]` with a missing key.
+      with_audio { |audio, _path| expect { audio.volume = nil }.to raise_error(TypeError) }
+    end
+
+    it 'refuses a nil path' do
+      with_audio { |audio, _path| expect { audio.sample(nil) }.to raise_error(TypeError) }
+      with_audio { |audio, _path| expect { audio.song(nil) }.to raise_error(TypeError) }
+    end
+
+    it 'refuses a volume that is not a number on a sound' do
+      with_audio do |audio, path|
+        expect { audio.sample(path).volume = nil }.to raise_error(TypeError)
+      end
+    end
+  end
+
   describe 'samples' do
     it 'loads one from the device' do
       with_audio { |audio, path| expect(audio.sample(path)).to respond_to(:play) }

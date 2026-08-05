@@ -1949,6 +1949,74 @@ than a negative-width one.
   checkable, which is the bug this class would otherwise ship silently.
 - **Verify**: `rake spec:core`, RuboCop.
 
+**Landed.** `lib/rgame/core/nine_slice.rb`, 23 examples, all but one against
+`StubImage` + `FakeRenderer`. The three substitutions were mechanical; what took
+the thinking was everywhere Core is *stricter* than Gosu was.
+
+- **`Image#subimage` refuses a zero-size rect, and Gosu did not.** A slice whose
+  borders exactly meet — `left 4 + right 4` in an 8-wide rect — is a legitimate
+  three-slice that stretches only vertically, and a naive port raises on it at
+  construction. Pieces with no pixels are now simply not cut, and never drawn.
+  Borders *wider* than the source rect are the genuinely malformed case and
+  raise, naming both.
+- **`scale` must be positive.** At zero every tile's step is zero pixels and the
+  tiling loops never advance — a hang, which is the worst failure mode
+  available. Refused at construction rather than guarded per tile, per widget,
+  per frame.
+- **`border` normalisation moved down from `UiAtlas`.** A bare integer failed as
+  `7[:left]`, which names nothing in the caller's code, so `NineSlice.new(…,
+  border: 7)` now works on its own. 6.4 passes the descriptor's value straight
+  through.
+
+**Two mutation survivors, handled differently.**
+
+The negative-inner clamp (`inner_w = 0 if inner_w.negative?`) turned out to be
+**dead code** — `band` already refuses a non-positive size, so no input can
+distinguish the two. Deleted, with a comment at the subtraction saying where the
+case is actually handled. It was equally dead in the Gosu original.
+
+The other one mattered more: removing the zero-size guard in `cut` changed
+nothing, because **`StubImage` was more permissive than the real `Image`**. That
+is precisely the drift the fake-checking discipline exists to catch, one level
+down: a guard written because the real thing raises went untested against a stub
+that did not. `StubImage#subimage` now refuses exactly what
+`RGame::Core::Image#subimage` refuses, with the same message, and the guard is
+covered. Worth remembering for 6.4 and 6.5 — **a stub that only says yes tests
+nothing about the paths that exist because the real one says no.**
+
+The remaining mutations all die: bands drawn at the wrong edge (1 failure each
+for bottom and right), no clip on the bands (2), scale ignored in the tile step
+(1), tiling that stops short of the seam (2), far corners placed at the edge
+(3), corners drawn before the bands (2), no border-fit check (1).
+
+**Out of that survivor came a sweep of every fake, and a segfault.** The
+`StubImage` finding generalises — *a fake that only ever says yes tests nothing
+about the paths that exist because the real one says no* — so both existing
+fakes were compared against their real counterparts by **running** the same bad
+inputs on each and diffing the exception classes. Ten differences, in three
+groups:
+
+- **Argument types the fake accepted and C does not** — a non-numeric
+  coordinate, a label that is not a String, a nil image, a colour that is not
+  one. `FakeRenderer` and `FakeAudio` now check these, validating without
+  converting so recorded calls still read as written, and colours go through the
+  *same* `Color.coerce` the real renderer uses rather than a second imitation of
+  it.
+- **A real bug.** `renderer.text(nil, x, y)` reached `RSTRING_PTR` with no type
+  check and **segfaulted** — as did `Font#text_width(nil)`. Both now
+  `StringValue` first and raise `TypeError`. The realistic caller is an unset
+  label or a translation lookup that missed, so this was reachable from ordinary
+  game code.
+- **One documented difference**: `FakeRecording` does not refuse `.new` the way
+  the real `Recording` does, because nothing a scene writes constructs one.
+  Noted at the class rather than fixed.
+
+Six examples went into the renderer contract and three into the audio one, under
+"arguments it refuses" — not into either fake's own spec, because the contract
+is the only place that keeps the two from drifting apart again. Removing the new
+checks fails 9 headless examples. The practice is written up in CLAUDE.md under
+"A fake must refuse what the real thing refuses".
+
 ### 6.4 `Core::UiAtlas`
 
 ```ruby

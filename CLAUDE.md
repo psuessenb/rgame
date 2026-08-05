@@ -658,6 +658,51 @@ has finished. Playback runs against a clock in both implementations, so
 "is it still playing a moment later" has no stable answer, and only the
 transitions a caller controls are stated.
 
+### A fake must refuse what the real thing refuses
+
+The rule above is about methods that exist. This one is about the calls that
+must **fail**, and it is the half that is easy to miss — a fake is written by
+listing what a caller does, and a caller does not ordinarily pass `nil`.
+
+> **A fake that only ever says yes tests nothing about the paths that exist
+> because the real one says no.**
+
+The failure is specific and nasty: a guard is written in the real code *because*
+the real thing raises, a spec is written against the fake, the spec passes
+whether or not the guard is there, and the mutation that deletes the guard
+survives. That is exactly how it was found — a `NineSlice` guard against
+zero-size sub-images looked untested because `StubImage#subimage` accepted what
+`Image#subimage` rejects.
+
+So, whenever a fake is written or a real method grows a `raise`:
+
+1. **Compare them by running them.** Call the same bad input on both and diff
+   the exception classes. Reading the code finds the refusals you remembered to
+   write; running it finds the ones you did not. Doing this over the renderer
+   and audio surfaces turned up **ten** differences, one of which was a
+   *segfault* in the real code (`renderer.text(nil, …)` reached `RSTRING_PTR`
+   without a type check).
+2. **Put the refusal in the contract, not just in the fake.** A patched fake
+   drifts again; a contract example runs against both. `spec/support/shared_examples/`
+   has an "arguments it refuses" section for exactly this.
+3. **Match on argument-shape refusals; document the rest.** A fake can check
+   that a coordinate is a number and a label is a String — the real ones cross
+   into C through `NUM2DBL` and `StringValue`, which raise `TypeError`. It
+   cannot check that a file exists or that an image belongs to this app. Where
+   it cannot, say so at the code and name the tier that does cover it. Two
+   worked examples: `FakeRenderer#image_arg` refuses only `nil`, because a fake
+   never looks at an image; `FakeRecording` documents that it does not refuse
+   `.new` the way the real `Recording` does, because no scene ever calls it.
+4. **Validate without converting.** The real binding converts (`NUM2DBL`); the
+   fake should check and then record what the caller actually passed, so
+   assertions read as written. Where a coercion is pure Ruby — colours go
+   through `RGame::Util::Color.coerce` — the fake calls *the same function*,
+   which is better than matching its behaviour.
+
+`spec_core/support/stub_image.rb` is the smallest example of all of this: it
+refuses exactly what `RGame::Core::Image#subimage` refuses, with the same
+message, and says in its own comment why that matters.
+
 ### Platform support
 
 The automated tiers are Linux-first today. `make test` is portable; the

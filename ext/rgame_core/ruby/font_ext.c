@@ -112,6 +112,10 @@ static VALUE font_height(VALUE self) {
 static VALUE font_text_width(VALUE self, VALUE string) {
     rgame_font_ref *ref = font_unwrap(self);
 
+    /* Raises TypeError rather than letting RSTRING_PTR read a non-String's
+     * innards as a char*, which segfaults. See renderer_ext.c's #draw_text. */
+    StringValue(string);
+
     /* The bytes as Ruby holds them. No copy, no per-call allocation, and the
      * codepoint walk happens in C where it costs nothing. */
     const char *text = RSTRING_PTR(string);
