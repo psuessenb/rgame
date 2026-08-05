@@ -119,18 +119,19 @@ the ones that *do* fit here — fix the code, not the cop.
 
 ## Current phase
 
-Both halves exist. The C engine — window, fixed-timestep loop, input, images
-and a z-sorted batching renderer — is wrapped by `ext/rgame_core/core_ext.c`
-and its per-class siblings, and there's a Ruby half under `lib/` backed by a
-second, graphics-free extension in `ext/rgame_util/`. `rgame.gemspec` packages
-both, so the project installs as a gem as well as running from a checkout —
-though nothing is published yet.
+Both halves exist. The C engine — window, fixed-timestep loop, input, images, a
+z-sorted batching renderer, text, and audio — is wrapped by
+`ext/rgame_core/core_ext.c` and its per-class siblings, and there's a Ruby half
+under `lib/` backed by a second, graphics-free extension in `ext/rgame_util/`.
+`rgame.gemspec` packages both, so the project installs as a gem as well as
+running from a checkout — though nothing is published yet.
 
-The gaps now are text (`Core::Font`), audio, and the whole `RGame::Engine`
-layer: the scene graph a game is actually written against does not exist yet.
-When adding a feature, the default is still to build it in C under
-`ext/rgame_core/` and only extend the Ruby wrapper once the C API for it is
-settled — unless it is engine-layer work, which is pure Ruby by definition.
+The gap now is the whole `RGame::Engine` layer: the scene graph a game is
+actually written against does not exist yet. What remains after that is porting
+`lib/platform/` off Gosu and deleting it. When adding a feature, the default is
+still to build it in C under `ext/rgame_core/` and only extend the Ruby wrapper
+once the C API for it is settled — unless it is engine-layer work, which is pure
+Ruby by definition.
 
 ## The Core / Util split
 
@@ -307,13 +308,18 @@ sources go in `ext/rgame_core/`.
 - `ext/rgame_core/image.c` — layer 3 for images: read the file, `stbi_load`,
   `glTexImage2D`, `GL_NEAREST`. Kept dumb on purpose; the interesting parts are
   in `texture.c` above. Covered end to end by `spec_core/rgame/core/image_spec.rb`.
-- `ext/rgame_core/vendor/` + `stb_image_impl.c` + `stb_truetype_impl.c` — the
-  vendored PNG decoder and TrueType rasteriser, and the one translation unit
-  each that instantiates them. **The only files in the project compiled without
-  `-Wall -Wextra`**, carved out from a single list in both `extconf.rb` and the
-  root `Makefile` so everything we wrote stays warning-clean. The default font
-  is *not* here: it is runtime data and lives in `lib/rgame/fonts/`. See
-  `ext/rgame_core/vendor/README.md`.
+- `ext/rgame_core/vendor/` + one `<name>_impl.c` per library — the vendored
+  PNG decoder, TrueType rasteriser, Ogg Vorbis decoder and audio device library,
+  and the single translation unit each that instantiates it and picks its
+  features. **The only files in the project compiled without `-Wall -Wextra`**,
+  and the `_impl.c` suffix is what selects that, from one list in both
+  `extconf.rb` and the root `Makefile`. Feature macros live in the `_impl.c`
+  rather than in build flags, so the standalone binary and the gem cannot end up
+  supporting different formats. The default font is *not* here: it is runtime
+  data and lives in `lib/rgame/fonts/`. See `ext/rgame_core/vendor/README.md`.
+- `tools/` — development tools, outside the engine and not built by `make`.
+  `make_ogg_fixture.c` generates the audio suite's `.ogg` and needs
+  `libvorbisenc` to *run*; the engine links no vorbis library at all.
 - `ext/rgame_core/primitives.{c,h}` — the shapes a game asks for (rect, thick
   line, circle, sprite) in terms of the two the canvas knows. Pure; covered by
   `test/test_primitives.c`. A rotated sprite goes through the canvas's own
@@ -336,6 +342,22 @@ sources go in `ext/rgame_core/`.
   assertions are real advances rather than fixtures. Measuring a string and
   drawing it share one `rgame_text_cursor`: two loops that both "sum the
   advances" drift, and every centred label in the game drifts with them.
+- `ext/rgame_core/audio.c` — the sound device and the two kinds of sound.
+  Touches neither SDL nor GL: miniaudio talks to ALSA/PulseAudio/CoreAudio
+  directly, so a sound belongs to an `rgame_audio` rather than to an app, and
+  none of the window-lifetime rules apply. A `sample` is decoded and gets a
+  fresh voice per play; a `song` is streamed and has one voice that can be
+  stopped and asked about — two types so that `playing?` cannot be asked of a
+  fire-and-forget effect. Layer 3, but properly tested (`test/test_audio.c`),
+  because miniaudio falls back to a **null device** when no sound system opens:
+  the same tests run against PulseAudio on a desktop and against silence in CI.
+- `ext/rgame_core/vorbis_decoder.{c,h}` — a miniaudio decoding backend over
+  stb_vorbis, because miniaudio reads wav/mp3/flac but **not** Ogg Vorbis, and
+  its own reference vorbis backend uses system libvorbis. It needs *both*
+  entry points: `onInitFile` for `ma_decoder`, and `onInit` for `ma_engine`,
+  which reads through miniaudio's VFS. Covered by
+  `test/test_vorbis_decoder.c` against a committed `.ogg`, malformed inputs
+  included — it is the only part of the audio stack parsing untrusted bytes.
 - `ext/rgame_core/font_atlas.c` — the impure quarter of text: it composes
   `font` + `atlas` + `glyph_cache`, owns the atlas pages as `GL_ALPHA` textures,
   and is the only file in the text stack that calls `gl*`. Layer 3, kept thin;
@@ -366,7 +388,11 @@ sources go in `ext/rgame_core/`.
   `ext/README.md`. Every *other* Ruby-visible class here gets its own file with
   one init function declared in `core_ext.h` (`image_ext.c` is the first), the
   same shape as `ext/rgame_util/util_ext.h` — so adding a class means adding a
-  file rather than growing an unrelated one.
+  file rather than growing an unrelated one. `audio_ext.c` is the one deliberate
+  exception: `Audio`, `Sample` and `Song` share a wrapping shape and are read
+  together, so splitting them would triplicate TypedData boilerplate to separate
+  ninety lines. `lib/rgame/core/audio.rb` mirrors that, so the two halves stay
+  parallel.
 - `src/main.c` — thin standalone entry point; only talks to `core.h`'s API,
   never touches SDL/GL directly. This is intentionally what the Ruby
   extension also does, just driven from Ruby instead of a C `main()`. It
@@ -586,21 +612,29 @@ So each of those interfaces gets a **shared example group** in
 `spec/`, the real one from `spec_core/`. A method added to the real renderer
 is not done until the shared contract and the fake have it too.
 
-The renderer is the worked example, and the one to copy:
+There are two of these today, both built the same way:
 
-| | |
-|---|---|
-| Contract | `spec/support/shared_examples/a_renderer.rb` |
-| Fake | `spec/support/fake_renderer.rb`, run against it by `fake_renderer_spec.rb` |
-| Real | `RGame::Core::Renderer`, run against it by `spec_core/rgame/core/renderer_spec.rb` |
+| | Renderer | Audio |
+|---|---|---|
+| Contract | `spec/support/shared_examples/a_renderer.rb` | `spec/support/shared_examples/an_audio_server.rb` |
+| Fake | `spec/support/fake_renderer.rb`, run against it by `fake_renderer_spec.rb` | `spec/support/fake_audio.rb`, run against it by `fake_audio_spec.rb` |
+| Real | `RGame::Core::Renderer`, run against it by `spec_core/rgame/core/renderer_spec.rb` | `RGame::Core::Audio`, run against it by `spec_core/rgame/core/audio_spec.rb` |
+| Host hook | `render { \|renderer, image, font\| ... }` | `with_audio { \|audio, sound_path\| ... }` |
 
-`spec_core/core_spec_helper.rb` requires the contract across the directory
+`spec_core/core_spec_helper.rb` requires the contracts across the directory
 boundary. That is the *only* thing that crosses: no `spec/` example file is
 loaded there, and nothing in `spec/` ever names Core.
 
-The contract states the method list and its argument shapes; it cannot state
-pixels, because the fake has none. That is why `renderer_spec.rb` also reads
-the framebuffer back — the two halves together are the guarantee.
+A contract states the method list and its argument shapes; it cannot state
+pixels or samples, because the fake produces neither. That is why
+`renderer_spec.rb` also reads the framebuffer back, and why the audio output
+tier is `test/test_audio.c` reading an offline device — the two halves together
+are the guarantee.
+
+The audio contract also shows what a contract must *leave out*: whether a sound
+has finished. Playback runs against a clock in both implementations, so
+"is it still playing a moment later" has no stable answer, and only the
+transitions a caller controls are stated.
 
 ### Platform support
 

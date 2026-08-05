@@ -428,6 +428,91 @@ int rgame_app_draw_text(rgame_app *app, rgame_font *font, const char *text, size
 
 /*
  * ---------------------------------------------------------------------------
+ * Audio
+ * ---------------------------------------------------------------------------
+ *
+ * The one subsystem that touches neither SDL nor OpenGL. It talks to the
+ * platform's sound system directly — ALSA or PulseAudio on Linux, found at
+ * runtime — so a sound belongs to an `rgame_audio`, not to an `rgame_app`, and
+ * none of the window-lifetime rules that govern images and fonts apply here.
+ *
+ * With no working sound device the engine falls back to a silent one rather
+ * than failing: a game with no audio hardware runs, quietly. That is also what
+ * lets the whole stack be tested with no sound card.
+ *
+ * Two kinds of sound, and the split is Gosu's:
+ *
+ *   rgame_sample   short, decoded up front, played many times and overlapping
+ *   rgame_song     long, streamed from disk, one at a time, stoppable
+ *
+ * A three-minute track decoded up front would be some forty megabytes of PCM,
+ * and a footstep re-decoded on every step would be silly. Hence two types
+ * rather than one with a flag: each has only the operations that make sense for
+ * it, so there is no `playing?` on a fire-and-forget effect to answer wrongly.
+ *
+ * Ogg Vorbis and WAV. Both are read by code the engine ships; nothing has to be
+ * installed for sound to work.
+ */
+typedef struct rgame_audio rgame_audio;
+typedef struct rgame_sample rgame_sample;
+typedef struct rgame_song rgame_song;
+
+/*
+ * Opens the sound device. Returns NULL only if the audio engine could not be
+ * created at all, writing a reason into `err` (which may be NULL) — a machine
+ * with no sound hardware still gets a working, silent `rgame_audio`.
+ */
+rgame_audio *rgame_audio_create(char *err, size_t err_size);
+void rgame_audio_destroy(rgame_audio *audio);
+
+/*
+ * Master volume, applied to everything. 1.0 is unchanged, 0.0 is silence, and
+ * above 1.0 amplifies — which can clip, and is the caller's business. Negative
+ * values are clamped to zero.
+ */
+void rgame_audio_set_volume(rgame_audio *audio, float volume);
+float rgame_audio_volume(const rgame_audio *audio);
+
+/* Which sound system is in use — "PulseAudio", "ALSA", "Null" and so on. For
+ * diagnostics and for tests that want to know whether they are hearing
+ * anything. */
+const char *rgame_audio_backend(const rgame_audio *audio);
+
+/*
+ * A short sound, decoded into memory once. Playing it again while it is still
+ * sounding starts a second voice rather than restarting it, which is what makes
+ * a rapid-fire effect sound right.
+ *
+ * There is deliberately no stop and no `playing?`: a one-shot has no single
+ * voice to ask about. Volume is per sample rather than per play, and applies to
+ * voices already sounding.
+ */
+rgame_sample *rgame_sample_load(rgame_audio *audio, const char *path, char *err,
+                                size_t err_size);
+void rgame_sample_destroy(rgame_sample *sample);
+void rgame_sample_play(rgame_sample *sample);
+void rgame_sample_set_volume(rgame_sample *sample, float volume);
+float rgame_sample_volume(const rgame_sample *sample);
+
+/*
+ * A long sound, streamed from disk. One voice, so playing it again while it
+ * sounds restarts it rather than layering.
+ *
+ * "Only one song at a time" is *not* enforced here — that is a policy a game
+ * decides, and the Ruby layer owns it.
+ */
+rgame_song *rgame_song_load(rgame_audio *audio, const char *path, char *err, size_t err_size);
+void rgame_song_destroy(rgame_song *song);
+void rgame_song_play(rgame_song *song, int looping);
+void rgame_song_stop(rgame_song *song);
+int rgame_song_playing(const rgame_song *song);
+/* Whether the last `play` asked for looping. */
+int rgame_song_looping(const rgame_song *song);
+void rgame_song_set_volume(rgame_song *song, float volume);
+float rgame_song_volume(const rgame_song *song);
+
+/*
+ * ---------------------------------------------------------------------------
  * Recordings: drawing baked once and replayed cheaply
  * ---------------------------------------------------------------------------
  *

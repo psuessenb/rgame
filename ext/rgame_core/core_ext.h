@@ -21,6 +21,10 @@ void rgame_init_renderer(VALUE mCore);
 void rgame_init_recording(VALUE mCore);
 void rgame_init_font(VALUE mCore);
 
+/* Defines Audio, Sample and Song together — see audio_ext.c for why those three
+ * share a file when everything else here does not. */
+void rgame_init_audio(VALUE mCore);
+
 /*
  * Wraps a baked recording in a Ruby object. Only Renderer#record calls this:
  * `images` is the Array of Images drawn while recording, which the new object

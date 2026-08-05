@@ -120,3 +120,12 @@ Style/OneClassPerFile:
 # %<name>s; the codebase uses no other %-format tokens.
 Style/FormatStringToken:
   EnforcedStyle: template
+
+# Every file under lib/rgame/core/ and lib/rgame/util/ reopens a class that a C
+# extension already defined, and exists to document it and to add the odd Ruby
+# convenience. A body with nothing in it is therefore the normal, finished state
+# — it means C provides the whole class — not an oversight the cop should flag.
+Lint/EmptyClass:
+  Exclude:
+    - 'lib/rgame/core/**/*.rb'
+    - 'lib/rgame/util/**/*.rb'

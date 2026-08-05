@@ -12,8 +12,8 @@ depends on:
 | For | anything depending on SDL/OpenGL (or on something that does) | everything else |
 | C source | `ext/rgame_core/` | `ext/rgame_util/` |
 | Extension | `rgame/core_ext` | `rgame/util_ext` |
-| Links | SDL2 + OpenGL | nothing but Ruby |
-| Holds today | `App` — window, GL context, fixed-timestep main loop; `Input`, `Gamepad`, `Image`, `Renderer`, `Recording`, `Font` | `Tensor`, `Controls`, `Color` |
+| Links | SDL2 + OpenGL + pthread | nothing but Ruby |
+| Holds today | `App` — window, GL context, fixed-timestep main loop; `Input`, `Gamepad`, `Image`, `Renderer`, `Recording`, `Font`, `Audio`, `Sample`, `Song` | `Tensor`, `Controls`, `Color` |
 
 That split is load-bearing, not cosmetic: `require "rgame"` gives you
 `RGame::Util` with **no graphics libraries loaded into the process at all**, so
@@ -26,8 +26,9 @@ require "rgame/core"  # adds RGame::Core, pulls in SDL2 + OpenGL
 ```
 
 The engine opens a window, runs a fixed-timestep loop, reads keyboard and
-controllers, loads PNGs onto the GPU, and draws shapes, sprites and text through
-a z-sorted batching renderer. Audio is still ahead. Its C sources build
+controllers, loads PNGs onto the GPU, draws shapes, sprites and text through
+a z-sorted batching renderer, and plays Ogg Vorbis and WAV. The scene graph a
+game is written against is still ahead. Its C sources build
 two ways from one copy: a standalone binary (`build/rgame`, via the root
 `Makefile`) and the `core_ext` extension (via `extconf.rb`).
 
@@ -35,8 +36,9 @@ Both halves ship as one gem — `rgame.gemspec` builds both extensions — thoug
 nothing is published yet, so it is installed from a checkout or a built `.gem`.
 
 **[docs/api/](docs/api/README.md) is the reference documentation** for using the
-engine from Ruby: the frame loop, the hooks, input, and the value types. Start
-there if you want to write a game rather than work on the engine.
+engine from Ruby: the frame loop, the hooks, input, drawing, text, audio and the
+value types. Start there if you want to write a game rather than work on the
+engine.
 
 ## Requirements
 
@@ -49,10 +51,16 @@ there if you want to write a game rather than work on the engine.
 - OpenGL development headers/libs (provided by Mesa on Linux)
 - [Check](https://libcheck.github.io/check/) (`check` pkg-config package) — C unit test framework, only needed for `make test`
 
-PNG decoding and text need no system libraries: `stb_image.h` and
-`stb_truetype.h` are vendored in `ext/rgame_core/vendor/` (public domain / MIT),
-and the default font ships in `lib/rgame/fonts/` (SIL OFL 1.1). See the README
-in `ext/rgame_core/vendor/` for both.
+PNG decoding, text and audio need no system libraries: `stb_image.h`,
+`stb_truetype.h`, `stb_vorbis.c` and `miniaudio.h` are vendored in
+`ext/rgame_core/vendor/` (public domain / MIT), and the default font ships in
+`lib/rgame/fonts/` (SIL OFL 1.1). miniaudio finds ALSA or PulseAudio at runtime,
+so there is nothing to install for sound either. See the README in
+`ext/rgame_core/vendor/` for all of it.
+
+`tools/` holds development tools that are not part of the engine and are not
+built by `make` — currently one, which generates the audio suite's `.ogg`
+fixture and needs `libvorbisenc` to run.
 
 ### Ruby side
 
@@ -108,8 +116,12 @@ make clean        # remove build artifacts, including both extensions'
 
 `make run` opens a window with one of each drawing primitive in it — a rotating
 square, a clipped rectangle, a circle, a thick line, a baked strip replayed
-every frame, and a line of accented text. `Esc` or closing the window quits. `ruby ext/rgame_core/example.rb`
-is the same scene driven from Ruby.
+every frame, and a line of accented text. `Esc` or closing the window quits.
+`ruby ext/rgame_core/example.rb` is the same scene driven from Ruby, and takes
+an optional sound file — `ruby ext/rgame_core/example.rb theme.ogg` binds Space
+to play it as a sample and Return to start and stop it as looping music. That is
+the only place a real sound device is driven; everything automated runs against
+a null or offline one.
 
 The Ruby specs:
 
@@ -223,20 +235,26 @@ ext/rgame_core/              RGame::Core — the SDL/GL half.
                              stb_truetype. No atlas, no GL.
   font_atlas.c               Composes font + atlas + glyph cache and owns the
                              GL pages — the only text file that calls gl*.
+  vorbis_decoder.h/.c        Ogg Vorbis for miniaudio, over stb_vorbis —
+                             miniaudio cannot read ogg on its own.
+  audio.c                    The sound device, samples and songs. No SDL, no
+                             GL — miniaudio talks to the platform directly.
   gl_backend.h/.c            The real GL calls — the only file that issues
                              them on the drawing path.
   image.c                    Decode a PNG and upload it — the thin GL shim
                              over texture.h. Views share one upload.
-  stb_image_impl.c           Instantiates the vendored PNG decoder.
-  stb_truetype_impl.c        Instantiates the vendored TrueType rasteriser.
-                             These two are the only files built without
-                             -Wall -Wextra.
-  vendor/                    Third-party sources (stb_image.h, stb_truetype.h)
-                             + their licences.
+  *_impl.c                   One per vendored library (stb_image, stb_truetype,
+                             stb_vorbis, miniaudio): instantiates it and picks
+                             its features. The only files built without
+                             -Wall -Wextra; the suffix is what selects that.
+  vendor/                    Third-party sources + their licences.
   core_ext.c                 Ruby glue: VALUE wrappers + callback trampolines,
                              and the extension's entry point.
   core_ext.h                 One init function per Ruby-visible class here.
   image_ext.c                RGame::Core::Image — the Ruby binding.
+  audio_ext.c                RGame::Core::Audio, Sample and Song — the
+                             bindings; three classes in one file because they
+                             share a wrapping shape.
   renderer_ext.c             RGame::Core::Renderer — the drawing primitives.
   font_ext.c                 RGame::Core::Font — the Ruby binding.
   recording_ext.c            RGame::Core::Recording — baked, replayable draws.

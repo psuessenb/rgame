@@ -13,6 +13,10 @@ SDL_CFLAGS := $(shell pkg-config --cflags sdl2)
 SDL_LIBS := $(shell pkg-config --libs sdl2)
 GL_LIBS := -lGL
 MATH_LIBS := -lm
+# miniaudio's threading, and the dlopen it uses to find ALSA or PulseAudio at
+# runtime. Both are in glibc; neither is a package anyone has to install. On
+# Windows and macOS miniaudio needs nothing linked at all.
+AUDIO_LIBS := -lpthread -ldl
 
 CHECK_CFLAGS := $(shell pkg-config --cflags check)
 CHECK_LIBS := $(shell pkg-config --libs check)
@@ -36,10 +40,19 @@ ATLAS_OBJ := $(BUILD_DIR)/atlas.o
 GLYPH_CACHE_OBJ := $(BUILD_DIR)/glyph_cache.o
 FONT_OBJ := $(BUILD_DIR)/font.o
 FONT_ATLAS_OBJ := $(BUILD_DIR)/font_atlas.o
+VORBIS_DECODER_OBJ := $(BUILD_DIR)/vorbis_decoder.o
+AUDIO_OBJ := $(BUILD_DIR)/audio.o
 IMAGE_OBJ := $(BUILD_DIR)/image.o
-# Every vendored single-header library gets one implementation TU named
-# stb_<name>_impl.c; the pattern rule below builds all of them the same way.
-VENDOR_OBJS := $(BUILD_DIR)/stb_image_impl.o $(BUILD_DIR)/stb_truetype_impl.o
+# Every vendored library gets one implementation TU named <name>_impl.c; the
+# pattern rule below builds all of them the same way. The `_impl.c` suffix is
+# *reserved* for vendored code — it is what turns the warning flags off.
+VENDOR_OBJS := $(BUILD_DIR)/stb_image_impl.o $(BUILD_DIR)/stb_truetype_impl.o \
+               $(BUILD_DIR)/stb_vorbis_impl.o $(BUILD_DIR)/miniaudio_impl.o
+
+# Vendored sources, as one prerequisite list. Deliberately coarse: touching any
+# of them rebuilds all the vendored objects, which costs seconds on a change
+# that happens about once a year and removes a per-library rule to get wrong.
+VENDOR_SOURCES := $(wildcard $(EXT_CORE_DIR)/vendor/*.h $(EXT_CORE_DIR)/vendor/*.c)
 BACKEND_OBJ := $(BUILD_DIR)/backend.o
 # Util is a separate extension, but its pure modules are Check-tested too.
 COLOR_OBJ := $(BUILD_DIR)/color.o
@@ -69,6 +82,8 @@ TEST_OBJS := $(BUILD_DIR)/test_main.o \
              $(BUILD_DIR)/test_atlas.o \
              $(BUILD_DIR)/test_glyph_cache.o \
              $(BUILD_DIR)/test_font.o \
+             $(BUILD_DIR)/test_vorbis_decoder.o \
+             $(BUILD_DIR)/test_audio.o \
              $(BUILD_DIR)/recording_backend.o
 TEST_BIN := $(BUILD_DIR)/test_rgame
 
@@ -156,6 +171,15 @@ $(FONT_ATLAS_OBJ): $(EXT_CORE_DIR)/font_atlas.c $(EXT_CORE_DIR)/font_internal.h 
                    $(EXT_CORE_DIR)/glyph_cache.h $(EXT_CORE_DIR)/app_gl.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -I$(EXT_CORE_DIR) $(SDL_CFLAGS) -c $< -o $@
 
+$(VORBIS_DECODER_OBJ): $(EXT_CORE_DIR)/vorbis_decoder.c $(EXT_CORE_DIR)/vorbis_decoder.h \
+                       $(VENDOR_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -I$(EXT_CORE_DIR) -c $< -o $@
+
+$(AUDIO_OBJ): $(EXT_CORE_DIR)/audio.c $(EXT_CORE_DIR)/audio_internal.h \
+              $(EXT_CORE_DIR)/vorbis_decoder.h $(VENDOR_SOURCES) \
+              $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -I$(EXT_CORE_DIR) -c $< -o $@
+
 $(RECORDING_OBJ): $(EXT_CORE_DIR)/recording.c $(EXT_CORE_DIR)/recording.h \
                   $(EXT_CORE_DIR)/draw_queue.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
@@ -169,24 +193,24 @@ $(IMAGE_OBJ): $(EXT_CORE_DIR)/image.c $(EXT_CORE_DIR)/texture.h $(EXT_CORE_DIR)/
 	$(CC) $(CFLAGS) $(INCLUDES) -I$(EXT_CORE_DIR) $(SDL_CFLAGS) -c $< -o $@
 
 # The vendored translation units, and the only place warnings are relaxed.
-# stb's headers are public-domain third-party code that does not survive
-# -Wall -Wextra; carving out exactly these files keeps everything we wrote
-# clean. One rule rather than one per library, so the second one cannot drift
-# from the first. See ext/rgame_core/vendor/README.md.
-$(BUILD_DIR)/stb_%_impl.o: $(EXT_CORE_DIR)/stb_%_impl.c $(EXT_CORE_DIR)/vendor/stb_%.h | $(BUILD_DIR)
+# These are public-domain third-party libraries that do not survive -Wall
+# -Wextra; carving out exactly these files keeps everything we wrote clean. One
+# rule rather than one per library, so the second cannot drift from the first.
+# See ext/rgame_core/vendor/README.md.
+$(BUILD_DIR)/%_impl.o: $(EXT_CORE_DIR)/%_impl.c $(VENDOR_SOURCES) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -w -I$(EXT_CORE_DIR) -c $< -o $@
 
 $(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ) $(GAMEPAD_OBJ) \
              $(TRANSFORM_OBJ) $(CLIP_OBJ) $(DRAW_QUEUE_OBJ) \
              $(CANVAS_OBJ) $(BACKEND_OBJ) $(TEXTURE_OBJ) $(PRIMITIVES_OBJ) \
-             $(RECORDING_OBJ) $(ATLAS_OBJ) $(GLYPH_CACHE_OBJ) $(FONT_OBJ) $(FONT_ATLAS_OBJ) $(GL_BACKEND_OBJ) $(IMAGE_OBJ) $(VENDOR_OBJS)
+             $(RECORDING_OBJ) $(ATLAS_OBJ) $(GLYPH_CACHE_OBJ) $(FONT_OBJ) $(FONT_ATLAS_OBJ) $(VORBIS_DECODER_OBJ) $(AUDIO_OBJ) $(GL_BACKEND_OBJ) $(IMAGE_OBJ) $(VENDOR_OBJS)
 	ar rcs $@ $^
 
 $(MAIN_OBJ): src/main.c $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
 $(MAIN_BIN): $(MAIN_OBJ) $(CORE_LIB)
-	$(CC) $(CFLAGS) -o $@ $(MAIN_OBJ) $(CORE_LIB) $(SDL_LIBS) $(GL_LIBS) $(MATH_LIBS)
+	$(CC) $(CFLAGS) -o $@ $(MAIN_OBJ) $(CORE_LIB) $(SDL_LIBS) $(GL_LIBS) $(MATH_LIBS) $(AUDIO_LIBS)
 
 $(COLOR_OBJ): $(EXT_UTIL_DIR)/color.c $(EXT_UTIL_DIR)/color.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -196,7 +220,7 @@ $(BUILD_DIR)/test_%.o: test/test_%.c test/suites.h | $(BUILD_DIR)
 	       -Itest/support $(CHECK_CFLAGS) -c $< -o $@
 
 $(TEST_BIN): $(TEST_OBJS) $(CORE_LIB) $(COLOR_OBJ)
-	$(CC) $(CFLAGS) -o $@ $(TEST_OBJS) $(CORE_LIB) $(COLOR_OBJ) $(SDL_LIBS) $(GL_LIBS) $(MATH_LIBS) $(CHECK_LIBS)
+	$(CC) $(CFLAGS) -o $@ $(TEST_OBJS) $(CORE_LIB) $(COLOR_OBJ) $(SDL_LIBS) $(GL_LIBS) $(MATH_LIBS) $(AUDIO_LIBS) $(CHECK_LIBS)
 
 run: all
 	./$(MAIN_BIN)

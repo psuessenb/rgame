@@ -28,6 +28,8 @@ int main(void) {
     srunner_add_suite(runner, atlas_suite());
     srunner_add_suite(runner, glyph_cache_suite());
     srunner_add_suite(runner, font_suite());
+    srunner_add_suite(runner, vorbis_decoder_suite());
+    srunner_add_suite(runner, audio_suite());
 
     srunner_run_all(runner, CK_NORMAL);
     int failed = srunner_ntests_failed(runner);

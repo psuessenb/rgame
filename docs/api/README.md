@@ -12,10 +12,11 @@ any C.
 | [Drawing](drawing.md) | `RGame::Core::Renderer` — shapes, images, transforms, clipping, recordings |
 | [Images](images.md) | `RGame::Core::Image` — loading PNGs, subimages, sprite sheets |
 | [Text](text.md) | `RGame::Core::Font` and `Renderer#text` |
+| [Audio](audio.md) | `RGame::Core::Audio`, `Sample`, `Song` — samples and streamed music |
 | [Values](values.md) | `RGame::Util::Color`, `RGame::Util::Tensor` |
 
 **The engine is a work in progress.** A window opens, the loop runs, input
-works, and shapes, images and text can be drawn. Audio and a scene graph are
+works, shapes, images and text can be drawn, and sound plays. A scene graph is
 still to come. Pages here describe what exists today and grow as more lands.
 
 ## Loading it

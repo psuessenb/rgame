@@ -1257,6 +1257,31 @@ answer is a one-off generator committed as a tool, not as a dependency:
 A WAV fixture needs no such thing — `dr_wav` is in miniaudio and a WAV can be
 written from Ruby in twenty lines, like `PngFixture`.
 
+**Landed.** Three things came out differently from the sketch:
+
+- **The carve-out pattern had to widen from `stb_%_impl.c` to `%_impl.c`.**
+  miniaudio is not an stb library and stb_vorbis ships as a `.c`, so neither
+  matched. The suffix is now documented as *reserved* for vendored code, since
+  it is what turns the warning flags off — a convention with teeth, because a
+  file of ours named `*_impl.c` would silently lose its warnings.
+- **Feature macros went into `miniaudio_impl.c`, not the build flags.** They
+  decide what the engine can *do* — which formats, which sound systems — and in
+  build flags they would have to be repeated in the root Makefile and in
+  `extconf.rb`, where the day they disagreed the binary and the gem would
+  support different formats.
+- **`-lpthread`/`-ldl` are probed, not assumed.** `have_library` guards them, so
+  the link does not break on Windows and macOS, where miniaudio needs neither.
+
+Measured after trimming mp3, flac, encoding and the generators: miniaudio
+contributes **768 KB** to a stripped `core_ext.so` (972 KB total), better than
+the 983 KB the decision predicted. The unstripped `.so` is 2.2 MB, almost all of
+it debug info from Ruby's own `CFLAGS`.
+
+The fixture works: `tools/make_ogg_fixture.c` writes 0.25 s of stereo — 440 Hz
+left, 880 Hz right, deliberately asymmetric so a decoder that drops or swaps a
+channel is visible — and the vendored stb_vorbis reads it back as 2 channels,
+44100 Hz, 11025 frames with both channels non-silent.
+
 ### 5.2 `vorbis_decoder.{c,h}` — teaching miniaudio to read ogg
 
 miniaudio does **not** decode Ogg Vorbis. It does wav, mp3 and flac; vorbis
@@ -1287,6 +1312,39 @@ established, and what would otherwise cost a day of confusion:
   frames; a truncated or garbage file is refused rather than crashing; a file
   that is not there is refused. Run under the sanitizers like everything else —
   this is the one part of the audio stack parsing untrusted bytes.
+
+**Landed.** ~230 lines and 14 tests, all passing under the sanitizers. Both
+prototype findings held up exactly: the engine really does need `onInit` as well
+as `onInitFile`, and stb_vorbis really has no callback-based open, so the
+callback path buffers the compressed file.
+
+One structural thing the prototype got wrong and this did not: stb_vorbis
+**does** honour `STB_VORBIS_HEADER_ONLY`, so it splits into a declarations-only
+include and one implementation TU exactly like the other vendored libraries. The
+prototype had included the whole `.c` from a header and hit duplicate symbols.
+
+21 mutations, and the survivors are the interesting part — five of them, all
+kept deliberately and all now commented in the code:
+
+- **`onRead`'s return code is advisory.** Mutating it to *always* report success,
+  or *always* report the end, both survive: miniaudio decides end-of-stream from
+  `frames_read` and never looks. Proven by the mutation itself — an assertion
+  that the decoder finishes with `MA_AT_END` passes even when the source never
+  says so.
+- **`onInitFile` is optional.** Without it miniaudio opens the file itself and
+  calls `onInit`. It stays because that fallback buffers the whole compressed
+  file, and opening by name lets stb_vorbis read from disk.
+- **The zero-length guard and the close-before-free ordering** are both belt and
+  braces — stb_vorbis refuses an empty buffer on its own, and its `close` never
+  looks at the input buffer again. Kept; the comments say why.
+
+The one survivor that was a real gap: a data source can **lie about its format**
+and nothing notices, because when the output format matches the input miniaudio
+converts nothing and the bytes pass through whatever they are. The test that
+catches it asks the decoder for a *specific* output format, forcing a
+conversion, and then checks the samples are inside the range a float sample is
+defined over. Worth remembering wherever a format is declared separately from
+the data it describes.
 
 ### 5.3 `audio.{c,h}` — the device, and the two handles
 
@@ -1319,6 +1377,61 @@ fire-and-forget path, while a streamed song owns a persistent `ma_sound` it can
 be asked about and told to stop. That asymmetry is the reason the two are
 loaded by different functions even though they share a handle type.
 
+**Landed.** 30 tests. The API came out as sketched apart from three things:
+
+- **`rgame_sample_play` takes no volume.** A fire-and-forget voice hands back no
+  handle to set anything on, so per-*play* volume is not free after all. Volume
+  is per sample instead, via a mixer group every voice of that sample plays
+  into, and it reaches voices already sounding. Nothing in the port used
+  per-play volume anyway.
+- **`rgame_song_looping` was added**, because it is the only way to check the
+  looping flag is honoured without playing a song past its own end, which the
+  offline test device cannot do (below).
+- **A sample holds a never-played `ma_sound`** rather than calling
+  `ma_resource_manager_register_file`. Its job is to fail loudly at load and to
+  keep the decoded copy alive; see the miniaudio bug below for why the direct
+  call is avoided.
+
+**Two real bugs, both found by tooling rather than by reading.**
+
+*A use-after-free in miniaudio 0.11.25.* Any failed load through the resource
+manager frees the data buffer node and then reads a field of it a few lines
+later (`miniaudio.h:70918` and `:70926`) — so every rejected file was undefined
+behaviour. AddressSanitizer caught it on the first run of the "a file that is
+not a sound is refused" test. The fix is not to patch the vendored copy, which
+the next update would silently undo, but to never hand the resource manager a
+file that has not already been checked: `file_is_playable` opens it with a
+plain `ma_decoder` first, using the same decoders the real load will.
+
+*A short-read bug in our own vorbis backend.* `stb_vorbis` decodes a packet at a
+time and routinely returns fewer frames than asked for, in the middle of a
+perfectly healthy file. Passing those partial counts straight up made
+miniaudio's streaming path mark the stream finished after the first page —
+which presented as "looping music does not loop". `onRead` now fills the buffer
+before returning. Worth remembering as a general shape: *a short read means the
+end of the data to almost everything that reads*.
+
+**The offline listening tier** — `rgame_audio_create_offline` plus
+`rgame_audio_read`, in `audio_internal.h` — is the one thing here the plan did
+not anticipate, and it earned its place immediately. miniaudio can run an engine
+with no device and hand the mixed output back, which is the audio equivalent of
+reading the framebuffer. It catches what no transition test can: that sound
+actually comes out, that a volume reaches the output, that stopping silences it.
+Three mutations survived everything else and died to it.
+
+Its limit is worth knowing: a *streamed* sound refills its buffers on a thread
+that keeps up easily against a real device and starves against a tight pumping
+loop — measured, a three-second track goes quiet after exactly two one-second
+pages. So nothing offline asks a song to outlive what it has buffered.
+
+Four mutations survive deliberately, each commented at the code: the group stop
+before teardown (uninit does it anyway), the playability check on songs
+(streaming fails cleanly without it, but "some loads validate and others do not"
+is worse than a redundant call), streamed-versus-decoded for songs (identical
+for a short fixture; it protects a number nobody measures until a player's
+machine swaps), and the rewind in `play` — observable only by playing a song
+nearly to its end, which is exactly what the offline device cannot do.
+
 ### 5.4 `Core::Audio`, `Core::Sample`, `Core::Song`
 
 ```ruby
@@ -1347,6 +1460,46 @@ save/restore, no app retain: there is no context.
   range is clamped or refused (decide, then test it); `debug_live_sounds`
   returns to baseline after GC, like `Image.debug_live_textures`.
 
+**Landed.** 33 examples in `spec_core/rgame/core/audio_spec.rb`. Four things
+differ from the sketch:
+
+- **`hit.play(volume:)` is `hit.volume = 0.5; hit.play`**, following 5.3 — the
+  C layer has no per-play volume to expose.
+- **Three classes in one `audio_ext.c`**, against the one-class-per-file rule
+  the rest of the extension follows. They share a single wrapping shape (a
+  handle plus a marked `Audio`), and splitting them would triplicate the
+  TypedData boilerplate to separate ninety lines that are read together. Same
+  reasoning for `lib/rgame/core/audio.rb`, so the two halves stay parallel.
+- **`Song#play(looping:)` is Ruby over a C `play_looping(bool)`.** Keywords are
+  a Ruby idea; the C method takes the positional flag, and the wrapper is the
+  only thing in the file that needs to exist.
+- **Volume above 1.0 is allowed, below 0.0 is clamped** — the decision the plan
+  asked for, and it was already made in 5.3's `clamp_volume`. Amplification is
+  a real fix for a quiet asset; a negative volume phase-inverts the samples,
+  which is *louder*, so silence is the only sensible reading of it.
+
+`Audio.new` takes no app. Nothing about sound is tied to a window, so there is
+no GL context to save and restore and no app to retain — the one place this
+subsystem is simpler than the drawing side rather than harder.
+
+**The GC-order example bites.** "Keeps its device alive" holds no reference to
+the `Audio` it made the sound from, collects, then plays. With `.dmark = NULL`
+in place of `sound_ref_mark` it segfaults inside `ma_sound_start`, which is
+what it is there to catch — a sound is a voice inside the device's mixer, and
+without the mark the collector is free to take the mixer first.
+
+**`example.rb` now takes a sound file** (`ruby ext/rgame_core/example.rb
+theme.ogg`): Space plays it as a sample, Return toggles it as looping music.
+This is the only place a *real* device is driven — everything automated runs
+against a null or offline one — and it is what makes 5.3's "rewind on play"
+checkable at all. No default asset, deliberately: a sound file is a thing you
+bring. `src/main.c` stays silent; the C driver would need one too.
+
+**A name is now taken.** The inventory in this plan maps `Platform::GosuAudio`
+to `RGame::Core::Audio`, but `Audio` is the device. Phase 6's play-by-id
+registry — `play_sound(:hit)` over a hash of loaded samples — needs a different
+one.
+
 ### 5.5 The audio contract, the fake, and where the tests run
 
 The engine layer reaches audio the same way it reaches drawing — by method name
@@ -1372,6 +1525,39 @@ One caveat to design around: with the null backend a sound "plays" against a
 simulated clock, so a test that waits for a short sample to *finish* is timing
 dependent. Assert on the transitions the caller controls — play makes it
 playing, stop makes it stopped — and not on natural completion.
+
+**Landed, and phase 5 with it.** The contract is
+`spec/support/shared_examples/an_audio_server.rb`, 18 examples, with
+`with_audio { |audio, sound_path| ... }` as the host hook — a device plus a path
+it will load, since loading is the one thing the two implementations genuinely
+differ on. `FakeAudio` (plus `FakeSample` and `FakeSong`) is in
+`spec/support/fake_audio.rb`, and both sides run against it:
+`spec/support/fake_audio_spec.rb` and `spec_core/rgame/core/audio_spec.rb`.
+`core_spec_helper.rb` requires the contract across the boundary, the second and
+last thing that does.
+
+Two things the sketch did not have:
+
+- **`Audio#sample(path)` and `Audio#song(path)`** were added to the real class.
+  `Sample.new(audio, path)` cannot be a contract method — a stand-in device
+  cannot offer someone else's constructor — so the interface needed a form that
+  starts from the device. Both remain; the constructors are how a C-backed class
+  is made, and `audio.sample` is the one to prefer.
+- **The fake logs centrally.** Every sample and song reports back to the
+  `FakeAudio` that made it, so `audio.played?('hit.ogg')` works without a spec
+  holding on to the individual sounds. That is the difference from
+  `FakeRenderer`, where there is only one object to call.
+
+**What the contract deliberately omits** is a sound *finishing*. Playback runs
+against a clock in both implementations, so "is it still playing a moment later"
+has no stable answer; only the transitions a caller controls are stated. The
+audio equivalent of `renderer_spec.rb`'s framebuffer read is `test/test_audio.c`
+against the offline device, one layer down.
+
+Docs: `docs/api/audio.md`, every example in it executed against the built
+extension. The three READMEs and CLAUDE.md record the new files, the two
+deviations (three classes per file, and audio's exception to one-class-per-file)
+and the second contract.
 
 ### What phase 5 does not deliver
 

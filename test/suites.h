@@ -24,6 +24,8 @@ Suite *recording_suite(void);
 Suite *atlas_suite(void);
 Suite *glyph_cache_suite(void);
 Suite *font_suite(void);
+Suite *vorbis_decoder_suite(void);
+Suite *audio_suite(void);
 Suite *backend_suite(void);
 
 #endif /* RGAME_TEST_SUITES_H */

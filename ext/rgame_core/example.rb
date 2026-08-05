@@ -11,6 +11,16 @@
 # This is the Ruby-side mirror of src/main.c, and it exists to exercise every
 # callback and every draw call the engine offers.
 #
+# Pass a sound file (Ogg Vorbis or WAV) to check audio as well:
+#
+#   ruby ext/rgame_core/example.rb assets/theme.ogg
+#
+# Space plays it as a one-shot sample, Return starts and stops it as looping
+# music. There is no asset here to default to, and that is on purpose: this is
+# the only place a *real* sound device is driven — every automated test runs
+# against a null or offline one — so what it is worth checking is your own
+# file, out of your own speakers.
+#
 # The load path points at lib/, not at this directory: `make ext-core`
 # copies the built core_ext.so to lib/rgame/, so this runs against exactly
 # the layout a user of the library would see.
@@ -31,9 +41,15 @@ class Example < RGame::Core::App
   YELLOW = Color.new(224, 192, 64)
   TRANSLUCENT_WHITE = Color.new(255, 255, 255, 128)
 
+  # Frozen and chosen between rather than built: #draw runs sixty times a
+  # second, and a string per frame is a garbage collection waiting to happen.
+  AUDIO_HINT_NONE = 'audio: pass a sound file on the command line to try it'
+  AUDIO_HINT_STOPPED = 'audio: Space plays a sample, Return starts the music'
+  AUDIO_HINT_PLAYING = 'audio: Space plays a sample, Return stops the music'
+
   attr_reader :frames, :ticks, :cursor_x, :cursor_y
 
-  def initialize
+  def initialize(sound_path = nil)
     super(width: 800, height: 600, caption: 'rgame via Ruby')
     @input = RGame::Core::Input.new(self)
     @pads = RGame::Core::Gamepad.new(self)
@@ -45,6 +61,17 @@ class Example < RGame::Core::App
     @spin = 0.0
     @baked = nil
     @device = Controls::KEYBOARD
+
+    # The device is opened whether or not there is anything to play through it,
+    # so that starting with no sound card takes the same path as starting with
+    # one. Nothing here is tied to the window: audio has no GL context and
+    # survives one being recreated.
+    @audio = RGame::Core::Audio.new
+    puts "audio backend: #{@audio.backend}"
+    return unless sound_path
+
+    @sample = RGame::Core::Sample.new(@audio, sound_path)
+    @song = RGame::Core::Song.new(@audio, sound_path)
   end
 
   # Once per frame, before the tick batch: pick which device to read. Doing it
@@ -109,12 +136,33 @@ class Example < RGame::Core::App
     r.text('rgame — Grüße, œuvre, 5 €', 40, 270, color: YELLOW)
     label = format('%d fps', fps)
     r.text(label, 400 - (r.text_width(label) / 2), 270 + r.text_height)
+    r.text(audio_status, 40, 270 + (r.text_height * 2), color: YELLOW)
 
     @frames += 1
   end
 
   def button_down(id)
-    close if id == Controls::KEY_ESCAPE
+    case id
+    when Controls::KEY_ESCAPE then close
+    # Held down, this is the overlap check: each press is another voice rather
+    # than a restart, so a fast run of them should pile up rather than stutter.
+    when Controls::KEY_SPACE then @sample&.play
+    when Controls::KEY_RETURN then toggle_music
+    end
+  end
+
+  # Return is a toggle, so one key covers both transitions and the "play after
+  # stop starts from the beginning" behaviour is audible by pressing it twice.
+  def toggle_music
+    return unless @song
+
+    @song.playing? ? @song.stop : @song.play(looping: true)
+  end
+
+  def audio_status
+    return AUDIO_HINT_NONE unless @song
+
+    @song.playing? ? AUDIO_HINT_PLAYING : AUDIO_HINT_STOPPED
   end
 
   # The callbacks are for reacting to the change; the polling above is for
@@ -133,7 +181,7 @@ class Example < RGame::Core::App
   end
 end
 
-app = Example.new
+app = Example.new(ARGV[0])
 app.run
 
 puts format('drew %d frames, ran %d ticks, cursor at (%.1f, %.1f), last fps: %.1f',

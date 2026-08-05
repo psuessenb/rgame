@@ -68,6 +68,13 @@ end
 
 $libs = append_library($libs, 'm')
 
+# miniaudio's threading, and the dlopen it uses to find ALSA or PulseAudio at
+# runtime — the property that makes audio cost no new system dependency. Both
+# live in glibc on Linux/BSD. Windows and macOS need neither, and appending them
+# unconditionally would fail the link there, so each is probed first.
+$libs = append_library($libs, 'pthread') if have_library('pthread')
+$libs = append_library($libs, 'dl') if have_library('dl')
+
 # The vendored PNG decoder. stb_image is a single header that becomes an
 # implementation in exactly one .c file (stb_image_impl.c). That file is the
 # only one in the project compiled without -Wall -Wextra — third-party code
@@ -92,7 +99,7 @@ $CFLAGS << ' -std=gnu17 -Wall -Wextra'
 # bare name "rgame" to lib/rgame.rb, which is the pure-Ruby entry point.
 create_makefile('rgame/core_ext')
 
-# The vendored stb implementations, compiled with warnings off (see
+# The vendored implementations, compiled with warnings off (see
 # vendor/README.md). mkmf has no per-file flag setting, so the rules are
 # appended to the Makefile it just wrote. An explicit rule for a specific
 # target beats mkmf's generic .c.o suffix rule, so these are what get used for
@@ -106,13 +113,20 @@ create_makefile('rgame/core_ext')
 # `-w` comes last on the command line and switches every warning back off,
 # which is simpler and more robust than trying to subtract -Wall -Wextra from
 # $(CFLAGS) — everything else about how the extension compiles stays identical.
-VENDORED_STB = %w[stb_image stb_truetype].freeze
+# Each vendored library's implementation TU (<name>_impl.c) and the file it
+# instantiates. stb_vorbis is the odd one out: it ships as a .c, not a .h.
+VENDORED = {
+  'stb_image' => 'stb_image.h',
+  'stb_truetype' => 'stb_truetype.h',
+  'stb_vorbis' => 'stb_vorbis.c',
+  'miniaudio' => 'miniaudio.h'
+}.freeze
 
 File.open('Makefile', 'a') do |makefile|
-  VENDORED_STB.each do |name|
+  VENDORED.each do |name, source|
     makefile.puts <<~MAKE
 
-      #{name}_impl.#{$OBJEXT}: $(srcdir)/#{name}_impl.c $(srcdir)/vendor/#{name}.h
+      #{name}_impl.#{$OBJEXT}: $(srcdir)/#{name}_impl.c $(srcdir)/vendor/#{source}
       \t$(ECHO) compiling vendored #{name} with warnings off
       \t$(Q) $(CC) $(INCFLAGS) $(CPPFLAGS) $(CFLAGS) -w $(COUTFLAG)$@ -c $(srcdir)/#{name}_impl.c
     MAKE

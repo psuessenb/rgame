@@ -8,8 +8,8 @@ split is the rule for deciding where new code goes:
 | Ruby namespace | `RGame::Core` | `RGame::Util` |
 | Required as | `rgame/core_ext` | `rgame/util_ext` |
 | Entry point | `Init_core_ext` | `Init_util_ext` |
-| Links | SDL2 + OpenGL + libm | nothing but Ruby |
-| Holds | `App` (window, GL context, main loop) | `Tensor`, `Color` |
+| Links | SDL2 + OpenGL + libm + pthread + libdl | nothing but Ruby |
+| Holds | `App` (window, GL context, main loop), `Image`, `Renderer`, `Recording`, `Font`, `Audio`, `Sample`, `Song` | `Tensor`, `Color` |
 
 Anything that depends on SDL/OpenGL — or on something that does — belongs in
 `rgame_core`. Everything else belongs in `rgame_util`. The point of the
@@ -39,15 +39,19 @@ ext/rgame_core/
   font_atlas.c          # glyph atlas pages on the GPU: the impure quarter
   font_internal.h       # what the draw path needs from inside a font
   font_ext.c            # RGame::Core::Font — the Ruby binding
+  vorbis_decoder.c/.h   # ogg for miniaudio, over stb_vorbis (unit-tested)
+  audio.c               # sound device, samples and songs (unit-tested)
+  audio_internal.h      # the live-sound counter, for tests
   gl_backend.c/.h       # the real GL calls: the only gl* on the draw path
   image.c               # decode a PNG + upload it: the thin GL shim
   image_ext.c           # RGame::Core::Image — the Ruby binding
+  audio_ext.c           # RGame::Core::Audio, Sample and Song — the bindings
   renderer_ext.c        # RGame::Core::Renderer — the drawing primitives
   recording_ext.c       # RGame::Core::Recording — baked, replayable draws
   core_ext.h            # one init function per Ruby-visible class here
-  stb_image_impl.c      # instantiates the vendored PNG decoder (warnings off)
-  stb_truetype_impl.c   # instantiates the vendored TTF rasteriser (warnings off)
-  vendor/               # third-party sources + licences (stb_image, stb_truetype)
+  *_impl.c              # one per vendored library, built with warnings off
+  vendor/               # third-party sources + licences (stb_image,
+                        #   stb_truetype, stb_vorbis, miniaudio)
   app_gl.h              # private: the GL context behind the opaque app handle
   include/rgame/core.h  # the public C API
   example.rb            # manual/visual smoke test (opens a real window)
@@ -72,25 +76,21 @@ extension.
 ## How it's wired
 
 `extconf.rb` runs `mkmf` to generate a Makefile. mkmf's default is to compile
-*every* `.c` in the extension's directory into a single loadable `.so` — for
-`rgame_core` that's `core_ext.c` + `image_ext.c` + `app.c` + `frame_loop.c` +
-`device_slots.c` + `input.c` + `gamepad.c` + `transform.c` +
-`clip.c` + `draw_queue.c` + `canvas.c` + `backend.c` + `texture.c` +
-`primitives.c` + `recording.c` + `atlas.c` + `glyph_cache.c` + `font.c` +
-`font_atlas.c` + `font_ext.c` + `gl_backend.c` + `image.c` + `image_ext.c` +
-`renderer_ext.c` + `recording_ext.c` + `stb_image_impl.c` +
-`stb_truetype_impl.c`, linked
+*every* `.c` in the extension's directory into a single loadable `.so`, linked
 against SDL2 + OpenGL the same way the root `Makefile` links the standalone
 binary. No prebuilt `librgame_core.a` in the middle, so there's one build step.
 
-Two objects are compiled differently: `stb_image_impl.c` and
-`stb_truetype_impl.c`, the translation units that instantiate the vendored stb
-headers, are built with warnings off. mkmf has no per-file flag setting, so
-`extconf.rb` appends an explicit rule per entry in its `VENDORED_STB` list to
-the Makefile it just generated — an explicit rule beats mkmf's generic `.c.o`
-one, so it applies to those files and nothing else. The project stays
-`-Wall -Wextra`-clean everywhere we wrote the code; see
-`rgame_core/vendor/README.md`.
+That default is the reason the tree above is the whole source list: dropping a
+`.c` into `ext/rgame_core/` is all it takes to get it compiled and linked, and
+there is no list of sources anywhere to keep in step with it.
+
+The vendored translation units are the exception, and are built with warnings
+off. mkmf has no per-file flag setting, so `extconf.rb` appends an explicit rule
+per entry in its `VENDORED` table to the Makefile it just generated — an
+explicit rule beats mkmf's generic `.c.o` one, so it applies to those files and
+nothing else. The `_impl.c` suffix is what marks a file as one of them, and it
+is reserved for that: the project stays `-Wall -Wextra`-clean everywhere we
+wrote the code. See `rgame_core/vendor/README.md`.
 
 Not everything in a namespace comes from its extension: `RGame::Core::Input`,
 `RGame::Core::Gamepad` and `RGame::Util::Controls` are pure Ruby in `lib/`,
@@ -188,6 +188,11 @@ renderer.text_width("Score: 1200")   # => Float, and what #text actually draws
 # Bake a block of drawing once, replay it for one call per texture.
 ground = renderer.record { 100.times { |i| renderer.rect(i * 8, 0, 6, 6) } }
 ground.draw(-camera_x, -camera_y)
+
+# Sound. The device owns no window, so it takes no app.
+audio = RGame::Core::Audio.new
+audio.sample("hit.ogg").play                   # another voice each time
+audio.song("theme.ogg").play(looping: true)    # streamed, one voice, stoppable
 
 grid = RGame::Util::Tensor.new(width, height, depth, initial: nil)
 grid[x, y, z] = value
