@@ -1496,9 +1496,9 @@ checkable at all. No default asset, deliberately: a sound file is a thing you
 bring. `src/main.c` stays silent; the C driver would need one too.
 
 **A name is now taken.** The inventory in this plan maps `Platform::GosuAudio`
-to `RGame::Core::Audio`, but `Audio` is the device. Phase 6's play-by-id
-registry — `play_sound(:hit)` over a hash of loaded samples — needs a different
-one.
+to `RGame::Core::Audio`, but `Audio` is the device. Resolved in phase 6: the
+play-by-id registry does not become a class of its own, it folds into this one —
+see 6's decisions.
 
 ### 5.5 The audio contract, the fake, and where the tests run
 
@@ -1570,25 +1570,694 @@ the Ruby layer.
 
 ## Phase 6 — Port the Ruby layer
 
-With the C surface complete, move `lib/platform/` to `lib/rgame/core/`, class by
-class, preserving every public API:
+Eleven files, 844 lines. Three of them are already superseded by work that
+landed in phases 1–2, one has no port target at all, and seven get rewritten
+against `RGame::Core`.
 
-`Renderer` (ex-`GosuRenderer`) → `SpriteSheet` → `NineSlice` → `UiAtlas` →
-`TileMapRenderer` → `AssetManager` (only `DEFAULT_LOADERS` changes) → `Audio`.
+**No spec loads `lib/platform/` and no spec ever will.** It has been a reference
+document since phase 0, not running code, and the gemspec excludes it. So "port"
+means *rewrite against Core, with the specs these classes never had* — the specs
+are the deliverable at least as much as the code is.
 
-Then delete `lib/platform/`, drop `gosu` from the `Gemfile`, retire the
-`Game/PreferGosuModuleMethod` cop, and clean the `.rubocop.yml` excludes that
-point at paths this repo doesn't have.
+**But the layer above is no longer invisible, and that changes how phase 6 is
+verified.** `lib/engine/` (3,083 lines, 57 files), `lib/son_gosu_game.rb`, two
+runnable games under `examples/`, and `docs/engine/` are all in the tree now.
+Constraint 1 stopped being a promise nothing could check:
 
-The `Engine::` references (`DebugOverlay`, `TileMap`, `Tileset`) stay as they
-are — they name the pure-Ruby engine layer that will sit on top, and the whole
-point of constraint 1 is that it doesn't have to change.
+> **`examples/14_asteroids` and `examples/15_tiled_world` running on
+> `RGame::Core` is the definition of done.** Step 6.8 is that, and it is the
+> step the rest of the phase exists to reach.
 
-The **one** thing that layer will have to change is anything built on the mouse:
-the `:pointer` binding and `pointer_x`/`pointer_y` existed to serve click-based
-UI hit-testing somewhere above, and that has to become keyboard/controller
-navigation. Outside this plan's scope, but it is the visible cost of the
-mouse decision and it is easier to plan for now than to discover here.
+### What the engine layer actually requires
+
+Checked rather than assumed, and the result is better than the plan expected.
+
+**`lib/engine/` names `Gosu` and `Platform::` in comments only** — not one
+constant reference in code. It reaches everything through duck-typed seams: a
+`renderer` handed to `draw`, `node.root.context.assets` for assets, and an audio
+server behind `Engine::AudioDirector`. The layering constraint 1 asks for was
+honoured by that layer itself, not merely promised to it, so **it needs no
+change to be ported to.**
+
+Three lines in the whole tree name the platform in code, and all three are game
+boot: `lib/son_gosu_game.rb` (the `AssetManager` / `GosuRenderer` / `GameWindow`
+trio) and `examples/14_asteroids/main.rb:76,82`.
+`examples/15_tiled_world/main.rb` names it zero times and should come through
+the port untouched — a useful control.
+
+**Nothing calls `SpriteSheet.load`, `UiAtlas.load` or `TileMapRenderer.load`.**
+What the code uses are the `AssetManager` instance accessors —
+`assets.image/sound/song/sheet/tilemap` — which reach those class methods only
+inside loader lambdas. The standalone `.load` conveniences are internal, which
+is what keeps the `app` parameter out of the public surface entirely (see the
+decisions below).
+
+**The mouse is the one genuine break**, and it is smaller than feared. Setting
+aside `lib/engine/ui/`, which is outdated and being replaced on its own account,
+it is six lines: `ActionMapper#poll` calls `backend.pointer_x`/`pointer_y`
+**unconditionally**, so polling does not run *at all* against a `Core::Input`
+that has neither, plus `Actions#pointer_x`/`#pointer_y` and the `Clickable`
+component. Fixing it is engine-layer work; it and everything else found while
+reading that layer are collected in `docs/plans/engine-replacement/`.
+
+### What each file becomes
+
+| Today | Lines | Becomes | |
+|---|---|---|---|
+| `gosu_renderer.rb` | 214 | `Core::Renderer` | primitives landed in phase 3; **6.7** folds in the id registry |
+| `asset_manager.rb` | 121 | `Core::AssetManager` | **6.6** — logic unchanged, only the loaders differ |
+| `tile_map_renderer.rb` | 111 | `Core::TileMapRenderer` | **6.5** |
+| `nine_slice.rb` | 81 | `Core::NineSlice` | **6.3** |
+| `game_window.rb` | 70 | — | **no port target**; see below |
+| `sprite_sheet.rb` | 57 | `Core::SpriteSheet` | **6.2** |
+| `ui_atlas.rb` | 50 | `Core::UiAtlas` | **6.4** |
+| `gosu_patches.rb` | 47 | — | deleted: fixed-arity callbacks by construction |
+| `gosu_audio.rb` | 40 | `Core::Audio` | **6.7** folds in the id registry |
+| `gosu_input.rb` | 34 | `Core::Input` + `Util::Controls` | done in phase 2; the mouse half dropped |
+| `clock.rb` | 19 | — | deleted: the C loop measures elapsed time |
+
+**`GameWindow`'s port target is not in `RGame::Core` — it is `SonGosuGame`.**
+Its two halves went in opposite directions. The accumulator, the catch-up cap,
+`@dirty` and `needs_redraw?` became `frame_loop.c` and `Core::App` in phase 1.
+What is left — constructing an `Engine::DebugOverlay`, holding `root` and
+`mapper`, calling `root.control(actions)` then `root.update(dt)` then
+`root.sweep_freed` — is game wiring, not engine code.
+
+`lib/son_gosu_game.rb` is where it goes, and that class is already almost it: a
+facade that assembles a mapper, an asset manager, a renderer and a window, then
+`start`s. Under Core it stops holding a window and *becomes* one —
+`class SonGosuGame < RGame::Core::App` — building its renderer inside
+`initialize` after `super`, the way `ext/rgame_core/example.rb` does, and
+`start` becoming `run`. Two classes collapse into one. Step 6.8.
+
+### Decisions to take before writing any of it
+
+- **The two registries fold into `Core::Renderer` and `Core::Audio`. They do not
+  become new classes.**
+
+  This settles two things at once. It is the answer to
+  [open question 3](README.md#open-questions) — "whether `Renderer` stays one
+  class" — which was deferred until the primitives existed. They exist, and they
+  took the by-object shape (`renderer.image(image, …)`), so a by-id layer is
+  needed on top either way. And it dissolves the name collision 5.4 flagged:
+  the inventory maps `GosuAudio` → `RGame::Core::Audio`, but `Audio` is now the
+  device.
+
+  Two façade classes would need two names for a role that already has one. The
+  engine layer is handed exactly one object it calls `renderer` and one it calls
+  `audio`; `Core::Renderer` and `Core::Audio` are those objects. Both are
+  already pure-Ruby classes over C methods, so the registry has somewhere
+  natural to live.
+
+  The cost is real and worth stating: a `Renderer` used only with `Image`
+  objects carries four empty hashes it never reads, and both shared contracts
+  and both fakes grow. 02-architecture's per-class table already sanctioned
+  this shape ("**Ruby** façade over C primitives… revisit if the per-draw hash
+  lookup shows up in a profile"), and phase 7 is where that revisit happens.
+
+- **Drawing by id is not a Gosu-era convenience — it is what the layering
+  requires.** CLAUDE.md's rule is that the engine layer may hold `Util` values
+  and may not hold `Core` handles at all. A `Symbol` is a value; an `Image` is a
+  handle. So `:hero` is the *only* thing a node can hold, and the id→asset table
+  has to sit on the Core side of the boundary. What looked like indirection
+  inherited from the old layer is the boundary itself.
+
+- **Everything ported is pure Ruby under `lib/rgame/core/`.** These are the
+  first files there that are not "one Ruby file per C-backed class". The rule
+  becomes: `lib/rgame/core/` holds the Ruby half of `RGame::Core`, whether that
+  half is a wrapper around a C class or a whole class in Ruby; what makes it
+  `Core` is that it holds handles, not that it has C behind it. CLAUDE.md's
+  structure section needs that amendment in 6.9.
+
+- **Each ported class is handed a renderer and stores none.** `NineSlice#draw`
+  and `TileMapRenderer#draw` take one as their first argument, the same
+  discipline the engine layer follows. This is not symmetry for its own sake:
+  it is what lets `FakeRenderer` drive them, so nine-slice band geometry and
+  tile culling are asserted as *exact recorded calls* — "the top edge tiled
+  three times at these five rects" — with no window and no pixels. That is a
+  far sharper test than a screenshot, and it is available only if the renderer
+  arrives as an argument.
+
+- **The fakes cross the spec-directory line, alongside the contracts.** These
+  classes live under `RGame::Core`, so loading one loads the extension and their
+  specs cannot live in `spec/`. They go in `spec_core/` — but they should still
+  be driven by `FakeRenderer`, which lives in `spec/support/`.
+  `core_spec_helper.rb` already crosses for the shared examples; it gains the
+  fakes too. CLAUDE.md's rule becomes: **the contracts and the fakes built
+  against them cross; no `_spec.rb` ever does.** Safe because a fake that has
+  drifted is already a failing example on the other side.
+
+- **The `App` owns the asset manager, so a game never constructs one.** This is
+  the answer to the only awkward consequence of Core's design, and it deserves
+  the reasoning written out.
+
+  A `Core::Image` belongs to one GL context and says so: `Image.new(app, path)`.
+  `Gosu::Image.new(path)` did not, because Gosu has exactly one window backing a
+  process-wide `Graphics` singleton — the context requirement is identical, Gosu
+  just had a global to answer it from. Left alone, that parameter is viral:
+  everything that loads an image needs an `app` to hand it.
+
+  It is viral through the *plumbing* only, and the plumbing has one entry point.
+  `AssetManager` is the sole loader — nothing else in the tree loads from a path
+  — so the app has to reach exactly one object. Give it to the `App`:
+
+  ```ruby
+  class MyGame < RGame::Core::App
+    def initialize
+      super(width: 640, height: 480, caption: 'demo', media_root: MEDIA)
+      @renderer = RGame::Core::Renderer.new(self, assets: assets)
+    end
+  end
+
+  app.assets   # => AssetManager, rooted at media_root, built on first use
+  app.audio    # => Audio, the device, opened on first use
+  ```
+
+  Both are lazy. An app that draws only primitives builds no asset manager; one
+  that never plays a sound never opens a device — which is also the right moment
+  to open it, since `assets.sound(path)` is the first thing that needs one.
+  `media_root:` becomes a fourth, optional keyword on the C `initialize`
+  (`rb_get_kwargs` with one optional key), defaulting to `'media'`.
+
+  What this buys, checked against the real callers:
+
+  | Call | Change |
+  |---|---|
+  | `assets.image/sound/song/sheet/ui_atlas/tilemap/read(path, group)` | **none** |
+  | `assets.preload` / `release` / `clear` | **none** |
+  | `SpriteSheet.new(image, atlas)`, `UiAtlas.new(image, data)`, `NineSlice.new(image, …)` | **none** — they never loaded anything |
+  | `SpriteSheet.load` / `UiAtlas.load` / `TileMapRenderer.load` | gain an `app`, but nothing calls them; they are reached from loader lambdas that close over it |
+  | `AssetManager.new(root:)` | a game stops writing it at all |
+
+  So the parameter exists in exactly one place a game never types. The
+  alternatives considered and rejected: a process-wide *current app*, which
+  brings back the global the two-window design deliberately does not have;
+  shared GL contexts via `SDL_GL_SHARE_WITH_CURRENT_CONTEXT`, which was measured
+  to work and would delete the cross-app checks, but is a change to `app.c` in
+  service of a multi-window capability nothing asks for; and a singleton `App`,
+  which would break `spec_core`'s window-per-example structure. None of them is
+  needed once the app has one place to be.
+
+- **The ordering rule is not new, only visible.** `app.assets` means the window
+  exists before anything loads. That was already true under Gosu, which needed a
+  window before `Gosu::Image.new` and enforced it with a runtime failure —
+  `examples/14_asteroids/main.rb:75` says so in a comment. The one place it
+  bites is `SonGosuGame`, which today builds the asset manager and renderer
+  *before* the window; 6.8 reorders it, and it is being rewritten anyway.
+
+- **`retro: true` disappears.** Every `Gosu::Image.new(path, retro: true)` in
+  the old layer becomes `Core::Image.new(app, path)`: `image.c` uploads with
+  `GL_NEAREST` unconditionally, so the flag has no counterpart and no default to
+  get wrong. Pixel art was the only mode the old layer ever asked for.
+
+- **`Recording` tints, so `TileMapRenderer`'s caveat goes.** Its class comment
+  warns "recorded images draw only in white (no tint) — fine here, we don't
+  tint". `Recording#draw` takes `color:` and multiplies it through. Delete the
+  caveat rather than carrying it over.
+
+- **Out of scope, deliberately:** moving any of this into C. 02-architecture's
+  table marks `NineSlice`'s tiling and `TileMapRenderer`'s animated-tile loop as
+  future C, and phase 7 is where that happens *after a measurement*. Phase 6
+  writes all of it in Ruby, and the `FakeRenderer` specs written here are what
+  will hold phase 7 honest — a C rewrite that produces the same recorded calls
+  is a rewrite that cannot have changed behaviour.
+
+### 6.1 `Renderer#image_at` — the top-left scaled draw
+
+The one capability gap the port runs into. Core has two image draws:
+
+```ruby
+renderer.image(image, cx, cy, angle: 0, scale: 1)  # centred, uniform scale
+renderer.background(image, x = 0, y = 0)           # top-left, no scale
+```
+
+Three of the ported classes need a third: top-left anchored with *independent*
+x and y scales. `SpriteSheet#draw` flips a frame horizontally
+(`frame.draw(x + w, y, z, -1, 1)` in Gosu — a negative x-scale), and `NineSlice`
+draws its corners and tiles at an integer pixel scale. Neither is expressible
+today.
+
+```ruby
+# Top-left at (x, y), scaled independently per axis. A negative scale mirrors
+# about that axis, which is how a sprite faces the other way.
+renderer.image_at(image, x, y, scale_x: 1, scale_y: 1, z: IMAGE_Z, color: nil)
+```
+
+`background` stays, delegating with both scales at 1 — "draw this at the origin"
+is a real thing to want and reads better than `image_at(image, 0, 0)`. It is
+already in the contract, the fake, `docs/api/drawing.md` and `example.rb`, so
+removing it is churn for nothing.
+
+The alternative is no new primitive: `renderer.scaled(-1, 1) { … }` around each
+draw. It works, and for `NineSlice` it is arguably *better* — a whole band can
+be drawn inside one `scaled(s, s)` push, in source-pixel coordinates. But per
+sprite it is two extra C calls plus a division on the hottest path in the
+engine, to avoid twenty lines of C that mirror `rgame_prim_image_rot` almost
+exactly. Write the primitive.
+
+Layer 1 first, as always:
+`rgame_prim_image_scaled(canvas, view, x, y, scale_x, scale_y, color, z)` in
+`ext/rgame_core/graphics/primitives.c`, then the `draw_image_scaled` method in
+`ruby/renderer_ext.c`, then the Ruby keyword wrapper.
+
+- **Tests**: `test/test_primitives.c` — a negative scale must mirror the quad
+  about `x`, *not* move it (the failure mode is a sprite that faces the right
+  way and stands one width to the left, which reads as a positioning bug). A
+  scale of 1 must produce byte-identical vertices to `rgame_prim_image`, so the
+  two paths cannot drift.
+- Then `spec/support/shared_examples/a_renderer.rb`, `FakeRenderer`, and a
+  framebuffer example in `spec_core/rgame/core/renderer_spec.rb` that reads back
+  a mirrored 2×1 image and checks the pixels swapped.
+- **Verify**: `make test`, `rake spec`, `rake spec:core`.
+
+**Landed.** `rgame_prim_image_scaled` in `graphics/primitives.c`,
+`rgame_app_draw_image_scaled` in the public header, `draw_image_scaled` in
+`ruby/renderer_ext.c`, `Renderer#image_at` in `lib/rgame/core/renderer.rb`. Six
+Check tests (318 total), two contract examples, three framebuffer examples.
+
+Three notes:
+
+- **The mirror is in the texture coordinates, not the geometry.** `textured_rect`
+  grew `flip_x`/`flip_y` flags that swap the `u` of the two top corners and of
+  the two bottom ones; `image_scaled` passes the *sign* of each scale as the
+  flag and the *magnitude* as the size. Handing in a negative width would have
+  produced the same picture in the wrong place, which is exactly the convention
+  this step rejected.
+- **`rgame_prim_image` is now `image_scaled` at 1, 1.** The "byte-identical
+  vertices" test the plan asked for is therefore a tautology today — kept
+  anyway, and commented as to why: the shared implementation is free to change
+  back, and "the backdrop moved half a pixel" is not something anyone would
+  come looking for in this file.
+- **Both tiers were mutation-checked.** Ignoring the sign entirely, and
+  switching to the Gosu convention (negative width, mirror about the anchor),
+  each fail 3 Check tests and 2 of the 3 pixel examples. The pixel example that
+  survives the second mutation is the pure scaling one, which is correct — it
+  says nothing about signs.
+
+### 6.2 `Core::SpriteSheet`
+
+```ruby
+sheet = RGame::Core::SpriteSheet.load(app, 'media/hero.json')
+sheet.frame_width   # => 16
+sheet.animations    # => the raw table, for the engine's AnimationSet
+sheet.draw(renderer, row, col, x, y, flip_x: false, z: 0)
+```
+
+A near-mechanical rewrite. The grid arithmetic (cells larger than frames,
+`origin_x`/`origin_y` offsets within a cell) is unchanged, `image.subimage` is
+`Core::Image#subimage` with the same signature, and `Gosu::Image.new(path,
+retro: true)` becomes `Core::Image.new(app, path)`.
+
+The one behavioural line is the flip, which becomes `image_at`:
+
+```ruby
+def draw(renderer, row, col, x, y, flip_x: false, z: 0)
+  renderer.image_at(@frames[row][col], x, y, scale_x: flip_x ? -1 : 1, z: z)
+end
+```
+
+Note what is *not* there: the `x + @frame_width` the Gosu version needed. 6.1
+mirrors inside the rectangle rather than about the anchor, so the branch and the
+compensating add both go away.
+
+- **Tests**: `spec_core/rgame/core/sprite_sheet_spec.rb`, driven by
+  `FakeRenderer` with a stub image that answers `subimage`, `width` and
+  `height`. Which cell a `(row, col)` maps to; that a frame smaller than its
+  cell is taken from the right offset; that `flip_x` mirrors *and* shifts by
+  exactly one frame width, so the sprite occupies the same rectangle either way.
+  A separate handful of examples with a real `Core::Image` covers `.load`:
+  the descriptor is parsed, the image is resolved relative to the descriptor,
+  and a missing file raises.
+- **Verify**: `rake spec:core`, RuboCop.
+
+### 6.3 `Core::NineSlice`
+
+```ruby
+slice = RGame::Core::NineSlice.new(image, x:, y:, w:, h:, border:, scale: 1)
+slice.draw(renderer, dx, dy, dw, dh, z: 0, color: nil)
+```
+
+The nine sub-images are still cut once at construction, so `draw` allocates
+nothing. Three substitutions:
+
+- `Gosu.clip_to(bx, by, bw, bh) { … }` → `renderer.clipped(bx, by, bw, bh) { … }`
+- `img.draw(x, y, z, s, s, color)` → `renderer.image_at(img, x, y, scale_x: s, scale_y: s, z: z, color: color)`
+- `color: Gosu::Color::WHITE` → `color: nil`, Core's "no tint" default
+
+The band clamping (`inner_w = 0 if inner_w.negative?`) matters and is easy to
+lose: a widget drawn narrower than its own borders must draw *no* centre rather
+than a negative-width one.
+
+- **Tests**: `spec_core/rgame/core/nine_slice_spec.rb`, entirely against
+  `FakeRenderer`. This is the class that gains most from recorded calls — the
+  assertion is the exact list of rects. Cover: the four corners land at the four
+  corners at `scale`; each edge band tiles the right number of times and is
+  clipped to its band, so the trailing tile is cropped; a widget smaller than
+  its borders draws corners only; the tint reaches every call. `FakeRenderer`
+  records transform depth, so "the tiles were drawn *inside* the clip" is
+  checkable, which is the bug this class would otherwise ship silently.
+- **Verify**: `rake spec:core`, RuboCop.
+
+### 6.4 `Core::UiAtlas`
+
+```ruby
+atlas = RGame::Core::UiAtlas.load(app, 'media/ui.json')
+atlas.nine_slices    # => { button_idle: <NineSlice>, … }
+```
+
+Pure descriptor parsing, load-time only, and the smallest step in the phase.
+`Gosu::Image.new` → `Core::Image.new(app, path)` in `.load`; everything else —
+the uniform-integer-or-hash `border`, the per-entry `scale` override — is
+unchanged.
+
+- **Tests**: `spec_core/rgame/core/ui_atlas_spec.rb`. Border given as an integer
+  expands to four sides; given as a hash with string keys it is symbolised; a
+  per-entry `scale` beats the sheet default; an atlas with no `nine_slices` key
+  yields an empty hash rather than raising. A stub image is enough for all of
+  them.
+- **Verify**: `rake spec:core`, RuboCop.
+
+### 6.5 `Core::TileMapRenderer`
+
+```ruby
+tiles = RGame::Core::TileMapRenderer.load(app, 'media/level1.tmx')
+tiles.draw(renderer, camera_x, camera_y, viewport_width, viewport_height)
+tiles.draw_overlay(renderer, camera_x, camera_y, viewport_width, viewport_height, z: 20)
+```
+
+This one still names `Engine::TileMap` and `Engine::Tileset` in `.load`, and
+those still do not exist here. **It ports anyway**, because everything after
+`.load` treats the map duck-typed — `@map.gid(li, col, row)`,
+`@map.above_layer?(li)`, `@tileset.frame_local_id(local, ms)`. A spec supplies a
+fake map, exactly the way a spec supplies a fake renderer, and the whole class
+is covered without the engine layer existing. Only `.load` is left uncovered,
+and it is four lines of file plumbing.
+
+Four substitutions:
+
+- `Gosu::Image.load_tiles(path, tw, th, retro: true)` → `Core::Image.load_tiles(app, path, tw, th)`
+- `Gosu.record(w, h) { … }` → `renderer.record { … }`. Core infers the recording's
+  extent from what was drawn instead of being told it up front; since tiles are
+  baked from `(0, 0)`, `recording.draw(-camera_x, -camera_y)` places them
+  identically.
+- `Gosu.milliseconds` → `@app.ticks_ms`, for animated-tile frame selection. From
+  the app this class already holds, **not** through `renderer.app`: adding `app`
+  to the renderer contract would hand the engine layer a route to a `Core::App`
+  through an object it is allowed to call by name, which is exactly the hole the
+  layering exists to close. A spec passes a stub app answering `ticks_ms`, which
+  also makes the animation clock controllable.
+- `@tiles[local].draw(x, y, z)` → `renderer.image_at(tile, x, y, z: z)`
+
+The lazy bake (`@static_below ||= bake_layers { … }`) stays lazy and stays
+inside `draw`, for the same reason as before: recording needs a live context,
+and `Renderer#record` may only be called inside a frame.
+
+- **Tests**: `spec_core/rgame/core/tile_map_renderer_spec.rb`, with a fake map
+  and `FakeRenderer`. The below/above split sends the right layers to the right
+  band; static tiles are baked exactly once and replayed thereafter (assert the
+  second `draw` adds no `record` call — a rebake per frame is the expensive bug
+  this class exists to avoid, and it is invisible except as a frame-rate drop);
+  animated tiles are culled to the viewport, inclusive at the near edge and
+  exclusive at the far one; the animation frame follows the clock.
+- **Verify**: `rake spec:core`, RuboCop.
+
+### 6.6 `Core::AssetManager`
+
+```ruby
+app.assets.image('space.png')
+app.assets.preload(:level1, image: ['lvl1/bg.png'], sound: ['lvl1/hit.ogg'])
+app.assets.release(:level1)
+```
+
+The cache, the group ownership sets, the reference counting and the composite
+building are **unchanged, line for line**. Two things around them change.
+
+`DEFAULT_LOADERS` stops being a constant, because every loader needs the app or
+the device:
+
+```ruby
+def default_loaders(app)
+  {
+    image: ->(path) { Image.new(app, path) },
+    sound: ->(path) { app.audio.sample(path) },
+    song: ->(path) { app.audio.song(path) },
+    tilemap: ->(path) { TileMapRenderer.load(app, path) },
+    read: ->(path) { File.read(path) }
+  }.freeze
+end
+```
+
+Reaching `app.audio` *inside* the proc rather than capturing it at construction
+is what keeps the device lazy: loading an image opens no sound device, and the
+first `assets.sound(path)` opens one.
+
+And `AssetManager.new` becomes internal — `App#assets` is the only caller, so
+the signature is whatever suits it (`new(root:, app:, loaders: nil)`). Games
+stop naming the class.
+
+Keep the injectability. The old comment explains it as "so the cache/grouping
+logic is testable without Gosu", and `docs/engine/asset_manager.md` records that
+`spec/platform/asset_manager_spec.rb` did exactly that. It holds verbatim with
+Core in Gosu's place, and it is why this class's real logic can be specced
+against `->(path) { path }` loaders with no files and no GL at all.
+
+- **Tests**: `spec_core/rgame/core/asset_manager_spec.rb`, almost all of it with
+  recording loaders. The same path twice loads once; a hit under a second group
+  tags it with both; `release` drops only what no group still holds; a
+  `PERMANENT` (ungrouped) asset survives every `release` and only `clear` takes
+  it; a failed load leaves no owner behind, so a retry is a clean retry; a
+  sheet's PNG shares a cache key with a standalone `image` of the same file.
+  A couple of examples with the real loaders confirm the wiring, and one that
+  `App#assets` is lazy, memoised, and does not open an audio device until a
+  sound is asked for.
+- **Verify**: `rake spec:core`, RuboCop.
+
+### 6.7 The registries: `Renderer` and `Audio` grow their id tables
+
+The last of `gosu_renderer.rb` and all of `gosu_audio.rb`.
+
+**Resolution through the asset manager is the primary path; registration is the
+override.** `docs/engine/asset_manager.md` is explicit about this and it is easy
+to get backwards — a draw id is normally a *root-relative path*, which the
+renderer resolves through `assets` and then memoises so a per-frame draw neither
+re-resolves nor allocates a lookup key:
+
+```ruby
+renderer.sprite('example 09/player.json', row, col, x, y)   # nothing registered
+```
+
+`register_*` pre-binds an id to a chosen object, and exists for the two cases a
+path cannot cover: an id that is not a file (nine-slice ids are *atlas element*
+names), and an object the game built itself.
+
+```ruby
+renderer.register_image(:space, app.assets.image('space.png'))
+renderer.register_nine_slice(:panel, atlas.nine_slices[:panel])
+renderer.register_ui_atlas(atlas)          # every element in one call
+renderer.register_sheet(:hero, app.assets.sheet('hero.json'))
+renderer.register_tilemap(:level1, tiles)
+
+renderer.sprite(:hero, row, col, x, y, flip_x: false, z: 0)
+renderer.nine_slice(:panel, x, y, width, height, z: 0, tint: nil)
+renderer.tilemap(:level1, camera_x, camera_y, viewport_width, viewport_height)
+renderer.tilemap_overlay(:level1, camera_x, camera_y, vw, vh, z: 20)
+```
+
+Two things to carry over exactly:
+
+- **The lookup order and its error.** `sheet_for(id)` prefers an explicit
+  registration, otherwise asks the `AssetManager` by symbol or path, then
+  memoises. The `KeyError` when neither can supply it names both the type and
+  the id, and is worth keeping word for word — it is the error a game hits most.
+- **`register_image` and friends take an already-loaded object.** Loading is the
+  `AssetManager`'s job. The registry only records.
+
+`Core::Renderer` currently takes an `App`; it gains `assets: nil`, defaulting to
+that app's own manager so the common case wires itself. Its `initialize` is C
+and has fixed arity, so the keyword arrives the way `Font`'s `path:` does — a
+Ruby `self.new` that unpacks it before calling `super`.
+
+On the audio side:
+
+```ruby
+audio.register_sound(:hit, assets.sound('hit.ogg'))
+audio.register_music(:theme, assets.song('theme.ogg'))
+audio.play_sound(:hit)
+audio.play_music(:theme)   # idempotent: already playing is a no-op
+audio.stop_music
+```
+
+One deliberate behaviour change. `stop_music` was
+`Gosu::Song.current_song&.stop` — a process-wide global. Core has no such
+global, by the decision in phase 5 that "one song at a time is Ruby's policy".
+So the registry tracks the song it started and stops that one. A game that
+starts a `Song` by hand, outside the registry, is not affected by `stop_music`,
+which is both more predictable and the only thing implementable without
+reintroducing the global.
+
+- **Tests**: both shared contracts grow, and both fakes with them —
+  `a_renderer.rb` gains the register/draw-by-id pair, `an_audio_server.rb` gains
+  the sound registry including the idempotent `play_music` and the
+  stop-what-I-started rule. Per CLAUDE.md a method on the real one is not done
+  until the contract and the fake have it. Then in `spec_core`: an unregistered
+  id with no `AssetManager` raises `KeyError` naming both; an id resolved
+  through an `AssetManager` is resolved once and memoised; `register_ui_atlas`
+  registers every element.
+- **Verify**: `make test`, `rake spec`, `rake spec:core`, RuboCop.
+
+### 6.8 Port the game shell, and run the two examples
+
+The step everything above exists to reach, and the first time any of it is
+proved rather than asserted.
+
+`SonGosuGame` stops holding a window and becomes one:
+
+```ruby
+class SonGosuGame < RGame::Core::App
+  attr_reader :action_mapper, :renderer
+
+  def initialize(root:, width: WIDTH, height: HEIGHT, caption: 'SonGosu Game',
+                 media_root: 'media', action_map: {})
+    super(width: width, height: height, caption: caption, media_root: media_root)
+    @action_mapper = Engine::ActionMapper.new(action_map)
+    @renderer = RGame::Core::Renderer.new(self)
+    @root = root
+    @overlay = Engine::DebugOverlay.new
+    @dirty = true
+  end
+end
+```
+
+`GameWindow`'s body moves in with it, minus the accumulator: `frame_begin` polls
+the mapper once per frame, `update(dt)` runs one tick
+(`control` → `update` → `sweep_freed`), `needs_redraw?` is
+`@dirty || @overlay.visible?`, `draw` draws the root then the overlay, and
+`button_down` handles Escape and F1. `start` becomes `run`, with the
+`root.context = self` and `root.enter_tree` wiring kept ahead of it.
+
+Note what the merge deletes: the `renderer:` and `mapper:` constructor
+parameters, because the object that needed passing them is now the object that
+owns them.
+
+Then the two games, in this order — the second is the control:
+
+- **`examples/14_asteroids`** — drop its own `AssetManager` (it builds one while
+  `game.assets` already exists, so today there are two caches) and its
+  `Platform::GosuAudio`, using `game.assets` and `game.audio`. Three lines
+  change; everything from `register_image` down is untouched.
+- **`examples/15_tiled_world`** — names the platform zero times. It must run
+  with **no edit at all**, and if it needs one, that is a finding about the port
+  rather than about the example. It is also the only thing that exercises
+  `TileMapRenderer`, `AnimatedSprite` and the camera end to end.
+
+Neither runs until the mouse is dealt with: `ActionMapper#poll` calls
+`backend.pointer_x`/`pointer_y` unconditionally. Delete those two lines and
+`Actions`' pointer accessors — the smallest change that makes the engine layer
+run, and the rest of the mouse cleanup belongs to
+`docs/plans/engine-replacement/`.
+
+- **Tests**: none new. This step is manual and visual by nature — it is CLAUDE.md's
+  layer-3 tier, the same one `make run` occupies. What it verifies is the thing
+  no headless spec can: that the pieces compose into a game.
+- **Verify**: both examples run, play, and quit cleanly; sprites animate, the
+  tile map scrolls with canopies over the actors, sounds fire, music loops. Then
+  the full sweep, since this step touches `App` and `Renderer`.
+
+### 6.9 Delete `lib/platform/`, and the cleanup that follows
+
+Only now, when everything above is green *and both examples run* — the old files
+are the reference the port is read against, and deleting them early throws that
+away for no gain.
+
+- `rm -r lib/platform/`.
+- Drop `gem 'gosu'` from the `Gemfile`, `bundle install`, commit the lockfile.
+- Retire `Game/PreferGosuModuleMethod`: delete
+  `rubocop/cop/game/prefer_gosu_module_method.rb`, its `require` line in
+  `.rubocop.yml`, and its row in the comment block there and in CLAUDE.md's cop
+  table (five cops become four). It has no spec of its own, so nothing else
+  goes. The principle it enforced is now structural: the C bindings have fixed
+  arity and there is no compat shim to prefer against.
+- Remove the `lib/platform/` exclusion from `rgame.gemspec` and the matching
+  expectation in `spec/packaging_spec.rb` — both are commented as going with it.
+  The other packaging expectations must keep passing untouched, which is what
+  proves the newly added `lib/rgame/core/*.rb` files ship.
+- **Replace it with an exclusion for the engine layer, for now.** `spec.files`
+  is a glob over `lib/`, so the arrival of `lib/engine/`, `lib/engine.rb`,
+  `lib/boot.rb` and `lib/son_gosu_game.rb` silently added **60 files** to the
+  gem, one of which (`son_gosu_game.rb:4`) does `require 'gosu'` against a gem
+  that is not a dependency. `spec/packaging_spec.rb` stays green because it
+  derives its expectations from the same tree in both directions — the glob is
+  doing exactly what it was designed to do, which is why the fix is an
+  exclusion plus an asserted expectation, not a change to the glob. Both come
+  back out when the layer becomes `lib/rgame/engine/` and *should* ship; that is
+  noted in `docs/plans/engine-replacement/`.
+- Drop the "only if you keep gosu in the Gemfile" apt and brew lines from
+  `README.md`, and the paragraph explaining why gosu is pinned. `lib/boot.rb`
+  and `lib/son_gosu_game.rb` stop requiring it.
+- `.rubocop.yml`: drop the stale `spec/integration/**/*` exclude, which points
+  at a directory this repo does not have. Keep the `lib/rgame/engine/**/*.rb`
+  ones — that path is the engine layer's, and the cop that reads it is the guard
+  for work still to come.
+- **Amend `docs/c_engine_feature_specs.md`.** Two places where it now
+  contradicts decisions this plan took and recorded: §1 says the fixed-timestep
+  accumulator "stays on the engine side of the boundary" (it is in
+  `frame_loop.c`), and §1 and §5 list mouse state as required (it was
+  deliberately dropped). Both have been outstanding since phases 1 and 2; this
+  is the last chance to close them before the plan folder is deleted.
+- Documentation, per CLAUDE.md's rule that plans do not outlive their work:
+  a new `docs/api/assets.md` covering `AssetManager`, `SpriteSheet`, `NineSlice`,
+  `UiAtlas` and `TileMapRenderer`; the by-id sections added to
+  `docs/api/drawing.md` and `docs/api/audio.md`; the new files in CLAUDE.md,
+  `README.md` and `ext/README.md`; and CLAUDE.md's structure section amended for
+  the two rules this phase changed — pure-Ruby classes under `lib/rgame/core/`,
+  and the fakes crossing into `spec_core/`.
+
+- **Verify** (the full sweep, and the one that matters most in this phase):
+  `make test`, `rake spec`, `rake spec:core`, `bundle exec rubocop`, zero build
+  warnings, and
+
+  ```
+  ruby -Ilib -e 'require "rgame"; puts File.read("/proc/self/maps").scan(/libSDL2|libGL\./).uniq.inspect'
+  # => []
+  ```
+
+  plus one that is specific to this step:
+
+  ```
+  grep -ril gosu lib ext spec spec_core examples rubocop Gemfile .rubocop.yml
+  ```
+
+  returns nothing except `lib/engine/`'s comments and `son_gosu_game.rb`'s name,
+  both of which belong to the next plan. Only `docs/` may still say the word,
+  and there only to explain what the engine replaced. That is the actual end
+  condition of this one.
+
+### 6.10 Fold the plan back and delete it
+
+With `lib/platform/` gone, this folder has served its purpose. Whatever is still
+true moves into the real documentation — the decisions in
+[the brief](README.md) that explain *why* the engine looks the way it does
+(vendored font, vendored audio, no mouse, accumulator in C) belong in CLAUDE.md
+or `docs/api/`, not in a plan. Then delete
+`docs/plans/gosu-replacement/`; git history keeps it.
+
+The landed notes are the exception worth reading before deleting: several record
+a deliberate deviation or a surviving mutation whose reasoning exists nowhere
+else. Anything in that category goes into a comment at the code it describes,
+which is where it should have been all along.
+
+### What phase 6 does not deliver
+
+Any of it in C — that is phase 7, and only where a measurement asks for it.
+
+And the engine layer itself. `lib/engine/` runs against Core at the end of phase
+6, which is all this plan ever promised, but it is still `Engine::` rather than
+`RGame::Engine`, still carries a `Tensor` that duplicates the C one, still has a
+UI package built on a mouse that no longer exists, and does not yet do the
+split-screen the transform and clip stacks were designed for. Moving it is the
+next effort, planned separately in `docs/plans/engine-replacement/` — which
+already holds everything phase 6 turned up while reading it, so nothing has to
+be rediscovered.
 
 ---
 

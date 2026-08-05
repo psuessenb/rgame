@@ -10,12 +10,13 @@ Read in order:
 | [00 — Brief and decisions](README.md) *(this file)* | Goal, hard constraints, decisions already taken, open questions |
 | [01 — Inventory](01-inventory.md) | What `lib/platform/` actually is today, every Gosu call it makes, and what each class needs from a C layer |
 | [02 — Target architecture](02-architecture.md) | The shape of `RGame::Core`: module layout, the layers inside the renderer, and the C-vs-Ruby split per class |
-| [03 — Roadmap](03-roadmap.md) | Phased implementation order. Detailed for phases 0–5 (0–4 implemented), deliberately rough after that |
+| [03 — Roadmap](03-roadmap.md) | Phased implementation order. Detailed for phases 0–6 (0–5 implemented), deliberately rough after that |
 
-Phases 0–4 are implemented: the window and loop, input and gamepads, the whole
-renderer — images, primitives, transforms, clipping and recordings — and text.
-The roadmap's per-step "Landed" notes say where the result differed from the
-plan.
+Phases 0–5 are implemented: the window and loop, input and gamepads, the whole
+renderer — images, primitives, transforms, clipping and recordings — text, and
+audio. The roadmap's per-step "Landed" notes say where the result differed from
+the plan. Phase 6, the port of `lib/platform/` itself, is planned in the same
+detail and not started.
 
 ---
 
@@ -33,10 +34,12 @@ boundary. It is the *what*; this folder is the *how* and the *in what order*.
 ## Hard constraints
 
 1. **The public API of the `Platform::*` classes is preserved.** A pure-Ruby
-   engine layer will sit on top of these (it is not in this repo yet, see
-   below), and it must not have to change. Method names, argument shapes,
-   keyword arguments and return values stay as they are. Only the *class
-   names* and the *implementation* move.
+   engine layer sits on top of these — `lib/engine/`, in the repo since before
+   phase 6, see ["The engine layer is here
+   now"](#the-engine-layer-is-here-now--constraint-1-became-checkable) — and it
+   must not have to change. Method names, argument shapes, keyword arguments
+   and return values stay as they are. Only the *class names* and the
+   *implementation* move.
 
    Two deliberate exceptions, both decided below: **mouse input is dropped**
    rather than ported, and **`GameWindow`'s accumulator loop moves into C**,
@@ -327,28 +330,40 @@ vendored here combined. If that weight turns out to matter more than the
 streaming work, MojoAL is the fallback and Gosu and DragonRuby both prove it
 viable. It is a reversible decision — the glue is small on either side.
 
-## What is NOT in this repo (and matters)
+## The engine layer is here now — constraint 1 became checkable
 
-`lib/platform/` references an `Engine::` namespace that does not exist here:
+This section used to say the opposite, and it was true for phases 0–5:
+`lib/platform/` referenced an `Engine::` namespace that did not exist in the
+repo, so constraint 1's promise ("the layer above must not have to change") was
+a promise nothing local could verify, and the guidance was "when in doubt, keep
+it byte-identical".
 
-- `Engine::DebugOverlay` — `GameWindow` constructs one and toggles it on F1.
-- `Engine::TileMap` / `Engine::Tileset` — `TileMapRenderer.load` parses TMX/TSX
-  through them.
-- `Engine::AudioDirector` — named in a comment; drives `GosuAudio` by events.
-- The `mapper` (an input map) and `root` (a scene-graph node) passed into
-  `GameWindow#initialize`.
+That changed before phase 6 started. `lib/engine/` (3,083 lines, 57 files),
+`lib/son_gosu_game.rb`, two runnable games under `examples/`, and the engine's
+own documentation under `docs/engine/` are all in the tree. So:
 
-That is the pure-Ruby engine layer the constraint-1 API promise is made to. It
-is not visible, so **the safest reading of any ambiguous API detail is "keep it
-byte-identical"**. Where a change is genuinely required (see the input-polling
-note in [02](02-architecture.md#input-is-snapshotted-per-frame)), it is flagged
-explicitly rather than made quietly.
+- **The two examples are phase 6's acceptance test.** `examples/14_asteroids`
+  and `examples/15_tiled_world` running on `RGame::Core` is what "the port
+  worked" means. That is a far better check than reading the old file beside
+  the new one, and phase 6 is structured around it.
+- **The engine layer needs no change to be ported to.** Grepped: `lib/engine/`
+  names `Gosu` and `Platform::` in **comments only** — not one constant
+  reference in code. It reaches everything through duck-typed seams
+  (`renderer`, `node.root.context.assets`, an audio server behind
+  `Engine::AudioDirector`). Constraint 1 was honoured by the layer itself, not
+  just promised to it.
+- **What does change is boot code**, and only boot code: `SonGosuGame` and
+  `examples/14_asteroids/main.rb`. `examples/15_tiled_world/main.rb` names the
+  platform zero times and is untouched.
 
-One consequence of dropping the mouse lands squarely in that invisible layer:
-the `:pointer` binding and `pointer_x`/`pointer_y` exist because *something*
-above does click-based UI hit-testing. That code will need rewriting onto
-keyboard/controller navigation. It is outside this plan's scope, but it is not
-free, and it is worth knowing before phase 2 rather than after.
+The mouse remains the one real cost, and it is now measurable rather than
+feared. Outside the UI package (which is outdated and being replaced anyway),
+it is six lines: `ActionMapper#poll` calls `backend.pointer_x`/`pointer_y`
+**unconditionally**, so polling does not run at all against a `Core::Input`
+that has neither, plus `Actions#pointer_x`/`#pointer_y` and the `Clickable`
+component. Fixing that is engine-layer work, not this plan's — see
+`docs/plans/engine-replacement/`, which collects what was found while checking
+this.
 
 ## Open questions
 
@@ -360,8 +375,11 @@ Recorded here rather than guessed at. None of them block phase 0–2.
 2. ~~**Audio dependency.**~~ **Settled — miniaudio, vendored.** See
    ["Audio is vendored too, and it is not SDL_mixer"](#audio-is-vendored-too-and-it-is-not-sdl_mixer)
    under decisions already taken.
-3. **Whether `Renderer` stays one class.** Today `GosuRenderer` mixes an
-   asset-id registry (Ruby-ish bookkeeping) with draw primitives (C-ish hot
-   path). The plan keeps it as one Ruby class delegating to C, but a later
-   split into `Core::Renderer` (C primitives) + a Ruby registry façade is
-   plausible. Deferred until the primitives exist.
+3. ~~**Whether `Renderer` stays one class.**~~ **Settled — one class, and
+   `Audio` likewise.** The primitives exist now and took the by-object shape
+   (`renderer.image(image, …)`), so a by-id layer is needed on top either way;
+   two façade classes would need two names for a role that already has one, and
+   `Audio` is now the sound device. Both registries fold into the existing
+   classes. See [roadmap 6, "Decisions to take before writing any of
+   it"](03-roadmap.md#decisions-to-take-before-writing-any-of-it-2), which also
+   records what it costs.

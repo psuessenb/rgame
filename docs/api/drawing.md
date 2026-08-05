@@ -96,12 +96,31 @@ scene can ask for one without deciding what colour "debug" is.
 
 ```ruby
 renderer.image(image, cx, cy, angle: 0, scale: 1, z: 0, color: nil)
+renderer.image_at(image, x, y, scale_x: 1, scale_y: 1, z: 0, color: nil)
 renderer.background(image, x = 0, y = 0, z: 0, color: nil)
 ```
 
-`image` **centres** on the position given and rotates about that centre — the
-sprite case. `background` places the image by its **top-left** corner at its
-natural size — the backdrop case.
+Three anchors for three jobs. `image` **centres** on the position given and
+rotates about that centre — the sprite case. `image_at` places the **top-left**
+corner and scales each axis on its own — tiles, nine-slice corners, sheet
+frames. `background` is `image_at` at natural size, named for its usual job.
+
+### Mirroring
+
+A negative scale on `image_at` mirrors the image **inside the same rectangle**.
+It does not move it:
+
+```ruby
+renderer.image_at(frame, x, y, scale_x: facing_left ? -1 : 1)
+```
+
+Both calls cover the same pixels; only the picture is reversed. That is worth
+knowing if you are coming from Gosu, where a negative scale mirrors *about* the
+anchor and the caller adds a width back to compensate. Here `(x, y)` is the
+top-left corner whatever the sign, so there is nothing to compensate for — and
+nothing to forget.
+
+A scale of `0` draws nothing.
 
 `color:` tints: the image's pixels are multiplied by it, so white leaves the
 image alone and a colour with alpha fades it.
