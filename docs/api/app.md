@@ -13,8 +13,39 @@ end
 MyGame.new.run   # returns when the loop stops
 ```
 
-`App.new` takes keyword arguments only; all three are required. Creating one
+`App.new` takes keyword arguments only. `width:`, `height:` and `caption:` are
+required; `media_root:` is optional and defaults to `'media'`. Creating one
 opens a real window immediately.
+
+## What the app owns
+
+Two things a game needs exactly one of, built on first use:
+
+```ruby
+class MyGame < RGame::Core::App
+  def initialize = super(width: 640, height: 480, caption: 'demo', media_root: MEDIA)
+end
+
+app.assets   # => RGame::Core::AssetManager, rooted at media_root
+app.audio    # => RGame::Core::Audio, the sound device
+```
+
+**A game never constructs either of them.** An image belongs to one OpenGL
+context and has to be told which, so something must hold the app — and since the
+asset manager is the only thing in the engine that loads from a path, that
+something is the app itself, once, rather than a parameter threaded through
+every class that ends up owning an image.
+
+Both are lazy, and that matters in each case. An app that draws only shapes
+builds no asset manager; an app that never plays anything never opens a sound
+device — and asking for a sound is the first thing that needs one, so that is
+also the right moment to open it.
+
+`media_root` is read-only and set at construction. There is deliberately no
+writer: changing it after an asset had loaded would leave one cache keyed
+against two roots.
+
+See [Sheets, atlases and maps](assets.md) for what the asset manager does.
 
 ## The frame loop
 

@@ -56,6 +56,7 @@ static ID id_gamepad_disconnected;
 static ID id_width;
 static ID id_height;
 static ID id_caption;
+static ID id_media_root;
 
 /* ------------------------------------------------------------------------- *
  * rgame_app lifetime, wrapped as a Ruby object
@@ -114,10 +115,11 @@ static VALUE app_initialize(int argc, VALUE *argv, VALUE self) {
         rb_raise(rb_eArgError, "missing keywords: :width, :height, :caption");
     }
 
-    const ID keys[3] = { id_width, id_height, id_caption };
-    VALUE values[3];
-    /* 3 required, 0 optional: raises on a missing or unknown keyword. */
-    rb_get_kwargs(opts, keys, 3, 0, values);
+    const ID keys[4] = { id_width, id_height, id_caption, id_media_root };
+    VALUE values[4];
+    /* 3 required, 1 optional: raises on a missing or unknown keyword. An absent
+     * optional comes back as Qundef. */
+    rb_get_kwargs(opts, keys, 3, 1, values);
 
     rgame_app *app = rgame_app_create(NUM2INT(values[0]), NUM2INT(values[1]),
                                       StringValueCStr(values[2]));
@@ -126,6 +128,14 @@ static VALUE app_initialize(int argc, VALUE *argv, VALUE self) {
     }
     /* Store the pointer into the already-wrapped object. */
     RTYPEDDATA_DATA(self) = app;
+
+    /* Where App#assets resolves relative paths from. It means nothing to the C
+     * engine — no file is read here — so it is kept as a plain Ruby ivar and
+     * lib/rgame/core/app.rb owns everything that reads it. It is a keyword here
+     * rather than a writer so that a game says it once, in the same call that
+     * makes the window, and cannot set it after an asset has already loaded. */
+    rb_iv_set(self, "@media_root",
+              values[3] == Qundef ? rb_str_new_cstr("media") : StringValue(values[3]));
     return self;
 }
 
@@ -448,6 +458,7 @@ void Init_core_ext(void) {
     id_width = rb_intern("width");
     id_height = rb_intern("height");
     id_caption = rb_intern("caption");
+    id_media_root = rb_intern("media_root");
 
     /*
      * rb_define_module is idempotent — it returns the existing RGame if some

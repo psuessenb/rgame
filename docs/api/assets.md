@@ -10,10 +10,97 @@ an image is a GPU handle. Game logic names them by id and never holds one — se
 
 | Page section | Class |
 |---|---|
+| [The asset manager](#the-asset-manager) | `RGame::Core::AssetManager` |
 | [Sprite sheets](#sprite-sheets) | `RGame::Core::SpriteSheet` |
 | [Nine-slices](#nine-slices) | `RGame::Core::NineSlice` |
 
 *This page grows as the rest lands.*
+
+## The asset manager
+
+The one place file-backed assets are loaded and cached. Every game has one, and
+does not build it — `app.assets` does, rooted at the app's `media_root:`:
+
+```ruby
+app.assets.image('space.png')                # => RGame::Core::Image
+app.assets.sound('example 09/boom.ogg')      # => RGame::Core::Sample
+app.assets.song('example 09/theme.ogg')      # => RGame::Core::Song
+app.assets.sheet('example 09/player.json')   # => RGame::Core::SpriteSheet
+app.assets.read('data/levels.txt')           # => String
+```
+
+Every path is **relative to the media root**, and every accessor returns the
+same object each time it is asked — so a file wanted twice is read, decoded and
+uploaded once. That is the point: loading stops being scattered across a game's
+setup, building paths ad hoc and constructing images inline, and becomes one
+object that knows what is loaded.
+
+### Groups, and what `release` frees
+
+Each cached asset remembers the **set of groups** that asked for it. An
+ungrouped load belongs to a permanent sentinel and survives every `release`; a
+grouped one is reference counted.
+
+```ruby
+app.assets.image('ui/buttons.png')                       # ungrouped: permanent
+app.assets.preload(:level1, image: ['lvl1/bg.png'],
+                            sound: ['lvl1/hit.ogg'],
+                            sheet: ['lvl1/foes.json'])
+app.assets.image('shared.png', :level2)                  # one group, by hand
+
+app.assets.release(:level1)   # drops lvl1/* unless another group still holds it
+app.assets.clear              # drops everything, permanent included
+```
+
+An asset two levels both loaded survives until **both** release it, so two
+scenes can share a texture without either one pulling it out from under the
+other. A cache *hit* under a new group is tagged with it too — the alternative
+silently loses the second group's claim.
+
+Releasing drops this cache's reference. When the GPU texture actually goes is
+the collector's business; `Image.debug_live_textures` is there if you want to
+watch it happen.
+
+`release` refuses the permanent sentinel by name, because releasing it would
+drop every ungrouped asset — the opposite of what "permanent" means. Use
+`clear`.
+
+### Composites share their parts
+
+A sprite sheet is a descriptor plus an image, and **both are pulled through this
+same cache**. So these hand back one upload between them:
+
+```ruby
+sheet = app.assets.sheet('sheets/hero.json')   # names hero.png inside
+image = app.assets.image('sheets/hero.png')    # the same texture, not a second one
+```
+
+The descriptor's image is resolved *next to the descriptor*, which is what lands
+it on the same cache key a standalone load would use. Release the sheet's group
+and its PNG goes with it.
+
+### Failure
+
+A loader's own error comes through unchanged — `Image::LoadError`,
+`Sample::LoadError`, `Errno::ENOENT` — naming the file. A load that failed
+leaves **nothing** behind: no cache entry and no group tag, so a retry is a
+clean retry rather than a half-registered asset that can never be released.
+
+### Testing without files
+
+Every asset type maps to a loader proc, and they are injectable:
+
+```ruby
+assets = RGame::Core::AssetManager.new(
+  root: '/media', app: nil,
+  loaders: { image: ->(path) { FakeImage.new(path) } }
+)
+```
+
+The defaults name `Image` and `Audio` only *inside* their bodies, never at load
+time. That is deliberate: it means the caching, path resolution and grouping —
+which is all of the logic here — can be specced with no window, no GL context
+and no files at all.
 
 ## Sprite sheets
 

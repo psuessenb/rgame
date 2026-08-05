@@ -2131,6 +2131,47 @@ against `->(path) { path }` loaders with no files and no GL at all.
   sound is asked for.
 - **Verify**: `rake spec:core`, RuboCop.
 
+**Landed.** `lib/rgame/core/asset_manager.rb` and 23 examples, all but six
+against injected loaders. The cache, the group sets and the composite building
+came across unchanged; everything interesting is around them.
+
+**`App` grew what the decisions above called for.** `media_root:` is an optional
+fourth keyword on the C `initialize` (`rb_get_kwargs` with `3, 1`), stored as a
+plain Ruby ivar because no C code reads it; `lib/rgame/core/app.rb` adds
+`#assets`, `#audio` and a read-only `#media_root`. Both accessors are lazy, and
+the loaders reach `@app.audio` *inside* the proc rather than capturing it, which
+is what keeps "load an image" from opening a sound device — asserted with a spy
+rather than by reading an ivar.
+
+**`tilemap` and `ui_atlas` are deliberately absent.** Their classes are 6.4 and
+6.5, which were deferred; the accessor and its loader arrive with each. Nothing
+degrades in the meantime — `preload` names an unknown type in its error rather
+than failing as a `NoMethodError` from inside a `public_send`.
+
+**One real hole, closed.** `release(PERMANENT)` emptied every ungrouped asset's
+owner set and dropped the lot — the exact opposite of what the constant's name
+and the old documentation promise, and silent. It now raises, naming `clear` as
+the thing that was meant. Only reachable by naming the sentinel, but the
+sentinel is a public constant.
+
+**One mutation survivor, and the test it produced.** Moving the owner tag to
+*before* the load looked harmless: the cache entry is still absent when a load
+raises, so nothing observable changes. The consequence is one step further out —
+the phantom owner never goes away, so an asset a *later* group successfully
+loads can never be released, because a group that got nothing is recorded as
+holding it forever. `leaves no owner behind when a load fails` pins that
+sequence, and the mutation now dies. The comment at `fetch` says which of the
+two orderings matters and why.
+
+Everything else dies on the first try: no caching (3 failures), keying by path
+without the type (1), tagging only on a fresh load rather than on a hit (2),
+releasing regardless of remaining owners (3), resolving a composite's image
+against the root instead of beside the descriptor (2), a composite loading its
+own image instead of going through the cache (1).
+
+Docs: an asset-manager section at the head of `docs/api/assets.md`, and a "What
+the app owns" section in `docs/api/app.md`. Every example in both was executed.
+
 ### 6.7 The registries: `Renderer` and `Audio` grow their id tables
 
 The last of `gosu_renderer.rb` and all of `gosu_audio.rb`.
