@@ -29,6 +29,19 @@ Dir[File.join(__dir__, 'support', '**', '*.rb')].each { |f| require f }
 require_relative '../spec/support/shared_examples/a_renderer'
 require_relative '../spec/support/shared_examples/an_audio_server'
 
+# The fakes cross too, and for a related reason. The pure-Ruby classes under
+# RGame::Core — SpriteSheet, NineSlice and friends — are handed a renderer and
+# call it by name, so their sharpest test is "these exact calls, in this order",
+# which is what FakeRenderer records. They cannot be specced from spec/, because
+# naming them loads the extension. So the fake comes here instead of the spec
+# going there.
+#
+# Safe because a fake that has drifted from the real thing is already a failing
+# example on the other side: fake_renderer_spec.rb runs it against the same
+# contract this file loads above.
+require_relative '../spec/support/fake_renderer'
+require_relative '../spec/support/fake_recording'
+
 RSpec.configure do |config|
   config.expect_with(:rspec) { |c| c.syntax = :expect }
   config.disable_monkey_patching!

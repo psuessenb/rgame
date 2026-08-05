@@ -13,6 +13,7 @@ any C.
 | [Images](images.md) | `RGame::Core::Image` — loading PNGs, subimages, sprite sheets |
 | [Text](text.md) | `RGame::Core::Font` and `Renderer#text` |
 | [Audio](audio.md) | `RGame::Core::Audio`, `Sample`, `Song` — samples and streamed music |
+| [Sheets, atlases and maps](assets.md) | `RGame::Core::SpriteSheet` and the rest of the asset layer |
 | [Values](values.md) | `RGame::Util::Color`, `RGame::Util::Tensor` |
 
 **The engine is a work in progress.** A window opens, the loop runs, input

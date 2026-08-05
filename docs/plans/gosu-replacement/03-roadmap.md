@@ -1890,6 +1890,37 @@ compensating add both go away.
   and a missing file raises.
 - **Verify**: `rake spec:core`, RuboCop.
 
+**Landed.** `lib/rgame/core/sprite_sheet.rb`, 20 examples. Four things worth
+carrying forward, three of which set a pattern for 6.3–6.6:
+
+- **`StubImage` (`spec_core/support/stub_image.rb`) is the second half of the
+  headless story.** `FakeRenderer` says which calls happened; `StubImage`
+  remembers which *rectangle* each `subimage` came from, so "row 1, column 2 is
+  cut from (64, 32)" is a direct assertion. Between them, everything about the
+  grid — cell stride, the origin offset inside a cell, whole-cells-only — is
+  checked with no window. `NineSlice` and `UiAtlas` want exactly this.
+- **The fakes now cross into `spec_core/`**, as the decisions above called for:
+  `core_spec_helper.rb` requires `fake_renderer` and `fake_recording` alongside
+  the two contracts. Safe because `fake_renderer_spec.rb` runs the fake against
+  the contract this file also loads, so a drifted fake fails there first.
+- **A real sheet is still drawn end to end.** Four one-pixel columns, two cells,
+  read back through `RenderedFrame`: a frame samples its own cell, and mirroring
+  swaps that cell's own pixels rather than the whole sheet's. The stub proves
+  the arithmetic; this proves the arithmetic reaches the GPU. Worth keeping as a
+  habit — a class specced entirely against fakes has no evidence it works.
+- **One deliberate addition to the old API**: a missing `frame_width` or
+  `frame_height` raises `ArgumentError` naming the key. The old class let it
+  through and the failure surfaced as `NoMethodError` on nil from inside the
+  slicing arithmetic, which says nothing about the descriptor that is wrong.
+
+`#draw` came out as one line with no branch, exactly as 6.1's mirroring
+convention promised, and `#grid` was added because a spec needs to ask how the
+image was cut and nothing else exposed it.
+
+**Docs are being written per step, not saved for 6.9.** `docs/api/assets.md`
+exists now with a sprite-sheet section and grows as 6.3–6.6 land; every example
+in it was executed against the built extension.
+
 ### 6.3 `Core::NineSlice`
 
 ```ruby
@@ -2204,9 +2235,9 @@ away for no gain.
   `frame_loop.c`), and §1 and §5 list mouse state as required (it was
   deliberately dropped). Both have been outstanding since phases 1 and 2; this
   is the last chance to close them before the plan folder is deleted.
-- Documentation, per CLAUDE.md's rule that plans do not outlive their work:
-  a new `docs/api/assets.md` covering `AssetManager`, `SpriteSheet`, `NineSlice`,
-  `UiAtlas` and `TileMapRenderer`; the by-id sections added to
+- Documentation, per CLAUDE.md's rule that plans do not outlive their work.
+  `docs/api/assets.md` is written as each class lands rather than here, so what
+  is left at this point is: the by-id sections added to
   `docs/api/drawing.md` and `docs/api/audio.md`; the new files in CLAUDE.md,
   `README.md` and `ext/README.md`; and CLAUDE.md's structure section amended for
   the two rules this phase changed — pure-Ruby classes under `lib/rgame/core/`,
