@@ -2036,6 +2036,44 @@ unchanged.
   them.
 - **Verify**: `rake spec:core`, RuboCop.
 
+**Landed.** `lib/rgame/core/ui_atlas.rb`, 15 examples, plus `AssetManager#ui_atlas`
+and the composite builder behind it — the two composites now share one
+`composite_parts`, since "read the descriptor and resolve its image beside it"
+was the same four lines twice.
+
+The class came out *smaller* than the original, because 6.3 moved border
+normalisation down into `NineSlice`: this one passes the descriptor's value
+through untouched and no longer has an opinion about what a border looks like.
+
+**One deliberate addition: a broken entry names itself.**
+
+```
+ArgumentError: ui atlas element :button_idle: nine-slice borders (40, 40, 40, 40)
+               do not fit in a 26x28 rect
+```
+
+A descriptor holds a dozen elements, and without the name the failure is
+arithmetic from inside `NineSlice` — which means bisecting the JSON by hand to
+find which button is wrong. The rescue is deliberately broad for the same
+reason: *any* complaint about building an element is worth the element's name.
+
+**A StubImage/Image drift, found on the way.** A descriptor missing `x` reached
+`Image#subimage` as `nil`, where the real one raises `TypeError` from `NUM2INT`
+and the stub raised `NoMethodError` from its own comparison. `StubImage` now
+type-checks its four arguments first — the second time it has had to grow to
+match something the real image refuses, after the zero-size rects in 6.3.
+
+**One equivalent mutation, recorded rather than fixed.** `(data[:nine_slices]
+|| {})` and `data.fetch(:nine_slices, {})` behave identically, because
+`NilClass#to_h` is `{}` — so a descriptor with `"nine_slices": null` yields no
+elements either way. The `|| {}` stays for readability rather than for effect,
+and the example that pins the null case stays too: it states a guarantee about
+a real descriptor shape, whichever detail happens to deliver it.
+
+The rest die: an element scale ignored (1), the sheet scale ignored (1), the
+element name dropped from the error (1), and an atlas loading its own image
+instead of going through the cache (1).
+
 ### 6.5 `Core::TileMapRenderer`
 
 ```ruby

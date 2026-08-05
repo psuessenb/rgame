@@ -74,6 +74,11 @@ module RGame
         fetch(:sheet, path, group) { build_sprite_sheet(path, group) }
       end
 
+      # A UI atlas, assembled the same way.
+      def ui_atlas(path, group = PERMANENT)
+        fetch(:ui_atlas, path, group) { build_ui_atlas(path, group) }
+      end
+
       # Loads a set of assets under one group, so they can be released together:
       #
       #   assets.preload(:level1, image: ['lvl1/bg.png'], sheet: ['lvl1/foes.json'])
@@ -148,8 +153,19 @@ module RGame
       end
 
       def build_sprite_sheet(relative_path, group)
+        SpriteSheet.new(*composite_parts(relative_path, group))
+      end
+
+      def build_ui_atlas(relative_path, group)
+        UiAtlas.new(*composite_parts(relative_path, group))
+      end
+
+      # The two halves a composite is made of, both through the cache: the
+      # descriptor as a cached `read`, and the image it names as a cached
+      # `image` resolved beside it.
+      def composite_parts(relative_path, group)
         data = JSON.parse(read(relative_path, group), symbolize_names: true)
-        SpriteSheet.new(image(sibling(relative_path, data[:image]), group), data)
+        [image(sibling(relative_path, data[:image]), group), data]
       end
 
       # A path next to `relative_path`, still relative to the root — so a

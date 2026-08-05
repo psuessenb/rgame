@@ -13,6 +13,7 @@ an image is a GPU handle. Game logic names them by id and never holds one — se
 | [The asset manager](#the-asset-manager) | `RGame::Core::AssetManager` |
 | [Sprite sheets](#sprite-sheets) | `RGame::Core::SpriteSheet` |
 | [Nine-slices](#nine-slices) | `RGame::Core::NineSlice` |
+| [UI atlases](#ui-atlases) | `RGame::Core::UiAtlas` |
 
 *This page grows as the rest lands.*
 
@@ -26,6 +27,7 @@ app.assets.image('space.png')                # => RGame::Core::Image
 app.assets.sound('example 09/boom.ogg')      # => RGame::Core::Sample
 app.assets.song('example 09/theme.ogg')      # => RGame::Core::Song
 app.assets.sheet('example 09/player.json')   # => RGame::Core::SpriteSheet
+app.assets.ui_atlas('ui/ui_atlas.json')      # => RGame::Core::UiAtlas
 app.assets.read('data/levels.txt')           # => String
 ```
 
@@ -228,7 +230,7 @@ One small piece of art fills a button, a dialog or a health bar of any size,
 without the corners smearing.
 
 `(x, y, w, h)` is the source rectangle **inside** the image, so one sheet can
-hold many of them — which is what a UI atlas does with it.
+hold many of them — which is what a [UI atlas](#ui-atlases) does with it.
 
 ### Tiled, not stretched
 
@@ -269,3 +271,62 @@ The nine pieces are cut once at construction, as views onto the one upload, so
 `#draw` allocates nothing. It issues one call per tile, which is what makes
 `scale` worth having: a panel drawn at 3x is a ninth of the tiles of the same
 panel drawn at 1x.
+
+## UI atlases
+
+One sheet of UI chrome, cut into named [nine-slices](#nine-slices).
+
+```ruby
+atlas = app.assets.ui_atlas('ui/ui_atlas.json')
+renderer.register_ui_atlas(atlas)
+
+renderer.nine_slice(:button_idle, x, y, width, height)
+```
+
+A button has four states, a panel has one, a scrollbar has three pieces — all
+small, and all cheaper as sub-rectangles of one texture than as a dozen files.
+
+### The descriptor
+
+```json
+{
+  "image": "buttons.png",
+  "scale": 3,
+  "nine_slices": {
+    "button_idle":  { "x": 11, "y": 59, "w": 26, "h": 28, "border": 7 },
+    "button_focus": { "x": 43, "y": 59, "w": 26, "h": 28, "border": 7 },
+    "panel":        { "x": 0, "y": 0, "w": 32, "h": 32, "scale": 2,
+                      "border": { "left": 4, "right": 4, "top": 8, "bottom": 4 } }
+  }
+}
+```
+
+`image` is resolved next to the descriptor. Each entry is a source rectangle
+plus a `border` — a uniform integer or one value per side — and an optional
+`scale` that overrides the sheet-wide one. A sheet with no `scale` draws at 1.
+
+### Element names, not filenames
+
+`nine_slices` is keyed by whatever the descriptor calls each element, and those
+names are what a widget asks for. That is why nine-slices are the one asset the
+renderer resolves **by registration only** — `:button_focus` is not a file and
+never can be. `register_ui_atlas` binds every element in one call:
+
+```ruby
+renderer.register_ui_atlas(atlas)          # all of them
+renderer.register_nine_slice(:panel, atlas.nine_slices[:panel])   # or one
+```
+
+### When an entry is wrong
+
+A descriptor holds a dozen of these, so a broken one **names itself**:
+
+```
+ArgumentError: ui atlas element :button_idle: nine-slice borders (40, 40, 40, 40)
+               do not fit in a 26x28 rect
+```
+
+Without the element name the failure is arithmetic from inside `NineSlice`, and
+finding the culprit means bisecting the JSON by hand.
+
+Parsing happens once, at load. Nothing here is touched again per frame.

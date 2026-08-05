@@ -32,6 +32,13 @@ class StubImage
   # because the real image raises would go untested against a stub that does
   # not, and the failure would surface in a game rather than in a spec.
   def subimage(x, y, width, height)
+    # NUM2INT is what the real one's arguments cross into C through, and it
+    # raises TypeError on anything that is not an Integer. Checking first also
+    # keeps the comparisons below from being a NoMethodError on nil.
+    [x, y, width, height].each do |value|
+      raise TypeError, "no implicit conversion of #{value.class} into Integer" unless value.is_a?(Integer)
+    end
+
     if width <= 0 || height <= 0 || x.negative? || y.negative? ||
        x + width > @width || y + height > @height
       raise ArgumentError,
