@@ -75,10 +75,19 @@ void rgame_prim_circle(rgame_canvas *canvas, float cx, float cy, float radius, i
     }
 }
 
-/* The four corners of `width` x `height` at (x, y), plus the view's texture
- * coordinates, in the one corner order everything here uses. */
+/*
+ * The four corners of `width` x `height` at (x, y), plus the view's texture
+ * coordinates, in the one corner order everything here uses.
+ *
+ * `flip_x`/`flip_y` mirror the *coordinates*, not the geometry: the corners are
+ * in loop order — TL, TR, BR, BL — so a horizontal mirror exchanges the `u` of
+ * the two top corners and of the two bottom ones. Doing it here rather than by
+ * handing in a negative width is what keeps the drawn rectangle exactly where
+ * the caller put it.
+ */
 static void textured_rect(rgame_canvas *canvas, const rgame_texture *view, float x, float y,
-                          float width, float height, rgame_color color, double z) {
+                          float width, float height, int flip_x, int flip_y, rgame_color color,
+                          double z) {
     float xy8[8] = {
         x, y,
         x + width, y,
@@ -87,6 +96,16 @@ static void textured_rect(rgame_canvas *canvas, const rgame_texture *view, float
     };
     float uv8[8];
     rgame_texture_uv(view, uv8);
+
+    float swap;
+    if (flip_x) {
+        swap = uv8[0]; uv8[0] = uv8[2]; uv8[2] = swap; /* u of TL and TR */
+        swap = uv8[6]; uv8[6] = uv8[4]; uv8[4] = swap; /* u of BL and BR */
+    }
+    if (flip_y) {
+        swap = uv8[1]; uv8[1] = uv8[7]; uv8[7] = swap; /* v of TL and BL */
+        swap = uv8[3]; uv8[3] = uv8[5]; uv8[5] = swap; /* v of TR and BR */
+    }
 
     rgame_canvas_textured_quad(canvas, rgame_texture_name(view), xy8, uv8, color, z);
 }
@@ -120,12 +139,21 @@ void rgame_prim_glyph(rgame_canvas *canvas, unsigned int texture, rgame_rect sou
 
 void rgame_prim_image(rgame_canvas *canvas, const rgame_texture *view, float x, float y,
                       rgame_color color, double z) {
-    if (!view || !view->sheet) {
+    rgame_prim_image_scaled(canvas, view, x, y, 1.0f, 1.0f, color, z);
+}
+
+void rgame_prim_image_scaled(rgame_canvas *canvas, const rgame_texture *view, float x, float y,
+                             float scale_x, float scale_y, rgame_color color, double z) {
+    if (!view || !view->sheet || scale_x == 0.0f || scale_y == 0.0f) {
         return;
     }
 
-    textured_rect(canvas, view, x, y, (float)rgame_texture_width(view),
-                  (float)rgame_texture_height(view), color, z);
+    /* The sign selects the mirror and the magnitude the size, so the rectangle
+     * is always well-formed and the caller never has to work out which corner
+     * the arithmetic landed on. */
+    textured_rect(canvas, view, x, y, (float)rgame_texture_width(view) * fabsf(scale_x),
+                  (float)rgame_texture_height(view) * fabsf(scale_y), scale_x < 0.0f,
+                  scale_y < 0.0f, color, z);
 }
 
 void rgame_prim_image_rot(rgame_canvas *canvas, const rgame_texture *view, float cx, float cy,
@@ -140,8 +168,8 @@ void rgame_prim_image_rot(rgame_canvas *canvas, const rgame_texture *view, float
     /* The common case — a sprite drawn upright at its natural size — is one
      * quad and no stack traffic at all. */
     if (angle_degrees == 0.0f && scale == 1.0f) {
-        textured_rect(canvas, view, cx - (width / 2.0f), cy - (height / 2.0f), width, height,
-                      color, z);
+        textured_rect(canvas, view, cx - (width / 2.0f), cy - (height / 2.0f), width, height, 0,
+                      0, color, z);
         return;
     }
 
@@ -153,7 +181,7 @@ void rgame_prim_image_rot(rgame_canvas *canvas, const rgame_texture *view, float
     rgame_canvas_push_rotate(canvas, angle_degrees, 0.0f, 0.0f);
     rgame_canvas_push_scale(canvas, scale, scale);
 
-    textured_rect(canvas, view, -width / 2.0f, -height / 2.0f, width, height, color, z);
+    textured_rect(canvas, view, -width / 2.0f, -height / 2.0f, width, height, 0, 0, color, z);
 
     rgame_canvas_pop(canvas);
     rgame_canvas_pop(canvas);

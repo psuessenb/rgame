@@ -69,6 +69,10 @@ class FakeRenderer
     remember(:image, [image, cx, cy], angle: angle, scale: scale, z: z, color: color)
   end
 
+  def image_at(image, x, y, scale_x: 1, scale_y: 1, z: 0, color: nil)
+    remember(:image_at, [image, x, y], scale_x: scale_x, scale_y: scale_y, z: z, color: color)
+  end
+
   def background(image, x = 0, y = 0, z: 0, color: nil)
     remember(:background, [image, x, y], z: z, color: color)
   end

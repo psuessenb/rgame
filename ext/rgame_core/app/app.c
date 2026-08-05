@@ -490,6 +490,19 @@ int rgame_app_draw_image(rgame_app *app, const rgame_image *image, float x, floa
     return 1;
 }
 
+int rgame_app_draw_image_scaled(rgame_app *app, const rgame_image *image, float x, float y,
+                                float scale_x, float scale_y, unsigned int color, double z) {
+    if (!image_belongs_here(app, image)) {
+        return 0;
+    }
+
+    rgame_canvas *canvas = drawing_canvas(app);
+    if (canvas) {
+        rgame_prim_image_scaled(canvas, rgame_image_view(image), x, y, scale_x, scale_y, color, z);
+    }
+    return 1;
+}
+
 int rgame_app_draw_image_rot(rgame_app *app, const rgame_image *image, float cx, float cy,
                              float angle_degrees, float scale, unsigned int color, double z) {
     if (!image_belongs_here(app, image)) {

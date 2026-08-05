@@ -94,8 +94,24 @@ module RGame
         draw_image_rot(image, cx, cy, angle, scale, z, packed(color))
       end
 
-      # An image with its top-left at (x, y) — a full-screen backdrop by
-      # default.
+      # An image with its top-left at (x, y), scaled independently per axis —
+      # a tile, a nine-slice corner, a sprite-sheet frame.
+      #
+      # A **negative scale mirrors the image inside the same rectangle**; it
+      # does not move it. So a frame drawn at (x, y) covers the same pixels
+      # whichever way it faces, and `scale_x: -1` means "facing the other way"
+      # rather than "one width to the left":
+      #
+      #   renderer.image_at(frame, x, y, scale_x: facing_left ? -1 : 1)
+      #
+      # A zero scale draws nothing.
+      def image_at(image, x, y, scale_x: 1, scale_y: 1, z: IMAGE_Z, color: nil)
+        draw_image_scaled(image, x, y, scale_x, scale_y, z, packed(color))
+      end
+
+      # An image with its top-left at (x, y), at its natural size — a
+      # full-screen backdrop by default. `image_at` with both scales at 1, kept
+      # because "put this at the origin" is worth a name of its own.
       def background(image, x = 0, y = 0, z: IMAGE_Z, color: nil)
         draw_image(image, x, y, z, packed(color))
       end

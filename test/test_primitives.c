@@ -270,6 +270,143 @@ START_TEST(an_images_uvs_match_its_corners) {
 }
 END_TEST
 
+START_TEST(a_scale_of_one_matches_the_unscaled_image_exactly) {
+    /* rgame_prim_image is implemented as this with both scales at 1. The test
+     * stays because that implementation is free to change back, and the day it
+     * does, "the backdrop moved half a pixel" is not a thing anyone would look
+     * for here. */
+    rgame_canvas plain;
+    rgame_canvas scaled;
+    begin(&plain);
+    begin(&scaled);
+    rgame_texture view = test_texture(7, 64, 32);
+
+    rgame_prim_image(&plain, &view, 10.0f, 20.0f, RGAME_COLOR_WHITE, 0.0);
+    rgame_prim_image_scaled(&scaled, &view, 10.0f, 20.0f, 1.0f, 1.0f, RGAME_COLOR_WHITE, 0.0);
+    rgame_canvas_end_frame(&plain);
+    rgame_canvas_end_frame(&scaled);
+
+    for (unsigned int i = 0; i < 6; i++) {
+        const rgame_vertex *a = vertex(&plain, i);
+        const rgame_vertex *b = vertex(&scaled, i);
+        ck_assert_float_eq_tol(a->x, b->x, TOL);
+        ck_assert_float_eq_tol(a->y, b->y, TOL);
+        ck_assert_float_eq_tol(a->u, b->u, TOL);
+        ck_assert_float_eq_tol(a->v, b->v, TOL);
+    }
+
+    rgame_texture_destroy(&view, NULL);
+    rgame_canvas_destroy(&scaled);
+    rgame_canvas_destroy(&plain);
+}
+END_TEST
+
+START_TEST(a_scaled_image_grows_from_its_top_left) {
+    /* Unlike the rotated form, which grows about its centre: this is the tile
+     * case, where the anchor is the corner the caller placed. */
+    rgame_canvas c;
+    begin(&c);
+    rgame_texture view = test_texture(7, 8, 4);
+
+    rgame_prim_image_scaled(&c, &view, 100.0f, 50.0f, 3.0f, 2.0f, RGAME_COLOR_WHITE, 0.0);
+    rgame_canvas_end_frame(&c);
+
+    ck_vertex_xy(&c, 0, 100.0f, 50.0f);  /* top-left, unmoved */
+    ck_vertex_xy(&c, 1, 124.0f, 50.0f);  /* 8 * 3 wide */
+    ck_vertex_xy(&c, 2, 124.0f, 58.0f);  /* 4 * 2 tall */
+    ck_vertex_xy(&c, 5, 100.0f, 58.0f);
+
+    rgame_texture_destroy(&view, NULL);
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(a_negative_x_scale_mirrors_the_image_without_moving_it) {
+    /* The whole reason the sign is handled in the texture coordinates. Under
+     * the other convention — negative width, mirroring *about* the anchor —
+     * this quad would sit at x 60..100, and a sprite facing the right way but
+     * standing one width to the left reads as a positioning bug rather than a
+     * flipping one. */
+    rgame_canvas c;
+    begin(&c);
+    rgame_texture view = test_texture(7, 40, 10);
+
+    rgame_prim_image_scaled(&c, &view, 100.0f, 0.0f, -1.0f, 1.0f, RGAME_COLOR_WHITE, 0.0);
+    rgame_canvas_end_frame(&c);
+
+    ck_vertex_xy(&c, 0, 100.0f, 0.0f);
+    ck_vertex_xy(&c, 1, 140.0f, 0.0f);
+
+    /* Same rectangle, opposite u at each end. */
+    ck_vertex_uv(&c, 0, 1.0f, 0.0f);
+    ck_vertex_uv(&c, 1, 0.0f, 0.0f);
+    ck_vertex_uv(&c, 2, 0.0f, 1.0f);
+    ck_vertex_uv(&c, 5, 1.0f, 1.0f);
+
+    rgame_texture_destroy(&view, NULL);
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(a_negative_y_scale_mirrors_vertically) {
+    rgame_canvas c;
+    begin(&c);
+    rgame_texture view = test_texture(7, 40, 10);
+
+    rgame_prim_image_scaled(&c, &view, 0.0f, 0.0f, 1.0f, -1.0f, RGAME_COLOR_WHITE, 0.0);
+    rgame_canvas_end_frame(&c);
+
+    ck_vertex_xy(&c, 0, 0.0f, 0.0f);
+    ck_vertex_xy(&c, 2, 40.0f, 10.0f);
+
+    ck_vertex_uv(&c, 0, 0.0f, 1.0f);
+    ck_vertex_uv(&c, 1, 1.0f, 1.0f);
+    ck_vertex_uv(&c, 2, 1.0f, 0.0f);
+    ck_vertex_uv(&c, 5, 0.0f, 0.0f);
+
+    rgame_texture_destroy(&view, NULL);
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(a_negative_scale_mirrors_a_subimage_within_its_own_rect) {
+    /* A sheet frame, not a whole sheet: the mirror must swap the frame's own u
+     * range end for end and stay inside it. Swapping to 0..1 would draw the
+     * entire sheet in one frame's place, which is the mistake this catches. */
+    rgame_canvas c;
+    begin(&c);
+    rgame_texture sheet = test_texture(7, 64, 64);
+    rgame_texture tile = {0};
+    rgame_texture_subimage(&sheet, 32, 0, 32, 64, &tile);
+
+    rgame_prim_image_scaled(&c, &tile, 0.0f, 0.0f, -1.0f, 1.0f, RGAME_COLOR_WHITE, 0.0);
+    rgame_canvas_end_frame(&c);
+
+    ck_vertex_uv(&c, 0, 1.0f, 0.0f);
+    ck_vertex_uv(&c, 1, 0.5f, 0.0f);
+
+    rgame_texture_destroy(&tile, NULL);
+    rgame_texture_destroy(&sheet, NULL);
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(a_zero_scale_draws_nothing) {
+    rgame_canvas c;
+    begin(&c);
+    rgame_texture view = test_texture(7, 40, 10);
+
+    rgame_prim_image_scaled(&c, &view, 0.0f, 0.0f, 0.0f, 1.0f, RGAME_COLOR_WHITE, 0.0);
+    rgame_prim_image_scaled(&c, &view, 0.0f, 0.0f, 1.0f, 0.0f, RGAME_COLOR_WHITE, 0.0);
+    rgame_canvas_end_frame(&c);
+
+    ck_assert_uint_eq(rgame_draw_queue_batch_count(queue(&c)), 0);
+
+    rgame_texture_destroy(&view, NULL);
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
 START_TEST(a_rotated_image_is_centred_on_its_position) {
     rgame_canvas c;
     begin(&c);
@@ -369,8 +506,10 @@ START_TEST(an_image_with_no_texture_draws_nothing) {
     rgame_texture empty = {0};
 
     rgame_prim_image(&c, &empty, 0.0f, 0.0f, RGAME_COLOR_WHITE, 0.0);
+    rgame_prim_image_scaled(&c, &empty, 0.0f, 0.0f, 2.0f, 2.0f, RGAME_COLOR_WHITE, 0.0);
     rgame_prim_image_rot(&c, &empty, 0.0f, 0.0f, 30.0f, 2.0f, RGAME_COLOR_WHITE, 0.0);
     rgame_prim_image(&c, NULL, 0.0f, 0.0f, RGAME_COLOR_WHITE, 0.0);
+    rgame_prim_image_scaled(&c, NULL, 0.0f, 0.0f, 1.0f, 1.0f, RGAME_COLOR_WHITE, 0.0);
     rgame_canvas_end_frame(&c);
 
     ck_assert_uint_eq(rgame_draw_queue_vertex_count(queue(&c)), 0);
@@ -455,6 +594,12 @@ Suite *primitives_suite(void) {
 
     tcase_add_test(tc, an_image_is_placed_by_its_top_left_at_its_natural_size);
     tcase_add_test(tc, an_images_uvs_match_its_corners);
+    tcase_add_test(tc, a_scale_of_one_matches_the_unscaled_image_exactly);
+    tcase_add_test(tc, a_scaled_image_grows_from_its_top_left);
+    tcase_add_test(tc, a_negative_x_scale_mirrors_the_image_without_moving_it);
+    tcase_add_test(tc, a_negative_y_scale_mirrors_vertically);
+    tcase_add_test(tc, a_negative_scale_mirrors_a_subimage_within_its_own_rect);
+    tcase_add_test(tc, a_zero_scale_draws_nothing);
     tcase_add_test(tc, a_rotated_image_is_centred_on_its_position);
     tcase_add_test(tc, a_scaled_image_grows_about_its_centre);
     tcase_add_test(tc, a_positive_angle_turns_an_image_clockwise);

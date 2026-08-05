@@ -567,6 +567,50 @@ RSpec.describe RGame::Core::Renderer do
       expect(frame.about?(32, 32, [255, 0, 0, 255])).to be(true)
     end
 
+    describe '#image_at' do
+      # Left half red, right half blue — striped_png tells you which way *up*
+      # an image was drawn, and this one tells you which way *round*.
+      let(:sided_png) do
+        PngFixture.write(2, 2) { |x, _y| x.zero? ? [255, 0, 0, 255] : [0, 0, 255, 255] }
+      end
+
+      def with_sided
+        RenderedFrame.capture(width: 64, height: 64) do |renderer, app|
+          yield(renderer, RGame::Core::Image.new(app, sided_png))
+        end
+      end
+
+      it 'scales from the top-left corner, independently per axis' do
+        # 2x2 at 32 by 16 covers x 0..64, y 0..32 — wider than it is tall,
+        # which a uniform scale could not produce.
+        frame = with_sided { |renderer, image| renderer.image_at(image, 0, 0, scale_x: 32, scale_y: 16) }
+
+        expect(frame.about?(16, 8, [255, 0, 0, 255])).to be(true)
+        expect(frame.about?(48, 8, [0, 0, 255, 255])).to be(true)
+        expect(frame.about?(16, 40, background)).to be(true)
+      end
+
+      it 'mirrors on a negative x scale without moving the image' do
+        # Under the convention this engine did *not* take — mirroring about the
+        # anchor rather than inside the rectangle — this quad would sit at
+        # x -16..16 and only its right half would be on screen at all.
+        frame = with_sided { |renderer, image| renderer.image_at(image, 16, 0, scale_x: -16, scale_y: 16) }
+
+        expect(frame.about?(8, 8, background)).to be(true)
+        expect(frame.about?(24, 8, [0, 0, 255, 255])).to be(true)
+        expect(frame.about?(40, 8, [255, 0, 0, 255])).to be(true)
+      end
+
+      it 'mirrors on a negative y scale' do
+        # Red is the top row of striped_png, so mirrored it is the bottom one.
+        frame = with_striped { |renderer, image| renderer.image_at(image, 0, 16, scale_x: 16, scale_y: -16) }
+
+        expect(frame.about?(16, 8, background)).to be(true)
+        expect(frame.about?(16, 24, [0, 0, 255, 255])).to be(true)
+        expect(frame.about?(16, 40, [255, 0, 0, 255])).to be(true)
+      end
+    end
+
     it 'samples only its own tile out of a sheet' do
       # The failure this catches is a UV normalised against the tile instead of
       # the sheet, which draws the whole sheet into every tile.

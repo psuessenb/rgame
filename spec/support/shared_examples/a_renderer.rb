@@ -65,6 +65,22 @@ RSpec.shared_examples 'a renderer' do
       expect { render { |renderer, image| renderer.image(image, 100, 100, angle: 45, scale: 2) } }.not_to raise_error
     end
 
+    it 'draws one at its top-left, scaled per axis' do
+      expect do
+        render { |renderer, image| renderer.image_at(image, 10, 20, scale_x: 3, scale_y: 2) }
+      end.not_to raise_error
+    end
+
+    it 'mirrors one with a negative scale' do
+      # The sign is a flip, not an error and not a displacement — see
+      # RGame::Core::Renderer#image_at. What that *looks* like is a pixel
+      # question and belongs to the real renderer's own spec; this only says
+      # the argument is accepted.
+      expect do
+        render { |renderer, image| renderer.image_at(image, 0, 0, scale_x: -1) }
+      end.not_to raise_error
+    end
+
     it 'draws one at its top-left as a backdrop' do
       expect { render { |renderer, image| renderer.background(image) } }.not_to raise_error
     end
@@ -86,7 +102,8 @@ RSpec.shared_examples 'a renderer' do
           renderer.line(0, 0, 1, 1, thickness: 1, z: 4, color: [255, 255, 0])
           renderer.circle(0, 0, 1, z: 5, color: [255, 0, 255])
           renderer.image(image, 0, 0, z: 6, color: [0, 255, 255])
-          renderer.background(image, z: 7, color: [128, 128, 128])
+          renderer.image_at(image, 0, 0, z: 7, color: [0, 255, 255])
+          renderer.background(image, z: 8, color: [128, 128, 128])
         end
       end.not_to raise_error
     end

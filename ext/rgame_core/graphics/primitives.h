@@ -62,6 +62,25 @@ void rgame_prim_image(rgame_canvas *canvas, const rgame_texture *view, float x, 
                       rgame_color color, double z);
 
 /*
+ * An image with its top-left at (x, y), scaled independently per axis. The tile
+ * and sprite-frame case: a nine-slice corner drawn at 3x, a walk frame facing
+ * the other way.
+ *
+ * **A negative scale mirrors the image inside the same rectangle; it does not
+ * move it.** The drawn area is always (x, y) to (x + |w·scale_x|, y +
+ * |h·scale_y|), so the anchor means what it says whatever the sign — and
+ * `scale_x = -1` is "the same sprite, facing left", not "the same sprite, one
+ * width to the left". The layer being replaced had the other convention (Gosu
+ * mirrors *about* the anchor) and every caller of it compensated by adding a
+ * width back, which is a correction that is silently wrong the one time it is
+ * forgotten.
+ *
+ * A zero scale on either axis draws nothing rather than a degenerate quad.
+ */
+void rgame_prim_image_scaled(rgame_canvas *canvas, const rgame_texture *view, float x, float y,
+                             float scale_x, float scale_y, rgame_color color, double z);
+
+/*
  * An image *centred* on (cx, cy), rotated `angle_degrees` clockwise about that
  * centre and uniformly scaled — the sprite case, and the shape the layer being
  * replaced exposed as `draw_rot`.

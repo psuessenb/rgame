@@ -213,6 +213,20 @@ static VALUE renderer_draw_image(VALUE self, VALUE image, VALUE x, VALUE y, VALU
     return self;
 }
 
+/* (image, x, y, scale_x, scale_y, z, color) — seven arguments, so -1 arity and
+ * an explicit check rather than seven named parameters. */
+static VALUE renderer_draw_image_scaled(int argc, VALUE *argv, VALUE self) {
+    rb_check_arity(argc, 7, 7);
+
+    check_drawn(rgame_app_draw_image_scaled(drawing_app(self), rgame_image_unwrap(argv[0]),
+                                            (float)NUM2DBL(argv[1]), (float)NUM2DBL(argv[2]),
+                                            (float)NUM2DBL(argv[3]), (float)NUM2DBL(argv[4]),
+                                            packed_color(argv[6]), NUM2DBL(argv[5])),
+                argv[0]);
+    note_recorded_image(self, argv[0]);
+    return self;
+}
+
 static VALUE renderer_draw_image_rot(int argc, VALUE *argv, VALUE self) {
     rb_check_arity(argc, 7, 7);
 
@@ -340,6 +354,7 @@ void rgame_init_renderer(VALUE mCore) {
     rb_define_method(cRenderer, "draw_line", renderer_draw_line, -1);
     rb_define_method(cRenderer, "draw_circle", renderer_draw_circle, -1);
     rb_define_method(cRenderer, "draw_image", renderer_draw_image, 5);
+    rb_define_method(cRenderer, "draw_image_scaled", renderer_draw_image_scaled, -1);
     rb_define_method(cRenderer, "draw_image_rot", renderer_draw_image_rot, -1);
     rb_define_method(cRenderer, "draw_text", renderer_draw_text, -1);
 

@@ -344,6 +344,15 @@ void rgame_app_draw_circle(rgame_app *app, float cx, float cy, float radius, int
 int rgame_app_draw_image(rgame_app *app, const rgame_image *image, float x, float y,
                          unsigned int color, double z);
 
+/*
+ * An image with its top-left at (x, y), scaled independently per axis. A
+ * negative scale mirrors the image *inside the same rectangle* rather than
+ * about the anchor, so (x, y) is the top-left corner whatever the sign; a zero
+ * scale draws nothing.
+ */
+int rgame_app_draw_image_scaled(rgame_app *app, const rgame_image *image, float x, float y,
+                                float scale_x, float scale_y, unsigned int color, double z);
+
 /* An image centred on (cx, cy), rotated clockwise about that centre and
  * uniformly scaled. */
 int rgame_app_draw_image_rot(rgame_app *app, const rgame_image *image, float cx, float cy,
