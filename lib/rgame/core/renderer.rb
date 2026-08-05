@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'rgame/core_ext'
+require_relative 'font'
 require_relative '../util/color'
 
 module RGame
@@ -51,6 +52,11 @@ module RGame
       # Enough segments that a circle reads as round at the sizes a 2D game
       # draws one, and few enough that a screenful of them is still one batch.
       CIRCLE_SEGMENTS = 64
+
+      # Text defaults above sprites but below shapes, and the size matches what
+      # the layer this replaces used, so ported UI lays out unchanged.
+      TEXT_Z = 10
+      FONT_SIZE = 18
 
       # Translucent red, for #debug_box.
       DEBUG_BOX_COLOR = Color.new(255, 40, 40, 120)
@@ -153,6 +159,34 @@ module RGame
           pop
         end
       end
+
+      # The font this renderer draws with when a call does not name one.
+      #
+      # Built on first use rather than in the constructor: creating a font needs
+      # a GL context, and a renderer is often built before there is one. Set
+      # your own with #font= to change what every unqualified #text call uses.
+      def font
+        @font ||= Font.new(app, FONT_SIZE)
+      end
+
+      attr_writer :font
+
+      # One line of text, with its top-left corner at (x, y) — the same corner
+      # every other drawing method takes, rather than the baseline typography
+      # would use.
+      #
+      # Newlines are not special. A caller wanting two lines draws two, stepping
+      # by #text_height.
+      def text(string, x, y, z: TEXT_Z, color: nil, font: nil)
+        draw_text(font || self.font, string, x, y, z, packed(color))
+      end
+
+      # What #text would occupy, for centring and layout. Unlike the drawing
+      # methods this works outside `draw`, because measuring touches no GL.
+      def text_width(string, font: nil) = (font || self.font).text_width(string)
+
+      # The line height: what to step y by for a second line.
+      def text_height(font: nil) = (font || self.font).height
 
       # Bakes everything the block draws into a RGame::Core::Recording, which
       # can then be replayed for the cost of one call per texture however many

@@ -33,14 +33,21 @@ ext/rgame_core/
   texture.c/.h          # pure texture sheets, sub-rects and UVs (unit-tested)
   primitives.c/.h       # pure rects/lines/circles/sprites -> canvas (unit-tested)
   recording.c/.h        # pure baked draws, replayed cheaply (unit-tested)
+  atlas.c/.h            # pure glyph-atlas shelf packing (unit-tested)
+  glyph_cache.c/.h      # pure codepoint -> glyph table (unit-tested)
+  font.c/.h             # pure typeface: metrics, kerning, UTF-8 (unit-tested)
+  font_atlas.c          # glyph atlas pages on the GPU: the impure quarter
+  font_internal.h       # what the draw path needs from inside a font
+  font_ext.c            # RGame::Core::Font — the Ruby binding
   gl_backend.c/.h       # the real GL calls: the only gl* on the draw path
   image.c               # decode a PNG + upload it: the thin GL shim
   image_ext.c           # RGame::Core::Image — the Ruby binding
   renderer_ext.c        # RGame::Core::Renderer — the drawing primitives
   recording_ext.c       # RGame::Core::Recording — baked, replayable draws
   core_ext.h            # one init function per Ruby-visible class here
-  stb_image_impl.c      # instantiates the vendored decoder (warnings off)
-  vendor/               # third-party sources + licences (stb_image.h)
+  stb_image_impl.c      # instantiates the vendored PNG decoder (warnings off)
+  stb_truetype_impl.c   # instantiates the vendored TTF rasteriser (warnings off)
+  vendor/               # third-party sources + licences (stb_image, stb_truetype)
   app_gl.h              # private: the GL context behind the opaque app handle
   include/rgame/core.h  # the public C API
   example.rb            # manual/visual smoke test (opens a real window)
@@ -69,17 +76,20 @@ extension.
 `rgame_core` that's `core_ext.c` + `image_ext.c` + `app.c` + `frame_loop.c` +
 `device_slots.c` + `input.c` + `gamepad.c` + `transform.c` +
 `clip.c` + `draw_queue.c` + `canvas.c` + `backend.c` + `texture.c` +
-`primitives.c` + `recording.c` + `gl_backend.c` + `image.c` + `image_ext.c` +
-`renderer_ext.c` + `recording_ext.c` + `stb_image_impl.c`, linked
+`primitives.c` + `recording.c` + `atlas.c` + `glyph_cache.c` + `font.c` +
+`font_atlas.c` + `font_ext.c` + `gl_backend.c` + `image.c` + `image_ext.c` +
+`renderer_ext.c` + `recording_ext.c` + `stb_image_impl.c` +
+`stb_truetype_impl.c`, linked
 against SDL2 + OpenGL the same way the root `Makefile` links the standalone
 binary. No prebuilt `librgame_core.a` in the middle, so there's one build step.
 
-One object is compiled differently: `stb_image_impl.c`, the single translation
-unit that instantiates the vendored PNG decoder, is built with warnings off.
-mkmf has no per-file flag setting, so `extconf.rb` appends an explicit rule for
-that object to the Makefile it just generated — an explicit rule beats mkmf's
-generic `.c.o` one, so it applies to that file and nothing else. The project
-stays `-Wall -Wextra`-clean everywhere we wrote the code; see
+Two objects are compiled differently: `stb_image_impl.c` and
+`stb_truetype_impl.c`, the translation units that instantiate the vendored stb
+headers, are built with warnings off. mkmf has no per-file flag setting, so
+`extconf.rb` appends an explicit rule per entry in its `VENDORED_STB` list to
+the Makefile it just generated — an explicit rule beats mkmf's generic `.c.o`
+one, so it applies to those files and nothing else. The project stays
+`-Wall -Wextra`-clean everywhere we wrote the code; see
 `rgame_core/vendor/README.md`.
 
 Not everything in a namespace comes from its extension: `RGame::Core::Input`,
@@ -170,6 +180,10 @@ renderer.line(0, 0, 100, 100, thickness: 4)
 renderer.image(sheet, 400, 300, angle: 45, scale: 2)      # centred, clockwise
 renderer.rotated(30, 400, 300) { renderer.rect(380, 280, 40, 40) }
 renderer.clipped(0, 0, 400, 600) { renderer.background(sheet) }
+
+# Text. The renderer has a font already; Font.new(app, size) makes another.
+renderer.text("Score: 1200", 10, 10)
+renderer.text_width("Score: 1200")   # => Float, and what #text actually draws
 
 # Bake a block of drawing once, replay it for one call per texture.
 ground = renderer.record { 100.times { |i| renderer.rect(i * 8, 0, 6, 6) } }

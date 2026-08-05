@@ -25,6 +25,9 @@ int main(void) {
     srunner_add_suite(runner, texture_suite());
     srunner_add_suite(runner, primitives_suite());
     srunner_add_suite(runner, recording_suite());
+    srunner_add_suite(runner, atlas_suite());
+    srunner_add_suite(runner, glyph_cache_suite());
+    srunner_add_suite(runner, font_suite());
 
     srunner_run_all(runner, CK_NORMAL);
     int failed = srunner_ntests_failed(runner);

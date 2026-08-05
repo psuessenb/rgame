@@ -21,6 +21,9 @@ Suite *canvas_suite(void);
 Suite *texture_suite(void);
 Suite *primitives_suite(void);
 Suite *recording_suite(void);
+Suite *atlas_suite(void);
+Suite *glyph_cache_suite(void);
+Suite *font_suite(void);
 Suite *backend_suite(void);
 
 #endif /* RGAME_TEST_SUITES_H */

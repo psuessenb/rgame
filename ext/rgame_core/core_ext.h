@@ -19,6 +19,7 @@
 void rgame_init_image(VALUE mCore);
 void rgame_init_renderer(VALUE mCore);
 void rgame_init_recording(VALUE mCore);
+void rgame_init_font(VALUE mCore);
 
 /*
  * Wraps a baked recording in a Ruby object. Only Renderer#record calls this:
@@ -38,5 +39,9 @@ rgame_app *rgame_app_unwrap(VALUE app);
 /* The engine handle behind a Ruby RGame::Core::Image, for the renderer to draw.
  * Raises TypeError on anything that is not an Image. */
 rgame_image *rgame_image_unwrap(VALUE image);
+
+/* The engine handle behind a Ruby RGame::Core::Font, for the renderer to draw
+ * text with. Raises TypeError on anything that is not a Font. */
+rgame_font *rgame_font_unwrap(VALUE font);
 
 #endif /* RGAME_CORE_EXT_H */

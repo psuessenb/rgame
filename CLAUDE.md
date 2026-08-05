@@ -307,16 +307,44 @@ sources go in `ext/rgame_core/`.
 - `ext/rgame_core/image.c` — layer 3 for images: read the file, `stbi_load`,
   `glTexImage2D`, `GL_NEAREST`. Kept dumb on purpose; the interesting parts are
   in `texture.c` above. Covered end to end by `spec_core/rgame/core/image_spec.rb`.
-- `ext/rgame_core/vendor/` + `stb_image_impl.c` — the vendored PNG decoder and
-  the single translation unit that instantiates it. **The only file in the
-  project compiled without `-Wall -Wextra`**, carved out in both `extconf.rb`
-  and the root `Makefile` so everything we wrote stays warning-clean. See
+- `ext/rgame_core/vendor/` + `stb_image_impl.c` + `stb_truetype_impl.c` — the
+  vendored PNG decoder and TrueType rasteriser, and the one translation unit
+  each that instantiates them. **The only files in the project compiled without
+  `-Wall -Wextra`**, carved out from a single list in both `extconf.rb` and the
+  root `Makefile` so everything we wrote stays warning-clean. The default font
+  is *not* here: it is runtime data and lives in `lib/rgame/fonts/`. See
   `ext/rgame_core/vendor/README.md`.
 - `ext/rgame_core/primitives.{c,h}` — the shapes a game asks for (rect, thick
   line, circle, sprite) in terms of the two the canvas knows. Pure; covered by
   `test/test_primitives.c`. A rotated sprite goes through the canvas's own
   transform stack rather than its own sin/cos, so which way a positive angle
   turns is decided in exactly one place.
+- `ext/rgame_core/atlas.{c,h}` — where the next glyph goes on a texture page:
+  a shelf packer, pure, covered by `test/test_atlas.c`. The one-pixel gutter
+  between glyphs is reserved *inside* `place` rather than by each caller,
+  because a caller that has to remember eventually does not and the result
+  looks like a rendering bug rather than a packing one.
+- `ext/rgame_core/glyph_cache.{c,h}` — which glyphs have already been
+  rasterised and where they went: an open-addressed table keyed by codepoint,
+  pure, covered by `test/test_glyph_cache.c`. Nothing is ever evicted, which is
+  the point — caching per *glyph* rather than per string bounds the whole thing
+  by the character set the game draws, so there is no policy to get wrong and
+  no tombstones to skip.
+- `ext/rgame_core/font.{c,h}` — a typeface at one pixel size: glyph metrics,
+  rasterisation and UTF-8, over `stb_truetype`. Pure — no atlas, no GL — and
+  covered by `test/test_font.c` against the font the engine *ships*, so the
+  assertions are real advances rather than fixtures. Measuring a string and
+  drawing it share one `rgame_text_cursor`: two loops that both "sum the
+  advances" drift, and every centred label in the game drifts with them.
+- `ext/rgame_core/font_atlas.c` — the impure quarter of text: it composes
+  `font` + `atlas` + `glyph_cache`, owns the atlas pages as `GL_ALPHA` textures,
+  and is the only file in the text stack that calls `gl*`. Layer 3, kept thin;
+  covered end to end by `spec_core/rgame/core/font_spec.rb`.
+- `lib/rgame/fonts/` — the default font (Liberation Sans, SIL OFL 1.1), shipped
+  rather than looked up in a system font database. It is runtime data, so it
+  lives where a gem installs data rather than in `ext/`. Shipping it is also
+  what lets `test/test_font.c` assert real advances instead of fixtures; see
+  `docs/plans/gosu-replacement/README.md` for why not to copy Gosu here.
 - `ext/rgame_core/recording.{c,h}` — a block of drawing baked once and
   replayed as one call per texture, which is what makes a tile map affordable.
   Pure; covered by `test/test_recording.c`. It stores no clip on purpose:

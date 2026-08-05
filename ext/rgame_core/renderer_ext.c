@@ -105,6 +105,19 @@ static VALUE renderer_initialize(VALUE self, VALUE app) {
     return self;
 }
 
+/*
+ * The App this renderer draws into.
+ *
+ * Exposed because the Ruby half builds the default font lazily and needs an app
+ * to build it from — see lib/rgame/core/renderer.rb. A renderer already holds
+ * the app reachable, so handing it back adds no lifetime question.
+ */
+static VALUE renderer_app(VALUE self) {
+    rgame_renderer_ref *ref;
+    TypedData_Get_Struct(self, rgame_renderer_ref, &renderer_data_type, ref);
+    return ref->app_object;
+}
+
 /* True while a frame is open — that is, inside the app's #draw. */
 static VALUE renderer_drawing_p(VALUE self) {
     rgame_renderer_ref *ref;
@@ -168,15 +181,15 @@ static VALUE renderer_draw_circle(int argc, VALUE *argv, VALUE self) {
     return self;
 }
 
-/* An image drawn through the wrong app's renderer samples nothing and paints a
- * white quad — silently. Both image calls report the mismatch so it can be an
- * error instead of a mystery on screen. */
-static void check_drawn(int drawn, VALUE image) {
+/* An image or font drawn through the wrong app's renderer samples nothing and
+ * paints white quads — silently. Every such call reports the mismatch so it can
+ * be an error instead of a mystery on screen. */
+static void check_drawn(int drawn, VALUE subject) {
     if (!drawn) {
         rb_raise(rb_eArgError,
                  "%" PRIsVALUE " belongs to a different App than this renderer; "
                  "a texture cannot be drawn into another window's GL context",
-                 image);
+                 subject);
     }
 }
 
@@ -209,6 +222,31 @@ static VALUE renderer_draw_image_rot(int argc, VALUE *argv, VALUE self) {
                                          packed_color(argv[6]), NUM2DBL(argv[5])),
                 argv[0]);
     note_recorded_image(self, argv[0]);
+    return self;
+}
+
+/*
+ * #draw_text(font, string, x, y, z, rgba)
+ *
+ * The string's bytes go to C as they are: no `each_char`, no codepoints array,
+ * nothing allocated per call. Walking UTF-8 is what font.c is for.
+ */
+static VALUE renderer_draw_text(int argc, VALUE *argv, VALUE self) {
+    rb_check_arity(argc, 6, 6);
+
+    VALUE font = argv[0];
+    VALUE string = argv[1];
+    const char *text = RSTRING_PTR(string);
+    long length = RSTRING_LEN(string);
+
+    int drawn = rgame_app_draw_text(drawing_app(self), rgame_font_unwrap(font), text,
+                                    (size_t)length, (float)NUM2DBL(argv[2]),
+                                    (float)NUM2DBL(argv[3]), packed_color(argv[5]),
+                                    NUM2DBL(argv[4]));
+    /* RSTRING_PTR hands out a pointer the collector does not know about. */
+    RB_GC_GUARD(string);
+
+    check_drawn(drawn, font);
     return self;
 }
 
@@ -294,6 +332,7 @@ void rgame_init_renderer(VALUE mCore) {
     rb_define_alloc_func(cRenderer, renderer_alloc);
     rb_define_method(cRenderer, "initialize", renderer_initialize, 1);
     rb_define_method(cRenderer, "drawing?", renderer_drawing_p, 0);
+    rb_define_method(cRenderer, "app", renderer_app, 0);
 
     rb_define_method(cRenderer, "draw_rect", renderer_draw_rect, 6);
     rb_define_method(cRenderer, "draw_quad", renderer_draw_quad, -1);
@@ -302,6 +341,7 @@ void rgame_init_renderer(VALUE mCore) {
     rb_define_method(cRenderer, "draw_circle", renderer_draw_circle, -1);
     rb_define_method(cRenderer, "draw_image", renderer_draw_image, 5);
     rb_define_method(cRenderer, "draw_image_rot", renderer_draw_image_rot, -1);
+    rb_define_method(cRenderer, "draw_text", renderer_draw_text, -1);
 
     rb_define_method(cRenderer, "push_translate", renderer_push_translate, 2);
     rb_define_method(cRenderer, "push_rotate", renderer_push_rotate, 3);

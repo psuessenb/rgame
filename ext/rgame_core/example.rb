@@ -103,6 +103,13 @@ class Example < RGame::Core::App
     # The cursor the arrow keys move.
     r.debug_box(@cursor_x - 8, @cursor_y - 8, 16, 16)
 
+    # Text, including accents and punctuation the shipped font has to cover, so
+    # a look at the window checks kerning and coverage at once. The second line
+    # is centred using text_width, which is what a UI actually does with it.
+    r.text('rgame — Grüße, œuvre, 5 €', 40, 270, color: YELLOW)
+    label = format('%d fps', fps)
+    r.text(label, 400 - (r.text_width(label) / 2), 270 + r.text_height)
+
     @frames += 1
   end
 

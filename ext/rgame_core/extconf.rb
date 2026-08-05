@@ -92,20 +92,29 @@ $CFLAGS << ' -std=gnu17 -Wall -Wextra'
 # bare name "rgame" to lib/rgame.rb, which is the pure-Ruby entry point.
 create_makefile('rgame/core_ext')
 
-# One object compiled with warnings off: the vendored stb_image implementation
-# (see stb_image_impl.c and vendor/README.md). mkmf has no per-file flag
-# setting, so the rule is appended to the Makefile it just wrote. An explicit
-# rule for a specific target beats mkmf's generic .c.o suffix rule, so this is
-# what gets used for that one object and nothing else.
+# The vendored stb implementations, compiled with warnings off (see
+# vendor/README.md). mkmf has no per-file flag setting, so the rules are
+# appended to the Makefile it just wrote. An explicit rule for a specific
+# target beats mkmf's generic .c.o suffix rule, so these are what get used for
+# those objects and nothing else.
+#
+# Written from one list rather than one block per library: a second hand-copied
+# rule is how the first one drifts. They are explicit rules rather than a `%`
+# pattern because mkmf's Makefiles are meant to work with whatever `make` the
+# platform has, and pattern rules are a GNU extension.
 #
 # `-w` comes last on the command line and switches every warning back off,
 # which is simpler and more robust than trying to subtract -Wall -Wextra from
 # $(CFLAGS) — everything else about how the extension compiles stays identical.
-File.open('Makefile', 'a') do |makefile|
-  makefile.puts <<~MAKE
+VENDORED_STB = %w[stb_image stb_truetype].freeze
 
-    stb_image_impl.#{$OBJEXT}: $(srcdir)/stb_image_impl.c $(srcdir)/vendor/stb_image.h
-    \t$(ECHO) compiling vendored stb_image with warnings off
-    \t$(Q) $(CC) $(INCFLAGS) $(CPPFLAGS) $(CFLAGS) -w $(COUTFLAG)$@ -c $(srcdir)/stb_image_impl.c
-  MAKE
+File.open('Makefile', 'a') do |makefile|
+  VENDORED_STB.each do |name|
+    makefile.puts <<~MAKE
+
+      #{name}_impl.#{$OBJEXT}: $(srcdir)/#{name}_impl.c $(srcdir)/vendor/#{name}.h
+      \t$(ECHO) compiling vendored #{name} with warnings off
+      \t$(Q) $(CC) $(INCFLAGS) $(CPPFLAGS) $(CFLAGS) -w $(COUTFLAG)$@ -c $(srcdir)/#{name}_impl.c
+    MAKE
+  end
 end

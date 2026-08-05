@@ -243,8 +243,12 @@ are both checked against one shared contract (`spec/support/shared_examples/
 a_renderer.rb`), so the fake cannot drift into describing a renderer that does
 not exist — which would leave a green test suite and a game that no longer runs.
 
+## Text
+
+`renderer.text(string, x, y)` draws a line of text, and `text_width` measures
+one. See [Text](text.md) for fonts, the shipped default and what it covers.
+
 ## What is not here yet
 
-Text, audio, and drawing by asset id (`sprite(:hero, row, col, …)`) are still to
-come. Today an image is passed as an object rather than looked up in a
-registry.
+Audio and drawing by asset id (`sprite(:hero, row, col, …)`) are still to come.
+Today an image is passed as an object rather than looked up in a registry.

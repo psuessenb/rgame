@@ -13,7 +13,7 @@ depends on:
 | C source | `ext/rgame_core/` | `ext/rgame_util/` |
 | Extension | `rgame/core_ext` | `rgame/util_ext` |
 | Links | SDL2 + OpenGL | nothing but Ruby |
-| Holds today | `App` — window, GL context, fixed-timestep main loop; `Input`, `Gamepad`, `Image`, `Renderer`, `Recording` | `Tensor`, `Controls`, `Color` |
+| Holds today | `App` — window, GL context, fixed-timestep main loop; `Input`, `Gamepad`, `Image`, `Renderer`, `Recording`, `Font` | `Tensor`, `Controls`, `Color` |
 
 That split is load-bearing, not cosmetic: `require "rgame"` gives you
 `RGame::Util` with **no graphics libraries loaded into the process at all**, so
@@ -26,8 +26,8 @@ require "rgame/core"  # adds RGame::Core, pulls in SDL2 + OpenGL
 ```
 
 The engine opens a window, runs a fixed-timestep loop, reads keyboard and
-controllers, loads PNGs onto the GPU and draws shapes and sprites through a
-z-sorted batching renderer. Text and audio are still ahead. Its C sources build
+controllers, loads PNGs onto the GPU, and draws shapes, sprites and text through
+a z-sorted batching renderer. Audio is still ahead. Its C sources build
 two ways from one copy: a standalone binary (`build/rgame`, via the root
 `Makefile`) and the `core_ext` extension (via `extconf.rb`).
 
@@ -49,8 +49,10 @@ there if you want to write a game rather than work on the engine.
 - OpenGL development headers/libs (provided by Mesa on Linux)
 - [Check](https://libcheck.github.io/check/) (`check` pkg-config package) — C unit test framework, only needed for `make test`
 
-PNG decoding needs no system library: `stb_image.h` is vendored in
-`ext/rgame_core/vendor/` (public domain / MIT — see the README there).
+PNG decoding and text need no system libraries: `stb_image.h` and
+`stb_truetype.h` are vendored in `ext/rgame_core/vendor/` (public domain / MIT),
+and the default font ships in `lib/rgame/fonts/` (SIL OFL 1.1). See the README
+in `ext/rgame_core/vendor/` for both.
 
 ### Ruby side
 
@@ -105,8 +107,8 @@ make clean        # remove build artifacts, including both extensions'
 ```
 
 `make run` opens a window with one of each drawing primitive in it — a rotating
-square, a clipped rectangle, a circle, a thick line, and a baked strip replayed
-every frame. `Esc` or closing the window quits. `ruby ext/rgame_core/example.rb`
+square, a clipped rectangle, a circle, a thick line, a baked strip replayed
+every frame, and a line of accented text. `Esc` or closing the window quits. `ruby ext/rgame_core/example.rb`
 is the same scene driven from Ruby.
 
 The Ruby specs:
@@ -212,18 +214,31 @@ ext/rgame_core/              RGame::Core — the SDL/GL half.
                              terms of the canvas's triangles and quads.
   recording.h/.c             Pure: a baked block of drawing, kept between
                              frames and replayed as one call per texture.
+  atlas.h/.c                 Pure: shelf packing for the glyph atlas — where
+                             the next glyph goes on a texture page.
+  glyph_cache.h/.c           Pure: codepoint -> rasterised glyph, open
+                             addressed, never evicted.
+  font.h/.c                  Pure: a typeface at one size — glyph metrics,
+                             kerning, rasterisation and UTF-8, over
+                             stb_truetype. No atlas, no GL.
+  font_atlas.c               Composes font + atlas + glyph cache and owns the
+                             GL pages — the only text file that calls gl*.
   gl_backend.h/.c            The real GL calls — the only file that issues
                              them on the drawing path.
   image.c                    Decode a PNG and upload it — the thin GL shim
                              over texture.h. Views share one upload.
-  stb_image_impl.c           Instantiates the vendored decoder; the one file
-                             built without -Wall -Wextra.
-  vendor/                    Third-party sources (stb_image.h) + their licences.
+  stb_image_impl.c           Instantiates the vendored PNG decoder.
+  stb_truetype_impl.c        Instantiates the vendored TrueType rasteriser.
+                             These two are the only files built without
+                             -Wall -Wextra.
+  vendor/                    Third-party sources (stb_image.h, stb_truetype.h)
+                             + their licences.
   core_ext.c                 Ruby glue: VALUE wrappers + callback trampolines,
                              and the extension's entry point.
   core_ext.h                 One init function per Ruby-visible class here.
   image_ext.c                RGame::Core::Image — the Ruby binding.
   renderer_ext.c             RGame::Core::Renderer — the drawing primitives.
+  font_ext.c                 RGame::Core::Font — the Ruby binding.
   recording_ext.c            RGame::Core::Recording — baked, replayable draws.
   extconf.rb                 mkmf script; pkg_config("sdl2"), -lGL.
   example.rb                 Manual smoke test driven from Ruby.
@@ -253,6 +268,10 @@ lib/rgame/core/image.rb      Sprite-sheet slicing over the C-backed Image.
 lib/rgame/core/renderer.rb   Keyword args, colours and transform blocks over
                              the C-backed Renderer.
 lib/rgame/core/recording.rb  #draw over the C-backed Recording.
+lib/rgame/core/font.rb       The default font path, over the C-backed Font.
+lib/rgame/fonts/             The default font shipped with the engine:
+                             Liberation Sans 2.1.5 (SIL OFL 1.1). Data read at
+                             runtime, so it lives here rather than in ext/.
 lib/rgame/*.so               Build artifacts, copied here by `make ext`.
 
 src/main.c                   Standalone executable entry point — the C

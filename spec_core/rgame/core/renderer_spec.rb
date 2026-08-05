@@ -11,11 +11,12 @@ RSpec.describe RGame::Core::Renderer do
     # The real implementation, run against the same contract as the recording
     # fake in spec/. Between them that is the whole guarantee that a headless
     # green suite still predicts whether the game runs.
-    # The image is built from the capture's own app: a texture belongs to one GL
-    # context, so one made anywhere else could not be drawn here.
+    # The image and the font are built from the capture's own app: both own GL
+    # objects that belong to one context, so ones made anywhere else could not
+    # be drawn here.
     def render
       RenderedFrame.capture(width: 64, height: 64) do |renderer, app|
-        yield(renderer, RGame::Core::Image.new(app, white_png))
+        yield(renderer, RGame::Core::Image.new(app, white_png), RGame::Core::Font.new(app, 12))
       end
     end
 
@@ -398,6 +399,112 @@ RSpec.describe RGame::Core::Renderer do
       end
 
       expect { baked.draw }.to raise_error(RuntimeError, /only allowed inside #draw/)
+    end
+  end
+
+  describe 'text' do
+    # The pure half — advances, kerning, UTF-8 — is test/test_font.c. What needs
+    # a window is whether those numbers turn into ink in the right place.
+    # Wide enough that a long sample string fits with room to spare: text that
+    # runs off the edge is clipped, and the ink measurements below would then be
+    # measuring the window rather than the string.
+    def with_text
+      RenderedFrame.capture(width: 256, height: 64) do |renderer, app|
+        yield(renderer, RGame::Core::Font.new(app, 24))
+      end
+    end
+
+    # The leftmost and rightmost columns with any ink in them, or nil if the
+    # frame is blank.
+    def inked_columns(frame)
+      columns = (0...frame.width).reject do |x|
+        (0...frame.height).all? { |y| frame.about?(x, y, background) }
+      end
+      columns.empty? ? nil : [columns.first, columns.last]
+    end
+
+    it 'puts ink where the text was asked for' do
+      frame = with_text { |renderer, font| renderer.text('Hi', 20, 10, font: font) }
+
+      left, right = inked_columns(frame)
+      expect(left).to be >= 20
+      expect(right).to be < 20 + 60
+      # ...and nothing above where the line starts.
+      expect((0...frame.width).all? { |x| frame.about?(x, 2, background) }).to be(true)
+    end
+
+    it 'draws nothing for an empty string' do
+      frame = with_text { |renderer, font| renderer.text('', 10, 10, font: font) }
+
+      expect(inked_columns(frame)).to be_nil
+    end
+
+    it 'colours the glyphs' do
+      # Text goes through an alpha-only atlas, so the colour comes entirely from
+      # the vertex. If the atlas were uploaded as anything else this would draw
+      # white or nothing.
+      frame = with_text do |renderer, font|
+        renderer.text('OO', 10, 10, color: [255, 0, 0], font: font)
+      end
+
+      red = (0...frame.width).flat_map { |x| (0...frame.height).map { |y| frame.at(x, y) } }
+                             .select { |r, g, b, _a| r > 150 && g < 100 && b < 100 }
+      expect(red).not_to be_empty
+    end
+
+    it 'measures what it actually draws' do
+      # The assertion with the longest fuse: if measuring and drawing ever
+      # disagree, every centred label in the game sits slightly off and nothing
+      # points at why. Rendered ink versus the reported width.
+      measured = nil
+      frame = with_text do |renderer, font|
+        measured = renderer.text_width('Hamburgefonstiv', font: font)
+        renderer.text('Hamburgefonstiv', 4, 10, font: font)
+      end
+
+      left, right = inked_columns(frame)
+      # The ink starts at or just after the pen and ends at or just before the
+      # advance of the final glyph — a letter's ink is inset from its advance,
+      # so the drawn extent is a little narrower than the measurement.
+      expect(left).to be >= 4
+      expect(right - 4).to be <= measured.ceil
+      expect(right - 4).to be > measured * 0.9
+    end
+
+    it 'draws accented characters as glyphs, not as boxes per byte' do
+      plain = with_text { |renderer, font| renderer.text('uu', 4, 10, font: font) }
+      accented = with_text { |renderer, font| renderer.text('ü', 4, 10, font: font) }
+
+      _, plain_right = inked_columns(plain)
+      _, accented_right = inked_columns(accented)
+      expect(accented_right).to be < plain_right
+    end
+
+    it 'obeys z like everything else' do
+      frame = with_text do |renderer, font|
+        renderer.text('XXXX', 0, 0, z: 1, color: [255, 0, 0], font: font)
+        renderer.rect(0, 0, 256, 64, z: 2, color: [0, 0, 255])
+      end
+
+      expect(frame.about?(10, 10, [0, 0, 255, 255])).to be(true)
+    end
+
+    it 'moves with the transform in effect' do
+      frame = with_text do |renderer, font|
+        renderer.translated(60, 20) { renderer.text('Hi', 0, 0, font: font) }
+      end
+
+      left, = inked_columns(frame)
+      expect(left).to be >= 60
+    end
+
+    it 'is clipped like everything else' do
+      frame = with_text do |renderer, font|
+        renderer.clipped(0, 0, 40, 64) { renderer.text('Hi there', 0, 10, font: font) }
+      end
+
+      _, right = inked_columns(frame)
+      expect(right).to be < 40
     end
   end
 

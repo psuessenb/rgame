@@ -22,6 +22,7 @@
 #include "rgame/core.h"
 #include "app_gl.h"
 #include "canvas.h"
+#include "font_internal.h"
 #include "frame_loop.h"
 #include "gamepad.h"
 #include "gl_backend.h"
@@ -500,6 +501,52 @@ int rgame_app_draw_image_rot(rgame_app *app, const rgame_image *image, float cx,
         rgame_prim_image_rot(canvas, rgame_image_view(image), cx, cy, angle_degrees, scale, color,
                              z);
     }
+    return 1;
+}
+
+/* A font's atlas pages live in one GL context, exactly like an image's
+ * texture; see image_belongs_here. */
+static int font_belongs_here(const rgame_app *app, const rgame_font *font) {
+    return !font || rgame_font_owner(font) == app;
+}
+
+int rgame_app_draw_text(rgame_app *app, rgame_font *font, const char *text, size_t length,
+                        float x, float y, unsigned int color, double z) {
+    if (!font_belongs_here(app, font)) {
+        return 0;
+    }
+
+    rgame_canvas *canvas = drawing_canvas(app);
+    if (!canvas || !font || !text) {
+        return 1;
+    }
+
+    /*
+     * The same cursor `rgame_font_measure` uses — not the same arithmetic, the
+     * same code. Two loops that both sum advances drift the moment one gains a
+     * rounding rule, and then every centred label in the game sits a pixel off
+     * with nothing to point at.
+     */
+    rgame_text_cursor cursor;
+    rgame_text_cursor_init(&cursor, text, length);
+
+    int codepoint = 0;
+    float pen_x = 0.0f;
+    while (rgame_text_cursor_next(&cursor, rgame_font_typeface(font), &codepoint, &pen_x)) {
+        rgame_glyph glyph;
+        unsigned int texture = 0;
+        int page_width = 0, page_height = 0;
+        if (!rgame_font_glyph(font, codepoint, &glyph, &texture, &page_width, &page_height)) {
+            continue; /* skip the one glyph, draw the rest of the string */
+        }
+
+        /* The bearings turn a pen position into where the ink goes: x from the
+         * pen, y from the top of the line box. A space has no rect and
+         * rgame_prim_glyph draws nothing for it. */
+        rgame_prim_glyph(canvas, texture, glyph.rect, page_width, page_height,
+                         x + pen_x + glyph.bearing_x, y + glyph.bearing_y, color, z);
+    }
+
     return 1;
 }
 

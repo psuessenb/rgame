@@ -91,6 +91,33 @@ static void textured_rect(rgame_canvas *canvas, const rgame_texture *view, float
     rgame_canvas_textured_quad(canvas, rgame_texture_name(view), xy8, uv8, color, z);
 }
 
+void rgame_prim_glyph(rgame_canvas *canvas, unsigned int texture, rgame_rect source,
+                      int page_width, int page_height, float x, float y, rgame_color color,
+                      double z) {
+    if (source.w <= 0 || source.h <= 0 || page_width <= 0 || page_height <= 0) {
+        return;
+    }
+
+    float xy8[8] = {
+        x, y,
+        x + (float)source.w, y,
+        x + (float)source.w, y + (float)source.h,
+        x, y + (float)source.h,
+    };
+
+    /* Normalised against the page, not the glyph — the same division
+     * rgame_texture_uv does, for the same reason: dividing by the glyph's own
+     * size would stretch every letter across the whole page. */
+    float u0 = (float)source.x / (float)page_width;
+    float v0 = (float)source.y / (float)page_height;
+    float u1 = (float)(source.x + source.w) / (float)page_width;
+    float v1 = (float)(source.y + source.h) / (float)page_height;
+
+    float uv8[8] = { u0, v0, u1, v0, u1, v1, u0, v1 };
+
+    rgame_canvas_textured_quad(canvas, texture, xy8, uv8, color, z);
+}
+
 void rgame_prim_image(rgame_canvas *canvas, const rgame_texture *view, float x, float y,
                       rgame_color color, double z) {
     if (!view || !view->sheet) {

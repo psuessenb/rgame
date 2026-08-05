@@ -1,5 +1,6 @@
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "rgame/core.h"
 
@@ -38,6 +39,14 @@ static void on_update(void *userdata, double dt_seconds) {
  * ext/rgame_core/example.rb. Freed in main() once the loop has finished. */
 static rgame_recording *baked_strip = NULL;
 
+/*
+ * The font this draws with. The Ruby binding defaults to the same file from
+ * lib/rgame/core/font.rb; a C caller names it, because where a gem installs its
+ * data is not something the engine has an opinion about.
+ */
+#define DEFAULT_FONT_PATH "lib/rgame/fonts/LiberationSans-Regular.ttf"
+static rgame_font *font = NULL;
+
 static void on_draw(void *userdata) {
     rgame_app *app = userdata;
 
@@ -72,6 +81,20 @@ static void on_draw(void *userdata) {
     rgame_app_push_clip(app, 60, 480, 200, 80);
     rgame_app_draw_rect(app, 60.0f, 440.0f, 400.0f, 160.0f, COLOR_RED, 0.0);
     rgame_app_pop(app);
+
+    /* Text, with accents the shipped font has to cover. Loaded on the first
+     * frame like the baked strip above; freed in main(). */
+    if (!font) {
+        char error[256] = {0};
+        font = rgame_font_load(app, DEFAULT_FONT_PATH, 24, error, sizeof(error));
+        if (!font) {
+            fprintf(stderr, "could not load the default font: %s\n", error);
+        }
+    }
+    if (font) {
+        const char *line = "rgame — Grüße, œuvre, 5 €";
+        rgame_app_draw_text(app, font, line, strlen(line), 40.0f, 270.0f, COLOR_YELLOW, 0.0);
+    }
 }
 
 static void on_button_down(void *userdata, int button_id) {
@@ -98,6 +121,7 @@ int main(void) {
 
     rgame_app_run(app, &callbacks);
 
+    rgame_font_destroy(font);
     rgame_recording_free(baked_strip);
     rgame_app_destroy(app);
     return 0;

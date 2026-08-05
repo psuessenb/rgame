@@ -90,9 +90,8 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
       # than at load, so leaving it out of the gem fails late and remotely.
       # Anything dropped under lib/ is shipped by default — that is the design.
       #
-      # There is no such file yet, so this passes vacuously today. It is written
-      # now precisely because the moment one appears is the moment nobody is
-      # thinking about packaging.
+      # It stopped passing vacuously when the default font arrived: the two
+      # files under lib/rgame/fonts/ are what it holds up today.
       data = sources('lib/**/*').grep_v(/\.rb\z/).grep_v(%r{\Alib/platform/})
 
       expect(data - files).to be_empty

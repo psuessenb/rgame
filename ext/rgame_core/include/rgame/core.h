@@ -372,6 +372,62 @@ void rgame_app_pop(rgame_app *app);
 
 /*
  * ---------------------------------------------------------------------------
+ * Text
+ * ---------------------------------------------------------------------------
+ *
+ * A font is a typeface at **one pixel size**, with a glyph atlas behind it.
+ * Two sizes are two fonts. Glyphs are rasterised the first time they are drawn
+ * and kept, so the cost is bounded by the character set a game uses rather than
+ * by how many strings it draws — a score that changes every frame costs nothing
+ * after the first ten digits.
+ *
+ * Like an image, a font belongs to the app whose GL context its atlas lives in,
+ * and either may be destroyed first.
+ *
+ * Measuring needs no GL and works outside a frame, which is where laying out a
+ * menu happens. Drawing, like everything else, is only valid inside `draw`.
+ */
+typedef struct rgame_font rgame_font;
+
+/*
+ * Loads a TrueType font at `pixel_height`. Returns NULL on failure, writing a
+ * reason into `err` (which may be NULL). There is no font-*name* lookup and no
+ * system font database: a caller names a file. The engine ships one — see
+ * lib/rgame/fonts/ — and the Ruby binding defaults to it.
+ */
+rgame_font *rgame_font_load(rgame_app *app, const char *path, int pixel_height, char *err,
+                            size_t err_size);
+void rgame_font_destroy(rgame_font *font);
+
+/* The size the font was loaded at, which is also the line height to step by for
+ * a second line. */
+int rgame_font_height(const rgame_font *font);
+
+/*
+ * The width a string would draw at, in pixels, kerning included. `text` is
+ * UTF-8; malformed bytes measure as one replacement character each.
+ *
+ * This and `rgame_app_draw_text` walk the same code, so a label measured and
+ * then centred lands where it was measured to.
+ */
+float rgame_font_measure(const rgame_font *font, const char *text, size_t length);
+
+/*
+ * Draws one line of UTF-8 text with its top-left corner at (x, y) — the top of
+ * the line box, not the baseline, so a caller places text the way it places
+ * everything else.
+ *
+ * Newlines are not special: this draws one line. A caller wanting two splits
+ * the string and steps by `rgame_font_height`.
+ *
+ * Returns 0 without drawing if the font belongs to a different app, for the
+ * same reason images do.
+ */
+int rgame_app_draw_text(rgame_app *app, rgame_font *font, const char *text, size_t length,
+                        float x, float y, unsigned int color, double z);
+
+/*
+ * ---------------------------------------------------------------------------
  * Recordings: drawing baked once and replayed cheaply
  * ---------------------------------------------------------------------------
  *

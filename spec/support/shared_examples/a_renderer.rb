@@ -16,13 +16,15 @@
 #
 # ## What the host must provide
 #
-#   render { |renderer, image| ... }
+#   render { |renderer, image, font| ... }
 #
-# Yields a renderer that is ready to draw into, plus an image that renderer will
-# accept. For the fake both are immediate; for the real one it opens a window
-# and runs a frame, because drawing outside a frame is an error — and the image
-# has to be uploaded into *that* window's GL context, which is why the two are
-# yielded together rather than fetched separately.
+# Yields a renderer that is ready to draw into, plus an image and a font that
+# renderer will accept. For the fake all three are immediate; for the real one
+# it opens a window and runs a frame, because drawing outside a frame is an
+# error — and the image and font have to belong to *that* window's GL context,
+# which is why they are yielded together rather than fetched separately.
+#
+# Examples that need neither may take two block parameters, or one.
 #
 # ## What this group does and does not check
 #
@@ -98,6 +100,65 @@ RSpec.shared_examples 'a renderer' do
           renderer.rect(0, 0, 1, 1, color: RGame::Util::Color::WHITE)
         end
       end.not_to raise_error
+    end
+  end
+
+  describe 'text' do
+    it 'draws a line of text at a position' do
+      expect { render { |renderer, _image, _font| renderer.text('Score: 1200', 10, 20) } }
+        .not_to raise_error
+    end
+
+    it 'draws text in a given font, z and colour' do
+      expect do
+        render do |renderer, _image, font|
+          renderer.text('hello', 0, 0, z: 5, color: [255, 0, 0], font: font)
+        end
+      end.not_to raise_error
+    end
+
+    it 'draws an empty string without complaint' do
+      expect { render { |renderer, _image, _font| renderer.text('', 0, 0) } }.not_to raise_error
+    end
+
+    it 'draws text outside the window without complaint' do
+      # Scrolling labels go off the edge every frame; that is clipping's
+      # problem, not the caller's.
+      expect { render { |renderer, _image, _font| renderer.text('off', -500, -500) } }
+        .not_to raise_error
+    end
+
+    it 'measures a string' do
+      render do |renderer, _image, _font|
+        expect(renderer.text_width('hello')).to be_a(Numeric)
+        expect(renderer.text_width('hello')).to be_positive
+      end
+    end
+
+    it 'measures an empty string as nothing' do
+      render { |renderer, _image, _font| expect(renderer.text_width('')).to be_zero }
+    end
+
+    it 'measures a longer string as wider' do
+      # A layout that centres a label depends on this being ordered, so it is
+      # part of the interface rather than an accident of one implementation.
+      render do |renderer, _image, _font|
+        expect(renderer.text_width('aa')).to be > renderer.text_width('a')
+      end
+    end
+
+    it 'reports a line height to step by' do
+      render do |renderer, _image, _font|
+        expect(renderer.text_height).to be_a(Numeric)
+        expect(renderer.text_height).to be_positive
+      end
+    end
+
+    it 'measures in a given font' do
+      render do |renderer, _image, font|
+        expect(renderer.text_width('hello', font: font)).to be_positive
+        expect(renderer.text_height(font: font)).to be_positive
+      end
     end
   end
 

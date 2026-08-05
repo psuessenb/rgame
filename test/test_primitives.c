@@ -381,6 +381,61 @@ START_TEST(an_image_with_no_texture_draws_nothing) {
 }
 END_TEST
 
+/* --- glyphs --- */
+
+START_TEST(a_glyph_is_drawn_at_its_own_size_from_a_page_rect) {
+    rgame_canvas c;
+    begin(&c);
+
+    /* A 12x16 glyph living at 32,48 on a 128x128 page, drawn at 100,200. */
+    rgame_prim_glyph(&c, 5, rgame_rect_make(32, 48, 12, 16), 128, 128, 100.0f, 200.0f,
+                     RGAME_COLOR_WHITE, 0.0);
+    rgame_canvas_end_frame(&c);
+
+    ck_vertex_xy(&c, 0, 100.0f, 200.0f);
+    ck_vertex_xy(&c, 1, 112.0f, 200.0f);
+    ck_vertex_xy(&c, 2, 112.0f, 216.0f);
+    ck_assert_uint_eq(rgame_draw_queue_batch(queue(&c), 0)->texture, 5);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(a_glyphs_uvs_are_normalised_against_the_page) {
+    /* The same mistake rgame_texture_uv exists to prevent, in the other place
+     * it could be made: dividing by the glyph rather than the page would
+     * stretch every letter across the whole atlas. */
+    rgame_canvas c;
+    begin(&c);
+
+    rgame_prim_glyph(&c, 5, rgame_rect_make(32, 48, 32, 32), 128, 128, 0.0f, 0.0f,
+                     RGAME_COLOR_WHITE, 0.0);
+    rgame_canvas_end_frame(&c);
+
+    ck_vertex_uv(&c, 0, 0.25f, 0.375f);
+    ck_vertex_uv(&c, 2, 0.5f, 0.625f);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(a_glyph_with_no_pixels_draws_nothing) {
+    /* A space reaches here like any other glyph. */
+    rgame_canvas c;
+    begin(&c);
+
+    rgame_prim_glyph(&c, 5, rgame_rect_make(0, 0, 0, 0), 128, 128, 0.0f, 0.0f,
+                     RGAME_COLOR_WHITE, 0.0);
+    rgame_prim_glyph(&c, 5, rgame_rect_make(0, 0, 4, 4), 0, 0, 0.0f, 0.0f, RGAME_COLOR_WHITE,
+                     0.0);
+    rgame_canvas_end_frame(&c);
+
+    ck_assert_uint_eq(rgame_draw_queue_vertex_count(queue(&c)), 0);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
 Suite *primitives_suite(void) {
     Suite *suite = suite_create("primitives");
     TCase *tc = tcase_create("core");
@@ -406,6 +461,10 @@ Suite *primitives_suite(void) {
     tcase_add_test(tc, a_rotated_image_leaves_the_stack_where_it_found_it);
     tcase_add_test(tc, a_rotated_image_composes_with_the_transform_already_in_place);
     tcase_add_test(tc, an_image_with_no_texture_draws_nothing);
+
+    tcase_add_test(tc, a_glyph_is_drawn_at_its_own_size_from_a_page_rect);
+    tcase_add_test(tc, a_glyphs_uvs_are_normalised_against_the_page);
+    tcase_add_test(tc, a_glyph_with_no_pixels_draws_nothing);
 
     suite_add_tcase(suite, tc);
     return suite;

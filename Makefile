@@ -32,8 +32,14 @@ TEXTURE_OBJ := $(BUILD_DIR)/texture.o
 PRIMITIVES_OBJ := $(BUILD_DIR)/primitives.o
 GL_BACKEND_OBJ := $(BUILD_DIR)/gl_backend.o
 RECORDING_OBJ := $(BUILD_DIR)/recording.o
+ATLAS_OBJ := $(BUILD_DIR)/atlas.o
+GLYPH_CACHE_OBJ := $(BUILD_DIR)/glyph_cache.o
+FONT_OBJ := $(BUILD_DIR)/font.o
+FONT_ATLAS_OBJ := $(BUILD_DIR)/font_atlas.o
 IMAGE_OBJ := $(BUILD_DIR)/image.o
-STB_IMAGE_OBJ := $(BUILD_DIR)/stb_image_impl.o
+# Every vendored single-header library gets one implementation TU named
+# stb_<name>_impl.c; the pattern rule below builds all of them the same way.
+VENDOR_OBJS := $(BUILD_DIR)/stb_image_impl.o $(BUILD_DIR)/stb_truetype_impl.o
 BACKEND_OBJ := $(BUILD_DIR)/backend.o
 # Util is a separate extension, but its pure modules are Check-tested too.
 COLOR_OBJ := $(BUILD_DIR)/color.o
@@ -60,6 +66,9 @@ TEST_OBJS := $(BUILD_DIR)/test_main.o \
              $(BUILD_DIR)/test_texture.o \
              $(BUILD_DIR)/test_primitives.o \
              $(BUILD_DIR)/test_recording.o \
+             $(BUILD_DIR)/test_atlas.o \
+             $(BUILD_DIR)/test_glyph_cache.o \
+             $(BUILD_DIR)/test_font.o \
              $(BUILD_DIR)/recording_backend.o
 TEST_BIN := $(BUILD_DIR)/test_rgame
 
@@ -79,6 +88,7 @@ $(BUILD_DIR):
 $(APP_OBJ): $(EXT_CORE_DIR)/app.c $(EXT_CORE_DIR)/frame_loop.h $(EXT_CORE_DIR)/input.h \
             $(EXT_CORE_DIR)/gamepad.h $(EXT_CORE_DIR)/canvas.h $(EXT_CORE_DIR)/primitives.h \
             $(EXT_CORE_DIR)/gl_backend.h $(EXT_CORE_DIR)/image_internal.h \
+            $(EXT_CORE_DIR)/font_internal.h \
             $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
@@ -128,6 +138,24 @@ $(PRIMITIVES_OBJ): $(EXT_CORE_DIR)/primitives.c $(EXT_CORE_DIR)/primitives.h \
                    $(EXT_UTIL_DIR)/color.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
+$(ATLAS_OBJ): $(EXT_CORE_DIR)/atlas.c $(EXT_CORE_DIR)/atlas.h \
+              $(EXT_CORE_DIR)/clip.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+$(GLYPH_CACHE_OBJ): $(EXT_CORE_DIR)/glyph_cache.c $(EXT_CORE_DIR)/glyph_cache.h \
+                    $(EXT_CORE_DIR)/clip.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+# Needs the extension directory on the include path for "vendor/stb_truetype.h".
+$(FONT_OBJ): $(EXT_CORE_DIR)/font.c $(EXT_CORE_DIR)/font.h \
+             $(EXT_CORE_DIR)/glyph_cache.h $(EXT_CORE_DIR)/vendor/stb_truetype.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -I$(EXT_CORE_DIR) -c $< -o $@
+
+$(FONT_ATLAS_OBJ): $(EXT_CORE_DIR)/font_atlas.c $(EXT_CORE_DIR)/font_internal.h \
+                   $(EXT_CORE_DIR)/font.h $(EXT_CORE_DIR)/atlas.h \
+                   $(EXT_CORE_DIR)/glyph_cache.h $(EXT_CORE_DIR)/app_gl.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -I$(EXT_CORE_DIR) $(SDL_CFLAGS) -c $< -o $@
+
 $(RECORDING_OBJ): $(EXT_CORE_DIR)/recording.c $(EXT_CORE_DIR)/recording.h \
                   $(EXT_CORE_DIR)/draw_queue.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
@@ -140,17 +168,18 @@ $(IMAGE_OBJ): $(EXT_CORE_DIR)/image.c $(EXT_CORE_DIR)/texture.h $(EXT_CORE_DIR)/
               $(EXT_CORE_DIR)/vendor/stb_image.h $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -I$(EXT_CORE_DIR) $(SDL_CFLAGS) -c $< -o $@
 
-# The one vendored translation unit, and the only place warnings are relaxed.
-# stb_image is public-domain third-party code that does not survive -Wall
-# -Wextra; carving out exactly this file keeps everything we wrote clean.
-# See ext/rgame_core/vendor/README.md.
-$(STB_IMAGE_OBJ): $(EXT_CORE_DIR)/stb_image_impl.c $(EXT_CORE_DIR)/vendor/stb_image.h | $(BUILD_DIR)
+# The vendored translation units, and the only place warnings are relaxed.
+# stb's headers are public-domain third-party code that does not survive
+# -Wall -Wextra; carving out exactly these files keeps everything we wrote
+# clean. One rule rather than one per library, so the second one cannot drift
+# from the first. See ext/rgame_core/vendor/README.md.
+$(BUILD_DIR)/stb_%_impl.o: $(EXT_CORE_DIR)/stb_%_impl.c $(EXT_CORE_DIR)/vendor/stb_%.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -w -I$(EXT_CORE_DIR) -c $< -o $@
 
 $(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ) $(GAMEPAD_OBJ) \
              $(TRANSFORM_OBJ) $(CLIP_OBJ) $(DRAW_QUEUE_OBJ) \
              $(CANVAS_OBJ) $(BACKEND_OBJ) $(TEXTURE_OBJ) $(PRIMITIVES_OBJ) \
-             $(RECORDING_OBJ) $(GL_BACKEND_OBJ) $(IMAGE_OBJ) $(STB_IMAGE_OBJ)
+             $(RECORDING_OBJ) $(ATLAS_OBJ) $(GLYPH_CACHE_OBJ) $(FONT_OBJ) $(FONT_ATLAS_OBJ) $(GL_BACKEND_OBJ) $(IMAGE_OBJ) $(VENDOR_OBJS)
 	ar rcs $@ $^
 
 $(MAIN_OBJ): src/main.c $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)

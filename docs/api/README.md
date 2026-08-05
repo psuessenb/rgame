@@ -11,10 +11,11 @@ any C.
 | [Input](input.md) | `RGame::Core::Input`, `RGame::Util::Controls`, `RGame::Core::Gamepad` |
 | [Drawing](drawing.md) | `RGame::Core::Renderer` — shapes, images, transforms, clipping, recordings |
 | [Images](images.md) | `RGame::Core::Image` — loading PNGs, subimages, sprite sheets |
+| [Text](text.md) | `RGame::Core::Font` and `Renderer#text` |
 | [Values](values.md) | `RGame::Util::Color`, `RGame::Util::Tensor` |
 
 **The engine is a work in progress.** A window opens, the loop runs, input
-works, and shapes and images can be drawn. Text, audio and a scene graph are
+works, and shapes, images and text can be drawn. Audio and a scene graph are
 still to come. Pages here describe what exists today and grow as more lands.
 
 ## Loading it
@@ -48,7 +49,7 @@ Everything lives under `RGame`, split in two by what it depends on:
 | | `RGame::Util` | `RGame::Core` |
 |---|---|---|
 | Contains | shareable *values* — no window, no GPU, nothing to release | things owning a window, GPU or OS handle |
-| Today | `Color`, `Tensor`, `Controls` | `App`, `Input`, `Gamepad`, `Image`, `Renderer`, `Recording` |
+| Today | `Color`, `Tensor`, `Controls` | `App`, `Input`, `Gamepad`, `Image`, `Renderer`, `Recording`, `Font` |
 | Loading it costs | nothing | SDL2 + OpenGL in your process |
 
 The rule for deciding where something belongs: **a value goes in `Util`; only a

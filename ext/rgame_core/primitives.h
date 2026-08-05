@@ -74,4 +74,19 @@ void rgame_prim_image(rgame_canvas *canvas, const rgame_texture *view, float x, 
 void rgame_prim_image_rot(rgame_canvas *canvas, const rgame_texture *view, float cx, float cy,
                           float angle_degrees, float scale, rgame_color color, double z);
 
+/*
+ * One glyph out of an atlas page, drawn 1:1 at (x, y).
+ *
+ * Separate from `rgame_prim_image` because a glyph's source is a rectangle of a
+ * shared page rather than a texture view — the page has no `rgame_texture`
+ * wrapped around it, and giving it one would mean a refcounted sheet per font
+ * page for no benefit. `page_width` and `page_height` are what the source rect
+ * is normalised against.
+ *
+ * A source rect with no pixels (a space) draws nothing.
+ */
+void rgame_prim_glyph(rgame_canvas *canvas, unsigned int texture, rgame_rect source,
+                      int page_width, int page_height, float x, float y, rgame_color color,
+                      double z);
+
 #endif /* RGAME_PRIMITIVES_H */

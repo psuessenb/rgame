@@ -73,6 +73,33 @@ class FakeRenderer
     remember(:background, [image, x, y], z: z, color: color)
   end
 
+  # --- text ---------------------------------------------------------------
+
+  def text(string, x, y, z: 10, color: nil, font: nil)
+    remember(:text, [string, x, y], z: z, color: color, font: font)
+  end
+
+  # Stand-in metrics. They are not the real font's — a fake has no glyphs — but
+  # they are *ordered* the way real ones are: zero for an empty string and
+  # growing with its length. A scene that centres a label works out a different
+  # number here than in the game, and that is inherent; what it must not do is
+  # divide by zero or lay text out backwards.
+  # `font:` is accepted and ignored — the interface has it, and a fake has no
+  # font to distinguish. A spec that cares which font a scene asked for reads it
+  # off the recorded #text call instead.
+  CHARACTER_WIDTH = 8.0
+  LINE_HEIGHT = 18
+
+  def text_width(string, font: nil)
+    _ = font
+    string.length * CHARACTER_WIDTH
+  end
+
+  def text_height(font: nil)
+    _ = font
+    LINE_HEIGHT
+  end
+
   # --- recording ----------------------------------------------------------
 
   # Bakes the block into a FakeRecording. The calls made inside are recorded on

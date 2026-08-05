@@ -838,6 +838,25 @@ int rgame_atlas_place(rgame_atlas *atlas, int w, int h, rgame_rect *out);
   bilinear bleed between two glyphs looks like a rendering bug, not a packing
   one.
 
+**Landed.** `rgame_atlas_place` returns 1 and an *empty* rectangle for a glyph
+with no pixels, rather than refusing it — the space character rasterises to
+nothing, and handling that here means the font layer has no special case to
+remember. `rgame_atlas_init` clamps a negative size to zero, because the page
+size is read back by the layer that allocates the texture behind it.
+
+14 tests to start, all 16 mutations run against them, and three survived. All
+three were test gaps rather than dead code, and the tests that closed them are
+the interesting ones:
+
+- the page-height off-by-one only shows on a shelf that starts part way down,
+  which the "full page" case did not produce;
+- the over-tall guard is redundant for *correctness* (the page check catches it
+  anyway) but not for behaviour — without it a glyph that is both too tall and
+  too wide opens a fresh shelf before failing, displacing the next glyph that
+  would have fitted the current row;
+- the negative-size clamp is invisible through `place` and observable only by
+  reading `atlas.width` back, which is exactly what 4.5 will do.
+
 ### 4.3 `glyph_cache.{c,h}` — what is already rasterised (pure)
 
 ```c
@@ -866,6 +885,47 @@ doubling — no allocation per glyph, and no pointer chasing on the draw path.
   "aaaa" and it is 1; the table grows without losing entries.
 - **Watch**: key on the codepoint, not on the byte. The whole point of the cache
   is that `ä` and `€` behave like `a`.
+
+**Landed.** Open addressing over one flat array, codepoint 0 as the empty
+marker (it is NUL, never a glyph, and inserting it is refused rather than
+silently hiding an entry), grown at three-quarters full *before* the insert —
+the probe walk has no exit other than an empty slot, so the table must never be
+allowed to fill. No tombstones, because nothing is ever deleted.
+
+12 tests, 20 mutations, two survivors, and both were worth the trip:
+
+- **A miss on a *populated* cache** was untested. The empty-cache miss returns
+  before the table is touched, so it said nothing about the path where `find`
+  probes to an occupied-then-empty slot; a `find` that copied the slot out
+  before checking the key would hand back a neighbouring glyph and the caller
+  would draw it. Now tested.
+- **Replacing the hash with the identity function survives, and should.**
+  Linear probing resolves collisions whatever the hash does, so a worse one is
+  slower, not wrong — there is no assertion to write short of counting probes.
+  Writing that survivor up exposed a factual error in the comment justifying the
+  multiply (it claimed Latin-1 accents are "a multiple of 16 apart"; they are
+  contiguous, and identity would spread them fine). The comment now says the
+  honest thing: it is one multiply of insurance against the *next* game's key
+  distribution, not a correctness requirement.
+
+One test took three attempts, and the sequence is the useful part:
+
+1. It computed the hash itself to find a colliding pair — which would stop
+   colliding, and go on passing, the day the hash changed.
+2. Replaced with "crowd the table and collisions follow by pigeonhole", using
+   an arithmetic progression of keys. That premise is simply false: 47 keys in
+   64 slots need not collide, and a multiplicative hash with an odd multiplier
+   maps an arithmetic progression to *distinct* slots — measured, zero
+   collisions. The rewrite exercised no probe walk at all, and a mutation that
+   the first version had caught (`& capacity` instead of `& (capacity - 1)`)
+   started surviving. Only re-running the mutations after the rewrite found it.
+3. Now keyed on a realistic character set — letters, digits, punctuation,
+   accents — which collides ten times over in a fresh table. The broken wrap is
+   caught again, as an infinite probe loop.
+
+Worth remembering beyond this module: a test rewritten for good reasons can be
+weaker than what it replaced, and nothing says so except running the mutations
+again.
 
 ### 4.4 `font.{c,h}` — the typeface (pure, and testable *because* the font is vendored)
 
@@ -923,6 +983,45 @@ below assertions rather than approximations.
   the game drifts by a pixel or two and nothing points at why. One
   `advance`-summing loop, used by both.
 
+**Landed.** The face is `rgame_typeface` so that the composed, app-bound thing
+can be `rgame_font` in 4.5. Three decisions worth carrying forward:
+
+- **It copies the font bytes.** stb keeps pointers into the data for the life of
+  the face, so borrowing would make "keep the buffer alive" a rule a caller has
+  to remember. A few hundred kilobytes per open size is the cheaper answer, and
+  4.5 can free its file buffer immediately.
+- **`rgame_text_cursor` is the one walk**, used by measuring and (in 4.6) by
+  drawing. The plan asked for "one advance-summing loop used by both"; making it
+  a cursor makes the sharing structural rather than a promise, and
+  `rgame_typeface_measure` is literally that cursor run to the end.
+- **Malformed UTF-8 yields U+FFFD and advances one byte**, rather than stopping
+  as the sketch above said. One bad byte in a data file should cost one visible
+  replacement box, not the rest of the label — and always advancing means a
+  caller's loop terminates however bad the input is.
+
+31 tests, 33 mutations, seven survivors on the first run. Four were gaps, and
+three of those were the same shape — **a suite that only compares numbers to
+each other cannot tell you the numbers are in the right unit**:
+
+- Every advance could have stayed in font units, a thousand times too big, and
+  every relative assertion (`i` < `W`, kerned < unkerned, the sum matches) would
+  still have passed. Now bounded against the pixel height.
+- `bearing_x` was never read by a test. It goes both ways — `i` is inset from
+  its pen, `j` hangs back over the previous letter — so both signs are asserted.
+- The cursor could have reported each pen position *after* adding the advance,
+  shifting every string right by one character, and "the pen moves forward" plus
+  "the total is the width" would both still have held. Now the first glyph is
+  pinned at zero.
+- A two-byte lead followed by an ordinary letter swallowed the letter without
+  the continuation check; `\xC3z` decoded as one plausible accented character
+  and the `z` vanished.
+
+The other three survive on purpose and say so in the code: stb tolerates a
+zero-sized rasterisation box (the guard stays for negatives), the shipped font
+has no kern pair involving codepoint 0 (the guard stays because that is a fact
+about one font, not about kerning), and `lead & 0x1F` is genuinely equivalent to
+`& 0x0F` for a three-byte lead, since `1110xxxx` always has the fifth bit clear.
+
 ### 4.5 `font_atlas.c` + `Core::Font` — the impure quarter
 
 The one file in the text stack that touches GL: it owns the atlas pages
@@ -966,6 +1065,24 @@ font.text_width('Score: 1200')   # => Float
   than assuming one. Measuring must work outside a frame too — it touches no
   GL at all, only metrics.
 
+**Landed.** `font_atlas.c` is the whole impure quarter: it reads the file,
+composes typeface + atlas + glyph cache, and owns the pages. Three things came
+out differently from the sketch:
+
+- **A font allocates no page until something is drawn.** A layout pass that only
+  measures costs no video memory, which falls out of creating pages lazily and
+  is worth keeping.
+- **`rgame_font_glyph` reports the page texture and size** alongside the glyph,
+  because the caller needs all three to turn a page rectangle into texture
+  coordinates. That is what `font_internal.h` exposes, mirroring
+  `image_internal.h`.
+- **`Font.new(app, size, path:)` is a Ruby-side `self.new`** that forwards a
+  positional path to the C initialize. Where a gem installs its data is a
+  packaging question; the C layer has no opinion and no default.
+
+The GL-context save/restore discipline from 3.7–3.9 applied unchanged, and so
+did the app retain — both uploads and page deletion go through it.
+
 ### 4.6 `Renderer#text` — and the contract
 
 ```ruby
@@ -1001,6 +1118,30 @@ same reason.
 - **Watch**: `text` on the hot path must not allocate per call. Ruby hands the
   string to C as bytes; the codepoint walk and the glyph lookups happen there.
   No `each_char`, no `codepoints` array.
+
+**Landed, and phase 4 with it.**
+
+`rgame_prim_glyph` was added to primitives.c rather than reusing
+`rgame_prim_image`: a glyph's source is a rectangle of a shared page, not a
+texture view, and wrapping every page in a refcounted `rgame_texture` to reuse
+one function would be the tail wagging the dog. It is pure and has its own
+tests, including the same normalise-against-the-page mistake `rgame_texture_uv`
+guards against.
+
+The contract's `render` hook now yields a font as well as an image, for the same
+reason it yields an image: both own GL objects belonging to one context, so the
+real renderer's version has to build them from the capture's own app. Ruby
+blocks drop extra yielded arguments, so no existing example needed touching.
+
+The pixel checks include the one the plan called for by name — **render a
+string, scan for its inked columns, compare to `text_width`**. It found nothing
+wrong with the code and one thing wrong with the test: the capture frame was
+narrower than the sample string, so the "inked extent" was measuring the window
+edge. Widened.
+
+`Renderer#font` is built lazily on first use rather than in the constructor,
+because creating a font needs a GL context and a renderer is often built before
+there is one.
 
 ### Verification tiers for this phase
 
