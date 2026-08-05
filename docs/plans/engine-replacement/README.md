@@ -97,7 +97,31 @@ may hold `Util` types". Worth doing early — it is small, it validates the
 boundary, and it deletes a file. Check `Engine::Matrix` (`lib/engine/matrix.rb`)
 for the same question at the 2-D end.
 
-### 4. Split-screen does not exist yet
+### 4. `TileMap` needs a `load`, and Core is blocked on it
+
+The smallest concrete piece of work in this folder, and the only one another
+plan is waiting for. `Platform::TileMapRenderer.load` is the one place the
+platform layer names `Engine::` from code:
+
+```ruby
+map = Engine::TileMap.parse(File.read(tmx_path))
+map.tileset = Engine::Tileset.parse(File.read(tsx_path), firstgid: map.firstgid)
+image_path = File.join(File.dirname(tsx_path), map.tileset.image_source)
+```
+
+Ported as-is that puts `RGame::Core` in the position of knowing `RGame::Engine`
+exists, which `Game/NoEngineInCoreLayer` now forbids. The five lines are pure
+file-and-XML work with no graphics in them, so they belong here rather than
+below: **`Engine::TileMap.load(tmx_path)`**, returning the parsed map with its
+tileset attached, plus the resolved image path.
+
+Gosu-replacement 6.5 is written against that, and cannot land without it. It
+also settles the shape Core wants: the renderer is *handed* a map and a set of
+tiles and loads nothing itself, so the map protocol it calls by name —
+`layer_count`, `above_layer?`, `gid`, `tile_width`, `pixel_width`, `tileset` —
+becomes a shared example both `Engine::TileMap` and a spec fake run against.
+
+### 5. Split-screen does not exist yet
 
 The transform and clip stacks were designed for it
 ([02-architecture](../gosu-replacement/02-architecture.md#split-screen-is-a-requirement-on-this-design-not-a-later-feature)):

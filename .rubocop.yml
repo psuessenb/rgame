@@ -5,6 +5,7 @@ plugins:
 require:
   - ./rubocop/cop/game/no_interpolation_in_hot_path.rb
   - ./rubocop/cop/game/no_core_in_engine_layer.rb
+  - ./rubocop/cop/game/no_engine_in_core_layer.rb
   - ./rubocop/cop/game/no_needless_allocation.rb
   - ./rubocop/cop/game/prefer_gosu_module_method.rb
   - ./rubocop/cop/game/use_absolute_coords.rb
@@ -48,6 +49,15 @@ Game/NoCoreInEngineLayer:
     - 'spec/**/*.rb'
   Exclude:
     - 'spec/rubocop/**/*.rb'
+
+# The other direction. Engine sits on top of Core, so Core must not know it
+# exists — and unlike its mirror nothing catches this at runtime, because
+# loading Engine into a Core spec works fine. Only the glue class directly under
+# RGame may name both layers, and it is not in either list.
+Game/NoEngineInCoreLayer:
+  Include:
+    - 'lib/rgame/core/**/*.rb'
+    - 'spec_core/**/*.rb'
 
 # This is a code-driven game engine, not a Rails app: update/draw methods and
 # Window/Scene classes naturally run long, and short coordinate/loop variable

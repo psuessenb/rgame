@@ -2076,38 +2076,109 @@ instead of going through the cache (1).
 
 ### 6.5 `Core::TileMapRenderer`
 
+**This step is a decoupling before it is a port.** `TileMapRenderer.load` is the
+one place in all of `lib/platform/` that names `Engine::` from code — and it
+does it twice, `Engine::TileMap.parse` and `Engine::Tileset.parse`. Ported
+as-is, that would put `RGame::Core` in the position of knowing that
+`RGame::Engine` exists, inverting the dependency the whole three-layer split
+holds up. See CLAUDE.md, "The rule points both ways".
+
+The split turns out to be exact. Everything *after* `.load` is already
+duck-typed:
+
+| Only `.load` needs | Duck-typed, already fine |
+|---|---|
+| `Engine::TileMap.parse`, `Engine::Tileset.parse`, `map.tileset=`, `map.tileset_source`, `map.firstgid`, `tileset.image_source` | map: `layer_count`, `above_layer?`, `width`, `height`, `gid`, `tile_width/height`, `pixel_width/height`, `tileset` — tileset: `local_id`, `animations`, `frame_local_id`, `tile_width/height` |
+
+So the drawing half is already layered correctly, and what is misplaced is
+"read a TMX, read the TSX it names, work out where the PNG is" — file plumbing
+and XML with no graphics in it at all.
+
+#### The three moves
+
+**1. Parsing goes up into Engine, not sideways into the glue.**
+`Engine::TileMap.load(tmx_path)` reads the TMX, parses the TSX it names,
+attaches the tileset and resolves the image path beside it. All of that is
+Engine's own business and needs nothing from Core. `Core::TileMapRenderer`
+loses `.load` entirely and never names a map's class.
+
+That is engine-layer work, so it is written up in
+`docs/plans/engine-replacement/` as well — but it is small and self-contained,
+and this step is blocked without it.
+
+**2. The tileset image is loaded *outside*, through the asset manager.**
+Measured, because the question is whether two maps sharing a tileset pay for it
+twice:
+
+| | uploads |
+|---|---|
+| one `Image.load_tiles` → 16 tiles | **1** — the tiles are views of a single texture |
+| `load_tiles` on the same path a second time | **2** |
+| the same PNG twice through `assets.image(…).tiles(…)` | **1** |
+
+So a class that loads its own tiles costs one decode and one GPU upload *per
+map*, and one that is handed them costs one per *file*. That closes a gap
+`docs/engine/asset_manager.md` already lists under "Future refinements" —
+"`TileMapRenderer` loads its tileset via `load_tiles` … so it doesn't fit the
+shared image cache and is left as-is" — and it makes this class consistent with
+`SpriteSheet` and `UiAtlas`, which both take an already-loaded image and load
+nothing.
+
+**3. `AssetManager` gains `add_loader(type, &block)`, which also defines the
+accessor.** This is what lets the glue install a `:tilemap` loader without Core
+knowing what a tile map is:
+
 ```ruby
-tiles = RGame::Core::TileMapRenderer.load(app, 'media/level1.tmx')
-tiles.draw(renderer, camera_x, camera_y, viewport_width, viewport_height)
-tiles.draw_overlay(renderer, camera_x, camera_y, viewport_width, viewport_height, z: 20)
+# the glue — the one class allowed to name both layers
+app.assets.add_loader(:tilemap) do |path|
+  map, image_path = RGame::Engine::TileMap.load(path)
+  RGame::Core::TileMapRenderer.new(map, app.assets.image(image_path).tiles(
+    map.tileset.tile_width, map.tileset.tile_height
+  ))
+end
 ```
 
-This one still names `Engine::TileMap` and `Engine::Tileset` in `.load`, and
-those still do not exist here. **It ports anyway**, because everything after
-`.load` treats the map duck-typed — `@map.gid(li, col, row)`,
-`@map.above_layer?(li)`, `@tileset.frame_local_id(local, ms)`. A spec supplies a
-fake map, exactly the way a spec supplies a fake renderer, and the whole class
-is covered without the engine layer existing. Only `.load` is left uncovered,
-and it is four lines of file plumbing.
+One mechanism for built-ins and additions alike, and two things fall out for
+free. `assets.tilemap(path)` keeps working for callers, so the engine layer's
+`game.assets.tilemap(MAP_KEY)` is untouched. And `respond_to?(:tilemap)` is
+naturally false until a loader is installed — which is exactly the guard
+`Renderer#resolve_asset` already has from 6.7, so that guard stops being
+defensive and becomes load-bearing.
 
-Four substitutions:
+#### Still open: where the clock comes from
 
-- `Gosu::Image.load_tiles(path, tw, th, retro: true)` → `Core::Image.load_tiles(app, path, tw, th)`
-- `Gosu.record(w, h) { … }` → `renderer.record { … }`. Core infers the recording's
-  extent from what was drawn instead of being told it up front; since tiles are
-  baked from `(0, 0)`, `recording.draw(-camera_x, -camera_y)` places them
-  identically.
-- `Gosu.milliseconds` → `@app.ticks_ms`, for animated-tile frame selection. From
-  the app this class already holds, **not** through `renderer.app`: adding `app`
-  to the renderer contract would hand the engine layer a route to a `Core::App`
-  through an object it is allowed to call by name, which is exactly the hole the
-  layering exists to close. A spec passes a stub app answering `ticks_ms`, which
-  also makes the animation clock controllable.
+Animated tiles need `ticks_ms`, and with the tiles handed in, the class no
+longer needs an `app` for anything else. Three ways, none obviously best:
+
+- **hold the app anyway**, purely for the clock — smallest change, but a whole
+  `App` held for one method reads oddly once nothing else uses it;
+- **take `now_ms:` per draw**, supplied by `Renderer#tilemap`, which has an app
+  — puts the time on the renderer contract, and gives specs a controllable
+  animation clock for free;
+- **hold a clock object**, duck-typed, answering `ticks_ms`.
+
+Decide when writing it, not now.
+
+#### What is left of the port
+
+- `Gosu.record(w, h) { … }` → `renderer.record { … }`. Core infers the
+  recording's extent from what was drawn rather than being told it up front;
+  since tiles are baked from `(0, 0)`, `recording.draw(-camera_x, -camera_y)`
+  places them identically.
 - `@tiles[local].draw(x, y, z)` → `renderer.image_at(tile, x, y, z: z)`
+- The lazy bake (`@static_below ||= bake_layers { … }`) stays lazy and stays
+  inside `draw`: recording needs a live context, and `Renderer#record` may only
+  be called inside a frame.
+- The class comment's caveat that "recorded images draw only in white" goes —
+  `Recording#draw` takes a `color:` and multiplies it through.
 
-The lazy bake (`@static_below ||= bake_layers { … }`) stays lazy and stays
-inside `draw`, for the same reason as before: recording needs a live context,
-and `Renderer#record` may only be called inside a frame.
+#### The map protocol becomes a contract
+
+Core calls the map by method name and nothing else, which by CLAUDE.md's own
+rule makes that method list a real interface with more than one implementation.
+So it gets `spec/support/shared_examples/a_tile_map.rb`, run against the spec's
+fake map now and against `RGame::Engine::TileMap` once that is ported. Third
+instance of the pattern, and precisely the case it exists for.
 
 - **Tests**: `spec_core/rgame/core/tile_map_renderer_spec.rb`, with a fake map
   and `FakeRenderer`. The below/above split sends the right layers to the right
@@ -2115,8 +2186,11 @@ and `Renderer#record` may only be called inside a frame.
   second `draw` adds no `record` call — a rebake per frame is the expensive bug
   this class exists to avoid, and it is invisible except as a frame-rate drop);
   animated tiles are culled to the viewport, inclusive at the near edge and
-  exclusive at the far one; the animation frame follows the clock.
-- **Verify**: `rake spec:core`, RuboCop.
+  exclusive at the far one; the animation frame follows the clock. Plus the
+  fake map against the new shared contract.
+- **Verify**: `rake spec`, `rake spec:core`, RuboCop — including
+  `Game/NoEngineInCoreLayer`, which is the mechanical check that move 1 actually
+  happened.
 
 ### 6.6 `Core::AssetManager`
 

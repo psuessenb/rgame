@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative 'layer_boundary'
+
 module RuboCop
   module Cop
     module Game
@@ -36,11 +38,14 @@ module RuboCop
       #   # good — Util types may be held as attributes
       #   @grid = RGame::Util::Tensor.new(w, h, d)
       class NoCoreInEngineLayer < RuboCop::Cop::Base
+        include LayerBoundary
+
         MSG = 'The engine layer must not name `RGame::Core`; receive the object ' \
               'and call it by method name instead.'
         MSG_REQUIRE = 'The engine layer must not require `%{path}` — that loads ' \
                       'SDL/OpenGL and breaks headless specs.'
 
+        PREFIXES = [%w[RGame Core]].freeze
         RESTRICTED_REQUIRE = %r{\Argame/core(/|\z)|\Argame/core_ext\z}
 
         # `require "rgame/core"` and friends.
@@ -57,28 +62,11 @@ module RuboCop
           end
         end
 
-        # Any constant path ending in RGame::Core, or nested under it.
+        # Any constant path under RGame::Core. The walk, and reporting one
+        # offence per written reference rather than one per path segment, is in
+        # LayerBoundary — shared with this cop's mirror.
         def on_const(node)
-          return unless core_const?(node)
-          # Only report the outermost const of a path like RGame::Core::Renderer,
-          # so one reference is one offense.
-          return if node.parent&.const_type? && core_const?(node.parent)
-
-          add_offense(node)
-        end
-
-        private
-
-        def core_const?(node)
-          return false unless node.const_type?
-
-          names = []
-          current = node
-          while current&.const_type?
-            names.unshift(current.short_name.to_s)
-            current = current.namespace
-          end
-          names.first(2) == %w[RGame Core]
+          add_offense(node) if opens_namespace?(node, PREFIXES)
         end
       end
     end

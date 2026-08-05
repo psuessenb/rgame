@@ -100,8 +100,8 @@ indistinguishable from having given up.
 
 ### The custom cops are house rules — don't disable them
 
-`rubocop/cop/game/` holds five project-specific cops (plus a shared `HotPath`
-mixin), loaded by `.rubocop.yml`:
+`rubocop/cop/game/` holds six project-specific cops (plus the shared `HotPath`
+and `LayerBoundary` mixins), loaded by `.rubocop.yml`:
 
 | Cop | Enforces |
 |---|---|
@@ -110,6 +110,7 @@ mixin), loaded by `.rubocop.yml`:
 | `Game/PreferGosuModuleMethod` | call `Gosu.<m>`, not the allocating `Window#<m>` compat shim |
 | `Game/UseAbsoluteCoords` | in `draw`/`update`/`contains?` use the resolved `@abs_*`, never parent-relative `@x`/`@y` |
 | `Game/NoCoreInEngineLayer` | no `RGame::Core` reference in `lib/rgame/engine/` or `spec/` — the engine layer must stay headless |
+| `Game/NoEngineInCoreLayer` | the mirror: no `Engine` reference in `lib/rgame/core/` or `spec_core/` — Core must not know Engine exists |
 
 These exist because a steady 60fps frame that allocates is a GC pause waiting to
 happen, and the cost is invisible without a guard. Unlike stock cops, these are
@@ -233,6 +234,33 @@ Two things enforce it rather than merely asking for it:
 - `Game/NoCoreInEngineLayer` (see the RuboCop section) flags any `RGame::Core`
   reference under `lib/rgame/engine/` or `spec/`, which also catches the
   branches a test run never reaches.
+
+### The rule points both ways: Core must not name Engine either
+
+`RGame::Engine` is built **on top of** `RGame::Core`, so Core should not know
+it exists. Not one constant, not one require, anywhere under `lib/rgame/core/`
+or `spec_core/`.
+
+This is the easier of the two to break, because nothing catches it at runtime.
+Loading Engine into a Core spec works perfectly well; the inversion would go
+unnoticed until someone tried to use Core on its own, or until a change in a
+scene concept forced a change in the texture layer. `Game/NoEngineInCoreLayer`
+is the only guard, and it flags both spellings — `RGame::Engine` and the bare
+`Engine` the layer still has before it is ported — because the interim is
+exactly when the mistake gets made.
+
+Where a Core class genuinely needs something Engine has, it takes the object and
+calls it by method name — the same duck-typing the engine layer uses on a
+renderer, pointed the other way. `Core::TileMapRenderer` is the worked example:
+it needs a tile grid, so it is *handed* one and calls `map.gid(layer, col, row)`
+and `map.above_layer?(index)`, and could not tell you what class answered.
+
+**The one place allowed to name both layers is the glue**, a single class
+directly under `RGame`. Wiring the two halves together is what a glue class is
+*for*, and confining that to one file is what keeps the rule above checkable
+everywhere else. Reading a `.tmx` into an `Engine::TileMap`, handing the result
+to a `Core::TileMapRenderer` and registering the pair with the asset manager is
+three lines, and they belong there rather than smeared across either layer.
 
 Because the engine may only call a renderer by name, that method list is a real
 interface with more than one implementation — the live `RGame::Core::Renderer`
