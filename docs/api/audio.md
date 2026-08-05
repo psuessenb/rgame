@@ -95,6 +95,33 @@ the beginning; so does playing it after `stop`. There is no pause — `stop` the
 once, which is what a crossfade is; if a game wants only one, it stops the old
 one before starting the new one.
 
+## Playing by id
+
+The same boundary drawing has: gameplay emits a fact and names the sound,
+because a scene may not hold a `Sample`.
+
+```ruby
+audio.register_sound(:hit, app.assets.sound('example 09/hurt.ogg'))
+audio.register_music(:theme, app.assets.song('example 09/theme.ogg'))
+
+audio.play_sound(:hit)
+audio.play_music(:theme)   # loops
+audio.stop_music
+```
+
+Registration only, unlike the renderer's draw-by-id: a sound id is whatever a
+game wants to call it, and there is no per-frame path here to make resolving a
+path worth caching. An unknown id is a `KeyError`.
+
+**`play_music` is idempotent.** Asking for the track that is already playing
+does nothing, so a scene that re-emits the request every time it is entered
+never restarts the music mid-loop.
+
+**`stop_music` stops the song *this registry* started.** Gosu had a
+process-wide "current song"; there is no such global here, because one-song-at-
+a-time is a game's policy rather than the engine's. A `Song` you started by hand
+is yours to stop, and `stop_music` with nothing playing is a no-op.
+
 ## Loading and failure
 
 ```ruby
@@ -178,5 +205,4 @@ Nothing there loads a file, opens a device, or needs a sound card.
 
 MP3 and FLAC (Vorbis and WAV only, to keep the gem small), positional and 3D
 audio, effects and filters, fades, pausing, seeking, per-play handles, playback
-position, and recording. A play-by-id registry — `play_sound(:hit)` over a set
-of loaded samples — belongs to the scene layer and is still to come.
+position, and recording.

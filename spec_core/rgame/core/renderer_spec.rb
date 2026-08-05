@@ -25,6 +25,49 @@ RSpec.describe RGame::Core::Renderer do
     it_behaves_like 'a renderer'
   end
 
+  # What the shared contract cannot state, because a fake has no asset manager
+  # to resolve anything through.
+  describe 'resolving an id through the asset manager' do
+    def png = @png ||= File.basename(PngFixture.write(4, 4) { [255, 255, 255, 255] })
+
+    def in_a_frame
+      RenderedFrame.capture(width: 16, height: 16) do |renderer, app|
+        renderer.assets = RGame::Core::AssetManager.new(root: PngFixture.directory, app: app)
+        yield(renderer, app)
+      end
+    end
+
+    it 'defaults to the app own manager, so nothing has to be wired up' do
+      RenderedFrame.capture(width: 16, height: 16) do |renderer, app|
+        expect(renderer.assets).to equal(app.assets)
+      end
+    end
+
+    it 'resolves a path it was never registered with' do
+      in_a_frame { |renderer, _app| expect { renderer.background(png) }.not_to raise_error }
+    end
+
+    it 'prefers an explicit registration to the manager' do
+      # Registration is the override, so a game can bind an id to an object it
+      # built itself even when a file of that name exists.
+      in_a_frame do |renderer, app|
+        chosen = RGame::Core::Image.new(app, PngFixture.write(2, 2) { [0, 255, 0, 255] })
+        renderer.register_image(png, chosen)
+
+        expect { renderer.background(png) }.not_to raise_error
+      end
+    end
+
+    it 'lets the loader failure through, naming the file' do
+      # Not swallowed into the KeyError: "that file is broken" and "I have never
+      # heard of that id" want different fixes.
+      in_a_frame do |renderer, _app|
+        expect { renderer.background('missing.png') }
+          .to raise_error(RGame::Core::Image::LoadError, /missing\.png/)
+      end
+    end
+  end
+
   describe '.new' do
     it 'refuses anything that is not an App' do
       expect { described_class.new(Object.new) }.to raise_error(TypeError)

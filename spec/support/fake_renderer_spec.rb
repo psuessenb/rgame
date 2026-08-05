@@ -7,9 +7,13 @@ RSpec.describe FakeRenderer do
   subject(:renderer) { described_class.new }
 
   # The contract's hook. The fake needs no frame to draw into, so this just
-  # yields; the real renderer's version opens a window and runs one. The fake
-  # accepts anything as an image, because it never looks at one.
-  def render = yield(renderer, :hero)
+  # yields; the real renderer's version opens a window and runs one.
+  #
+  # A StubImage rather than a bare Symbol: since the renderer resolves an id
+  # that is not an image, a Symbol here would be ambiguous between "this is the
+  # image" and "this names one". The stand-in type is what makes the fake
+  # dispatch the way the real renderer dispatches on Core::Image.
+  def render = yield(renderer, StubImage.new(4, 4))
 
   it_behaves_like 'a renderer'
 

@@ -79,6 +79,101 @@ RSpec.shared_examples 'an audio server' do
     end
   end
 
+  # The other half of the interface, and the one a scene actually uses: game
+  # logic emits a fact — "the ship was hit" — naming the sound, because it may
+  # not hold a Sample. Registration only, unlike the renderer's draw-by-id:
+  # there is no per-frame path here to make resolving a path worth caching.
+  describe 'playing by id' do
+    # A song that only counts. See "ignores a request to play music that is
+    # already playing" for why a real one cannot answer that question.
+    def recording_song
+      Class.new do
+        attr_reader :plays
+
+        def initialize = @plays = 0
+        def playing? = @plays.positive? && !@stopped
+
+        def play(looping: false)
+          @looping = looping
+          @stopped = false
+          @plays += 1
+          self
+        end
+
+        def stop
+          @stopped = true
+          self
+        end
+      end.new
+    end
+
+    it 'plays a registered sample' do
+      with_audio do |audio, path|
+        audio.register_sound(:hit, audio.sample(path))
+
+        expect { audio.play_sound(:hit) }.not_to raise_error
+      end
+    end
+
+    it 'raises for a sound id it does not know' do
+      with_audio { |audio, _path| expect { audio.play_sound(:nobody) }.to raise_error(KeyError) }
+    end
+
+    it 'loops a registered song' do
+      with_audio do |audio, path|
+        audio.register_music(:theme, song = audio.song(path))
+        audio.play_music(:theme)
+
+        expect(song).to be_playing
+        expect(song).to be_looping
+      end
+    end
+
+    it 'ignores a request to play music that is already playing' do
+      # A scene re-entered, or re-emitting the same request every frame, must
+      # not restart the track mid-loop. This is the one behaviour in the whole
+      # registry that is not a hash lookup.
+      #
+      # Against a stand-in song rather than a real one, because a restart is
+      # not observable on a real one: it is still playing either way, and
+      # neither implementation exposes a playback position. The registry stores
+      # whatever it is handed and calls it by name, so a recorder is a faithful
+      # song for this purpose.
+      with_audio do |audio, _path|
+        song = recording_song
+        audio.register_music(:theme, song)
+        audio.play_music(:theme)
+        audio.play_music(:theme)
+
+        expect(song.plays).to eq(1)
+      end
+    end
+
+    it 'stops the song it started' do
+      with_audio do |audio, path|
+        audio.register_music(:theme, song = audio.song(path))
+        audio.play_music(:theme)
+        audio.stop_music
+
+        expect(song).not_to be_playing
+      end
+    end
+
+    it 'stops nothing when no music was started through it' do
+      # The layer being replaced reached for a process-wide "current song".
+      # There is no such global here, so a song a game started by hand is its
+      # own to stop — and `stop_music` with nothing playing is a no-op, not an
+      # error.
+      with_audio do |audio, path|
+        song = audio.song(path)
+        song.play(looping: true)
+        audio.stop_music
+
+        expect(song).to be_playing
+      end
+    end
+  end
+
   # As with the renderer contract: each of these was a real difference between
   # FakeAudio and the live device, and the contract is what stops them drifting
   # apart again.

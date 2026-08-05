@@ -2245,6 +2245,60 @@ reintroducing the global.
   registers every element.
 - **Verify**: `make test`, `rake spec`, `rake spec:core`, RuboCop.
 
+**Landed.** Both registries are in, and the last of `gosu_renderer.rb` and all
+of `gosu_audio.rb` with them. 192 headless examples and 287 core ones.
+
+**The name collision the sketch did not see.** `Core::Renderer#image` and
+`#background` already existed taking an `Image` *object*, and the engine layer
+calls both with an **id** (`renderer.background(:space)` in three scenes).
+Renaming either would break constraint 1. So those two methods take **either**,
+dispatching on type — an `Image` is used as-is, anything else is an id — and the
+rule is stated once in `#resolve_image` rather than twice. The two callers
+genuinely cannot be reconciled another way: Core's own drawing classes hold real
+images, and the engine layer is forbidden from holding one.
+
+Two rules came out of making that safe:
+
+- **Only a String is offered to the asset manager**, because only a String can
+  be a path. A Symbol is a name the game chose, so a missing one is
+  `KeyError: no sheet registered for :heor` rather than whatever the manager
+  makes of being handed a Symbol for a filename — while a broken *file* still
+  raises its own `LoadError`, naming it. Different bugs, different fixes.
+- **`nil` is a TypeError, not a KeyError.** "You passed nothing" and "I do not
+  know that name" want different fixes too, and reporting the first as the
+  second sends the reader looking for a typo.
+
+**The fake needed a *type* before it could dispatch.** `FakeRenderer` accepted
+`:hero` as an image, which is now ambiguous between "this is the image" and
+"this names one". `StubImage` moved from `spec_core/support/` to
+`spec/support/` — it is a fake, and it belongs with the fakes — and the
+contract's host hook yields one. That is what lets the fake dispatch the way the
+real renderer dispatches on `Core::Image`.
+
+**Two contract examples were written vacuous, and mutation testing said so.**
+"resolves an id once and remembers it" counted *draws*, not lookups, so removing
+the memoisation changed nothing; "ignores a request to play music that is
+already playing" asserted the song was still playing, which a restart leaves
+true. Both are now written against stand-ins the contract supplies — a counting
+asset manager and a recording song — which is also the only way to state either
+rule at all, since a fake has no real manager and a real song exposes no
+playback position. Worth remembering as a shape: **an example that cannot fail
+is worse than a missing one, because it looks like coverage.**
+
+Every mutation now dies on both sides: no memoisation (1 each), registration
+ignored (8 fake / 7 real), a Symbol offered to the manager (1 / 2), a StubImage
+treated as an id (7), `play_music` restarting (1 each), `stop_music` stopping
+nothing (1 each).
+
+`nine_slice` is registration-only, as the old layer had it: those ids name an
+element of an atlas rather than a file. `tilemap`'s asset-manager fallback is
+written and will start working the moment 6.5 adds `AssetManager#tilemap` —
+`resolve_asset` asks `respond_to?` first, so until then a tilemap id is the
+ordinary KeyError rather than a `NoMethodError` from inside the manager.
+
+Docs: "Drawing by id" in `docs/api/drawing.md` with the resolution table, and
+"Playing by id" in `docs/api/audio.md`. Every example executed.
+
 ### 6.8 Port the game shell, and run the two examples
 
 The step everything above exists to reach, and the first time any of it is

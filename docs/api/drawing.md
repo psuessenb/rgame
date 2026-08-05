@@ -133,6 +133,64 @@ app's image would sample nothing and paint a plain white rectangle. Rather than
 let that happen quietly, it raises `ArgumentError`. In a one-window game — which
 is nearly all of them — this never comes up.
 
+## Drawing by id
+
+Game logic names an asset; it does not hold one. That is not a convenience —
+the scene layer may hold `RGame::Util` values but no `RGame::Core` handle at
+all, so a Symbol or a path is the only thing a node *can* carry.
+
+An id is normally a **root-relative path**, resolved through the app's
+[asset manager](assets.md) and then remembered:
+
+```ruby
+renderer.sprite('example 09/player.json', row, col, x, y, flip_x: false, z: 0)
+renderer.image('space.png', cx, cy, angle: 0, scale: 1)
+renderer.background('space.png')
+renderer.tilemap('map/island.tmx', camera_x, camera_y, viewport_w, viewport_h)
+renderer.tilemap_overlay('map/island.tmx', camera_x, camera_y, viewport_w, viewport_h, z: 20)
+```
+
+Nothing has to be set up for that: `Renderer.new(app)` takes the app's own
+manager, so a path just works. `Renderer.new(app, assets: other)` overrides it.
+
+### Registering
+
+`register_*` pre-binds an id to an object you chose, and wins over the asset
+manager. It is for the two things a path cannot name: an id that is not a file,
+and an object the game assembled itself.
+
+```ruby
+renderer.register_image(:space, app.assets.image('space.png'))
+renderer.register_sheet(:hero, app.assets.sheet('hero.json'))
+renderer.register_tilemap(:level1, app.assets.tilemap('island.tmx'))
+renderer.register_nine_slice(:panel, atlas.nine_slices[:panel])
+renderer.register_ui_atlas(atlas)   # every element under its own name
+
+renderer.image(:space, 100, 100)
+```
+
+**Nine-slices are registration-only.** Their ids name an *element of an atlas*,
+not a file, so there is nothing for a manager to resolve them to.
+
+### What resolution does
+
+| Given | |
+|---|---|
+| An `Image` | drawn directly — `#image`, `#image_at` and `#background` all take one |
+| A registered id | the registered object |
+| A `String` | resolved through the asset manager, then remembered |
+| A `Symbol` that is not registered | `KeyError`, naming the id and the type |
+| `nil` | `TypeError` |
+
+A Symbol is never offered to the asset manager, because only a String can be a
+path. So a typo'd Symbol says "no sheet registered for `:heor`" rather than
+whatever a loader makes of being handed a Symbol for a filename — and a broken
+*file* still raises its own `LoadError` naming it, which is a different bug
+wanting a different fix.
+
+Resolution happens once per id and the answer is kept, so per-frame drawing
+neither re-resolves nor allocates a lookup key.
+
 ## Transform blocks
 
 Each of these applies to everything drawn inside it, and undoes itself

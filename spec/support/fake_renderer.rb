@@ -30,11 +30,50 @@ class FakeRenderer
   end
 
   attr_reader :calls
+  attr_accessor :assets
 
-  def initialize
+  def initialize(assets: nil)
     @calls = []
     @transforms = []
     @recording = nil
+    @assets = assets
+    @registries = {}
+  end
+
+  # --- draw-by-id ---------------------------------------------------------
+  #
+  # The same two-step the real renderer does: prefer a registration, otherwise
+  # ask an asset manager, and only a String is offered to one because only a
+  # String can be a path. A spec that wants to assert *which* asset a scene
+  # asked for reads the recorded call; a spec that wants the lookup to fail
+  # registers nothing.
+
+  def register_image(id, image) = registry(:image)[id] = image
+  def register_sheet(id, sheet) = registry(:sheet)[id] = sheet
+  def register_tilemap(id, tilemap) = registry(:tilemap)[id] = tilemap
+  def register_nine_slice(id, nine_slice) = registry(:nine_slice)[id] = nine_slice
+
+  def register_ui_atlas(atlas)
+    atlas.nine_slices.each { |id, nine_slice| register_nine_slice(id, nine_slice) }
+    self
+  end
+
+  def sprite(id, row, col, x, y, flip_x: false, z: 0)
+    lookup(:sheet, id).draw(self, row, col, x, y, flip_x: flip_x, z: z)
+  end
+
+  def nine_slice(id, x, y, width, height, z: 0, tint: nil)
+    lookup(:nine_slice, id).draw(self, number(x), number(y), number(width), number(height),
+                                 z: number(z), color: color_arg(tint))
+  end
+
+  def tilemap(id, camera_x, camera_y, viewport_width, viewport_height)
+    lookup(:tilemap, id).draw(self, camera_x, camera_y, viewport_width, viewport_height)
+  end
+
+  def tilemap_overlay(id, camera_x, camera_y, viewport_width, viewport_height, z:)
+    lookup(:tilemap, id)
+      .draw_overlay(self, camera_x, camera_y, viewport_width, viewport_height, z: z)
   end
 
   # --- refusing what the real renderer refuses ------------------------------
@@ -61,14 +100,13 @@ class FakeRenderer
     value
   end
 
-  # The one place the fake cannot match the real thing: it never looks at an
-  # image, so anything non-nil has to be acceptable — a Symbol, a StubImage,
-  # whatever a spec finds readable. `nil` is refused because that is the
-  # realistic bug: an asset that failed to resolve.
+  # A StubImage stands in for a live Image and is used as-is; anything else is
+  # an id for one, exactly as the real renderer treats a `Core::Image` versus a
+  # Symbol or path. A stand-in *type* is what makes that dispatch possible at
+  # all — before there was one, a Symbol was ambiguous between "this is the
+  # image" and "this names the image".
   def image_arg(value)
-    raise TypeError, 'no implicit conversion of nil into Image' if value.nil?
-
-    value
+    value.is_a?(StubImage) ? value : lookup(:image, value)
   end
 
   # Runs the *same* coercion the real renderer runs, so the two cannot disagree
@@ -206,6 +244,21 @@ class FakeRenderer
 
   # `remember` is private, but FakeRecording reaches it through `send` when a
   # replay happens — the two are one mechanism split across two files.
+  def registry(type) = @registries[type] ||= {}
+
+  def lookup(type, id)
+    raise TypeError, "no implicit conversion of nil into #{type}" if id.nil?
+
+    table = registry(type)
+    table.fetch(id) { table[id] = resolve_asset(type, id) }
+  end
+
+  def resolve_asset(type, id)
+    resolved = @assets.public_send(type, id) if id.is_a?(String) && @assets.respond_to?(type)
+    resolved || raise(KeyError, "no #{type} registered for #{id.inspect} " \
+                                'and no AssetManager to resolve it')
+  end
+
   private
 
   def remember(name, args, **options)

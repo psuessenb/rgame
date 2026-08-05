@@ -61,6 +61,74 @@ module RGame
       # Translucent red, for #debug_box.
       DEBUG_BOX_COLOR = Color.new(255, 40, 40, 120)
 
+      # `assets:` is where a draw id that is not registered gets resolved from,
+      # and defaults to the app's own manager — so the common case wires itself
+      # and `renderer.sprite('hero.json', …)` works with nothing set up.
+      #
+      # A Ruby `self.new` because the C `initialize` has fixed arity and no
+      # business knowing what an asset manager is; the same shape `Font`'s
+      # `path:` uses.
+      def self.new(app, assets: nil)
+        renderer = super(app)
+        renderer.assets = assets.nil? ? app.assets : assets
+        renderer
+      end
+
+      attr_accessor :assets
+
+      # --- draw-by-id ---------------------------------------------------------
+      #
+      # Game logic names assets, it does not hold them: the engine layer may
+      # hold `RGame::Util` values but no `RGame::Core` handle at all, so a
+      # Symbol or a path is the only thing a node *can* carry. Resolving it is
+      # this side of the boundary's job.
+      #
+      # An id is normally a **root-relative path**, resolved through the asset
+      # manager and then remembered, so a per-frame draw neither re-resolves nor
+      # allocates a lookup key:
+      #
+      #   renderer.sprite('example 09/player.json', row, col, x, y)
+      #
+      # `register_*` pre-binds an id to a chosen object, for the two things a
+      # path cannot name: an id that is not a file (nine-slice ids are *atlas
+      # element* names) and an object the game assembled itself.
+
+      def register_image(id, image) = registry(:image)[id] = image
+      def register_sheet(id, sheet) = registry(:sheet)[id] = sheet
+      def register_tilemap(id, tilemap) = registry(:tilemap)[id] = tilemap
+      def register_nine_slice(id, nine_slice) = registry(:nine_slice)[id] = nine_slice
+
+      # Registers every element of a UiAtlas under its own name, since those
+      # names are what a widget asks for.
+      def register_ui_atlas(atlas)
+        atlas.nine_slices.each { |id, nine_slice| register_nine_slice(id, nine_slice) }
+        self
+      end
+
+      # One frame of a registered or resolvable sprite sheet, top-left at (x, y).
+      def sprite(id, row, col, x, y, flip_x: false, z: IMAGE_Z)
+        lookup(:sheet, id).draw(self, row, col, x, y, flip_x: flip_x, z: z)
+      end
+
+      # A nine-slice filling (x, y, width, height), tinted by `tint` if given.
+      # Registration only: a nine-slice id names an element of an atlas, not a
+      # file, so there is nothing for the asset manager to resolve it to.
+      def nine_slice(id, x, y, width, height, z: IMAGE_Z, tint: nil)
+        lookup(:nine_slice, id).draw(self, x, y, width, height, z: z, color: tint)
+      end
+
+      # A tile map's below-the-actor band (ground and same-level detail).
+      def tilemap(id, camera_x, camera_y, viewport_width, viewport_height)
+        lookup(:tilemap, id).draw(self, camera_x, camera_y, viewport_width, viewport_height)
+      end
+
+      # Its above-the-actor band (canopies, roofs), at a `z` the scene picks so
+      # it lands over the actors.
+      def tilemap_overlay(id, camera_x, camera_y, viewport_width, viewport_height, z:)
+        lookup(:tilemap, id)
+          .draw_overlay(self, camera_x, camera_y, viewport_width, viewport_height, z: z)
+      end
+
       # A filled axis-aligned rectangle.
       def rect(x, y, width, height, z: SHAPE_Z, color: nil)
         draw_rect(x, y, width, height, z, packed(color))
@@ -90,8 +158,10 @@ module RGame
       # An image centred on (cx, cy), rotated `angle` degrees clockwise about
       # that centre and uniformly scaled. Unrotated and unscaled is a fast path
       # that skips the transform stack entirely.
+      #
+      # Takes an `Image` or an id for one — see #resolve_image.
       def image(image, cx, cy, angle: 0, scale: 1, z: IMAGE_Z, color: nil)
-        draw_image_rot(image, cx, cy, angle, scale, z, packed(color))
+        draw_image_rot(resolve_image(image), cx, cy, angle, scale, z, packed(color))
       end
 
       # An image with its top-left at (x, y), scaled independently per axis —
@@ -106,14 +176,14 @@ module RGame
       #
       # A zero scale draws nothing.
       def image_at(image, x, y, scale_x: 1, scale_y: 1, z: IMAGE_Z, color: nil)
-        draw_image_scaled(image, x, y, scale_x, scale_y, z, packed(color))
+        draw_image_scaled(resolve_image(image), x, y, scale_x, scale_y, z, packed(color))
       end
 
       # An image with its top-left at (x, y), at its natural size — a
       # full-screen backdrop by default. `image_at` with both scales at 1, kept
       # because "put this at the origin" is worth a name of its own.
       def background(image, x = 0, y = 0, z: IMAGE_Z, color: nil)
-        draw_image(image, x, y, z, packed(color))
+        draw_image(resolve_image(image), x, y, z, packed(color))
       end
 
       # Everything drawn in the block is rotated `angle` degrees about
@@ -242,6 +312,45 @@ module RGame
       # place nil/array/Color are turned into one, so no drawing method has its
       # own idea of what a colour is.
       def packed(color) = Color.coerce(color).packed
+
+      # An `Image` is already what it is; anything else is an id for one.
+      #
+      # The two callers this serves cannot be reconciled any other way. Core's
+      # own drawing classes — SpriteSheet, NineSlice — hold real images and pass
+      # them; the engine layer is forbidden from holding one and can only pass
+      # an id. Dispatching on the type keeps both spellings of `#image` and
+      # `#background` working without two parallel method names for the same
+      # picture.
+      def resolve_image(image) = image.is_a?(Image) ? image : lookup(:image, image)
+
+      def registry(type) = (@registries ||= {})[type] ||= {}
+
+      # Prefer an explicit registration, otherwise ask the asset manager, then
+      # remember the answer — so a per-frame draw neither re-resolves nor
+      # allocates a lookup key.
+      def lookup(type, id)
+        # `nil` is never an id, and reporting it as one ("no image registered
+        # for nil") describes a typo when the actual bug is an asset that
+        # resolved to nothing. The two want different fixes.
+        raise TypeError, "no implicit conversion of nil into #{type}" if id.nil?
+
+        table = registry(type)
+        table.fetch(id) { table[id] = resolve_asset(type, id) }
+      end
+
+      # Only a String is offered to the asset manager, because only a String can
+      # be a path. A Symbol id is a name a game chose, so a missing one is the
+      # KeyError below — naming the id — rather than whatever the manager makes
+      # of being handed a Symbol where it wanted a filename.
+      #
+      # `respond_to?` for the same reason one step along: the manager grows an
+      # accessor per asset type, and asking for one it does not have yet should
+      # be this error rather than a NoMethodError from inside it.
+      def resolve_asset(type, id)
+        resolved = @assets.public_send(type, id) if id.is_a?(String) && @assets.respond_to?(type)
+        resolved || raise(KeyError, "no #{type} registered for #{id.inspect} " \
+                                    'and no AssetManager to resolve it')
+      end
     end
   end
 end

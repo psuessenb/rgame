@@ -120,6 +120,165 @@ RSpec.shared_examples 'a renderer' do
     end
   end
 
+  # The other half of the interface: game logic names an asset rather than
+  # holding one, because the engine layer may hold `RGame::Util` values but no
+  # `RGame::Core` handle at all. So every drawing method that takes an asset
+  # takes an *id* for one, and the renderer resolves it.
+  #
+  # What a resolved asset then *is* varies — a SpriteSheet, a NineSlice, a
+  # TileMapRenderer — and none of them can be built by a fake. What both
+  # implementations share is the resolution and the call they make on the
+  # result, so that is what this states: register a stand-in, and check the
+  # renderer hands it itself plus the caller's arguments.
+  describe 'drawing by id' do
+    # Records the one call the renderer makes on it. Registering this is enough
+    # for both implementations, because neither looks at what it registered.
+    def recorder
+      Class.new do
+        attr_reader :received
+
+        def initialize = @received = []
+        def method_missing(name, *args, **options) = @received << [name, args, options]
+        def respond_to_missing?(*) = true
+      end.new
+    end
+
+    # A stand-in asset manager that counts what it was asked to resolve. Both
+    # implementations take one through `assets=`, which is the only way to state
+    # the resolution rules in a contract at all — a fake has no real manager.
+    def counting_manager(asset)
+      Class.new do
+        attr_reader :lookups
+
+        def initialize(asset)
+          @asset = asset
+          @lookups = 0
+        end
+
+        def sheet(_id)
+          @lookups += 1
+          @asset
+        end
+      end.new(asset)
+    end
+
+    it 'draws a registered image by its id' do
+      render do |renderer, image|
+        renderer.register_image(:hero, image)
+
+        expect { renderer.image(:hero, 10, 20) }.not_to raise_error
+      end
+    end
+
+    it 'draws a registered backdrop by its id' do
+      render do |renderer, image|
+        renderer.register_image(:sky, image)
+
+        expect { renderer.background(:sky) }.not_to raise_error
+      end
+    end
+
+    it 'asks a registered sheet for the frame it was told to draw' do
+      render do |renderer, _image|
+        sheet = recorder
+        renderer.register_sheet(:hero, sheet)
+        renderer.sprite(:hero, 1, 2, 30, 40, flip_x: true, z: 5)
+
+        name, args, options = sheet.received.first
+        expect(name).to eq(:draw)
+        expect(args).to eq([renderer, 1, 2, 30, 40])
+        expect(options).to eq(flip_x: true, z: 5)
+      end
+    end
+
+    it 'asks a registered nine-slice to fill the rectangle it was given' do
+      render do |renderer, _image|
+        panel = recorder
+        renderer.register_nine_slice(:panel, panel)
+        renderer.nine_slice(:panel, 1, 2, 30, 40, z: 5, tint: [255, 0, 0])
+
+        name, args, options = panel.received.first
+        expect(name).to eq(:draw)
+        expect(args).to eq([renderer, 1, 2, 30, 40])
+        expect(options).to eq(z: 5, color: [255, 0, 0])
+      end
+    end
+
+    it 'asks a registered tile map for each of its two bands' do
+      # The bands are separate calls because the scene draws its actors between
+      # them; collapsing them into one would put every canopy behind every
+      # character.
+      render do |renderer, _image|
+        map = recorder
+        renderer.register_tilemap(:level1, map)
+        renderer.tilemap(:level1, 8, 16, 320, 240)
+        renderer.tilemap_overlay(:level1, 8, 16, 320, 240, z: 20)
+
+        expect(map.received.map(&:first)).to eq(%i[draw draw_overlay])
+        expect(map.received.last).to eq([:draw_overlay, [renderer, 8, 16, 320, 240], { z: 20 }])
+      end
+    end
+
+    it 'registers every element of a UI atlas under its own name' do
+      # A nine-slice id names an element of an atlas, not a file, which is why
+      # this is the one asset kind with no path form at all.
+      render do |renderer, _image|
+        panel = recorder
+        atlas = Struct.new(:nine_slices).new({ panel: panel })
+        renderer.register_ui_atlas(atlas)
+        renderer.nine_slice(:panel, 0, 0, 1, 1)
+
+        expect(panel.received.first.first).to eq(:draw)
+      end
+    end
+
+    it 'does not offer a Symbol id to the asset manager' do
+      # Only a String can be a path. A Symbol is a name the game chose, so a
+      # missing one is the KeyError below rather than whatever a manager makes
+      # of being handed a Symbol where it wanted a filename.
+      render do |renderer, _image|
+        manager = counting_manager(recorder)
+        renderer.assets = manager
+
+        expect { renderer.sprite(:nobody, 0, 0, 0, 0) }.to raise_error(KeyError)
+        expect(manager.lookups).to be_zero
+      end
+    end
+
+    it 'raises for an id it cannot resolve, naming the id and the type' do
+      # A Symbol is a name the game chose, so a missing one is this rather than
+      # whatever an asset manager makes of being handed a Symbol for a filename.
+      render do |renderer, _image|
+        expect { renderer.sprite(:nobody, 0, 0, 0, 0) }
+          .to raise_error(KeyError, /no sheet registered for :nobody/)
+      end
+    end
+
+    it 'resolves an id through the asset manager once, then remembers it' do
+      # Per-frame code draws the same sprite every frame. Asking the manager
+      # again each time is a lookup and a fresh key per draw, on the hottest
+      # path there is — so the answer is kept.
+      render do |renderer, _image|
+        manager = counting_manager(recorder)
+        renderer.assets = manager
+        2.times { renderer.sprite('hero.json', 0, 0, 0, 0) }
+
+        expect(manager.lookups).to eq(1)
+      end
+    end
+
+    it 'prefers a registration to the asset manager' do
+      render do |renderer, _image|
+        manager = counting_manager(recorder)
+        renderer.assets = manager
+        renderer.register_sheet('hero.json', recorder)
+        renderer.sprite('hero.json', 0, 0, 0, 0)
+
+        expect(manager.lookups).to be_zero
+      end
+    end
+  end
+
   # Every example here was a real difference between the fake and the live
   # renderer, found by calling the same bad input on both. They are in the
   # contract rather than in either spec because that is the only place that

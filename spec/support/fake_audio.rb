@@ -39,6 +39,8 @@ class FakeAudio
   def initialize
     @calls = []
     @volume = 1.0
+    @sounds = {}
+    @music = {}
   end
 
   def backend = 'Fake'
@@ -56,6 +58,37 @@ class FakeAudio
   def song(path)
     remember(:song, FakeAudio.path(path), [])
     FakeSong.new(self, path)
+  end
+
+  # --- play-by-id ---------------------------------------------------------
+  #
+  # Registration only, like the real device. A spec asserting that a scene
+  # played the right thing usually reads #played? rather than these, but the
+  # scene under test reaches them by id, so they have to exist and behave.
+
+  def register_sound(id, sample)
+    sounds[id] = sample
+    self
+  end
+
+  def register_music(id, song)
+    music[id] = song
+    self
+  end
+
+  def play_sound(id) = sounds.fetch(id).play
+
+  def play_music(id)
+    song = music.fetch(id)
+    return song if song.playing?
+
+    @playing_song = song
+    song.play(looping: true)
+  end
+
+  def stop_music
+    @playing_song&.stop
+    @playing_song = nil
   end
 
   # --- what a spec asks afterwards ----------------------------------------
@@ -105,6 +138,10 @@ class FakeAudio
     @calls << Call.new(name, path, args)
     self
   end
+
+  private
+
+  attr_reader :sounds, :music
 end
 
 # A short sound from a FakeAudio. Playing it records; nothing else happens.

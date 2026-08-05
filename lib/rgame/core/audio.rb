@@ -27,6 +27,60 @@ module RGame
 
       # Loads a long one to stream. See {Song}.
       def song(path) = Song.new(self, path)
+
+      # --- play-by-id -----------------------------------------------------
+      #
+      # The same boundary the renderer's draw-by-id serves: game logic emits
+      # facts — "the ship was hit" — and names the sound, because a scene may
+      # not hold a `Sample`. Registration only, unlike the renderer: a sound id
+      # is whatever a game wants to call it, and there is no per-frame path to
+      # make resolving one worth caching.
+      #
+      #   audio.register_sound(:hit, app.assets.sound('example 09/hurt.ogg'))
+      #   audio.play_sound(:hit)
+
+      def register_sound(id, sample)
+        samples[id] = sample
+        self
+      end
+
+      def register_music(id, song)
+        songs[id] = song
+        self
+      end
+
+      # Plays a registered sample. Each call is another voice, layered over the
+      # ones already sounding.
+      def play_sound(id)
+        samples.fetch(id).play
+      end
+
+      # Starts a registered song looping, and does **nothing** if it is already
+      # playing — so a scene that re-emits the same request every time it is
+      # entered never restarts the music mid-loop.
+      def play_music(id)
+        song = songs.fetch(id)
+        return song if song.playing?
+
+        @playing_song = song
+        song.play(looping: true)
+      end
+
+      # Stops the song this registry started.
+      #
+      # Deliberately not "stop whatever is playing": the layer being replaced
+      # reached for a process-wide `current_song`, and there is no such global
+      # here by the decision that one-song-at-a-time is a game's policy rather
+      # than the engine's. A `Song` a game started by hand is its own to stop.
+      def stop_music
+        @playing_song&.stop
+        @playing_song = nil
+      end
+
+      private
+
+      def samples = @samples ||= {}
+      def songs = @songs ||= {}
     end
 
     # A short sound, decoded once and played many times over.

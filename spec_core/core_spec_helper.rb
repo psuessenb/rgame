@@ -41,6 +41,7 @@ require_relative '../spec/support/shared_examples/an_audio_server'
 # contract this file loads above.
 require_relative '../spec/support/fake_renderer'
 require_relative '../spec/support/fake_recording'
+require_relative '../spec/support/stub_image'
 
 RSpec.configure do |config|
   config.expect_with(:rspec) { |c| c.syntax = :expect }
