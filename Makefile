@@ -6,8 +6,16 @@ CFLAGS ?= -std=c17 -Wall -Wextra -g -fPIC
 # This Makefile builds those same sources into a standalone binary.
 EXT_CORE_DIR := ext/rgame_core
 EXT_UTIL_DIR := ext/rgame_util
+# The extension directory itself, because the engine sources are grouped into
+# subsystem subdirectories and include each other by folder — graphics/canvas.c
+# says `#include "graphics/clip.h"`. It also resolves `vendor/stb_image.h`.
 # Util's colour header is header-only; see ext/rgame_core/extconf.rb.
-INCLUDES := -I$(EXT_CORE_DIR)/include -I$(EXT_UTIL_DIR)
+INCLUDES := -I$(EXT_CORE_DIR) -I$(EXT_CORE_DIR)/include -I$(EXT_UTIL_DIR)
+
+# Every engine source and header, for the extension build below, which shells
+# out to a Makefile that tracks its own prerequisites. `*/` covers exactly the
+# subsystem directories: nothing is compiled from the top level any more.
+EXT_CORE_SOURCES := $(wildcard $(EXT_CORE_DIR)/*/*.c $(EXT_CORE_DIR)/*/*.h)
 
 SDL_CFLAGS := $(shell pkg-config --cflags sdl2)
 SDL_LIBS := $(shell pkg-config --libs sdl2)
@@ -100,37 +108,37 @@ all: $(MAIN_BIN)
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-$(APP_OBJ): $(EXT_CORE_DIR)/app.c $(EXT_CORE_DIR)/frame_loop.h $(EXT_CORE_DIR)/input.h \
-            $(EXT_CORE_DIR)/gamepad.h $(EXT_CORE_DIR)/canvas.h $(EXT_CORE_DIR)/primitives.h \
-            $(EXT_CORE_DIR)/gl_backend.h $(EXT_CORE_DIR)/image_internal.h \
-            $(EXT_CORE_DIR)/font_internal.h \
+$(APP_OBJ): $(EXT_CORE_DIR)/app/app.c $(EXT_CORE_DIR)/app/frame_loop.h $(EXT_CORE_DIR)/input/input.h \
+            $(EXT_CORE_DIR)/input/gamepad.h $(EXT_CORE_DIR)/graphics/canvas.h $(EXT_CORE_DIR)/graphics/primitives.h \
+            $(EXT_CORE_DIR)/graphics/gl_backend.h $(EXT_CORE_DIR)/graphics/image_internal.h \
+            $(EXT_CORE_DIR)/text/font_internal.h \
             $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
-$(FRAME_LOOP_OBJ): $(EXT_CORE_DIR)/frame_loop.c $(EXT_CORE_DIR)/frame_loop.h | $(BUILD_DIR)
+$(FRAME_LOOP_OBJ): $(EXT_CORE_DIR)/app/frame_loop.c $(EXT_CORE_DIR)/app/frame_loop.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-$(DEVICE_SLOTS_OBJ): $(EXT_CORE_DIR)/device_slots.c $(EXT_CORE_DIR)/device_slots.h | $(BUILD_DIR)
+$(DEVICE_SLOTS_OBJ): $(EXT_CORE_DIR)/input/device_slots.c $(EXT_CORE_DIR)/input/device_slots.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-$(INPUT_OBJ): $(EXT_CORE_DIR)/input.c $(EXT_CORE_DIR)/input.h $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
+$(INPUT_OBJ): $(EXT_CORE_DIR)/input/input.c $(EXT_CORE_DIR)/input/input.h $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-$(GAMEPAD_OBJ): $(EXT_CORE_DIR)/gamepad.c $(EXT_CORE_DIR)/gamepad.h $(EXT_CORE_DIR)/input.h $(EXT_CORE_DIR)/device_slots.h | $(BUILD_DIR)
+$(GAMEPAD_OBJ): $(EXT_CORE_DIR)/input/gamepad.c $(EXT_CORE_DIR)/input/gamepad.h $(EXT_CORE_DIR)/input/input.h $(EXT_CORE_DIR)/input/device_slots.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
-$(TRANSFORM_OBJ): $(EXT_CORE_DIR)/transform.c $(EXT_CORE_DIR)/transform.h | $(BUILD_DIR)
+$(TRANSFORM_OBJ): $(EXT_CORE_DIR)/graphics/transform.c $(EXT_CORE_DIR)/graphics/transform.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-$(CLIP_OBJ): $(EXT_CORE_DIR)/clip.c $(EXT_CORE_DIR)/clip.h | $(BUILD_DIR)
+$(CLIP_OBJ): $(EXT_CORE_DIR)/graphics/clip.c $(EXT_CORE_DIR)/graphics/clip.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-$(DRAW_QUEUE_OBJ): $(EXT_CORE_DIR)/draw_queue.c $(EXT_CORE_DIR)/draw_queue.h \
-                   $(EXT_CORE_DIR)/clip.h | $(BUILD_DIR)
+$(DRAW_QUEUE_OBJ): $(EXT_CORE_DIR)/graphics/draw_queue.c $(EXT_CORE_DIR)/graphics/draw_queue.h \
+                   $(EXT_CORE_DIR)/graphics/clip.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-$(BACKEND_OBJ): $(EXT_CORE_DIR)/backend.c $(EXT_CORE_DIR)/backend.h \
-                $(EXT_CORE_DIR)/draw_queue.h | $(BUILD_DIR)
+$(BACKEND_OBJ): $(EXT_CORE_DIR)/graphics/backend.c $(EXT_CORE_DIR)/graphics/backend.h \
+                $(EXT_CORE_DIR)/graphics/draw_queue.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 # Test-only: the recording backend the Check suite substitutes for real GL.
@@ -138,66 +146,66 @@ $(BUILD_DIR)/recording_backend.o: test/support/recording_backend.c \
                                   test/support/recording_backend.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -I$(EXT_CORE_DIR) -I$(EXT_UTIL_DIR) -Itest/support $(CHECK_CFLAGS) -c $< -o $@
 
-$(CANVAS_OBJ): $(EXT_CORE_DIR)/canvas.c $(EXT_CORE_DIR)/canvas.h \
-               $(EXT_CORE_DIR)/draw_queue.h $(EXT_CORE_DIR)/transform.h \
-               $(EXT_CORE_DIR)/clip.h $(EXT_CORE_DIR)/recording.h \
+$(CANVAS_OBJ): $(EXT_CORE_DIR)/graphics/canvas.c $(EXT_CORE_DIR)/graphics/canvas.h \
+               $(EXT_CORE_DIR)/graphics/draw_queue.h $(EXT_CORE_DIR)/graphics/transform.h \
+               $(EXT_CORE_DIR)/graphics/clip.h $(EXT_CORE_DIR)/graphics/recording.h \
                $(EXT_UTIL_DIR)/color.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-$(TEXTURE_OBJ): $(EXT_CORE_DIR)/texture.c $(EXT_CORE_DIR)/texture.h \
-                $(EXT_CORE_DIR)/clip.h | $(BUILD_DIR)
+$(TEXTURE_OBJ): $(EXT_CORE_DIR)/graphics/texture.c $(EXT_CORE_DIR)/graphics/texture.h \
+                $(EXT_CORE_DIR)/graphics/clip.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-$(PRIMITIVES_OBJ): $(EXT_CORE_DIR)/primitives.c $(EXT_CORE_DIR)/primitives.h \
-                   $(EXT_CORE_DIR)/canvas.h $(EXT_CORE_DIR)/texture.h \
+$(PRIMITIVES_OBJ): $(EXT_CORE_DIR)/graphics/primitives.c $(EXT_CORE_DIR)/graphics/primitives.h \
+                   $(EXT_CORE_DIR)/graphics/canvas.h $(EXT_CORE_DIR)/graphics/texture.h \
                    $(EXT_UTIL_DIR)/color.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-$(ATLAS_OBJ): $(EXT_CORE_DIR)/atlas.c $(EXT_CORE_DIR)/atlas.h \
-              $(EXT_CORE_DIR)/clip.h | $(BUILD_DIR)
+$(ATLAS_OBJ): $(EXT_CORE_DIR)/text/atlas.c $(EXT_CORE_DIR)/text/atlas.h \
+              $(EXT_CORE_DIR)/graphics/clip.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-$(GLYPH_CACHE_OBJ): $(EXT_CORE_DIR)/glyph_cache.c $(EXT_CORE_DIR)/glyph_cache.h \
-                    $(EXT_CORE_DIR)/clip.h | $(BUILD_DIR)
+$(GLYPH_CACHE_OBJ): $(EXT_CORE_DIR)/text/glyph_cache.c $(EXT_CORE_DIR)/text/glyph_cache.h \
+                    $(EXT_CORE_DIR)/graphics/clip.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 # Needs the extension directory on the include path for "vendor/stb_truetype.h".
-$(FONT_OBJ): $(EXT_CORE_DIR)/font.c $(EXT_CORE_DIR)/font.h \
-             $(EXT_CORE_DIR)/glyph_cache.h $(EXT_CORE_DIR)/vendor/stb_truetype.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -I$(EXT_CORE_DIR) -c $< -o $@
-
-$(FONT_ATLAS_OBJ): $(EXT_CORE_DIR)/font_atlas.c $(EXT_CORE_DIR)/font_internal.h \
-                   $(EXT_CORE_DIR)/font.h $(EXT_CORE_DIR)/atlas.h \
-                   $(EXT_CORE_DIR)/glyph_cache.h $(EXT_CORE_DIR)/app_gl.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -I$(EXT_CORE_DIR) $(SDL_CFLAGS) -c $< -o $@
-
-$(VORBIS_DECODER_OBJ): $(EXT_CORE_DIR)/vorbis_decoder.c $(EXT_CORE_DIR)/vorbis_decoder.h \
-                       $(VENDOR_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -I$(EXT_CORE_DIR) -c $< -o $@
-
-$(AUDIO_OBJ): $(EXT_CORE_DIR)/audio.c $(EXT_CORE_DIR)/audio_internal.h \
-              $(EXT_CORE_DIR)/vorbis_decoder.h $(VENDOR_SOURCES) \
-              $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -I$(EXT_CORE_DIR) -c $< -o $@
-
-$(RECORDING_OBJ): $(EXT_CORE_DIR)/recording.c $(EXT_CORE_DIR)/recording.h \
-                  $(EXT_CORE_DIR)/draw_queue.h | $(BUILD_DIR)
+$(FONT_OBJ): $(EXT_CORE_DIR)/text/font.c $(EXT_CORE_DIR)/text/font.h \
+             $(EXT_CORE_DIR)/text/glyph_cache.h $(EXT_CORE_DIR)/vendor/stb_truetype.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-$(GL_BACKEND_OBJ): $(EXT_CORE_DIR)/gl_backend.c $(EXT_CORE_DIR)/gl_backend.h \
-                   $(EXT_CORE_DIR)/backend.h | $(BUILD_DIR)
+$(FONT_ATLAS_OBJ): $(EXT_CORE_DIR)/text/font_atlas.c $(EXT_CORE_DIR)/text/font_internal.h \
+                   $(EXT_CORE_DIR)/text/font.h $(EXT_CORE_DIR)/text/atlas.h \
+                   $(EXT_CORE_DIR)/text/glyph_cache.h $(EXT_CORE_DIR)/app/app_gl.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
-$(IMAGE_OBJ): $(EXT_CORE_DIR)/image.c $(EXT_CORE_DIR)/texture.h $(EXT_CORE_DIR)/app_gl.h \
+$(VORBIS_DECODER_OBJ): $(EXT_CORE_DIR)/audio/vorbis_decoder.c $(EXT_CORE_DIR)/audio/vorbis_decoder.h \
+                       $(VENDOR_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+$(AUDIO_OBJ): $(EXT_CORE_DIR)/audio/audio.c $(EXT_CORE_DIR)/audio/audio_internal.h \
+              $(EXT_CORE_DIR)/audio/vorbis_decoder.h $(VENDOR_SOURCES) \
+              $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+$(RECORDING_OBJ): $(EXT_CORE_DIR)/graphics/recording.c $(EXT_CORE_DIR)/graphics/recording.h \
+                  $(EXT_CORE_DIR)/graphics/draw_queue.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+$(GL_BACKEND_OBJ): $(EXT_CORE_DIR)/graphics/gl_backend.c $(EXT_CORE_DIR)/graphics/gl_backend.h \
+                   $(EXT_CORE_DIR)/graphics/backend.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
+
+$(IMAGE_OBJ): $(EXT_CORE_DIR)/graphics/image.c $(EXT_CORE_DIR)/graphics/texture.h $(EXT_CORE_DIR)/app/app_gl.h \
               $(EXT_CORE_DIR)/vendor/stb_image.h $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -I$(EXT_CORE_DIR) $(SDL_CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
 # The vendored translation units, and the only place warnings are relaxed.
 # These are public-domain third-party libraries that do not survive -Wall
 # -Wextra; carving out exactly these files keeps everything we wrote clean. One
 # rule rather than one per library, so the second cannot drift from the first.
 # See ext/rgame_core/vendor/README.md.
-$(BUILD_DIR)/%_impl.o: $(EXT_CORE_DIR)/%_impl.c $(VENDOR_SOURCES) | $(BUILD_DIR)
+$(BUILD_DIR)/%_impl.o: $(EXT_CORE_DIR)/vendor/%_impl.c $(VENDOR_SOURCES) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -w -I$(EXT_CORE_DIR) -c $< -o $@
 
 $(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ) $(GAMEPAD_OBJ) \
@@ -247,14 +255,13 @@ ext-core: $(LIB_CORE_SO)
 $(LIB_CORE_SO): $(EXT_CORE_SO)
 	cp $(EXT_CORE_SO) $@
 
-$(EXT_CORE_SO): $(EXT_CORE_DIR)/core_ext.c $(EXT_CORE_DIR)/app.c \
-                $(EXT_CORE_DIR)/frame_loop.c $(EXT_CORE_DIR)/Makefile
+$(EXT_CORE_SO): $(EXT_CORE_SOURCES) $(EXT_CORE_DIR)/Makefile
 	$(MAKE) -C $(EXT_CORE_DIR)
 
 # Regenerate when a source is *added*, not just when extconf.rb changes: mkmf
 # bakes the object list in at generation time, so a new .c would otherwise be
 # silently left out and surface as an undefined symbol at require time.
-$(EXT_CORE_DIR)/Makefile: $(EXT_CORE_DIR)/extconf.rb $(wildcard $(EXT_CORE_DIR)/*.c)
+$(EXT_CORE_DIR)/Makefile: $(EXT_CORE_DIR)/extconf.rb $(EXT_CORE_SOURCES)
 	cd $(EXT_CORE_DIR) && ruby extconf.rb
 
 # util extension: pure data, no graphics libraries linked in.

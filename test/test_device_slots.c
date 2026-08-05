@@ -1,6 +1,6 @@
 #include <check.h>
 
-#include "device_slots.h"
+#include "input/device_slots.h"
 #include "suites.h"
 
 /*

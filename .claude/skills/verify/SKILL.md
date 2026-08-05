@@ -189,10 +189,10 @@ load-bearing. Break the implementation deliberately, once per behaviour you
 believe is covered, and confirm the suite fails:
 
 ```
-cp ext/rgame_core/<mod>.c /tmp/orig.c
+cp ext/rgame_core/<subsystem>/<mod>.c /tmp/orig.c
 # edit in a bug, then:
 make test          # must FAIL
-cp /tmp/orig.c ext/rgame_core/<mod>.c
+cp /tmp/orig.c ext/rgame_core/<subsystem>/<mod>.c
 ```
 
 **Assert the anchor is unique before patching.** A scripted mutation that does

@@ -1,6 +1,6 @@
 #include <check.h>
 
-#include "frame_loop.h"
+#include "app/frame_loop.h"
 #include "suites.h"
 
 /* --- rgame_frame_loop (fixed-timestep accumulator) --- */

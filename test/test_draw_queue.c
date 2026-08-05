@@ -1,6 +1,6 @@
 #include <check.h>
 
-#include "draw_queue.h"
+#include "graphics/draw_queue.h"
 #include "suites.h"
 
 /*

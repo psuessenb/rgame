@@ -30,7 +30,7 @@ module RGame
     # z keeps call order, which is what stops same-layer sprites flickering
     # between frames.
     #
-    # The C half of this class (ext/rgame_core/renderer_ext.c) has the `draw_*`
+    # The C half of this class (ext/rgame_core/ruby/renderer_ext.c) has the `draw_*`
     # and `push_*` primitives; everything here is the comfortable surface over
     # them.
     #

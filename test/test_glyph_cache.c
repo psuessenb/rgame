@@ -1,6 +1,6 @@
 #include <check.h>
 
-#include "glyph_cache.h"
+#include "text/glyph_cache.h"
 #include "suites.h"
 
 /*

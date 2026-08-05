@@ -7,7 +7,7 @@
 /*
  * Standalone entry point. Its whole job is to create the app, hand the engine
  * per-frame callbacks, and clean up — the loop and timing live in the engine
- * (ext/rgame_core/app.c). The Ruby extension drives the same rgame_app_run
+ * (ext/rgame_core/app/app.c). The Ruby extension drives the same rgame_app_run
  * seam, just with Ruby-side callbacks instead of these.
  *
  * What it draws is a smoke test for the drawing API, not a game: one of each

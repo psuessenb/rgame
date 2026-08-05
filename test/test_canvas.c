@@ -1,6 +1,6 @@
 #include <check.h>
 
-#include "canvas.h"
+#include "graphics/canvas.h"
 #include "suites.h"
 
 /*

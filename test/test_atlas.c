@@ -1,6 +1,6 @@
 #include <check.h>
 
-#include "atlas.h"
+#include "text/atlas.h"
 #include "suites.h"
 
 /*

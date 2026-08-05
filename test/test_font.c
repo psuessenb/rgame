@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "font.h"
+#include "text/font.h"
 #include "suites.h"
 
 /*

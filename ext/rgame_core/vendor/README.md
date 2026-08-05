@@ -55,7 +55,7 @@ That is known and accepted; if it ever stops being worth it, MojoAL is the
 fallback and is a tenth the size.
 
 Which formats and backends are compiled in is decided in
-[`../miniaudio_impl.c`](../miniaudio_impl.c) rather than in build flags, so the
+[`miniaudio_impl.c`](miniaudio_impl.c) rather than in build flags, so the
 standalone binary and the gem cannot end up supporting different things.
 
 ## `stb_vorbis.c` — v1.22
@@ -63,7 +63,7 @@ standalone binary and the gem cannot end up supporting different things.
 Ogg Vorbis decoder, same author and licence as the other stb files. miniaudio
 **cannot read Ogg Vorbis** — it does wav, mp3 and flac — and its own reference
 vorbis backend uses *system* libvorbis, which would hand back the dependency all
-of the above avoids. `../vorbis_decoder.c` is a miniaudio decoding backend over
+of the above avoids. `../audio/vorbis_decoder.c` is a miniaudio decoding backend over
 this instead.
 
 Note it ships as a `.c`, not a `.h`: it is always an implementation, with no
@@ -71,16 +71,16 @@ declarations-only mode.
 
 ## How they are built
 
-Each library becomes code in exactly one file, `<name>_impl.c`, which contains
-the implementation macro and the feature choices, and nothing else. **The
-`_impl.c` suffix is reserved for vendored code** — it is what selects the
-warning carve-out below.
+Each library becomes code in exactly one file, `<name>_impl.c`, which sits here
+beside the library it instantiates and contains the implementation macro and the
+feature choices, and nothing else. **The `_impl.c` suffix is reserved for
+vendored code** — it is what selects the warning carve-out below.
 
 **Those files are the only ones in the project compiled without `-Wall
 -Wextra`.** Third-party code rarely survives them, and everything we wrote is
 meant to stay warning-clean. Both build systems carve out the same set from one
-list rather than one rule per library — `VENDOR_OBJS` and the `stb_%_impl.o`
-pattern rule in the root `Makefile`, and `VENDORED_STB` in `extconf.rb`, which
+list rather than one rule per library — `VENDOR_OBJS` and the `%_impl.o`
+pattern rule in the root `Makefile`, and `VENDORED` in `extconf.rb`, which
 appends an explicit rule per entry (mkmf Makefiles have to work with whatever
 `make` the platform has, and pattern rules are a GNU extension).
 

@@ -15,17 +15,45 @@
 
 require 'mkmf'
 
-# The engine sources (core.c, frame_loop.c) live in this directory alongside
-# the Ruby glue (core_ext.c), so mkmf's default behaviour — compile every .c
-# in the extension directory into one .so — picks them all up with no extra
-# configuration. That's also why they live here rather than in a top-level
-# src/: `gem install` unpacks the gem and runs this script, and an extension
-# must be buildable from its own directory.
+# The engine sources live in this directory rather than a top-level src/:
+# `gem install` unpacks the gem and runs this script, and an extension must be
+# buildable from its own directory.
+#
+# They are grouped into subdirectories by subsystem (app, graphics, text, input,
+# audio) plus ruby/ for the Ruby-facing glue and vendor/ for third-party code.
+# mkmf's default is to compile every .c in the extension's *own* directory and
+# nothing deeper, so the source list has to be spelled out — which is what
+# $srcs and $VPATH below do.
+#
+#   $srcs  — what to compile. mkmf names each object after the source's
+#            *basename*, so the .o files land flat in this directory no matter
+#            how deep the .c was. Basenames therefore have to be unique across
+#            the subdirectories; mkmf aborts with "source files duplication" if
+#            they ever aren't, so that rule enforces itself.
+#   $VPATH — where make looks for a source when a rule names it by basename.
+#            The generic `.c.o` rule mkmf emits does exactly that, so without
+#            this every object would come up as a missing prerequisite.
+#
+# vendor/ contributes only its <name>_impl.c translation units. The libraries
+# themselves are #included *by* those files (stb_vorbis even ships as a .c), so
+# compiling them separately would duplicate every symbol in them.
+SOURCE_DIRS = %w[app graphics text input audio ruby].freeze
+
+# Dir.glob sorts its results, so the object list is the same on every machine.
+$srcs = SOURCE_DIRS.flat_map { |dir| Dir.glob("#{$srcdir}/#{dir}/*.c") } +
+        Dir.glob("#{$srcdir}/vendor/*_impl.c")
+
+(SOURCE_DIRS + %w[vendor]).each { |dir| $VPATH << "$(srcdir)/#{dir}" }
+
+# The extension directory itself, so a cross-subsystem include names the folder
+# it comes from: graphics/canvas.c says `#include "graphics/clip.h"`, and text/
+# reaching into graphics/ is visible in the source rather than hidden in a
+# search path. It is also what resolves `#include "vendor/stb_image.h"`.
+# $(srcdir) stays literal here — make expands it, not Ruby.
+$INCFLAGS << ' -I$(srcdir)'
 
 # Public API header (include/rgame/core.h), so `#include "rgame/core.h"`
-# resolves. core.c finds its *private* "frame_loop.h" on its own, because a
-# quoted #include searches the including file's own directory first.
-# $(srcdir) stays literal here — make expands it, not Ruby.
+# resolves.
 $INCFLAGS << ' -I$(srcdir)/include'
 
 # RGame::Util's colour header, for the RGBA byte order the renderer writes into
@@ -75,18 +103,6 @@ $libs = append_library($libs, 'm')
 $libs = append_library($libs, 'pthread') if have_library('pthread')
 $libs = append_library($libs, 'dl') if have_library('dl')
 
-# The vendored PNG decoder. stb_image is a single header that becomes an
-# implementation in exactly one .c file (stb_image_impl.c). That file is the
-# only one in the project compiled without -Wall -Wextra — third-party code
-# rarely survives them, and everything we wrote is meant to stay warning-clean.
-# The carve-out itself is at the bottom of this file. See vendor/README.md.
-#
-# What is needed *here* is the include path: stb_image_impl.c and image.c both
-# say #include "vendor/stb_image.h", so the extension directory has to be on
-# the path. A quoted include finds it relative to the including file when
-# compiling in place, but mkmf may compile from elsewhere, so say it outright.
-$INCFLAGS << ' -I$(srcdir)'
-
 # Match the project's C standard and warning flags. Note: gnu17, not plain
 # c17 — Ruby's headers occasionally lean on GNU extensions, and gnu17 is a
 # superset of c17 so core.c (which targets c17) still compiles fine.
@@ -126,9 +142,26 @@ File.open('Makefile', 'a') do |makefile|
   VENDORED.each do |name, source|
     makefile.puts <<~MAKE
 
-      #{name}_impl.#{$OBJEXT}: $(srcdir)/#{name}_impl.c $(srcdir)/vendor/#{source}
+      #{name}_impl.#{$OBJEXT}: $(srcdir)/vendor/#{name}_impl.c $(srcdir)/vendor/#{source}
       \t$(ECHO) compiling vendored #{name} with warnings off
-      \t$(Q) $(CC) $(INCFLAGS) $(CPPFLAGS) $(CFLAGS) -w $(COUTFLAG)$@ -c $(srcdir)/#{name}_impl.c
+      \t$(Q) $(CC) $(INCFLAGS) $(CPPFLAGS) $(CFLAGS) -w $(COUTFLAG)$@ -c $(srcdir)/vendor/#{name}_impl.c
     MAKE
   end
+
+  # Rebuild everything when any of our headers changes.
+  #
+  # mkmf emits `$(OBJS): $(HDRS)` for this, but it builds HDRS by globbing the
+  # extension's own directory only — with the headers a level down in
+  # graphics/, text/ and the rest, HDRS comes out empty and editing a header
+  # rebuilds *nothing*. That failure is silent: the build succeeds and links
+  # objects compiled against the previous version of the struct.
+  #
+  # One coarse dependency rather than a real per-object dependency scan, for the
+  # same reason the root Makefile treats the vendored sources as one list: this
+  # is a small project where a full rebuild costs seconds, and a hand-maintained
+  # dependency graph is a thing to get quietly wrong.
+  headers = SOURCE_DIRS.flat_map { |dir| Dir.glob("#{$srcdir}/#{dir}/*.h") }
+                       .map { |path| "$(srcdir)/#{path.delete_prefix("#{$srcdir}/")}" }
+
+  makefile.puts "\n$(OBJS): #{headers.join(' ')}"
 end

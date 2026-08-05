@@ -1,7 +1,7 @@
 #include <check.h>
 
 #include "suites.h"
-#include "transform.h"
+#include "graphics/transform.h"
 
 /*
  * Everything here asserts on *coordinates*, never on matrix entries. A matrix

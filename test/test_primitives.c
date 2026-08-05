@@ -1,7 +1,7 @@
 #include <check.h>
 #include <math.h>
 
-#include "primitives.h"
+#include "graphics/primitives.h"
 #include "suites.h"
 
 /*

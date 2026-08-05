@@ -194,71 +194,87 @@ directory, so keeping the C there means one copy of the code serves both the
 standalone binary and the gem.
 
 ```
-ext/rgame_core/              RGame::Core — the SDL/GL half.
+ext/rgame_core/              RGame::Core — the SDL/GL half. The sources are
+                             grouped by subsystem, one folder each, and a file
+                             names the folder it includes from: graphics/canvas.c
+                             says #include "graphics/clip.h".
   include/rgame/core.h       Public C API (opaque handle, no SDL/GL types
                              leaked) — what both src/main.c and the extension
                              bind against.
-  app.c                      Engine implementation: SDL window + OpenGL context
+  app/                       The window, the context and the loop.
+    app.c                    Engine implementation: SDL window + OpenGL context
                              setup; owns the main loop and calls back to the
                              caller's update/draw callbacks.
-  frame_loop.h/.c            Pure fixed-timestep + FPS logic, no SDL/GL — unit-
+    app_gl.h                 Private: the GL context behind the opaque handle.
+    frame_loop.h/.c          Pure fixed-timestep + FPS logic, no SDL/GL — unit-
                              tested without a window (see CLAUDE.md's layering).
-  device_slots.h/.c          Pure player-slot table for controllers: keeps a
-                             player on the same slot across a disconnect. No SDL.
-  input.h/.c                 Pure input snapshot + the flat button-id space
-                             (keyboard and gamepad ranges). No SDL.
-  transform.h/.c             Pure 2D affine transform stack — rotate, scale,
+  graphics/                  Everything on the drawing path.
+    transform.h/.c           Pure 2D affine transform stack — rotate, scale,
                              translate, composed. No SDL.
-  clip.h/.c                  Pure rects and the intersecting clip stack, in
+    clip.h/.c                Pure rects and the intersecting clip stack, in
                              screen space. No SDL.
-  draw_queue.h/.c            Pure z-sort and batching: collects draw commands,
+    draw_queue.h/.c          Pure z-sort and batching: collects draw commands,
                              orders them by z, merges what can share a GL call.
-  canvas.h/.c                Pure composition of transform + clip + queue; the
+    canvas.h/.c              Pure composition of transform + clip + queue; the
                              seam the drawing API is written against.
-  backend.h/.c               The layer-2 seam: a function-pointer table a real
+    backend.h/.c             The layer-2 seam: a function-pointer table a real
                              GL backend or a recording fake plugs into, plus
                              the loop that drives it from a prepared frame.
-  gamepad.h/.c               Thin SDL_GameController shim: opens/closes pads on
-                             hot-plug and copies their state into the snapshot.
-  texture.h/.c               Pure: refcounted texture sheets, the sub-rects
+    texture.h/.c             Pure: refcounted texture sheets, the sub-rects
                              sprites cut out of them, and pixels -> UVs.
-  primitives.h/.c            Pure: rects, thick lines, circles and sprites, in
+    primitives.h/.c          Pure: rects, thick lines, circles and sprites, in
                              terms of the canvas's triangles and quads.
-  recording.h/.c             Pure: a baked block of drawing, kept between
+    recording.h/.c           Pure: a baked block of drawing, kept between
                              frames and replayed as one call per texture.
-  atlas.h/.c                 Pure: shelf packing for the glyph atlas — where
+    gl_backend.h/.c          The real GL calls — the only file that issues
+                             them on the drawing path.
+    image.c                  Decode a PNG and upload it — the thin GL shim
+                             over texture.h. Views share one upload.
+    image_internal.h         What the draw path needs from inside an image.
+  text/                      Glyphs, from a .ttf to a texture page.
+    atlas.h/.c               Pure: shelf packing for the glyph atlas — where
                              the next glyph goes on a texture page.
-  glyph_cache.h/.c           Pure: codepoint -> rasterised glyph, open
+    glyph_cache.h/.c         Pure: codepoint -> rasterised glyph, open
                              addressed, never evicted.
-  font.h/.c                  Pure: a typeface at one size — glyph metrics,
+    font.h/.c                Pure: a typeface at one size — glyph metrics,
                              kerning, rasterisation and UTF-8, over
                              stb_truetype. No atlas, no GL.
-  font_atlas.c               Composes font + atlas + glyph cache and owns the
+    font_atlas.c             Composes font + atlas + glyph cache and owns the
                              GL pages — the only text file that calls gl*.
-  vorbis_decoder.h/.c        Ogg Vorbis for miniaudio, over stb_vorbis —
+    font_internal.h          What the draw path needs from inside a font.
+  input/                     Keyboard and controllers.
+    input.h/.c               Pure input snapshot + the flat button-id space
+                             (keyboard and gamepad ranges). No SDL.
+    device_slots.h/.c        Pure player-slot table for controllers: keeps a
+                             player on the same slot across a disconnect. No SDL.
+    gamepad.h/.c             Thin SDL_GameController shim: opens/closes pads on
+                             hot-plug and copies their state into the snapshot.
+  audio/                     Sound, which touches neither SDL nor GL.
+    audio.c                  The sound device, samples and songs — miniaudio
+                             talks to the platform directly.
+    audio_internal.h         The live-sound counter, for tests.
+    vorbis_decoder.h/.c      Ogg Vorbis for miniaudio, over stb_vorbis —
                              miniaudio cannot read ogg on its own.
-  audio.c                    The sound device, samples and songs. No SDL, no
-                             GL — miniaudio talks to the platform directly.
-  gl_backend.h/.c            The real GL calls — the only file that issues
-                             them on the drawing path.
-  image.c                    Decode a PNG and upload it — the thin GL shim
-                             over texture.h. Views share one upload.
-  *_impl.c                   One per vendored library (stb_image, stb_truetype,
+  ruby/                      The Ruby-facing glue, and the only C here that
+                             includes ruby.h.
+    core_ext.c               VALUE wrappers + callback trampolines, and the
+                             extension's entry point.
+    core_ext.h               One init function per Ruby-visible class here.
+    image_ext.c              RGame::Core::Image — the Ruby binding.
+    audio_ext.c              RGame::Core::Audio, Sample and Song — the
+                             bindings; three classes in one file because they
+                             share a wrapping shape.
+    renderer_ext.c           RGame::Core::Renderer — the drawing primitives.
+    font_ext.c               RGame::Core::Font — the Ruby binding.
+    recording_ext.c          RGame::Core::Recording — baked, replayable draws.
+  vendor/                    Third-party sources + their licences.
+    <name>_impl.c            One per vendored library (stb_image, stb_truetype,
                              stb_vorbis, miniaudio): instantiates it and picks
                              its features. The only files built without
                              -Wall -Wextra; the suffix is what selects that.
-  vendor/                    Third-party sources + their licences.
-  core_ext.c                 Ruby glue: VALUE wrappers + callback trampolines,
-                             and the extension's entry point.
-  core_ext.h                 One init function per Ruby-visible class here.
-  image_ext.c                RGame::Core::Image — the Ruby binding.
-  audio_ext.c                RGame::Core::Audio, Sample and Song — the
-                             bindings; three classes in one file because they
-                             share a wrapping shape.
-  renderer_ext.c             RGame::Core::Renderer — the drawing primitives.
-  font_ext.c                 RGame::Core::Font — the Ruby binding.
-  recording_ext.c            RGame::Core::Recording — baked, replayable draws.
-  extconf.rb                 mkmf script; pkg_config("sdl2"), -lGL.
+  extconf.rb                 mkmf script; pkg_config("sdl2"), -lGL. It lists
+                             the subsystem folders, because mkmf's own default
+                             only finds sources one level up from here.
   example.rb                 Manual smoke test driven from Ruby.
 
 ext/rgame_util/              RGame::Util — the graphics-free half, so pure-data

@@ -1,7 +1,7 @@
 #ifndef RGAME_RECORDING_BACKEND_H
 #define RGAME_RECORDING_BACKEND_H
 
-#include "backend.h"
+#include "graphics/backend.h"
 
 /*
  * A drawing backend that records instead of drawing.

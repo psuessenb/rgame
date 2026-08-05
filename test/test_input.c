@@ -1,7 +1,7 @@
 #include <check.h>
 #include <limits.h>
 
-#include "input.h"
+#include "input/input.h"
 #include "suites.h"
 
 /*

@@ -1,7 +1,7 @@
 #include <check.h>
 #include <string.h>
 
-#include "audio_internal.h"
+#include "audio/audio_internal.h"
 #include "rgame/core.h"
 #include "suites.h"
 

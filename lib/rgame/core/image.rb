@@ -20,7 +20,7 @@ module RGame
     # Images are always sampled nearest-neighbour: this engine draws pixel art,
     # and there is no setting to blur it.
     #
-    # The class itself is defined in C (ext/rgame_core/image_ext.c); what is
+    # The class itself is defined in C (ext/rgame_core/ruby/image_ext.c); what is
     # added here is the sheet-slicing convenience, which is a loop and belongs
     # in Ruby.
     class Image

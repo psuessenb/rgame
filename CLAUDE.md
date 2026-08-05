@@ -22,7 +22,7 @@ the code, or cases where clarity through naming isn't an option.
 explained when first introduced, even at length. This is a learning project
 (see the top of this file) and those explanations are load-bearing:
 `ext/rgame_util/tensor.c` spends its header explaining why the GC needs a
-`mark` function, and `ext/rgame_core/core_ext.c` explains TypedData and
+`mark` function, and `ext/rgame_core/ruby/core_ext.c` explains TypedData and
 the alloc/initialize split. Existing implementation files run roughly 35–80%
 comment lines by design — treat them as the target density and don't thin them
 out. "Minimal" applies to comments that restate what the code already says, not
@@ -121,8 +121,8 @@ the ones that *do* fit here — fix the code, not the cop.
 
 Both halves exist. The C engine — window, fixed-timestep loop, input, images, a
 z-sorted batching renderer, text, and audio — is wrapped by
-`ext/rgame_core/core_ext.c` and its per-class siblings, and there's a Ruby half
-under `lib/` backed by a second, graphics-free extension in `ext/rgame_util/`.
+`ext/rgame_core/ruby/`, and there's a Ruby half under `lib/` backed by a
+second, graphics-free extension in `ext/rgame_util/`.
 `rgame.gemspec` packages both, so the project installs as a gem as well as
 running from a checkout — though nothing is published yet.
 
@@ -246,71 +246,91 @@ stops predicting whether the game runs. See "Testing" below.
 because the project is headed for a single gem containing both the C and the
 Ruby half: `gem install` runs each `extconf.rb`, and an extension can
 only build sources within its own directory. Keeping the C there means one
-copy of the code feeds both the standalone binary and the gem. New engine
-sources go in `ext/rgame_core/`.
+copy of the code feeds both the standalone binary and the gem.
+
+Inside it, sources are grouped by subsystem — `app/`, `graphics/`, `text/`,
+`input/`, `audio/` — plus `ruby/` for the Ruby-facing glue and `vendor/` for
+third-party code. **A new engine source goes in the folder for its subsystem**,
+and includes name the folder they come from: `graphics/canvas.c` says
+`#include "graphics/clip.h"`, so a dependency that crosses a subsystem boundary
+is visible in the source rather than hidden in an include path.
+
+mkmf compiles every `.c` in an extension's own directory and nothing deeper, so
+`extconf.rb` lists these folders in `SOURCE_DIRS`, feeding `$srcs` (what to
+compile) and `$VPATH` (where make looks for a source named by basename). Two
+things follow. Objects are named after the source's *basename*, so basenames
+must be unique across the whole tree — mkmf aborts with `source files
+duplication` rather than clobbering one with another, so that rule holds itself
+up. And a **new folder** has to be added to `SOURCE_DIRS`; forgetting fails
+loudly, as an undefined symbol the first time something calls into it. Adding a
+file to a folder already listed needs nothing.
 
 - `ext/rgame_core/include/rgame/core.h` — the *only* public API. Opaque
   `rgame_app` handle, plain C types only (no SDL/GL types in the signature).
   This is what the Ruby extension calls — keeping SDL/GL details out of the
-  header means `ext/rgame_core/core_ext.c` can `#include` it without
+  header means `ext/rgame_core/ruby/core_ext.c` can `#include` it without
   also pulling in `SDL.h` conflicts or exposing internals. It sits under its own
-  `include/` subdirectory so `#include "rgame/core.h"` works while mkmf's
-  "compile every `.c` here" default still picks up only the sources.
-- `ext/rgame_core/app.c` — the actual engine (SDL window/GL context setup; owns
-  the main loop and drives caller-supplied `update`/`draw` callbacks).
+  `include/` subdirectory, which is on the include path but not in
+  `SOURCE_DIRS` — a header directory, never a source one.
+- `ext/rgame_core/app/app.c` — the actual engine (SDL window/GL context setup;
+  owns the main loop and drives caller-supplied `update`/`draw` callbacks).
   Compiled with `-fPIC` so the resulting `.a` can be linked into a shared
   object (`.so`) without recompiling.
-- `ext/rgame_core/frame_loop.{c,h}` — pure-logic helpers (no SDL/GL, no I/O)
+- `ext/rgame_core/app/frame_loop.{c,h}` — pure-logic helpers (no SDL/GL, no I/O)
   factored out of `core.c` specifically so they're unit-testable without a
   display/GL context (currently the fixed-timestep accumulator + FPS
   counter). `test/` links against these directly. When adding engine logic,
   prefer putting the parts that don't touch SDL/GL here so they stay
   testable — see `test/test_frame_loop.c` for the pattern.
-- `ext/rgame_core/device_slots.{c,h}` — the same shape, for controllers: a
+- `ext/rgame_core/input/device_slots.{c,h}` — the same shape, for controllers: a
   pure player-slot table that keeps a player on one slot across a
   disconnect/reconnect. No SDL, covered by `test/test_device_slots.c`.
-- `ext/rgame_core/input.{c,h}` — the input snapshot and the flat button-id
+- `ext/rgame_core/input/input.{c,h}` — the input snapshot and the flat button-id
   space, again pure: `app.c` copies SDL's keyboard state into it once per
   frame, and every query reads that copy. Covered by `test/test_input.c`.
-- `ext/rgame_core/transform.{c,h}` — the 2D affine transform stack that
+- `ext/rgame_core/graphics/transform.{c,h}` — the 2D affine transform stack that
   rotation, scale and the camera all run through. Pure; covered by
   `test/test_transform.c`, which asserts on coordinates rather than matrix
   entries because a matrix assertion passes just as happily with the rotation
   going the wrong way.
-- `ext/rgame_core/clip.{c,h}` — rectangles and the intersecting clip stack, in
-  screen space. Pure; covered by `test/test_clip.c`. A push always *narrows*,
-  so a child can never draw outside the region its parent allowed, and "empty"
-  is a canonical value because the draw queue uses it to drop commands.
-- `ext/rgame_core/canvas.{c,h}` — composes the transform stack, the clip stack
-  and the draw queue, and is the seam the drawing API is written against. Pure;
-  covered by `test/test_canvas.c`, including the split-screen shape end to end.
-  It transforms vertices on the way *in*, which is what lets the queue reorder
-  them freely afterwards.
-- `ext/rgame_core/backend.{c,h}` — the layer-2 seam where arithmetic stops and
-  real GL calls begin: a function-pointer table, plus `rgame_draw_submit`,
-  which walks a prepared frame and issues a scissor only when the clip actually
-  changes. `test/support/recording_backend.{c,h}` is the fake that stands in
-  for GL, and is what makes "the right calls in the right order" checkable with
-  no display — a state-change optimisation is invisible to a pixel test.
-- `ext/rgame_core/draw_queue.{c,h}` — z-ordering and batching, and the reason
-  the depth buffer is not used: depth testing and alpha blending are mutually
-  exclusive, so translucent UI over gameplay needs a CPU sort. Pure; covered by
-  `test/test_draw_queue.c`. Its buffers are reset rather than freed each frame,
-  and a test asserts capacities do not grow on a second identical frame — a
-  renderer that allocates per frame is a stutter nothing else would notice.
-- `ext/rgame_core/texture.{c,h}` — what part of an uploaded image a sprite
-  covers, and who owns the upload: a refcounted sheet plus cheap views into it,
-  so slicing a sprite sheet costs no second decode. Pure — including the
-  refcount, because "free the GPU texture exactly when the last sprite using it
-  goes" is bookkeeping that needs no GPU to get wrong. Covered by
+- `ext/rgame_core/graphics/clip.{c,h}` — rectangles and the intersecting clip
+  stack, in screen space. Pure; covered by `test/test_clip.c`. A push always
+  *narrows*, so a child can never draw outside the region its parent allowed,
+  and "empty" is a canonical value because the draw queue uses it to drop
+  commands.
+- `ext/rgame_core/graphics/canvas.{c,h}` — composes the transform stack, the
+  clip stack and the draw queue, and is the seam the drawing API is written
+  against. Pure; covered by `test/test_canvas.c`, including the split-screen
+  shape end to end. It transforms vertices on the way *in*, which is what lets
+  the queue reorder them freely afterwards.
+- `ext/rgame_core/graphics/backend.{c,h}` — the layer-2 seam where arithmetic
+  stops and real GL calls begin: a function-pointer table, plus
+  `rgame_draw_submit`, which walks a prepared frame and issues a scissor only
+  when the clip actually changes. `test/support/recording_backend.{c,h}` is the
+  fake that stands in for GL, and is what makes "the right calls in the right
+  order" checkable with no display — a state-change optimisation is invisible
+  to a pixel test.
+- `ext/rgame_core/graphics/draw_queue.{c,h}` — z-ordering and batching, and the
+  reason the depth buffer is not used: depth testing and alpha blending are
+  mutually exclusive, so translucent UI over gameplay needs a CPU sort. Pure;
+  covered by `test/test_draw_queue.c`. Its buffers are reset rather than freed
+  each frame, and a test asserts capacities do not grow on a second identical
+  frame — a renderer that allocates per frame is a stutter nothing else would
+  notice.
+- `ext/rgame_core/graphics/texture.{c,h}` — what part of an uploaded image a
+  sprite covers, and who owns the upload: a refcounted sheet plus cheap views
+  into it, so slicing a sprite sheet costs no second decode. Pure — including
+  the refcount, because "free the GPU texture exactly when the last sprite
+  using it goes" is bookkeeping that needs no GPU to get wrong. Covered by
   `test/test_texture.c`; `rgame_texture_live_sheets` is the counter that makes
   a leaked texture visible from a spec.
-- `ext/rgame_core/image.c` — layer 3 for images: read the file, `stbi_load`,
-  `glTexImage2D`, `GL_NEAREST`. Kept dumb on purpose; the interesting parts are
-  in `texture.c` above. Covered end to end by `spec_core/rgame/core/image_spec.rb`.
-- `ext/rgame_core/vendor/` + one `<name>_impl.c` per library — the vendored
-  PNG decoder, TrueType rasteriser, Ogg Vorbis decoder and audio device library,
-  and the single translation unit each that instantiates it and picks its
+- `ext/rgame_core/graphics/image.c` — layer 3 for images: read the file,
+  `stbi_load`, `glTexImage2D`, `GL_NEAREST`. Kept dumb on purpose; the
+  interesting parts are in `texture.c` above. Covered end to end by
+  `spec_core/rgame/core/image_spec.rb`.
+- `ext/rgame_core/vendor/` — the vendored PNG decoder, TrueType rasteriser,
+  Ogg Vorbis decoder and audio device library, and beside each the single
+  translation unit (`<name>_impl.c`) that instantiates it and picks its
   features. **The only files in the project compiled without `-Wall -Wextra`**,
   and the `_impl.c` suffix is what selects that, from one list in both
   `extconf.rb` and the root `Makefile`. Feature macros live in the `_impl.c`
@@ -320,29 +340,29 @@ sources go in `ext/rgame_core/`.
 - `tools/` — development tools, outside the engine and not built by `make`.
   `make_ogg_fixture.c` generates the audio suite's `.ogg` and needs
   `libvorbisenc` to *run*; the engine links no vorbis library at all.
-- `ext/rgame_core/primitives.{c,h}` — the shapes a game asks for (rect, thick
-  line, circle, sprite) in terms of the two the canvas knows. Pure; covered by
-  `test/test_primitives.c`. A rotated sprite goes through the canvas's own
-  transform stack rather than its own sin/cos, so which way a positive angle
-  turns is decided in exactly one place.
-- `ext/rgame_core/atlas.{c,h}` — where the next glyph goes on a texture page:
+- `ext/rgame_core/graphics/primitives.{c,h}` — the shapes a game asks for
+  (rect, thick line, circle, sprite) in terms of the two the canvas knows.
+  Pure; covered by `test/test_primitives.c`. A rotated sprite goes through the
+  canvas's own transform stack rather than its own sin/cos, so which way a
+  positive angle turns is decided in exactly one place.
+- `ext/rgame_core/text/atlas.{c,h}` — where the next glyph goes on a texture page:
   a shelf packer, pure, covered by `test/test_atlas.c`. The one-pixel gutter
   between glyphs is reserved *inside* `place` rather than by each caller,
   because a caller that has to remember eventually does not and the result
   looks like a rendering bug rather than a packing one.
-- `ext/rgame_core/glyph_cache.{c,h}` — which glyphs have already been
+- `ext/rgame_core/text/glyph_cache.{c,h}` — which glyphs have already been
   rasterised and where they went: an open-addressed table keyed by codepoint,
   pure, covered by `test/test_glyph_cache.c`. Nothing is ever evicted, which is
   the point — caching per *glyph* rather than per string bounds the whole thing
   by the character set the game draws, so there is no policy to get wrong and
   no tombstones to skip.
-- `ext/rgame_core/font.{c,h}` — a typeface at one pixel size: glyph metrics,
+- `ext/rgame_core/text/font.{c,h}` — a typeface at one pixel size: glyph metrics,
   rasterisation and UTF-8, over `stb_truetype`. Pure — no atlas, no GL — and
   covered by `test/test_font.c` against the font the engine *ships*, so the
   assertions are real advances rather than fixtures. Measuring a string and
   drawing it share one `rgame_text_cursor`: two loops that both "sum the
   advances" drift, and every centred label in the game drifts with them.
-- `ext/rgame_core/audio.c` — the sound device and the two kinds of sound.
+- `ext/rgame_core/audio/audio.c` — the sound device and the two kinds of sound.
   Touches neither SDL nor GL: miniaudio talks to ALSA/PulseAudio/CoreAudio
   directly, so a sound belongs to an `rgame_audio` rather than to an app, and
   none of the window-lifetime rules apply. A `sample` is decoded and gets a
@@ -351,14 +371,14 @@ sources go in `ext/rgame_core/`.
   fire-and-forget effect. Layer 3, but properly tested (`test/test_audio.c`),
   because miniaudio falls back to a **null device** when no sound system opens:
   the same tests run against PulseAudio on a desktop and against silence in CI.
-- `ext/rgame_core/vorbis_decoder.{c,h}` — a miniaudio decoding backend over
+- `ext/rgame_core/audio/vorbis_decoder.{c,h}` — a miniaudio decoding backend over
   stb_vorbis, because miniaudio reads wav/mp3/flac but **not** Ogg Vorbis, and
   its own reference vorbis backend uses system libvorbis. It needs *both*
   entry points: `onInitFile` for `ma_decoder`, and `onInit` for `ma_engine`,
   which reads through miniaudio's VFS. Covered by
   `test/test_vorbis_decoder.c` against a committed `.ogg`, malformed inputs
   included — it is the only part of the audio stack parsing untrusted bytes.
-- `ext/rgame_core/font_atlas.c` — the impure quarter of text: it composes
+- `ext/rgame_core/text/font_atlas.c` — the impure quarter of text: it composes
   `font` + `atlas` + `glyph_cache`, owns the atlas pages as `GL_ALPHA` textures,
   and is the only file in the text stack that calls `gl*`. Layer 3, kept thin;
   covered end to end by `spec_core/rgame/core/font_spec.rb`.
@@ -367,26 +387,28 @@ sources go in `ext/rgame_core/`.
   lives where a gem installs data rather than in `ext/`. Shipping it is also
   what lets `test/test_font.c` assert real advances instead of fixtures; see
   `docs/plans/gosu-replacement/README.md` for why not to copy Gosu here.
-- `ext/rgame_core/recording.{c,h}` — a block of drawing baked once and
+- `ext/rgame_core/graphics/recording.{c,h}` — a block of drawing baked once and
   replayed as one call per texture, which is what makes a tile map affordable.
   Pure; covered by `test/test_recording.c`. It stores no clip on purpose:
   clipping happens at rasterisation, so a rect captured in one place is wrong
   everywhere else the recording is drawn, and pushing one inside a bake is
   refused rather than silently dropped.
-- `ext/rgame_core/gl_backend.{c,h}` — layer 3 for drawing: the real
+- `ext/rgame_core/graphics/gl_backend.{c,h}` — layer 3 for drawing: the real
   `glOrtho`/`glDrawArrays`/`glScissor` calls behind `backend.h`'s table, and
   the only file on the draw path that calls `gl*`. Verified by looking at
   pixels (`rake spec:core`, `make run`), not by unit tests — the call sequence
   itself is already checked against the recording backend.
-- `ext/rgame_core/gamepad.{c,h}` — the controller shim, and the one place
+- `ext/rgame_core/input/gamepad.{c,h}` — the controller shim, and the one place
   `SDL_GameController` appears. Deliberately thin: which player a pad belongs
   to is `device_slots`, what a button id means is `input`, and both are pure.
   Its own correctness is checked end-to-end with an SDL *virtual* controller
   under Xvfb — no hardware needed, see `.claude/skills/verify/`.
-- `ext/rgame_core/core_ext.c` + `extconf.rb` — the Ruby glue for the
-  engine (`RGame::Core::App`) and the extension's entry point; see
-  `ext/README.md`. Every *other* Ruby-visible class here gets its own file with
-  one init function declared in `core_ext.h` (`image_ext.c` is the first), the
+- `ext/rgame_core/ruby/` + `extconf.rb` — the Ruby glue and the extension's
+  entry point; see `ext/README.md`. This is the only C in the extension that
+  includes `ruby.h`: everything above it is engine code that knows nothing
+  about Ruby. `core_ext.c` holds `RGame::Core::App`, and every *other*
+  Ruby-visible class gets its own file with one init function declared in
+  `core_ext.h` (`image_ext.c` is the first), the
   same shape as `ext/rgame_util/util_ext.h` — so adding a class means adding a
   file rather than growing an unrelated one. `audio_ext.c` is the one deliberate
   exception: `Audio`, `Sample` and `Song` share a wrapping shape and are read
@@ -433,7 +455,7 @@ sources go in `ext/rgame_core/`.
   `lib/rgame/` exactly where `make ext` puts it. See "Packaging" below.
 
 When adding new engine features, put the implementation in
-`ext/rgame_core/app.c` and extend
+`ext/rgame_core/app/app.c` and extend
 `ext/rgame_core/include/rgame/core.h`'s public API rather than adding
 logic to `main.c` — that's what keeps the Ruby wrapper thin. `src/main.c` and
 `ext/rgame_core/example.rb` are parallel drivers of the same API; when the
@@ -451,8 +473,8 @@ layers:
    tile-grid slicing, glyph atlas packing, the fixed-timestep accumulator's
    catch-up/skip decisions, etc. This is most of what's actually hard to get
    right in a 2D engine, and none of it needs a window to test. Give it its
-   own small module (`ext/rgame_core/<subsystem>.c` + header) and Check
-   tests, the same way `ext/rgame_core/frame_loop.{c,h}` and
+   own small module (`ext/rgame_core/<area>/<name>.c` + header) and Check
+   tests, the same way `ext/rgame_core/app/frame_loop.{c,h}` and
    `device_slots.{c,h}` are covered by `test/test_frame_loop.c` and
    `test/test_device_slots.c` today. Each test file exposes a Check `Suite`
    declared in `test/suites.h`; `test/test_main.c` runs them all as one binary,

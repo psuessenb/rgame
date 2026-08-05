@@ -8,7 +8,7 @@
 #include <string.h>
 
 #include "suites.h"
-#include "vorbis_decoder.h"
+#include "audio/vorbis_decoder.h"
 
 /*
  * Tests for vorbis_decoder.c: does miniaudio actually read an ogg once our

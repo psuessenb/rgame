@@ -14,7 +14,7 @@ require 'tmpdir'
 # Vorbis is the exception and is committed, because encoding one needs an
 # encoder — see tools/make_ogg_fixture.c, which produced spec_core/fixtures.
 # Both formats matter: WAV goes through miniaudio's own decoder and Vorbis
-# through the one this project wired in (ext/rgame_core/vorbis_decoder.c), so a
+# through the one this project wired in (ext/rgame_core/audio/vorbis_decoder.c), so a
 # spec that used only WAV would not touch the part we wrote.
 module AudioFixture
   # 0.25 s of stereo tone, 440 Hz left and 880 Hz right.

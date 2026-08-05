@@ -1,7 +1,7 @@
 #include <check.h>
 #include <limits.h>
 
-#include "clip.h"
+#include "graphics/clip.h"
 #include "suites.h"
 
 static void ck_rect(rgame_rect got, int x, int y, int w, int h) {

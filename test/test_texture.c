@@ -1,7 +1,7 @@
 #include <check.h>
 
 #include "suites.h"
-#include "texture.h"
+#include "graphics/texture.h"
 
 /*
  * Layer-1 tests for texture.c: sheet lifetimes, sub-rect composition, tile

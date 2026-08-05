@@ -87,7 +87,7 @@ RSpec.describe RGame::Core::Audio do
       it 'loads WAV' do
         # A different decoder inside miniaudio than Vorbis takes, so this is not
         # the same path twice — and Vorbis is the one this project wired in by
-        # hand (ext/rgame_core/vorbis_decoder.c).
+        # hand (ext/rgame_core/audio/vorbis_decoder.c).
         expect(audio.sample(AudioFixture.write_wav)).to be_a(described_class)
       end
 
