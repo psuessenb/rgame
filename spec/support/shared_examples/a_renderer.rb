@@ -211,11 +211,14 @@ RSpec.shared_examples 'a renderer' do
       render do |renderer, _image|
         map = recorder
         renderer.register_tilemap(:level1, map)
-        renderer.tilemap(:level1, 8, 16, 320, 240)
-        renderer.tilemap_overlay(:level1, 8, 16, 320, 240, z: 20)
+        renderer.tilemap(:level1, 8, 16, 320, 240, elapsed: 1.5)
+        renderer.tilemap_overlay(:level1, 8, 16, 320, 240, z: 20, elapsed: 1.5)
 
         expect(map.received.map(&:first)).to eq(%i[draw draw_overlay])
-        expect(map.received.last).to eq([:draw_overlay, [renderer, 8, 16, 320, 240], { z: 20 }])
+        expect(map.received.first)
+          .to eq([:draw, [renderer, 8, 16, 320, 240], { elapsed: 1.5 }])
+        expect(map.received.last)
+          .to eq([:draw_overlay, [renderer, 8, 16, 320, 240], { z: 20, elapsed: 1.5 }])
       end
     end
 

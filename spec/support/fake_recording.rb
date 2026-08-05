@@ -39,5 +39,9 @@ class FakeRecording
     self
   end
 
+  # Mirrors FakeRenderer#calls_to, because a spec asserting on a bake wants the
+  # same question answered about the recording.
+  def calls_to(name) = @calls.select { |call| call.name == name }
+
   def empty? = @calls.empty?
 end

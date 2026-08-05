@@ -4,17 +4,45 @@ require 'rexml/document'
 require 'base64'
 require 'zlib'
 
+require_relative 'tensor'
+require_relative 'tileset'
+
 module Engine
-  # An orthogonal tile map parsed from a Tiled .tmx (pure; no Gosu). Holds the
-  # per-layer gid arrays and geometry, and answers collision queries via its
-  # Tileset. Parses from a *string* so it stays headless-testable; file IO and the
-  # tileset image live in the platform layer.
+  # An orthogonal tile map parsed from a Tiled .tmx. Holds the per-layer gid
+  # arrays and geometry, and answers collision queries via its Tileset.
+  #
+  # `parse` takes a *string*, so the parsing itself needs no filesystem at all;
+  # `load` adds the file plumbing on top — reading the .tmx, following it to the
+  # .tsx it names, and working out where the tileset image sits relative to
+  # that. Both belong here. What does *not* is the image: a texture is a GPU
+  # handle, and the renderer that owns one lives a layer below and may not name
+  # this class (see CLAUDE.md, "The rule points both ways"). So `load` hands
+  # back a path and stops there.
   class TileMap
     FLIP_MASK = 0x1FFFFFFF # strip Tiled's flip/rotation flags from a gid
 
     attr_reader :width, :height, :tile_width, :tile_height,
                 :pixel_width, :pixel_height, :tileset_source, :firstgid
     attr_accessor :tileset
+
+    # Reads a .tmx and everything it points at, returning `[map, image_path]`.
+    #
+    # Two values rather than one because they are two kinds of thing: the map is
+    # the grid, and the path is where its pixels happen to live. Keeping the
+    # second off the map means a stand-in map in a spec has one less method to
+    # answer, and the renderer's protocol stays "things about the grid".
+    #
+    # Every path is resolved relative to the file that named it — the .tsx
+    # relative to the .tmx, the image relative to the .tsx — which is what Tiled
+    # itself writes and what lets a map be moved as a set.
+    def self.load(tmx_path)
+      map = parse(File.read(tmx_path))
+
+      tsx_path = File.join(File.dirname(tmx_path), map.tileset_source)
+      map.tileset = Tileset.parse(File.read(tsx_path), firstgid: map.firstgid)
+
+      [map, File.join(File.dirname(tsx_path), map.tileset.image_source)]
+    end
 
     def self.parse(tmx_string)
       root = REXML::Document.new(tmx_string).root

@@ -34,6 +34,25 @@ RSpec.describe RGame::Core::AssetManager do
 
       expect(image_loader.last).to eq(['/media/sprites/hero.png'])
     end
+
+    it 'uses an absolute path as it stands' do
+      # A loader can hand one back — the tile-map loader's tileset image comes
+      # out of a .tsx that was itself found on disk — and joining it onto the
+      # root would give <root>/<root>/tiles.png.
+      manager.image('/elsewhere/tiles.png')
+
+      expect(image_loader.last).to eq(['/elsewhere/tiles.png'])
+    end
+
+    it 'treats two spellings of one path as one entry' do
+      assets = manager
+      assets.image('sprites/hero.png')
+      assets.image('sprites/../sprites/./hero.png')
+      assets.image('/media/sprites/hero.png')
+
+      expect(image_loader.last.length).to eq(1)
+      expect(assets.size).to eq(1)
+    end
   end
 
   describe 'caching' do
@@ -154,6 +173,52 @@ RSpec.describe RGame::Core::AssetManager do
       # but not what was being attempted.
       expect { manager.preload(:level1, images: ['a.png']) }
         .to raise_error(ArgumentError, /unknown asset type :images/)
+    end
+  end
+
+  describe '#add_loader' do
+    it 'teaches it a new type and gives it an accessor' do
+      assets = manager
+      assets.add_loader(:level) { |path| "level at #{path}" }
+
+      expect(assets.level('one.json')).to eq('level at /media/one.json')
+    end
+
+    it 'caches and groups an added type like any other' do
+      loader, calls = counting_loader { |path| path }
+      assets = manager
+      assets.add_loader(:level, &loader)
+
+      2.times { assets.level('one.json', :chapter1) }
+      assets.release(:chapter1)
+
+      expect(calls.length).to eq(1)
+      expect(assets.size).to be_zero
+    end
+
+    it 'does not answer to a type it has not been taught' do
+      # `Renderer#resolve_asset` asks exactly this before offering an id, so
+      # that an unregistered tilemap id is a KeyError naming the id rather than
+      # a NoMethodError from in here.
+      assets = manager
+
+      expect(assets).not_to respond_to(:tilemap)
+      assets.add_loader(:tilemap) { |path| path }
+      expect(assets).to respond_to(:tilemap)
+    end
+
+    it 'teaches only the manager it was called on' do
+      # Two games in one process, or a spec and the app it is testing: a type
+      # one manager knows is not a type another one does.
+      taught = manager
+      untaught = manager
+      taught.add_loader(:level) { |path| path }
+
+      expect(untaught).not_to respond_to(:level)
+    end
+
+    it 'lists the types it knows' do
+      expect(manager.types).to contain_exactly(:image, :read)
     end
   end
 

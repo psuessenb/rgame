@@ -11,9 +11,15 @@ module RGame
     #   app.assets.preload(:level1, image: ['lvl1/bg.png'], sound: ['lvl1/hit.ogg'])
     #   app.assets.release(:level1)
     #
-    # Every accessor takes a path **relative to the media root** and returns the
-    # same object every time, so a file asked for twice is read, decoded and
-    # uploaded once. That is the whole point: loading stops being scattered
+    # The built-in types are `image`, `sound`, `song` and `read`, plus the
+    # composites `sheet` and `ui_atlas`. A game or its glue adds more with
+    # {#add_loader}, which is how a tile map gets loaded without Core having to
+    # know what one is.
+    #
+    # Every accessor takes a path **relative to the media root** — or an
+    # absolute one, which is used as it stands — and returns the same object
+    # every time, so a file asked for twice is read, decoded and uploaded once.
+    # Two spellings of one path are one entry, not two. That is the whole point: loading stops being scattered
     # across a game's setup code, building paths ad hoc and constructing images
     # inline, and becomes one object that knows what is loaded.
     #
@@ -57,16 +63,44 @@ module RGame
       def initialize(root:, app:, loaders: nil)
         @root = root
         @app = app
-        @loaders = loaders || default_loaders
+        @loaders = {}
         @cache = {}
         @owners = {} # cache key => Set of groups holding it
+
+        (loaders || default_loaders).each { |type, loader| add_loader(type, &loader) }
       end
 
-      # Each takes a path relative to the media root.
-      def image(path, group = PERMANENT) = leaf(:image, path, group)
-      def sound(path, group = PERMANENT) = leaf(:sound, path, group)
-      def song(path, group = PERMANENT) = leaf(:song, path, group)
-      def read(path, group = PERMANENT) = leaf(:read, path, group)
+      # Teaches this manager a new asset type, and gives it an accessor:
+      #
+      #   assets.add_loader(:tilemap) { |path| ... }
+      #   assets.tilemap('map/island.tmx')
+      #
+      # The built-in types go through this too, at construction — there is one
+      # mechanism, not a privileged set plus an extension point.
+      #
+      # It exists because some asset types cannot be built from inside
+      # `RGame::Core` at all. A tile map is the case that forced it: parsing a
+      # `.tmx` belongs to the engine layer, and Core may not name that layer
+      # (see CLAUDE.md, "The rule points both ways"). So the glue installs the
+      # loader, and Core never learns what a tile map is.
+      #
+      # Defining the accessor rather than routing everything through a generic
+      # `load(type, path)` keeps `assets.tilemap(path)` reading like the
+      # built-ins — and makes `respond_to?(:tilemap)` false until a loader
+      # exists, which is exactly what `Renderer#resolve_asset` asks before
+      # offering it an id.
+      def add_loader(type, &loader)
+        @loaders[type] = loader
+        # A singleton method rather than a class-level one: two managers may
+        # know different types, and a game that adds `:tilemap` should not be
+        # teaching it to everyone else's.
+        define_singleton_method(type) { |path, group = PERMANENT| leaf(type, path, group) }
+        self
+      end
+
+      # The types this manager can load. `:image`, `:sound`, `:song` and `:read`
+      # are built in; anything else came from #add_loader.
+      def types = @loaders.keys
 
       # A sprite sheet, assembled through the cache: its descriptor is a cached
       # `read` and its image a cached `image`, so nothing is loaded twice.
@@ -138,15 +172,25 @@ module RGame
       end
 
       def leaf(type, path, group)
-        fetch(type, path, group) { @loaders.fetch(type).call(File.join(@root, path)) }
+        fetch(type, path, group) { @loaders.fetch(type).call(resolve(path)) }
       end
+
+      # Where a path actually is on disk.
+      #
+      # `expand_path` rather than `join` for two reasons. An **absolute** path
+      # is used as it stands, which is what lets a loader hand one back — the
+      # tile-map loader gets its tileset image that way, since the path comes
+      # out of a `.tsx` that was itself found on disk. And `'a/./b.png'`,
+      # `'a/../b.png'` and `'b.png'` all land on one cache key rather than
+      # three, so a file cannot be loaded twice by being named twice.
+      def resolve(path) = File.expand_path(path, @root)
 
       # Memoise on miss, then record the owning group — so a cache *hit* under a
       # new group is tagged too. Tagging after the load rather than before is
       # what leaves a failed load with no owner behind it, which makes a retry a
       # clean retry rather than a permanently half-registered asset.
       def fetch(type, path, group)
-        key = [type, path]
+        key = [type, resolve(path)]
         object = (@cache[key] ||= yield)
         (@owners[key] ||= Set.new) << group
         object

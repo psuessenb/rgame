@@ -121,6 +121,12 @@ tiles and loads nothing itself, so the map protocol it calls by name —
 `layer_count`, `above_layer?`, `gid`, `tile_width`, `pixel_width`, `tileset` —
 becomes a shared example both `Engine::TileMap` and a spec fake run against.
 
+**`TileWorld` gains an animation clock.** Core no longer reads one — see
+CLAUDE.md, "`draw` renders state; time enters through `update`" — so the
+component accumulates `dt` and passes `elapsed:` down, the two lines
+`AnimatedSprite` already has. That is engine-layer work and lands with the rest
+of it; until then a caller passes the elapsed time by hand.
+
 ### 5. Split-screen does not exist yet
 
 The transform and clip stacks were designed for it

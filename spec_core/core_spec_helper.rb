@@ -42,6 +42,7 @@ require_relative '../spec/support/shared_examples/an_audio_server'
 require_relative '../spec/support/fake_renderer'
 require_relative '../spec/support/fake_recording'
 require_relative '../spec/support/stub_image'
+require_relative '../spec/support/stub_tile_map'
 
 RSpec.configure do |config|
   config.expect_with(:rspec) { |c| c.syntax = :expect }

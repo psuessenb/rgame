@@ -2096,8 +2096,8 @@ and XML with no graphics in it at all.
 
 #### The three moves
 
-**1. Parsing goes up into Engine, not sideways into the glue.**
-`Engine::TileMap.load(tmx_path)` reads the TMX, parses the TSX it names,
+**1. Parsing goes up into Engine, not sideways into the glue.** ✅ **Landed** —
+see the note at the end of this step. `Engine::TileMap.load(tmx_path)` reads the TMX, parses the TSX it names,
 attaches the tileset and resolves the image path beside it. All of that is
 Engine's own business and needs nothing from Core. `Core::TileMapRenderer`
 loses `.load` entirely and never names a map's class.
@@ -2106,8 +2106,9 @@ That is engine-layer work, so it is written up in
 `docs/plans/engine-replacement/` as well — but it is small and self-contained,
 and this step is blocked without it.
 
-**2. The tileset image is loaded *outside*, through the asset manager.**
-Measured, because the question is whether two maps sharing a tileset pay for it
+**2. The tileset image is loaded *outside*, through the asset manager.** With
+the clock settled this is the last thing that wanted an `app`, so the class ends
+up holding neither. Measured, because the question is whether two maps sharing a tileset pay for it
 twice:
 
 | | uploads |
@@ -2125,16 +2126,16 @@ shared image cache and is left as-is" — and it makes this class consistent wit
 nothing.
 
 **3. `AssetManager` gains `add_loader(type, &block)`, which also defines the
-accessor.** This is what lets the glue install a `:tilemap` loader without Core
-knowing what a tile map is:
+accessor.** ✅ **Landed** — see the note at the end of this step. This is what
+lets the glue install a `:tilemap` loader without Core knowing what a tile map
+is:
 
 ```ruby
 # the glue — the one class allowed to name both layers
 app.assets.add_loader(:tilemap) do |path|
   map, image_path = RGame::Engine::TileMap.load(path)
-  RGame::Core::TileMapRenderer.new(map, app.assets.image(image_path).tiles(
-    map.tileset.tile_width, map.tileset.tile_height
-  ))
+  tiles = app.assets.image(image_path).tiles(map.tileset.tile_width, map.tileset.tile_height)
+  RGame::Core::TileMapRenderer.new(map, tiles)
 end
 ```
 
@@ -2145,19 +2146,55 @@ naturally false until a loader is installed — which is exactly the guard
 `Renderer#resolve_asset` already has from 6.7, so that guard stops being
 defensive and becomes load-bearing.
 
-#### Still open: where the clock comes from
+#### Settled: the clock comes from `update`, and Core never reads one
 
-Animated tiles need `ticks_ms`, and with the tiles handed in, the class no
-longer needs an `app` for anything else. Three ways, none obviously best:
+The open question turned out to have an answer already implied by the rest of
+the codebase. Grepping for a clock read anywhere in `lib/engine/`,
+`lib/platform/` or `examples/` returns **one** hit outside `Clock` itself:
+`Gosu.milliseconds` in `TileMapRenderer#draw_animated`. `Engine::Animator` and
+`Engine::Timer` both accumulate `dt` in `update`, and `DebugOverlay` is handed
+the frame rate rather than asking for it. So the pattern is already universal
+and this class is the sole exception.
 
-- **hold the app anyway**, purely for the clock — smallest change, but a whole
-  `App` held for one method reads oddly once nothing else uses it;
-- **take `now_ms:` per draw**, supplied by `Renderer#tilemap`, which has an app
-  — puts the time on the renderer contract, and gives specs a controllable
-  animation clock for free;
-- **hold a clock object**, duck-typed, answering `ticks_ms`.
+It is now a rule — see CLAUDE.md, "`draw` renders state; time enters through
+`update`". The short version: `draw` may be skipped or run once per five
+updates, so it has to be a pure function of state, and a wall clock is a hidden
+input that cannot be paused, slowed or reproduced.
 
-Decide when writing it, not now.
+**So `TileMapRenderer` takes no clock and no app:**
+
+```ruby
+RGame::Core::TileMapRenderer.new(map, tiles)     # loads nothing, holds no app
+tiles.draw(renderer, camera_x, camera_y, viewport_w, viewport_h, elapsed: seconds)
+tiles.draw_overlay(renderer, camera_x, camera_y, viewport_w, viewport_h, z:, elapsed: seconds)
+```
+
+and in the engine layer `TileWorld` gains the two lines `AnimatedSprite`
+already has:
+
+```ruby
+def update(dt) = @elapsed += dt
+def draw(renderer)
+  renderer.tilemap(@tilemap_id, @camera.x, @camera.y, vw, vh, elapsed: @elapsed)
+end
+```
+
+The gain is not one fewer argument — a number is passed either way. It is that
+the *game* owns the number: pause is "stop accumulating", slow motion is
+"accumulate slower", a spec is "pass 2.5". And two clocks become possible at
+once, which one wall clock cannot express — a pause overlay has to keep
+animating while the world it covers is frozen.
+
+Elapsed is in **seconds**, like `dt` everywhere else. `Tileset#frame_local_id`
+speaks milliseconds because Tiled writes frame durations that way, so the
+conversion happens at that one call, hoisted out of the tile loop exactly where
+`Gosu.milliseconds` sits today.
+
+Costs, stated plainly: each map keeps its own accumulator rather than sharing a
+global clock, so two maps can drift apart (nobody sees two at once, and sharing
+an accumulator is available if that ever changes); `elapsed:` joins the renderer
+contract for two methods, so the fake grows a keyword; and `TileWorld` gains two
+lines.
 
 #### What is left of the port
 
@@ -2186,11 +2223,96 @@ instance of the pattern, and precisely the case it exists for.
   second `draw` adds no `record` call — a rebake per frame is the expensive bug
   this class exists to avoid, and it is invisible except as a frame-rate drop);
   animated tiles are culled to the viewport, inclusive at the near edge and
-  exclusive at the far one; the animation frame follows the clock. Plus the
-  fake map against the new shared contract.
+  exclusive at the far one; and the animation frame follows `elapsed:` — which
+  is now an argument, so a spec picks the frame it wants instead of stubbing a
+  clock. Plus the fake map against the new shared contract.
 - **Verify**: `rake spec`, `rake spec:core`, RuboCop — including
   `Game/NoEngineInCoreLayer`, which is the mechanical check that move 1 actually
   happened.
+
+#### Landed
+
+Moves 1 and 3 went in first, before the clock was settled, because neither
+depended on it. Move 2 and the class itself followed once it was.
+
+**`Engine::TileMap.load`** (`lib/engine/tile_map.rb`) returns `[map,
+image_path]` — two values because they are two kinds of thing, and keeping the
+path off the map means a stand-in map in a spec has one less method to answer.
+The class comment used to say "file IO and the tileset image live in the
+platform layer"; the first half of that was wrong and is now corrected. Reading
+a `.tsx` is not a platform concern, it is part of reading a `.tmx`. The *image*
+is, and `load` stops at a path.
+
+Two requires were missing from that file — `tensor` and `tileset` — which only
+worked because `lib/engine.rb` happened to load them first. Adding them is what
+lets the file be required on its own, which is what its spec does.
+
+**`spec/engine/tile_map_spec.rb` is the first engine-layer spec**, and it has to
+live in `spec/` rather than `spec_core/`: `Game/NoEngineInCoreLayer` covers
+`spec_core/**`, so a spec naming `Engine::TileMap` cannot go there. The cop
+steered that correctly without being asked to. `spec/support/tiled_fixture.rb`
+generates the `.tmx`/`.tsx` pair the way `PngFixture` generates PNGs — a Tiled
+layer is a zlib-deflated base64 blob, so a committed one would hide the
+assertion completely.
+
+**Two mutation survivors, both fixture limitations rather than bad assertions.**
+Resolving the image against the *map* instead of the *tileset* survived because
+the fixture wrote both files into one directory, where the two rules give the
+same answer; and hardcoding `firstgid` to 1 survived because the fixture always
+wrote 1. The fixture can now put the `.tsx` in its own subdirectory and take a
+`firstgid:`, and both mutations die. Worth noting the shape: *a fixture that
+only ever exercises the easy case makes a correct assertion unfalsifiable* —
+the same failure as a fake that only says yes, one level further out.
+
+**`AssetManager#add_loader`** (`lib/rgame/core/asset_manager.rb`). The built-in
+types now go through it too, at construction, so there is one mechanism rather
+than a privileged set plus an extension point. It defines a *singleton* method,
+so a game that teaches its manager `:tilemap` is not teaching every other
+manager in the process — asserted, because two games in one test run is exactly
+the case that would notice.
+
+**`Core::TileMapRenderer`** (`lib/rgame/core/tile_map_renderer.rb`), 19
+examples, entirely against `StubTileMap` and `FakeRenderer`. It holds no app and
+no clock: `new(map, tiles)`, and `elapsed:` per draw. `pixel_width` and
+`pixel_height` dropped out of the protocol along the way — they were only ever
+arguments to `Gosu.record(w, h)`, and Core's recording infers its own extent.
+
+**The map protocol is a contract now.** `spec/support/shared_examples/a_tile_map.rb`,
+run against `StubTileMap` *and* against the real `Engine::TileMap` parsed from a
+generated `.tmx`. Third instance of the pattern, and the one where the two hosts
+differ most: one declares the shape, the other has to parse its way to it.
+
+**Two bugs found, one of them latent in the original.**
+
+`draw_animated`'s far edge used `((camera_x + viewport_width) / tile_width).ceil`
+— with two Integers, Ruby's `/` floors first and the `.ceil` is a no-op, so the
+last column and row went undrawn. A one-tile strip of nothing along the right
+and bottom of the screen, appearing only when the camera sits on a whole pixel.
+`fdiv` fixes it, and the culling examples pin all four edges.
+
+The glue line then failed outright the first time it ran: `Engine::TileMap.load`
+returns an **absolute** image path, and every accessor joined onto the root,
+giving `<root>/<root>/tiles.png`. `AssetManager` now resolves with
+`File.expand_path` rather than `File.join`, which takes an absolute path as it
+stands *and* collapses `'a/./b.png'`, `'a/../a/b.png'` and the absolute form
+onto one cache key. Worth having: two spellings of one file were two uploads
+before, and nothing would have said so.
+
+**One vacuous assertion, caught by mutation.** "bakes once and replays
+thereafter" counted `:record` calls that `FakeRenderer` does not record, so
+rebaking every frame passed it. The real observable is *identity* — all three
+replays must carry the same recording — and with that, it dies. Second time in
+this phase that an example which could not fail looked like coverage.
+
+The other mutations die on the first try: bands swapped (4 failures), animated
+tiles baked (1), empty tiles drawn (5), `elapsed` ignored (2), row and column
+swapped in the bake (1), no camera offset on the replay (1), near edge exclusive
+(8), far edge inclusive (3), integer division restored (1).
+
+**Verified end to end** with the glue line from this step: `Engine::TileMap.load`
+→ `assets.image(...).tiles(...)` → `TileMapRenderer` → two real frames through
+a real renderer under Xvfb, with `assets.tilemap(path)` and
+`renderer.tilemap(id, …, elapsed:)` doing the work.
 
 ### 6.6 `Core::AssetManager`
 

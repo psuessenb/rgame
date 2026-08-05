@@ -67,13 +67,14 @@ class FakeRenderer
                                  z: number(z), color: color_arg(tint))
   end
 
-  def tilemap(id, camera_x, camera_y, viewport_width, viewport_height)
-    lookup(:tilemap, id).draw(self, camera_x, camera_y, viewport_width, viewport_height)
+  def tilemap(id, camera_x, camera_y, viewport_width, viewport_height, elapsed: 0.0)
+    lookup(:tilemap, id)
+      .draw(self, camera_x, camera_y, viewport_width, viewport_height, elapsed: number(elapsed))
   end
 
-  def tilemap_overlay(id, camera_x, camera_y, viewport_width, viewport_height, z:)
-    lookup(:tilemap, id)
-      .draw_overlay(self, camera_x, camera_y, viewport_width, viewport_height, z: z)
+  def tilemap_overlay(id, camera_x, camera_y, viewport_width, viewport_height, z:, elapsed: 0.0)
+    lookup(:tilemap, id).draw_overlay(self, camera_x, camera_y, viewport_width,
+                                      viewport_height, z: z, elapsed: number(elapsed))
   end
 
   # --- refusing what the real renderer refuses ------------------------------

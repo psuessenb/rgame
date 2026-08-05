@@ -118,15 +118,22 @@ module RGame
       end
 
       # A tile map's below-the-actor band (ground and same-level detail).
-      def tilemap(id, camera_x, camera_y, viewport_width, viewport_height)
-        lookup(:tilemap, id).draw(self, camera_x, camera_y, viewport_width, viewport_height)
+      #
+      # `elapsed` is the seconds its animated tiles have been running for, and
+      # is an argument rather than a clock read on purpose — see CLAUDE.md,
+      # "`draw` renders state; time enters through `update`". A scene
+      # accumulates it in `update`, which is what makes pausing work.
+      def tilemap(id, camera_x, camera_y, viewport_width, viewport_height, elapsed: 0.0)
+        lookup(:tilemap, id)
+          .draw(self, camera_x, camera_y, viewport_width, viewport_height, elapsed: elapsed)
       end
 
       # Its above-the-actor band (canopies, roofs), at a `z` the scene picks so
       # it lands over the actors.
-      def tilemap_overlay(id, camera_x, camera_y, viewport_width, viewport_height, z:)
-        lookup(:tilemap, id)
-          .draw_overlay(self, camera_x, camera_y, viewport_width, viewport_height, z: z)
+      def tilemap_overlay(id, camera_x, camera_y, viewport_width, viewport_height,
+                          z:, elapsed: 0.0)
+        lookup(:tilemap, id).draw_overlay(self, camera_x, camera_y, viewport_width,
+                                          viewport_height, z: z, elapsed: elapsed)
       end
 
       # A filled axis-aligned rectangle.

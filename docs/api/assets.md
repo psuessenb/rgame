@@ -14,6 +14,7 @@ an image is a GPU handle. Game logic names them by id and never holds one — se
 | [Sprite sheets](#sprite-sheets) | `RGame::Core::SpriteSheet` |
 | [Nine-slices](#nine-slices) | `RGame::Core::NineSlice` |
 | [UI atlases](#ui-atlases) | `RGame::Core::UiAtlas` |
+| [Tile maps](#tile-maps) | `RGame::Core::TileMapRenderer` |
 
 *This page grows as the rest lands.*
 
@@ -30,6 +31,21 @@ app.assets.sheet('example 09/player.json')   # => RGame::Core::SpriteSheet
 app.assets.ui_atlas('ui/ui_atlas.json')      # => RGame::Core::UiAtlas
 app.assets.read('data/levels.txt')           # => String
 ```
+
+Paths are relative to the media root; an absolute one is used as it stands. Two
+spellings of the same file — `'a/b.png'`, `'a/./b.png'`, the absolute form —
+are one cache entry, not three.
+
+### Adding an asset type
+
+```ruby
+app.assets.add_loader(:level) { |path| MyLevel.parse(File.read(path)) }
+app.assets.level('levels/one.json')          # cached and grouped like any other
+```
+
+The built-in types go through the same mechanism at construction, so an added
+one is not a second-class citizen. It exists because some types cannot be built
+from inside `RGame::Core` at all — see [Tile maps](#tile-maps).
 
 Every path is **relative to the media root**, and every accessor returns the
 same object each time it is asked — so a file wanted twice is read, decoded and
@@ -330,3 +346,75 @@ Without the element name the failure is arithmetic from inside `NineSlice`, and
 finding the culprit means bisecting the JSON by hand.
 
 Parsing happens once, at load. Nothing here is touched again per frame.
+
+## Tile maps
+
+Draws a Tiled map: the static layers baked once, the animated tiles drawn each
+frame and culled to the viewport.
+
+```ruby
+tiles = app.assets.tilemap('map/island.tmx')
+
+renderer.tilemap('map/island.tmx', camera_x, camera_y, view_w, view_h, elapsed: seconds)
+# ... the scene draws its actors here ...
+renderer.tilemap_overlay('map/island.tmx', camera_x, camera_y, view_w, view_h,
+                         z: 20, elapsed: seconds)
+```
+
+### Two bands, with the actors between them
+
+Layers split by Tiled's `above` custom property. The **below** band — ground and
+same-level detail — is drawn under the actors; the **above** band — tree
+canopies, roofs — over them, at a `z` the scene picks. Two calls rather than
+one, because the scene draws its actors in between; collapsing them would put
+every canopy behind every character.
+
+### What it costs
+
+Within each band, every tile that is **not** animated is baked into a
+[recording](drawing.md#recordings-bake-once-replay-cheaply) the first time that
+band is drawn. Scrolling it afterwards is one call per texture, however many
+thousand tiles went into it. The handful that *are* animated are drawn
+individually, **culled to the viewport** — so a map far larger than the screen
+costs only what is on screen.
+
+Two maps sharing a tileset share one GPU upload, because the tiles come through
+the asset manager rather than being loaded by the map.
+
+### Animation is advanced by you
+
+`elapsed` is seconds, and it is an argument rather than a clock this reads:
+
+```ruby
+def update(dt) = @elapsed += dt
+def draw(renderer)
+  renderer.tilemap(@id, camera.x, camera.y, w, h, elapsed: @elapsed)
+end
+```
+
+Stop accumulating and the water freezes; accumulate slower and it runs slow; a
+spec passes `0.15` and gets the second frame. See
+[the frame loop](app.md#the-frame-loop) for why nothing on a draw path reads a
+clock.
+
+### It is wired up, not built in
+
+`RGame::Core` cannot parse a `.tmx` — that is the engine layer's job, and Core
+is not allowed to know the engine layer exists. So the type is *installed*, by
+the one class that may name both:
+
+```ruby
+app.assets.add_loader(:tilemap) do |path|
+  map, image_path = RGame::Engine::TileMap.load(path)
+  tiles = app.assets.image(image_path).tiles(map.tileset.tile_width,
+                                             map.tileset.tile_height)
+  RGame::Core::TileMapRenderer.new(map, tiles)
+end
+```
+
+Until that runs, `app.assets` has no `tilemap` accessor and a tilemap draw id
+raises `KeyError` — which is the honest answer, rather than a half-working
+subsystem.
+
+`TileMapRenderer#map` hands the parsed map back, for the scene's own collision
+and world-bounds queries.

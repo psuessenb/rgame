@@ -268,6 +268,47 @@ and every recording fake a spec substitutes. Both must be checked against the
 same shared example group, or the fake drifts and a fully green headless suite
 stops predicting whether the game runs. See "Testing" below.
 
+## `draw` renders state; time enters through `update`
+
+**Nothing on a draw path reads a clock.** Not `App#ticks_ms`, not
+`Process.clock_gettime`, nothing. A frame is drawn from state, and state is
+advanced by `update(dt)`.
+
+This is not a style preference, it falls out of the loop:
+
+- **`draw` is not called on a schedule.** `needs_redraw?` can skip it entirely,
+  and the catch-up loop can run several `update`s between two draws. So `draw`
+  has to be a pure function of state — and the one thing that varies between
+  frames without being state is the clock.
+- **A wall clock cannot be paused, slowed, or reproduced.** Freeze the
+  simulation and wall-clock animation keeps running. A spec cannot assert
+  "the third frame of the walk cycle" without sleeping.
+
+So a cosmetic animation — one with no game state behind it — accumulates its own
+elapsed time in `update` and hands the *number* to the renderer at draw time:
+
+```ruby
+def update(dt) = @elapsed += dt
+def draw(renderer) = renderer.tilemap(@id, camera.x, camera.y, w, h, elapsed: @elapsed)
+```
+
+`Engine::Animator` and `Engine::Timer` are both built this way, and
+`DebugOverlay` is *handed* the frame rate rather than asking for it.
+
+The point is not that a number gets passed either way — it is **who owns the
+number**. Core reading the clock means Core has an opinion about what time it
+is; the game passing one means pause is "stop accumulating", slow motion is
+"accumulate slower", and a spec is "pass 2.5". It also allows two clocks at
+once, which one wall clock cannot express at all: a pause overlay has to keep
+animating while the world it covers is frozen.
+
+Elapsed time is in **seconds**, like `dt` and everything else here. Convert at
+the boundary if some format speaks milliseconds — Tiled's frame durations do —
+and convert once per draw rather than once per item.
+
+`App#ticks_ms` still exists and is still correct: it is the raw clock, for the
+shell that measures frames. It is not for drawing.
+
 ## Structure and why it looks like this
 
 **All engine C lives in `ext/rgame_core/`**, not a top-level `src/`. This is
