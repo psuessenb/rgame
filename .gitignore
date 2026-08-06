@@ -21,11 +21,14 @@ ext/**/*.dylib
 # out here so it's clear the .so under lib/ is a build artifact, not source.
 /lib/rgame/*.so
 
-# Gem packaging (once there's a .gemspec)
+# Gem packaging
 /pkg/
 *.gem
 /.bundle/
 /vendor/bundle/
+
+# Media files for examples
+/media/
 
 # Editor / OS
 .DS_Store
