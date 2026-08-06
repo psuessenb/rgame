@@ -5,7 +5,7 @@ module RGame
     # A reuse-don't-allocate pool for many short-lived, homogeneous objects —
     # bullets, particles, transient enemies. Acquired objects come from a free list
     # (or the factory when the list is empty) so steady-state spawning allocates
-    # nothing. Pure logic; no Gosu.
+    # nothing. Pure logic; no graphics.
     #
     #   pool = Engine::Pool.new { Bullet.new }
     #   b = pool.acquire        # recycled or freshly built

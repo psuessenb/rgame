@@ -4,7 +4,7 @@ require 'rexml/document'
 require 'base64'
 require 'zlib'
 
-require_relative 'tensor'
+require_relative '../util'
 require_relative 'tileset'
 
 module RGame
@@ -135,7 +135,7 @@ module RGame
 
       # Pack the parsed per-layer gid rows into one flat Tensor ([col, row, layer]).
       def build_tiles(layers)
-        tiles = Tensor.new(@width, @height, layers.length, initial: 0)
+        tiles = Util::Tensor.new(@width, @height, layers.length, initial: 0)
         layers.each_with_index do |gids, layer|
           @height.times do |row|
             base = row * @width

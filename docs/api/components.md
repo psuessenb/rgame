@@ -3,13 +3,13 @@
 A **component** is a reusable piece of behaviour attached to a `Node2D`, instead of
 baked into a node subclass. A node composes several of them; each knows its owning
 `node` and is driven by the node's tick. Components live in `engine/components/` under
-`Engine::Components` and subclass `Engine::Component`. See [Scene graph](scene_graph.md)
+`RGame::Engine::Components` and subclass `RGame::Engine::Component`. See [Scene graph](scene_graph.md)
 for how nodes drive components, and [Systems & shared resources](systems.md) for
 components that act as shared, scene- or program-scoped services.
 
 ## The `Component` base
 
-`Engine::Component` (`engine/component`) gives every component a `node` back-link and
+`RGame::Engine::Component` (`rgame/engine/component`) gives every component a `node` back-link and
 a set of hooks the node calls — override the ones you need; the rest are no-ops. Like
 nodes, it extends the signal DSL, so a component can declare and emit signals.
 
@@ -52,7 +52,7 @@ A free-moving entity can use `Velocity` alone; pair it with a controller for inp
 
 ### `PathFollow`
 
-Walks the owning node along an [`Engine::Path`](utils.md#enginepath--a-walkable-polyline)
+Walks the owning node along an [`RGame::Engine::Path`](toolbox.md#path--a-walkable-polyline)
 at a constant speed and emits `on_finished` when it reaches the last waypoint — the seam a
 tower-defense game uses to leak a life when an enemy reaches the base.
 
@@ -68,7 +68,7 @@ tower-defense game uses to leak a life when an enemy reaches the base.
 
 A node-driven interval timer: it rides the node's update tick (so nothing can forget to
 advance it) and emits `on_timeout` each time a whole interval elapses — a spawn cadence, a
-tower's fire rate, a wave clock. Wraps the pure [`Engine::Timer`](utils.md#enginetimer--paced-periodic-events),
+tower's fire rate, a wave clock. Wraps the pure [`RGame::Engine::Timer`](toolbox.md#timer--paced-periodic-events),
 reusing its drift-free carry-forward.
 
 - **Construct:** `Timer.new(interval, repeating: true)` (seconds). Add it named when a node
@@ -87,7 +87,7 @@ reusing its drift-free carry-forward.
 
 ### `Pool`
 
-Wraps an [`Engine::Pool`](utils.md#enginepool--reuse-dont-allocate) of nodes and folds the
+Wraps an [`RGame::Engine::Pool`](toolbox.md#pool--reuse-dont-allocate) of nodes and folds the
 tree bookkeeping into the frame tick, so a scene that recycles entities (enemies, projectiles)
 writes no acquire/add/reclaim bridge of its own — just `spawn` and the ordinary `queue_free`.
 Pooled nodes are **normal children** of the owner, so the scene's usual traversal updates and
@@ -244,7 +244,7 @@ here, or "jump"/"fire" in a platformer.
 
 Draws a sprite-sheet animation and picks the animation from a [`CharacterBody`](#characterbody)
 sibling's movement: `walk_left`/`walk_right`/`walk_up`/`walk_down` while moving (horizontal wins
-on a diagonal), `stand` when still. Owns an `Engine::Animator` over the pure `AnimationSet` built
+on a diagonal), `stand` when still. Owns an `RGame::Engine::Animator` over the pure `AnimationSet` built
 from the sheet's animation table.
 
 - **Construct:** `AnimatedSprite.new(sheet:, z: 0)` — `sheet` is the asset's relative path; `z` the
@@ -295,26 +295,26 @@ deterministic in tests.
 
 ### `TileWorld`
 
-The scene-scoped tile **system** (see [Systems](systems.md)): it holds the parsed `Engine::TileMap`
+The scene-scoped tile **system** (see [Systems](systems.md)): it holds the parsed `RGame::Engine::TileMap`
 and answers everything an actor needs from it — collision against the solid tiles (reusing
-`Engine::CollisionSystem`), the world bounds, and drawing the map through the scene's camera. Found
+`RGame::Engine::CollisionSystem`), the world bounds, and drawing the map through the scene's camera. Found
 with `node.system(TileWorld)`.
 
 - **Construct:** `TileWorld.new(map:, tilemap_id:, camera:)`.
 - **Queries:** `move(actor, dx, dy)` slides an actor (anything responding to `x`/`y`/`collision_box`)
   along solids and clamps it to the world; `solid?(col, row)`; `world_width`/`world_height`.
 - **Phase:** `draw(renderer)` draws the below band at `GROUND_Z` and the above band at `OVERLAY_Z`
-  (canopies/roofs). Actors draw at a z in between, so Gosu's z-sort composites ground < actors <
+  (canopies/roofs). Actors draw at a z in between, so the renderer's z-sort composites ground < actors <
   canopy regardless of draw-call order.
 
 ```ruby
 # A node composing components, with collision meaning decided by the owner:
-class Bullet < Engine::Node2D
+class Bullet < RGame::Engine::Node2D
   def initialize(x:, y:, vx:, vy:, bounds:)
     super(x: x, y: y)
-    add_component(Engine::Components::Velocity.new(vx: vx, vy: vy))
-    add_component(Engine::Components::DespawnOffscreen.new(**bounds))
-    collider = add_component(Engine::Components::CircleCollider.new(radius: 3, layer: :bullet))
+    add_component(RGame::Engine::Components::Velocity.new(vx: vx, vy: vy))
+    add_component(RGame::Engine::Components::DespawnOffscreen.new(**bounds))
+    collider = add_component(RGame::Engine::Components::CircleCollider.new(radius: 3, layer: :bullet))
     collider.on_hit { |other| queue_free if other.layer == :rock }
   end
 end

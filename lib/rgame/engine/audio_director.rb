@@ -6,8 +6,10 @@ module RGame
     # Gameplay emits facts — `:play_sound`/`:play_music`/`:stop_music` with the asset
     # id as payload — through the EventDispatcher, never touching the backend; this
     # observer forwards each to an injected audio server (anything responding to
-    # #play_sound/#play_music/#stop_music: Platform::GosuAudio in the app, a recording
-    # fake in tests). Pure logic; no Gosu — the Gosu dependency stays in the server.
+    # #play_sound/#play_music/#stop_music: `RGame::Core::Audio` in a game, a recording
+    # fake in specs). Pure logic — it names no audio class, and the 'an audio server'
+    # contract in spec/support/shared_examples/ is the interface it calls, so a
+    # stand-in is checked against what the real device does.
     class AudioDirector
       def initialize(audio)
         @audio = audio

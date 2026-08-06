@@ -4,7 +4,7 @@ module RGame
   module Engine
     # A uniform-grid spatial hash for broadphase collision: bucket colliders into
     # fixed-size cells, then test only candidates that share a cell instead of every
-    # pair. Pure logic; no Gosu.
+    # pair. Pure logic; no graphics.
     #
     # Typical per-frame use: `clear`, `insert` every collider of the static set
     # (here: rocks), then `query` around each moving collider (bullets, the ship).

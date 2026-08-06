@@ -4,7 +4,7 @@
 # it draws numbers digit-by-digit from cached glyph strings rather than building a String
 # per frame. Drawing must therefore allocate ~nothing in steady state.
 RSpec.describe RGame::Engine::DebugOverlay do
-  # A faithful, allocation-free stand-in for Platform::GosuRenderer: explicit keyword
+  # A faithful, allocation-free stand-in for RGame::Core::Renderer: explicit keyword
   # params (like the real #text) so a call doesn't collect a keyword Hash, and a plain
   # object rather than an RSpec double (doubles allocate per call).
   let(:renderer) do

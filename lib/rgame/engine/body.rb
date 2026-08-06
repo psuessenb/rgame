@@ -5,7 +5,7 @@ module RGame
     # Reusable kinematics for free-moving, rotating entities (ship, rocks, bullets):
     # position, linear velocity, facing angle and angular velocity. `integrate`
     # advances them by a fixed dt; `wrap!` implements toroidal screen-wrap and
-    # `offscreen?` the despawn test. Pure logic; no Gosu.
+    # `offscreen?` the despawn test. Pure logic; no graphics.
     #
     # Angle is in radians, 0 = pointing right (+x), increasing clockwise on screen
     # (since y grows downward). A heading's unit vector is therefore (cos, sin).

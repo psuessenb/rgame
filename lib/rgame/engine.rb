@@ -1,8 +1,25 @@
 # frozen_string_literal: true
 
-# Engine core: pure Ruby, no Gosu. Safe to require in headless tests.
+# RGame::Engine — the scene graph a game is written against: nodes, components,
+# signals, scenes, collision, tile maps, pathing, pooling.
+#
+# Pure Ruby, and it links nothing. It may hold `RGame::Util` values but may not
+# name `RGame::Core` at all, reaching the platform only through objects handed
+# to it — a `renderer` passed into `draw`, an audio server behind
+# `AudioDirector`. See CLAUDE.md, "The three layers, and who may talk to whom".
+#
+# That is what lets the whole layer be specified with no window, no GPU and no
+# clock: `spec/` drives `update(dt)` directly and can run a simulated hour in
+# milliseconds.
+#
+# Loaded by `require "rgame"` along with Util, since between them they are
+# everything that runs without a window. Requirable on its own too — hence the
+# `util` require below rather than relying on `rgame.rb` to have got there
+# first: `TileMap` holds a `Util::Tensor`, which is exactly the dependency the
+# three-layer rule allows and this file therefore has to declare.
+require_relative 'util'
+
 require_relative 'engine/matrix'
-require_relative 'engine/tensor'
 require_relative 'engine/signal'
 require_relative 'engine/node2d'
 require_relative 'engine/component'

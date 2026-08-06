@@ -72,7 +72,7 @@ fails loudly beats one that has to be observed.
 
 ## Spec style
 
-Use `spec/engine/node2d_spec.rb` as a reference if needed.
+Use `spec/rgame/engine/node2d_spec.rb` as a reference if needed.
 
  - Use RSpec's mocking mechanisms instead of creating structures with `Struct`, `Data`, etc.
  - Use verified doubles (enforced by RuboCop)
@@ -136,11 +136,16 @@ running from a checkout — though nothing is published yet.
 on it in any form. `RGame::Game` (`lib/rgame/game.rb`) is the entry point a game
 is written against, and both games under `examples/` run on it.
 
-The gap now is the scene graph's *namespace*: it is in the tree as `lib/engine/`
-under a bare top-level `Engine::`, not yet `RGame::Engine` under
-`lib/rgame/engine/`. Moving it — along with the mouse-built UI package it still
-carries, and split-screen — is `docs/plans/engine-replacement/`. Until then it is
-held out of the gem.
+**All three layers are now where they belong.** The scene graph is
+`RGame::Engine` under `lib/rgame/engine/`, no bare top-level constant is left,
+and the whole layer ships in the gem. `require "rgame"` means "everything that
+runs without a window".
+
+Two features the layer is missing, both new design rather than a port, both
+noted in `docs/plans/ui-and-split-screen/`: a UI package built on keyboard and
+controller navigation (the old one hit-tested a mouse, which this engine does
+not have), and split-screen, whose Core plumbing has been ready since the
+renderer was written and which nothing above has ever called.
 
 When adding a feature, the default is still to build it in C under
 `ext/rgame_core/` and only extend the Ruby wrapper once the C API for it is
@@ -154,23 +159,39 @@ SDL, OpenGL, or on something that does?**
 - **Yes** → `RGame::Core`, built from `ext/rgame_core/`, required as
   `rgame/core_ext`, loaded via `require "rgame/core"`.
 - **No** → `RGame::Util`, built from `ext/rgame_util/`, required as
-  `rgame/util_ext`, loaded via `require "rgame"`.
+  `rgame/util_ext`, loaded via `require "rgame"` — which also loads
+  `RGame::Engine`, since between them they are everything that runs without a
+  window.
 
 Everything Ruby-visible is under the `RGame` module — no other top-level
 constant. Both `Init_` functions call `rb_define_module("RGame")`, which is
 idempotent, so load order between the two extensions doesn't matter.
 
-The split is load-bearing, not cosmetic. `require "rgame"` loads
-`RGame::Util` with **zero graphics libraries in the process**, which is what
-lets pure-logic code and its specs run with no display and no SDL present.
+The split is load-bearing, not cosmetic. `require "rgame"` loads `RGame::Util`
+and `RGame::Engine` with **zero graphics libraries in the process**, which is
+what lets game logic and its specs run with no display and no SDL present.
 So `lib/rgame.rb` must never require `rgame/core`, directly or
 transitively — that would silently destroy the property for every consumer.
-It's checkable, and worth re-checking after touching `lib/`:
+
+`spec/rgame/no_graphics_spec.rb` asserts it, so `rake spec` catches a breach
+rather than a human remembering to look. By hand it is:
 
 ```
 ruby -Ilib -e 'require "rgame"; puts File.read("/proc/self/maps").scan(/libSDL2|libGL\./).uniq.inspect'
 # => []
 ```
+
+The three entry points, each a strict superset of the last:
+
+| | |
+|---|---|
+| `require "rgame"` | `Util` + `Engine` — no graphics |
+| `require "rgame/core"` | the window, the GPU, the sound device |
+| `require "rgame/game"` | all of it, wired; what a game writes |
+
+`rgame/util`, `rgame/engine` and `rgame/core` stay separately requirable, so
+nothing is forced through `rgame.rb`. That is how `spec_core/` loads exactly one
+layer and gets a `NameError` if it names another.
 
 If a subsystem has both a pure part and an SDL-driven part, split it across
 the two rather than putting the whole thing in Core — that's the same
@@ -227,7 +248,9 @@ RGame::Util     Tensor, and every other shareable value type
 `RGame::Engine` lives in `lib/rgame/engine/` and is the layer a game is
 actually written against. Its hard rule:
 
-- **It may hold `RGame::Util` types.** A node may have a `Tensor` attribute.
+- **It may hold `RGame::Util` types.** `RGame::Engine::TileMap` packs its per-layer gid
+  rows into a `Util::Tensor` — the C one — which is the worked example: a value
+  with no OS handle behind it, so the layer above may own one outright.
 - **It may not name `RGame::Core` at all** — no `require`, no constant
   reference, no attribute. Not even in its specs.
 - **It reaches Core only through objects handed to it**, duck-typed. A node's
@@ -270,7 +293,7 @@ and `map.above_layer?(index)`, and could not tell you what class answered.
 **The one place allowed to name both layers is the glue**, a single class
 directly under `RGame`. Wiring the two halves together is what a glue class is
 *for*, and confining that to one file is what keeps the rule above checkable
-everywhere else. Reading a `.tmx` into an `Engine::TileMap`, handing the result
+everywhere else. Reading a `.tmx` into an `RGame::Engine::TileMap`, handing the result
 to a `Core::TileMapRenderer` and registering the pair with the asset manager is
 three lines, and they belong there rather than smeared across either layer.
 
@@ -304,7 +327,7 @@ def update(dt) = @elapsed += dt
 def draw(renderer) = renderer.tilemap(@id, camera.x, camera.y, w, h, elapsed: @elapsed)
 ```
 
-`Engine::Animator` and `Engine::Timer` are both built this way, and
+`RGame::Engine::Animator` and `RGame::Engine::Timer` are both built this way, and
 `DebugOverlay` is *handed* the frame rate rather than asking for it.
 
 The point is not that a number gets passed either way — it is **who owns the
@@ -533,9 +556,15 @@ file to a folder already listed needs nothing.
 - `lib/rgame/game.rb` — `RGame::Game`, the only class directly under `RGame`,
   and by construction the only one allowed to name both layers. See "The rule
   points both ways".
-- `lib/engine/` — the scene graph, still under a bare top-level `Engine::`.
-  Ported to run on `RGame::Core` but not yet moved to `RGame::Engine`, which is
-  what `docs/plans/engine-replacement/` covers. Held out of the gem meanwhile.
+- `lib/rgame/engine/` — the scene graph: nodes, components, signals, sprites,
+  tile maps, pathfinding. Pure Ruby, no graphics library, and the layer a game
+  is actually written against. `lib/rgame/engine.rb` requires the lot and is
+  separately requirable.
+- `lib/rgame/boot.rb` — enables YJIT if this Ruby has it. Not engine code, which
+  is why it sits directly under `rgame/`; `RGame::Game` requires it, so it is
+  the entry point's decision rather than a line every game remembers. Note
+  **this Ruby has no YJIT**, so locally the file is a verified no-op — the guard
+  holds rather than raising, but nobody here has measured the speedup.
 - `spec/` — RSpec specs for the Ruby half (`bundle exec rspec`). Note
   `spec/spec_helper.rb` requires only `lib/rgame`, deliberately: a Core file
   reached from here would pull SDL into the process and the suite would stop
@@ -651,16 +680,17 @@ sources and their licences — and, the other way, that no build artifact, spec
 directory or plan is in the gem. If the two derivations ever disagree, one of
 them is wrong and the suite says which file.
 
-Two exclusions are deliberate and both are asserted:
+One exclusion is deliberate and it is asserted: **build artifacts**
+(`lib/rgame/*.so` and friends) — that is *this* machine's binary, and shipping
+it would shadow the one `gem install` compiles.
 
-- **build artifacts** (`lib/rgame/*.so` and friends) — that is *this* machine's
-  binary, and shipping it would shadow the one `gem install` compiles.
-- **the engine layer** (`lib/engine/`, `lib/engine.rb`, `lib/boot.rb`) — it
-  names no graphics library and would run in the gem perfectly well, but it is
-  still top-level `Engine::` rather than `RGame::Engine`, and a gem has no
-  business putting a bare `Engine` constant into someone's process. It ships
-  when it moves; the exclusion in `rgame.gemspec` and the matching expectation
-  in the packaging spec come out together at that point.
+The engine layer used to be a second exclusion, held back while it was still a
+bare top-level `Engine::` that a gem has no business putting into someone's
+process. It ships now, and the exclusion was **replaced by an example asserting
+that it does** rather than simply deleted. That swap is the pattern to follow
+whenever an exclusion comes out: a rule that used to be stated and is now merely
+true goes silent, and this is the one file whose whole job is saying out loud
+what ships.
 
 The version lives in `lib/rgame/version.rb` and nothing else may go in that
 file: the gemspec loads it directly, long before either extension is compiled,
@@ -693,6 +723,24 @@ to crash while learning pointers/SDL/GL).
 
 `rake` with no argument runs everything: `make test`, `rake spec`,
 `rake spec:core`.
+
+### The examples are the acceptance test for wiring — but only if they are *driven*
+
+Anything that changes how the layers are wired together — `RGame::Game`, the
+asset loaders, input polling, the renderer's id registries — is verified by
+running the games under `examples/`, because that is the only tier where all
+three layers are present at once.
+
+**Booting one is not enough.** Drive it: swap in a scripted input backend, bound
+the tick count, and report what the game actually asked for — draws issued,
+sounds played, scene transitions taken. The difference is not theoretical. A
+polling bug that consumed every input edge before a tick could read it left a
+game whose menu did not respond to anything, and a plain boot of it reported
+"90 ticks, 90 frames" and looked perfectly healthy.
+
+Two things that harness must be, learned the same way: it counts rather than
+eyeballs, and — if it lives outside the repo — it is a caller like any other, so
+a project-wide rename does not reach it and it breaks after every sweep.
 
 ### Why the Ruby specs are two suites, in two directories
 
@@ -739,7 +787,7 @@ There are three of these today, all built the same way:
 |---|---|---|---|
 | Contract | `spec/support/shared_examples/a_renderer.rb` | `spec/support/shared_examples/an_audio_server.rb` | `spec/support/shared_examples/a_tile_map.rb` |
 | Stand-in | `spec/support/fake_renderer.rb`, run against it by `fake_renderer_spec.rb` | `spec/support/fake_audio.rb`, run against it by `fake_audio_spec.rb` | `spec/support/stub_tile_map.rb`, run against it by `stub_tile_map_spec.rb` |
-| Real | `RGame::Core::Renderer`, run against it by `spec_core/rgame/core/renderer_spec.rb` | `RGame::Core::Audio`, run against it by `spec_core/rgame/core/audio_spec.rb` | `Engine::TileMap`, run against it by `spec/engine/tile_map_spec.rb` |
+| Real | `RGame::Core::Renderer`, run against it by `spec_core/rgame/core/renderer_spec.rb` | `RGame::Core::Audio`, run against it by `spec_core/rgame/core/audio_spec.rb` | `RGame::Engine::TileMap`, run against it by `spec/rgame/engine/tile_map_spec.rb` |
 | Host hook | `render { \|renderer, image, font\| ... }` | `with_audio { \|audio, sound_path\| ... }` | `tile_map { \|map\| ... }` |
 
 The tile map is the one that points *up* rather than down: `Core::TileMapRenderer`

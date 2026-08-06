@@ -9,7 +9,7 @@ module RGame
       # integrates it in `update`, so it composes with the normal phase order.
       #
       # Heading convention: angle 0 points along +x ("right"), so forward is
-      # (cos θ, sin θ) — consistent with Gosu's clockwise rotation under a y-down screen
+      # (cos θ, sin θ) — consistent with the renderer's clockwise rotation under a y-down screen
       # (e.g. +90° faces down). Firing is intentionally NOT here — see ActionTrigger +
       # the owning node, which knows its muzzle geometry.
       class ThrustController < Engine::Component

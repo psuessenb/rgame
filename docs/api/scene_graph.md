@@ -3,11 +3,11 @@
 The engine builds a game out of a tree of nodes — a classic scene graph. A node
 holds state, logic and drawing for one game object; nesting nodes builds up whole
 scenes. Everything is pure Ruby: nodes draw through the renderer interface and
-read input from a per-frame snapshot, never touching Gosu directly.
+read input from a per-frame snapshot, never naming a graphics library at all.
 
 ## Node2D
 
-`Engine::Node2D` (`engine/node2d`) is the basic building block. (The `2D` in the
+`RGame::Engine::Node2D` (`engine/node2d`) is the basic building block. (The `2D` in the
 name leaves room for a future 3D node; today everything is 2D.) A node carries:
 
 - a **transform** — relative `x`, `y`, `z` plus `width`/`height`;
@@ -15,7 +15,7 @@ name leaves room for a future 3D node; today everything is 2D.) A node carries:
 - **components** — reusable pieces of behaviour attached to it (`add_component`);
 - a **parent** — the node it hangs off (set automatically when it is added).
 
-Nodes extend the signal DSL (`Engine::Signal::DSL`), so any subclass can declare
+Nodes extend the signal DSL (`RGame::Engine::Signal::DSL`), so any subclass can declare
 and emit signals without opting in. See [Signals](signals.md).
 
 ### The tick: control → update → draw
@@ -58,7 +58,7 @@ maps that world onto the screen (a camera), and it must wrap a whole subtree's d
 without being baked into any node's position. So `draw` calls a `draw_children` step a
 subclass can override to wrap the subtree in a renderer transform.
 
-`Engine::CameraView` is that subclass: built with an `Engine::Camera`, it wraps its
+`RGame::Engine::CameraView` is that subclass: built with an `RGame::Engine::Camera`, it wraps its
 children's draw in `renderer.translated(-camera.x, -camera.y)`. Its children draw at
 their own world origin (they never know about the camera); the translate maps them to
 the screen. Because the offset is a draw-time transform rather than a node position, the
@@ -68,7 +68,7 @@ on the player); `CameraView` only applies it. See `examples/15_tiled_world`.
 
 ## Components
 
-`Engine::Component` (`engine/component`) is a piece of behaviour you attach to a
+`RGame::Engine::Component` (`rgame/engine/component`) is a piece of behaviour you attach to a
 node instead of baking it into a subclass. A component knows its owning `node`,
 and like nodes it extends the signal DSL.
 

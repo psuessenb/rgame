@@ -5,7 +5,7 @@ module RGame
     # A circular collision shape, the sibling of CollisionBox for entities that
     # rotate (rocks, ship): a circle is rotation-invariant, so a spinning rock needs
     # no per-frame box recompute. The collider owns only the radius; the entity owns
-    # its centre position. Pure logic; no Gosu.
+    # its centre position. Pure logic; no graphics.
     class CircleCollider
       attr_reader :radius
 

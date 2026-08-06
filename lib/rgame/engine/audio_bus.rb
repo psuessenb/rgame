@@ -3,7 +3,7 @@
 module RGame
   module Engine
     # A global, always-present audio bus: gameplay emits audio *facts* here (decoupled
-    # from any Gosu playback), and an AudioDirector turns them into sound. A module
+    # from any actual playback), and an AudioDirector turns them into sound. A module
     # rather than an instance so any node can reach it without wiring.
     module AudioBus
       @on_play_sound = Signal.define(:id).new

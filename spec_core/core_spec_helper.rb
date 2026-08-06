@@ -17,6 +17,12 @@
 require_relative 'support/headless_display'
 HeadlessDisplay.start
 
+# `rgame/core` and not `rgame` — which matters in both directions. It pulls in
+# the graphics half this suite exists to cover, and it pulls in *neither*
+# `lib/rgame.rb` nor the engine layer, so `RGame::Engine` is an undefined
+# constant here. That is the runtime mirror of what spec/ has always had
+# against naming Core: a Core spec reaching upward fails loudly, and
+# `Game/NoEngineInCoreLayer` covers the branches a run never reaches.
 require_relative '../lib/rgame/core'
 
 Dir[File.join(__dir__, 'support', '**', '*.rb')].each { |f| require f }

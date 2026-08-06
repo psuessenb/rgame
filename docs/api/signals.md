@@ -11,7 +11,8 @@ central dispatcher and no string/symbol event types to match on: a signal *is* t
 channel, named by the attribute that exposes it, and its arity is fixed when it is
 defined.
 
-`Engine::Signal` is pure Ruby (no Gosu) and lives in `lib/engine/signal.rb`.
+`RGame::Engine::Signal` is pure Ruby — no graphics — and lives in
+`lib/rgame/engine/signal.rb`.
 
 ## The Signal class: `Signal.define`
 
@@ -79,12 +80,12 @@ def on_clicked(&block) = @on_clicked.connect(&block)
 def activate = @on_clicked.emit
 ```
 
-`Engine::Signal::DSL` collapses that to one declaration. `extend` it, then declare
+`RGame::Engine::Signal::DSL` collapses that to one declaration. `extend` it, then declare
 slots with `signal`:
 
 ```ruby
 class Button < Control
-  extend Engine::Signal::DSL
+  extend RGame::Engine::Signal::DSL
 
   signal :on_clicked                          # a no-arg signal
   # signal :on_changed, Signal.define(:index, :value)  # a typed one
@@ -118,9 +119,9 @@ pattern: every `Button` has its own `on_clicked`, every `Selector` its own
 in an ivar).
 
 **A shared signal hub (module-level).** When one global channel serves the whole app,
-expose signals as module state instead. `Engine::AudioBus` is the example: it holds
+expose signals as module state instead. `RGame::Engine::AudioBus` is the example: it holds
 `Signal.define(:id).new` instances at module scope and exposes them through reader
-methods, so gameplay anywhere does `Engine::AudioBus.on_play_sound.emit(:boom)`
+methods, so gameplay anywhere does `RGame::Engine::AudioBus.on_play_sound.emit(:boom)`
 and the `AudioDirector` connects once. The DSL doesn't apply here (there is no
 per-instance ivar); the hub hand-rolls the readers.
 

@@ -4,7 +4,7 @@ module RGame
   module Engine
     # A character in the world. Composes the pieces it owns — a collision box, an
     # animator, a sprite id (the renderer maps it to a sheet), and a controller that
-    # decides movement — rather than baking them in. Pure logic; no Gosu.
+    # decides movement — rather than baking them in. Pure logic; no graphics.
     #
     # The controller responds to `intent(dt, input) -> [ix, iy]` with each axis in
     # [-1, 1]; PlayerController reads input, AI/scripted controllers ignore it.

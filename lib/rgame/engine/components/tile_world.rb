@@ -13,8 +13,15 @@ module RGame
       #
       # Drawing splits into two z bands so actors can sit between them: the below band
       # (ground, same-level detail) at GROUND_Z and the above band (canopies, roofs) at
-      # OVERLAY_Z. Actors draw at a z in between (Gosu sorts by z, so the draw-call order
-      # doesn't matter). The camera is centred by the scene before any drawing.
+      # OVERLAY_Z. Actors draw at a z in between (the renderer sorts by z, so the
+      # draw-call order doesn't matter). The camera is centred by the scene before any
+      # drawing.
+      #
+      # It also owns the map's **animation clock**. Nothing below reads a wall clock —
+      # see CLAUDE.md, "`draw` renders state; time enters through `update`" — so the
+      # elapsed seconds animated tiles run on are accumulated here and handed down at
+      # draw time. Stop calling `update` and the water freezes, which is what pausing
+      # should look like.
       class TileWorld < Engine::Component
         GROUND_Z  = 0
         OVERLAY_Z = 20
@@ -24,6 +31,7 @@ module RGame
           @map = map
           @tilemap_id = tilemap_id
           @camera = camera
+          @elapsed = 0.0
           @collision = Engine::CollisionSystem.new(
             tile_collision: Engine::TileCollision.new(
               tile_width: map.tile_width, tile_height: map.tile_height,
@@ -42,11 +50,17 @@ module RGame
 
         def solid?(col, row) = @map.solid_tile?(col, row)
 
+        # Advances the tile animations. Seconds, like every other duration here.
+        def update(dt)
+          @elapsed += dt
+        end
+
         def draw(renderer)
           renderer.tilemap(@tilemap_id, @camera.x, @camera.y,
-                           @camera.viewport_width, @camera.viewport_height)
+                           @camera.viewport_width, @camera.viewport_height, elapsed: @elapsed)
           renderer.tilemap_overlay(@tilemap_id, @camera.x, @camera.y,
-                                   @camera.viewport_width, @camera.viewport_height, z: OVERLAY_Z)
+                                   @camera.viewport_width, @camera.viewport_height,
+                                   z: OVERLAY_Z, elapsed: @elapsed)
         end
       end
     end

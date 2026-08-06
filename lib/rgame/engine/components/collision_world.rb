@@ -8,7 +8,7 @@ module RGame
       # traversal). CircleColliders register/unregister with it via their tree
       # lifecycle; each update it buckets them in a SpatialHash and fires on_hit on
       # every overlapping pair. It is layer-agnostic — it reports contacts and lets
-      # the colliders' owners decide meaning. See docs/engine/systems.md.
+      # the colliders' owners decide meaning. See docs/api/systems.md.
       class CollisionWorld < Engine::Component
         def initialize(cell_size:)
           super()

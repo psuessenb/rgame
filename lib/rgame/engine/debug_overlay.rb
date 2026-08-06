@@ -2,17 +2,32 @@
 
 module RGame
   module Engine
-    # A hard-wired development overlay (toggled by F1, see Platform::GameWindow) that
-    # reports runtime health in the bottom-right corner: frame rate (FPS), the process'
+    # A hard-wired development overlay, toggled by F1 (see RGame::Game), reporting
+    # runtime health in the bottom-right corner: frame rate (FPS), the process'
     # cumulative allocated-object count (OBJ), and the objects allocated since the last
-    # frame (Δ/f). Δ/f is the one to watch — a clean per-frame hot path holds it at ~0,
-    # a leak shows a steady nonzero number.
+    # frame (Δ/f).
+    #
+    # **Δ/f is the one to watch, and it is a standing guard rather than a
+    # diagnostic for one past bug.** A clean per-frame path holds it near zero; a
+    # steady nonzero number is a garbage collection being scheduled. The cost is
+    # invisible by every other measure — nothing looks wrong, nothing is slower,
+    # until a pause lands mid-frame — so without a number on screen it is not
+    # noticed at all.
+    #
+    # Every layer can break it and each has its own way of doing so. Core can
+    # allocate in a binding, the engine layer in a component's `draw`, and game
+    # code in a scene that builds a string or an array per frame. RuboCop's
+    # `Game/NoInterpolationInHotPath` and `Game/NoNeedlessAllocation` catch the
+    # shapes they can see in *this* repo; they cannot see a game built on top,
+    # and they cannot see an allocation that happens inside a method they think
+    # is cheap. This can.
     #
     # Pure: it reads only GC.stat and draws against the renderer interface, so it stays
     # headless-testable. The crux is that it must not allocate while drawing — the values
     # change every frame, so the usual "cache the string, rebuild on change" trick would
-    # allocate a String per frame. Instead numbers are drawn digit-by-digit from a fixed
-    # set of pre-built single-character strings, which Gosu::Font caches per glyph.
+    # allocate a String per frame, and the meter would be measuring itself. Instead
+    # numbers are drawn digit-by-digit from a fixed set of pre-built single-character
+    # strings, which the font caches per glyph.
     class DebugOverlay
       DIGITS = %w[0 1 2 3 4 5 6 7 8 9].freeze
 

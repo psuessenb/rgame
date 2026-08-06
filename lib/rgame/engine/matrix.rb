@@ -6,6 +6,11 @@ module RGame
     # [x, y]. The flat backing keeps the whole grid in one contiguous allocation —
     # cheaper than an array-of-arrays and a straightforward shape to later move into a
     # C-level buffer. Pure; no bounds checking on the hot path (callers stay in range).
+    #
+    # This stays Ruby, unlike the engine's old `Tensor`, which was deleted in
+    # favour of the C `RGame::Util::Tensor`. The reason is only that there is no
+    # C `Util::Matrix` to swap to — `Util` holds `Tensor`, `Controls` and
+    # `Color`. If one is ever written, this is the caller to point at it.
     class Matrix
       attr_reader :width, :height
 

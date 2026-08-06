@@ -1,15 +1,20 @@
 # frozen_string_literal: true
 
-# Entry point for `require "rgame"`.
+# Entry point for `require "rgame"`: everything that runs without a window.
 #
-# This deliberately loads only RGame::Util — the half that links no SDL/OpenGL.
-# RGame::Core (the window, the main loop) is an explicit opt-in:
+#   require 'rgame'         # RGame::Util + RGame::Engine — no graphics libraries
+#   require 'rgame/core'    # adds the window, the GPU and the sound device
+#   require 'rgame/game'    # all of it, wired together
 #
-#   require "rgame"           # Util only, no graphics libraries in the process
-#   require "rgame/core"      # adds RGame::Core::App, pulls in SDL + GL
+# Each line is a strict superset of the one above, and the split is the point.
+# **This one loads no SDL and no OpenGL** — `RGame::Util` is a graphics-free
+# extension and `RGame::Engine` is pure Ruby — so game logic and the specs that
+# cover it run with no display present. `spec/rgame/no_graphics_spec.rb` holds
+# that up rather than leaving it to good intentions.
 #
-# Keeping graphics off the default require is the whole point of splitting the
-# two extensions: pure-logic code, and the specs that cover it, must be usable
-# with no display and no SDL present.
+# Nothing is forced through this file. `rgame/util`, `rgame/engine` and
+# `rgame/core` are separately requirable, which is how the Core spec suite loads
+# exactly one layer and gets a `NameError` if it reaches for another.
 require_relative 'rgame/version'
 require_relative 'rgame/util'
+require_relative 'rgame/engine'

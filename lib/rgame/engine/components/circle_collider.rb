@@ -8,7 +8,7 @@ module RGame
       # the engine fires both hooks, so a spawned/despawned entity can't leak a
       # registration. Its world centre is the node's resolved absolute origin; the
       # `layer` is an opaque tag the game reads in its on_hit handler to decide what a
-      # contact means (bullet-vs-rock, etc.). See docs/engine/systems.md.
+      # contact means (bullet-vs-rock, etc.). See docs/api/systems.md.
       class CircleCollider < Engine::Component
         # Fired by CollisionWorld for each overlapping collider; the listener gets the
         # other collider and reads its #layer / #node to react.

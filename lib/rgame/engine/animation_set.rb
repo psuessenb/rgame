@@ -3,7 +3,7 @@
 module RGame
   module Engine
     # Pure animation math: given an atlas's animation table and an elapsed time,
-    # resolve which sprite-sheet cell (row, col) to show. No Gosu, no images —
+    # resolve which sprite-sheet cell (row, col) to show. No renderer, no images —
     # fully testable.
     #
     # animations: { name => { row:, col:, frames:, fps:, flip_x: }, ... }

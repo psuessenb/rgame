@@ -4,7 +4,7 @@ require 'rexml/document'
 
 module RGame
   module Engine
-    # Tile-type data parsed from a Tiled .tsx (pure; no Gosu). Knows tile geometry,
+    # Tile-type data parsed from a Tiled .tsx (pure; no graphics). Knows tile geometry,
     # sheet columns, per-tile animations, and which tiles are solid. Solidity is
     # *baked into the asset*: a tile is solid when it carries a Tiled collision shape
     # (a per-tile `<objectgroup>` with at least one object), authored in Tiled's

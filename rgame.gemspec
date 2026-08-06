@@ -95,16 +95,6 @@ Gem::Specification.new do |spec|
     | \Aext/[^/]+/Makefile\z         # written by extconf.rb, not by us
   }x
 
-  # The engine layer, held back for now.
-  #
-  # It depends on no graphics library at all — `lib/engine/` names none — but
-  # it still lives at the top level as `Engine::` rather than under
-  # `RGame::Engine`, so shipping it would put a bare `Engine` constant into
-  # every consumer's process. It comes *in* when it moves, which is what
-  # docs/plans/engine-replacement/ is for; delete this and the matching
-  # expectation in spec/packaging_spec.rb together at that point.
-  not_shipped = %r{\Alib/(engine/|engine\.rb\z)}
-
   # `base:` keeps this independent of the working directory — `gem build` runs
   # here, but `rake build` and spec/packaging_spec.rb do not — and returns paths
   # already relative to the gem root, which is the form spec.files wants.
@@ -113,6 +103,5 @@ Gem::Specification.new do |spec|
   spec.files = Dir.glob(packaged, base: root)
                   .select { |path| File.file?(File.join(root, path)) }
                   .grep_v(artifacts)
-                  .grep_v(not_shipped)
                   .sort
 end

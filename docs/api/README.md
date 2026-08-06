@@ -17,27 +17,48 @@ any C.
 | [Sheets, atlases and maps](assets.md) | `RGame::Core::SpriteSheet` and the rest of the asset layer |
 | [Values](values.md) | `RGame::Util::Color`, `RGame::Util::Tensor` |
 
+The scene graph — `RGame::Engine`, the layer a game is actually written in:
+
+| Page | Covers |
+|---|---|
+| [Scene graph](scene_graph.md) | `Node2D`, the tree, the lifecycle, transforms and the camera |
+| [Components](components.md) | Reusable behaviour attached to a node |
+| [Systems](systems.md) | Services a subtree shares — collision worlds, tile worlds |
+| [Signals](signals.md) | The typed observer pattern nodes talk through |
+| [Toolbox](toolbox.md) | What a game author reaches for directly: pooling, timers, camera, i18n, the audio bus |
+| [Internal building blocks](internals.md) | What components are built from: collision maths, the spatial index, animation playback |
+
 **The engine is a work in progress.** A window opens, the loop runs, input
-works, shapes, images and text can be drawn, and sound plays. A scene graph is
-still to come. Pages here describe what exists today and grow as more lands.
+works, shapes, images and text can be drawn, sound plays, and a scene graph runs
+on top of it — the two games under `examples/` are built on exactly what is
+documented here. What is missing is a UI toolkit and split-screen; pages here
+describe what exists today and grow as more lands.
 
 ## Loading it
 
-Two requires, and the difference between them matters:
+Three requires, each a strict superset of the last:
 
 ```ruby
-require 'rgame'       # RGame::Util — no graphics libraries loaded at all
-require 'rgame/core'  # adds RGame::Core, and pulls in SDL2 + OpenGL
+require 'rgame'       # RGame::Util + RGame::Engine — no graphics libraries at all
+require 'rgame/core'  # adds the window, the GPU and the sound device (SDL2 + OpenGL)
+require 'rgame/game'  # all of it, wired together — what a game writes
 ```
 
-`require 'rgame'` gives you the value types — colours, grids — in a process
-with **no SDL and no OpenGL loaded**, which is what lets game logic and its
-tests run with no display present. `require 'rgame/core'` is an explicit
-opt-in for the parts that own a window.
+A game wants the last one. `RGame::Game` is the entry point; see
+[Game](game.md).
+
+The first is **everything that runs without a window**: the value types and the
+whole scene graph, in a process with no SDL and no OpenGL loaded. That is what
+lets game logic and its specs run with no display present, and it is asserted
+rather than assumed — `spec/rgame/no_graphics_spec.rb` reads the process's own
+memory map.
+
+Nothing is forced through those files: `rgame/util`, `rgame/engine` and
+`rgame/core` are separately requirable, which is how the Core spec suite loads
+exactly one layer.
 
 For convenience, `rgame/core` also defines `RGame::Util::Controls` (the input
-id vocabulary), because the input classes need it. `Color` and `Tensor` still
-need `require 'rgame'`.
+id vocabulary), because the input classes need it.
 
 Both extensions must be compiled before they can be required:
 

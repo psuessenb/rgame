@@ -4,7 +4,7 @@ Some things a node needs don't live on the node: a tilemap, the world bounds, a
 shared collision world. The engine resolves this the way scene-graph engines do —
 shared resources are **systems that live on an anchor node and are reached by
 walking the tree**, not threaded through constructors. There is **no `GameContext`
-bag**: a system is just an `Engine::Component` on a boundary node, found with the
+bag**: a system is just an `RGame::Engine::Component` on a boundary node, found with the
 same `get_component` every node already has.
 
 > Status: the anchor + lookup mechanism (`root`, `scene`, `system`), the
@@ -67,7 +67,7 @@ the scene-scoped system it looks up is already there.
 # CircleCollider (engine/components/circle_collider.rb) registers itself when it
 # enters the tree and releases the registration when it leaves — the engine fires
 # both hooks, so a spawned/despawned entity can't leak a registration.
-class CircleCollider < Engine::Component
+class CircleCollider < RGame::Engine::Component
   def on_attach = node.system(CollisionWorld).register(self)
   def on_detach = node.system(CollisionWorld)&.unregister(self)
 end

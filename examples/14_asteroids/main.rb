@@ -5,7 +5,7 @@
 # A full small game on the Node2D/Component architecture, exercising it end to end:
 #   - three scenes (start → play → game-over) navigated through a SceneStack;
 #   - a scene-scoped CollisionWorld system + a root-scoped HighScores system
-#     (the two service scopes — see docs/engine/systems.md);
+#     (the two service scopes — see docs/api/systems.md);
 #   - reusable components: Velocity, ScreenWrap, DespawnOffscreen, CircleCollider,
 #     Sprite, ThrustController, ActionTrigger;
 #   - pooled bullets and rocks (RGame::Engine::Pool) with deferred removal (queue_free);

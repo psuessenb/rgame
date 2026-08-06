@@ -36,7 +36,7 @@ calls `enter_tree`, and runs the loop until the window closes. `Esc` quits and
 
 ## Why this class exists at all
 
-[`RGame::Engine`](../../lib/engine) holds game concepts and may not name
+`RGame::Engine` holds game concepts and may not name
 `RGame::Core`; `RGame::Core` owns windows, textures and sound devices and may
 not know Engine exists. Two RuboCop cops enforce that. Something still has to
 introduce them, and **this is that something** — keeping the introduction in one

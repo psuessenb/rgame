@@ -15,14 +15,15 @@ depends on:
 | Links | SDL2 + OpenGL + pthread | nothing but Ruby |
 | Holds today | `App` — window, GL context, fixed-timestep main loop; `Input`, `Gamepad`, `Image`, `Renderer`, `Recording`, `Font`, `Audio`, `Sample`, `Song` | `Tensor`, `Controls`, `Color` |
 
-That split is load-bearing, not cosmetic: `require "rgame"` gives you
-`RGame::Util` with **no graphics libraries loaded into the process at all**, so
-pure-logic code and its specs run with no display and no SDL present.
+That split is load-bearing, not cosmetic: `require "rgame"` gives you the value
+types *and* the scene graph with **no graphics libraries loaded into the process
+at all**, so game logic and its specs run with no display and no SDL present.
 `RGame::Core` is an explicit opt-in:
 
 ```ruby
-require "rgame"       # RGame::Util only
+require "rgame"       # RGame::Util + RGame::Engine, no graphics
 require "rgame/core"  # adds RGame::Core, pulls in SDL2 + OpenGL
+require "rgame/game"  # all of it, wired — what a game writes
 ```
 
 The engine opens a window, runs a fixed-timestep loop, reads keyboard and

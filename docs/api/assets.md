@@ -97,6 +97,12 @@ The descriptor's image is resolved *next to the descriptor*, which is what lands
 it on the same cache key a standalone load would use. Release the sheet's group
 and its PNG goes with it.
 
+**One known gap.** A composite tags its parts with the group that first built
+it. If a *second* group later asks for the same already-cached composite, only
+the composite's own key is re-tagged, not its parts — so releasing the first
+group can drop a PNG the second still expects. Fine for the usual "each level
+owns its assets" pattern, and it would take per-part tracking to close.
+
 ### Failure
 
 A loader's own error comes through unchanged — `Image::LoadError`,

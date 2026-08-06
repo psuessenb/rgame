@@ -8,17 +8,17 @@ they sit *behind* a component (a `CharacterBody` resolves through `CollisionSyst
 algorithms and are the seams the component tests drive. None `require "gosu"`.
 
 For the helpers a game *does* reach for directly (pools, localization, the camera,
-collision boxes, …), see [Utilities](utils.md).
+collision boxes, …), see [Utilities](toolbox.md).
 
-## `Engine::SpatialHash` — uniform-grid broadphase
+## `SpatialHash` — uniform-grid broadphase
 
-`Engine::SpatialHash` (`engine/spatial_hash`) is a broadphase index for collision:
+`RGame::Engine::SpatialHash` (`rgame/engine/spatial_hash`) is a broadphase index for collision:
 bucket colliders into fixed-size grid cells, then test only candidates that share a
 cell instead of every pair. It is the index inside
 [`CollisionWorld`](components.md#collisionworld).
 
 ```ruby
-hash = Engine::SpatialHash.new(cell_size: 64)
+hash = RGame::Engine::SpatialHash.new(cell_size: 64)
 hash.clear                                  # reuse bucket arrays, keep capacity
 rocks.each { |r| hash.insert(r, *r.aabb) }  # insert the static set
 hash.query(*bullet.aabb) { |rock| ...narrowphase... }
@@ -39,50 +39,50 @@ range and nearest lookups. It is still broadphase — it carries the same may-yi
 contract, and the caller refines candidates by true distance (see
 [`CollisionWorld`](components.md#collisionworld)'s `query_circle`/`nearest`).
 
-## `Engine::TileCollision` — axis-separated AABB-vs-tile resolution
+## `TileCollision` — axis-separated AABB-vs-tile resolution
 
-`Engine::TileCollision` (`engine/tile_collision`) resolves an axis-aligned box against a
+`RGame::Engine::TileCollision` (`rgame/engine/tile_collision`) resolves an axis-aligned box against a
 grid of solid tiles. `solid` is a callable `solid.call(col, row) -> bool`, so the tile
 source is decoupled (a `TileMap`, a fake in tests). It moves the box **one axis at a
 time** — `resolve_x` then `resolve_y` (fed the resolved x) — which gives wall-sliding: a
 diagonal push into a wall keeps the component that's still free.
 
 ```ruby
-tiles = Engine::TileCollision.new(tile_width: 16, tile_height: 16,
+tiles = RGame::Engine::TileCollision.new(tile_width: 16, tile_height: 16,
                                   solid: ->(col, row) { map.solid_tile?(col, row) })
 nx = tiles.resolve_x(x, y, w, h, dx) # snaps flush against a solid in the dx direction
 ny = tiles.resolve_y(nx, y, w, h, dy)
 ```
 
 It assumes per-step movement smaller than a tile (no tunneling), which holds for the
-engine's speeds. It is the maths inside [`CollisionSystem`](#enginecollisionsystem--move-an-actor-against-the-tiles-and-the-world).
+engine's speeds. It is the maths inside [`CollisionSystem`](#collisionsystem--move-an-actor-against-the-tiles-and-the-world).
 
-## `Engine::CollisionSystem` — move an actor against the tiles and the world
+## `CollisionSystem` — move an actor against the tiles and the world
 
-`Engine::CollisionSystem` (`engine/collision_system`) wraps `TileCollision` with a
+`RGame::Engine::CollisionSystem` (`rgame/engine/collision_system`) wraps `TileCollision` with a
 world-bounds clamp and an actor-facing `move`. It is what
 [`TileWorld`](components.md#tileworld) delegates to (and what a `CharacterBody` moves
 through).
 
 ```ruby
-collision = Engine::CollisionSystem.new(
+collision = RGame::Engine::CollisionSystem.new(
   tile_collision: tiles, world_width: map.pixel_width, world_height: map.pixel_height
 )
 collision.move(actor, dx, dy) # actor responds to x / y / x= / y= / collision_box
 ```
 
-`move` reads the actor's [`CollisionBox`](utils.md#enginecollisionbox--an-actors-feet-box)
+`move` reads the actor's [`CollisionBox`](toolbox.md#collisionbox--an-actors-feet-box)
 AABB, resolves it through `TileCollision` on both axes, clamps the box inside the world
 as a backstop, and writes the resolved position back to the actor (accounting for the
 box's offset from the sprite origin).
 
-## `Engine::AnimationSet` — pure frame maths
+## `AnimationSet` — pure frame maths
 
-`Engine::AnimationSet` (`engine/animation_set`) turns an atlas's animation table plus an
-elapsed time into the sprite-sheet cell to show — no Gosu, no images, fully testable.
+`RGame::Engine::AnimationSet` (`rgame/engine/animation_set`) turns an atlas's animation table plus an
+elapsed time into the sprite-sheet cell to show — no renderer, no images, fully testable.
 
 ```ruby
-set = Engine::AnimationSet.new(
+set = RGame::Engine::AnimationSet.new(
   stand:      { row: 0, col: 1, frames: 1, fps: 1 },
   walk_right: { row: 1, frames: 3, fps: 6 }
 )
@@ -93,14 +93,14 @@ Each animation is `{ row:, col: (start column, default 0), frames:, fps:, flip_x
 `frame(name, elapsed)` advances `frames` columns from `col` at `fps`, wrapping — so a
 held animation cycles.
 
-## `Engine::Animator` — animation playback state
+## `Animator` — animation playback state
 
-`Engine::Animator` (`engine/animator`) owns the playback state on top of an
+`RGame::Engine::Animator` (`rgame/engine/animator`) owns the playback state on top of an
 `AnimationSet`: the current animation name and elapsed time. It is what
 [`AnimatedSprite`](components.md#animatedsprite) drives.
 
 ```ruby
-animator = Engine::Animator.new(set, initial: :stand)
+animator = RGame::Engine::Animator.new(set, initial: :stand)
 animator.play(:walk_right) # switch (a no-op if already playing, so a walk keeps cycling)
 animator.update(dt)        # advance elapsed time
 animator.frame             # => [row, col, flip_x] for the current animation now
