@@ -13,10 +13,8 @@
 
 # lib/ on the load path, so `require 'rgame/game'` resolves the same way it
 # would from an installed gem — which is also how the compiled extensions are
-# found. `boot` enables YJIT; it is the entry point's call to make, not the
-# library's.
+# found.
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
-require 'boot'
 require 'rgame/game'
 require_relative 'high_scores'
 require_relative 'start_scene'

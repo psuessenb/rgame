@@ -31,7 +31,7 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
   # The engine layer, deliberately held back until it is namespaced under
   # RGame::Engine. Stated here independently of the gemspec's own pattern, so
   # the two have to agree rather than share a mistake.
-  let(:held_back) { %r{\Alib/(engine/|engine\.rb\z|boot\.rb\z)} }
+  let(:held_back) { %r{\Alib/(engine/|engine\.rb\z)} }
 
   # Files under the given globs, relative to the gem root, artifacts removed.
   def sources(*globs)

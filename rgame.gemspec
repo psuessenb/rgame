@@ -103,7 +103,7 @@ Gem::Specification.new do |spec|
   # every consumer's process. It comes *in* when it moves, which is what
   # docs/plans/engine-replacement/ is for; delete this and the matching
   # expectation in spec/packaging_spec.rb together at that point.
-  not_shipped = %r{\Alib/(engine/|engine\.rb\z|boot\.rb\z)}
+  not_shipped = %r{\Alib/(engine/|engine\.rb\z)}
 
   # `base:` keeps this independent of the working directory — `gem build` runs
   # here, but `rake build` and spec/packaging_spec.rb do not — and returns paths

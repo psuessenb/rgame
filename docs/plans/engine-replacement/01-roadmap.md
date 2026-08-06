@@ -26,6 +26,19 @@ about it.
 
 **Verify**: both examples run.
 
+**Landed.** `lib/rgame/boot.rb`, required by `RGame::Game`; both examples drop
+their `require 'boot'` and keep the `$LOAD_PATH.unshift`.
+
+It came out of the packaging exclusion here rather than in step 5 — the pattern
+anchors on `lib/boot.rb`, so the move alone was enough, and leaving the dead
+alternative in the regex would have been a rule matching nothing. `spec.files`
+now lists `lib/rgame/boot.rb`.
+
+Worth knowing: **this Ruby has no YJIT**, so the guard has always made this file
+a no-op locally. Verified that `RGame::Game` loads it and that the guard holds
+rather than raising, which is the part that would break a build that does have
+it — but nobody here has ever measured the speedup the comment promises.
+
 ---
 
 ## 2. The move itself
