@@ -6,7 +6,7 @@ require_relative 'high_scores'
 # then shows the final score and the top list, Enter to play again. The display
 # strings are built in on_add (not on_draw) so per-frame drawing allocates nothing
 # (the Game/NoInterpolationInDraw rule).
-class GameOverScene < Engine::Node2D
+class GameOverScene < RGame::Engine::Node2D
   TITLE = 'G A M E   O V E R'
   HINT  = 'Press Enter to play again'
   TITLE_COLOR = [255, 200, 200].freeze
@@ -30,7 +30,7 @@ class GameOverScene < Engine::Node2D
   def on_control(actions)
     return unless actions.pressed?(:confirm)
 
-    Engine::AudioBus.play_sound(:blip)
+    RGame::Engine::AudioBus.play_sound(:blip)
     root.go(:play)
   end
 

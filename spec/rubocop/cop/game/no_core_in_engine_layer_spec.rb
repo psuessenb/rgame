@@ -21,6 +21,23 @@ RSpec.describe RuboCop::Cop::Game::NoCoreInEngineLayer, :config do
     RUBY
   end
 
+  it 'registers an offense for the short spelling that resolves through RGame' do
+    # `RGame::Engine::Node` naming `Core::Image` gets `RGame::Core::Image`, so
+    # this is the same offence — and the one that is easy to write by accident,
+    # because it reads like a local reference.
+    expect_offense(<<~RUBY)
+      Core::Image.new(app, path)
+      ^^^^^^^^^^^ The engine layer must not name `RGame::Core`; receive the object and call it by method name instead.
+    RUBY
+  end
+
+  it 'accepts a constant that merely starts with the same letters' do
+    expect_no_offenses(<<~RUBY)
+      CoreData.load
+      Physics::Core.step(dt)
+    RUBY
+  end
+
   it 'registers an offense for the bare module' do
     expect_offense(<<~RUBY)
       RGame::Core

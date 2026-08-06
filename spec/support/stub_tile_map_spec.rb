@@ -2,7 +2,7 @@
 
 RSpec.describe StubTileMap do
   # The contract's hook: the stand-in is built by hand from the shape the
-  # contract prescribes. Engine::TileMap's version of this parses a .tmx to
+  # contract prescribes. RGame::Engine::TileMap's version of this parses a .tmx to
   # reach the same place — see spec/engine/tile_map_spec.rb.
   def tile_map
     yield described_class.new(

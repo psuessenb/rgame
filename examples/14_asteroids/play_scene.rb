@@ -10,7 +10,7 @@ require_relative 'bullet'
 # the collider); despawning is `queue_free`, and #on_update reclaims freed entities
 # back to their pool (detaching them from the tree). The reclaim runs before the
 # child traversal, so it never mutates the child list mid-iteration.
-class PlayScene < Engine::Node2D
+class PlayScene < RGame::Engine::Node2D
   CELL_SIZE     = 96
   INITIAL_ROCKS = 4
   MAX_ROCKS     = 11
@@ -26,21 +26,21 @@ class PlayScene < Engine::Node2D
     @score = 0
     @spawn_timer = SPAWN_INTERVAL
     @rng = Random.new
-    @rock_pool   = Engine::Pool.new { Rock.new(world_width: @width, world_height: @height) }
-    @bullet_pool = Engine::Pool.new { Bullet.new(world_width: @width, world_height: @height) }
+    @rock_pool   = RGame::Engine::Pool.new { Rock.new(world_width: @width, world_height: @height) }
+    @bullet_pool = RGame::Engine::Pool.new { Bullet.new(world_width: @width, world_height: @height) }
     refresh_score
   end
 
   def on_add
-    add_component(Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
+    add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
     @ship = add_node(Ship.new(world_width: @width, world_height: @height))
     @ship.on_fire { |x, y, angle| fire_bullet(x, y, angle) }
     @ship.on_destroyed { lose }
     INITIAL_ROCKS.times { spawn_rock }
-    Engine::AudioBus.play_music(:heartbeat)
+    RGame::Engine::AudioBus.play_music(:heartbeat)
   end
 
-  def on_remove = Engine::AudioBus.stop_music
+  def on_remove = RGame::Engine::AudioBus.stop_music
 
   def on_update(dt)
     @spawn_timer -= dt
@@ -60,7 +60,7 @@ class PlayScene < Engine::Node2D
   def destroy_rock(rock)
     @score += rock.points
     refresh_score
-    Engine::AudioBus.play_sound(:boom)
+    RGame::Engine::AudioBus.play_sound(:boom)
     rock.split(@rock_pool, @rng)
     rock.queue_free
   end
@@ -73,7 +73,7 @@ class PlayScene < Engine::Node2D
                  vx: Math.cos(angle) * BULLET_SPEED,
                  vy: Math.sin(angle) * BULLET_SPEED)
     add_node(bullet)
-    Engine::AudioBus.play_sound(:shoot)
+    RGame::Engine::AudioBus.play_sound(:shoot)
   end
 
   def spawn_rock
@@ -110,7 +110,7 @@ class PlayScene < Engine::Node2D
   end
 
   def lose
-    Engine::AudioBus.play_sound(:hurt)
+    RGame::Engine::AudioBus.play_sound(:hurt)
     root.go(:game_over, score: @score)
   end
 

@@ -3,7 +3,7 @@
 # The title screen: text over the space backdrop, Enter to play. Text-only (no UI
 # widgets yet). The confirm transition is requested via root.go, which the Root
 # applies safely at the end of the tick.
-class StartScene < Engine::Node2D
+class StartScene < RGame::Engine::Node2D
   TITLE = 'A S T E R O I D S'
   HINT  = 'Press Enter to start'
   TITLE_COLOR = [230, 240, 255].freeze
@@ -18,7 +18,7 @@ class StartScene < Engine::Node2D
   def on_control(actions)
     return unless actions.pressed?(:confirm)
 
-    Engine::AudioBus.play_sound(:blip)
+    RGame::Engine::AudioBus.play_sound(:blip)
     root.go(:play)
   end
 

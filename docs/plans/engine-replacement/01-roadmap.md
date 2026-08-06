@@ -102,6 +102,33 @@ harness that swaps in a scripted input backend, bounds the tick count and
 reports what the game asked for. Booting alone reported "90 ticks, 90 frames"
 for a game whose menu did not respond; only driving it found that.
 
+**Landed.** 99 pure renames, then the wrap, then 68 files swept. `RGame::Engine`
+has its 32 constants and top-level `Engine` is `nil`.
+
+The mechanical parts were as measured. Two things worth recording:
+
+- **Three lines overflowed the 120-column limit**, because `RGame::` is seven
+  characters and the sweep touches long `add_component(...)` calls. Checked for
+  this *before* running it — `awk 'length($0)>118'` over the sources said zero,
+  which was right for the sources and did not cover the callers the sweep
+  would lengthen. Wrapped by hand rather than autocorrected.
+- **The verification harness was itself a caller.** It lives outside the repo,
+  so the sweep did not see it, and both examples failed on `Engine::AudioBus`
+  until it was updated. A reminder that "every caller" means every caller,
+  including the ones a `git grep` cannot reach.
+
+The cop change is verified from both directions: a probe file naming
+`Core::Image` inside `RGame::Engine` is now an offence, and the same expression
+*does* resolve to `RGame::Core::Image` at runtime — so in `lib/` the cop is the
+only thing standing between the rule and a silent violation. Two examples went
+into its spec: the short spelling, and a near-miss (`CoreData`, `Physics::Core`)
+that must not be flagged.
+
+Two incidental fixes rode along, both in 2c's territory: `spec_helper.rb` points
+at the new path (step 3 collapses it to one require), and
+`tile_map_spec.rb`'s own `require_relative` is gone — `spec_helper` loads the
+layer, so a hand-maintained `../../../` was fragility with no benefit.
+
 ---
 
 ## 3. Entry points

@@ -2,12 +2,12 @@
 
 require_relative 'boot'
 require_relative 'core'
-require_relative '../engine'
+require_relative 'engine'
 
 module RGame
   # The entry point of a game, and the one class that knows both halves.
   #
-  #   class HelloScene < Engine::Node2D
+  #   class HelloScene < RGame::Engine::Node2D
   #     def on_draw(renderer) = renderer.text('Hello world!', 250, 200)
   #   end
   #
@@ -52,8 +52,8 @@ module RGame
       @root = root
       @renderer = RGame::Core::Renderer.new(self)
       @input = RGame::Core::Input.new(self)
-      @action_mapper = Engine::ActionMapper.new(action_map)
-      @overlay = Engine::DebugOverlay.new # always wired up; F1 reveals it
+      @action_mapper = RGame::Engine::ActionMapper.new(action_map)
+      @overlay = RGame::Engine::DebugOverlay.new # always wired up; F1 reveals it
       @dirty = true # draw the first frame
 
       install_asset_loaders
@@ -112,14 +112,14 @@ module RGame
     # Teaches the asset manager the types Core cannot build for itself.
     #
     # `:tilemap` is the only one so far, and it is the reason this method
-    # exists: `Engine::TileMap` reads the `.tmx`, `Image#tiles` slices the
+    # exists: `RGame::Engine::TileMap` reads the `.tmx`, `Image#tiles` slices the
     # tileset through the cache — so two maps sharing a tileset share one
     # upload — and `Core::TileMapRenderer` draws the result. Three objects, and
     # neither of the outer two may name the other.
     def install_asset_loaders
       game = self
       assets.add_loader(:tilemap) do |path|
-        map, image_path = Engine::TileMap.load(path)
+        map, image_path = RGame::Engine::TileMap.load(path)
         tiles = game.assets.image(image_path)
                     .tiles(map.tileset.tile_width, map.tileset.tile_height)
         RGame::Core::TileMapRenderer.new(map, tiles)

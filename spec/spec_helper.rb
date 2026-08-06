@@ -6,7 +6,7 @@
 # either fails loudly rather than quietly working. See CLAUDE.md, "Why the Ruby
 # specs are two suites, in two directories".
 require_relative '../lib/rgame'
-require_relative '../lib/engine'
+require_relative '../lib/rgame/engine'
 
 # Shared spec support (custom matchers, allocation-free fakes); never the specs themselves.
 Dir[File.join(__dir__, 'support', '**', '*.rb')].grep_v(/_spec\.rb\z/).each { |f| require f }

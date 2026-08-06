@@ -27,6 +27,9 @@ module RuboCop
       #     RGame::Core::Renderer.new
       #   end
       #
+      #   # bad — the same thing, resolved through the enclosing RGame
+      #   Core::Image.new(app, path)
+      #
       #   # bad — a require pulls SDL into the process
       #   require 'rgame/core'
       #
@@ -45,7 +48,12 @@ module RuboCop
         MSG_REQUIRE = 'The engine layer must not require `%{path}` — that loads ' \
                       'SDL/OpenGL and breaks headless specs.'
 
-        PREFIXES = [%w[RGame Core]].freeze
+        # Both spellings. Inside `module RGame; module Engine`, a bare
+        # `Core::Image` resolves to `RGame::Core::Image` through the enclosing
+        # namespace — so the short form is the same offence, and it is the one
+        # somebody writes by accident. It could not resolve at all while the
+        # layer sat at the top level, which is exactly why it needs saying now.
+        PREFIXES = [%w[RGame Core], %w[Core]].freeze
         RESTRICTED_REQUIRE = %r{\Argame/core(/|\z)|\Argame/core_ext\z}
 
         # `require "rgame/core"` and friends.

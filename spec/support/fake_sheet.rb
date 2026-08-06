@@ -12,7 +12,7 @@
 # The engine layer never names `RGame::Core::SpriteSheet` — a component is handed
 # one by the asset manager and asks it three questions: what the animation table
 # says, and how big a frame is (which is how a node sizes itself). That is what
-# this answers, so `Engine::Components::AnimatedSprite` cannot tell the
+# this answers, so `RGame::Engine::Components::AnimatedSprite` cannot tell the
 # difference.
 #
 # It is also a faithful sheet from a *renderer's* side: register one with a

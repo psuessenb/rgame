@@ -7,7 +7,7 @@
 #
 # Actors draw at ACTOR_Z, between the tile world's ground band (0) and overlay band
 # (TileWorld::OVERLAY_Z), so palm canopies render in front and trunks behind.
-class BeachScene < Engine::Node2D
+class BeachScene < RGame::Engine::Node2D
   MAP_KEY      = 'map/beach_large.tmx'
   PLAYER_SHEET = 'player.json'
   NPC_SHEET    = 'Male 01-1.json'
@@ -24,13 +24,13 @@ class BeachScene < Engine::Node2D
   def on_add
     game = node_context
     @map = game.assets.tilemap(MAP_KEY).map
-    @camera = Engine::Camera.new(
+    @camera = RGame::Engine::Camera.new(
       viewport_width: game.width, viewport_height: game.height,
       world_width: @map.pixel_width, world_height: @map.pixel_height
     )
-    add_component(Engine::Components::TileWorld.new(map: @map, tilemap_id: MAP_KEY, camera: @camera))
+    add_component(RGame::Engine::Components::TileWorld.new(map: @map, tilemap_id: MAP_KEY, camera: @camera))
 
-    view = add_node(Engine::CameraView.new(camera: @camera))
+    view = add_node(RGame::Engine::CameraView.new(camera: @camera))
     @player = build_player
     view.add_node(@player)
     npc_spawns.each { |x, y| view.add_node(build_npc(x, y)) }
@@ -40,7 +40,7 @@ class BeachScene < Engine::Node2D
   # so the view trails by one step (~2 px) — uniform and imperceptible, and the tile
   # map and the actors read this one camera, so they never drift apart on screen.
   def on_update(_dt)
-    box = @player.get_component(Engine::Components::CharacterBody).collision_box
+    box = @player.get_component(RGame::Engine::Components::CharacterBody).collision_box
     # Compute the feet-box centre inline; box.aabb would allocate an Array every frame.
     @camera.center_on(@player.x + box.offset_x + (box.width / 2.0),
                       @player.y + box.offset_y + (box.height / 2.0))
@@ -51,18 +51,19 @@ class BeachScene < Engine::Node2D
   def node_context = root.context
 
   def build_player
-    node = Engine::Node2D.new(x: @map.pixel_width / 2.0, y: @map.pixel_height / 2.0)
-    node.add_component(Engine::Components::AnimatedSprite.new(sheet: PLAYER_SHEET, z: ACTOR_Z))
-    node.add_component(Engine::Components::CharacterBody.new(feet_width: 10, feet_height: 8, speed: PLAYER_SPEED))
-    node.add_component(Engine::Components::PlayerController.new)
+    node = RGame::Engine::Node2D.new(x: @map.pixel_width / 2.0, y: @map.pixel_height / 2.0)
+    node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: PLAYER_SHEET, z: ACTOR_Z))
+    node.add_component(RGame::Engine::Components::CharacterBody.new(feet_width: 10, feet_height: 8,
+                                                                    speed: PLAYER_SPEED))
+    node.add_component(RGame::Engine::Components::PlayerController.new)
     node
   end
 
   def build_npc(x, y)
-    node = Engine::Node2D.new(x: x, y: y)
-    node.add_component(Engine::Components::AnimatedSprite.new(sheet: NPC_SHEET, z: ACTOR_Z))
-    node.add_component(Engine::Components::CharacterBody.new(feet_width: 14, feet_height: 10, speed: NPC_SPEED))
-    node.add_component(Engine::Components::WanderController.new(rng: @rng))
+    node = RGame::Engine::Node2D.new(x: x, y: y)
+    node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: NPC_SHEET, z: ACTOR_Z))
+    node.add_component(RGame::Engine::Components::CharacterBody.new(feet_width: 14, feet_height: 10, speed: NPC_SPEED))
+    node.add_component(RGame::Engine::Components::WanderController.new(rng: @rng))
     node
   end
 

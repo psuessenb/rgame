@@ -9,7 +9,7 @@
 #
 # The engine layer reaches the real `RGame::Core::AssetManager` through
 # `node.root.context.assets` and calls it by method name — `assets.sheet(path)`
-# is the only one so far, from `Engine::Components::AnimatedSprite`. So a spec
+# is the only one so far, from `RGame::Engine::Components::AnimatedSprite`. So a spec
 # needs an object that answers those accessors with something usable, with no
 # window, no GL context and no files on disk.
 #

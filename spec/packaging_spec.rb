@@ -127,7 +127,7 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
 
     it 'excludes the engine layer, which is not namespaced yet' do
       # `lib/engine/` names no graphics library — it would run fine in the gem —
-      # but it is still top-level `Engine::` rather than `RGame::Engine`, and a
+      # but it is still top-level `RGame::Engine::` rather than `RGame::Engine`, and a
       # gem has no business putting a bare `Engine` constant into someone's
       # process. It ships when it moves; this expectation and the exclusion in
       # rgame.gemspec go together at that point.

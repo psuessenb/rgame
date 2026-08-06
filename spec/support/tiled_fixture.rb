@@ -8,7 +8,7 @@ require 'zlib'
 # Writes Tiled `.tmx` / `.tsx` files for the tile-map specs to load.
 #
 #   tmx = TiledFixture.write_map(layers: [[1, 2], [0, 3]])
-#   map, image_path = Engine::TileMap.load(tmx)
+#   map, image_path = RGame::Engine::TileMap.load(tmx)
 #
 # Generated rather than committed, for the same reason PngFixture generates its
 # PNGs: what matters about a fixture is its *content*, and "layer 0 is these

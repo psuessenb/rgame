@@ -8,7 +8,7 @@
 #     (the two service scopes — see docs/engine/systems.md);
 #   - reusable components: Velocity, ScreenWrap, DespawnOffscreen, CircleCollider,
 #     Sprite, ThrustController, ActionTrigger;
-#   - pooled bullets and rocks (Engine::Pool) with deferred removal (queue_free);
+#   - pooled bullets and rocks (RGame::Engine::Pool) with deferred removal (queue_free);
 #   - audio via the global AudioBus + AudioDirector.
 
 # lib/ on the load path, so `require 'rgame/game'` resolves the same way it
@@ -29,10 +29,10 @@ MEDIA  = File.join(__dir__, '../../media')
 # a global/root-scoped system). Scene switches are deferred to #on_update so a scene
 # never tears itself down mid-traversal — #go only records the request, and Root's
 # on_update (which runs after the active scene's whole update has unwound) applies it.
-class Root < Engine::Node2D
+class Root < RGame::Engine::Node2D
   def initialize
     super
-    @stack = add_component(Engine::Scene::SceneStack.new)
+    @stack = add_component(RGame::Engine::Scene::SceneStack.new)
     add_component(HighScores.new)
     @pending = nil
   end
@@ -89,6 +89,6 @@ game.audio.register_sound(:boom,  game.assets.sound('example 09/boom.ogg'))
 game.audio.register_sound(:hurt,  game.assets.sound('example 09/hurt.ogg'))
 game.audio.register_sound(:blip,  game.assets.sound('example 09/blip.ogg'))
 game.audio.register_music(:heartbeat, game.assets.song('example 09/heartbeat.ogg'))
-Engine::AudioDirector.new(game.audio).subscribe
+RGame::Engine::AudioDirector.new(game.audio).subscribe
 
 game.start

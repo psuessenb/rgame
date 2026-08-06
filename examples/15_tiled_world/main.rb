@@ -23,10 +23,10 @@ HEIGHT = 480
 MEDIA  = File.join(__dir__, '../../media')
 
 # Minimal root: a SceneStack with the single beach scene pushed once it's live.
-class Root < Engine::Node2D
+class Root < RGame::Engine::Node2D
   def initialize
     super
-    @stack = add_component(Engine::Scene::SceneStack.new)
+    @stack = add_component(RGame::Engine::Scene::SceneStack.new)
   end
 
   def on_add = @stack.push(BeachScene.new)

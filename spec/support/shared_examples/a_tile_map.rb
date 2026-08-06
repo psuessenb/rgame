@@ -5,7 +5,7 @@
 # `RGame::Core::TileMapRenderer` draws a map it is handed and never names its
 # class — it cannot, because a tile map belongs to the layer *above* Core (see
 # CLAUDE.md, "The rule points both ways"). That makes this method list a real
-# interface with more than one implementation: the parsed `Engine::TileMap` a
+# interface with more than one implementation: the parsed `RGame::Engine::TileMap` a
 # game loads from a `.tmx`, and the stub a spec builds by hand.
 #
 # If the stub drifts, `rake spec:core` stays green while the game draws the
@@ -32,7 +32,7 @@
 #
 # ## What this group does not check
 #
-# Parsing. How a `.tmx` becomes this is `Engine::TileMap`'s own business and is
+# Parsing. How a `.tmx` becomes this is `RGame::Engine::TileMap`'s own business and is
 # covered in its own spec; what is stated here is only what the renderer below
 # reads.
 RSpec.shared_examples 'a tile map' do
