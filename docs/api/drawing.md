@@ -276,8 +276,7 @@ recording can be stamped in several places:
 ```
 
 **`color:` tints the replay** — each recorded colour is multiplied by it, so a
-whole baked layer can be faded out at once. (Gosu's recorded images could only
-draw white; there was no reason to inherit that.)
+whole baked layer can be faded out at once.
 
 **Clipping cannot be baked.** Clipping happens when pixels are rasterised, so a
 clip rectangle captured in one place would be wrong everywhere else the

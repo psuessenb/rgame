@@ -31,17 +31,17 @@
  * ---------------------------------------------------------------------------
  *
  * A positive angle rotates **clockwise on screen**: a point to the right of the
- * pivot moves to below it. That is what the Gosu layer being replaced does,
- * confirmed by rendering `Gosu.rotate(90, ...)` off-screen and reading back
- * which pixel the ink landed on.
+ * pivot moves to below it. Established by rendering a rotated image off-screen
+ * and reading back which pixel the ink landed on, not by reasoning about the
+ * matrix — `spec_core/rgame/core/renderer_spec.rb` still does exactly that.
  *
  * It falls out of the standard rotation matrix without a sign flip, because
  * screen y points *down*: the same matrix that turns anticlockwise on graph
  * paper turns clockwise here. Worth knowing rather than rediscovering — get it
  * backwards and every rotated sprite in the game mirrors.
  *
- * Angles are degrees, matching Gosu and matching what `Renderer#rotated`
- * callers already pass.
+ * Angles are degrees, which is what `Renderer#rotated` callers pass and what
+ * a level editor writes.
  */
 
 /* Deep enough for any sane scene graph; a bounded stack cannot run away, and

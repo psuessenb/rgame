@@ -27,18 +27,18 @@ require "rgame/core"  # adds RGame::Core, pulls in SDL2 + OpenGL
 
 The engine opens a window, runs a fixed-timestep loop, reads keyboard and
 controllers, loads PNGs onto the GPU, draws shapes, sprites and text through
-a z-sorted batching renderer, and plays Ogg Vorbis and WAV. The scene graph a
-game is written against is still ahead. Its C sources build
-two ways from one copy: a standalone binary (`build/rgame`, via the root
+a z-sorted batching renderer, and plays Ogg Vorbis and WAV. `RGame::Game` puts
+those together with a scene graph, and the two games under `examples/` run on
+it. Its C sources build two ways from one copy: a standalone binary (`build/rgame`, via the root
 `Makefile`) and the `core_ext` extension (via `extconf.rb`).
 
 Both halves ship as one gem — `rgame.gemspec` builds both extensions — though
 nothing is published yet, so it is installed from a checkout or a built `.gem`.
 
 **[docs/api/](docs/api/README.md) is the reference documentation** for using the
-engine from Ruby: the frame loop, the hooks, input, drawing, text, audio and the
-value types. Start there if you want to write a game rather than work on the
-engine.
+engine from Ruby: the entry point, the frame loop, input, drawing, text, audio,
+assets and the value types. Start there if you want to write a game rather than
+work on the engine.
 
 ## Requirements
 
@@ -73,31 +73,19 @@ fixture and needs `libvorbisenc` to run.
   (Debian/Ubuntu). These are what `extconf.rb` compiles against.
 - **Bundler**, then `bundle install` for the dev/test gems (RSpec, RuboCop).
 
-One wrinkle in `bundle install`: the `Gemfile` pins **gosu**, the library this
-engine is being written to replace (see
-[docs/c_engine_feature_specs.md](docs/c_engine_feature_specs.md)). No code in
-`lib/`, `spec/`, or `ext/` requires it — it's kept as the reference point — but
-it's a native extension, so installing it needs a handful of extra system
-libraries beyond the ones the C engine itself uses. Drop it from the `Gemfile`
-if you don't want to build it.
+Nothing else — the engine has no runtime Ruby dependencies, and the `Gemfile`
+holds only development gems.
 
 ### Debian / Ubuntu
 
 ```
-# C engine + tests
 sudo apt install build-essential pkg-config libsdl2-dev libgl1-mesa-dev check
-
-# only if you keep gosu in the Gemfile
-sudo apt install libvorbis-dev libsndfile1-dev libmpg123-dev libfontconfig1-dev
 ```
 
 ### macOS (Homebrew)
 
 ```
 brew install sdl2 pkg-config check
-
-# only if you keep gosu in the Gemfile
-brew install libvorbis libsndfile mpg123 fontconfig
 ```
 
 OpenGL headers/libs ship with Xcode Command Line Tools (`xcode-select --install`).
@@ -128,7 +116,7 @@ The Ruby specs:
 ```
 bundle install
 make ext             # both extensions; the suites need the compiled .so files
-rake spec            # headless specs: RGame::Util + RGame::Engine, no SDL loaded
+rake spec            # headless specs: RGame::Util, the engine layer, packaging
 rake spec:core       # RGame::Core specs; opens real windows, boots its own Xvfb
 rake                 # everything: make test, rake spec, rake spec:core
 bundle exec rubocop  # lint; configured in .rubocop.yml, which also loads the

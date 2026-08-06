@@ -1,14 +1,16 @@
-# C engine feature spec — replacing Gosu
+# C engine feature spec
 
-**Purpose:** this document specifies the feature set a from-scratch C layer needs in
-order to replace [Gosu](https://github.com/gosu/gosu) under a 2D game engine currently
-built in Ruby. It is derived from an exhaustive inventory of every Gosu call actually
-made by the engine's platform layer, plus a handful of features the engine's roadmap
-has already committed to (gamepad input, split-screen) but hasn't implemented yet.
+**Purpose:** this document specifies the feature set the C layer needs in order to sit
+under a 2D game engine written in Ruby. It was derived from an exhaustive inventory of
+every call the engine's platform layer made into [Gosu](https://github.com/gosu/gosu),
+the library this engine replaced, plus a handful of features committed to but not yet
+implemented at the time (gamepad input, split-screen).
 
-This file is meant to travel: copy it into the new C project as the starting brief for
-an agent or developer scoping the rewrite. It does not assume access to the original
-Ruby codebase.
+**Nearly all of it now exists**, so read it as scope and as a record of what was
+decided rather than as a to-do list. Two items are marked as amended, where the
+implementation deliberately went the other way; the section on things "not currently
+used but worth deciding deliberately" is the part still worth consulting before adding
+a subsystem.
 
 **Design context that shaped this list:** the source engine keeps a strict separation —
 game logic never touches the platform layer directly, only a small set of interfaces
@@ -34,19 +36,26 @@ Window, timer, main loop, input.
 - Keyboard state: "is this key currently held" query, addressable by a stable set of
   key constants (arrows, return/confirm, space, escape, at minimum — the actual key set
   is small and fixed).
-- Mouse state: current cursor position (x, y) in window coordinates, and mouse button
-  state via the same "is held" query used for keyboard.
+- ~~Mouse state.~~ **Dropped, deliberately.** The layer being replaced handled the
+  cursor and a click button, and none of it was carried over: `RGame::Core::Input`
+  has no pointer, no `:pointer` binding, and the button-id space covers keyboard
+  and controllers only — the range a mouse would have occupied is left unused in
+  `rgame/core.h` rather than renumbered later. The visible cost is that
+  click-based UI hit-testing has to become keyboard and controller navigation,
+  which the engine layer owes.
 - A discrete key-press event callback (distinct from "is held" polling) — used for
   one-shot actions like toggling a debug overlay or handling Escape-to-quit.
-- Monotonic millisecond timer, used for two things: (a) computing frame delta time for
-  a fixed-timestep accumulator, (b) driving time-based animation phase (e.g. which
-  frame of a looping tile animation is showing right now).
+- Monotonic millisecond timer, for computing frame delta time. Exposed as
+  `App#ticks_ms`, and **not** for driving animation: nothing on a draw path reads
+  a clock, because `draw` may be skipped or run once per five updates. Animation
+  phase is accumulated from `dt` in `update` and passed in as a number — see
+  CLAUDE.md, "`draw` renders state; time enters through `update`".
 - Frame-rate readout (FPS), for a debug overlay. Not gameplay-critical.
 
 **Required (planned, not yet implemented — design in from the start):**
 
 - Gamepad support for up to 4 simultaneous controllers:
-  - Digital buttons + dpad state (same "is held" query as keyboard/mouse).
+  - Digital buttons + dpad state (the same "is held" query as the keyboard).
   - Analog stick and trigger axes as floating-point values.
   - Hot-plug callbacks: controller-connected(index) / controller-disconnected(index),
     with indices stable across a momentary disconnect/reconnect.
@@ -59,8 +68,21 @@ Window, timer, main loop, input.
 se): the engine runs simulation at a fixed step (e.g. 1/60 s) via an accumulator fed by
 real elapsed time, decoupled from render/vsync rate, with a cap on catch-up steps per
 frame to avoid a spiral of death under a slow frame. The C layer's job is only to
-supply accurate elapsed time and call `update`/`draw` — the accumulator logic itself
-stays on the engine side of the boundary.
+supply accurate elapsed time and call `update`/`draw`.
+
+**Amended:** the accumulator itself moved *into* C, where `frame_loop.c` implements
+it with the best test coverage in the project. This line originally put it on the
+engine side; that was written before `frame_loop.c` existed. Its actual concern —
+that the game never sees variable frame time — is better served by the C loop
+handing Ruby a guaranteed-fixed `dt`, which is what `update(dt)` now is.
+
+Three things fall out, all simplifications: the Ruby side stops counting steps;
+"has anything changed" becomes `@dirty = true` inside `update`, since a call
+means a step ran; and the step size and catch-up cap become C constants
+(`RGAME_TICK_SECONDS`, `RGAME_MAX_TICKS_PER_FRAME`). What the move would
+otherwise cost — "poll input once per frame and reuse it across catch-up
+ticks" — comes back structurally, as a per-frame input snapshot in C plus the
+`frame_begin` hook.
 
 ---
 
@@ -195,7 +217,7 @@ mixer and commonly wanted later (SFX ducking during dialogue, music fade).
 | Subsystem | Primitives needed |
 |---|---|
 | Window + loop | create window (w, h, caption), main loop w/ fixed-arity `update`/`draw`/`needs_redraw?`/button-event callbacks, close, query width/height |
-| Input | keyboard/mouse "is held" query, discrete key-press event, mouse position, **gamepad state + hot-plug (planned)** |
+| Input | keyboard "is held" query, discrete key-press event, gamepad state + hot-plug (no mouse — dropped) |
 | Time | monotonic milliseconds, frame-rate readout |
 | Textures | PNG decode + GPU upload (nearest-neighbor sampling), sub-rectangle view, tile-grid slicing, width/height query |
 | Draw | textured quad (pos/rotation-about-arbitrary-pivot/scale/flip/tint), filled rect, filled quad (4 points), filled triangle, z-sort/batch across all of the above |

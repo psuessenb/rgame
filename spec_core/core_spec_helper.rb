@@ -7,8 +7,9 @@
 # with separate runners rather than sharing a root and an exclude rule. See
 # CLAUDE.md, "Why the Ruby specs are two suites, in two directories".
 #
-# Core used to be untested here because Gosu occupied this layer and shipped
-# its own specs. Replacing Gosu made this ours to cover.
+# This suite exists because the layer it covers is ours. The library that used
+# to occupy this position came with its own tests; writing the window, the
+# renderer and the sound device ourselves made testing them our job too.
 #
 # The helper is named core_spec_helper (not spec_helper) so it can never be
 # picked up by the headless suite's `--require spec_helper`.

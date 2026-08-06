@@ -38,8 +38,9 @@ void rgame_app_destroy(rgame_app *app);
  *   0x0000–0x0FFF  keyboard (SDL scancode values)
  *   0x1000–0x10FF  gamepad buttons and dpad
  *
- * (The range a mouse would have occupied is deliberately left unused — mouse
- * input is not part of this engine; see docs/plans/gosu-replacement/.)
+ * (The range a mouse would have occupied is deliberately left unused. Mouse
+ * input is not part of this engine — see RGame::Core::Input — and leaving the
+ * gap costs nothing while renumbering later would cost every saved keybinding.)
  *
  * Keyboard ids are SDL scancodes, but callers must not need SDL to name them:
  * src/main.c includes only this header, so the constants it uses have to live
@@ -449,7 +450,7 @@ int rgame_app_draw_text(rgame_app *app, rgame_font *font, const char *text, size
  * than failing: a game with no audio hardware runs, quietly. That is also what
  * lets the whole stack be tested with no sound card.
  *
- * Two kinds of sound, and the split is Gosu's:
+ * Two kinds of sound:
  *
  *   rgame_sample   short, decoded up front, played many times and overlapping
  *   rgame_song     long, streamed from disk, one at a time, stoppable

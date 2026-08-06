@@ -19,8 +19,12 @@
  * ticks. If a tick asked the hardware directly, the same held key could read
  * differently between two ticks of the same frame, and how many ticks ran
  * depends on how long the last frame took. Sampling once per frame makes the
- * answer constant across the whole frame, which is what the Gosu-based layer
- * achieved by polling once and passing the result down.
+ * answer constant across the whole frame.
+ *
+ * Note what this does *not* fix: an edge — "pressed this tick" — is a
+ * comparison against the previous poll, so whatever polls decides what a press
+ * is. Polling per rendered frame while simulating per tick loses presses on a
+ * fast machine. See RGame::Game, which polls in `update`.
  *
  * The button-id space and device numbering both live in rgame/core.h, because
  * callers outside this directory need to name them.

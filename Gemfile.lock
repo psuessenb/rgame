@@ -10,7 +10,6 @@ GEM
     base64 (0.3.0)
     diff-lcs (1.6.2)
     fiddle (1.1.8)
-    gosu (1.4.6)
     json (2.21.1)
     language_server-protocol (3.17.0.6)
     lint_roller (1.1.0)
@@ -72,7 +71,6 @@ PLATFORMS
 DEPENDENCIES
   base64
   fiddle
-  gosu
   rake
   rexml
   rgame!
@@ -87,7 +85,6 @@ CHECKSUMS
   base64 (0.3.0) sha256=27337aeabad6ffae05c265c450490628ef3ebd4b67be58257393227588f5a97b
   diff-lcs (1.6.2) sha256=9ae0d2cba7d4df3075fe8cd8602a8604993efc0dfa934cff568969efb1909962
   fiddle (1.1.8) sha256=7fa8ee3627271497f3add5503acdbc3f40b32f610fc1cf49634f083ef3f32eee
-  gosu (1.4.6) sha256=80c7fa48cf61f4960ef067fdd1c000d98b4adc8e11faeaa486543d00908a5c15
   json (2.21.1) sha256=13a43df75d95641443f5702dff350f237164a9d811ff0f2c2800d4d980220583
   language_server-protocol (3.17.0.6) sha256=5ef2c0c138f8267e1bc631d3328347d354f96724b0af22f2c79516120443b7f0
   lint_roller (1.1.0) sha256=2c0c845b632a7d172cb849cc90c1bce937a28c5c8ccccb50dfd46a485003cc87

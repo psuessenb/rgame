@@ -13,9 +13,14 @@
  *
  * The default path is *not* here. It is a packaging question — where a gem
  * installs its data — so lib/rgame/core/font.rb owns it and passes a path down.
- * The C layer has no opinion about where fonts live and no font-name lookup;
- * see docs/plans/gosu-replacement/README.md on why the engine ships a font
- * rather than asking the operating system for one.
+ *
+ * The C layer has no opinion about where fonts live and there is **no
+ * font-name lookup at all**: a font is a file. Asking the operating system for
+ * one by name would mean a font-database backend per platform — fontconfig on
+ * Linux, CoreText on macOS, GDI on Windows — and a system dependency this
+ * engine otherwise does not have. It would also mean text renders differently
+ * on different machines, which is a layout bug nobody can reproduce. See
+ * vendor/README.md.
  */
 
 #include "ruby/core_ext.h"

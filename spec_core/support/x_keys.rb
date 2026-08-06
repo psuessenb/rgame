@@ -3,8 +3,8 @@
 # Synthetic keyboard input to a live X11 window, via the XTEST extension.
 #
 # Uses Ruby's stdlib `fiddle` to dlopen libX11/libXtst directly: no gems, no
-# dev headers, no root, nothing to install. Verified working against both a
-# Gosu window and rgame's own SDL window under Xvfb.
+# dev headers, no root, nothing to install. Verified working against rgame's
+# own SDL window under Xvfb.
 #
 # Why XTEST and not XSendEvent: XSendEvent-delivered events carry
 # send_event=True, and SDL ignores those by design. XTEST injects at the X

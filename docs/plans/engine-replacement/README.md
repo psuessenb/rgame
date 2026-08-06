@@ -1,195 +1,199 @@
-# Moving the engine layer into `RGame::Engine` — findings, not yet a plan
+# Moving the engine layer into `RGame::Engine` — brief
 
-**Status: notes only.** This folder exists so that what was learned while
-planning the Gosu replacement is not lost between now and when this work
-actually starts. There is no roadmap here and there should not be one yet — the
-prerequisite is `docs/plans/gosu-replacement/` phase 6, which ends with
-`lib/engine/` *running* on `RGame::Core` while still living where it does.
+The scene graph a game is written against lives in `lib/engine/` under a bare
+top-level `Engine::`. It runs on `RGame::Core` today, through `RGame::Game`, and
+its specs pass. What is left is the namespace, the packaging that depends on it,
+and the work the layer itself still owes.
 
-Everything below was found by reading the code, and each claim names the file it
-came from so it can be re-checked rather than trusted. Nothing here is a
-decision.
+| Document | What it covers |
+|---|---|
+| [README](README.md) *(this file)* | Goal, what was measured, decisions taken |
+| [01 — Roadmap](01-roadmap.md) | The move, step by step, then what follows it |
+
+The Gosu replacement is done and its plan folder deleted; `git log` has the
+reasoning if a decision behind the current shape is ever wanted.
 
 ---
 
-## What this is about
+## The goal
 
-`lib/engine/` — 3,083 lines across 57 files, plus `lib/son_gosu_game.rb`, two
-games under `examples/` and reference documentation under `docs/engine/`. It is
-the scene graph a game is actually written against: `Node2D`, components,
-signals, scenes, systems, UI, tile maps, pathing, pooling, i18n.
+```
+lib/engine/           →  lib/rgame/engine/
+Engine::Node2D        →  RGame::Engine::Node2D
+spec/engine/          →  spec/rgame/engine/
+```
 
-CLAUDE.md already describes where it is going and under what rule:
+And the two things that follow from it: the engine layer starts shipping in the
+gem, and `Game/NoCoreInEngineLayer` starts guarding `lib/` for the first time.
 
-> `RGame::Engine` lives in `lib/rgame/engine/` and is the layer a game is
-> actually written against. It may hold `RGame::Util` types, may not name
-> `RGame::Core` at all, and reaches Core only through objects handed to it,
-> duck-typed.
+## What was measured before planning
 
-Two things already enforce that for code that does not exist yet: the
-`Game/NoCoreInEngineLayer` cop (which includes `lib/rgame/engine/**/*.rb`), and
-the headless `spec/` suite, which never loads Core so a stray reference is a
-`NameError`.
+Numbers, so nobody budgets from a guess.
 
-## The good news, measured
-
-**`lib/engine/` names `Gosu` and `Platform::` in comments only.** Not one
-constant reference in code, across all 57 files. It reaches everything through
-duck-typed seams:
-
-| Seam | Where |
+| | |
 |---|---|
-| `renderer` passed into `draw` | `node2d.rb:144`, `component.rb:22`, every UI and component `draw` |
-| `node.root.context.assets` | `components/animated_sprite.rb:29` |
-| an audio server behind `AudioDirector` | `audio_director.rb`, fed by `AudioBus` events |
-| an input backend behind `ActionMapper#poll(backend)` | `input/action_mapper.rb:28` |
+| Engine sources | 48 files, all opening with exactly `module Engine` — no variants, no `::Engine` anywhere |
+| Engine specs | 50 files, 3,340 lines, **580 examples green** |
+| External `Engine::` references | 157 in 58 spec files, 51 in 10 example files, 5 in `lib/rgame/game.rb` |
+| Constant collisions with `RGame`'s members | **none** |
+| Bare `Core::` / `Util::` in engine or spec code | **none** — comments only |
 
-So the layering rule this move has to satisfy is one the layer already keeps.
-The move is mostly a rename, a namespace and a spec suite — **not** a rewrite.
-That is worth knowing before anyone budgets for it.
+**`lib/engine/` names `RGame::` exactly once, in a comment.** The layer already
+keeps the rule the move has to satisfy: it reaches everything through
+duck-typed seams — a `renderer` passed into `draw`, `node.root.context.assets`,
+an audio server behind `AudioDirector`, an input backend behind
+`ActionMapper#poll`. So this is a rename and a packaging change, **not** a
+rewrite.
 
-## What is actually blocking
+## The one thing that is not mechanical
 
-### 1. The mouse — six lines, and one of them stops everything
-
-The Gosu-replacement brief dropped mouse input deliberately
-([why](../gosu-replacement/README.md#mouse-input-is-not-carried-over)).
-`RGame::Core::Input` has no `pointer_x`/`pointer_y` and no `:pointer` binding.
-
-The hard blocker is `input/action_mapper.rb:41-42`:
-
-```ruby
-@pointer[:x] = backend.pointer_x
-@pointer[:y] = backend.pointer_y
-```
-
-Unconditional, so `poll` raises `NoMethodError` against a `Core::Input` — the
-engine layer does not run *at all* until this goes. Phase 6.8 deletes these two
-lines as the minimum to get the examples up; the rest is this plan's:
-
-- ~~`input/actions.rb`~~ and ~~`ActionMapper#poll`~~ — **done** in
-  gosu-replacement 6.8, because nothing ran until they were.
-- `components/clickable.rb:31` — a component that is mouse-only by definition,
-  and now calls an `Actions` method that no longer exists. Probably deleted
-  rather than ported.
-- `lib/engine/ui/` — see below. Same situation: it raises if used, and nothing
-  uses it.
-
-### 2. The UI package is outdated and mouse-built
-
-`ui/menu.rb`, `ui/button.rb`, `ui/selector.rb`, `ui/control.rb` all hit-test
-against `actions.pointer_x`/`pointer_y` (`menu.rb:59-64`, `button.rb:72`,
-`selector.rb:39-41`). It is being replaced on its own account, so it is **not a
-reference for the port** — do not treat its current API as something to
-preserve. Keyboard and controller navigation is the replacement, which was the
-known cost of the mouse decision.
-
-Note the knock-on: nothing in the copied examples registers a UI atlas, so
-`renderer.nine_slice` and `Core::UiAtlas` have no end-to-end exercise. Whatever
-replaces the UI package is what will first prove that path.
-
-### 3. `Engine::Tensor` duplicates `RGame::Util::Tensor`
-
-`lib/engine/tensor.rb` is a pure-Ruby 3-D grid. `RGame::Util::Tensor` is the
-same thing in C, and is *why* `ext/rgame_util/` exists. One caller:
-`tile_map.rb:109`, packing per-layer gids.
-
-A straight swap, and the first concrete instance of the rule "the engine layer
-may hold `Util` types". Worth doing early — it is small, it validates the
-boundary, and it deletes a file. Check `Engine::Matrix` (`lib/engine/matrix.rb`)
-for the same question at the 2-D end.
-
-### 4. `TileMap` needs a `load`, and Core is blocked on it
-
-The smallest concrete piece of work in this folder, and the only one another
-plan is waiting for. `Platform::TileMapRenderer.load` is the one place the
-platform layer names `Engine::` from code:
+**Nesting the layer under `RGame` opens a hole the cop cannot see.** Verified,
+both halves:
 
 ```ruby
-map = Engine::TileMap.parse(File.read(tmx_path))
-map.tileset = Engine::Tileset.parse(File.read(tsx_path), firstgid: map.firstgid)
-image_path = File.join(File.dirname(tsx_path), map.tileset.image_source)
+module RGame::Engine
+  Core::Image.new(...)   # resolves to RGame::Core::Image — the rule, broken
+end
 ```
 
-Ported as-is that puts `RGame::Core` in the position of knowing `RGame::Engine`
-exists, which `Game/NoEngineInCoreLayer` now forbids. The five lines are pure
-file-and-XML work with no graphics in them, so they belong here rather than
-below: **`Engine::TileMap.load(tmx_path)`**, returning the parsed map with its
-tileset attached, plus the resolved image path.
+`Game/NoCoreInEngineLayer` matches the prefix `%w[RGame Core]`, so it flags
+`RGame::Core::Image` and misses the bare `Core::Image` beside it. That spelling
+*cannot resolve* today, because top-level `Engine::` code has no path to
+`RGame::Core` without spelling it out. Once nested, it resolves silently.
 
-Gosu-replacement 6.5 is written against that, and cannot land without it. It
-also settles the shape Core wants: the renderer is *handed* a map and a set of
-tiles and loads nothing itself, so the map protocol it calls by name —
-`layer_count`, `above_layer?`, `gid`, `tile_width`, `pixel_width`, `tileset` —
-becomes a shared example both `Engine::TileMap` and a spec fake run against.
+The fix is one word — add `%w[Core]` to the cop's `PREFIXES`, exactly as
+`NoEngineInCoreLayer` already does with bare `Engine` — and it has to land
+**with** the move rather than after it.
 
-**`TileWorld` gains an animation clock.** Core no longer reads one — see
-CLAUDE.md, "`draw` renders state; time enters through `update`" — so the
-component accumulates `dt` and passes `elapsed:` down, the two lines
-`AnimatedSprite` already has. That is engine-layer work and lands with the rest
-of it; until then a caller passes the elapsed time by hand.
+Two smaller findings in the same family:
 
-### 5. Split-screen does not exist yet
+- The cop's `Include` already lists `lib/rgame/engine/**/*.rb`, which matches
+  nothing today. `lib/` has never actually been guarded; only `spec/` has. The
+  move switches the guard on for the first time, and the layer should pass it
+  immediately.
+- Inside `module RGame; module Engine`, an internal `Engine::Component`
+  reference still resolves. So the 48 sources need the wrapper and the
+  reindentation — **not** a find-and-replace. Only the ~69 external callers do.
 
-The transform and clip stacks were designed for it
-([02-architecture](../gosu-replacement/02-architecture.md#split-screen-is-a-requirement-on-this-design-not-a-later-feature)):
-per viewport, `clipped` then `translated`, running the same world-draw code.
-`CameraView` (`camera_view.rb:22`) and `Camera` are the pieces that would grow
-it, and `renderer.clipped` is the one Core method the copied examples never
-call — so the plumbing is ready and untested from above.
+## Decisions taken
 
-This is the "not 1:1, there will be changes" part: it changes what a camera *is*
-from a single draw-time offset to one of several viewports.
+### `require "rgame"` loads everything that needs no window
 
-## Things to decide when this becomes a plan
+Four entry points, each a strict superset of the last:
 
-Recorded as questions, not answered.
+```ruby
+require 'rgame'         # RGame::Util + RGame::Engine — no graphics libraries
+require 'rgame/core'    # the window, the GPU, the sound device
+require 'rgame/game'    # all of it, wired together
+```
 
-- **Namespace and path.** `Engine::` → `RGame::Engine::`, `lib/engine/` →
-  `lib/rgame/engine/`. Mechanical, but it is 57 files and every `examples/`
-  reference, so it wants to be one commit that does nothing else.
-- ~~**What `SonGosuGame` becomes.**~~ **Settled — it is `RGame::Game`**, an
-  `RGame::Core::App` subclass living directly under `RGame`, and the only class
-  permitted to name both layers. Landed in gosu-replacement 6.8; see
-  `docs/api/game.md`. What is left for this plan is that it names `Engine::`
-  rather than `RGame::Engine::`, which the namespace move fixes.
-- **Where `docs/engine/` lands.** It is real reference documentation, currently
-  describing the Gosu-era API (`docs/engine/asset_manager.md` documents
-  `Platform::AssetManager` returning `Gosu::Image`). It should end up merged
-  into `docs/api/` rather than living beside it, but it is eight files and
-  1,328 lines, so that is a task rather than a footnote.
-- **Packaging.** `rgame.gemspec`'s `spec.files` is a glob over `lib/`, so
-  `lib/engine/`, `lib/engine.rb`, `lib/boot.rb` and `lib/son_gosu_game.rb`
-  currently ship — 60 files, one of which requires `gosu`, which is not a gem
-  dependency. Gosu-replacement 6.9 excludes them as a stopgap. When the layer
-  moves to `lib/rgame/engine/` it *should* ship, so that exclusion and its
-  packaging-spec expectation come back out here — the same lifecycle
-  `lib/platform/`'s exclusion had.
-- **Specs.** `lib/engine/` arrives with none in this repo, and
-  `docs/engine/asset_manager.md` references a `spec/platform/asset_manager_spec.rb`
-  that did not come with it. The headless `spec/` suite is exactly the right
-  home — the whole point of the layer is that it specs with no window — so this
-  is the same shape phase 6 had: the specs are the deliverable as much as the
-  move is.
-- **`Engine::AudioDirector` and `AudioBus`.** The engine emits
-  `:play_sound`/`:play_music` events and a director turns them into calls on an
-  audio server. `RGame::Core::Audio` grows exactly that interface in phase 6.7,
-  and `spec/support/shared_examples/an_audio_server.rb` is the contract —
-  so the director should be run against the same fake the contract checks. That
-  is a free win and probably the first spec written here.
-- **`DebugOverlay`.** Reads `Gosu.fps` via its `draw(renderer, w, h, fps)`
-  signature, so it is already decoupled; `App#fps` supplies it. But it also
-  reports per-frame allocations, and the reason that number was worth watching —
-  Gosu's splat-allocating callback wrappers — no longer exists. Worth asking
-  what it should measure now.
+`rgame/util`, `rgame/engine` and `rgame/core` stay separately requirable —
+`rgame.rb` is only a convenience that requires two of them, so **nothing is
+forced through it**, specs included. That was the open question and it answers
+itself: a spec that wants one layer requires that layer's file by name, the way
+`spec_core/core_spec_helper.rb` requires `rgame/core` today.
+
+Why fold Engine into the default rather than leave it opt-in: `require "rgame"`
+should name a useful thing. Nobody installs this gem for `Color` alone, and
+"everything that runs without a window" is a real boundary — it is the one the
+headless spec suite is built on. The cost is load time for 48 pure-Ruby files.
+
+The invariant this is often confused with is untouched. It is about **Core**,
+not Engine: `require "rgame"` must load no SDL and no OpenGL, and Engine links
+nothing.
+
+Two consequences worth having:
+
+- `spec/spec_helper.rb` becomes one `require "rgame"`, and the suite *is* the
+  invariant check — see below.
+- `spec_core/core_spec_helper.rb` requires `rgame/core`, which pulls neither
+  `rgame.rb` nor Engine. So `RGame::Engine` is an undefined constant in the Core
+  suite, giving that suite the same **runtime** guard the headless suite has
+  against naming Core. Today only the cop covers that direction.
+
+### The no-graphics invariant becomes a spec
+
+It has never been one. It is checked by hand, as a shell one-liner, and it is
+the single property the whole two-suite split rests on:
+
+```
+ruby -Ilib -e 'require "rgame"; puts File.read("/proc/self/maps").scan(/libSDL2|libGL\./).uniq.inspect'
+```
+
+`spec/` requires exactly what that line requires, so the check belongs in it.
+`/proc/self/maps` is Linux-only, so it skips elsewhere — the same honesty the
+platform-support section already applies to Xvfb and XTEST.
+
+### `lib/boot.rb` becomes `lib/rgame/boot.rb`, and `RGame::Game` requires it
+
+It is a YJIT switch, not engine code, which is why it sat awkwardly inside the
+engine-layer packaging exclusion. Moving it under `rgame/` lets it ship, and
+having `RGame::Game` require it puts the decision at the entry point rather than
+asking every example to remember it. The examples drop their `require 'boot'`.
+
+### `docs/engine/` is merged into `docs/api/` as its own step
+
+Eight files, 1,328 lines, and `asset_manager.md` still describes
+`Platform::AssetManager` returning `Gosu::Image` — actively wrong, not merely
+misplaced. Too big to ride along with the move.
+
+### The `Tensor` swap happens after the move, as its own step
+
+`Engine::Tensor` and `RGame::Util::Tensor` have **identical public method
+sets** — checked, not assumed — so it is a drop-in. It gets simpler after the
+move, too: inside `RGame::Engine`, `Util::Tensor` resolves with no
+qualification. One caller, `tile_map.rb`.
+
+## What the layer still owes, after the move
+
+These are the reasons this is a *replacement* and not only a rename. None of
+them blocks the move; all are in the roadmap's second half.
+
+### The UI package is gone, and its replacement is undecided
+
+`ui/menu.rb`, `ui/button.rb`, `ui/selector.rb`, `ui/control.rb` and
+`components/clickable.rb` were built on mouse hit-testing and have been deleted
+along with the mouse. Keyboard and controller navigation is the replacement,
+which was the known cost of dropping the pointer.
+
+Knock-on: nothing exercises `renderer.nine_slice` or `Core::UiAtlas` end to end
+any more. Whatever replaces the UI package is what will first prove that path.
+
+### Split-screen does not exist yet
+
+The transform and clip stacks were built for it — per viewport, `clipped` then
+`translated`, running the same world-draw code, which is why they are proper
+push/pop stacks rather than one global mutable region. `CameraView` and `Camera`
+are the pieces that grow it, and `renderer.clipped` is the one Core drawing
+method nothing above ever calls. The plumbing is ready and untested from above.
+
+This is the part that is not 1:1: it changes what a camera *is*, from a single
+draw-time offset to one of several viewports.
+
+### `TileWorld` still needs its animation clock
+
+Core no longer reads one — see CLAUDE.md, "`draw` renders state; time enters
+through `update`" — so the component accumulates `dt` and passes `elapsed:`
+down, the two lines `AnimatedSprite` already has. Until then a caller passes the
+elapsed time by hand and animated tiles stand still.
+
+### `AudioDirector` should run against the audio contract
+
+It turns `:play_sound` / `:play_music` events into calls on an injected audio
+server, and `spec/support/shared_examples/an_audio_server.rb` is exactly the
+interface it calls. Running the director against the same `FakeAudio` the
+contract checks is a free win.
+
+### `DebugOverlay` reports per-frame allocations — of what?
+
+That number was worth watching because the old binding layer allocated on every
+callback. It no longer does: the trampolines have fixed arity, and
+`ruby/core_ext.c` says why. Worth asking what the overlay should measure now.
 
 ## Cross-references
 
-- `docs/plans/gosu-replacement/` — the prerequisite. Its phase 6 ends with
-  `lib/engine/` running unmodified on Core; delete that folder only after
-  folding its still-true decisions into the real documentation.
-- `docs/engine/` — the engine layer's own documentation, written against the
-  Gosu-era platform. Read `scene_graph.md`, `components.md` and `systems.md`
-  first; they describe the architecture this plan is preserving.
-- CLAUDE.md, "The three layers, and who may talk to whom" — the rule this move
-  has to satisfy, and the two mechanisms that enforce it.
+- `docs/engine/` — the layer's own documentation. `scene_graph.md`,
+  `components.md` and `systems.md` describe the architecture this move
+  preserves; read those first.
+- CLAUDE.md, "The three layers, and who may talk to whom" — the rule the move
+  has to satisfy, and the two cops that enforce it.

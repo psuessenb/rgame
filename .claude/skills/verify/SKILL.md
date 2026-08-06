@@ -20,8 +20,8 @@ Tiers 1–3 are all automated and need no display. Tier 3 is the one most
 projects skip; here it works, and the harness is in `scripts/`.
 
 The architecture exists to keep things in tier 1 — see CLAUDE.md's layering
-rules and `docs/plans/gosu-replacement/`. If a thing is hard to test, that is
-usually a sign the pure-logic part has not been separated out yet.
+rules and "Abstraction & testability strategy". If a thing is hard to test, that
+is usually a sign the pure-logic part has not been separated out yet.
 
 ---
 

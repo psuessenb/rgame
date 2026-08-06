@@ -10,9 +10,10 @@
  * expected to arrive as a *custom decoding backend* — a small vtable the caller
  * registers. miniaudio ships a reference one, but it uses **system libvorbis**,
  * which would hand back the very dependency the engine avoided by vendoring
- * miniaudio in the first place (see
- * docs/plans/gosu-replacement/README.md). So this is that backend, over
- * stb_vorbis, which is already here and needs nothing installed.
+ * miniaudio in the first place — the whole reason miniaudio was chosen over
+ * SDL_mixer is that it needs nothing installed (vendor/README.md has the
+ * comparison). So this is that backend, over stb_vorbis, which is already here
+ * and adds no dependency either.
  *
  * ---------------------------------------------------------------------------
  * Why there are two ways in

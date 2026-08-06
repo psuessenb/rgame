@@ -7,7 +7,6 @@ require:
   - ./rubocop/cop/game/no_core_in_engine_layer.rb
   - ./rubocop/cop/game/no_engine_in_core_layer.rb
   - ./rubocop/cop/game/no_needless_allocation.rb
-  - ./rubocop/cop/game/prefer_gosu_module_method.rb
   - ./rubocop/cop/game/use_absolute_coords.rb
 
 AllCops:
@@ -19,8 +18,6 @@ AllCops:
 # - NoInterpolationInHotPath: no string interpolation in per-frame methods.
 # - NoNeedlessAllocation: no needless Array/Range literals (receiver literals anywhere,
 #   any literal inside a per-frame method).
-# - PreferGosuModuleMethod: in per-frame methods, call Gosu.<m> not the allocating
-#   Window#<m> compat shim. (Retires with Gosu — see docs/plans/gosu-replacement/.)
 # - UseAbsoluteCoords: in draw/update/contains?, use the resolved `@abs_*`, never the
 #   parent-relative `@x`/`@y`/`@z`.
 #
@@ -34,11 +31,6 @@ Game/NoNeedlessAllocation:
   Exclude:
     - 'spec/**/*'
     - 'spec_core/**/*'
-Game/PreferGosuModuleMethod:
-  Exclude:
-    - 'spec/**/*'
-    - 'spec_core/**/*'
-
 # The engine layer must stay headless: it may never name RGame::Core, in lib or
 # in its specs. Everything else is allowed to (Core's own code, its specs, the
 # example driver), so the cop is scoped to where the rule applies rather than
@@ -98,10 +90,11 @@ RSpec/MultipleExpectations:
 # Integration / setup-heavy specs in a game naturally run longer than 5 lines.
 RSpec/ExampleLength:
   Enabled: false
-# Integration specs describe a scenario spanning several classes, not one class.
+# A few specs describe a scenario or a file rather than one class — the gemspec
+# suite, for one. They say so with an inline disable rather than a path rule.
 RSpec/DescribeClass:
-  Exclude:
-    - 'spec/integration/**/*'
+  Enabled: true
+
 # Spec paths mirror lib/ paths, and two of our names don't survive the cop's default
 # snake_casing:
 #

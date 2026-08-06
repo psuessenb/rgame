@@ -18,7 +18,6 @@ gemspec
 # keystrokes, virtual gamepads) with no native extension of their own.
 gem 'base64'
 gem 'fiddle'
-gem 'gosu'
 gem 'rake', require: false
 gem 'rexml'
 gem 'rubocop', require: false

@@ -3,7 +3,7 @@
 #include <math.h>
 
 /* Degrees in, radians out — the C library's trig wants radians, the API takes
- * degrees because that is what Gosu used and what callers already pass. */
+ * degrees because that is what callers already pass. */
 #define RGAME_DEGREES_TO_RADIANS (3.14159265358979323846f / 180.0f)
 
 /* Tolerance for "is this the identity". Composing and un-composing transforms

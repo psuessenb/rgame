@@ -146,6 +146,14 @@ static VALUE app_initialize(int argc, VALUE *argv, VALUE self) {
  * pass a run_state living on app_run's C stack, and each trampoline calls the
  * corresponding method on the App object.
  *
+ * Every one of them has **fixed arity** — `update` takes one argument, `draw`
+ * takes none — and that is worth saying out loud because it is easy to give
+ * away. A generic wrapper written as `|*args|` allocates a throwaway Array on
+ * every call, and these are called several times per frame forever: an
+ * allocation floor no amount of careful game code can get under, and noise in
+ * any per-frame allocation reading. Hand-written bindings get this for free;
+ * generated ones often do not.
+ *
  * Exception safety is the interesting part. A Ruby callback may raise, and a
  * raise is a longjmp — it would tear straight through rgame_app_run's C frame,
  * skipping the rest of the loop and leaving the SDL window up until the GC

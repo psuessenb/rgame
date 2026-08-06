@@ -70,6 +70,14 @@ suite lives in its own directory with its own runner, rather than in a shared
 one with an `exclude_pattern` that must not be forgotten. A convention that
 fails loudly beats one that has to be observed.
 
+## Spec style
+
+Use `spec/engine/node2d_spec.rb` as a reference if needed.
+
+ - Use RSpec's mocking mechanisms instead of creating structures with `Struct`, `Data`, etc.
+ - Use verified doubles (enforced by RuboCop)
+ - Specs have no line limit enabled, so use nested `describe` freely where it makes sense to increase readability
+
 ## RuboCop
 
 Run RuboCop over the Ruby files you touched, as a finishing step:
@@ -100,14 +108,13 @@ indistinguishable from having given up.
 
 ### The custom cops are house rules — don't disable them
 
-`rubocop/cop/game/` holds six project-specific cops (plus the shared `HotPath`
+`rubocop/cop/game/` holds five project-specific cops (plus the shared `HotPath`
 and `LayerBoundary` mixins), loaded by `.rubocop.yml`:
 
 | Cop | Enforces |
 |---|---|
 | `Game/NoInterpolationInHotPath` | no string interpolation in per-frame methods |
 | `Game/NoNeedlessAllocation` | no throwaway Array/Range literals on a per-frame path |
-| `Game/PreferGosuModuleMethod` | call `Gosu.<m>`, not the allocating `Window#<m>` compat shim |
 | `Game/UseAbsoluteCoords` | in `draw`/`update`/`contains?` use the resolved `@abs_*`, never parent-relative `@x`/`@y` |
 | `Game/NoCoreInEngineLayer` | no `RGame::Core` reference in `lib/rgame/engine/` or `spec/` — the engine layer must stay headless |
 | `Game/NoEngineInCoreLayer` | the mirror: no `Engine` reference in `lib/rgame/core/` or `spec_core/` — Core must not know Engine exists |
@@ -115,8 +122,6 @@ and `LayerBoundary` mixins), loaded by `.rubocop.yml`:
 These exist because a steady 60fps frame that allocates is a GC pause waiting to
 happen, and the cost is invisible without a guard. Unlike stock cops, these are
 the ones that *do* fit here — fix the code, not the cop.
-(`Game/PreferGosuModuleMethod` retires along with Gosu itself; see
-`docs/plans/gosu-replacement/`.)
 
 ## Current phase
 
@@ -127,12 +132,19 @@ second, graphics-free extension in `ext/rgame_util/`.
 `rgame.gemspec` packages both, so the project installs as a gem as well as
 running from a checkout — though nothing is published yet.
 
-The gap now is the whole `RGame::Engine` layer: the scene graph a game is
-actually written against does not exist yet. What remains after that is porting
-`lib/platform/` off Gosu and deleting it. When adding a feature, the default is
-still to build it in C under `ext/rgame_core/` and only extend the Ruby wrapper
-once the C API for it is settled — unless it is engine-layer work, which is pure
-Ruby by definition.
+**Gosu is gone.** `lib/platform/` is deleted and nothing in the project depends
+on it in any form. `RGame::Game` (`lib/rgame/game.rb`) is the entry point a game
+is written against, and both games under `examples/` run on it.
+
+The gap now is the scene graph's *namespace*: it is in the tree as `lib/engine/`
+under a bare top-level `Engine::`, not yet `RGame::Engine` under
+`lib/rgame/engine/`. Moving it — along with the mouse-built UI package it still
+carries, and split-screen — is `docs/plans/engine-replacement/`. Until then it is
+held out of the gem.
+
+When adding a feature, the default is still to build it in C under
+`ext/rgame_core/` and only extend the Ruby wrapper once the C API for it is
+settled — unless it is engine-layer work, which is pure Ruby by definition.
 
 ## The Core / Util split
 
@@ -454,8 +466,10 @@ file to a folder already listed needs nothing.
 - `lib/rgame/fonts/` — the default font (Liberation Sans, SIL OFL 1.1), shipped
   rather than looked up in a system font database. It is runtime data, so it
   lives where a gem installs data rather than in `ext/`. Shipping it is also
-  what lets `test/test_font.c` assert real advances instead of fixtures; see
-  `docs/plans/gosu-replacement/README.md` for why not to copy Gosu here.
+  what lets `test/test_font.c` assert real advances instead of fixtures.
+  `ext/rgame_core/vendor/README.md` says why a shipped font beats a system
+  font-name lookup — no per-platform font database, and text that renders
+  identically everywhere.
 - `ext/rgame_core/graphics/recording.{c,h}` — a block of drawing baked once and
   replayed as one call per texture, which is what makes a tile map affordable.
   Pure; covered by `test/test_recording.c`. It stores no clip on purpose:
@@ -503,21 +517,35 @@ file to a folder already listed needs nothing.
   rake-compiler installs a compiled ext into `lib/<gem>/`. Naming both under
   `rgame/` in `create_makefile` also leaves the bare name `rgame` to
   `lib/rgame.rb`; don't take it for an extension.
-- `lib/` — the pure-Ruby half, currently just namespace loaders:
-  `lib/rgame.rb` → `lib/rgame/util.rb` → `lib/rgame/util/tensor.rb`, and
-  separately `lib/rgame/core.rb` → `lib/rgame/core/app.rb`,
-  `lib/rgame/core/input.rb` and `lib/rgame/core/gamepad.rb`. Each
-  leaf is a `require` of the compiled extension plus a comment saying what
-  the class is and what moved to C. Keep that pattern — one Ruby file per
-  C-backed class — so the load path stays readable and there's an obvious
-  place to add pure-Ruby methods to a C-backed class later.
+- `lib/` — the pure-Ruby half. `lib/rgame.rb` → `lib/rgame/util.rb` →
+  `lib/rgame/util/tensor.rb`, and separately `lib/rgame/core.rb` → one file per
+  class under `lib/rgame/core/`.
+
+  Two kinds of file live there, and the difference is worth knowing. Most are
+  the Ruby side of a **C-backed class** — a `require` of the compiled extension
+  plus a comment saying what the class is and what moved to C, and the obvious
+  place to add a Ruby convenience later (`app.rb`, `image.rb`, `audio.rb`).
+  The rest are **whole classes in Ruby** (`sprite_sheet.rb`, `nine_slice.rb`,
+  `ui_atlas.rb`, `tile_map_renderer.rb`, `asset_manager.rb`). What makes those
+  `Core` is not that C is behind them — nothing is — but that they *hold
+  handles*: an image is a GPU texture, so anything owning one belongs on this
+  side of the line. Keep one class per file either way.
+- `lib/rgame/game.rb` — `RGame::Game`, the only class directly under `RGame`,
+  and by construction the only one allowed to name both layers. See "The rule
+  points both ways".
+- `lib/engine/` — the scene graph, still under a bare top-level `Engine::`.
+  Ported to run on `RGame::Core` but not yet moved to `RGame::Engine`, which is
+  what `docs/plans/engine-replacement/` covers. Held out of the gem meanwhile.
 - `spec/` — RSpec specs for the Ruby half (`bundle exec rspec`). Note
-  `spec/spec_helper.rb` requires only `lib/rgame`, deliberately: if any core
-  file ever reaches for Gosu, the specs fail to load. Preserve that property.
-- `docs/c_engine_feature_specs.md` — the feature spec this engine is being
-  built out to satisfy (2D primitives to replace Gosu under a Ruby game
-  engine). Large surface area, implemented incrementally. Consult it when
-  adding a new subsystem rather than guessing scope.
+  `spec/spec_helper.rb` requires only `lib/rgame`, deliberately: a Core file
+  reached from here would pull SDL into the process and the suite would stop
+  meaning what it says. Preserve that property.
+- `docs/c_engine_feature_specs.md` — the feature spec this engine was built out
+  to satisfy, derived from an inventory of what the Ruby layer actually needed.
+  Nearly all of it is implemented; what remains useful is its scope list and its
+  "worth deciding deliberately" section. Consult it when adding a subsystem
+  rather than guessing scope, and amend it when a decision contradicts it —
+  there are two such amendments in it already.
 
 - `rgame.gemspec` — packages both halves as one gem: both `extconf.rb` files in
   `spec.extensions`, so `gem install` compiles each and drops its `.so` into
@@ -627,10 +655,12 @@ Two exclusions are deliberate and both are asserted:
 
 - **build artifacts** (`lib/rgame/*.so` and friends) — that is *this* machine's
   binary, and shipping it would shadow the one `gem install` compiles.
-- **`lib/platform/`** — the Gosu-backed code from the game this engine came out
-  of, still in use in the checkout. It could not work in the gem anyway: gosu is
-  not a dependency. When it goes, the exclusion in `rgame.gemspec` and the
-  matching expectation in the packaging spec go with it.
+- **the engine layer** (`lib/engine/`, `lib/engine.rb`, `lib/boot.rb`) — it
+  names no graphics library and would run in the gem perfectly well, but it is
+  still top-level `Engine::` rather than `RGame::Engine`, and a gem has no
+  business putting a bare `Engine` constant into someone's process. It ships
+  when it moves; the exclusion in `rgame.gemspec` and the matching expectation
+  in the packaging spec come out together at that point.
 
 The version lives in `lib/rgame/version.rb` and nothing else may go in that
 file: the gemspec loads it directly, long before either extension is compiled,
@@ -685,9 +715,9 @@ So:
 | Display | none | its own Xvfb |
 | Needs | `make ext-util` | `make ext-core` |
 
-`RGame::Core` used to be untested here because Gosu sat in that position and
-was covered by its own gem. Replacing Gosu made it ours to test, which is why
-`spec_core/` exists at all.
+`spec_core/` exists because the layer it covers is ours. The library that used
+to sit in this position came with its own tests; writing the window, the
+renderer and the sound device ourselves made testing them our job too.
 
 ### Fakes must be checked against the same contract as the real thing
 
@@ -703,17 +733,23 @@ So each of those interfaces gets a **shared example group** in
 `spec/`, the real one from `spec_core/`. A method added to the real renderer
 is not done until the shared contract and the fake have it too.
 
-There are two of these today, both built the same way:
+There are three of these today, all built the same way:
 
-| | Renderer | Audio |
-|---|---|---|
-| Contract | `spec/support/shared_examples/a_renderer.rb` | `spec/support/shared_examples/an_audio_server.rb` |
-| Fake | `spec/support/fake_renderer.rb`, run against it by `fake_renderer_spec.rb` | `spec/support/fake_audio.rb`, run against it by `fake_audio_spec.rb` |
-| Real | `RGame::Core::Renderer`, run against it by `spec_core/rgame/core/renderer_spec.rb` | `RGame::Core::Audio`, run against it by `spec_core/rgame/core/audio_spec.rb` |
-| Host hook | `render { \|renderer, image, font\| ... }` | `with_audio { \|audio, sound_path\| ... }` |
+| | Renderer | Audio | Tile map |
+|---|---|---|---|
+| Contract | `spec/support/shared_examples/a_renderer.rb` | `spec/support/shared_examples/an_audio_server.rb` | `spec/support/shared_examples/a_tile_map.rb` |
+| Stand-in | `spec/support/fake_renderer.rb`, run against it by `fake_renderer_spec.rb` | `spec/support/fake_audio.rb`, run against it by `fake_audio_spec.rb` | `spec/support/stub_tile_map.rb`, run against it by `stub_tile_map_spec.rb` |
+| Real | `RGame::Core::Renderer`, run against it by `spec_core/rgame/core/renderer_spec.rb` | `RGame::Core::Audio`, run against it by `spec_core/rgame/core/audio_spec.rb` | `Engine::TileMap`, run against it by `spec/engine/tile_map_spec.rb` |
+| Host hook | `render { \|renderer, image, font\| ... }` | `with_audio { \|audio, sound_path\| ... }` | `tile_map { \|map\| ... }` |
+
+The tile map is the one that points *up* rather than down: `Core::TileMapRenderer`
+draws a map it may not name, so the contract is what stops the stand-in drifting
+from the parsed article. Both of its implementations are headless, so unlike the
+other two it runs entirely in `spec/`.
 
 `spec_core/core_spec_helper.rb` requires the contracts across the directory
-boundary. That is the *only* thing that crosses: no `spec/` example file is
+boundary, and the stand-ins built against them. That is the *only* thing that
+crosses: no `spec/` example file is
 loaded there, and nothing in `spec/` ever names Core.
 
 A contract states the method list and its argument shapes; it cannot state
@@ -802,6 +838,6 @@ parts that are not are in `rake spec:core`:
   quotes, RuboCop (+ `-performance`, `-rspec`) via the `Gemfile`. Configured in
   `.rubocop.yml`, which also loads the project's own cops from
   `rubocop/cop/game/` — see the RuboCop section above.
-- `gosu` is in the `Gemfile` but intentionally unused — it's the library being
-  replaced (`docs/c_engine_feature_specs.md`), kept as the reference point. No
-  file under `lib/`, `spec/`, or `ext/` may require it.
+- No runtime Ruby dependencies at all. The `Gemfile` holds development gems
+  (RSpec, RuboCop) and the two stdlib gems the Core specs need to call C
+  directly (`fiddle`, `base64`); the gem itself depends on nothing.

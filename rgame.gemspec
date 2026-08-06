@@ -95,12 +95,15 @@ Gem::Specification.new do |spec|
     | \Aext/[^/]+/Makefile\z         # written by extconf.rb, not by us
   }x
 
-  # Gosu-backed code from the game this engine was extracted from, kept in the
-  # checkout while it is still in use. It defines a top-level `Platform`
-  # constant and subclasses `Gosu::Window`, so it could not work in the gem
-  # anyway — gosu is not a dependency and never will be. When it goes, delete
-  # this and the matching expectation in spec/packaging_spec.rb together.
-  not_shipped = %r{\Alib/platform/}
+  # The engine layer, held back for now.
+  #
+  # It depends on no graphics library at all — `lib/engine/` names none — but
+  # it still lives at the top level as `Engine::` rather than under
+  # `RGame::Engine`, so shipping it would put a bare `Engine` constant into
+  # every consumer's process. It comes *in* when it moves, which is what
+  # docs/plans/engine-replacement/ is for; delete this and the matching
+  # expectation in spec/packaging_spec.rb together at that point.
+  not_shipped = %r{\Alib/(engine/|engine\.rb\z|boot\.rb\z)}
 
   # `base:` keeps this independent of the working directory — `gem build` runs
   # here, but `rake build` and spec/packaging_spec.rb do not — and returns paths

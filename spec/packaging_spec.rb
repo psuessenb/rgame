@@ -28,6 +28,11 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
   # of the gem. Mirrors the pattern in rgame.gemspec, stated independently.
   let(:artifacts) { %r{\.(so|bundle|dylib|o|a|log)\z | \Aext/[^/]+/Makefile\z}x }
 
+  # The engine layer, deliberately held back until it is namespaced under
+  # RGame::Engine. Stated here independently of the gemspec's own pattern, so
+  # the two have to agree rather than share a mistake.
+  let(:held_back) { %r{\Alib/(engine/|engine\.rb\z|boot\.rb\z)} }
+
   # Files under the given globs, relative to the gem root, artifacts removed.
   def sources(*globs)
     Dir.glob(globs, base: root)
@@ -81,7 +86,7 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
 
   describe 'the Ruby layer' do
     it 'packages every .rb file under lib/, except the ones deliberately held back' do
-      expect(sources('lib/**/*.rb').grep_v(%r{\Alib/platform/}) - files).to be_empty
+      expect(sources('lib/**/*.rb').grep_v(held_back) - files).to be_empty
     end
 
     it 'packages non-Ruby files under lib/ as well' do
@@ -92,7 +97,7 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
       #
       # It stopped passing vacuously when the default font arrived: the two
       # files under lib/rgame/fonts/ are what it holds up today.
-      data = sources('lib/**/*').grep_v(/\.rb\z/).grep_v(%r{\Alib/platform/})
+      data = sources('lib/**/*').grep_v(/\.rb\z/).grep_v(held_back)
 
       expect(data - files).to be_empty
     end
@@ -120,12 +125,13 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
       expect(files.grep(%r{\A(spec|spec_core|test|src|rubocop)/})).to be_empty
     end
 
-    it 'excludes the Gosu-backed platform layer' do
-      # Kept in the checkout while the game still uses it, but it defines a
-      # top-level `Platform` constant and subclasses Gosu::Window, and gosu is
-      # not a dependency of this gem. When lib/platform/ goes, this expectation
-      # and the exclusion in rgame.gemspec go with it.
-      expect(files.grep(%r{\Alib/platform/})).to be_empty
+    it 'excludes the engine layer, which is not namespaced yet' do
+      # `lib/engine/` names no graphics library — it would run fine in the gem —
+      # but it is still top-level `Engine::` rather than `RGame::Engine`, and a
+      # gem has no business putting a bare `Engine` constant into someone's
+      # process. It ships when it moves; this expectation and the exclusion in
+      # rgame.gemspec go together at that point.
+      expect(files.grep(held_back)).to be_empty
     end
 
     it 'excludes plans, which describe work rather than the shipped code' do

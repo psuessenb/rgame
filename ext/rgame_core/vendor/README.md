@@ -46,9 +46,24 @@ or PulseAudio **at runtime** with `dlopen`, so nothing has to be linked or
 installed; on Windows and macOS it needs nothing at all. That is the property
 that makes audio cost this project no new system dependency, and it is the whole
 reason it is here instead of SDL_mixer — which would need `libsdl2-mixer-dev` to
-build and pulls ~8 MB on Debian, six of them a MIDI soundfont. raylib and SFML 3
-made the same choice; the survey and measurements are in
-[docs/plans/gosu-replacement/README.md](../../../docs/plans/gosu-replacement/README.md#audio-is-vendored-too-and-it-is-not-sdl_mixer).
+build and pulls ~8 MB on Debian, six of them a MIDI soundfont.
+
+That choice was made by looking at what comparable engines do rather than by
+preference. raylib vendors this same header; SFML 3 bundles it; DragonRuby and
+Gosu vendor MojoAL. Nobody in the small-C-engine category depends on SDL_mixer.
+The one close peer that does is ruby2d, and the price shows in its `extconf.rb`:
+a hand-maintained package-name table for five package managers, plus around
+twenty prebuilt static archives shipped in the gem because system libraries are
+hopeless on macOS and Windows. That is the real cost of the SDL satellite
+libraries — either your users fight their package manager, or you become a
+distributor of binaries.
+
+MojoAL was the other finalist and both were prototyped against the full feature
+set: load an ogg, overlapping one-shots, streaming music, `playing?`, stop,
+volume. MojoAL is ten times smaller and compiles ten times faster. miniaudio won
+on the two things OpenAL hands back to the caller — streaming and voice
+management — because a stream needs a pump, and a pump driven from the frame
+loop turns a slow frame into an audio dropout.
 
 It is ~4 MB of source, an order of magnitude more than everything else here.
 That is known and accepted; if it ever stops being worth it, MojoAL is the
@@ -129,6 +144,16 @@ Italian, Spanish, Portuguese, Nordic and Polish in full, plus `« »`, curly
 quotes and `€`), and Greek and Cyrillic besides. Not CJK, Arabic, Hebrew or
 Devanagari — a game needing those passes its own font path.
 
-Why a shipped font at all, rather than asking the system for one the way Gosu
-does, is recorded in
-[docs/plans/gosu-replacement/README.md](../../../docs/plans/gosu-replacement/README.md#the-default-font-is-vendored-not-looked-up).
+**Why ship a font at all, rather than asking the system for one?** Because the
+lookup is not one lookup. Doing it the way a font-database library does means a
+backend per platform — fontconfig on Linux, CoreText on macOS, GDI on Windows —
+which is a system dependency this project otherwise does not have, and a
+per-glyph *fallback chain* on top: a name, then a series of substitutes, then
+whatever the database offers, then a hardcoded path. The engine this one
+replaces ended its Linux chain at a literal Debian path.
+
+Vendoring buys the thing the lookup structurally cannot: **text renders
+identically on every machine.** A UI laid out against one font on the
+developer's box and a substituted one on a player's is a layout bug nobody can
+reproduce. 410 KB is a fair price, and it is smaller than the PNG decoder
+already sitting in this directory.

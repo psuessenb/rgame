@@ -62,7 +62,7 @@ typedef struct {
     double z;
     /*
      * Insertion index. The sort compares (z, order), so commands with equal z
-     * keep the order they were issued in — Gosu behaves that way, and without
+     * keep the order they were issued in — without
      * it same-z sprites would swap places between frames as the sort reshuffled
      * them, which reads as flicker. Note the *comparator* provides stability
      * here, so the sort algorithm itself does not have to be stable.

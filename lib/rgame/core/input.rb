@@ -28,8 +28,12 @@ module RGame
     # `device:` to the keyboard is what lets single-player call sites stay
     # `input.down?(:fire)` with no ceremony.
     #
-    # There is no pointer/mouse support, by design — see
-    # docs/plans/gosu-replacement/.
+    # **There is no pointer or mouse support, by design.** The layer this
+    # replaced had a cursor position and a click button riding the same "is
+    # held" path as keys, and none of it was carried over: this engine's input
+    # is keyboard and controllers. A game wanting click-based UI has to build
+    # hit-testing on top rather than find it here, and the intended answer for
+    # menus is keyboard and controller navigation instead.
     class Input
       Controls = RGame::Util::Controls
 
