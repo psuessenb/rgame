@@ -2591,6 +2591,52 @@ run, and the rest of the mouse cleanup belongs to
   tile map scrolls with canopies over the actors, sounds fire, music loops. Then
   the full sweep, since this step touches `App` and `Renderer`.
 
+**Landed.** `lib/rgame/game.rb` — `RGame::Game`, the only class directly under
+`RGame`, and by construction the only one allowed to name both layers. Both
+examples run on it. `lib/son_gosu_game.rb` is gone.
+
+**A real bug, and only a driven run could have found it.** The port put the
+input poll in `frame_begin`, following 02-architecture's "sample input once per
+frame and reuse across catch-up ticks". That is right for *held* state and wrong
+for *edges*. `pressed?` means "held now, not held at the previous poll", so
+whatever polls defines what a press is — and `frame_begin` runs once per
+rendered *frame*. Under Xvfb the loop renders far faster than it simulates, so
+thousands of polls happen between two ticks, each shifting the previous state,
+and the press is consumed by a poll no tick ever reads. The menu simply never
+responded.
+
+Polling moved into `update`, one poll per tick. It costs nothing and loses
+nothing: the C layer snapshots the keyboard once per frame, so several catch-up
+ticks inside one frame read identical state and the edge lands on the first of
+them — one press, one `pressed?`. Worth stating as a rule of its own: **edge
+detection belongs wherever the simulation ticks, not wherever the screen
+refreshes.** The failure mode is the nasty kind — correct on a slow machine,
+broken on a fast one.
+
+It was found by *driving* the examples rather than booting them: a throwaway
+harness that prepends a bounded `update`, swaps in a scripted input backend and
+counts what the game asked for. Booting alone reported "90 ticks, 90 frames" and
+looked fine.
+
+| | ticks | frames | sounds | draws |
+|---|---|---|---|---|
+| 14 asteroids | 120 | 120 | `blip`, `heartbeat` music, 4× `shoot` | 119 background, 129 text, 680 image |
+| 15 tiled world | 120 | 120 | — | 120 tilemap, 120 overlay, 840 sprite |
+
+Example 15 came through with only its two `SonGosuGame` mentions changed, as
+predicted — it never named the platform. Example 14 lost its second
+`AssetManager` (it built one while `game.assets` already existed, so there were
+two caches) and its own `GosuAudio`.
+
+**The mouse went, as the smallest possible change**: `ActionMapper#poll`'s two
+unconditional `backend.pointer_x/y` calls and `Actions`' pointer accessors. That
+is what was blocking the engine layer from running at all. `lib/engine/ui/` and
+`Clickable` still reference the accessors and now raise if used; both are listed
+in `docs/plans/engine-replacement/` and neither example touches them.
+
+**Docs**: `docs/api/game.md`, and `docs/engine/son_gosu_game.md` deleted with the
+class it described. Two `docs/engine/` cross-references repointed.
+
 ### 6.9 Delete `lib/platform/`, and the cleanup that follows
 
 Only now, when everything above is green *and both examples run* — the old files

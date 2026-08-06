@@ -9,15 +9,12 @@ module Engine
   # state, so a one-shot action (menu confirm, jump) fires exactly once per press
   # rather than every frame it's held.
   class Actions
-    # `pointer` is a mutable `{ x:, y: }` hash the mapper updates in place each poll
-    # (like `held`/`axes`), so the snapshot stays a single reused, allocation-free object.
-    # The pointer *button* (click) rides the normal button path: bind a `:pointer` physical
-    # id and query it through held?/pressed?/released? like any other action.
-    def initialize(held: {}, axes: {}, prev_held: {}, pointer: { x: 0.0, y: 0.0 })
+    # `held`, `axes` and `prev_held` are mutable hashes the mapper updates in place
+    # each poll, so the snapshot stays a single reused, allocation-free object.
+    def initialize(held: {}, axes: {}, prev_held: {})
       @held = held
       @axes = axes
       @prev_held = prev_held
-      @pointer = pointer
     end
 
     def held?(name)
@@ -38,9 +35,5 @@ module Engine
     def axis(name)
       @axes.fetch(name, 0.0)
     end
-
-    # Cursor position in screen pixels (the same space widgets lay out in).
-    def pointer_x = @pointer[:x]
-    def pointer_y = @pointer[:y]
   end
 end

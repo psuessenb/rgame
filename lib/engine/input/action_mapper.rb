@@ -3,10 +3,12 @@
 module Engine
   # Polls an InputBackend through a binding map and produces an Actions snapshot.
   # The map is `{ action_name => { axis: %i[neg pos] } | { button: %i[ids] } }`;
-  # physical ids are decoupled from Gosu constants (the backend resolves them), so
-  # remapping is just swapping this data.
-  # Pure logic: the backend is duck-typed (`down?(physical_id)`), so tests pass a
-  # fake and real code passes the Gosu-backed one.
+  # physical ids are decoupled from any backend's constants (the backend resolves
+  # them), so remapping is just swapping this data.
+  #
+  # Pure logic: the backend is duck-typed — the whole interface is
+  # `down?(physical_id)` — so a test passes a fake and a game passes
+  # `RGame::Core::Input`.
   class ActionMapper
     attr_accessor :map
 
@@ -20,9 +22,7 @@ module Engine
       @held = {}
       @prev_held = {}
       @axes = {}
-      # Mutated in place each poll (no per-frame allocation), shared into the snapshot.
-      @pointer = { x: 0.0, y: 0.0 }
-      @actions = Actions.new(held: @held, axes: @axes, prev_held: @prev_held, pointer: @pointer)
+      @actions = Actions.new(held: @held, axes: @axes, prev_held: @prev_held)
     end
 
     def poll(backend)
@@ -37,9 +37,6 @@ module Engine
         end
         @held[name] = binding[:button].any? { |b| backend.down?(b) } if binding[:button]
       end
-
-      @pointer[:x] = backend.pointer_x
-      @pointer[:y] = backend.pointer_y
 
       @actions
     end

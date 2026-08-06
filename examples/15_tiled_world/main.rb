@@ -11,7 +11,13 @@
 #   - AnimatedSprite — directional sprite-sheet animation;
 #   - CameraView + renderer.translated — the camera as a draw-time view transform.
 
-require_relative '../../lib/son_gosu_game'
+# lib/ on the load path, so `require 'rgame/game'` resolves the same way it
+# would from an installed gem — which is also how the compiled extensions are
+# found. `boot` enables YJIT; it is the entry point's call to make, not the
+# library's.
+$LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
+require 'boot'
+require 'rgame/game'
 require_relative 'beach_scene'
 
 WIDTH  = 640
@@ -31,7 +37,7 @@ end
 # The game owns the asset manager (rooted at media/); the scene and its components
 # resolve what they need from it by relative path (via node.root.context.assets), so
 # nothing is loaded, registered, or passed down here.
-SonGosuGame.new(
+RGame::Game.new(
   root: Root.new,
   caption: 'Example 15 - Tiled World',
   width: WIDTH,

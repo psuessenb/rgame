@@ -67,11 +67,13 @@ Unconditional, so `poll` raises `NoMethodError` against a `Core::Input` — the
 engine layer does not run *at all* until this goes. Phase 6.8 deletes these two
 lines as the minimum to get the examples up; the rest is this plan's:
 
-- `input/actions.rb:16,20,43,44` — the `pointer:` constructor keyword and the
-  `pointer_x`/`pointer_y` readers.
-- `components/clickable.rb:31` — a component that is mouse-only by definition.
-  Probably deleted rather than ported.
-- `lib/engine/ui/` — see below.
+- ~~`input/actions.rb`~~ and ~~`ActionMapper#poll`~~ — **done** in
+  gosu-replacement 6.8, because nothing ran until they were.
+- `components/clickable.rb:31` — a component that is mouse-only by definition,
+  and now calls an `Actions` method that no longer exists. Probably deleted
+  rather than ported.
+- `lib/engine/ui/` — see below. Same situation: it raises if used, and nothing
+  uses it.
 
 ### 2. The UI package is outdated and mouse-built
 
@@ -146,11 +148,11 @@ Recorded as questions, not answered.
 - **Namespace and path.** `Engine::` → `RGame::Engine::`, `lib/engine/` →
   `lib/rgame/engine/`. Mechanical, but it is 57 files and every `examples/`
   reference, so it wants to be one commit that does nothing else.
-- **What `SonGosuGame` becomes.** Phase 6 turns it into an
-  `RGame::Core::App` subclass, which means it holds Core and therefore cannot
-  move into `RGame::Engine`. Is it a game's own file (each game writes one), a
-  documented template, or something in `RGame::Core` with a scene-graph-shaped
-  hole? The name goes either way.
+- ~~**What `SonGosuGame` becomes.**~~ **Settled — it is `RGame::Game`**, an
+  `RGame::Core::App` subclass living directly under `RGame`, and the only class
+  permitted to name both layers. Landed in gosu-replacement 6.8; see
+  `docs/api/game.md`. What is left for this plan is that it names `Engine::`
+  rather than `RGame::Engine::`, which the namespace move fixes.
 - **Where `docs/engine/` lands.** It is real reference documentation, currently
   describing the Gosu-era API (`docs/engine/asset_manager.md` documents
   `Platform::AssetManager` returning `Gosu::Image`). It should end up merged

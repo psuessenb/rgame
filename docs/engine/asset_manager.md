@@ -32,9 +32,9 @@ once); the same path under two types (e.g. `image('x')` and `read('x')`) are dis
 Plain (ungrouped) loads are kept for the process lifetime; assets loaded under a group can be
 released as a set (see *Preload and scoped disposal* below).
 
-`SonGosuGame` builds the manager from its `media_root:` and exposes it as `game.assets`, so a scene
+`RGame::Game` builds the manager from its `media_root:` and exposes it as `game.assets`, so a scene
 or component names an asset by its root-relative path and resolves it itself (see
-[SonGosuGame](son_gosu_game.md)) — no central loading or registration step.
+[RGame::Game](../api/game.md)) — no central loading or registration step.
 
 ## Renderer resolves through the manager; audio still registers
 

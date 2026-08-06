@@ -8,6 +8,7 @@ any C.
 |---|---|
 | This page | Loading the library, the two namespaces, a working program, testing |
 | [App](app.md) | `RGame::Core::App` — the window and the frame loop |
+| [Game](game.md) | `RGame::Game` — the entry point that wires both halves together |
 | [Input](input.md) | `RGame::Core::Input`, `RGame::Util::Controls`, `RGame::Core::Gamepad` |
 | [Drawing](drawing.md) | `RGame::Core::Renderer` — shapes, images, transforms, clipping, recordings |
 | [Images](images.md) | `RGame::Core::Image` — loading PNGs, subimages, sprite sheets |

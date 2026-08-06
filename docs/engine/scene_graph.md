@@ -115,7 +115,7 @@ The engine drives this; you never call it. The relevant calls are `enter_tree` /
 - `add_component` / `remove_component` fire `on_attach` / `on_detach` immediately when
   the host node is already live (otherwise attach happens during the node's entry).
 - `SceneStack#push` / `pop` enter/exit a scene; the platform enters the root once at
-  boot (`SonGosuGame#start`).
+  boot (`RGame::Game#start`).
 
 **The split is load-bearing for the `on_add`/`initialize` divide:** put cross-tree
 lookups (anchors, systems, sibling components) in `on_add` / `on_attach`, never in
