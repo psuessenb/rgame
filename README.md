@@ -1,8 +1,43 @@
-# rgame
+# RGame
 
-A small learning project: a 2D game engine written in C on top of SDL2 and
-OpenGL, exposed to Ruby as C extensions, headed for a single gem that ships
-both halves.
+A small 2D game engine written in Ruby and C, on top of SDL2, OpenGL and miniaudio.
+
+## Why does this exist and should you use it?
+
+RGame is the product of both my lazyness and me looking for something that did not exist. Coming from Ruby on Rails, I wanted to write games while not learning a new language. There are Ruby game engines, but none offered me the option to write modern, standard Ruby and proper specs for the game logic. The closest I found was Gosu, and this project initially started as a "high level engine on top of Gosu", but eventually the limitations of Gosu drove me into rewriting this layer myself.
+
+RGame puts a lot of emphazis on testing and being testable: It separates the layers that talk to SDL2/OpenGL from the high level engine concepts, so the whole game logic is testable headless.
+
+It also tries to marry the beauty of Ruby with the hard performance requirements of games: Hot paths have no per-frame allocation, because garbadge collection is what really slows down Ruby interpreation, and math-heavy use-cases are backed by C code instead of Ruby classes.
+
+Should you use it, though? If you're looking for something mature, free, and more battle-tested take a look at Godot instead. If you're looking for something mature and battle-tested in Ruby land, take a look at dragonruby instead (it's not free, but it's probably worth the price).
+
+If you're just starting with game development and planning on making the next big indie hit, might as well pick this one as the engine for the game you never finish!
+
+In all seriousness, though: This is a hobby project of mine, and while it might develop into something actually useful, at the time of writing it's a playground. If you search for something I searched and found nothing, you can try this. I would be really happy if someone else actually uses it, but at this point I can't really recommend it for anything else than small projects and/or learning the ropes of game development.
+
+## Hello world
+
+```
+require 'rgame/game'
+
+class Scene < RGame::Engine::Node2D
+  def on_draw(renderer)
+    renderer.text('Hello world!', 250, 200)
+  end
+end
+
+game = RGame::Game.new(
+  root: Scene.new,
+  caption: 'Hello world!'
+)
+
+game.start
+```
+
+You can learn more about how it works in the [documentation](docs/api/README.md).
+
+# Where does stuff live
 
 Everything Ruby-visible lives under the `RGame` module, split in two by what it
 depends on:
