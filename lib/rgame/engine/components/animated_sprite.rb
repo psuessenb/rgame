@@ -9,7 +9,7 @@ module RGame
       # AnimationSet built from the sheet's animation table.
       #
       # Like Sprite, it passes NO angle and draws at the node's *world* origin
-      # (node.abs_x/abs_y): a CameraView ancestor wraps the draw in renderer.translated to
+      # (node.abs_x/abs_y): a WorldView ancestor wraps the draw in renderer.translated to
       # map world → screen, so this component never touches the camera. `z` is the render
       # layer (kept as @layer, distinct from the node's transform z); it must sit between
       # the tile world's ground band and its overlay band so canopies draw in front.
@@ -39,7 +39,7 @@ module RGame
           @animator.update(dt)
         end
 
-        def draw(renderer)
+        def draw(renderer, _view)
           # Read row/col/flip_x separately (not @animator.frame, which allocates an Array
           # every call) to keep the draw path allocation-free.
           renderer.sprite(@sheet, @animator.row, @animator.col, node.abs_x, node.abs_y,

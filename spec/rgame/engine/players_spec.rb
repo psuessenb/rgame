@@ -71,16 +71,6 @@ RSpec.describe RGame::Engine::Players do
     end
   end
 
-  describe '#resolve_cameras' do
-    it 'resolves every player\'s camera against the given view size' do
-      players = described_class.new([player(0), player(1)])
-      players.each { |p| p.camera.center_on(500, 500) }
-      players.resolve_cameras(100, 100)
-
-      expect(players.map { |p| p.camera.x }).to eq([450.0, 450.0])
-    end
-  end
-
   describe 'hot-plug' do
     subject(:players) { described_class.new([seated, waiting]) }
 

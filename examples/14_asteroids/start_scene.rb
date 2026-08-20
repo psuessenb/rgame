@@ -22,7 +22,7 @@ class StartScene < RGame::Engine::Node2D
     root.go(:play)
   end
 
-  def on_draw(renderer)
+  def on_draw(renderer, _view)
     renderer.background(:space)
     centered(renderer, TITLE, (@height / 2) - 30, TITLE_COLOR)
     centered(renderer, HINT, (@height / 2) + 20, HINT_COLOR)

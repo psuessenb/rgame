@@ -69,17 +69,6 @@ module RGame
         self
       end
 
-      # Resolve every active player's camera against a viewport of this size.
-      #
-      # Temporary in this shape: with one full-screen view the size is the
-      # window's, so the platform passes it once. When the layout arrives each
-      # camera is resolved against *its own* viewport instead, which is the
-      # whole reason Camera takes the size as an argument.
-      def resolve_cameras(view_width, view_height)
-        @list.each { |player| player.camera.resolve(view_width, view_height) }
-        self
-      end
-
       # Hand a newly connected controller to the first player waiting for one.
       #
       # Only seats with no device are filled, so a controller arriving never

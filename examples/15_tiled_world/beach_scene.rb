@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # The one scene: it owns the camera, mounts the TileWorld system, and builds the
-# player + NPCs under a CameraView (so they draw in world space and the camera maps
+# player + NPCs under a WorldView (so they draw in world space and the camera maps
 # them to the screen). It resolves everything it needs from the game's asset manager
 # (node.root.context.assets) by relative path — nothing is passed into its constructor.
 #
@@ -28,7 +28,9 @@ class BeachScene < RGame::Engine::Node2D
     @camera = root.system(RGame::Engine::Players).primary.camera
     add_component(RGame::Engine::Components::TileWorld.new(map: @map, tilemap_id: MAP_KEY, camera: @camera))
 
-    view = add_node(RGame::Engine::CameraView.new(camera: @camera))
+    # World space begins here: everything under it draws at its own world
+    # coordinates and is drawn once per viewport, through that viewport's camera.
+    view = add_node(RGame::Engine::WorldView.new)
     @player = build_player
     view.add_node(@player)
     # After add_node, deliberately: the camera offset is read off the player's

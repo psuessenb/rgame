@@ -32,7 +32,7 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
   def step(intent_x, intent_y)
     body.set_intent(intent_x, intent_y)
     sprite.update(0.0)
-    sprite.draw(renderer)
+    sprite.draw(renderer, screen_view)
   end
 
   describe '#on_attach' do
@@ -77,7 +77,7 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
     it 'draws at the node resolved world origin with the configured layer and no flip' do
       body.set_intent(0.0, 0.0)
       node.update(0.0) # resolves abs_x/abs_y; zero intent so the body makes no move
-      node.draw(renderer)
+      node.draw(renderer, screen_view)
       expect(renderer).to have_received(:sprite)
         .with(:hero, 0, anything, node.abs_x, node.abs_y, flip_x: false, z: 10)
     end

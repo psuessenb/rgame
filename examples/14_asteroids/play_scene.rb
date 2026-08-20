@@ -51,7 +51,7 @@ class PlayScene < RGame::Engine::Node2D
     reclaim
   end
 
-  def on_draw(renderer)
+  def on_draw(renderer, _view)
     renderer.background(:space)
     renderer.text(@score_text, 12, 10, z: 20, color: SCORE_COLOR)
   end

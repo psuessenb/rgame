@@ -9,7 +9,7 @@
 #   - TileWorld — a scene-scoped system: tile collision, world bounds, map drawing;
 #   - CharacterBody + PlayerController / WanderController — collision-checked walking;
 #   - AnimatedSprite — directional sprite-sheet animation;
-#   - CameraView + renderer.translated — the camera as a draw-time view transform.
+#   - WorldView + renderer.translated — the camera as a draw-time view transform.
 
 # lib/ on the load path, so `require 'rgame/game'` resolves the same way it
 # would from an installed gem — which is also how the compiled extensions are

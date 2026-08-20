@@ -70,7 +70,8 @@ module RGame
       @players = RGame::Engine::Players.new(
         [RGame::Engine::Player.new(id: 0, device: device, input_map: input_map)]
       )
-      @overlay = RGame::Engine::DebugOverlay.new # always wired up; F1 reveals it
+      @viewports = RGame::Engine::Viewports.new(@players, width: width, height: height)
+      @debug = RGame::Engine::DebugOverlay.new # always wired up; F1 reveals it
       @dirty = true # draw the first frame
 
       install_asset_loaders
@@ -85,6 +86,11 @@ module RGame
     # and `players.primary.camera` that a scene points at its hero.
     attr_reader :players
 
+    # How the screen is divided. Reachable as `node.system(RGame::Engine::Viewports)`,
+    # which is how a cutscene deep in a scene collapses the split without
+    # anything being handed to it.
+    attr_reader :viewports
+
     # Brings the tree live and runs until the window closes.
     #
     # The root gets this object as its `context`, which is how a node deep in
@@ -92,9 +98,10 @@ module RGame
     # anything being threaded through its constructor.
     def start
       @root.context = self
-      # A root-scoped system, mounted before the tree comes alive so that an
-      # on_add anywhere in it can already resolve node.system(Players).
+      # Root-scoped systems, mounted before the tree comes alive so that an
+      # on_add anywhere in it can already resolve node.system(...) for either.
       @root.add_component(@players)
+      @root.add_component(@viewports)
       @root.enter_tree # components attach, then on_add
       run
     end
@@ -126,18 +133,26 @@ module RGame
 
     # Only the simulation advancing makes the frame stale. While the overlay is
     # up, redraw anyway, so its numbers stay live even when nothing is moving.
-    def needs_redraw? = @dirty || @overlay.visible?
+    def needs_redraw? = @dirty || @debug.visible?
 
+    # The tree is drawn once, with the whole window as its view. Screen-space
+    # content — a HUD, a menu, a title card — lands there and is drawn exactly
+    # once, as it always was.
+    #
+    # **World content multiplies inside the tree, not here.** An
+    # RGame::Engine::WorldView draws its subtree once per viewport, clipping and
+    # translating for each, so where the world begins is the game's choice
+    # rather than a shape the platform imposes. That is also what keeps
+    # `node.root` meaning the game's own root: nothing is inserted above it.
     def draw
-      # Cameras are resolved here rather than wherever they are pointed, because
-      # clamping depends on the size of the view being drawn into and nothing in
-      # the tree knows that. One full-screen view today, so every camera gets the
-      # window; the layout supplies a rect per viewport once there is one.
-      @players.resolve_cameras(width, height)
-      @root.draw(@renderer)
-      @overlay.draw(@renderer, width, height, fps) # last, so it layers on top
+      @viewports.refresh # rects from the layout, then reclamp every camera
+      @root.draw(@renderer, @viewports.screen)
+      @debug.draw(@renderer, @viewports.screen, fps) # last, so it layers on top
       @dirty = false
     end
+
+    # The window changed size, so every rect and every camera clamp does too.
+    def resize(width, height) = @viewports.resize(width, height)
 
     # A controller arriving fills the first seat waiting for one, and leaving
     # empties whichever seat it was in — the player themselves, with their
@@ -153,7 +168,7 @@ module RGame
     # F2 quits.
     def button_down(id)
       close if id == Controls::KEY_F2
-      @overlay.toggle if id == Controls::KEY_F1
+      @debug.toggle if id == Controls::KEY_F1
     end
 
     private

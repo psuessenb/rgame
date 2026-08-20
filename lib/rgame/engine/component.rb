@@ -20,7 +20,7 @@ module RGame
 
       def control(actions); end
       def update(dt); end
-      def draw(renderer); end
+      def draw(renderer, view); end
 
       # Container components (e.g. SceneStack) that hold nodes off the normal child
       # list override this to forward the deferred-free sweep into them.

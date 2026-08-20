@@ -67,9 +67,12 @@ module RGame
           current_scene.update(dt)
         end
 
-        def draw(renderer)
+        # Every scene in the stack, not just the current one — that asymmetry
+        # with control/update is what lets a menu pushed on top keep the world
+        # visible underneath while freezing it.
+        def draw(renderer, view)
           @stack.each do |scene|
-            scene.draw(renderer)
+            scene.draw(renderer, view)
           end
         end
 

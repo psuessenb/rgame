@@ -4,7 +4,7 @@ $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
 class Scene < RGame::Engine::Node2D
-  def on_draw(renderer)
+  def on_draw(renderer, _view)
     renderer.text('Hello world!', 250, 200)
   end
 end

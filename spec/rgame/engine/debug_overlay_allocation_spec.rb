@@ -18,10 +18,13 @@ RSpec.describe RGame::Engine::DebugOverlay do
   it 'draws without allocating per frame' do
     overlay = described_class.new
     overlay.toggle
-    overlay.draw(renderer, 640, 480, 60) # warm up: measure and cache digit/label widths
+    # One view, built once: the platform reuses its Views frame to frame, and
+    # building a fresh one per call here would measure this spec instead.
+    view = screen_view
+    overlay.draw(renderer, view, 60) # warm up: measure and cache digit/label widths
 
     before = GC.stat(:total_allocated_objects)
-    1000.times { overlay.draw(renderer, 640, 480, 60) }
+    1000.times { overlay.draw(renderer, view, 60) }
     after = GC.stat(:total_allocated_objects)
 
     expect(after - before).to be < 100

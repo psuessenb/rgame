@@ -12,10 +12,10 @@ RSpec.describe RGame::Engine::Components::TileWorld do
     instance_double(RGame::Engine::Camera, x: 8, y: 16, :world_width= => nil, :world_height= => nil)
   end
 
-  # The size of the view being drawn into. A camera no longer carries one — it
-  # is drawn through as many viewports as there are players — so the component
-  # asks the platform, through the node it is attached to. Step 3 of the
-  # split-screen plan replaces this with the view being drawn.
+  # The viewport being drawn into. A camera no longer carries a size — it is
+  # drawn through as many viewports as there are players — so the size and the
+  # offset both arrive with the view.
+  let(:view) { screen_view(width: 320, height: 240, camera: camera) }
   let(:node) { RGame::Engine::Node2D.new }
 
   # Verified against FakeRenderer, which is itself run against the renderer
@@ -24,7 +24,6 @@ RSpec.describe RGame::Engine::Components::TileWorld do
   let(:renderer) { instance_double(FakeRenderer) }
 
   before do
-    node.context = instance_double(FakeGame, width: 320, height: 240)
     node.add_component(world)
     allow(renderer).to receive(:tilemap)
     allow(renderer).to receive(:tilemap_overlay)
@@ -34,7 +33,7 @@ RSpec.describe RGame::Engine::Components::TileWorld do
     it 'draws both bands, leaving room for the actors between them' do
       # Two calls rather than one because the scene draws its actors in between;
       # collapsing them would put every canopy behind every character.
-      world.draw(renderer)
+      world.draw(renderer, view)
 
       expect(renderer).to have_received(:tilemap).ordered
       expect(renderer).to have_received(:tilemap_overlay)
@@ -42,7 +41,7 @@ RSpec.describe RGame::Engine::Components::TileWorld do
     end
 
     it 'draws through the camera' do
-      world.draw(renderer)
+      world.draw(renderer, view)
 
       expect(renderer).to have_received(:tilemap).with(:level, 8, 16, 320, 240, any_args)
     end
@@ -53,14 +52,14 @@ RSpec.describe RGame::Engine::Components::TileWorld do
     # state; time enters through `update`" — so the elapsed seconds animated
     # tiles run on have to come from somewhere. Here, out of `update`.
     it 'starts at zero' do
-      world.draw(renderer)
+      world.draw(renderer, view)
 
       expect(renderer).to have_received(:tilemap).with(any_args, hash_including(elapsed: 0.0))
     end
 
     it 'accumulates dt and hands the same clock to both bands' do
       3.times { world.update(0.5) }
-      world.draw(renderer)
+      world.draw(renderer, view)
 
       expect(renderer).to have_received(:tilemap).with(any_args, hash_including(elapsed: 1.5))
       expect(renderer).to have_received(:tilemap_overlay)
@@ -71,7 +70,7 @@ RSpec.describe RGame::Engine::Components::TileWorld do
       # What pausing looks like from here: a scene that stops ticking stops the
       # water. A wall clock could not express that.
       world.update(0.25)
-      3.times { world.draw(renderer) }
+      3.times { world.draw(renderer, view) }
 
       expect(renderer).to have_received(:tilemap)
         .with(any_args, hash_including(elapsed: 0.25)).exactly(3).times

@@ -175,7 +175,13 @@ module RGame
 
       # update visual game state, drawing the node. This runs last in
       # a game tick
-      def draw(renderer)
+      # `view` is the viewport being drawn into: its rectangle, and the camera
+      # (if any) it is seen through. Every node gets it, because a node cannot
+      # otherwise know where the edges of its own region are — a HUD laying out
+      # against the whole window is wrong the moment the window is one player's
+      # half of it — and because culling needs it once the world is drawn more
+      # than once. Most nodes ignore it and simply draw.
+      def draw(renderer, view)
         resolve_origin
         # Draw this node's own visuals oriented by its absolute angle, then descend.
         # Children resolve their own world transform (resolve_origin already baked this
@@ -183,11 +189,11 @@ module RGame
         # must NOT be nested inside this node's rotation — nesting would apply that
         # rotation to them a second time. Unrotated nodes skip the wrapper entirely.
         if abs_angle.zero?
-          draw_content(renderer)
+          draw_content(renderer, view)
         else
-          renderer.rotated(abs_angle * 180.0 / Math::PI, abs_x, abs_y) { draw_content(renderer) }
+          renderer.rotated(abs_angle * 180.0 / Math::PI, abs_x, abs_y) { draw_content(renderer, view) }
         end
-        draw_children(renderer)
+        draw_children(renderer, view)
       end
 
       def in_tree? = @in_tree
@@ -249,7 +255,7 @@ module RGame
 
       def on_control(actions); end
       def on_update(dt); end
-      def on_draw(renderer); end
+      def on_draw(renderer, view); end
       def on_add; end
       def on_remove; end
 
@@ -257,16 +263,17 @@ module RGame
 
       # This node's own drawing: its components and its draw hook, in that order.
       # Wrapped in renderer.rotated by #draw when the node carries an absolute angle.
-      def draw_content(renderer)
-        @components.each { it.draw(renderer) }
-        on_draw(renderer)
+      # hot-path
+      def draw_content(renderer, view)
+        @components.each { it.draw(renderer, view) }
+        on_draw(renderer, view)
       end
 
       # Draw the child subtrees. Its own method so a node can wrap the whole subtree's
-      # draw in a transform — e.g. CameraView wraps it in renderer.translated to apply a
-      # camera offset, without each child knowing about the camera.
-      def draw_children(renderer)
-        @children.each { it.draw(renderer) }
+      # draw in a transform without each child knowing about it.
+      # hot-path
+      def draw_children(renderer, view)
+        @children.each { it.draw(renderer, view) }
       end
 
       # TODO: Calculate (and cache?) depth

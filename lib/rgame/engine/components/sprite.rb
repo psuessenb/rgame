@@ -22,7 +22,7 @@ module RGame
           @layer = z
         end
 
-        def draw(renderer)
+        def draw(renderer, _view)
           renderer.image(@id, node.abs_x, node.abs_y, scale: @scale, z: @layer)
         end
       end

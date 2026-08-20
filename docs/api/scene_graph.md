@@ -25,7 +25,8 @@ A node is driven in three phases, run in this order every frame:
 1. `control(actions)` — read intent, both from the player (the `actions`
    snapshot) and from AI/scripted controllers.
 2. `update(dt)` — advance game logic and physics over the timestep `dt`.
-3. `draw(renderer)` — render the current visual state.
+3. `draw(renderer, view)` — render the current visual state into `view`, the
+   viewport being drawn.
 
 Each phase **settles the node itself first — its components, then its own hook —
 and only then descends into the children**. So you override the hook, not the
@@ -33,7 +34,14 @@ phase itself:
 
 - `on_control(actions)`
 - `on_update(dt)`
-- `on_draw(renderer)`
+- `on_draw(renderer, view)`
+
+`view` is the viewport this node is being drawn into — its rectangle, and the camera (if
+any) it is seen through. Most nodes ignore it and just draw. Two things need it: laying
+out against the edges of *this* region rather than the whole window
+(`view.x`, `view.width`), and culling (`view.visible?(x, y, w, h)`), which stops being an
+optimisation once the world is drawn once per player. See
+[Viewports](#viewports-and-views).
 
 Self-before-subtree keeps the transform flowing downward: a component or hook
 that moves the node does so before its children resolve their origin from it (see
@@ -85,13 +93,82 @@ maps that world onto the screen (a camera), and it must wrap a whole subtree's d
 without being baked into any node's position. So `draw` calls a `draw_children` step a
 subclass can override to wrap the subtree in a renderer transform.
 
-`RGame::Engine::CameraView` is that subclass: built with an `RGame::Engine::Camera`, it wraps its
-children's draw in `renderer.translated(-camera.x, -camera.y)`. Its children draw at
-their own world origin (they never know about the camera); the translate maps them to
-the screen. Because the offset is a draw-time transform rather than a node position, the
-same world can later be drawn through several cameras — split-screen is repeating the
-pass under different offsets/clips. The owning scene drives the camera (e.g. centring it
-on the player); `CameraView` only applies it. See `examples/15_tiled_world`.
+`RGame::Engine::WorldView` is that subclass, and it is where **world space begins**.
+Its children draw at their own world origin and never know about a camera; the node
+draws them **once per active viewport**, clipping to that viewport's rectangle and
+translating by its camera:
+
+```ruby
+view = scene.add_node(RGame::Engine::WorldView.new)
+view.add_node(player)     # world coordinates
+```
+
+Everything *outside* a `WorldView` is screen space and draws once. That one distinction
+is what separates a HUD from the world, and where it goes is the game's choice — nothing
+is imposed above the game's own root.
+
+A `WorldView` takes no camera. Cameras belong to players
+(`RGame::Engine::Player#camera`), and the node asks
+`node.system(RGame::Engine::Viewports)` which viewports exist, so the same subtree serves
+one player or four with nothing below it changing. A camera owned by a node *inside* the
+world could not do that — it would force the world to know how many times it is drawn.
+
+**Only `draw` multiplies.** `control` and `update` still run once per node per tick
+however many players are watching, which is what keeps simulation cost independent of
+player count — and what makes the standing "draw renders state" rule load-bearing rather
+than stylistic: a `draw` with a side effect now runs once per player.
+
+See `examples/15_tiled_world`.
+
+## Viewports and views
+
+`RGame::Engine::Viewports` is a root-scoped system holding how the screen is divided;
+`RGame::Engine::Layout` is the pure arithmetic behind it, and a `RGame::Engine::View` is
+one viewport being drawn.
+
+```ruby
+viewports = node.system(RGame::Engine::Viewports)
+viewports.views     # one View per active player — what a WorldView draws through
+viewports.screen    # the whole window, no camera — the screen-space band
+```
+
+A **`View`** carries `x`, `y`, `width`, `height`, its `camera` (nil in a screen-space
+band) and its `player`, plus two things nodes actually use:
+
+| | |
+|---|---|
+| `view.visible?(x, y, w, h)` | is this worth drawing at all |
+| `view.offset_x` / `offset_y` | the translate that maps its contents onto the screen |
+
+**Views are reused, not rebuilt.** `Viewports` mutates one per viewport each frame, the
+way `ActionMapper` reuses its `Actions` — building fresh ones would allocate every frame.
+Hold the player or the viewports, never a `View`.
+
+**`Layout`** answers only "given a count and a window, where does each one go", with no
+state and no anchors: one viewport gets the window, two get a row each, three or four
+share a 2x2 grid. Edges are computed as `(i * total) / count`, so the rects tile exactly
+and no seam is left down the middle of an odd-sized window.
+
+### Collapsing the split
+
+```ruby
+node.system(RGame::Engine::Viewports).solo!(cutscene_camera)
+node.system(RGame::Engine::Viewports).split!
+```
+
+`solo!` collapses to one screen-wide view — for a cutscene, or anywhere the world should
+be seen through a single camera. **The camera is required**: promoting one player's would
+silently give everyone else their view, and choosing what is on screen is what a cutscene
+is for. Point an ordinary `Camera` however you like (a `CameraFollow` on a cutscene actor
+works) and hand it over.
+
+Both are **deferred**, like `queue_free`: they record a request and it takes effect on the
+next tick. This system is reachable from anywhere including a `draw`, and a `draw` runs
+once per view, so applying immediately would tear the frame it was requested in.
+
+A full-screen UI — a results screen, a pause panel — usually wants no collapse at all:
+draw it in screen space, outside any `WorldView`, and it covers the whole window over
+whatever the players are seeing.
 
 ## Components
 

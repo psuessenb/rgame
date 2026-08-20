@@ -34,7 +34,7 @@ class GameOverScene < RGame::Engine::Node2D
     root.go(:play)
   end
 
-  def on_draw(renderer)
+  def on_draw(renderer, _view)
     renderer.background(:space)
     centered(renderer, TITLE, 90, TITLE_COLOR)
     centered(renderer, @score_text, 130, TEXT_COLOR)

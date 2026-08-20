@@ -62,18 +62,23 @@ module RGame
           @elapsed += dt
         end
 
-        # The map is culled to what the camera can see, so this needs the size of
-        # the view as well as its offset. A camera no longer carries one — it is
-        # drawn through as many viewports as there are players — so the size comes
-        # from the platform for now, and will come from the view being drawn once
-        # there is more than one.
-        def draw(renderer)
-          view_width = context.width
-          view_height = context.height
-          renderer.tilemap(@tilemap_id, @camera.x, @camera.y,
-                           view_width, view_height, elapsed: @elapsed)
-          renderer.tilemap_overlay(@tilemap_id, @camera.x, @camera.y,
-                                   view_width, view_height,
+        # The map is culled to what the camera can see, so this needs the view's
+        # size as well as its offset — both of which now arrive with the view.
+        #
+        # **This still draws once per frame, not once per viewport**, because it
+        # sits on the scene node rather than inside a WorldView. That is correct
+        # while there is one view and is the first thing the second view will
+        # break. It cannot simply move inside the world band either: Core's
+        # tilemap draws in *screen* space (it replays its baked recording at
+        # `-camera`), so inside the band's translate it would offset twice.
+        # Resolving that is step 4's job and needs Core to grow a world-space
+        # tilemap draw — see docs/plans/ui-and-split-screen/04-roadmap.md.
+        def draw(renderer, view)
+          camera = view.camera || @camera
+          renderer.tilemap(@tilemap_id, camera.x, camera.y,
+                           view.width, view.height, elapsed: @elapsed)
+          renderer.tilemap_overlay(@tilemap_id, camera.x, camera.y,
+                                   view.width, view.height,
                                    z: OVERLAY_Z, elapsed: @elapsed)
         end
       end

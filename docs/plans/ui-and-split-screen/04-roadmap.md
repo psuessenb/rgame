@@ -600,6 +600,63 @@ cannot work from a stored camera once there is more than one.
 `RenderedFrame` helper reads the framebuffer back, so this is assertable rather
 than eyeballed. Plus the once-per-tick invariant spec described above.
 
+**Landed.** `rake` green (318 C checks, 753 headless, 330 Core), RuboCop clean
+across 215 files, all three examples driving identically to the 2b baseline.
+
+**`renderer.clipped` is now called from above, for the first time in the
+project's history.** Inventory blocker 9 was the one thing here that had never
+been exercised, and the drive report moved from `clips pushed: (none)` to
+`240 × [0, 0, 640, 480]`. It worked first time, which is what the C-side
+`test_canvas.c` coverage was for.
+
+New: `View`, `Layout`, `Viewports`, `WorldView`, `spec/support/view_helper.rb`,
+and specs for each. Deleted: `CameraView` and its spec. Swept:
+`draw(renderer)` → `draw(renderer, view)` across the engine layer, the examples
+and the spec suite.
+
+**The stage is not a node.** The sketch had `Game` assembling a Stage with the
+game's root inside a world band, and `Game.new(root:)` becoming `world:`. That is
+wrong, and the reason is `Node2D#root`: inserting anything above the game's root
+node moves the anchor, so `node.system(HighScores)` — a root-scoped system
+`examples/14_asteroids` mounts on its own root — would resolve against the Stage
+and find nothing. Every game with a root-scoped system would break silently.
+
+What actually works is smaller and better: **`WorldView` marks where world space
+begins, and everything outside one is screen space.** `Game` draws the tree once
+with the whole window as its view, and a `WorldView` anywhere in it loops the
+viewports internally. So the bands are node types the game places (which is what
+§2.1 of the design said all along), `root:` keeps its name and its meaning, and
+nothing is imposed above the game's own tree. The "three bands" stay a
+conceptual model rather than a schema.
+
+Four other things worth recording:
+
+- **The tilemap does not multiply yet, and step 4 has to fix it.** `TileWorld`
+  sits on the scene node, outside any `WorldView`, so it draws once per frame
+  rather than once per viewport. That is correct for one view and is the first
+  thing the second view breaks. It cannot simply move inside the world band
+  either: Core's tilemap draws in **screen** space — `TileMapRenderer#draw`
+  replays its baked recording at `-camera` — so inside the band's translate it
+  would offset twice. Resolving it needs Core to grow a world-space tilemap
+  draw. Recorded at the call site as well as here.
+- **`DebugOverlay` lays out against its view**, not the window, so it already
+  behaves correctly in a region. Its signature is `draw(renderer, view, fps)` —
+  `fps` stays an argument because nothing on a draw path reads a clock.
+- **`draw_children` and `draw_content` joined the hot-path cop's list.** A
+  `WorldView` runs them once per node *per player*, which makes them the hottest
+  methods in the engine, and they were the only part of the draw path the
+  allocation guards could not see.
+- **A cop I nearly disabled was right.** `Style/ExplicitBlockArgument` wanted
+  `Layout.each_rect` to capture `&block` rather than re-yield, and I assumed
+  capturing a block allocates a Proc and would break the allocation spec. It
+  does not — Ruby elides the Proc for a block that is only forwarded. Tested
+  before writing the justification, which is the only reason the wrong
+  justification did not get written down.
+
+Documented in `docs/api/scene_graph.md` — the camera section is rewritten around
+`WorldView`, and there is a new "Viewports and views" section covering `View`,
+`Layout` and `solo!`.
+
 ---
 
 ## Step 4 — Two views *(rough)*

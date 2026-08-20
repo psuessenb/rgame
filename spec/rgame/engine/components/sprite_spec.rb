@@ -16,7 +16,7 @@ RSpec.describe RGame::Engine::Components::Sprite do
 
     it 'draws the image centered on the absolute origin, with no angle (the node rotates it)' do
       allow(renderer).to receive(:image)
-      sprite.draw(renderer)
+      sprite.draw(renderer, screen_view)
       # No angle argument: the Node2D rotation wrapper orients the sprite, so passing
       # one here would double-rotate. The mock's #image has no angle parameter.
       expect(renderer).to have_received(:image).with(:ship, 5, 6, scale: 2.0, z: 3)

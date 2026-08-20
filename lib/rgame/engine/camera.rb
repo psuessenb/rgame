@@ -52,6 +52,7 @@ module RGame
       def center_on(world_x, world_y)
         @target_x = world_x
         @target_y = world_y
+        self
       end
 
       # Work out the draw offset for a viewport of this size, clamped so the

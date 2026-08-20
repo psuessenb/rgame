@@ -197,23 +197,24 @@ RSpec.describe RGame::Engine::Scene::SceneStack do
       stack.push(below)
       stack.push(current)
 
-      stack.draw(renderer)
+      stack.draw(renderer, screen_view)
 
       expect(drawn).to eq(%i[below current])
     end
 
-    it 'passes the renderer to each scene' do
+    it 'passes the renderer and the view to each scene' do
       scene = scene_double
+      view = screen_view
       allow(scene).to receive(:draw)
       stack.push(scene)
 
-      stack.draw(renderer)
+      stack.draw(renderer, view)
 
-      expect(scene).to have_received(:draw).with(renderer)
+      expect(scene).to have_received(:draw).with(renderer, view)
     end
 
     it 'does nothing on an empty stack' do
-      expect { stack.draw(renderer) }.not_to raise_error
+      expect { stack.draw(renderer, screen_view) }.not_to raise_error
     end
   end
 
