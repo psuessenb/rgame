@@ -68,11 +68,14 @@ module RGame
         # **This still draws once per frame, not once per viewport**, because it
         # sits on the scene node rather than inside a WorldView. That is correct
         # while there is one view and is the first thing the second view will
-        # break. It cannot simply move inside the world band either: Core's
-        # tilemap draws in *screen* space (it replays its baked recording at
-        # `-camera`), so inside the band's translate it would offset twice.
-        # Resolving that is step 4's job and needs Core to grow a world-space
-        # tilemap draw — see docs/plans/ui-and-split-screen/04-roadmap.md.
+        # break: Core's tilemap draws in *screen* space (it replays its baked
+        # recording at `-camera`), so it cannot simply move inside the band's
+        # translate either — it would offset twice.
+        #
+        # Step 4 fixes it by narrowing those camera arguments to mean a *cull
+        # rect* and drawing the map in world coordinates, leaving placement to
+        # the transform stack like every other drawable. That is a Ruby change
+        # in tile_map_renderer.rb; see docs/plans/ui-and-split-screen/04-roadmap.md.
         def draw(renderer, view)
           camera = view.camera || @camera
           renderer.tilemap(@tilemap_id, camera.x, camera.y,

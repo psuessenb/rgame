@@ -634,11 +634,17 @@ Four other things worth recording:
 - **The tilemap does not multiply yet, and step 4 has to fix it.** `TileWorld`
   sits on the scene node, outside any `WorldView`, so it draws once per frame
   rather than once per viewport. That is correct for one view and is the first
-  thing the second view breaks. It cannot simply move inside the world band
-  either: Core's tilemap draws in **screen** space — `TileMapRenderer#draw`
-  replays its baked recording at `-camera` — so inside the band's translate it
-  would offset twice. Resolving it needs Core to grow a world-space tilemap
-  draw. Recorded at the call site as well as here.
+  thing the second view breaks, because Core's tilemap draws in **screen**
+  space — `TileMapRenderer#draw` replays its baked recording at `-camera`, so
+  inside the band's translate it would offset twice.
+
+  > **Corrected while planning step 4.** This note went on to say the fix needs
+  > "Core to grow a world-space tilemap draw", implying a C change, and that the
+  > lazy bake could not happen inside the band. Both are wrong.
+  > `tile_map_renderer.rb` is pure Ruby, and a recording bakes on a *separate
+  > canvas* begun at identity, so the ambient transform is not captured —
+  > measured, see step 4's "What was measured before planning". The fix is a
+  > change of meaning to three arguments in one Ruby file.
 - **`DebugOverlay` lays out against its view**, not the window, so it already
   behaves correctly in a region. Its signature is `draw(renderer, view, fps)` —
   `fps` stays an argument because nothing on a draw path reads a clock.
@@ -659,30 +665,177 @@ Documented in `docs/api/scene_graph.md` — the camera section is rewritten arou
 
 ---
 
-## Step 4 — Two views *(rough)*
+## Step 4 — Two views
 
-The first code in the project's history to call `renderer.clipped` from above.
-Expect this step to find things; the plumbing is proven in C
-(`test/test_canvas.c:414`) and completely unexercised from Ruby.
+Re-planned after step 3, which is what the roadmap said would happen: the
+obstacle step 3 left behind turned out to be smaller than it looked, and two
+assumptions in the sketch were wrong.
 
-Sketch:
+**Six commits, in this order.** The harness comes first for the same reason it
+did in step 0 — nothing after it is verifiable otherwise — and the tile map
+comes before the second player because it is the one thing that is *broken* at
+two views rather than merely absent.
 
-- `Layout.split` for two, a second `Player`, `Viewports` reporting two views.
-- **Z bands become a documented convention** — world content, per-player screen
-  space, global screen space, each reserving a range. Today `DebugOverlay` picks
-  `1_000_000` by hand and `Sprite`'s `z:` is a hand-chosen render layer
-  explicitly independent of `abs_z` (`sprite.rb:12`). Cross-viewport interleaving
-  in the sort is harmless — disjoint pixels, each command carrying its own clip —
-  but band order *within* one viewport is not.
-- Culling through `view.visible?`, which now earns its keep.
-- Drive example 15 with two players, one on the keyboard and one on a virtual
-  pad, and assert on the harness's clip/translate report: two clips, two
-  *different* translates, one world traversal per clip.
+### What was measured before planning
 
-Also due here: the "what N draws makes newly illegal" audit
-([`03-design.md`](03-design.md) §8) — a side effect in `draw` now runs twice, an
-allocation costs twice, and a cache keyed on "last frame" rather than on the view
-thrashes. `DebugOverlay`'s Δ/f meter is the instrument.
+Two questions decided the shape of this step, and both were answered by running
+code rather than reading it.
+
+**Does a recording bake the transform that was active when it started?** This
+decides whether the tile map can live inside a `WorldView` at all, because
+`TileMapRenderer` bakes lazily on its first draw — which, inside the band, would
+happen under a camera transform. Step 3's note assumed it did and recorded that
+Core would need a new world-space tilemap call.
+
+**It does not.** `rgame_app_begin_record` calls `rgame_canvas_begin_frame` on a
+**separate `record_canvas`**, so the bake starts from an identity transform
+stack; only transforms pushed *inside* the block are captured. Verified by
+drawing through a real window: a quad recorded inside `translated(20, 0)` and
+replayed inside `translated(20, 0)` lands at x=24, not x=44.
+
+```
+at (4,4)   = [26, 26, 38, 255]    background
+at (24,4)  = [255, 0, 0, 255]     only the replay translate applied
+at (44,4)  = [26, 26, 38, 255]    the ambient transform was NOT baked
+```
+
+**Is `TileMapRenderer` C?** No — `lib/rgame/core/tile_map_renderer.rb` is pure
+Ruby, and the camera reaches GL only through `Recording#draw` and
+`renderer.image_at`. So the whole of 4a is a Ruby change in one file plus its
+callers. Step 3's note said this needed "Core to grow a world-space tilemap
+draw", which is true but meant Core-the-layer, not C.
+
+Together those turn the known blocker from "extend the C API" into "change what
+three arguments mean".
+
+---
+
+### 4a. The tile map moves into the world band
+
+The blocker step 3 left. `TileWorld` draws once per *frame* because it sits on
+the scene node, outside any `WorldView`; the second view is what breaks it.
+
+The camera arguments to `TileMapRenderer#draw` mean two different things at once
+today, and separating them is the whole fix:
+
+| Use | What it should become |
+|---|---|
+| `@static_below.draw(-camera_x, -camera_y)` — where to put the replay | **gone**: replay at `(0, 0)`, in world coordinates |
+| `(col * tile_width) - camera_x` — where to put an animated tile | **gone**: draw at `col * tile_width`, in world coordinates |
+| `col_start`/`col_end` — which tiles are worth drawing | **kept**: this is the cull rect, and it is genuinely the camera's |
+
+So the arguments stay, the arity stays, and their meaning narrows to "the
+rectangle of the world to cull to". Placement becomes the transform stack's job,
+exactly like every other drawable.
+
+1. **`lib/rgame/core/tile_map_renderer.rb`** — replay at `(0, 0)`, animated
+   tiles at world coordinates, cull unchanged. Rename the parameters so the new
+   meaning is on the page (`cull_x`, `cull_y`, `cull_width`, `cull_height`).
+2. **`Renderer#tilemap` / `#tilemap_overlay`** — same signature, updated doc
+   comment saying the map draws in world space and the caller supplies the
+   transform.
+3. **The renderer contract** — `spec/support/shared_examples/a_renderer.rb` and
+   `spec/support/fake_renderer.rb`. Arity is unchanged, so this is a wording and
+   assertion change, not a new method. `spec_core/rgame/core/tile_map_renderer_spec.rb`
+   asserts positions and is where the change actually bites.
+4. **`TileWorld` stops drawing.** It keeps what makes it a *system* — the map,
+   collision, world bounds, and the animation clock — and loses `draw` and its
+   `@camera`. A system that also drew was always a little odd; this is a good
+   excuse.
+5. **New `RGame::Engine::TileMapLayer < Node2D`**, placed *inside* the
+   `WorldView`. It reads `system(TileWorld)` for the map id and the elapsed
+   clock, and `view.camera` for the cull rect. Both z bands are drawn from it.
+6. **`examples/15_tiled_world`** places it.
+
+**Verify:** example 15 drives byte-identically with one view — the tile map is
+the one thing whose numbers would move. Then, with two views, `tilemap` appears
+twice per frame with two different cull rects.
+
+**One thing to check while here**, because the probe above did not cover it: the
+first draw bakes a recording *inside the band's clip*. Clips are refused
+**while** recording, and this pushes none, so it should be fine — but confirm it
+rather than assume, with the same throwaway probe recipe.
+
+### 4b. The harness drives two players
+
+Before anything two-player is written, since nothing after this is verifiable
+otherwise — the lesson of step 0, and of the `@player` collision in 2b that only
+a driven example caught.
+
+`ScriptedInput` answers `down?(id, device:)` and ignores the device; `Script`
+holds one timeline. Both become per device:
+
+```ruby
+idle 20
+on controls::KEYBOARD        { hold controls::KEY_RIGHT, 60 }
+on controls.gamepad(0)       { hold controls::PAD_DPAD_LEFT, 60 }
+```
+
+Keep the bare (device-less) form meaning "the keyboard", so every existing
+script still runs unchanged.
+
+Also worth adding while here: the report should say **how many distinct
+translates each clip contained**, since "two clips, two different cameras" is the
+assertion this whole step exists to make and it is currently two separate lines
+to read.
+
+### 4c. A second player
+
+- `Game.new(..., players: 2)` builds them: player 0 on the keyboard as now,
+  players 1+ as **empty seats** (`device: nil`).
+- An empty seat gets no viewport (`Viewports` already skips inactive players), so
+  a two-player game with one controller plugged in is **one full-screen view**,
+  and plugging a pad in splits the screen. That degradation is free and worth
+  keeping — `Players#claim_gamepad` already does the seating.
+- `examples/15_tiled_world` gains a second walker: its own node, its own
+  `CameraFollow` with that player's camera, and `input_owner` set to them.
+
+**Verify:** drive it with a keyboard track and a pad track. The report should
+show two clips with the layout's two rects, two distinct camera tracks, and the
+world traversal happening twice per frame — while `update` still runs once,
+which `world_view_spec.rb` already asserts in the small.
+
+### 4d. Z bands become a stated convention
+
+Today `DebugOverlay` picks `1_000_000` by hand and every other z is a
+hand-chosen render layer (`sprite.rb:12` is explicit that it is not `abs_z`).
+Cross-viewport interleaving in the sort is harmless — disjoint pixels, each
+command carrying its own clip — but band order *within* one viewport is not.
+
+A small `RGame::Engine::Z` with named bases (world, HUD, overlay, debug),
+`DebugOverlay` using it instead of its literal, and a paragraph in
+`docs/api/drawing.md`. Deliberately constants rather than machinery: nothing can
+enforce this, so the value is in it being written down in one place.
+
+### 4e. Culling
+
+`view.visible?` exists and has no callers. `Sprite` and `AnimatedSprite` are
+where it pays: with two views the world is walked twice, and an actor off the
+top of the screen is drawn twice for nothing.
+
+**Last, and separable, because it is the one change here that can produce a
+visual regression** — a sprite culled a frame too eagerly pops. Rotation and
+scale both grow a sprite's footprint beyond `node.width`/`height`, so the test
+is generous by a margin rather than exact.
+
+**Verify:** the drive report's draw counts drop while the scene transitions and
+camera tracks stay identical. That is a real before/after number, which is why
+this step is worth doing here rather than "some time later".
+
+### What N draws per tick makes newly illegal
+
+The audit from [`03-design.md`](03-design.md) §8, due here because this is the
+step where it stops being hypothetical:
+
+- **A side effect in `draw` now happens twice.** Grep the engine layer and the
+  examples for assignment inside a draw path.
+- **An allocation in `draw` costs twice.** `DebugOverlay`'s Δ/f is the
+  instrument, and the drive harness can report it.
+- **A cache keyed on "last frame" rather than on the view thrashes.**
+  `CachedLabel` is safe (it caches on the *value*). `TileMapRenderer`'s baked
+  recording is safe once 4a lands, because it is baked in world space and so is
+  view-independent — which is worth stating, since it is the one cache in the
+  engine that a per-view key would have ruined.
 
 ## Step 5 — `solo!` and the overlay band *(rough)*
 
