@@ -177,11 +177,11 @@ app.fps                # => Float, most recent FPS reading
 controls = RGame::Util::Controls
 input = RGame::Core::Input.new(app)
 input.down?(:fire)                                        # keyboard (the default)
-input.down?(:fire, device: controls.gamepad(0))
-input.axis(:move_x, device: controls.gamepad(0))          # => Float
+input.down?(controls::PAD_A, device: controls.gamepad(0))
+input.axis(controls::AXIS_LEFT_X, device: controls.gamepad(0))   # => Float
 
-# Rebinding is just a different table:
-RGame::Core::Input.new(app, bindings: controls::DEFAULT_KEYBOARD.merge(fire: controls::KEY_RETURN))
+# Input is the raw query: physical ids, per device. What an id *means* to a game
+# is RGame::Engine::InputMap, one table per player, a layer up.
 
 # Which controllers are plugged in — a readout for menus, not the frame path:
 pads = RGame::Core::Gamepad.new(app)

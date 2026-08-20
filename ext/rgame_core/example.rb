@@ -88,15 +88,26 @@ class Example < RGame::Core::App
     @ticks += 1
     @spin += dt * 45.0
     speed = 200.0 * dt
-    @cursor_x -= speed if @input.down?(:left, device: @device)
-    @cursor_x += speed if @input.down?(:right, device: @device)
-    @cursor_y -= speed if @input.down?(:up, device: @device)
-    @cursor_y += speed if @input.down?(:down, device: @device)
+    @cursor_x -= speed if held?(Controls::KEY_LEFT, Controls::PAD_DPAD_LEFT)
+    @cursor_x += speed if held?(Controls::KEY_RIGHT, Controls::PAD_DPAD_RIGHT)
+    @cursor_y -= speed if held?(Controls::KEY_UP, Controls::PAD_DPAD_UP)
+    @cursor_y += speed if held?(Controls::KEY_DOWN, Controls::PAD_DPAD_DOWN)
 
     # Analog sticks are additive on top of the dpad; the keyboard reads 0.0.
-    @cursor_x += @input.axis(:move_x, device: @device) * speed
-    @cursor_y += @input.axis(:move_y, device: @device) * speed
+    @cursor_x += @input.axis(Controls::AXIS_LEFT_X, device: @device) * speed
+    @cursor_y += @input.axis(Controls::AXIS_LEFT_Y, device: @device) * speed
   end
+
+  # Core is the raw layer: Input answers "is this scancode down on this device",
+  # and naming the key *and* the pad button for one intent is the caller's job.
+  # Asking both costs nothing, because a device only answers for its own kind of
+  # input — a gamepad reads false for a scancode.
+  #
+  # A game does not write this. RGame::Engine::InputMap is a table of exactly
+  # these pairs, one entry per action, and the scene graph reads named actions
+  # instead. This example is here to exercise Core on its own, so it does
+  # without that and shows what the layer above is for.
+  def held?(key, pad) = @input.down?(key, device: @device) || @input.down?(pad, device: @device)
 
   # One of everything, so a look at the window checks the whole drawing path.
   # Colours are RGame::Util::Color values rather than arrays: a Color is frozen

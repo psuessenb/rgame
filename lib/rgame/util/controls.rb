@@ -10,8 +10,14 @@ module RGame
     # layer and a game's own configuration name a physical input without
     # touching RGame::Core, which they may not do:
     #
-    #   bindings = Controls::DEFAULT_KEYBOARD.merge(fire: Controls::KEY_J)
-    #   RGame::Core::Input.new(app, bindings: bindings)
+    #   controls = RGame::Util::Controls
+    #   map = RGame::Engine::InputMap.default.merge(
+    #     fire: { buttons: [controls::KEY_SPACE, controls::PAD_A] }
+    #   )
+    #
+    # This module is the **vocabulary** only. What an id *means* to a game — the
+    # binding table — is RGame::Engine::InputMap, one per player, because two
+    # players share a game's actions but not the buttons that trigger them.
     #
     # The same numbers exist as `#define`s in
     # ext/rgame_core/include/rgame/core.h, because the C engine and the
@@ -66,43 +72,6 @@ module RGame
 
       # The device id for a player slot: gamepad(0) is the first controller.
       def self.gamepad(slot) = GAMEPAD_FIRST + slot
-
-      # --- Default bindings ---
-      #
-      # Symbolic action => physical input. Games override these to rebind; they
-      # are values, so a config screen can build its own table from the
-      # constants above and hand it to the input layer.
-      #
-      # Two button tables rather than one, because the same action is a
-      # different physical input per device class: :fire is the space bar on a
-      # keyboard and the A button on a pad.
-      DEFAULT_KEYBOARD = {
-        left: KEY_LEFT,
-        right: KEY_RIGHT,
-        up: KEY_UP,
-        down: KEY_DOWN,
-        confirm: KEY_RETURN,
-        fire: KEY_SPACE
-      }.freeze
-
-      DEFAULT_PAD = {
-        left: PAD_DPAD_LEFT,
-        right: PAD_DPAD_RIGHT,
-        up: PAD_DPAD_UP,
-        down: PAD_DPAD_DOWN,
-        confirm: PAD_A,
-        fire: PAD_A
-      }.freeze
-
-      # Analog axes exist only on pads, so there is one table.
-      DEFAULT_AXES = {
-        move_x: AXIS_LEFT_X,
-        move_y: AXIS_LEFT_Y,
-        aim_x: AXIS_RIGHT_X,
-        aim_y: AXIS_RIGHT_Y,
-        trigger_left: AXIS_TRIGGER_LEFT,
-        trigger_right: AXIS_TRIGGER_RIGHT
-      }.freeze
     end
   end
 end

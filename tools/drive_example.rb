@@ -80,33 +80,49 @@ module DriveExample
   # menus differently.
   class Script
     NOTHING = [].freeze
+    NO_AXES = {}.freeze
+    Frame = Struct.new(:held, :axes)
+    RESTING = Frame.new(NOTHING, NO_AXES).freeze
 
     def initialize
       @ticks = []
     end
 
     def idle(count = 1)
-      count.times { @ticks << NOTHING }
+      count.times { @ticks << RESTING }
       self
     end
 
-    def hold(actions, count = 1)
-      held = Array(actions).freeze
-      count.times { @ticks << held }
+    def hold(ids, count = 1, axes: NO_AXES)
+      frame = Frame.new(Array(ids).freeze, axes).freeze
+      count.times { @ticks << frame }
       self
     end
 
-    def press(actions)
-      hold(actions, 1)
+    def press(ids)
+      hold(ids, 1)
       idle(1)
     end
 
-    # Actions held on `tick`. Past the end of the script nothing is held, so a
-    # tick budget longer than the script simply runs the game idle.
-    def at(tick) = @ticks.fetch(tick, NOTHING)
+    # Deflect an analog axis. Buttons and sticks are separate verbs because a
+    # stick carries a magnitude and a button does not; `hold(..., axes:)` is
+    # there for the case that wants both at once.
+    def tilt(axis_id, value, count = 1)
+      hold(NOTHING, count, axes: { axis_id => value }.freeze)
+    end
+
+    # What is held and deflected on `tick`. Past the end of the script
+    # everything rests, so a tick budget longer than the script runs it idle.
+    def at(tick) = @ticks.fetch(tick, RESTING)
 
     def length = @ticks.length
 
+    # Available to a script, so it can name physical ids without knowing where
+    # they live: `hold controls::KEY_RIGHT, 60`.
+    def controls = RGame::Util::Controls
+
+    # Read only after rgame is loaded — a script names Controls ids, so the
+    # constants have to exist before it is evaluated.
     def self.load(path)
       script = new
       script.instance_eval(File.read(path), path)
@@ -116,12 +132,13 @@ module DriveExample
 
   # The input backend, standing in for RGame::Core::Input.
   #
-  # It answers the one question ActionMapper asks — `down?(id)` — where an "id"
-  # is whatever the game's action map names. Today those are Core::Input's own
-  # action names (`:left`, `:confirm`); after the input rework they become
-  # physical ids from Util::Controls, and this backend needs no change either
-  # way, because it only ever compares what it is asked against what the script
-  # says is held.
+  # It answers the two questions ActionMapper asks — `down?(id, device:)` and
+  # `axis(axis_id, device:)` — where an id is a physical one from
+  # RGame::Util::Controls, exactly as the real backend takes.
+  #
+  # `device:` is accepted and ignored. A script says what is held, not what is
+  # holding it; once there is a player per device (step 2 of the roadmap) this
+  # grows a per-device timeline and the signature will already be right.
   class ScriptedInput
     attr_accessor :tick
 
@@ -130,11 +147,9 @@ module DriveExample
       @tick = 0
     end
 
-    def down?(id) = @script.at(@tick).include?(id)
+    def down?(id, device: nil) = @script.at(@tick).held.include?(id) # rubocop:disable Lint/UnusedMethodArgument
 
-    # The keyboard has no axes and neither does a script. Present so this
-    # satisfies the same surface the real backend does.
-    def axis(_id) = 0.0
+    def axis(axis_id, device: nil) = @script.at(@tick).axes.fetch(axis_id, 0.0) # rubocop:disable Lint/UnusedMethodArgument
   end
 
   # ---------------------------------------------------------------- the report
@@ -297,10 +312,71 @@ module DriveExample
     end
   end
 
+  # Drives a *synthetic controller* instead of the input backend.
+  #
+  # The scripted backend above replaces RGame::Core::Input, which is the right
+  # seam for asking "does the game react to this action". It cannot answer "does
+  # a controller reach the game at all", because it stands where the controller's
+  # answer would have arrived.
+  #
+  # So this mode fakes the hardware instead: SDL fabricates a real game
+  # controller in-process (the same VirtualGamepad the Core suite uses), and the
+  # whole path runs unmodified — SDL event pump, the C per-frame snapshot,
+  # RGame::Core::Input, InputMap, ActionMapper. Nothing is stubbed.
+  #
+  # Script ids are Controls ids. Pad buttons live at RGAME_BUTTON_GAMEPAD_FIRST
+  # plus SDL's own button number, so converting one back is a subtraction; axis
+  # ids are already SDL's numbering. Keyboard ids in a gamepad script simply do
+  # nothing, which is the same thing that happens to them in a real game.
+  class ScriptedGamepad
+    FULL_DEFLECTION = 32_767
+
+    # A method rather than a constant: this file is loaded before rgame is, so
+    # nothing at class-definition time may name RGame.
+    # Equal to RGAME_BUTTON_GAMEPAD_FIRST: pad ids are that base plus SDL's own
+    # button number.
+    def pad_base = RGame::Util::Controls::PAD_A
+
+    def initialize(script)
+      @script = script
+      @pad = nil
+      @down = []
+    end
+
+    # SDL needs a frame to notice the new device and seat it in a slot, so the
+    # pad is attached on the first tick rather than at construction — the same
+    # shape spec_core's gamepad specs use.
+    def tick(number)
+      @pad ||= VirtualGamepad.new
+      frame = @script.at(number)
+      apply_buttons(frame.held)
+      apply_axes(frame.axes)
+    end
+
+    def detach = @pad&.detach
+
+    private
+
+    def apply_buttons(held)
+      base = pad_base
+      wanted = held.filter_map { |id| id - base if id >= base }
+      (@down - wanted).each { |button| @pad.release(button) }
+      (wanted - @down).each { |button| @pad.press(button) }
+      @down = wanted
+    end
+
+    def apply_axes(axes)
+      RGame::Util::Controls.constants.grep(/\AAXIS_/).each do |name|
+        id = RGame::Util::Controls.const_get(name)
+        @pad.move_axis(id, (axes.fetch(id, 0.0) * FULL_DEFLECTION).round)
+      end
+    end
+  end
+
   # ------------------------------------------------------------- the harness
 
   class << self
-    def run(example:, script:, ticks:, out: $stdout)
+    def run(example:, script_path:, ticks:, gamepad: false, out: $stdout)
       HeadlessDisplay.start
       # The example's own main.rb does this too, but the probes have to be
       # installed before it is loaded, and installing them means the classes
@@ -308,8 +384,14 @@ module DriveExample
       $LOAD_PATH.unshift(File.join(ROOT, 'lib')) unless $LOAD_PATH.include?(File.join(ROOT, 'lib'))
       require 'rgame/game'
 
+      script = Script.load(script_path)
       report = Report.new
-      install(report, ScriptedInput.new(script), ticks)
+      if gamepad
+        require_relative '../spec_core/support/virtual_gamepad'
+        install(report, nil, ticks, pad: ScriptedGamepad.new(script))
+      else
+        install(report, ScriptedInput.new(script), ticks)
+      end
       load File.expand_path(example, ROOT)
 
       out.puts report
@@ -320,15 +402,18 @@ module DriveExample
 
     # Prepend the counting behaviour onto the classes the example will build.
     # Done before the example is loaded, so the example itself is untouched.
-    def install(report, input, budget)
-      RGame::Game.prepend(game_probe(report, input, budget))
+    def install(report, input, budget, pad: nil)
+      RGame::Game.prepend(game_probe(report, input, budget, pad))
       RGame::Engine::Scene::SceneStack.prepend(scene_probe(report))
     end
 
-    def game_probe(report, input, budget)
+    def game_probe(report, input, budget, pad)
       Module.new do
         define_method(:initialize) do |**kwargs|
-          super(**kwargs, input: input)
+          # In gamepad mode the real backend stays in place and the game is
+          # pointed at slot 0 — the whole point is that nothing is stubbed.
+          extra = pad ? { device: RGame::Util::Controls.gamepad(0) } : { input: input }
+          super(**kwargs, **extra)
           @renderer = RendererProbe.new(@renderer, report)
         end
 
@@ -343,10 +428,17 @@ module DriveExample
         end
 
         define_method(:update) do |dt|
-          input.tick = report.ticks
+          if pad
+            pad.tick(report.ticks)
+          else
+            input.tick = report.ticks
+          end
           report.ticks += 1
           super(dt)
-          close if report.ticks >= budget
+          next unless report.ticks >= budget
+
+          pad&.detach
+          close
         end
 
         define_method(:draw) do
@@ -375,11 +467,12 @@ end
 # ------------------------------------------------------------------------ CLI
 
 if $PROGRAM_NAME == __FILE__
-  options = { ticks: 240, script: nil }
+  options = { ticks: 240, script: nil, gamepad: false }
   parser = OptionParser.new do |o|
     o.banner = 'Usage: ruby tools/drive_example.rb EXAMPLE_MAIN [options]'
     o.on('--ticks N', Integer, 'Stop after N simulation ticks (default 240)') { options[:ticks] = it }
     o.on('--script PATH', 'Input script (default: tools/drive/<example dir>.rb)') { options[:script] = it }
+    o.on('--gamepad', 'Drive a synthetic SDL controller instead of the input backend') { options[:gamepad] = true }
   end
   parser.parse!
 
@@ -393,7 +486,6 @@ if $PROGRAM_NAME == __FILE__
     abort "No script at #{script_path}. Write one (see tools/drive/*.rb) or pass --script."
   end
 
-  DriveExample.run(example: example,
-                   script: DriveExample::Script.load(script_path),
-                   ticks: options[:ticks])
+  DriveExample.run(example: example, script_path: script_path,
+                   ticks: options[:ticks], gamepad: options.fetch(:gamepad, false))
 end

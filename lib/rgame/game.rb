@@ -45,19 +45,31 @@ module RGame
 
     attr_reader :root, :renderer, :action_mapper
 
+    # `input_map:` is what physical inputs mean — one entry per action, naming
+    # ids from RGame::Util::Controls. It is merged over the universal UI set, so
+    # `ui_confirm` and friends work whether or not a game declares them, and it
+    # defaults to RGame::Engine::InputMap::DEFAULT_ACTIONS, so a game wanting
+    # eight-way movement and a fire button declares nothing.
+    #
+    # `device:` is which device drives it — the keyboard, or
+    # `Controls.gamepad(slot)` for a controller.
+    #
     # `input:` overrides the input backend. It exists so a harness can drive a
     # game from a script instead of from hardware — see tools/drive_example.rb,
     # and CLAUDE.md's "The examples are the acceptance test for wiring", which
     # is why driving one has to be possible at all. A game passes nothing and
     # gets the real thing.
     def initialize(root:, width: WIDTH, height: HEIGHT, caption: 'RGame',
-                   media_root: 'media', action_map: {}, input: nil)
+                   media_root: 'media', input_map: nil, device: Controls::KEYBOARD,
+                   input: nil)
       super(width: width, height: height, caption: caption, media_root: media_root)
 
       @root = root
       @renderer = RGame::Core::Renderer.new(self)
       @input = input || RGame::Core::Input.new(self)
-      @action_mapper = RGame::Engine::ActionMapper.new(action_map)
+      @action_mapper = RGame::Engine::ActionMapper.new(
+        input_map || RGame::Engine::InputMap.default, device: device
+      )
       @overlay = RGame::Engine::DebugOverlay.new # always wired up; F1 reveals it
       @dirty = true # draw the first frame
 

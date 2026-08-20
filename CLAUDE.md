@@ -211,18 +211,21 @@ must give back. `Tensor` is a value and lives in Util; `App` owns a window and
 lives in Core.
 
 `RGame::Util::Controls` is the worked example. It is nothing but integers — the
-ids for keys, pad buttons, axes and device slots, plus the default binding
-tables. Those started in Core, because the C engine defines them and asserts
-them against SDL's own scancodes. But an id is a value, and a game's control
-config has to be able to name one:
+ids for keys, pad buttons, axes and device slots. Those started in Core, because
+the C engine defines them and asserts them against SDL's own scancodes. But an id
+is a value, and a game's control config has to be able to name one:
 
 ```ruby
 controls = RGame::Util::Controls
-bindings = controls::DEFAULT_KEYBOARD.merge(fire: controls::KEY_J)
+map = RGame::Engine::InputMap.default.merge(
+  fire: { buttons: [controls::KEY_SPACE, controls::PAD_A] }
+)
 ```
 
 In Core that is impossible for engine-layer code, which may not name Core at
-all. In Util it is ordinary. The C `#define`s stay where they are — `src/main.c`
+all. In Util it is ordinary — and it is what lets the whole binding table live
+in `RGame::Engine::InputMap`, one per player, built out of Util values.
+`RGame::Core::Input` keeps only the raw query. The C `#define`s stay where they are — `src/main.c`
 includes only `rgame/core.h` and needs them — so the numbers exist twice, and
 `spec/rgame/util/controls_spec.rb` parses the header and compares every one.
 Duplication with a guard beat putting a value out of reach.

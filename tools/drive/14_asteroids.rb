@@ -1,20 +1,19 @@
 # Input script for examples/14_asteroids.
 #
-# Names are the ids the game's action_map binds to (`:left`, `:fire`, ...), not
-# the actions it declares — the script stands where the input backend does, so
-# it speaks the backend's vocabulary.
+# Names are physical ids from RGame::Util::Controls, because the script stands
+# where RGame::Core::Input does and that is what the input backend now speaks.
 #
-# The route: title screen -> confirm -> play, then fly and shoot for a while.
+# The route: title screen -> ui_confirm -> play, then fly and shoot for a while.
 # Enough to prove the scene transition fires, the ship responds, and bullets and
 # sounds actually leave the scene.
 
-idle 10                   # let the title screen settle
-press :confirm            # -> PlayScene (StartScene#on_control reads pressed?)
+idle 10                          # let the title screen settle
+press controls::KEY_RETURN       # -> PlayScene (StartScene reads pressed?(:ui_confirm))
 
 idle 5
-hold :up,   30            # thrust
-hold :left, 20            # turn
-hold %i[up fire], 40      # thrust and shoot together
-hold :fire, 20
-hold :right, 25
-idle 30                   # drift, so rocks and bullets keep moving on their own
+hold controls::KEY_UP, 30        # thrust
+hold controls::KEY_LEFT, 20      # turn
+hold [controls::KEY_UP, controls::KEY_SPACE], 40 # thrust and shoot together
+hold controls::KEY_SPACE, 20
+hold controls::KEY_RIGHT, 25
+idle 30 # drift, so rocks and bullets keep moving

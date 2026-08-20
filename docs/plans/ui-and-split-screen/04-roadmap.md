@@ -284,6 +284,62 @@ gap to be worked around.
 `spec_core/support/virtual_gamepad.rb` fabricates a real SDL controller
 in-process and can set buttons and axes, so the last row needs no hardware.
 
+**Landed.** `rake` green (318 C checks, 620 headless, 330 Core), RuboCop clean
+across all 199 files, both examples driven.
+
+New: `RGame::Engine::InputMap` and `spec/support/fake_input_backend.rb`.
+Rewritten: `ActionMapper` (per device, analog, dead zone), `Core::Input` (raw
+query, binding tables deleted), `Game` (`action_map:` → `input_map:` + `device:`).
+
+**A controller now drives `examples/15_tiled_world`.** That was step 1's stated
+goal and it needed a fifth verification mode nobody had planned: `--gamepad` on
+the driver. The scripted *backend* stands where `Core::Input`'s answer would
+arrive, so it can prove the game reacts to an action but not that a controller
+reaches the game at all. `--gamepad` fakes the **hardware** instead — the
+`VirtualGamepad` the Core suite already had — so SDL, the C snapshot,
+`Core::Input`, `InputMap` and `ActionMapper` all run unstubbed. Result, from
+`tools/drive/15_tiled_world_pad.rb`: the tilemap camera walks
+`(0, 0)` → `(752.7, 428.0)` under a synthetic pad.
+
+The dead zone got a three-way proof, which is worth repeating for any future
+tuning because it needs no eyeballing:
+
+| Script | Camera ends at |
+|---|---|
+| no input at all | `(648.0, 508.0)` |
+| stick at 0.12 (inside the 0.15 dead zone) | `(648.0, 508.0)` — byte-identical |
+| stick at 0.30 | `(669.2, 508.0)` — moves |
+
+Four things the sketch did not anticipate:
+
+- **`Util::Controls` lost its three `DEFAULT_*` tables**, not just
+  `Core::Input`'s. They were shaped `action => one id per device class`, which is
+  precisely the split one table listing every id for an action removes. `Controls`
+  is now vocabulary only, and its spec says so out loud (`constants.grep(/\ADEFAULT_/)`
+  must be empty) rather than the rule going silent. CLAUDE.md's "value objects go
+  in Util" worked example was built on `DEFAULT_KEYBOARD` and now builds an
+  `InputMap` instead — the argument survives intact and reads better, since the
+  whole table is now an engine-layer value made of Util ids.
+- **`ext/rgame_core/example.rb` had to grow a two-line `held?(key, pad)` helper.**
+  It is the Core-only driver, so with binding gone it must name both ids itself.
+  That is not a wart: it demonstrates exactly what the layer above is for, and
+  its comment says so.
+- **`InputMap` validates at construction** — unknown source key, no source at
+  all, empty button list, an axis that is not a pair. This replaces a guarantee
+  the rework deletes: `Core::Input#down?(:teleport)` used to raise `KeyError`. A
+  misspelled action at a *read* site is still silent (`Actions#held?` returns
+  false), which is unchanged from before but now worth considering — see below.
+- **`press` in the driver's DSL, and the `tilt` verb.** The script gained
+  per-tick analog values because there was no other way to exercise the new
+  analog path; both modes read them.
+
+**Follow-up worth considering, not done here:** making `Actions` strict, so
+reading an action the map never declared raises instead of returning `false`.
+It is a real footgun and the natural completion of "a game declares its actions
+once". It is not free — about fifteen specs construct `Actions.new` directly with
+partial hashes — so it wants its own commit rather than riding along with this
+one.
+
 ---
 
 ## Step 2 — `Player`, the registry, and the camera moving onto it

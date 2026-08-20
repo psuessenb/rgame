@@ -20,7 +20,7 @@ sound device, the input mapper, the debug overlay — and drives the root node.
 
 ```ruby
 RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
-                media_root: 'media', action_map: {})
+                media_root: 'media', input_map: nil, device: Controls::KEYBOARD)
 ```
 
 | Reader | |
@@ -62,18 +62,29 @@ sheet = node.root.context.assets.sheet('player.json')
 
 ## Input
 
-`action_map` names the actions a game has, in terms of the physical ids
-[Input](input.md) knows:
+`input_map:` names the actions a game has, in terms of physical ids from
+[`RGame::Util::Controls`](input.md):
 
 ```ruby
+Controls = RGame::Util::Controls
+
 RGame::Game.new(
   root: Root.new,
-  action_map: {
-    move_x: { axis: %i[left right] },   # -1.0 .. 1.0
-    fire:   { button: %i[fire] }        # held / pressed / released
-  }
+  input_map: RGame::Engine::InputMap.new(
+    move_x: { axis: [Controls::KEY_LEFT, Controls::KEY_RIGHT],  # -1.0 .. 1.0
+              stick: Controls::AXIS_LEFT_X },
+    fire:   { buttons: [Controls::KEY_SPACE, Controls::PAD_A] } # held / pressed / released
+  )
 )
 ```
+
+Pass nothing and you get [`InputMap.default`](input.md): eight-way `move_x` /
+`move_y` on the arrows or the left stick, plus `fire`. Either way the map is
+merged over the universal UI set, so `ui_confirm` and `ui_cancel` work without
+being declared.
+
+`device:` picks what drives it — the keyboard by default, or
+`Controls.gamepad(slot)` for a controller.
 
 A scene reads the resulting snapshot in `on_control(actions)` — `actions.axis(:move_x)`,
 `actions.pressed?(:fire)` — and never sees a key.

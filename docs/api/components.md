@@ -102,21 +102,6 @@ draws them; this component only manages their pool membership.
   still attached. So despawning is just `node.queue_free` anywhere; the pool recycles it with
   no game-side wiring. Allocation-free in steady state.
 
-### `Clickable`
-
-Makes the owning node a world-space click target: on the click-down edge it hit-tests the
-pointer against a circle of `radius` about the node's absolute origin and emits `on_clicked`
-(no payload — the node identifies the click, like a button). It reads the pointer from the
-Actions snapshot, so it assumes screen == world (a fixed, unscrolled board; a scrolling
-camera would need the pointer unprojected first).
-
-- **Construct:** `Clickable.new(radius:, action: :ui_click)`. The action must be bound to the
-  pointer button — `action_map: { ui_click: { button: %i[pointer] } }`.
-- **Signal:** `on_clicked` fires once per press inside the radius —
-  `spot.on_clicked { build_tower }`.
-- **Phase:** `control(actions)` hit-tests and emits; allocation-free. Add it named (`as:`)
-  when a node needs more than one click region.
-
 ### `ScreenWrap`
 
 Wraps the node's position toroidally within a rectangle, so an entity leaving one edge

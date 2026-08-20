@@ -40,9 +40,7 @@ RGame::Game.new(
   caption: 'Example 15 - Tiled World',
   width: WIDTH,
   height: HEIGHT,
-  media_root: MEDIA,
-  action_map: {
-    move_x: { axis: %i[left right] },
-    move_y: { axis: %i[up down] }
-  }
+  media_root: MEDIA
+  # No input_map: :move_x / :move_y are RGame::Engine::InputMap's defaults, on
+  # the arrow keys and the left stick alike. Plug in a controller and walk.
 ).start
