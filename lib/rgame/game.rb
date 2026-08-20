@@ -43,7 +43,7 @@ module RGame
     WIDTH = 640
     HEIGHT = 480
 
-    attr_reader :root, :renderer, :action_mapper
+    attr_reader :root, :renderer
 
     # `input_map:` is what physical inputs mean — one entry per action, naming
     # ids from RGame::Util::Controls. It is merged over the universal UI set, so
@@ -67,14 +67,23 @@ module RGame
       @root = root
       @renderer = RGame::Core::Renderer.new(self)
       @input = input || RGame::Core::Input.new(self)
-      @action_mapper = RGame::Engine::ActionMapper.new(
-        input_map || RGame::Engine::InputMap.default, device: device
+      @players = RGame::Engine::Players.new(
+        [RGame::Engine::Player.new(id: 0, device: device, input_map: input_map)]
       )
       @overlay = RGame::Engine::DebugOverlay.new # always wired up; F1 reveals it
       @dirty = true # draw the first frame
 
       install_asset_loaders
     end
+
+    # The player registry, also reachable from any node as
+    # `node.system(RGame::Engine::Players)` — which is how a scene gets at a
+    # camera to follow, without anything being threaded into its constructor.
+    #
+    # One player exists from the start, so a single-player game never mentions
+    # players at all: it is `players.primary` that an unowned node reads from,
+    # and `players.primary.camera` that a scene points at its hero.
+    attr_reader :players
 
     # Brings the tree live and runs until the window closes.
     #
@@ -83,6 +92,9 @@ module RGame
     # anything being threaded through its constructor.
     def start
       @root.context = self
+      # A root-scoped system, mounted before the tree comes alive so that an
+      # on_add anywhere in it can already resolve node.system(Players).
+      @root.add_component(@players)
       @root.enter_tree # components attach, then on_add
       run
     end
@@ -103,7 +115,8 @@ module RGame
     # read identical state, and the edge lands on the first of them — one press,
     # one `pressed?`, which is what a caller means.
     def update(dt)
-      @root.control(@action_mapper.poll(@input))
+      @players.poll(@input)
+      @root.control(@players.primary.actions)
       @root.update(dt)
       @root.sweep_freed # flush queue_free'd nodes outside the update traversal
       @dirty = true
@@ -114,10 +127,22 @@ module RGame
     def needs_redraw? = @dirty || @overlay.visible?
 
     def draw
+      # Cameras are resolved here rather than wherever they are pointed, because
+      # clamping depends on the size of the view being drawn into and nothing in
+      # the tree knows that. One full-screen view today, so every camera gets the
+      # window; the layout supplies a rect per viewport once there is one.
+      @players.resolve_cameras(width, height)
       @root.draw(@renderer)
       @overlay.draw(@renderer, width, height, fps) # last, so it layers on top
       @dirty = false
     end
+
+    # A controller arriving fills the first seat waiting for one, and leaving
+    # empties whichever seat it was in — the player themselves, with their
+    # camera and bindings, stays put. A game whose player already has the
+    # keyboard is untouched by either.
+    def gamepad_connected(slot) = @players.claim_gamepad(slot)
+    def gamepad_disconnected(slot) = @players.release_gamepad(slot)
 
     # The two development keys, both function keys on purpose: **Escape is
     # deliberately not bound here**, because it is the natural `cancel`/`back`

@@ -17,6 +17,11 @@ module RGame
       # draw-call order doesn't matter). The camera is centred by the scene before any
       # drawing.
       #
+      # The camera it draws through belongs to a player, not to this component or
+      # to the scene — see RGame::Engine::Player. It also sets that camera's world
+      # bounds to the map's, since the map is what the camera may not show past
+      # and this is what knows how big it is.
+      #
       # It also owns the map's **animation clock**. Nothing below reads a wall clock —
       # see CLAUDE.md, "`draw` renders state; time enters through `update`" — so the
       # elapsed seconds animated tiles run on are accumulated here and handed down at
@@ -31,6 +36,8 @@ module RGame
           @map = map
           @tilemap_id = tilemap_id
           @camera = camera
+          @camera.world_width = map.pixel_width
+          @camera.world_height = map.pixel_height
           @elapsed = 0.0
           @collision = Engine::CollisionSystem.new(
             tile_collision: Engine::TileCollision.new(
@@ -55,11 +62,18 @@ module RGame
           @elapsed += dt
         end
 
+        # The map is culled to what the camera can see, so this needs the size of
+        # the view as well as its offset. A camera no longer carries one — it is
+        # drawn through as many viewports as there are players — so the size comes
+        # from the platform for now, and will come from the view being drawn once
+        # there is more than one.
         def draw(renderer)
+          view_width = context.width
+          view_height = context.height
           renderer.tilemap(@tilemap_id, @camera.x, @camera.y,
-                           @camera.viewport_width, @camera.viewport_height, elapsed: @elapsed)
+                           view_width, view_height, elapsed: @elapsed)
           renderer.tilemap_overlay(@tilemap_id, @camera.x, @camera.y,
-                                   @camera.viewport_width, @camera.viewport_height,
+                                   view_width, view_height,
                                    z: OVERLAY_Z, elapsed: @elapsed)
         end
       end

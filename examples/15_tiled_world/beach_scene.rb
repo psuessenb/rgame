@@ -22,33 +22,44 @@ class BeachScene < RGame::Engine::Node2D
   end
 
   def on_add
-    game = node_context
-    @map = game.assets.tilemap(MAP_KEY).map
-    @camera = RGame::Engine::Camera.new(
-      viewport_width: game.width, viewport_height: game.height,
-      world_width: @map.pixel_width, world_height: @map.pixel_height
-    )
+    @map = node_context.assets.tilemap(MAP_KEY).map
+    # The camera belongs to the player, not to this scene: a scene may have any
+    # number of viewers. TileWorld sets its world bounds from the map.
+    @camera = root.system(RGame::Engine::Players).primary.camera
     add_component(RGame::Engine::Components::TileWorld.new(map: @map, tilemap_id: MAP_KEY, camera: @camera))
 
     view = add_node(RGame::Engine::CameraView.new(camera: @camera))
     @player = build_player
     view.add_node(@player)
+    # After add_node, deliberately: the camera offset is read off the player's
+    # feet box, and that box is sized from the sprite, which AnimatedSprite only
+    # knows once it has attached. See #follow_camera.
+    follow_camera(@player)
     npc_spawns.each { |x, y| view.add_node(build_npc(x, y)) }
-  end
-
-  # Follow the player, centred on its feet box. Runs before the player's own update,
-  # so the view trails by one step (~2 px) — uniform and imperceptible, and the tile
-  # map and the actors read this one camera, so they never drift apart on screen.
-  def on_update(_dt)
-    box = @player.get_component(RGame::Engine::Components::CharacterBody).collision_box
-    # Compute the feet-box centre inline; box.aabb would allocate an Array every frame.
-    @camera.center_on(@player.x + box.offset_x + (box.width / 2.0),
-                      @player.y + box.offset_y + (box.height / 2.0))
   end
 
   private
 
   def node_context = root.context
+
+  # Point the camera at the player's feet box rather than the sprite's origin,
+  # which is its top-left. Following is a CameraFollow component on the player
+  # itself: the player owns the camera, and a component in the world moves it —
+  # so "player two's camera follows player two" is the same line with their
+  # camera in it.
+  #
+  # **Only valid once the node is in the tree.** `collision_box` is derived from
+  # the sprite's frame size and memoised on first read, and the sprite size is
+  # set by AnimatedSprite#on_attach — so reading it from `build_player` bakes a
+  # box computed from a 0x0 sprite, for the collision system as well as for this.
+  def follow_camera(node)
+    box = node.get_component(RGame::Engine::Components::CharacterBody).collision_box
+    node.add_component(RGame::Engine::Components::CameraFollow.new(
+                         camera: @camera,
+                         offset_x: box.offset_x + (box.width / 2.0),
+                         offset_y: box.offset_y + (box.height / 2.0)
+                       ))
+  end
 
   def build_player
     node = RGame::Engine::Node2D.new(x: @map.pixel_width / 2.0, y: @map.pixel_height / 2.0)

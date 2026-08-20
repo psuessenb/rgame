@@ -425,6 +425,53 @@ camera, so nothing looks different.
 **Verify:** example 15 looks and behaves exactly as before. `rake spec` green,
 with `camera_spec.rb` rewritten for the new signature.
 
+**Landed.** `rake` green (318 C checks, 683 headless, 330 Core), RuboCop clean
+across 206 files. Example 15 drives **byte-identically** to the committed
+baseline — `(788.0, 648.0)` and 1680 sprites, the same numbers as before the
+step — which is exactly the acceptance criterion for a step that is meant to
+change ownership and nothing else.
+
+New: `Engine::Player`, `Engine::Players`, `Components::CameraFollow`, and specs
+for each. Rewritten: `Camera` (`center_on` records intent, `resolve(w, h)`
+clamps), `Game` (owns a `Players`, mounts it as a root-scoped system, resolves
+cameras before drawing, forwards hot-plug), `TileWorld` (takes its camera from a
+player and sets that camera's world bounds from the map).
+
+**The harness caught a real bug, and it was mine.** The first version attached
+`CameraFollow` inside `build_player`, which reads the player's feet box — and
+`CharacterBody#collision_box` is *memoised from `node.width`/`node.height`*,
+which `AnimatedSprite#on_attach` sets. Reading it one line too early baked a box
+computed from a 0×0 sprite, permanently, for the **collision system** as well as
+for the camera. The suite stayed green. What showed it was the drive report
+moving from `(788, 648)` to `(780, 616)` — a 32px drift with byte-identical
+sprite counts — and `git stash` gave the before/after in one command. This is
+the failure class the harness exists for: nothing looked wrong anywhere.
+
+Two things came out of that:
+
+- `follow_camera` is called *after* `view.add_node(@player)`, with a comment
+  saying why the order is load-bearing.
+- **`CharacterBody#collision_box` now refuses an early read** rather than baking
+  a wrong box, naming the size it saw and where the size comes from. That is
+  beyond 2a's scope and deliberate: the failure is silent, permanent and
+  action-at-a-distance, and it took thirty seconds of ordinary use to hit.
+
+Three smaller notes:
+
+- **`Camera` defaults to unbounded**, not to `0`. A camera with no declared
+  world follows its target exactly, so a game that has not set bounds yet gets
+  one that visibly works rather than one mysteriously pinned to the origin.
+  `TileWorld` sets the bounds when it loads a map.
+- **`TileWorld#draw` reads the view size from `context`** for now, since a camera
+  no longer carries one and there is no `View` yet. Marked transitional in the
+  code and in its spec; step 3 replaces it with `view.width`.
+- **`Game#action_mapper` is gone**, replaced by `Game#players`. It had no callers
+  outside its own docs, and a compatibility shim for a gem that has never shipped
+  is clutter.
+
+Not in this step, by design: `control` still broadcasts the primary player's
+`Actions` to the whole tree. Ownership routing is 2b.
+
 ### 2b. Ownership routing for `control`
 
 `Node2D` gains an owner attribute, **inherited down the tree exactly like the

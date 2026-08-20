@@ -27,7 +27,7 @@ RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
 |---|---|
 | `root` | the node tree |
 | `renderer` | what scenes draw through |
-| `action_mapper` | physical input → named actions |
+| `players` | who is playing: their devices, bindings and cameras |
 | `assets`, `audio`, `media_root`, `width`, `height`, `fps` | inherited from [App](app.md) |
 
 `start` brings the tree live — it hands the game to the root as its `context`,

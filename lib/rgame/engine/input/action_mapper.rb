@@ -23,7 +23,7 @@ module RGame
       # much to ignore is a judgement rather than a fact about the hardware.
       DEAD_ZONE = 0.15
 
-      attr_reader :map
+      attr_reader :map, :actions
       attr_accessor :device, :dead_zone
 
       def initialize(map, device: RGame::Util::Controls::KEYBOARD, dead_zone: DEAD_ZONE)
@@ -51,6 +51,8 @@ module RGame
         # (in-place copy: no allocation, the keys already exist).
         @held.each { |name, down| @prev_held[name] = down }
 
+        return rest if @device.nil?
+
         @map.bindings.each do |name, binding|
           @held[name] = any_down?(backend, binding.buttons) if binding.buttons
           @axes[name] = axis_value(backend, binding) if binding.positive || binding.stick
@@ -60,6 +62,17 @@ module RGame
       end
 
       private
+
+      # A player with no device — an empty seat waiting for a controller — reads
+      # as nothing held and every axis centred. Returning the snapshot rather
+      # than refusing to poll is what lets a game show "press a button to join"
+      # with no special case, and it releases anything that was held when the
+      # controller was unplugged mid-press.
+      def rest
+        @held.each_key { |name| @held[name] = false }
+        @axes.each_key { |name| @axes[name] = 0.0 }
+        @actions
+      end
 
       # hot-path
       def any_down?(backend, ids)

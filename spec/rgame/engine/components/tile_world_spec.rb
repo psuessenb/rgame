@@ -4,7 +4,19 @@ RSpec.describe RGame::Engine::Components::TileWorld do
   subject(:world) { described_class.new(map: map, tilemap_id: :level, camera: camera) }
 
   let(:map) { StubTileMap.new(layers: [[1, 2, 0, 3]], tileset: StubTileset.new) }
-  let(:camera) { Struct.new(:x, :y, :viewport_width, :viewport_height).new(8, 16, 320, 240) }
+
+  # A verified double rather than a Struct: the component both reads the offset
+  # and writes the map's bounds into the camera, and a double catches either
+  # half being renamed.
+  let(:camera) do
+    instance_double(RGame::Engine::Camera, x: 8, y: 16, :world_width= => nil, :world_height= => nil)
+  end
+
+  # The size of the view being drawn into. A camera no longer carries one — it
+  # is drawn through as many viewports as there are players — so the component
+  # asks the platform, through the node it is attached to. Step 3 of the
+  # split-screen plan replaces this with the view being drawn.
+  let(:node) { RGame::Engine::Node2D.new }
 
   # Verified against FakeRenderer, which is itself run against the renderer
   # contract — so `elapsed:` being accepted here is not this spec's opinion, it
@@ -12,6 +24,8 @@ RSpec.describe RGame::Engine::Components::TileWorld do
   let(:renderer) { instance_double(FakeRenderer) }
 
   before do
+    node.context = instance_double(FakeGame, width: 320, height: 240)
+    node.add_component(world)
     allow(renderer).to receive(:tilemap)
     allow(renderer).to receive(:tilemap_overlay)
   end
