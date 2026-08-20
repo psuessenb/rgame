@@ -23,14 +23,20 @@ class BeachScene < RGame::Engine::Node2D
 
   def on_add
     @map = node_context.assets.tilemap(MAP_KEY).map
-    # The camera belongs to the player, not to this scene: a scene may have any
-    # number of viewers. TileWorld sets its world bounds from the map.
-    @camera = root.system(RGame::Engine::Players).primary.camera
-    add_component(RGame::Engine::Components::TileWorld.new(map: @map, tilemap_id: MAP_KEY, camera: @camera))
+    # Cameras belong to players, not to this scene: a scene may have any number
+    # of viewers. All the scene does is tell them how big the world is.
+    players = root.system(RGame::Engine::Players)
+    @camera = players.primary.camera
+    add_component(RGame::Engine::Components::TileWorld.new(
+                    map: @map, tilemap_id: MAP_KEY, cameras: players.map(&:camera)
+                  ))
 
     # World space begins here: everything under it draws at its own world
     # coordinates and is drawn once per viewport, through that viewport's camera.
     view = add_node(RGame::Engine::WorldView.new)
+    # The map is world content, so it is drawn inside the band like everything
+    # else — once per viewport, culled to what that viewport can see.
+    view.add_node(RGame::Engine::TileMapLayer.new)
     @player = build_player
     view.add_node(@player)
     # After add_node, deliberately: the camera offset is read off the player's

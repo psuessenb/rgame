@@ -756,6 +756,38 @@ first draw bakes a recording *inside the band's clip*. Clips are refused
 **while** recording, and this pushes none, so it should be fine — but confirm it
 rather than assume, with the same throwaway probe recipe.
 
+**Landed.** `rake` green (318 C checks, 761 headless, 333 Core), RuboCop clean
+across 217 files, all three examples driving identically.
+
+The flagged check passed: baking inside an active clip neither raises nor
+captures the clip — a recording made under `clipped(0, 0, 32, 64)` replays
+correctly under `clipped(32, 0, 32, 64)`.
+
+What landed, against the plan: `TileMapRenderer` draws in world coordinates and
+its rectangle is now a cull rect (`cull_x`… throughout); `Renderer#tilemap` and
+the renderer contract say so; `TileWorld` lost `draw` and `camera:` and gained
+`cameras:`, `#bound`, `#tilemap_id` and `#elapsed`; `RGame::Engine::TileMapLayer`
+draws the map inside the world band; `examples/15_tiled_world` mounts it.
+
+**Two things worth recording:**
+
+- **`spec_core/rgame/core/tile_map_renderer_spec.rb` caught the change exactly,
+  and its failures sorted themselves into two piles.** Two were real behaviour
+  assertions that had to be rewritten (the replay offset, and where an animated
+  tile lands). Three were the *helper* — `drawn_cells` recovered a tile's column
+  by adding the camera back to its drawn position, which is only meaningful
+  while the output is camera-relative. Culling itself never changed. Worth
+  knowing that the split was 2 real to 3 incidental before reading the diff as
+  alarming.
+- **A pixel tier was missing and now exists.** Every assertion in that spec is
+  about recorded calls, which is right for "which tile, in which band, at which
+  coordinate" — but it cannot say whether a map drawn in world coordinates then
+  lands where the caller's transform puts it, and that is exactly what this step
+  changed. Three examples now draw through a real window, including **one bake
+  replayed under two transforms in a single frame**: split-screen in miniature,
+  and the property that makes it affordable. That test would have failed against
+  the old code for the right reason.
+
 ### 4b. The harness drives two players
 
 Before anything two-player is written, since nothing after this is verifiable
