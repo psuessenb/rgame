@@ -59,16 +59,23 @@ module RGame
     # and CLAUDE.md's "The examples are the acceptance test for wiring", which
     # is why driving one has to be possible at all. A game passes nothing and
     # gets the real thing.
+    # `players:` is how many seats the game has, and therefore the most people
+    # who can play it. Player 0 starts on `device:`; the rest start empty and
+    # are filled when someone uses a controller — see RGame::Engine::Players for
+    # why that is a press rather than a plug.
     def initialize(root:, width: WIDTH, height: HEIGHT, caption: 'RGame',
                    media_root: 'media', input_map: nil, device: Controls::KEYBOARD,
-                   input: nil)
+                   players: 1, input: nil)
       super(width: width, height: height, caption: caption, media_root: media_root)
 
       @root = root
       @renderer = RGame::Core::Renderer.new(self)
       @input = input || RGame::Core::Input.new(self)
       @players = RGame::Engine::Players.new(
-        [RGame::Engine::Player.new(id: 0, device: device, input_map: input_map)]
+        Array.new(players) do |id|
+          RGame::Engine::Player.new(id: id, device: id.zero? ? device : nil,
+                                    input_map: input_map)
+        end
       )
       @viewports = RGame::Engine::Viewports.new(@players, width: width, height: height)
       @debug = RGame::Engine::DebugOverlay.new # always wired up; F1 reveals it
@@ -154,12 +161,11 @@ module RGame
     # The window changed size, so every rect and every camera clamp does too.
     def resize(width, height) = @viewports.resize(width, height)
 
-    # A controller arriving fills the first seat waiting for one, and leaving
-    # empties whichever seat it was in — the player themselves, with their
-    # camera and bindings, stays put. A game whose player already has the
-    # keyboard is untouched by either.
-    def gamepad_connected(slot) = @players.claim_gamepad(slot)
-    def gamepad_disconnected(slot) = @players.release_gamepad(slot)
+    # Hot-plug is bookkeeping, not seating: a controller arriving becomes a
+    # device the registry watches, and it is someone *using* it that gives it to
+    # a player. Leaving takes it back off whoever had it.
+    def gamepad_connected(slot) = @players.device_connected(slot)
+    def gamepad_disconnected(slot) = @players.device_disconnected(slot)
 
     # The two development keys, both function keys on purpose: **Escape is
     # deliberately not bound here**, because it is the natural `cancel`/`back`

@@ -219,6 +219,17 @@ module DriveExample
     def down?(id, device: nil) = @script.at(@tick, device).held.include?(id)
 
     def axis(axis_id, device: nil) = @script.at(@tick, device).axes.fetch(axis_id, 0.0)
+
+    # The gamepad slots this script drives.
+    #
+    # Standing in for the input backend fakes what a device *says*, not that it
+    # is there — and a player joins by using a controller the engine knows
+    # exists. So the harness announces these the way SDL's hot-plug would;
+    # otherwise a scripted pad presses buttons into a slot nothing is watching.
+    def gamepad_slots
+      first = RGame::Util::Controls::GAMEPAD_FIRST
+      @script.devices.select { |device| device >= first }.map { |device| device - first }
+    end
   end
 
   # ---------------------------------------------------------------- the report
@@ -537,6 +548,8 @@ module DriveExample
           if pad
             pad.tick(report.ticks)
           else
+            # Announce the script's controllers once, as SDL would a frame in.
+            input.gamepad_slots.each { |slot| gamepad_connected(slot) } if report.ticks.zero?
             input.tick = report.ticks
           end
           report.ticks += 1

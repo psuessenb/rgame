@@ -83,8 +83,13 @@ Pass nothing and you get [`InputMap.default`](input.md): eight-way `move_x` /
 merged over the universal UI set, so `ui_confirm` and `ui_cancel` work without
 being declared.
 
-`device:` picks what drives it — the keyboard by default, or
+`device:` picks what drives player one — the keyboard by default, or
 `Controls.gamepad(slot)` for a controller.
+
+`players:` is how many seats the game has (default 1). Extra seats start empty
+and fill when somebody picks up a controller and presses confirm; an empty seat
+draws no viewport, so a two-seat game played by one person is an ordinary
+full-screen game. See [Players, seats and joining](input.md#players-seats-and-joining).
 
 A scene reads the resulting snapshot in `on_control(actions)` — `actions.axis(:move_x)`,
 `actions.pressed?(:fire)` — and never sees a key.

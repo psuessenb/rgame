@@ -676,6 +676,13 @@ did in step 0 — nothing after it is verifiable otherwise — and the tile map
 comes before the second player because it is the one thing that is *broken* at
 two views rather than merely absent.
 
+4c grew a second half after the plan was first written: **how a device comes to
+occupy a seat.** The sketch left `claim_gamepad`'s seat-on-connect in place as
+the only behaviour, which drops a pad plugged in by a solo player, splits the
+screen when a spare pad wakes up, and cannot be turned off for a cutscene. The
+default was wrong rather than merely unfinished, so the fix belongs where the
+second player first exists rather than after it.
+
 ### What was measured before planning
 
 Two questions decided the shape of this step, and both were answered by running
@@ -851,21 +858,143 @@ subsequent runs gave 240. So draw counts wobble by one for timing reasons as wel
 as by tens for RNG reasons, and 4e's "the counts drop" has to be read as an order
 of magnitude rather than an exact figure. Recorded in the harness's own header.
 
-### 4c. A second player
+### 4c. A second player, and how one joins
+
+Two halves: seats, and how a device comes to occupy one. The second half was
+missing from the sketch, and the default it left in place was wrong.
+
+#### The join policy
+
+**Seating on connect is wrong.** It is what `Players#claim_gamepad` does today —
+`Game#gamepad_connected` fills the first empty seat immediately — and it fails
+all three of the questions worth asking:
+
+| | Connect-to-join does | Should do |
+|---|---|---|
+| Solo player on the keyboard plugs in a pad | **nothing**: no seat is free, so the pad is silently dropped | player one starts using the pad |
+| A spare pad wakes up mid-game | splits the screen, unprompted | nothing until someone uses it |
+| Cutscene, menu, mid-round | no way to refuse | joining can be closed |
+
+A connect is a statement about *hardware*. Seating a player creates a camera, a
+viewport and a screen split, and that should follow a statement of *intent*.
+Every engine that ships couch co-op does it this way; Unity's
+`PlayerInputManager` is the clearest (see [`02-prior-art.md`](02-prior-art.md)).
+
+So `Players` grows two knobs:
+
+```ruby
+players.on_unassigned_input = :join   # :join | :takeover | :ignore
+players.accepting_joins = false       # temporary, for a cutscene or a menu
+```
+
+- **`:join`** — a press on an unassigned device seats the next free player.
+  Couch co-op. The default when a game asks for more than one seat.
+- **`:takeover`** — a press on an unassigned device becomes the *primary*
+  player's device. Single-player, where switching from keyboard to pad is not a
+  second player arriving. The default when there is one seat.
+- **`:ignore`** — the game assigns devices itself.
+
+And the decisions behind them, recorded because each has a plausible opposite:
+
+- **The trigger is a `ui_confirm` press, never an axis.** One action rather than
+  "any input", because joining creates a player and splits the screen, and a
+  stick resting slightly off-centre must never do that. `ui_confirm` is in the
+  universal set, so every map already has it, and a game that wants "press
+  Start" rebinds it like anything else. Edge, not held.
+- **Seats are pre-created and the count is the cap.** `players: 4` means four
+  seats, of which the unfilled ones are inactive and draw no viewport. One
+  concept doing the work of both "how many players" and "the maximum", rather
+  than a separate `max_players` that could disagree with the list.
+- **The keyboard is scanned only under `:takeover`.** It is always "connected",
+  so under `:join` an idle keyboard would sit there waiting to seat somebody the
+  moment they pressed Return — which is right for some games and a surprise in
+  most. A game that wants a keyboard player says so explicitly.
+- **Connect and disconnect are still tracked**, just not acted on: `Players`
+  needs to know which slots exist in order to scan them. So
+  `Game#gamepad_connected` records the slot rather than seating it, and
+  `claim_gamepad` becomes internal to the join path.
+- **Under `:takeover`, losing the device falls back to the keyboard.** Today
+  `release_gamepad` empties the seat, which for a solo player means the game
+  stops responding to anything. Under `:join` an empty seat is correct — the
+  player left. Under `:takeover` there is no second player to be, so the primary
+  goes back to the keyboard.
+
+#### Where the scan lives
+
+`Players#poll(backend)` already runs once per tick with the backend in hand, so
+the scan goes there: for each connected-but-unseated device, is `ui_confirm`
+newly down. That needs an `InputMap` to read ids from — the one a joining player
+would get — so `Players` takes a template map, which `Game` already has.
+
+**No change to the input backend contract.** The scan needs `down?(id, device:)`,
+which it has, and the list of live slots, which arrives through the hot-plug
+hooks the engine is already given. That was worth checking: the alternative —
+asking the backend to enumerate devices — would have widened a contract that two
+implementations have to keep in step.
+
+Cost is a handful of button lookups per unassigned device per tick, and zero
+when every seat is full.
+
+#### Seats and the example
 
 - `Game.new(..., players: 2)` builds them: player 0 on the keyboard as now,
-  players 1+ as **empty seats** (`device: nil`).
-- An empty seat gets no viewport (`Viewports` already skips inactive players), so
-  a two-player game with one controller plugged in is **one full-screen view**,
-  and plugging a pad in splits the screen. That degradation is free and worth
-  keeping — `Players#claim_gamepad` already does the seating.
+  players 1+ as **empty seats** (`device: nil`), and picks `:join` as the
+  default policy because more than one seat was asked for.
 - `examples/15_tiled_world` gains a second walker: its own node, its own
   `CameraFollow` with that player's camera, and `input_owner` set to them.
+  It only exists once its player is active, so a one-controller session is a
+  single full-screen view and a game.
 
 **Verify:** drive it with a keyboard track and a pad track. The report should
-show two clips with the layout's two rects, two distinct camera tracks, and the
-world traversal happening twice per frame — while `update` still runs once,
-which `world_view_spec.rb` already asserts in the small.
+show one clip while the second seat is empty, then **two** clips with the
+layout's two rects once the pad presses confirm — each with its own camera
+track, which is what 4b's per-clip translate count was added to show. World
+traversal happens twice per frame while `update` still runs once, which
+`world_view_spec.rb` already asserts in the small.
+
+Worth scripting all three policies as spec examples rather than only the happy
+path: a pad that connects and stays silent seats nobody, a press while
+`accepting_joins` is false seats nobody, and a press under `:takeover` moves the
+primary player rather than seating a second.
+
+**Landed.** `rake` green (318 C checks, 774 headless, 333 Core), RuboCop clean
+across 218 files. **Split-screen works**, and the report says so in one place:
+
+```
+clips pushed
+  21 × [0, 0, 640, 480]    — 11 distinct translate(s) inside
+  219 × [0, 0, 640, 240]   — 161 distinct translate(s) inside
+  219 × [0, 240, 640, 240] — 41 distinct translate(s) inside
+```
+
+Twenty-one full-screen frames while the second seat was empty, then two
+half-height viewports each carrying its own camera track. The tile map is drawn
+459 times — 21 + 219 × 2 — which is exactly once per viewport per frame, and the
+number 4a existed to make true. Driven solo, the same example is byte-identical
+to its one-seat run: one clip, one camera, the same 240 tilemap draws.
+
+Everything the plan called for landed as planned. Three things it did not
+anticipate:
+
+- **A scripted backend fakes what a device *says*, not that it exists.** Joining
+  needs the engine to know a controller is there, and that knowledge arrives
+  through SDL's hot-plug hooks — which no scripted run fires. So a scripted pad
+  was pressing buttons into a slot nothing was watching, and nobody ever joined.
+  The harness now announces its script's gamepad slots once, as SDL would a
+  frame in. Worth knowing generally: standing in for the input *backend* is not
+  the same as standing in for the input *hardware*, and `--gamepad` mode exists
+  because some things need the latter.
+- **`Players#actions_for` had a local named `seat`**, which the new `#seat`
+  method shadowed. Harmless — the local wins — but renamed to `owner`, because a
+  reader should not have to work that out.
+- **`Player#input_map` earned its keep.** It was added in 2a as a convenience
+  reader and nothing called it; the join scan reads `ui_confirm` through the map
+  of whoever *would* receive the device, which is what makes "press to join"
+  follow a rebound `ui_confirm` for free — and it meant `Players` needed no
+  template map passed in.
+
+Documented in `docs/api/input.md` ("Players, seats and joining") and
+`docs/api/game.md`.
 
 ### 4d. Z bands become a stated convention
 

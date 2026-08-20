@@ -15,40 +15,59 @@ class BeachScene < RGame::Engine::Node2D
   PLAYER_SPEED = 120.0
   NPC_SPEED    = 70.0
   NPC_OFFSETS  = [[-80, -48], [96, -32], [-64, 64], [120, 48], [40, -96], [-112, 16]].freeze
+  WALKER_SPACING = 48 # so a second player starts beside the first, not inside them
 
   def initialize
     super
     @rng = Random.new(0xBEAC4)
+    @walkers = {}
   end
 
   def on_add
     @map = node_context.assets.tilemap(MAP_KEY).map
     # Cameras belong to players, not to this scene: a scene may have any number
     # of viewers. All the scene does is tell them how big the world is.
-    players = root.system(RGame::Engine::Players)
-    @camera = players.primary.camera
+    @players = root.system(RGame::Engine::Players)
     add_component(RGame::Engine::Components::TileWorld.new(
-                    map: @map, tilemap_id: MAP_KEY, cameras: players.map(&:camera)
+                    map: @map, tilemap_id: MAP_KEY, cameras: @players.map(&:camera)
                   ))
 
     # World space begins here: everything under it draws at its own world
     # coordinates and is drawn once per viewport, through that viewport's camera.
-    view = add_node(RGame::Engine::WorldView.new)
+    @view = add_node(RGame::Engine::WorldView.new)
     # The map is world content, so it is drawn inside the band like everything
     # else — once per viewport, culled to what that viewport can see.
-    view.add_node(RGame::Engine::TileMapLayer.new)
-    @player = build_player
-    view.add_node(@player)
-    # After add_node, deliberately: the camera offset is read off the player's
-    # feet box, and that box is sized from the sprite, which AnimatedSprite only
-    # knows once it has attached. See #follow_camera.
-    follow_camera(@player)
-    npc_spawns.each { |x, y| view.add_node(build_npc(x, y)) }
+    @view.add_node(RGame::Engine::TileMapLayer.new)
+
+    # One walker per player who is already playing, and one more whenever
+    # somebody picks up a controller. The scene never polls for that — the
+    # registry says so.
+    @players.each_active { |player| spawn_walker(player) }
+    @players.on_joined { |player| spawn_walker(player) }
+
+    npc_spawns.each { |x, y| @view.add_node(build_npc(x, y)) }
   end
 
   private
 
   def node_context = root.context
+
+  # A player's own walker: their input drives it, their camera follows it.
+  #
+  # `input_owner` is what makes the second one answer to the second player —
+  # it is inherited down the subtree, so everything under this node reads that
+  # player and nothing else has to be told.
+  def spawn_walker(player)
+    walker = build_player
+    walker.input_owner = player
+    walker.x += WALKER_SPACING * player.id
+    @view.add_node(walker)
+    # After add_node, deliberately: the camera offset is read off the walker's
+    # feet box, and that box is sized from the sprite, which AnimatedSprite only
+    # knows once it has attached. See #follow_camera.
+    follow_camera(walker, player.camera)
+    @walkers[player.id] = walker
+  end
 
   # Point the camera at the player's feet box rather than the sprite's origin,
   # which is its top-left. Following is a CameraFollow component on the player
@@ -60,10 +79,10 @@ class BeachScene < RGame::Engine::Node2D
   # the sprite's frame size and memoised on first read, and the sprite size is
   # set by AnimatedSprite#on_attach — so reading it from `build_player` bakes a
   # box computed from a 0x0 sprite, for the collision system as well as for this.
-  def follow_camera(node)
+  def follow_camera(node, camera)
     box = node.get_component(RGame::Engine::Components::CharacterBody).collision_box
     node.add_component(RGame::Engine::Components::CameraFollow.new(
-                         camera: @camera,
+                         camera: camera,
                          offset_x: box.offset_x + (box.width / 2.0),
                          offset_y: box.offset_y + (box.height / 2.0)
                        ))

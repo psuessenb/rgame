@@ -138,6 +138,58 @@ leaving the dead zone ramps from zero instead of jumping to `0.15`.
 `RGame::Game` builds one of these for you and polls it once per tick; a game
 normally sees only the `Actions` handed to `control`.
 
+## Players, seats and joining
+
+`RGame::Engine::Players` is a root-scoped system holding who is playing. Each
+`RGame::Engine::Player` owns a device, an `InputMap`, a camera and a UI root —
+the action *names* are the game's and shared, the buttons behind them are not.
+
+```ruby
+RGame::Game.new(root: MyRoot.new, players: 2)
+```
+
+`players:` is how many **seats** the game has, and therefore the most people who
+can play it. Player 0 starts on the keyboard; the rest start empty. An empty
+seat draws no viewport, so a two-seat game with nobody in the second one is an
+ordinary full-screen single-player game.
+
+### A device is seated when someone uses it
+
+Not when it is plugged in. Plugging a controller in says something about
+hardware; seating a player creates a camera, a viewport and a screen split, and
+that follows a statement of intent — a **`ui_confirm` press** on the device.
+
+One action rather than "any input", because a stick resting slightly off centre
+must never seat a player. An edge rather than held, so one press does one thing.
+It is read through the map of whoever would receive the device, so rebinding
+`ui_confirm` rebinds "press to join" with it.
+
+```ruby
+players = node.system(RGame::Engine::Players)
+
+players.on_unassigned_input = :join       # :join | :takeover | :ignore
+players.accepting_joins = false           # temporarily refuse
+players.on_joined { |player| spawn(player) }
+```
+
+| Policy | A press on a device nobody holds | Default when |
+|---|---|---|
+| `:join` | fills the next free seat | there is more than one seat |
+| `:takeover` | becomes the **primary** player's device | there is one seat |
+| `:ignore` | nothing; the game calls `players.seat(device)` itself | — |
+
+`:takeover` is single-player's answer: one person already playing who picks up a
+controller is not a second person arriving. Their keyboard becomes unassigned,
+so using it again takes them back — last device used wins. And if their
+controller is unplugged they fall back to the keyboard rather than the game
+going dead in their hands.
+
+`accepting_joins = false` refuses both, which is what a cutscene or a mid-round
+lockout wants.
+
+`on_joined` fires with the player who got the device, which is how a scene
+spawns their character without polling for one. See `examples/15_tiled_world`.
+
 ## `RGame::Core::Input`
 
 The raw query, and deliberately nothing more.

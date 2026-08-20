@@ -40,7 +40,13 @@ RGame::Game.new(
   caption: 'Example 15 - Tiled World',
   width: WIDTH,
   height: HEIGHT,
-  media_root: MEDIA
+  media_root: MEDIA,
   # No input_map: :move_x / :move_y are RGame::Engine::InputMap's defaults, on
-  # the arrow keys and the left stick alike. Plug in a controller and walk.
+  # the arrow keys and the left stick alike.
+  #
+  # Two seats. The first is the keyboard; the second stays empty until somebody
+  # picks up a controller and presses confirm — at which point a second walker
+  # appears and the screen splits. Until then this is an ordinary one-player
+  # game on a full-screen view.
+  players: 2
 ).start
