@@ -48,12 +48,20 @@
 # clips and translates were pushed, ticks against frames. Those are what to
 # assert on.
 #
-# Exact draw counts are **not** stable for every example. `examples/14_asteroids`
-# seeds its rock spawns with an unseeded `Random.new`, so two runs differ by tens
-# of `image` calls and may or may not reach a collision. That is the game's
-# choice, not a defect here — but it means "the number went from 843 to 944" is
-# not by itself a regression, and a script that needs determinism should seed the
-# example it drives.
+# Exact draw counts are **not** stable, for two reasons.
+#
+# `examples/14_asteroids` seeds its rock spawns with an unseeded `Random.new`,
+# so two runs differ by tens of `image` calls and may or may not reach a
+# collision. That is the game's choice, not a defect here.
+#
+# And the fixed-timestep loop decouples ticks from frames: a slow frame runs
+# several catch-up ticks, so the budget can be spent — and `close` called —
+# before that frame draws. Even a seeded example can therefore come in one draw
+# short of its usual count. Observed once in about a dozen runs of example 15.
+#
+# So "the number went from 843 to 944" is not by itself a regression, and
+# neither is a difference of one. Compare orders of magnitude, and assert on
+# structure.
 
 require 'optparse'
 
@@ -67,35 +75,92 @@ module DriveExample
 
   # ---------------------------------------------------------------- the script
 
-  # A per-tick timeline of which actions are held, built with a small DSL:
+  # A per-tick timeline of what each device is doing, built with a small DSL:
   #
-  #   idle 30            # 30 ticks with nothing held
-  #   press :confirm     # one tick down, one tick up
-  #   hold :left, 20     # 20 ticks with :left held
-  #   hold %i[left fire], 15
+  #   idle 30                       # 30 ticks with nothing held
+  #   press controls::KEY_RETURN    # one tick down, one tick up
+  #   hold controls::KEY_LEFT, 20   # 20 ticks held
+  #   hold [controls::KEY_LEFT, controls::KEY_SPACE], 15
+  #   tilt controls::AXIS_LEFT_X, 0.5, 30
   #
   # `press` is two ticks on purpose. Edge queries (`pressed?`) compare against
   # the previous poll, so an action that never goes back up fires once and then
   # reads as held forever — which is a different thing from a press and drives
   # menus differently.
+  #
+  # ## One timeline per device
+  #
+  # Bare verbs drive the keyboard. `on` switches to another device, and each
+  # device's timeline is **independent and absolute** — every track starts at
+  # tick 0 — so two players written one after the other in the file act at the
+  # same time, not in turn:
+  #
+  #   on controls::KEYBOARD do
+  #     idle 20
+  #     hold controls::KEY_RIGHT, 60      # ticks 20..80
+  #   end
+  #
+  #   on controls.gamepad(0) do
+  #     idle 20
+  #     hold controls::PAD_DPAD_LEFT, 60  # also ticks 20..80
+  #   end
+  #
+  # Repeating the leading `idle` is the price of being able to read one player's
+  # whole timeline top to bottom, which beats tracking a shared cursor in your
+  # head across two blocks.
   class Script
     NOTHING = [].freeze
     NO_AXES = {}.freeze
     Frame = Struct.new(:held, :axes)
     RESTING = Frame.new(NOTHING, NO_AXES).freeze
 
+    # One device's timeline, indexed by absolute tick.
+    class Track
+      def initialize = @frames = []
+
+      def idle(count)
+        count.times { @frames << RESTING }
+        self
+      end
+
+      def hold(ids, count, axes)
+        frame = Frame.new(Array(ids).freeze, axes).freeze
+        count.times { @frames << frame }
+        self
+      end
+
+      # Past the end of a track everything rests, so a tick budget longer than
+      # the script simply runs the game idle.
+      def at(tick) = @frames.fetch(tick, RESTING)
+      def length = @frames.length
+    end
+
     def initialize
-      @ticks = []
+      @tracks = {}
+      @device = nil
+    end
+
+    # Available to a script, so it can name physical ids without knowing where
+    # they live: `hold controls::KEY_RIGHT, 60`.
+    def controls = RGame::Util::Controls
+
+    # Write the enclosed verbs to `device`'s timeline instead of the keyboard's.
+    def on(device)
+      previous = @device
+      @device = device
+      yield
+      self
+    ensure
+      @device = previous
     end
 
     def idle(count = 1)
-      count.times { @ticks << RESTING }
+      track.idle(count)
       self
     end
 
     def hold(ids, count = 1, axes: NO_AXES)
-      frame = Frame.new(Array(ids).freeze, axes).freeze
-      count.times { @ticks << frame }
+      track.hold(ids, count, axes)
       self
     end
 
@@ -111,15 +176,13 @@ module DriveExample
       hold(NOTHING, count, axes: { axis_id => value }.freeze)
     end
 
-    # What is held and deflected on `tick`. Past the end of the script
-    # everything rests, so a tick budget longer than the script runs it idle.
-    def at(tick) = @ticks.fetch(tick, RESTING)
+    # What `device` is holding and deflecting on `tick`. A device the script
+    # never mentioned rests throughout.
+    def at(tick, device) = @tracks[device]&.at(tick) || RESTING
 
-    def length = @ticks.length
+    def length = @tracks.values.map(&:length).max || 0
 
-    # Available to a script, so it can name physical ids without knowing where
-    # they live: `hold controls::KEY_RIGHT, 60`.
-    def controls = RGame::Util::Controls
+    def devices = @tracks.keys
 
     # Read only after rgame is loaded — a script names Controls ids, so the
     # constants have to exist before it is evaluated.
@@ -128,6 +191,12 @@ module DriveExample
       script.instance_eval(File.read(path), path)
       script
     end
+
+    private
+
+    # The default is the keyboard, resolved here rather than at construction
+    # because this file is loaded before rgame is.
+    def track = @tracks[@device || controls::KEYBOARD] ||= Track.new
   end
 
   # The input backend, standing in for RGame::Core::Input.
@@ -136,9 +205,9 @@ module DriveExample
   # `axis(axis_id, device:)` — where an id is a physical one from
   # RGame::Util::Controls, exactly as the real backend takes.
   #
-  # `device:` is accepted and ignored. A script says what is held, not what is
-  # holding it; once there is a player per device (step 2 of the roadmap) this
-  # grows a per-device timeline and the signature will already be right.
+  # Each device reads its own timeline, so two players polled in the same tick
+  # get two different answers — which is the whole point of the backend rather
+  # than the hardware being faked for a two-player run.
   class ScriptedInput
     attr_accessor :tick
 
@@ -147,9 +216,9 @@ module DriveExample
       @tick = 0
     end
 
-    def down?(id, device: nil) = @script.at(@tick).held.include?(id) # rubocop:disable Lint/UnusedMethodArgument
+    def down?(id, device: nil) = @script.at(@tick, device).held.include?(id)
 
-    def axis(axis_id, device: nil) = @script.at(@tick).axes.fetch(axis_id, 0.0) # rubocop:disable Lint/UnusedMethodArgument
+    def axis(axis_id, device: nil) = @script.at(@tick, device).axes.fetch(axis_id, 0.0)
   end
 
   # ---------------------------------------------------------------- the report
@@ -171,6 +240,12 @@ module DriveExample
       @translates = Hash.new(0)
       @sounds = Hash.new(0)
       @scenes = []
+      # Which translates happened inside which clip. Split-screen's signature is
+      # one clip per viewport each containing its *own* camera track, and that is
+      # two facts about the same nesting — reading it off two separate lists left
+      # the reader to correlate them.
+      @per_clip = {}
+      @clip = nil
     end
 
     def record_draw(name, args)
@@ -180,8 +255,24 @@ module DriveExample
       call.last_args = summary
     end
 
-    def record_clip(rect)      = @clips[rect.map { |n| round(n) }] += 1
-    def record_translate(dxdy) = @translates[dxdy.map { |n| round(n) }] += 1
+    # Entered rather than merely counted, so what happens inside is attributable.
+    def within_clip(rect)
+      key = rect.map { |n| round(n) }
+      @clips[key] += 1
+      outer = @clip
+      @clip = key
+      @per_clip[key] ||= Hash.new(0)
+      yield
+    ensure
+      @clip = outer
+    end
+
+    def record_translate(dxdy)
+      key = dxdy.map { |n| round(n) }
+      @translates[key] += 1
+      @per_clip[@clip][key] += 1 if @clip
+    end
+
     def record_sound(kind, id) = @sounds["#{kind} #{id}"] += 1
     def record_scene(action, scene) = @scenes << "#{action} #{scene.class}"
 
@@ -190,13 +281,25 @@ module DriveExample
       out << section('ticks / frames', ["#{@ticks} ticks, #{@frames} frames"])
       out << section('scenes', @scenes)
       out << section('draw calls', @draws.sort_by { |_, c| -c.calls }.map { |name, c| draw_line(name, c) })
-      out << section('clips pushed', @clips.map { |rect, n| "#{n} × #{rect.inspect}" })
+      out << section('clips pushed', clip_lines)
       out << section('translates pushed', translate_lines)
       out << section('audio', @sounds.map { |what, n| "#{n} × #{what}" })
       out
     end
 
     private
+
+    # One line per clip, with what moved inside it. Two clips each holding their
+    # own set of translates is what two players looking at one world produces —
+    # and one clip holding both cameras' worth would be the bug.
+    def clip_lines
+      @clips.map do |rect, count|
+        inside = @per_clip.fetch(rect, {})
+        line = "#{count} × #{rect.inspect}"
+        line << " — #{inside.size} distinct translate(s) inside" unless inside.empty?
+        line
+      end
+    end
 
     # Translates are the busiest list and the least interesting one by volume —
     # every rotated sprite pushes one. Show the extremes, which is where a
@@ -278,8 +381,7 @@ module DriveExample
     # merely that a call happened. They are also the whole point of the harness
     # for split-screen: one clip per viewport, one distinct translate per camera.
     def clipped(x, y, width, height, &)
-      @report.record_clip([x, y, width, height])
-      @target.clipped(x, y, width, height, &)
+      @report.within_clip([x, y, width, height]) { @target.clipped(x, y, width, height, &) }
     end
 
     def translated(dx, dy, &)
@@ -337,8 +439,12 @@ module DriveExample
     # button number.
     def pad_base = RGame::Util::Controls::PAD_A
 
-    def initialize(script)
+    # `slot` is the player slot SDL will seat the pad in, and therefore which of
+    # the script's timelines it plays: a pad script says
+    # `on controls.gamepad(0) { ... }`, like any other device.
+    def initialize(script, slot: 0)
       @script = script
+      @slot = slot
       @pad = nil
       @down = []
     end
@@ -348,7 +454,7 @@ module DriveExample
     # shape spec_core's gamepad specs use.
     def tick(number)
       @pad ||= VirtualGamepad.new
-      frame = @script.at(number)
+      frame = @script.at(number, RGame::Util::Controls.gamepad(@slot))
       apply_buttons(frame.held)
       apply_axes(frame.axes)
     end

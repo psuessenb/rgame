@@ -811,6 +811,46 @@ translates each clip contained**, since "two clips, two different cameras" is th
 assertion this whole step exists to make and it is currently two separate lines
 to read.
 
+**Landed.** `rake` green (318 C checks, 761 headless, 333 Core), RuboCop clean
+across 217 files, all four scripts driving identically to 4a.
+
+Tracks are **independent and absolute** — every device's timeline starts at
+tick 0 — which was the design decision worth making deliberately. The
+alternative, a shared cursor that `on` blocks advance, reads shorter but makes
+"do these two players act at the same time or in turn?" a question you answer by
+tracking state across blocks. Repeating a leading `idle` is the price of reading
+one player's whole timeline top to bottom.
+
+Verified directly rather than by inference, since nothing two-player exists yet
+to drive:
+
+```
+tick | kbd RIGHT | pad DPAD_LEFT | pad LEFT_X | kbd sees PAD_LEFT
+   2 |      true |          true |        0.0 | false
+   5 |     false |         false |       0.75 | false
+```
+
+Both tracks act at ticks 2–4 *concurrently*, the stick tilts later on its own
+track, the keyboard device sees none of the pad's buttons, and everything rests
+past the end of a track.
+
+`ScriptedGamepad` now plays the track for the slot it seats itself in, so
+`tools/drive/15_tiled_world_pad.rb` names its device like any other. The report
+prints clips with what moved inside each:
+
+```
+clips pushed
+  240 × [0, 0, 640, 480] — 221 distinct translate(s) inside
+```
+
+**One thing measured that changes how 4e is verified.** A run came in at 239
+tilemap draws where every other run gives 240 — not the RNG (example 15 is
+seeded) but the fixed-timestep loop: a slow frame runs several catch-up ticks, so
+the budget can be spent and `close` called before that frame draws. Three
+subsequent runs gave 240. So draw counts wobble by one for timing reasons as well
+as by tens for RNG reasons, and 4e's "the counts drop" has to be read as an order
+of magnitude rather than an exact figure. Recorded in the harness's own header.
+
 ### 4c. A second player
 
 - `Game.new(..., players: 2)` builds them: player 0 on the keyboard as now,

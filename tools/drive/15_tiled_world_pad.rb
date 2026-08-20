@@ -11,14 +11,16 @@
 # analog path and the dead zone. A resting stick is deliberately included: it
 # reads a small non-zero value on real hardware, and the player must not drift.
 
-idle 20                                  # SDL seats the pad in slot 0
+on controls.gamepad(0) do
+  idle 20                                # SDL seats the pad in slot 0
 
-hold controls::PAD_DPAD_RIGHT, 40        # buttons: dpad east
-hold controls::PAD_DPAD_DOWN, 40         # and south
+  hold controls::PAD_DPAD_RIGHT, 40      # buttons: dpad east
+  hold controls::PAD_DPAD_DOWN, 40       # and south
 
-tilt controls::AXIS_LEFT_X, 0.05, 20     # inside the dead zone: must not move
-tilt controls::AXIS_LEFT_X, 1.0, 40      # analog: full east
-tilt controls::AXIS_LEFT_Y, -1.0, 40     # analog: full north
-tilt controls::AXIS_LEFT_X, 0.5, 30      # half deflection, so speed is analog
+  tilt controls::AXIS_LEFT_X, 0.05, 20   # inside the dead zone: must not move
+  tilt controls::AXIS_LEFT_X, 1.0, 40    # analog: full east
+  tilt controls::AXIS_LEFT_Y, -1.0, 40   # analog: full north
+  tilt controls::AXIS_LEFT_X, 0.5, 30    # half deflection, so speed is analog
 
-idle 10
+  idle 10
+end

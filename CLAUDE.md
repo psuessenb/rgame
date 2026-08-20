@@ -751,8 +751,13 @@ ruby tools/drive_example.rb examples/15_tiled_world/main.rb --ticks 240
 It boots the example unmodified (prepending its probes before `load`ing the
 example's own `main.rb`), feeds it a scripted input backend through
 `RGame::Game`'s `input:` keyword, stops on a tick budget, and reports draw calls
-with their first and last arguments, clips and translates pushed, sounds played,
-scenes entered, and ticks against frames.
+with their first and last arguments, clips pushed with what moved inside each,
+sounds played, scenes entered, and ticks against frames.
+
+A script holds **one timeline per device**, so a two-player run is written as two
+`on` blocks and both play at once — every track is absolute, starting at tick 0.
+`--gamepad` swaps the scripted backend for a synthetic SDL controller, which
+exercises the real device path instead of standing in front of it.
 
 Two things it had to be, both learned the hard way: it **counts rather than
 eyeballs**, and it **lives in the repo** — the harness this replaces did not, so
