@@ -7,6 +7,19 @@ This folder exists so the reasoning behind their absence is not rediscovered.
 Everything else the Gosu replacement and the `RGame::Engine` move turned up has
 landed or been folded into the real documentation. These two are what remain.
 
+**Split-screen now has a worked proposal**, driven by
+[`camera-and-input-requirement.md`](camera-and-input-requirement.md):
+
+- [`01-current-state.md`](01-current-state.md) — what camera and input do today,
+  and the seven properties that block more than one of either.
+- [`02-prior-art.md`](02-prior-art.md) — how Unreal, Unity, Bevy and Godot answer
+  the same question, and what to take from each.
+- [`03-design.md`](03-design.md) — the design: the player owns the camera and
+  the bindings, the world is updated once and drawn once per view. It answers the
+  ownership question §2 leaves open below, and it changes the input half too.
+- [`04-roadmap.md`](04-roadmap.md) — the implementation plan. Detailed for steps
+  0–3, deliberately rough for 4–6.
+
 ---
 
 ## 1. There is no UI toolkit
