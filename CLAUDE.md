@@ -738,9 +738,27 @@ polling bug that consumed every input edge before a tick could read it left a
 game whose menu did not respond to anything, and a plain boot of it reported
 "90 ticks, 90 frames" and looked perfectly healthy.
 
-Two things that harness must be, learned the same way: it counts rather than
-eyeballs, and — if it lives outside the repo — it is a caller like any other, so
-a project-wide rename does not reach it and it breaks after every sweep.
+That harness is `tools/drive_example.rb`, and it takes a per-example input
+script from `tools/drive/`:
+
+```
+ruby tools/drive_example.rb examples/15_tiled_world/main.rb --ticks 240
+```
+
+It boots the example unmodified (prepending its probes before `load`ing the
+example's own `main.rb`), feeds it a scripted input backend through
+`RGame::Game`'s `input:` keyword, stops on a tick budget, and reports draw calls
+with their first and last arguments, clips and translates pushed, sounds played,
+scenes entered, and ticks against frames.
+
+Two things it had to be, both learned the hard way: it **counts rather than
+eyeballs**, and it **lives in the repo** — the harness this replaces did not, so
+it was a caller no project-wide rename could reach, and it broke after every
+sweep. `tools/` is outside the gem's packaged glob, so it ships nothing.
+
+Assert on structure — scenes entered, sounds fired, clip and translate counts —
+not on exact draw counts: `examples/14_asteroids` spawns from an unseeded
+`Random.new`, so those vary run to run.
 
 ### Why the Ruby specs are two suites, in two directories
 

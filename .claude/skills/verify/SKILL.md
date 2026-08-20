@@ -14,6 +14,7 @@ cheap tiers are the ones that stay green.
 | 2a. Ruby, headless | `rake spec` | `RGame::Util` + `RGame::Engine`; no SDL in the process | fast |
 | 2b. Ruby, Core | `rake spec:core` | `RGame::Core`; real windows, own Xvfb | ~1s |
 | 3. Live window | `ruby .claude/skills/verify/scripts/smoke_live_window.rb` | Real SDL window + GL + input, **headless** | ~5s |
+| 3b. Driven example | `ruby tools/drive_example.rb <example>/main.rb` | All three layers wired together, from a script | ~5s |
 | 4. Manual | `make run` / `ruby ext/.../example.rb` | Does it look right | human |
 
 Tiers 1–3 are all automated and need no display. Tier 3 is the one most
@@ -49,6 +50,16 @@ Reusable support lives in `spec_core/support/`: `HeadlessDisplay` (Xvfb),
 **Tier 3 — live window.** "Did a real SDL window open, take real input, and
 render without a GL error." Use it for the layer-3 shim only. Do not use it for
 logic that tier 1 could cover.
+
+**Tier 3b — driven example.** The acceptance test for anything that changes how
+the layers are wired: `RGame::Game`, the asset loaders, input polling, the
+renderer's id registries. It is the only tier where all three layers are present
+at once. Boots an example unmodified, drives it from a script in `tools/drive/`,
+bounds the ticks, and reports what the game asked for — scenes entered, sounds
+played, clips and translates pushed, ticks against frames. **Booting is not
+driving**: a plain boot of a game whose menu responded to nothing once reported
+"90 ticks, 90 frames" and looked healthy. Assert on structure, not on exact draw
+counts (example 14 spawns from an unseeded RNG).
 
 **Tier 4 — manual.** Subjective/visual only. Never the only evidence for a
 correctness claim.

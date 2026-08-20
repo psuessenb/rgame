@@ -127,6 +127,50 @@ on everywhere else.
 `confirm`, and that example 15's player actually moves. A harness that reports
 zeros for everything passes just as easily as one that works.
 
+**Landed.** `tools/drive_example.rb` plus one script per example in
+`tools/drive/`, named after the example's directory so adding an example means
+adding a script rather than editing the harness. `RGame::Game` gained the
+`input:` keyword and nothing else. `rake` green: 318 C checks, 587 headless
+examples, 329 Core examples.
+
+Both acceptance criteria met. Example 14 reports
+`push StartScene / pop StartScene / push PlayScene / pop PlayScene / push
+GameOverScene` — the scripted `confirm` really does advance the title screen, and
+the ship really does die. Example 15 reports the tilemap camera moving
+`first(…, 0.0, 0.0, 640, 480)` → `last(…, 788.0, 648.0, 640, 480)`, so the player
+walked.
+
+Four things the sketch got wrong or did not anticipate:
+
+- **The probes had to be split in three.** One recording delegator was not
+  enough: the asset manager *decodes* through the audio server (`sample`,
+  `song`), so a single probe counted file loads as draw calls. `Probe` is now the
+  bare forwarder, with `RendererProbe` and `AudioProbe` deciding what is worth
+  recording. Forwarding stays generic — a renderer that grows a primitive is
+  counted with no edit here — and only the deny-list is enumerated.
+- **`press` is two ticks, not one.** Edge queries compare against the previous
+  poll, so an action that goes down and never comes up reads as *held* forever,
+  which drives a menu differently from a press. The DSL's `press` emits down then
+  up for exactly this reason.
+- **Example 14 is not deterministic.** It spawns rocks from an unseeded
+  `Random.new`, so draw counts vary by tens between runs and a collision may or
+  may not happen. Structure (scenes, sounds, clips, ticks vs frames) is stable
+  and is what to assert on. Recorded in the harness's own header and in CLAUDE.md
+  rather than "fixed", since the seed is the example's choice.
+- **One RuboCop exception**, with its reason, in `.rubocop.yml`:
+  `Style/FrozenStringLiteralComment` is excluded for `tools/drive/**/*.rb`. Those
+  files are `instance_eval`'d, never required, so a file-level magic comment in
+  one is inert and adding it would be cargo cult.
+
+**And it immediately earned its keep**: all three examples report
+`clips pushed: (none)`. Inventory blocker 9 — "`renderer.clipped` has never been
+called from above" — was read off the source and is now *measured*. That is the
+baseline step 4 has to move.
+
+Documented in CLAUDE.md ("The examples are the acceptance test for wiring", which
+described this harness in the abstract and now names it) and as tier 3b in
+`.claude/skills/verify/`.
+
 ---
 
 ## Step 1 — Input: real physical ids, real devices, real axes

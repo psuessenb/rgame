@@ -51,6 +51,15 @@ Game/NoEngineInCoreLayer:
     - 'lib/rgame/core/**/*.rb'
     - 'spec_core/**/*.rb'
 
+# tools/drive/ holds input scripts for the example driver: Ruby syntax, but data
+# rather than source. Each is read and `instance_eval`'d by
+# tools/drive_example.rb, never required — so a file-level `frozen_string_literal`
+# magic comment in one is inert, and adding it would be cargo cult rather than a
+# fix. The scripts are a flat sequence of DSL calls with no strings in them.
+Style/FrozenStringLiteralComment:
+  Exclude:
+    - 'tools/drive/**/*.rb'
+
 # This is a code-driven game engine, not a Rails app: update/draw methods and
 # Window/Scene classes naturally run long, and short coordinate/loop variable
 # names (x, y, dt, id) are idiomatic. Relax the size/naming cops accordingly.

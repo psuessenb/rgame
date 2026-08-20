@@ -45,13 +45,18 @@ module RGame
 
     attr_reader :root, :renderer, :action_mapper
 
+    # `input:` overrides the input backend. It exists so a harness can drive a
+    # game from a script instead of from hardware — see tools/drive_example.rb,
+    # and CLAUDE.md's "The examples are the acceptance test for wiring", which
+    # is why driving one has to be possible at all. A game passes nothing and
+    # gets the real thing.
     def initialize(root:, width: WIDTH, height: HEIGHT, caption: 'RGame',
-                   media_root: 'media', action_map: {})
+                   media_root: 'media', action_map: {}, input: nil)
       super(width: width, height: height, caption: caption, media_root: media_root)
 
       @root = root
       @renderer = RGame::Core::Renderer.new(self)
-      @input = RGame::Core::Input.new(self)
+      @input = input || RGame::Core::Input.new(self)
       @action_mapper = RGame::Engine::ActionMapper.new(action_map)
       @overlay = RGame::Engine::DebugOverlay.new # always wired up; F1 reveals it
       @dirty = true # draw the first frame
