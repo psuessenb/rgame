@@ -16,7 +16,7 @@ Gem::Specification.new do |spec|
   spec.name = 'rgame'
   spec.version = RGame::VERSION
   spec.authors = ['Paul Süßenbach']
-  spec.email = ['paul.suessenbach@googlemail.com']
+  spec.email = ['2452696+psuessenb@users.noreply.github.com']
   spec.license = 'MIT'
   spec.homepage = 'https://github.com/psuessenb/rgame'
 
