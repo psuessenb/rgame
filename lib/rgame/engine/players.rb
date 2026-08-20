@@ -48,6 +48,19 @@ module RGame
         player
       end
 
+      # The input a node owned by `player` should read this tick.
+      #
+      # Nobody in particular means the primary player, which is what makes the
+      # single-player path free: no node claims ownership, every node resolves
+      # to nil, and every nil resolves to the one player there is.
+      # hot-path
+      def actions_for(player)
+        seat = player || primary
+        raise 'no players are registered, so nothing can read input' if seat.nil?
+
+        seat.actions
+      end
+
       # Every player's input for this tick, in one call. Each has their own
       # mapper and their own previous-frame state, so one player's press cannot
       # consume another's edge.

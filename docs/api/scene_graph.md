@@ -51,6 +51,33 @@ sits at the origin. Moving or re-layering a node therefore moves and re-layers
 its whole subtree. (Rotation, dirty-flag caching and smarter `z`/depth handling
 are noted as future work in the source.)
 
+### Who a node answers to
+
+`control` is handed an input **source**, not one player's snapshot — a
+[`RGame::Engine::Players`](input.md) registry, or a bare `Actions` when there is
+only ever one answer. Each node asks the source for the actions of whichever
+player owns it, and hands its components and its own `on_control` that plain
+`Actions`.
+
+Ownership is `input_owner`, and it is **inherited down the tree exactly like the
+transform**, resolved onto `abs_input_owner` alongside `abs_x`/`abs_y`:
+
+```ruby
+ship.input_owner = game.players[1]   # the ship and everything under it
+```
+
+A node that names nobody inherits its parent's; a tree that names nobody
+anywhere reads the primary player. That is what keeps single-player free of
+ceremony — no game that has one player ever mentions this.
+
+Because the *source* descends rather than the resolved snapshot, two subtrees in
+one traversal can read two different controllers, while a component still sees
+the `control(actions)` it always did.
+
+> It is `input_owner` rather than `player` because `@player` is what a game's own
+> scene usually calls its hero node, and rather than `controller` because
+> `Actor#controller` already means the thing producing movement intent.
+
 ### View transforms and the camera
 
 A node's transform is its place in the **world**. A *view* transform is different: it

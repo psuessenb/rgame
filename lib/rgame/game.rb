@@ -116,7 +116,9 @@ module RGame
     # one `pressed?`, which is what a caller means.
     def update(dt)
       @players.poll(@input)
-      @root.control(@players.primary.actions)
+      # The registry, not one player's snapshot: each node resolves the actions
+      # of whoever owns it, and a node that claims nobody gets the primary.
+      @root.control(@players)
       @root.update(dt)
       @root.sweep_freed # flush queue_free'd nodes outside the update traversal
       @dirty = true

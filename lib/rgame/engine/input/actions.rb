@@ -48,6 +48,14 @@ module RGame
       # Every action this snapshot can answer for.
       def declared = @held.keys | @axes.keys
 
+      # A snapshot is also a degenerate input *source*: it answers for whichever
+      # player is asking, because there is only one answer. That is what lets
+      # `node.control(actions)` keep working unchanged — a tree with nobody
+      # claiming ownership, or a spec that has only one player in mind, passes
+      # the snapshot itself where a Players registry would otherwise go.
+      # hot-path
+      def actions_for(_player) = self
+
       # hot-path
       def held?(name)
         @held.fetch(name) { undeclared(name) }

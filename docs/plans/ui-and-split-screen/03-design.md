@@ -477,10 +477,13 @@ window at all. That should exist before step 4, not after.
    everywhere. Nothing in the repo does this — examples fully qualify — so it is
    a note in the docs, not a defect.
 
-   Residual: the *attribute* wants a different name. `node.player = players[1]`
-   gives a game's `Player` node a `#player` returning an `Engine::Player`, read
-   from outside as `@player.player`. Prefer `node.controller` / `node.seat` /
-   `node.input_owner` for the attribute and keep `Player` for the class.
+   Residual: the *attribute* wants a different name — **settled in step 2b as
+   `node.input_owner`**, and by evidence rather than taste. `attr_accessor
+   :player` reads `@player`, which is exactly what a game's own scene calls its
+   hero node (`examples/15_tiled_world` does), so it silently claimed that ivar
+   and the input system was handed a `Node2D`. `controller` was the other
+   candidate and is taken: `Actor#controller` is the thing that produces
+   movement intent. The class stays `Player`.
 2. ~~**`draw(renderer, view)` vs `draw(view)`**~~ **Decided: two parameters,
    `draw(renderer, view)`.** `view.renderer` would put an indirection on every
    single draw call site for the benefit of a signature that is written once per

@@ -490,10 +490,53 @@ changes.** `Components::PlayerController#control(actions)` still receives an
 `Actions`; an unowned node resolves to the primary player, so the entire
 single-player path is untouched.
 
-**Verify:** the whole existing suite is the test — 587 examples that all assume
+**Verify:** the whole existing suite is the test — the examples that all assume
 a broadcast `Actions` must stay green, because an unowned node still gets one.
 Add examples for a node with an explicit owner and for inheritance through a
 subtree.
+
+**Landed.** `rake` green (318 C checks, 701 headless, 330 Core), RuboCop clean
+across 208 files, all three drives byte-identical to the 2a baseline. Exactly one
+pre-existing example needed changing (`node2d_spec.rb`'s ordering example, to
+stub the new method on its double) — the 683 that assume a broadcast snapshot
+stayed green untouched, which was the claim.
+
+**The mechanism is one method on two types**, which is what kept the blast
+radius at one example. An input *source* answers `actions_for(owner)`:
+`Players` returns that player's snapshot (or the primary's for nil), and
+`Actions` returns **itself** — a snapshot is a degenerate source, one answer for
+everyone. So `node.control(actions)` still means what it always meant, and
+`node.control(players)` routes. No type checks, no branch on the hot path.
+
+**Ownership is inherited like the transform.** `resolve_origin` resolves
+`abs_input_owner` alongside `abs_x`/`abs_y`, so it costs one assignment per phase
+and is available in `update` and `draw` too — which a per-player HUD will want.
+`spec/rgame/engine/node2d_control_allocation_spec.rb` asserts the whole
+traversal still allocates nothing, since routing added a call per node per tick.
+
+Three things the sketch did not anticipate:
+
+- **The attribute cannot be called `player`.** The sketch said `controller`, and
+  §11.1 of the design said `player` with `controller` as an option. Both are
+  wrong. `attr_accessor :player` reads `@player` — which is exactly what
+  `examples/15_tiled_world` calls its hero node — so it silently claimed that
+  ivar and the input system was handed a `Node2D`. `controller` is taken too:
+  `Actor#controller` is the thing that produces movement intent. It is
+  **`input_owner`**, which collides with neither and says what it decides. Found
+  by driving the example, not by the suite: every spec passed with the collision
+  in place, because no spec subclasses Node2D and stores a hero in `@player`.
+- **`SceneStack` had to be taught to forward the source.** Scenes live off the
+  child list, so the traversal cannot reach them — and a *component* is handed
+  one player's resolved snapshot, which is right for a component but flattens a
+  whole scene onto whoever owns the host. It pulls `node.system(Players)` in
+  `on_attach` and passes that down, falling back to the snapshot when no
+  registry is mounted. Without this, 2b would have been inert in practice: every
+  bit of game content lives inside a scene.
+- **That is a general rule, now written down** in `Component`, beside
+  `sweep_freed`: a container component holding a subtree needs the source, and
+  gets it by system lookup rather than by a new hook.
+
+Documented in `docs/api/scene_graph.md` ("Who a node answers to").
 
 ---
 

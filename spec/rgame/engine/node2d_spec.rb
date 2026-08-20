@@ -427,7 +427,13 @@ RSpec.describe RGame::Engine::Node2D do
     before { allow(component).to receive(:node=) }
 
     describe '#control' do
-      let(:actions) { instance_double(RGame::Engine::Actions) }
+      let(:actions) do
+        instance_double(RGame::Engine::Actions).tap do |snapshot|
+          # A snapshot is its own input source: with one answer for everyone,
+          # resolving it returns itself.
+          allow(snapshot).to receive(:actions_for).and_return(snapshot)
+        end
+      end
 
       it 'drives components, then its own hook, then children — each with the actions' do
         allow(component).to receive(:control) { |a| log << [:component, a] }

@@ -11,9 +11,29 @@ module RGame
 
       attr_accessor :x, :y, :z, :angle, :width, :height, :parent
       attr_writer :scene, :context
-      attr_reader :children, :components, :abs_x, :abs_y, :abs_z, :abs_angle
+      attr_reader :children, :components, :abs_x, :abs_y, :abs_z, :abs_angle, :abs_input_owner
 
-      def initialize(x: 0, y: 0, z: 0, angle: 0, width: 0, height: 0)
+      # Whose input drives this node: an RGame::Engine::Player, or nil.
+      #
+      # Inherited down the tree exactly like the transform. Set it on a node and
+      # its whole subtree reads that player, so `ship.input_owner = players[1]`
+      # is all it takes for everything under the ship to answer to player two. A
+      # node that sets none inherits its parent's, and a tree that sets none
+      # anywhere reads the primary player — which is why single player needs no
+      # mention of this at all.
+      #
+      # **Not `player`**, deliberately, and not `controller` either. `@player` is
+      # what a game's own code calls its hero node (`examples/15_tiled_world`
+      # does), so an `attr_accessor :player` here would quietly claim that ivar
+      # out from under every scene that has one — which it did, and the symptom
+      # was the input system being handed a Node2D. `controller` is taken too:
+      # Actor#controller is the thing that produces movement intent, a different
+      # idea entirely. This name says exactly what it decides and collides with
+      # neither.
+      attr_accessor :input_owner
+
+      def initialize(x: 0, y: 0, z: 0, angle: 0, width: 0, height: 0, input_owner: nil)
+        @input_owner = input_owner
         @x = x
         @y = y
         @z = z
@@ -123,11 +143,24 @@ module RGame
       # transform flowing downward: a component or hook that moves this node
       # does so before children resolve their origin from it.
 
-      def control(actions)
+      # `input` is an input *source*, not one player's snapshot: an
+      # RGame::Engine::Players registry, or a bare Actions when there is only
+      # ever one answer (which is what a spec usually passes).
+      #
+      # Each node asks the source for the actions of whichever player owns it,
+      # and hands its components and its own hook that plain Actions. So a
+      # component never learns there is more than one player — `control(actions)`
+      # means the same thing it always did — while two subtrees under one tick
+      # can read two different controllers.
+      #
+      # The source is what descends, not the resolved snapshot, because
+      # ownership can change further down.
+      def control(input)
         resolve_origin
+        actions = input.actions_for(@abs_input_owner)
         @components.each { it.control(actions) }
         on_control(actions)
-        @children.each { it.control(actions) }
+        @children.each { it.control(input) }
       end
 
       # update game logic and physics (might become two calls with
@@ -250,8 +283,16 @@ module RGame
         if @parent.nil?
           @abs_x = @abs_y = @abs_z = 0
           @abs_angle = 0 # root pinned to identity, like its position
+          @abs_input_owner = @input_owner
           return
         end
+
+        # Ownership accumulates the same way the transform does: this node's own
+        # if it has one, otherwise whatever it inherits. Resolved here rather
+        # than walked on demand so it costs one assignment per phase, and so it
+        # is equally available in update and draw — a HUD node drawing in its
+        # player's corner wants the same answer `control` used.
+        @abs_input_owner = @input_owner || @parent.abs_input_owner
 
         pa = @parent.abs_angle
         if pa.zero? # fast path: parent unrotated -> plain translation, no trig
