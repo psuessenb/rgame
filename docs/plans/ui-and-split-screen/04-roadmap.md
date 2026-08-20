@@ -333,12 +333,50 @@ Four things the sketch did not anticipate:
   per-tick analog values because there was no other way to exercise the new
   analog path; both modes read them.
 
-**Follow-up worth considering, not done here:** making `Actions` strict, so
-reading an action the map never declared raises instead of returning `false`.
-It is a real footgun and the natural completion of "a game declares its actions
-once". It is not free — about fifteen specs construct `Actions.new` directly with
-partial hashes — so it wants its own commit rather than riding along with this
-one.
+### 1e. `Actions` is strict *(follow-up, landed separately)*
+
+Reading an action the snapshot never declared raises `KeyError` instead of
+returning `false`. This is where `Core::Input#down?(:teleport)`'s old `KeyError`
+went: that guarantee was about an unbound *physical* id and could not survive
+1b, but the mistake it caught — a name nothing answers for — is real and now
+caught one layer up, where the vocabulary actually lives.
+
+The failure it replaces is silent and remote. A misspelled action reads as
+"never pressed", and what a player sees is a button that does nothing, somewhere
+far from the typo. Driving `examples/14_asteroids` with `:ui_confirm`
+deliberately misspelled now stops on:
+
+```
+no such action :ui_confrim — declare it in the InputMap
+(this snapshot has [:ui_up, :ui_down, :ui_left, :ui_right, :ui_confirm, ...])
+```
+
+The correct name is in the message, beside the wrong one. Before this it was a
+title screen that never advanced.
+
+**The hashes are the declaration.** `ActionMapper` seeds all three from its map
+at construction, so through the normal path every declared action answers every
+query and nothing else does. No extra state and no membership check: the lookup
+that was already there simply stopped having a default.
+
+Three things worth recording:
+
+- **It costs nothing.** `fetch(name) { undeclared(name) }` rather than a bare
+  `fetch(name)`, so the message can be useful; a literal block passed to a C
+  method allocates no Proc. `action_mapper_allocation_spec.rb` asserts that
+  directly, because this is the hottest read in the engine — once per action per
+  node per tick.
+- **`prev_held` stays lenient**, and deliberately. It is one frame behind, so on
+  the first poll after an action is added it legitimately has no entry, and "was
+  not held before" is the right answer rather than an error. The current-frame
+  lookup is what catches the typo.
+- **Twelve specs needed the action set declared**, not the fifteen estimated —
+  and the ones that did not are informative. `scene.control(Actions.new)` used
+  purely to resolve absolute positions keeps working, because nothing in those
+  trees reads an action. The twelve that broke are exactly the specs of
+  components that *do* read one, and each now says what set it reads
+  (`actions(turn: 1.0)` over a declared `{turn:, thrust:}`), which is better than
+  what was there.
 
 ---
 

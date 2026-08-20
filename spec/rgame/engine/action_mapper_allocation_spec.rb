@@ -41,6 +41,26 @@ RSpec.describe RGame::Engine::ActionMapper do
     expect(after - before).to be < 100
   end
 
+  # Actions raises for an undeclared name, via `fetch(name) { ... }` rather than
+  # a bare `fetch(name)` so the message can say what to do about it. A literal
+  # block passed to a C method allocates no Proc, and this is what says so — the
+  # reading path is the hottest in the engine, run once per action per node per
+  # tick.
+  it 'does not allocate for the block Actions guards its lookups with' do
+    mapper = described_class.new(map, device: pad)
+    actions = mapper.poll(backend)
+
+    before = GC.stat(:total_allocated_objects)
+    1000.times do
+      actions.held?(:fire)
+      actions.pressed?(:fire)
+      actions.axis(:move_x)
+    end
+    after = GC.stat(:total_allocated_objects)
+
+    expect(after - before).to be < 10
+  end
+
   # Passing the device as a keyword on every query is the change this step made,
   # and a keyword that boxed into a Hash would allocate once per id per poll —
   # invisible except as a steady GC drip. Ruby passes keywords on the stack when
