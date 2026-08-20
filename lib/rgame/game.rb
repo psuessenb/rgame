@@ -107,8 +107,13 @@ module RGame
       @dirty = false
     end
 
+    # The two development keys, both function keys on purpose: **Escape is
+    # deliberately not bound here**, because it is the natural `cancel`/`back`
+    # button for a game's own menus, and a debug shortcut has no business taking
+    # the one key every player expects to close a dialog. F1 shows the overlay,
+    # F2 quits.
     def button_down(id)
-      close if id == Controls::KEY_ESCAPE
+      close if id == Controls::KEY_F2
       @overlay.toggle if id == Controls::KEY_F1
     end
 

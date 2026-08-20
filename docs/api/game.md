@@ -31,8 +31,13 @@ RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
 | `assets`, `audio`, `media_root`, `width`, `height`, `fps` | inherited from [App](app.md) |
 
 `start` brings the tree live — it hands the game to the root as its `context`,
-calls `enter_tree`, and runs the loop until the window closes. `Esc` quits and
-`F1` toggles the debug overlay.
+calls `enter_tree`, and runs the loop until the window closes. `F1` toggles the
+debug overlay and `F2` quits.
+
+**Both development keys are function keys, and `Esc` is deliberately left
+alone.** Escape is the button a player expects to back out of a menu, so it
+belongs to the game rather than to the engine's debug shortcuts — binding it
+here would take it away from every game built on this one.
 
 ## Why this class exists at all
 
@@ -92,7 +97,7 @@ behaviour around the tree rather than replacing the shell.
 ```ruby
 class MyGame < RGame::Game
   def button_down(id)
-    super                      # keeps Esc and F1 working
+    super                      # keeps F1 and F2 working
     @paused = !@paused if id == RGame::Util::Controls::KEY_SPACE
   end
 end

@@ -231,6 +231,7 @@ _Static_assert(RGAME_KEY_RETURN == SDL_SCANCODE_RETURN, "key id must match SDL s
 _Static_assert(RGAME_KEY_ESCAPE == SDL_SCANCODE_ESCAPE, "key id must match SDL scancode");
 _Static_assert(RGAME_KEY_SPACE == SDL_SCANCODE_SPACE, "key id must match SDL scancode");
 _Static_assert(RGAME_KEY_F1 == SDL_SCANCODE_F1, "key id must match SDL scancode");
+_Static_assert(RGAME_KEY_F2 == SDL_SCANCODE_F2, "key id must match SDL scancode");
 _Static_assert(RGAME_KEY_RIGHT == SDL_SCANCODE_RIGHT, "key id must match SDL scancode");
 _Static_assert(RGAME_KEY_LEFT == SDL_SCANCODE_LEFT, "key id must match SDL scancode");
 _Static_assert(RGAME_KEY_DOWN == SDL_SCANCODE_DOWN, "key id must match SDL scancode");

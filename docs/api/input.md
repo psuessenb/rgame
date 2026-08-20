@@ -88,7 +88,7 @@ The id vocabulary. Available from `require 'rgame'` **and** from
 them — a game's configuration screen can name a key without pulling in a window.
 
 **Keys** — `KEY_LEFT`, `KEY_RIGHT`, `KEY_UP`, `KEY_DOWN`, `KEY_RETURN`,
-`KEY_SPACE`, `KEY_ESCAPE`, `KEY_F1`.
+`KEY_SPACE`, `KEY_ESCAPE`, `KEY_F1`, `KEY_F2`.
 
 **Gamepad buttons** — `PAD_A`, `PAD_B`, `PAD_X`, `PAD_Y`, `PAD_BACK`,
 `PAD_GUIDE`, `PAD_START`, `PAD_LEFT_STICK`, `PAD_RIGHT_STICK`,

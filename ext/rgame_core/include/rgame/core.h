@@ -58,6 +58,7 @@ void rgame_app_destroy(rgame_app *app);
 #define RGAME_KEY_ESCAPE 41
 #define RGAME_KEY_SPACE 44
 #define RGAME_KEY_F1 58
+#define RGAME_KEY_F2 59
 #define RGAME_KEY_RIGHT 79
 #define RGAME_KEY_LEFT 80
 #define RGAME_KEY_DOWN 81

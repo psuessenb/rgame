@@ -203,8 +203,15 @@ UI set** merged into every map unless overridden: `ui_up`, `ui_down`, `ui_left`,
 `ui_right`, `ui_confirm`, `ui_cancel`.
 
 > `Controls::DEFAULT_KEYBOARD` has **no `cancel`/`back` binding** today. Add one
-> here (Escape is taken by `Game#button_down` for quit — pick a different key or
-> move the quit binding). The UI toolkit is blocked on this.
+> here, bound to **Escape**. The UI toolkit is blocked on this.
+>
+> **Done ahead of step 1**: Escape used to be `Game`'s quit key, which is exactly
+> the key a player expects to back out of a menu. The quit binding moved to `F2`,
+> so both of `Game`'s development shortcuts are now function keys (`F1` overlay,
+> `F2` quit) and Escape is free for the layer that should own it. That took a new
+> `KEY_F2` in all three places an id has to exist — `Util::Controls`,
+> `ext/rgame_core/include/rgame/core.h`, and a `_Static_assert` against
+> `SDL_SCANCODE_F2` in `app.c` — plus `docs/api/game.md` and `docs/api/input.md`.
 
 Placed in `Engine` rather than `Util`, alongside `Actions`, on the grounds that
 `Actions` is already there and the two are read together. It holds nothing but

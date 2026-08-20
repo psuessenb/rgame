@@ -25,6 +25,7 @@ module RGame
       KEY_ESCAPE = 41
       KEY_SPACE = 44
       KEY_F1 = 58
+      KEY_F2 = 59
       KEY_RIGHT = 79
       KEY_LEFT = 80
       KEY_DOWN = 81
