@@ -499,6 +499,25 @@ most on the platforms nobody here can debug.
 macOS's next wall after step 1, since `have_library('GL', 'glClear')` is what
 stands between it and a built extension.
 
+**Landed, unverified off Linux.** Branches on `RbConfig::CONFIG['host_os']`:
+`have_framework('OpenGL')` on darwin, `have_library('opengl32', 'glClear')` on
+mingw/mswin/cygwin, `-lGL` elsewhere. Linux re-verified end to end — extconf
+regenerated, extension rebuilt, 859 headless examples green — and the branch
+selection checked against seven `host_os` spellings.
+
+Two things to watch on the next run, both unverifiable from here:
+
+- **`have_framework` may be the wrong probe.** mkmf implements it by compiling
+  `#include <OpenGL/OpenGL.h>` with `-ObjC`, and this extension's `$CFLAGS`
+  carry `-std=gnu17`. If those interact badly the probe fails on a Mac that can
+  link OpenGL perfectly well, and the abort fires on a working machine — worse
+  than no probe. If that happens, append `-framework OpenGL` to `$LDFLAGS`
+  unconditionally on darwin and drop the check.
+- **The header probe still asks for `SDL2/SDL_opengl.h`** (A1), which the first
+  run proved Homebrew satisfies. It is the one place A1's spelling still has a
+  gate in front of it, so if a Mac ever fails there, that is A1 arriving late
+  rather than a new problem.
+
 ### Step 3 — the vorbis fixture's `/tmp` (B4)
 
 Windows-only, but it blocks `make test` there, so it sits ahead of everything
