@@ -6,7 +6,7 @@ module RGame
     # view) the camera to look through it with.
     #
     #   view.x, view.y, view.width, view.height   # the screen rect
-    #   view.camera                               # nil in a screen-space band
+    #   view.camera                               # nil in screen space
     #   view.player                               # whose view this is, or nil
     #   view.visible?(x, y, w, h)                 # is this worth drawing
     #
@@ -56,7 +56,7 @@ module RGame
 
       # Does a rectangle overlap what this view shows? Coordinates are in the
       # space the caller draws in — world coordinates under a camera, view-local
-      # ones in a screen band — which is the same space `origin_x` is in.
+      # ones in screen space — which is the same space `origin_x` is in.
       # hot-path
       def visible?(x, y, width, height)
         left = origin_x

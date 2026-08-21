@@ -23,10 +23,23 @@ module RGame
     # nothing below it changing — which is exactly what a camera owned by a node
     # *inside* the world could not do, and why cameras belong to players.
     #
-    # Nothing here is per-player state: `update` and `control` still run once for
-    # this subtree, however many viewports draw it. Only `draw` multiplies, which
-    # makes the standing rule load-bearing — a `draw` with a side effect now
-    # happens once per player, and an allocation in one costs that many times.
+    # ## Only `draw` multiplies, and deliberately
+    #
+    # `control` and `update` still run **once** for this subtree, however many
+    # viewports draw it. That is what keeps simulation cost independent of player
+    # count, and it is also a safety property: a world node's `on_update` is
+    # where mutation belongs, so per-view updating would move an actor at twice
+    # the speed with two players — correctly in single player, silently wrong the
+    # moment somebody joins.
+    #
+    # It does make the standing "draw renders state" rule load-bearing rather
+    # than stylistic: a `draw` with a side effect now happens once per player,
+    # and an allocation in one costs that many times.
+    #
+    # A node that genuinely needs per-view work at draw time can read
+    # `system(Viewports).views` itself. Anything needing per-view state *over
+    # time* — a screen shake, a hit flash — is per-*player* rather than per-view,
+    # and belongs on that player's camera or their own subtree, which tick once.
     class WorldView < Node2D
       # Drawn once per viewport, so this overrides the whole of `draw` rather
       # than just `draw_children`: the node's own visuals belong inside the

@@ -18,8 +18,8 @@ module RGame
     #
     # ## Two calls, because the actors go between them
     #
-    # The below band (ground, same-level detail) draws at `TileWorld::GROUND_Z`
-    # and the above band (canopies, roofs) at `TileWorld::CANOPY_Z`, with actors
+    # The below z band (ground, same-level detail) draws at `TileWorld::GROUND_Z`
+    # and the above one (canopies, roofs) at `TileWorld::CANOPY_Z`, with actors
     # at a z in between. The renderer sorts by z, so the order these are issued
     # in does not matter — but collapsing them into one call would put every
     # canopy behind every character.

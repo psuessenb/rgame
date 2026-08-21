@@ -12,7 +12,7 @@ module RGame
       # (node.abs_x/abs_y): a WorldView ancestor wraps the draw in renderer.translated to
       # map world → screen, so this component never touches the camera. `z` is the render
       # layer (kept as @layer, distinct from the node's transform z); it must sit between
-      # the tile world's ground band and its overlay band so canopies draw in front.
+      # the tile map's ground and canopy z bands, so canopies draw in front.
       #
       # `sheet` is the asset's relative path. The component resolves it from the game's
       # asset manager on attach — via node.root.context.assets (the platform seam) — to

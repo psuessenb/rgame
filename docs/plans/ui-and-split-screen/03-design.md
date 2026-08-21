@@ -4,10 +4,9 @@ The proposal for [`camera-and-input-requirement.md`](camera-and-input-requiremen
 Inventory of what exists is in [`01-current-state.md`](01-current-state.md); the
 survey behind the choices is in [`02-prior-art.md`](02-prior-art.md).
 
-**Status: design decided, not yet implemented.** Every section that had a real
-alternative says what it was and why it lost. §11 records the decisions taken so
-far. One question remains open there and is marked as such: whether the world
-band ever gets per-view `control`/`update` (3), deferred until the case arrives.
+**Status: design decided; steps 0–4 of the roadmap implemented.** Every section
+that had a real alternative says what it was and why it lost, and §11 records
+every decision taken. Nothing there is open any more.
 
 ---
 
@@ -490,11 +489,38 @@ window at all. That should exist before step 4, not after.
    node type. The common case — a node that draws and ignores the view — stays
    `renderer.text(...)`, and `view` is simply unused.
 
-3. **Does the world band get *per-view* `control`/`update` at all?** *Open,
-   deliberately deferred* — decide when the case actually arrives. The proposal
-   says no. A "player 2 pressed pause" interaction still has to reach the world
-   somehow, most likely by the world reading the player registry explicitly
-   rather than by a second traversal. Revisit at step 5 of §10.
+3. ~~**Does the world band get *per-view* `control`/`update` at all?**~~
+   **Decided: no.** Only `draw` multiplies. `WorldView` overrides `draw` and
+   nothing else, so `control` and `update` run once per node per tick however
+   many people are watching.
+
+   The reason is not "we do not need it" — it is where the failure would land.
+   `update` is the phase mutation belongs in, so per-view updating would make
+   `@x += speed * dt` move an actor at twice the speed with two players. That is
+   **correct in single player**, so it passes every spec, every solo
+   playthrough and every review, and then surfaces as what looks like a physics
+   bug the first time somebody joins. `draw` already multiplies and carries the
+   same hazard, but `draw` is documented as pure and there is little there worth
+   mutating; `update` is the opposite.
+
+   The interaction the question was really about — "player 2 pressed pause has
+   to reach the world" — is answered by `input_owner` routing (§6), which is
+   orthogonal to how many times a phase runs.
+
+   **The decision is also the cheap one to reverse.** Adding per-view `update`
+   later is mechanically small: `WorldView` would override it the way it
+   overrides `draw`, plus a signature sweep like the `draw(renderer, view)` one,
+   which measured eleven definitions and took a morning. What is expensive is
+   semantic — every existing `on_update` would silently start running twice, and
+   that cost grows with every game written on the engine. Going the other way,
+   from per-view back to once, is worse still: game code would have come to rely
+   on the extra ticks in ways nothing can find mechanically.
+
+   And there is a local escape for the realistic cases, so this does not paint
+   anything into a corner. A node needing per-view work at draw time can read
+   `system(Viewports).views` itself; anything needing per-view state *over time*
+   (a screen shake, a hit flash) is per-*player* rather than per-view and belongs
+   on that player's camera or their own subtree, both of which tick once.
 
 4. ~~**Where does UI focus live**~~ **Decided: one focus per player, owned by that
    player's `ui` band.** Focus is per player for the same reason input is: two

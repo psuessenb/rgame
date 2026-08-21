@@ -1122,8 +1122,11 @@ cinematic camera as well as the mode switch. Also the per-band `paused?` flag,
 which is what freezes the world under a cutscene while the overlay keeps
 animating.
 
-Open question 3 (does the world band ever get per-view `control`/`update`) is
-scheduled to be answered here, when the case is concrete.
+Open question 3 (does the world band ever get per-view `control`/`update`) was
+**answered ahead of this step: no.** See [`03-design.md`](03-design.md) §11.3 —
+only `draw` multiplies, because `update` is the phase mutation belongs in and
+per-view updating would be silently wrong in exactly the case single-player
+testing cannot reach.
 
 ## Step 6 — The per-player `ui` band *(rough)*
 

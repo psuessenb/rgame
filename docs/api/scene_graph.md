@@ -93,6 +93,19 @@ maps that world onto the screen (a camera), and it must wrap a whole subtree's d
 without being baked into any node's position. So `draw` calls a `draw_children` step a
 subclass can override to wrap the subtree in a renderer transform.
 
+### Two words that are easy to confuse
+
+**Space** is structural and the tree enforces it: a node is either inside a
+`WorldView` or it is not, and that decides what its coordinates mean and how
+many times it is drawn.
+
+**Z band** is an ordering convention and nothing enforces it: `Z::WORLD`,
+`Z::HUD`, `Z::OVERLAY`, `Z::DEBUG` are Integers a caller passes as `z:`. See
+[Drawing](drawing.md#bands-where-each-kind-of-content-sits).
+
+They are not the same partition. All screen-space content is one *space* and is
+drawn once; the z bands subdivide it by what should cover what.
+
 `RGame::Engine::WorldView` is that subclass, and it is where **world space begins**.
 Its children draw at their own world origin and never know about a camera; the node
 draws them **once per active viewport**, clipping to that viewport's rectangle and
@@ -129,11 +142,11 @@ one viewport being drawn.
 ```ruby
 viewports = node.system(RGame::Engine::Viewports)
 viewports.views     # one View per active player — what a WorldView draws through
-viewports.screen    # the whole window, no camera — the screen-space band
+viewports.screen    # the whole window, no camera — screen space
 ```
 
-A **`View`** carries `x`, `y`, `width`, `height`, its `camera` (nil in a screen-space
-band) and its `player`, plus two things nodes actually use:
+A **`View`** carries `x`, `y`, `width`, `height`, its `camera` (nil in screen
+space) and its `player`, plus two things nodes actually use:
 
 | | |
 |---|---|

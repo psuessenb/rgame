@@ -282,15 +282,19 @@ deterministic in tests.
 
 The scene-scoped tile **system** (see [Systems](systems.md)): it holds the parsed `RGame::Engine::TileMap`
 and answers everything an actor needs from it — collision against the solid tiles (reusing
-`RGame::Engine::CollisionSystem`), the world bounds, and drawing the map through the scene's camera. Found
-with `node.system(TileWorld)`.
+`RGame::Engine::CollisionSystem`) and the world bounds. Found with `node.system(TileWorld)`.
 
-- **Construct:** `TileWorld.new(map:, tilemap_id:, camera:)`.
+**It does not draw.** `RGame::Engine::TileMapLayer` does, from inside a `WorldView`, so the map is drawn
+once per viewport like the rest of world space. This stays the thing actors ask questions of.
+
+- **Construct:** `TileWorld.new(map:, tilemap_id:, cameras: [])` — it clamps each camera it is given to
+  the map's edges, and `bound(camera)` does the same for one that arrives later (a player joining).
 - **Queries:** `move(actor, dx, dy)` slides an actor (anything responding to `x`/`y`/`collision_box`)
-  along solids and clamps it to the world; `solid?(col, row)`; `world_width`/`world_height`.
-- **Phase:** `draw(renderer)` draws the below band at `GROUND_Z` and the above band at `OVERLAY_Z`
-  (canopies/roofs). Actors draw at a z in between, so the renderer's z-sort composites ground < actors <
-  canopy regardless of draw-call order.
+  along solids and clamps it to the world; `solid?(col, row)`; `world_width`/`world_height`;
+  `tilemap_id` and `elapsed`, which the layer reads.
+- **Phase:** `update(dt)` advances the map's animation clock. The layer draws the ground z band at
+  `GROUND_Z` and the canopy z band at `CANOPY_Z`; actors draw at a z in between, so the renderer's z-sort
+  composites ground < actors < canopy regardless of draw-call order.
 
 ```ruby
 # A node composing components, with collision meaning decided by the owner:

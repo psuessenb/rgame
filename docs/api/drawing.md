@@ -56,14 +56,18 @@ flicker.
 
 Every command in a frame is sorted by `z` and drawn low to high, so the order
 calls are *issued* in does not matter. What does matter is that the numbers
-agree — and a frame holds three kinds of content, drawn different numbers of
-times:
+agree — and a frame holds three kinds of content:
 
 - **World** — inside a `WorldView`, drawn once per viewport, under a camera.
 - **A player's own screen space** — their HUD, their menu, drawn once and
   clipped to their viewport.
 - **Global screen space** — a cutscene, a results panel, drawn once across the
   whole window.
+
+The first is a different *space* from the other two, and the tree enforces
+that: `WorldView` is what draws its subtree once per viewport. The last two
+share one space and are told apart only by the z band they draw in — which is
+why the bands below are a convention rather than a mechanism.
 
 Two viewports interleaving in the sort is harmless: their commands carry
 different clips and land on different pixels. Band order *within* one viewport is
