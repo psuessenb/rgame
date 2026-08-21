@@ -16,9 +16,13 @@ nodes, it extends the signal DSL, so a component can declare and emit signals.
 Per-tick hooks (a node runs its components in each phase, before its own hook and
 before its children):
 
-- `control(actions)` — read intent from the per-frame action snapshot.
+- `control(actions)` — read intent from the per-frame action snapshot. It is the
+  actions of whoever [owns the node](scene_graph.md#who-a-node-answers-to), so a
+  component never learns there is more than one player.
 - `update(dt)` — advance state over the timestep.
-- `draw(renderer)` — render against the renderer interface.
+- `draw(renderer, view)` — render against the renderer interface, into the
+  [viewport being drawn](scene_graph.md#viewports-and-views). Most components ignore the
+  view; it is there for laying out against the region's edges and for culling.
 
 Tree-lifecycle hooks (fired by the engine when the node enters/leaves the live tree —
 this is where anchors and sibling systems are reachable, so do cross-node wiring here,
@@ -195,9 +199,26 @@ Draws a single registered image centered on the node's absolute origin.
 - **Construct:** `Sprite.new(id:, scale: 1.0, z: 0)` — `id` is a renderer image id; `z`
   is the render layer (distinct from the node's transform `z`/`abs_z`).
 - **State:** `scale` is a read/write accessor (a pooled entity can retune it).
-- **Phase:** `draw(renderer)` draws the image with **no angle** — `Node2D#draw` already
-  wraps a node's own draws in `renderer.rotated(abs_angle, …)`, so the node's rotation
-  orients the sprite; passing an angle here would rotate it twice.
+- **Phase:** `draw(renderer, view)` draws the image with **no angle** — `Node2D#draw`
+  already wraps a node's own draws in `renderer.rotated(abs_angle, …)`, so the node's
+  rotation orients the sprite; passing an angle here would rotate it twice. It skips the
+  draw entirely when the view cannot show it, measuring the node's box scaled — a node
+  that never set a size is never culled.
+
+### `CameraFollow`
+
+Points a camera at the node it is attached to.
+
+- **Construct:** `CameraFollow.new(camera:, offset_x: 0.0, offset_y: 0.0)` — the offsets
+  shift the point being centred on, for a node whose origin is not what should be in the
+  middle of the screen (a bottom-anchored sprite usually wants its feet).
+- **Phase:** `update(dt)` calls `camera.center_on` with the node's resolved absolute
+  origin. The camera trails the node's own movement by one step, uniformly.
+
+The camera belongs to a [player](input.md#players-seats-and-joining), not to this
+component or to the scene — a scene may have any number of viewers. Ownership and
+behaviour are different questions: the player owns the camera, and this moves it. So
+"player two's camera follows player two" is this component with their camera in it.
 
 ### `ThrustController`
 
@@ -239,10 +260,11 @@ from the sheet's animation table.
   sheet's frame (`node.width`/`height`, so a `CharacterBody` sibling can read them), and pulls that
   sibling (the facing source). The renderer resolves the same path when drawing, so nothing is
   registered or passed in by hand.
-- **Phase:** `update(dt)` selects + advances the animation; `draw` renders the current frame via
-  `renderer.sprite` at the node's **world** origin (`abs_x`/`abs_y`) with no angle — a
-  [`CameraView`](scene_graph.md) ancestor applies the camera offset, so the component never touches
-  the camera. (`Sprite` above is the single-image counterpart.)
+- **Phase:** `update(dt)` selects + advances the animation; `draw(renderer, view)` renders the
+  current frame via `renderer.sprite` at the node's **world** origin (`abs_x`/`abs_y`) with no
+  angle — a [`WorldView`](scene_graph.md#view-transforms-and-the-camera) ancestor applies the
+  camera offset, so the component never touches the camera. It skips the draw when the view
+  cannot show it, measuring the node's box. (`Sprite` above is the single-image counterpart.)
 
 ### `CharacterBody`
 

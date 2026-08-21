@@ -24,6 +24,7 @@ The scene graph — `RGame::Engine`, the layer a game is actually written in:
 | [Scene graph](scene_graph.md) | `Node2D`, the tree, the lifecycle, transforms and the camera |
 | [Components](components.md) | Reusable behaviour attached to a node |
 | [Systems](systems.md) | Services a subtree shares — collision worlds, tile worlds |
+| [UI](ui.md) | `PlayerLayer` and `UI::Menu` — a player's own screen, navigated by focus |
 | [Signals](signals.md) | The typed observer pattern nodes talk through |
 | [Toolbox](toolbox.md) | What a game author reaches for directly: pooling, timers, camera, i18n, the audio bus |
 | [Internal building blocks](internals.md) | What components are built from: collision maths, the spatial index, animation playback |

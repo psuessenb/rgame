@@ -129,24 +129,28 @@ you poll `ready?`/`consume`.
 
 ## `Camera` — follow a point, clamp to the world
 
-`RGame::Engine::Camera` (`rgame/engine/camera`) is the pure follow-and-clamp maths for a scrolling
-view: `center_on(world_x, world_y)` parks its top-left so the point is centred, but
-clamped so it never shows past the map edges (near a corner the target drifts off-centre
-instead). A scene constructs one, sizes it with the viewport and the world, and centres
-it on the player each frame.
+`RGame::Engine::Camera` (`rgame/engine/camera`) is the pure follow-and-clamp maths for a
+scrolling view. It splits into two calls, and the split is the whole design:
 
 ```ruby
-camera = RGame::Engine::Camera.new(
-  viewport_width: 640, viewport_height: 480,
-  world_width: map.pixel_width, world_height: map.pixel_height
-)
-camera.center_on(player_x, player_y) # camera.x / camera.y now hold the clamped offset
+camera = RGame::Engine::Camera.new(world_width: map.pixel_width, world_height: map.pixel_height)
+camera.center_on(player_x, player_y)   # in update: what to look at
+camera.resolve(view_width, view_height) # at draw: the offset for *this* viewport
+camera.x, camera.y                      # the resolved offset
 ```
 
-It only computes the offset; applying it is a *view transform* —
-[`CameraView`](scene_graph.md#view-transforms-and-the-camera) wraps the world subtree in
-`renderer.translated(-camera.x, -camera.y)`, and a [`TileWorld`](components.md#tileworld)
-draws the map at the same offset. See `examples/15_tiled_world`.
+`center_on` records the target; `resolve` works out the offset, clamped so the view never
+shows past the world's edges (near a corner the target drifts off-centre instead).
+**The viewport size is an argument rather than state** because the same camera is drawn
+through viewports of different sizes — a half-width one clamps differently from a
+full-width one, and the difference is visible near a world edge.
+
+**A camera belongs to a player** ([`RGame::Engine::Player#camera`](input.md#players-seats-and-joining)),
+not to a scene: a scene may have any number of viewers. Nothing calls `resolve` by hand —
+the platform resolves each camera against the viewport it is about to draw. Pointing one
+is a [`CameraFollow`](components.md#camerafollow) component on the node being followed,
+and applying it is a [`WorldView`](scene_graph.md#view-transforms-and-the-camera). See
+`examples/15_tiled_world`.
 
 ## `CollisionBox` — an actor's feet box
 

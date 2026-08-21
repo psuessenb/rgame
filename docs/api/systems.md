@@ -73,6 +73,26 @@ class CircleCollider < RGame::Engine::Component
 end
 ```
 
+## The two the platform mounts for you
+
+`RGame::Game` puts two systems on the root before the tree comes alive, so any
+node can reach them without a game wiring anything:
+
+| | |
+|---|---|
+| `node.system(RGame::Engine::Players)` | who is playing — devices, bindings, cameras, and who a newly used controller belongs to |
+| `node.system(RGame::Engine::Viewports)` | how the screen is divided — one `View` per active player, and collapsing the split |
+
+They are ordinary root-scoped systems, mounted the same way a game would mount
+its own. A scene that needs a camera to follow asks the first
+(`players.primary.camera`); a cutscene that needs to collapse the split asks the
+second (`viewports.solo!(camera)`), from wherever in the tree it happens to be
+and with nothing threaded into it. That reachability is the whole reason they
+are systems rather than something `Game` hands down.
+
+See [Input](input.md#players-seats-and-joining) and
+[Scene graph](scene_graph.md#viewports-and-views).
+
 ## Systems that index their clients (the tag-registry pattern)
 
 A many-to-many system (broadphase collision) lives on the scene node and keeps its

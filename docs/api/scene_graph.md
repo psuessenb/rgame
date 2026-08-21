@@ -292,6 +292,30 @@ A *system* is just a `Component` living on one of those anchor nodes; nodes find
 with `node.system(SomeSystem)` (scene scope first, then the global root). See
 [Systems & shared resources](systems.md) for the scoping model and worked examples.
 
+## Pausing a subtree
+
+```ruby
+world_view.paused = true    # the world stops; an overlay above it does not
+walker.paused = true        # or just one node, while its owner is in a menu
+```
+
+A paused node skips `control` and `update` — and so does everything under it,
+because a subtree is only ever reached through its parent. **It still draws.**
+Pausing is about time, not visibility, which is what lets a frozen world sit
+under a cutscene that keeps animating.
+
+It is a property of a *node* rather than of the world on purpose. "Pause the
+world" is `world_view.paused = true` with no new concept, and the same flag
+stops one player's character while they browse a menu without touching the
+simulation everyone else is in.
+
+There is no `abs_paused` to go with `abs_input_owner`: ownership has to be
+resolved because a node needs to know whose input it reads even when its parent
+claims nobody, while a paused node simply never descends.
+
+`draw` still resolves the transform, so a paused node under an ancestor that is
+still moving is drawn where it now is rather than where it was when it stopped.
+
 ## Deferred free
 
 A node that detaches itself or a sibling mid-tick would mutate a parent's `children`

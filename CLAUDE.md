@@ -141,11 +141,22 @@ is written against, and both games under `examples/` run on it.
 and the whole layer ships in the gem. `require "rgame"` means "everything that
 runs without a window".
 
-Two features the layer is missing, both new design rather than a port, both
-noted in `docs/plans/ui-and-split-screen/`: a UI package built on keyboard and
-controller navigation (the old one hit-tested a mouse, which this engine does
-not have), and split-screen, whose Core plumbing has been ready since the
-renderer was written and which nothing above has ever called.
+**Split-screen is built, and the input layer with it.** A game has *seats*
+(`Game.new(players: 2)`); a `RGame::Engine::Player` owns a device, a binding
+table, a camera and a region of the screen; the shared world is updated once and
+drawn once per viewport by a `WorldView`; and which player a node answers to is
+inherited down the tree like its transform. A device is seated when somebody
+uses it rather than when it is plugged in. `examples/15_tiled_world` runs two
+players, collapses to one view for a cutscene, and gives each player a menu they
+can open while the other keeps walking. See `docs/api/scene_graph.md`,
+`input.md` and `ui.md`.
+
+**The UI package is a beginning, not a toolkit.** `PlayerLayer` and
+`UI::Menu` cover a region per player, focus, and activation — which is what
+keyboard-and-controller navigation needs at minimum, and what the deleted
+mouse-driven package could not be ported into. Layout, nesting, scrolling lists
+and text entry are all still open; `docs/api/ui.md` says so under "What this is
+not".
 
 When adding a feature, the default is still to build it in C under
 `ext/rgame_core/` and only extend the Ruby wrapper once the C API for it is

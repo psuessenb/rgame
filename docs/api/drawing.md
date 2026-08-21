@@ -282,6 +282,12 @@ def draw
 end
 ```
 
+**A game does not write that.** It is what
+[`RGame::Engine::WorldView`](scene_graph.md#view-transforms-and-the-camera) does for you,
+once per active player, with the rectangles from the layout and each player's own camera.
+Reach for `clipped` directly for a region of your own — a minimap, a scrolling list — and
+let the world band handle the split.
+
 ## Recordings: bake once, replay cheaply
 
 A tile layer is a couple of thousand quads that have not changed since the level

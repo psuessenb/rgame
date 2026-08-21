@@ -33,7 +33,7 @@ module RGame
       # fixed size, and that is the whole of its layout. The package this
       # replaces positioned everything absolutely and hit-tested a mouse; none
       # of it is a reference, and how UI should be laid out in general is still
-      # an open question — see docs/plans/ui-and-split-screen/README.md.
+      # an open question — see docs/api/ui.md, "What this is not".
       class Menu < Node2D
         # Navigation wraps: a short vertical list is quicker to use when the
         # ends join, and every console menu does it.

@@ -19,7 +19,7 @@ module RGame
     # world is worse: it forces the world to know how many times it is drawn.
     #
     # This is the model Unreal calls a LocalPlayer and Unity spreads across
-    # PlayerInput plus a camera; see docs/plans/ui-and-split-screen/.
+    # PlayerInput plus a camera.
     #
     # ## The action *names* are shared, the bindings are not
     #
