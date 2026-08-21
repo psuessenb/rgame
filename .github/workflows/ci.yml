@@ -1,0 +1,147 @@
+# CI — the four verification tiers, on the three platforms.
+#
+# This is step 0 of docs/plans/cross-platform-support.md, and it deliberately
+# comes *before* any of the porting work. Every item in that plan fails in a way
+# that is invisible on Linux — a header search path, a DLEXT, a dlopen soname, a
+# buffer-swap semantic that only differs on a real GPU — so the port cannot be
+# written blind. This matrix is the feedback loop it needs.
+#
+# The tiers run in the order CLAUDE.md lists them, cheapest and most
+# deterministic first, so a failure lands on the smallest thing that could have
+# caused it:
+#
+#   make test          Check suite: pure logic + fake backends. No display.
+#   make               the standalone binary — the other driver of the C API,
+#                      and the only tier that compiles src/main.c at all.
+#   make ext           both extensions, into lib/rgame/.
+#   rake spec          headless: Util + Engine + packaging. No SDL in-process.
+#   rake spec:core     Core: opens real windows, boots its own Xvfb on Linux.
+#
+# `rake` with no argument runs the three test tasks, but it does not build the
+# extensions — `make ext` is their prerequisite (CLAUDE.md, "Build"), so the
+# steps are spelled out rather than collapsed into one `rake`.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same branch makes the first run's answer worthless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+
+    # macOS and Windows are expected to fail until the port lands, so they must
+    # not gate anything: with this, they show red on the job while the *run*
+    # stays green, and Ubuntu keeps working as the regression guard it is on day
+    # one. Without it there is no way to tell "still unported, as predicted"
+    # from "somebody broke Linux", which would destroy the only value this
+    # workflow has today.
+    #
+    # Flipping `ported` to true is part of the definition of done for the
+    # corresponding step in docs/plans/cross-platform-support.md — it is not a
+    # rule anyone is asked to remember, because the plan step says so and the
+    # job name below says which platforms are still marked.
+    continue-on-error: ${{ !matrix.ported }}
+
+    strategy:
+      # One platform's failure must not cancel the others: on a matrix this
+      # small, the whole point is seeing all three answers from one push.
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-latest
+            ported: true
+          - name: macos (port in progress)
+            os: macos-14
+            ported: false
+          - name: windows (port in progress)
+            os: windows-latest
+            ported: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Linux needs SDL2 and OpenGL to build, Check to run the C suite, and
+      # three things purely for `rake spec:core`:
+      #
+      #   xvfb           the display it starts for itself
+      #   x11-utils      xwininfo, which HeadlessDisplay polls to know Xvfb is up
+      #   libgl1-mesa-dri  llvmpipe. Xvfb has no GPU, and without a software
+      #                    rasteriser SDL_GL_CreateContext fails and every Core
+      #                    spec dies at App.new.
+      #
+      # libxtst6 is the XTEST runtime that spec_core/support/x_keys.rb dlopens
+      # for synthetic keystrokes. It is a plain runtime library, not a -dev
+      # package, because Fiddle opens it by soname rather than linking it.
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libsdl2-dev libgl1-mesa-dev libgl1-mesa-dri \
+            check pkg-config \
+            xvfb x11-utils libxtst6
+
+      # Homebrew's SDL2 is what makes the include-path problem visible: it
+      # publishes `-I/opt/homebrew/include/SDL2`, and /opt/homebrew/include is
+      # not on clang's default search path, so `<SDL2/SDL.h>` does not resolve.
+      # That is step 1 of the plan, and this job is expected to fail on it.
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install sdl2 check pkg-config
+
+      # RubyInstaller ships MSYS2; `ridk exec` is what runs a command inside its
+      # mingw environment, where pacman and the toolchain live.
+      #
+      # Unverified — nobody here has a Windows machine, and which of these
+      # invocations is right is one of the things the first run settles. That is
+      # what this job is for.
+      - name: Install system dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ridk exec pacman --sync --noconfirm --needed `
+            mingw-w64-ucrt-x86_64-SDL2 `
+            mingw-w64-ucrt-x86_64-check
+
+      # Derived from .ruby-version rather than written out here, so the pin has
+      # one home. It cannot be handed to setup-ruby directly: mise writes the
+      # file as `ruby 4.0.5`, which is not the bare version string that action
+      # expects.
+      - name: Read the pinned Ruby version
+        id: ruby
+        shell: bash
+        run: echo "version=$(sed -E 's/^ruby[ -]//' .ruby-version | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ steps.ruby.outputs.version }}
+          bundler-cache: true
+
+      - name: C unit tests (Check)
+        shell: bash
+        run: make test
+
+      - name: Standalone binary
+        shell: bash
+        run: make
+
+      - name: Build both extensions
+        shell: bash
+        run: make ext
+
+      - name: Headless specs (Util + Engine + packaging)
+        shell: bash
+        run: bundle exec rake spec
+
+      - name: Core specs (real windows)
+        shell: bash
+        run: bundle exec rake spec:core
