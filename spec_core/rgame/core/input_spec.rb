@@ -30,33 +30,51 @@ RSpec.describe RGame::Core::Input do
     end.new.run
   end
 
-  describe 'the binding table' do
-    it 'raises for an action nothing is bound to' do
-      expect { described_class.new(nil).down?(:teleport) }.to raise_error(KeyError)
+  # Input is the raw query and nothing more. It used to carry three binding
+  # tables and take `down?(:fire)`; binding now lives in the engine layer, one
+  # table per player, so what is left here is "is this physical id active on
+  # this device".
+  describe 'the raw query' do
+    it 'has no binding tables to configure' do
+      expect(described_class.instance_method(:initialize).parameters).to eq([%i[req app]])
     end
 
     it 'has no pointer query — mouse input is deliberately absent' do
       expect(described_class).not_to be_method_defined(:pointer_x)
     end
 
-    it 'accepts a rebound table, which is how a game customises controls' do
-      controls = RGame::Util::Controls
-      rebound = controls::DEFAULT_KEYBOARD.merge(fire: controls::KEY_RETURN)
-      results = {}
-
-      input = nil
-      run_frames do |frame, _default_input, app|
-        input ||= described_class.new(app, bindings: rebound)
-        if frame == 3
-          results[:rebound] = input.down?(:fire)
-          results[:default_gone] = described_class.new(app).down?(:fire)
-          app.close
+    # The ids cross into C through NUM2INT, so anything that is not a number
+    # fails loudly here. spec/support/fake_input_backend.rb refuses the same
+    # thing with the same class — see CLAUDE.md, "A fake must refuse what the
+    # real thing refuses". A Symbol is the case that matters: it is what the
+    # binding tables used to hold, so code written against the old shape breaks
+    # rather than reading false forever.
+    it 'refuses an id that is not a number' do
+      error = nil
+      run_frames do |_frame, input, app|
+        begin
+          input.down?(:teleport)
+        rescue TypeError => e
+          error = e
         end
+        app.close
       end
 
-      # Nothing is pressed, so both read false; what matters is that the
-      # rebound table resolved :fire at all rather than raising.
-      expect(results).to include(rebound: false, default_gone: false)
+      expect(error).to be_a(TypeError)
+    end
+
+    it 'refuses a non-numeric axis id the same way' do
+      error = nil
+      run_frames do |_frame, input, app|
+        begin
+          input.axis(:move_x)
+        rescue TypeError => e
+          error = e
+        end
+        app.close
+      end
+
+      expect(error).to be_a(TypeError)
     end
   end
 
@@ -70,11 +88,11 @@ RSpec.describe RGame::Core::Input do
       run_frames do |frame, input, app|
         case frame
         when 2 then keys.press('Left')
-        when 5 then results[:while_held] = input.down?(:left)
+        when 5 then results[:while_held] = input.down?(RGame::Util::Controls::KEY_LEFT)
         when 6 then keys.release('Left')
         when 9
-          results[:after_release] = input.down?(:left)
-          results[:other_key] = input.down?(:right)
+          results[:after_release] = input.down?(RGame::Util::Controls::KEY_LEFT)
+          results[:other_key] = input.down?(RGame::Util::Controls::KEY_RIGHT)
           app.close
         end
       end
@@ -92,8 +110,8 @@ RSpec.describe RGame::Core::Input do
         case frame
         when 2 then keys.press('Left')
         when 5
-          results[:keyboard] = input.down?(:left)
-          results[:pad] = input.down?(:left, device: pad_device(0))
+          results[:keyboard] = input.down?(RGame::Util::Controls::KEY_LEFT)
+          results[:pad] = input.down?(RGame::Util::Controls::KEY_LEFT, device: pad_device(0))
           keys.release('Left')
           app.close
         end
@@ -115,18 +133,18 @@ RSpec.describe RGame::Core::Input do
         when 0 then pad = VirtualGamepad.new
         when 2 then pad.press(VirtualGamepad::BUTTON_A)
         when 4
-          results[:fire] = input.down?(:fire, device: pad_device(0))
-          results[:other_slot] = input.down?(:fire, device: pad_device(1))
-          results[:keyboard] = input.down?(:fire)
+          results[:fire] = input.down?(RGame::Util::Controls::PAD_A, device: pad_device(0))
+          results[:other_slot] = input.down?(RGame::Util::Controls::PAD_A, device: pad_device(1))
+          results[:keyboard] = input.down?(RGame::Util::Controls::PAD_A)
           pad.release(VirtualGamepad::BUTTON_A)
           pad.press(VirtualGamepad::BUTTON_DPAD_RIGHT)
           pad.move_axis(VirtualGamepad::AXIS_LEFT_X, VirtualGamepad::AXIS_MIN)
         when 6
-          results[:released] = input.down?(:fire, device: pad_device(0))
-          results[:dpad_right] = input.down?(:right, device: pad_device(0))
-          results[:axis_x] = input.axis(:move_x, device: pad_device(0))
-          results[:axis_y] = input.axis(:move_y, device: pad_device(0))
-          results[:keyboard_axis] = input.axis(:move_x)
+          results[:released] = input.down?(RGame::Util::Controls::PAD_A, device: pad_device(0))
+          results[:dpad_right] = input.down?(RGame::Util::Controls::PAD_DPAD_RIGHT, device: pad_device(0))
+          results[:axis_x] = input.axis(RGame::Util::Controls::AXIS_LEFT_X, device: pad_device(0))
+          results[:axis_y] = input.axis(RGame::Util::Controls::AXIS_LEFT_Y, device: pad_device(0))
+          results[:keyboard_axis] = input.axis(RGame::Util::Controls::AXIS_LEFT_X)
           app.close
         end
       end
@@ -153,11 +171,11 @@ RSpec.describe RGame::Core::Input do
           pad.press(VirtualGamepad::BUTTON_A)
           pad.move_axis(VirtualGamepad::AXIS_LEFT_X, VirtualGamepad::AXIS_MAX)
         when 4
-          results[:before] = input.down?(:fire, device: pad_device(0))
+          results[:before] = input.down?(RGame::Util::Controls::PAD_A, device: pad_device(0))
           pad.detach
         when 7
-          results[:after] = input.down?(:fire, device: pad_device(0))
-          results[:axis_after] = input.axis(:move_x, device: pad_device(0))
+          results[:after] = input.down?(RGame::Util::Controls::PAD_A, device: pad_device(0))
+          results[:axis_after] = input.axis(RGame::Util::Controls::AXIS_LEFT_X, device: pad_device(0))
           app.close
         end
       end

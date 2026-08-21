@@ -52,6 +52,50 @@ Equal-z stability matters more than it sounds: without it, two sprites on the
 same layer would swap places whenever the sort felt like it, which reads as
 flicker.
 
+### Bands: where each kind of content sits
+
+Every command in a frame is sorted by `z` and drawn low to high, so the order
+calls are *issued* in does not matter. What does matter is that the numbers
+agree — and a frame holds three kinds of content:
+
+- **World** — inside a `WorldView`, drawn once per viewport, under a camera.
+- **A player's own screen space** — their HUD, their menu, drawn once and
+  clipped to their viewport.
+- **Global screen space** — a cutscene, a results panel, drawn once across the
+  whole window.
+
+The first is a different *space* from the other two, and the tree enforces
+that: `WorldView` is what draws its subtree once per viewport. The last two
+share one space and are told apart only by the z band they draw in — which is
+why the bands below are a convention rather than a mechanism.
+
+Two viewports interleaving in the sort is harmless: their commands carry
+different clips and land on different pixels. Band order *within* one viewport is
+not, and nothing about drawing a HUD after the world puts it above the world.
+Only its `z` does. So `RGame::Engine::Z` names the bases:
+
+| Band | Base |
+|---|---|
+| `Z::WORLD` | 0 |
+| `Z::HUD` | 100_000 |
+| `Z::OVERLAY` | 200_000 |
+| `Z::DEBUG` | 1_000_000 |
+
+```ruby
+renderer.text(score, 12, 10, z: RGame::Engine::Z::HUD)
+```
+
+Bases, not slots — a HUD element three layers up is `Z::HUD + 3`, and the gap to
+the next band is what a game gets to use. Nothing enforces any of this: a `z` is
+an Integer a caller passes, and no guard can tell a HUD apart from a rock. The
+constants buy one place where the numbers are decided, with the reasoning beside
+them.
+
+> **The defaults above predate the bands and are all inside the world band.** A
+> shape drawn with no `z:` (50) therefore sits *above* text drawn with no `z:`
+> (10), so a HUD built out of defaults ends up under world shapes. Name a band
+> and it does not.
+
 ### Colours and allocation
 
 Passing a `Color` allocates nothing — it is a frozen value, and the same one can
@@ -237,6 +281,12 @@ def draw
   end
 end
 ```
+
+**A game does not write that.** It is what
+[`RGame::Engine::WorldView`](scene_graph.md#view-transforms-and-the-camera) does for you,
+once per active player, with the rectangles from the layout and each player's own camera.
+Reach for `clipped` directly for a region of your own — a minimap, a scrolling list — and
+let the world band handle the split.
 
 ## Recordings: bake once, replay cheaply
 

@@ -11,15 +11,56 @@ module RGame
 
       attr_accessor :x, :y, :z, :angle, :width, :height, :parent
       attr_writer :scene, :context
-      attr_reader :children, :components, :abs_x, :abs_y, :abs_z, :abs_angle
+      attr_reader :children, :components, :abs_x, :abs_y, :abs_z, :abs_angle, :abs_input_owner
 
-      def initialize(x: 0, y: 0, z: 0, angle: 0, width: 0, height: 0)
+      # Whose input drives this node: an RGame::Engine::Player, or nil.
+      #
+      # Inherited down the tree exactly like the transform. Set it on a node and
+      # its whole subtree reads that player, so `ship.input_owner = players[1]`
+      # is all it takes for everything under the ship to answer to player two. A
+      # node that sets none inherits its parent's, and a tree that sets none
+      # anywhere reads the primary player — which is why single player needs no
+      # mention of this at all.
+      #
+      # **Not `player`**, deliberately, and not `controller` either. `@player` is
+      # what a game's own code calls its hero node (`examples/15_tiled_world`
+      # does), so an `attr_accessor :player` here would quietly claim that ivar
+      # out from under every scene that has one — which it did, and the symptom
+      # was the input system being handed a Node2D. `controller` is taken too:
+      # Actor#controller is the thing that produces movement intent, a different
+      # idea entirely. This name says exactly what it decides and collides with
+      # neither.
+      attr_accessor :input_owner
+
+      # A paused node skips `control` and `update` — and so does everything
+      # under it, because a subtree is only ever reached through its parent.
+      # It still **draws**: pausing is about time, not visibility, which is what
+      # lets a frozen world sit under a cutscene overlay that keeps animating.
+      #
+      #   world_view.paused = true    # the world stops; the overlay above it does not
+      #
+      # There is no `abs_paused` to go with `abs_input_owner`. Ownership has to
+      # be resolved because a node needs to know whose input it reads even when
+      # its parent claims nobody; pausing needs no resolution at all, because a
+      # paused node simply never descends.
+      attr_accessor :paused
+
+      def initialize(x: 0, y: 0, z: 0, angle: 0, width: 0, height: 0, input_owner: nil)
+        @input_owner = input_owner
+        @paused = false
         @x = x
         @y = y
         @z = z
         @angle = angle
         @width = width
         @height = height
+        # Resolved by #resolve_origin at the top of every phase. Seeded here so
+        # a node that has not been driven yet reads as being at the origin
+        # rather than as nil — which is the same answer resolve_origin gives an
+        # unparented node, and saves every reader of abs_* from a NoMethodError
+        # on a node built but not yet ticked.
+        @abs_x = @abs_y = @abs_z = @abs_angle = 0
+        @abs_input_owner = @input_owner
         @children = []
         @components = []
         @component_slots = {} # slot (Class by default, or a Symbol name) => component
@@ -123,17 +164,34 @@ module RGame
       # transform flowing downward: a component or hook that moves this node
       # does so before children resolve their origin from it.
 
-      def control(actions)
+      # `input` is an input *source*, not one player's snapshot: an
+      # RGame::Engine::Players registry, or a bare Actions when there is only
+      # ever one answer (which is what a spec usually passes).
+      #
+      # Each node asks the source for the actions of whichever player owns it,
+      # and hands its components and its own hook that plain Actions. So a
+      # component never learns there is more than one player — `control(actions)`
+      # means the same thing it always did — while two subtrees under one tick
+      # can read two different controllers.
+      #
+      # The source is what descends, not the resolved snapshot, because
+      # ownership can change further down.
+      def control(input)
+        return if @paused
+
         resolve_origin
+        actions = input.actions_for(@abs_input_owner)
         @components.each { it.control(actions) }
         on_control(actions)
-        @children.each { it.control(actions) }
+        @children.each { it.control(input) }
       end
 
       # update game logic and physics (might become two calls with
       # time, but for now works in one step). This runs second in a
       # game tick
       def update(dt)
+        return if @paused
+
         resolve_origin
         @components.each { it.update(dt) }
         on_update(dt)
@@ -142,7 +200,13 @@ module RGame
 
       # update visual game state, drawing the node. This runs last in
       # a game tick
-      def draw(renderer)
+      # `view` is the viewport being drawn into: its rectangle, and the camera
+      # (if any) it is seen through. Every node gets it, because a node cannot
+      # otherwise know where the edges of its own region are — a HUD laying out
+      # against the whole window is wrong the moment the window is one player's
+      # half of it — and because culling needs it once the world is drawn more
+      # than once. Most nodes ignore it and simply draw.
+      def draw(renderer, view)
         resolve_origin
         # Draw this node's own visuals oriented by its absolute angle, then descend.
         # Children resolve their own world transform (resolve_origin already baked this
@@ -150,11 +214,11 @@ module RGame
         # must NOT be nested inside this node's rotation — nesting would apply that
         # rotation to them a second time. Unrotated nodes skip the wrapper entirely.
         if abs_angle.zero?
-          draw_content(renderer)
+          draw_content(renderer, view)
         else
-          renderer.rotated(abs_angle * 180.0 / Math::PI, abs_x, abs_y) { draw_content(renderer) }
+          renderer.rotated(abs_angle * 180.0 / Math::PI, abs_x, abs_y) { draw_content(renderer, view) }
         end
-        draw_children(renderer)
+        draw_children(renderer, view)
       end
 
       def in_tree? = @in_tree
@@ -216,7 +280,7 @@ module RGame
 
       def on_control(actions); end
       def on_update(dt); end
-      def on_draw(renderer); end
+      def on_draw(renderer, view); end
       def on_add; end
       def on_remove; end
 
@@ -224,16 +288,17 @@ module RGame
 
       # This node's own drawing: its components and its draw hook, in that order.
       # Wrapped in renderer.rotated by #draw when the node carries an absolute angle.
-      def draw_content(renderer)
-        @components.each { it.draw(renderer) }
-        on_draw(renderer)
+      # hot-path
+      def draw_content(renderer, view)
+        @components.each { it.draw(renderer, view) }
+        on_draw(renderer, view)
       end
 
       # Draw the child subtrees. Its own method so a node can wrap the whole subtree's
-      # draw in a transform — e.g. CameraView wraps it in renderer.translated to apply a
-      # camera offset, without each child knowing about the camera.
-      def draw_children(renderer)
-        @children.each { it.draw(renderer) }
+      # draw in a transform without each child knowing about it.
+      # hot-path
+      def draw_children(renderer, view)
+        @children.each { it.draw(renderer, view) }
       end
 
       # TODO: Calculate (and cache?) depth
@@ -250,8 +315,16 @@ module RGame
         if @parent.nil?
           @abs_x = @abs_y = @abs_z = 0
           @abs_angle = 0 # root pinned to identity, like its position
+          @abs_input_owner = @input_owner
           return
         end
+
+        # Ownership accumulates the same way the transform does: this node's own
+        # if it has one, otherwise whatever it inherits. Resolved here rather
+        # than walked on demand so it costs one assignment per phase, and so it
+        # is equally available in update and draw — a HUD node drawing in its
+        # player's corner wants the same answer `control` used.
+        @abs_input_owner = @input_owner || @parent.abs_input_owner
 
         pa = @parent.abs_angle
         if pa.zero? # fast path: parent unrotated -> plain translation, no trig

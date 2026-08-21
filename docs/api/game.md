@@ -20,19 +20,24 @@ sound device, the input mapper, the debug overlay — and drives the root node.
 
 ```ruby
 RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
-                media_root: 'media', action_map: {})
+                media_root: 'media', input_map: nil, device: Controls::KEYBOARD)
 ```
 
 | Reader | |
 |---|---|
 | `root` | the node tree |
 | `renderer` | what scenes draw through |
-| `action_mapper` | physical input → named actions |
+| `players` | who is playing: their devices, bindings and cameras |
 | `assets`, `audio`, `media_root`, `width`, `height`, `fps` | inherited from [App](app.md) |
 
 `start` brings the tree live — it hands the game to the root as its `context`,
-calls `enter_tree`, and runs the loop until the window closes. `Esc` quits and
-`F1` toggles the debug overlay.
+calls `enter_tree`, and runs the loop until the window closes. `F1` toggles the
+debug overlay and `F2` quits.
+
+**Both development keys are function keys, and `Esc` is deliberately left
+alone.** Escape is the button a player expects to back out of a menu, so it
+belongs to the game rather than to the engine's debug shortcuts — binding it
+here would take it away from every game built on this one.
 
 ## Why this class exists at all
 
@@ -57,18 +62,34 @@ sheet = node.root.context.assets.sheet('player.json')
 
 ## Input
 
-`action_map` names the actions a game has, in terms of the physical ids
-[Input](input.md) knows:
+`input_map:` names the actions a game has, in terms of physical ids from
+[`RGame::Util::Controls`](input.md):
 
 ```ruby
+Controls = RGame::Util::Controls
+
 RGame::Game.new(
   root: Root.new,
-  action_map: {
-    move_x: { axis: %i[left right] },   # -1.0 .. 1.0
-    fire:   { button: %i[fire] }        # held / pressed / released
-  }
+  input_map: RGame::Engine::InputMap.new(
+    move_x: { axis: [Controls::KEY_LEFT, Controls::KEY_RIGHT],  # -1.0 .. 1.0
+              stick: Controls::AXIS_LEFT_X },
+    fire:   { buttons: [Controls::KEY_SPACE, Controls::PAD_A] } # held / pressed / released
+  )
 )
 ```
+
+Pass nothing and you get [`InputMap.default`](input.md): eight-way `move_x` /
+`move_y` on the arrows or the left stick, plus `fire`. Either way the map is
+merged over the universal UI set, so `ui_confirm` and `ui_cancel` work without
+being declared.
+
+`device:` picks what drives player one — the keyboard by default, or
+`Controls.gamepad(slot)` for a controller.
+
+`players:` is how many seats the game has (default 1). Extra seats start empty
+and fill when somebody picks up a controller and presses confirm; an empty seat
+draws no viewport, so a two-seat game played by one person is an ordinary
+full-screen game. See [Players, seats and joining](input.md#players-seats-and-joining).
 
 A scene reads the resulting snapshot in `on_control(actions)` — `actions.axis(:move_x)`,
 `actions.pressed?(:fire)` — and never sees a key.
@@ -92,7 +113,7 @@ behaviour around the tree rather than replacing the shell.
 ```ruby
 class MyGame < RGame::Game
   def button_down(id)
-    super                      # keeps Esc and F1 working
+    super                      # keeps F1 and F2 working
     @paused = !@paused if id == RGame::Util::Controls::KEY_SPACE
   end
 end

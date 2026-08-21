@@ -26,7 +26,7 @@ RSpec.describe RGame::Engine::DebugOverlay do
   describe '#draw' do
     context 'when hidden' do
       it 'draws nothing' do
-        overlay.draw(renderer, 640, 480, 60)
+        overlay.draw(renderer, screen_view, 60)
         expect(renderer).not_to have_received(:text)
       end
     end
@@ -34,7 +34,7 @@ RSpec.describe RGame::Engine::DebugOverlay do
     context 'when visible' do
       before do
         overlay.toggle
-        overlay.draw(renderer, 640, 480, 60)
+        overlay.draw(renderer, screen_view, 60)
       end
 
       it 'labels each stat line' do
@@ -57,7 +57,7 @@ RSpec.describe RGame::Engine::DebugOverlay do
 
     it 'draws a single 0 digit for a zero value' do
       overlay.toggle
-      overlay.draw(renderer, 640, 480, 0)
+      overlay.draw(renderer, screen_view, 0)
       expect(renderer).to drew('0').at_least(:once)
     end
   end

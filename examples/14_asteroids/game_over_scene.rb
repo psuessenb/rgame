@@ -28,13 +28,13 @@ class GameOverScene < RGame::Engine::Node2D
   end
 
   def on_control(actions)
-    return unless actions.pressed?(:confirm)
+    return unless actions.pressed?(:ui_confirm)
 
     RGame::Engine::AudioBus.play_sound(:blip)
     root.go(:play)
   end
 
-  def on_draw(renderer)
+  def on_draw(renderer, _view)
     renderer.background(:space)
     centered(renderer, TITLE, 90, TITLE_COLOR)
     centered(renderer, @score_text, 130, TEXT_COLOR)
@@ -46,6 +46,7 @@ class GameOverScene < RGame::Engine::Node2D
   private
 
   def centered(renderer, text, y, color)
-    renderer.text(text, (@width - renderer.text_width(text)) / 2, y, z: 20, color: color)
+    renderer.text(text, (@width - renderer.text_width(text)) / 2, y,
+                  z: RGame::Engine::Z::OVERLAY, color: color)
   end
 end

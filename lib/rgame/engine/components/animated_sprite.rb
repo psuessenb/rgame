@@ -9,10 +9,10 @@ module RGame
       # AnimationSet built from the sheet's animation table.
       #
       # Like Sprite, it passes NO angle and draws at the node's *world* origin
-      # (node.abs_x/abs_y): a CameraView ancestor wraps the draw in renderer.translated to
+      # (node.abs_x/abs_y): a WorldView ancestor wraps the draw in renderer.translated to
       # map world → screen, so this component never touches the camera. `z` is the render
       # layer (kept as @layer, distinct from the node's transform z); it must sit between
-      # the tile world's ground band and its overlay band so canopies draw in front.
+      # the tile map's ground and canopy z bands, so canopies draw in front.
       #
       # `sheet` is the asset's relative path. The component resolves it from the game's
       # asset manager on attach — via node.root.context.assets (the platform seam) — to
@@ -20,6 +20,8 @@ module RGame
       # like CharacterBody can read node.width/height. The renderer resolves the same
       # symbol when drawing, so nothing is registered or passed in by hand.
       class AnimatedSprite < Engine::Component
+        include Engine::Culling
+
         def initialize(sheet:, z: 0)
           super()
           @sheet = sheet
@@ -39,7 +41,11 @@ module RGame
           @animator.update(dt)
         end
 
-        def draw(renderer)
+        # Top-left anchored, and sized by the sheet's frame — so the footprint
+        # to cull against is exactly the node's box.
+        def draw(renderer, view)
+          return if culled?(view, node.abs_x, node.abs_y, node.width, node.height)
+
           # Read row/col/flip_x separately (not @animator.frame, which allocates an Array
           # every call) to keep the draw path allocation-free.
           renderer.sprite(@sheet, @animator.row, @animator.col, node.abs_x, node.abs_y,

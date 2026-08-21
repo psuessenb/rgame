@@ -16,6 +16,9 @@
 # found.
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
+
+Controls = RGame::Util::Controls
+
 require_relative 'high_scores'
 require_relative 'start_scene'
 require_relative 'play_scene'
@@ -68,12 +71,19 @@ game = RGame::Game.new(
   width: WIDTH,
   height: HEIGHT,
   media_root: MEDIA,
-  action_map: {
-    turn: { axis: %i[left right] },
-    thrust: { axis: %i[down up] },
-    fire: { button: %i[fire] },
-    confirm: { button: %i[confirm] }
-  }
+  # Physical ids, not another layer of names. Each action lists every input that
+  # triggers it, keyboard and pad together — a device only answers for its own
+  # kind, so one table serves both.
+  #
+  # `thrust` binds the right trigger rather than the stick's y axis, because
+  # that axis is positive *downwards* and thrust is forward; see InputMap's
+  # note on stick signs. `:ui_confirm` is not declared at all — it comes from
+  # the universal set every map is merged over.
+  input_map: RGame::Engine::InputMap.new(
+    turn: { axis: [Controls::KEY_LEFT, Controls::KEY_RIGHT], stick: Controls::AXIS_LEFT_X },
+    thrust: { axis: [Controls::KEY_DOWN, Controls::KEY_UP], stick: Controls::AXIS_TRIGGER_RIGHT },
+    fire: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] }
+  )
 )
 
 # Bind ids to assets the game's own manager loads. This scene names things by

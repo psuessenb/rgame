@@ -208,6 +208,12 @@ RSpec.shared_examples 'a renderer' do
       # The bands are separate calls because the scene draws its actors between
       # them; collapsing them into one would put every canopy behind every
       # character.
+      #
+      # The rectangle is passed straight through as a **cull rect** in world
+      # coordinates — which part of the map is worth drawing. It is not an
+      # offset: the map draws where its tiles live, and the caller's transform
+      # is what puts them on screen. That is what lets one map be drawn through
+      # several cameras in a frame.
       render do |renderer, _image|
         map = recorder
         renderer.register_tilemap(:level1, map)

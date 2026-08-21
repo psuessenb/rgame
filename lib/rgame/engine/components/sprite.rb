@@ -13,6 +13,8 @@ module RGame
       # @layer to say so. For an animated sprite (sheet + frame index driving
       # renderer.sprite), add a sibling AnimatedSprite component later.
       class Sprite < Engine::Component
+        include Engine::Culling
+
         attr_accessor :scale
 
         def initialize(id:, scale: 1.0, z: 0)
@@ -22,7 +24,15 @@ module RGame
           @layer = z
         end
 
-        def draw(renderer)
+        # Centred on the node's origin and scaled, so the footprint to cull
+        # against is the node's box scaled and offset back by half of itself. A
+        # node that never set a size is never culled — see Culling.
+        def draw(renderer, view)
+          width = node.width * @scale
+          height = node.height * @scale
+          return if culled?(view, node.abs_x - (width / 2.0), node.abs_y - (height / 2.0),
+                            width, height)
+
           renderer.image(@id, node.abs_x, node.abs_y, scale: @scale, z: @layer)
         end
       end

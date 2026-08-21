@@ -3,13 +3,26 @@
 module RGame
   module Core
     # Draws a tile map: the static layers baked once, the animated tiles drawn
-    # per frame and culled to the viewport.
+    # per frame, both culled to a rectangle of the world.
     #
     #   tiles = RGame::Core::TileMapRenderer.new(map, tileset_images)
     #
-    #   tiles.draw(renderer, camera_x, camera_y, view_w, view_h, elapsed: seconds)
-    #   tiles.draw_overlay(renderer, camera_x, camera_y, view_w, view_h, z: 20,
+    #   tiles.draw(renderer, cull_x, cull_y, cull_w, cull_h, elapsed: seconds)
+    #   tiles.draw_overlay(renderer, cull_x, cull_y, cull_w, cull_h, z: 20,
     #                      elapsed: seconds)
+    #
+    # ## It draws in world coordinates
+    #
+    # A tile at column 3 is drawn at `3 * tile_width`, and getting it onto the
+    # screen is the caller's transform — the same deal every other drawable
+    # gets. The rectangle passed in is therefore a **cull rect** and nothing
+    # else: which part of the world is worth drawing.
+    #
+    # It used to be both, offsetting the output by `-camera` as well as culling
+    # to it, which worked exactly as long as there was one camera. Under
+    # split-screen the same map is drawn through several, so a call that bakes
+    # placement into its output can only be right for one of them. Culling is
+    # genuinely per-camera; placement is the transform stack's job.
     #
     # ## Two bands, with the actors between them
     #
@@ -65,19 +78,30 @@ module RGame
         @static_above = nil
       end
 
-      def draw(renderer, camera_x, camera_y, viewport_width, viewport_height, elapsed: 0.0)
+      # The below band, culled to `(cull_x, cull_y, cull_width, cull_height)` in
+      # world coordinates and drawn in them.
+      #
+      # The recording is replayed at its own origin, so it lands wherever the
+      # caller's transform puts it. That also makes it **view-independent**: one
+      # bake serves every viewport, which is what keeps split-screen affordable
+      # and is why the bake is not keyed on a camera. Baking happens on the
+      # first draw, and it is safe to do that inside a transform or a clip —
+      # recording runs on its own canvas, begun at identity, and captures
+      # neither.
+      def draw(renderer, cull_x, cull_y, cull_width, cull_height, elapsed: 0.0)
         @static_below ||= bake(renderer) { |layer| !@map.above_layer?(layer) }
-        @static_below.draw(-camera_x, -camera_y, z: BELOW_Z)
-        draw_animated(renderer, @animated_below, camera_x, camera_y,
-                      viewport_width, viewport_height, BELOW_Z, elapsed)
+        @static_below.draw(0, 0, z: BELOW_Z)
+        draw_animated(renderer, @animated_below, cull_x, cull_y,
+                      cull_width, cull_height, BELOW_Z, elapsed)
       end
 
-      def draw_overlay(renderer, camera_x, camera_y, viewport_width, viewport_height,
+      # The above band, at a `z` the scene picks so it lands over the actors.
+      def draw_overlay(renderer, cull_x, cull_y, cull_width, cull_height,
                        z:, elapsed: 0.0)
         @static_above ||= bake(renderer) { |layer| @map.above_layer?(layer) }
-        @static_above.draw(-camera_x, -camera_y, z: z)
-        draw_animated(renderer, @animated_above, camera_x, camera_y,
-                      viewport_width, viewport_height, z, elapsed)
+        @static_above.draw(0, 0, z: z)
+        draw_animated(renderer, @animated_above, cull_x, cull_y,
+                      cull_width, cull_height, z, elapsed)
       end
 
       # The ground band sits at the bottom; the scene chooses where the overlay
@@ -129,7 +153,7 @@ module RGame
         end
       end
 
-      def draw_animated(renderer, tiles, camera_x, camera_y, viewport_width, viewport_height,
+      def draw_animated(renderer, tiles, cull_x, cull_y, cull_width, cull_height,
                         z, elapsed)
         tile_width = @map.tile_width
         tile_height = @map.tile_height
@@ -143,16 +167,18 @@ module RGame
         # a no-op, leaving the last column of tiles undrawn: a one-tile strip of
         # nothing along the right and bottom edges of the screen, and only when
         # the camera happens to be on a whole pixel.
-        col_start = camera_x.fdiv(tile_width).floor
-        row_start = camera_y.fdiv(tile_height).floor
-        col_end = (camera_x + viewport_width).fdiv(tile_width).ceil
-        row_end = (camera_y + viewport_height).fdiv(tile_height).ceil
+        col_start = cull_x.fdiv(tile_width).floor
+        row_start = cull_y.fdiv(tile_height).floor
+        col_end = (cull_x + cull_width).fdiv(tile_width).ceil
+        row_end = (cull_y + cull_height).fdiv(tile_height).ceil
 
         tiles.each do |col, row, local|
           next if col < col_start || col >= col_end || row < row_start || row >= row_end
 
+          # World coordinates, like the baked band above it: the caller's
+          # transform is what puts either on screen.
           renderer.image_at(@tiles[@tileset.frame_local_id(local, ms)],
-                            (col * tile_width) - camera_x, (row * tile_height) - camera_y, z: z)
+                            col * tile_width, row * tile_height, z: z)
         end
       end
     end

@@ -5,72 +5,66 @@ require_relative '../util/controls'
 
 module RGame
   module Core
-    # Translates the game's symbolic actions (:fire, :confirm) into the physical
-    # button ids the engine understands, and asks the app whether they're held.
+    # Asks the engine whether a physical input is active, on a given device.
     #
     #   input = RGame::Core::Input.new(app)
-    #   input.down?(:fire)                 # keyboard, the single-player default
-    #   input.down?(:fire, device: 1)      # the pad in player slot 0
-    #   input.axis(:move_x, device: 1)     # => Float, -1.0..1.0
+    #   input.down?(Controls::KEY_SPACE)                          # keyboard
+    #   input.down?(Controls::PAD_A, device: Controls.gamepad(0))  # player 1's pad
+    #   input.axis(Controls::AXIS_LEFT_X, device: Controls.gamepad(0))
     #
-    # The id vocabulary itself lives in RGame::Util::Controls, not here: ids are
-    # values, and the engine layer must be able to name one without touching
-    # Core. That is also what makes rebinding possible — a game builds its own
-    # table from those constants and passes it in:
+    # **This is the raw query, and deliberately nothing more.** It used to carry
+    # binding tables of its own — `down?(:fire)` resolved `:fire` to a scancode
+    # through one of three tables passed to the constructor. Those are gone, and
+    # binding now lives one layer up in RGame::Engine::InputMap, for two
+    # reasons. A game's rebinding screen has to be able to edit the table, and
+    # the engine layer may not name RGame::Core at all; and with a player per
+    # device, the table is a per-player value rather than a property of the one
+    # object that talks to the hardware.
     #
-    #   controls = RGame::Util::Controls
-    #   input = RGame::Core::Input.new(
-    #     app, bindings: controls::DEFAULT_KEYBOARD.merge(fire: controls::KEY_J)
-    #   )
+    # What is left is an argument-order adapter over the app's own
+    # `input_down?(device, id)` / `input_axis(device, axis_id)`. It stays a named
+    # class rather than collapsing into those, because it is what gets handed to
+    # the engine layer as an input backend — and handing it a whole App, which
+    # can also close the window and rename it, would be a worse seam.
     #
-    # Devices are numbered keyboard-first: Controls::KEYBOARD is 0, and
-    # Controls.gamepad(slot) is the pad in that player slot. Defaulting
-    # `device:` to the keyboard is what lets single-player call sites stay
-    # `input.down?(:fire)` with no ceremony.
+    # Ids come from RGame::Util::Controls. They are values with nothing behind
+    # them, so both layers can name one.
     #
     # **There is no pointer or mouse support, by design.** The layer this
     # replaced had a cursor position and a click button riding the same "is
     # held" path as keys, and none of it was carried over: this engine's input
-    # is keyboard and controllers. A game wanting click-based UI has to build
-    # hit-testing on top rather than find it here, and the intended answer for
-    # menus is keyboard and controller navigation instead.
+    # is keyboard and controllers. The intended answer for menus is keyboard and
+    # controller navigation instead.
     class Input
       Controls = RGame::Util::Controls
 
-      # `bindings` covers the keyboard, `pad_bindings` the controllers, and
-      # `axis_bindings` the analog axes. All default to the standard tables.
-      def initialize(app,
-                     bindings: Controls::DEFAULT_KEYBOARD,
-                     pad_bindings: Controls::DEFAULT_PAD,
-                     axis_bindings: Controls::DEFAULT_AXES)
+      def initialize(app)
         @app = app
-        @bindings = bindings
-        @pad_bindings = pad_bindings
-        @axis_bindings = axis_bindings
       end
 
-      # Is the action's physical button held on `device`?
+      # Is `id` held on `device`?
       #
       # Reads the engine's per-frame input snapshot, so the answer is identical
       # for every simulation tick within one frame — a key held for a single
       # frame behaves the same whether that frame ran one catch-up tick or five.
+      #
+      # A device only answers for its own kind of input: asking a gamepad about
+      # a keyboard scancode is `false`, never the keyboard's answer. That is
+      # what lets one binding table list a key and a pad button for the same
+      # action and still keep player two's pad from echoing player one.
       # hot-path
-      def down?(action, device: Controls::KEYBOARD)
-        @app.input_down?(device, bindings_for(device).fetch(action))
+      def down?(id, device: Controls::KEYBOARD)
+        @app.input_down?(device, id)
       end
 
       # Current value of an analog axis: sticks -1.0..1.0, triggers 0.0..1.0.
       # The keyboard has no axes, so it always reads 0.0.
+      #
+      # No dead zone is applied here — this is the hardware's answer. Ignoring
+      # a resting stick's jitter is RGame::Engine::ActionMapper's job.
       # hot-path
-      def axis(action, device: Controls::KEYBOARD)
-        @app.input_axis(device, @axis_bindings.fetch(action))
-      end
-
-      private
-
-      # hot-path
-      def bindings_for(device)
-        device == Controls::KEYBOARD ? @bindings : @pad_bindings
+      def axis(axis_id, device: Controls::KEYBOARD)
+        @app.input_axis(device, axis_id)
       end
     end
   end

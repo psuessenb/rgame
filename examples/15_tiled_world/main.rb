@@ -9,13 +9,17 @@
 #   - TileWorld — a scene-scoped system: tile collision, world bounds, map drawing;
 #   - CharacterBody + PlayerController / WanderController — collision-checked walking;
 #   - AnimatedSprite — directional sprite-sheet animation;
-#   - CameraView + renderer.translated — the camera as a draw-time view transform.
+#   - WorldView + renderer.translated — the camera as a draw-time view transform.
 
 # lib/ on the load path, so `require 'rgame/game'` resolves the same way it
 # would from an installed gem — which is also how the compiled extensions are
 # found.
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
+
+Controls = RGame::Util::Controls
+require_relative 'cutscene'
+require_relative 'inventory'
 require_relative 'beach_scene'
 
 WIDTH  = 640
@@ -34,15 +38,30 @@ end
 
 # The game owns the asset manager (rooted at media/); the scene and its components
 # resolve what they need from it by relative path (via node.root.context.assets), so
-# nothing is loaded, registered, or passed down here.
-RGame::Game.new(
+# almost nothing is loaded or registered here.
+game = RGame::Game.new(
   root: Root.new,
   caption: 'Example 15 - Tiled World',
   width: WIDTH,
   height: HEIGHT,
   media_root: MEDIA,
-  action_map: {
-    move_x: { axis: %i[left right] },
-    move_y: { axis: %i[up down] }
-  }
-).start
+  # :move_x / :move_y come from RGame::Engine::InputMap's defaults, on the arrow
+  # keys and the left stick alike; only :cutscene is this game's own.
+  input_map: RGame::Engine::InputMap.default.merge(
+    cutscene: { buttons: [Controls::KEY_TAB, Controls::PAD_START] }
+  ),
+  #
+  # Two seats. The first is the keyboard; the second stays empty until somebody
+  # picks up a controller and presses confirm — at which point a second walker
+  # appears and the screen splits. Until then this is an ordinary one-player
+  # game on a full-screen view.
+  players: 2
+)
+
+# The exception: a nine-slice id names an *element of an atlas*, not a file, so
+# there is nothing for the asset manager to resolve it to on demand. Registering
+# the atlas binds every element under its own name — `:panel` is what the
+# cutscene draws.
+game.renderer.register_ui_atlas(game.assets.ui_atlas('ui/ui_atlas.json'))
+
+game.start

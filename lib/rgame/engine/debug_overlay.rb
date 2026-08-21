@@ -36,7 +36,7 @@ module RGame
       DELTA_LABEL = 'Δ/f'
 
       COLOR = [80, 255, 120].freeze # frozen so the renderer caches the resolved colour
-      Z     = 1_000_000             # above any scene content
+      Z     = Engine::Z::DEBUG      # last, over every other band
       PAD   = 8                     # margin from the screen edge
       GAP   = 8                     # space between a label and its number
 
@@ -55,7 +55,12 @@ module RGame
         @prev_allocated = GC.stat(:total_allocated_objects) if @visible
       end
 
-      def draw(renderer, width, height, fps)
+      # Laid out against the view it is drawn into rather than against the
+      # window, so it stays in the corner of whatever region it is given. It
+      # takes `fps` rather than reading it, for the same reason nothing here
+      # reads a clock: the number is measured by the shell that owns the loop
+      # and handed down. See CLAUDE.md, "`draw` renders state".
+      def draw(renderer, view, fps)
         return unless @visible
 
         allocated = GC.stat(:total_allocated_objects)
@@ -63,8 +68,10 @@ module RGame
         @prev_allocated = allocated
 
         line_h  = renderer.text_height
-        right_x = width - PAD
-        top_y   = height - PAD - (line_h * 3)
+        # The view's size, not its position: inside a region that has been
+        # translated to its corner, adding `view.x` would offset a second time.
+        right_x = view.width - PAD
+        top_y   = view.height - PAD - (line_h * 3)
 
         draw_line(renderer, FPS_LABEL, fps, right_x, top_y)
         draw_line(renderer, OBJ_LABEL, allocated, right_x, top_y + line_h)

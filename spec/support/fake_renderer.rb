@@ -67,14 +67,16 @@ class FakeRenderer
                                  z: number(z), color: color_arg(tint))
   end
 
-  def tilemap(id, camera_x, camera_y, viewport_width, viewport_height, elapsed: 0.0)
+  # The rectangle is a cull rect in world coordinates, not an offset: the map
+  # draws where it lives and the caller's transform places it.
+  def tilemap(id, cull_x, cull_y, cull_width, cull_height, elapsed: 0.0)
     lookup(:tilemap, id)
-      .draw(self, camera_x, camera_y, viewport_width, viewport_height, elapsed: number(elapsed))
+      .draw(self, cull_x, cull_y, cull_width, cull_height, elapsed: number(elapsed))
   end
 
-  def tilemap_overlay(id, camera_x, camera_y, viewport_width, viewport_height, z:, elapsed: 0.0)
-    lookup(:tilemap, id).draw_overlay(self, camera_x, camera_y, viewport_width,
-                                      viewport_height, z: z, elapsed: number(elapsed))
+  def tilemap_overlay(id, cull_x, cull_y, cull_width, cull_height, z:, elapsed: 0.0)
+    lookup(:tilemap, id).draw_overlay(self, cull_x, cull_y, cull_width,
+                                      cull_height, z: z, elapsed: number(elapsed))
   end
 
   # --- refusing what the real renderer refuses ------------------------------

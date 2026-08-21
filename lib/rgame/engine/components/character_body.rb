@@ -30,11 +30,17 @@ module RGame
           @collision_box = nil
         end
 
+        # The feet box, derived from the node's sprite size and memoised.
+        #
+        # **Only valid once the node is in the tree**, and it says so rather than
+        # letting you find out later. The size comes from AnimatedSprite#on_attach,
+        # so a read from a constructor sees a 0x0 node and bakes a box anchored to
+        # nothing — permanently, because this memoises, and for the collision
+        # system too, because it reads the same box. The symptom is an actor that
+        # walks through walls it should not, a long way from the call that caused
+        # it. Guarding costs one comparison, once.
         def collision_box
-          @collision_box ||= Engine::CollisionBox.bottom_anchored(
-            sprite_width: node.width, sprite_height: node.height,
-            width: @feet_width, height: @feet_height
-          )
+          @collision_box ||= build_collision_box
         end
 
         # The TileWorld is a scene-scoped system, reachable once we're in the tree.
@@ -63,6 +69,21 @@ module RGame
 
         def y=(value)
           node.y = value
+        end
+
+        private
+
+        def build_collision_box
+          if node.width.zero? || node.height.zero?
+            raise "collision_box needs the node's sprite size, but it is " \
+                  "#{node.width}x#{node.height}. AnimatedSprite sets that when it attaches, so " \
+                  'read this after the node is in the tree, not while building it.'
+          end
+
+          Engine::CollisionBox.bottom_anchored(
+            sprite_width: node.width, sprite_height: node.height,
+            width: @feet_width, height: @feet_height
+          )
         end
       end
     end

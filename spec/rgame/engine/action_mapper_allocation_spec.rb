@@ -1,40 +1,78 @@
 # frozen_string_literal: true
 
-# Guards the M1 input-allocation hygiene: the mapper reuses one Actions snapshot
-# instead of allocating per poll.
+# The mapper runs once per player per tick, so it must not allocate. It reuses
+# one Actions snapshot over three hashes it mutates in place, and the hashes are
+# seeded from the map at construction so they are warm before the first poll.
 RSpec.describe RGame::Engine::ActionMapper do
+  let(:controls) { RGame::Util::Controls }
+
   let(:map) do
-    {
-      move_x: { axis: %i[left right] },
-      confirm: { button: %i[confirm] }
-    }
+    RGame::Engine::InputMap.new(
+      move_x: { axis: [RGame::Util::Controls::KEY_LEFT, RGame::Util::Controls::KEY_RIGHT],
+                stick: RGame::Util::Controls::AXIS_LEFT_X },
+      fire: { buttons: [RGame::Util::Controls::KEY_SPACE, RGame::Util::Controls::PAD_A] }
+    )
   end
 
+  # A pad, so the analog path is exercised too: the dead zone and the
+  # digital-vs-analog comparison both run on every poll for move_x.
+  let(:pad) { RGame::Util::Controls.gamepad(0) }
+
   let(:backend) do
-    Struct.new(:down_ids) do
-      def down?(id) = down_ids.include?(id)
-      def pointer_x = 0
-      def pointer_y = 0
-    end.new(%i[right])
+    FakeInputBackend.new
+                    .hold(RGame::Util::Controls::PAD_A, device: RGame::Util::Controls.gamepad(0))
+                    .set_axis(RGame::Util::Controls::AXIS_LEFT_X, 0.6,
+                              device: RGame::Util::Controls.gamepad(0))
   end
 
   it 'returns the same Actions instance on every poll' do
-    mapper = described_class.new(map)
-    first = mapper.poll(backend)
-    second = mapper.poll(backend)
-    expect(second).to equal(first)
+    mapper = described_class.new(map, device: pad)
+    expect(mapper.poll(backend)).to equal(mapper.poll(backend))
   end
 
   it 'is allocation-free in steady state' do
-    mapper = described_class.new(map)
-    mapper.poll(backend) # warm up: build hash keys + the Actions object once
+    mapper = described_class.new(map, device: pad)
+    mapper.poll(backend) # warm up
 
     before = GC.stat(:total_allocated_objects)
     1000.times { mapper.poll(backend) }
     after = GC.stat(:total_allocated_objects)
 
-    # The old code allocated an Actions + 2 hashes per poll (~3000 for 1000 polls);
-    # reuse should bring that to ~0.
     expect(after - before).to be < 100
+  end
+
+  # Actions raises for an undeclared name, via `fetch(name) { ... }` rather than
+  # a bare `fetch(name)` so the message can say what to do about it. A literal
+  # block passed to a C method allocates no Proc, and this is what says so — the
+  # reading path is the hottest in the engine, run once per action per node per
+  # tick.
+  it 'does not allocate for the block Actions guards its lookups with' do
+    mapper = described_class.new(map, device: pad)
+    actions = mapper.poll(backend)
+
+    before = GC.stat(:total_allocated_objects)
+    1000.times do
+      actions.held?(:fire)
+      actions.pressed?(:fire)
+      actions.axis(:move_x)
+    end
+    after = GC.stat(:total_allocated_objects)
+
+    expect(after - before).to be < 10
+  end
+
+  # Passing the device as a keyword on every query is the change this step made,
+  # and a keyword that boxed into a Hash would allocate once per id per poll —
+  # invisible except as a steady GC drip. Ruby passes keywords on the stack when
+  # the callee declares them, and this is what says so out loud.
+  it 'does not allocate for the device keyword it passes on every query' do
+    mapper = described_class.new(map, device: pad)
+    mapper.poll(backend)
+
+    before = GC.stat(:total_allocated_objects)
+    100.times { mapper.poll(backend) }
+    after = GC.stat(:total_allocated_objects)
+
+    expect(after - before).to be < 10
   end
 end

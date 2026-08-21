@@ -37,7 +37,7 @@ class SpecRecordingNode < RGame::Engine::Node2D
 
   def on_control(actions) = @log << [:hook, actions]
   def on_update(dt)       = @log << [:hook, dt]
-  def on_draw(renderer)   = @log << [:hook, renderer]
+  def on_draw(renderer, _view) = @log << [:hook, renderer]
 end
 
 RSpec.describe RGame::Engine::Node2D do
@@ -427,7 +427,13 @@ RSpec.describe RGame::Engine::Node2D do
     before { allow(component).to receive(:node=) }
 
     describe '#control' do
-      let(:actions) { instance_double(RGame::Engine::Actions) }
+      let(:actions) do
+        instance_double(RGame::Engine::Actions).tap do |snapshot|
+          # A snapshot is its own input source: with one answer for everyone,
+          # resolving it returns itself.
+          allow(snapshot).to receive(:actions_for).and_return(snapshot)
+        end
+      end
 
       it 'drives components, then its own hook, then children — each with the actions' do
         allow(component).to receive(:control) { |a| log << [:component, a] }
@@ -460,12 +466,12 @@ RSpec.describe RGame::Engine::Node2D do
       let(:renderer) { instance_double(FakeRenderer) }
 
       it 'draws components, then its own hook, then children — each with the renderer' do
-        allow(component).to receive(:draw) { |r| log << [:component, r] }
-        allow(child).to receive(:draw) { |r| log << [:child, r] }
+        allow(component).to receive(:draw) { |r, _v| log << [:component, r] }
+        allow(child).to receive(:draw) { |r, _v| log << [:child, r] }
         node.add_component(component)
         node.add_node(child)
 
-        node.draw(renderer)
+        node.draw(renderer, screen_view)
 
         expect(log).to eq([[:component, renderer], [:hook, renderer], [:child, renderer]])
       end
@@ -473,8 +479,12 @@ RSpec.describe RGame::Engine::Node2D do
   end
 
   describe 'absolute position' do
-    it 'is unresolved until a phase runs' do
-      expect([node.abs_x, node.abs_y, node.abs_z]).to eq([nil, nil, nil])
+    # Seeded at construction rather than left nil. A node built but not yet
+    # driven reads as being at the origin — which is the same answer
+    # resolve_origin gives an unparented node, and saves everything that reads
+    # abs_* on a draw path from a NoMethodError the first time it runs early.
+    it 'reads as the origin before any phase has run' do
+      expect([node.abs_x, node.abs_y, node.abs_z]).to eq([0, 0, 0])
     end
 
     it 'pins a root node to the origin regardless of its own coordinates' do
@@ -517,7 +527,7 @@ RSpec.describe RGame::Engine::Node2D do
       allow(renderer).to receive(:rotated).and_yield
       child = described_class.new(x: 4, y: 5)
       node.add_node(child)
-      node.draw(renderer)
+      node.draw(renderer, screen_view)
       expect([child.abs_x, child.abs_y]).to eq([4, 5])
     end
   end
@@ -535,8 +545,8 @@ RSpec.describe RGame::Engine::Node2D do
       expect(described_class.new(angle: 1.5).angle).to eq(1.5)
     end
 
-    it 'leaves the absolute angle unresolved until a phase runs' do
-      expect(node.abs_angle).to be_nil
+    it 'reads as unrotated before any phase has run' do
+      expect(node.abs_angle).to eq(0)
     end
 
     it 'pins a root node to zero rotation regardless of its own angle' do
@@ -595,7 +605,7 @@ RSpec.describe RGame::Engine::Node2D do
 
     it 'skips the rotation wrapper for an unrotated node' do
       allow(renderer).to receive(:rotated)
-      node.draw(renderer) # root resolves to abs_angle 0
+      node.draw(renderer, screen_view) # root resolves to abs_angle 0
       expect(renderer).not_to have_received(:rotated)
     end
 
@@ -604,7 +614,7 @@ RSpec.describe RGame::Engine::Node2D do
       mid = described_class.new(x: 10, y: 20, angle: Math::PI / 2)
       node.add_node(mid)
 
-      node.draw(renderer)
+      node.draw(renderer, screen_view)
 
       # Quarter turn -> 90 degrees; pivot is the node's resolved absolute origin.
       expect(renderer).to have_received(:rotated).with(a_value_within(1e-9).of(90.0), 10, 20)
@@ -627,7 +637,7 @@ RSpec.describe RGame::Engine::Node2D do
       node.add_node(mid)
       mid.add_node(child)
 
-      node.draw(renderer)
+      node.draw(renderer, screen_view)
 
       expect(events).to eq([:rotate_begin, [:hook, renderer], :rotate_end, :child])
     end

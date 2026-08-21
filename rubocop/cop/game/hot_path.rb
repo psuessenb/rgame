@@ -11,7 +11,12 @@ module RuboCop
       # *helpers* the lifecycle methods call, where an allocation is just as costly but
       # the method name alone can't reveal it.
       module HotPath
-        METHODS = %i[update control draw on_update on_draw on_control].freeze
+        # `draw_children` and `draw_content` are here because a WorldView draws
+        # its subtree once per viewport: they are the hottest methods in the
+        # engine, run once per node *per player*, and they were the only part of
+        # the draw path the guard could not see.
+        METHODS = %i[update control draw draw_children draw_content
+                     on_update on_draw on_control].freeze
 
         # True for a `def` that runs per frame: a lifecycle method by name, or one tagged
         # `# hot-path` on the line directly above it.

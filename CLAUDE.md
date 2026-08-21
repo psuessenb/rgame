@@ -141,11 +141,22 @@ is written against, and both games under `examples/` run on it.
 and the whole layer ships in the gem. `require "rgame"` means "everything that
 runs without a window".
 
-Two features the layer is missing, both new design rather than a port, both
-noted in `docs/plans/ui-and-split-screen/`: a UI package built on keyboard and
-controller navigation (the old one hit-tested a mouse, which this engine does
-not have), and split-screen, whose Core plumbing has been ready since the
-renderer was written and which nothing above has ever called.
+**Split-screen is built, and the input layer with it.** A game has *seats*
+(`Game.new(players: 2)`); a `RGame::Engine::Player` owns a device, a binding
+table, a camera and a region of the screen; the shared world is updated once and
+drawn once per viewport by a `WorldView`; and which player a node answers to is
+inherited down the tree like its transform. A device is seated when somebody
+uses it rather than when it is plugged in. `examples/15_tiled_world` runs two
+players, collapses to one view for a cutscene, and gives each player a menu they
+can open while the other keeps walking. See `docs/api/scene_graph.md`,
+`input.md` and `ui.md`.
+
+**The UI package is a beginning, not a toolkit.** `PlayerLayer` and
+`UI::Menu` cover a region per player, focus, and activation — which is what
+keyboard-and-controller navigation needs at minimum, and what the deleted
+mouse-driven package could not be ported into. Layout, nesting, scrolling lists
+and text entry are all still open; `docs/api/ui.md` says so under "What this is
+not".
 
 When adding a feature, the default is still to build it in C under
 `ext/rgame_core/` and only extend the Ruby wrapper once the C API for it is
@@ -211,18 +222,21 @@ must give back. `Tensor` is a value and lives in Util; `App` owns a window and
 lives in Core.
 
 `RGame::Util::Controls` is the worked example. It is nothing but integers — the
-ids for keys, pad buttons, axes and device slots, plus the default binding
-tables. Those started in Core, because the C engine defines them and asserts
-them against SDL's own scancodes. But an id is a value, and a game's control
-config has to be able to name one:
+ids for keys, pad buttons, axes and device slots. Those started in Core, because
+the C engine defines them and asserts them against SDL's own scancodes. But an id
+is a value, and a game's control config has to be able to name one:
 
 ```ruby
 controls = RGame::Util::Controls
-bindings = controls::DEFAULT_KEYBOARD.merge(fire: controls::KEY_J)
+map = RGame::Engine::InputMap.default.merge(
+  fire: { buttons: [controls::KEY_SPACE, controls::PAD_A] }
+)
 ```
 
 In Core that is impossible for engine-layer code, which may not name Core at
-all. In Util it is ordinary. The C `#define`s stay where they are — `src/main.c`
+all. In Util it is ordinary — and it is what lets the whole binding table live
+in `RGame::Engine::InputMap`, one per player, built out of Util values.
+`RGame::Core::Input` keeps only the raw query. The C `#define`s stay where they are — `src/main.c`
 includes only `rgame/core.h` and needs them — so the numbers exist twice, and
 `spec/rgame/util/controls_spec.rb` parses the header and compares every one.
 Duplication with a guard beat putting a value out of reach.
@@ -738,9 +752,32 @@ polling bug that consumed every input edge before a tick could read it left a
 game whose menu did not respond to anything, and a plain boot of it reported
 "90 ticks, 90 frames" and looked perfectly healthy.
 
-Two things that harness must be, learned the same way: it counts rather than
-eyeballs, and — if it lives outside the repo — it is a caller like any other, so
-a project-wide rename does not reach it and it breaks after every sweep.
+That harness is `tools/drive_example.rb`, and it takes a per-example input
+script from `tools/drive/`:
+
+```
+ruby tools/drive_example.rb examples/15_tiled_world/main.rb --ticks 240
+```
+
+It boots the example unmodified (prepending its probes before `load`ing the
+example's own `main.rb`), feeds it a scripted input backend through
+`RGame::Game`'s `input:` keyword, stops on a tick budget, and reports draw calls
+with their first and last arguments, clips pushed with what moved inside each,
+sounds played, scenes entered, and ticks against frames.
+
+A script holds **one timeline per device**, so a two-player run is written as two
+`on` blocks and both play at once — every track is absolute, starting at tick 0.
+`--gamepad` swaps the scripted backend for a synthetic SDL controller, which
+exercises the real device path instead of standing in front of it.
+
+Two things it had to be, both learned the hard way: it **counts rather than
+eyeballs**, and it **lives in the repo** — the harness this replaces did not, so
+it was a caller no project-wide rename could reach, and it broke after every
+sweep. `tools/` is outside the gem's packaged glob, so it ships nothing.
+
+Assert on structure — scenes entered, sounds fired, clip and translate counts —
+not on exact draw counts: `examples/14_asteroids` spawns from an unseeded
+`Random.new`, so those vary run to run.
 
 ### Why the Ruby specs are two suites, in two directories
 

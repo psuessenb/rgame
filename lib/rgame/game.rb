@@ -43,21 +43,60 @@ module RGame
     WIDTH = 640
     HEIGHT = 480
 
-    attr_reader :root, :renderer, :action_mapper
+    attr_reader :root, :renderer
 
+    # `input_map:` is what physical inputs mean — one entry per action, naming
+    # ids from RGame::Util::Controls. It is merged over the universal UI set, so
+    # `ui_confirm` and friends work whether or not a game declares them, and it
+    # defaults to RGame::Engine::InputMap::DEFAULT_ACTIONS, so a game wanting
+    # eight-way movement and a fire button declares nothing.
+    #
+    # `device:` is which device drives it — the keyboard, or
+    # `Controls.gamepad(slot)` for a controller.
+    #
+    # `input:` overrides the input backend. It exists so a harness can drive a
+    # game from a script instead of from hardware — see tools/drive_example.rb,
+    # and CLAUDE.md's "The examples are the acceptance test for wiring", which
+    # is why driving one has to be possible at all. A game passes nothing and
+    # gets the real thing.
+    # `players:` is how many seats the game has, and therefore the most people
+    # who can play it. Player 0 starts on `device:`; the rest start empty and
+    # are filled when someone uses a controller — see RGame::Engine::Players for
+    # why that is a press rather than a plug.
     def initialize(root:, width: WIDTH, height: HEIGHT, caption: 'RGame',
-                   media_root: 'media', action_map: {})
+                   media_root: 'media', input_map: nil, device: Controls::KEYBOARD,
+                   players: 1, input: nil)
       super(width: width, height: height, caption: caption, media_root: media_root)
 
       @root = root
       @renderer = RGame::Core::Renderer.new(self)
-      @input = RGame::Core::Input.new(self)
-      @action_mapper = RGame::Engine::ActionMapper.new(action_map)
-      @overlay = RGame::Engine::DebugOverlay.new # always wired up; F1 reveals it
+      @input = input || RGame::Core::Input.new(self)
+      @players = RGame::Engine::Players.new(
+        Array.new(players) do |id|
+          RGame::Engine::Player.new(id: id, device: id.zero? ? device : nil,
+                                    input_map: input_map)
+        end
+      )
+      @viewports = RGame::Engine::Viewports.new(@players, width: width, height: height)
+      @debug = RGame::Engine::DebugOverlay.new # always wired up; F1 reveals it
       @dirty = true # draw the first frame
 
       install_asset_loaders
     end
+
+    # The player registry, also reachable from any node as
+    # `node.system(RGame::Engine::Players)` — which is how a scene gets at a
+    # camera to follow, without anything being threaded into its constructor.
+    #
+    # One player exists from the start, so a single-player game never mentions
+    # players at all: it is `players.primary` that an unowned node reads from,
+    # and `players.primary.camera` that a scene points at its hero.
+    attr_reader :players
+
+    # How the screen is divided. Reachable as `node.system(RGame::Engine::Viewports)`,
+    # which is how a cutscene deep in a scene collapses the split without
+    # anything being handed to it.
+    attr_reader :viewports
 
     # Brings the tree live and runs until the window closes.
     #
@@ -66,6 +105,10 @@ module RGame
     # anything being threaded through its constructor.
     def start
       @root.context = self
+      # Root-scoped systems, mounted before the tree comes alive so that an
+      # on_add anywhere in it can already resolve node.system(...) for either.
+      @root.add_component(@players)
+      @root.add_component(@viewports)
       @root.enter_tree # components attach, then on_add
       run
     end
@@ -86,7 +129,10 @@ module RGame
     # read identical state, and the edge lands on the first of them — one press,
     # one `pressed?`, which is what a caller means.
     def update(dt)
-      @root.control(@action_mapper.poll(@input))
+      @players.poll(@input)
+      # The registry, not one player's snapshot: each node resolves the actions
+      # of whoever owns it, and a node that claims nobody gets the primary.
+      @root.control(@players)
       @root.update(dt)
       @root.sweep_freed # flush queue_free'd nodes outside the update traversal
       @dirty = true
@@ -94,17 +140,41 @@ module RGame
 
     # Only the simulation advancing makes the frame stale. While the overlay is
     # up, redraw anyway, so its numbers stay live even when nothing is moving.
-    def needs_redraw? = @dirty || @overlay.visible?
+    def needs_redraw? = @dirty || @debug.visible?
 
+    # The tree is drawn once, with the whole window as its view. Screen-space
+    # content — a HUD, a menu, a title card — lands there and is drawn exactly
+    # once, as it always was.
+    #
+    # **World content multiplies inside the tree, not here.** An
+    # RGame::Engine::WorldView draws its subtree once per viewport, clipping and
+    # translating for each, so where the world begins is the game's choice
+    # rather than a shape the platform imposes. That is also what keeps
+    # `node.root` meaning the game's own root: nothing is inserted above it.
     def draw
-      @root.draw(@renderer)
-      @overlay.draw(@renderer, width, height, fps) # last, so it layers on top
+      @viewports.refresh # rects from the layout, then reclamp every camera
+      @root.draw(@renderer, @viewports.screen)
+      @debug.draw(@renderer, @viewports.screen, fps) # last, so it layers on top
       @dirty = false
     end
 
+    # The window changed size, so every rect and every camera clamp does too.
+    def resize(width, height) = @viewports.resize(width, height)
+
+    # Hot-plug is bookkeeping, not seating: a controller arriving becomes a
+    # device the registry watches, and it is someone *using* it that gives it to
+    # a player. Leaving takes it back off whoever had it.
+    def gamepad_connected(slot) = @players.device_connected(slot)
+    def gamepad_disconnected(slot) = @players.device_disconnected(slot)
+
+    # The two development keys, both function keys on purpose: **Escape is
+    # deliberately not bound here**, because it is the natural `cancel`/`back`
+    # button for a game's own menus, and a debug shortcut has no business taking
+    # the one key every player expects to close a dialog. F1 shows the overlay,
+    # F2 quits.
     def button_down(id)
-      close if id == Controls::KEY_ESCAPE
-      @overlay.toggle if id == Controls::KEY_F1
+      close if id == Controls::KEY_F2
+      @debug.toggle if id == Controls::KEY_F1
     end
 
     private

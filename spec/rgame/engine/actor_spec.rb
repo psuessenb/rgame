@@ -29,8 +29,10 @@ RSpec.describe RGame::Engine::Actor do
     )
   end
 
+  # The action set PlayerController reads, with the example's values over it.
+  # Declaring both is required: Actions answers only for what it was given.
   def actions(axes = {})
-    RGame::Engine::Actions.new(axes: axes)
+    RGame::Engine::Actions.new(axes: { move_x: 0.0, move_y: 0.0 }.merge(axes))
   end
 
   # Drive a fresh actor one step with the given intent and return its [row, col, flip].

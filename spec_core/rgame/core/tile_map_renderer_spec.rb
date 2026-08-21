@@ -89,10 +89,13 @@ RSpec.describe RGame::Core::TileMapRenderer do
       expect(above).not_to equal(below)
     end
 
-    it 'replays the layer offset against the camera' do
+    # The map draws where its tiles live and the caller's transform puts them on
+    # screen, so the replay carries no offset at all — which is what makes one
+    # bake serve every viewport rather than only the camera it was baked for.
+    it 'replays the layer at its own origin, whatever the cull rect' do
       described_class.new(two_band_map, tiles).draw(renderer, 48, 32, 64, 64)
 
-      expect(renderer.calls_to(:recording_draw).last.args[1..]).to eq([-48, -32])
+      expect(renderer.calls_to(:recording_draw).last.args[1..]).to eq([0, 0])
     end
 
     it 'replays the overlay at the z it was given' do
@@ -139,11 +142,12 @@ RSpec.describe RGame::Core::TileMapRenderer do
       expect(drawn_ids).to eq([1, 1, 1])
     end
 
-    it 'offsets them by the camera, like the baked layer' do
+    it 'draws them in world coordinates, like the baked layer' do
       described_class.new(two_band_map(animations: animations), tiles)
                      .draw(renderer, 8, 4, 64, 64)
 
-      expect(renderer.calls_to(:image_at).map { |call| call.args[1..] }).to eq([[-8, -4]])
+      # Column 0, row 0 of a 16px tileset: at the origin, not at -cull.
+      expect(renderer.calls_to(:image_at).map { |call| call.args[1..] }).to eq([[0, 0]])
     end
 
     it 'draws the overlay band at the overlay z' do
@@ -164,15 +168,15 @@ RSpec.describe RGame::Core::TileMapRenderer do
     end
 
     # The [col, row] of each animated tile drawn, recovered from its position.
-    def drawn_cells(camera_x, camera_y, width, height)
-      described_class.new(wide_map, tiles).draw(renderer, camera_x, camera_y, width, height)
-      renderer.calls_to(:image_at).map do |call|
-        [((call.args[1] + camera_x) / 16), ((call.args[2] + camera_y) / 16)]
-      end
+    # Positions are world coordinates, so the cell is a plain division — the
+    # cull rect does not move them.
+    def drawn_cells(cull_x, cull_y, width, height)
+      described_class.new(wide_map, tiles).draw(renderer, cull_x, cull_y, width, height)
+      renderer.calls_to(:image_at).map { |call| [call.args[1] / 16, call.args[2] / 16] }
     end
 
     it 'draws only the tiles the viewport covers' do
-      # Camera at (32, 32) with a 32x32 view: columns 2..3, rows 2..3.
+      # Cull rect at (32, 32), 32x32: columns 2..3, rows 2..3.
       expect(drawn_cells(32, 32, 32, 32)).to contain_exactly([2, 2], [3, 2], [2, 3], [3, 3])
     end
 
@@ -190,6 +194,54 @@ RSpec.describe RGame::Core::TileMapRenderer do
       # 40 px of view over 16 px tiles reaches into column 4, and the ceil is
       # what stops a strip of nothing along the right-hand edge.
       expect(drawn_cells(32, 32, 40, 16)).to contain_exactly([2, 2], [3, 2], [4, 2])
+    end
+  end
+
+  # Everything above asserts on recorded calls, which is the right tier for
+  # "which tile, in which band, at which coordinate". What it cannot say is
+  # whether a map drawn in world coordinates then lands where the caller's
+  # transform puts it — and that is precisely what changed when placement moved
+  # out of this class. So one pixel, through a real window.
+  describe 'placement, through a real window' do
+    # A 2x2 map of 16px tiles, every tile solid white, drawn with no animation
+    # so the whole thing goes through the baked recording.
+    def white_map
+      StubTileMap.new(width: 2, height: 2, layers: [[1, 1, 1, 1]],
+                      tileset: StubTileset.new(firstgid: 1))
+    end
+
+    def draw_map_at(dx, dy)
+      RenderedFrame.capture(width: 64, height: 64) do |renderer, app|
+        image = RGame::Core::Image.new(app, PngFixture.write(16, 16) { [255, 255, 255, 255] })
+        map = described_class.new(white_map, Array.new(4) { image })
+        renderer.translated(dx, dy) { map.draw(renderer, 0, 0, 64, 64) }
+      end
+    end
+
+    it 'draws at the world origin when the caller applies no transform' do
+      expect(draw_map_at(0, 0).at(4, 4)).to eq([255, 255, 255, 255])
+    end
+
+    # The camera offset a WorldView applies. The map has to move with it, which
+    # is the whole reason its own output carries no offset any more.
+    it 'moves with the caller\'s translate' do
+      frame = draw_map_at(20, 0)
+      expect([frame.at(4, 4), frame.at(24, 4)])
+        .to eq([[26, 26, 38, 255], [255, 255, 255, 255]])
+    end
+
+    # One bake, replayed under two different transforms in the same frame —
+    # split-screen in miniature, and the property that makes it affordable.
+    it 'replays one bake under two transforms in a single frame' do
+      frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, app|
+        image = RGame::Core::Image.new(app, PngFixture.write(16, 16) { [255, 255, 255, 255] })
+        map = described_class.new(white_map, Array.new(4) { image })
+        renderer.clipped(0, 0, 64, 32) { renderer.translated(0, 0) { map.draw(renderer, 0, 0, 64, 64) } }
+        renderer.clipped(0, 32, 64, 32) { renderer.translated(24, 32) { map.draw(renderer, 0, 0, 64, 64) } }
+      end
+
+      expect([frame.at(4, 4), frame.at(28, 36), frame.at(4, 36)])
+        .to eq([[255, 255, 255, 255], [255, 255, 255, 255], [26, 26, 38, 255]])
     end
   end
 

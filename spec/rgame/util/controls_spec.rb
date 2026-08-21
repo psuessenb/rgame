@@ -102,24 +102,27 @@ RSpec.describe RGame::Util::Controls do
     end
   end
 
-  describe 'the default bindings' do
-    it 'binds the same action to a different physical input per device class' do
-      expect(described_class::DEFAULT_KEYBOARD[:fire]).to eq(described_class::KEY_SPACE)
-      expect(described_class::DEFAULT_PAD[:fire]).to eq(described_class::PAD_A)
+  # This module is the id vocabulary and nothing else. It used to also carry
+  # three default binding tables (keyboard, pad, axes), which RGame::Core::Input
+  # resolved actions through — a layer of naming below the game's own. Binding
+  # is now RGame::Engine::InputMap, one per player, so a rebinding screen can
+  # edit the table and two players can differ.
+  describe 'what it is not' do
+    it 'holds no binding tables — those are RGame::Engine::InputMap' do
+      expect(described_class.constants.grep(/\ADEFAULT_/)).to be_empty
     end
 
-    it 'covers the same actions on keyboard and pad, so rebinding one is not lopsided' do
-      expect(described_class::DEFAULT_PAD.keys).to match_array(described_class::DEFAULT_KEYBOARD.keys)
+    it 'exposes every id as an Integer, with nothing behind it' do
+      ids = described_class.constants.grep(/\A(KEY|PAD|AXIS)_/)
+      expect(ids.map { |name| described_class.const_get(name) }).to all(be_a(Integer))
     end
 
-    it 'is frozen, so a game merges rather than mutating the defaults' do
-      expect(described_class::DEFAULT_KEYBOARD).to be_frozen
-      expect(described_class::DEFAULT_PAD).to be_frozen
-      expect(described_class::DEFAULT_AXES).to be_frozen
-    end
-
-    it 'has no pointer binding — mouse input is deliberately absent' do
-      expect(described_class::DEFAULT_KEYBOARD).not_to have_key(:pointer)
+    # Mouse input is deliberately absent (docs/c_engine_feature_specs.md §1),
+    # and the id range one would have occupied is left unused rather than
+    # renumbered. A constant appearing here is how that decision would quietly
+    # come undone.
+    it 'names no pointer or mouse input' do
+      expect(described_class.constants.grep(/POINTER|MOUSE|CURSOR|CLICK/)).to be_empty
     end
   end
 end

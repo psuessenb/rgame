@@ -119,21 +119,28 @@ module RGame
 
       # A tile map's below-the-actor band (ground and same-level detail).
       #
+      # **Drawn in world coordinates**: a tile at column 3 lands at
+      # `3 * tile_width`, and getting it onto the screen is the caller's
+      # transform, like every other drawing method here. The rectangle is a
+      # **cull rect** — which part of the world is worth drawing — so a camera
+      # supplies it but does not move the result. That is what lets one map be
+      # drawn through several cameras in a frame.
+      #
       # `elapsed` is the seconds its animated tiles have been running for, and
       # is an argument rather than a clock read on purpose — see CLAUDE.md,
       # "`draw` renders state; time enters through `update`". A scene
       # accumulates it in `update`, which is what makes pausing work.
-      def tilemap(id, camera_x, camera_y, viewport_width, viewport_height, elapsed: 0.0)
+      def tilemap(id, cull_x, cull_y, cull_width, cull_height, elapsed: 0.0)
         lookup(:tilemap, id)
-          .draw(self, camera_x, camera_y, viewport_width, viewport_height, elapsed: elapsed)
+          .draw(self, cull_x, cull_y, cull_width, cull_height, elapsed: elapsed)
       end
 
       # Its above-the-actor band (canopies, roofs), at a `z` the scene picks so
-      # it lands over the actors.
-      def tilemap_overlay(id, camera_x, camera_y, viewport_width, viewport_height,
+      # it lands over the actors. World coordinates and a cull rect, as above.
+      def tilemap_overlay(id, cull_x, cull_y, cull_width, cull_height,
                           z:, elapsed: 0.0)
-        lookup(:tilemap, id).draw_overlay(self, camera_x, camera_y, viewport_width,
-                                          viewport_height, z: z, elapsed: elapsed)
+        lookup(:tilemap, id).draw_overlay(self, cull_x, cull_y, cull_width,
+                                          cull_height, z: z, elapsed: elapsed)
       end
 
       # A filled axis-aligned rectangle.
