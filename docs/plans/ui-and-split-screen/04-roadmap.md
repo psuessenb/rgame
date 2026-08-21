@@ -4,15 +4,18 @@ The implementation plan for the design in [`03-design.md`](03-design.md),
 following the order sketched in its §10 and breaking each step into landable
 commits.
 
-**Detailed for steps 0–3. Steps 4–6 stay deliberately rough**, and get
-re-planned once the layer beneath them exists. That is how the two previous
-plans in this project worked, and it was right both times — the Gosu
-replacement's phase 3 was rewritten from eight bullets into nine landable steps
-only after phase 2 made the GL situation measurable rather than imagined. The
-same is true here: step 3 introduces `draw(renderer, view)` and step 4 is the
-first code that ever calls `renderer.clipped` from above. What either of those
-turns up will change steps 5 and 6, so writing them out now would be writing
-fiction.
+**All steps are now planned in detail. Steps 0–4 are implemented**, each
+carrying a "Landed" note recording how the result differed from the sketch;
+those notes are the useful part to read before starting the next step, because
+most of them are decisions the sketch got wrong.
+
+Steps 4–6 were deliberately left rough at first and re-planned once the layer
+beneath them existed — the way both previous plans in this project worked, and
+it was right again here. Step 4's re-plan overturned two assumptions step 3 had
+recorded as fact (that a recording bakes the ambient transform, and that the
+tile map fix needed a change to the C API); step 5 and 6's found that `solo!`
+was already built and that the UI atlas the first menu needs already exists.
+Writing any of them out earlier would have been writing fiction.
 
 Each step ends green: `rake` (C tests, both Ruby suites), RuboCop on the touched
 files, and both examples still running — **driven, not booted** (step 0).
@@ -22,10 +25,14 @@ files, and both examples still running — **driven, not booted** (step 0).
 ## Dependency shape
 
 ```
-0 harness ─→ 1 input ─→ 2a Player+camera ─→ 2b ownership ─→ 3 View/Layout ─→ 4 two views ─→ 5 solo ─→ 6 per-player UI
-                 │                                              │
-                 └── independently useful ──────────────────────┘
+0 harness ─→ 1 input ─→ 2a Player+camera ─→ 2b ownership ─→ 3 View/Layout ─→ 4 two views ─┬─→ 5 solo + pause ─┐
+                 │                                              │                         │                   ├─→ 6 per-player UI
+                 └── independently useful ──────────────────────┘                         └───────────────────┘
 ```
+
+Step 6 wants 5a's `paused` flag — a player's walker stops while their menu is
+open — but nothing else from step 5, so the two can be reordered if the UI half
+turns out to be the more pressing one.
 
 Steps 1–3 are worth landing even if split-screen is deferred indefinitely. Each
 one closes a standing defect on its own account:
@@ -1114,31 +1121,200 @@ step where it stops being hypothetical:
   view-independent — which is worth stating, since it is the one cache in the
   engine that a per-view key would have ruined.
 
-## Step 5 — `solo!` and the overlay band *(rough)*
+## Step 5 — Collapsing the split, and freezing the world
 
-The collapsed view needs a camera from the game — `solo!(camera)`, required, not
-defaulted ([`03-design.md`](03-design.md) §11.7) — so this step builds the first
-cinematic camera as well as the mode switch. Also the per-band `paused?` flag,
-which is what freezes the world under a cutscene while the overlay keeps
-animating.
+Re-planned after step 4. The sketch bundled two features as one; they are
+orthogonal and want separate commits.
 
-Open question 3 (does the world band ever get per-view `control`/`update`) was
-**answered ahead of this step: no.** See [`03-design.md`](03-design.md) §11.3 —
-only `draw` multiplies, because `update` is the phase mutation belongs in and
-per-view updating would be silently wrong in exactly the case single-player
-testing cannot reach.
+### What is already there, and what is not
 
-## Step 6 — The per-player `ui` band *(rough)*
+- **`solo!` is built and specced.** `Viewports#solo!(camera)` / `#split!`,
+  deferred to the next tick, one full-screen view while solo, player cameras
+  untouched. Landed in step 3. **Nothing calls it** — no example, no engine
+  class, and no camera exists for it to look through.
+- **Nothing pauses anything.** There is no flag, no hook, and no way to stop one
+  subtree ticking while another keeps going. `grep -rn "paus" lib/` finds four
+  comments and no code.
 
-Where this meets the UI toolkit half of this folder. The per-player menu is the
-first real customer for both, and per [`03-design.md`](03-design.md) §11.4 focus
-is per player, owned by that player's `ui` band. One player browsing an inventory
-while the other walks is the acceptance scenario for the whole rework.
+So step 5 is one small new mechanism (pause), the first caller for one that
+exists (solo), and an example that puts them together.
 
-It is also what finally exercises `renderer.nine_slice` and `Core::UiAtlas` end
-to end — see [`README.md`](README.md) §1.
+They are orthogonal on purpose, and the plan keeps them apart because games mix
+them differently: an in-game menu pauses without collapsing, a "both players
+converged" merge collapses without pausing, a cutscene does both.
+
+### 5a. `Node2D#paused`
+
+A paused node skips `control` and `update` — for itself and, because a subtree
+is only reached through its parent, for everything under it. `draw` still runs.
+
+```ruby
+world_view.paused = true    # the world freezes; the overlay above it does not
+```
+
+**On `Node2D` rather than on `WorldView`.** "Pause the world" is then
+`world_view.paused = true` with no new concept, and the same flag pauses *any*
+subtree — which step 6 needs for a different reason: a player whose menu is open
+should stop driving their walker, and pausing that one node is the whole fix.
+It is also the classic scene-graph feature (Godot's `process_mode`), so it is
+not a shape anyone has to learn.
+
+Decisions worth recording:
+
+- **`draw` is not skipped.** Pausing is about time, not visibility — a frozen
+  world is exactly what a cutscene overlay covers.
+- **There is no `abs_paused`.** Unlike `input_owner`, pausing needs no
+  inherited resolution: a paused node never descends, so its subtree is skipped
+  by construction. One boolean test at the top of two methods, and nothing on
+  the draw path.
+- **`resolve_origin` still runs at draw**, so a paused node under a moving
+  ancestor is still drawn in the right place. That falls out of `draw` already
+  resolving, and is worth checking rather than assuming.
+- **The animation clock stops with it.** `TileWorld#update` is what accumulates
+  `elapsed`, so a paused world's water freezes — which is exactly what
+  CLAUDE.md's "stop calling `update` and the water freezes" describes, arriving
+  for free.
+
+**Verify:** a spec that a paused subtree stops updating, keeps drawing, and
+resumes; and that an unpaused sibling keeps ticking. Plus the allocation guard,
+since this is two branches on the hot path.
+
+### 5b. The first cinematic camera
+
+`solo!` requires a camera ([`03-design.md`](03-design.md) §11.7) and no game has
+ever built one, so this is where the shape of "a camera nobody owns" gets
+settled.
+
+It is an ordinary `Camera`. The only real question is bounds: `TileWorld#bound`
+clamps it to the map like a player's, which is right for a cutscene inside the
+world; leaving it unbounded lets it frame something past the map edge. The
+example should say which it picked and why.
+
+Pointing it is the same machinery as everything else — `center_on` from the
+scene, or a `CameraFollow` on a cutscene actor.
+
+### 5c. The example
+
+`examples/15_tiled_world` gains a cutscene, because it is the only example with
+a world, a camera and two players.
+
+- An action opens it. Both players are frozen, the split collapses to one view
+  through a camera centred between them, and a full-screen panel draws at
+  `Z::OVERLAY`. The same action closes it.
+- **`players.accepting_joins = false` while it runs** — the first real use of
+  4c's flag, and exactly the case it was added for.
+- Freezing is `world_view.paused = true`; the overlay is outside the world view,
+  so it keeps ticking and can animate.
+
+> **The examples are short of keys.** `Util::Controls` names `RETURN`, `ESCAPE`,
+> `SPACE`, `F1`, `F2` and the four arrows, and `ui_confirm` and `ui_cancel`
+> already spoken for. Adding one is a `#define`, a `_Static_assert` against the
+> SDL scancode, and a constant — the shape `KEY_F2` took before step 1. Decide
+> the binding when writing the example rather than now.
+
+**Verify:** drive it. The report should show the clip list going two → one → two
+as the cutscene opens and closes, and **the world viewport's distinct translate
+count stopping while it is open** — a frozen world produces no new camera
+positions, which 4b's per-clip translate count makes readable without any new
+instrumentation.
 
 ---
+
+## Step 6 — A player's own screen, and the first menu
+
+Where split-screen meets the UI half of this folder. The acceptance scenario for
+the whole rework: **one player browsing an inventory while the other walks.**
+
+### What is already there
+
+More than the sketch assumed. `media/ui/ui_atlas.json` exists and describes
+exactly the pieces a keyboard-navigated menu needs:
+
+```
+panel  button_idle  button_focus  button_pressed  button_disabled
+```
+
+`button_focus` is in there because this engine was always going to navigate by
+focus rather than hover. And the whole path to draw it is built and unexercised:
+`assets.ui_atlas(path)` → `renderer.register_ui_atlas(atlas)` →
+`renderer.nine_slice(id, x, y, w, h, z:, tint:)`. Closing that coverage gap is
+[`README.md`](README.md) §1's stated reason to build a small real menu.
+
+What does not exist: any node that draws into one player's region, and any
+notion of focus.
+
+### 6a. `Viewports#screen_for(player)`
+
+A reused `View` carrying that player's rect with **no camera** — the
+screen-space counterpart of the world view they already get, and symmetric with
+`#screen` (the whole window). Reused, not built per frame, like every other View.
+
+### 6b. `PlayerLayer`
+
+A node whose subtree is that player's own screen: drawn **once**, clipped to
+their rect, translated to its corner, with `screen_for(player)` as its view.
+
+```ruby
+overlay = root.add_node(PlayerLayer.new(player: players[1]))
+overlay.add_node(inventory)
+```
+
+- **Coordinates are view-local.** A HUD element at (10, 10) is ten pixels from
+  *its own* viewport's corner, not the window's — which is what lets one HUD
+  class serve either player unchanged.
+- **It sets `input_owner`**, so its whole subtree reads that player. Combined
+  with 6c below, that is what makes focus per player with no focus-specific
+  machinery at all.
+- **An inactive player's layer draws nothing**, so an empty seat costs nothing
+  and needs no guard at the call site.
+- It closes the gap named in `Z`'s comment: `Z::HUD` currently names a z band
+  whose structural counterpart has not been built. This is that counterpart.
+
+### 6c. Focus, and a menu that is not a widget library
+
+[`README.md`](README.md) §1: *"Focus. With no pointer there is no hover, so
+something owns which control is focused and how up/down/left/right move it. That
+is the whole design; everything else follows."*
+
+A `Menu` node holding item children: it owns the focused index, moves it on
+`ui_up`/`ui_down`, and activates on `ui_confirm`. An item draws
+`button_focus` or `button_idle` behind its label.
+
+**Focus is per player for free.** A `Menu` inside a `PlayerLayer` inherits that
+player as its `input_owner`, so the `actions` its `on_control` receives are
+already that player's — two menus open at once are independent without either
+knowing the other exists. That is [`03-design.md`](03-design.md) §11.4 falling
+out of the ownership work done in 2b rather than needing anything new, and it is
+worth checking early that it really does.
+
+**Deliberately not a widget library.** `Menu` plus an item, vertical, absolute
+positions. README §1 leaves layout open and says outright that a small real menu
+beats a widget library nobody uses; the deleted package is not a reference and
+its API should not be preserved.
+
+### 6d. The example
+
+`examples/15_tiled_world` gains a per-player inventory:
+
+- An action opens that player's menu inside their `PlayerLayer`.
+- **Their walker is paused while it is open** — 5a's flag, applied to one node,
+  which is why pause is per-node rather than a property of the world view. The
+  other player keeps walking, and the world keeps ticking for both.
+- Closing it unpauses.
+
+**Verify:** drive it with a keyboard track and a pad track, opening one player's
+menu mid-run. The report should show both viewports still drawing the world,
+`nine_slice` calls appearing for the first time in any example, and — the point
+of the whole exercise — **one player's camera track continuing to grow while the
+other's stops**.
+
+### What this leaves for later
+
+A real UI package is still not built, and this step should not pretend
+otherwise. What it delivers is the seam a package would be built on — a region
+per player, focus, and activation — plus one worked menu proving the atlas path.
+Layout, nesting, scrolling lists and text input are all untouched, and
+[`README.md`](README.md) §1 remains the brief for them.
 
 ## When it lands
 
