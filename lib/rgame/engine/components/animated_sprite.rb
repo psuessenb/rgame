@@ -20,6 +20,8 @@ module RGame
       # like CharacterBody can read node.width/height. The renderer resolves the same
       # symbol when drawing, so nothing is registered or passed in by hand.
       class AnimatedSprite < Engine::Component
+        include Engine::Culling
+
         def initialize(sheet:, z: 0)
           super()
           @sheet = sheet
@@ -39,7 +41,11 @@ module RGame
           @animator.update(dt)
         end
 
-        def draw(renderer, _view)
+        # Top-left anchored, and sized by the sheet's frame — so the footprint
+        # to cull against is exactly the node's box.
+        def draw(renderer, view)
+          return if culled?(view, node.abs_x, node.abs_y, node.width, node.height)
+
           # Read row/col/flip_x separately (not @animator.frame, which allocates an Array
           # every call) to keep the draw path allocation-free.
           renderer.sprite(@sheet, @animator.row, @animator.col, node.abs_x, node.abs_y,

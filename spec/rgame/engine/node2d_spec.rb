@@ -479,8 +479,12 @@ RSpec.describe RGame::Engine::Node2D do
   end
 
   describe 'absolute position' do
-    it 'is unresolved until a phase runs' do
-      expect([node.abs_x, node.abs_y, node.abs_z]).to eq([nil, nil, nil])
+    # Seeded at construction rather than left nil. A node built but not yet
+    # driven reads as being at the origin — which is the same answer
+    # resolve_origin gives an unparented node, and saves everything that reads
+    # abs_* on a draw path from a NoMethodError the first time it runs early.
+    it 'reads as the origin before any phase has run' do
+      expect([node.abs_x, node.abs_y, node.abs_z]).to eq([0, 0, 0])
     end
 
     it 'pins a root node to the origin regardless of its own coordinates' do
@@ -541,8 +545,8 @@ RSpec.describe RGame::Engine::Node2D do
       expect(described_class.new(angle: 1.5).angle).to eq(1.5)
     end
 
-    it 'leaves the absolute angle unresolved until a phase runs' do
-      expect(node.abs_angle).to be_nil
+    it 'reads as unrotated before any phase has run' do
+      expect(node.abs_angle).to eq(0)
     end
 
     it 'pins a root node to zero rotation regardless of its own angle' do

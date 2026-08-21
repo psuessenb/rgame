@@ -40,6 +40,13 @@ module RGame
         @angle = angle
         @width = width
         @height = height
+        # Resolved by #resolve_origin at the top of every phase. Seeded here so
+        # a node that has not been driven yet reads as being at the origin
+        # rather than as nil — which is the same answer resolve_origin gives an
+        # unparented node, and saves every reader of abs_* from a NoMethodError
+        # on a node built but not yet ticked.
+        @abs_x = @abs_y = @abs_z = @abs_angle = 0
+        @abs_input_owner = @input_owner
         @children = []
         @components = []
         @component_slots = {} # slot (Class by default, or a Symbol name) => component

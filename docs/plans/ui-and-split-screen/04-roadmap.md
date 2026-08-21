@@ -1059,6 +1059,46 @@ is generous by a margin rather than exact.
 camera tracks stay identical. That is a real before/after number, which is why
 this step is worth doing here rather than "some time later".
 
+**Landed.** `rake` green (318 C checks, 791 headless, 333 Core), RuboCop clean
+across 222 files.
+
+**Sprite draws in the two-player run: 3651 → 2503, a 31% cut**, with the tile
+map counts, the scene transitions and all three clip rects and their camera
+tracks byte-identical. That is the number this step existed to produce, and it
+is only that large because the world is walked twice: each player's walker
+spends much of the run outside the *other* player's half of the screen.
+
+`RGame::Engine::Culling` is mixed into `Sprite` and `AnimatedSprite` — the two
+components that know both where they put a footprint and how big it is. Two
+rules keep it conservative, because culling one frame early is a sprite popping
+in at the screen edge, which is worse than the draw it saved:
+
+- **No size means no culling.** `examples/14_asteroids` never sets
+  `node.width`/`height` on its entities, so they read as 0×0 and would otherwise
+  be culled instantly. That example is unchanged by this step, which is the
+  right outcome — it is screen-space and screen-wrapped.
+- **A rotated node is measured generously**, by a margin of `width + height`.
+  That is always at least the diagonal and costs no square root on a path that
+  runs once per drawable per viewport.
+
+Two things worth recording:
+
+- **`abs_x`/`abs_y`/`abs_z`/`abs_angle` were nil until the first phase ran**, and
+  culling reads `abs_angle`, so a component drawn in a unit spec crashed on
+  `nil.zero?`. They are now seeded to 0 at construction — the same answer
+  `resolve_origin` gives an unparented node, so nothing changes for a driven
+  tree while a whole class of `NoMethodError` disappears. Two examples asserted
+  the nil and were rewritten to state the new contract. This had already bitten
+  three times during step 3 and 4 in specs where the fix was "drive from the
+  root"; here the spec was legitimately a unit spec and the sharp edge was the
+  code's.
+- **The allocation guard cannot measure the drawing branch.** `FakeRenderer`
+  records every call it receives, so it allocates by design and swamps what is
+  being measured. The example measures a node that *is* culled, where nothing
+  but the test itself runs — which is the branch that matters when culling pays
+  anyway. Noted at the example, since the obvious reading of a failure there
+  would be "culling allocates".
+
 ### What N draws per tick makes newly illegal
 
 The audit from [`03-design.md`](03-design.md) §8, due here because this is the
