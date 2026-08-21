@@ -38,7 +38,7 @@ RSpec.describe RGame::Engine::TileMapLayer do
       draw_frame
 
       expect(renderer).to have_received(:tilemap_overlay)
-        .with(any_args, hash_including(z: RGame::Engine::Components::TileWorld::OVERLAY_Z))
+        .with(any_args, hash_including(z: RGame::Engine::Components::TileWorld::CANOPY_Z))
     end
 
     it 'names the map the scene\'s TileWorld holds' do

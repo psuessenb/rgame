@@ -36,7 +36,7 @@ module RGame
       DELTA_LABEL = 'Δ/f'
 
       COLOR = [80, 255, 120].freeze # frozen so the renderer caches the resolved colour
-      Z     = 1_000_000             # above any scene content
+      Z     = Engine::Z::DEBUG      # last, over every other band
       PAD   = 8                     # margin from the screen edge
       GAP   = 8                     # space between a label and its number
 

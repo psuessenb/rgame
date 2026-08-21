@@ -6,7 +6,7 @@
 # (node.root.context.assets) by relative path — nothing is passed into its constructor.
 #
 # Actors draw at ACTOR_Z, between the tile world's ground band (0) and overlay band
-# (TileWorld::OVERLAY_Z), so palm canopies render in front and trunks behind.
+# (TileWorld::CANOPY_Z), so palm canopies render in front and trunks behind.
 class BeachScene < RGame::Engine::Node2D
   MAP_KEY      = 'map/beach_large.tmx'
   PLAYER_SHEET = 'player.json'

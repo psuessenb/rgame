@@ -53,7 +53,7 @@ class PlayScene < RGame::Engine::Node2D
 
   def on_draw(renderer, _view)
     renderer.background(:space)
-    renderer.text(@score_text, 12, 10, z: 20, color: SCORE_COLOR)
+    renderer.text(@score_text, 12, 10, z: RGame::Engine::Z::HUD, color: SCORE_COLOR)
   end
 
   # Called by a Rock when a bullet hits it: score, split into smaller rocks, despawn.

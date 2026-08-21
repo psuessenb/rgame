@@ -13,7 +13,7 @@ module RGame
       #
       # Drawing splits into two z bands so actors can sit between them: the below band
       # (ground, same-level detail) at GROUND_Z and the above band (canopies, roofs) at
-      # OVERLAY_Z. Actors draw at a z in between (the renderer sorts by z, so the
+      # CANOPY_Z. Actors draw at a z in between (the renderer sorts by z, so the
       # draw-call order doesn't matter). TileMapLayer draws both.
       #
       # **It does not draw.** Drawing the map is RGame::Engine::TileMapLayer, a
@@ -29,7 +29,7 @@ module RGame
       # should look like.
       class TileWorld < Engine::Component
         GROUND_Z  = 0
-        OVERLAY_Z = 20
+        CANOPY_Z  = 20 # tiles above the actors: canopies, roofs
 
         attr_reader :tilemap_id, :elapsed
 

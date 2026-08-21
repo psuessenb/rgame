@@ -19,7 +19,7 @@ module RGame
     # ## Two calls, because the actors go between them
     #
     # The below band (ground, same-level detail) draws at `TileWorld::GROUND_Z`
-    # and the above band (canopies, roofs) at `TileWorld::OVERLAY_Z`, with actors
+    # and the above band (canopies, roofs) at `TileWorld::CANOPY_Z`, with actors
     # at a z in between. The renderer sorts by z, so the order these are issued
     # in does not matter — but collapsing them into one call would put every
     # canopy behind every character.
@@ -42,7 +42,7 @@ module RGame
         elapsed = @world.elapsed
         renderer.tilemap(id, camera.x, camera.y, view.width, view.height, elapsed: elapsed)
         renderer.tilemap_overlay(id, camera.x, camera.y, view.width, view.height,
-                                 z: Components::TileWorld::OVERLAY_Z, elapsed: elapsed)
+                                 z: Components::TileWorld::CANOPY_Z, elapsed: elapsed)
       end
     end
   end

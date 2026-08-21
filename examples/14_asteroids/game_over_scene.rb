@@ -46,6 +46,7 @@ class GameOverScene < RGame::Engine::Node2D
   private
 
   def centered(renderer, text, y, color)
-    renderer.text(text, (@width - renderer.text_width(text)) / 2, y, z: 20, color: color)
+    renderer.text(text, (@width - renderer.text_width(text)) / 2, y,
+                  z: RGame::Engine::Z::OVERLAY, color: color)
   end
 end

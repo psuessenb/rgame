@@ -19,6 +19,7 @@
 # three-layer rule allows and this file therefore has to declare.
 require_relative 'util'
 
+require_relative 'engine/z'
 require_relative 'engine/matrix'
 require_relative 'engine/signal'
 require_relative 'engine/node2d'

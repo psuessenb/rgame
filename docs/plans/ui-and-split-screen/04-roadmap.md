@@ -1008,6 +1008,42 @@ A small `RGame::Engine::Z` with named bases (world, HUD, overlay, debug),
 `docs/api/drawing.md`. Deliberately constants rather than machinery: nothing can
 enforce this, so the value is in it being written down in one place.
 
+**Landed.** `rake` green (318 C checks, 781 headless, 333 Core), RuboCop clean
+across 220 files, both examples driving unchanged.
+
+`RGame::Engine::Z` with `WORLD`/`HUD`/`OVERLAY`/`DEBUG` at 0 / 100_000 /
+200_000 / 1_000_000. `DebugOverlay::Z` is now `Z::DEBUG` rather than a literal,
+and the examples name bands instead of guessing: the asteroids score is
+`Z::HUD`, its title and results text `Z::OVERLAY`.
+
+Three things worth recording:
+
+- **The inventory turned up a real wart.** `Renderer::SHAPE_Z` is **50** and
+  `TEXT_Z` is **10**, so a shape drawn with no `z:` sits *above* text drawn with
+  no `z:` — meaning a HUD built out of defaults ends up under world shapes. That
+  is pre-existing and not worth changing (the defaults are documented and games
+  rely on a debug box landing on top), but it is exactly the confusion the bands
+  exist to end, so it is called out in `Z`'s own comment and in
+  `docs/api/drawing.md`.
+- **`TileWorld::OVERLAY_Z` became `CANOPY_Z`.** With `Z::OVERLAY` now naming the
+  global screen band, having "overlay" also mean "the tiles above the actors" in
+  the same layer was a collision worth spending a rename on — and `CANOPY_Z` is
+  the better name anyway, since the docs already describe that band as canopies
+  and roofs.
+- **The one check that would be most valuable cannot be written.** Asserting
+  that the renderer's own defaults fall inside the world band is a genuine
+  cross-layer invariant — if someone bumped `SHAPE_Z` to 200_000 the bands would
+  silently break — but `Z` is Engine and `Renderer::SHAPE_Z` is Core, so
+  `spec/` may not name one and `spec_core/` may not name the other. The layering
+  rule forbids the check rather than the check being forgotten. Stated in the
+  docs with the actual headroom instead: four orders of magnitude between the
+  largest default and `Z::HUD`.
+
+`spec/rgame/engine/z_spec.rb` asserts what *can* be asserted — the bands are
+ordered, they are far enough apart to be useful rather than merely ordered, and
+the two engine-side users (`DebugOverlay`, the tile map's bands) sit where the
+vocabulary says.
+
 ### 4e. Culling
 
 `view.visible?` exists and has no callers. `Sprite` and `AnimatedSprite` are
