@@ -68,8 +68,10 @@ module RGame
         @prev_allocated = allocated
 
         line_h  = renderer.text_height
-        right_x = view.x + view.width - PAD
-        top_y   = view.y + view.height - PAD - (line_h * 3)
+        # The view's size, not its position: inside a region that has been
+        # translated to its corner, adding `view.x` would offset a second time.
+        right_x = view.width - PAD
+        top_y   = view.height - PAD - (line_h * 3)
 
         draw_line(renderer, FPS_LABEL, fps, right_x, top_y)
         draw_line(renderer, OBJ_LABEL, allocated, right_x, top_y + line_h)

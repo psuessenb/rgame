@@ -64,6 +64,87 @@ RSpec.describe RGame::Engine::Viewports do
     end
   end
 
+  # A player's own screen: the same rectangle their world view is drawn into,
+  # with no camera, so its contents lay out against their corner rather than the
+  # window's. What a HUD and a menu are drawn into.
+  describe '#screen_for' do
+    def rect_of(view) = [view.x, view.y, view.width, view.height]
+
+    it 'is that player\'s viewport rectangle' do
+      expect(rect_of(viewports.screen_for(players[1]))).to eq([0, 240, 640, 240])
+    end
+
+    it 'looks through no camera' do
+      expect(viewports.screen_for(players[0]).camera).to be_nil
+    end
+
+    it 'knows whose region it is' do
+      expect(viewports.screen_for(players[1]).player).to equal(players[1])
+    end
+
+    # The same rectangle, so a HUD drawn at (10, 10) lands ten pixels inside the
+    # region the world beneath it is drawn into.
+    it 'matches the world view it sits over' do
+      world = viewports.views.find { |view| view.player.equal?(players[1]) }
+      expect(rect_of(viewports.screen_for(players[1]))).to eq(rect_of(world))
+    end
+
+    it 'follows a resize' do
+      viewports.resize(800, 600)
+      expect(rect_of(viewports.screen_for(players[1]))).to eq([0, 300, 800, 300])
+    end
+
+    it 'gives the one active player the whole window' do
+      waiting = RGame::Engine::Players.new([player(0), player(1, active: false)])
+      one = described_class.new(waiting, width: 640, height: 480)
+      expect(rect_of(one.screen_for(waiting[0]))).to eq([0, 0, 640, 480])
+    end
+
+    describe 'when there is nothing to draw into' do
+      it 'is nil for an empty seat' do
+        waiting = RGame::Engine::Players.new([player(0), player(1, active: false)])
+        one = described_class.new(waiting, width: 640, height: 480)
+        expect(one.screen_for(waiting[1])).to be_nil
+      end
+
+      # A cutscene is everybody looking at one thing, so nobody owns a half of
+      # the screen while it runs. Per-player UI has no place to be; a game that
+      # wants something on screen draws in the global overlay band.
+      it 'is nil for everyone while the split is collapsed' do
+        viewports.solo!(RGame::Engine::Camera.new)
+        viewports.update(0.016)
+        expect(viewports.screen_for(players[0])).to be_nil
+      end
+
+      it 'comes back when the split does' do
+        viewports.solo!(RGame::Engine::Camera.new)
+        viewports.update(0.016)
+        viewports.split!
+        viewports.update(0.016)
+        expect(viewports.screen_for(players[0])).not_to be_nil
+      end
+
+      it 'is nil for nobody in particular' do
+        expect(viewports.screen_for(nil)).to be_nil
+      end
+    end
+
+    it 'hands back the same View for a player frame to frame' do
+      first = viewports.screen_for(players[1])
+      viewports.refresh
+      expect(viewports.screen_for(players[1])).to equal(first)
+    end
+
+    it 'gives two players two different Views' do
+      expect(viewports.screen_for(players[0])).not_to equal(viewports.screen_for(players[1]))
+    end
+
+    it 'costs no allocation' do
+      viewports.screen_for(players[1])
+      expect { viewports.screen_for(players[1]) }.to allocate_nothing
+    end
+  end
+
   describe 'cameras' do
     # Each camera is clamped against its *own* rect, which is the whole reason a
     # camera does not carry a size: two players sharing a world see different

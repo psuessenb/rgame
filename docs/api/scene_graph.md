@@ -141,9 +141,17 @@ one viewport being drawn.
 
 ```ruby
 viewports = node.system(RGame::Engine::Viewports)
-viewports.views     # one View per active player — what a WorldView draws through
-viewports.screen    # the whole window, no camera — screen space
+viewports.views              # one View per active player — what a WorldView draws through
+viewports.screen             # the whole window, no camera — screen space
+viewports.screen_for(player) # that player's own region, no camera — their HUD and menus
 ```
+
+`screen_for` is the same rectangle that player's world view is drawn into, so a
+HUD laid out at (10, 10) lands ten pixels inside the region the world beneath it
+occupies. It is **nil** when they have nowhere to draw: an empty seat has no
+viewport, and while the split is collapsed nobody owns a half of the screen —
+a cutscene is everyone looking at one thing, so something that must stay on
+screen through it belongs in the global overlay band instead.
 
 A **`View`** carries `x`, `y`, `width`, `height`, its `camera` (nil in screen
 space) and its `player`, plus two things nodes actually use:
@@ -161,6 +169,36 @@ Hold the player or the viewports, never a `View`.
 state and no anchors: one viewport gets the window, two get a row each, three or four
 share a 2x2 grid. Edges are computed as `(i * total) / count`, so the rects tile exactly
 and no seam is left down the middle of an odd-sized window.
+
+### A player's own screen
+
+`RGame::Engine::PlayerLayer` is the node for it: its subtree is drawn **once**,
+clipped to that player's viewport and translated to its corner, in screen space.
+
+```ruby
+layer = scene.add_node(RGame::Engine::PlayerLayer.new(player: game.players[1]))
+layer.add_node(inventory)
+```
+
+That is the third kind of content a frame holds. The world is drawn once per
+viewport under a camera (`WorldView`), a global overlay once across the whole
+window (anything else in the tree), and this once per player inside their own
+region.
+
+**Children are positioned relative to the layer**, so a node at (10, 10) is ten
+pixels inside *that player's* region wherever the layout put it, and the same
+HUD class serves either player unchanged. Lay out against the far edge with the
+view's **size** — `view.width - margin`. `view.x` and `view.y` are where the
+region sits on the window and are the clip's business, not a layout origin;
+adding them would offset a second time.
+
+**It sets `input_owner`**, and ownership is inherited, so a menu anywhere under
+it reads that player's controller and nobody else's. Two players with a menu
+open at once are independent without either knowing the other exists — see
+[Who a node answers to](#who-a-node-answers-to).
+
+It draws nothing when `screen_for` has no region for that player: an empty seat,
+or anybody while the split is collapsed.
 
 ### Collapsing the split
 

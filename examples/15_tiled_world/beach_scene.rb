@@ -16,6 +16,7 @@ class BeachScene < RGame::Engine::Node2D
   NPC_SPEED    = 70.0
   NPC_OFFSETS  = [[-80, -48], [96, -32], [-64, 64], [120, 48], [40, -96], [-112, 16]].freeze
   WALKER_SPACING = 48 # so a second player starts beside the first, not inside them
+  UI_MARGIN      = 20 # from the corner of that player's region, not of the window
 
   def initialize
     super
@@ -71,6 +72,16 @@ class BeachScene < RGame::Engine::Node2D
     # knows once it has attached. See #follow_camera.
     follow_camera(walker, player.camera)
     @walkers[player.id] = walker
+    spawn_ui(player, walker)
+  end
+
+  # Their own corner of the screen, outside the WorldView, holding whatever only
+  # they should see. Everything under it is drawn inside their viewport, laid out
+  # from its corner, and driven by their controller — none of which this scene or
+  # the inventory has to arrange.
+  def spawn_ui(player, walker)
+    layer = add_node(RGame::Engine::PlayerLayer.new(player: player))
+    layer.add_node(Inventory.new(walker: walker, x: UI_MARGIN, y: UI_MARGIN))
   end
 
   # Point the camera at the player's feet box rather than the sprite's origin,

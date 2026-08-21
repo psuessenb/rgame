@@ -1320,6 +1320,20 @@ A reused `View` carrying that player's rect with **no camera** — the
 screen-space counterpart of the world view they already get, and symmetric with
 `#screen` (the whole window). Reused, not built per frame, like every other View.
 
+**Landed.** `rake` green (318 C checks, 819 headless, 333 Core), RuboCop clean
+across 225 files. `Viewports#screen_for(player)` returns the same rectangle that
+player's world view is drawn into, from a second pool of Views, so a HUD laid out
+at (10, 10) lands ten pixels inside the region the world beneath it occupies.
+
+One decision the sketch did not cover: **what it returns when a player has
+nowhere to draw.** Two cases, one answer — `nil`. An empty seat has no viewport.
+And while the split is **collapsed**, nobody owns a half of the screen: a
+cutscene is everybody looking at one thing, so per-player UI has no place to be,
+and a game that wants something on screen through it draws in the global overlay
+band. Returning nil rather than a zero-sized rectangle is deliberate: one check
+at the one caller that needs it beats every caller relying on an empty clip
+happening to draw nothing.
+
 ### 6b. `PlayerLayer`
 
 A node whose subtree is that player's own screen: drawn **once**, clipped to
@@ -1340,6 +1354,30 @@ overlay.add_node(inventory)
   and needs no guard at the call site.
 - It closes the gap named in `Z`'s comment: `Z::HUD` currently names a z band
   whose structural counterpart has not been built. This is that counterpart.
+
+**Landed.** `rake` green (318 C checks, 832 headless, 333 Core), RuboCop clean
+across 227 files, examples unchanged.
+
+`PlayerLayer#draw` clips to `screen_for(player)`, translates by its offset, and
+hands its subtree that region. `player` is not stored: it *is* `input_owner`,
+because two fields would be two things to keep in step.
+
+**The coordinate question the sketch glossed over.** "Coordinates are view-local"
+and "a `View` carries `x`/`y`" are in tension: a child that lays out with
+`view.x + 10` inside a translated region is offset twice. Both conventions
+were arguable, and the transform decided it — children already position
+themselves through `abs_x`/`abs_y` relative to their parent, so translating the
+layer is what makes the node transform mean anything. Laying out against
+absolute screen coordinates instead would have made a node's own position
+useless inside a HUD.
+
+So the rule is: **lay out against the view's size, not its position.**
+`view.width - margin` for the far edge; `view.x`/`view.y` are where the region
+sits on the window and belong to the clip. `DebugOverlay` was written with
+`view.x + view.width - PAD` back when the only view was the whole window, where
+`x` is zero — harmless then, the wrong idiom to copy now, and changed to
+`view.width - PAD`, which is also what makes it correct if it is ever put inside
+a region.
 
 ### 6c. Focus, and a menu that is not a widget library
 
@@ -1363,6 +1401,43 @@ positions. README §1 leaves layout open and says outright that a small real men
 beats a widget library nobody uses; the deleted package is not a reference and
 its API should not be preserved.
 
+**Landed.** `rake` green (318 C checks, 859 headless, 333 Core), RuboCop clean
+across 231 files, examples unchanged.
+
+`RGame::Engine::UI::Menu` and `UI::MenuItem`, in a `UI` namespace because that is
+where a toolkit would go. A menu owns the focused index, moves it on
+`ui_up`/`ui_down` with wrapping, and activates on `ui_confirm`; an item draws one
+of four atlas elements from its state and emits `on_activated`.
+
+**The claim held: focus is per player for free.** A menu inside a `PlayerLayer`
+inherits that player as its `input_owner`, so the `actions` its `on_control`
+receives are already theirs. Two menus, two players, one traversal, and neither
+menu contains the word "player" — `menu_spec.rb` drives exactly that and only
+the pad player's menu moves. That is 2b's ownership routing paying for itself a
+step later, and it is the reason this step is small.
+
+Three things beyond the sketch, each because the shipped art asked for it:
+
+- **Disabled items.** The atlas ships `button_disabled`, so items have an
+  `enabled` flag: focus skips them, `activate` refuses them, and a menu whose
+  first item is disabled opens with focus on the second. Skipping during
+  navigation is the classic thing that is annoying to retrofit.
+- **A pressed state**, from `button_pressed` — the focused item shows it while
+  `ui_confirm` is held. There is no hover to show, because there is no pointer;
+  this is what a control has instead.
+- **The style is replaceable.** Hard-coding `:button_idle` would have obliged
+  every game to name its atlas the way the shipped one does. `MenuItem::STYLE`
+  is a hash a menu can be built with.
+
+**One spec bug worth recording, caught by strict `Actions`.** The first version
+of the menu spec's helper declared only the actions it was pressing, and
+`Actions` raised for `:ui_up` the moment the menu read it. The second version
+declared all three but built a fresh snapshot per call, so `prev_held` was always
+empty and *every* frame read as a press — which the "fires once for a press that
+is held" example caught. The helper now shifts two hashes behind one reused
+`Actions`, which is what `ActionMapper` does, and is the only way `pressed?`
+means anything. Both mistakes are ones a game would make.
+
 ### 6d. The example
 
 `examples/15_tiled_world` gains a per-player inventory:
@@ -1378,6 +1453,45 @@ menu mid-run. The report should show both viewports still drawing the world,
 `nine_slice` calls appearing for the first time in any example, and — the point
 of the whole exercise — **one player's camera track continuing to grow while the
 other's stops**.
+
+**Landed.** `rake` green (318 C checks, 859 headless, 333 Core), RuboCop clean
+across 233 files. **The acceptance scenario for the whole rework runs**: one
+player browsing a menu while the other walks.
+
+```
+clips pushed
+  438 × [0, 0, 640, 240]   — 212 distinct translate(s) inside
+  438 × [0, 240, 640, 240] — 42 distinct translate(s) inside
+```
+
+Player one walks throughout and their camera tracks 212 positions; player two
+walks for forty ticks, opens their inventory, and stops at 42 — while both
+viewports keep drawing the world, and the world keeps running for both.
+
+**Proved by experiment rather than by reading the number.** Commenting out the
+one line that pauses the walker gives **84** instead of 42: player two walks
+forty ticks before opening the menu and would walk another forty during it, and
+the pause is exactly what stops the second forty. Player one's 212 is identical
+either way, so the pause is scoped to one node and does not touch the shared
+simulation. That is what 5a's flag being a property of a *node* rather than of
+the world buys, and this is the case that justifies it.
+
+`Inventory` mentions no viewport, no camera and no player. It sits inside a
+`PlayerLayer` and inherits all three: it draws in that player's half, lays out
+from that half's corner, and reads that player's controller. That was the design
+claim from the very first plan document and it is now a file you can read.
+
+Two notes:
+
+- **A closed menu is paused *and* not drawn.** Pausing alone stops it ticking
+  and leaves it on screen, so `Inventory` overrides `draw_children` too. Worth
+  saying because "paused" reading as "invisible" is the obvious wrong guess, and
+  the split is deliberate: a frozen world under a cutscene has to stay visible.
+- **A player's rectangle is now clipped twice a frame** — once by the WorldView
+  for their camera, once by their PlayerLayer for their screen. The report
+  aggregates by rectangle, so the counts double and the distinct translates
+  inside a rect are both passes' offsets together. Noted in the harness header,
+  since the first reading of `438 × ...` against a 240-tick run is confusion.
 
 ### What this leaves for later
 

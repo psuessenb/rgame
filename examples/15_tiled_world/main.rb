@@ -19,6 +19,7 @@ require 'rgame/game'
 
 Controls = RGame::Util::Controls
 require_relative 'cutscene'
+require_relative 'inventory'
 require_relative 'beach_scene'
 
 WIDTH  = 640

@@ -38,9 +38,11 @@ module RGame
         @height = height
         @solo_camera = nil
         @pending = nil
-        # One View per possible player plus one for the whole screen, built once
-        # and mutated in place. See View: these are reused, never rebuilt.
+        # One View per possible player for the world, one more each for their own
+        # screen space, and one for the whole window. Built once and mutated in
+        # place. See View: these are reused, never rebuilt.
         @pool = []
+        @screen_pool = []
         @views = []
         @screen = View.new
         refresh
@@ -56,6 +58,31 @@ module RGame
       end
 
       def solo? = !@solo_camera.nil?
+
+      # The screen-space region belonging to `player`: the same rectangle their
+      # world view is drawn into, with **no camera**, so its contents are laid
+      # out against their own corner rather than the window's. Their HUD and
+      # their menus live here.
+      #
+      # `nil` when they have no region to draw into, which is two cases and one
+      # answer. An **empty seat** has no viewport at all. And while the split is
+      # **collapsed**, nobody has a half of the screen to own: a cutscene is
+      # everyone looking at one thing, so per-player UI has no place to be, and
+      # a game wanting something on screen through it draws in the global
+      # overlay band instead.
+      #
+      # Returning nil rather than an empty rectangle is deliberate: one check at
+      # the one caller that needs it beats every caller relying on a zero-sized
+      # clip happening to draw nothing.
+      def screen_for(player)
+        return nil if player.nil? || @solo_camera
+
+        world = @views.find { |view| view.player.equal?(player) }
+        return nil if world.nil?
+
+        pooled_screen(@players.list.index(player))
+          .set(world.x, world.y, world.width, world.height, player: player)
+      end
 
       # Collapse to a single screen-wide view through `camera`.
       #
@@ -137,6 +164,10 @@ module RGame
 
       def pooled(index)
         @pool[index] ||= View.new
+      end
+
+      def pooled_screen(index)
+        @screen_pool[index] ||= View.new
       end
     end
   end

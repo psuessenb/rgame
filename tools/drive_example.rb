@@ -48,6 +48,13 @@
 # clips and translates were pushed, ticks against frames. Those are what to
 # assert on.
 #
+# Clips are aggregated by rectangle, and **a player's region is clipped twice a
+# frame** once they have UI: once by the WorldView drawing the world through
+# their camera, and once by their PlayerLayer drawing their own screen. Both
+# push the same rectangle, so a two-player frame shows four clips over three
+# rects and the counts are double what the frame count suggests. The distinct
+# translates inside a rect are the two passes' offsets together.
+#
 # Exact draw counts are **not** stable, for two reasons.
 #
 # `examples/14_asteroids` seeds its rock spawns with an unseeded `Random.new`,
