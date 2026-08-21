@@ -1,0 +1,232 @@
+# CI — the four verification tiers, on the three platforms.
+#
+# This is step 0 of docs/plans/cross-platform-support.md, and it deliberately
+# comes *before* any of the porting work. Every item in that plan fails in a way
+# that is invisible on Linux — a header search path, a DLEXT, a dlopen soname, a
+# buffer-swap semantic that only differs on a real GPU — so the port cannot be
+# written blind. This matrix is the feedback loop it needs.
+#
+# The tiers run in the order CLAUDE.md lists them, cheapest and most
+# deterministic first, so a failure lands on the smallest thing that could have
+# caused it:
+#
+#   make test          Check suite: pure logic + fake backends. No display.
+#   make               the standalone binary — the other driver of the C API,
+#                      and the only tier that compiles src/main.c at all.
+#   make ext           both extensions, into lib/rgame/.
+#   rake spec          headless: Util + Engine + packaging. No SDL in-process.
+#   rake spec:core     Core: opens real windows, boots its own Xvfb on Linux.
+#
+# `rake` with no argument runs the three test tasks, but it does not build the
+# extensions — `make ext` is their prerequisite (CLAUDE.md, "Build"), so the
+# steps are spelled out rather than collapsed into one `rake`.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same branch makes the first run's answer worthless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+
+    # macOS and Windows are expected to fail until the port lands, so they must
+    # not gate anything: with this, they show red on the job while the *run*
+    # stays green, and Ubuntu keeps working as the regression guard it is on day
+    # one. Without it there is no way to tell "still unported, as predicted"
+    # from "somebody broke Linux", which would destroy the only value this
+    # workflow has today.
+    #
+    # Flipping `ported` to true is part of the definition of done for the
+    # corresponding step in docs/plans/cross-platform-support.md — it is not a
+    # rule anyone is asked to remember, because the plan step says so and the
+    # job name below says which platforms are still marked.
+    continue-on-error: ${{ !matrix.ported }}
+
+    strategy:
+      # One platform's failure must not cancel the others: on a matrix this
+      # small, the whole point is seeing all three answers from one push.
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-latest
+            ported: true
+          - name: macos (port in progress)
+            os: macos-14
+            ported: false
+          - name: windows (port in progress)
+            os: windows-latest
+            ported: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Linux needs SDL2 and OpenGL to build, Check to run the C suite, and
+      # three things purely for `rake spec:core`:
+      #
+      #   xvfb           the display it starts for itself
+      #   x11-utils      xwininfo, which HeadlessDisplay polls to know Xvfb is up
+      #   libgl1-mesa-dri  llvmpipe. Xvfb has no GPU, and without a software
+      #                    rasteriser SDL_GL_CreateContext fails and every Core
+      #                    spec dies at App.new.
+      #
+      # libxtst6 is the XTEST runtime that spec_core/support/x_keys.rb dlopens
+      # for synthetic keystrokes. It is a plain runtime library, not a -dev
+      # package, because Fiddle opens it by soname rather than linking it.
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libsdl2-dev libgl1-mesa-dev libgl1-mesa-dri \
+            check pkg-config \
+            xvfb x11-utils libxtst6 \
+            gdb
+
+      # Homebrew's SDL2 is what makes the include-path problem visible: it
+      # publishes `-I/opt/homebrew/include/SDL2`, and /opt/homebrew/include is
+      # not on clang's default search path, so `<SDL2/SDL.h>` does not resolve.
+      # That is step 1 of the plan, and this job is expected to fail on it.
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install sdl2 check pkg-config
+
+      # Derived from .ruby-version rather than written out here, so the pin has
+      # one home. It cannot be handed to setup-ruby directly: mise writes the
+      # file as `ruby 4.0.5`, which is not the bare version string that action
+      # expects.
+      - name: Read the pinned Ruby version
+        id: ruby
+        shell: bash
+        run: echo "version=$(sed -E 's/^ruby[ -]//' .ruby-version | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ steps.ruby.outputs.version }}
+          bundler-cache: true
+
+      # RubyInstaller ships MSYS2; `ridk exec` runs a command inside its mingw
+      # environment, where pacman and the native toolchain live.
+      #
+      # **This must come after setup-ruby**, and that is probably the whole
+      # story behind the first run's failure. `ridk` belongs to a Ruby
+      # installation, and the Windows runner image ships one preinstalled — so
+      # running this earlier resolved `ridk` against *that* Ruby and configured
+      # *its* MSYS2, which is not the one the build then used. Ordering it here
+      # makes the question moot: the only Ruby on PATH is the one we test with.
+      #
+      # `pkgconf` and `gcc` are listed even though something usually provides
+      # them, because the first CI run failed on precisely the assumption that
+      # the toolchain on PATH was the ucrt64 one. `--needed` makes an
+      # already-installed package a no-op, so listing them costs nothing.
+      - name: Install system dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ridk exec pacman --sync --noconfirm --needed `
+            mingw-w64-ucrt-x86_64-SDL2 `
+            mingw-w64-ucrt-x86_64-check `
+            mingw-w64-ucrt-x86_64-pkgconf `
+            mingw-w64-ucrt-x86_64-gcc `
+            mingw-w64-ucrt-x86_64-gdb
+
+      # MSYS2 is several environments in one installation, and the packages
+      # above went into `ucrt64` — the one that builds *native* Windows
+      # binaries, which is what RubyInstaller's Ruby can load.
+      #
+      # The first CI run proved the build was not running there. pacman
+      # succeeded, yet pkg-config then found neither sdl2 nor check, and the
+      # compile came out as `cc` — which under MSYS2 is `/usr/bin/cc`, the
+      # msys-runtime gcc targeting a Cygwin-like ABI. Both symptoms are one
+      # cause: `/usr/bin` was ahead of (or instead of) `/ucrt64/bin` on PATH, so
+      # every tool resolved to the wrong environment.
+      #
+      # Prepending `/ucrt64/bin` fixes both at once. It is prepended rather than
+      # substituted because msys's own `make` (there is no `make` in ucrt64,
+      # only `mingw32-make`) still has to be reachable — driving a native
+      # compiler from msys make is the combination RubyInstaller itself uses.
+      #
+      # `cygpath -w` converts the MSYS path to the Windows form GITHUB_PATH
+      # wants. The Makefile's `CC` no longer needs setting here: it forces
+      # `gcc` now, for the same reason this step exists.
+      - name: Put the UCRT64 toolchain first on PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bin = (ridk exec cygpath -w /ucrt64/bin | Select-Object -Last 1).Trim()
+          if (-not $bin) { throw 'could not resolve /ucrt64/bin' }
+          Write-Host "prepending $bin"
+          $bin | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
+      # From here down, the unported legs run in **survey mode**: every step
+      # runs even after one fails, so a single push reports all five tiers
+      # instead of only the first thing to break. A ported leg keeps ordinary
+      # stop-at-first-failure semantics, because there it is a gate rather than
+      # a measurement.
+      #
+      # This is the same `ported` flag as the job-level `continue-on-error`, and
+      # it earns its keep for the same reason: the first two runs each cost a
+      # round trip to learn one fact, while four later tiers sat unmeasured
+      # behind a failure in the first.
+      - name: C unit tests (Check)
+        id: c_tests
+        continue-on-error: ${{ !matrix.ported }}
+        shell: bash
+        run: make test
+
+      # A Check failure that is a *segfault* says only "signal 11" and a line
+      # number, which is where the C suite stops being useful on a platform
+      # nobody here can attach a debugger to. So the crash gets a backtrace
+      # automatically, and only when there was one.
+      #
+      # `CK_FORK=no` matters: Check normally runs each test in its own forked
+      # child, and a debugger follows the *parent*, so the crash it reports is
+      # in a process that did not crash. Running in-process gives the real
+      # stack — at the cost of stopping at the first crash, which is exactly
+      # what a backtrace wants anyway.
+      #
+      # Windows has no fork at all, so its suite already dies on the first
+      # segfault (see B5 in the plan); there this step is the only way to learn
+      # which test that was.
+      - name: Backtrace the C suite crash
+        if: steps.c_tests.outcome == 'failure'
+        shell: bash
+        run: |
+          set -x
+          case "${{ runner.os }}" in
+            macOS)
+              CK_FORK=no lldb --batch -o run -o 'bt all' -- ./build/test_rgame || true
+              ;;
+            Windows|Linux)
+              CK_FORK=no gdb -batch -ex run -ex 'bt full' -ex 'info threads' \
+                --args ./build/test_rgame || true
+              ;;
+          esac
+
+      - name: Standalone binary
+        continue-on-error: ${{ !matrix.ported }}
+        shell: bash
+        run: make
+
+      - name: Build both extensions
+        continue-on-error: ${{ !matrix.ported }}
+        shell: bash
+        run: make ext
+
+      - name: Headless specs (Util + Engine + packaging)
+        continue-on-error: ${{ !matrix.ported }}
+        shell: bash
+        run: bundle exec rake spec
+
+      - name: Core specs (real windows)
+        continue-on-error: ${{ !matrix.ported }}
+        shell: bash
+        run: bundle exec rake spec:core

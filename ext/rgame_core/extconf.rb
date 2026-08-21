@@ -68,38 +68,66 @@ $INCFLAGS << ' -I$(srcdir)/../rgame_util'
 # later compile error.
 abort 'SDL2 not found (pkg-config --exists sdl2 failed). Install libsdl2-dev.' unless pkg_config('sdl2')
 
-# OpenGL + libm, matching the link line in the root Makefile. append_library
-# adds `-lGL`/`-lm` in the right spot on the link command.
+# The GL header, probed as the sources actually spell it: SDL's own
+# <SDL2/SDL_opengl.h>, which resolves to GL/gl.h, OpenGL/gl.h or the Windows SDK's
+# per platform. Probing GL/gl.h directly would ask the wrong question off Linux.
 #
-# Checked rather than assumed, unlike in the root Makefile. This script is what
-# runs on someone else's machine during `gem install`, and a missing OpenGL
-# development package is a routine thing to hit there. Without a check it
-# surfaces as a linker error about an undefined `glClear` at the end of a long
-# build; with one, the install stops on a sentence naming the package to
-# install. Same reasoning as the SDL2 abort above.
-#
-# The header probed is the one the sources actually include — SDL's own
-# <SDL2/SDL_opengl.h>, which resolves to GL/gl.h or OpenGL/gl.h per platform, so
-# probing GL/gl.h directly would ask the wrong question off Linux. It needs
-# SDL's cflags, which pkg_config folded into $CFLAGS just above.
+# It needs SDL's cflags, which pkg_config folded into $CFLAGS just above — this
+# is also what makes the probe a real check of the include path rather than of
+# the filesystem.
 abort 'SDL2 OpenGL header not found (SDL2/SDL_opengl.h). Install libsdl2-dev.' unless have_header('SDL2/SDL_opengl.h')
 
-# `-lGL` is how OpenGL is linked on Linux and the BSDs; macOS wants
-# `-framework OpenGL` instead. Only the first is implemented — as in the root
-# Makefile, which hardcodes -lGL — so this aborts on a platform it cannot link
-# rather than emitting undefined symbols for every gl* call. have_library
-# appends -lGL to $libs itself when the probe succeeds.
-unless have_library('GL', 'glClear')
-  abort 'OpenGL library not found (-lGL). Install libgl1-mesa-dev. ' \
-        '(macOS needs -framework OpenGL, which is not implemented yet.)'
+# Three platforms, three different ways to link the same OpenGL — the one place
+# in this file that has to branch, and the mirror of the root Makefile's own
+# branch (see its GL_LIBS). The engine calls only GL 1.1 entry points, which all
+# three expose directly, so no extension loader (GLAD/GLEW) is involved anywhere;
+# see CLAUDE.md's Conventions on why the legacy profile is deliberate.
+#
+# Probed rather than assumed, because this script is what runs on someone else's
+# machine during `gem install` and a missing OpenGL is a routine thing to hit
+# there. Without a probe it surfaces as a linker error about an undefined
+# `glClear` at the end of a long build; with one, the install stops on a
+# sentence naming what to install. Same reasoning as the SDL2 abort above — and
+# the message is per-platform, since "install libgl1-mesa-dev" is useless advice
+# on a Mac.
+#
+# `have_library` appends `-lGL`/`-lopengl32` to $libs on success; `have_framework`
+# appends `-framework OpenGL` to $LDFLAGS. Both end up on the link line.
+case RbConfig::CONFIG['host_os']
+when /darwin/
+  # macOS ships OpenGL as a framework rather than a library, so there is no
+  # `-lGL` to find. It is part of the OS — a failure here means the toolchain
+  # is missing, not the graphics stack.
+  unless have_framework('OpenGL')
+    abort 'OpenGL framework not found. It ships with macOS, so this usually means ' \
+          'the command line tools are missing: xcode-select --install'
+  end
+when /mingw|mswin|cygwin/
+  # Windows' OpenGL is an OS component: opengl32.dll is in system32 on every
+  # installation, and the import library comes with the toolchain. Nothing to
+  # install from a graphics vendor.
+  unless have_library('opengl32', 'glClear')
+    abort 'opengl32 not found. It is part of Windows itself, so this means an ' \
+          'incomplete MSYS2 toolchain: pacman -S mingw-w64-ucrt-x86_64-gcc'
+  end
+else
+  # Linux and the BSDs.
+  unless have_library('GL', 'glClear')
+    abort 'OpenGL library not found (-lGL). Install the OpenGL development package: ' \
+          'libgl1-mesa-dev on Debian/Ubuntu, mesa-libGL-devel on Fedora.'
+  end
 end
 
 $libs = append_library($libs, 'm')
 
 # miniaudio's threading, and the dlopen it uses to find ALSA or PulseAudio at
-# runtime — the property that makes audio cost no new system dependency. Both
-# live in glibc on Linux/BSD. Windows and macOS need neither, and appending them
-# unconditionally would fail the link there, so each is probed first.
+# runtime — the property that makes audio cost no new system dependency.
+#
+# Probed rather than branched, because unlike OpenGL above the *answer* differs
+# per platform but the question does not: link them where they exist. On
+# glibc both are system libraries nobody installs; macOS resolves `-lpthread`
+# into libSystem and needs no `-ldl`; MSYS2 supplies winpthreads. Appending
+# either unconditionally would break the link wherever it is absent.
 $libs = append_library($libs, 'pthread') if have_library('pthread')
 $libs = append_library($libs, 'dl') if have_library('dl')
 

@@ -1,4 +1,21 @@
-CC ?= gcc
+# `?=` does not do what it looks like here, which is why this is spelled out.
+#
+# `?=` assigns only when the variable is *undefined* — and make ships a built-in
+# default of `CC = cc`, which counts as defined. So `CC ?= gcc` never fired on
+# any platform, and every build this project has ever done used `cc`.
+#
+# Harmless on Linux and macOS, where `cc` is the compiler we want anyway. Not
+# harmless on Windows: under MSYS2 `/usr/bin/cc` is the msys-runtime gcc, which
+# targets a Cygwin-like ABI rather than native Windows, so it produces objects
+# RubyInstaller's Ruby cannot load. (Found by the first CI run — see
+# docs/plans/cross-platform-support.md.)
+#
+# `$(origin CC)` distinguishes make's own default from a real choice, so an
+# explicit `make CC=clang` or `CC=clang make` still wins.
+ifeq ($(origin CC),default)
+CC := gcc
+endif
+
 CFLAGS ?= -std=c17 -Wall -Wextra -g -fPIC
 
 # The engine sources live in ext/rgame_core/ (a Ruby extension directory) so
@@ -19,12 +36,39 @@ EXT_CORE_SOURCES := $(wildcard $(EXT_CORE_DIR)/*/*.c $(EXT_CORE_DIR)/*/*.h)
 
 SDL_CFLAGS := $(shell pkg-config --cflags sdl2)
 SDL_LIBS := $(shell pkg-config --libs sdl2)
-GL_LIBS := -lGL
 MATH_LIBS := -lm
-# miniaudio's threading, and the dlopen it uses to find ALSA or PulseAudio at
-# runtime. Both are in glibc; neither is a package anyone has to install. On
-# Windows and macOS miniaudio needs nothing linked at all.
+
+# How OpenGL and miniaudio are linked, which is the one thing in this file that
+# is genuinely per-platform.
+#
+# `uname -s` is the detection, because it needs no tool this file does not
+# already depend on ($(shell pkg-config ...) above assumes a shell). MSYS2
+# reports MINGW64_NT-… or MSYS_NT-… depending on which environment make was
+# started from, so the pattern matches a prefix rather than a fixed string.
+#
+#   OpenGL   -lGL on Linux and the BSDs; a framework on macOS; opengl32 on
+#            Windows, whose GL is an OS component rather than a package. All
+#            three expose the GL 1.1 entry points this renderer uses, so no
+#            extension loader is involved anywhere — see CLAUDE.md's
+#            Conventions on why the legacy profile is a deliberate choice.
+#
+#   Audio    miniaudio needs pthreads, and the dlopen it uses to find ALSA or
+#            PulseAudio at runtime. On glibc both are system libraries nobody
+#            installs. macOS wants pthread alone — it runtime-links CoreAudio
+#            and its dl* live in libSystem. Windows needs nothing at all:
+#            WASAPI is reached through LoadLibrary.
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S),Darwin)
+GL_LIBS := -framework OpenGL
+AUDIO_LIBS := -lpthread
+else ifneq (,$(filter MINGW% MSYS% CYGWIN%,$(UNAME_S)))
+GL_LIBS := -lopengl32
+AUDIO_LIBS :=
+else
+GL_LIBS := -lGL
 AUDIO_LIBS := -lpthread -ldl
+endif
 
 CHECK_CFLAGS := $(shell pkg-config --cflags check)
 CHECK_LIBS := $(shell pkg-config --libs check)
@@ -95,11 +139,21 @@ TEST_OBJS := $(BUILD_DIR)/test_main.o \
              $(BUILD_DIR)/recording_backend.o
 TEST_BIN := $(BUILD_DIR)/test_rgame
 
-EXT_CORE_SO := $(EXT_CORE_DIR)/core_ext.so
-EXT_UTIL_SO := $(EXT_UTIL_DIR)/util_ext.so
+# What a compiled extension is called here. `.so` on Linux and Windows, but
+# `.bundle` on macOS — so this is asked of the running Ruby rather than
+# hardcoded or branched on the host, which means it tracks whatever Ruby will
+# actually go looking for at `require` time.
+#
+# Falling back to `so` keeps `make test` working with no Ruby installed: the
+# fallback can only be wrong on a machine where the ext targets could not have
+# been built anyway, and those fail loudly at `ruby extconf.rb`.
+DLEXT := $(shell ruby -e 'print RbConfig::CONFIG["DLEXT"]' 2>/dev/null || echo so)
 
-LIB_CORE_SO := lib/rgame/core_ext.so
-LIB_UTIL_SO := lib/rgame/util_ext.so
+EXT_CORE_SO := $(EXT_CORE_DIR)/core_ext.$(DLEXT)
+EXT_UTIL_SO := $(EXT_UTIL_DIR)/util_ext.$(DLEXT)
+
+LIB_CORE_SO := lib/rgame/core_ext.$(DLEXT)
+LIB_UTIL_SO := lib/rgame/util_ext.$(DLEXT)
 
 .PHONY: all run test clean ext ext-core ext-util ext-clean
 
