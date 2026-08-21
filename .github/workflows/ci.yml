@@ -98,20 +98,6 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install sdl2 check pkg-config
 
-      # RubyInstaller ships MSYS2; `ridk exec` is what runs a command inside its
-      # mingw environment, where pacman and the toolchain live.
-      #
-      # Unverified — nobody here has a Windows machine, and which of these
-      # invocations is right is one of the things the first run settles. That is
-      # what this job is for.
-      - name: Install system dependencies (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          ridk exec pacman --sync --noconfirm --needed `
-            mingw-w64-ucrt-x86_64-SDL2 `
-            mingw-w64-ucrt-x86_64-check
-
       # Derived from .ruby-version rather than written out here, so the pin has
       # one home. It cannot be handed to setup-ruby directly: mise writes the
       # file as `ruby 4.0.5`, which is not the bare version string that action
@@ -125,6 +111,58 @@ jobs:
         with:
           ruby-version: ${{ steps.ruby.outputs.version }}
           bundler-cache: true
+
+      # RubyInstaller ships MSYS2; `ridk exec` runs a command inside its mingw
+      # environment, where pacman and the native toolchain live.
+      #
+      # **This must come after setup-ruby**, and that is probably the whole
+      # story behind the first run's failure. `ridk` belongs to a Ruby
+      # installation, and the Windows runner image ships one preinstalled — so
+      # running this earlier resolved `ridk` against *that* Ruby and configured
+      # *its* MSYS2, which is not the one the build then used. Ordering it here
+      # makes the question moot: the only Ruby on PATH is the one we test with.
+      #
+      # `pkgconf` and `gcc` are listed even though something usually provides
+      # them, because the first CI run failed on precisely the assumption that
+      # the toolchain on PATH was the ucrt64 one. `--needed` makes an
+      # already-installed package a no-op, so listing them costs nothing.
+      - name: Install system dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ridk exec pacman --sync --noconfirm --needed `
+            mingw-w64-ucrt-x86_64-SDL2 `
+            mingw-w64-ucrt-x86_64-check `
+            mingw-w64-ucrt-x86_64-pkgconf `
+            mingw-w64-ucrt-x86_64-gcc
+
+      # MSYS2 is several environments in one installation, and the packages
+      # above went into `ucrt64` — the one that builds *native* Windows
+      # binaries, which is what RubyInstaller's Ruby can load.
+      #
+      # The first CI run proved the build was not running there. pacman
+      # succeeded, yet pkg-config then found neither sdl2 nor check, and the
+      # compile came out as `cc` — which under MSYS2 is `/usr/bin/cc`, the
+      # msys-runtime gcc targeting a Cygwin-like ABI. Both symptoms are one
+      # cause: `/usr/bin` was ahead of (or instead of) `/ucrt64/bin` on PATH, so
+      # every tool resolved to the wrong environment.
+      #
+      # Prepending `/ucrt64/bin` fixes both at once. It is prepended rather than
+      # substituted because msys's own `make` (there is no `make` in ucrt64,
+      # only `mingw32-make`) still has to be reachable — driving a native
+      # compiler from msys make is the combination RubyInstaller itself uses.
+      #
+      # `cygpath -w` converts the MSYS path to the Windows form GITHUB_PATH
+      # wants. The Makefile's `CC` no longer needs setting here: it forces
+      # `gcc` now, for the same reason this step exists.
+      - name: Put the UCRT64 toolchain first on PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bin = (ridk exec cygpath -w /ucrt64/bin | Select-Object -Last 1).Trim()
+          if (-not $bin) { throw 'could not resolve /ucrt64/bin' }
+          Write-Host "prepending $bin"
+          $bin | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
 
       - name: C unit tests (Check)
         shell: bash

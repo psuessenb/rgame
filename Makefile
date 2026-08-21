@@ -1,4 +1,21 @@
-CC ?= gcc
+# `?=` does not do what it looks like here, which is why this is spelled out.
+#
+# `?=` assigns only when the variable is *undefined* — and make ships a built-in
+# default of `CC = cc`, which counts as defined. So `CC ?= gcc` never fired on
+# any platform, and every build this project has ever done used `cc`.
+#
+# Harmless on Linux and macOS, where `cc` is the compiler we want anyway. Not
+# harmless on Windows: under MSYS2 `/usr/bin/cc` is the msys-runtime gcc, which
+# targets a Cygwin-like ABI rather than native Windows, so it produces objects
+# RubyInstaller's Ruby cannot load. (Found by the first CI run — see
+# docs/plans/cross-platform-support.md.)
+#
+# `$(origin CC)` distinguishes make's own default from a real choice, so an
+# explicit `make CC=clang` or `CC=clang make` still wins.
+ifeq ($(origin CC),default)
+CC := gcc
+endif
+
 CFLAGS ?= -std=c17 -Wall -Wextra -g -fPIC
 
 # The engine sources live in ext/rgame_core/ (a Ruby extension directory) so

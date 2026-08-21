@@ -1,9 +1,10 @@
 # Cross-platform support — macOS and Windows
 
-**Status: step 0 landed; steps 1–7 outstanding.** Written 2026-08-21, from a
-read of the build wiring, the engine C, and the spec scaffolding as they stand
-on `main`. The CI matrix that the rest of this plan depends on is in place —
-see "Implementation order", step 0.
+**Status: step 0 landed and its first run read; steps 1–8 outstanding.**
+Written 2026-08-21 from a read of the build wiring, the engine C, and the spec
+scaffolding; **revised after the first CI run**, which reordered the work and
+falsified one of the three build findings. Anything below marked *(sketch)* was
+never executed; anything marked *(measured)* came off a real runner.
 
 The question this answers: *what would the gem need to run on macOS and Windows,
 and can that work be done on Linux and merely tested elsewhere?*
@@ -24,10 +25,10 @@ need a modern-GL port before Windows could work at all, because Windows'
 
 So the work splits cleanly:
 
-| | Scope | Where it fails today |
+| | Scope | Where it fails today *(measured)* |
 |---|---|---|
-| **A. Build wiring** | 3 items, small, mechanical | `gem install` on a Mac aborts on a missing header |
-| **B. Test scaffolding** | 5 items, most of the effort | the suite goes green while covering less |
+| **A. Build wiring** | 3 items, small, mechanical | macOS cannot link `make test`: `ld: library 'GL' not found` |
+| **B. Test scaffolding** | 5 items, most of the effort | unreached — nothing Ruby-side runs until A is done |
 | **C. Deliberate decisions** | 4 open questions | not blocking, but they shape A and B |
 
 ## What is already portable, and why
@@ -76,10 +77,24 @@ cannot ship. Nothing to do.
 
 ## A. Build wiring — what actually breaks
 
-### A1. `#include <SDL2/SDL.h>` — fails on macOS, and fails first
+### A1. `#include <SDL2/SDL.h>` — optional robustness *(measured: not a blocker)*
 
-This is the first thing that breaks and the least obvious. Look at what
-pkg-config actually publishes:
+**This was the sketch's headline finding and the first CI run falsified it.**
+On `macos-14` with Homebrew's SDL2, every SDL-including source compiled: the
+run got as far as linking `build/test_rgame`, which requires
+`build/librgame_core.a`, which requires `app.o`, `gl_backend.o`, `image.o` and
+`font_atlas.o` — all five of the includes below. `-Wl,-framework,Cocoa` on that
+link line confirms Homebrew's `sdl2.pc` was found and used.
+
+The reasoning was sound and the premise was wrong: it generalised from the
+*Debian* `sdl2.pc` read on the development machine, and Homebrew's evidently
+publishes the parent include directory as well. **A1 is therefore not required
+and not urgent.** It remains defensible as robustness — an SDL2 framework
+install, MacPorts, or a non-default Homebrew prefix could still expose it — so
+it stays in the plan, at the back.
+
+The original analysis follows, since the mechanism is real even where the
+conclusion was not. Look at what pkg-config publishes on Debian:
 
 ```
 $ pkg-config --cflags sdl2
@@ -130,10 +145,23 @@ own. The value of that abort is that a missing GL surfaces as one sentence
 rather than as an undefined `glClear` at the end of a long build, and that value
 is highest on the platforms nobody here has tested.
 
-### A3. The root Makefile hardcodes Linux twice
+### A3. The root Makefile hardcodes Linux — *(measured: this is what fails first)*
 
-[`Makefile`](../../Makefile) is developer-only — `gem install` never reads it —
-but developing *on* macOS or Windows needs it:
+**Promoted from last to first by the CI run.** The sketch filed this as
+developer-only and "lower priority than 1–2 if nobody is doing that yet". That
+was wrong for a structural reason worth naming:
+
+> **CI runs `make test` before anything else, and `make test` uses the root
+> Makefile, not `extconf.rb`.**
+
+So the root Makefile is the first thing *every* platform hits, on every run —
+not a convenience for someone developing on a Mac. macOS died here with
+`ld: library 'GL' not found`, at the `$(TEST_BIN)` link.
+
+Note `-lpthread -ldl` survived that same link: macOS accepts both. Only the GL
+branch is strictly load-bearing, but branch both rather than depend on that.
+
+The items:
 
 - `GL_LIBS := -lGL` and `AUDIO_LIBS := -lpthread -ldl`, same three-way branch as
   A2.
@@ -146,6 +174,15 @@ but developing *on* macOS or Windows needs it:
 
 `pkg-config --cflags check` for the Check suite works on Homebrew and MSYS2,
 so the test binary's build needs nothing beyond the same GL/audio branch.
+
+**Already fixed, ahead of the rest of A3:** `CC ?= gcc` at the top of the
+Makefile had never taken effect on any platform. `?=` assigns only when a
+variable is undefined, and make ships a built-in `CC = cc` whose origin counts
+as defined — so every build this project has ever done used `cc`. Harmless on
+Linux and macOS, where `cc` is the right compiler; not harmless under MSYS2,
+where `/usr/bin/cc` is the msys-runtime gcc targeting a Cygwin-like ABI and
+produces objects RubyInstaller's Ruby cannot load. It now forces `gcc` through
+an `$(origin CC)` guard that still yields to an explicit `make CC=clang`.
 
 ## B. Test scaffolding — where the effort actually is
 
@@ -269,13 +306,21 @@ would not predict a real machine.
 Dependency shape, so the ordering rationale is visible:
 
 ```
-0 CI matrix ─┬─→ 1 SDL includes ─→ 2 GL linking ─→ 3 Makefile ─┐
-             └─→ 4 dlopen names ─→ 5 pixel read ───────────────┴→ 6 key injection
-                                                                └→ 7 packaging decision
+0 CI matrix ─→ 1 root Makefile ─→ 2 extconf GL ─┬─→ 4 dlopen names ─→ 5 pixel read ─→ ported: true
+   (landed)      (GL + DLEXT)       (gem build) │
+                                                └─→ 3 /tmp fixture  [Windows only]
+
+                       optional, unblocked once 1–2 land:  6 SDL.h   7 key injection   8 packaging
 ```
 
-Steps 1–3 are the gem building at all; 4–5 are the Core suite going green
-honestly; 6–7 are optional and can be dropped without blocking anything.
+Steps 1–2 are the C and the gem building at all; 3–5 are the two suites going
+green honestly; 6–8 are optional and can be dropped without blocking anything.
+
+**This ordering is the first run's, not the sketch's.** The sketch put the SDL
+includes first and the root Makefile last; both were wrong, because `make test`
+runs before everything and reads the root Makefile. Ordering a port by "which
+file looks most fundamental" is guessing — ordering it by which command CI runs
+first is not.
 
 Each step should land with a **"Landed" note** recording how the result differed
 from the sketch, the way `docs/plans/gosu-replacement/03-roadmap.md` does —
@@ -321,50 +366,103 @@ Verified locally by running the Ubuntu leg's exact five commands in order:
 The macOS and Windows legs are unverified by construction — that is what the
 first push is for.
 
-**The Windows dependency step is a guess** (`ridk exec pacman …` with the
-`ucrt64` package prefix). Nobody here has a Windows machine; which invocation is
-right is one of the things the first run settles, and it is expected to need a
-correction before the job gets as far as the SDL include.
+**The Windows dependency step was a guess** (`ridk exec pacman …` with the
+`ucrt64` package prefix), and it needed correcting — though not in the way
+predicted. See below.
 
-### Step 1 — `"SDL.h"` everywhere
+#### What the first run established
 
-Five includes plus the `extconf.rb` probe. Linux must stay green — that is the
-only assertion available here.
+**Ubuntu went green**, which retires all three of the unknowns that local
+verification could not cover:
 
-### Step 2 — GL linking per platform
+- **Ruby 4.0.5 resolves in `ruby/setup-ruby`.** This was the highest-stakes
+  binary fact in the whole plan — had it been missing, every leg would have died
+  at the same step and the feedback loop would have been dead on arrival. All
+  three legs got past it.
+- **The audio suite passes with no sound device.** CLAUDE.md has claimed since
+  the audio work landed that miniaudio's null-device fallback makes the same 26
+  tests run "against PulseAudio on a desktop and against silence in CI". There
+  was no CI, so the sentence had never been executed. It is now true rather than
+  merely intended.
+- **Xvfb + llvmpipe work on the runner's Mesa**, so `rake spec:core` — pixel
+  readback included — is not tied to this one machine's graphics stack.
 
-`extconf.rb`, per A2. Windows should now build and Ubuntu must not regress;
-macOS may still need iteration on the framework probe.
+**macOS falsified A1 and promoted A3.** It compiled every SDL-including source
+and died at `ld: library 'GL' not found`. Both sections are rewritten above.
 
-**Done means `ported: true` for macOS in the CI matrix**, in the same commit.
-Leaving it false keeps a working platform non-blocking, which is how a platform
-silently rots back out; see the flag's comment in the workflow.
+**Windows was failing on the environment, not the packages.** pacman *succeeded*
+— job-level `continue-on-error` does not skip past a failed step, so the job
+reaching `make test` proves it exited 0 — yet `pkg-config` then found neither
+`sdl2` nor `check`, and the compile came out as `cc`. Two symptoms, one cause:
+the build was running in MSYS2's msys environment rather than ucrt64. The most
+likely reason is that the dependency step ran *before* `ruby/setup-ruby`, so
+`ridk` resolved against the Windows runner image's **preinstalled** Ruby and
+configured that installation's MSYS2 instead of the one the build used.
 
-### Step 3 — Makefile
+Two fixes went in together, and either would be incomplete alone: the Windows
+steps now run **after** setup-ruby, and `/ucrt64/bin` is prepended to
+`GITHUB_PATH` so every tool resolves to the native-Windows environment. The
+`CC ?= gcc` no-op in the root Makefile (see A3) was the second half of the `cc`
+symptom and is fixed there rather than papered over with an env var here.
 
-`DLEXT` and the GL/audio branch, per A3. This is what lets somebody develop *on*
-a Mac rather than only install there. Lower priority than 1–2 if nobody is
-doing that yet.
+### Step 1 — root Makefile: GL and audio per platform (A3)
 
-**Done means `ported: true` for Windows**, on the same terms as step 2 —
-Windows needs this step as well as 1–2 before `make ext` works there at all.
+`-lGL` → `-framework OpenGL` / `-lopengl32`, and the `DLEXT` suffix for the
+`make ext` copy targets. **This is what macOS is stuck on right now**, and
+Windows will hit it immediately after its environment fix lands.
 
-### Step 4 — dlopen names in the spec support
+First because `make test` is the first thing CI runs and it reads this file —
+the reordering the first run forced.
 
-`rendered_frame.rb` and `virtual_gamepad.rb`, per B1. Small, and unblocks
-reading what the Core suite is actually doing on the other two platforms.
+### Step 2 — `extconf.rb`: GL linking per platform (A2)
 
-### Step 5 — read pixels before the swap
+The same three-way branch, in the file `gem install` actually runs. Keep the
+aborts and make them platform-specific: naming the package to install is worth
+most on the platforms nobody here can debug.
 
-Per B2. Do this *before* interpreting any macOS/Windows pixel-spec failure, so a
-harness assumption cannot be mistaken for a renderer bug.
+macOS's next wall after step 1, since `have_library('GL', 'glClear')` is what
+stands between it and a built extension.
 
-### Step 6 — Windows key injection (optional)
+### Step 3 — the vorbis fixture's `/tmp` (B4)
+
+Windows-only, but it blocks `make test` there, so it sits ahead of everything
+Ruby-side. macOS is unaffected.
+
+### Step 4 — dlopen names in the spec support (B1)
+
+`rendered_frame.rb` and `virtual_gamepad.rb`. First step where `rake spec:core`
+can get anywhere on either platform.
+
+### Step 5 — read pixels before the swap (B2)
+
+Do this *before* interpreting any macOS or Windows pixel-spec failure, so a
+harness assumption cannot be mistaken for a renderer bug. Real GPU drivers are
+free to page-flip; llvmpipe's copy-swap is what the current read relies on.
+
+### Flip `ported: true` — per platform, when its leg is actually green
+
+Not attached to a single step, because a leg goes green only once *all* of
+1–5 that apply to it are done. The sketch pinned this to steps 2 and 3, which
+was wrong: `rake spec:core` runs on every leg, so the spec scaffolding gates it
+just as much as the compiler flags do.
+
+Leaving a working platform marked unported is how it silently rots back out —
+`continue-on-error` means nobody would notice it break again. See the flag's
+comment in [`ci.yml`](../../.github/workflows/ci.yml).
+
+### Step 6 — `"SDL.h"` robustness (A1, optional)
+
+Demoted by the first run from "the thing that breaks first" to "insurance
+against SDL2 installed somewhere Homebrew does not put it". Cheap, still
+defensible, no longer urgent.
+
+### Step 7 — Windows key injection (optional)
 
 `SendInput` via Fiddle, per B3. macOS CGEvent is deliberately **not** scheduled:
-it cannot run on CI and would be exercised only by a human at a desk.
+it needs an accessibility permission no CI runner can grant, so it would be
+exercised only by a human at a desk.
 
-### Step 7 — the packaging decision (see C1)
+### Step 8 — the packaging decision (see C1)
 
 ## C. Decisions to make deliberately
 
