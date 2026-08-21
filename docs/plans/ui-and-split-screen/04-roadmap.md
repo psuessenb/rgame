@@ -1218,6 +1218,77 @@ count stopping while it is open** — a frozen world produces no new camera
 positions, which 4b's per-clip translate count makes readable without any new
 instrumentation.
 
+**Landed.** `rake` green (318 C checks, 806 headless, 333 Core), RuboCop clean
+across 225 files. Driving the cutscene script:
+
+```
+draw calls
+      62  nine_slice         first(:panel, 90, 180, 460, 120)
+clips pushed
+  83 × [0, 0, 640, 480] — 12 distinct translate(s) inside
+  157 × [0, 0, 640, 240] — 101 distinct translate(s) inside
+  157 × [0, 240, 640, 240] — 46 distinct translate(s) inside
+```
+
+Two half-height viewports while the players walk, one screen-wide viewport for
+the 62 frames the cutscene is open, and the full-screen line carrying **twelve**
+distinct camera positions — eleven from before the second player joined, and
+exactly one for the whole cutscene, because the world is frozen. That is the
+freeze visible in data rather than by eye.
+
+`nine_slice` also appears for the first time in any example, which closes the
+coverage hole [`README.md`](README.md) §1 records: nothing had exercised
+`renderer.nine_slice` or `Core::UiAtlas` end to end since the old UI package was
+deleted.
+
+Landed as planned: `Node2D#paused` (skips `control` and `update`, still draws,
+no `abs_paused` needed), a cinematic camera bounded by the map, and a `Cutscene`
+node outside the `WorldView` that collapses the split, freezes the world and
+closes joining together.
+
+### The input vocabulary, expanded first
+
+Step 5 needed a key `Util::Controls` did not have, and the whole set was thin —
+nine keys and fifteen pad buttons. It now names **81 keys and 21 pad buttons**,
+generated from SDL's own headers rather than typed:
+
+- Letters, digits, punctuation, the function row, the navigation cluster,
+  arrows and modifiers — what a Western keyboard can be relied on to have.
+- Deliberately absent: the numpad (most laptops have none), the GUI key
+  (Windows on a PC, Command on a Mac), the print-screen cluster, and anything
+  layout-dependent.
+- Every pad button SDL knows, including the six only some hardware has
+  (`MISC1`, the four paddles, `TOUCHPAD`), which read as never pressed on a pad
+  without them.
+
+**All 102 are verified in both directions and neither guard was written for the
+occasion.** `app.c` and `gamepad.c` carry a `_Static_assert` per id against the
+SDL constant, so a wrong number fails the C build; `spec/rgame/util/controls_spec.rb`
+parses the header and compares every Ruby constant to it. Writing them by hand
+would have been 306 chances to typo; generating all three from one table and
+letting the existing guards check the result was the only sane way to do it.
+
+### An axis could not carry a d-pad, and that had been hiding
+
+**`InputMap`'s `axis:` took exactly one `[negative, positive]` pair.** The
+default `move_x` spent it on the arrow keys, so **a controller could not drive
+movement at all** — the d-pad had nowhere to bind. `buttons:` has always taken a
+list; an axis needed the same and did not have it.
+
+`axis:` now accepts a list of pairs, largest deflection wins, and the defaults
+bind arrows, WASD and the d-pad together. A device with only one of them reads
+0.0 for the rest, so the extra pairs cost nothing.
+
+**This means earlier evidence in this roadmap was thinner than it read.**
+`tools/drive/15_tiled_world_2p.rb` holds `PAD_DPAD_LEFT` and `PAD_DPAD_DOWN`,
+and those holds were **inert** — player two moved only during the script's
+`tilt AXIS_LEFT_X` segment. The split itself was never in doubt (two clips, two
+rects, two independent camera tracks, and the 41 distinct translates reported in
+4c were real analog movement), but the d-pad half of that script was proving
+nothing. With the fix the same script reports **161** distinct translates for
+player two rather than 41. Found only because the cutscene script leant on the
+d-pad and the report said "1 distinct translate(s) inside".
+
 ---
 
 ## Step 6 — A player's own screen, and the first menu

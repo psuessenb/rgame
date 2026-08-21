@@ -55,7 +55,7 @@ module RGame
 
         @map.bindings.each do |name, binding|
           @held[name] = any_down?(backend, binding.buttons) if binding.buttons
-          @axes[name] = axis_value(backend, binding) if binding.positive || binding.stick
+          @axes[name] = axis_value(backend, binding) if binding.pairs || binding.stick
         end
 
         @actions
@@ -93,12 +93,21 @@ module RGame
         digital.abs >= analog.abs ? digital : analog
       end
 
+      # The largest deflection across every pair bound to this axis. Several
+      # pairs is how the arrows, WASD and a d-pad all drive one action; a device
+      # with only one of them reads 0.0 for the rest, so the others cost nothing.
       # hot-path
       def digital_axis(backend, binding)
-        return 0.0 unless binding.positive
+        pairs = binding.pairs
+        return 0.0 if pairs.nil?
 
-        (backend.down?(binding.positive, device: @device) ? 1.0 : 0.0) -
-          (backend.down?(binding.negative, device: @device) ? 1.0 : 0.0)
+        best = 0.0
+        pairs.each do |pair|
+          value = (backend.down?(pair[1], device: @device) ? 1.0 : 0.0) -
+                  (backend.down?(pair[0], device: @device) ? 1.0 : 0.0)
+          best = value if value.abs > best.abs
+        end
+        best
       end
 
       # Rescaled rather than merely cut off, so the value ramps from zero as the

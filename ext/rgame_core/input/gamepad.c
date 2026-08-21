@@ -11,14 +11,68 @@ _Static_assert(RGAME_GAMEPAD_AXIS_COUNT == SDL_CONTROLLER_AXIS_MAX,
 
 /* Gamepad button ids are the gamepad range plus SDL's own button number, so
  * each named id must line up with the SDL constant it mirrors. */
-_Static_assert(RGAME_PAD_A == RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_A,
+_Static_assert(RGAME_PAD_A ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_A,
                "pad id must match SDL controller button");
-_Static_assert(RGAME_PAD_START == RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_START,
+_Static_assert(RGAME_PAD_B ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_B,
                "pad id must match SDL controller button");
-_Static_assert(RGAME_PAD_DPAD_UP == RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_DPAD_UP,
+_Static_assert(RGAME_PAD_X ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_X,
+               "pad id must match SDL controller button");
+_Static_assert(RGAME_PAD_Y ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_Y,
+               "pad id must match SDL controller button");
+_Static_assert(RGAME_PAD_BACK ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_BACK,
+               "pad id must match SDL controller button");
+_Static_assert(RGAME_PAD_GUIDE ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_GUIDE,
+               "pad id must match SDL controller button");
+_Static_assert(RGAME_PAD_START ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_START,
+               "pad id must match SDL controller button");
+_Static_assert(RGAME_PAD_LEFT_STICK ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_LEFTSTICK,
+               "pad id must match SDL controller button");
+_Static_assert(RGAME_PAD_RIGHT_STICK ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_RIGHTSTICK,
+               "pad id must match SDL controller button");
+_Static_assert(RGAME_PAD_LEFT_SHOULDER ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_LEFTSHOULDER,
+               "pad id must match SDL controller button");
+_Static_assert(RGAME_PAD_RIGHT_SHOULDER ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_RIGHTSHOULDER,
+               "pad id must match SDL controller button");
+_Static_assert(RGAME_PAD_DPAD_UP ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_DPAD_UP,
+               "pad id must match SDL controller button");
+_Static_assert(RGAME_PAD_DPAD_DOWN ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_DPAD_DOWN,
+               "pad id must match SDL controller button");
+_Static_assert(RGAME_PAD_DPAD_LEFT ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_DPAD_LEFT,
                "pad id must match SDL controller button");
 _Static_assert(RGAME_PAD_DPAD_RIGHT ==
                    RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_DPAD_RIGHT,
+               "pad id must match SDL controller button");
+_Static_assert(RGAME_PAD_MISC1 ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_MISC1,
+               "pad id must match SDL controller button");
+_Static_assert(RGAME_PAD_PADDLE1 ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_PADDLE1,
+               "pad id must match SDL controller button");
+_Static_assert(RGAME_PAD_PADDLE2 ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_PADDLE2,
+               "pad id must match SDL controller button");
+_Static_assert(RGAME_PAD_PADDLE3 ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_PADDLE3,
+               "pad id must match SDL controller button");
+_Static_assert(RGAME_PAD_PADDLE4 ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_PADDLE4,
+               "pad id must match SDL controller button");
+_Static_assert(RGAME_PAD_TOUCHPAD ==
+                   RGAME_BUTTON_GAMEPAD_FIRST + SDL_CONTROLLER_BUTTON_TOUCHPAD,
                "pad id must match SDL controller button");
 _Static_assert(RGAME_AXIS_LEFT_X == SDL_CONTROLLER_AXIS_LEFTX, "axis id must match SDL axis");
 _Static_assert(RGAME_AXIS_TRIGGER_RIGHT == SDL_CONTROLLER_AXIS_TRIGGERRIGHT,

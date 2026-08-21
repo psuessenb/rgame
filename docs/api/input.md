@@ -242,13 +242,38 @@ The id vocabulary. Available from `require 'rgame'` **and** from
 `require 'rgame/core'`, because these are plain integers with nothing behind
 them — a game's configuration screen can name a key without pulling in a window.
 
-**Keys** — `KEY_LEFT`, `KEY_RIGHT`, `KEY_UP`, `KEY_DOWN`, `KEY_RETURN`,
-`KEY_SPACE`, `KEY_ESCAPE`, `KEY_F1`, `KEY_F2`.
+**Keys** — what a Western keyboard can be relied on to have, 81 of them:
+
+| | |
+|---|---|
+| Letters | `KEY_A` … `KEY_Z` |
+| Digits | `KEY_1` … `KEY_9`, `KEY_0` |
+| Whitespace and editing | `KEY_RETURN`, `KEY_ESCAPE`, `KEY_BACKSPACE`, `KEY_TAB`, `KEY_SPACE` |
+| Punctuation | `KEY_MINUS`, `KEY_EQUALS`, `KEY_LEFTBRACKET`, `KEY_RIGHTBRACKET`, `KEY_BACKSLASH`, `KEY_SEMICOLON`, `KEY_APOSTROPHE`, `KEY_GRAVE`, `KEY_COMMA`, `KEY_PERIOD`, `KEY_SLASH` |
+| Function row | `KEY_CAPSLOCK`, `KEY_F1` … `KEY_F12` |
+| Navigation | `KEY_INSERT`, `KEY_HOME`, `KEY_PAGEUP`, `KEY_DELETE`, `KEY_END`, `KEY_PAGEDOWN` |
+| Arrows | `KEY_LEFT`, `KEY_RIGHT`, `KEY_UP`, `KEY_DOWN` |
+| Modifiers | `KEY_LCTRL`, `KEY_LSHIFT`, `KEY_LALT`, `KEY_RCTRL`, `KEY_RSHIFT`, `KEY_RALT` |
+
+**A scancode is a position, not a letter.** `KEY_A` is the key marked A on a
+QWERTY board and Q on AZERTY — which is what you want for `WASD` movement, and
+what a rebinding screen has to explain to the player. The engine only ever
+compares numbers.
+
+**Deliberately absent**: the numpad (most laptops have none), the GUI key
+(Windows on a PC, Command on a Mac), the print-screen cluster, and anything
+whose position depends on the layout. Adding one is a `#define` in
+`ext/rgame_core/include/rgame/core.h`, a `_Static_assert` against the SDL
+scancode, and a constant here — and the spec below checks all three agree.
 
 **Gamepad buttons** — `PAD_A`, `PAD_B`, `PAD_X`, `PAD_Y`, `PAD_BACK`,
 `PAD_GUIDE`, `PAD_START`, `PAD_LEFT_STICK`, `PAD_RIGHT_STICK`,
 `PAD_LEFT_SHOULDER`, `PAD_RIGHT_SHOULDER`, `PAD_DPAD_UP`, `PAD_DPAD_DOWN`,
 `PAD_DPAD_LEFT`, `PAD_DPAD_RIGHT`.
+
+Plus the ones only some hardware has, which read as never pressed on a pad
+without them: `PAD_MISC1` (share/capture/microphone), `PAD_PADDLE1` …
+`PAD_PADDLE4` (Xbox Elite), `PAD_TOUCHPAD` (PS4/PS5).
 
 **Axes** — `AXIS_LEFT_X`, `AXIS_LEFT_Y`, `AXIS_RIGHT_X`, `AXIS_RIGHT_Y`,
 `AXIS_TRIGGER_LEFT`, `AXIS_TRIGGER_RIGHT`. Sticks read −1.0 to 1.0 with **y

@@ -32,8 +32,22 @@ module RGame
       # neither.
       attr_accessor :input_owner
 
+      # A paused node skips `control` and `update` — and so does everything
+      # under it, because a subtree is only ever reached through its parent.
+      # It still **draws**: pausing is about time, not visibility, which is what
+      # lets a frozen world sit under a cutscene overlay that keeps animating.
+      #
+      #   world_view.paused = true    # the world stops; the overlay above it does not
+      #
+      # There is no `abs_paused` to go with `abs_input_owner`. Ownership has to
+      # be resolved because a node needs to know whose input it reads even when
+      # its parent claims nobody; pausing needs no resolution at all, because a
+      # paused node simply never descends.
+      attr_accessor :paused
+
       def initialize(x: 0, y: 0, z: 0, angle: 0, width: 0, height: 0, input_owner: nil)
         @input_owner = input_owner
+        @paused = false
         @x = x
         @y = y
         @z = z
@@ -163,6 +177,8 @@ module RGame
       # The source is what descends, not the resolved snapshot, because
       # ownership can change further down.
       def control(input)
+        return if @paused
+
         resolve_origin
         actions = input.actions_for(@abs_input_owner)
         @components.each { it.control(actions) }
@@ -174,6 +190,8 @@ module RGame
       # time, but for now works in one step). This runs second in a
       # game tick
       def update(dt)
+        return if @paused
+
         resolve_origin
         @components.each { it.update(dt) }
         on_update(dt)

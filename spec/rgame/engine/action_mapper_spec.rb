@@ -82,6 +82,40 @@ RSpec.describe RGame::Engine::ActionMapper do
     end
   end
 
+  # Several pairs on one axis: the arrows, WASD and a d-pad all walking. A
+  # device with only one of them reads 0.0 for the rest, so binding all three
+  # costs a pad player nothing.
+  describe 'an axis with several button pairs' do
+    let(:map) do
+      RGame::Engine::InputMap.new(
+        move_x: { axis: [[RGame::Util::Controls::KEY_LEFT, RGame::Util::Controls::KEY_RIGHT],
+                         [RGame::Util::Controls::PAD_DPAD_LEFT,
+                          RGame::Util::Controls::PAD_DPAD_RIGHT]] }
+      )
+    end
+
+    it 'reads the first pair' do
+      backend.hold(controls::KEY_RIGHT)
+      expect(mapper.poll(backend).axis(:move_x)).to eq(1.0)
+    end
+
+    it 'reads the second pair, on the device that has it' do
+      pad = controls.gamepad(0)
+      backend.hold(controls::PAD_DPAD_LEFT, device: pad)
+      expect(mapper(device: pad).poll(backend).axis(:move_x)).to eq(-1.0)
+    end
+
+    it 'takes the largest deflection when two pairs disagree' do
+      backend.hold(controls::KEY_RIGHT, controls::PAD_DPAD_LEFT)
+      expect(mapper.poll(backend).axis(:move_x)).to eq(1.0)
+    end
+
+    it 'is neutral when a pair cancels itself out' do
+      backend.hold(controls::KEY_LEFT, controls::KEY_RIGHT)
+      expect(mapper.poll(backend).axis(:move_x)).to eq(0.0)
+    end
+  end
+
   describe 'an analog axis' do
     let(:pad) { RGame::Util::Controls.gamepad(0) }
 

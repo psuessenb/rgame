@@ -19,7 +19,7 @@ module RGame
     # | Key | Reads as | Meaning |
     # |---|---|---|
     # | `buttons:` | `held?` | down if *any* listed id is down |
-    # | `axis:` | `axis` | `[negative_id, positive_id]` — a digital axis from two buttons |
+    # | `axis:` | `axis` | `[negative_id, positive_id]`, or a list of such pairs — a digital axis from buttons |
     # | `stick:` | `axis` | an analog axis id, for a real stick or trigger |
     #
     # ## One table serves every device
@@ -29,6 +29,19 @@ module RGame
     # input** — asking a gamepad about a keyboard scancode is `false`, never the
     # keyboard's answer (see docs/api/input.md). So `fire` can be "Space or A"
     # and each player's device picks out the half that applies to it.
+    #
+    # ## An axis can have several pairs, like a button can have several ids
+    #
+    # `axis: [KEY_LEFT, KEY_RIGHT]` is the common case and stays a bare pair.
+    # A list of pairs binds more than one control to the same axis:
+    #
+    #   move_x: { axis: [[Controls::KEY_LEFT, Controls::KEY_RIGHT],
+    #                    [Controls::PAD_DPAD_LEFT, Controls::PAD_DPAD_RIGHT]],
+    #             stick: Controls::AXIS_LEFT_X }
+    #
+    # Without it a d-pad cannot drive movement at all, because the same action
+    # already needed the arrow keys. The largest deflection wins, so the pairs
+    # cost nothing on a device that has only one of them.
     #
     # This replaces a two-stage scheme in which a game's action map named
     # RGame::Core::Input's action names, which named physical ids — two tables in
@@ -46,7 +59,11 @@ module RGame
 
       # One action's resolved sources. Built once, at construction, so polling
       # walks plain attribute reads and allocates nothing.
-      Binding = Struct.new(:buttons, :negative, :positive, :stick)
+      #
+      # `buttons` is "held if any of these is down"; `pairs` is a list of
+      # `[negative, positive]` button pairs, each a digital axis; `stick` is an
+      # analog axis id.
+      Binding = Struct.new(:buttons, :pairs, :stick)
 
       SOURCES = %i[buttons axis stick].freeze
 
@@ -72,8 +89,14 @@ module RGame
       # stick, and a fire button. A game that wants exactly this declares
       # nothing at all.
       DEFAULT_ACTIONS = {
-        move_x: { axis: [Controls::KEY_LEFT, Controls::KEY_RIGHT], stick: Controls::AXIS_LEFT_X },
-        move_y: { axis: [Controls::KEY_UP, Controls::KEY_DOWN], stick: Controls::AXIS_LEFT_Y },
+        move_x: { axis: [[Controls::KEY_LEFT, Controls::KEY_RIGHT],
+                         [Controls::KEY_A, Controls::KEY_D],
+                         [Controls::PAD_DPAD_LEFT, Controls::PAD_DPAD_RIGHT]],
+                  stick: Controls::AXIS_LEFT_X },
+        move_y: { axis: [[Controls::KEY_UP, Controls::KEY_DOWN],
+                         [Controls::KEY_W, Controls::KEY_S],
+                         [Controls::PAD_DPAD_UP, Controls::PAD_DPAD_DOWN]],
+                  stick: Controls::AXIS_LEFT_Y },
         fire: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] }
       }.freeze
 
@@ -103,7 +126,7 @@ module RGame
         @bindings.to_h do |name, binding|
           entry = {}
           entry[:buttons] = binding.buttons if binding.buttons
-          entry[:axis] = [binding.negative, binding.positive] if binding.positive
+          entry[:axis] = binding.pairs.size == 1 ? binding.pairs.first : binding.pairs if binding.pairs
           entry[:stick] = binding.stick if binding.stick
           [name, entry]
         end
@@ -121,10 +144,10 @@ module RGame
         raise ArgumentError, "#{name}: unknown source #{unknown.first.inspect}" unless unknown.empty?
 
         buttons = freeze_ids(name, entry[:buttons])
-        negative, positive = axis_pair(name, entry[:axis])
-        raise ArgumentError, "#{name}: no buttons, axis or stick" if buttons.nil? && positive.nil? && entry[:stick].nil?
+        pairs = axis_pairs(name, entry[:axis])
+        raise ArgumentError, "#{name}: no buttons, axis or stick" if buttons.nil? && pairs.nil? && entry[:stick].nil?
 
-        Binding.new(buttons, negative, positive, entry[:stick]).freeze
+        Binding.new(buttons, pairs, entry[:stick]).freeze
       end
 
       def freeze_ids(name, ids)
@@ -134,14 +157,21 @@ module RGame
         ids.dup.freeze
       end
 
-      def axis_pair(name, pair)
-        return [nil, nil] if pair.nil?
+      # Accepts one `[negative, positive]` pair or a list of them. A bare pair
+      # is the common case and stays readable; a list is what lets the arrows,
+      # WASD and a d-pad all drive one axis.
+      def axis_pairs(name, axis)
+        return nil if axis.nil?
 
-        unless pair.is_a?(Array) && pair.size == 2
-          raise ArgumentError, "#{name}: axis must be [negative_id, positive_id]"
-        end
+        pairs = axis.is_a?(Array) && axis.first.is_a?(Array) ? axis : [axis]
+        pairs.each { |pair| check_pair(name, pair) }
+        pairs.map { |pair| pair.dup.freeze }.freeze
+      end
 
-        pair
+      def check_pair(name, pair)
+        return if pair.is_a?(Array) && pair.size == 2
+
+        raise ArgumentError, "#{name}: axis must be [negative_id, positive_id], or a list of those"
       end
     end
   end

@@ -52,17 +52,93 @@ void rgame_app_destroy(rgame_app *app);
 #define RGAME_BUTTON_GAMEPAD_FIRST 0x1000
 #define RGAME_BUTTON_GAMEPAD_LAST 0x10FF
 
-/* Keyboard ids == SDL scancodes. Only the keys the engine actually binds are
- * named; adding one is a #define plus a _Static_assert in app.c. */
+/* Keyboard ids == SDL scancodes, which are physical *positions* rather than
+ * letters: RGAME_KEY_A is the key marked A on a QWERTY board and Q on AZERTY.
+ * The set is what a Western keyboard can be relied on to have. No numpad (most
+ * laptops have none), no GUI/Windows/Command key, no print-screen cluster, and
+ * nothing whose position depends on the layout. Those can be added when
+ * something needs them; each is a #define plus a _Static_assert in app.c. */
+#define RGAME_KEY_A 4
+#define RGAME_KEY_B 5
+#define RGAME_KEY_C 6
+#define RGAME_KEY_D 7
+#define RGAME_KEY_E 8
+#define RGAME_KEY_F 9
+#define RGAME_KEY_G 10
+#define RGAME_KEY_H 11
+#define RGAME_KEY_I 12
+#define RGAME_KEY_J 13
+#define RGAME_KEY_K 14
+#define RGAME_KEY_L 15
+#define RGAME_KEY_M 16
+#define RGAME_KEY_N 17
+#define RGAME_KEY_O 18
+#define RGAME_KEY_P 19
+#define RGAME_KEY_Q 20
+#define RGAME_KEY_R 21
+#define RGAME_KEY_S 22
+#define RGAME_KEY_T 23
+#define RGAME_KEY_U 24
+#define RGAME_KEY_V 25
+#define RGAME_KEY_W 26
+#define RGAME_KEY_X 27
+#define RGAME_KEY_Y 28
+#define RGAME_KEY_Z 29
+#define RGAME_KEY_1 30
+#define RGAME_KEY_2 31
+#define RGAME_KEY_3 32
+#define RGAME_KEY_4 33
+#define RGAME_KEY_5 34
+#define RGAME_KEY_6 35
+#define RGAME_KEY_7 36
+#define RGAME_KEY_8 37
+#define RGAME_KEY_9 38
+#define RGAME_KEY_0 39
 #define RGAME_KEY_RETURN 40
 #define RGAME_KEY_ESCAPE 41
+#define RGAME_KEY_BACKSPACE 42
+#define RGAME_KEY_TAB 43
 #define RGAME_KEY_SPACE 44
+#define RGAME_KEY_MINUS 45
+#define RGAME_KEY_EQUALS 46
+#define RGAME_KEY_LEFTBRACKET 47
+#define RGAME_KEY_RIGHTBRACKET 48
+#define RGAME_KEY_BACKSLASH 49
+#define RGAME_KEY_SEMICOLON 51
+#define RGAME_KEY_APOSTROPHE 52
+#define RGAME_KEY_GRAVE 53
+#define RGAME_KEY_COMMA 54
+#define RGAME_KEY_PERIOD 55
+#define RGAME_KEY_SLASH 56
+#define RGAME_KEY_CAPSLOCK 57
 #define RGAME_KEY_F1 58
 #define RGAME_KEY_F2 59
+#define RGAME_KEY_F3 60
+#define RGAME_KEY_F4 61
+#define RGAME_KEY_F5 62
+#define RGAME_KEY_F6 63
+#define RGAME_KEY_F7 64
+#define RGAME_KEY_F8 65
+#define RGAME_KEY_F9 66
+#define RGAME_KEY_F10 67
+#define RGAME_KEY_F11 68
+#define RGAME_KEY_F12 69
+#define RGAME_KEY_INSERT 73
+#define RGAME_KEY_HOME 74
+#define RGAME_KEY_PAGEUP 75
+#define RGAME_KEY_DELETE 76
+#define RGAME_KEY_END 77
+#define RGAME_KEY_PAGEDOWN 78
 #define RGAME_KEY_RIGHT 79
 #define RGAME_KEY_LEFT 80
 #define RGAME_KEY_DOWN 81
 #define RGAME_KEY_UP 82
+#define RGAME_KEY_LCTRL 224
+#define RGAME_KEY_LSHIFT 225
+#define RGAME_KEY_LALT 226
+#define RGAME_KEY_RCTRL 228
+#define RGAME_KEY_RSHIFT 229
+#define RGAME_KEY_RALT 230
 
 /* Gamepad button ids: the gamepad range plus SDL's controller button number.
  * app.c asserts each against the SDL constant it mirrors, as with the keys. */
@@ -81,6 +157,12 @@ void rgame_app_destroy(rgame_app *app);
 #define RGAME_PAD_DPAD_DOWN (RGAME_BUTTON_GAMEPAD_FIRST + 12)
 #define RGAME_PAD_DPAD_LEFT (RGAME_BUTTON_GAMEPAD_FIRST + 13)
 #define RGAME_PAD_DPAD_RIGHT (RGAME_BUTTON_GAMEPAD_FIRST + 14)
+#define RGAME_PAD_MISC1 (RGAME_BUTTON_GAMEPAD_FIRST + 15)
+#define RGAME_PAD_PADDLE1 (RGAME_BUTTON_GAMEPAD_FIRST + 16)
+#define RGAME_PAD_PADDLE2 (RGAME_BUTTON_GAMEPAD_FIRST + 17)
+#define RGAME_PAD_PADDLE3 (RGAME_BUTTON_GAMEPAD_FIRST + 18)
+#define RGAME_PAD_PADDLE4 (RGAME_BUTTON_GAMEPAD_FIRST + 19)
+#define RGAME_PAD_TOUCHPAD (RGAME_BUTTON_GAMEPAD_FIRST + 20)
 
 /*
  * Analog axes are their own small id space rather than part of the button

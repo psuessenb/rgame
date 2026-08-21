@@ -37,10 +37,21 @@ RSpec.describe RGame::Engine::InputMap do
       expect(map[:fire].buttons).to eq([controls::KEY_SPACE, controls::PAD_A])
     end
 
-    it 'resolves a two-button axis into its negative and positive halves' do
+    it 'resolves a two-button axis into a negative/positive pair' do
       map = described_class.new(turn: { axis: [controls::KEY_LEFT, controls::KEY_RIGHT] })
-      expect([map[:turn].negative, map[:turn].positive])
-        .to eq([controls::KEY_LEFT, controls::KEY_RIGHT])
+      expect(map[:turn].pairs).to eq([[controls::KEY_LEFT, controls::KEY_RIGHT]])
+    end
+
+    # Several pairs is how the arrows, WASD and a d-pad all drive one action —
+    # the same thing `buttons:` does for a button, which an axis needed too.
+    it 'resolves a list of pairs' do
+      map = described_class.new(
+        move: { axis: [[controls::KEY_LEFT, controls::KEY_RIGHT],
+                       [controls::PAD_DPAD_LEFT, controls::PAD_DPAD_RIGHT]] }
+      )
+      expect(map[:move].pairs)
+        .to eq([[controls::KEY_LEFT, controls::KEY_RIGHT],
+                [controls::PAD_DPAD_LEFT, controls::PAD_DPAD_RIGHT]])
     end
 
     it 'resolves an analog stick' do
@@ -51,7 +62,7 @@ RSpec.describe RGame::Engine::InputMap do
     it 'lets one action carry buttons and a stick at once' do
       map = described_class.new(move: { axis: [controls::KEY_LEFT, controls::KEY_RIGHT],
                                         stick: controls::AXIS_LEFT_X })
-      expect([map[:move].positive, map[:move].stick])
+      expect([map[:move].pairs.first.last, map[:move].stick])
         .to eq([controls::KEY_RIGHT, controls::AXIS_LEFT_X])
     end
   end
@@ -104,16 +115,27 @@ RSpec.describe RGame::Engine::InputMap do
   end
 
   describe 'the defaults' do
-    it 'binds move_x to the arrows and the left stick together' do
+    it 'binds move_x to the arrows, WASD, the d-pad and the left stick together' do
       binding = described_class.default[:move_x]
-      expect([binding.negative, binding.positive, binding.stick])
-        .to eq([controls::KEY_LEFT, controls::KEY_RIGHT, controls::AXIS_LEFT_X])
+      expect([binding.pairs, binding.stick])
+        .to eq([[[controls::KEY_LEFT, controls::KEY_RIGHT],
+                 [controls::KEY_A, controls::KEY_D],
+                 [controls::PAD_DPAD_LEFT, controls::PAD_DPAD_RIGHT]],
+                controls::AXIS_LEFT_X])
+    end
+
+    # Without a d-pad pair a controller cannot drive movement at all, because
+    # the same action already needed the arrow keys and an axis took one pair.
+    it 'lets a controller walk on its d-pad' do
+      expect(described_class.default[:move_x].pairs)
+        .to include([controls::PAD_DPAD_LEFT, controls::PAD_DPAD_RIGHT])
     end
 
     # Screen y is positive downwards and so is the stick, so "up" is the
     # negative half. Getting this backwards inverts every game built on it.
-    it 'binds move_y with up as the negative half' do
-      expect(described_class.default[:move_y].negative).to eq(controls::KEY_UP)
+    it 'binds move_y with up as the negative half of every pair' do
+      expect(described_class.default[:move_y].pairs.map(&:first))
+        .to eq([controls::KEY_UP, controls::KEY_W, controls::PAD_DPAD_UP])
     end
   end
 end

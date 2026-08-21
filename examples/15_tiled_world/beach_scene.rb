@@ -46,6 +46,10 @@ class BeachScene < RGame::Engine::Node2D
     @players.on_joined { |player| spawn_walker(player) }
 
     npc_spawns.each { |x, y| @view.add_node(build_npc(x, y)) }
+
+    # Outside the WorldView, so it draws once across the whole window and keeps
+    # ticking while the world it covers is frozen.
+    add_node(Cutscene.new(world_view: @view))
   end
 
   private
