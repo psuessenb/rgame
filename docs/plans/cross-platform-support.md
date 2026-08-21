@@ -257,8 +257,16 @@ explicitly as mattering *given how easy it is to crash while learning
 pointers/SDL/GL*. MSYS2 provides `fork`, but it is slow and unreliable enough
 that `CK_FORK=no` is the common setting there.
 
-No action beyond knowing it: on Windows, a segfault in the C suite takes the
-whole binary down and the output stops at the crashing test.
+**Promoted from a footnote by the second run.** The audio crash (B7) hit both
+platforms; macOS's fork isolation contained it to 19 reported errors, while
+Windows lost the entire suite to the first one and reported a bare
+`make: *** [Makefile:291: test] Segmentation fault` — not even which test.
+Worse, Check's suite list is printed up front and buffered, so the truncated
+list in the log says nothing about where it died.
+
+Still nothing to fix in Check itself; what changed is that Windows now needs
+the backtrace step in [`ci.yml`](../../.github/workflows/ci.yml) to say anything
+useful at all, whereas on Linux and macOS that step is a convenience.
 
 ### B6. `no_graphics_spec` has no guard off Linux
 
@@ -268,6 +276,53 @@ checking the property is enough. That reasoning holds — the property being
 checked is about *what `lib/rgame.rb` requires*, which cannot differ per
 platform. **Leave it alone.** Recorded here only so the skip is not mistaken for
 an oversight during the port.
+
+### B7. Opening a *real* audio device crashes on macOS and Windows *(measured)*
+
+**This is the current blocking item on both platforms**, and it was not
+predicted anywhere in the sketch — which had audio down as the one subsystem
+already configured for all three (`MA_ENABLE_COREAUDIO`, `MA_ENABLE_WASAPI`,
+and no link dependencies). Compiling and linking for all three, it turns out,
+is not the same as opening a device on all three.
+
+The macOS run localises it exactly, because Check's fork isolation reported
+every test separately. Of 26 tests in `test/test_audio.c`:
+
+| What the test opens | Count | Result |
+|---|---|---|
+| A **real** device (`rgame_audio_create`) | 19 | **all segfault** |
+| The **offline** engine (`noDevice = MA_TRUE`) | 4 | all pass |
+| Nothing — NULL-argument guards | 3 | all pass |
+
+The correspondence is exact, and it clears almost the whole subsystem: the
+offline tests load an `.ogg` through the vendored vorbis backend, mix it, and
+assert on the PCM that comes out. So `calloc`, `ma_resource_manager_init`, the
+custom decoding backend registration, the engine config and the mixer are all
+proven working on macOS. **Only `ma_engine_init` with a device attached
+crashes.**
+
+Two hypotheses, and the evidence to hand does not separate them:
+
+1. **miniaudio's runtime linking of CoreAudio.** It `dlopen`s the frameworks
+   rather than linking them, and a failed symbol lookup would be called anyway.
+   The fix would be `MA_NO_RUNTIME_LINKING` plus
+   `-framework CoreFoundation -framework CoreAudio -framework AudioToolbox` —
+   which is C3, already in this plan for the unrelated reason of notarization.
+2. **No audio device on the runner at all.** GitHub's macOS and Windows images
+   have no sound hardware, and a backend enumerating zero devices is a
+   plausible crash surface. `MA_NO_RUNTIME_LINKING` would not help.
+
+The comment in `create_audio` that says the null-device fallback is *"Verified:
+with ALSA and PulseAudio unavailable, the chosen backend is Null"* is true and
+was verified — **on Linux.** `a_device_opens_even_with_no_sound_card` is the
+test asserting that property, and it is the first one to crash, so the property
+does not hold off Linux. That test must keep opening a real device; skipping it
+on CI would delete the only check of the thing that is broken.
+
+**Next step is a backtrace, not a fix.** Guessing between the two hypotheses
+costs a round trip either way, and one of them is a no-op. `ci.yml` now runs a
+debugger automatically when the C suite fails — `CK_FORK=no` so the stack is
+the crashing process rather than Check's parent.
 
 ## Can this be done from Linux?
 
@@ -315,6 +370,12 @@ Dependency shape, so the ordering rationale is visible:
 
 Steps 1–2 are the C and the gem building at all; 3–5 are the two suites going
 green honestly; 6–8 are optional and can be dropped without blocking anything.
+
+**In flight, ahead of all of these: B7, the audio device crash.** It blocks a
+green leg on both platforms and needs a backtrace before anyone can say what
+the fix is, so the measurement is pushed and the steps below carry on in
+parallel. It is not numbered because it is not sequenced — nothing below waits
+on it, now that the unported legs run in survey mode.
 
 **This ordering is the first run's, not the sketch's.** The sketch put the SDL
 includes first and the root Makefile last; both were wrong, because `make test`
@@ -413,6 +474,21 @@ Windows will hit it immediately after its environment fix lands.
 
 First because `make test` is the first thing CI runs and it reads this file —
 the reordering the first run forced.
+
+**Landed, and it worked on both platforms.** macOS linked with
+`-framework OpenGL`, Windows with `-lopengl32`, and both then compiled all 25
+engine translation units and ran the Check binary. Two things came out
+differently from the sketch:
+
+- **`CC ?= gcc` had to be fixed first** (recorded under A3) — it was a no-op,
+  and on MSYS2 it silently selected the wrong ABI's compiler.
+- **`DLEXT` is asked of the running Ruby**, with a fallback to `so` when no
+  Ruby is installed, so `make test` does not acquire a Ruby dependency it never
+  had. Verified by overriding both the platform detection and `DLEXT` on this
+  machine: all five `uname -s` cases resolve correctly, and `DLEXT=bundle`
+  propagates to `lib/rgame/core_ext.bundle`.
+
+It also revealed the next wall, which is not a build problem at all: B7.
 
 ### Step 2 — `extconf.rb`: GL linking per platform (A2)
 
