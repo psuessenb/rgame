@@ -99,3 +99,35 @@ grid.depth.times do |z|
   end
 end
 ```
+
+## `RGame::Util::Z`
+
+The vocabulary of draw order: which band a thing is drawn in, and the arithmetic
+that turns a band plus a position in the tree into the single number the renderer
+sorts a frame by.
+
+```ruby
+RGame::Util::Z::BANDS     # => [:world, :hud, :overlay, :debug]
+RGame::Util::Z::DEFAULT   # => :world
+RGame::Util::Z::Z_MIN     # => -512, the smallest `z:` a drawing call may pass
+RGame::Util::Z::Z_MAX     # =>  511
+```
+
+It lives here for the same reason [`Controls`](input.md) does: both the scene
+graph (which decides a node's band) and the renderer (which turns one into a z)
+have to name it, and neither may name the other's layer.
+
+Games rarely touch it. What a game writes is a node's `z` and, occasionally, a
+`band:` — see [the scene graph](scene_graph.md#draw-order). What it buys is that
+`z` numbers cannot leak between nodes and bands cannot leak into each other:
+
+| | |
+|---|---|
+| `SLOT` | 1024 — the room one node has for ordering its own drawing |
+| `Z_MIN`…`Z_MAX` | what a `z:` on a drawing call may be; anything else raises |
+| `STRIDE` | `2**40` — the gap between bands, which no `z:` can cross |
+
+Every value is an integer below `2**42`, and the `double` the draw queue sorts on
+is exact below `2**53`, so two different slots can never compare equal by
+rounding — which would show up as two sprites swapping places between frames, and
+would be very hard to recognise as a precision problem.

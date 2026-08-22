@@ -36,7 +36,6 @@ module RGame
       DELTA_LABEL = 'Δ/f'
 
       COLOR = [80, 255, 120].freeze # frozen so the renderer caches the resolved colour
-      Z     = Engine::Z::DEBUG      # last, over every other band
       PAD   = 8                     # margin from the screen edge
       GAP   = 8                     # space between a label and its number
 
@@ -60,6 +59,9 @@ module RGame
       # takes `fps` rather than reading it, for the same reason nothing here
       # reads a clock: the number is measured by the shell that owns the loop
       # and handed down. See CLAUDE.md, "`draw` renders state".
+      # Its own `:debug` band, which is the last one, so this lands over every
+      # other thing in the frame however the scene is arranged. Not a node, so
+      # it opens its own layer rather than being given one by the traversal.
       def draw(renderer, view, fps)
         return unless @visible
 
@@ -73,9 +75,11 @@ module RGame
         right_x = view.width - PAD
         top_y   = view.height - PAD - (line_h * 3)
 
-        draw_line(renderer, FPS_LABEL, fps, right_x, top_y)
-        draw_line(renderer, OBJ_LABEL, allocated, right_x, top_y + line_h)
-        draw_line(renderer, DELTA_LABEL, delta, right_x, top_y + (line_h * 2))
+        renderer.layered(:debug) do
+          draw_line(renderer, FPS_LABEL, fps, right_x, top_y)
+          draw_line(renderer, OBJ_LABEL, allocated, right_x, top_y + line_h)
+          draw_line(renderer, DELTA_LABEL, delta, right_x, top_y + (line_h * 2))
+        end
       end
 
       private
@@ -83,7 +87,7 @@ module RGame
       # A right-aligned "label  number" row ending at right_x.
       def draw_line(renderer, label, value, right_x, y)
         number_left = draw_uint(renderer, value, right_x, y)
-        renderer.text(label, number_left - GAP - label_width(renderer, label), y, z: Z, color: COLOR)
+        renderer.text(label, number_left - GAP - label_width(renderer, label), y, color: COLOR)
       end
 
       # Draw a non-negative integer right-aligned ending at right_x, digit by digit so no
@@ -95,7 +99,7 @@ module RGame
           digit = value % 10
           value /= 10
           x -= digit_width(renderer, digit)
-          renderer.text(DIGITS[digit], x, y, z: Z, color: COLOR)
+          renderer.text(DIGITS[digit], x, y, color: COLOR)
           more = value.positive?
         end
         x

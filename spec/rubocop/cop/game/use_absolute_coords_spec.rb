@@ -14,15 +14,12 @@ RSpec.describe RuboCop::Cop::Game::UseAbsoluteCoords, :config do
   it 'flags every relative coord read in draw (the render path)' do
     x = msg(abs: :@abs_x, rel: :@x, method: :draw)
     y = msg(abs: :@abs_y, rel: :@y, method: :draw)
-    z = msg(abs: :@abs_z, rel: :@z, method: :draw)
-    expect_offense(<<~RUBY, x: x, y: y, z: z)
+    expect_offense(<<~RUBY, x: x, y: y)
       def draw(r)
         r.a(@x)
             ^^ %{x}
         r.b(@y)
             ^^ %{y}
-        r.c(@z)
-            ^^ %{z}
       end
     RUBY
   end
@@ -50,7 +47,6 @@ RSpec.describe RuboCop::Cop::Game::UseAbsoluteCoords, :config do
       def update(dt, _actions)
         @x = 10
         @y += dt
-        @z -= 1
       end
     RUBY
   end
@@ -58,7 +54,15 @@ RSpec.describe RuboCop::Cop::Game::UseAbsoluteCoords, :config do
   it 'does not flag the resolved @abs_* coords' do
     expect_no_offenses(<<~RUBY)
       def draw(renderer)
-        renderer.nine_slice(:t, @abs_x, @abs_y, @width, @height, z: @abs_z)
+        renderer.nine_slice(:t, @abs_x, @abs_y, @width, @height)
+      end
+    RUBY
+  end
+
+  it 'does not flag @z, which orders a node against its siblings and resolves to nothing' do
+    expect_no_offenses(<<~RUBY)
+      def draw(renderer)
+        renderer.rect(@abs_x, @abs_y, @width, @height, z: @z)
       end
     RUBY
   end

@@ -14,7 +14,6 @@ class Ship < RGame::Engine::Node2D
   MAX_SPEED     = 320.0
   DRAG          = 0.4
   FIRE_COOLDOWN = 0.22
-  ENTITY_Z      = 10
 
   signal :on_fire, RGame::Engine::Signal.define(:x, :y, :angle)
   signal :on_destroyed
@@ -26,7 +25,7 @@ class Ship < RGame::Engine::Node2D
                     turn_speed: TURN_SPEED, accel: ACCEL, max_speed: MAX_SPEED, drag: DRAG
                   ))
     add_component(RGame::Engine::Components::ScreenWrap.new(width: world_width, height: world_height, margin: RADIUS))
-    add_component(RGame::Engine::Components::Sprite.new(id: :ship, z: ENTITY_Z))
+    add_component(RGame::Engine::Components::Sprite.new(id: :ship))
     trigger = add_component(RGame::Engine::Components::ActionTrigger.new(fire: FIRE_COOLDOWN))
     trigger.on_triggered { |action| fire if action == :fire }
     collider = add_component(RGame::Engine::Components::CircleCollider.new(radius: RADIUS, layer: :ship))

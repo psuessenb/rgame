@@ -2,6 +2,7 @@
 
 require 'rgame/core_ext'
 require_relative '../util/color'
+require_relative '../util/z'
 
 module RGame
   module Core
@@ -37,6 +38,7 @@ module RGame
     #   renderer.clipped(0, 0, 400, 600) { ground.draw(0, 0) }
     class Recording
       Color = RGame::Util::Color
+      Z = RGame::Util::Z
 
       # Replays everything that was recorded, with the recording's origin at
       # (x, y).
@@ -45,7 +47,7 @@ module RGame
       # so white (the default) draws the recording unchanged and a colour with
       # alpha fades the whole layer out at once.
       def draw(x = 0, y = 0, z: 0, color: nil)
-        draw_at(x, y, z, Color.coerce(color).packed)
+        draw_at(x, y, Z.offset(z), Color.coerce(color).packed)
       end
     end
   end

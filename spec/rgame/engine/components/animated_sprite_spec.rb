@@ -15,7 +15,7 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
   let(:node) { RGame::Engine::Node2D.new(x: 5.0, y: 7.0) }
   let(:body) { RGame::Engine::Components::CharacterBody.new(feet_width: 8, feet_height: 6, speed: 50.0) }
   let(:sprite) { described_class.new(sheet: :hero, z: 10) }
-  let(:renderer) { instance_double(FakeRenderer) }
+  let(:renderer) { instance_double(FakeRenderer, layered: nil) }
 
   before do
     # The component resolves its sheet from node.root.context.assets on attach.
@@ -26,6 +26,9 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
     node.add_component(sprite)
     node.enter_tree
     allow(renderer).to receive(:sprite)
+    # Every node opens a layer for its own drawing; this double has to yield or
+    # nothing inside it runs.
+    allow(renderer).to receive(:layered).and_yield
   end
 
   # Drive one frame for the given intent, then draw.

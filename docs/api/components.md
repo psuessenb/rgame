@@ -197,7 +197,9 @@ acts. Because enemies already register with the broadphase through their
 Draws a single registered image centered on the node's absolute origin.
 
 - **Construct:** `Sprite.new(id:, scale: 1.0, z: 0)` — `id` is a renderer image id; `z`
-  is the render layer (distinct from the node's transform `z`/`abs_z`).
+  orders this component against the node's *other* drawing (a shadow under a sprite),
+  inside the node's own slot. It is not the node's `z`, which orders the node against
+  its siblings. See [Drawing](drawing.md#draw-order).
 - **State:** `scale` is a read/write accessor (a pooled entity can retune it).
 - **Phase:** `draw(renderer, view)` draws the image with **no angle** — `Node2D#draw`
   already wraps a node's own draws in `renderer.rotated(abs_angle, …)`, so the node's
@@ -253,8 +255,9 @@ sibling's movement: `walk_left`/`walk_right`/`walk_up`/`walk_down` while moving 
 on a diagonal), `stand` when still. Owns an `RGame::Engine::Animator` over the pure `AnimationSet` built
 from the sheet's animation table.
 
-- **Construct:** `AnimatedSprite.new(sheet:, z: 0)` — `sheet` is the asset's relative path; `z` the
-  render layer.
+- **Construct:** `AnimatedSprite.new(sheet:, z: 0)` — `sheet` is the asset's relative path; `z`
+  orders this component against the node's other drawing, inside the node's own slot (as
+  for [`Sprite`](#sprite)).
 - **Lifecycle:** `on_attach` resolves the sheet from the game's asset manager
   (`node.root.context.assets.sheet(sheet)`), builds its animation set, **sizes the node** to the
   sheet's frame (`node.width`/`height`, so a `CharacterBody` sibling can read them), and pulls that
@@ -306,17 +309,27 @@ The scene-scoped tile **system** (see [Systems](systems.md)): it holds the parse
 and answers everything an actor needs from it — collision against the solid tiles (reusing
 `RGame::Engine::CollisionSystem`) and the world bounds. Found with `node.system(TileWorld)`.
 
-**It does not draw.** `RGame::Engine::TileMapLayer` does, from inside a `WorldView`, so the map is drawn
-once per viewport like the rest of world space. This stays the thing actors ask questions of.
+**It does not draw.** `RGame::Engine::TileMapLayer` does — one node per Tiled layer, mounted
+inside a `WorldView`, so the map is drawn once per viewport like the rest of world space.
+This stays the thing actors ask questions of.
 
 - **Construct:** `TileWorld.new(map:, tilemap_id:, cameras: [])` — it clamps each camera it is given to
   the map's edges, and `bound(camera)` does the same for one that arrives later (a player joining).
 - **Queries:** `move(actor, dx, dy)` slides an actor (anything responding to `x`/`y`/`collision_box`)
   along solids and clamps it to the world; `solid?(col, row)`; `world_width`/`world_height`;
-  `tilemap_id` and `elapsed`, which the layer reads.
-- **Phase:** `update(dt)` advances the map's animation clock. The layer draws the ground z band at
-  `GROUND_Z` and the canopy z band at `CANOPY_Z`; actors draw at a z in between, so the renderer's z-sort
-  composites ground < actors < canopy regardless of draw-call order.
+  `tilemap_id` and `elapsed`, which the layers read; `layer_count` and `first_above_layer`,
+  which `TileMapLayer.mount` reads to decide where the actors go.
+- **Phase:** `update(dt)` advances the map's animation clock.
+
+```ruby
+world  = scene.add_node(RGame::Engine::WorldView.new)
+actors = RGame::Engine::TileMapLayer.mount(world)   # a node per Tiled layer
+actors.add_node(player)                             # in the gap between them
+```
+
+`mount` returns the node the actors go in. It sits below the first layer Tiled flags
+`above` — trunks under the walker, canopies over — and `mount(world, under: index)`
+overrides that for a map with a different arrangement. Nothing here picks a `z`.
 
 ```ruby
 # A node composing components, with collision meaning decided by the owner:

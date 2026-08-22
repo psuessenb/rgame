@@ -34,7 +34,7 @@ would be silently discarded — and an invisible failure is worse than a loud on
 
 **Nothing is drawn immediately.** Calls accumulate, and the frame is sorted and
 sent to the GPU once, after `draw` returns. So the order you make calls in does
-not decide what ends up on top — `z:` does.
+not decide what ends up on top — the scene tree does. See "Draw order" below.
 
 ## Coordinates, colours and z
 
@@ -42,59 +42,77 @@ not decide what ends up on top — `z:` does.
 |---|---|
 | Origin | Top-left. x grows right, y grows **down**. |
 | Angles | Degrees. A **positive angle turns clockwise** on screen. |
-| `z:` | Higher is nearer the viewer. Equal z keeps call order. |
+| `z:` | Where this call sits among **this node's own** drawing. −512…511. |
 | `color:` | `nil` (white), `[r, g, b]`, `[r, g, b, a]`, or a `RGame::Util::Color`. |
 
-`z` defaults to `50` for shapes and `0` for images, so a debug box or a health
-bar drawn without a `z:` lands on top of the scene rather than under it.
+`z:` is an offset inside the current layer, not a global number. It orders a
+node's panel under its label and its shadow under its sprite, and it can reach
+nothing else — passing anything outside −512…511 raises.
 
-Equal-z stability matters more than it sounds: without it, two sprites on the
-same layer would swap places whenever the sort felt like it, which reads as
-flicker.
+It defaults to `50` for shapes, `10` for text and `0` for images, so a debug box
+or a health bar drawn without a `z:` lands on top of *that node's* sprite. Equal
+z keeps call order, which matters more than it sounds: without it two sprites on
+the same layer would swap places whenever the sort felt like it, and that reads
+as flicker.
 
-### Bands: where each kind of content sits
+## Draw order
 
-Every command in a frame is sorted by `z` and drawn low to high, so the order
-calls are *issued* in does not matter. What does matter is that the numbers
-agree — and a frame holds three kinds of content:
+Order is decided in three steps, coarsest first, and only the last of them is a
+number a drawing call passes.
+
+1. **The band.** `:world` (the default), `:hud`, `:overlay`, `:debug`.
+   Everything in one band is under everything in the next, whatever either drew.
+2. **The slot.** The scene tree is walked depth-first with siblings in `z`
+   order, and each node takes the next slot in its band as it is reached. So
+   draw order is **tree order**, and a node's subtree is one contiguous run —
+   a subtree is atomic and cannot straddle a sibling.
+3. **The offset.** The `z:` above, inside one node's slot.
+
+A scene graph arranges all of this for you: `RGame::Engine::Node2D#draw` opens a
+layer per node, so a game writes `z` on nodes and a `band` on the handful that
+mark one. See [scene_graph.md](scene_graph.md), "Draw order".
+
+### Opening a layer by hand
+
+Anything drawing outside the scene tree — the debug overlay, a spec, a script —
+opens its own:
+
+```ruby
+renderer.layered(:hud) do
+  renderer.nine_slice(:panel, x, y, w, h)
+  renderer.text(score, x + 8, y + 6, z: 1)   # above this layer's own panel
+end
+```
+
+`layered` takes the next slot in that band, makes it the base every `z:` inside
+is measured from, and restores the previous base afterwards (including when the
+block raises). Nesting *replaces* rather than accumulates — a node's slot is
+decided by where the traversal reached it, not by summing what its ancestors
+picked. Outside any block the base is 0, so a bare script gets exactly the z it
+passes.
+
+`renderer.layer` reports the base currently in effect.
+
+### Why bands exist at all
+
+A frame holds three kinds of content:
 
 - **World** — inside a `WorldView`, drawn once per viewport, under a camera.
 - **A player's own screen space** — their HUD, their menu, drawn once and
-  clipped to their viewport.
+  clipped to their viewport (`PlayerLayer`).
 - **Global screen space** — a cutscene, a results panel, drawn once across the
   whole window.
 
-The first is a different *space* from the other two, and the tree enforces
-that: `WorldView` is what draws its subtree once per viewport. The last two
-share one space and are told apart only by the z band they draw in — which is
-why the bands below are a convention rather than a mechanism.
+The first is a different *space* from the other two, and the tree enforces that:
+`WorldView` is what draws its subtree once per viewport. The last two share one
+space, and the band is what tells them apart.
 
-Two viewports interleaving in the sort is harmless: their commands carry
-different clips and land on different pixels. Band order *within* one viewport is
+Two viewports interleaving in the sort is harmless — their commands carry
+different clips and land on different pixels. Order *within* one viewport is
 not, and nothing about drawing a HUD after the world puts it above the world.
-Only its `z` does. So `RGame::Engine::Z` names the bases:
-
-| Band | Base |
-|---|---|
-| `Z::WORLD` | 0 |
-| `Z::HUD` | 100_000 |
-| `Z::OVERLAY` | 200_000 |
-| `Z::DEBUG` | 1_000_000 |
-
-```ruby
-renderer.text(score, 12, 10, z: RGame::Engine::Z::HUD)
-```
-
-Bases, not slots — a HUD element three layers up is `Z::HUD + 3`, and the gap to
-the next band is what a game gets to use. Nothing enforces any of this: a `z` is
-an Integer a caller passes, and no guard can tell a HUD apart from a rock. The
-constants buy one place where the numbers are decided, with the reasoning beside
-them.
-
-> **The defaults above predate the bands and are all inside the world band.** A
-> shape drawn with no `z:` (50) therefore sits *above* text drawn with no `z:`
-> (10), so a HUD built out of defaults ends up under world shapes. Name a band
-> and it does not.
+Its band does. Bands are `2**40` apart and a `z:` spans 1024, so no arithmetic
+below can carry one band into the next: containment is arithmetic rather than
+convention. See `RGame::Util::Z`.
 
 ### Colours and allocation
 
@@ -190,8 +208,7 @@ An id is normally a **root-relative path**, resolved through the app's
 renderer.sprite('example 09/player.json', row, col, x, y, flip_x: false, z: 0)
 renderer.image('space.png', cx, cy, angle: 0, scale: 1)
 renderer.background('space.png')
-renderer.tilemap('map/island.tmx', camera_x, camera_y, viewport_w, viewport_h)
-renderer.tilemap_overlay('map/island.tmx', camera_x, camera_y, viewport_w, viewport_h, z: 20)
+renderer.tilemap('map/island.tmx', layer, camera_x, camera_y, viewport_w, viewport_h)
 ```
 
 Nothing has to be set up for that: `Renderer.new(app)` takes the app's own
@@ -245,6 +262,7 @@ renderer.translated(dx, dy) { ... }
 renderer.rotated(angle, pivot_x, pivot_y) { ... }
 renderer.scaled(sx, sy = sx) { ... }
 renderer.clipped(x, y, width, height) { ... }
+renderer.layered(band) { ... }               # see "Draw order" above
 ```
 
 They nest, and they compose in the order they are opened:

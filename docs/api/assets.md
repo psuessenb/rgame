@@ -361,25 +361,24 @@ frame and culled to the viewport.
 ```ruby
 tiles = app.assets.tilemap('map/island.tmx')
 
-renderer.tilemap('map/island.tmx', camera_x, camera_y, view_w, view_h, elapsed: seconds)
+renderer.tilemap('map/island.tmx', 0, camera_x, camera_y, view_w, view_h, elapsed: seconds)
 # ... the scene draws its actors here ...
-renderer.tilemap_overlay('map/island.tmx', camera_x, camera_y, view_w, view_h,
-                         z: 20, elapsed: seconds)
+renderer.tilemap('map/island.tmx', 1, camera_x, camera_y, view_w, view_h, elapsed: seconds)
 ```
 
-### Two bands, with the actors between them
+### One call per layer, because the actors go between them
 
-Layers split by Tiled's `above` custom property. The **below** band — ground and
-same-level detail — is drawn under the actors; the **above** band — tree
-canopies, roofs — over them, at a `z` the scene picks. Two calls rather than
-one, because the scene draws its actors in between; collapsing them would put
-every canopy behind every character.
+A layer is drawn on its own, in the order the caller asks for — which is what
+lets a scene put its actors between two of them, trunks under and canopies over.
+Which layers those are is a question about the scene, not about the map, so no
+`z` is passed: in a game it is [`TileMapLayer`](components.md#tileworld) mounting
+a node per layer, and the scene tree deciding the rest.
 
 ### What it costs
 
-Within each band, every tile that is **not** animated is baked into a
+Within each layer, every tile that is **not** animated is baked into a
 [recording](drawing.md#recordings-bake-once-replay-cheaply) the first time that
-band is drawn. Scrolling it afterwards is one call per texture, however many
+layer is drawn. Scrolling it afterwards is one call per texture, however many
 thousand tiles went into it. The handful that *are* animated are drawn
 individually, **culled to the viewport** — so a map far larger than the screen
 costs only what is on screen.
@@ -394,7 +393,7 @@ the asset manager rather than being loaded by the map.
 ```ruby
 def update(dt) = @elapsed += dt
 def draw(renderer)
-  renderer.tilemap(@id, camera.x, camera.y, w, h, elapsed: @elapsed)
+  renderer.tilemap(@id, @layer, camera.x, camera.y, w, h, elapsed: @elapsed)
 end
 ```
 

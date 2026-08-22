@@ -46,24 +46,66 @@
  * rotates a clip today.
  *
  * ---------------------------------------------------------------------------
+ * The layer stack: where a caller's z is measured from
+ * ---------------------------------------------------------------------------
+ *
+ * A `z` handed to a primitive is an *offset*, added to whatever base is on top
+ * of the layer stack. The stack starts at 0, so a caller that never pushes one
+ * gets exactly the z it passed.
+ *
+ * What it is for: the scene graph gives every node its own narrow window of z
+ * values, so a node's drawing can only ever be ordered against its own other
+ * drawing — never against another node's, and never out of the band it is in.
+ * Composing that is one addition here, and the alternative is every caller
+ * remembering to add the same number to every z it passes.
+ *
+ * `rgame_canvas_next_slot` is the other half: a small set of counters, one per
+ * band, reset at the start of each frame and handing out increasing indices. It
+ * is deliberately ignorant of what a band *is* — that vocabulary lives in
+ * RGame::Util::Z, a layer up — and does nothing but count, because "which node
+ * comes next" is already the order the draw traversal visits nodes in.
+ *
+ * A push *replaces* rather than adds. Nesting bases would re-introduce the
+ * additive relative z this design exists to remove: the point is that a node's
+ * window is decided by where the traversal reached it, not by summing what its
+ * ancestors happened to pick.
+ *
+ * ---------------------------------------------------------------------------
  * One pop for any push
  * ---------------------------------------------------------------------------
  *
- * `push_translate`, `push_rotate`, `push_scale` and `push_clip` are all undone
- * by the same `pop`. The canvas remembers which stack each push went to, so a
- * caller never has to — and cannot pop the wrong one. Pushes that could not be
- * honoured (a full stack) are still counted, so pop stays balanced and the
- * drawing comes out untransformed rather than desynchronised.
+ * `push_translate`, `push_rotate`, `push_scale`, `push_clip` and `push_layer`
+ * are all undone by the same `pop`. The canvas remembers which stack each push
+ * went to, so a caller never has to — and cannot pop the wrong one. Pushes that
+ * could not be honoured (a full stack) are still counted, so pop stays balanced
+ * and the drawing comes out untransformed rather than desynchronised.
  */
 
-/* Deep enough that it cannot fill before both underlying stacks have; pushes
- * beyond that are counted rather than recorded, so balance always holds. */
-#define RGAME_CANVAS_STACK_DEPTH (RGAME_TRANSFORM_STACK_DEPTH + RGAME_CLIP_STACK_DEPTH)
+/* Deep enough for any sane scene graph, like the two stacks it sits beside. */
+#define RGAME_LAYER_STACK_DEPTH 32
+
+/* How many independent slot counters a frame has. RGame::Util::Z uses four;
+ * the spare room costs four unsigned ints. */
+#define RGAME_LAYER_BANDS 8
+
+/* Deep enough that it cannot fill before all three underlying stacks have;
+ * pushes beyond that are counted rather than recorded, so balance always
+ * holds. */
+#define RGAME_CANVAS_STACK_DEPTH \
+    (RGAME_TRANSFORM_STACK_DEPTH + RGAME_CLIP_STACK_DEPTH + RGAME_LAYER_STACK_DEPTH)
 
 typedef struct {
     rgame_transform_stack transforms;
     rgame_clip_stack clips;
     rgame_draw_queue queue;
+
+    /* entries[0] is 0 — the base an un-layered draw sits on — so `layer_depth`
+     * is the number of pushes outstanding and entries[layer_depth] is current. */
+    double layers[RGAME_LAYER_STACK_DEPTH];
+    int layer_depth;
+
+    /* Slots handed out per band this frame. Reset by begin_frame. */
+    unsigned int slots[RGAME_LAYER_BANDS];
 
     /* Which stack each outstanding push went to, so pop can undo the right one. */
     unsigned char pushes[RGAME_CANVAS_STACK_DEPTH];
@@ -79,8 +121,8 @@ void rgame_canvas_init(rgame_canvas *canvas);
 void rgame_canvas_destroy(rgame_canvas *canvas);
 
 /*
- * Starts a frame: empties the queue (keeping its buffers), resets both stacks,
- * and sets the clip base to the window. Re-stating the size every frame is also
+ * Starts a frame: empties the queue (keeping its buffers), resets all three
+ * stacks and the slot counters, and sets the clip base to the window. Re-stating the size every frame is also
  * how a resize takes effect, so there is no separate path to forget.
  */
 void rgame_canvas_begin_frame(rgame_canvas *canvas, int width, int height);
@@ -96,6 +138,19 @@ void rgame_canvas_push_scale(rgame_canvas *canvas, float sx, float sy);
 /* `rect` is in the caller's local coordinates and is mapped through the current
  * transform before narrowing the clip. */
 void rgame_canvas_push_clip(rgame_canvas *canvas, rgame_rect rect);
+
+/* Sets the base every subsequent z is measured from, until the matching pop. */
+void rgame_canvas_push_layer(rgame_canvas *canvas, double base);
+
+/* The base currently in effect. */
+double rgame_canvas_layer(const rgame_canvas *canvas);
+
+/*
+ * The next slot index in `band`, counting from 0 each frame. Out-of-range bands
+ * answer 0 rather than reading past the array — a caller with a bad band gets
+ * everything piled in one slot, which is wrong but bounded.
+ */
+unsigned int rgame_canvas_next_slot(rgame_canvas *canvas, int band);
 
 void rgame_canvas_pop(rgame_canvas *canvas);
 

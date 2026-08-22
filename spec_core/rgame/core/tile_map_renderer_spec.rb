@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Driven entirely by StubTileMap and FakeRenderer. What a tile map renderer gets
-# wrong is which tiles it draws and where — a band mixed up, a tile one column
+# wrong is which tiles it draws and where — a layer mixed up, a tile one column
 # off, a bake repeated every frame — and recorded calls state that exactly,
 # where a rendered frame would only say the map looks odd.
 #
@@ -16,9 +16,8 @@ RSpec.describe RGame::Core::TileMapRenderer do
 
   def tileset(animations: {}) = StubTileset.new(firstgid: 1, animations: animations)
 
-  # 2x2, two layers, the second flagged above. Layer 0 has three tiles, layer 1
-  # has one.
-  def two_band_map(animations: {})
+  # 2x2, two layers. Layer 0 has three tiles, layer 1 has one.
+  def two_layer_map(animations: {})
     StubTileMap.new(layers: [[1, 2, 0, 3], [0, 0, 4, 0]], above: [false, true],
                     tileset: tileset(animations: animations))
   end
@@ -32,25 +31,40 @@ RSpec.describe RGame::Core::TileMapRenderer do
   # The local ids drawn straight into the frame, outside any recording.
   def drawn_ids = renderer.calls_to(:image_at).map { |call| call.args.first.region.first }
 
-  describe 'the two bands' do
-    it 'bakes only the below layers into #draw' do
-      described_class.new(two_band_map, tiles).draw(renderer, 0, 0, 64, 64)
+  describe 'one layer at a time' do
+    it 'bakes only that layer' do
+      described_class.new(two_layer_map, tiles).draw_layer(renderer, 0, 0, 0, 64, 64)
 
-      # Layer 0's gids 1, 2 and 3 are local 0, 1 and 2. Layer 1's gid 4 is not
-      # in this band and must not appear.
+      # Layer 0's gids 1, 2 and 3 are local 0, 1 and 2. Layer 1's gid 4 belongs
+      # to another node and must not appear.
       expect(baked_ids).to contain_exactly(0, 1, 2)
     end
 
-    it 'bakes only the above layers into #draw_overlay' do
-      described_class.new(two_band_map, tiles).draw_overlay(renderer, 0, 0, 64, 64, z: 20)
+    it 'bakes the next layer on its own too' do
+      described_class.new(two_layer_map, tiles).draw_layer(renderer, 1, 0, 0, 64, 64)
 
       expect(baked_ids).to eq([3])
+    end
+
+    it 'draws an empty layer as an empty recording rather than refusing' do
+      # A spacer layer in Tiled is ordinary, and every layer index has to keep
+      # meaning the same thing — skipping one would shift all the rest.
+      map = StubTileMap.new(layers: [[0, 0, 0, 0]], tileset: tileset)
+      described_class.new(map, tiles).draw_layer(renderer, 0, 0, 0, 64, 64)
+
+      expect(baked_ids).to be_empty
+      expect(renderer.calls_to(:recording_draw).length).to eq(1)
+    end
+
+    it 'refuses a layer the map does not have' do
+      expect { described_class.new(two_layer_map, tiles).draw_layer(renderer, 2, 0, 0, 64, 64) }
+        .to raise_error(ArgumentError, /no layer 2/)
     end
 
     it 'skips empty tiles' do
       # gid 0 is "nothing here". Drawing it would put tile 255 — or whatever
       # local_id(0) works out to — across every hole in the map.
-      described_class.new(two_band_map, tiles).draw(renderer, 0, 0, 64, 64)
+      described_class.new(two_layer_map, tiles).draw_layer(renderer, 0, 0, 0, 64, 64)
 
       expect(baked_ids.length).to eq(3)
     end
@@ -58,7 +72,7 @@ RSpec.describe RGame::Core::TileMapRenderer do
 
   describe 'baking' do
     it 'places each tile at its own grid position' do
-      described_class.new(two_band_map, tiles).draw(renderer, 0, 0, 64, 64)
+      described_class.new(two_layer_map, tiles).draw_layer(renderer, 0, 0, 0, 64, 64)
 
       recording = renderer.calls_to(:recording_draw).last.args.first
       expect(recording.calls_to(:image_at).map { |call| call.args[1..] })
@@ -69,8 +83,8 @@ RSpec.describe RGame::Core::TileMapRenderer do
       # The bug this class exists to avoid: rebaking every frame turns one call
       # per texture back into one per tile, and nothing shows it but the frame
       # rate.
-      map = described_class.new(two_band_map, tiles)
-      3.times { map.draw(renderer, 0, 0, 64, 64) }
+      map = described_class.new(two_layer_map, tiles)
+      3.times { map.draw_layer(renderer, 0, 0, 0, 64, 64) }
 
       replays = renderer.calls_to(:recording_draw)
       expect(replays.length).to eq(3)
@@ -79,29 +93,32 @@ RSpec.describe RGame::Core::TileMapRenderer do
       expect(replays.map { |call| call.args.first }.uniq.length).to eq(1)
     end
 
-    it 'keeps the two bands baked separately' do
-      map = described_class.new(two_band_map, tiles)
-      map.draw(renderer, 0, 0, 64, 64)
-      below = renderer.calls_to(:recording_draw).last.args.first
-      map.draw_overlay(renderer, 0, 0, 64, 64, z: 20)
-      above = renderer.calls_to(:recording_draw).last.args.first
+    it 'keeps each layer baked separately' do
+      map = described_class.new(two_layer_map, tiles)
+      map.draw_layer(renderer, 0, 0, 0, 64, 64)
+      ground = renderer.calls_to(:recording_draw).last.args.first
+      map.draw_layer(renderer, 1, 0, 0, 64, 64)
+      canopy = renderer.calls_to(:recording_draw).last.args.first
 
-      expect(above).not_to equal(below)
+      expect(canopy).not_to equal(ground)
     end
 
     # The map draws where its tiles live and the caller's transform puts them on
     # screen, so the replay carries no offset at all — which is what makes one
     # bake serve every viewport rather than only the camera it was baked for.
     it 'replays the layer at its own origin, whatever the cull rect' do
-      described_class.new(two_band_map, tiles).draw(renderer, 48, 32, 64, 64)
+      described_class.new(two_layer_map, tiles).draw_layer(renderer, 0, 48, 32, 64, 64)
 
       expect(renderer.calls_to(:recording_draw).last.args[1..]).to eq([0, 0])
     end
 
-    it 'replays the overlay at the z it was given' do
-      described_class.new(two_band_map, tiles).draw_overlay(renderer, 0, 0, 64, 64, z: 20)
+    # No z anywhere in here. A layer is drawn by a node of its own, so where it
+    # sits among the actors is the scene tree's answer rather than a number this
+    # class or its caller picks.
+    it 'replays at the layer base, taking no z of its own' do
+      described_class.new(two_layer_map, tiles).draw_layer(renderer, 0, 0, 0, 64, 64)
 
-      expect(renderer.calls_to(:recording_draw).last.options[:z]).to eq(20)
+      expect(renderer.calls_to(:recording_draw).last.options[:z]).to be_zero
     end
   end
 
@@ -109,14 +126,16 @@ RSpec.describe RGame::Core::TileMapRenderer do
     let(:animations) { { 0 => [[0, 100], [1, 100]] } }
 
     it 'leaves them out of the bake' do
-      described_class.new(two_band_map(animations: animations), tiles).draw(renderer, 0, 0, 64, 64)
+      described_class.new(two_layer_map(animations: animations), tiles)
+                     .draw_layer(renderer, 0, 0, 0, 64, 64)
 
       # Local 0 is animated; 1 and 2 are not.
       expect(baked_ids).to contain_exactly(1, 2)
     end
 
     it 'draws them into the frame instead, at their world position' do
-      described_class.new(two_band_map(animations: animations), tiles).draw(renderer, 0, 0, 64, 64)
+      described_class.new(two_layer_map(animations: animations), tiles)
+                     .draw_layer(renderer, 0, 0, 0, 64, 64)
 
       expect(renderer.calls_to(:image_at).map { |call| call.args[1..] }).to eq([[0, 0]])
     end
@@ -124,11 +143,11 @@ RSpec.describe RGame::Core::TileMapRenderer do
     it 'follows elapsed rather than a clock' do
       # Two 100 ms frames. Elapsed is in seconds, and a spec picks the frame it
       # wants instead of stubbing time.
-      map = described_class.new(two_band_map(animations: animations), tiles)
+      map = described_class.new(two_layer_map(animations: animations), tiles)
 
-      map.draw(renderer, 0, 0, 64, 64, elapsed: 0.0)
-      map.draw(renderer, 0, 0, 64, 64, elapsed: 0.15)
-      map.draw(renderer, 0, 0, 64, 64, elapsed: 0.25)
+      map.draw_layer(renderer, 0, 0, 0, 64, 64, elapsed: 0.0)
+      map.draw_layer(renderer, 0, 0, 0, 64, 64, elapsed: 0.15)
+      map.draw_layer(renderer, 0, 0, 0, 64, 64, elapsed: 0.25)
 
       expect(drawn_ids).to eq([0, 1, 0])
     end
@@ -136,26 +155,26 @@ RSpec.describe RGame::Core::TileMapRenderer do
     it 'stands still when elapsed does not move' do
       # What pausing looks like from here: the same number in, the same frame
       # out, however many times it is drawn.
-      map = described_class.new(two_band_map(animations: animations), tiles)
-      3.times { map.draw(renderer, 0, 0, 64, 64, elapsed: 0.15) }
+      map = described_class.new(two_layer_map(animations: animations), tiles)
+      3.times { map.draw_layer(renderer, 0, 0, 0, 64, 64, elapsed: 0.15) }
 
       expect(drawn_ids).to eq([1, 1, 1])
     end
 
     it 'draws them in world coordinates, like the baked layer' do
-      described_class.new(two_band_map(animations: animations), tiles)
-                     .draw(renderer, 8, 4, 64, 64)
+      described_class.new(two_layer_map(animations: animations), tiles)
+                     .draw_layer(renderer, 0, 8, 4, 64, 64)
 
       # Column 0, row 0 of a 16px tileset: at the origin, not at -cull.
       expect(renderer.calls_to(:image_at).map { |call| call.args[1..] }).to eq([[0, 0]])
     end
 
-    it 'draws the overlay band at the overlay z' do
-      map = StubTileMap.new(layers: [[0, 0, 0, 0], [1, 0, 0, 0]], above: [false, true],
+    it 'draws them at the layer base, like the baked tiles beside them' do
+      map = StubTileMap.new(layers: [[0, 0, 0, 0], [1, 0, 0, 0]],
                             tileset: tileset(animations: animations))
-      described_class.new(map, tiles).draw_overlay(renderer, 0, 0, 64, 64, z: 20)
+      described_class.new(map, tiles).draw_layer(renderer, 1, 0, 0, 64, 64)
 
-      expect(renderer.calls_to(:image_at).first.options[:z]).to eq(20)
+      expect(renderer.calls_to(:image_at).first.options[:z]).to be_zero
     end
   end
 
@@ -171,7 +190,7 @@ RSpec.describe RGame::Core::TileMapRenderer do
     # Positions are world coordinates, so the cell is a plain division — the
     # cull rect does not move them.
     def drawn_cells(cull_x, cull_y, width, height)
-      described_class.new(wide_map, tiles).draw(renderer, cull_x, cull_y, width, height)
+      described_class.new(wide_map, tiles).draw_layer(renderer, 0, cull_x, cull_y, width, height)
       renderer.calls_to(:image_at).map { |call| [call.args[1] / 16, call.args[2] / 16] }
     end
 
@@ -214,7 +233,7 @@ RSpec.describe RGame::Core::TileMapRenderer do
       RenderedFrame.capture(width: 64, height: 64) do |renderer, app|
         image = RGame::Core::Image.new(app, PngFixture.write(16, 16) { [255, 255, 255, 255] })
         map = described_class.new(white_map, Array.new(4) { image })
-        renderer.translated(dx, dy) { map.draw(renderer, 0, 0, 64, 64) }
+        renderer.translated(dx, dy) { map.draw_layer(renderer, 0, 0, 0, 64, 64) }
       end
     end
 
@@ -236,8 +255,12 @@ RSpec.describe RGame::Core::TileMapRenderer do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, app|
         image = RGame::Core::Image.new(app, PngFixture.write(16, 16) { [255, 255, 255, 255] })
         map = described_class.new(white_map, Array.new(4) { image })
-        renderer.clipped(0, 0, 64, 32) { renderer.translated(0, 0) { map.draw(renderer, 0, 0, 64, 64) } }
-        renderer.clipped(0, 32, 64, 32) { renderer.translated(24, 32) { map.draw(renderer, 0, 0, 64, 64) } }
+        renderer.clipped(0, 0, 64, 32) do
+          renderer.translated(0, 0) { map.draw_layer(renderer, 0, 0, 0, 64, 64) }
+        end
+        renderer.clipped(0, 32, 64, 32) do
+          renderer.translated(24, 32) { map.draw_layer(renderer, 0, 0, 0, 64, 64) }
+        end
       end
 
       expect([frame.at(4, 4), frame.at(28, 36), frame.at(4, 36)])
@@ -248,7 +271,7 @@ RSpec.describe RGame::Core::TileMapRenderer do
   it 'keeps the map it was built from, for the scene to read' do
     # A scene asks it for collision and world bounds, which are the map's
     # business rather than this class's.
-    map = two_band_map
+    map = two_layer_map
 
     expect(described_class.new(map, tiles).map).to equal(map)
   end

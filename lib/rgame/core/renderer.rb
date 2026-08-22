@@ -3,6 +3,7 @@
 require 'rgame/core_ext'
 require_relative 'font'
 require_relative '../util/color'
+require_relative '../util/z'
 
 module RGame
   module Core
@@ -25,10 +26,22 @@ module RGame
     # raises. That is on purpose: the frame is not open, so the vertices would
     # be silently discarded, and an invisible failure is the worst kind.
     #
-    # Nothing is drawn immediately. Calls accumulate and are z-sorted when the
-    # frame closes, so `z:` decides what ends up on top — not call order. Equal
-    # z keeps call order, which is what stops same-layer sprites flickering
-    # between frames.
+    # Nothing is drawn immediately. Calls accumulate and are sorted when the
+    # frame closes, so what ends up on top is decided by z rather than by call
+    # order. Equal z keeps call order, which is what stops same-layer sprites
+    # flickering between frames.
+    #
+    # ## `z:` is an offset inside the current layer, not a global number
+    #
+    # A `z:` is added to whatever `#layered` most recently pushed, and must be
+    # within RGame::Util::Z::Z_MIN..Z_MAX — one *node's* worth of room. It
+    # orders that node's own drawing (its panel under its label, a shadow under
+    # its sprite) and can reach nothing else. Which node comes before which is
+    # the scene graph's business, resolved by the traversal and handed here as a
+    # layer; see RGame::Util::Z.
+    #
+    # A caller outside any `#layered` block draws at the base layer 0, which is
+    # what a spec or a bare script gets.
     #
     # The C half of this class (ext/rgame_core/ruby/renderer_ext.c) has the `draw_*`
     # and `push_*` primitives; everything here is the comfortable surface over
@@ -43,9 +56,12 @@ module RGame
     class Renderer
       Color = RGame::Util::Color
 
+      Z = RGame::Util::Z
+
       # Shapes default above sprites, so a debug box or a health bar drawn
-      # without a `z:` lands on top of the scene rather than under it. The
-      # values match the layer this replaces.
+      # without a `z:` lands on top of *that node's* sprite rather than under
+      # it. Well inside one slot, so the defaults order a node's own drawing and
+      # nothing further.
       SHAPE_Z = 50
       IMAGE_Z = 0
 
@@ -53,8 +69,7 @@ module RGame
       # draws one, and few enough that a screenful of them is still one batch.
       CIRCLE_SEGMENTS = 64
 
-      # Text defaults above sprites but below shapes, and the size matches what
-      # the layer this replaces used, so ported UI lays out unchanged.
+      # Text defaults above sprites but below shapes, within the same slot.
       TEXT_Z = 10
       FONT_SIZE = 18
 
@@ -117,7 +132,13 @@ module RGame
         lookup(:nine_slice, id).draw(self, x, y, width, height, z: z, color: tint)
       end
 
-      # A tile map's below-the-actor band (ground and same-level detail).
+      # One layer of a tile map — the layer a Tiled `.tmx` lists at `layer`,
+      # counting from the bottom.
+      #
+      # One layer rather than the whole map, because a scene draws its actors
+      # between two of them: trunks under, canopies over. Which is which is the
+      # scene tree's business — `RGame::Engine::TileMapLayer` mounts a node per
+      # layer — so this takes no `z:`.
       #
       # **Drawn in world coordinates**: a tile at column 3 lands at
       # `3 * tile_width`, and getting it onto the screen is the caller's
@@ -130,43 +151,35 @@ module RGame
       # is an argument rather than a clock read on purpose — see CLAUDE.md,
       # "`draw` renders state; time enters through `update`". A scene
       # accumulates it in `update`, which is what makes pausing work.
-      def tilemap(id, cull_x, cull_y, cull_width, cull_height, elapsed: 0.0)
+      def tilemap(id, layer, cull_x, cull_y, cull_width, cull_height, elapsed: 0.0)
         lookup(:tilemap, id)
-          .draw(self, cull_x, cull_y, cull_width, cull_height, elapsed: elapsed)
-      end
-
-      # Its above-the-actor band (canopies, roofs), at a `z` the scene picks so
-      # it lands over the actors. World coordinates and a cull rect, as above.
-      def tilemap_overlay(id, cull_x, cull_y, cull_width, cull_height,
-                          z:, elapsed: 0.0)
-        lookup(:tilemap, id).draw_overlay(self, cull_x, cull_y, cull_width,
-                                          cull_height, z: z, elapsed: elapsed)
+          .draw_layer(self, layer, cull_x, cull_y, cull_width, cull_height, elapsed: elapsed)
       end
 
       # A filled axis-aligned rectangle.
       def rect(x, y, width, height, z: SHAPE_Z, color: nil)
-        draw_rect(x, y, width, height, z, packed(color))
+        draw_rect(x, y, width, height, Z.offset(z), packed(color))
       end
 
       # Four arbitrary points, in loop order: listing them in Z order gives an
       # hourglass rather than a shape.
       def quad(x1, y1, x2, y2, x3, y3, x4, y4, z: SHAPE_Z, color: nil)
-        draw_quad(x1, y1, x2, y2, x3, y3, x4, y4, z, packed(color))
+        draw_quad(x1, y1, x2, y2, x3, y3, x4, y4, Z.offset(z), packed(color))
       end
 
       def triangle(x1, y1, x2, y2, x3, y3, z: SHAPE_Z, color: nil)
-        draw_triangle(x1, y1, x2, y2, x3, y3, z, packed(color))
+        draw_triangle(x1, y1, x2, y2, x3, y3, Z.offset(z), packed(color))
       end
 
       # A line of real thickness — drawn as a quad, because GL's own line width
       # is a suggestion drivers may ignore above one pixel.
       def line(x1, y1, x2, y2, thickness: 1.0, z: SHAPE_Z, color: nil)
-        draw_line(x1, y1, x2, y2, thickness, z, packed(color))
+        draw_line(x1, y1, x2, y2, thickness, Z.offset(z), packed(color))
       end
 
       # A filled circle, as a fan of triangles around its centre.
       def circle(cx, cy, radius, z: SHAPE_Z, color: nil, segments: CIRCLE_SEGMENTS)
-        draw_circle(cx, cy, radius, segments, z, packed(color))
+        draw_circle(cx, cy, radius, segments, Z.offset(z), packed(color))
       end
 
       # An image centred on (cx, cy), rotated `angle` degrees clockwise about
@@ -175,7 +188,7 @@ module RGame
       #
       # Takes an `Image` or an id for one — see #resolve_image.
       def image(image, cx, cy, angle: 0, scale: 1, z: IMAGE_Z, color: nil)
-        draw_image_rot(resolve_image(image), cx, cy, angle, scale, z, packed(color))
+        draw_image_rot(resolve_image(image), cx, cy, angle, scale, Z.offset(z), packed(color))
       end
 
       # An image with its top-left at (x, y), scaled independently per axis —
@@ -190,14 +203,14 @@ module RGame
       #
       # A zero scale draws nothing.
       def image_at(image, x, y, scale_x: 1, scale_y: 1, z: IMAGE_Z, color: nil)
-        draw_image_scaled(resolve_image(image), x, y, scale_x, scale_y, z, packed(color))
+        draw_image_scaled(resolve_image(image), x, y, scale_x, scale_y, Z.offset(z), packed(color))
       end
 
       # An image with its top-left at (x, y), at its natural size — a
       # full-screen backdrop by default. `image_at` with both scales at 1, kept
       # because "put this at the origin" is worth a name of its own.
       def background(image, x = 0, y = 0, z: IMAGE_Z, color: nil)
-        draw_image(resolve_image(image), x, y, z, packed(color))
+        draw_image(resolve_image(image), x, y, Z.offset(z), packed(color))
       end
 
       # Everything drawn in the block is rotated `angle` degrees about
@@ -246,6 +259,34 @@ module RGame
         end
       end
 
+      # Everything drawn in the block draws in its own layer: a fresh slot in
+      # `band`, which every `z:` inside is then an offset from.
+      #
+      #   renderer.layered(:hud) { renderer.text(score, 12, 10) }
+      #
+      # Two things fall out of it, and they are the whole of draw order.
+      # **Slots are handed out in the order they are asked for**, so nesting
+      # this the way a scene graph is nested makes draw order tree order — a
+      # node drawn later is in front, and its whole subtree with it. And **a
+      # band is a hard partition**: every slot in `:hud` is above every slot in
+      # `:world`, whatever either drew, because they are 2**40 apart and a `z:`
+      # cannot reach out of one slot. See RGame::Util::Z.
+      #
+      # A caller that never uses this draws at layer 0 and gets exactly the z it
+      # passes, which is what a spec or a one-off script wants.
+      def layered(band = Z::DEFAULT)
+        index = Z.index(band)
+        push_layer(Z.slot_base(index, next_layer_slot(index)))
+        begin
+          yield
+        ensure
+          # An ensure for the same reason `rotated` has one: a scene that raises
+          # mid-draw would otherwise leave every later node drawing in its
+          # layer, and the frame would come out interleaved with no clue why.
+          pop
+        end
+      end
+
       # Everything drawn in the block is confined to the given rectangle.
       #
       # A clip only ever narrows: nesting one inside another intersects them, so
@@ -278,7 +319,7 @@ module RGame
       # Newlines are not special. A caller wanting two lines draws two, stepping
       # by #text_height.
       def text(string, x, y, z: TEXT_Z, color: nil, font: nil)
-        draw_text(font || self.font, string, x, y, z, packed(color))
+        draw_text(font || self.font, string, x, y, Z.offset(z), packed(color))
       end
 
       # What #text would occupy, for centring and layout. Unlike the drawing

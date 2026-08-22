@@ -443,7 +443,7 @@ int rgame_app_draw_image_rot(rgame_app *app, const rgame_image *image, float cx,
                              float angle_degrees, float scale, unsigned int color, double z);
 
 /*
- * The transform and clip stacks. Every push is undone by the same
+ * The transform, clip and layer stacks. Every push is undone by the same
  * `rgame_app_pop`, so a caller can never pop the wrong one; a push that cannot
  * be honoured (a full stack) is still counted, so pops stay balanced and the
  * drawing comes out untransformed rather than desynchronised.
@@ -461,6 +461,25 @@ void rgame_app_push_scale(rgame_app *app, float sx, float sy);
  * always succeed as far as the caller is concerned.
  */
 int rgame_app_push_clip(rgame_app *app, int x, int y, int width, int height);
+
+/*
+ * The layer stack: what every subsequent `z` is measured from, until the
+ * matching pop. It *replaces* rather than accumulates, and starts at 0, so a
+ * caller that never pushes one gets exactly the z it passes.
+ *
+ * `rgame_app_next_layer_slot` is the other half: one counter per band, reset at
+ * the start of each frame, handing out increasing indices. It counts and
+ * nothing more — what a band means, and how a slot index becomes a base, is
+ * decided a layer up (RGame::Util::Z). Bands outside 0..7 answer 0.
+ *
+ * Together they are how a scene graph gives each node its own narrow window of
+ * z values: the traversal takes the next slot as it reaches a node, so draw
+ * order is tree order, and a node's `z:` can only reorder its own drawing.
+ */
+void rgame_app_push_layer(rgame_app *app, double base);
+double rgame_app_layer(rgame_app *app);
+unsigned int rgame_app_next_layer_slot(rgame_app *app, int band);
+
 void rgame_app_pop(rgame_app *app);
 
 /*

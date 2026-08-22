@@ -248,7 +248,7 @@ module DriveExample
     Call = Struct.new(:calls, :first_args, :last_args)
 
     attr_accessor :ticks, :frames
-    attr_reader :draws, :clips, :translates, :sounds, :scenes
+    attr_reader :draws, :clips, :translates, :sounds, :scenes, :bands
 
     def initialize
       @ticks = 0
@@ -258,6 +258,11 @@ module DriveExample
       @translates = Hash.new(0)
       @sounds = Hash.new(0)
       @scenes = []
+      # Layers opened per band. Draw order is band first, then tree order, so
+      # this is the coarse half of "what covered what" — and the half a boot
+      # cannot show. A game whose HUD never opens a :hud layer draws its score
+      # under the world and looks perfectly healthy from every other count here.
+      @bands = Hash.new(0)
       # Which translates happened inside which clip. Split-screen's signature is
       # one clip per viewport each containing its *own* camera track, and that is
       # two facts about the same nesting — reading it off two separate lists left
@@ -291,6 +296,7 @@ module DriveExample
       @per_clip[@clip][key] += 1 if @clip
     end
 
+    def record_band(band) = @bands[band] += 1
     def record_sound(kind, id) = @sounds["#{kind} #{id}"] += 1
     def record_scene(action, scene) = @scenes << "#{action} #{scene.class}"
 
@@ -299,6 +305,7 @@ module DriveExample
       out << section('ticks / frames', ["#{@ticks} ticks, #{@frames} frames"])
       out << section('scenes', @scenes)
       out << section('draw calls', @draws.sort_by { |_, c| -c.calls }.map { |name, c| draw_line(name, c) })
+      out << section('layers per band', band_lines)
       out << section('clips pushed', clip_lines)
       out << section('translates pushed', translate_lines)
       out << section('audio', @sounds.map { |what, n| "#{n} × #{what}" })
@@ -306,6 +313,16 @@ module DriveExample
     end
 
     private
+
+    # One line per band, back to front, so the reader sees the frame's coarse
+    # stacking at a glance: how many nodes drew in the world, how many in a
+    # player's HUD, whether an overlay opened at all.
+    def band_lines
+      RGame::Util::Z::BANDS.filter_map do |band|
+        count = @bands[band]
+        "#{count} × #{band}" unless count.zero?
+      end
+    end
 
     # One line per clip, with what moved inside it. Two clips each holding their
     # own set of translates is what two players looking at one world produces —
@@ -405,6 +422,13 @@ module DriveExample
     def translated(dx, dy, &)
       @report.record_translate([dx, dy])
       @target.translated(dx, dy, &)
+    end
+
+    # Named for the same reason as the two above: the *band* is what matters,
+    # and the generic path would only say a layer was opened.
+    def layered(band = RGame::Util::Z::DEFAULT, &)
+      @report.record_band(band)
+      @target.layered(band, &)
     end
 
     private

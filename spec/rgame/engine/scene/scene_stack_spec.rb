@@ -12,7 +12,8 @@ RSpec.describe RGame::Engine::Scene::SceneStack do
   # surface the stack drives: the enter_tree/exit_tree cascade, the parent + scene-
   # boundary wiring, and the per-phase control/update/draw forwarding.
   def scene_double
-    instance_double(RGame::Engine::Node2D, enter_tree: nil, exit_tree: nil, :parent= => nil, :scene= => nil)
+    instance_double(RGame::Engine::Node2D, enter_tree: nil, exit_tree: nil, :parent= => nil,
+                                           :scene= => nil, :sibling_order= => nil)
   end
 
   describe '#current' do

@@ -10,7 +10,8 @@ read input from a per-frame snapshot, never naming a graphics library at all.
 `RGame::Engine::Node2D` (`engine/node2d`) is the basic building block. (The `2D` in the
 name leaves room for a future 3D node; today everything is 2D.) A node carries:
 
-- a **transform** — relative `x`, `y`, `z` plus `width`/`height`;
+- a **transform** — relative `x`, `y`, `angle` plus `width`/`height`, and a `z`
+  that orders it among its siblings;
 - **children** — other nodes nested under it (`add_node`);
 - **components** — reusable pieces of behaviour attached to it (`add_component`);
 - a **parent** — the node it hangs off (set automatically when it is added).
@@ -52,12 +53,54 @@ iteration** — add children with `add_node` and let the tree drive them.
 
 ### Absolute position
 
-`x`/`y`/`z` are **relative to the parent**. At the start of each phase a node
+`x`/`y` are **relative to the parent**. At the start of each phase a node
 resolves its absolute position by accumulating onto the parent's origin
-(`abs_x = parent.abs_x + x`, and likewise for `y`/`z`); a node with no parent
-sits at the origin. Moving or re-layering a node therefore moves and re-layers
-its whole subtree. (Rotation, dirty-flag caching and smarter `z`/depth handling
-are noted as future work in the source.)
+(`abs_x = parent.abs_x + x`, and likewise for `y`, with the parent's rotation
+applied); a node with no parent sits at the origin. Moving a node therefore
+moves its whole subtree. (Dirty-flag caching is noted as future work in the
+source.)
+
+**`z` is not among them, and there is no `abs_z`.** Depth is decided by where
+the traversal reaches a node, not by summing what its ancestors picked — see
+"Draw order" below.
+
+### Draw order
+
+A node's `z` says where it sits among its **siblings**, and nowhere else. The
+tree is drawn depth-first with siblings in `z` order, so:
+
+```ruby
+sky.add_node(Clouds.new(z: 2))
+sky.add_node(Birds.new(z: 1))
+sky.add_node(People.new(z: 0))
+```
+
+draws people, then birds, then clouds. Each of them may be built out of as many
+child nodes as it likes: **a subtree is atomic**, so no part of `clouds` can end
+up behind `birds`, and no part of `birds` in front of `clouds`.
+
+Only the comparison matters. `z` is never added to anything and never reaches
+the renderer, so its magnitude means nothing — `1` and `1_000_000` behave
+identically if they are the only two children — and negatives are ordinary.
+Equal `z` keeps the order the nodes were added in.
+
+A **band** overrules all of it. `band:` is `:world` (the default), `:hud`,
+`:overlay` or `:debug`, and it is inherited down the tree like `input_owner`:
+
+```ruby
+scene.add_node(RGame::Engine::PlayerLayer.new(player: player))  # :hud
+scene.add_node(Cutscene.new(band: :overlay))
+```
+
+Everything in `:world` draws under everything in `:hud`, whatever either asked
+for, and nothing a node passes as `z:` can cross the gap. `WorldView` declares
+`:world` and `PlayerLayer` declares `:hud`, so most games never name a band at
+all; a node that must escape the band it inherits says so with `band:`, which is
+the one way out and is explicit.
+
+The engine turns all of this into the single number the renderer sorts on:
+`Node2D#draw` opens a layer per node, taking the next slot in its band. See
+[Drawing](drawing.md#draw-order) and `RGame::Util::Z`.
 
 ### Who a node answers to
 
@@ -99,12 +142,13 @@ subclass can override to wrap the subtree in a renderer transform.
 `WorldView` or it is not, and that decides what its coordinates mean and how
 many times it is drawn.
 
-**Z band** is an ordering convention and nothing enforces it: `Z::WORLD`,
-`Z::HUD`, `Z::OVERLAY`, `Z::DEBUG` are Integers a caller passes as `z:`. See
-[Drawing](drawing.md#bands-where-each-kind-of-content-sits).
+**Band** is an ordering partition: `:world`, `:hud`, `:overlay`, `:debug`. It is
+structural too — inherited down the tree, declared by `WorldView` and
+`PlayerLayer` — but it decides *what covers what* rather than what coordinates
+mean. See [Drawing](drawing.md#draw-order).
 
 They are not the same partition. All screen-space content is one *space* and is
-drawn once; the z bands subdivide it by what should cover what.
+drawn once; the bands subdivide it by what should cover what.
 
 `RGame::Engine::WorldView` is that subclass, and it is where **world space begins**.
 Its children draw at their own world origin and never know about a camera; the node
@@ -185,6 +229,10 @@ viewport under a camera (`WorldView`), a global overlay once across the whole
 window (anything else in the tree), and this once per player inside their own
 region.
 
+It is also where the `:hud` band comes from: `PlayerLayer` declares it, so
+everything under here draws over everything in the world without any of it
+saying so.
+
 **Children are positioned relative to the layer**, so a node at (10, 10) is ten
 pixels inside *that player's* region wherever the layout put it, and the same
 HUD class serves either player unchanged. Lay out against the far edge with the
@@ -218,8 +266,8 @@ next tick. This system is reachable from anywhere including a `draw`, and a `dra
 once per view, so applying immediately would tear the frame it was requested in.
 
 A full-screen UI — a results screen, a pause panel — usually wants no collapse at all:
-draw it in screen space, outside any `WorldView`, and it covers the whole window over
-whatever the players are seeing.
+draw it in screen space, outside any `WorldView`, with `band: :overlay` so it covers
+the whole window over whatever the players are seeing, HUDs included.
 
 ## Components
 
