@@ -11,16 +11,11 @@ module RGame
       # Collision reuses Engine::CollisionSystem (TileCollision + a world-bounds clamp);
       # the tile solidity is whatever the map's tileset reports (baked per-tile in Tiled).
       #
-      # Drawing splits into two z bands so actors can sit between them: the below band
-      # (ground, same-level detail) at GROUND_Z and the above band (canopies, roofs) at
-      # CANOPY_Z. Actors draw at a z in between (the renderer sorts by z, so the
-      # draw-call order doesn't matter). TileMapLayer draws both.
-      #
-      # **It does not draw.** Drawing the map is RGame::Engine::TileMapLayer, a
-      # node that lives inside the WorldView so the map is drawn once per
-      # viewport like the rest of the world. This stays a system — the thing
-      # actors ask about collision and bounds — and a system that also drew was
-      # always the odd part of it.
+      # **It does not draw.** Drawing the map is RGame::Engine::TileMapLayer, one
+      # node per Tiled layer, mounted inside the WorldView so the map is drawn
+      # once per viewport like the rest of the world. This stays a system — the
+      # thing actors ask about collision and bounds — and a system that also
+      # drew was always the odd part of it.
       #
       # It owns the map's **animation clock**. Nothing below reads a wall clock —
       # see CLAUDE.md, "`draw` renders state; time enters through `update`" — so the
@@ -28,9 +23,6 @@ module RGame
       # draw time. Stop calling `update` and the water freezes, which is what pausing
       # should look like.
       class TileWorld < Engine::Component
-        GROUND_Z  = 0
-        CANOPY_Z  = 20 # tiles above the actors: canopies, roofs
-
         attr_reader :tilemap_id, :elapsed
 
         # `cameras` are the cameras this map bounds — every player's, normally.
@@ -53,6 +45,17 @@ module RGame
 
         def world_width = @map.pixel_width
         def world_height = @map.pixel_height
+
+        def layer_count = @map.layer_count
+
+        # The first layer Tiled flags `above`, or the layer count if none is —
+        # which is where TileMapLayer.mount leaves the gap for the actors, so a
+        # map with no flag puts them over everything. Read once at mount rather
+        # than per frame: which layers cover the actors is a fact about the
+        # scene's arrangement, and the arrangement is made once.
+        def first_above_layer
+          layer_count.times.find { |index| @map.above_layer?(index) } || layer_count
+        end
 
         # Clamp a camera to this map's edges. Called for each camera the scene
         # hands over, and again for one that arrives later (a player joining).

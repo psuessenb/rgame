@@ -90,6 +90,105 @@ RSpec.shared_examples 'a renderer' do
     end
   end
 
+  # The coarse half of draw order. `layered` hands out a slot; every `z:` inside
+  # it is an offset from that slot's base. A scene graph nests these the way it
+  # nests nodes, and that is what makes draw order tree order.
+  describe 'layers' do
+    it 'yields inside #layered and returns what the block returned' do
+      render { |renderer, _image| expect(renderer.layered(:world) { :drew }).to eq(:drew) }
+    end
+
+    it 'defaults to the world band, so a game that never mentions one is in it' do
+      render do |renderer, _image|
+        world = renderer.layered(:world) { renderer.layer }
+        default = renderer.layered { renderer.layer }
+
+        # The same band, so the second slot follows the first rather than
+        # landing somewhere else entirely.
+        expect(default - world).to eq(RGame::Util::Z::SLOT)
+      end
+    end
+
+    it 'draws at layer 0 outside any block' do
+      # A spec or a one-off script gets exactly the z it passes.
+      render { |renderer, _image| expect(renderer.layer).to be_zero }
+    end
+
+    it 'hands out a fresh slot each time, in the order they were asked for' do
+      render do |renderer, _image|
+        first = renderer.layered(:world) { renderer.layer }
+        second = renderer.layered(:world) { renderer.layer }
+
+        expect(second).to be > first
+      end
+    end
+
+    it 'leaves a gap no z: can cross between one slot and the next' do
+      render do |renderer, _image|
+        first = renderer.layered(:world) { renderer.layer }
+        second = renderer.layered(:world) { renderer.layer }
+
+        # The top of the first node's room is still below the bottom of the
+        # second's. This is the whole of "a node cannot reorder itself against
+        # another node by picking a bigger number".
+        expect(first + RGame::Util::Z::Z_MAX).to be < second + RGame::Util::Z::Z_MIN
+      end
+    end
+
+    it 'puts every slot of a later band above every slot of an earlier one' do
+      render do |renderer, _image|
+        hud = renderer.layered(:hud) { renderer.layer }
+        world = renderer.layered(:world) { renderer.layer }
+
+        # Asked for in the wrong order on purpose: a band is structural, so
+        # when it was asked for cannot matter.
+        expect(hud).to be > world + RGame::Util::Z::STRIDE - RGame::Util::Z::SLOT
+      end
+    end
+
+    it 'restores the enclosing layer afterwards' do
+      render do |renderer, _image|
+        renderer.layered(:world) do
+          outer = renderer.layer
+          renderer.layered(:world) { nil }
+          expect(renderer.layer).to eq(outer)
+        end
+      end
+    end
+
+    it 'replaces rather than accumulates when nested' do
+      # Adding them would be the additive relative z this design removes: a
+      # node's slot is decided by when the traversal reached it, not by summing
+      # what its ancestors picked.
+      render do |renderer, _image|
+        renderer.layered(:world) do
+          inner = renderer.layered(:world) { renderer.layer }
+          expect(inner).to be < RGame::Util::Z::STRIDE
+        end
+      end
+    end
+
+    it 'unwinds a block that raises, and keeps working afterwards' do
+      render do |renderer, _image|
+        expect { renderer.layered(:world) { raise 'from inside the block' } }
+          .to raise_error(RuntimeError, 'from inside the block')
+
+        expect(renderer.layer).to be_zero
+        renderer.rect(0, 0, 10, 10)
+      end
+    end
+
+    it 'nests inside the transform blocks, and they inside it' do
+      expect do
+        render do |renderer, _image|
+          renderer.clipped(0, 0, 50, 50) do
+            renderer.layered(:hud) { renderer.translated(5, 5) { renderer.rect(0, 0, 1, 1) } }
+          end
+        end
+      end.not_to raise_error
+    end
+  end
+
   describe 'z and colour' do
     # Every drawing method takes both, and takes them the same way — a caller
     # should never have to remember which of them is positional here.
@@ -204,10 +303,10 @@ RSpec.shared_examples 'a renderer' do
       end
     end
 
-    it 'asks a registered tile map for each of its two bands' do
-      # The bands are separate calls because the scene draws its actors between
-      # them; collapsing them into one would put every canopy behind every
-      # character.
+    it 'asks a registered tile map for one layer at a time' do
+      # One layer per call, because the scene draws its actors between two of
+      # them; a whole-map call would put every canopy behind every character.
+      # Which layers those are is the scene tree's answer, so no z is passed.
       #
       # The rectangle is passed straight through as a **cull rect** in world
       # coordinates — which part of the map is worth drawing. It is not an
@@ -217,14 +316,14 @@ RSpec.shared_examples 'a renderer' do
       render do |renderer, _image|
         map = recorder
         renderer.register_tilemap(:level1, map)
-        renderer.tilemap(:level1, 8, 16, 320, 240, elapsed: 1.5)
-        renderer.tilemap_overlay(:level1, 8, 16, 320, 240, z: 20, elapsed: 1.5)
+        renderer.tilemap(:level1, 0, 8, 16, 320, 240, elapsed: 1.5)
+        renderer.tilemap(:level1, 2, 8, 16, 320, 240, elapsed: 1.5)
 
-        expect(map.received.map(&:first)).to eq(%i[draw draw_overlay])
+        expect(map.received.map(&:first)).to eq(%i[draw_layer draw_layer])
         expect(map.received.first)
-          .to eq([:draw, [renderer, 8, 16, 320, 240], { elapsed: 1.5 }])
+          .to eq([:draw_layer, [renderer, 0, 8, 16, 320, 240], { elapsed: 1.5 }])
         expect(map.received.last)
-          .to eq([:draw_overlay, [renderer, 8, 16, 320, 240], { z: 20, elapsed: 1.5 }])
+          .to eq([:draw_layer, [renderer, 2, 8, 16, 320, 240], { elapsed: 1.5 }])
       end
     end
 
@@ -322,6 +421,36 @@ RSpec.shared_examples 'a renderer' do
     it 'refuses a colour with too few components' do
       expect { render { |renderer, _image| renderer.rect(0, 0, 1, 1, color: [1, 2]) } }
         .to raise_error(ArgumentError)
+    end
+
+    it 'refuses a z: outside one node\'s slot' do
+      # The bands used to be Integers a caller passed (`z: Z::HUD`), and the
+      # whole guarantee — that a node cannot draw outside its band — rests on
+      # that spelling being impossible now rather than merely discouraged.
+      render do |renderer, image, font|
+        [-> { renderer.rect(0, 0, 1, 1, z: 100_000) },
+         -> { renderer.quad(0, 0, 1, 0, 1, 1, 0, 1, z: 100_000) },
+         -> { renderer.triangle(0, 0, 1, 0, 0, 1, z: 100_000) },
+         -> { renderer.line(0, 0, 1, 1, z: 100_000) },
+         -> { renderer.circle(0, 0, 1, z: 100_000) },
+         -> { renderer.debug_box(0, 0, 1, 1, z: 100_000) },
+         -> { renderer.image(image, 0, 0, z: 100_000) },
+         -> { renderer.image_at(image, 0, 0, z: 100_000) },
+         -> { renderer.background(image, z: 100_000) },
+         -> { renderer.text('x', 0, 0, z: 100_000, font: font) }].each do |drawing|
+          expect(&drawing).to raise_error(ArgumentError, /outside a node's slot/)
+        end
+      end
+    end
+
+    it 'refuses a z: that is not a number' do
+      expect { render { |renderer, _image| renderer.rect(0, 0, 1, 1, z: nil) } }
+        .to raise_error(TypeError)
+    end
+
+    it 'refuses a band that is not one' do
+      expect { render { |renderer, _image| renderer.layered(:nope) { nil } } }
+        .to raise_error(ArgumentError, /unknown z band/)
     end
   end
 
@@ -455,6 +584,15 @@ RSpec.shared_examples 'a renderer' do
 
         expect(baked).to respond_to(:draw)
         baked.draw(100, 100)
+      end
+    end
+
+    it 'refuses a z: outside one node\'s slot on the replay' do
+      render do |renderer, _image|
+        baked = renderer.record { renderer.rect(0, 0, 10, 10) }
+
+        expect { baked.draw(0, 0, z: 100_000) }
+          .to raise_error(ArgumentError, /outside a node's slot/)
       end
     end
 

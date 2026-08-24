@@ -36,10 +36,9 @@ module RGame
         attr_accessor :label, :enabled
         attr_writer :focused, :pressed
 
-        def initialize(label:, z: Z::HUD, style: STYLE, enabled: true, **)
+        def initialize(label:, style: STYLE, enabled: true, **)
           super(**)
           @label = label
-          @layer = z
           @style = style
           @enabled = enabled
           @focused = false
@@ -59,10 +58,13 @@ module RGame
           self
         end
 
+        # The panel and its label share this node's slot, so the only ordering
+        # question is which of the two goes on top — and `z: 1` says exactly
+        # that, about this item and nothing else in the frame.
         def on_draw(renderer, _view)
-          renderer.nine_slice(@style.fetch(state), abs_x, abs_y, width, height, z: @layer)
+          renderer.nine_slice(@style.fetch(state), abs_x, abs_y, width, height)
           renderer.text(@label, label_x(renderer), label_y(renderer),
-                        z: @layer + 1, color: @enabled ? LABEL_COLOR : DISABLED_LABEL_COLOR)
+                        z: 1, color: @enabled ? LABEL_COLOR : DISABLED_LABEL_COLOR)
         end
 
         private

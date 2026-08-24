@@ -7,8 +7,13 @@ RSpec.describe RGame::Engine::DebugOverlay do
   # A faithful, allocation-free stand-in for RGame::Core::Renderer: explicit keyword
   # params (like the real #text) so a call doesn't collect a keyword Hash, and a plain
   # object rather than an RSpec double (doubles allocate per call).
+  #
+  # `layered` yields, and must allocate nothing doing it — the overlay opens one
+  # per frame and so does every node in a game, so a Proc allocated here would
+  # be one per node per frame.
   let(:renderer) do
     Class.new do
+      def layered(_band = :world) = yield
       def text(string, x, y, z: 0, color: nil); end
       def text_width(_string) = 10
       def text_height = 16

@@ -87,11 +87,22 @@ RSpec.describe RGame::Engine::UI::MenuItem do
       expect(renderer.calls_to(:text).last.options[:z]).to be > slice_z
     end
 
-    # A menu belongs in a player's own screen space, so its default band is the
-    # HUD one rather than the world it sits over.
-    it 'draws in the HUD band by default' do
-      item
-      expect(drew.last[2][:z]).to eq(RGame::Engine::Z::HUD)
+    # A menu belongs in a player's own screen space, and gets there by living
+    # under a PlayerLayer rather than by naming a number. On its own it is in
+    # the default band, like anything else with no band ancestor.
+    it 'inherits its band rather than declaring one' do
+      expect(item.band).to be_nil
+      expect(item.abs_band).to eq(:world)
+    end
+
+    it 'is in the HUD band under a PlayerLayer' do
+      player = RGame::Engine::Player.new(id: 0)
+      layer = root.add_node(RGame::Engine::PlayerLayer.new(player: player))
+      menu_item = layer.add_node(described_class.new(label: 'Resume', width: 200, height: 40))
+      root.enter_tree
+      root.update(0)
+
+      expect(menu_item.abs_band).to eq(:hud)
     end
   end
 

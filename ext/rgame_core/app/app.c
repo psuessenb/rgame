@@ -753,6 +753,23 @@ int rgame_app_push_clip(rgame_app *app, int x, int y, int width, int height) {
     return 1;
 }
 
+void rgame_app_push_layer(rgame_app *app, double base) {
+    rgame_canvas *canvas = drawing_canvas(app);
+    if (canvas) {
+        rgame_canvas_push_layer(canvas, base);
+    }
+}
+
+double rgame_app_layer(rgame_app *app) {
+    rgame_canvas *canvas = drawing_canvas(app);
+    return canvas ? rgame_canvas_layer(canvas) : 0.0;
+}
+
+unsigned int rgame_app_next_layer_slot(rgame_app *app, int band) {
+    rgame_canvas *canvas = drawing_canvas(app);
+    return canvas ? rgame_canvas_next_slot(canvas, band) : 0;
+}
+
 void rgame_app_pop(rgame_app *app) {
     rgame_canvas *canvas = drawing_canvas(app);
     if (canvas) {

@@ -32,9 +32,9 @@ class FakeRecording
   def draw(x = 0, y = 0, z: 0, color: nil)
     @renderer.send(:number, x)
     @renderer.send(:number, y)
-    @renderer.send(:number, z)
+    @renderer.send(:z_arg, z)
     @renderer.send(:color_arg, color)
-    @draws << FakeRenderer::Call.new(:draw, [x, y], { z: z, color: color }, [])
+    @draws << FakeRenderer::Call.new(:draw, [x, y], { z: z, color: color }, [], @renderer.layer)
     @renderer.send(:remember, :recording_draw, [self, x, y], z: z, color: color)
     self
   end

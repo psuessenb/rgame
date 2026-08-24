@@ -45,8 +45,8 @@ class GameOverScene < RGame::Engine::Node2D
 
   private
 
+  # No z and no band — see StartScene: one node, backdrop under text by default.
   def centered(renderer, text, y, color)
-    renderer.text(text, (@width - renderer.text_width(text)) / 2, y,
-                  z: RGame::Engine::Z::OVERLAY, color: color)
+    renderer.text(text, (@width - renderer.text_width(text)) / 2, y, color: color)
   end
 end

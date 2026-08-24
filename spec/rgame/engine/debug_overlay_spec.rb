@@ -3,11 +3,15 @@
 RSpec.describe RGame::Engine::DebugOverlay do
   subject(:overlay) { described_class.new }
 
-  let(:renderer) { instance_double(FakeRenderer, text: nil, text_width: 10, text_height: 16) }
+  let(:renderer) do
+    instance_double(FakeRenderer, text: nil, text_width: 10, text_height: 16, layered: nil)
+  end
 
-  # The overlay always draws through #text with a z and colour; a row is just a string.
+  before { allow(renderer).to receive(:layered).and_yield }
+
+  # The overlay always draws through #text with a colour; a row is just a string.
   def drew(string)
-    have_received(:text).with(string, anything, anything, z: anything, color: anything)
+    have_received(:text).with(string, anything, anything, color: anything)
   end
 
   describe 'visibility' do
@@ -49,9 +53,13 @@ RSpec.describe RGame::Engine::DebugOverlay do
         expect(renderer).to drew('0').at_least(:once)
       end
 
+      it 'draws in the debug band, over every other thing in the frame' do
+        expect(renderer).to have_received(:layered).with(:debug)
+      end
+
       it 'places the overlay inside the bottom-right corner' do
         expect(renderer).to have_received(:text)
-          .with('FPS', satisfy { |x| x < 640 }, satisfy { |y| y.between?(240, 480) }, z: anything, color: anything)
+          .with('FPS', satisfy { |x| x < 640 }, satisfy { |y| y.between?(240, 480) }, color: anything)
       end
     end
 

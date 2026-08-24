@@ -16,14 +16,13 @@ class Rock < RGame::Engine::Node2D
   SPLIT_SPREAD = 0.5
   SPLIT_JITTER = 0.2
   SPLIT_SIGNS  = [-1, 1].freeze # the two diverging directions; frozen so split allocates none
-  ENTITY_Z = 10
 
   attr_reader :tier, :points
 
   def initialize(world_width:, world_height:)
     super()
     @velocity = add_component(RGame::Engine::Components::Velocity.new)
-    @sprite   = add_component(RGame::Engine::Components::Sprite.new(id: :rock, z: ENTITY_Z))
+    @sprite   = add_component(RGame::Engine::Components::Sprite.new(id: :rock))
     add_component(RGame::Engine::Components::ScreenWrap.new(width: world_width, height: world_height,
                                                             margin: RADII.first))
     @collider = add_component(RGame::Engine::Components::CircleCollider.new(radius: RADII.first, layer: :rock))

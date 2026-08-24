@@ -15,7 +15,7 @@ any C.
 | [Text](text.md) | `RGame::Core::Font` and `Renderer#text` |
 | [Audio](audio.md) | `RGame::Core::Audio`, `Sample`, `Song` — samples and streamed music |
 | [Sheets, atlases and maps](assets.md) | `RGame::Core::SpriteSheet` and the rest of the asset layer |
-| [Values](values.md) | `RGame::Util::Color`, `RGame::Util::Tensor` |
+| [Values](values.md) | `RGame::Util::Color`, `RGame::Util::Tensor`, `RGame::Util::Z` |
 
 The scene graph — `RGame::Engine`, the layer a game is actually written in:
 

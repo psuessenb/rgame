@@ -6,3 +6,4 @@
 require_relative 'util/color'
 require_relative 'util/controls'
 require_relative 'util/tensor'
+require_relative 'util/z'

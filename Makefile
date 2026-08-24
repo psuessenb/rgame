@@ -1,6 +1,15 @@
 CC ?= gcc
 CFLAGS ?= -std=c17 -Wall -Wextra -g -fPIC
 
+# -MMD -MP makes the compiler emit a build/<name>.d listing every header the
+# object actually included, and the -include below feeds those back to make.
+# Without it a header change rebuilds only the objects whose recipe happens to
+# name that header — and a struct that grows in one object but not another is a
+# corrupt binary, not a compile error. That is a rule nobody can be asked to
+# remember, so the compiler keeps it instead. -MP adds a phony target per
+# header so a deleted one does not wedge the build.
+DEPFLAGS := -MMD -MP
+
 # The engine sources live in ext/rgame_core/ (a Ruby extension directory) so
 # that `gem install` can build them via extconf.rb without reaching outside ext/.
 # This Makefile builds those same sources into a standalone binary.
@@ -113,92 +122,92 @@ $(APP_OBJ): $(EXT_CORE_DIR)/app/app.c $(EXT_CORE_DIR)/app/frame_loop.h $(EXT_COR
             $(EXT_CORE_DIR)/graphics/gl_backend.h $(EXT_CORE_DIR)/graphics/image_internal.h \
             $(EXT_CORE_DIR)/text/font_internal.h \
             $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
 $(FRAME_LOOP_OBJ): $(EXT_CORE_DIR)/app/frame_loop.c $(EXT_CORE_DIR)/app/frame_loop.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 $(DEVICE_SLOTS_OBJ): $(EXT_CORE_DIR)/input/device_slots.c $(EXT_CORE_DIR)/input/device_slots.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 $(INPUT_OBJ): $(EXT_CORE_DIR)/input/input.c $(EXT_CORE_DIR)/input/input.h $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 $(GAMEPAD_OBJ): $(EXT_CORE_DIR)/input/gamepad.c $(EXT_CORE_DIR)/input/gamepad.h $(EXT_CORE_DIR)/input/input.h $(EXT_CORE_DIR)/input/device_slots.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
 $(TRANSFORM_OBJ): $(EXT_CORE_DIR)/graphics/transform.c $(EXT_CORE_DIR)/graphics/transform.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 $(CLIP_OBJ): $(EXT_CORE_DIR)/graphics/clip.c $(EXT_CORE_DIR)/graphics/clip.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 $(DRAW_QUEUE_OBJ): $(EXT_CORE_DIR)/graphics/draw_queue.c $(EXT_CORE_DIR)/graphics/draw_queue.h \
                    $(EXT_CORE_DIR)/graphics/clip.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 $(BACKEND_OBJ): $(EXT_CORE_DIR)/graphics/backend.c $(EXT_CORE_DIR)/graphics/backend.h \
                 $(EXT_CORE_DIR)/graphics/draw_queue.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 # Test-only: the recording backend the Check suite substitutes for real GL.
 $(BUILD_DIR)/recording_backend.o: test/support/recording_backend.c \
                                   test/support/recording_backend.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -I$(EXT_CORE_DIR) -I$(EXT_UTIL_DIR) -Itest/support $(CHECK_CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) -I$(EXT_CORE_DIR) -I$(EXT_UTIL_DIR) -Itest/support $(CHECK_CFLAGS) -c $< -o $@
 
 $(CANVAS_OBJ): $(EXT_CORE_DIR)/graphics/canvas.c $(EXT_CORE_DIR)/graphics/canvas.h \
                $(EXT_CORE_DIR)/graphics/draw_queue.h $(EXT_CORE_DIR)/graphics/transform.h \
                $(EXT_CORE_DIR)/graphics/clip.h $(EXT_CORE_DIR)/graphics/recording.h \
                $(EXT_UTIL_DIR)/color.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 $(TEXTURE_OBJ): $(EXT_CORE_DIR)/graphics/texture.c $(EXT_CORE_DIR)/graphics/texture.h \
                 $(EXT_CORE_DIR)/graphics/clip.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 $(PRIMITIVES_OBJ): $(EXT_CORE_DIR)/graphics/primitives.c $(EXT_CORE_DIR)/graphics/primitives.h \
                    $(EXT_CORE_DIR)/graphics/canvas.h $(EXT_CORE_DIR)/graphics/texture.h \
                    $(EXT_UTIL_DIR)/color.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 $(ATLAS_OBJ): $(EXT_CORE_DIR)/text/atlas.c $(EXT_CORE_DIR)/text/atlas.h \
               $(EXT_CORE_DIR)/graphics/clip.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 $(GLYPH_CACHE_OBJ): $(EXT_CORE_DIR)/text/glyph_cache.c $(EXT_CORE_DIR)/text/glyph_cache.h \
                     $(EXT_CORE_DIR)/graphics/clip.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 # Needs the extension directory on the include path for "vendor/stb_truetype.h".
 $(FONT_OBJ): $(EXT_CORE_DIR)/text/font.c $(EXT_CORE_DIR)/text/font.h \
              $(EXT_CORE_DIR)/text/glyph_cache.h $(EXT_CORE_DIR)/vendor/stb_truetype.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 $(FONT_ATLAS_OBJ): $(EXT_CORE_DIR)/text/font_atlas.c $(EXT_CORE_DIR)/text/font_internal.h \
                    $(EXT_CORE_DIR)/text/font.h $(EXT_CORE_DIR)/text/atlas.h \
                    $(EXT_CORE_DIR)/text/glyph_cache.h $(EXT_CORE_DIR)/app/app_gl.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
 $(VORBIS_DECODER_OBJ): $(EXT_CORE_DIR)/audio/vorbis_decoder.c $(EXT_CORE_DIR)/audio/vorbis_decoder.h \
                        $(VENDOR_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 $(AUDIO_OBJ): $(EXT_CORE_DIR)/audio/audio.c $(EXT_CORE_DIR)/audio/audio_internal.h \
               $(EXT_CORE_DIR)/audio/vorbis_decoder.h $(VENDOR_SOURCES) \
               $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 $(RECORDING_OBJ): $(EXT_CORE_DIR)/graphics/recording.c $(EXT_CORE_DIR)/graphics/recording.h \
                   $(EXT_CORE_DIR)/graphics/draw_queue.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 $(GL_BACKEND_OBJ): $(EXT_CORE_DIR)/graphics/gl_backend.c $(EXT_CORE_DIR)/graphics/gl_backend.h \
                    $(EXT_CORE_DIR)/graphics/backend.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
 $(IMAGE_OBJ): $(EXT_CORE_DIR)/graphics/image.c $(EXT_CORE_DIR)/graphics/texture.h $(EXT_CORE_DIR)/app/app_gl.h \
               $(EXT_CORE_DIR)/vendor/stb_image.h $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
 # The vendored translation units, and the only place warnings are relaxed.
 # These are public-domain third-party libraries that do not survive -Wall
@@ -206,7 +215,7 @@ $(IMAGE_OBJ): $(EXT_CORE_DIR)/graphics/image.c $(EXT_CORE_DIR)/graphics/texture.
 # rule rather than one per library, so the second cannot drift from the first.
 # See ext/rgame_core/vendor/README.md.
 $(BUILD_DIR)/%_impl.o: $(EXT_CORE_DIR)/vendor/%_impl.c $(VENDOR_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -w -I$(EXT_CORE_DIR) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) -w -I$(EXT_CORE_DIR) -c $< -o $@
 
 $(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ) $(GAMEPAD_OBJ) \
              $(TRANSFORM_OBJ) $(CLIP_OBJ) $(DRAW_QUEUE_OBJ) \
@@ -215,16 +224,16 @@ $(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ) $(GAM
 	ar rcs $@ $^
 
 $(MAIN_OBJ): src/main.c $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
 $(MAIN_BIN): $(MAIN_OBJ) $(CORE_LIB)
 	$(CC) $(CFLAGS) -o $@ $(MAIN_OBJ) $(CORE_LIB) $(SDL_LIBS) $(GL_LIBS) $(MATH_LIBS) $(AUDIO_LIBS)
 
 $(COLOR_OBJ): $(EXT_UTIL_DIR)/color.c $(EXT_UTIL_DIR)/color.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/test_%.o: test/test_%.c test/suites.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -I$(EXT_CORE_DIR) -I$(EXT_CORE_DIR)/include -I$(EXT_UTIL_DIR) -Itest \
+	$(CC) $(CFLAGS) $(DEPFLAGS) -I$(EXT_CORE_DIR) -I$(EXT_CORE_DIR)/include -I$(EXT_UTIL_DIR) -Itest \
 	       -Itest/support $(CHECK_CFLAGS) -c $< -o $@
 
 $(TEST_BIN): $(TEST_OBJS) $(CORE_LIB) $(COLOR_OBJ)
@@ -286,3 +295,8 @@ ext-clean:
 
 clean: ext-clean
 	rm -rf $(BUILD_DIR)
+
+# The generated dependency files, if any exist yet. A wildcard rather than a
+# list: they appear as objects are built, and a missing one simply means that
+# object has not been compiled yet.
+-include $(wildcard $(BUILD_DIR)/*.d)

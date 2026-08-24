@@ -462,8 +462,11 @@ RSpec.describe RGame::Engine::Node2D do
 
     describe '#draw' do
       # An unrotated node (the root resolves to abs_angle 0) draws straight through,
-      # without the renderer.rotated wrapper, so a plain double suffices.
-      let(:renderer) { instance_double(FakeRenderer) }
+      # without the renderer.rotated wrapper, so a plain double suffices — but
+      # every node opens a layer, so that one has to yield.
+      let(:renderer) { instance_double(FakeRenderer, layered: nil) }
+
+      before { allow(renderer).to receive(:layered).and_yield }
 
       it 'draws components, then its own hook, then children — each with the renderer' do
         allow(component).to receive(:draw) { |r, _v| log << [:component, r] }
@@ -484,31 +487,40 @@ RSpec.describe RGame::Engine::Node2D do
     # resolve_origin gives an unparented node, and saves everything that reads
     # abs_* on a draw path from a NoMethodError the first time it runs early.
     it 'reads as the origin before any phase has run' do
-      expect([node.abs_x, node.abs_y, node.abs_z]).to eq([0, 0, 0])
+      expect([node.abs_x, node.abs_y]).to eq([0, 0])
     end
 
     it 'pins a root node to the origin regardless of its own coordinates' do
-      node = described_class.new(x: 10, y: 20, z: 3)
+      node = described_class.new(x: 10, y: 20)
       node.update(0)
-      expect([node.abs_x, node.abs_y, node.abs_z]).to eq([0, 0, 0])
+      expect([node.abs_x, node.abs_y]).to eq([0, 0])
     end
 
     it 'offsets a child from the origin by its own coordinates' do
-      child = described_class.new(x: 10, y: 20, z: 3)
+      child = described_class.new(x: 10, y: 20)
       node.add_node(child)
       node.update(0)
-      expect([child.abs_x, child.abs_y, child.abs_z]).to eq([10, 20, 3])
+      expect([child.abs_x, child.abs_y]).to eq([10, 20])
     end
 
     it 'accumulates coordinates down the tree' do
-      mid = described_class.new(x: 10, y: 20, z: 1)
-      leaf = described_class.new(x: 5, y: 6, z: 2)
+      mid = described_class.new(x: 10, y: 20)
+      leaf = described_class.new(x: 5, y: 6)
       node.add_node(mid)
       mid.add_node(leaf)
 
       node.update(0)
 
-      expect([leaf.abs_x, leaf.abs_y, leaf.abs_z]).to eq([15, 26, 3])
+      expect([leaf.abs_x, leaf.abs_y]).to eq([15, 26])
+    end
+
+    it 'does not resolve z into anything — depth is where the traversal reaches a node' do
+      child = described_class.new(z: 3)
+      node.add_node(child)
+      node.update(0)
+
+      expect(child).not_to respond_to(:abs_z)
+      expect(child.z).to eq(3)
     end
 
     it 're-resolves when a coordinate changes between phases' do
@@ -523,7 +535,8 @@ RSpec.describe RGame::Engine::Node2D do
     end
 
     it 'resolves during draw the same way it does during update' do
-      renderer = instance_double(FakeRenderer)
+      renderer = instance_double(FakeRenderer, layered: nil)
+      allow(renderer).to receive(:layered).and_yield
       allow(renderer).to receive(:rotated).and_yield
       child = described_class.new(x: 4, y: 5)
       node.add_node(child)
@@ -601,7 +614,9 @@ RSpec.describe RGame::Engine::Node2D do
   end
 
   describe 'drawing rotated subtrees' do
-    let(:renderer) { instance_double(FakeRenderer) }
+    let(:renderer) { instance_double(FakeRenderer, layered: nil) }
+
+    before { allow(renderer).to receive(:layered).and_yield }
 
     it 'skips the rotation wrapper for an unrotated node' do
       allow(renderer).to receive(:rotated)
@@ -632,7 +647,7 @@ RSpec.describe RGame::Engine::Node2D do
 
       mid = SpecRecordingNode.new(events) # logs [:hook, renderer] from on_draw
       mid.angle = Math::PI / 2
-      child = instance_double(described_class, :parent= => nil)
+      child = instance_double(described_class, :parent= => nil, :sibling_order= => nil)
       allow(child).to receive(:draw) { events << :child }
       node.add_node(mid)
       mid.add_node(child)

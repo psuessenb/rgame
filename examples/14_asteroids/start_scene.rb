@@ -30,8 +30,10 @@ class StartScene < RGame::Engine::Node2D
 
   private
 
+  # No z and no band. This scene is the only thing on screen and draws its
+  # backdrop and its text in one node, and `text` already defaults above
+  # `background` inside a node's own slot.
   def centered(renderer, text, y, color)
-    renderer.text(text, (@width - renderer.text_width(text)) / 2, y,
-                  z: RGame::Engine::Z::OVERLAY, color: color)
+    renderer.text(text, (@width - renderer.text_width(text)) / 2, y, color: color)
   end
 end
