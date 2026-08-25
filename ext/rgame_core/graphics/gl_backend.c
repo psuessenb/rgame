@@ -6,6 +6,7 @@
 #include "graphics/gl_backend.h"
 
 #include <SDL2/SDL_opengl.h>
+#include <stdio.h> /* DIAG */
 
 /* The colour an un-drawn pixel ends up. Not configurable yet — when a game
  * needs its own background it should become an app-level setting rather than a
@@ -18,6 +19,16 @@ static void gl_begin_frame(void *ctx, int width, int height) {
     rgame_gl_backend *state = ctx;
     state->width = width;
     state->height = height;
+
+    /* DIAG: which GL implementation CI is actually running, printed once. */
+    static int diag_printed = 0;
+    if (!diag_printed) {
+        diag_printed = 1;
+        fprintf(stderr, "DIAG GL_VENDOR=%s\n", (const char *)glGetString(GL_VENDOR));
+        fprintf(stderr, "DIAG GL_RENDERER=%s\n", (const char *)glGetString(GL_RENDERER));
+        fprintf(stderr, "DIAG GL_VERSION=%s\n", (const char *)glGetString(GL_VERSION));
+        fflush(stderr);
+    }
 
     glViewport(0, 0, width, height);
 

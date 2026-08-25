@@ -531,6 +531,62 @@ by temporarily forcing two of the five to fail and checking both showed up.
 Not a fix; the next CI run is what turns this from "know the symptom" into
 "know the shape of the bug."
 
+**All five points, not just the corner — the panel is entirely blank.** The
+`aggregate_failures` run confirmed it: every one of the five sample points —
+both corners, both edges, and the centre — came back the identical
+`[252, 252, 252, 255]`. Nothing from the 3x3 fixture drew anywhere. That rules
+out anything localized (a single mis-cut piece, one wrong coordinate) and
+confirms the whole-panel "no texture bound" reading.
+
+**Two concrete hypotheses were tested locally and ruled out, not just
+theorized past:**
+
+- *Premature GC.* `image = RGame::Core::Image.new(app, png)` is a local
+  variable that goes out of scope once the capture block returns — and that
+  return happens *before* `rgame_canvas_submit` (pure C, no Ruby calls) runs,
+  so if nothing else held a reference, a GC pass between the two could in
+  principle free the image (and its GL texture) before the queued draw
+  commands actually reach the GPU. Tested directly: added `GC.start`
+  immediately after `panel.draw(...)`, inside the capture block, before it
+  returns — the most aggressive version of this scenario. Still passed
+  locally, 350/350. Ruled out.
+- *Ownership/ID mismatch.* `image_belongs_here` (`app.c`) is the actual
+  guard behind the documented "wrong app → white quad" behaviour, and it
+  raises `ArgumentError` rather than drawing wrong — this test's failure was a
+  pixel mismatch, not an exception, so this check was never in play. Read the
+  code to confirm rather than assume.
+
+**The one structural difference from every passing pixel test, found by
+comparison, not yet tested**: this is the *only* `spec_core` test that issues
+anywhere near this many draw calls from one texture in one frame — a 3x3
+source at `scale: 8` into a 64x64 area tiles out to roughly 60+ separate
+`image_at` calls (4 corners, tiled edges, a tiled centre), each wrapped in one
+of several different clip rectangles. Every other real-window image test in
+the suite draws one image, or a small, fixed handful. `draw_queue.c` (the
+batching/sort logic) and `backend.c` (the batch-submission loop) were both
+read end to end looking for a growth or state-tracking bug that only a large
+batch count could trigger — both are pure logic, already Check-tested, and
+neither showed anything wrong on inspection. `gl_backend.c` — the one file in
+this whole path that is *not* unit-tested, by design (CLAUDE.md: verified by
+looking at pixels, not automatable) — is the remaining candidate, and nothing
+in it looked wrong either on a careful read.
+
+**Landed: a diagnostic, not a fix, and a narrower one than before.** The
+open question is no longer "what's the bug" so much as "what GL
+implementation is CI even running" — this dev machine has a real NVIDIA GPU
+(confirmed via the same diagnostic: `GL_VENDOR=NVIDIA Corporation`,
+`GL_RENDERER=NVIDIA GeForce RTX 3070...`, `GL_VERSION=4.6.0 NVIDIA ...`), and
+CI's Windows runner almost certainly has no GPU at all — meaning its OpenGL
+is coming from *some* software implementation, and which one changes what's
+worth suspecting next (Windows' own decades-old generic software GL 1.1
+implementation has known rough edges; a modern software rasteriser like Mesa
+llvmpipe or SwiftShader would be a very different set of suspects). Added a
+one-time `fprintf(stderr, ...)` of `GL_VENDOR`/`GL_RENDERER`/`GL_VERSION` to
+`gl_backend.c`'s `gl_begin_frame`, guarded to print once per process — will
+show up in the next CI log the same way the `Windows.Gaming.Input` warnings
+already do. Temporary, marked `/* DIAG */`, meant to come back out once it has
+answered the question.
+
 ### B3. Key injection is missing on two platforms, and the suite stays green
 
 `filter_run_excluding(:needs_key_injection)` means a macOS or Windows run passes
