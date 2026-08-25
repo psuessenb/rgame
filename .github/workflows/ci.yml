@@ -61,8 +61,20 @@ jobs:
           - name: linux
             os: ubuntu-latest
             ported: true
+          # `macos-latest` rather than a pin, deliberately. The pinned
+          # `macos-14` image is macOS 14 (Sonoma) — twelve major versions
+          # behind the Mac this port was developed on (26.6) — and once the SDL
+          # stack was equalised (`brew update`, see the macOS dependency step)
+          # that OS gap became the *only* measured difference left between a
+          # runner that fails B15's two gamepad examples and a machine that
+          # passes them. Tracking the current macOS is also the more useful
+          # question for a gem: "does this work on the Mac people have".
+          #
+          # The tradeoff is real and accepted: a moving label can change
+          # underneath the build. That is preferable here to pinning an image
+          # whose OS nobody targets, and CI exists to notice such a change.
           - name: macos (port in progress)
-            os: macos-14
+            os: macos-latest
             ported: false
           - name: windows
             os: windows-latest

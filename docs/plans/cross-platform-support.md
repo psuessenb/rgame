@@ -1,9 +1,11 @@
 # Cross-platform support — macOS and Windows
 
 **Status: macOS CI is two test-harness examples from green. B9a is confirmed
-fixed on the runner; B15 is narrowed to SDL3 accepting a virtual button press
-and never applying it, with the last measured difference being sdl3 3.4.10 on
-the runner against 3.4.14 on a machine that passes.** `rake` passes end to end on this session's
+fixed on the runner. B15 is narrowed to SDL accepting a virtual button press
+and never applying it, with the library stack now proven identical between a
+failing runner and a passing Mac — leaving the OS version (macOS 14 vs 26) as
+the only measured difference, and a declared capability probe as the fallback
+if that is not it either.** `rake` passes end to end on this session's
 Mac — 299 + 26 C checks, 905 headless examples, 350 Core examples, `rake`
 exiting 0 — and did the same earlier on the Windows machine. The macOS *runner*
 is a different matter: B9a (CoreAudio cannot be opened in a forked child) is
@@ -1606,17 +1608,46 @@ which versions it got rather than leaving it to be dug out of bottle-manifest
 lines. Cheap, targeted at the only surviving difference, and self-reporting
 either way.
 
-**What each outcome means**, so the next run is not ambiguous:
+**Answered: the version gap was a red herring.** `brew update` did its job —
+the runner installed `sdl3 3.4.14` and `sdl2-compat 2.32.70`, which is
+byte-identical to the dev Mac that passes — and the two examples failed
+anyway, with the signature completely unchanged (`applied = false`,
+`set_rc = 0`, `attached = true`). So SDL3's version is not the variable, and
+neither is anything else about the library stack.
 
-- **Green, with sdl3 at 3.4.14+** — an SDL3 bug fixed upstream between the two
-  versions. Nothing in this project was ever wrong, and the fix is "do not test
-  against a stale SDL3".
-- **Still red, with sdl3 at 3.4.14+** — the version gap was a red herring and
-  the difference is the *machine*, not the library. At that point the
-  experiment worth running is building **real SDL2** rather than the SDL3 shim
-  on the runner, since sdl2-compat would then be the last untested component.
-- **Still red, with sdl3 still at 3.4.10** — `brew update` did not move it, and
-  the version needs pinning explicitly instead.
+#### What is left is the operating system, and it is the last measured difference
+
+| | SDL stack | macOS |
+|---|---|---|
+| dev Mac (passes) | sdl3 3.4.14 / sdl2-compat 2.32.70 | **26.6** (Tahoe) |
+| runner (fails) | sdl3 3.4.14 / sdl2-compat 2.32.70 | **14** (Sonoma) |
+
+Identical library versions, identical Ruby, identical source — and twelve major
+OS releases apart, because the matrix pinned `macos-14`. Everything else that
+could be equalised has been.
+
+**Landed: the matrix now uses `macos-latest`.** Cheap, and defensible on its own
+merits regardless of B15 — `macos-14` is an aging pinned image, and "does this
+work on the Mac people actually have" is the more useful question for a gem. The
+accepted cost is a moving label, which CI is well placed to notice.
+
+**If that does not fix it, stop chasing and make it a declared capability.**
+Recorded now so the decision is made deliberately rather than after several
+more runs. There is a good precedent in this very document: B3's key-injection
+specs skip themselves where XTEST does not exist, and `HeadlessDisplay.can_inject_keys?`
+is how. The same shape fits here — a **capability probe** rather than a platform
+check: `VirtualGamepad` can attach a pad at load, press a button, ask whether it
+applied, and detach, exposing something like `VirtualGamepad.state_works?`.
+Specs that need a *pressed* pad skip themselves when it does not, while the
+hot-plug specs — which only need attach and detach, and which pass on the runner
+today — keep running everywhere.
+
+That is better than a `host_os` check for the reason the project generally
+prefers probes: it describes the capability actually required, it keeps the
+examples running on every machine where they work (including every dev Mac), and
+the skip count stays visible in the run rather than being silently compiled out.
+It would also leave a green macOS leg that is honest about covering less, which
+is exactly what B3 already asks anyone reporting a macOS result to say.
 
 **Not a blocker for the rest of the port.** Everything else on macOS is green:
 `make test` 299 + 26, `rake spec` 905, and 348 of the 350 Core examples. This
