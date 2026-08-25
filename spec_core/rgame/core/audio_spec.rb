@@ -45,10 +45,15 @@ RSpec.describe RGame::Core::Audio do
 
   describe '#backend' do
     it 'names a sound system that exists' do
-      # Which one depends on the machine — PulseAudio or ALSA here, Null on a
-      # CI runner with no sound card, and a game runs either way. The contract
-      # only says it is a non-empty String; this says it is one of ours.
-      expect(audio.backend).to match(/\A(PulseAudio|ALSA|CoreAudio|WASAPI|Null)\z/)
+      # Which one depends on the machine — PulseAudio or ALSA on Linux,
+      # "Core Audio" on macOS, WASAPI on Windows, Null on a CI runner with no
+      # sound card, and a game runs either way. The contract only says it is a
+      # non-empty String; this says it is one of ours.
+      #
+      # The spellings are miniaudio's, not ours: they come from `gBackendInfo`
+      # in ext/rgame_core/vendor/miniaudio.h, which is why macOS is "Core
+      # Audio" with a space rather than the "CoreAudio" of the MA_ENABLE_ macro.
+      expect(audio.backend).to match(/\A(PulseAudio|ALSA|Core Audio|WASAPI|Null)\z/)
     end
   end
 

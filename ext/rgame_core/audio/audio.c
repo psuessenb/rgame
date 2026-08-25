@@ -44,6 +44,15 @@
 struct rgame_audio {
     ma_resource_manager resources;
     ma_engine engine;
+    /*
+     * Set only on Windows, only when construction fell back to `noDevice`
+     * because there was nothing to open — see create_audio. Exists so
+     * rgame_audio_backend can still answer "Null" for this engine, matching
+     * what every other no-hardware case on every platform already reports,
+     * even though this engine has no `ma_device` at all for the normal
+     * lookup to find.
+     */
+    int forced_no_device;
 };
 
 struct rgame_sample {
@@ -131,6 +140,43 @@ static rgame_audio *create_audio(int offline, unsigned int sample_rate, char *er
      * no sound card — a build server, a container — gets a working engine that
      * plays silence rather than an error a game has to handle. Verified: with
      * ALSA and PulseAudio unavailable, the chosen backend is "Null".
+     *
+     * That fallback is *inside* the real backend's own device-open attempt —
+     * it only helps if opening fails cleanly. Verified on Linux, which is the
+     * one platform where it demonstrably does, and where an earlier attempt to
+     * generalise the workaround below broke a leg that had been working.
+     *
+     * On Windows, a machine with zero playback devices at all (every GitHub
+     * Actions Windows runner, among others: confirmed via
+     * `Get-CimInstance Win32_SoundDevice`) crashes instead of failing inside
+     * WASAPI's default-device lookup, so the fallback above never gets a
+     * chance to run.
+     *
+     * Windows alone gets an extra step first: enumerate devices (read-only,
+     * does not attempt to open anything, so it does not hit whatever WASAPI's
+     * own open path gets wrong with no endpoint to find) and, when there are
+     * none, fall back to `noDevice` — the same mode the offline constructor
+     * below uses — rather than the auto-detect list's own real-backend open
+     * attempt.
+     *
+     * macOS looks like the same bug and is not, which is worth stating because
+     * extending this branch to it does nothing. A device-less Mac still
+     * enumerates a playback device, so a zero-device test never fires there;
+     * its equivalent crash is CoreAudio being initialised in a **forked
+     * child**, which macOS forbids outright. That belongs to the test harness
+     * rather than here — see test/test_main.c.
+     *
+     * An *explicit* null-backend device was tried first and rejected: it still
+     * spins up a real background device thread, and that thread crashed inside
+     * a Ruby process in a way the plain-C Check build of the same code never
+     * did. `noDevice` sidesteps the question entirely: with no device and no
+     * background thread, there is nothing left that could crash the way a
+     * thread can.
+     *
+     * Linux is deliberately excluded rather than merely untested. Generalising
+     * this to every platform is what broke its leg once already, and its own
+     * fallback is proven — so the rule here is that a platform opts in on the
+     * strength of a measured crash, not on the logic looking harmless.
      */
     ma_engine_config engine = ma_engine_config_init();
     engine.pResourceManager = &audio->resources;
@@ -141,6 +187,24 @@ static rgame_audio *create_audio(int offline, unsigned int sample_rate, char *er
         engine.channels = 2;
         engine.sampleRate = sample_rate;
     }
+#ifdef _WIN32
+    else {
+        ma_context probe;
+        if (ma_context_init(NULL, 0, NULL, &probe) == MA_SUCCESS) {
+            ma_uint32 playback_count = 0;
+            ma_result enum_result =
+                ma_context_get_devices(&probe, NULL, &playback_count, NULL, NULL);
+            ma_context_uninit(&probe);
+
+            if (enum_result == MA_SUCCESS && playback_count == 0) {
+                engine.noDevice = MA_TRUE;
+                engine.channels = 2;
+                engine.sampleRate = 44100;
+                audio->forced_no_device = 1;
+            }
+        }
+    }
+#endif
 
     if (ma_engine_init(&engine, &audio->engine) != MA_SUCCESS) {
         ma_resource_manager_uninit(&audio->resources);
@@ -197,6 +261,16 @@ float rgame_audio_volume(const rgame_audio *audio) {
 const char *rgame_audio_backend(const rgame_audio *audio) {
     if (!audio) {
         return "none";
+    }
+
+    /* The forced-noDevice fallback (see create_audio) has no ma_device for
+     * the normal lookup below to find, but it is standing in for exactly what
+     * the Null backend already means elsewhere — no hardware, silence — so it
+     * answers the same way rather than the more literal but less useful
+     * "none", which every other caller of this function reserves for "there
+     * is no audio object at all". */
+    if (audio->forced_no_device) {
+        return "Null";
     }
 
     ma_device *device = ma_engine_get_device((ma_engine *)&audio->engine);

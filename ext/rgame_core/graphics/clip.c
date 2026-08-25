@@ -1,5 +1,7 @@
 #include "graphics/clip.h"
 
+#include <stdint.h>
+
 /* The canonical empty rect. Every path that produces "nothing" produces this
  * exact value, so two empties compare equal and cannot split a batch. */
 static const rgame_rect RGAME_EMPTY_RECT = { 0, 0, 0, 0 };
@@ -30,20 +32,27 @@ rgame_rect rgame_rect_intersect(rgame_rect a, rgame_rect b) {
     }
 
     /*
-     * Edges are computed in `long` rather than `int`. A caller can legitimately
-     * pass a very large width to mean "as wide as possible", and x + w would
-     * then overflow — which is undefined behaviour, not merely a wrong answer.
-     * The result always fits back in an int because it is bounded by the
-     * smaller of the two inputs.
+     * Edges are computed in `int64_t` rather than `int`. A caller can
+     * legitimately pass a very large width to mean "as wide as possible", and
+     * x + w would then overflow — which is undefined behaviour, not merely a
+     * wrong answer. The result always fits back in an int because it is
+     * bounded by the smaller of the two inputs.
+     *
+     * `int64_t` rather than `long`: `long` is only 32 bits on Windows (LLP64),
+     * the same width as `int` there, so it does not actually buy the extra
+     * headroom this needs — found by UBSan under clang64, which is the only
+     * configuration that caught it (the intermediate overflow this guards
+     * against never occurs in Check's own test values on a 64-bit `long`
+     * platform, so plain Linux/macOS runs never exercise the bug either).
      */
-    long left = a.x > b.x ? a.x : b.x;
-    long top = a.y > b.y ? a.y : b.y;
-    long a_right = (long)a.x + a.w;
-    long b_right = (long)b.x + b.w;
-    long a_bottom = (long)a.y + a.h;
-    long b_bottom = (long)b.y + b.h;
-    long right = a_right < b_right ? a_right : b_right;
-    long bottom = a_bottom < b_bottom ? a_bottom : b_bottom;
+    int64_t left = a.x > b.x ? a.x : b.x;
+    int64_t top = a.y > b.y ? a.y : b.y;
+    int64_t a_right = (int64_t)a.x + a.w;
+    int64_t b_right = (int64_t)b.x + b.w;
+    int64_t a_bottom = (int64_t)a.y + a.h;
+    int64_t b_bottom = (int64_t)b.y + b.h;
+    int64_t right = a_right < b_right ? a_right : b_right;
+    int64_t bottom = a_bottom < b_bottom ? a_bottom : b_bottom;
 
     if (right <= left || bottom <= top) {
         return RGAME_EMPTY_RECT;

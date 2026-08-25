@@ -238,15 +238,15 @@ RSpec.describe RGame::Core::TileMapRenderer do
     end
 
     it 'draws at the world origin when the caller applies no transform' do
-      expect(draw_map_at(0, 0).at(4, 4)).to eq([255, 255, 255, 255])
+      expect(draw_map_at(0, 0).about?(4, 4, [255, 255, 255, 255])).to be(true)
     end
 
     # The camera offset a WorldView applies. The map has to move with it, which
     # is the whole reason its own output carries no offset any more.
     it 'moves with the caller\'s translate' do
       frame = draw_map_at(20, 0)
-      expect([frame.at(4, 4), frame.at(24, 4)])
-        .to eq([[26, 26, 38, 255], [255, 255, 255, 255]])
+      expect(frame.about?(4, 4, [26, 26, 38, 255])).to be(true)
+      expect(frame.about?(24, 4, [255, 255, 255, 255])).to be(true)
     end
 
     # One bake, replayed under two different transforms in the same frame —
@@ -263,8 +263,9 @@ RSpec.describe RGame::Core::TileMapRenderer do
         end
       end
 
-      expect([frame.at(4, 4), frame.at(28, 36), frame.at(4, 36)])
-        .to eq([[255, 255, 255, 255], [255, 255, 255, 255], [26, 26, 38, 255]])
+      expect(frame.about?(4, 4, [255, 255, 255, 255])).to be(true)
+      expect(frame.about?(28, 36, [255, 255, 255, 255])).to be(true)
+      expect(frame.about?(4, 36, [26, 26, 38, 255])).to be(true)
     end
   end
 

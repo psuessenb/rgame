@@ -895,19 +895,35 @@ message, and says in its own comment why that matters.
 
 ### Platform support
 
-The automated tiers are Linux-first today. `make test` is portable; the
-headless `rake spec` suite is portable (it is pure Ruby with no display); the
-parts that are not are in `rake spec:core`:
+**Linux, macOS and Windows are all supported and all gated by CI**
+(`.github/workflows/ci.yml`), which runs every tier on each of them. A change
+that breaks one is a red run, not a discovery someone makes later.
 
-- **Xvfb is X11, so Linux/BSD only.** It is also only *needed* there: macOS and
-  Windows CI runners have a real window server, so Core specs can open windows
-  directly without it. The spec helper picks a display strategy per platform.
-- **Synthetic keyboard input via XTEST is X11 only.** The macOS equivalent is
-  Quartz `CGEvent` (and needs accessibility permission); on Windows it is
-  `SendInput`. Until one of those is written, keyboard-driven Core specs skip
-  themselves off Linux rather than fail.
-- **Virtual gamepads are already portable** — `SDL_JoystickAttachVirtual` is
-  SDL-level, not OS-level, so those specs work anywhere SDL does.
+Three things about the test suites differ per platform, and each is a
+*capability probed at runtime* rather than a platform check. That distinction
+is deliberate: a probe keeps the examples running on every machine that can
+manage them — including a developer's — instead of switching them off for a
+whole platform because one environment cannot.
+
+- **The display.** `HeadlessDisplay` starts Xvfb on Linux and uses the native
+  window server everywhere else, because macOS and Windows always have one and
+  have no Xvfb equivalent.
+- **Synthetic keyboard input** needs X11's XTEST, so
+  `HeadlessDisplay.can_inject_keys?` gates it and the keyboard-driven Core
+  specs skip themselves elsewhere. The macOS equivalent would be Quartz
+  `CGEvent`, which needs an accessibility permission no CI runner can grant;
+  Windows' would be `SendInput`.
+- **Virtual gamepad button state.** Attaching a synthetic pad works anywhere
+  SDL does — it is an SDL feature, not an OS one — but *reading a pressed
+  button back* does not. On GitHub's macOS runners SDL reports success at every
+  step and the state never appears; see
+  `VirtualGamepad.button_state_supported?`, which probes it and skips the two
+  examples that need it. Hot-plug specs, which only attach and detach, run
+  everywhere.
+
+**Read the skip count, not just the colour.** A green `rake spec:core` on macOS
+or Windows covers strictly less than a green one on Linux, and how much less is
+in the run's `exclude` line.
 
 ## Conventions
 

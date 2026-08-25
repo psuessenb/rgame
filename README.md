@@ -112,10 +112,22 @@ fixture and needs `libvorbisenc` to run.
 Nothing else — the engine has no runtime Ruby dependencies, and the `Gemfile`
 holds only development gems.
 
+All three platforms below are built and tested on every push by
+[CI](.github/workflows/ci.yml).
+
 ### Debian / Ubuntu
 
 ```
 sudo apt install build-essential pkg-config libsdl2-dev libgl1-mesa-dev check
+```
+
+`rake spec:core` opens real windows and starts its own Xvfb, which needs a few
+more packages — the display itself, the `xwininfo` it polls to know the display
+is up, a software rasteriser (Xvfb has no GPU, and `SDL_GL_CreateContext` fails
+without one) and the XTEST runtime for synthetic keystrokes:
+
+```
+sudo apt install xvfb x11-utils libgl1-mesa-dri libxtst6
 ```
 
 ### macOS (Homebrew)
@@ -124,7 +136,52 @@ sudo apt install build-essential pkg-config libsdl2-dev libgl1-mesa-dev check
 brew install sdl2 pkg-config check
 ```
 
-OpenGL headers/libs ship with Xcode Command Line Tools (`xcode-select --install`).
+OpenGL ships with the Xcode Command Line Tools (`xcode-select --install`) — the
+full Xcode is not needed, and neither is anything else: `rake spec:core` uses
+the native window server, so there is no Xvfb equivalent to set up. Note
+Homebrew's `sdl2` formula now installs **sdl2-compat**, which is SDL2's API
+implemented on top of SDL3; the engine works through it unchanged.
+
+### Windows
+
+Use a **RubyInstaller-built** Ruby (mise, vfox and rbenv-style managers all
+fetch those), which is what supplies `ridk`. The combined DevKit installer is
+not required — a standalone MSYS2 that `ridk` can find works just as well, and
+`C:\msys64` is one of the places it looks:
+
+```
+winget install --id MSYS2.MSYS2 -e
+ridk exec pacman -Syu --noconfirm      # core update; may need a second pass
+```
+
+Then the libraries. Note `make` is an **msys** package with no prefix while
+everything else is **ucrt64**-prefixed — that split is the whole Windows story:
+
+```
+ridk exec pacman -S --needed \
+  mingw-w64-ucrt-x86_64-SDL2 \
+  mingw-w64-ucrt-x86_64-check \
+  mingw-w64-ucrt-x86_64-pkgconf \
+  mingw-w64-ucrt-x86_64-gcc \
+  make
+```
+
+**MSYS2 is several environments in one install, and picking the wrong one fails
+in a way that looks like missing packages.** UCRT64 builds native Windows
+binaries, which is what RubyInstaller's Ruby can load; the plain `msys`
+environment builds against a Cygwin-like runtime, which it cannot. Work from
+the "MSYS2 UCRT64" shell or run `ridk enable ucrt64` first, and verify before
+trusting anything:
+
+```
+which gcc                   # must be /ucrt64/bin/gcc, NOT /usr/bin/gcc
+pkg-config --cflags sdl2    # must print a ucrt64 include path
+```
+
+One more Windows fact worth knowing up front: **Check has no usable fork
+there**, so the first segfault kills the whole test binary and the output stops
+mid-suite. Use a debugger rather than reading the log — `CK_FORK=no gdb --args
+./build/test_rgame`, and `CK_RUN_SUITE=<name>` to run one suite.
 
 ## Build & run
 

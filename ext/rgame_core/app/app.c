@@ -554,6 +554,9 @@ void rgame_app_run(rgame_app *app, const rgame_app_callbacks *cb) {
 
             rgame_draw_backend backend = rgame_gl_backend_table(&app->gl);
             rgame_canvas_submit(&app->canvas, &backend);
+            if (cb->frame_end) {
+                cb->frame_end(cb->userdata);
+            }
             SDL_GL_SwapWindow(app->window);
         }
     }

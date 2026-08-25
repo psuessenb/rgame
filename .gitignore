@@ -16,6 +16,21 @@ ext/**/*.so
 ext/**/*.bundle
 ext/**/*.dylib
 
+# Windows (mingw/ucrt) mkmf output: the .def lists the extension's exported
+# symbols for the linker, generated fresh each build like the Makefile above.
+# NUL is a stray artifact of an mkmf-generated Makefile rule that redirects to
+# the null device with a POSIX-style path MSYS2's make takes literally on
+# Windows, creating a file named NUL instead of discarding the output.
+ext/**/*.def
+ext/**/NUL
+
+# macOS debug symbols. A .dSYM is a *directory* — `core_ext.bundle.dSYM` — so
+# the `*.bundle` rules above do not match it: they match names ending in
+# `.bundle`, and this one ends in `.dSYM`. The trailing slash says directory.
+# rgame.gemspec carries the matching exclusion, because .gitignore has no say
+# in what `Dir.glob` finds when the gem is packaged.
+*.dSYM/
+
 # Compiled extension copied onto the load path by `make ext-util`
 # (lib/rgame/util_ext.so). Already covered by the global *.so above; called
 # out here so it's clear the .so under lib/ is a build artifact, not source.

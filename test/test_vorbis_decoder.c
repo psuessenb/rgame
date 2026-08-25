@@ -41,11 +41,28 @@ static ma_decoder_config vorbis_config(void) {
     return config;
 }
 
+/* Where to put a scratch file. `/tmp` is a Linux/macOS assumption; Windows has
+ * no such directory and names its temp folder through TEMP/TMP instead, so the
+ * template is built from whichever environment variable this platform
+ * actually sets rather than a path hardcoded for one of them. */
+static const char *scratch_dir(void) {
+    const char *candidates[] = { "TMPDIR", "TEMP", "TMP" };
+    for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+        const char *dir = getenv(candidates[i]);
+        if (dir && *dir) {
+            return dir;
+        }
+    }
+    return "/tmp";
+}
+
 /* Writes `bytes` to a scratch file and returns its path, for the malformed
  * cases. Static buffer: one at a time is all any test needs. */
 static const char *scratch_file(const void *bytes, size_t length) {
-    static char path[] = "/tmp/rgame_vorbis_testXXXXXX";
-    strcpy(path, "/tmp/rgame_vorbis_testXXXXXX");
+    static char path[512];
+    int written = snprintf(path, sizeof(path), "%s/rgame_vorbis_testXXXXXX", scratch_dir());
+    ck_assert_int_gt(written, 0);
+    ck_assert_uint_lt((size_t)written, sizeof(path));
 
     int fd = mkstemp(path);
     ck_assert_int_ge(fd, 0);

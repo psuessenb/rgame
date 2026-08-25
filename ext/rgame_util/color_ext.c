@@ -63,10 +63,19 @@ static VALUE color_s_new(int argc, VALUE *argv, VALUE klass) {
                                        NIL_P(a) ? 255 : component(a, "alpha")));
 }
 
-/* Color.from_packed(0xRRGGBBAA) */
+/* Color.from_packed(0xRRGGBBAA)
+ *
+ * The bounds check below needs a C type wider than 32 bits so a
+ * one-bit-too-wide value can be caught rather than silently truncated.
+ * `unsigned long` is that on Linux/macOS (LP64: 64 bits) but not on Windows
+ * (LLP64: `long` stays 32 bits even in a 64-bit build), where NUM2ULONG would
+ * itself raise RangeError on the very value this function means to turn into
+ * a clean ArgumentError. NUM2ULL is unsigned long long, 64 bits on every
+ * platform this project builds for, so the check below runs before either
+ * platform's integer width can get in the way. */
 static VALUE color_s_from_packed(VALUE klass, VALUE packed) {
-    unsigned long value = NUM2ULONG(packed);
-    if (value > 0xFFFFFFFFul) {
+    unsigned long long value = NUM2ULL(packed);
+    if (value > 0xFFFFFFFFull) {
         rb_raise(rb_eArgError, "packed colour must fit in 32 bits");
     }
     return color_wrap(klass, (rgame_color)value);

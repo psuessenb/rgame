@@ -93,7 +93,16 @@ Gem::Specification.new do |spec|
   artifacts = %r{
     \.(so|bundle|dylib|o|a|log)\z    # compiled output, and mkmf.log
     | \Aext/[^/]+/Makefile\z         # written by extconf.rb, not by us
+    | \.dSYM/                        # macOS debug symbols — see below
   }x
+
+  # Why .dSYM needs its own clause: on macOS a build leaves a *directory* named
+  # `core_ext.bundle.dSYM` beside the extension, and the suffix rule above only
+  # matches paths *ending* in `.bundle`. That catches the debug copy of the
+  # binary inside it and misses its `Info.plist` and `.yml` relocation maps, so
+  # without this clause a Mac-built checkout ships four debug-symbol files. The
+  # rule has to match a path *component*, not a suffix, which is what the
+  # trailing slash does.
 
   # `base:` keeps this independent of the working directory — `gem build` runs
   # here, but `rake build` and spec/packaging_spec.rb do not — and returns paths

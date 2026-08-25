@@ -26,7 +26,9 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
 
   # Build artifacts and generated files: present in a built checkout, never part
   # of the gem. Mirrors the pattern in rgame.gemspec, stated independently.
-  let(:artifacts) { %r{\.(so|bundle|dylib|o|a|log)\z | \Aext/[^/]+/Makefile\z}x }
+  let(:artifacts) do
+    %r{\.(so|bundle|dylib|o|a|log)\z | \Aext/[^/]+/Makefile\z | \.dSYM/}x
+  end
 
   # Files under the given globs, relative to the gem root, artifacts removed.
   def sources(*globs)
@@ -123,6 +125,18 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
       # lib/rgame/*.so is this machine's binary. Shipping it would shadow the
       # one `gem install` compiles for the machine the gem lands on.
       expect(files.grep(artifacts)).to be_empty
+    end
+
+    # Stated without reference to `artifacts` on purpose. Both this spec and the
+    # gemspec filter with their own copy of that pattern, so the "two
+    # derivations agree" check above is blind to anything *both* copies miss —
+    # and that is exactly how macOS debug symbols went unnoticed. A .dSYM is a
+    # directory named `core_ext.bundle.dSYM`, so a rule matching paths that
+    # *end* in `.bundle` skips the `Info.plist` and relocation `.yml` inside it.
+    # Naming the directory directly is what makes the guard independent of the
+    # pattern that had the hole.
+    it 'excludes macOS debug symbol bundles' do
+      expect(files.grep(/dSYM/)).to be_empty
     end
 
     it 'excludes the test suites and the standalone binary sources' do

@@ -204,6 +204,7 @@ void rgame_app_destroy(rgame_app *app);
 typedef void (*rgame_frame_begin_fn)(void *userdata);
 typedef void (*rgame_update_fn)(void *userdata, double dt_seconds);
 typedef void (*rgame_draw_fn)(void *userdata);
+typedef void (*rgame_frame_end_fn)(void *userdata);
 typedef int (*rgame_needs_redraw_fn)(void *userdata);
 typedef void (*rgame_button_fn)(void *userdata, int button_id);
 typedef void (*rgame_resize_fn)(void *userdata, int width, int height);
@@ -224,6 +225,12 @@ typedef void (*rgame_gamepad_fn)(void *userdata, int slot);
  *  - `needs_redraw` is polled before drawing; returning 0 skips the draw for
  *    that frame (simulation still advances). NULL means always redraw.
  *  - `draw` renders one frame.
+ *  - `frame_end` runs once per rendered frame, after that frame's drawing has
+ *    been submitted to the GPU but *before* the buffer swap — the only point
+ *    at which the frame just drawn can be read back deterministically. Never
+ *    called when `needs_redraw` skipped the draw. Rarely needed: it exists for
+ *    reading pixels back for a test, not for game code, since a real driver is
+ *    free to swap however it likes once `draw` returns.
  *  - `button_down`/`button_up` report discrete key presses and releases. Key
  *    repeats are filtered out, so holding a key reports exactly one press.
  *  - `resize` reports a new window size; the GL viewport is already updated.
@@ -237,6 +244,7 @@ typedef struct {
     rgame_update_fn update;
     rgame_needs_redraw_fn needs_redraw;
     rgame_draw_fn draw;
+    rgame_frame_end_fn frame_end;
     rgame_button_fn button_down;
     rgame_button_fn button_up;
     rgame_resize_fn resize;

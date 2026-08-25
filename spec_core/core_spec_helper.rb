@@ -57,4 +57,11 @@ RSpec.configure do |config|
 
   # Specs that drive real keystrokes only work where XTEST does.
   config.filter_run_excluding(:needs_key_injection) unless HeadlessDisplay.can_inject_keys?
+
+  # Specs that press a button on a synthetic pad only work where SDL actually
+  # applies virtual button state. Attaching a pad works everywhere SDL does;
+  # having a press read back does not — see
+  # VirtualGamepad.button_state_supported? for what fails and where. Probed
+  # rather than assumed, so these run on every machine that can manage them.
+  config.filter_run_excluding(:needs_virtual_pad_state) unless VirtualGamepad.button_state_supported?
 end
