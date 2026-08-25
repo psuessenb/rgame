@@ -5,6 +5,15 @@ Written 2026-08-21 from a read of the build wiring, the engine C, and the spec
 scaffolding; revised twice since, after each CI run. Anything marked *(sketch)*
 was never executed; anything marked *(measured)* came off a real runner.
 
+**2026-08-25: first pass on an actual Windows machine.** Everything in "Windows
+setup" below was executed for the first time — see the notes inline for what
+differed from the untested instructions. `make test` and `bundle exec rake spec`
+both run end to end with zero code changes needed for steps 1–2. Two things
+came out of it that the plan did not anticipate: B7 does not reproduce the way
+either hypothesis below predicts (see the new note under B7), and a real,
+previously-unknown portability bug turned up in `RGame::Util::Color` (A4,
+new). The Verdict below is amended accordingly.
+
 **If you are picking this up on a Mac or a Windows box, start at
 "Working on the machines directly", then run the experiment it names.** The
 development loop changed after the second run: the work is debugged on the
@@ -23,6 +32,12 @@ section, and this file is deleted — git history keeps it.
 **The engine is already portable. Everything that breaks is build wiring and
 test scaffolding.**
 
+**Amended 2026-08-25**: one exception found by actually building on Windows —
+`RGame::Util::Color.from_packed` is not portable, because it assumes `unsigned
+long` is 64 bits. See A4. Small, and the only counterexample found so far, but
+the verdict above is about the engine's *C*, and this is Util's, so it is a
+real crack in "already portable" rather than build wiring.
+
 That was not the expected answer. The risk going in was that the renderer would
 need a modern-GL port before Windows could work at all, because Windows'
 `opengl32.dll` exports only OpenGL 1.1 and everything after that needs a loader
@@ -32,7 +47,7 @@ So the work splits cleanly:
 
 | | Scope | Where it fails today *(measured)* |
 |---|---|---|
-| **A. Build wiring** | 3 items, small, mechanical | macOS cannot link `make test`: `ld: library 'GL' not found` |
+| **A. Build wiring** | 4 items, small, mechanical | macOS cannot link `make test`: `ld: library 'GL' not found` |
 | **B. Test scaffolding** | 5 items, most of the effort | unreached — nothing Ruby-side runs until A is done |
 | **C. Deliberate decisions** | 4 open questions | not blocking, but they shape A and B |
 
@@ -189,6 +204,41 @@ where `/usr/bin/cc` is the msys-runtime gcc targeting a Cygwin-like ABI and
 produces objects RubyInstaller's Ruby cannot load. It now forces `gcc` through
 an `$(origin CC)` guard that still yields to an explicit `make CC=clang`.
 
+### A4. `unsigned long` is 32 bits on Windows — a real bug, not a build issue *(measured, new)*
+
+Found by `bundle exec rake spec` on Windows, not predicted anywhere above.
+[`ext/rgame_util/color_ext.c:68`](../../ext/rgame_util/color_ext.c) —
+
+```c
+static VALUE color_s_from_packed(VALUE klass, VALUE packed) {
+    unsigned long value = NUM2ULONG(packed);
+    if (value > 0xFFFFFFFFul) {
+        rb_raise(rb_eArgError, "packed colour must fit in 32 bits");
+    }
+    return color_wrap(klass, (rgame_color)value);
+}
+```
+
+reads as platform-neutral and is not: it relies on `unsigned long` being wide
+enough to hold a value one bit past 32 bits so the explicit check can catch it.
+That holds on Linux and macOS (LP64: `long` is 64 bits) and fails on Windows
+(LLP64: `long` stays 32 bits even in a 64-bit build). So on Windows,
+`NUM2ULONG(0x1_0000_0000)` itself raises — `RangeError`, from inside the Ruby/C
+boundary — and the function's own `ArgumentError` is never reached.
+`spec/rgame/util/color_spec.rb:35` ("rejects a packed value wider than 32
+bits") is what caught it: 904 examples run, this was one of 3 failures, and
+it's the only one that's a real cross-platform defect rather than a spec
+written against Linux-only behaviour (see B7's Windows note and the two
+`allocate_nothing` failures below for the other two — those look like a
+per-platform allocation-counting difference in the matcher or this Ruby build,
+not investigated yet).
+
+The fix is to stop routing through a C type whose width is platform-defined:
+pull the value with `rb_num2ull` (or `NUM2ULL`, unconditionally 64-bit) instead
+of `NUM2ULONG`, do the `> 0xFFFFFFFF` check against that, and only narrow to
+`rgame_color` after the check passes. Not yet done — recorded here for
+whoever picks up A/B next.
+
 ## B. Test scaffolding — where the effort actually is
 
 [`HeadlessDisplay`](../../spec_core/support/headless_display.rb) already gets
@@ -329,6 +379,40 @@ costs a round trip either way, and one of them is a no-op. `ci.yml` now runs a
 debugger automatically when the C suite fails — `CK_FORK=no` so the stack is
 the crashing process rather than Check's parent.
 
+**2026-08-25, measured on a Windows machine with a real sound device — neither
+hypothesis fits.** This machine has actual audio hardware, which is exactly
+the condition hypothesis 2 says should make the suite pass. It does not,
+cleanly:
+
+- `CK_FORK=no CK_RUN_SUITE=audio gdb --batch -ex run -ex "bt full" -- ./build/test_rgame`
+  — the audio suite run **by itself** passes clean: `26/26`, no crash, real
+  device opened and closed 26 times over.
+- `CK_FORK=no gdb --batch -ex run -- ./build/test_rgame` — the **full** suite,
+  same binary, same machine, crashes reproducibly (twice, same signature) part
+  way into the audio suite, after `vorbis_decoder`. The crash is inside
+  `ntdll!RtlValidateHeap`, reached through `RtlRaiseException` /
+  `RtlCaptureContext` — the signature of Windows detecting heap corruption at
+  the *next* allocation after the actual damage, not a null-pointer/access
+  violation at the point of the original bug. It happens on the audio suite's
+  second device-open, not its first.
+
+That rules out "no device" (hypothesis 2) outright — there is one, and audio
+alone is fine — and doesn't obviously fit hypothesis 1 either (runtime-linked
+CoreAudio is macOS-specific; Windows' equivalent would be WASAPI symbol
+resolution, and a missing-symbol failure doesn't produce a *delayed* heap
+corruption two tests later). The working theory instead: something in an
+**earlier** suite (font/atlas/glyph_cache and vorbis_decoder are the
+candidates immediately before audio in run order) corrupts the heap, and it
+only surfaces once audio's allocation pattern trips over the damage. That is a
+different bug from both of this section's hypotheses and needs its own
+backtrace-driven hunt — bisecting `CK_RUN_SUITE` pairs (e.g. `vorbis_decoder`
+run immediately before `audio`) is the next concrete step, not yet done.
+
+Whether macOS's crash is the same root cause as this one is still open — the
+macOS run never got a chance to isolate `audio` alone the way this one did,
+because it has no confirmed real device to test hypothesis 2 against in the
+first place.
+
 ## Can this be done from Linux? *(asked, answered, then superseded)*
 
 **Write it on Linux: yes. Verify it on Linux: no — and the gap is the whole
@@ -433,6 +517,39 @@ DevKit is what supplies MSYS2, and every native build here depends on it. After
 installing, run `ridk install` and choose the MSYS2 and MINGW development
 toolchain option.
 
+**Measured 2026-08-25, and this part of the instructions was wrong: the
+DevKit combo installer is not required, only a RubyInstaller-*built* Ruby
+is.** The machine already had Ruby 4.0.5 `x64-mingw-ucrt` installed through
+`vfox` (a version manager, not RubyInstaller's own installer) with no MSYS2
+anywhere. `ridk` still worked, because it ships as an ordinary bundled library
+(`ruby_installer/runtime`, under `lib/ruby/site_ruby`) in *any* official
+RubyInstaller build — mise and vfox both fetch those same builds — and it
+autodetects MSYS2 from several places
+([`msys2_installation.rb`](https://github.com/oneclick/rubyinstaller2), read
+directly off this machine): an `MSYS2_PATH` env var, a folder named `msys64`
+next to the Ruby install, `C:\msys64`, the registry key MSYS2's own installer
+writes, anything already on `PATH`, or `scoop prefix msys2`. So installing
+**standalone MSYS2** and letting `ridk` find it works just as well as the
+DevKit combo installer, and is the better instruction when Ruby is already
+managed by something else:
+
+```sh
+winget install --id MSYS2.MSYS2 -e --accept-package-agreements --accept-source-agreements
+```
+
+installs to the default `C:\msys64`, which is the second place `ridk` looks
+after `MSYS2_PATH` and before the registry — confirmed with `ridk version`,
+which printed `msys2: path: c:\msys64` with no further configuration. First
+run needs the standard two-pass MSYS2 core update before installing anything
+else (the first pass replaces `msys2-runtime` itself and the shell needs to
+reopen — `pacman -Syu` then `pacman -Su` from a fresh shell, or just run each
+via `ridk exec pacman` as below and re-run if the first one stops short):
+
+```sh
+ridk exec pacman -Syu --noconfirm   # core update, may need a second invocation
+ridk exec pacman -Su  --noconfirm   # rest of the base system
+```
+
 Then the libraries. Note `make` is an **msys** package with no prefix, while
 everything else is **ucrt64**-prefixed — that split is the whole Windows story:
 
@@ -445,6 +562,15 @@ ridk exec pacman -S --needed \
   mingw-w64-ucrt-x86_64-gdb \
   make
 ```
+
+All of the above ran verbatim and succeeded. Confirmed working afterward:
+`ridk exec which gcc` → `/ucrt64/bin/gcc`; `ridk exec pkg-config --cflags sdl2`
+and `check` both resolved to `c:/msys64/ucrt64/include/...`; `bundle install`
+completed including native gems (`json`, `zlib`, `prism`); `make test` compiled
+and linked all 25 engine translation units plus the Check binary against
+SDL2/opengl32/check with **no source changes** — confirming A1–A3 and A2/step-2
+work as already landed; `make ext-util` and `bundle exec rake spec` ran, 904
+examples with only the 3 failures noted at A4 and B7 above.
 
 #### The environment trap — read this before the first build
 
