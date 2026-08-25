@@ -19,6 +19,26 @@
 # `rake` with no argument runs the three test tasks, but it does not build the
 # extensions — `make ext` is their prerequisite (CLAUDE.md, "Build"), so the
 # steps are spelled out rather than collapsed into one `rake`.
+#
+# ## Actions are pinned to a commit, with the version in the comment
+#
+# A tag is a movable pointer: whoever owns the action repository can repoint
+# `v4` at anything, and every workflow that names it runs the new code on its
+# next push. That is a supply-chain hole for any job holding credentials, which
+# the release job below does — so the SHA is what is written, and the comment
+# says which release it was, because a bare SHA cannot be read.
+#
+# The cost is that pinned actions do not update themselves. To bump one:
+#
+#   git ls-remote --tags --heads https://github.com/<owner>/<action>
+#
+# and take the `refs/tags/<version>^{}` line for an annotated tag — that is the
+# commit; the other line is the tag object, which Actions will not accept.
+# Dependabot can do this for you: it understands `@<sha> # <version>` and opens
+# a PR that rewrites both halves together.
+#
+# Note also that an unresolvable `uses:` fails the job at *setup*, before any
+# step runs, so an `if:` on the step does not protect against a bad ref.
 name: CI
 
 on:
@@ -72,7 +92,7 @@ jobs:
             ported: true
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # Linux needs SDL2 and OpenGL to build, Check to run the C suite, and
       # three things purely for `rake spec:core`:
@@ -123,7 +143,7 @@ jobs:
         shell: bash
         run: echo "version=$(sed -E 's/^ruby[ -]//' .ruby-version | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
 
-      - uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: ${{ steps.ruby.outputs.version }}
           bundler-cache: true
@@ -204,7 +224,7 @@ jobs:
 
       - name: Install Mesa software OpenGL next to ruby.exe (Windows)
         if: runner.os == 'Windows'
-        uses: f3d-app/install-mesa-windows-action@v1
+        uses: f3d-app/install-mesa-windows-action@1824e370ed7fb1795f5bc88fd1f6c81eb15d92bc # v1
         with:
           path: ${{ steps.ruby_bin.outputs.dir }}
 
@@ -362,13 +382,13 @@ jobs:
       contents: write # push the tag and create the GitHub release
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Read the pinned Ruby version
         id: ruby
         run: echo "version=$(sed -E 's/^ruby[ -]//' .ruby-version | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
 
-      - uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: ${{ steps.ruby.outputs.version }}
 
@@ -422,9 +442,19 @@ jobs:
           fi
           cat release_notes.md
 
+      # Pinned to an exact version because this action publishes **no moving
+      # major tag**: its refs are v1.0.0, v2.0.0, v2.1.0 and nothing else, so
+      # the `@v2` most actions accept does not resolve here.
+      #
+      # Worth knowing when this breaks: an unresolvable `uses:` fails the whole
+      # job at setup, *before* any step runs — the `if:` below does not protect
+      # against it, because Actions downloads every action in the job up front.
+      #
+      # No inputs: `trusted-publisher` defaults to true when nothing else is
+      # configured, which is exactly this case.
       - name: Configure RubyGems credentials
         if: steps.check.outputs.publish == 'true'
-        uses: rubygems/configure-rubygems-credentials@v1
+        uses: rubygems/configure-rubygems-credentials@dc5a8d8553e6ee01fc26761a49e99e733d17954a # v2.1.0
 
       # `gem build` rather than `rake build`: it needs no bundle and no dev
       # dependencies, and the gemspec deliberately loads nothing but version.rb.

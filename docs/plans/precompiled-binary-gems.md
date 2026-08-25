@@ -1,10 +1,16 @@
 # Precompiled binary gems
 
-**Status: sketch. Nothing here has been executed.** Written 2026-08-25, from a
+**Status: sketch. No binary gem has been built.** Written 2026-08-25, from a
 read of `rgame.gemspec`, both `extconf.rb` files, the `Rakefile`, `ci.yml` and
 the linkage of a built extension on macOS. It replaces the "C1" open question
 from the cross-platform-support plan, which is finished and deleted — the three
 CI legs it built are green, and this is the next decision that plan deferred.
+
+**Amended 2026-08-26.** Two things this document assumed are no longer true:
+0.1.0 is published on RubyGems, and releasing it is automated. That changes the
+"Release automation" section below from a list of things to build into a
+description of what exists, and it removes one of the two gotchas it named. The
+rest of the analysis is untouched — nothing about SDL2 got easier.
 
 The question: **`gem install rgame` compiles on the user's machine today. What
 would it take to ship prebuilt binaries for Linux, macOS and Windows, and can
@@ -90,8 +96,9 @@ The realistic shape is therefore a hybrid:
   single runner does not produce both without extra setup)
 - the plain source gem as well, as the fallback for any platform not covered
 
-That is five or six `.gem` files per release. Each job uploads its artifact; a
-release job collects and publishes them.
+That is five or six `.gem` files per release. Each job uploads its artifact, and
+the release job that exists today collects and publishes them — see "Release
+automation" below for what it does now and what that extension costs.
 
 The matrix in `ci.yml` already proves the three toolchains work, which is most
 of the groundwork. What it does *not* currently do is produce artifacts.
@@ -131,19 +138,55 @@ of the groundwork. What it does *not* currently do is produce artifacts.
 
 ## Release automation
 
-Not automated today. `Rakefile` pulls in `bundler/gem_tasks`, so `rake release`
-exists and does the single-gem thing: tag, build, push. Multi-platform means
-pushing N gems from N artifacts, which is a different task.
+**Automated, for the one source gem.** `ci.yml` has a `release` job, added
+2026-08-26 and described in its own comments. The shape, because the rest of
+this section is about what multi-platform would change about it:
 
-Two gotchas specific to this project:
+- It runs on every push to `main`, `needs: test`, so nothing publishes unless
+  all three platform legs are green.
+- The **version file is the trigger**. It reads `RGame::VERSION` the same way
+  the gemspec does, asks the RubyGems API whether that version exists, and does
+  nothing if it does. There is no `paths:` filter and no tag to remember to
+  push: releasing is "bump `lib/rgame/version.rb`, merge".
+- **`CHANGELOG.md` gates it**, before the push rather than after. A version with
+  no section fails the job while that is still fixable; RubyGems does not take a
+  version back. The same section becomes the GitHub release body.
+- It publishes over **trusted publishing**, tags `v<version>`, and cuts the
+  GitHub release.
 
-- **`rubygems_mfa_required` is `true`** in the gemspec metadata. That blocks an
-  unattended API-key push. The way to publish from Actions is RubyGems'
-  **trusted publishing** (OIDC), which needs configuring on the RubyGems side
-  and no long-lived secret in the repo. Worth knowing before wiring up a token
-  that cannot work.
-- **The version has exactly one home**, `lib/rgame/version.rb`, and the gemspec
-  loads it directly. A release flow must not introduce a second.
+One of the two gotchas this section used to list is therefore settled, and the
+other is now enforced rather than merely stated:
+
+- ~~**`rubygems_mfa_required` blocks an unattended API-key push.**~~ Resolved by
+  trusted publishing (OIDC), registered on rubygems.org against this repository
+  **and the workflow filename `ci.yml`** — renaming that file breaks publishing
+  until the trusted publisher is updated to match. No long-lived secret exists
+  in the repo, which is also why every action in `ci.yml` is pinned to a commit
+  rather than a movable tag.
+- **The version still has exactly one home**, `lib/rgame/version.rb`, and now
+  three readers: the gemspec, the release job's check, and the tag it creates. A
+  multi-platform flow must not introduce a fourth spelling of it.
+
+### What multi-platform changes about it
+
+The job is single-gem by construction, in three places:
+
+1. **One artifact.** It runs `gem build` on the runner that publishes. A binary
+   release builds elsewhere (see "Can CI build them?"), so the job stops
+   building and starts *collecting* — `actions/download-artifact`, then a push
+   per `.gem`.
+2. **`gem push` once becomes `gem push` N times**, and the failure mode changes
+   with it: a partial release is now possible, where three platforms are on
+   RubyGems and two are not. The existing "is this version published?" check is
+   binary and would report the version as done after the first push. It has to
+   become per-platform — the API's version records carry a `platform` field, so
+   the check is a set difference rather than an `include?`.
+3. **The tag and the GitHub release** should happen once, after the last push,
+   rather than once per artifact.
+
+None of that is hard, and all of it is easier than it would have been to write
+from scratch alongside the binary work — which is the argument for having landed
+the source-gem release first.
 
 ## Recommendation
 
@@ -152,11 +195,13 @@ Shape **C** is what makes `gem install rgame` work for a *user* rather than a
 developer, and is comparable in size to the whole cross-platform port that
 preceded this document.
 
-Either way, this is worth deferring until there is a reason to publish at all —
-nothing is on RubyGems yet. When it is picked up, do **A first and measure it**:
-it is a strict prerequisite for B and C (the build, artifact and release
-pipeline is the same), and shipping it alone answers whether "no compiler, but
-still install SDL2" is good enough in practice.
+Either way, this is worth deferring until someone actually hits the install
+friction. 0.1.0 is on RubyGems as a source gem and installs fine for anyone with
+a compiler and SDL2 — which, for a project whose users are currently the author,
+is everyone. When it is picked up, do **A first and measure it**: it is a strict
+prerequisite for B and C (the build, artifact and release pipeline is the same),
+and shipping it alone answers whether "no compiler, but still install SDL2" is
+good enough in practice.
 
 ## Open questions
 
