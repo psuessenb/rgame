@@ -1,13 +1,16 @@
 # Cross-platform support — macOS and Windows
 
-**Status: green on both dev machines; macOS CI has one open item (B15) and one
-fix awaiting its next run (B9a).** `rake` passes end to end on this session's
+**Status: macOS CI is one item from green. B9a is confirmed fixed on the
+runner; B15 is narrowed to a single mechanism with a plausible-but-unproven
+fix.** `rake` passes end to end on this session's
 Mac — 299 + 26 C checks, 905 headless examples, 350 Core examples, `rake`
 exiting 0 — and did the same earlier on the Windows machine. The macOS *runner*
 is a different matter: B9a (CoreAudio cannot be opened in a forked child) is
-fixed but unconfirmed there, and B15 (a virtual gamepad button that never
-arrives) turned out to be a flaky race that reproduces on macOS too — still
-open, with the mapping hypothesis ruled out. Written 2026-08-21 from a read of the
+**fixed and confirmed there** — 299 + 26 checks, no errors — while B15 (a
+virtual gamepad button that never arrives) is down to one mechanism: SDL
+*accepts* the press on a live, mapped, attached device and never applies it.
+Seating, mapping, stale handles and outright refusal are all ruled out by
+measurement. Written 2026-08-21 from a read of the
 build wiring, the engine C, and the spec scaffolding; revised after each CI run,
 then from a real Windows machine, and now from a real Mac. Anything marked
 *(sketch)* was never executed; anything marked *(measured)* came off a real
@@ -1125,6 +1128,14 @@ whether the component's bundle is already resolved in the parent, and so
 inherited across the fork, depends on the machine's audio configuration. That is
 not a difference anybody would think to control for.
 
+**Confirmed fixed on the runner, 2026-08-25.** The macOS leg's C suite now
+reports `299` then `26`, both `100%: Failures: 0, Errors: 0` — and the
+independent tell is that the *backtrace* step came back **skipped** rather than
+run, which (per B12) is the only reading of a masked job that means anything:
+its `if:` fires on `c_tests.outcome == 'failure'`, so a skip is proof the tests
+passed. B9a is closed: the split no-fork runner is the right fix and the
+CoreAudio-in-a-forked-child diagnosis was correct.
+
 **Landed, in the test harness rather than the engine, because that is whose
 problem it is.** `create_audio` is back to `#ifdef _WIN32` (its comment now says
 why macOS is *not* included, so the next reader does not repeat the attempt), and
@@ -1490,6 +1501,80 @@ If `attached` is false, it is the stale handle and the fix is in this harness's
 own teardown. If `raw_a` comes back *true* while `fire` is false, then the CI
 failure is a mapping bug and is **not** the local flake at all — two bugs that
 have been treated as one.
+
+#### Answered: the first branch, and two hypotheses are now dead
+
+The run came back with exactly the first of those three shapes. The reported
+failures were `raw_a`, `fire`, `dpad_right` and `before` — and nothing else,
+which is the informative part, because it means every diagnostic ahead of them
+**passed**:
+
+| Diagnostic | On the failing runner | Consequence |
+|---|---|---|
+| `seated` / `pad_count` | `true` / `1` | seating is fine; exactly one pad |
+| `mapped` | `true` | SDL does treat it as a controller |
+| `attached` | `true` | **stale-handle theory dead** — the handle is a live device |
+| `set_rc` | `0` | **refusal theory dead** — SDL *accepted* the press |
+| `raw_a` | `false` | and then never applied it |
+
+So: SDL accepted a virtual button press, on a device it agrees is attached and
+mapped, with `SDL_JoystickUpdate` called immediately afterwards — and the raw
+unmapped button state stayed `0`. That is not a mapping bug, not a seating
+bug, not a stale handle, and not a rejected call. It is `sdl2-compat`/SDL3
+failing to honour pending virtual-joystick state, and it is the same bug as the
+local flake rather than a second one.
+
+**Local reproduction was attempted and failed, which is itself worth recording**
+so the next person does not repeat it. The scenario was rebuilt outside RSpec —
+the real `App`, the real `VirtualGamepad`, attach at frame 0, press at 2, read at
+4 — and run 30 times: no failures. Repeated with deliberate GC pressure and
+abandoned `App` instances to imitate a long suite (see below for why that looked
+promising): 25 more rounds, no failures. Running `input_spec.rb` alone passes
+6 of 6; running it after `gamepad_spec.rb` passes 4 of 4. It needs the whole
+suite, and bisecting a 1-in-10 flake across twelve spec files by re-running
+them is slower than it is worth.
+
+**A promising lead that did not pan out, recorded so it is not re-derived.**
+`app.c`'s `rgame_app_destroy` calls `SDL_Quit()` when the last live `App` goes,
+and `App`s are freed by **Ruby's GC at unpredictable times** — the comment at
+`app.c:44` says so in as many words, and `SDL_Quit` tears down the joystick
+subsystem, virtual devices included. A GC landing between a pad's attach and
+its press would explain everything. It survives scrutiny as a mechanism and
+still did not reproduce when forced, because the current `App` keeps the
+refcount above zero for the whole example. Not disproven — just not the whole
+story on its own.
+
+**What landed: the harness now verifies its own input instead of assuming it.**
+`press`/`release` set the button, then update, then *read it back*, retrying up
+to `APPLY_ATTEMPTS` times (pumping as well as updating, in case SDL only
+reconciles inside event processing) and recording both whether it ever applied
+and how many passes it took. Two properties, and the second matters as much as
+the first:
+
+- **If the press is merely slow, this fixes it** — deterministically, without a
+  sleep, and without touching the engine.
+- **If the press never lands, the report says so directly**: `applied = false`
+  with an attempt count, instead of a bare `raw_a = false` three frames later
+  that could mean anything.
+
+Deliberately does **not** raise, even though a press that never applies is a
+harness failure: this code runs inside the engine's `draw` callback, and an
+exception there unwinds through the C frame loop — which is the reason
+`input_spec.rb` collects results and asserts afterwards in the first place.
+
+Measured locally: `[applied, attempts] => {[true, 1] => 40}`, so the retry is
+not quietly papering over a delay on a machine that passes, and `spec:core` is
+`350 examples, 0 failures` five runs running.
+
+**Status: plausible fix, unproven.** The retry is the only lever the evidence
+supports without a reproduction, and a rare flake that passes five local runs
+is exactly what this document has twice mistaken for a fix (B7, B9a). The next
+macOS run decides it, and either answer is useful: green closes it, while
+`applied = false` proves SDL is refusing to honour the state at all and moves
+the investigation to `sdl2-compat`'s virtual-joystick translation — at which
+point building SDL2 proper (rather than the SDL3 shim) on the runner becomes
+the experiment worth running, since that swaps out the one component every
+piece of remaining evidence points at.
 
 **Superseded framing — the original entry follows.** It read as a macOS-runner
 bug; it is a latent race that macOS happens to lose reliably.

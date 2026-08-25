@@ -136,6 +136,8 @@ RSpec.describe RGame::Core::Input do
       results[:mapped] = pad.game_controller?
       results[:attached] = pad.attached?
       results[:set_rc] = pad.last_set_result
+      results[:applied] = pad.applied
+      results[:apply_attempts] = pad.apply_attempts
       results[:raw_a] = pad.raw_down?(VirtualGamepad::BUTTON_A)
       # Only meaningful when a set actually failed; harmless noise otherwise.
       results[:sdl_error] = pad.sdl_error unless pad.last_set_result.zero?
@@ -176,6 +178,10 @@ RSpec.describe RGame::Core::Input do
       expect(results[:mapped]).to be(true)
       expect(results[:attached]).to be(true)
       expect(results[:set_rc]).to eq(0)
+      # How many update passes the press needed. Reported rather than bounded
+      # to 1 on purpose: if this ever comes back above 1 on a machine that
+      # passes, that is the timing story in B15 confirmed.
+      expect(results[:applied]).to be(true)
       expect(results[:raw_a]).to be(true)
 
       expect(results[:fire]).to be(true)
@@ -215,6 +221,10 @@ RSpec.describe RGame::Core::Input do
       expect(results[:mapped]).to be(true)
       expect(results[:attached]).to be(true)
       expect(results[:set_rc]).to eq(0)
+      # How many update passes the press needed. Reported rather than bounded
+      # to 1 on purpose: if this ever comes back above 1 on a machine that
+      # passes, that is the timing story in B15 confirmed.
+      expect(results[:applied]).to be(true)
       expect(results[:raw_a]).to be(true)
 
       expect(results[:before]).to be(true)

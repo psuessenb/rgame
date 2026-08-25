@@ -123,6 +123,15 @@ class VirtualGamepad
   #   GET_ERROR     what SDL says when it does refuse.
   GET_ATTACHED = fn('SDL_JoystickGetAttached', [Fiddle::TYPE_VOIDP], Fiddle::TYPE_INT)
   GET_ERROR = fn('SDL_GetError', [], Fiddle::TYPE_VOIDP)
+  PUMP = fn('SDL_PumpEvents', [], Fiddle::TYPE_VOID)
+
+  # How many update passes a press gets before the harness gives up on it. One
+  # is enough on every machine measured; more exist because the macOS runner
+  # reports a press SDL *accepted* (`SDL_JoystickSetVirtualButton` returned 0,
+  # on a device `SDL_JoystickGetAttached` calls live) and then never applied,
+  # and a bounded retry is the cheapest thing that distinguishes "slow" from
+  # "never" — see docs/plans/cross-platform-support.md, B15.
+  APPLY_ATTEMPTS = 10
 
   def initialize
     @index = ATTACH.call(TYPE_GAMECONTROLLER, AXIS_COUNT, BUTTON_COUNT, 0)
@@ -152,6 +161,12 @@ class VirtualGamepad
   # something has been set.
   attr_reader :last_set_result
 
+  # How many update passes the last button press or release needed before SDL
+  # actually applied it, and whether it ever did. `nil` until a button has been
+  # set; `applied` false means SDL accepted the call and never honoured it,
+  # which is the state B15 is chasing.
+  attr_reader :apply_attempts, :applied
+
   # Unplugging the pad, as far as SDL and the engine are concerned.
   def detach
     return if @detached
@@ -163,9 +178,29 @@ class VirtualGamepad
 
   private
 
+  # Sets the button and then makes sure SDL has actually applied it, rather than
+  # trusting one update pass to be enough. Deliberately does *not* raise on
+  # failure: this runs inside the engine's draw callback, and an exception there
+  # unwinds through the C frame loop — which is why input_spec.rb collects
+  # results and asserts afterwards. A press that never lands is recorded and
+  # left for the example's own expectations to report.
   def set_button(button, value)
     @last_set_result = SET_BUTTON.call(@joystick, button, value)
-    UPDATE.call
+    want = value == 1
+    @apply_attempts = 0
+    @applied = false
+    APPLY_ATTEMPTS.times do
+      @apply_attempts += 1
+      UPDATE.call
+      if raw_down?(button) == want
+        @applied = true
+        break
+      end
+      # A plain update is what should apply pending virtual state; pumping as
+      # well covers the case where SDL only reconciles the device inside its own
+      # event processing.
+      PUMP.call
+    end
     @last_set_result
   end
 end
