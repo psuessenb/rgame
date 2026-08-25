@@ -130,7 +130,7 @@ z-sorted batching renderer, text, and audio — is wrapped by
 `ext/rgame_core/ruby/`, and there's a Ruby half under `lib/` backed by a
 second, graphics-free extension in `ext/rgame_util/`.
 `rgame.gemspec` packages both, so the project installs as a gem as well as
-running from a checkout — though nothing is published yet.
+running from a checkout, and it is published on RubyGems (`gem install rgame`).
 
 **Gosu is gone.** `lib/platform/` is deleted and nothing in the project depends
 on it in any form. `RGame::Game` (`lib/rgame/game.rb`) is the entry point a game

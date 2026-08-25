@@ -40,7 +40,7 @@ path (e.g. in `on_add`), then read it by value in `on_draw`:
 ```ruby
 @score_label = RGame::Engine::CachedLabel.new { |score| "Score: #{score}" }  # built once
 
-def on_draw(renderer)
+def on_draw(renderer, _view)
   renderer.text(@score_label[@score], 12, 10)   # cached; rebuilds only when @score changes
 end
 ```

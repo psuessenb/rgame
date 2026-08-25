@@ -37,46 +37,9 @@ game.start
 
 You can learn more about how it works in the [documentation](docs/api/README.md).
 
-# Where does stuff live
-
-Everything Ruby-visible lives under the `RGame` module, split in two by what it
-depends on:
-
-| | `RGame::Core` | `RGame::Util` |
-|---|---|---|
-| For | anything depending on SDL/OpenGL (or on something that does) | everything else |
-| C source | `ext/rgame_core/` | `ext/rgame_util/` |
-| Extension | `rgame/core_ext` | `rgame/util_ext` |
-| Links | SDL2 + OpenGL + pthread | nothing but Ruby |
-| Holds today | `App` — window, GL context, fixed-timestep main loop; `Input`, `Gamepad`, `Image`, `Renderer`, `Recording`, `Font`, `Audio`, `Sample`, `Song` | `Tensor`, `Controls`, `Color` |
-
-That split is load-bearing, not cosmetic: `require "rgame"` gives you the value
-types *and* the scene graph with **no graphics libraries loaded into the process
-at all**, so game logic and its specs run with no display and no SDL present.
-`RGame::Core` is an explicit opt-in:
-
-```ruby
-require "rgame"       # RGame::Util + RGame::Engine, no graphics
-require "rgame/core"  # adds RGame::Core, pulls in SDL2 + OpenGL
-require "rgame/game"  # all of it, wired — what a game writes
-```
-
-The engine opens a window, runs a fixed-timestep loop, reads keyboard and
-controllers, loads PNGs onto the GPU, draws shapes, sprites and text through
-a z-sorted batching renderer, and plays Ogg Vorbis and WAV. `RGame::Game` puts
-those together with a scene graph, and the two games under `examples/` run on
-it. Its C sources build two ways from one copy: a standalone binary (`build/rgame`, via the root
-`Makefile`) and the `core_ext` extension (via `extconf.rb`).
-
-Both halves ship as one gem — `rgame.gemspec` builds both extensions — though
-nothing is published yet, so it is installed from a checkout or a built `.gem`.
-
-**[docs/api/](docs/api/README.md) is the reference documentation** for using the
-engine from Ruby: the entry point, the frame loop, input, drawing, text, audio,
-assets and the value types. Start there if you want to write a game rather than
-work on the engine.
-
 ## Requirements
+
+At the moment this gem ships only source-code and no precompiled binaries, which unfortunately means you need to compile a bunch of C code on your locale machine.
 
 ### C engine
 
@@ -241,7 +204,14 @@ ruby ext/rgame_core/example.rb
 
 ## Packaging
 
-Both extensions and the Ruby layer ship as one gem, built from `rgame.gemspec`:
+Both extensions and the Ruby layer ship as one gem, built from `rgame.gemspec`
+and published at [rubygems.org/gems/rgame](https://rubygems.org/gems/rgame):
+
+```
+gem install rgame               # from RubyGems; compiles both extensions here
+```
+
+Or from a checkout, which is the same gem built locally:
 
 ```
 rake build                      # package into pkg/rgame-<version>.gem
@@ -264,203 +234,66 @@ that no build artifact, spec directory or plan is, so the parts of this that
 would otherwise be a checklist fail the suite instead.
 
 The version is `RGame::VERSION` in [lib/rgame/version.rb](lib/rgame/version.rb).
-Nothing is published to RubyGems.
 
 ## Project structure
 
-The engine C lives under `ext/rgame_core/` — a Ruby C extension directory —
-rather than a top-level `src/`. That's deliberate: `gem install` unpacks the gem
-and runs each `extconf.rb`, which can only build sources inside its own
-directory, so keeping the C there means one copy of the code serves both the
-standalone binary and the gem.
+The C lives under `ext/rgame_core/` rather than a top-level `src/`, because
+`gem install` runs each `extconf.rb` and an extension can only build sources
+inside its own directory — so one copy of the code serves both the standalone
+binary and the gem. The Ruby half is split the same way it is namespaced:
+`lib/rgame/util/`, `lib/rgame/core/` and `lib/rgame/engine/`.
 
-```
-ext/rgame_core/              RGame::Core — the SDL/GL half. The sources are
-                             grouped by subsystem, one folder each, and a file
-                             names the folder it includes from: graphics/canvas.c
-                             says #include "graphics/clip.h".
-  include/rgame/core.h       Public C API (opaque handle, no SDL/GL types
-                             leaked) — what both src/main.c and the extension
-                             bind against.
-  app/                       The window, the context and the loop.
-    app.c                    Engine implementation: SDL window + OpenGL context
-                             setup; owns the main loop and calls back to the
-                             caller's update/draw callbacks.
-    app_gl.h                 Private: the GL context behind the opaque handle.
-    frame_loop.h/.c          Pure fixed-timestep + FPS logic, no SDL/GL — unit-
-                             tested without a window (see CLAUDE.md's layering).
-  graphics/                  Everything on the drawing path.
-    transform.h/.c           Pure 2D affine transform stack — rotate, scale,
-                             translate, composed. No SDL.
-    clip.h/.c                Pure rects and the intersecting clip stack, in
-                             screen space. No SDL.
-    draw_queue.h/.c          Pure z-sort and batching: collects draw commands,
-                             orders them by z, merges what can share a GL call.
-    canvas.h/.c              Pure composition of transform + clip + layer +
-                             queue; the seam the drawing API is written
-                             against. The layer stack is what makes a z an
-                             offset inside one node's slot rather than a
-                             global number.
-    backend.h/.c             The layer-2 seam: a function-pointer table a real
-                             GL backend or a recording fake plugs into, plus
-                             the loop that drives it from a prepared frame.
-    texture.h/.c             Pure: refcounted texture sheets, the sub-rects
-                             sprites cut out of them, and pixels -> UVs.
-    primitives.h/.c          Pure: rects, thick lines, circles and sprites, in
-                             terms of the canvas's triangles and quads.
-    recording.h/.c           Pure: a baked block of drawing, kept between
-                             frames and replayed as one call per texture.
-    gl_backend.h/.c          The real GL calls — the only file that issues
-                             them on the drawing path.
-    image.c                  Decode a PNG and upload it — the thin GL shim
-                             over texture.h. Views share one upload.
-    image_internal.h         What the draw path needs from inside an image.
-  text/                      Glyphs, from a .ttf to a texture page.
-    atlas.h/.c               Pure: shelf packing for the glyph atlas — where
-                             the next glyph goes on a texture page.
-    glyph_cache.h/.c         Pure: codepoint -> rasterised glyph, open
-                             addressed, never evicted.
-    font.h/.c                Pure: a typeface at one size — glyph metrics,
-                             kerning, rasterisation and UTF-8, over
-                             stb_truetype. No atlas, no GL.
-    font_atlas.c             Composes font + atlas + glyph cache and owns the
-                             GL pages — the only text file that calls gl*.
-    font_internal.h          What the draw path needs from inside a font.
-  input/                     Keyboard and controllers.
-    input.h/.c               Pure input snapshot + the flat button-id space
-                             (keyboard and gamepad ranges). No SDL.
-    device_slots.h/.c        Pure player-slot table for controllers: keeps a
-                             player on the same slot across a disconnect. No SDL.
-    gamepad.h/.c             Thin SDL_GameController shim: opens/closes pads on
-                             hot-plug and copies their state into the snapshot.
-  audio/                     Sound, which touches neither SDL nor GL.
-    audio.c                  The sound device, samples and songs — miniaudio
-                             talks to the platform directly.
-    audio_internal.h         The live-sound counter, for tests.
-    vorbis_decoder.h/.c      Ogg Vorbis for miniaudio, over stb_vorbis —
-                             miniaudio cannot read ogg on its own.
-  ruby/                      The Ruby-facing glue, and the only C here that
-                             includes ruby.h.
-    core_ext.c               VALUE wrappers + callback trampolines, and the
-                             extension's entry point.
-    core_ext.h               One init function per Ruby-visible class here.
-    image_ext.c              RGame::Core::Image — the Ruby binding.
-    audio_ext.c              RGame::Core::Audio, Sample and Song — the
-                             bindings; three classes in one file because they
-                             share a wrapping shape.
-    renderer_ext.c           RGame::Core::Renderer — the drawing primitives.
-    font_ext.c               RGame::Core::Font — the Ruby binding.
-    recording_ext.c          RGame::Core::Recording — baked, replayable draws.
-  vendor/                    Third-party sources + their licences.
-    <name>_impl.c            One per vendored library (stb_image, stb_truetype,
-                             stb_vorbis, miniaudio): instantiates it and picks
-                             its features. The only files built without
-                             -Wall -Wextra; the suffix is what selects that.
-  extconf.rb                 mkmf script; pkg_config("sdl2"), -lGL. It lists
-                             the subsystem folders, because mkmf's own default
-                             only finds sources one level up from here.
-  example.rb                 Manual smoke test driven from Ruby.
-
-ext/rgame_util/              RGame::Util — the graphics-free half, so pure-data
-                             helpers can be required without pulling in SDL/GL.
-  util_ext.c                 Entry point; hands RGame::Util to each class init.
-  tensor.c                   RGame::Util::Tensor — flat-array 3D grid.
-  color.c/.h                 Pure RGBA packing, no Ruby — Check-tested.
-  color_ext.c                RGame::Util::Color — the Ruby binding over it.
-  extconf.rb                 mkmf script; no pkg_config, no -lGL.
-
-lib/rgame.rb                 `require "rgame"` — loads RGame::Util only.
-lib/rgame/version.rb         RGame::VERSION, and nothing else — the gemspec
-                             loads this file before anything is compiled.
-lib/rgame/util.rb            Namespace loader.
-lib/rgame/util/tensor.rb     Requires the compiled rgame/util_ext.
-lib/rgame/util/controls.rb   Input id vocabulary (keys, pad buttons, axes,
-                             device slots) + default bindings. Pure Ruby
-                             values, so a game may name them without Core.
-lib/rgame/util/color.rb      Requires the compiled rgame/util_ext for Color.
-lib/rgame/core.rb            `require "rgame/core"` — opt-in, loads SDL/GL.
-lib/rgame/core/app.rb        Requires the compiled rgame/core_ext.
-lib/rgame/core/input.rb      Symbolic action -> button, over the C queries.
-lib/rgame/core/gamepad.rb    Which controllers are plugged in, and their names.
-lib/rgame/core/image.rb      Sprite-sheet slicing over the C-backed Image.
-lib/rgame/core/renderer.rb   Keyword args, colours and transform blocks over
-                             the C-backed Renderer.
-lib/rgame/core/recording.rb  #draw over the C-backed Recording.
-lib/rgame/core/font.rb       The default font path, over the C-backed Font.
-lib/rgame/fonts/             The default font shipped with the engine:
-                             Liberation Sans 2.1.5 (SIL OFL 1.1). Data read at
-                             runtime, so it lives here rather than in ext/.
-lib/rgame/*.so               Build artifacts, copied here by `make ext`.
-
-src/main.c                   Standalone executable entry point — the C
-                             equivalent of example.rb. Only talks to
-                             rgame/core.h, never touches SDL/GL directly. Kept
-                             outside ext/ so mkmf doesn't compile its main()
-                             into the extension.
-
-test/                        Check unit tests for the pure C logic (`make test`).
-  test_main.c                Runs every suite; one binary, build/test_rgame.
-  suites.h                   Each test_<x>.c exposes a Suite, declared here.
-  support/                   Test-only helpers, e.g. the recording draw backend
-                             that stands in for OpenGL.
-spec/                        Headless RSpec specs: RGame::Util and
-                             RGame::Engine (`rake spec`). Never loads SDL.
-  packaging_spec.rb          What the gem ships, asserted against the tree so a
-                             new source or data file cannot be left out of it.
-spec_core/                   RSpec specs for RGame::Core (`rake spec:core`).
-                             Opens real windows; boots its own Xvfb.
-docs/                        The feature spec the engine is being built out to.
-  api/                       Reference documentation for using it from Ruby.
-
-rgame.gemspec                Packages both halves as one gem: both extconf.rb
-                             files, and a globbed file list so a new source or
-                             asset ships without being listed anywhere.
-```
-
-Three test suites: `make test` covers the C (Check), `rake spec` the headless
-Ruby half, `rake spec:core` the parts that open a window. None needs a display
-of its own — `spec:core` boots Xvfb itself. `rake` runs all three.
+A file-by-file map of the whole repository is in
+[docs/project_structure.md](docs/project_structure.md).
 
 ## Roadmap
 
-1. **C core** (in progress) — SDL2 window, OpenGL rendering, basic app loop.
-   Drawing primitives are the current gap.
-2. **Ruby C extensions** (done in first form) — `RGame::Core::App` wraps
-   `include/rgame/core.h`, so the engine can be driven from Ruby
-   (`ext/rgame_core/example.rb`); `RGame::Util::Tensor` covers the
-   graphics-free half.
-3. **Pure-Ruby half** (started) — `lib/` holds the namespace loaders; so far
-   the classes underneath them are all C-backed.
-4. **Gem** (done) — `rgame.gemspec` packages both halves, building each
-   extension into `lib/rgame/` on install the way `make ext` does in a
-   checkout. Not published to RubyGems.
+All three layers exist and the engine is usable end to end: the games under
+[examples/](examples/) are written against exactly what is documented.
 
-## Ruby API
+**Done**
 
-See [ext/README.md](ext/README.md) for detail.
+1. **C engine** — an SDL2 window and a fixed-timestep loop, keyboard and
+   gamepad input with hot-plug, a z-sorted batching renderer with transforms,
+   clipping and baked recordings, text from a shipped TrueType font, and audio.
+   Linux, macOS and Windows are all supported and all gated by CI.
+2. **Ruby C extensions** — both halves. `RGame::Core` binds
+   `include/rgame/core.h` (the app, the renderer, images, fonts, recordings,
+   sound); `RGame::Util` is the graphics-free one, so values can be required
+   without pulling SDL and OpenGL into the process.
+3. **Pure-Ruby half** — `RGame::Engine`, the layer a game is actually written
+   in: the scene graph, components, signals, tile maps, collision,
+   pathfinding, and split-screen players with a camera and a binding table
+   each. `RGame::Game` wires it to `RGame::Core` and is the only class allowed
+   to name both.
+4. **Gem** — `rgame.gemspec` packages both halves, compiling each extension
+   into `lib/rgame/` on install the way `make ext` does in a checkout.
+   [Published to RubyGems](https://rubygems.org/gems/rgame) as of 0.1.0, so
+   `gem install rgame` works.
 
-```ruby
-require "rgame/core"
+**Next**
 
-class MyGame < RGame::Core::App
-  def initialize = super(width: 800, height: 600, caption: "title")
+- **A UI package worth the name.** What exists covers a region per player,
+  focus and activation — enough for keyboard-and-controller menus. Layout,
+  nesting, scrolling lists and text entry are all still open; see
+  ["What this is not"](docs/api/ui.md#what-this-is-not).
+- **Precompiled binary gems**, so installing needs no compiler. The compiling
+  is the easy part — CI already does it on three platforms — and the real
+  blocker is that the binary still needs SDL2 at runtime. The options are
+  written up in
+  [docs/plans/precompiled-binary-gems.md](docs/plans/precompiled-binary-gems.md).
+- **Hot paths into C, where profiling says so** — the nine-slice tiling loops
+  and the animated-tile draw loop are the candidates. Deliberately last: each
+  is a straightforward move once the geometry is separable, and doing it early
+  would trade readability for a speedup nobody has measured.
 
-  def update(dt); end      # one fixed simulation tick
-  def draw; end            # render one frame
-  def needs_redraw?; end   # false skips the draw
-  def button_down(id); end # discrete key press
-end
+Also known and deliberately deferred: the drawing path uses legacy
+compatibility-profile OpenGL (`glBegin`/`glEnd`), which needs no loader library.
+Moving to core-profile GL is a decision to take on purpose, not a drive-by
+change.
 
-MyGame.new.run
-```
+## AI clause
 
-The util half, with no graphics libraries loaded:
-
-```ruby
-require "rgame"
-
-grid = RGame::Util::Tensor.new(width, height, depth, initial: nil)
-grid[x, y, z] = value
-grid[x, y, z]
-grid.width # => Integer, also #height / #depth
-```
+This project is not vibe-coded, but AI tools were used heavily while
+writing code. If you dislike AI generated code, this project is not for
+you.

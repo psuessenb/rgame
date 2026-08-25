@@ -22,16 +22,15 @@ Gem::Specification.new do |spec|
 
   spec.summary = 'A 2D game engine in C on SDL2 and OpenGL, exposed to Ruby.'
   spec.description = <<~DESCRIPTION
-    rgame is a 2D game engine written in C on top of SDL2 and OpenGL and exposed
-    to Ruby as C extensions. It opens a window, runs a fixed-timestep main loop,
-    reads keyboard and controllers, loads PNGs onto the GPU and draws shapes and
-    sprites through a z-sorted batching renderer.
+    RGame is a small 2D game engine for Ruby, written in Ruby and C. It's build
+    on top of SDL2, OpenGL and miniaudio. It's built with testability and
+    performance in mind, and aims to be an engine where you can write your whole
+    game code in Ruby, test it as usual with RSpec (or Minitest, or another test
+    framework) and still have acceptable performance.
 
-    Everything Ruby-visible lives under the RGame module, split in two by what it
-    depends on. RGame::Core owns the window, the GPU and the OS handles;
-    RGame::Util holds the shareable value types and links no graphics libraries
-    at all, so `require "rgame"` gives you the pure half with no SDL or OpenGL in
-    the process and pure-logic code stays testable with no display.
+    While still a work in progress, RGame aims to be more than a SDL/OpenGL
+    binding - it ships with high level features like a scene graph, sprites,
+    collision systems, debugging tools and an UI toolkit.
   DESCRIPTION
 
   # No 'homepage_uri' here: spec.homepage above already supplies it, and

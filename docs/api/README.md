@@ -1,12 +1,13 @@
 # rgame API guide
 
 Reference documentation for using rgame from Ruby. The engine is written in C
-and exposed as two Ruby extensions; nothing here assumes you will read or write
-any C.
+and exposed as two Ruby extensions, with the scene graph a game is actually
+written in sitting on top of them in pure Ruby; nothing here assumes you will
+read or write any C.
 
 | Page | Covers |
 |---|---|
-| This page | Loading the library, the two namespaces, a working program, testing |
+| This page | Loading the library, the three namespaces, a working program, testing |
 | [App](app.md) | `RGame::Core::App` — the window and the frame loop |
 | [Game](game.md) | `RGame::Game` — the entry point that wires both halves together |
 | [Input](input.md) | `RGame::Core::Input`, `RGame::Util::Controls`, `RGame::Core::Gamepad` |
@@ -30,10 +31,12 @@ The scene graph — `RGame::Engine`, the layer a game is actually written in:
 | [Internal building blocks](internals.md) | What components are built from: collision maths, the spatial index, animation playback |
 
 **The engine is a work in progress.** A window opens, the loop runs, input
-works, shapes, images and text can be drawn, sound plays, and a scene graph runs
-on top of it — the two games under `examples/` are built on exactly what is
-documented here. What is missing is a UI toolkit and split-screen; pages here
-describe what exists today and grow as more lands.
+works, shapes, images and text can be drawn, sound plays, and a scene graph with
+split-screen players runs on top of it — the games under `examples/` are built
+on exactly what is documented here. What is missing is a UI *toolkit*: [UI](ui.md)
+gives each player a region of the screen, focus and activation, and stops there —
+no layout, no scrolling lists, no text entry. Pages here describe what exists
+today and grow as more lands.
 
 ## Loading it
 
@@ -67,102 +70,145 @@ Both extensions must be compiled before they can be required:
 make ext        # builds both, copies them into lib/rgame/
 ```
 
-## The two namespaces
+## The three namespaces
 
-Everything lives under `RGame`, split in two by what it depends on:
+Everything lives under `RGame`, split three ways — two of them by what they
+depend on, the third by what it is *for*:
 
-| | `RGame::Util` | `RGame::Core` |
-|---|---|---|
-| Contains | shareable *values* — no window, no GPU, nothing to release | things owning a window, GPU or OS handle |
-| Today | `Color`, `Tensor`, `Controls` | `App`, `Input`, `Gamepad`, `Image`, `Renderer`, `Recording`, `Font` |
-| Loading it costs | nothing | SDL2 + OpenGL in your process |
+| | `RGame::Util` | `RGame::Core` | `RGame::Engine` |
+|---|---|---|---|
+| Contains | shareable *values* — no window, no GPU, nothing to release | things owning a window, GPU or OS handle | game concepts: the scene graph a game is written in |
+| Today | `Color`, `Tensor`, `Controls`, `Z` | `App`, `Input`, `Gamepad`, `Image`, `Renderer`, `Recording`, `Font`, `Audio`, `SpriteSheet`, `AssetManager` | `Node2D`, components, systems, signals, `TileMap`, `Player`, `InputMap`, `UI::Menu` |
+| Loading it costs | nothing | SDL2 + OpenGL in your process | nothing |
 
-The rule for deciding where something belongs: **a value goes in `Util`; only a
+The rule for splitting the bottom two: **a value goes in `Util`; only a
 handle-owner goes in `Core`.** A colour is a value. A window is not.
 
-This is not tidiness. Game logic is expected to hold `Util` types freely as
-attributes, and to reach `Core` only through objects handed to it — a node's
-`draw` receives a renderer and calls methods on it, rather than naming a class.
-That is what keeps game code runnable with no window, which the testing section
-below relies on.
+`RGame::Engine` sits above both, and its rule is what makes the split worth
+having:
+
+- it may hold `Util` values freely as attributes — a `Color`, a `Tensor`;
+- it may **not name `Core` at all** — no require, no constant, no attribute;
+- it reaches `Core` only through objects handed to it. A node's `on_draw`
+  receives a renderer and calls methods on it by name, never storing it and
+  never asking what class it is.
+
+This is not tidiness. It is what keeps a whole game — its rules, its scenes, its
+collisions — runnable and testable with no window, which the testing section
+below relies on. Two RuboCop cops enforce it in both directions, so a stray
+reference is a failing lint rather than a discovery made later.
+
+`RGame::Game` is the single exception, and the only class directly under
+`RGame`: introducing the two halves to each other is exactly what it is for, and
+confining that to one file is what keeps the rule checkable everywhere else.
 
 ## A complete program
 
-```ruby
-require 'rgame'
-require 'rgame/core'
+A game is a tree of nodes plus `RGame::Game` to run it.
 
-class MyGame < RGame::Core::App
-  Controls = RGame::Util::Controls
+```ruby
+require 'rgame/game'
+
+# One game object: a square the player walks around. Pure Engine — it names no
+# graphics class, so it runs just as happily in a spec with no window.
+class Hero < RGame::Engine::Node2D
+  SPEED = 200.0
 
   def initialize
-    super(width: 800, height: 600, caption: 'My Game')
-    @input = RGame::Core::Input.new(self)
-    @renderer = RGame::Core::Renderer.new(self)
-    @x = 400.0
-    @y = 300.0
+    super(x: 400, y: 300, width: 16, height: 16)
+    @vx = 0.0
+    @vy = 0.0
   end
 
-  # One fixed simulation tick. `dt` is always the same fixed step, never
-  # wall-clock frame time, so movement is deterministic.
-  def update(dt)
-    speed = 200.0 * dt
-    @x -= speed if @input.down?(:left)
-    @x += speed if @input.down?(:right)
-    @y -= speed if @input.down?(:up)
-    @y += speed if @input.down?(:down)
+  # Intent, read once per simulation tick. Never a key: `move_x` is whatever
+  # this player's input map binds it to — arrows, WASD or a stick.
+  def on_control(actions)
+    @vx = actions.axis(:move_x) * SPEED
+    @vy = actions.axis(:move_y) * SPEED
   end
 
-  # Everything is drawn here, through a renderer built in initialize. See
-  # docs/api/drawing.md.
-  def draw
-    @renderer.rect(@x - 8, @y - 8, 16, 16)
+  # `dt` is always the same fixed step, never wall-clock frame time, so
+  # movement is deterministic. `x`/`y` are relative to the parent.
+  def on_update(dt)
+    self.x += @vx * dt
+    self.y += @vy * dt
   end
 
-  def button_down(id)
-    close if id == Controls::KEY_ESCAPE
+  # The renderer is handed in and never stored; `view` is the viewport being
+  # drawn into, which most nodes ignore. Draw from the resolved absolute
+  # position, not from `x`/`y`. See docs/api/drawing.md.
+  def on_draw(renderer, _view)
+    renderer.rect(abs_x, abs_y, width, height)
   end
 end
 
-MyGame.new.run
+# The root of the tree. Children are added in `on_add`, once the node is in a
+# tree and can reach the game around it.
+class Scene < RGame::Engine::Node2D
+  def on_add
+    add_node(Hero.new)
+  end
+end
+
+RGame::Game.new(root: Scene.new, width: 800, height: 600, caption: 'My Game').start
 ```
 
-You subclass `App` and override the hooks you care about. Everything you do not
-override is an inherited no-op — there is no `super` to remember, and no way to
-break the loop by forgetting one. See [App](app.md) for the full list.
+You subclass `Node2D` and override the hooks you care about — `on_control`,
+`on_update`, `on_draw`, and the lifecycle hooks around them. Everything you do
+not override is an inherited no-op, and the phase methods that do the
+bookkeeping (resolving the transform, driving components, descending into
+children) are not the ones you override — so there is no `super` to remember and
+no way to break the tree by forgetting one. See [Scene graph](scene_graph.md)
+for the full list, and [Game](game.md) for what `Game` assembles around it: the
+window, the renderer, the asset manager, the sound device, the input mapper and
+the players.
+
+Pass no `input_map:` and you get the default one used above: eight-way `move_x`
+/ `move_y` on the arrows, WASD, the d-pad or the left stick, plus `fire`. See
+[Input](input.md).
 
 ## Testing a game built on this
 
 The namespace split exists so that game logic can be tested without opening a
-window. Drive `update` directly and it runs as fast as the CPU allows:
+window. `require 'rgame'` gives you `Util` and the whole scene graph with no SDL
+and no OpenGL in the process, and the nodes from the program above run there
+unchanged — drive their phases directly and a simulated hour takes milliseconds:
 
 ```ruby
-# A plain object holding your game's rules — no RGame::Core anywhere.
-class Player
-  attr_reader :x
+require 'rgame'
 
-  def initialize = @x = 0.0
-
-  def update(dt, moving_right:)
-    @x += 200.0 * dt if moving_right
-  end
-end
-
-RSpec.describe Player do
+RSpec.describe Hero do
   it 'walks right at 200 units a second' do
-    player = Player.new
-    # One simulated second, sixty ticks, no window and no clock.
-    60.times { player.update(1.0 / 60.0, moving_right: true) }
+    hero = Hero.new
+    # The same snapshot object the input mapper hands a node at runtime, built
+    # by hand with the stick pushed fully right.
+    actions = RGame::Engine::Actions.new(axes: { move_x: 1.0, move_y: 0.0 })
 
-    expect(player.x).to be_within(0.01).of(200.0)
+    # One simulated second, sixty ticks, no window and no clock.
+    60.times do
+      hero.control(actions)
+      hero.update(1.0 / 60.0)
+    end
+
+    expect(hero.x).to be_within(0.01).of(600.0)
   end
 end
 ```
 
-The engine deliberately makes this easy: `update` takes `dt` as an argument
-rather than reading a clock, so a test can pass whatever timestep it likes and
-simulate an hour in milliseconds.
+Two things make that work:
 
-Keep the parts of your game that decide *what happens* free of `RGame::Core`,
-and hand them a renderer at draw time rather than storing one. Then the only
-code that needs a window is the thin layer that puts pixels on screen.
+- **`update` takes `dt` as an argument rather than reading a clock**, so a test
+  passes whatever timestep it likes. That means tests are not dependent on real time and can simulate game behavior based on time in miliseconds.
+- **A node never holds a renderer.** `on_draw` is given one, so drawing can be
+  checked by passing a recording double and asserting on what the node asked
+  for — see the renderer contract in `spec/support/shared_examples/`. All tests can be run completely headless.
+
+`hero.x` is asserted rather than `abs_x` because this node has no parent here.
+Absolute position accumulates from the parent, and a node with no parent resolves
+to the origin. Put it under a root and `abs_x` is what the rest of the engine
+reads. See [Scene graph](scene_graph.md#absolute-position).
+
+Keep the parts of your game that decide *what happens* in `RGame::Engine` — the
+layer cannot name `RGame::Core`, so it cannot accidentally acquire a dependency
+on a window. Then the only code that needs one is the thin layer that puts
+pixels on screen.

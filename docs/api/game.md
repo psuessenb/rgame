@@ -7,8 +7,8 @@ engine.
 $LOAD_PATH.unshift File.expand_path('../lib', __dir__)
 require 'rgame/game'
 
-class HelloScene < Engine::Node2D
-  def on_draw(renderer) = renderer.text('Hello world!', 250, 200)
+class HelloScene < RGame::Engine::Node2D
+  def on_draw(renderer, _view) = renderer.text('Hello world!', 250, 200)
 end
 
 RGame::Game.new(root: HelloScene.new, caption: 'Hello').start
