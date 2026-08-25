@@ -780,6 +780,19 @@ device-present branch runs unchanged): `rake` end to end, 325 + 904 + 350,
 still 0 failures, and `#backend` still reports the real WASAPI name. What
 could not be verified locally is the zero-device branch itself.
 
+**Landed narrower than the first attempt: `#ifdef _WIN32` only.** The first
+version of this fix ran the enumerate-first logic on every platform, and the
+very next push broke the *Linux* leg — a leg that was already proven working,
+on a code path this session has no way to test outside Windows. Rather than
+guess at the Linux failure blind, the fix was scoped to exactly the evidence
+that motivated it: `_WIN32` only, so Linux and macOS run the exact `ma_engine_init`
+call that has been correct all along, byte-for-byte unchanged. This is worth
+stating as its own lesson, not just a revert: **a fix aimed at one platform's
+crash should default to changing only that platform**, even when the new
+logic looks harmless enough to "obviously" generalize — it is exactly the
+kind of change this session's own `windows-portability` skill exists to warn
+against making blind.
+
 Also landed: a CI diagnostic this class of failure was missing entirely.
 `ci.yml`'s Check-suite crash gets an automatic `gdb` backtrace; the Ruby-level
 crash that motivated this item got nothing but a bare exit code, because
@@ -790,6 +803,9 @@ the current one, which would leave the debugger attached to the wrong
 process) when the Core specs step fails on Windows, so if this fix is wrong or
 incomplete, the next push explains why instead of repeating the same silence.
 
+**That diagnostic step needed a fix of its own before it could run at all —
+see B10.**
+
 Recorded as its own item and cross-referenced from
 `.claude/skills/windows-portability/SKILL.md` (item 5) rather than folded into
 B7, because it is a different bug with a different mechanism — B7 was a
@@ -797,6 +813,45 @@ resource leak from a skipped cleanup path; this is a real backend crashing on
 its very first, ordinary attempt to open when the hardware simply isn't
 there. The only thing they share is that both only reproduce on Windows and
 both involve `ma_engine_init`.
+
+### B10. A GitHub Actions gotcha, not a project bug — the backtrace steps silently stopped running *(measured, new)*
+
+Found immediately after B9's fix reached CI: the "Backtrace the Core specs
+crash (Windows)" step, added specifically to diagnose exactly this kind of
+failure, never ran — shown as skipped in the Actions UI, no output at all.
+Worse, re-reading `ci.yml` at that point found the **pre-existing** "Backtrace
+the C suite crash" step had the identical bug, undetected until now because
+it happened to be masked.
+
+The mechanism is a GitHub Actions rule that is easy to not know and easy to
+verify once suspected: **an `if:` condition containing no explicit
+status-check function (`success()`, `failure()`, `cancelled()`, `always()`)
+gets `success()` silently prepended to it.** Both backtrace steps were written
+as `if: steps.<id>.outcome == 'failure'` — no status function — so both were
+really `if: success() && steps.<id>.outcome == 'failure'`, which can only ever
+be true if a step failed *and* every step (including that one) still counts
+as an overall success. That is a contradiction the two conditions could never
+jointly satisfy — the steps were dead code from the day they were written.
+
+**Why it stayed hidden until now**: both backtrace steps sit immediately after
+a step whose `continue-on-error` is `${{ !matrix.ported }}`. While a platform
+is `ported: false`, a failing step's *conclusion* is forced to `success` by
+`continue-on-error` (even though its `outcome` correctly stays `failure`), so
+the implicit `success()` check passed — masking the bug, not fixing it — for
+exactly as long as macOS and Windows stayed unported. B7 was investigated
+entirely through direct terminal `gdb` runs on this session's own machine
+rather than through this CI step, so the bug had no chance to surface until
+Windows flipped to `ported: true` (making `continue-on-error` `false`) and a
+real failure needed the step for the first time.
+
+**Landed**: `always() &&` prepended to both conditions. `always()` runs the
+step regardless of prior outcomes (short of the job being cancelled), and the
+existing `steps.<id>.outcome == 'failure'` half still scopes it to exactly the
+one step it means to diagnose. Unverified by construction — the whole point is
+a step that only matters when something else has already gone wrong — but the
+mechanism is a documented GitHub Actions rule, not a guess, and the fix was
+confirmed by re-reading both conditions against it rather than by a run that
+exercises the failure path.
 
 ## Can this be done from Linux? *(asked, answered, then superseded)*
 

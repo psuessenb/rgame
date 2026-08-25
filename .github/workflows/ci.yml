@@ -198,8 +198,14 @@ jobs:
       # Windows has no fork at all, so its suite already dies on the first
       # segfault (see B5 in the plan); there this step is the only way to learn
       # which test that was.
+      # `always()` is load-bearing, not decoration: an `if:` with no explicit
+      # status-check function gets an implicit `success()` prepended by
+      # GitHub Actions, so without it this step silently stopped running the
+      # moment `continue-on-error` on the step above it was `false` (i.e. once
+      # a platform flips to `ported: true`) — the exact regression that made
+      # this step vanish the first time Windows needed it for real.
       - name: Backtrace the C suite crash
-        if: steps.c_tests.outcome == 'failure'
+        if: always() && steps.c_tests.outcome == 'failure'
         shell: bash
         run: |
           set -x
@@ -243,8 +249,14 @@ jobs:
       # to the wrong process), catches it the same way the C suite's crash
       # is caught above. `bundle exec` in front of `gdb` itself is what still
       # gets bundler's load path into the `ruby` gdb launches as its child.
+      #
+      # `always()` for the same reason as the C suite's backtrace step above:
+      # without it, the implicit `success()` GitHub Actions prepends to a
+      # condition with no status-check function skips this the moment the
+      # step above it fails with `continue-on-error: false` — which is
+      # unconditionally true here, this step's whole reason to exist.
       - name: Backtrace the Core specs crash (Windows)
-        if: runner.os == 'Windows' && steps.core_specs.outcome == 'failure'
+        if: always() && runner.os == 'Windows' && steps.core_specs.outcome == 'failure'
         shell: bash
         run: |
           set -x

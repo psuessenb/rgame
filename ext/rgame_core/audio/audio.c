@@ -141,15 +141,19 @@ static rgame_audio *create_audio(int offline, unsigned int sample_rate, char *er
      * ALSA and PulseAudio unavailable, the chosen backend is "Null".
      *
      * That fallback is *inside* the real backend's own device-open attempt —
-     * it only helps if opening fails cleanly. On Windows, a machine with zero
-     * playback devices at all (every GitHub Actions Windows runner, among
-     * others: confirmed via `Get-CimInstance Win32_SoundDevice`) crashes
-     * instead of failing inside WASAPI's default-device lookup, so the
-     * fallback this comment describes never gets a chance to run. Enumerating
-     * devices first and choosing Null explicitly when there are none sidesteps
-     * that: enumeration is read-only and does not attempt to open anything, so
-     * it does not hit whatever WASAPI's own open path gets wrong with no
-     * endpoint to find.
+     * it only helps if opening fails cleanly. Verified only on Linux; kept as
+     * the whole story there and on macOS, both of which already have a proven
+     * working leg and no evidence of the problem below.
+     *
+     * On Windows, a machine with zero playback devices at all (every GitHub
+     * Actions Windows runner, among others: confirmed via
+     * `Get-CimInstance Win32_SoundDevice`) crashes instead of failing inside
+     * WASAPI's default-device lookup, so the fallback above never gets a
+     * chance to run. Windows alone gets an extra step first: enumerate devices
+     * (read-only, does not attempt to open anything, so it does not hit
+     * whatever WASAPI's own open path gets wrong with no endpoint to find) and
+     * choose Null explicitly when there are none, rather than ever handing the
+     * auto-detect list a real backend it might crash trying to open.
      */
     ma_engine_config engine = ma_engine_config_init();
     engine.pResourceManager = &audio->resources;
@@ -159,7 +163,9 @@ static rgame_audio *create_audio(int offline, unsigned int sample_rate, char *er
         engine.noDevice = MA_TRUE;
         engine.channels = 2;
         engine.sampleRate = sample_rate;
-    } else {
+    }
+#ifdef _WIN32
+    else {
         static const ma_backend null_only[] = { ma_backend_null };
 
         if (ma_context_init(NULL, 0, NULL, &audio->context) == MA_SUCCESS) {
@@ -184,6 +190,7 @@ static rgame_audio *create_audio(int offline, unsigned int sample_rate, char *er
             }
         }
     }
+#endif
 
     if (ma_engine_init(&engine, &audio->engine) != MA_SUCCESS) {
         if (audio->has_context) {
