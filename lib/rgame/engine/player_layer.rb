@@ -13,6 +13,9 @@ module RGame
     # camera, a global overlay once across the whole window, and this once per
     # player inside their own region.
     #
+    # It is also the `:hud` z band's structural counterpart: everything under
+    # here draws above everything in the world, whatever either asked for.
+    #
     # ## Its children are positioned relative to it
     #
     # A node at (10, 10) under this layer is ten pixels inside *that player's*
@@ -39,8 +42,12 @@ module RGame
     # so per-player UI has no place to be. Either way this draws nothing and
     # needs no guard at the call site.
     class PlayerLayer < Node2D
+      # `:hud` is this player's own screen space, above every world slot and
+      # below a global overlay. It is inherited, so a menu three nodes down is
+      # in it without saying so — which is the point of the band being
+      # structural rather than a number each widget carries.
       def initialize(player:, **)
-        super(**)
+        super(band: :hud, **)
         self.input_owner = player
       end
 

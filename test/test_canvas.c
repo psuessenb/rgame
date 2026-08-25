@@ -355,6 +355,162 @@ START_TEST(an_unbalanced_pop_is_harmless) {
 }
 END_TEST
 
+/* --- layers --- */
+
+/*
+ * The slot arithmetic RGame::Util::Z does, spelled out here so the test reads
+ * the way the scene graph works: slot n of a band occupies [n*1024, (n+1)*1024)
+ * and its base sits in the middle, so a caller's z is an offset of +/-512.
+ */
+#define SLOT 1024.0
+static double slot_base(unsigned int index) {
+    return (index * SLOT) + (SLOT / 2.0);
+}
+
+START_TEST(a_z_is_an_offset_from_the_current_layer_base) {
+    rgame_canvas c;
+    begin(&c);
+
+    /* The first node draws as high as its slot allows; the second as low as
+     * its slot allows. The second still wins, because slots do not overlap —
+     * which is the whole guarantee: a node cannot reorder itself against
+     * another node by picking a bigger number. */
+    rgame_canvas_push_layer(&c, slot_base(0));
+    quad_at(&c, 1.0f, 0.0f, RGAME_COLOR_WHITE, 511.0);
+    rgame_canvas_pop(&c);
+
+    rgame_canvas_push_layer(&c, slot_base(1));
+    quad_at(&c, 2.0f, 0.0f, RGAME_COLOR_WHITE, -512.0);
+    rgame_canvas_pop(&c);
+
+    rgame_canvas_end_frame(&c);
+
+    ck_vertex_xy(&c, 0, 1.0f, 0.0f);
+    ck_vertex_xy(&c, 6, 2.0f, 0.0f);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(within_one_layer_the_z_still_decides) {
+    rgame_canvas c;
+    begin(&c);
+
+    rgame_canvas_push_layer(&c, slot_base(4));
+    quad_at(&c, 1.0f, 0.0f, RGAME_COLOR_WHITE, 50.0); /* drawn first, on top */
+    quad_at(&c, 2.0f, 0.0f, RGAME_COLOR_WHITE, 0.0);  /* drawn last, behind */
+    rgame_canvas_pop(&c);
+    rgame_canvas_end_frame(&c);
+
+    ck_vertex_xy(&c, 0, 2.0f, 0.0f);
+    ck_vertex_xy(&c, 6, 1.0f, 0.0f);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(a_layer_push_replaces_rather_than_accumulates) {
+    rgame_canvas c;
+    begin(&c);
+
+    ck_assert_double_eq(rgame_canvas_layer(&c), 0.0);
+    rgame_canvas_push_layer(&c, 1000.0);
+    ck_assert_double_eq(rgame_canvas_layer(&c), 1000.0);
+    rgame_canvas_push_layer(&c, 2000.0);
+    /* 2000, not 3000: nesting bases is exactly the additive relative z this
+     * replaces. */
+    ck_assert_double_eq(rgame_canvas_layer(&c), 2000.0);
+
+    rgame_canvas_pop(&c);
+    ck_assert_double_eq(rgame_canvas_layer(&c), 1000.0);
+    rgame_canvas_pop(&c);
+    ck_assert_double_eq(rgame_canvas_layer(&c), 0.0);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(the_same_pop_undoes_a_layer_among_the_others) {
+    rgame_canvas c;
+    begin(&c);
+
+    rgame_canvas_push_layer(&c, 1000.0);
+    rgame_canvas_push_translate(&c, 10.0f, 0.0f);
+    rgame_canvas_push_clip(&c, rgame_rect_make(0, 0, 100, 100));
+    ck_assert_int_eq(rgame_canvas_depth(&c), 3);
+
+    rgame_canvas_pop(&c); /* the clip */
+    rgame_canvas_pop(&c); /* the translate */
+
+    /* The layer outlived both, and neither of the other pops touched it. */
+    ck_assert_double_eq(rgame_canvas_layer(&c), 1000.0);
+    quad_at(&c, 0.0f, 0.0f, RGAME_COLOR_WHITE, 0.0);
+
+    rgame_canvas_pop(&c);
+    ck_assert_double_eq(rgame_canvas_layer(&c), 0.0);
+    ck_assert_int_eq(rgame_canvas_depth(&c), 0);
+
+    rgame_canvas_end_frame(&c);
+    ck_vertex_xy(&c, 0, 0.0f, 0.0f); /* the translate was popped before the draw */
+    ck_assert_int_eq(batch(&c, 0)->clip.w, 800);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(layer_pushes_past_the_stack_limit_still_balance) {
+    rgame_canvas c;
+    begin(&c);
+
+    const int pushes = RGAME_LAYER_STACK_DEPTH + 10;
+    for (int i = 0; i < pushes; i++) {
+        rgame_canvas_push_layer(&c, (double)(i + 1) * 100.0);
+    }
+    for (int i = 0; i < pushes; i++) {
+        rgame_canvas_pop(&c);
+    }
+
+    /* Back to the base: an over-deep frame draws at the wrong layer rather
+     * than leaving every later frame shifted. */
+    ck_assert_double_eq(rgame_canvas_layer(&c), 0.0);
+    ck_assert_int_eq(rgame_canvas_depth(&c), 0);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(slots_count_up_per_band_and_start_over_each_frame) {
+    rgame_canvas c;
+    begin(&c);
+
+    ck_assert_uint_eq(rgame_canvas_next_slot(&c, 0), 0);
+    ck_assert_uint_eq(rgame_canvas_next_slot(&c, 0), 1);
+    /* A second band counts independently — a HUD node does not consume a world
+     * slot, so the two cannot interleave. */
+    ck_assert_uint_eq(rgame_canvas_next_slot(&c, 1), 0);
+    ck_assert_uint_eq(rgame_canvas_next_slot(&c, 0), 2);
+
+    rgame_canvas_begin_frame(&c, 800, 600);
+    ck_assert_uint_eq(rgame_canvas_next_slot(&c, 0), 0);
+    ck_assert_double_eq(rgame_canvas_layer(&c), 0.0);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(a_band_outside_the_table_answers_zero_rather_than_reading_past_it) {
+    rgame_canvas c;
+    begin(&c);
+
+    ck_assert_uint_eq(rgame_canvas_next_slot(&c, -1), 0);
+    ck_assert_uint_eq(rgame_canvas_next_slot(&c, RGAME_LAYER_BANDS), 0);
+    /* And it did not disturb a real band's count. */
+    ck_assert_uint_eq(rgame_canvas_next_slot(&c, 0), 0);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
 /* --- the frame --- */
 
 START_TEST(z_order_wins_over_draw_order_through_the_canvas) {
@@ -485,6 +641,16 @@ Suite *canvas_suite(void) {
     tcase_add_test(tc_stack, pops_stay_paired_with_pushes_past_the_stack_limit);
     tcase_add_test(tc_stack, an_unbalanced_pop_is_harmless);
     suite_add_tcase(suite, tc_stack);
+
+    TCase *tc_layer = tcase_create("layers");
+    tcase_add_test(tc_layer, a_z_is_an_offset_from_the_current_layer_base);
+    tcase_add_test(tc_layer, within_one_layer_the_z_still_decides);
+    tcase_add_test(tc_layer, a_layer_push_replaces_rather_than_accumulates);
+    tcase_add_test(tc_layer, the_same_pop_undoes_a_layer_among_the_others);
+    tcase_add_test(tc_layer, layer_pushes_past_the_stack_limit_still_balance);
+    tcase_add_test(tc_layer, slots_count_up_per_band_and_start_over_each_frame);
+    tcase_add_test(tc_layer, a_band_outside_the_table_answers_zero_rather_than_reading_past_it);
+    suite_add_tcase(suite, tc_layer);
 
     TCase *tc_frame = tcase_create("frame");
     tcase_add_test(tc_frame, z_order_wins_over_draw_order_through_the_canvas);

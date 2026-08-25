@@ -207,6 +207,41 @@ RSpec.describe RGame::Core::Renderer do
     end
   end
 
+  # The contract can state that one layer's base is above another's; only
+  # reading pixels back can say the sort actually reached the GPU that way.
+  describe 'layers' do
+    it 'puts a later slot over an earlier one whatever the z inside each' do
+      frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        # Red asks for as high a z as its slot allows, blue for as low as its
+        # allows, and blue still wins: slots do not overlap.
+        renderer.layered(:world) { renderer.rect(0, 0, 64, 64, z: 511, color: [255, 0, 0]) }
+        renderer.layered(:world) { renderer.rect(0, 0, 64, 64, z: -512, color: [0, 0, 255]) }
+      end
+
+      expect(frame.about?(32, 32, [0, 0, 255, 255])).to be(true)
+    end
+
+    it 'puts a band over an earlier band whatever order they were asked for' do
+      frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        renderer.layered(:hud) { renderer.rect(0, 0, 64, 64, z: -512, color: [0, 0, 255]) }
+        renderer.layered(:world) { renderer.rect(0, 0, 64, 64, z: 511, color: [255, 0, 0]) }
+      end
+
+      expect(frame.about?(32, 32, [0, 0, 255, 255])).to be(true)
+    end
+
+    it 'still lets a z reorder drawing within one slot' do
+      frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        renderer.layered(:world) do
+          renderer.rect(0, 0, 64, 64, z: 10, color: [0, 0, 255])
+          renderer.rect(0, 0, 64, 64, z: 1, color: [255, 0, 0])
+        end
+      end
+
+      expect(frame.about?(32, 32, [0, 0, 255, 255])).to be(true)
+    end
+  end
+
   describe 'alpha' do
     it 'blends a translucent colour over what is beneath it' do
       # Depth testing would break this: a translucent pixel that writes depth
@@ -397,7 +432,7 @@ RSpec.describe RGame::Core::Renderer do
 
     it 'obeys the z it is replayed at, not the one it was baked at' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        baked = renderer.record { renderer.rect(0, 0, 64, 64, z: 900, color: [255, 0, 0]) }
+        baked = renderer.record { renderer.rect(0, 0, 64, 64, z: 500, color: [255, 0, 0]) }
         baked.draw(0, 0, z: 1)
         renderer.rect(0, 0, 64, 64, z: 2, color: [0, 0, 255])
       end

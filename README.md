@@ -239,8 +239,11 @@ ext/rgame_core/              RGame::Core — the SDL/GL half. The sources are
                              screen space. No SDL.
     draw_queue.h/.c          Pure z-sort and batching: collects draw commands,
                              orders them by z, merges what can share a GL call.
-    canvas.h/.c              Pure composition of transform + clip + queue; the
-                             seam the drawing API is written against.
+    canvas.h/.c              Pure composition of transform + clip + layer +
+                             queue; the seam the drawing API is written
+                             against. The layer stack is what makes a z an
+                             offset inside one node's slot rather than a
+                             global number.
     backend.h/.c             The layer-2 seam: a function-pointer table a real
                              GL backend or a recording fake plugs into, plus
                              the loop that drives it from a prepared frame.

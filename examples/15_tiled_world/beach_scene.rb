@@ -5,13 +5,13 @@
 # them to the screen). It resolves everything it needs from the game's asset manager
 # (node.root.context.assets) by relative path — nothing is passed into its constructor.
 #
-# Actors draw at ACTOR_Z, between the tile world's ground band (0) and overlay band
-# (TileWorld::CANOPY_Z), so palm canopies render in front and trunks behind.
+# Actors live in the node TileMapLayer.mount hands back, which sits between the
+# map's ground layers and the layers Tiled flags `above` — so palm canopies
+# render in front of a walker and trunks behind. No z is picked anywhere here.
 class BeachScene < RGame::Engine::Node2D
   MAP_KEY      = 'map/beach_large.tmx'
   PLAYER_SHEET = 'player.json'
   NPC_SHEET    = 'Male 01-1.json'
-  ACTOR_Z      = 10
   PLAYER_SPEED = 120.0
   NPC_SPEED    = 70.0
   NPC_OFFSETS  = [[-80, -48], [96, -32], [-64, 64], [120, 48], [40, -96], [-112, 16]].freeze
@@ -36,9 +36,10 @@ class BeachScene < RGame::Engine::Node2D
     # World space begins here: everything under it draws at its own world
     # coordinates and is drawn once per viewport, through that viewport's camera.
     @view = add_node(RGame::Engine::WorldView.new)
-    # The map is world content, so it is drawn inside the band like everything
-    # else — once per viewport, culled to what that viewport can see.
-    @view.add_node(RGame::Engine::TileMapLayer.new)
+    # The map is world content, so it is drawn inside the view like everything
+    # else — once per viewport, culled to what that viewport can see. One node
+    # per Tiled layer, and the node handed back is the gap the actors go in.
+    @actors = RGame::Engine::TileMapLayer.mount(@view)
 
     # One walker per player who is already playing, and one more whenever
     # somebody picks up a controller. The scene never polls for that — the
@@ -46,7 +47,7 @@ class BeachScene < RGame::Engine::Node2D
     @players.each_active { |player| spawn_walker(player) }
     @players.on_joined { |player| spawn_walker(player) }
 
-    npc_spawns.each { |x, y| @view.add_node(build_npc(x, y)) }
+    npc_spawns.each { |x, y| @actors.add_node(build_npc(x, y)) }
 
     # Outside the WorldView, so it draws once across the whole window and keeps
     # ticking while the world it covers is frozen.
@@ -66,7 +67,7 @@ class BeachScene < RGame::Engine::Node2D
     walker = build_player
     walker.input_owner = player
     walker.x += WALKER_SPACING * player.id
-    @view.add_node(walker)
+    @actors.add_node(walker)
     # After add_node, deliberately: the camera offset is read off the walker's
     # feet box, and that box is sized from the sprite, which AnimatedSprite only
     # knows once it has attached. See #follow_camera.
@@ -105,7 +106,7 @@ class BeachScene < RGame::Engine::Node2D
 
   def build_player
     node = RGame::Engine::Node2D.new(x: @map.pixel_width / 2.0, y: @map.pixel_height / 2.0)
-    node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: PLAYER_SHEET, z: ACTOR_Z))
+    node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: PLAYER_SHEET))
     node.add_component(RGame::Engine::Components::CharacterBody.new(feet_width: 10, feet_height: 8,
                                                                     speed: PLAYER_SPEED))
     node.add_component(RGame::Engine::Components::PlayerController.new)
@@ -114,7 +115,7 @@ class BeachScene < RGame::Engine::Node2D
 
   def build_npc(x, y)
     node = RGame::Engine::Node2D.new(x: x, y: y)
-    node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: NPC_SHEET, z: ACTOR_Z))
+    node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: NPC_SHEET))
     node.add_component(RGame::Engine::Components::CharacterBody.new(feet_width: 14, feet_height: 10, speed: NPC_SPEED))
     node.add_component(RGame::Engine::Components::WanderController.new(rng: @rng))
     node

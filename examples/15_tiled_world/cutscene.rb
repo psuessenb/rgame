@@ -3,9 +3,10 @@
 # A scripted moment that interrupts the split.
 #
 # It lives *outside* the WorldView, so it draws once across the whole window in
-# screen space, and it keeps ticking while the world it covers is frozen. Three
-# things happen together when it opens, and they are separate mechanisms doing
-# separate jobs:
+# screen space, and it keeps ticking while the world it covers is frozen. It is
+# in the `:overlay` band, which is above both the world and either player's HUD
+# — the one thing on screen during a cutscene. Three things happen together when
+# it opens, and they are separate mechanisms doing separate jobs:
 #
 #   viewports.solo!(camera)     collapse the split to one screen-wide view
 #   world_view.paused = true    stop the world; this node is not under it, so it
@@ -23,7 +24,7 @@ class Cutscene < RGame::Engine::Node2D
   HINT_COLOR  = [90, 78, 62].freeze
 
   def initialize(world_view:)
-    super()
+    super(band: :overlay)
     @world_view = world_view
     @open = false
     @camera = RGame::Engine::Camera.new
@@ -58,7 +59,7 @@ class Cutscene < RGame::Engine::Node2D
 
     x = view.x + ((view.width - PANEL_W) / 2)
     y = view.y + ((view.height - PANEL_H) / 2)
-    renderer.nine_slice(:panel, x, y, PANEL_W, PANEL_H, z: RGame::Engine::Z::OVERLAY)
+    renderer.nine_slice(:panel, x, y, PANEL_W, PANEL_H)
     centered(renderer, TITLE, view, y + 34, TITLE_COLOR)
     centered(renderer, HINT, view, y + 74, HINT_COLOR) if @elapsed > 0.4
   end
@@ -67,7 +68,8 @@ class Cutscene < RGame::Engine::Node2D
 
   def centered(renderer, text, view, y, color)
     x = view.x + ((view.width - renderer.text_width(text)) / 2)
-    renderer.text(text, x, y, z: RGame::Engine::Z::OVERLAY + 1, color: color)
+    # z: 1 — above this node's own panel, and that is all it can mean.
+    renderer.text(text, x, y, z: 1, color: color)
   end
 
   def open

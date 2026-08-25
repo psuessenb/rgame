@@ -297,6 +297,26 @@ static VALUE renderer_push_clip(VALUE self, VALUE x, VALUE y, VALUE width, VALUE
     return self;
 }
 
+/*
+ * #push_layer(base) / #layer — the base every subsequent z is measured from.
+ *
+ * `base` is a whole number well inside a double's exact range (see
+ * RGame::Util::Z), so it crosses as a double and comes back as a Float.
+ */
+static VALUE renderer_push_layer(VALUE self, VALUE base) {
+    rgame_app_push_layer(drawing_app(self), NUM2DBL(base));
+    return self;
+}
+
+static VALUE renderer_layer(VALUE self) {
+    return DBL2NUM(rgame_app_layer(drawing_app(self)));
+}
+
+/* #next_layer_slot(band) -> the next slot index in that band this frame. */
+static VALUE renderer_next_layer_slot(VALUE self, VALUE band) {
+    return UINT2NUM(rgame_app_next_layer_slot(drawing_app(self), NUM2INT(band)));
+}
+
 /* ------------------------------------------------------------------------- *
  * Recording
  *
@@ -368,6 +388,9 @@ void rgame_init_renderer(VALUE mCore) {
     rb_define_method(cRenderer, "push_rotate", renderer_push_rotate, 3);
     rb_define_method(cRenderer, "push_scale", renderer_push_scale, 2);
     rb_define_method(cRenderer, "push_clip", renderer_push_clip, 4);
+    rb_define_method(cRenderer, "push_layer", renderer_push_layer, 1);
+    rb_define_method(cRenderer, "layer", renderer_layer, 0);
+    rb_define_method(cRenderer, "next_layer_slot", renderer_next_layer_slot, 1);
     rb_define_method(cRenderer, "pop", renderer_pop, 0);
 
     rb_define_method(cRenderer, "begin_record", renderer_begin_record, 0);

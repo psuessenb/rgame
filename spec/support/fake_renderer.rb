@@ -23,10 +23,19 @@
 # the game stopped running, which is exactly the failure the headless/Core split
 # cannot catch on its own.
 class FakeRenderer
+  Z = RGame::Util::Z
+
   # One recorded call. `depth` is how many transform blocks were open at the
   # time; `transforms` is the stack of those blocks, outermost first.
-  Call = Struct.new(:name, :args, :options, :transforms) do
+  #
+  # `layer` is the z base in effect — the slot #layered handed out — and `key`
+  # is what the real renderer would actually sort on. That is what makes draw
+  # *order* assertable from a headless spec: `calls.sort_by(&:key)` is the order
+  # the frame comes out in, so "the canopy is above the actor" stops being
+  # something only a human looking at a window can check.
+  Call = Struct.new(:name, :args, :options, :transforms, :layer) do
     def depth = transforms.size
+    def key = layer + (options[:z] || 0)
   end
 
   attr_reader :calls
@@ -38,6 +47,28 @@ class FakeRenderer
     @recording = nil
     @assets = assets
     @registries = {}
+    reset_layers
+  end
+
+  # --- layers -------------------------------------------------------------
+
+  # The z base every subsequent `z:` is measured from. 0 outside any #layered.
+  attr_reader :layer
+
+  # A fresh slot in `band`, for the block's drawing to be an offset from.
+  # Mirrors the real renderer exactly, down to using the same RGame::Util::Z
+  # arithmetic rather than reimplementing it — the numbers a spec asserts on are
+  # therefore the numbers the game sorts on.
+  def layered(band = Z::DEFAULT)
+    index = Z.index(band)
+    previous = @layer
+    @layer = Z.slot_base(index, @slots[index])
+    @slots[index] += 1
+    begin
+      yield
+    ensure
+      @layer = previous
+    end
   end
 
   # --- draw-by-id ---------------------------------------------------------
@@ -64,19 +95,14 @@ class FakeRenderer
 
   def nine_slice(id, x, y, width, height, z: 0, tint: nil)
     lookup(:nine_slice, id).draw(self, number(x), number(y), number(width), number(height),
-                                 z: number(z), color: color_arg(tint))
+                                 z: z_arg(z), color: color_arg(tint))
   end
 
   # The rectangle is a cull rect in world coordinates, not an offset: the map
   # draws where it lives and the caller's transform places it.
-  def tilemap(id, cull_x, cull_y, cull_width, cull_height, elapsed: 0.0)
-    lookup(:tilemap, id)
-      .draw(self, cull_x, cull_y, cull_width, cull_height, elapsed: number(elapsed))
-  end
-
-  def tilemap_overlay(id, cull_x, cull_y, cull_width, cull_height, z:, elapsed: 0.0)
-    lookup(:tilemap, id).draw_overlay(self, cull_x, cull_y, cull_width,
-                                      cull_height, z: z, elapsed: number(elapsed))
+  def tilemap(id, layer, cull_x, cull_y, cull_width, cull_height, elapsed: 0.0)
+    lookup(:tilemap, id).draw_layer(self, number(layer), cull_x, cull_y, cull_width,
+                                    cull_height, elapsed: number(elapsed))
   end
 
   # --- refusing what the real renderer refuses ------------------------------
@@ -119,61 +145,67 @@ class FakeRenderer
     value
   end
 
+  # Likewise for z: the real renderer refuses anything outside one node's slot,
+  # because a `z:` orders a node's own drawing and the band comes from the tree.
+  # A stale global z (`z: 100_000`) has to raise here too, or a scene still
+  # passing one would sail through the headless suite.
+  def z_arg(value) = Z.offset(value)
+
   # --- shapes -------------------------------------------------------------
 
   def rect(x, y, width, height, z: 50, color: nil)
     remember(:rect, [number(x), number(y), number(width), number(height)],
-             z: number(z), color: color_arg(color))
+             z: z_arg(z), color: color_arg(color))
   end
 
   def quad(x1, y1, x2, y2, x3, y3, x4, y4, z: 50, color: nil)
     remember(:quad, [number(x1), number(y1), number(x2), number(y2),
                      number(x3), number(y3), number(x4), number(y4)],
-             z: number(z), color: color_arg(color))
+             z: z_arg(z), color: color_arg(color))
   end
 
   def triangle(x1, y1, x2, y2, x3, y3, z: 50, color: nil)
     remember(:triangle, [number(x1), number(y1), number(x2), number(y2), number(x3), number(y3)],
-             z: number(z), color: color_arg(color))
+             z: z_arg(z), color: color_arg(color))
   end
 
   def line(x1, y1, x2, y2, thickness: 1.0, z: 50, color: nil)
     remember(:line, [number(x1), number(y1), number(x2), number(y2)],
-             thickness: number(thickness), z: number(z), color: color_arg(color))
+             thickness: number(thickness), z: z_arg(z), color: color_arg(color))
   end
 
   def circle(cx, cy, radius, z: 50, color: nil, segments: 64)
     remember(:circle, [number(cx), number(cy), number(radius)],
-             z: number(z), color: color_arg(color), segments: number(segments))
+             z: z_arg(z), color: color_arg(color), segments: number(segments))
   end
 
   def debug_box(x, y, width, height, z: 50)
-    remember(:debug_box, [number(x), number(y), number(width), number(height)], z: number(z))
+    remember(:debug_box, [number(x), number(y), number(width), number(height)], z: z_arg(z))
   end
 
   # --- images -------------------------------------------------------------
 
   def image(image, cx, cy, angle: 0, scale: 1, z: 0, color: nil)
     remember(:image, [image_arg(image), number(cx), number(cy)],
-             angle: number(angle), scale: number(scale), z: number(z), color: color_arg(color))
+             angle: number(angle), scale: number(scale), z: z_arg(z), color: color_arg(color))
   end
 
   def image_at(image, x, y, scale_x: 1, scale_y: 1, z: 0, color: nil)
     remember(:image_at, [image_arg(image), number(x), number(y)],
-             scale_x: number(scale_x), scale_y: number(scale_y), z: number(z),
+             scale_x: number(scale_x), scale_y: number(scale_y), z: z_arg(z),
              color: color_arg(color))
   end
 
   def background(image, x = 0, y = 0, z: 0, color: nil)
     remember(:background, [image_arg(image), number(x), number(y)],
-             z: number(z), color: color_arg(color))
+             z: z_arg(z), color: color_arg(color))
   end
 
   # --- text ---------------------------------------------------------------
 
   def text(string, x, y, z: 10, color: nil, font: nil)
     remember(:text, [string(string), number(x), number(y)],
-             z: number(z), color: color_arg(color), font: font)
+             z: z_arg(z), color: color_arg(color), font: font)
   end
 
   # Stand-in metrics. They are not the real font's — a fake has no glyphs — but
@@ -240,8 +272,12 @@ class FakeRenderer
   def calls_to(name) = @calls.select { |call| call.name == name }
   def drawn?(name) = @calls.any? { |call| call.name == name }
 
+  # Ends this frame's record. The slot counters go back to zero with it: the
+  # real renderer's are reset by the frame beginning, and a fake that kept
+  # counting would give the same node a different layer every frame.
   def clear
     @calls.clear
+    reset_layers
     self
   end
 
@@ -264,8 +300,13 @@ class FakeRenderer
 
   private
 
+  def reset_layers
+    @layer = 0
+    @slots = Array.new(Z::BANDS.size, 0)
+  end
+
   def remember(name, args, **options)
-    call = Call.new(name, args, options, @transforms.dup)
+    call = Call.new(name, args, options, @transforms.dup, @layer)
     # While baking, calls belong to the recording rather than to this frame —
     # the real renderer diverts them the same way, by swapping the canvas they
     # land on.

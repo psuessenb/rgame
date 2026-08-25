@@ -41,6 +41,13 @@ module RGame
     # time* — a screen shake, a hit flash — is per-*player* rather than per-view,
     # and belongs on that player's camera or their own subtree, which tick once.
     class WorldView < Node2D
+      # World content, which is the default anyway — stated because this is the
+      # node that marks where world space begins, and a reader looking for
+      # "which band is the world in" should find the answer here.
+      def initialize(**)
+        super(band: :world, **)
+      end
+
       # Drawn once per viewport, so this overrides the whole of `draw` rather
       # than just `draw_children`: the node's own visuals belong inside the
       # viewport too, not once outside all of them.

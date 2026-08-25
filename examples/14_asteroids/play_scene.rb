@@ -3,6 +3,7 @@
 require_relative 'ship'
 require_relative 'rock'
 require_relative 'bullet'
+require_relative 'score_label'
 
 # The play scene and scene boundary: it owns the scene-scoped CollisionWorld system
 # (a component on itself) plus the bullet/rock object pools. Entities are pooled
@@ -17,7 +18,7 @@ class PlayScene < RGame::Engine::Node2D
   SPAWN_INTERVAL = 3.0
   BULLET_SPEED   = 520.0
   AIM_JITTER     = 0.5
-  SCORE_COLOR    = [220, 225, 235].freeze
+  SCORE_MARGIN   = 12
 
   def initialize(width:, height:)
     super()
@@ -28,11 +29,15 @@ class PlayScene < RGame::Engine::Node2D
     @rng = Random.new
     @rock_pool   = RGame::Engine::Pool.new { Rock.new(world_width: @width, world_height: @height) }
     @bullet_pool = RGame::Engine::Pool.new { Bullet.new(world_width: @width, world_height: @height) }
-    refresh_score
   end
 
   def on_add
     add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
+    # Added first, so it is behind every entity in the tree — and in the `:hud`
+    # band, so it draws over them anyway. That is the point of a band: the tree
+    # decides the rest of the order, and a band overrules it.
+    @score_label = add_node(ScoreLabel.new(x: SCORE_MARGIN, y: 10))
+    refresh_score
     @ship = add_node(Ship.new(world_width: @width, world_height: @height))
     @ship.on_fire { |x, y, angle| fire_bullet(x, y, angle) }
     @ship.on_destroyed { lose }
@@ -51,10 +56,10 @@ class PlayScene < RGame::Engine::Node2D
     reclaim
   end
 
-  def on_draw(renderer, _view)
-    renderer.background(:space)
-    renderer.text(@score_text, 12, 10, z: RGame::Engine::Z::HUD, color: SCORE_COLOR)
-  end
+  # The backdrop only. This node's own drawing comes before its children's, so
+  # anything drawn here is behind every entity — which is exactly right for a
+  # starfield and wrong for a score, hence ScoreLabel.
+  def on_draw(renderer, _view) = renderer.background(:space)
 
   # Called by a Rock when a bullet hits it: score, split into smaller rocks, despawn.
   def destroy_rock(rock)
@@ -114,7 +119,5 @@ class PlayScene < RGame::Engine::Node2D
     root.go(:game_over, score: @score)
   end
 
-  def refresh_score
-    @score_text = "Score: #{@score}"
-  end
+  def refresh_score = @score_label.score = @score
 end

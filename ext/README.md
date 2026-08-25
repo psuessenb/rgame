@@ -29,7 +29,7 @@ ext/rgame_core/
     transform.c/.h      # pure 2D affine transform stack (unit-tested)
     clip.c/.h           # pure rects + intersecting clip stack (unit-tested)
     draw_queue.c/.h     # pure z-sort + batching of draw commands (unit-tested)
-    canvas.c/.h         # pure transform+clip+queue composition (unit-tested)
+    canvas.c/.h         # pure transform+clip+layer+queue composition (unit-tested)
     backend.h/.c        # the GL seam: function-pointer table + submit loop
     texture.c/.h        # pure texture sheets, sub-rects and UVs (unit-tested)
     primitives.c/.h     # pure rects/lines/circles/sprites -> canvas (unit-tested)
@@ -203,6 +203,7 @@ renderer.line(0, 0, 100, 100, thickness: 4)
 renderer.image(sheet, 400, 300, angle: 45, scale: 2)      # centred, clockwise
 renderer.rotated(30, 400, 300) { renderer.rect(380, 280, 40, 40) }
 renderer.clipped(0, 0, 400, 600) { renderer.background(sheet) }
+renderer.layered(:hud) { renderer.text("Score: 1200", 10, 10) }   # over the world
 
 # Text. The renderer has a font already; Font.new(app, size) makes another.
 renderer.text("Score: 1200", 10, 10)

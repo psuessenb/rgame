@@ -9,9 +9,52 @@ module RGame
     class Node2D
       extend Engine::Signal::DSL
 
-      attr_accessor :x, :y, :z, :angle, :width, :height, :parent
+      attr_accessor :x, :y, :angle, :width, :height, :parent
       attr_writer :scene, :context
-      attr_reader :children, :components, :abs_x, :abs_y, :abs_z, :abs_angle, :abs_input_owner
+
+      # Insertion order among siblings, the tie-breaker for equal `z`. Engine
+      # bookkeeping, set by the parent's #add_node the way `parent` is — not for
+      # game code, and meaningless on a node with no parent.
+      attr_accessor :sibling_order
+      attr_reader :children, :components, :abs_x, :abs_y, :abs_angle, :abs_input_owner, :z,
+                  :band, :abs_band
+
+      # Where this node sits among its **siblings**, and nowhere else.
+      #
+      # The tree is drawn depth-first with siblings in `z` order, so a node's
+      # whole subtree is drawn before or after a sibling's whole subtree —
+      # never interleaved with it. Clouds over birds over people is three
+      # children of one node at `z` 2, 1 and 0, and each of them may be built
+      # out of as many parts as it likes without any of those parts escaping.
+      #
+      # Only the *comparison* matters. `z` is never added to anything and never
+      # reaches the renderer, so its magnitude means nothing: 1 and 1_000_000
+      # behave identically if they are the only two children, and a negative is
+      # ordinary. Equal `z` keeps the order the nodes were added in.
+      #
+      # This is deliberately unlike the additive relative z it replaces
+      # (`abs_z = parent.abs_z + z`), where a node at z 2 with a child at z 5
+      # resolved to 7 and overtook a sibling at 4 — some of a node's parts in
+      # front of something the node itself was behind. See RGame::Util::Z.
+      def z=(value)
+        @z = value
+        @parent&.children_unsorted!
+      end
+
+      # Which band this node and everything under it draws in — `:world` (the
+      # default), `:hud`, `:overlay` or `:debug`. A band beats every `z` in the
+      # tree: nothing in `:world` can draw over anything in `:hud`.
+      #
+      # Inherited like `input_owner`, and normally set by a node that exists to
+      # mark one: WorldView is `:world`, PlayerLayer is `:hud`. Setting it
+      # directly is the escape hatch — a node inside the world that must draw
+      # over the HUD says `band: :overlay` and does, still clipped to whatever
+      # its ancestors allowed. That is explicit and named, which is the whole
+      # difference from the Integer bases this replaces.
+      def band=(value)
+        Util::Z.band!(value) unless value.nil?
+        @band = value
+      end
 
       # Whose input drives this node: an RGame::Engine::Player, or nil.
       #
@@ -45,12 +88,14 @@ module RGame
       # paused node simply never descends.
       attr_accessor :paused
 
-      def initialize(x: 0, y: 0, z: 0, angle: 0, width: 0, height: 0, input_owner: nil)
+      def initialize(x: 0, y: 0, z: 0, angle: 0, width: 0, height: 0, input_owner: nil,
+                     band: nil)
         @input_owner = input_owner
         @paused = false
         @x = x
         @y = y
         @z = z
+        self.band = band
         @angle = angle
         @width = width
         @height = height
@@ -59,9 +104,16 @@ module RGame
         # rather than as nil — which is the same answer resolve_origin gives an
         # unparented node, and saves every reader of abs_* from a NoMethodError
         # on a node built but not yet ticked.
-        @abs_x = @abs_y = @abs_z = @abs_angle = 0
+        @abs_x = @abs_y = @abs_angle = 0
         @abs_input_owner = @input_owner
+        @abs_band = @band || Util::Z::DEFAULT
         @children = []
+        # Siblings are drawn in `z` order, and in insertion order within one
+        # `z`. Ruby's sort is not stable, so insertion order is carried as a
+        # number rather than relied on — the same reason the C draw queue
+        # compares (z, order) instead of trusting qsort.
+        @child_seq = 0
+        @children_sorted = true
         @components = []
         @component_slots = {} # slot (Class by default, or a Symbol name) => component
         @parent = nil
@@ -73,12 +125,20 @@ module RGame
       def add_node(node)
         @children << node
         node.parent = self
+        node.sibling_order = (@child_seq += 1)
+        @children_sorted = false
         # Defer the entered-tree cascade until this node is itself live; otherwise it
         # fires when an ancestor enters (see #enter_tree). This is the construct-vs-enter
         # split — a node built inside another node's initialize is not yet in the tree.
         node.enter_tree if @in_tree
         node
       end
+
+      # A child was added, or one changed its `z`, so the child order is stale.
+      # The sort is deferred to the next traversal rather than done here, so
+      # building a scene of a thousand nodes costs one sort rather than a
+      # thousand. Called by the engine; a game only ever assigns `z`.
+      def children_unsorted! = @children_sorted = false
 
       def remove_node(node)
         node.exit_tree if @in_tree
@@ -183,7 +243,7 @@ module RGame
         actions = input.actions_for(@abs_input_owner)
         @components.each { it.control(actions) }
         on_control(actions)
-        @children.each { it.control(input) }
+        children_in_order.each { it.control(input) }
       end
 
       # update game logic and physics (might become two calls with
@@ -195,7 +255,7 @@ module RGame
         resolve_origin
         @components.each { it.update(dt) }
         on_update(dt)
-        @children.each { it.update(dt) }
+        children_in_order.each { it.update(dt) }
       end
 
       # update visual game state, drawing the node. This runs last in
@@ -208,16 +268,25 @@ module RGame
       # than once. Most nodes ignore it and simply draw.
       def draw(renderer, view)
         resolve_origin
-        # Draw this node's own visuals oriented by its absolute angle, then descend.
-        # Children resolve their own world transform (resolve_origin already baked this
-        # node's rotation into their abs_x/abs_y), so they draw in flat world space and
-        # must NOT be nested inside this node's rotation — nesting would apply that
-        # rotation to them a second time. Unrotated nodes skip the wrapper entirely.
-        if abs_angle.zero?
-          draw_content(renderer, view)
-        else
-          renderer.rotated(abs_angle * 180.0 / Math::PI, abs_x, abs_y) { draw_content(renderer, view) }
+        # This node's own drawing goes in its own layer: the renderer hands out
+        # the next slot in the node's band, and every `z:` the node passes is an
+        # offset inside it. Because the traversal takes slots in the order it
+        # reaches nodes, draw order *is* tree order — and because a slot is
+        # narrow, nothing a node draws can reach past itself. The node never
+        # asks for this and cannot forget it; see RGame::Util::Z.
+        renderer.layered(@abs_band) do
+          # Draw this node's own visuals oriented by its absolute angle, then descend.
+          # Children resolve their own world transform (resolve_origin already baked this
+          # node's rotation into their abs_x/abs_y), so they draw in flat world space and
+          # must NOT be nested inside this node's rotation — nesting would apply that
+          # rotation to them a second time. Unrotated nodes skip the wrapper entirely.
+          if abs_angle.zero?
+            draw_content(renderer, view)
+          else
+            renderer.rotated(abs_angle * 180.0 / Math::PI, abs_x, abs_y) { draw_content(renderer, view) }
+          end
         end
+        # Outside the block: a child takes a slot of its own, after this one.
         draw_children(renderer, view)
       end
 
@@ -259,7 +328,7 @@ module RGame
         @freed = false # revive: a pooled node reacquired after death re-enters here
         @components.each(&:on_attach)
         on_add
-        @children.each(&:enter_tree)
+        children_in_order.each(&:enter_tree)
       end
 
       # Leaving-tree cascade: mirror of #enter_tree (children first, then this
@@ -267,7 +336,7 @@ module RGame
       def exit_tree
         return unless @in_tree
 
-        @children.each(&:exit_tree)
+        children_in_order.each(&:exit_tree)
         on_remove
         @components.each(&:on_detach)
         @in_tree = false
@@ -298,24 +367,48 @@ module RGame
       # draw in a transform without each child knowing about it.
       # hot-path
       def draw_children(renderer, view)
-        @children.each { it.draw(renderer, view) }
+        children_in_order.each { it.draw(renderer, view) }
       end
 
-      # TODO: Calculate (and cache?) depth
-      # depth = z + highest z of children, maybe +1?
+      # The children, in the order every phase visits them: by `z`, then by when
+      # they were added. Sorted lazily — a scene that never touches `z` after
+      # building sorts once and then pays one boolean per phase.
+      # hot-path
+      def children_in_order
+        sort_children unless @children_sorted
+        @children
+      end
+
+      # Ruby's sort is not stable, so the insertion counter is compared
+      # explicitly. Without it two same-z siblings would swap places between
+      # frames, which reads on screen as flicker rather than as a sort problem.
+      def sort_children
+        @children_sorted = true
+        # Nothing to order, and the overwhelmingly common case for a leaf or a
+        # node with one visual — worth skipping before touching the array.
+        return if @children.size < 2
+
+        @children.sort! do |a, b|
+          order = a.z <=> b.z
+          order.zero? ? a.sibling_order <=> b.sibling_order : order
+        end
+      end
 
       # Resolve this node's absolute transform from the parent origin passed down by the
-      # traversal. Relative x/y/z/angle accumulate, so a nested Node offsets, re-layers
-      # and rotates its whole subtree: a child's local (x, y) is rotated by the parent's
-      # accumulated angle before being added to the parent's origin.
+      # traversal. Relative x/y/angle accumulate, so a nested Node offsets and rotates
+      # its whole subtree: a child's local (x, y) is rotated by the parent's accumulated
+      # angle before being added to the parent's origin.
+      #
+      # `z` is **not** among them, and that is the point: depth is decided by
+      # where the traversal reaches a node, not by summing what its ancestors
+      # picked. See #z= and RGame::Util::Z.
       # TODO: Do not recalculate every time, but use a @dirty flag
-      # TODO: Handle z better - offset not by Z of the parent, but their
-      #       depth
       def resolve_origin
         if @parent.nil?
-          @abs_x = @abs_y = @abs_z = 0
+          @abs_x = @abs_y = 0
           @abs_angle = 0 # root pinned to identity, like its position
           @abs_input_owner = @input_owner
+          @abs_band = @band || Util::Z::DEFAULT
           return
         end
 
@@ -325,6 +418,10 @@ module RGame
         # is equally available in update and draw — a HUD node drawing in its
         # player's corner wants the same answer `control` used.
         @abs_input_owner = @input_owner || @parent.abs_input_owner
+        # The band inherits the same way. A node that declares one overrides it
+        # for its whole subtree, which is the only way out of a band and is
+        # spelled with a name rather than a number.
+        @abs_band = @band || @parent.abs_band
 
         pa = @parent.abs_angle
         if pa.zero? # fast path: parent unrotated -> plain translation, no trig
@@ -336,7 +433,6 @@ module RGame
           @abs_x = @parent.abs_x + (@x * cos) - (@y * sin)
           @abs_y = @parent.abs_y + (@x * sin) + (@y * cos)
         end
-        @abs_z     = @parent.abs_z + @z
         @abs_angle = pa + @angle
       end
     end

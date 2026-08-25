@@ -37,13 +37,12 @@ module RGame
       class Menu < Node2D
         # Navigation wraps: a short vertical list is quicker to use when the
         # ends join, and every console menu does it.
-        def initialize(item_width:, item_height:, spacing: 8, z: Z::HUD,
+        def initialize(item_width:, item_height:, spacing: 8,
                        style: MenuItem::STYLE, **)
           super(**)
           @item_width = item_width
           @item_height = item_height
           @spacing = spacing
-          @layer = z
           @style = style
           @items = []
           @focused_index = 0
@@ -54,7 +53,7 @@ module RGame
         # Adds an item below the last one and returns it, so a caller can
         # connect to its signal in the same line.
         def add_item(label, enabled: true)
-          item = MenuItem.new(label: label, enabled: enabled, z: @layer, style: @style,
+          item = MenuItem.new(label: label, enabled: enabled, style: @style,
                               x: 0, y: @items.size * (@item_height + @spacing),
                               width: @item_width, height: @item_height)
           @items << item
