@@ -123,8 +123,23 @@ RSpec.describe RGame::Core::Input do
   end
 
   describe 'reading a gamepad' do
+    # The three facts that tell a failure here apart, captured rather than
+    # assumed. A press that does not arrive can mean the pad was never seated,
+    # that SDL has no controller mapping for it, or that the mapping is wrong —
+    # and the assertions alone cannot say which. `:aggregate_failures` is what
+    # makes them useful: without it the run stops at the first expectation and
+    # reports one bare `false`, which is exactly the report that made the macOS
+    # failure unreadable (docs/plans/cross-platform-support.md, B15).
+    def pad_diagnostics(results, pad, app)
+      results[:seated] = app.gamepad_present?(0)
+      results[:pad_count] = app.gamepad_count
+      results[:mapped] = pad.game_controller?
+      results[:raw_a] = pad.raw_down?(VirtualGamepad::BUTTON_A)
+    end
+
     # Portable: SDL fabricates the pad, so this needs no hardware and no X11.
-    it 'reports buttons and axes for the slot the pad was seated in, and no other' do
+    it 'reports buttons and axes for the slot the pad was seated in, and no other',
+       :aggregate_failures do
       results = {}
       pad = nil
 
@@ -133,6 +148,7 @@ RSpec.describe RGame::Core::Input do
         when 0 then pad = VirtualGamepad.new
         when 2 then pad.press(VirtualGamepad::BUTTON_A)
         when 4
+          pad_diagnostics(results, pad, app)
           results[:fire] = input.down?(RGame::Util::Controls::PAD_A, device: pad_device(0))
           results[:other_slot] = input.down?(RGame::Util::Controls::PAD_A, device: pad_device(1))
           results[:keyboard] = input.down?(RGame::Util::Controls::PAD_A)
@@ -149,6 +165,13 @@ RSpec.describe RGame::Core::Input do
         end
       end
 
+      # Asserted before the button, so a failure names the cause rather than
+      # only the symptom.
+      expect(results[:seated]).to be(true)
+      expect(results[:pad_count]).to eq(1)
+      expect(results[:mapped]).to be(true)
+      expect(results[:raw_a]).to be(true)
+
       expect(results[:fire]).to be(true)
       expect(results[:other_slot]).to be(false)
       expect(results[:keyboard]).to be(false)
@@ -160,7 +183,8 @@ RSpec.describe RGame::Core::Input do
       expect(results[:keyboard_axis]).to eq(0.0)
     end
 
-    it 'clears the slot on unplug so a button held at that moment is not stuck' do
+    it 'clears the slot on unplug so a button held at that moment is not stuck',
+       :aggregate_failures do
       results = {}
       pad = nil
 
@@ -171,6 +195,7 @@ RSpec.describe RGame::Core::Input do
           pad.press(VirtualGamepad::BUTTON_A)
           pad.move_axis(VirtualGamepad::AXIS_LEFT_X, VirtualGamepad::AXIS_MAX)
         when 4
+          pad_diagnostics(results, pad, app)
           results[:before] = input.down?(RGame::Util::Controls::PAD_A, device: pad_device(0))
           pad.detach
         when 7
@@ -179,6 +204,10 @@ RSpec.describe RGame::Core::Input do
           app.close
         end
       end
+
+      expect(results[:seated]).to be(true)
+      expect(results[:mapped]).to be(true)
+      expect(results[:raw_a]).to be(true)
 
       expect(results[:before]).to be(true)
       expect(results[:after]).to be(false)

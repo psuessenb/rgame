@@ -71,6 +71,23 @@ class VirtualGamepad
   SET_AXIS = fn('SDL_JoystickSetVirtualAxis',
                 [Fiddle::TYPE_VOIDP, Fiddle::TYPE_INT, Fiddle::TYPE_SHORT], Fiddle::TYPE_INT)
 
+  # Diagnostics, not drivers. The engine reads a pad through
+  # SDL_GameControllerGetButton, which is the *mapped* view: SDL turns a
+  # joystick button number into a named controller button using a mapping it
+  # synthesises for a virtual device. So "the press did not arrive" has two
+  # very different causes, and these two tell them apart — which matters
+  # because the failure only reproduces on a runner nobody can attach a
+  # debugger to (see docs/plans/cross-platform-support.md, B15).
+  #
+  #   raw_down?       the *unmapped* joystick button. True here but false
+  #                   through the engine means the mapping is wrong.
+  #   game_controller? whether SDL will treat the device as a controller at
+  #                   all. False means there is no mapping, so the engine
+  #                   declines to seat it (see rgame_gamepads_add).
+  GET_BUTTON = fn('SDL_JoystickGetButton',
+                  [Fiddle::TYPE_VOIDP, Fiddle::TYPE_INT], Fiddle::TYPE_CHAR)
+  IS_GAMECONTROLLER = fn('SDL_IsGameController', [Fiddle::TYPE_INT], Fiddle::TYPE_INT)
+
   def initialize
     @index = ATTACH.call(TYPE_GAMECONTROLLER, AXIS_COUNT, BUTTON_COUNT, 0)
     raise 'SDL_JoystickAttachVirtual failed' if @index.negative?
@@ -81,6 +98,10 @@ class VirtualGamepad
   def press(button) = SET_BUTTON.call(@joystick, button, 1)
   def release(button) = SET_BUTTON.call(@joystick, button, 0)
   def move_axis(axis, value) = SET_AXIS.call(@joystick, axis, value)
+
+  # See GET_BUTTON / IS_GAMECONTROLLER above for why these exist.
+  def raw_down?(button) = GET_BUTTON.call(@joystick, button) == 1
+  def game_controller? = IS_GAMECONTROLLER.call(@index) == 1
 
   # Unplugging the pad, as far as SDL and the engine are concerned.
   def detach

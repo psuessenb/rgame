@@ -1,10 +1,12 @@
 # Cross-platform support — macOS and Windows
 
-**Status: green on both dev machines. Two macOS bugs found and fixed on a real
-Mac; one of them (B9's macOS twin) is unverified on the configuration that
-actually fails.** `rake` passes end to end on this session's Mac — 325 C
-checks, 905 headless examples, 350 Core examples, `rake` exiting 0 — and did
-the same earlier on the Windows machine. Written 2026-08-21 from a read of the
+**Status: green on both dev machines; macOS CI has one open item (B15) and one
+fix awaiting its next run (B9a).** `rake` passes end to end on this session's
+Mac — 299 + 26 C checks, 905 headless examples, 350 Core examples, `rake`
+exiting 0 — and did the same earlier on the Windows machine. The macOS *runner*
+is a different matter: B9a (CoreAudio cannot be opened in a forked child) is
+fixed but unconfirmed there, and B15 (a virtual gamepad button that never
+arrives) is open and now instrumented to explain itself on the next push. Written 2026-08-21 from a read of the
 build wiring, the engine C, and the spec scaffolding; revised after each CI run,
 then from a real Windows machine, and now from a real Mac. Anything marked
 *(sketch)* was never executed; anything marked *(measured)* came off a real
@@ -89,7 +91,7 @@ So the work splits cleanly:
 | | Scope | Where it stands *(measured)* |
 |---|---|---|
 | **A. Build wiring** | 6 items, small, mechanical | **all landed on Windows and macOS.** A3's darwin branch links `-framework OpenGL` and lands `.bundle`, both confirmed on a real Mac |
-| **B. Test scaffolding** | 13 items | **all landed on Windows.** macOS: all landed except the macOS half of B3, which is deliberately dropped |
+| **B. Test scaffolding** | 15 items | **Windows: B14 landed but unconfirmed on the runner.** macOS: B15 open, B9a fixed but unconfirmed there, B3's macOS half deliberately dropped |
 | **C. Deliberate decisions** | 4 open questions | not blocking. C2 now *looked at* on a real Mac and still deferred |
 
 ## What is already portable, and why
@@ -1076,30 +1078,92 @@ runner does reach CoreAudio: its log carries CoreAudio's
 Chasing that interaction is unnecessary, though, because it is downstream of a
 condition the engine can simply decline to create.
 
-**Landed: B9's fallback now covers macOS.** `create_audio`'s guard goes from
-`#ifdef _WIN32` to `#if defined(_WIN32) || defined(__APPLE__)` — enumerate
-playback devices first (read-only; it opens nothing) and, when the count is
-zero, build the engine with `noDevice = MA_TRUE` instead of handing
-`ma_engine_init` an auto-detect list that will try to open hardware that is not
-there. No real device-open attempt means no CoreAudio device thread, so the
-fork interaction above has nothing to act on either.
+**That fix was wrong, and the next CI run said so precisely. Superseded — read
+the correction below rather than the paragraph it replaces.**
+
+~~`create_audio`'s guard goes from `#ifdef _WIN32` to
+`#if defined(_WIN32) || defined(__APPLE__)`~~ — the reasoning being that with no
+device enumerated, `noDevice` avoids the crash. **The premise was false**, and
+the fix was reverted.
+
+#### The correction: it is not the zero-device bug at all, it is `fork`
+
+The CI diagnostic added under B12 — printing macOS crash reports instead of
+trusting a `CK_FORK=no` debugger run — worked the first time it was needed and
+handed over the whole mechanism:
+
+```
+"asi" : {"libsystem_c.dylib":["crashed on child side of fork pre-exec"]}
+
+rgame_audio_create -> create_audio -> ma_engine_init -> ma_device_init_ex
+  -> ma_device_init -> ma_device_init__coreaudio
+  -> AudioComponentInstanceNew -> instantiate -> APComponent::newInstance
+  -> APComponent_FromBundle_Loadable::ResolveFactoryFunction()
+  -> _CFBundleLoadExecutableAndReturnError -> _CFBundleDlfcnCheckLoaded
+```
+
+Two things fall out, and both contradict the section above:
+
+- **`ma_device_init__coreaudio` is reached at all**, which it cannot be if the
+  fallback fired. So `playback_count` was **not** zero: GitHub's macOS runner
+  *does* enumerate a playback device, unlike its Windows runner. The
+  enumerate-first branch was simply inert there — dead code that added a
+  CoreAudio enumeration to every macOS audio open and fixed nothing.
+- **The crash is not a device problem, it is Apple's fork rule.**
+  `AudioComponentInstanceNew` resolves an audio component by *loading its
+  bundle*, and loading a bundle in a child that has forked without `exec` is
+  something Apple's frameworks refuse rather than risk. macOS names it exactly
+  in the report: *"crashed on child side of fork pre-exec"*. Check's entire
+  model is fork-per-test, so every test that opens a real device sits in that
+  position by construction.
+
+That also explains the `CK_FORK=no` pass cleanly, and retires the
+CoreAudio-and-libdispatch speculation above: no fork, no forked child, no bundle
+load in one. And it explains why a developer Mac with a sound card passes —
+whether the component's bundle is already resolved in the parent, and so
+inherited across the fork, depends on the machine's audio configuration. That is
+not a difference anybody would think to control for.
+
+**Landed, in the test harness rather than the engine, because that is whose
+problem it is.** `create_audio` is back to `#ifdef _WIN32` (its comment now says
+why macOS is *not* included, so the next reader does not repeat the attempt), and
+`test/test_main.c` gives the audio suite **its own `SRunner` with
+`srunner_set_fork_status(runner, CK_NOFORK)` on `__APPLE__` only**. Check's fork
+status is a property of an `SRunner`, not of a suite or a test case, so a second
+runner is the narrowest scope available: every other suite keeps fork isolation
+and only the one that must talk to CoreAudio gives it up.
+
+The cost is real and worth stating rather than hiding — a crash in the audio
+suite now takes the whole binary down on macOS, exactly as it already does
+everywhere on Windows (B5) — and it buys those 19 tests actually running, which
+is plainly the better trade. `srunner_set_fork_status` also overrides the
+`CK_FORK` environment variable, so `CK_FORK=yes` cannot put this suite back on
+the forking path on macOS; that is deliberate, since it is not a preference but
+what the OS permits.
+
+Verified locally: `make test` reports two runners, `299` then `26`, both 100%,
+and `rake` is green end to end. Failure propagation was mutation-checked rather
+than assumed — a deliberately broken audio assertion gives `96%: Checks: 26,
+Failures: 1` and a non-zero exit, so the second runner's failures still fail the
+build.
+
+**The general lesson, since this is the second time this exact trap fired in
+this document.** B7 misdiagnosed itself for three sessions by reading
+`ma_device_audio_thread__default_read_write` as proof of a real device; B9a
+misdiagnosed itself by reading "19 real-device tests crash on a runner with no
+sound card" as proof the *absence of the card* was the cause. Both times the
+correlation was perfect and the causation was somewhere else, and both times
+the thing that settled it was a **real stack from the failing configuration**
+rather than more reasoning about the symptom. The `CK_FORK=no` habit is worth
+distrusting specifically: it is the right flag for pointing a debugger at a
+crash, and on macOS it is also a flag that makes this entire class of crash
+disappear.
 
 **Linux stays excluded on purpose**, and that is now written into the comment
 rather than left as a date-stamped note: generalising this fix is what broke
 Linux's leg once already (see B9), Linux's own null-device fallback is proven,
 and the rule going forward is that a platform opts into this branch on the
 strength of a measured crash.
-
-**Verified as far as this machine allows, which is not all the way.** With a
-real device present the branch is not taken and nothing changes: `make test`
-325/325, `rake` green end to end. Forcing the branch unconditionally — the
-same sanity check B9 used, since no device-less Mac is available here —
-gives the device-less path a real workout: the **whole C suite passes
-325/325 including all 19 real-device tests**, `#backend` answers `"Null"`,
-and `audio_spec.rb` is green. What remains unverified is the actual trigger,
-because it needs a Mac with no audio hardware. Treat this as reasoned-and-
-exercised rather than measured on the failing configuration, exactly as B9
-itself is.
 
 ### B10. A GitHub Actions gotcha, not a project bug — the backtrace steps silently stopped running *(measured, new)*
 
@@ -1322,6 +1386,71 @@ left in place for one more push** rather than removed alongside this fix, so
 the next CI run confirms the mechanism (a Mesa/llvmpipe vendor string
 replacing "GDI Generic"), not just the symptom (the pixel test passing).
 Remove the diagnostic once that's confirmed either way.
+
+### B15. The virtual gamepad's button press does not arrive on the macOS runner *(measured, open)*
+
+The two failures left after B1's fix let `spec_core` run on macOS for the first
+time — `350 examples, 2 failures`, both in
+[`input_spec.rb`](../../spec_core/rgame/core/input_spec.rb)'s "reading a
+gamepad" group, and both the *same* assertion: a `BUTTON_A` press made at frame
+2 reads back false at frame 4.
+
+**Not a regression, and worth being clear about**: before B1's fix
+`core_spec_helper.rb` itself failed to load on macOS, so the run collected `0
+examples`. These specs have never executed on that runner. Linux runs the same
+two green (`352 examples, 0 failures`), and so does a real Mac — this session's
+machine passes all seven `input_spec` examples.
+
+What is already known, and it narrows things usefully:
+
+- **The pad is seen.** The `hot-plug callbacks` example in the same file passes,
+  and it asserts a slot is reported on connect *and* on disconnect. So SDL
+  fabricates the device and the engine seats it.
+- **It is not an SDL version difference.** CI installs `sdl2-compat 2.32.70`,
+  byte-for-byte the formula this Mac has; only `sdl3` differs, 3.4.10 on the
+  runner against 3.4.14 locally.
+- **The path involved is a *mapping*.** The spec sets a *joystick* button
+  (`SDL_JoystickSetVirtualButton`, index 0) while
+  [`gamepad.c`](../../ext/rgame_core/input/gamepad.c) reads a *controller*
+  button (`SDL_GameControllerGetButton(pad, SDL_CONTROLLER_BUTTON_A)`). Between
+  them sits the mapping SDL synthesises for a virtual device, and on
+  `sdl2-compat` that mapping is produced by SDL3 through a translation layer.
+
+**Not fixed — instrumented, deliberately.** Every candidate explanation
+(mapping mismatch, a seating race, a missed joystick update) predicts a
+different pattern across the results the example already collects, and the run
+threw all of that away: a plain sequence of `expect`s stops at the first
+failure, so a single bare `false` was the entire report. That is precisely the
+mistake the NineSlice investigation under B2 made and then corrected, and the
+same correction applies.
+
+So both examples are now `:aggregate_failures`, and both capture the facts that
+discriminate before asserting the button:
+
+| Captured | Distinguishes |
+|---|---|
+| `app.gamepad_present?(0)`, `app.gamepad_count` | the pad was never seated in a slot |
+| `pad.game_controller?` (`SDL_IsGameController`) | SDL has no controller mapping at all, so `rgame_gamepads_add` declines it |
+| `pad.raw_down?(BUTTON_A)` (`SDL_JoystickGetButton`) | the **unmapped** button state — true here with the engine reading false is a mapping bug, false here means the press never landed |
+
+`raw_down?` is the decisive one, and it is why this is worth a round trip rather
+than a guess: it separates "SDL never recorded the press" from "SDL recorded it
+and the controller mapping does not agree", which no amount of reading the
+sources settles.
+
+Verified locally that the instrumentation is correct rather than merely present:
+all four diagnostics come back true on this Mac, and the aggregate reporting was
+mutation-checked by breaking two expectations at once and confirming the run
+reports `Got 2 failures` instead of stopping at the first.
+
+**One thing to rule in or out first if this is picked up cold**: the virtual pad
+is attached with `nhats = 0`
+([`virtual_gamepad.rb`](../../spec_core/support/virtual_gamepad.rb)), while a
+gamepad's D-pad is conventionally a hat rather than four buttons. That is
+harmless on SDL2, and the spec's own D-pad assertions pass on Linux, but it is
+the kind of detail an SDL2-over-SDL3 shim could reasonably translate
+differently. It is not an explanation for `BUTTON_A` failing, so it is a second
+suspect rather than the first.
 
 ## Can this be done from Linux? *(asked, answered, then superseded)*
 

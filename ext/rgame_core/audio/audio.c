@@ -45,7 +45,7 @@ struct rgame_audio {
     ma_resource_manager resources;
     ma_engine engine;
     /*
-     * Set on Windows and macOS, only when construction fell back to `noDevice`
+     * Set only on Windows, only when construction fell back to `noDevice`
      * because there was nothing to open — see create_audio. Exists so
      * rgame_audio_backend can still answer "Null" for this engine, matching
      * what every other no-hardware case on every platform already reports,
@@ -146,19 +146,25 @@ static rgame_audio *create_audio(int offline, unsigned int sample_rate, char *er
      * one platform where it demonstrably does, and where an earlier attempt to
      * generalise the workaround below broke a leg that had been working.
      *
-     * Windows and macOS both crash instead, on a machine with zero playback
-     * devices at all — which describes every GitHub Actions runner for both
-     * (Windows confirmed via `Get-CimInstance Win32_SoundDevice`; macOS
-     * measured as 19 segfaults, exactly the 19 tests in test/test_audio.c that
-     * open a real device, while the 4 offline and 3 NULL-guard tests passed).
-     * In both cases the real backend's default-device lookup dies rather than
-     * returning a failure the fallback above could act on.
+     * On Windows, a machine with zero playback devices at all (every GitHub
+     * Actions Windows runner, among others: confirmed via
+     * `Get-CimInstance Win32_SoundDevice`) crashes instead of failing inside
+     * WASAPI's default-device lookup, so the fallback above never gets a
+     * chance to run.
      *
-     * So both get an extra step first: enumerate devices (read-only, does not
-     * attempt to open anything, so it does not hit whatever the open path gets
-     * wrong with no endpoint to find) and, when there are none, fall back to
-     * `noDevice` — the same mode the offline constructor below uses — rather
-     * than the auto-detect list's own real-backend open attempt.
+     * Windows alone gets an extra step first: enumerate devices (read-only,
+     * does not attempt to open anything, so it does not hit whatever WASAPI's
+     * own open path gets wrong with no endpoint to find) and, when there are
+     * none, fall back to `noDevice` — the same mode the offline constructor
+     * below uses — rather than the auto-detect list's own real-backend open
+     * attempt.
+     *
+     * macOS looks like the same bug and is not, which is worth stating because
+     * this branch was briefly extended to it and did nothing. Its runner *does*
+     * enumerate a playback device, so a zero-device test never fires there; its
+     * crash is CoreAudio being initialised in a **forked child**, which macOS
+     * forbids outright. That belongs to the test harness rather than here — see
+     * test/test_main.c and docs/plans/cross-platform-support.md, B9a.
      *
      * An *explicit* null-backend device was tried first and rejected: it still
      * spins up a real background device thread, and that thread crashed inside
@@ -181,7 +187,7 @@ static rgame_audio *create_audio(int offline, unsigned int sample_rate, char *er
         engine.channels = 2;
         engine.sampleRate = sample_rate;
     }
-#if defined(_WIN32) || defined(__APPLE__)
+#ifdef _WIN32
     else {
         ma_context probe;
         if (ma_context_init(NULL, 0, NULL, &probe) == MA_SUCCESS) {
