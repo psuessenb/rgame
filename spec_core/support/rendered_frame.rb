@@ -30,11 +30,11 @@ require 'fiddle'
 # the hook that exists for exactly this: the engine calls it once submission
 # has happened but before `SDL_GL_SwapWindow`, which is the one moment the back
 # buffer is guaranteed to hold this frame's image on every driver. Reading
-# there needs no assumption about how a given driver implements the swap —
-# earlier versions of this file read at the *start of the next frame* instead,
-# which relied on the swap being a copy rather than a page flip (true of Mesa's
-# llvmpipe under Xvfb, false of at least one real Windows driver measured
-# during the Windows port — see docs/plans/cross-platform-support.md, B2).
+# there needs no assumption about how a given driver implements the swap.
+# Reading at the *start of the next frame* instead would rely on the swap being
+# a copy rather than a page flip — true of Mesa's llvmpipe under Xvfb, and false
+# of real GPU drivers, which are free to page-flip and leave the back buffer
+# undefined at that moment.
 module RenderedFrame
   GL_RGBA = 0x1908
   GL_UNSIGNED_BYTE = 0x1401

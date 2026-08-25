@@ -160,11 +160,11 @@ static rgame_audio *create_audio(int offline, unsigned int sample_rate, char *er
      * attempt.
      *
      * macOS looks like the same bug and is not, which is worth stating because
-     * this branch was briefly extended to it and did nothing. Its runner *does*
-     * enumerate a playback device, so a zero-device test never fires there; its
-     * crash is CoreAudio being initialised in a **forked child**, which macOS
-     * forbids outright. That belongs to the test harness rather than here — see
-     * test/test_main.c and docs/plans/cross-platform-support.md, B9a.
+     * extending this branch to it does nothing. A device-less Mac still
+     * enumerates a playback device, so a zero-device test never fires there;
+     * its equivalent crash is CoreAudio being initialised in a **forked
+     * child**, which macOS forbids outright. That belongs to the test harness
+     * rather than here — see test/test_main.c.
      *
      * An *explicit* null-backend device was tried first and rejected: it still
      * spins up a real background device thread, and that thread crashed inside

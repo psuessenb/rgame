@@ -34,8 +34,8 @@
  * case, so the narrowest available fix is a *second runner*: everything else
  * keeps fork isolation, and only the suite that must talk to CoreAudio gives it
  * up. That is a real loss for that one suite — a crash there now takes the
- * process with it, as it already does everywhere on Windows (see
- * docs/plans/cross-platform-support.md, B5) — and it buys the 19 tests actually
+ * process with it, as it already does everywhere on
+ * Windows, which has no usable fork at all — and it buys the 19 tests actually
  * running, which is the better trade.
  *
  * `srunner_set_fork_status` overrides the `CK_FORK` environment variable, so

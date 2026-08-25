@@ -1,10 +1,9 @@
-# CI — the four verification tiers, on the three platforms.
+# CI — the verification tiers, on the three supported platforms.
 #
-# This is step 0 of docs/plans/cross-platform-support.md, and it deliberately
-# comes *before* any of the porting work. Every item in that plan fails in a way
-# that is invisible on Linux — a header search path, a DLEXT, a dlopen soname, a
-# buffer-swap semantic that only differs on a real GPU — so the port cannot be
-# written blind. This matrix is the feedback loop it needs.
+# Each platform fails in ways that are invisible on the others: a header search
+# path, a DLEXT, a dlopen soname, a buffer-swap semantic that only differs on a
+# real GPU. Running all three on every push is what keeps those from being
+# discovered by a user instead.
 #
 # The tiers run in the order CLAUDE.md lists them, cheapest and most
 # deterministic first, so a failure lands on the smallest thing that could have
@@ -37,19 +36,18 @@ jobs:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
 
-    # A platform not yet ported is expected to fail, so it must not gate
-    # anything: with this, it shows red on the job while the *run* stays
-    # green, and every already-ported platform keeps working as the
-    # regression guard it is. Without it there is no way to tell "still
-    # unported, as predicted" from "somebody broke a working platform", which
-    # would destroy the only value this workflow has for an unported one.
+    # `ported` marks a platform as one this project actually supports, and it
+    # gates whether that leg is a *gate* or a *measurement*.
     #
-    # Flipping `ported` to true is part of the definition of done for the
-    # corresponding step in docs/plans/cross-platform-support.md — it is not a
-    # rule anyone is asked to remember, because the plan step says so and the
-    # job name below says which platforms are still marked. Windows flipped
-    # 2026-08-25, once B7 (docs/plans/cross-platform-support.md) had a
-    # confirmed root cause and fix rather than an unreproduced crash.
+    # A platform being brought up is expected to fail, and must not gate
+    # anything: with `ported: false` it shows red on the job while the run stays
+    # green, so every supported platform keeps working as the regression guard
+    # it is. Without it there would be no way to tell "not ported yet, as
+    # expected" from "somebody broke a working platform".
+    #
+    # The flip side is that a *working* platform left marked unported rots
+    # silently, because nothing would report it breaking again. So the flag is
+    # set true as soon as a leg is green, which is why all three are true today.
     continue-on-error: ${{ !matrix.ported }}
 
     strategy:
@@ -61,21 +59,14 @@ jobs:
           - name: linux
             os: ubuntu-latest
             ported: true
-          # `macos-latest` rather than a pin, deliberately. The pinned
-          # `macos-14` image is macOS 14 (Sonoma) — twelve major versions
-          # behind the Mac this port was developed on (26.6) — and once the SDL
-          # stack was equalised (`brew update`, see the macOS dependency step)
-          # that OS gap became the *only* measured difference left between a
-          # runner that fails B15's two gamepad examples and a machine that
-          # passes them. Tracking the current macOS is also the more useful
-          # question for a gem: "does this work on the Mac people have".
-          #
-          # The tradeoff is real and accepted: a moving label can change
-          # underneath the build. That is preferable here to pinning an image
-          # whose OS nobody targets, and CI exists to notice such a change.
-          - name: macos (port in progress)
+          # `macos-latest` rather than a version pin, deliberately: "does this
+          # work on the Mac people actually have" is the useful question for a
+          # gem, and a pinned image drifts years behind that. The accepted
+          # tradeoff is that a moving label can change underneath the build —
+          # which is a thing CI is well placed to notice.
+          - name: macos
             os: macos-latest
-            ported: false
+            ported: true
           - name: windows
             os: windows-latest
             ported: true
@@ -106,23 +97,16 @@ jobs:
             gdb
 
       # `brew install sdl2` installs the **sdl2-compat** formula — SDL2's API
-      # reimplemented on top of SDL3 — so the virtual-joystick code the input
-      # specs drive lives in the `sdl3` dependency rather than in sdl2-compat
-      # itself. Worth knowing before reading a joystick failure here.
+      # reimplemented on top of SDL3 — so on macOS the code behind an SDL2 call
+      # lives in the `sdl3` dependency rather than in sdl2-compat itself. Worth
+      # knowing before reading any SDL-level failure here.
       #
-      # `brew update` is load-bearing, not housekeeping. The runner image
-      # carries an older formula snapshot and resolved `sdl3` to **3.4.10**,
-      # while a dev machine that passes these specs has **3.4.14** — and that
-      # gap is the *only* measured difference between the two, sdl2-compat
-      # being 2.32.70 on both. On the runner a virtual button press is
-      # *accepted* (`SDL_JoystickSetVirtualButton` returns 0, on a device
-      # `SDL_JoystickGetAttached` calls live) and then never applied, through
-      # ten update/pump passes. See docs/plans/cross-platform-support.md, B15.
-      #
-      # The `brew list` line is a diagnostic on purpose: it states which
-      # versions were actually installed, so the next run says whether the
-      # update moved sdl3 at all rather than leaving that to be inferred from
-      # bottle-manifest lines buried in the install log.
+      # `brew update` first, so the SDL that gets installed is the current one
+      # rather than whatever snapshot the runner image happens to carry; the
+      # images can lag by several SDL releases. `brew list --versions` then
+      # records what was actually installed, which is the first thing worth
+      # knowing when a graphics or input failure appears on one run and not
+      # another.
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
@@ -131,9 +115,9 @@ jobs:
           brew list --versions sdl2-compat sdl3 check
 
       # Derived from .ruby-version rather than written out here, so the pin has
-      # one home. It cannot be handed to setup-ruby directly: mise writes the
-      # file as `ruby 4.0.5`, which is not the bare version string that action
-      # expects.
+      # one home. It cannot be handed to setup-ruby directly: the file is
+      # written as `ruby 4.0.5`, which is not the bare version string that
+      # action expects.
       - name: Read the pinned Ruby version
         id: ruby
         shell: bash
@@ -147,16 +131,15 @@ jobs:
       # RubyInstaller ships MSYS2; `ridk exec` runs a command inside its mingw
       # environment, where pacman and the native toolchain live.
       #
-      # **This must come after setup-ruby**, and that is probably the whole
-      # story behind the first run's failure. `ridk` belongs to a Ruby
-      # installation, and the Windows runner image ships one preinstalled — so
-      # running this earlier resolved `ridk` against *that* Ruby and configured
-      # *its* MSYS2, which is not the one the build then used. Ordering it here
-      # makes the question moot: the only Ruby on PATH is the one we test with.
+      # **This must come after setup-ruby.** `ridk` belongs to a Ruby
+      # installation and the Windows runner image ships one preinstalled, so
+      # running this earlier resolves `ridk` against *that* Ruby and configures
+      # *its* MSYS2 — not the one the build then uses. Ordering it here makes
+      # the question moot: the only Ruby on PATH is the one we test with.
       #
       # `pkgconf` and `gcc` are listed even though something usually provides
-      # them, because the first CI run failed on precisely the assumption that
-      # the toolchain on PATH was the ucrt64 one. `--needed` makes an
+      # them, because "the toolchain on PATH is the ucrt64 one" is exactly the
+      # assumption that does not hold by default here. `--needed` makes an
       # already-installed package a no-op, so listing them costs nothing.
       - name: Install system dependencies (Windows)
         if: runner.os == 'Windows'
@@ -173,12 +156,12 @@ jobs:
       # above went into `ucrt64` — the one that builds *native* Windows
       # binaries, which is what RubyInstaller's Ruby can load.
       #
-      # The first CI run proved the build was not running there. pacman
-      # succeeded, yet pkg-config then found neither sdl2 nor check, and the
-      # compile came out as `cc` — which under MSYS2 is `/usr/bin/cc`, the
-      # msys-runtime gcc targeting a Cygwin-like ABI. Both symptoms are one
-      # cause: `/usr/bin` was ahead of (or instead of) `/ucrt64/bin` on PATH, so
-      # every tool resolved to the wrong environment.
+      # Without this the build does not run there. pacman succeeds, yet
+      # pkg-config finds neither sdl2 nor check and the compile comes out as
+      # `cc` — which under MSYS2 is `/usr/bin/cc`, the msys-runtime gcc
+      # targeting a Cygwin-like ABI. Both symptoms are one cause: `/usr/bin`
+      # ahead of (or instead of) `/ucrt64/bin` on PATH, so every tool resolves
+      # to the wrong environment.
       #
       # Prepending `/ucrt64/bin` fixes both at once. It is prepended rather than
       # substituted because msys's own `make` (there is no `make` in ucrt64,
@@ -186,8 +169,8 @@ jobs:
       # compiler from msys make is the combination RubyInstaller itself uses.
       #
       # `cygpath -w` converts the MSYS path to the Windows form GITHUB_PATH
-      # wants. The Makefile's `CC` no longer needs setting here: it forces
-      # `gcc` now, for the same reason this step exists.
+      # wants. The Makefile's `CC` needs no setting here: it forces `gcc`
+      # itself, for the same reason this step exists.
       - name: Put the UCRT64 toolchain first on PATH (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -197,24 +180,20 @@ jobs:
           Write-Host "prepending $bin"
           $bin | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
 
-      # `rake spec:core` opens real windows and needs real OpenGL, same as
-      # Linux does above — but Windows has no GPU on this runner and, unlike
-      # Linux, nothing installs a real software rasteriser by default. A
-      # temporary diagnostic in gl_backend.c (see B14,
-      # docs/plans/cross-platform-support.md) printed what fills that gap on
-      # its own: `GL_VENDOR=Microsoft Corporation`, `GL_RENDERER=GDI Generic`,
-      # `GL_VERSION=1.1.0` — Windows' own decades-old, barely-maintained
-      # software fallback from the NT era, not a modern rasteriser. This is
-      # the direct Windows equivalent of `libgl1-mesa-dri` above: a real
-      # software GL implementation instead of whatever the OS falls back to
-      # with nothing better installed.
+      # `rake spec:core` opens real windows and needs real OpenGL, same as Linux
+      # does above — but this runner has no GPU and, unlike Linux, Windows
+      # installs no software rasteriser by default. What it falls back to is
+      # `GDI Generic`, Microsoft's own OpenGL 1.1 implementation from the NT
+      # era, which is not something this renderer can be expected to work
+      # against. Mesa here is the direct equivalent of `libgl1-mesa-dri` on the
+      # Linux leg.
       #
-      # Mesa's Windows build ships as a drop-in `opengl32.dll`, but *where* it
-      # lands matters: Windows' DLL search order checks the calling process's
-      # own directory before System32, and PATH only *after* System32 — so a
-      # copy anywhere on PATH would never be found ahead of the one this is
-      # trying to replace. It has to sit next to the exe that actually opens
-      # the GL context, which here is `ruby.exe` itself.
+      # Mesa's Windows build ships as a drop-in `opengl32.dll`, and *where* it
+      # lands is load-bearing: Windows' DLL search order checks the calling
+      # process's own directory before System32, and PATH only *after*
+      # System32 — so a copy anywhere on PATH would never be found ahead of the
+      # System32 one it is meant to replace. It has to sit next to the
+      # executable that actually opens the GL context, which here is `ruby.exe`.
       - name: Find Ruby's bin directory (Windows)
         if: runner.os == 'Windows'
         id: ruby_bin
@@ -229,16 +208,10 @@ jobs:
         with:
           path: ${{ steps.ruby_bin.outputs.dir }}
 
-      # From here down, the unported legs run in **survey mode**: every step
-      # runs even after one fails, so a single push reports all five tiers
-      # instead of only the first thing to break. A ported leg keeps ordinary
-      # stop-at-first-failure semantics, because there it is a gate rather than
-      # a measurement.
-      #
-      # This is the same `ported` flag as the job-level `continue-on-error`, and
-      # it earns its keep for the same reason: the first two runs each cost a
-      # round trip to learn one fact, while four later tiers sat unmeasured
-      # behind a failure in the first.
+      # A leg marked `ported: false` runs every step even after one fails, so a
+      # single push reports all the tiers instead of only the first thing to
+      # break. A ported leg keeps ordinary stop-at-first-failure semantics,
+      # because there it is a gate rather than a measurement.
       - name: C unit tests (Check)
         id: c_tests
         continue-on-error: ${{ !matrix.ported }}
@@ -247,24 +220,22 @@ jobs:
 
       # A Check failure that is a *segfault* says only "signal 11" and a line
       # number, which is where the C suite stops being useful on a platform
-      # nobody here can attach a debugger to. So the crash gets a backtrace
+      # nobody can attach a debugger to by hand. So a crash gets a backtrace
       # automatically, and only when there was one.
       #
       # `CK_FORK=no` matters: Check normally runs each test in its own forked
       # child, and a debugger follows the *parent*, so the crash it reports is
       # in a process that did not crash. Running in-process gives the real
-      # stack — at the cost of stopping at the first crash, which is exactly
-      # what a backtrace wants anyway.
+      # stack — at the cost of stopping at the first crash, which is what a
+      # backtrace wants anyway.
       #
-      # Windows has no fork at all, so its suite already dies on the first
-      # segfault (see B5 in the plan); there this step is the only way to learn
-      # which test that was.
+      # Windows has no usable fork, so its suite already dies on the first
+      # segfault; there this step is the only way to learn which test that was.
+      #
       # `always()` is load-bearing, not decoration: an `if:` with no explicit
-      # status-check function gets an implicit `success()` prepended by
-      # GitHub Actions, so without it this step silently stopped running the
-      # moment `continue-on-error` on the step above it was `false` (i.e. once
-      # a platform flips to `ported: true`) — the exact regression that made
-      # this step vanish the first time Windows needed it for real.
+      # status-check function gets an implicit `success()` prepended by GitHub
+      # Actions, which can never be true at the same time as
+      # `outcome == 'failure'`. Without it this step silently never runs.
       - name: Backtrace the C suite crash
         if: always() && steps.c_tests.outcome == 'failure'
         shell: bash
@@ -273,15 +244,14 @@ jobs:
           case "${{ runner.os }}" in
             macOS)
               CK_FORK=no lldb --batch -o run -o 'bt all' -- ./build/test_rgame || true
-              # CK_FORK=no is not sufficient on macOS, and measuring it is how
-              # that was learned: the audio crash on a device-less runner needs
-              # *both* no device and Check's fork, so the run above passed
-              # 325/325 and printed no stack at all on a push whose real
-              # `make test` had just reported 19 segfaults. macOS writes a full
-              # per-process crash report for a forked child that dies, so the
-              # honest source for this failure mode is the report, not the
-              # debugger. Re-run with fork left on to produce them, then print
-              # whatever landed.
+              # `CK_FORK=no` is not sufficient on macOS, because some crashes
+              # here only happen in a forked child — Apple's frameworks refuse
+              # work in a child that has forked without exec, so running
+              # in-process makes exactly that class of crash disappear and the
+              # debugger reports a clean pass. macOS writes a full per-process
+              # crash report for a forked child that dies, so for those the
+              # report is the honest source rather than the debugger. Re-run
+              # with fork left on to produce them, then print whatever landed.
               CK_FORK=yes ./build/test_rgame || true
               for dir in "$HOME/Library/Logs/DiagnosticReports" \
                          /Library/Logs/DiagnosticReports; do
@@ -319,21 +289,18 @@ jobs:
         shell: bash
         run: bundle exec rake spec:core
 
-      # A native crash inside the Ruby process (unlike the C suite's own
-      # binary) leaves nothing behind but "Process completed with exit code
-      # 1" — no backtrace, not even which spec was running. `gdb --args`
-      # around the same specs, run directly rather than through `bundle exec`
-      # or `rake` (each spawns Windows as a *new* process rather than
-      # POSIX-`exec`ing over the current one, which would leave gdb attached
-      # to the wrong process), catches it the same way the C suite's crash
-      # is caught above. `bundle exec` in front of `gdb` itself is what still
-      # gets bundler's load path into the `ruby` gdb launches as its child.
+      # A native crash inside the Ruby process (unlike the C suite's own binary)
+      # leaves nothing behind but "Process completed with exit code 1" — no
+      # backtrace, not even which spec was running. `gdb --args` around the same
+      # specs catches it the way the C suite's crash is caught above.
       #
-      # `always()` for the same reason as the C suite's backtrace step above:
-      # without it, the implicit `success()` GitHub Actions prepends to a
-      # condition with no status-check function skips this the moment the
-      # step above it fails with `continue-on-error: false` — which is
-      # unconditionally true here, this step's whole reason to exist.
+      # Run directly rather than through `bundle exec` or `rake`: each of those
+      # spawns Windows as a *new* process rather than POSIX-`exec`ing over the
+      # current one, which would leave the debugger attached to the wrong
+      # process. `bundle exec` in front of `gdb` itself is what still gets
+      # bundler's load path into the `ruby` that gdb launches as its child.
+      #
+      # `always()` for the same reason as the C suite's backtrace step above.
       - name: Backtrace the Core specs crash (Windows)
         if: always() && runner.os == 'Windows' && steps.core_specs.outcome == 'failure'
         shell: bash

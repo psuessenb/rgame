@@ -5,17 +5,17 @@ description: Pitfalls that make C code (ext/rgame_core, ext/rgame_util) or its R
 
 # Windows portability pitfalls for this project's C
 
-Every item below was found the hard way, on a real Windows machine, during the
-Windows port (`docs/plans/cross-platform-support.md`, sections A4–A6 and B2/B4/B7).
-Linux and macOS cannot surface any of them — they need a Windows machine, or the
+Every item below was found the hard way, on a real Windows machine, while
+getting this project building and green there. Linux and macOS cannot surface
+any of them — they need a Windows machine, or the
 specific sanitizer setup in "How to actually catch these" below, to show up at
 all. Read this before writing new C, before writing a new Ruby C-extension
 binding, and before writing a Check test that opens a real device or handle.
 
 ## 1. `long` is not "a type wider than `int`" — on Windows it is `int`'s width
 
-This is the one lesson behind three separate bugs found in one session
-(A4, A5, A6), and the one most likely to recur, because the code that trips it
+This is the one lesson behind three separate bugs found in one session, and
+the one most likely to recur, because the code that trips it
 usually reads as obviously portable.
 
 **The fact**: Linux and macOS use the LP64 data model, where `long` is 64
@@ -34,7 +34,7 @@ was meant to prevent still happens (undefined behaviour, not merely a wrong
 answer).
 
 ```c
-// ext/rgame_core/graphics/clip.c, before the fix (A6):
+// ext/rgame_core/graphics/clip.c, before the fix:
 long a_right = (long)a.x + a.w;   // still 32 bits on Windows — same bug as int
 
 // after:
@@ -57,7 +57,7 @@ doesn't corrupt anything, it just rejects valid input on Windows that Linux
 accepts.
 
 ```c
-// ext/rgame_util/color_ext.c, before the fix (A4):
+// ext/rgame_util/color_ext.c, before the fix:
 unsigned long value = NUM2ULONG(packed);      // raises RangeError on Windows
                                                // for a value Linux converts fine
 if (value > 0xFFFFFFFFul) { ... }             // this check never gets a chance to run
@@ -84,7 +84,8 @@ reports `Integer` either way in modern Ruby. If C code computes and returns
 array index, keep it well under 2^30 in magnitude on every platform, or the
 Windows build silently starts heap-allocating on every access where Linux
 stayed allocation-free. (This bit `RGame::Engine::SpatialHash`, pure Ruby —
-see A5 — but the same ceiling applies to anything a C extension hands back.)
+see RGame::Engine::SpatialHash — but the same ceiling applies to anything a
+C extension hands back.)
 
 ## 2. A failed `ck_assert_*` skips everything after it in that function — including cleanup
 
@@ -103,7 +104,7 @@ happens to reuse that memory — ordinary, unavoidable stack behaviour — the
 still-running background thread corrupts it. The resulting crash can land
 anywhere, on any later test, with no visible connection to the actual bug.
 
-This is exactly what B7 turned out to be:
+This is exactly what one long-hunted crash in this project turned out to be:
 `test/test_vorbis_decoder.c`'s `the_engine_refuses_a_file_that_is_not_an_ogg`
 opens a real `ma_engine` (spawning a mixer thread), then calls a helper whose
 `ck_assert_int_ge(fd, 0)` failed on Windows (see item 3) — skipping the
@@ -123,7 +124,7 @@ guarantees runs even after a failed assertion, rather than an inline
 
 Windows has no `/tmp`, and `mkstemp("/tmp/...")` fails outright there — not
 because `mkstemp` itself is missing (MinGW/UCRT provides a working one), but
-because the directory doesn't exist. This was B4, and it's also what fed
+because the directory doesn't exist. That was a real bug here, and it also fed
 straight into item 2 above.
 
 ```c
@@ -155,9 +156,9 @@ Xvfb on Linux) happens to *copy* on swap, so the previous frame's image is
 still readable at the start of the next one — a real Windows driver is free
 to *page-flip* instead, which leaves that buffer's contents undefined the
 moment the swap returns. Code (test or engine) that needs to read back what
-was just drawn must do so **before** the swap, not after — see B2, and the
-`frame_end` hook (`ext/rgame_core/include/rgame/core.h`) added specifically
-to give exactly that moment a name. Never write new code that reads pixels
+was just drawn must do so **before** the swap, not after — which is what the
+`frame_end` hook (`ext/rgame_core/include/rgame/core.h`) exists for: it gives
+exactly that moment a name. Never write new code that reads pixels
 "at the start of the next frame" and calls it equivalent.
 
 ## 5. A machine with *zero* audio devices is a real, common Windows case — CI hits it every run
@@ -210,7 +211,7 @@ Linux.
 ## 6. A background thread can crash inside Ruby in ways the identical code never does in plain C
 
 `make test` (the Check suite — plain C, no Ruby in the process at all) passed
-with the explicit-Null-backend version of the B9 fix above, on the exact same
+with the explicit-Null-backend version of the fix above, on the exact same
 CI runner where `rake spec:core` crashed running the identical
 `create_audio` code from inside `ruby.exe`. The failing thread was one this
 project's own C spawned (via miniaudio's `ma_thread_create__win32`, not
@@ -256,7 +257,8 @@ exists. Two things can, and neither needs a Windows machine to be *fixed* on,
 only to be *checked* on occasionally:
 
 - **AddressSanitizer/UBSan, on a real Windows build.** This is what actually
-  found B7's true mechanism and A6, after plain testing only showed symptoms.
+  found the true mechanism behind two of the bugs above, after plain testing
+  only ever showed symptoms.
   MinGW gcc's `ucrt64` MSYS2 package ships **no sanitizer runtime at all**
   (`ld: cannot find -lasan`) — install the separate `clang64` environment
   instead (`mingw-w64-clang-x86_64-clang`, `-compiler-rt`, and clang64-prefixed
@@ -265,8 +267,8 @@ only to be *checked* on occasionally:
   See `.claude/skills/verify/SKILL.md`'s "Leaks" section for the Linux/macOS
   version of this recipe — it's the same idea, different toolchain.
 - **Reading this list before writing the code**, for everything that isn't a
-  memory-safety bug ASan would catch — A4's `RangeError`, B4's missing
-  directory, and B2's swap-timing assumption are all perfectly valid C, and
+  memory-safety bug ASan would catch — the `NUM2ULONG` `RangeError`, the
+  missing temp directory, and the swap-timing assumption are all valid C, and
   none of them would make a sanitizer blink. They only show up by knowing to
   ask "does this still hold when `long` is 32 bits / there's no `/tmp` / the
   driver page-flips?" while writing the line, not after.

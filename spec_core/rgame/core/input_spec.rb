@@ -123,13 +123,18 @@ RSpec.describe RGame::Core::Input do
   end
 
   describe 'reading a gamepad' do
-    # The three facts that tell a failure here apart, captured rather than
-    # assumed. A press that does not arrive can mean the pad was never seated,
-    # that SDL has no controller mapping for it, or that the mapping is wrong —
-    # and the assertions alone cannot say which. `:aggregate_failures` is what
-    # makes them useful: without it the run stops at the first expectation and
-    # reports one bare `false`, which is exactly the report that made the macOS
-    # failure unreadable (docs/plans/cross-platform-support.md, B15).
+    # The facts that tell a failure here apart, captured rather than assumed. A
+    # press that does not arrive can mean the pad was never seated, that SDL has
+    # no controller mapping for it, that the mapping is wrong, or that SDL
+    # accepted the press and never applied it — and the button assertion alone
+    # cannot say which. `:aggregate_failures` is what makes them useful: without
+    # it the run stops at the first expectation and reports one bare `false`,
+    # which says nothing about the cause.
+    #
+    # The two examples that press a button are tagged `:needs_virtual_pad_state`,
+    # because the last of those causes is an environment limitation rather than a
+    # bug — see VirtualGamepad.button_state_supported?. The hot-plug examples
+    # below are not tagged: they only attach and detach, which works everywhere.
     def pad_diagnostics(results, pad, app)
       results[:seated] = app.gamepad_present?(0)
       results[:pad_count] = app.gamepad_count
@@ -145,7 +150,7 @@ RSpec.describe RGame::Core::Input do
 
     # Portable: SDL fabricates the pad, so this needs no hardware and no X11.
     it 'reports buttons and axes for the slot the pad was seated in, and no other',
-       :aggregate_failures do
+       :aggregate_failures, :needs_virtual_pad_state do
       results = {}
       pad = nil
 
@@ -196,7 +201,7 @@ RSpec.describe RGame::Core::Input do
     end
 
     it 'clears the slot on unplug so a button held at that moment is not stuck',
-       :aggregate_failures do
+       :aggregate_failures, :needs_virtual_pad_state do
       results = {}
       pad = nil
 
