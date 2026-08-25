@@ -1,10 +1,15 @@
 # Cross-platform support — macOS and Windows
 
-**Status: step 0 landed and its first run read; steps 1–8 outstanding.**
+**Status: steps 0–2 landed; B7 is what blocks a green leg on both platforms.**
 Written 2026-08-21 from a read of the build wiring, the engine C, and the spec
-scaffolding; **revised after the first CI run**, which reordered the work and
-falsified one of the three build findings. Anything below marked *(sketch)* was
-never executed; anything marked *(measured)* came off a real runner.
+scaffolding; revised twice since, after each CI run. Anything marked *(sketch)*
+was never executed; anything marked *(measured)* came off a real runner.
+
+**If you are picking this up on a Mac or a Windows box, start at
+"Working on the machines directly", then run the experiment it names.** The
+development loop changed after the second run: the work is debugged on the
+machine and gated by CI, not driven through CI. Everything needed to build,
+test and debug on either platform is in that section.
 
 The question this answers: *what would the gem need to run on macOS and Windows,
 and can that work be done on Linux and merely tested elsewhere?*
@@ -324,7 +329,7 @@ costs a round trip either way, and one of them is a no-op. `ci.yml` now runs a
 debugger automatically when the C suite fails — `CK_FORK=no` so the stack is
 the crashing process rather than Check's parent.
 
-## Can this be done from Linux?
+## Can this be done from Linux? *(asked, answered, then superseded)*
 
 **Write it on Linux: yes. Verify it on Linux: no — and the gap is the whole
 problem.**
@@ -355,6 +360,205 @@ Two things the matrix will never cover, and they need a human on the machine:
 Cross-compiling with mingw and running under Wine was considered and rejected as
 a Windows substitute: GL and audio under Wine test Wine, and a green run there
 would not predict a real machine.
+
+### Superseded: there are machines
+
+**The reasoning above rests on a premise that turned out to be false** — that
+nobody on this project could run macOS or Windows. Both are available. The
+CI-first ordering was the right answer to "how do you verify what you cannot
+run"; it is the wrong answer to "how do you debug a segfault on a machine you
+own".
+
+What changed, concretely: the work remaining is mostly *debugging*, not writing.
+A crash of unknown cause, a library whose filename nobody here knows, a driver
+whose swap semantics have to be observed. Those are minutes at a terminal and
+round trips through a batch job that only prints what you thought to ask for in
+advance. And one of them — macOS key injection (B3) — needs a permission granted
+through an interactive dialog, so **CI can never run it at all**.
+
+So the loop is now: **develop and debug on the machine, let CI gate.** See
+"Working on the machines directly" below. CI keeps two jobs, neither of which
+this changes:
+
+- **It is the regression guard.** Linux staying green is a fact rather than a
+  hope only because something checks it on every push.
+- **It builds on a clean machine.** A developer's Mac has whatever Homebrew has
+  accumulated on it; the runner has nothing. That difference is precisely how
+  "works on my machine" reaches a gemspec.
+
+Nothing built for the CI-first loop is wasted by this. Survey mode and the
+automatic backtrace make CI a better gate regardless, and the three findings it
+produced — Homebrew's include path, the msys/mingw split, and the `CC ?= gcc`
+no-op — are now permanently guarded rather than fixed once.
+
+## Working on the machines directly
+
+Everything needed to pick this up on a Mac or a Windows box with no other
+context. **These instructions are written from documentation and from what the
+CI runs establish, not from a machine** — nobody here has run them. The first
+person to follow them should correct them in place; that is what this file is
+for.
+
+The branch is `windows-and-mac-support`. Clone or pull it on each machine; push
+from whichever one the work happened on. CI runs on pull requests, so a PR is
+what turns three local checkouts back into one answer.
+
+### macOS setup
+
+```sh
+xcode-select --install                  # clang, lldb, make
+brew install sdl2 check pkg-config
+mise install                            # Ruby 4.0.5, per .ruby-version
+bundle install
+```
+
+Two things differ from Linux and neither is a problem:
+
+- **No Xvfb.** `HeadlessDisplay` returns `:native` off Linux, so `rake spec:core`
+  opens real windows on your desktop and you will see them appear and vanish.
+  That is intended — macOS and Windows have a window server, so there is nothing
+  to fake.
+- **Key-injection specs skip themselves** (B3), so a green `rake spec:core` on a
+  Mac covers less than a green one on Linux. Read the skip count, not just the
+  colour.
+
+Homebrew's prefix is `/opt/homebrew` on Apple Silicon and `/usr/local` on Intel;
+pkg-config finds SDL2 either way, and the first CI run proved
+`<SDL2/SDL.h>` resolves against Homebrew's `sdl2.pc` without the A1 fix.
+
+### Windows setup
+
+Use **RubyInstaller with the DevKit** for Ruby 4.0.5 rather than mise — the
+DevKit is what supplies MSYS2, and every native build here depends on it. After
+installing, run `ridk install` and choose the MSYS2 and MINGW development
+toolchain option.
+
+Then the libraries. Note `make` is an **msys** package with no prefix, while
+everything else is **ucrt64**-prefixed — that split is the whole Windows story:
+
+```sh
+ridk exec pacman -S --needed \
+  mingw-w64-ucrt-x86_64-SDL2 \
+  mingw-w64-ucrt-x86_64-check \
+  mingw-w64-ucrt-x86_64-pkgconf \
+  mingw-w64-ucrt-x86_64-gcc \
+  mingw-w64-ucrt-x86_64-gdb \
+  make
+```
+
+#### The environment trap — read this before the first build
+
+MSYS2 is several environments in one installation. **UCRT64** builds native
+Windows binaries, which is what RubyInstaller's Ruby can load. **msys** builds
+against a Cygwin-like runtime, which it cannot. Both have a `gcc` and both have
+a `pkg-config`, and picking the wrong one fails in a way that looks like missing
+packages rather than a wrong environment. That is exactly what happened on the
+first CI run: pacman succeeded, and `pkg-config` then reported both `sdl2` and
+`check` missing.
+
+Work either from the **"MSYS2 UCRT64"** shell in the Start menu, or run
+`ridk enable ucrt64` before building. Verify before trusting anything:
+
+```sh
+which gcc                   # must be /ucrt64/bin/gcc — NOT /usr/bin/gcc
+pkg-config --cflags sdl2    # must print a ucrt64 include path
+```
+
+If `gcc` comes back as `/usr/bin/gcc`, stop and fix the environment; nothing
+below will mean anything.
+
+One more Windows-only fact worth knowing before it confuses you: **Check has no
+fork isolation there** (B5), so the first segfault kills the whole test binary
+and the output stops mid-suite — and because Check prints its suite list up
+front and buffered, the truncated list does not tell you where it died. Use the
+debugger recipe below rather than reading the log.
+
+### Running the tiers
+
+Same four tiers as CLAUDE.md describes, same commands:
+
+| Tier | Command | Off-Linux notes |
+|---|---|---|
+| C unit tests | `make test` | Windows: no fork isolation (B5) |
+| Standalone binary | `make` then `make run` | opens a real window |
+| Both extensions | `make ext` | lands `.bundle` on macOS, `.so` on Windows |
+| Headless specs | `bundle exec rake spec` | fully portable, no display |
+| Core specs | `bundle exec rake spec:core` | native display; key specs skip |
+
+`make ext` is a prerequisite for both spec suites — the Rakefile does not build
+the extensions.
+
+### Debugging a crash
+
+`CK_FORK=no` is the load-bearing flag on **every** platform. Check normally runs
+each test in its own forked child, and a debugger follows the *parent* — so
+without it the stack you get is from a process that did not crash. Running
+in-process stops at the first crash, which is what a backtrace wants anyway.
+
+macOS:
+
+```sh
+CK_FORK=no lldb ./build/test_rgame        # then: run, bt all, frame select N
+CK_FORK=no lldb --batch -o run -o 'bt all' -- ./build/test_rgame   # one-shot
+```
+
+Windows, from the UCRT64 shell:
+
+```sh
+CK_FORK=no gdb --args ./build/test_rgame  # then: run, bt full, info threads
+```
+
+To run one suite rather than all of them, Check reads `CK_RUN_SUITE`:
+
+```sh
+CK_FORK=no CK_RUN_SUITE=audio ./build/test_rgame
+```
+
+### Run this experiment first
+
+**Before any fix, run `make test` on the Mac and report whether the audio tests
+crash.** One command, and it splits B7 in half — which no amount of reading can
+do from here.
+
+The reason it discriminates: **your Mac has a sound card and the CI runner does
+not.** So
+
+- **audio tests pass on your Mac** → the crash is specific to having no device.
+  Hypothesis 2. The real defect is then "miniaudio crashes when no device can be
+  opened", the null-device fallback that `create_audio`'s comment promises does
+  not happen off Linux, and the fix is in how the engine is initialised — not in
+  how it is linked.
+- **audio tests crash on your Mac too** → a real macOS defect independent of
+  hardware. Hypothesis 1 or something not yet considered, and the backtrace is
+  the next thing needed.
+
+Either way the follow-up is cheap. To test hypothesis 1 — miniaudio resolving
+CoreAudio through `dlopen` rather than linking it — add one line to
+`ext/rgame_core/vendor/miniaudio_impl.c` beside the other feature macros:
+
+```c
+#define MA_NO_RUNTIME_LINKING
+```
+
+and give the darwin arm of the root Makefile's `AUDIO_LIBS` the frameworks that
+then have to be linked explicitly:
+
+```make
+AUDIO_LIBS := -lpthread -framework CoreFoundation -framework CoreAudio -framework AudioToolbox
+```
+
+`ext/rgame_core/extconf.rb` needs the same frameworks on darwin if this turns
+out to be the fix — the two build systems have to agree, and only the Makefile
+is exercised by `make test`. This is also C3 arriving early: the same change is
+what miniaudio requires for Apple notarization.
+
+### What to do with the results
+
+Record findings in this file as you go — that is what the *(measured)* tags and
+the "Landed" notes are for, and it is what let the first two CI runs reorder the
+whole plan. When a platform's leg goes green end to end, flip its `ported` flag
+in [`ci.yml`](../../.github/workflows/ci.yml) so CI starts gating it; see "Flip
+`ported: true`" below for why leaving it is worse than it looks.
 
 ## Implementation order
 
