@@ -1,19 +1,27 @@
 # Cross-platform support — macOS and Windows
 
-**Status: green on the dev machine, one CI-only bug (B9) fixed but not yet
-confirmed on a real CI run.** `rake` passes end to end on this session's
-Windows machine — 325 C checks, 904 headless examples, 350 Core examples, all
-green, repeatedly, confirmed clean under `clang`+AddressSanitizer too — but the
-first real CI push still failed, on something this machine structurally
-cannot reproduce: it has a real sound card, and GitHub's Windows runners have
-none at all. See B9. B7 remains fully closed (its own, different bug, found
-and fixed before CI ran). macOS is unchanged from the state below; nobody has
-picked it up since. Written 2026-08-21 from a read of the build wiring, the
-engine C, and the spec scaffolding; revised after each CI run and again from a
-real Windows machine. Anything marked *(sketch)* was never executed; anything
-marked *(measured)* came off a real runner — B9 is the first exception, marked
-*(new)* but reasoned rather than measured, because nothing here could measure
-it directly.
+**Status: green on both dev machines. Two macOS bugs found and fixed on a real
+Mac; one of them (B9's macOS twin) is unverified on the configuration that
+actually fails.** `rake` passes end to end on this session's Mac — 325 C
+checks, 905 headless examples, 350 Core examples, `rake` exiting 0 — and did
+the same earlier on the Windows machine. Written 2026-08-21 from a read of the
+build wiring, the engine C, and the spec scaffolding; revised after each CI run,
+then from a real Windows machine, and now from a real Mac. Anything marked
+*(sketch)* was never executed; anything marked *(measured)* came off a real
+runner or a real machine.
+
+**Read this before trusting a green macOS job: the macOS leg was never
+passing on CI, and the job said it was.** While a platform is `ported: false`,
+`continue-on-error` forces both the job's and every step's *conclusion* to
+success, so `gh run view` reports `macos … success` for a run whose `make test`
+reported 19 segfaults and whose `rake spec:core` collected 0 examples. This is
+the same masking mechanism B10 documents, seen from the other side, and it is
+why "the Mac step passes now" was believed for a while. The real outcomes live
+in `steps.<id>.outcome`, not in any conclusion — and the tell is visible
+without digging: the *backtrace* step's `if:` fires only on
+`c_tests.outcome == 'failure'`, so a backtrace step that **ran** rather than
+being skipped is proof the tests failed, whatever the job badge says. See
+B12.
 
 **2026-08-25: three sessions on an actual Windows machine.** The first
 installed the toolchain and ran the build once to establish a baseline (see
@@ -33,6 +41,19 @@ that closed out B7), B1 (dlopen sonames), B2 (read pixels via a new
 actual fix for B7, now proven rather than merely correlated), B7 itself, and a
 new B8 (`File.expand_path` resolving a leading `/` against the current drive,
 which broke `AssetManager`'s path specs). The Verdict below is amended for A5.
+
+**2026-08-25, first session on an actual Mac.** The toolchain was almost
+entirely already present (see "macOS setup" for the two corrections the
+untested instructions needed); `make test`, `make`, `make ext`, `rake spec` and
+`rake spec:core` were all run, and the manual tier was driven rather than just
+booted. Result: **all four tiers green locally, and two real macOS bugs found**
+— B1's macOS half (a by-name `dlopen` that cannot work on macOS, which was
+blocking *every* `spec:core` example on the macOS runner) and B9's macOS twin
+(19 audio segfaults on a device-less runner). Landed alongside them: a wrong
+backend spelling in `audio_spec.rb` (B13), a macOS-only packaging leak that
+`packaging_spec.rb` could not see (B11), the CI masking write-up (B12), and a
+measured diagnostic hole in the macOS backtrace step (B12 too). C2 (retina) was
+looked at directly and stays out of scope: the window renders correctly.
 
 **If you are picking this up on a Mac or a Windows box, start at
 "Working on the machines directly", then run the experiment it names.** The
@@ -65,11 +86,11 @@ need a modern-GL port before Windows could work at all, because Windows'
 
 So the work splits cleanly:
 
-| | Scope | Where it fails today *(measured)* |
+| | Scope | Where it stands *(measured)* |
 |---|---|---|
-| **A. Build wiring** | 6 items, small, mechanical — **all landed on Windows** | macOS cannot link `make test`: `ld: library 'GL' not found` |
-| **B. Test scaffolding** | 8 items — **all landed or resolved on Windows** | unreached — nothing Ruby-side runs until A is done |
-| **C. Deliberate decisions** | 4 open questions | not blocking, but they shape A and B |
+| **A. Build wiring** | 6 items, small, mechanical | **all landed on Windows and macOS.** A3's darwin branch links `-framework OpenGL` and lands `.bundle`, both confirmed on a real Mac |
+| **B. Test scaffolding** | 13 items | **all landed on Windows.** macOS: all landed except the macOS half of B3, which is deliberately dropped |
+| **C. Deliberate decisions** | 4 open questions | not blocking. C2 now *looked at* on a real Mac and still deferred |
 
 ## What is already portable, and why
 
@@ -360,6 +381,61 @@ this item's, because it needs a whole new backend rather than a different
 string. Verified on Windows: `bundle exec rake spec:core` opens 350 real-window
 examples using both files with no dlopen failures.
 
+**The macOS half of that was wrong, and it was the single thing stopping the
+macOS leg from running any Core spec at all** *(measured 2026-08-25)*. The
+table above proposed `libSDL2-2.0.0.dylib` for macOS, which is the correct
+*filename* — Homebrew installs exactly that — and still cannot be opened by
+name:
+
+```
+Fiddle::DLError: dlopen(libSDL2-2.0.0.dylib, 0x0009): tried:
+  'libSDL2-2.0.0.dylib' (no such file),
+  '/System/Volumes/Preboot/Cryptexes/OSlibSDL2-2.0.0.dylib' (no such file),
+  '/usr/lib/libSDL2-2.0.0.dylib' (no such file, not in dyld cache)
+```
+
+**macOS has no `ldconfig`.** Linux resolves a bare soname through a
+system-wide cache that Debian's SDL2 package registers itself in; dyld has
+nothing equivalent, so a bare name is looked for only in `/usr/lib` and the
+dyld shared cache. Homebrew's prefix is in neither — and it is not even a
+fixed string to hardcode, being `/opt/homebrew` on Apple Silicon and
+`/usr/local` on Intel. This raised at *class-definition* time in
+`virtual_gamepad.rb`, so it took out `core_spec_helper.rb` itself: the macOS
+runner reported `0 examples, 0 failures, 1 error occurred outside of examples`,
+which is why no macOS pixel or audio spec has ever actually run.
+
+**Landed, and the fix is better than a filename.** macOS now uses
+`Fiddle::Handle::DEFAULT`, which searches the images already loaded into the
+process. That is a *stronger* guarantee than any name, and it is precisely
+what this file's own comment always asked for ("deliberately opens the same
+libSDL2 the extension already loaded"): the extension links SDL2, so the only
+copy `DEFAULT` can resolve is the one the engine is already driving. There is
+no prefix to guess and no second copy to open by construction. Confirmed by
+dyld introspection that the resolved image is
+`/opt/homebrew/Cellar/sdl2-compat/…/libSDL2-2.0.0.dylib`, the same one
+`otool -L` shows the binary linking.
+
+Linux and Windows keep by-name `dlopen`, deliberately: both are measured
+working, and B9's lesson is that a platform-specific fix should change only
+that platform. The one thing the macOS arm adds is an ordering requirement —
+the extension must be loaded first — which `core_spec_helper.rb` already
+satisfies (it requires `rgame/core` at line 26, support files at line 28) and
+which fails loudly with an unknown-symbol `DLError` if that ever changes,
+rather than quietly opening a second SDL.
+
+`rendered_frame.rb` needed no change: its macOS arm is an absolute framework
+path (`/System/Library/Frameworks/OpenGL.framework/OpenGL`), which exists and
+which dyld resolves for the same reason the bare name fails — it is absolute.
+
+**Homebrew's `sdl2` is now `sdl2-compat`, and it works.** Worth recording
+because it changes what the whole plan has been reasoning about: `brew install
+sdl2` installs the `sdl2-compat` formula, which is the SDL2 API reimplemented
+on top of SDL3, and CI's macOS step therefore gets it too — so this session's
+local runs are representative rather than a lucky configuration. Everything
+passes through it, `SDL_JoystickAttachVirtual` included, so the virtual-gamepad
+specs exercise the real SDL path on a shim. Nothing in the engine had to
+change for that.
+
 ### B2. The back-buffer read makes a software-rasteriser assumption
 
 This is the subtle one, and the one most likely to be misread as a bug in the
@@ -472,6 +548,15 @@ The two backends:
   item in section B, and it should be scheduled last or dropped.
 - **Windows: `SendInput` via Fiddle.** No permission prompt, so this one does
   pay for itself on CI.
+
+**The skip count, measured on macOS 2026-08-25, is 2.** `spec:core` reports
+`350 examples, 0 failures` there against 352 on Linux; the two held back are
+`input_spec.rb`'s "reports a held key while it is down and not after" and "does
+not let a gamepad device answer for a keyboard key", both under the single
+`:needs_key_injection` describe block. So the honest phrasing for a macOS run is
+**350 of 352** — small enough that the macOS CGEvent backend stays the lowest-
+value item in section B, and it does not touch the gamepad path, which is
+covered on every platform through SDL's virtual joystick (B1).
 
 ### B4. `test_vorbis_decoder.c` hardcodes `/tmp` and `mkstemp`
 
@@ -748,7 +833,15 @@ principled follow-up rather than added speculatively.
 Whether macOS's crash is the same root cause is now answerable in principle —
 macOS's `/tmp` exists, so this exact trigger (a failed `mkstemp` assertion)
 would not fire there, meaning macOS's crash, if it reproduces at all once the
-macOS leg is picked up again, needs its own explanation. What transfers
+macOS leg is picked up again, needs its own explanation.
+
+**Answered 2026-08-25, and it is a different bug: see B9a.** macOS's 19
+segfaults are the zero-device crash B9 found on Windows, not this leaked-thread
+bug — the reasoning above was right that `/tmp` existing rules this trigger
+out there. What did transfer is the general hazard stated below, and the habit
+of not trusting a leaf frame: B7's own misdiagnosis came from reading
+`ma_device_audio_thread__default_read_write` as proof of a real device, and
+B9a's `CK_FORK=no` pass is the same shape of trap one level up. What transfers
 directly is the general hazard above, and the diagnostic path that found it:
 `ck_assert` failures before a real device's teardown are worth auditing
 anywhere a `ma_engine`/`ma_device` is opened directly in a test, and a
@@ -889,6 +982,69 @@ its very first, ordinary attempt to open when the hardware simply isn't
 there. The only thing they share is that both only reproduce on Windows and
 both involve `ma_engine_init`.
 
+### B9a. The same zero-device crash on macOS — and it needs Check's `fork` too *(measured, new)*
+
+**This is the answer to "Run this experiment first", and to the question B7
+left open.** B7 asked whether macOS's 19 audio segfaults were the same root
+cause as Windows'; B9 predicted a device-less machine as the trigger but could
+only test it on Windows. Both are now settled, and B9's hypothesis 2 was right
+for macOS.
+
+The experiment the plan asks for — `make test` on a Mac with a sound card —
+returns **325/325, 0 errors, audio suite included**. So there is no
+macOS-specific defect in opening a device. Meanwhile the macOS *runner*, which
+has no sound card, reports:
+
+```
+94%: Checks: 325, Failures: 0, Errors: 19
+test/test_audio.c:82:E:core:a_device_opens_even_with_no_sound_card:0: … signal 11
+```
+
+The correspondence is exact and is the same one B7 tabulated: 19 tests open a
+real device and all 19 segfault; the 4 offline (`noDevice`) tests and the 3
+NULL-guard tests pass. Combined with the local pass, that isolates the trigger
+to *having no playback device*, which is B9 on Windows exactly.
+
+**One new fact, and it matters for diagnosis rather than for the fix: macOS
+needs Check's `fork` as well.** The CI backtrace step re-ran the identical
+binary on the identical runner with `CK_FORK=no` and it passed **325/325, 0
+errors** — printing no stack at all, on a push whose `make test` had just
+reported 19 crashes. So the macOS crash requires *both* conditions, no device
+**and** a forked child, where Windows needed only the first. That fits macOS's
+documented fork rules — CoreAudio reaches `coreaudiod` over Mach IPC and uses
+libdispatch, none of which is safe to use in a forked child of a process that
+has already initialised them, and this binary links Cocoa through SDL2. The
+runner does reach CoreAudio: its log carries CoreAudio's
+`AddInstanceForFactory: No factory registered for id …` line.
+
+Chasing that interaction is unnecessary, though, because it is downstream of a
+condition the engine can simply decline to create.
+
+**Landed: B9's fallback now covers macOS.** `create_audio`'s guard goes from
+`#ifdef _WIN32` to `#if defined(_WIN32) || defined(__APPLE__)` — enumerate
+playback devices first (read-only; it opens nothing) and, when the count is
+zero, build the engine with `noDevice = MA_TRUE` instead of handing
+`ma_engine_init` an auto-detect list that will try to open hardware that is not
+there. No real device-open attempt means no CoreAudio device thread, so the
+fork interaction above has nothing to act on either.
+
+**Linux stays excluded on purpose**, and that is now written into the comment
+rather than left as a date-stamped note: generalising this fix is what broke
+Linux's leg once already (see B9), Linux's own null-device fallback is proven,
+and the rule going forward is that a platform opts into this branch on the
+strength of a measured crash.
+
+**Verified as far as this machine allows, which is not all the way.** With a
+real device present the branch is not taken and nothing changes: `make test`
+325/325, `rake` green end to end. Forcing the branch unconditionally — the
+same sanity check B9 used, since no device-less Mac is available here —
+gives the device-less path a real workout: the **whole C suite passes
+325/325 including all 19 real-device tests**, `#backend` answers `"Null"`,
+and `audio_spec.rb` is green. What remains unverified is the actual trigger,
+because it needs a Mac with no audio hardware. Treat this as reasoned-and-
+exercised rather than measured on the failing configuration, exactly as B9
+itself is.
+
 ### B10. A GitHub Actions gotcha, not a project bug — the backtrace steps silently stopped running *(measured, new)*
 
 Found immediately after B9's fix reached CI: the "Backtrace the Core specs
@@ -927,6 +1083,116 @@ a step that only matters when something else has already gone wrong — but the
 mechanism is a documented GitHub Actions rule, not a guess, and the fix was
 confirmed by re-reading both conditions against it rather than by a run that
 exercises the failure path.
+### B11. macOS debug symbols leak into the gem, and `packaging_spec.rb` could not see it *(measured, new)*
+
+Building the extensions on a Mac leaves a `core_ext.bundle.dSYM` **directory**
+beside each one. Neither `.gitignore` nor the gemspec caught it, and the
+consequence is the exact failure mode CLAUDE.md's "Packaging" section warns
+about — invisible locally, wrong in the shipped gem:
+
+```
+ext/rgame_core/core_ext.bundle.dSYM/Contents/Info.plist
+ext/rgame_core/core_ext.bundle.dSYM/Contents/Resources/Relocations/aarch64/core_ext.bundle.yml
+ext/rgame_util/util_ext.bundle.dSYM/Contents/Info.plist
+ext/rgame_util/util_ext.bundle.dSYM/Contents/Resources/Relocations/aarch64/util_ext.bundle.yml
+```
+
+The cause is that every rule in play matches a **suffix** while a `.dSYM` is a
+**path component**. `*.bundle` does not match `core_ext.bundle.dSYM`, whose name
+ends in `.dSYM`; the gemspec's `\.(so|bundle|dylib|o|a|log)\z` catches the debug
+*copy of the binary* inside the directory (it does end in `.bundle`) and misses
+its `Info.plist` and relocation `.yml` beside it. So exactly the two files that
+are not obviously build output are the two that shipped.
+
+**Why the guard stayed silent is the more interesting half, and it is a real
+weakness rather than an oversight.** CLAUDE.md describes `packaging_spec.rb` as
+re-deriving what must ship and asserting it against the gemspec's derivation
+"in both directions", so that a disagreement names the file. That works for a
+mistake in *one* derivation. Here both sides filter with their own copy of the
+same regex, and the hole is in the pattern itself — so the two derivations
+agreed perfectly, about the wrong answer, and the suite was green with four
+debug files in `spec.files`.
+
+**Landed, in three places, and the third is the point.** `.gitignore` gets
+`*.dSYM/`; the gemspec's `artifacts` regex gets a `\.dSYM/` clause (this is the
+load-bearing one — `.gitignore` has no say in what `Dir.glob` finds, and the
+gemspec globs the filesystem rather than asking git); and
+`spec/packaging_spec.rb` gets an example stated **without reference to the
+shared `artifacts` pattern**:
+
+```ruby
+it 'excludes macOS debug symbol bundles' do
+  expect(files.grep(/dSYM/)).to be_empty
+end
+```
+
+Mutation-checked rather than assumed: with the gemspec clause removed the
+example fails and names all four files; with it restored it passes. The general
+lesson for this file is worth keeping — **an assertion that filters with the
+same pattern as the code it checks cannot catch a bug in the pattern.** Where a
+guard exists to say what must never ship, at least one example should name the
+thing directly.
+
+### B12. The macOS job reported success while two of its steps failed, and the backtrace step was blind to why *(measured, new)*
+
+Two separate problems, both about *reporting* rather than the port, and both
+found by going to the raw CI logs rather than the job badge.
+
+**First: an unported leg's green is not evidence of anything.** `ported: false`
+puts `continue-on-error` on the job and on every test step, and
+`continue-on-error` forces a *conclusion* to success while leaving the
+*outcome* as failure. `gh run view --json jobs` reports conclusions, so the
+macOS job — and every one of its steps — read `success` on a run where
+`make test` had 19 errors and `rake spec:core` collected `0 examples`. This is
+B10's mechanism seen from the other side: there it silently disabled a step,
+here it silently launders a red leg green.
+
+Nothing needs fixing in the workflow for this — `continue-on-error` is doing
+the job the plan gave it, and B10 already documents the trap — but two things
+are worth knowing when reading a run:
+
+- The outcomes are in `steps.<id>.outcome`, never in a conclusion.
+- **A backtrace step that ran rather than skipped is itself the signal.** Its
+  `if:` is `always() && steps.c_tests.outcome == 'failure'`, so it fires only
+  when the tests really failed, whatever the badge says. That is what exposed
+  this: step 10 showed `success` where steps 3, 7, 8 and 15 showed `skipped`,
+  and a step that *ran* at all could only mean the C suite had failed.
+
+**Second: the macOS backtrace step could not have diagnosed this crash, and
+that is measured, not suspected.** It runs `CK_FORK=no lldb …`, on the sound
+reasoning (B5, and the "Debugging a crash" section) that a debugger follows the
+parent and so needs fork off. On macOS that reasoning removes the bug: the
+crash needs a forked child (B9a), so the step ran the same binary on the same
+runner and printed `100%: Checks: 325, Failures: 0, Errors: 0` followed by
+`error: Command requires a process which is currently stopped` — a confusing
+clean pass, on a push that had just failed, which is worse than no output.
+
+**Landed:** the macOS arm keeps the `CK_FORK=no` attempt (still right for a
+crash that does reproduce without fork) and then re-runs with `CK_FORK=yes` and
+prints any `test_rgame` crash reports from
+`~/Library/Logs/DiagnosticReports` and `/Library/Logs/DiagnosticReports`. macOS
+writes a full per-process report for a forked child that dies, so for this
+class of failure the report is the honest source and the debugger is not.
+Unverified by construction, like B10's fix — it only runs when something else
+has already broken.
+
+### B13. `audio_spec.rb` guessed the CoreAudio backend's name *(measured, new)*
+
+One failure out of 350 in the first full macOS `spec:core` run, and a fixture
+bug rather than a port bug:
+
+```
+expected "Core Audio" to match /\A(PulseAudio|ALSA|CoreAudio|WASAPI|Null)\z/
+```
+
+The spec wrote `CoreAudio`, matching the `MA_ENABLE_COREAUDIO` feature macro.
+The string is not ours to choose: it comes from `gBackendInfo` in
+`ext/rgame_core/vendor/miniaudio.h`, which spells it `"Core Audio"`, with a
+space — the only entry in that table whose name differs from its macro that
+way. **Landed**: the regex now says `Core Audio`, and the comment names
+`gBackendInfo` as the source of truth so the next platform's spelling is looked
+up rather than guessed.
+
 
 ## Can this be done from Linux? *(asked, answered, then superseded)*
 
@@ -1024,6 +1290,57 @@ Two things differ from Linux and neither is a problem:
 Homebrew's prefix is `/opt/homebrew` on Apple Silicon and `/usr/local` on Intel;
 pkg-config finds SDL2 either way, and the first CI run proved
 `<SDL2/SDL.h>` resolves against Homebrew's `sdl2.pc` without the A1 fix.
+
+**Measured 2026-08-25 on an Apple Silicon Mac. The instructions above are
+right; four details are worth adding.**
+
+- **`xcode-select --install` is enough — full Xcode is not.** This machine has
+  only the Command Line Tools (`xcode-select -p` → `/Library/Developer/CommandLineTools`)
+  and every tier builds and runs. Its `make` is Apple's GNU Make **3.81**, which
+  the root Makefile is fine with.
+- **`brew install sdl2` installs `sdl2-compat`** — the SDL2 API on top of SDL3 —
+  because that is what the `sdl2` formula now resolves to. Everything works
+  through it, virtual gamepads included; see B1. Nothing to do, but it is worth
+  knowing that "SDL2" on a current Mac is a shim, and that CI gets the same one.
+- **`brew install pkg-config` resolves to `pkgconf`.** Still installs and still
+  provides `pkg-config`, so `ci.yml`'s macOS step needs no change; noted because
+  the formula rename makes it look deprecated when it is not.
+- **`check` is the one thing likely to be missing**, since nothing else pulls it
+  in. `pkg-config --cflags check` failing is the symptom, and it is what
+  `make test` needs.
+- **Any version manager works, not just mise.** `.ruby-version` says
+  `ruby 4.0.5`; this machine supplies it through asdf. Nothing in the build
+  cares which manager it came from.
+
+**Two things the plan expected to be problems and which are not**, both worth
+striking off rather than re-investigating:
+
+- **A3's darwin branch is correct as landed.** `make test` links
+  `-framework OpenGL`, `make ext` produces `core_ext.bundle` and
+  `util_ext.bundle` and copies both into `lib/rgame/` — the `DLEXT` question in
+  A3 answered on a real Mac rather than by overriding a variable.
+- **`have_framework` did not misfire.** Step 2 flagged it as possibly failing on
+  a Mac that can link OpenGL perfectly well; `make ext` builds both extensions,
+  so the `-std=gnu17`/`-ObjC` interaction it worried about does not happen here.
+
+**The manual tier works, and C2 (retina) can be struck off the "needs a human"
+list.** `./build/rgame` opens a real window and renders correctly: the two
+overlapping alpha-blended rectangles, the triangle, the circle, the thick line,
+the rotated square, and the UTF-8 string `rgame — Grüße, œuvre, 5 €` complete
+with its non-ASCII glyphs. `tools/drive_example.rb` drives
+`examples/16_hello_world` to `120 ticks, 120 frames` and 120 `text` draw calls.
+C2's judgment call is unchanged — the window is created without
+`SDL_WINDOW_ALLOW_HIGHDPI` and stays out of scope — but "correct but soft" is
+now observed rather than predicted.
+
+**One gap that is not macOS's fault**: `/media/` is in `.gitignore` and is in no
+checkout, so `examples/14_asteroids` and `examples/15_tiled_world` cannot be
+driven from a fresh clone on any platform — they abort loading `media/space.png`
+and `media/ui/ui_atlas.json`. Only `16_hello_world` (which needs nothing beyond
+the shipped font) runs. That limits the acceptance tier CLAUDE.md leans on for
+wiring changes, and it is worth deciding deliberately — commit the assets,
+generate them, or document where they come from — but it is pre-existing and
+outside this port.
 
 ### Windows setup
 
@@ -1174,7 +1491,14 @@ To run one suite rather than all of them, Check reads `CK_RUN_SUITE`:
 CK_FORK=no CK_RUN_SUITE=audio ./build/test_rgame
 ```
 
-### Run this experiment first
+### Run this experiment first — *(done; answered)*
+
+**Answered 2026-08-25: the audio tests pass on a Mac with a sound card
+(325/325), and fail only on the device-less runner (19 errors). That is
+hypothesis 2, and the fix is B9's, extended to macOS — see B9a.** The rest of
+this section is kept because the reasoning is what made the one-command
+experiment decisive, and the `MA_NO_RUNTIME_LINKING` follow-up below is still
+the right move if C3 is ever picked up.
 
 **Before any fix, run `make test` on the Mac and report whether the audio tests
 crash.** One command, and it splits B7 in half — which no amount of reading can
@@ -1423,6 +1747,25 @@ B1, B2, B4, B7, B8) is landed, `rake` is clean, and B7 specifically is now a
 closed, understood bug rather than an open question (see its section). Nothing
 is left gating the flip except CI actually proving it on a fresh runner, which
 is what pushing with the flag flipped is for.
+
+**macOS is one confirming run away, and should be flipped on that run rather
+than before it.** Everything that applies to it is landed — A2/A3's darwin
+branches, B1's macOS half, B9a, B11, B13 — and `rake` is clean end to end on a
+real Mac (325 + 905 + 350, exit 0). What is *not* yet proven is the one thing
+that cannot be proven here: B9a's zero-device branch, which needs a Mac with no
+audio hardware, i.e. the runner itself.
+
+So the sequence is: push with macOS still `ported: false`, then **read the step
+outcomes rather than the job badge** (B12 — the badge will say `success` either
+way, and a backtrace step that *ran* means the C suite failed). If `make test`
+and `rake spec:core` both come back clean, flip the flag in the same breath and
+push again; the flip is what stops it rotting back out, and while it stays
+`false` a regression on macOS is indistinguishable from the unported state.
+
+Do not flip it *before* that run: with `continue-on-error` gone, a leg that is
+still red on the zero-device path would turn the whole workflow red and take
+Linux's regression guard down with it, which is the failure the flag exists to
+prevent.
 
 ### Step 6 — `"SDL.h"` robustness (A1, optional)
 

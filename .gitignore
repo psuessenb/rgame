@@ -24,6 +24,13 @@ ext/**/*.dylib
 ext/**/*.def
 ext/**/NUL
 
+# macOS debug symbols. A .dSYM is a *directory* — `core_ext.bundle.dSYM` — so
+# the `*.bundle` rules above do not match it: they match names ending in
+# `.bundle`, and this one ends in `.dSYM`. The trailing slash says directory.
+# rgame.gemspec carries the matching exclusion, because .gitignore has no say
+# in what `Dir.glob` finds when the gem is packaged.
+*.dSYM/
+
 # Compiled extension copied onto the load path by `make ext-util`
 # (lib/rgame/util_ext.so). Already covered by the global *.so above; called
 # out here so it's clear the .so under lib/ is a build artifact, not source.

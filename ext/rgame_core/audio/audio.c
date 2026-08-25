@@ -45,7 +45,7 @@ struct rgame_audio {
     ma_resource_manager resources;
     ma_engine engine;
     /*
-     * Set only on Windows, only when construction fell back to `noDevice`
+     * Set on Windows and macOS, only when construction fell back to `noDevice`
      * because there was nothing to open — see create_audio. Exists so
      * rgame_audio_backend can still answer "Null" for this engine, matching
      * what every other no-hardware case on every platform already reports,
@@ -142,29 +142,35 @@ static rgame_audio *create_audio(int offline, unsigned int sample_rate, char *er
      * ALSA and PulseAudio unavailable, the chosen backend is "Null".
      *
      * That fallback is *inside* the real backend's own device-open attempt —
-     * it only helps if opening fails cleanly. Verified only on Linux; kept as
-     * the whole story there and on macOS, both of which already have a proven
-     * working leg and no evidence of the problem below.
+     * it only helps if opening fails cleanly. Verified on Linux, which is the
+     * one platform where it demonstrably does, and where an earlier attempt to
+     * generalise the workaround below broke a leg that had been working.
      *
-     * On Windows, a machine with zero playback devices at all (every GitHub
-     * Actions Windows runner, among others: confirmed via
-     * `Get-CimInstance Win32_SoundDevice`) crashes instead of failing inside
-     * WASAPI's default-device lookup, so the fallback above never gets a
-     * chance to run.
+     * Windows and macOS both crash instead, on a machine with zero playback
+     * devices at all — which describes every GitHub Actions runner for both
+     * (Windows confirmed via `Get-CimInstance Win32_SoundDevice`; macOS
+     * measured as 19 segfaults, exactly the 19 tests in test/test_audio.c that
+     * open a real device, while the 4 offline and 3 NULL-guard tests passed).
+     * In both cases the real backend's default-device lookup dies rather than
+     * returning a failure the fallback above could act on.
      *
-     * Windows alone gets an extra step first: enumerate devices (read-only,
-     * does not attempt to open anything, so it does not hit whatever WASAPI's
-     * own open path gets wrong with no endpoint to find) and, when there are
-     * none, fall back to `noDevice` — the same mode the offline constructor
-     * below uses — rather than the auto-detect list's own real-backend open
-     * attempt. An *explicit* null-backend device was tried first and rejected:
-     * it still spins up a real background device thread, and that thread
-     * crashed here in a way `test/test_audio.c`'s plain-C build of the same
-     * code never did — reproducing only inside a Ruby process, on this
-     * exact CI configuration, for a reason that could not be pinned down
-     * without a machine to attach a debugger to. `noDevice` sidesteps the
-     * question entirely: with no device and no background thread, there is
-     * nothing left that could crash the way a thread can.
+     * So both get an extra step first: enumerate devices (read-only, does not
+     * attempt to open anything, so it does not hit whatever the open path gets
+     * wrong with no endpoint to find) and, when there are none, fall back to
+     * `noDevice` — the same mode the offline constructor below uses — rather
+     * than the auto-detect list's own real-backend open attempt.
+     *
+     * An *explicit* null-backend device was tried first and rejected: it still
+     * spins up a real background device thread, and that thread crashed inside
+     * a Ruby process in a way the plain-C Check build of the same code never
+     * did. `noDevice` sidesteps the question entirely: with no device and no
+     * background thread, there is nothing left that could crash the way a
+     * thread can.
+     *
+     * Linux is deliberately excluded rather than merely untested. Generalising
+     * this to every platform is what broke its leg once already, and its own
+     * fallback is proven — so the rule here is that a platform opts in on the
+     * strength of a measured crash, not on the logic looking harmless.
      */
     ma_engine_config engine = ma_engine_config_init();
     engine.pResourceManager = &audio->resources;
@@ -175,7 +181,7 @@ static rgame_audio *create_audio(int offline, unsigned int sample_rate, char *er
         engine.channels = 2;
         engine.sampleRate = sample_rate;
     }
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
     else {
         ma_context probe;
         if (ma_context_init(NULL, 0, NULL, &probe) == MA_SUCCESS) {

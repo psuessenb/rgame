@@ -212,6 +212,24 @@ jobs:
           case "${{ runner.os }}" in
             macOS)
               CK_FORK=no lldb --batch -o run -o 'bt all' -- ./build/test_rgame || true
+              # CK_FORK=no is not sufficient on macOS, and measuring it is how
+              # that was learned: the audio crash on a device-less runner needs
+              # *both* no device and Check's fork, so the run above passed
+              # 325/325 and printed no stack at all on a push whose real
+              # `make test` had just reported 19 segfaults. macOS writes a full
+              # per-process crash report for a forked child that dies, so the
+              # honest source for this failure mode is the report, not the
+              # debugger. Re-run with fork left on to produce them, then print
+              # whatever landed.
+              CK_FORK=yes ./build/test_rgame || true
+              for dir in "$HOME/Library/Logs/DiagnosticReports" \
+                         /Library/Logs/DiagnosticReports; do
+                [ -d "$dir" ] || continue
+                find "$dir" -name 'test_rgame*' -maxdepth 1 -print | while read -r f; do
+                  echo "===== $f ====="
+                  cat "$f"
+                done
+              done
               ;;
             Windows|Linux)
               CK_FORK=no gdb -batch -ex run -ex 'bt full' -ex 'info threads' \

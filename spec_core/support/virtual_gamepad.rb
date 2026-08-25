@@ -36,13 +36,29 @@ class VirtualGamepad
 
   # dlopen must find the copy SDL *already loaded* rather than open a second
   # one, so the name has to match this platform's actual shared-library name.
-  SDL = Fiddle.dlopen(
+  #
+  # macOS is the exception, and it needs no name at all. dyld has nothing like
+  # Linux's ldconfig cache, so a bare `libSDL2-2.0.0.dylib` is looked for only
+  # in /usr/lib and the dyld shared cache — never in Homebrew's prefix, which
+  # is where SDL2 actually lives and which differs between Apple Silicon
+  # (/opt/homebrew) and Intel (/usr/local). Rather than guess a prefix,
+  # `Fiddle::Handle::DEFAULT` searches the images already loaded into this
+  # process, which is a *stronger* guarantee than any filename: the extension
+  # links SDL2, so the only copy this can resolve is the one the engine is
+  # already driving. It does mean the extension has to be loaded first —
+  # core_spec_helper.rb requires `rgame/core` before this file, and getting
+  # that wrong fails loudly here with an unknown-symbol DLError rather than
+  # quietly opening a second SDL.
+  #
+  # Linux and Windows keep by-name dlopen, which is measured working on both.
+  # A platform-specific problem gets a platform-specific fix — see
+  # docs/plans/cross-platform-support.md, B9, for what generalising one costs.
+  SDL =
     case RbConfig::CONFIG['host_os']
-    when /darwin/ then 'libSDL2-2.0.0.dylib'
-    when /mswin|mingw|cygwin/ then 'SDL2.dll'
-    else 'libSDL2-2.0.so.0'
+    when /darwin/ then Fiddle::Handle::DEFAULT
+    when /mswin|mingw|cygwin/ then Fiddle.dlopen('SDL2.dll')
+    else Fiddle.dlopen('libSDL2-2.0.so.0')
     end
-  )
 
   def self.fn(name, args, ret) = Fiddle::Function.new(SDL[name], args, ret)
 
