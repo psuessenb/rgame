@@ -180,12 +180,24 @@ try the next backend.
 into a null device on Windows — it may not fail at all, it may crash. Where a
 real device is wanted but the platform might have none, enumerate first
 (`ma_context_get_devices`, read-only, does not attempt to open anything) and
-choose the null backend **explicitly** when the count is zero, rather than
-letting the real backend's own open attempt discover that for you. See
-`ext/rgame_core/audio/audio.c`'s `create_audio` for the pattern: a lightweight
-`ma_context_init(NULL, 0, ...)` to enumerate, then only ever handing
-`ma_engine_init` a context that has already been confirmed (or forced) to have
-somewhere to go.
+fall back explicitly when the count is zero, rather than letting the real
+backend's own open attempt discover that for you.
+
+**And when you do fall back, prefer no device over an explicit Null one, if
+the caller can tolerate it.** The first version of this fix chose an explicit
+`{ ma_backend_null }` context — which still opens a real `ma_device` and
+spins up a real background polling thread, same as any other backend. That
+thread crashed on Windows CI too, but only when it existed **inside a Ruby
+process** — the identical C code passed cleanly through `make test`'s
+plain-C Check suite on the same runner. The cause was never pinned down (no
+device-less machine to debug it on), and didn't need to be: `ma_engine_init`
+with `noDevice = MA_TRUE` (`ext/rgame_core/audio/audio.c`'s offline
+constructor already uses this for tests) spins up no device and no background
+thread at all, so there was nothing left that could crash the way a thread
+can. If the caller only needs the engine to exist and not error out — not to
+actually receive automatic device-driven callbacks — prefer this over an
+explicit Null backend. See `create_audio`'s Windows branch for the final
+shape: enumerate, and only reach for `noDevice` when the count is zero.
 
 This generalises past audio: **any Windows CI runner should be assumed to
 have no hardware of a given kind unless something upstream (like a display
@@ -195,7 +207,30 @@ for should get the same "enumerate before you open" treatment rather than
 trusting a graceful-failure assumption that was really only ever tested on
 Linux.
 
-## 6. dlopen/soname differences, if new C touches a system library by name
+## 6. A background thread can crash inside Ruby in ways the identical code never does in plain C
+
+`make test` (the Check suite — plain C, no Ruby in the process at all) passed
+with the explicit-Null-backend version of the B9 fix above, on the exact same
+CI runner where `rake spec:core` crashed running the identical
+`create_audio` code from inside `ruby.exe`. The failing thread was one this
+project's own C spawned (via miniaudio's `ma_thread_create__win32`, not
+`rb_thread_create` or anything Ruby-aware) — a raw OS thread Ruby never
+created and knows nothing about, existing inside a process Ruby otherwise
+assumes it has full knowledge of every thread in.
+
+**The rule**: a background OS thread that a C extension spawns directly
+(audio, or any future subsystem that polls, streams, or watches something on
+its own thread) is not proven safe just because it passes the Check suite —
+Check runs it in a plain C process, and Ruby's own runtime expectations about
+its process's threads are a different environment `make test` cannot
+represent. If new C code needs a background thread and targets being called
+from Ruby, verify it there too (`rake spec:core`, or a live Windows CI run,
+not just `make test`) before trusting it — and where the thread's job can be
+avoided by using the library's own no-op/synchronous mode (as `noDevice` was
+here), that is a safer default when it satisfies the use case, over spawning
+one that the Check suite alone can appear to bless.
+
+## 7. dlopen/soname differences, if new C touches a system library by name
 
 Not this project's engine C itself (which links normally), but relevant to
 any Fiddle-based Ruby helper or C code that opens a system library by soname

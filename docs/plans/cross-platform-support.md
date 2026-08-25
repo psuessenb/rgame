@@ -793,6 +793,37 @@ logic looks harmless enough to "obviously" generalize — it is exactly the
 kind of change this session's own `windows-portability` skill exists to warn
 against making blind.
 
+**Second round: the explicit-null-backend version of this fix was itself
+wrong, and B10's backtrace is what proved it.** With B10's diagnostic step
+actually running, the next CI push produced a real stack: a *background*
+thread (not the main thread `create_audio` runs on) crashed inside
+`ma_worker_thread`/`ma_device_audio_thread__default_read_write` — the same
+device-polling machinery every earlier B7 backtrace on this machine had
+already shown, this time reached through the explicit Null-backend device
+this fix had just added. Crucially, `make test` — the plain-C Check suite,
+same code, same CI runner, no Ruby involved — passed cleanly with that exact
+code. The failure is specific to that background thread existing **inside a
+Ruby process**; nothing about it could be pinned down further without a
+device-less Windows machine to attach a live debugger to, which nothing
+available here is.
+
+Rather than keep guessing at *why* a backend thread inside Ruby crashes,
+the fix sidesteps needing to know: swap the explicit `{ ma_backend_null }`
+device for `noDevice = MA_TRUE` instead — the same mode the offline
+constructor already uses everywhere, proven safe precisely because it spins
+up **no background thread at all**. There is nothing left to crash. The one
+externally-visible difference this trades away is that `#backend` no longer
+finds a `ma_device` to name — patched with a `forced_no_device` flag that
+makes it answer `"Null"` directly, matching what every other no-hardware case
+already reports, so `audio_spec.rb`'s existing contract
+(`/\A(PulseAudio|ALSA|CoreAudio|WASAPI|Null)\z/`) needed no change. Sanity
+-checked on this machine by temporarily forcing the fallback branch
+unconditionally (a real device is always found here, so the real trigger
+condition is still unverified) — with it forced on, all 75 `audio_spec.rb`
+examples still pass, including sample/song load and playback, confirming the
+`noDevice` engine remains fully usable for everything a test (or a game not
+reading device output) does with it.
+
 Also landed: a CI diagnostic this class of failure was missing entirely.
 `ci.yml`'s Check-suite crash gets an automatic `gdb` backtrace; the Ruby-level
 crash that motivated this item got nothing but a bare exit code, because

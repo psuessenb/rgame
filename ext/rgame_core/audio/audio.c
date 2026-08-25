@@ -45,13 +45,14 @@ struct rgame_audio {
     ma_resource_manager resources;
     ma_engine engine;
     /*
-     * Owned only by the real (non-offline) constructor, so that it can
-     * enumerate devices *before* asking the engine to open one — see the
-     * comment in create_audio. Left zeroed (and never uninit'd) for an
-     * offline device, which never touches a backend at all.
+     * Set only on Windows, only when construction fell back to `noDevice`
+     * because there was nothing to open — see create_audio. Exists so
+     * rgame_audio_backend can still answer "Null" for this engine, matching
+     * what every other no-hardware case on every platform already reports,
+     * even though this engine has no `ma_device` at all for the normal
+     * lookup to find.
      */
-    ma_context context;
-    int has_context;
+    int forced_no_device;
 };
 
 struct rgame_sample {
@@ -149,11 +150,21 @@ static rgame_audio *create_audio(int offline, unsigned int sample_rate, char *er
      * Actions Windows runner, among others: confirmed via
      * `Get-CimInstance Win32_SoundDevice`) crashes instead of failing inside
      * WASAPI's default-device lookup, so the fallback above never gets a
-     * chance to run. Windows alone gets an extra step first: enumerate devices
-     * (read-only, does not attempt to open anything, so it does not hit
-     * whatever WASAPI's own open path gets wrong with no endpoint to find) and
-     * choose Null explicitly when there are none, rather than ever handing the
-     * auto-detect list a real backend it might crash trying to open.
+     * chance to run.
+     *
+     * Windows alone gets an extra step first: enumerate devices (read-only,
+     * does not attempt to open anything, so it does not hit whatever WASAPI's
+     * own open path gets wrong with no endpoint to find) and, when there are
+     * none, fall back to `noDevice` — the same mode the offline constructor
+     * below uses — rather than the auto-detect list's own real-backend open
+     * attempt. An *explicit* null-backend device was tried first and rejected:
+     * it still spins up a real background device thread, and that thread
+     * crashed here in a way `test/test_audio.c`'s plain-C build of the same
+     * code never did — reproducing only inside a Ruby process, on this
+     * exact CI configuration, for a reason that could not be pinned down
+     * without a machine to attach a debugger to. `noDevice` sidesteps the
+     * question entirely: with no device and no background thread, there is
+     * nothing left that could crash the way a thread can.
      */
     ma_engine_config engine = ma_engine_config_init();
     engine.pResourceManager = &audio->resources;
@@ -166,36 +177,24 @@ static rgame_audio *create_audio(int offline, unsigned int sample_rate, char *er
     }
 #ifdef _WIN32
     else {
-        static const ma_backend null_only[] = { ma_backend_null };
-
-        if (ma_context_init(NULL, 0, NULL, &audio->context) == MA_SUCCESS) {
-            audio->has_context = 1;
-
+        ma_context probe;
+        if (ma_context_init(NULL, 0, NULL, &probe) == MA_SUCCESS) {
             ma_uint32 playback_count = 0;
             ma_result enum_result =
-                ma_context_get_devices(&audio->context, NULL, &playback_count, NULL, NULL);
+                ma_context_get_devices(&probe, NULL, &playback_count, NULL, NULL);
+            ma_context_uninit(&probe);
 
             if (enum_result == MA_SUCCESS && playback_count == 0) {
-                ma_context_uninit(&audio->context);
-                /* Every real backend the auto-detect list would have tried
-                 * already reported no device; asking null explicitly can't
-                 * fail the way the auto-detect device-open path can. */
-                if (ma_context_init(null_only, 1, NULL, &audio->context) != MA_SUCCESS) {
-                    audio->has_context = 0;
-                }
-            }
-
-            if (audio->has_context) {
-                engine.pContext = &audio->context;
+                engine.noDevice = MA_TRUE;
+                engine.channels = 2;
+                engine.sampleRate = 44100;
+                audio->forced_no_device = 1;
             }
         }
     }
 #endif
 
     if (ma_engine_init(&engine, &audio->engine) != MA_SUCCESS) {
-        if (audio->has_context) {
-            ma_context_uninit(&audio->context);
-        }
         ma_resource_manager_uninit(&audio->resources);
         free(audio);
         set_error(err, err_size, "%s", "could not start the audio engine");
@@ -229,14 +228,8 @@ void rgame_audio_destroy(rgame_audio *audio) {
     }
 
     /* The engine first: it owns the device thread, and the resource manager
-     * underneath is still holding the data that thread may be reading. The
-     * context — when this device owns one explicitly, see create_audio — comes
-     * after the engine for the same reason: the engine's device was opened
-     * against it and must be torn down first. */
+     * underneath is still holding the data that thread may be reading. */
     ma_engine_uninit(&audio->engine);
-    if (audio->has_context) {
-        ma_context_uninit(&audio->context);
-    }
     ma_resource_manager_uninit(&audio->resources);
     free(audio);
 }
@@ -256,6 +249,16 @@ float rgame_audio_volume(const rgame_audio *audio) {
 const char *rgame_audio_backend(const rgame_audio *audio) {
     if (!audio) {
         return "none";
+    }
+
+    /* The forced-noDevice fallback (see create_audio) has no ma_device for
+     * the normal lookup below to find, but it is standing in for exactly what
+     * the Null backend already means elsewhere — no hardware, silence — so it
+     * answers the same way rather than the more literal but less useful
+     * "none", which every other caller of this function reserves for "there
+     * is no audio object at all". */
+    if (audio->forced_no_device) {
+        return "Null";
     }
 
     ma_device *device = ma_engine_get_device((ma_engine *)&audio->engine);
