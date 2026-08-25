@@ -23,6 +23,9 @@
  *     def button_down(id); end   # discrete key press
  *     def button_up(id); end
  *     def frame_begin; end       # once per frame, before the tick batch
+ *     def frame_end; end         # after draw is submitted, before the swap —
+ *                                 # rarely needed; it exists for reading pixels
+ *                                 # back in a test, not for game code
  *     def resize(w, h); end
  *     def gamepad_connected(slot); end
  *     def gamepad_disconnected(slot); end
@@ -47,6 +50,7 @@
 static ID id_frame_begin;
 static ID id_update;
 static ID id_draw;
+static ID id_frame_end;
 static ID id_needs_redraw;
 static ID id_button_down;
 static ID id_button_up;
@@ -265,6 +269,10 @@ static void tramp_draw(void *userdata) {
     protected_call((run_state *)userdata, id_draw, 0, NULL);
 }
 
+static void tramp_frame_end(void *userdata) {
+    protected_call((run_state *)userdata, id_frame_end, 0, NULL);
+}
+
 static int tramp_needs_redraw(void *userdata) {
     VALUE result = protected_call((run_state *)userdata, id_needs_redraw, 0, NULL);
     return RTEST(result) ? 1 : 0;
@@ -308,6 +316,7 @@ static VALUE app_run(VALUE self) {
         .update = tramp_update,
         .needs_redraw = tramp_needs_redraw,
         .draw = tramp_draw,
+        .frame_end = tramp_frame_end,
         .button_down = tramp_button_down,
         .button_up = tramp_button_up,
         .resize = tramp_resize,
@@ -421,6 +430,11 @@ static VALUE app_default_draw(VALUE self) {
     return Qnil;
 }
 
+static VALUE app_default_frame_end(VALUE self) {
+    (void)self;
+    return Qnil;
+}
+
 /* Default is "always redraw", matching a NULL needs_redraw in the C API. */
 static VALUE app_default_needs_redraw(VALUE self) {
     (void)self;
@@ -457,6 +471,7 @@ void Init_core_ext(void) {
     id_frame_begin = rb_intern("frame_begin");
     id_update = rb_intern("update");
     id_draw = rb_intern("draw");
+    id_frame_end = rb_intern("frame_end");
     id_needs_redraw = rb_intern("needs_redraw?");
     id_button_down = rb_intern("button_down");
     id_button_up = rb_intern("button_up");
@@ -498,6 +513,7 @@ void Init_core_ext(void) {
     rb_define_method(cApp, "frame_begin", app_default_frame_begin, 0);
     rb_define_method(cApp, "update", app_default_update, 1);
     rb_define_method(cApp, "draw", app_default_draw, 0);
+    rb_define_method(cApp, "frame_end", app_default_frame_end, 0);
     rb_define_method(cApp, "needs_redraw?", app_default_needs_redraw, 0);
     rb_define_method(cApp, "button_down", app_default_button, 1);
     rb_define_method(cApp, "button_up", app_default_button, 1);

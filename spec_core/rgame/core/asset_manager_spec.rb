@@ -32,16 +32,22 @@ RSpec.describe RGame::Core::AssetManager do
     it 'resolves every path against the root' do
       manager.image('sprites/hero.png')
 
-      expect(image_loader.last).to eq(['/media/sprites/hero.png'])
+      expect(image_loader.last).to eq([File.expand_path('/media/sprites/hero.png')])
     end
 
     it 'uses an absolute path as it stands' do
       # A loader can hand one back — the tile-map loader's tileset image comes
       # out of a .tsx that was itself found on disk — and joining it onto the
       # root would give <root>/<root>/tiles.png.
+      #
+      # Expectations go through `File.expand_path` rather than a bare literal
+      # because "as it stands" itself means something platform-specific: on
+      # Windows a leading `/` is drive-relative, so `File.expand_path` — the
+      # same call `resolve` makes — is what "as it stands" actually resolves
+      # to there, not the POSIX string.
       manager.image('/elsewhere/tiles.png')
 
-      expect(image_loader.last).to eq(['/elsewhere/tiles.png'])
+      expect(image_loader.last).to eq([File.expand_path('/elsewhere/tiles.png')])
     end
 
     it 'treats two spellings of one path as one entry' do
@@ -68,7 +74,7 @@ RSpec.describe RGame::Core::AssetManager do
       # image('x') and read('x') are different assets that happen to share a
       # name, and collapsing them would hand a caller a String where it wanted
       # an image.
-      descriptors['/media/x'] = 'raw bytes'
+      descriptors[File.expand_path('/media/x')] = 'raw bytes'
       assets = manager
 
       expect(assets.image('x')).to be_a(StubImage)
@@ -181,7 +187,7 @@ RSpec.describe RGame::Core::AssetManager do
       assets = manager
       assets.add_loader(:level) { |path| "level at #{path}" }
 
-      expect(assets.level('one.json')).to eq('level at /media/one.json')
+      expect(assets.level('one.json')).to eq("level at #{File.expand_path('/media/one.json')}")
     end
 
     it 'caches and groups an added type like any other' do
@@ -224,8 +230,8 @@ RSpec.describe RGame::Core::AssetManager do
 
   describe 'composites' do
     let(:descriptors) do
-      { '/media/sheets/hero.json' => JSON.generate(image: 'hero.png',
-                                                   frame_width: 16, frame_height: 16) }
+      { File.expand_path('/media/sheets/hero.json') => JSON.generate(image: 'hero.png',
+                                                                     frame_width: 16, frame_height: 16) }
     end
 
     it 'assembles a sheet from a cached descriptor and a cached image' do
@@ -235,7 +241,7 @@ RSpec.describe RGame::Core::AssetManager do
     it 'resolves the descriptor image next to the descriptor' do
       manager.sheet('sheets/hero.json')
 
-      expect(image_loader.last).to eq(['/media/sheets/hero.png'])
+      expect(image_loader.last).to eq([File.expand_path('/media/sheets/hero.png')])
     end
 
     it 'shares its backing image with a standalone load of the same file' do

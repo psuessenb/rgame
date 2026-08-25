@@ -25,15 +25,16 @@ require 'fiddle'
 # ## How the read is possible at all
 #
 # Drawing is deferred: a `draw` call only appends to a queue, which is sorted,
-# batched and submitted to GL *after* the callback returns. So there is nothing
-# to read during the frame that produced it. The capture therefore runs two
-# frames and reads at the start of the second, before that frame's clear —
-# at which point the previous frame's image is still in the back buffer.
-#
-# That relies on the buffer swap being a copy rather than a page flip, which is
-# what Mesa's llvmpipe does under Xvfb — the only configuration `rake spec:core`
-# runs the pixel tests in. It is a safe thing to rely on: if a driver ever left
-# the back buffer undefined, these specs would *fail*, not silently pass.
+# batched and submitted to GL only once the callback returns — so there is
+# nothing to read yet at the point `draw` itself returns. `App#frame_end` is
+# the hook that exists for exactly this: the engine calls it once submission
+# has happened but before `SDL_GL_SwapWindow`, which is the one moment the back
+# buffer is guaranteed to hold this frame's image on every driver. Reading
+# there needs no assumption about how a given driver implements the swap —
+# earlier versions of this file read at the *start of the next frame* instead,
+# which relied on the swap being a copy rather than a page flip (true of Mesa's
+# llvmpipe under Xvfb, false of at least one real Windows driver measured
+# during the Windows port — see docs/plans/cross-platform-support.md, B2).
 module RenderedFrame
   GL_RGBA = 0x1908
   GL_UNSIGNED_BYTE = 0x1401
@@ -67,7 +68,18 @@ module RenderedFrame
       @finish ||= Fiddle::Function.new(library['glFinish'], [], Fiddle::TYPE_VOID)
     end
 
-    def library = @library ||= Fiddle.dlopen('libGL.so.1')
+    # The library name SDL's own GL context already loaded — this reaches into
+    # it rather than opening a second copy, so the name has to match whatever
+    # that platform's loader actually calls it.
+    def library
+      @library ||= Fiddle.dlopen(
+        case RbConfig::CONFIG['host_os']
+        when /darwin/ then '/System/Library/Frameworks/OpenGL.framework/OpenGL'
+        when /mswin|mingw|cygwin/ then 'opengl32.dll'
+        else 'libGL.so.1'
+        end
+      )
+    end
 
     # Every pixel of the current back buffer, bottom row first (GL's order).
     def grab(width, height)
@@ -80,8 +92,8 @@ module RenderedFrame
 
     private
 
-    # An App that draws the caller's block on its first frame, captures the
-    # result at the start of its second, and stops.
+    # An App that draws the caller's block, captures the result once it has
+    # been submitted to GL, and stops — one frame, not two.
     def capture_class
       @capture_class ||= Class.new(RGame::Core::App) do
         attr_reader :frame
@@ -90,19 +102,15 @@ module RenderedFrame
           super(width: width, height: height, caption: 'rendered frame')
           @renderer = RGame::Core::Renderer.new(self)
           @block = block
-          @drawn = 0
-        end
-
-        def frame_begin
-          return unless @drawn == 1
-
-          @frame = RenderedFrame.grab(width, height)
-          close
         end
 
         def draw
           @block.call(@renderer, self)
-          @drawn += 1
+        end
+
+        def frame_end
+          @frame = RenderedFrame.grab(width, height)
+          close
         end
       end
     end

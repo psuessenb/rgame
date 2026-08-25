@@ -1,18 +1,29 @@
 # Cross-platform support — macOS and Windows
 
-**Status: steps 0–2 landed; B7 is what blocks a green leg on both platforms.**
+**Status: the Windows leg is functionally green.** `rake` (`make test` + `rake
+spec` + `rake spec:core`) passes end to end on a real Windows machine — 325 C
+checks, 904 headless examples, 350 Core examples, all green, repeatedly. B7 is
+the one open question left, and it is now believed fixed rather than merely
+unreproduced — see its section for why that belief is qualified. macOS is
+unchanged from the state below; nobody has picked it up since.
 Written 2026-08-21 from a read of the build wiring, the engine C, and the spec
-scaffolding; revised twice since, after each CI run. Anything marked *(sketch)*
-was never executed; anything marked *(measured)* came off a real runner.
+scaffolding; revised after each CI run and again from a real Windows machine.
+Anything marked *(sketch)* was never executed; anything marked *(measured)*
+came off a real runner.
 
-**2026-08-25: first pass on an actual Windows machine.** Everything in "Windows
-setup" below was executed for the first time — see the notes inline for what
-differed from the untested instructions. `make test` and `bundle exec rake spec`
-both run end to end with zero code changes needed for steps 1–2. Two things
-came out of it that the plan did not anticipate: B7 does not reproduce the way
-either hypothesis below predicts (see the new note under B7), and a real,
-previously-unknown portability bug turned up in `RGame::Util::Color` (A4,
-new). The Verdict below is amended accordingly.
+**2026-08-25: two sessions on an actual Windows machine.** The first installed
+the toolchain and ran the build once to establish a baseline (see "Windows
+setup" for what differed from the untested instructions). The second — same
+day — worked the open items to a green `rake`. Landed: A4 (the `Color`
+`NUM2ULONG` bug), A5 (a new finding: `SpatialHash`'s cell-key packing overflows
+Windows' Fixnum range and allocates on every query), B1 (dlopen sonames), B2
+(read pixels via a new `frame_end` hook instead of relying on swap semantics —
+fixed 56 of 58 `spec:core` failures in one change), B4 (the vorbis fixture's
+`/tmp`), and a new B8 (`File.expand_path` resolving a leading `/` against the
+current drive, which broke `AssetManager`'s path specs). B7 turned out to be
+misdiagnosed from the start — see its section — and the current evidence, while
+not airtight, points to it being fixed as a side effect of B4. The Verdict
+below is amended for A5.
 
 **If you are picking this up on a Mac or a Windows box, start at
 "Working on the machines directly", then run the experiment it names.** The
@@ -47,8 +58,8 @@ So the work splits cleanly:
 
 | | Scope | Where it fails today *(measured)* |
 |---|---|---|
-| **A. Build wiring** | 4 items, small, mechanical | macOS cannot link `make test`: `ld: library 'GL' not found` |
-| **B. Test scaffolding** | 5 items, most of the effort | unreached — nothing Ruby-side runs until A is done |
+| **A. Build wiring** | 5 items, small, mechanical — **all landed on Windows** | macOS cannot link `make test`: `ld: library 'GL' not found` |
+| **B. Test scaffolding** | 8 items — **all landed or resolved on Windows** | unreached — nothing Ruby-side runs until A is done |
 | **C. Deliberate decisions** | 4 open questions | not blocking, but they shape A and B |
 
 ## What is already portable, and why
@@ -226,18 +237,57 @@ That holds on Linux and macOS (LP64: `long` is 64 bits) and fails on Windows
 `NUM2ULONG(0x1_0000_0000)` itself raises — `RangeError`, from inside the Ruby/C
 boundary — and the function's own `ArgumentError` is never reached.
 `spec/rgame/util/color_spec.rb:35` ("rejects a packed value wider than 32
-bits") is what caught it: 904 examples run, this was one of 3 failures, and
-it's the only one that's a real cross-platform defect rather than a spec
-written against Linux-only behaviour (see B7's Windows note and the two
-`allocate_nothing` failures below for the other two — those look like a
-per-platform allocation-counting difference in the matcher or this Ruby build,
-not investigated yet).
+bits") is what caught it: 904 examples run, this was one of 3 failures. The
+other two turned out to be A5, not a matcher or Ruby-build quirk — see below.
 
-The fix is to stop routing through a C type whose width is platform-defined:
-pull the value with `rb_num2ull` (or `NUM2ULL`, unconditionally 64-bit) instead
-of `NUM2ULONG`, do the `> 0xFFFFFFFF` check against that, and only narrow to
-`rgame_color` after the check passes. Not yet done — recorded here for
-whoever picks up A/B next.
+**Landed.** Pull the value with `NUM2ULL` (unsigned long long, 64 bits on
+every platform this project builds for) instead of `NUM2ULONG`, do the
+`> 0xFFFFFFFF` check against that, and only narrow to `rgame_color` after the
+check passes. `spec/rgame/util/color_spec.rb` is green on both platforms.
+
+### A5. `SpatialHash`'s cell keys overflow Windows' Fixnum range and allocate *(measured, new)*
+
+Not predicted anywhere above — found by two `allocate_nothing` failures in the
+same `rake spec` run that found A4, on components that have nothing to do with
+audio or Color: `CollisionWorld#nearest` and `Targeting#target` both "allocated
+32000 objects over 1000 calls" on Windows where Linux allocates zero.
+
+The cause is the same shape as A4 — a C-integer-width assumption that only
+Linux/macOS's LP64 model satisfies — but one level removed: this time it is
+**CRuby's own Fixnum tagging**, not this project's code, that assumes it.
+CRuby represents a small integer as an immediate value with no heap allocation
+(a "Fixnum") up to a magnitude that comes from the C `long` the interpreter
+itself was built with. LP64 Ruby gets roughly 62 bits of range; **Windows'
+LLP64 Ruby gets roughly 30**, confirmed by measuring the allocation cost of
+`3 + (1 << n)` for increasing `n` on this build: zero allocations through
+`n = 29`, one full heap allocation per call from `n = 30` on. Nothing prints
+this number — it has to be measured per build, and it is dramatically smaller
+than the Linux figure everyone's mental model is calibrated on.
+
+[`lib/rgame/engine/spatial_hash.rb`](../../lib/rgame/engine/spatial_hash.rb)
+packed a cell's `(col, row)` into one key as `(col + OFFSET) * STRIDE + (row +
+OFFSET)` with `OFFSET = 1 << 20` and `STRIDE = 1 << 21` — comfortably inside
+Linux's ~2^62 ceiling (keys ran up to ~2^42), miles outside Windows' ~2^30 one.
+Every key became a heap-allocated Bignum instead of an immediate value, once
+per cell per query — silently, since `Integer#class` reports `Integer` either
+way in modern Ruby and cannot be used to tell an Bignum from a Fixnum from pure
+Ruby. Finding it took an allocation trace (`ObjectSpace.each_object` before and
+after one call, diffed) — see the failing spec's stack for the method, but the
+*mechanism* is invisible without instrumenting the allocator directly.
+
+**Landed.** `OFFSET` and `STRIDE` are now `1 << 13` and `1 << 14`, keeping the
+largest possible packed key under 2^28 — comfortable margin below Windows'
+ceiling — while still supporting cell coordinates out to +/-8192 (a multi-
+million-pixel world at any sane `cell_size`). The comment at the constants
+spells out the mechanism, since "why is this smaller than it needs to be on
+Linux" is exactly the question the next platform surprise will provoke.
+
+**This is worth generalising as a warning, not just a fix in one file.** Any
+future code that packs several small integers into one Ruby integer for a
+Hash/Set key — the same trick this file used — inherits the same ~2^30 ceiling
+on Windows no matter how generous it looks on the machine writing it. There is
+no compiler flag or `RbConfig` check that surfaces this; it has to be
+remembered, or measured again the way this was.
 
 ## B. Test scaffolding — where the effort actually is
 
@@ -260,6 +310,12 @@ OS-level, so only the library name changes. Note the dlopen must find the copy
 SDL *already loaded* rather than a second one; by-name dlopen does that on all
 three, but it is worth asserting rather than assuming on Windows.
 
+**`rendered_frame.rb` and `virtual_gamepad.rb` landed** (both now branch on
+`RbConfig::CONFIG['host_os']`); `x_keys.rb` is unstarted — its fix is B3's, not
+this item's, because it needs a whole new backend rather than a different
+string. Verified on Windows: `bundle exec rake spec:core` opens 350 real-window
+examples using both files with no dlopen failures.
+
 ### B2. The back-buffer read makes a software-rasteriser assumption
 
 This is the subtle one, and the one most likely to be misread as a bug in the
@@ -277,6 +333,39 @@ The durable fix is to read **before** `SDL_GL_SwapWindow` rather than at the
 start of the following frame, which needs no assumption about swap semantics at
 all. Worth doing as part of this work rather than after the first confusing red
 CI run.
+
+**Landed, and measured to matter: this was the single highest-impact fix in
+the whole port.** Windows' real driver does *not* preserve the back buffer the
+way llvmpipe does — confirmed by running `rake spec:core` before this fix: 58
+of 350 examples failed, overwhelmingly with a captured frame reading back as
+solid black (the *next* frame's clear colour) instead of what had actually
+been drawn.
+
+The durable fix needed a seam that did not exist: `App` had `frame_begin`
+(before a frame's ticks) and `draw` (queues drawing, does not submit it) but
+nothing between the queue being submitted to GL and the buffer swap — the one
+point a driver is guaranteed to still be showing this frame's image. Added as
+a new optional callback, `frame_end`, symmetric with `frame_begin`: threaded
+through [`core.h`](../../ext/rgame_core/include/rgame/core.h) (a new
+`rgame_frame_end_fn` in `rgame_app_callbacks`), called in
+[`app.c`](../../ext/rgame_core/app/app.c) between `rgame_canvas_submit` and
+`SDL_GL_SwapWindow`, and exposed on `RGame::Core::App` the same way every other
+hook is (trampoline, default no-op, `rb_define_method`) in
+[`core_ext.c`](../../ext/rgame_core/ruby/core_ext.c). `rendered_frame.rb` then
+needs only one frame instead of two: `draw` queues the caller's block,
+`frame_end` grabs the pixels and closes. Documented on `App` as "rarely needed
+outside a test that reads pixels" — it is real public API surface, not a
+test-only backdoor, but a game has no reason to reach for it.
+
+Fixed 56 of the 58 failing examples in one change. The remaining 2
+([`tile_map_renderer_spec.rb`](../../spec_core/rgame/core/tile_map_renderer_spec.rb))
+were a second, smaller, unrelated finding: they compared a background pixel
+with strict `eq` instead of the tolerant `about?` every other pixel spec in the
+suite uses, and this GPU's rasteriser rounds the same clear colour to `[25, 25,
+38]` where llvmpipe gives `[26, 26, 38]` — one unit off, and exactly what
+`about?`'s documented tolerance exists for. Switched both to `about?`,
+matching the established convention; `rake spec:core` is now 350 examples, 0
+failures.
 
 ### B3. Key injection is missing on two platforms, and the suite stays green
 
@@ -303,6 +392,17 @@ malformed-input fixtures through `mkstemp("/tmp/rgame_vorbis_testXXXXXX")`.
 Fine on macOS; on Windows it needs `GetTempPath`/`tmpnam_s`. The file already
 carries a comment explaining the `-std=c17`/POSIX feature-macro dance, so the
 reasoning for whatever replaces it belongs in the same place.
+
+**Landed — and `mkstemp` itself needed no replacement.** Measured: mingw-w64's
+UCRT does provide a working `mkstemp`, so the only real problem was the
+hardcoded `/tmp` — `C:\tmp` does not exist on a default Windows install, so
+every `scratch_file` call was failing `ck_assert_int_ge(fd, 0)` (confirmed by
+checking for the directory directly). The fix is `scratch_dir()`, which reads
+`TMPDIR`/`TEMP`/`TMP` in that order and falls back to `/tmp`, plus a wider
+stack buffer (some real Windows `TEMP` paths run past the old fixed 29-byte
+one) built with `snprintf` instead of a literal `strcpy`. Verified: `vorbis_decoder`
+suite alone, 14/14, repeatedly. See B7 for why this fix's side effects turned
+out to matter beyond its own suite.
 
 ### B5. Check loses fork isolation on Windows
 
@@ -379,10 +479,9 @@ costs a round trip either way, and one of them is a no-op. `ci.yml` now runs a
 debugger automatically when the C suite fails — `CK_FORK=no` so the stack is
 the crashing process rather than Check's parent.
 
-**2026-08-25, measured on a Windows machine with a real sound device — neither
-hypothesis fits.** This machine has actual audio hardware, which is exactly
-the condition hypothesis 2 says should make the suite pass. It does not,
-cleanly:
+**2026-08-25, first Windows session — neither hypothesis fits.** This machine
+has actual audio hardware, which is exactly the condition hypothesis 2 says
+should make the suite pass. It does not, cleanly:
 
 - `CK_FORK=no CK_RUN_SUITE=audio gdb --batch -ex run -ex "bt full" -- ./build/test_rgame`
   — the audio suite run **by itself** passes clean: `26/26`, no crash, real
@@ -400,18 +499,133 @@ That rules out "no device" (hypothesis 2) outright — there is one, and audio
 alone is fine — and doesn't obviously fit hypothesis 1 either (runtime-linked
 CoreAudio is macOS-specific; Windows' equivalent would be WASAPI symbol
 resolution, and a missing-symbol failure doesn't produce a *delayed* heap
-corruption two tests later). The working theory instead: something in an
-**earlier** suite (font/atlas/glyph_cache and vorbis_decoder are the
-candidates immediately before audio in run order) corrupts the heap, and it
-only surfaces once audio's allocation pattern trips over the damage. That is a
-different bug from both of this section's hypotheses and needs its own
-backtrace-driven hunt — bisecting `CK_RUN_SUITE` pairs (e.g. `vorbis_decoder`
-run immediately before `audio`) is the next concrete step, not yet done.
+corruption two tests later).
 
-Whether macOS's crash is the same root cause as this one is still open — the
-macOS run never got a chance to isolate `audio` alone the way this one did,
-because it has no confirmed real device to test hypothesis 2 against in the
-first place.
+**2026-08-25, second Windows session — misdiagnosed from the start: this was
+never about a real device at all.** Everything above, including this plan's
+own framing ("Opening a *real* audio device crashes"), assumed the crash was
+in `rgame_audio_create`/WASAPI because the backtrace's leaf frame —
+`ma_device_audio_thread__default_read_write` — is the function name every real
+backend's device thread runs. It is *also* the function the **null** backend's
+device thread runs, because miniaudio's default engine is shared across every
+non-asynchronous backend, WASAPI and null alike. Nothing in the earlier
+sessions actually distinguished the two.
+
+A `gdb` breakpoint on `rgame_audio_create` — our own wrapper, the only place
+in the whole codebase that opens a *real* device — settles it: **zero hits**,
+on a run that crashes with the identical signature every time. Confirmed
+against a control case first (the same breakpoint, same binary, run against
+just the audio suite where it is known to pass, fires 43 times as expected —
+so the breakpoint mechanism itself is not the problem). Grepping the whole
+`test/` tree for `ma_engine_init`/`ma_context_init` turns up exactly two call
+sites outside `audio.c`, both in
+[`test/test_vorbis_decoder.c`](../../test/test_vorbis_decoder.c):
+`the_engine_can_read_an_ogg_too` and `the_engine_refuses_a_file_that_is_not_an_ogg`,
+both explicitly `{ ma_backend_null }`. **The crash is in `vorbis_decoder`, not
+`audio` — the buffered "Running suite(s)" list cutting off after
+`vorbis_decoder` was never a coincidence, it was accurate the whole time**, and
+every hypothesis above (WASAPI symbol resolution, no sound card) was answering
+a question this bug does not ask.
+
+That does not fully localise it either. Looping
+`the_engine_can_read_an_ogg_too`'s entire body 20 times in one process (a
+temporary edit, reverted) never crashes on its own; running just that one test
+15/15 times never crashes. The corruption needs heap activity from *other*
+suites first to become visible — consistent with genuine memory corruption
+whose damage is silent until something else's allocation trips over it, which
+is the least tractable kind to pin down by bisection alone.
+
+**It also behaves like a heisenbug, twice over, which is itself evidence.**
+Two unrelated changes made it stop reproducing:
+
+1. Adding `fprintf(stderr, ...); fflush(stderr);` diagnostic prints to
+   `create_audio`/`rgame_audio_destroy` — which, note, is code that gdb had
+   just proven never runs before this crash — dropped a scenario that crashed
+   2 of 3 times down to 4 of 4 clean runs. Removing the prints (confirmed via
+   `git diff` showing zero change to `audio.c`) brought the crashes back.
+2. B4's fix (below) — a larger stack buffer and an `snprintf` call added to
+   `test_vorbis_decoder.c`, the exact file the crash is now known to be in —
+   took the **full** suite from a deterministic 100% crash rate (5/5 runs
+   before) to 100% clean (14/14 runs after, across both explicit `CK_FORK=no`
+   and the plain documented `make test`).
+
+Neither change touches the code path gdb proved is responsible in any way that
+should matter to *correctness* — a diagnostic `fprintf` and a bigger unrelated
+buffer do not fix a logic bug. Both changes alter heap layout and timing.
+That a heap-layout change silences a crash whose own signature
+(`RtlValidateHeap` firing on a *later*, unrelated allocation) already pointed
+to corruption is close to a second confirmation, not a coincidence: **the
+belief is that B4 fixed B7 as a side effect**, not that B7 was independently
+resolved. That belief is not proven, and should not be treated as closed.
+
+**Two more rigorous diagnostics were attempted and both are currently
+blocked, not exhausted:**
+
+- **AddressSanitizer**, which is `.claude/skills/verify/SKILL.md`'s documented
+  "reliable, use this" tool for exactly this class of bug, does not work on
+  this toolchain: `gcc -fsanitize=address,undefined` compiles cleanly but
+  fails to *link* — `ld: cannot find -lasan` / `-lubsan`. Measured: MSYS2's
+  `ucrt64` GCC package does not ship the sanitizer runtimes at all (`pacman -Ss
+  asan` finds nothing). **Not a dead end**: `mingw-w64-ucrt-x86_64-compiler-rt`
+  exists in the same repository and pairs with `mingw-w64-ucrt-x86_64-clang`
+  — Clang's Windows ASan support is materially more mature than GCC's, so
+  building the C suite with `ucrt64` clang instead of gcc is the concrete next
+  step for a real ASan run, not yet tried.
+- **Windows page heap** (the `gflags`/Application Verifier mechanism, OS-level
+  and needing no compiler support at all — every allocation on its own guard
+  page, catching the exact faulting instruction the way ASan does) needs an
+  `HKLM` registry key
+  (`...\Image File Execution Options\test_rgame.exe\GlobalFlag`) and this
+  session's shell does not have admin rights to write it. Elevating once —
+  interactively, or a `sudo`/"Run as Administrator" PowerShell — and rerunning
+  the crash would very likely produce an exact, first-fault backtrace in
+  minutes; this is the highest-value single action left for whoever picks this
+  up next with elevated access.
+
+**Current practical status**: `make test`, and the full `rake` task, pass
+reliably on this machine as of the fixes landed today — 14 consecutive clean
+`make test` runs, plus one full `rake` (325 C checks + 904 + 350 RSpec
+examples) all green. That is a real, useful result for actually developing on
+Windows day to day. It is reported here as "believed fixed via B4, not
+confirmed fixed" rather than "landed", specifically because a heisenbug that
+stops reproducing after an incidental heap-layout change is exactly the
+failure mode that later comes back under a slightly different build, compiler
+version, or allocation pattern — the honest status is "not currently
+reproducing," and only a clean ASan or page-heap run turns that into "fixed."
+
+Whether macOS's crash is the same root cause as any of this is still entirely
+open — the macOS run never isolated `audio` from `vorbis_decoder` the way this
+session did, and now that Windows' crash has turned out to be in
+`vorbis_decoder` rather than `audio`, the macOS backtrace (never captured
+frame-by-frame, only "19 of 26 audio tests segfault") should be re-read with
+that possibility in mind before assuming it is hypothesis 1 or 2 either.
+
+### B8. `File.expand_path` resolves a leading `/` against the current drive on Windows *(measured, new)*
+
+Found alongside A4/A5 by the same `rake spec:core` run, in
+[`spec_core/rgame/core/asset_manager_spec.rb`](../../spec_core/rgame/core/asset_manager_spec.rb) —
+8 of that run's failures, none in `AssetManager` itself.
+
+`AssetManager#resolve` is `File.expand_path(path, @root)`, and its own comment
+already explains why: an **absolute** path is used as it stands, so a loader
+handing one back (a tileset image found from a `.tsx` already on disk) does
+not get `<root>/<root>/tiles.png`. The spec fixtures took "absolute path" at
+face value and hardcoded literal strings like `/media/sprites/hero.png` as
+both inputs and expected outputs — which is exactly what breaks, because
+"absolute" is not one concept across platforms. POSIX has a drive-independent
+root; Windows does not, so `File.expand_path('/media/x')` resolves against
+the *current drive*, giving `C:/media/x` rather than `/media/x`. This is
+correct, intentional Ruby behaviour on Windows, not a bug to work around — the
+one-argument form of `File.expand_path` cannot mean anything else there.
+
+The spec was asserting against a Linux-only reading of its own fixture, not
+against `AssetManager`'s actual contract. Every hardcoded expectation and every
+descriptor-hash key built from a bare `/...` literal now goes through
+`File.expand_path(...)` itself — the same call `resolve` makes — rather than a
+written-out string, so the assertion is "the caller received what `resolve`
+was always going to produce here," which holds on every platform including the
+one it was written on. **Landed**; `asset_manager_spec.rb` is 30/30 on
+Windows.
 
 ## Can this be done from Linux? *(asked, answered, then superseded)*
 
@@ -570,7 +784,26 @@ completed including native gems (`json`, `zlib`, `prism`); `make test` compiled
 and linked all 25 engine translation units plus the Check binary against
 SDL2/opengl32/check with **no source changes** — confirming A1–A3 and A2/step-2
 work as already landed; `make ext-util` and `bundle exec rake spec` ran, 904
-examples with only the 3 failures noted at A4 and B7 above.
+examples with only the 3 failures noted at A4 and A5 above (this was before
+either was fixed).
+
+**One packaging-adjacent finding from this same first session, unrelated to
+the build itself:** `make ext-util`/`make ext-core` each leave behind a
+`*-x64-mingw-ucrt.def` file (mkmf's export list for the linker) next to the
+extension's `.c` files, and one of them had already been committed by hand —
+`.gitignore` had every other mkmf artifact (`Makefile`, `mkmf.log`, `*.o`,
+`*.so`) but not `*.def`. A `NUL` file also turned up in `ext/rgame_util/`,
+apparently from an mkmf-generated Makefile rule redirecting to a POSIX-style
+null-device path that MSYS2 `make` creates literally on Windows instead of
+discarding. Both patterns are now in `.gitignore`, and the wrongly-committed
+`.def` is untracked — small, but exactly the kind of thing that only a real
+Windows build surfaces.
+
+**Second session, same day: A4, A5 and B1/B2/B4/B8 all landed — see their own
+sections — and the full `rake` task (`make test` + `rake spec` + `rake
+spec:core`) passes cleanly: 325 + 904 + 350 examples, 0 failures, repeatably.**
+B7 is believed fixed as a side effect of B4 but not confirmed; see B7's own
+account of why that belief is qualified rather than a clean "landed."
 
 #### The environment trap — read this before the first build
 
@@ -853,16 +1086,25 @@ Two things to watch on the next run, both unverifiable from here:
 Windows-only, but it blocks `make test` there, so it sits ahead of everything
 Ruby-side. macOS is unaffected.
 
+**Landed on Windows** — see B4. Its side effect on B7 is the reason this step
+turned out to matter more than its own suite.
+
 ### Step 4 — dlopen names in the spec support (B1)
 
 `rendered_frame.rb` and `virtual_gamepad.rb`. First step where `rake spec:core`
 can get anywhere on either platform.
+
+**Landed on Windows** — see B1.
 
 ### Step 5 — read pixels before the swap (B2)
 
 Do this *before* interpreting any macOS or Windows pixel-spec failure, so a
 harness assumption cannot be mistaken for a renderer bug. Real GPU drivers are
 free to page-flip; llvmpipe's copy-swap is what the current read relies on.
+
+**Landed on Windows, and the prediction here was exactly right** — see B2. A
+real Windows driver does page-flip; this was the single highest-impact fix in
+the whole port (56 of 58 `spec:core` failures on Windows).
 
 ### Flip `ported: true` — per platform, when its leg is actually green
 
@@ -874,6 +1116,12 @@ just as much as the compiler flags do.
 Leaving a working platform marked unported is how it silently rots back out —
 `continue-on-error` means nobody would notice it break again. See the flag's
 comment in [`ci.yml`](../../.github/workflows/ci.yml).
+
+**Windows qualifies as of 2026-08-25**, with one caveat: B7's fix is believed
+rather than confirmed (see B7's "heisenbug" note), so flipping the flag is
+reasonable but should come with a comment noting that B7 is watched rather than
+closed — if `make test` starts crashing again on CI, B7 is the first suspect,
+not a regression in whatever the diff actually touched.
 
 ### Step 6 — `"SDL.h"` robustness (A1, optional)
 

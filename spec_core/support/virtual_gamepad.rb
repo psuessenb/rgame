@@ -34,7 +34,15 @@ class VirtualGamepad
   AXIS_MAX = 32_767
   AXIS_MIN = -32_768
 
-  SDL = Fiddle.dlopen('libSDL2-2.0.so.0')
+  # dlopen must find the copy SDL *already loaded* rather than open a second
+  # one, so the name has to match this platform's actual shared-library name.
+  SDL = Fiddle.dlopen(
+    case RbConfig::CONFIG['host_os']
+    when /darwin/ then 'libSDL2-2.0.0.dylib'
+    when /mswin|mingw|cygwin/ then 'SDL2.dll'
+    else 'libSDL2-2.0.so.0'
+    end
+  )
 
   def self.fn(name, args, ret) = Fiddle::Function.new(SDL[name], args, ret)
 

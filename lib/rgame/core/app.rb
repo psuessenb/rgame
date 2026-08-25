@@ -16,6 +16,8 @@
 #                              # fixed step, never wall-clock frame time
 #     def needs_redraw?; end   # false skips the draw (simulation still runs)
 #     def draw; end            # render one frame
+#     def frame_end; end       # after draw is submitted, before the swap —
+#                              # rarely needed outside a test that reads pixels
 #     def button_down(id); end # discrete key press (no repeats)
 #     def button_up(id); end
 #     def resize(w, h); end
