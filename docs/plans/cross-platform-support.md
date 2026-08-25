@@ -411,6 +411,33 @@ suite uses, and this GPU's rasteriser rounds the same clear colour to `[25, 25,
 matching the established convention; `rake spec:core` is now 350 examples, 0
 failures.
 
+**A third driver, same lesson, found by CI itself.** The first real Windows
+CI run past B9 turned up two more: `nine_slice_spec.rb`'s corner check and
+`tile_map_renderer_spec.rb`'s *third* pixel test — `"draws at the world
+origin..."` — which this session's own dev machine had left on strict `eq`
+because it happened to render exactly `[255, 255, 255, 255]` here. CI's
+runner (a different GPU/driver again — its own software or virtual
+rasteriser, distinct from both llvmpipe and this dev machine's real one)
+rounds the same white to `[252, 252, 252, 255]`. Switched to `about?`, same
+treatment as before. The NineSlice failure couldn't be fixed the same way
+sight-unseen: `about?` already returns a bare boolean, so a failure carries no
+information about what was actually sampled — unlike the version above, the
+next failure (if any) needs to say what colour actually came back rather than
+prompt a second blind guess. Added a small `expect_pixel` helper local to that
+one spec that reports the actual pixel via `frame.at` on failure. Whether
+that assertion is genuinely wrong or just needs a similar tolerance nudge is
+still unknown as of this writing — the diagnostic is what the next CI run
+needs to say which.
+
+**The pattern by now is not "the Windows port has a rendering bug" — it is
+that llvmpipe (Linux CI), this dev machine's GPU, and the Windows CI runner's
+own driver are three separate rasterisers that each round the same
+arithmetic slightly differently**, and a pixel spec that hardcodes an exact
+value is really only ever tested against whichever one machine wrote it.
+`about?`'s tolerance exists for exactly this and should be the default for
+any *new* pixel assertion in `spec_core` — a strict `eq` on a rendered pixel
+should be treated as needing a specific reason, not the default.
+
 ### B3. Key injection is missing on two platforms, and the suite stays green
 
 `filter_run_excluding(:needs_key_injection)` means a macOS or Windows run passes

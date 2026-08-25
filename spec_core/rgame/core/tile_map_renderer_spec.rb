@@ -238,7 +238,7 @@ RSpec.describe RGame::Core::TileMapRenderer do
     end
 
     it 'draws at the world origin when the caller applies no transform' do
-      expect(draw_map_at(0, 0).at(4, 4)).to eq([255, 255, 255, 255])
+      expect(draw_map_at(0, 0).about?(4, 4, [255, 255, 255, 255])).to be(true)
     end
 
     # The camera offset a WorldView applies. The map has to move with it, which

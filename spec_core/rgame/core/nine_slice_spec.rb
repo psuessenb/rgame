@@ -221,6 +221,15 @@ RSpec.describe RGame::Core::NineSlice do
   end
 
   describe 'drawing a real slice' do
+    # `about?` alone reports a bare boolean, so a failure doesn't say what was
+    # actually there. Naming the point means a failure says which one and
+    # what it found, rather than leaving a driver this hasn't run on before
+    # to guess at blind.
+    def expect_pixel(frame, x, y, expected, label)
+      message = "#{label}: expected close to #{expected.inspect}, got #{frame.at(x, y).inspect}"
+      expect(frame.about?(x, y, expected)).to be(true), message
+    end
+
     # The stub proves the arithmetic; this proves it reaches the GPU. A 3x3
     # source with a 1-pixel border: red corners, green edges, blue centre.
     let(:png) do
@@ -241,11 +250,11 @@ RSpec.describe RGame::Core::NineSlice do
         panel.draw(renderer, 0, 0, 64, 64)
       end
 
-      expect(frame.about?(4, 4, [255, 0, 0, 255])).to be(true)    # top-left corner
-      expect(frame.about?(60, 60, [255, 0, 0, 255])).to be(true)  # bottom-right corner
-      expect(frame.about?(32, 4, [0, 255, 0, 255])).to be(true)   # top edge
-      expect(frame.about?(4, 32, [0, 255, 0, 255])).to be(true)   # left edge
-      expect(frame.about?(32, 32, [0, 0, 255, 255])).to be(true)  # centre
+      expect_pixel(frame, 4, 4, [255, 0, 0, 255], 'top-left corner')
+      expect_pixel(frame, 60, 60, [255, 0, 0, 255], 'bottom-right corner')
+      expect_pixel(frame, 32, 4, [0, 255, 0, 255], 'top edge')
+      expect_pixel(frame, 4, 32, [0, 255, 0, 255], 'left edge')
+      expect_pixel(frame, 32, 32, [0, 0, 255, 255], 'centre')
     end
   end
 end
