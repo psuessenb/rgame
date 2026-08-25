@@ -419,15 +419,7 @@ because it happened to render exactly `[255, 255, 255, 255]` here. CI's
 runner (a different GPU/driver again — its own software or virtual
 rasteriser, distinct from both llvmpipe and this dev machine's real one)
 rounds the same white to `[252, 252, 252, 255]`. Switched to `about?`, same
-treatment as before. The NineSlice failure couldn't be fixed the same way
-sight-unseen: `about?` already returns a bare boolean, so a failure carries no
-information about what was actually sampled — unlike the version above, the
-next failure (if any) needs to say what colour actually came back rather than
-prompt a second blind guess. Added a small `expect_pixel` helper local to that
-one spec that reports the actual pixel via `frame.at` on failure. Whether
-that assertion is genuinely wrong or just needs a similar tolerance nudge is
-still unknown as of this writing — the diagnostic is what the next CI run
-needs to say which.
+treatment as before, and confirmed fixed on the next CI run.
 
 **The pattern by now is not "the Windows port has a rendering bug" — it is
 that llvmpipe (Linux CI), this dev machine's GPU, and the Windows CI runner's
@@ -437,6 +429,31 @@ value is really only ever tested against whichever one machine wrote it.
 `about?`'s tolerance exists for exactly this and should be the default for
 any *new* pixel assertion in `spec_core` — a strict `eq` on a rendered pixel
 should be treated as needing a specific reason, not the default.
+
+**NineSlice's failure is not that pattern, and the first attempt to fix it
+was wrong to assume it was.** `about?` already returns a bare boolean, so the
+first CI report carried no information about what was actually sampled —
+fixed by adding a small `expect_pixel` helper, local to that one spec, that
+reports the actual pixel via `frame.at` on failure rather than a bare `false`.
+The *next* CI run then reported it: the top-left corner came back
+`[252, 252, 252, 255]` — near-white, and white is not a colour anywhere in
+this test's 3x3 source fixture (red corners, green edges, blue centre; see
+the fixture right above this test). That rules out driver rounding — nothing
+rounds red into white — and matches instead the specific, already-documented
+failure mode in
+[`image_internal.h`](../../ext/rgame_core/graphics/image_internal.h) and
+[`docs/api/drawing.md`](../../docs/api/drawing.md): drawing an image with no
+texture actually bound reads as a plain white quad. What's still unknown is
+*how much* of the panel is affected — a plain sequence of `expect`s stops at
+the first failure, so whether the other four sample points are also white
+(the whole texture never bound) or fine (something narrower, specific to this
+one corner) has not been observed yet. Tagged the example
+`:aggregate_failures` (built into RSpec, no extra config) so the next run
+reports all five together — confirmed locally that the mechanism actually
+reports multiple failures in one run rather than still stopping at the first,
+by temporarily forcing two of the five to fail and checking both showed up.
+Not a fix; the next CI run is what turns this from "know the symptom" into
+"know the shape of the bug."
 
 ### B3. Key injection is missing on two platforms, and the suite stays green
 

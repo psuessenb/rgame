@@ -243,7 +243,15 @@ RSpec.describe RGame::Core::NineSlice do
       end
     end
 
-    it 'puts corners at the corners and the centre in the middle' do
+    # aggregate_failures: the first real Windows CI failure here reported the
+    # top-left corner as near-white (`[252, 252, 252, 255]`) — not a colour
+    # anywhere in this 3x3 source, and the exact signature
+    # image.c/image_internal.h document for "no texture bound". A plain
+    # sequence of `expect`s stops at that first failure, so whether the other
+    # four points are wrong too (the whole panel blank) or fine (something
+    # narrower, just at this one corner) is still unknown. Reporting all five
+    # together is what the next run needs to tell those apart.
+    it 'puts corners at the corners and the centre in the middle', :aggregate_failures do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, app|
         image = RGame::Core::Image.new(app, png)
         panel = described_class.new(image, x: 0, y: 0, w: 3, h: 3, border: 1, scale: 8)
