@@ -1250,6 +1250,79 @@ way. **Landed**: the regex now says `Core Audio`, and the comment names
 up rather than guessed.
 
 
+### B14. Windows CI has no real OpenGL at all — it was rendering through "GDI Generic" *(measured, new)*
+
+`nine_slice_spec.rb`'s "puts corners at the corners and the centre in the
+middle" was the one `spec_core` failure left once B9/B10 were fixed. Tagging
+it `:aggregate_failures` (see above) got the real shape of it: all five
+sample points — both corners, both edges, the centre — came back the
+identical `[252, 252, 252, 255]`. Nothing from the test's 3x3 fixture (red
+corners, green edges, blue centre) drew anywhere; the panel was entirely
+blank, matching `image_internal.h`'s documented "no texture bound reads as a
+plain white quad" case exactly.
+
+**Two concrete hypotheses were tested and ruled out before reaching for a
+diagnostic, not just theorised past:**
+
+- *Premature GC.* The local `image` variable goes out of scope when the
+  capture block returns, and that happens *before* `rgame_canvas_submit`
+  (pure C) runs — so a GC pass in that window could in principle free the
+  texture before the queued commands reach the GPU. Tested directly:
+  `GC.start` immediately after `panel.draw(...)`, the most aggressive version
+  of the scenario. Still 350/350 locally. Ruled out.
+- *Ownership mismatch.* The documented "wrong app draws white" case
+  (`image_belongs_here` in `app.c`) raises `ArgumentError` — this failure was
+  a pixel mismatch, not an exception, so that guard was never in play. Read
+  the code rather than assumed.
+
+`draw_queue.c` and `backend.c` were both read end to end looking for a
+batching/growth bug a large batch count (NineSlice tiles to 60+ draw calls
+from one texture in one frame — far more than any other real-window test)
+could trigger. Both are pure logic, already Check-tested, and nothing looked
+wrong. `gl_backend.c` — the one file in this path *not* unit-tested by design
+(CLAUDE.md: verified by pixels, not automatable) — was the remaining
+candidate, and nothing looked wrong there either on inspection.
+
+**Rather than keep guessing, a one-time diagnostic answered the actual open
+question.** A temporary `fprintf(stderr, ...)` of
+`glGetString(GL_VENDOR/RENDERER/VERSION)` was added to `gl_backend.c`'s
+`gl_begin_frame`. This dev machine's own run of the same diagnostic had
+already shown a real NVIDIA GPU; the next CI run showed:
+
+```
+GL_VENDOR=Microsoft Corporation
+GL_RENDERER=GDI Generic
+GL_VERSION=1.1.0
+```
+
+**"GDI Generic" is Windows' own decades-old, barely-maintained software
+OpenGL 1.1 fallback**, dating to the NT era and used only when nothing better
+is installed — not a modern software rasteriser, and not anything this
+project's rendering code was ever meaningfully exercised against. GitHub's
+Windows runners have no GPU, so this is what's left. That reframes the whole
+failure: not "a bug in this project's C only GDI Generic triggers" — quite
+possibly true, but a dead end to chase in an implementation this obscure and
+unmaintained — but "Windows CI is missing the equivalent of what Linux CI
+already has." `libgl1-mesa-dri` (installed above, in "Install system
+dependencies (Linux)") is exactly this: a real software rasteriser standing
+in for a GPU the runner doesn't have. Windows never got its equivalent.
+
+**Landed**: [`ci.yml`](../../.github/workflows/ci.yml) now installs Mesa's
+Windows build (via the `f3d-app/install-mesa-windows-action`, which wraps
+`pal1000/mesa-dist-win`) specifically into Ruby's own `bin` directory, not
+just anywhere on `PATH`. That placement is load-bearing, not a convenience:
+Windows' DLL search order checks the *calling process's own directory*
+before `System32`, and `PATH` only *after* `System32` — so Mesa's drop-in
+`opengl32.dll` has to sit next to `ruby.exe` itself (the process that
+actually opens the GL context) to be found ahead of the System32 copy it is
+meant to replace; anywhere else on `PATH` would never win that search.
+
+**Unverified as of this writing — the GL_VENDOR diagnostic was deliberately
+left in place for one more push** rather than removed alongside this fix, so
+the next CI run confirms the mechanism (a Mesa/llvmpipe vendor string
+replacing "GDI Generic"), not just the symptom (the pixel test passing).
+Remove the diagnostic once that's confirmed either way.
+
 ## Can this be done from Linux? *(asked, answered, then superseded)*
 
 **Write it on Linux: yes. Verify it on Linux: no — and the gap is the whole

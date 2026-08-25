@@ -168,6 +168,38 @@ jobs:
           Write-Host "prepending $bin"
           $bin | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
 
+      # `rake spec:core` opens real windows and needs real OpenGL, same as
+      # Linux does above — but Windows has no GPU on this runner and, unlike
+      # Linux, nothing installs a real software rasteriser by default. A
+      # temporary diagnostic in gl_backend.c (see B14,
+      # docs/plans/cross-platform-support.md) printed what fills that gap on
+      # its own: `GL_VENDOR=Microsoft Corporation`, `GL_RENDERER=GDI Generic`,
+      # `GL_VERSION=1.1.0` — Windows' own decades-old, barely-maintained
+      # software fallback from the NT era, not a modern rasteriser. This is
+      # the direct Windows equivalent of `libgl1-mesa-dri` above: a real
+      # software GL implementation instead of whatever the OS falls back to
+      # with nothing better installed.
+      #
+      # Mesa's Windows build ships as a drop-in `opengl32.dll`, but *where* it
+      # lands matters: Windows' DLL search order checks the calling process's
+      # own directory before System32, and PATH only *after* System32 — so a
+      # copy anywhere on PATH would never be found ahead of the one this is
+      # trying to replace. It has to sit next to the exe that actually opens
+      # the GL context, which here is `ruby.exe` itself.
+      - name: Find Ruby's bin directory (Windows)
+        if: runner.os == 'Windows'
+        id: ruby_bin
+        shell: pwsh
+        run: |
+          $bin = (Get-Command ruby).Source | Split-Path -Parent
+          "dir=$bin" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Install Mesa software OpenGL next to ruby.exe (Windows)
+        if: runner.os == 'Windows'
+        uses: f3d-app/install-mesa-windows-action@v1
+        with:
+          path: ${{ steps.ruby_bin.outputs.dir }}
+
       # From here down, the unported legs run in **survey mode**: every step
       # runs even after one fails, so a single push reports all five tiers
       # instead of only the first thing to break. A ported leg keeps ordinary
