@@ -88,6 +88,42 @@ class VirtualGamepad
                   [Fiddle::TYPE_VOIDP, Fiddle::TYPE_INT], Fiddle::TYPE_CHAR)
   IS_GAMECONTROLLER = fn('SDL_IsGameController', [Fiddle::TYPE_INT], Fiddle::TYPE_INT)
 
+  # Setting a virtual button or axis only writes *pending* state: SDL applies it
+  # to the device — and so makes it readable, mapped or unmapped — on the next
+  # SDL_JoystickUpdate. Measured, because it is invisible until it bites: with
+  # this call, 40 of 40 attach/press/read cycles read the press back; without
+  # it, 0 of 40 did.
+  #
+  # Nothing here used to make that call, so every press depended on the
+  # engine's own `SDL_PollEvent` loop pumping between the press and the read.
+  # Driving the update here instead takes the harness's own synthetic input off
+  # the engine's pump schedule, which it had no business depending on.
+  #
+  # **This is a real removed dependency, not a fix for the flake in B15.** Said
+  # plainly because the two are easy to confuse: these examples still failed
+  # once in roughly twenty full runs *after* this call was added, so whatever
+  # makes them flaky is still open (docs/plans/cross-platform-support.md, B15).
+  #
+  # It is not a weakening of what these specs check: the engine still reads
+  # through SDL_GameControllerGetButton, so seating and the controller mapping
+  # are exercised exactly as before. *When SDL applies pending virtual state* is
+  # a property of the fake device, and making that deterministic is the
+  # harness's job either way.
+  UPDATE = fn('SDL_JoystickUpdate', [], Fiddle::TYPE_VOID)
+
+  # The three facts B15 still needs and nothing was keeping. All cheap, and
+  # each one kills or confirms a specific surviving hypothesis:
+  #
+  #   GET_ATTACHED  is this handle still a live device? The main surviving
+  #                 theory is a stale handle — an earlier example's pad not
+  #                 detaching cleanly, so the press goes to a device SDL has
+  #                 already dropped while the engine has a different one open.
+  #   set result    SDL_JoystickSetVirtualButton returns non-zero on failure,
+  #                 and every caller here has been throwing that away.
+  #   GET_ERROR     what SDL says when it does refuse.
+  GET_ATTACHED = fn('SDL_JoystickGetAttached', [Fiddle::TYPE_VOIDP], Fiddle::TYPE_INT)
+  GET_ERROR = fn('SDL_GetError', [], Fiddle::TYPE_VOIDP)
+
   def initialize
     @index = ATTACH.call(TYPE_GAMECONTROLLER, AXIS_COUNT, BUTTON_COUNT, 0)
     raise 'SDL_JoystickAttachVirtual failed' if @index.negative?
@@ -95,13 +131,26 @@ class VirtualGamepad
     @joystick = OPEN.call(@index)
   end
 
-  def press(button) = SET_BUTTON.call(@joystick, button, 1)
-  def release(button) = SET_BUTTON.call(@joystick, button, 0)
-  def move_axis(axis, value) = SET_AXIS.call(@joystick, axis, value)
+  # Each of these applies its own change (see UPDATE above), so the state is
+  # live by the time the call returns rather than whenever SDL is next pumped.
+  def press(button) = set_button(button, 1)
+  def release(button) = set_button(button, 0)
 
-  # See GET_BUTTON / IS_GAMECONTROLLER above for why these exist.
+  def move_axis(axis, value)
+    @last_set_result = SET_AXIS.call(@joystick, axis, value)
+    UPDATE.call
+    @last_set_result
+  end
+
+  # See GET_BUTTON / IS_GAMECONTROLLER / GET_ATTACHED above for why these exist.
   def raw_down?(button) = GET_BUTTON.call(@joystick, button) == 1
   def game_controller? = IS_GAMECONTROLLER.call(@index) == 1
+  def attached? = GET_ATTACHED.call(@joystick) == 1
+  def sdl_error = GET_ERROR.call.to_s
+
+  # Non-zero means SDL refused the last press/release/axis outright. Nil until
+  # something has been set.
+  attr_reader :last_set_result
 
   # Unplugging the pad, as far as SDL and the engine are concerned.
   def detach
@@ -110,5 +159,13 @@ class VirtualGamepad
     CLOSE.call(@joystick)
     DETACH.call(@index)
     @detached = true
+  end
+
+  private
+
+  def set_button(button, value)
+    @last_set_result = SET_BUTTON.call(@joystick, button, value)
+    UPDATE.call
+    @last_set_result
   end
 end

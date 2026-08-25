@@ -6,7 +6,8 @@ Mac — 299 + 26 C checks, 905 headless examples, 350 Core examples, `rake`
 exiting 0 — and did the same earlier on the Windows machine. The macOS *runner*
 is a different matter: B9a (CoreAudio cannot be opened in a forked child) is
 fixed but unconfirmed there, and B15 (a virtual gamepad button that never
-arrives) is open and now instrumented to explain itself on the next push. Written 2026-08-21 from a read of the
+arrives) turned out to be a flaky race that reproduces on macOS too — still
+open, with the mapping hypothesis ruled out. Written 2026-08-21 from a read of the
 build wiring, the engine C, and the spec scaffolding; revised after each CI run,
 then from a real Windows machine, and now from a real Mac. Anything marked
 *(sketch)* was never executed; anything marked *(measured)* came off a real
@@ -1415,6 +1416,83 @@ What is already known, and it narrows things usefully:
   button (`SDL_GameControllerGetButton(pad, SDL_CONTROLLER_BUTTON_A)`). Between
   them sits the mapping SDL synthesises for a virtual device, and on
   `sdl2-compat` that mapping is produced by SDL3 through a translation layer.
+
+**It reproduces locally, it is flaky, and the instrumentation already ruled
+out the leading suspect** *(measured after the first CI run)*. Three findings,
+in the order they arrived:
+
+- **It is not macOS-specific and not CI-specific.** The full `spec:core` suite
+  fails these two examples roughly **one run in ten on this Mac**, and passes
+  them 6 times out of 6 when `input_spec.rb` is run *alone*. So it is
+  load- or order-sensitive, which is why a single green local run — the
+  evidence this document leaned on to call macOS green — never meant anything
+  here.
+- **The mapping hypothesis is dead.** In the failing run the diagnostics
+  answered `seated = true`, `pad_count = 1`, `mapped = true`, and
+  `raw_a = false`. `raw_a` is `SDL_JoystickGetButton` — the *unmapped* joystick
+  state — so the press never reached SDL's own device state at all. Nothing
+  about the controller mapping, the seating, or `SDL_IsGameController` is
+  implicated. That is exactly the discrimination the instrumentation was added
+  for, and it paid for itself on the first failure.
+- **Setting a virtual button writes only *pending* state.** Measured directly
+  with a standalone probe: attach, press, read back, 40 times. With an explicit
+  `SDL_JoystickUpdate()` between the press and the read, **0 of 40** read back
+  false; without it, **40 of 40** did. So the state is invisible until SDL
+  applies it, and nothing in `VirtualGamepad` ever asked it to — every press
+  depended on the engine's `SDL_PollEvent` loop pumping at the right moment.
+
+**Partly addressed, and explicitly not closed.** `VirtualGamepad` now calls
+`SDL_JoystickUpdate` itself after every `press`/`release`/`move_axis`, so the
+harness's synthetic input no longer depends on the engine's pump schedule — a
+dependency it had no business having, and the one mechanism here that is
+*measured* rather than suspected. It does not weaken the specs: the engine still
+reads through `SDL_GameControllerGetButton`, so seating and the mapping are
+exercised as before.
+
+**It is not the root cause, and that was checked rather than assumed.** The
+examples still failed once in about twenty full runs afterwards — 18 of 19 clean
+post-fix against 9 of 10 clean pre-fix, which is statistically the same thing.
+Whatever remains is unexplained. The honest reading of the fix is "one proven
+source of nondeterminism removed", not "flake fixed", and the temptation to
+declare victory on a rare flake after a handful of green runs is precisely how
+this document has been wrong twice already (B7, B9a).
+
+**There is no seed to bisect with, which is why this is going through CI.**
+`.rspec-core` sets no `--order random`, so the suite runs in deterministic file
+order — the order is identical on every run, and the nondeterminism is genuinely
+in SDL/OS timing rather than in which examples ran before. That removes the
+usual lever (re-run the failing seed) and leaves the ~1-in-10 wait as the only
+local reproduction, against a macOS runner that so far fails every time. If the
+next run confirms that, **CI is the better reproducer** and should be used as
+one.
+
+**Three more facts are now captured, chosen to kill the surviving hypotheses
+rather than to describe the symptom again.** The first CI failure predates the
+instrumentation entirely — it ran the bare `expect(results[:fire])` version — so
+the runner has never reported any of this:
+
+| Captured | Kills / confirms |
+|---|---|
+| `pad.attached?` (`SDL_JoystickGetAttached`) | the stale-handle theory: an earlier example's pad not detaching cleanly, so the press lands on a device SDL already dropped while the engine holds a different one |
+| `pad.last_set_result` | whether SDL **refused** the call — `SDL_JoystickSetVirtualButton` returns non-zero on failure and every caller was discarding it |
+| `pad.sdl_error` (on a non-zero set) | what SDL says when it refuses |
+
+Both examples now assert `attached` and `set_rc` ahead of the button, so a red
+run reports the cause beside the symptom instead of only `raw_a = false`.
+Verified the same way as the rest: green locally with all probes true, and
+mutation-checked by breaking two of them at once to confirm both are reported.
+
+**The question the next run answers, either way.** If it comes back
+`raw_a = false` with `attached = true` and `set_rc = 0`, then SDL accepted a
+press on a live device and did not apply it, which points at `sdl2-compat`'s
+translation of the virtual-joystick API and makes that the next thing to read.
+If `attached` is false, it is the stale handle and the fix is in this harness's
+own teardown. If `raw_a` comes back *true* while `fire` is false, then the CI
+failure is a mapping bug and is **not** the local flake at all — two bugs that
+have been treated as one.
+
+**Superseded framing — the original entry follows.** It read as a macOS-runner
+bug; it is a latent race that macOS happens to lose reliably.
 
 **Not fixed — instrumented, deliberately.** Every candidate explanation
 (mapping mismatch, a seating race, a missed joystick update) predicts a

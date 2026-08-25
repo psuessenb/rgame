@@ -134,7 +134,11 @@ RSpec.describe RGame::Core::Input do
       results[:seated] = app.gamepad_present?(0)
       results[:pad_count] = app.gamepad_count
       results[:mapped] = pad.game_controller?
+      results[:attached] = pad.attached?
+      results[:set_rc] = pad.last_set_result
       results[:raw_a] = pad.raw_down?(VirtualGamepad::BUTTON_A)
+      # Only meaningful when a set actually failed; harmless noise otherwise.
+      results[:sdl_error] = pad.sdl_error unless pad.last_set_result.zero?
     end
 
     # Portable: SDL fabricates the pad, so this needs no hardware and no X11.
@@ -170,6 +174,8 @@ RSpec.describe RGame::Core::Input do
       expect(results[:seated]).to be(true)
       expect(results[:pad_count]).to eq(1)
       expect(results[:mapped]).to be(true)
+      expect(results[:attached]).to be(true)
+      expect(results[:set_rc]).to eq(0)
       expect(results[:raw_a]).to be(true)
 
       expect(results[:fire]).to be(true)
@@ -207,6 +213,8 @@ RSpec.describe RGame::Core::Input do
 
       expect(results[:seated]).to be(true)
       expect(results[:mapped]).to be(true)
+      expect(results[:attached]).to be(true)
+      expect(results[:set_rc]).to eq(0)
       expect(results[:raw_a]).to be(true)
 
       expect(results[:before]).to be(true)
