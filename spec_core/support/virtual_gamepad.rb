@@ -126,11 +126,14 @@ class VirtualGamepad
   PUMP = fn('SDL_PumpEvents', [], Fiddle::TYPE_VOID)
 
   # How many update passes a press gets before the harness gives up on it. One
-  # is enough on every machine measured; more exist because the macOS runner
-  # reports a press SDL *accepted* (`SDL_JoystickSetVirtualButton` returned 0,
-  # on a device `SDL_JoystickGetAttached` calls live) and then never applied,
-  # and a bounded retry is the cheapest thing that distinguishes "slow" from
-  # "never" — see docs/plans/cross-platform-support.md, B15.
+  # is enough on every machine that works; the retry was added to answer
+  # whether the macOS runner's lost presses were *slow* or *never*, and the
+  # answer came back **never** — ten passes, updating and pumping each time,
+  # and the button never reads back. So this is no longer a candidate fix, and
+  # the retry is kept for what it does deliver: `applied` distinguishes "SDL
+  # accepted the call and never honoured it" from an ordinary false, which is
+  # the fact that moved B15 forward. See
+  # docs/plans/cross-platform-support.md, B15.
   APPLY_ATTEMPTS = 10
 
   def initialize
@@ -178,9 +181,10 @@ class VirtualGamepad
 
   private
 
-  # Sets the button and then makes sure SDL has actually applied it, rather than
-  # trusting one update pass to be enough. Deliberately does *not* raise on
-  # failure: this runs inside the engine's draw callback, and an exception there
+  # Sets the button and then checks SDL actually applied it, rather than
+  # trusting the call's return value — which on the macOS runner is a
+  # successful 0 for a press that never takes effect. Deliberately does *not*
+  # raise on failure: this runs inside the engine's draw callback, and an exception there
   # unwinds through the C frame loop — which is why input_spec.rb collects
   # results and asserts afterwards. A press that never lands is recorded and
   # left for the example's own expectations to report.

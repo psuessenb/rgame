@@ -93,13 +93,30 @@ jobs:
             xvfb x11-utils libxtst6 \
             gdb
 
-      # Homebrew's SDL2 is what makes the include-path problem visible: it
-      # publishes `-I/opt/homebrew/include/SDL2`, and /opt/homebrew/include is
-      # not on clang's default search path, so `<SDL2/SDL.h>` does not resolve.
-      # That is step 1 of the plan, and this job is expected to fail on it.
+      # `brew install sdl2` installs the **sdl2-compat** formula — SDL2's API
+      # reimplemented on top of SDL3 — so the virtual-joystick code the input
+      # specs drive lives in the `sdl3` dependency rather than in sdl2-compat
+      # itself. Worth knowing before reading a joystick failure here.
+      #
+      # `brew update` is load-bearing, not housekeeping. The runner image
+      # carries an older formula snapshot and resolved `sdl3` to **3.4.10**,
+      # while a dev machine that passes these specs has **3.4.14** — and that
+      # gap is the *only* measured difference between the two, sdl2-compat
+      # being 2.32.70 on both. On the runner a virtual button press is
+      # *accepted* (`SDL_JoystickSetVirtualButton` returns 0, on a device
+      # `SDL_JoystickGetAttached` calls live) and then never applied, through
+      # ten update/pump passes. See docs/plans/cross-platform-support.md, B15.
+      #
+      # The `brew list` line is a diagnostic on purpose: it states which
+      # versions were actually installed, so the next run says whether the
+      # update moved sdl3 at all rather than leaving that to be inferred from
+      # bottle-manifest lines buried in the install log.
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install sdl2 check pkg-config
+        run: |
+          brew update
+          brew install sdl2 check pkg-config
+          brew list --versions sdl2-compat sdl3 check
 
       # Derived from .ruby-version rather than written out here, so the pin has
       # one home. It cannot be handed to setup-ruby directly: mise writes the

@@ -1,8 +1,9 @@
 # Cross-platform support — macOS and Windows
 
-**Status: macOS CI is one item from green. B9a is confirmed fixed on the
-runner; B15 is narrowed to a single mechanism with a plausible-but-unproven
-fix.** `rake` passes end to end on this session's
+**Status: macOS CI is two test-harness examples from green. B9a is confirmed
+fixed on the runner; B15 is narrowed to SDL3 accepting a virtual button press
+and never applying it, with the last measured difference being sdl3 3.4.10 on
+the runner against 3.4.14 on a machine that passes.** `rake` passes end to end on this session's
 Mac — 299 + 26 C checks, 905 headless examples, 350 Core examples, `rake`
 exiting 0 — and did the same earlier on the Windows machine. The macOS *runner*
 is a different matter: B9a (CoreAudio cannot be opened in a forked child) is
@@ -1566,15 +1567,62 @@ Measured locally: `[applied, attempts] => {[true, 1] => 40}`, so the retry is
 not quietly papering over a delay on a machine that passes, and `spec:core` is
 `350 examples, 0 failures` five runs running.
 
-**Status: plausible fix, unproven.** The retry is the only lever the evidence
-supports without a reproduction, and a rare flake that passes five local runs
-is exactly what this document has twice mistaken for a fix (B7, B9a). The next
-macOS run decides it, and either answer is useful: green closes it, while
-`applied = false` proves SDL is refusing to honour the state at all and moves
-the investigation to `sdl2-compat`'s virtual-joystick translation — at which
-point building SDL2 proper (rather than the SDL3 shim) on the runner becomes
-the experiment worth running, since that swaps out the one component every
-piece of remaining evidence points at.
+**The retry did not fix it, and the answer it was built to produce is the
+useful part: `applied = false`.** The next run came back with the same two
+examples red and the new diagnostic leading the report — ten passes, updating
+*and* pumping between each, and the button never reads back. So the press is
+not slow, it is **never applied**, while `set_rc` stays `0` and `attached`
+stays true. Every timing explanation is now dead alongside seating, mapping,
+stale handles and refusal.
+
+#### The one measured difference left: SDL3 3.4.10 vs 3.4.14
+
+What survives is a version gap, and it is the only difference between the
+failing and passing environments that anything has actually measured:
+
+| | sdl2-compat | sdl3 |
+|---|---|---|
+| dev Mac (passes) | 2.32.70 | **3.4.14** |
+| macOS runner (fails) | 2.32.70 | **3.4.10** |
+
+That points where it should. **`brew install sdl2` installs `sdl2-compat`** —
+SDL2's API reimplemented over SDL3 — so the virtual-joystick *implementation*
+these specs exercise is SDL3's, not sdl2-compat's. Identical shim, different
+engine underneath, and the shim is the half that returns the `0` this harness
+now knows to distrust. The runner is behind because its image carries an older
+Homebrew formula snapshot, not because anything pins SDL.
+
+The SDL3 release notes for 3.4.12 and 3.4.14 name no virtual-joystick fix, so
+this is not a known-bug citation. One entry is suggestive rather than
+conclusive: 3.4.14 lists **"controller duplicate detection on macOS"**, and a
+virtual pad being mistaken for a duplicate of another device would produce
+exactly this signature — writes accepted against one device object, reads
+served from another, with both agreeing the device is attached.
+
+**Landed: the macOS CI step now runs `brew update` before installing**, so the
+runner resolves current formulae instead of its image's snapshot, plus a
+`brew list --versions sdl2-compat sdl3 check` line so the next run *states*
+which versions it got rather than leaving it to be dug out of bottle-manifest
+lines. Cheap, targeted at the only surviving difference, and self-reporting
+either way.
+
+**What each outcome means**, so the next run is not ambiguous:
+
+- **Green, with sdl3 at 3.4.14+** — an SDL3 bug fixed upstream between the two
+  versions. Nothing in this project was ever wrong, and the fix is "do not test
+  against a stale SDL3".
+- **Still red, with sdl3 at 3.4.14+** — the version gap was a red herring and
+  the difference is the *machine*, not the library. At that point the
+  experiment worth running is building **real SDL2** rather than the SDL3 shim
+  on the runner, since sdl2-compat would then be the last untested component.
+- **Still red, with sdl3 still at 3.4.10** — `brew update` did not move it, and
+  the version needs pinning explicitly instead.
+
+**Not a blocker for the rest of the port.** Everything else on macOS is green:
+`make test` 299 + 26, `rake spec` 905, and 348 of the 350 Core examples. This
+is two examples of a test harness driving a synthetic device, not engine code a
+game depends on — worth saying plainly, because the temptation with a stubborn
+red is to treat it as bigger than it is.
 
 **Superseded framing — the original entry follows.** It read as a macOS-runner
 bug; it is a latent race that macOS happens to lose reliably.
