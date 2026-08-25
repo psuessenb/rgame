@@ -160,7 +160,42 @@ was just drawn must do so **before** the swap, not after — see B2, and the
 to give exactly that moment a name. Never write new code that reads pixels
 "at the start of the next frame" and calls it equivalent.
 
-## 5. dlopen/soname differences, if new C touches a system library by name
+## 5. A machine with *zero* audio devices is a real, common Windows case — CI hits it every run
+
+`create_audio`'s comment always claimed that opening a device with no
+explicit backend list "falls back to a null device when none of them can
+open," and that was verified — on Linux, where a build server with no ALSA or
+PulseAudio enumerates zero devices and the fallback lands cleanly on Null.
+GitHub Actions' `windows-latest` runners (and most other Windows CI/cloud VMs)
+have **zero audio devices, full stop** — not merely no default, actually none
+(`Get-CimInstance Win32_SoundDevice` returns nothing) — and that is a
+different case from "the default device is unavailable": on Windows, WASAPI's
+own attempt to open a device when there is nothing to open there crashed the
+whole process, rather than failing in a way `ma_engine_init`'s return code
+could report. The automatic same-call fallback this project's comment
+described never got a chance to run, because nothing survived long enough to
+try the next backend.
+
+**The rule**: don't trust an auto-detect backend list to fail *gracefully*
+into a null device on Windows — it may not fail at all, it may crash. Where a
+real device is wanted but the platform might have none, enumerate first
+(`ma_context_get_devices`, read-only, does not attempt to open anything) and
+choose the null backend **explicitly** when the count is zero, rather than
+letting the real backend's own open attempt discover that for you. See
+`ext/rgame_core/audio/audio.c`'s `create_audio` for the pattern: a lightweight
+`ma_context_init(NULL, 0, ...)` to enumerate, then only ever handing
+`ma_engine_init` a context that has already been confirmed (or forced) to have
+somewhere to go.
+
+This generalises past audio: **any Windows CI runner should be assumed to
+have no hardware of a given kind unless something upstream (like a display
+server for a window) is known to provide one.** Audio is the one measured
+here; a webcam, a printer, or any other device class a future feature reaches
+for should get the same "enumerate before you open" treatment rather than
+trusting a graceful-failure assumption that was really only ever tested on
+Linux.
+
+## 6. dlopen/soname differences, if new C touches a system library by name
 
 Not this project's engine C itself (which links normally), but relevant to
 any Fiddle-based Ruby helper or C code that opens a system library by soname

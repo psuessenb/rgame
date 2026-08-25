@@ -229,6 +229,25 @@ jobs:
         run: bundle exec rake spec
 
       - name: Core specs (real windows)
+        id: core_specs
         continue-on-error: ${{ !matrix.ported }}
         shell: bash
         run: bundle exec rake spec:core
+
+      # A native crash inside the Ruby process (unlike the C suite's own
+      # binary) leaves nothing behind but "Process completed with exit code
+      # 1" — no backtrace, not even which spec was running. `gdb --args`
+      # around the same specs, run directly rather than through `bundle exec`
+      # or `rake` (each spawns Windows as a *new* process rather than
+      # POSIX-`exec`ing over the current one, which would leave gdb attached
+      # to the wrong process), catches it the same way the C suite's crash
+      # is caught above. `bundle exec` in front of `gdb` itself is what still
+      # gets bundler's load path into the `ruby` gdb launches as its child.
+      - name: Backtrace the Core specs crash (Windows)
+        if: runner.os == 'Windows' && steps.core_specs.outcome == 'failure'
+        shell: bash
+        run: |
+          set -x
+          bundle exec gdb -batch -ex run -ex 'bt full' -ex 'info threads' --args \
+            ruby -e "require 'rspec/core'; exit RSpec::Core::Runner.run(['--pattern', 'spec_core/**/*_spec.rb', '--options', '.rspec-core'])" \
+            || true

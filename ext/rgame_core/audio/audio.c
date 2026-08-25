@@ -44,6 +44,14 @@
 struct rgame_audio {
     ma_resource_manager resources;
     ma_engine engine;
+    /*
+     * Owned only by the real (non-offline) constructor, so that it can
+     * enumerate devices *before* asking the engine to open one — see the
+     * comment in create_audio. Left zeroed (and never uninit'd) for an
+     * offline device, which never touches a backend at all.
+     */
+    ma_context context;
+    int has_context;
 };
 
 struct rgame_sample {
@@ -131,6 +139,17 @@ static rgame_audio *create_audio(int offline, unsigned int sample_rate, char *er
      * no sound card — a build server, a container — gets a working engine that
      * plays silence rather than an error a game has to handle. Verified: with
      * ALSA and PulseAudio unavailable, the chosen backend is "Null".
+     *
+     * That fallback is *inside* the real backend's own device-open attempt —
+     * it only helps if opening fails cleanly. On Windows, a machine with zero
+     * playback devices at all (every GitHub Actions Windows runner, among
+     * others: confirmed via `Get-CimInstance Win32_SoundDevice`) crashes
+     * instead of failing inside WASAPI's default-device lookup, so the
+     * fallback this comment describes never gets a chance to run. Enumerating
+     * devices first and choosing Null explicitly when there are none sidesteps
+     * that: enumeration is read-only and does not attempt to open anything, so
+     * it does not hit whatever WASAPI's own open path gets wrong with no
+     * endpoint to find.
      */
     ma_engine_config engine = ma_engine_config_init();
     engine.pResourceManager = &audio->resources;
@@ -140,9 +159,36 @@ static rgame_audio *create_audio(int offline, unsigned int sample_rate, char *er
         engine.noDevice = MA_TRUE;
         engine.channels = 2;
         engine.sampleRate = sample_rate;
+    } else {
+        static const ma_backend null_only[] = { ma_backend_null };
+
+        if (ma_context_init(NULL, 0, NULL, &audio->context) == MA_SUCCESS) {
+            audio->has_context = 1;
+
+            ma_uint32 playback_count = 0;
+            ma_result enum_result =
+                ma_context_get_devices(&audio->context, NULL, &playback_count, NULL, NULL);
+
+            if (enum_result == MA_SUCCESS && playback_count == 0) {
+                ma_context_uninit(&audio->context);
+                /* Every real backend the auto-detect list would have tried
+                 * already reported no device; asking null explicitly can't
+                 * fail the way the auto-detect device-open path can. */
+                if (ma_context_init(null_only, 1, NULL, &audio->context) != MA_SUCCESS) {
+                    audio->has_context = 0;
+                }
+            }
+
+            if (audio->has_context) {
+                engine.pContext = &audio->context;
+            }
+        }
     }
 
     if (ma_engine_init(&engine, &audio->engine) != MA_SUCCESS) {
+        if (audio->has_context) {
+            ma_context_uninit(&audio->context);
+        }
         ma_resource_manager_uninit(&audio->resources);
         free(audio);
         set_error(err, err_size, "%s", "could not start the audio engine");
@@ -176,8 +222,14 @@ void rgame_audio_destroy(rgame_audio *audio) {
     }
 
     /* The engine first: it owns the device thread, and the resource manager
-     * underneath is still holding the data that thread may be reading. */
+     * underneath is still holding the data that thread may be reading. The
+     * context — when this device owns one explicitly, see create_audio — comes
+     * after the engine for the same reason: the engine's device was opened
+     * against it and must be torn down first. */
     ma_engine_uninit(&audio->engine);
+    if (audio->has_context) {
+        ma_context_uninit(&audio->context);
+    }
     ma_resource_manager_uninit(&audio->resources);
     free(audio);
 }

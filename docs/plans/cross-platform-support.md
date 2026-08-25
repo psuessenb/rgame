@@ -1,16 +1,19 @@
 # Cross-platform support — macOS and Windows
 
-**Status: the Windows leg is green, including B7.** `rake` (`make test` +
-`rake spec` + `rake spec:core`) passes end to end on a real Windows machine —
-325 C checks, 904 headless examples, 350 Core examples, all green, repeatedly,
-and confirmed clean under a real `clang`+AddressSanitizer build too, not just
-plain `gcc`. B7 is no longer an open question: its root cause is understood
-and its section explains the full mechanism, not just that it stopped
-reproducing. macOS is unchanged from the state below; nobody has picked it up
-since. Written 2026-08-21 from a read of the build wiring, the engine C, and
-the spec scaffolding; revised after each CI run and again from a real Windows
-machine. Anything marked *(sketch)* was never executed; anything marked
-*(measured)* came off a real runner.
+**Status: green on the dev machine, one CI-only bug (B9) fixed but not yet
+confirmed on a real CI run.** `rake` passes end to end on this session's
+Windows machine — 325 C checks, 904 headless examples, 350 Core examples, all
+green, repeatedly, confirmed clean under `clang`+AddressSanitizer too — but the
+first real CI push still failed, on something this machine structurally
+cannot reproduce: it has a real sound card, and GitHub's Windows runners have
+none at all. See B9. B7 remains fully closed (its own, different bug, found
+and fixed before CI ran). macOS is unchanged from the state below; nobody has
+picked it up since. Written 2026-08-21 from a read of the build wiring, the
+engine C, and the spec scaffolding; revised after each CI run and again from a
+real Windows machine. Anything marked *(sketch)* was never executed; anything
+marked *(measured)* came off a real runner — B9 is the first exception, marked
+*(new)* but reasoned rather than measured, because nothing here could measure
+it directly.
 
 **2026-08-25: three sessions on an actual Windows machine.** The first
 installed the toolchain and ran the build once to establish a baseline (see
@@ -734,6 +737,66 @@ written-out string, so the assertion is "the caller received what `resolve`
 was always going to produce here," which holds on every platform including the
 one it was written on. **Landed**; `asset_manager_spec.rb` is 30/30 on
 Windows.
+
+### B9. A machine with zero audio devices crashes opening one on Windows — CI, not this session's dev machine *(measured, new)*
+
+Found by the first real Windows CI run, after Windows flipped to `ported:
+true`: `rake spec:core` died with no RSpec summary at all — no `Failures:`,
+no `Finished in`, just the last example name printed
+(`spec_core/rgame/core/asset_manager_spec.rb`'s "loads an image into the app
+that owns it") and `Process completed with exit code 1`. That signature —
+silence, not a reported failure — means the `ruby.exe` process itself died,
+not an assertion. The next example in file order is "loads a sound through
+the app device", the first thing in the whole `spec_core` run that opens a
+*real* audio device via `RGame::Core::App#audio` → `rgame_audio_create`.
+
+This is hypothesis 2 from B7's original investigation, and it was never
+actually tested there — this session's dev machine has a real sound card, so
+every local run exercised the "device present" path. GitHub's Windows
+runners have none at all (confirmed:
+[actions/runner-images#6983](https://github.com/actions/runner-images/issues/6983),
+`Get-CimInstance Win32_SoundDevice` returns nothing), which is a different
+case from "the default device is temporarily unavailable" — several
+`mackron/miniaudio` issues describe WASAPI mishandling missing-endpoint cases
+around `ma_engine_init`/device open. `create_audio`'s own comment claimed the
+no-explicit-backend-list path "falls back to a null device when none of them
+can open," and that was true and verified — on Linux, where the fallback is a
+graceful failure return the auto-detect loop can act on. On Windows, WASAPI's
+attempt to open a device that isn't there apparently doesn't fail gracefully
+enough for that loop to ever reach Null.
+
+**Landed, unverified on the actual failing configuration** — there is no
+device-less Windows machine available to reproduce this on directly, so this
+is a reasoned fix rather than a measured one, the first item in this document
+that is. `ext/rgame_core/audio/audio.c`'s `create_audio` now enumerates
+devices itself first (`ma_context_init(NULL, 0, ...)` then
+`ma_context_get_devices`, both read-only — enumerating is not the same
+operation as opening, and is not implicated in any of the crash reports
+found) and explicitly builds a `{ ma_backend_null }`-only context when the
+playback count comes back zero, rather than ever handing `ma_engine_init` an
+auto-detect list that might attempt — and crash on — a real device with
+nothing behind it. Verified on this machine (a real device, so the
+device-present branch runs unchanged): `rake` end to end, 325 + 904 + 350,
+still 0 failures, and `#backend` still reports the real WASAPI name. What
+could not be verified locally is the zero-device branch itself.
+
+Also landed: a CI diagnostic this class of failure was missing entirely.
+`ci.yml`'s Check-suite crash gets an automatic `gdb` backtrace; the Ruby-level
+crash that motivated this item got nothing but a bare exit code, because
+nothing was wired up to catch it. A new step runs `gdb --args ruby -e
+"RSpec::Core::Runner.run(...)"` directly (not through `bundle exec`/`rake`,
+each of which spawns a *new* Windows process rather than POSIX-`exec`ing over
+the current one, which would leave the debugger attached to the wrong
+process) when the Core specs step fails on Windows, so if this fix is wrong or
+incomplete, the next push explains why instead of repeating the same silence.
+
+Recorded as its own item and cross-referenced from
+`.claude/skills/windows-portability/SKILL.md` (item 5) rather than folded into
+B7, because it is a different bug with a different mechanism — B7 was a
+resource leak from a skipped cleanup path; this is a real backend crashing on
+its very first, ordinary attempt to open when the hardware simply isn't
+there. The only thing they share is that both only reproduce on Windows and
+both involve `ma_engine_init`.
 
 ## Can this be done from Linux? *(asked, answered, then superseded)*
 
