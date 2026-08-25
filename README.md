@@ -219,7 +219,7 @@ Or from a checkout, which is the same gem built locally:
 
 ```
 rake build                      # package into pkg/rgame-<version>.gem
-gem install pkg/rgame-0.1.0.gem # compiles both extensions on this machine
+gem install pkg/rgame-*.gem     # compiles both extensions on this machine
 ```
 
 `gem install` runs each `extconf.rb` and installs the resulting `.so` into the
@@ -272,7 +272,7 @@ All three layers exist and the engine is usable end to end: the games under
    to name both.
 4. **Gem** — `rgame.gemspec` packages both halves, compiling each extension
    into `lib/rgame/` on install the way `make ext` does in a checkout.
-   [Published to RubyGems](https://rubygems.org/gems/rgame) as of 0.1.0, so
+   [Published to RubyGems](https://rubygems.org/gems/rgame), so
    `gem install rgame` works.
 
 **Next**

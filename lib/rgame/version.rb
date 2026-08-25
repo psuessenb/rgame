@@ -8,5 +8,5 @@
 # module here is enough; the extensions define `RGame` too, and doing so twice
 # is harmless.
 module RGame
-  VERSION = '0.1.0'
+  VERSION = '0.2.0'
 end

@@ -12,6 +12,8 @@ index, not the argument.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-26
+
 ### Added
 
 - **Split-screen.** A game has seats (`RGame::Game.new(players: 2)`), and a
@@ -28,7 +30,7 @@ index, not the argument.
   HUD. Inherited down the tree, and set by the nodes that exist to mark one.
 - **Culling** (`RGame::Engine::Culling`, `view.visible?`), which stops being an
   optimisation once the world is drawn once per player.
-- **A UI package**: `PlayerLayer` gives a player their own screen, and
+- **A bare-bones UI package**: `PlayerLayer` gives a player their own screen, and
   `UI::Menu` / `UI::MenuItem` navigate it by focus and activation — enough for
   keyboard and controller menus. Layout, nesting, scrolling and text entry are
   not in it; see [docs/api/ui.md](docs/api/ui.md).
@@ -41,6 +43,7 @@ index, not the argument.
   clips, sounds, scenes, ticks against frames.
 - **macOS and Windows support**, and CI that runs every verification tier on
   all three platforms.
+- This changelog, linked from the gem's RubyGems page through `changelog_uri`.
 
 ### Changed
 
@@ -86,5 +89,6 @@ First release, and the first version that runs a game end to end.
 - **`RGame::Game`** — the entry point that wires the two halves together.
 - Examples: `14_asteroids`, `15_tiled_world`, `16_hello_world`.
 
-[Unreleased]: https://github.com/psuessenb/rgame/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/psuessenb/rgame/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/psuessenb/rgame/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/psuessenb/rgame/releases/tag/v0.1.0
