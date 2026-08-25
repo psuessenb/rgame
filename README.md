@@ -1,6 +1,10 @@
 # RGame
 
-A small 2D game engine written in Ruby and C, on top of SDL2, OpenGL and miniaudio.
+RGame is a small 2D game engine for Ruby, written in Ruby and C. It's build on top of SDL2, OpenGL and miniaudio. It's built with testability and performance in mind, and aims to be an engine where you can write your whole game code in Ruby, test it as usual with RSpec (or Minitest, or another test framework) and still have acceptable performance.
+
+While still a work in progress, RGame aims to be more than a SDL/OpenGL
+binding - it ships with high level features like a scene graph, sprites,
+collision systems, debugging tools and an UI toolkit.
 
 ## Why does this exist and should you use it?
 

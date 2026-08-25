@@ -40,6 +40,7 @@ Gem::Specification.new do |spec|
     'source_code_uri' => spec.homepage,
     'bug_tracker_uri' => "#{spec.homepage}/issues",
     'documentation_uri' => "#{spec.homepage}/blob/main/docs/api/README.md",
+    'changelog_uri' => "#{spec.homepage}/blob/main/CHANGELOG.md",
     'rubygems_mfa_required' => 'true'
   }
 
@@ -86,6 +87,7 @@ Gem::Specification.new do |spec|
     ext/**/*
     docs/api/**/*
     README.md
+    CHANGELOG.md
     LICENSE
   ]
 

@@ -149,8 +149,8 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
   end
 
   describe 'the documentation it ships' do
-    it 'packages the README and the licence' do
-      expect(files).to include('README.md', 'LICENSE')
+    it 'packages the README, the changelog and the licence' do
+      expect(files).to include('README.md', 'CHANGELOG.md', 'LICENSE')
     end
 
     it 'packages the API reference' do

@@ -309,3 +309,147 @@ jobs:
           bundle exec gdb -batch -ex run -ex 'bt full' -ex 'info threads' --args \
             ruby -e "require 'rspec/core'; exit RSpec::Core::Runner.run(['--pattern', 'spec_core/**/*_spec.rb', '--options', '.rspec-core'])" \
             || true
+
+  # Publish to RubyGems when lib/rgame/version.rb names a version that is not
+  # on RubyGems yet.
+  #
+  # ## Why the version file and not a tag
+  #
+  # A release is "bump the version, merge to main". That keeps the version the
+  # gem reports, the version the tag names and the version on RubyGems derived
+  # from one file, instead of from a tag someone has to remember to push with
+  # the matching content.
+  #
+  # ## Why a check and not a `paths:` filter
+  #
+  # `on: push: paths: [lib/rgame/version.rb]` looks like the obvious trigger and
+  # is the wrong one: it fires on the *push that changed the file*, so a publish
+  # that fails for an unrelated reason (RubyGems down, a flaky network) can only
+  # be retried by touching that file again. Asking RubyGems what exists makes
+  # this job idempotent instead — it runs on every push to main, does nothing
+  # when the version is already published, and picks the release back up on the
+  # next push if one ever fails halfway.
+  #
+  # ## Why `needs: test`
+  #
+  # Nothing is published unless all three platforms are green. Note this gate is
+  # only as strong as `ported`: a leg marked `ported: false` reports success at
+  # the job level (that is what continue-on-error does), so it would stop gating
+  # this. That is the right behaviour for a platform being brought up, but it is
+  # worth knowing it is the same flag.
+  #
+  # ## Credentials
+  #
+  # None stored. RubyGems trusted publishing exchanges GitHub's OIDC token for a
+  # short-lived credential, which is also what makes this work at all given
+  # `rubygems_mfa_required` in the gemspec — an API key would need an OTP that
+  # CI cannot produce. The trust is registered on rubygems.org against this
+  # repository *and this workflow filename*, so renaming this file breaks
+  # publishing until the trusted publisher is updated to match.
+  release:
+    name: release
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    # One platform is enough: the gem ships source, not binaries, so the .gem
+    # this builds is platform-agnostic and `gem install` compiles it on the
+    # machine it lands on. The three-platform matrix above is what proves it
+    # compiles there; this job only packages what it already checked out.
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write # mint the OIDC token trusted publishing exchanges
+      contents: write # push the tag and create the GitHub release
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the pinned Ruby version
+        id: ruby
+        run: echo "version=$(sed -E 's/^ruby[ -]//' .ruby-version | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ steps.ruby.outputs.version }}
+
+      # `ruby -Ilib` rather than parsing the file: version.rb is the gemspec's
+      # own source for this, so reading it the same way cannot disagree with
+      # what gets built. It requires nothing compiled, by design.
+      - name: Is this version already published?
+        id: check
+        run: |
+          set -euo pipefail
+          version=$(ruby -Ilib -e 'require "rgame/version"; print RGame::VERSION')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          ruby -rjson -rnet/http -e '
+            version = ARGV[0]
+            response = Net::HTTP.get_response(URI("https://rubygems.org/api/v1/versions/rgame.json"))
+            published =
+              case response
+              when Net::HTTPSuccess then JSON.parse(response.body).map { _1["number"] }
+              when Net::HTTPNotFound then [] # the gem has never been published
+              # Anything else is unknown, not "no". Guessing here would mean a
+              # RubyGems hiccup decides whether a release happens.
+              else abort "RubyGems answered #{response.code} — refusing to guess"
+              end
+            publish = !published.include?(version)
+            warn(publish ? "rgame #{version} is not on RubyGems — releasing." \
+                         : "rgame #{version} is already on RubyGems — nothing to do.")
+            puts "publish=#{publish}"
+          ' "$version" >> "$GITHUB_OUTPUT"
+
+      # The changelog gates the release, and does so *before* the gem is pushed:
+      # a version with no section in CHANGELOG.md is a version somebody bumped
+      # without saying what changed, and the failure has to land while that is
+      # still fixable. After `gem push` it would not be — RubyGems does not take
+      # a version back.
+      #
+      # The section is also the GitHub release body, so the two cannot drift.
+      - name: Extract the release notes
+        if: steps.check.outputs.publish == 'true'
+        run: |
+          set -euo pipefail
+          awk -v v="${{ steps.check.outputs.version }}" '
+            $0 ~ "^## \\[?" v "\\]?"  { found = 1; next }
+            found && /^## /             { exit }        # the next version
+            found && /^\[[^]]+\]: /     { exit }        # the link-reference footer
+            found                       { print }
+          ' CHANGELOG.md > release_notes.md
+          if ! grep -q '[^[:space:]]' release_notes.md; then
+            echo "CHANGELOG.md has no section for ${{ steps.check.outputs.version }}." >&2
+            echo "Add one before releasing." >&2
+            exit 1
+          fi
+          cat release_notes.md
+
+      - name: Configure RubyGems credentials
+        if: steps.check.outputs.publish == 'true'
+        uses: rubygems/configure-rubygems-credentials@v1
+
+      # `gem build` rather than `rake build`: it needs no bundle and no dev
+      # dependencies, and the gemspec deliberately loads nothing but version.rb.
+      - name: Build and push the gem
+        if: steps.check.outputs.publish == 'true'
+        run: |
+          set -euo pipefail
+          gem build rgame.gemspec
+          gem push "rgame-${{ steps.check.outputs.version }}.gem"
+
+      # Tag and release after the push, so a failed `gem push` does not leave a
+      # tag claiming a version that was never published. Creating the tag is
+      # skipped when it already exists, which is what makes a local
+      # `rake release` and this job able to coexist.
+      #
+      # The release body is the changelog section extracted above.
+      - name: Tag and release
+        if: steps.check.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          set -euo pipefail
+          if ! git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            git tag "v$VERSION"
+            git push origin "v$VERSION"
+          fi
+          gh release create "v$VERSION" --title "v$VERSION" --notes-file release_notes.md
