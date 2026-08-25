@@ -1,29 +1,35 @@
 # Cross-platform support — macOS and Windows
 
-**Status: the Windows leg is functionally green.** `rake` (`make test` + `rake
-spec` + `rake spec:core`) passes end to end on a real Windows machine — 325 C
-checks, 904 headless examples, 350 Core examples, all green, repeatedly. B7 is
-the one open question left, and it is now believed fixed rather than merely
-unreproduced — see its section for why that belief is qualified. macOS is
-unchanged from the state below; nobody has picked it up since.
-Written 2026-08-21 from a read of the build wiring, the engine C, and the spec
-scaffolding; revised after each CI run and again from a real Windows machine.
-Anything marked *(sketch)* was never executed; anything marked *(measured)*
-came off a real runner.
+**Status: the Windows leg is green, including B7.** `rake` (`make test` +
+`rake spec` + `rake spec:core`) passes end to end on a real Windows machine —
+325 C checks, 904 headless examples, 350 Core examples, all green, repeatedly,
+and confirmed clean under a real `clang`+AddressSanitizer build too, not just
+plain `gcc`. B7 is no longer an open question: its root cause is understood
+and its section explains the full mechanism, not just that it stopped
+reproducing. macOS is unchanged from the state below; nobody has picked it up
+since. Written 2026-08-21 from a read of the build wiring, the engine C, and
+the spec scaffolding; revised after each CI run and again from a real Windows
+machine. Anything marked *(sketch)* was never executed; anything marked
+*(measured)* came off a real runner.
 
-**2026-08-25: two sessions on an actual Windows machine.** The first installed
-the toolchain and ran the build once to establish a baseline (see "Windows
-setup" for what differed from the untested instructions). The second — same
-day — worked the open items to a green `rake`. Landed: A4 (the `Color`
-`NUM2ULONG` bug), A5 (a new finding: `SpatialHash`'s cell-key packing overflows
-Windows' Fixnum range and allocates on every query), B1 (dlopen sonames), B2
-(read pixels via a new `frame_end` hook instead of relying on swap semantics —
-fixed 56 of 58 `spec:core` failures in one change), B4 (the vorbis fixture's
-`/tmp`), and a new B8 (`File.expand_path` resolving a leading `/` against the
-current drive, which broke `AssetManager`'s path specs). B7 turned out to be
-misdiagnosed from the start — see its section — and the current evidence, while
-not airtight, points to it being fixed as a side effect of B4. The Verdict
-below is amended for A5.
+**2026-08-25: three sessions on an actual Windows machine.** The first
+installed the toolchain and ran the build once to establish a baseline (see
+"Windows setup" for what differed from the untested instructions). The second
+— same day — worked the open items to a green `rake`. The third got a working
+AddressSanitizer build going (`clang64`, not `ucrt64`'s `gcc`) specifically to
+chase down B7, and it paid off completely: B7 turned out to be a real,
+fully-diagnosed bug (a `ck_assert` failure skipping an audio engine's cleanup
+and leaking its device thread — see B7's section) rather than a mystery that
+merely stopped reproducing. Landed: A4 (the `Color` `NUM2ULONG` bug), A5 (a
+new finding: `SpatialHash`'s cell-key packing overflows Windows' Fixnum range
+and allocates on every query), A6 (a new finding: the same LLP64 `long`-is-32-
+bits fact, this time in the engine's own `clip.c`, found by the same ASan run
+that closed out B7), B1 (dlopen sonames), B2 (read pixels via a new
+`frame_end` hook instead of relying on swap semantics — fixed 56 of 58
+`spec:core` failures in one change), B4 (the vorbis fixture's `/tmp` — the
+actual fix for B7, now proven rather than merely correlated), B7 itself, and a
+new B8 (`File.expand_path` resolving a leading `/` against the current drive,
+which broke `AssetManager`'s path specs). The Verdict below is amended for A5.
 
 **If you are picking this up on a Mac or a Windows box, start at
 "Working on the machines directly", then run the experiment it names.** The
@@ -58,7 +64,7 @@ So the work splits cleanly:
 
 | | Scope | Where it fails today *(measured)* |
 |---|---|---|
-| **A. Build wiring** | 5 items, small, mechanical — **all landed on Windows** | macOS cannot link `make test`: `ld: library 'GL' not found` |
+| **A. Build wiring** | 6 items, small, mechanical — **all landed on Windows** | macOS cannot link `make test`: `ld: library 'GL' not found` |
 | **B. Test scaffolding** | 8 items — **all landed or resolved on Windows** | unreached — nothing Ruby-side runs until A is done |
 | **C. Deliberate decisions** | 4 open questions | not blocking, but they shape A and B |
 
@@ -289,6 +295,41 @@ on Windows no matter how generous it looks on the machine writing it. There is
 no compiler flag or `RbConfig` check that surfaces this; it has to be
 remembered, or measured again the way this was.
 
+### A6. `long` is 32 bits on Windows in the C engine too, not just in Ruby *(measured, new)*
+
+The third instance of the same LLP64 fact biting a third layer — A4 hit Ruby's
+C API, A5 hit CRuby's Fixnum tagging, this one hits
+[`ext/rgame_core/graphics/clip.c`](../../ext/rgame_core/graphics/clip.c)
+directly, and was only found because getting a real AddressSanitizer/UBSan
+build working (see B7) meant running the *whole* Check suite under UBSan on
+Windows for the first time.
+
+`rgame_rect_intersect` computes an edge sum in `long` specifically to survive
+a caller passing a very large width — its own comment says so: `int` would
+overflow, which is undefined behaviour, and the `long` intermediate was meant
+to give headroom before narrowing back to `int` for the result. That reasoning
+holds on Linux/macOS (`long` is 64 bits there) and silently does not hold on
+Windows, where `long` is 32 bits — the same width as the `int` it was meant to
+be wider than. The overflow the comment describes is real UB there too;
+nothing before this session's UBSan run had ever compiled this function with
+UBSan *and* a 32-bit `long` at the same time, so it went uncaught.
+
+**Landed.** `long` → `int64_t` (`<stdint.h>`, genuinely 64 bits on every
+platform this project builds for, unlike `long`). Verified: `make test` under
+`clang64` with `-fsanitize=address,undefined` is clean through the full 325
+Check assertions, where before the fix it aborted immediately in the `clip`
+suite with `runtime error: signed integer overflow: 2147483637 + 100 cannot be
+represented in type 'long'`.
+
+**The pattern to watch for, stated plainly:** any C code in this project that
+reaches for `long` as "a type wider than `int`" is reaching for a type that,
+on Windows, is not wider than `int`. `int64_t`/`int32_t` say what they mean on
+every platform; `long`/`int` do not. A4, A5 and A6 are the same lesson at three
+different layers (Ruby C API, CRuby internals, this project's own C) and it is
+worth grepping for `\blong\b` outside `vendor/` the next time this file is
+picked up, rather than waiting for a fourth instance to surface one file at a
+time.
+
 ## B. Test scaffolding — where the effort actually is
 
 [`HeadlessDisplay`](../../spec_core/support/headless_display.rb) already gets
@@ -432,10 +473,15 @@ checked is about *what `lib/rgame.rb` requires*, which cannot differ per
 platform. **Leave it alone.** Recorded here only so the skip is not mistaken for
 an oversight during the port.
 
-### B7. Opening a *real* audio device crashes on macOS and Windows *(measured)*
+### B7. A failed assertion before an audio engine's cleanup leaks its device thread *(measured, resolved)*
 
-**This is the current blocking item on both platforms**, and it was not
-predicted anywhere in the sketch — which had audio down as the one subsystem
+**Filed as "opening a real audio device crashes on macOS and Windows"; that
+title turned out to be wrong — see below for the real mechanism, found on
+Windows via AddressSanitizer. Kept unedited above this point as the accurate
+history of how it was chased down; skip to "Confirmed, not just believed"
+partway through for the actual root cause.**
+
+This was not predicted anywhere in the sketch — which had audio down as the one subsystem
 already configured for all three (`MA_ENABLE_COREAUDIO`, `MA_ENABLE_WASAPI`,
 and no link dependencies). Compiling and linking for all three, it turns out,
 is not the same as opening a device on all three.
@@ -554,51 +600,113 @@ should matter to *correctness* — a diagnostic `fprintf` and a bigger unrelated
 buffer do not fix a logic bug. Both changes alter heap layout and timing.
 That a heap-layout change silences a crash whose own signature
 (`RtlValidateHeap` firing on a *later*, unrelated allocation) already pointed
-to corruption is close to a second confirmation, not a coincidence: **the
-belief is that B4 fixed B7 as a side effect**, not that B7 was independently
-resolved. That belief is not proven, and should not be treated as closed.
+to corruption is close to a second confirmation, not a coincidence — and it is
+exactly what turned out to be true, once a real sanitizer could actually run.
 
-**Two more rigorous diagnostics were attempted and both are currently
-blocked, not exhausted:**
+**Confirmed, not just believed: getting AddressSanitizer working proved the
+exact mechanism.** GCC's `ucrt64` package ships no sanitizer runtime at all
+(`ld: cannot find -lasan`/`-lubsan`; `pacman -Ss asan` finds nothing), but
+MSYS2's separate `clang64` environment does —
+`mingw-w64-clang-x86_64-clang` plus `mingw-w64-clang-x86_64-compiler-rt`, built
+and installed the same way as `ucrt64`'s packages. Building the whole Check
+suite there with `-fsanitize=address,undefined -fno-sanitize-recover=all`
+against the code *as committed* (B4's fix included) passed clean — 325/325,
+audio suite included, six consecutive runs. Reverting only B4's fix (`git show
+<parent>:test/test_vorbis_decoder.c`, rebuilt under the same ASan binary,
+restored afterward) reproduced the crash immediately and, this time, with a
+real address and a real report:
 
-- **AddressSanitizer**, which is `.claude/skills/verify/SKILL.md`'s documented
-  "reliable, use this" tool for exactly this class of bug, does not work on
-  this toolchain: `gcc -fsanitize=address,undefined` compiles cleanly but
-  fails to *link* — `ld: cannot find -lasan` / `-lubsan`. Measured: MSYS2's
-  `ucrt64` GCC package does not ship the sanitizer runtimes at all (`pacman -Ss
-  asan` finds nothing). **Not a dead end**: `mingw-w64-ucrt-x86_64-compiler-rt`
-  exists in the same repository and pairs with `mingw-w64-ucrt-x86_64-clang`
-  — Clang's Windows ASan support is materially more mature than GCC's, so
-  building the C suite with `ucrt64` clang instead of gcc is the concrete next
-  step for a real ASan run, not yet tried.
-- **Windows page heap** (the `gflags`/Application Verifier mechanism, OS-level
-  and needing no compiler support at all — every allocation on its own guard
-  page, catching the exact faulting instruction the way ASan does) needs an
-  `HKLM` registry key
-  (`...\Image File Execution Options\test_rgame.exe\GlobalFlag`) and this
-  session's shell does not have admin rights to write it. Elevating once —
-  interactively, or a `sudo`/"Run as Administrator" PowerShell — and rerunning
-  the crash would very likely produce an exact, first-fault backtrace in
-  minutes; this is the highest-value single action left for whoever picks this
-  up next with elevated access.
+```
+==ERROR: AddressSanitizer: stack-buffer-overflow ... READ of size 4 ... thread T6
+    #0 ma_node_get_output_bus_count            miniaudio.h:74755
+    ... (the mixer graph, reached from the device's own audio thread) ...
+    #9 ma_device_audio_thread__default_read_write miniaudio.h:20902
 
-**Current practical status**: `make test`, and the full `rake` task, pass
-reliably on this machine as of the fixes landed today — 14 consecutive clean
-`make test` runs, plus one full `rake` (325 C checks + 904 + 350 RSpec
-examples) all green. That is a real, useful result for actually developing on
-Windows day to day. It is reported here as "believed fixed via B4, not
-confirmed fixed" rather than "landed", specifically because a heisenbug that
-stops reproducing after an incidental heap-layout change is exactly the
-failure mode that later comes back under a slightly different build, compiler
-version, or allocation pattern — the honest status is "not currently
-reproducing," and only a clean ASan or page-heap run turns that into "fixed."
+Address ... is located in stack of thread T0 at offset 892 in frame
+    #0 opening_and_closing_repeatedly_leaks_nothing_fn  test_vorbis_decoder.c:393
+...
+Thread T6 created by T0 here:
+    ...
+    #4 ma_engine_init         miniaudio.h:77597
+    #5 the_engine_refuses_a_file_that_is_not_an_ogg_fn  test_vorbis_decoder.c:296
+```
 
-Whether macOS's crash is the same root cause as any of this is still entirely
-open — the macOS run never isolated `audio` from `vorbis_decoder` the way this
-session did, and now that Windows' crash has turned out to be in
-`vorbis_decoder` rather than `audio`, the macOS backtrace (never captured
-frame-by-frame, only "19 of 26 audio tests segfault") should be re-read with
-that possibility in mind before assuming it is hypothesis 1 or 2 either.
+Read backwards, that is the whole bug. `the_engine_refuses_a_file_that_is_not_an_ogg`
+opens an engine (`ma_engine_init`), which spins up a real background device
+thread (T6) — then, *before* its own `ma_engine_uninit`/cleanup at the bottom
+of the function, calls `scratch_file()`, whose `mkstemp("/tmp/...")` fails on
+Windows because `/tmp` does not exist there (B4's actual finding). That
+failure trips `ck_assert_int_ge(fd, 0)`, and **a failed `ck_assert` does a
+non-local jump out of the test function** — Check's whole mechanism for
+"a failed assertion ends this test, not the process." The jump skips every
+line after it, cleanup included. `ma_engine_uninit` never runs. Thread T6,
+still fully alive, keeps mixing through an `engine`/mixer graph that lives on
+a stack frame which — as far as the C call stack is concerned — no longer
+exists. Once *any* later test's stack frame reuses that same memory (ordinary,
+expected behaviour — nothing wrong with it in isolation), the zombie thread's
+next mix pass reads through what is now someone else's local variables. Which
+test's frame it happens to land on, and whether that read merely gets garbage
+or corrupts something Windows' heap validator later trips over, is exactly as
+unpredictable as the heisenbug behaviour above — because it *is* that
+mechanism: a genuinely dangling background thread, not a fixed memory address,
+racing against whatever the main thread does next.
+
+That also explains every earlier observation cleanly:
+
+- Why `rgame_audio_create`/`audio.c` were never in the backtrace: they were
+  never the code that leaked the thread. The two `test_vorbis_decoder.c`
+  functions that build a `ma_engine` directly (`the_engine_can_read_an_ogg_too`
+  and `the_engine_refuses_a_file_that_is_not_an_ogg`) were always the whole
+  story, and only the second one actually calls `scratch_file` before its own
+  cleanup — the first one doesn't, so it was never the source, just
+  collateral evidence pointing at the right file.
+- Why 20 loops of `the_engine_can_read_an_ogg_too` alone never crashed: it
+  never leaks its thread, because it has no failing assertion before its own
+  `ma_engine_uninit`.
+- Why B4 fixed it: B4 makes `mkstemp` succeed (a real `TEMP` directory instead
+  of a nonexistent `/tmp`), so the assertion that was jumping past cleanup
+  simply stops firing. Nothing about B4's buffer size or `snprintf` call was
+  ever the mechanism — that was this session's own mistaken inference from
+  watching a heisenbug's reproduction rate change. The real fix was always "make
+  the assertion pass," which B4 did as a side effect of fixing what it actually
+  set out to fix.
+- Why it needed heap noise from other suites to manifest under plain `gcc`,
+  and why ASan needed no such noise at all: ASan poisons the exact stack
+  region on every function's exit specifically to catch a *later* access to it,
+  so it does not need another test's frame to happen to collide — it catches
+  the read immediately, against its own redzone, the first time the zombie
+  thread's next mix pass fires. That is also why this is squarely a stack bug,
+  not a heap bug, despite `RtlValidateHeap` being the symptom every earlier
+  plain build showed: the corrupted memory *is* stack, but Windows' heap
+  validator is what happened to notice something was wrong, on a machine with
+  no ASan to notice it more precisely.
+
+**Landed — via B4, and this time for a fully understood reason rather than an
+observed correlation.** No new code change was needed beyond B4 itself; this
+account replaces "believed fixed" with "fixed, and here is why." The general
+hazard is worth stating for whoever writes the next test that opens a real
+`ma_engine`/`ma_device` directly (bypassing `audio.c`'s own `rgame_audio_create`/
+`rgame_audio_destroy`, which do not have this problem because nothing between
+their open and close can `ck_assert`): **any `ck_assert_*` between opening a
+device and tearing it down leaks that device's thread if it fails, on any
+platform, silently, until something else's memory happens to collide with it.**
+`test_vorbis_decoder.c`'s two engine tests still have this shape — no assertion
+between their `ma_engine_init` and their `ma_engine_uninit` is expected to fail
+in ordinary operation any more (B4 removed the one that could), so they are not
+currently a live hazard, but a `tcase` teardown fixture (which Check guarantees
+runs even after a failed assertion) would close the hazard structurally rather
+than by removing today's only trigger. Not done here — recorded as the
+principled follow-up rather than added speculatively.
+
+Whether macOS's crash is the same root cause is now answerable in principle —
+macOS's `/tmp` exists, so this exact trigger (a failed `mkstemp` assertion)
+would not fire there, meaning macOS's crash, if it reproduces at all once the
+macOS leg is picked up again, needs its own explanation. What transfers
+directly is the general hazard above, and the diagnostic path that found it:
+`ck_assert` failures before a real device's teardown are worth auditing
+anywhere a `ma_engine`/`ma_device` is opened directly in a test, and a
+`clang`+ASan build (macOS's `clang` already ships a working ASan/UBSan, no
+separate toolchain needed there) is the fastest way to confirm or rule it out.
 
 ### B8. `File.expand_path` resolves a leading `/` against the current drive on Windows *(measured, new)*
 
@@ -1117,11 +1225,11 @@ Leaving a working platform marked unported is how it silently rots back out —
 `continue-on-error` means nobody would notice it break again. See the flag's
 comment in [`ci.yml`](../../.github/workflows/ci.yml).
 
-**Windows qualifies as of 2026-08-25**, with one caveat: B7's fix is believed
-rather than confirmed (see B7's "heisenbug" note), so flipping the flag is
-reasonable but should come with a comment noting that B7 is watched rather than
-closed — if `make test` starts crashing again on CI, B7 is the first suspect,
-not a regression in whatever the diff actually touched.
+**Windows qualifies as of 2026-08-25** — every item that applies to it (A4–A6,
+B1, B2, B4, B7, B8) is landed, `rake` is clean, and B7 specifically is now a
+closed, understood bug rather than an open question (see its section). Nothing
+is left gating the flip except CI actually proving it on a fresh runner, which
+is what pushing with the flag flipped is for.
 
 ### Step 6 — `"SDL.h"` robustness (A1, optional)
 

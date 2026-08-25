@@ -37,17 +37,19 @@ jobs:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
 
-    # macOS and Windows are expected to fail until the port lands, so they must
-    # not gate anything: with this, they show red on the job while the *run*
-    # stays green, and Ubuntu keeps working as the regression guard it is on day
-    # one. Without it there is no way to tell "still unported, as predicted"
-    # from "somebody broke Linux", which would destroy the only value this
-    # workflow has today.
+    # A platform not yet ported is expected to fail, so it must not gate
+    # anything: with this, it shows red on the job while the *run* stays
+    # green, and every already-ported platform keeps working as the
+    # regression guard it is. Without it there is no way to tell "still
+    # unported, as predicted" from "somebody broke a working platform", which
+    # would destroy the only value this workflow has for an unported one.
     #
     # Flipping `ported` to true is part of the definition of done for the
     # corresponding step in docs/plans/cross-platform-support.md — it is not a
     # rule anyone is asked to remember, because the plan step says so and the
-    # job name below says which platforms are still marked.
+    # job name below says which platforms are still marked. Windows flipped
+    # 2026-08-25, once B7 (docs/plans/cross-platform-support.md) had a
+    # confirmed root cause and fix rather than an unreproduced crash.
     continue-on-error: ${{ !matrix.ported }}
 
     strategy:
@@ -62,9 +64,9 @@ jobs:
           - name: macos (port in progress)
             os: macos-14
             ported: false
-          - name: windows (port in progress)
+          - name: windows
             os: windows-latest
-            ported: false
+            ported: true
 
     steps:
       - uses: actions/checkout@v4
