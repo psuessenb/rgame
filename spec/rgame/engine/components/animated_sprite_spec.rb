@@ -13,7 +13,7 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
     }
   end
   let(:node) { RGame::Engine::Node2D.new(x: 5.0, y: 7.0) }
-  let(:body) { RGame::Engine::Components::CharacterBody.new(feet_width: 8, feet_height: 6, speed: 50.0) }
+  let(:body) { RGame::Engine::Components::CharacterBody.new(speed: 50.0) }
   let(:sprite) { described_class.new(sheet: :hero, z: 10) }
   let(:renderer) { instance_double(FakeRenderer, layered: nil) }
 

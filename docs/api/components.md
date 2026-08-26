@@ -282,7 +282,7 @@ here, or "jump"/"fire" in a platformer.
 ### `AnimatedSprite`
 
 Draws a sprite-sheet animation and picks the animation from a [`CharacterBody`](#characterbody)
-sibling's movement: `walk_left`/`walk_right`/`walk_up`/`walk_down` while moving (horizontal wins
+sibling's movement intent: `walk_left`/`walk_right`/`walk_up`/`walk_down` while moving (horizontal wins
 on a diagonal), `stand` when still. Owns an `RGame::Engine::Animator` over the pure `AnimationSet` built
 from the sheet's animation table.
 
@@ -302,25 +302,46 @@ from the sheet's animation table.
 
 ### `CharacterBody`
 
-Collision-checked walking for a tile-bound actor. A controller writes a per-step movement intent
-(each axis −1..1); the body turns it into a real move each `update`, resolved against the scene's
-[`TileWorld`](#tileworld) so the actor slides along walls and stays in the map. Unlike `Velocity`
-(which integrates blindly), every step here is collision-checked.
+Direct, per-step walking for an actor. A controller writes a movement intent (each axis −1..1);
+the body turns it into a real move each `update`, at a fixed speed with no inertia — unlike
+`Velocity`, which integrates a velocity the controller sets, and `ThrustController`, which
+accelerates one.
 
-- **Construct:** `CharacterBody.new(feet_width:, feet_height:, speed:)` — the feet box size (in px)
-  and walk speed (px/s). No sprite size is passed: `collision_box` is built lazily from the node's
-  `width`/`height` (which `AnimatedSprite` sets), centred horizontally and bottom-anchored. A body
-  with no sprite must set the node's dimensions itself.
+This one moves the node freely, so it needs **no sprite, no dimensions and no system on the
+scene**: an actor in a world with nothing to bump into is just `CharacterBody` + a controller.
+[`TileCharacterBody`](#tilecharacterbody) below is the collision-checked subclass.
+
+- **Construct:** `CharacterBody.new(speed:)` — walk speed in px/s.
 - **State:** `set_intent(x, y)` writes the step's intent; `move_x`/`move_y` read it back (the facing
   for `AnimatedSprite`).
-- **Lifecycle:** `on_attach` caches the scene's `TileWorld`.
-- **Phase:** `update(dt)` moves `intent * speed * dt` through the tile world (nothing when the
-  intent is zero).
+- **Phase:** `update(dt)` applies `intent * speed * dt` (nothing when the intent is zero).
+- **Seam:** `apply_move(dx, dy)` is where a step lands — the one method a collision-aware body
+  overrides, so it inherits the intent, the speed and the standing-still check rather than
+  restating them.
+
+### `TileCharacterBody`
+
+A `CharacterBody` bound to a tile map: each step is resolved against the scene's
+[`TileWorld`](#tileworld), so the actor slides along walls and stays inside the map. Everything
+about the intent is inherited; what is added is the box a step lands with and the resolution.
+
+- **Construct:** `TileCharacterBody.new(feet_width:, feet_height:, speed:)` — the feet box size (in
+  px) and walk speed (px/s). No sprite size is passed: `collision_box` is built lazily from the
+  node's `width`/`height` (which `AnimatedSprite` sets), centred horizontally and bottom-anchored.
+  A body with no sprite must set the node's dimensions itself.
+- **Lifecycle:** `on_attach` caches the scene's `TileWorld`, and **raises** when there is none
+  rather than falling back to free movement — an actor walking through walls looks like a collision
+  bug, and the cause would be a scene that never mounted the system.
+- **Phase:** inherited; the move goes through the tile world instead of straight onto the node.
+
+Siblings that pull `node.get_component(CharacterBody)` — `PlayerController`, `WanderController`,
+`AnimatedSprite` — find one of these just as readily: `get_component` matches a class key by
+ancestry.
 
 ### `PlayerController`
 
-Drives a `CharacterBody` sibling from two input axes — direct 8-way walking, no inertia (unlike
-`ThrustController`).
+Drives a `CharacterBody` sibling (or a `TileCharacterBody`) from two input axes — direct 8-way
+walking, no inertia (unlike `ThrustController`).
 
 - **Construct:** `PlayerController.new(x_axis: :move_x, y_axis: :move_y)`.
 - **Phase:** `control(actions)` copies the two axes into the body's intent.

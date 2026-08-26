@@ -7,7 +7,7 @@
 # beach map, the camera keeps the player centred (clamping at the map edges), and the
 # palm canopies draw over the actors while the trunks stay behind. It exercises:
 #   - TileWorld — a scene-scoped system: tile collision, world bounds, map drawing;
-#   - CharacterBody + PlayerController / WanderController — collision-checked walking;
+#   - TileCharacterBody + PlayerController / WanderController — collision-checked walking;
 #   - AnimatedSprite — directional sprite-sheet animation;
 #   - WorldView + renderer.translated — the camera as a draw-time view transform.
 

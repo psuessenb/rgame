@@ -2,7 +2,7 @@
 
 RSpec.describe RGame::Engine::Components::PlayerController do
   let(:node) { RGame::Engine::Node2D.new }
-  let(:body) { RGame::Engine::Components::CharacterBody.new(feet_width: 8, feet_height: 8, speed: 100.0) }
+  let(:body) { RGame::Engine::Components::CharacterBody.new(speed: 100.0) }
 
   before do
     node.add_component(body)

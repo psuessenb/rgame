@@ -7,6 +7,10 @@ module RGame
       # direction (one of eight, or idle) and holds it until a timer elapses — or until a
       # wall blocks it, at which point it re-rolls early instead of pushing into the wall.
       # The RNG is injected so behaviour is deterministic in tests.
+      #
+      # "Blocked" is measured as *the node did not move while intending to*, not asked of
+      # a collision world — so this works over any CharacterBody, and simply never fires
+      # for one whose steps always land.
       class WanderController < Engine::Component
         MOVED_EPS = 1e-6
         DIRECTIONS = [

@@ -65,8 +65,7 @@ RSpec.describe RGame::Engine::Culling do
     def drew?(node)
       node.root.context = FakeGame.new(assets: instance_double(FakeAssets, sheet: sheet))
       renderer.register_sheet(:hero, sheet)
-      node.add_component(RGame::Engine::Components::CharacterBody.new(feet_width: 4, feet_height: 4,
-                                                                      speed: 1.0))
+      node.add_component(RGame::Engine::Components::CharacterBody.new(speed: 1.0))
       node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: :hero))
       node.parent.enter_tree
       node.parent.draw(renderer, world_view)

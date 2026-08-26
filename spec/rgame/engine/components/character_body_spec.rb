@@ -1,32 +1,29 @@
 # frozen_string_literal: true
 
 RSpec.describe RGame::Engine::Components::CharacterBody do
-  # Unit scope: the body turns a movement intent into a collision-checked move and
-  # delegates the actual resolution to the TileWorld. The real tile-vs-box maths is
-  # covered by tile_collision_spec / the beach integration spec, so here we use a
-  # TileWorld double and assert the delegation, the node-backed actor adapter, and the
-  # feet box derived from the node's dimensions.
-  let(:node)  { RGame::Engine::Node2D.new(x: 100.0, y: 100.0, width: 32, height: 32) }
-  let(:world) { instance_double(RGame::Engine::Components::TileWorld, move: nil) }
-  let(:body)  { described_class.new(feet_width: 16, feet_height: 16, speed: 50.0) }
+  # Unit scope: the base body turns a movement intent into a plain move at its speed,
+  # with no collision world and no sprite behind it — the case for an actor in a world
+  # with nothing to bump into. TileCharacterBody's spec covers the collision-checked
+  # subclass; between them they pin the seam (`apply_move`) from both sides.
+  let(:node) { RGame::Engine::Node2D.new(x: 100.0, y: 100.0) }
+  let(:body) { described_class.new(speed: 50.0) }
 
   before do
-    allow(node).to receive(:system).with(RGame::Engine::Components::TileWorld).and_return(world)
     node.add_component(body)
-    node.enter_tree # on_attach caches the world
+    node.enter_tree
   end
 
   describe '#update' do
-    it 'moves the intent scaled by speed and dt through the tile world' do
-      body.set_intent(1.0, 0.0)
+    it 'moves the node by the intent scaled by speed and dt' do
+      body.set_intent(1.0, -0.5)
       body.update(0.5)
-      expect(world).to have_received(:move).with(body, 25.0, 0.0) # 1.0 * 50 * 0.5
+      expect([node.x, node.y]).to eq([125.0, 87.5]) # 1.0 * 50 * 0.5, -0.5 * 50 * 0.5
     end
 
     it 'does nothing when the intent is zero' do
       body.set_intent(0.0, 0.0)
       body.update(0.5)
-      expect(world).not_to have_received(:move)
+      expect([node.x, node.y]).to eq([100.0, 100.0])
     end
 
     it 'exposes the intent as the facing for the animator' do
@@ -35,23 +32,21 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     end
   end
 
-  describe '#collision_box' do
-    it 'builds a feet box from the node dimensions, centred and bottom-anchored' do
-      box = body.collision_box
-      # 32x32 node, 16x16 feet → offset_x (32-16)/2 = 8, offset_y 32-16 = 16
-      expect([box.offset_x, box.offset_y, box.width, box.height]).to eq([8, 16, 16, 16])
-    end
-  end
-
-  describe 'the actor adapter the collision system drives' do
-    it 'reads x/y from the node' do
-      expect([body.x, body.y]).to eq([100.0, 100.0])
+  # The two things a plain actor must not need: a sprite to be sized by, and a system on
+  # the scene to resolve against. This node has neither — it is a bare Node2D on a scene
+  # with nothing mounted — and that is the whole reason the intent lives here rather than
+  # in the tile-bound subclass.
+  describe 'what it does not need' do
+    it 'moves with no sprite size on the node' do
+      expect(node.width).to be_zero
+      body.set_intent(1.0, 0.0)
+      expect { body.update(0.1) }.to change(node, :x).by(5.0)
     end
 
-    it 'writes a resolved position back to the node' do
-      body.x = 140.0
-      body.y = 160.0
-      expect([node.x, node.y]).to eq([140.0, 160.0])
+    it 'moves with no world system on the scene' do
+      expect(node.system(RGame::Engine::Components::TileWorld)).to be_nil
+      body.set_intent(0.0, 1.0)
+      expect { body.update(0.1) }.to change(node, :y).by(5.0)
     end
   end
 end
