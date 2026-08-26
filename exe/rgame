@@ -1,0 +1,14 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# The `rgame` command — see lib/rgame/cli.rb.
+#
+# From an installed gem, RubyGems generates a wrapper that puts the gem's lib/
+# on the load path before this file runs. From a checkout it does not, so the
+# line below makes `ruby exe/rgame ...` work there too.
+lib = File.expand_path('../lib', __dir__)
+$LOAD_PATH.unshift(lib) if File.directory?(lib) && !$LOAD_PATH.include?(lib)
+
+require 'rgame/cli'
+
+exit RGame::CLI.run(ARGV)

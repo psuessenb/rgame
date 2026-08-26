@@ -20,13 +20,39 @@ If you're just starting with game development and planning on making the next bi
 
 In all seriousness, though: This is a hobby project of mine, and while it might develop into something actually useful, at the time of writing it's a playground. If you search for something I searched and found nothing, you can try this. I would be really happy if someone else actually uses it, but at this point I can't really recommend it for anything else than small projects and/or learning the ropes of game development.
 
-## Hello world
+## Getting started
+
+Installing the gem puts an `rgame` command on your PATH, and it will write you a
+project to start from:
 
 ```
+gem install rgame
+rgame new tictactoe
+
+cd tictactoe
+bundle install
+bundle exec rspec     # the game logic, headless — no window needed
+ruby main.rb          # the game itself
+```
+
+What it writes is small — a game class, a root node, a spec and the usual
+configuration — but it is laid out the way the engine wants to be used: one file
+loads SDL, everything else stays graphics-free and therefore testable with no
+display. [The `rgame` command](docs/api/cli.md) explains the layout and why it
+matters.
+
+`gem install` compiles two C extensions, so the [requirements](#requirements)
+below have to be in place first.
+
+## Hello world
+
+The whole of it in one file, if you would rather see it that way:
+
+```ruby
 require 'rgame/game'
 
 class Scene < RGame::Engine::Node2D
-  def on_draw(renderer)
+  def on_draw(renderer, _view)
     renderer.text('Hello world!', 250, 200)
   end
 end

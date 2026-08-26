@@ -1,0 +1,12 @@
+# Bundler
+/.bundle/
+/vendor/bundle/
+
+# Gem packaging, if this project ever becomes one
+/pkg/
+*.gem
+
+# Editor / OS
+.DS_Store
+*.swp
+/.ruby-lsp/

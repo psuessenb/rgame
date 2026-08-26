@@ -12,6 +12,20 @@ index, not the argument.
 
 ## [Unreleased]
 
+### Added
+
+- **`rgame new NAME`** — the gem now installs an `rgame` command that scaffolds
+  a project: a game class, a root node, a passing spec suite, a RuboCop config
+  that is green, a Gemfile, a Rakefile and a README. The layout it writes is the
+  engine's own layering — `game.rb` is the only file that loads SDL, so `nodes/`
+  and `spec/` stay graphics-free and the generated suite runs with no display.
+  Also `rgame version` and `rgame help`. See [docs/api/cli.md](docs/api/cli.md).
+
+### Fixed
+
+- The README's hello-world gave `on_draw` one parameter; it takes two
+  (`renderer, view`).
+
 ## [0.2.0] - 2026-08-26
 
 ### Added

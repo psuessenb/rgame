@@ -120,6 +120,45 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
     end
   end
 
+  describe 'the rgame command' do
+    it 'ships the executable and declares it' do
+      # RubyGems puts a wrapper on PATH for each name in `executables`, looked
+      # up under `bindir`. Shipping the file without declaring it means no
+      # command; declaring it without shipping it fails `validate` above.
+      expect(gemspec.bindir).to eq('exe')
+      expect(gemspec.executables).to eq(['rgame'])
+      expect(files).to include('exe/rgame')
+    end
+
+    it 'ships the executable with its executable bit set' do
+      # RubyGems records the mode of the file as packaged. A wrapper that shells
+      # out to a non-executable script is a permission error at the user's first
+      # `rgame new`, on their machine and not ours.
+      expect(File).to be_executable(File.join(root, 'exe/rgame'))
+    end
+
+    it 'packages every project template' do
+      # A template missing from the gem is not a load error — it is `rgame new`
+      # writing an incomplete project, and only on a machine that installed the
+      # gem rather than checking it out.
+      expect(sources('lib/rgame/cli/templates/**/*') - files).to be_empty
+    end
+
+    # Stated without going through `sources`, for the reason the .dSYM example
+    # below gives: both the gemspec and this file derive their lists with
+    # `Dir.glob`, and `Dir.glob` does not match a leading dot. A template named
+    # `.gitignore` would therefore be absent from the gem *and* invisible to the
+    # example above, which is the exact shape of hole that let macOS debug
+    # symbols ship. Templates are stored under plain names and renamed on the
+    # way out — see RGame::CLI::NewProject::DOTFILES.
+    it 'has no dotfile among the templates, which the packaging glob would skip' do
+      dotfiles = Dir.glob('lib/rgame/cli/templates/**/*', File::FNM_DOTMATCH, base: root)
+                    .grep(%r{(\A|/)\.[^/.]})
+
+      expect(dotfiles).to be_empty
+    end
+  end
+
   describe 'what must never ship' do
     it 'excludes compiled extensions and object files' do
       # lib/rgame/*.so is this machine's binary. Shipping it would shadow the

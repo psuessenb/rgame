@@ -1,0 +1,18 @@
+# frozen_string_literal: true
+
+# What a node spec looks like: build the node, drive one of its hooks, assert.
+# No window is opened, and none is needed — see spec/spec_helper.rb for why.
+RSpec.describe Root do
+  describe '#on_draw' do
+    it 'draws its greeting' do
+      # A node calls a renderer by name and never asks what class it is, so a
+      # plain spy stands in for one. The real RGame::Core::Renderer lives on the
+      # other side of a line this suite deliberately does not cross.
+      renderer = spy('renderer')
+
+      described_class.new.on_draw(renderer, nil)
+
+      expect(renderer).to have_received(:text).with(Root::GREETING, 20, 20)
+    end
+  end
+end

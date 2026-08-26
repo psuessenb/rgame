@@ -1,0 +1,17 @@
+# frozen_string_literal: true
+
+source 'https://rubygems.org'
+
+# The engine. It has no runtime dependencies of its own — SDL2 and OpenGL are
+# system libraries rather than gems — but installing it compiles two C
+# extensions, so a C compiler, `make`, `pkg-config` and the SDL2/OpenGL
+# development headers have to be present. See the rgame README.
+gem 'rgame', '<%= rgame_requirement %>'
+
+group :development, :test do
+  gem 'rake', require: false
+  gem 'rspec'
+  gem 'rubocop', require: false
+  gem 'rubocop-performance', require: false
+  gem 'rubocop-rspec', require: false
+end

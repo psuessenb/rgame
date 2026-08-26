@@ -60,6 +60,13 @@ Gem::Specification.new do |spec|
 
   spec.require_paths = ['lib']
 
+  # The `rgame` command — `rgame new tictactoe` scaffolds a project. RubyGems
+  # generates a wrapper on PATH for each name here, so this is what makes the
+  # command exist after `gem install rgame`. Its project templates need no entry
+  # of their own: they live under lib/ and the glob below takes them.
+  spec.bindir = 'exe'
+  spec.executables = ['rgame']
+
   # What ships, derived rather than listed.
   #
   # Two properties matter, and they pull in opposite directions.
@@ -82,9 +89,16 @@ Gem::Specification.new do |spec|
   #
   # spec/packaging_spec.rb asserts both directions against the list this
   # produces. It is the guard; this comment is only the reasoning.
+  # Note what `Dir.glob` does *not* match: a name beginning with a dot. That is
+  # invisible here and harmless for everything above — but the CLI's project
+  # templates live under lib/, and a template named `.gitignore` would silently
+  # never ship. So none of them are dotfiles; they are stored under plain names
+  # and renamed on the way out (RGame::CLI::NewProject::DOTFILES), and
+  # spec/packaging_spec.rb fails if one ever appears.
   packaged = %w[
     lib/**/*
     ext/**/*
+    exe/**/*
     docs/api/**/*
     README.md
     CHANGELOG.md

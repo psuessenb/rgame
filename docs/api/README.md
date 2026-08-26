@@ -8,6 +8,7 @@ read or write any C.
 | Page | Covers |
 |---|---|
 | This page | Loading the library, the three namespaces, a working program, testing |
+| [The `rgame` command](cli.md) | `rgame new NAME` — starting a project, and the layout it gives you |
 | [App](app.md) | `RGame::Core::App` — the window and the frame loop |
 | [Game](game.md) | `RGame::Game` — the entry point that wires both halves together |
 | [Input](input.md) | `RGame::Core::Input`, `RGame::Util::Controls`, `RGame::Core::Gamepad` |

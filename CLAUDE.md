@@ -574,6 +574,32 @@ file to a folder already listed needs nothing.
   tile maps, pathfinding. Pure Ruby, no graphics library, and the layer a game
   is actually written against. `lib/rgame/engine.rb` requires the lot and is
   separately requirable.
+- `exe/rgame` + `lib/rgame/cli.rb` + `lib/rgame/cli/` — the `rgame` command, and
+  the project generator behind `rgame new NAME`. Declared in the gemspec via
+  `spec.bindir`/`spec.executables`, so `gem install rgame` puts it on PATH.
+
+  Two rules hold it up. **It requires only stdlib and `rgame/version`** — never
+  `rgame`, `rgame/core` or `rgame/game` — so scaffolding works before either
+  extension is built, and so the CLI can be specced from `spec/`, where
+  `RGame::Core` is undefined and a stray require fails loudly.
+
+  And **no file under `lib/rgame/cli/templates/` may be named with a leading
+  dot.** `Dir.glob('lib/**/*')` is how the gemspec derives `spec.files`, and it
+  does not match dotfiles, so a template called `.gitignore` would be absent
+  from the installed gem while working perfectly in the checkout — the same
+  shape of invisible-until-it-is-someone-else's-machine failure as a `.c` left
+  out of the list. Dotfile templates are stored under plain names
+  (`gitignore.tt`) and renamed on the way out through `NewProject::DOTFILES`.
+  `spec/packaging_spec.rb` asserts it, *without* going through `Dir.glob`, for
+  the reason its `.dSYM` example gives: a guard that shares the blind spot it is
+  guarding is not a guard.
+
+  What the generator writes is the layering above, made the default in a new
+  project: `game.rb` is the one file that requires `rgame/game`, `nodes/` and
+  `spec/` require `rgame`, and so a generated suite is headless from the first
+  commit. `spec/rgame/cli/generated_project_spec.rb` generates a project and
+  runs its RSpec and RuboCop for real — the promise is worth nothing described.
+  See `docs/api/cli.md`.
 - `lib/rgame/boot.rb` — enables YJIT if this Ruby has it. Not engine code, which
   is why it sits directly under `rgame/`; `RGame::Game` requires it, so it is
   the entry point's decision rather than a line every game remembers. Note

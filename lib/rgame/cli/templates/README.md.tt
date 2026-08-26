@@ -1,0 +1,63 @@
+# <%= caption %>
+
+A game built with [rgame](https://github.com/psuessenb/rgame).
+
+## Running it
+
+```
+bundle install
+ruby main.rb
+```
+
+`F1` toggles the debug overlay, `F2` closes the window.
+
+## Testing it
+
+```
+bundle exec rspec
+```
+
+The suite runs **headless** — no window, no GPU, no clock. That is not an
+accident of this project being small; it is the arrangement the layout below is
+for, and it holds however large the game gets.
+
+```
+bundle exec rubocop
+bundle exec rake        # both of the above
+```
+
+## Layout
+
+```
+main.rb           boots the game and nothing else
+game.rb           the window, its size, its caption — and the ONLY file that
+                  loads SDL and OpenGL
+nodes/            the scene tree: game logic, graphics-free
+  root.rb         the root node, drawn every frame
+assets/           images, sounds, maps — RGame::Game's media_root
+spec/             specs for nodes/, run with no display
+```
+
+### Why `game.rb` and `nodes/` are separate
+
+rgame comes in two halves, and they are worth keeping apart.
+
+`RGame::Core` owns the window, the GPU textures and the sound device — real
+operating-system handles. `RGame::Engine` is the scene graph: nodes, components,
+signals, sprites, tile maps. It holds no handles at all, and it never names
+`RGame::Core`. A node is *handed* a renderer at draw time and calls methods on
+it by name.
+
+So `require 'rgame'` loads the engine and the value types with no graphics
+library in the process, while `require 'rgame/game'` loads everything. `game.rb`
+does the latter, `nodes/*.rb` and `spec/*` do the former — and that one
+difference is what lets the entire game logic be tested in milliseconds, with a
+spy standing in for the renderer, on a machine with no display.
+
+Keep new game logic under `nodes/`. When something there needs to draw, give it
+an `on_draw(renderer, view)` and call the renderer by name.
+
+## Where to look next
+
+The [rgame API guide](https://github.com/psuessenb/rgame/blob/main/docs/api/README.md)
+covers the scene graph, components, input, drawing, audio and the asset layer.
