@@ -27,7 +27,7 @@ module RGame
         end
 
         def on_attach
-          @body = node.get_component(CharacterBody)
+          @body = require_sibling(CharacterBody)
           @last_x = node.x
           @last_y = node.y
         end

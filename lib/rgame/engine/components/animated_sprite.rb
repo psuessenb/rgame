@@ -33,7 +33,7 @@ module RGame
           @animator = Engine::Animator.new(Engine::AnimationSet.new(sheet.animations))
           node.width = sheet.frame_width
           node.height = sheet.frame_height
-          @body = node.get_component(CharacterBody)
+          @body = require_sibling(CharacterBody)
         end
 
         def update(dt)

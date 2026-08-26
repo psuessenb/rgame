@@ -34,6 +34,18 @@ not in `initialize`):
 `sweep_freed` exists for container components that hold nodes off the normal child
 list; the default is a no-op (see [deferred free](scene_graph.md#deferred-free)).
 
+`require_sibling(klass)` is the lookup a component's `on_attach` opens with when it
+drives a sibling — `@body = require_sibling(CharacterBody)`. It returns the component
+or raises naming both, instead of returning the `nil` that stays silent until the first
+frame calls a method on it.
+
+**Add order matters only for a node already in the tree.** A node assembled *outside*
+it collects every component before any `on_attach` runs, so order is free there — which
+is why an example can add an `AnimatedSprite` before the body it pulls. A node that adds
+components from its own `on_add` is already in the tree, so each one attaches as it
+arrives and can only see the ones before it. Same two lines, opposite outcome; the raise
+says so.
+
 A node holds **at most one component per slot**. The slot defaults to the component's
 class, so by default that's one per class (`add_component` raises on a taken slot) — but
 pass `as: :name` to keep several of one type (a spawn timer and a wave timer). Look a
@@ -260,7 +272,8 @@ a thrust axis accelerates it along its heading.
 
 - **Construct:** `ThrustController.new(turn_speed:, accel:, max_speed:, drag: 0.0,
   turn_action: :turn, thrust_action: :thrust)`.
-- **Lifecycle:** `on_attach` pulls the node's `Velocity` component.
+- **Lifecycle:** `on_attach` pulls the node's `Velocity` component (`require_sibling`, so a
+  missing one raises rather than surfacing as a nil later).
 - **Phase:** `control(actions)` reads intent (turn → `velocity.spin`, thrust stored);
   `update(dt)` accelerates along the heading (angle 0 = up, so forward is
   `(sin θ, −cos θ)`), applies drag, and clamps to `max_speed`. Firing is intentionally
@@ -344,6 +357,7 @@ Drives a `CharacterBody` sibling (or a `TileCharacterBody`) from two input axes 
 walking, no inertia (unlike `ThrustController`).
 
 - **Construct:** `PlayerController.new(x_axis: :move_x, y_axis: :move_y)`.
+- **Lifecycle:** `on_attach` pulls the node's `CharacterBody` (`require_sibling`).
 - **Phase:** `control(actions)` copies the two axes into the body's intent.
 
 ### `WanderController`
@@ -353,7 +367,11 @@ idle) and holds it, re-rolling early when a wall blocks it. The RNG is injected,
 deterministic in tests.
 
 - **Construct:** `WanderController.new(rng: Random.new, change_interval: 1.0..3.0, idle_chance: 0.25)`.
+- **Lifecycle:** `on_attach` pulls the node's `CharacterBody` (`require_sibling`).
 - **Phase:** `update(dt)` counts down the timer and re-rolls on timeout or when blocked.
+  "Blocked" is *the node did not move while intending to* — measured, not asked of a
+  collision world — so it works over a plain `CharacterBody` too, and simply never fires
+  for one whose steps always land.
 
 ### `TileWorld`
 

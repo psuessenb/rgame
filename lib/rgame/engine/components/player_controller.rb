@@ -16,7 +16,7 @@ module RGame
           @y_axis = y_axis
         end
 
-        def on_attach = @body = node.get_component(CharacterBody)
+        def on_attach = @body = require_sibling(CharacterBody)
 
         def control(actions)
           @body.set_intent(actions.axis(@x_axis), actions.axis(@y_axis))
