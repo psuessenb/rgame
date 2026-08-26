@@ -30,7 +30,18 @@ Color.from_packed(0xFF8000C8)   # 0xRRGGBBAA
 | `==`, `eql?`, `hash` | Value semantics. |
 | `inspect` | `#<RGame::Util::Color r=1 g=2 b=3 a=4>` |
 
-Named colours: `Color::WHITE`, `Color::BLACK`, `Color::TRANSPARENT`.
+### The named palette
+
+```ruby
+Color::WHITE   Color::BLACK   Color::TRANSPARENT
+Color::RED     Color::GREEN   Color::BLUE
+Color::YELLOW  Color::CYAN    Color::MAGENTA
+Color::ORANGE  Color::PURPLE  Color::BROWN     Color::PINK
+Color::GRAY    Color::LIGHT_GRAY               Color::DARK_GRAY
+```
+
+All are opaque except `TRANSPARENT`, and all follow the CSS/X11 values, so
+`Color::ORANGE` is the orange a colour picker would give you.
 
 ### Out-of-range components raise
 
