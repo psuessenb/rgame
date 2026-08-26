@@ -6,6 +6,8 @@
 #   - three scenes (start → play → game-over) navigated through a SceneStack;
 #   - a scene-scoped CollisionWorld system + a root-scoped HighScores system
 #     (the two service scopes — see docs/api/systems.md);
+#   - a scene-scoped World system, so wrapping and despawning find the world size
+#     themselves instead of it being threaded through every constructor;
 #   - reusable components: Velocity, ScreenWrap, DespawnOffscreen, CircleCollider,
 #     Sprite, ThrustController, ActionTrigger;
 #   - pooled bullets and rocks (RGame::Engine::Pool) with deferred removal (queue_free);
@@ -58,9 +60,9 @@ class Root < RGame::Engine::Node2D
 
   def build_scene(name, score: 0)
     case name
-    when :start     then StartScene.new(width: WIDTH, height: HEIGHT)
+    when :start     then StartScene.new
     when :play      then PlayScene.new(width: WIDTH, height: HEIGHT)
-    when :game_over then GameOverScene.new(width: WIDTH, height: HEIGHT, score: score)
+    when :game_over then GameOverScene.new(score: score)
     end
   end
 end

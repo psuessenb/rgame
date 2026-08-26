@@ -5,12 +5,16 @@ require_relative 'rock'
 require_relative 'bullet'
 require_relative 'score_label'
 
-# The play scene and scene boundary: it owns the scene-scoped CollisionWorld system
-# (a component on itself) plus the bullet/rock object pools. Entities are pooled
-# Node2Ds — spawning is `pool.acquire` → `reset` → `add_node` (enter_tree registers
-# the collider); despawning is `queue_free`, and #on_update reclaims freed entities
-# back to their pool (detaching them from the tree). The reclaim runs before the
-# child traversal, so it never mutates the child list mid-iteration.
+# The play scene and scene boundary: it owns the scene-scoped World and CollisionWorld
+# systems (components on itself) plus the bullet/rock object pools. The world size is
+# declared here, once, and every entity that needs it asks the World system — nothing
+# below carries it in a constructor.
+#
+# Entities are pooled Node2Ds — spawning is `pool.acquire` → `reset` → `add_node`
+# (enter_tree registers the collider); despawning is `queue_free`, and #on_update
+# reclaims freed entities back to their pool (detaching them from the tree). The
+# reclaim runs before the child traversal, so it never mutates the child list
+# mid-iteration.
 class PlayScene < RGame::Engine::Node2D
   CELL_SIZE     = 96
   INITIAL_ROCKS = 4
@@ -27,18 +31,21 @@ class PlayScene < RGame::Engine::Node2D
     @score = 0
     @spawn_timer = SPAWN_INTERVAL
     @rng = Random.new
-    @rock_pool   = RGame::Engine::Pool.new { Rock.new(world_width: @width, world_height: @height) }
-    @bullet_pool = RGame::Engine::Pool.new { Bullet.new(world_width: @width, world_height: @height) }
+    @rock_pool   = RGame::Engine::Pool.new { Rock.new }
+    @bullet_pool = RGame::Engine::Pool.new { Bullet.new }
   end
 
   def on_add
+    # Mounted before any entity is added, so the ScreenWrap and DespawnOffscreen on
+    # each one resolves its bounds the moment it enters the tree.
+    add_component(RGame::Engine::Components::World.new(width: @width, height: @height))
     add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
     # Added first, so it is behind every entity in the tree — and in the `:hud`
     # band, so it draws over them anyway. That is the point of a band: the tree
     # decides the rest of the order, and a band overrules it.
     @score_label = add_node(ScoreLabel.new(x: SCORE_MARGIN, y: 10))
     refresh_score
-    @ship = add_node(Ship.new(world_width: @width, world_height: @height))
+    @ship = add_node(Ship.new)
     @ship.on_fire { |x, y, angle| fire_bullet(x, y, angle) }
     @ship.on_destroyed { lose }
     INITIAL_ROCKS.times { spawn_rock }

@@ -106,21 +106,52 @@ draws them; this component only manages their pool membership.
   still attached. So despawning is just `node.queue_free` anywhere; the pool recycles it with
   no game-side wiring. Allocation-free in steady state.
 
+### `World`
+
+The scene-scoped **world system**: how big the world is, and nothing else yet. Mount one
+on a scene whose world is a plain rectangle, and the components that need bounds find it
+instead of having the numbers threaded through every constructor between the scene and
+the entity.
+
+- **Construct:** `World.new(width:, height:)`.
+- **Queries:** `world_width` / `world_height`. Immutable — a world that genuinely changes
+  size is a new scene.
+- **Contract:** it includes `WorldBounds`, and so does [`TileWorld`](#tileworld), which
+  answers the same two questions from its map's pixel size. Ask for the contract —
+  `node.system(RGame::Engine::Components::WorldBounds)` — and either kind of world
+  answers, because `get_component` matches an included module the same way it matches a
+  class.
+
+It is deliberately **not** the window size. The two coincide in a single-screen game,
+which is what makes the mistake easy to make and hard to see: bind wrapping to the
+viewport and the world silently changes shape when the window is resized, or when the
+screen is split and each half is its own viewport. Ask
+[`Viewports`](scene_graph.md#viewports-and-views) — or the `View` a `draw` is handed —
+how big the *window* is; ask this how big the *world* is.
+
 ### `ScreenWrap`
 
-Wraps the node's position toroidally within a rectangle, so an entity leaving one edge
-reappears on the opposite one.
+Wraps the node's position toroidally within the world bounds, so an entity leaving one
+edge reappears on the opposite one.
 
-- **Construct:** `ScreenWrap.new(width:, height:, margin: 0.0)` — `margin` lets a
-  sprite pass fully off one edge before reappearing on the other.
+- **Construct:** `ScreenWrap.new(margin: 0.0)` — `margin` lets a sprite pass fully off one
+  edge before reappearing on the other. Bounds come from the scene's world system.
+  `ScreenWrap.new(width:, height:, margin:)` overrides them for a node whose wrap region
+  is not the whole world.
+- **Lifecycle:** `on_attach` resolves the bounds — which is why they can be left out:
+  a pooled entity is built long before it is in a tree and has nothing to ask yet. It
+  re-resolves on every entry, so a recycled node follows the scene it lands in. Attaching
+  with no bounds and no world system in scope **raises**.
 - **Phase:** `update(dt)` clamps-and-wraps `node.x`/`node.y` against the bounds.
 
 ### `DespawnOffscreen`
 
-Removes the node once it has fully left the bounds (plus margin) — for short-lived
+Removes the node once it has fully left the world bounds (plus margin) — for short-lived
 entities like projectiles.
 
-- **Construct:** `DespawnOffscreen.new(width:, height:, margin: 0.0)`.
+- **Construct:** `DespawnOffscreen.new(margin: 0.0)`, with the same optional
+  `width:`/`height:` override.
+- **Lifecycle:** `on_attach` resolves the bounds, exactly as `ScreenWrap` does.
 - **Phase:** `update(dt)` calls `node.queue_free` when the node is past every edge.
   Removal is *deferred* (see [deferred free](scene_graph.md#deferred-free)), so it is
   safe to trigger from inside the update traversal. For a *fixed* board (an entity that
@@ -308,6 +339,8 @@ deterministic in tests.
 The scene-scoped tile **system** (see [Systems](systems.md)): it holds the parsed `RGame::Engine::TileMap`
 and answers everything an actor needs from it — collision against the solid tiles (reusing
 `RGame::Engine::CollisionSystem`) and the world bounds. Found with `node.system(TileWorld)`.
+It includes `WorldBounds` (see [`World`](#world)), so `ScreenWrap` and `DespawnOffscreen`
+work in a tile scene with nothing passed to them.
 
 **It does not draw.** `RGame::Engine::TileMapLayer` does — one node per Tiled layer, mounted
 inside a `WorldView`, so the map is drawn once per viewport like the rest of world space.
@@ -334,10 +367,11 @@ overrides that for a map with a different arrangement. Nothing here picks a `z`.
 ```ruby
 # A node composing components, with collision meaning decided by the owner:
 class Bullet < RGame::Engine::Node2D
-  def initialize(x:, y:, vx:, vy:, bounds:)
+  def initialize(x:, y:, vx:, vy:)
     super(x: x, y: y)
     add_component(RGame::Engine::Components::Velocity.new(vx: vx, vy: vy))
-    add_component(RGame::Engine::Components::DespawnOffscreen.new(**bounds))
+    # No bounds: DespawnOffscreen asks the scene's World system once it is in the tree.
+    add_component(RGame::Engine::Components::DespawnOffscreen.new)
     collider = add_component(RGame::Engine::Components::CircleCollider.new(radius: 3, layer: :bullet))
     collider.on_hit { |other| queue_free if other.layer == :rock }
   end
