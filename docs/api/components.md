@@ -37,20 +37,85 @@ list; the default is a no-op (see [deferred free](scene_graph.md#deferred-free))
 `require_sibling(klass)` is the lookup a component's `on_attach` opens with when it
 drives a sibling — `@body = require_sibling(CharacterBody)`. It returns the component
 or raises naming both, instead of returning the `nil` that stays silent until the first
-frame calls a method on it.
-
-**Add order matters only for a node already in the tree.** A node assembled *outside*
-it collects every component before any `on_attach` runs, so order is free there — which
-is why an example can add an `AnimatedSprite` before the body it pulls. A node that adds
-components from its own `on_add` is already in the tree, so each one attaches as it
-arrives and can only see the ones before it. Same two lines, opposite outcome; the raise
-says so.
+frame calls a method on it. When it does raise, the cause is nearly always add order —
+see [Where to add a component](#where-to-add-a-component) below.
 
 A node holds **at most one component per slot**. The slot defaults to the component's
 class, so by default that's one per class (`add_component` raises on a taken slot) — but
 pass `as: :name` to keep several of one type (a spawn timer and a wave timer). Look a
 component up with `get_component(key)`, where `key` is a class (matched by ancestry; it
 raises if several share the type) or a Symbol name.
+
+## Where to add a component
+
+**Assemble a node before it enters the tree.** There are two shapes for that, and which
+one you use is decided by whether the node is a class of its own:
+
+- **A `Node2D` subclass — in `initialize`.** This is the default and covers most
+  entities.
+
+  ```ruby
+  class Bullet < RGame::Engine::Node2D
+    def initialize(x:, y:, vx:, vy:)
+      super(x: x, y: y)
+      add_component(RGame::Engine::Components::Velocity.new(vx: vx, vy: vy))
+      add_component(RGame::Engine::Components::DespawnOffscreen.new)
+    end
+  end
+  ```
+
+- **A plain `Node2D` composed from components — in a builder method** that returns the
+  assembled node. Reach for this when the node is nothing but its components and a
+  subclass would add no behaviour; the walkers in `examples/15_tiled_world` are built
+  this way.
+
+  ```ruby
+  def build_player
+    node = RGame::Engine::Node2D.new(x: spawn_x, y: spawn_y)
+    node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: PLAYER_SHEET))
+    node.add_component(RGame::Engine::Components::TileCharacterBody.new(
+                         feet_width: 10, feet_height: 8, speed: PLAYER_SPEED
+                       ))
+    node.add_component(RGame::Engine::Components::PlayerController.new)
+    node
+  end
+  ```
+
+**Both work for the same reason, and it is worth knowing.** The node is not in the tree
+yet, so `add_component` only appends — no `on_attach` fires until the whole set is
+present and the node enters. So **add order is free**: `build_player` above adds an
+`AnimatedSprite` *before* the `TileCharacterBody` it pulls, and that is fine.
+
+### Adding from `on_add`, and when you have to
+
+A node running `on_add` is **already in the tree**, so each `add_component` attaches
+immediately and can only see the components added before it. The same two lines in the
+other order raise (see [`require_sibling`](#the-component-base) above). Prefer
+`initialize` or a builder; use `on_add` when the component genuinely cannot be built any
+earlier, which means its constructor needs something only the tree can answer:
+
+```ruby
+def on_add
+  # Both arguments are cross-tree lookups: the asset manager hangs off the root's
+  # context, and the player registry is a system. Neither exists at construction.
+  add_component(RGame::Engine::Components::TileWorld.new(
+                  map: root.context.assets.tilemap(MAP_KEY).map,
+                  tilemap_id: MAP_KEY,
+                  cameras: root.system(RGame::Engine::Players).map(&:camera)
+                ))
+end
+```
+
+That is the test to apply: **does the constructor need the tree?** A `World` built from
+numbers the scene already has, or a `CollisionWorld` built from a constant, does not —
+so `examples/14_asteroids` mounts both in `initialize`, where they are guaranteed to
+precede every entity the scene later spawns rather than merely happening to. A
+`TileWorld` parsed out of the asset manager does, so it waits.
+
+The exception on the other side is a component added **deliberately** after entry,
+because it depends on state that only exists once the node is live — a `CameraFollow`
+whose offset comes from the sibling body's resolved `collision_box`. That is not
+assembly, it is a later decision, and `on_add` is the right place for it.
 
 ## Available components
 
@@ -404,7 +469,9 @@ actors.add_node(player)                             # in the gap between them
 overrides that for a map with a different arrangement. Nothing here picks a `z`.
 
 ```ruby
-# A node composing components, with collision meaning decided by the owner:
+# Collision meaning is decided by the owner, not the collider: the component reports a
+# contact and this node says what a contact with a rock means. See
+# [Where to add a component](#where-to-add-a-component) for why this is `initialize`.
 class Bullet < RGame::Engine::Node2D
   def initialize(x:, y:, vx:, vy:)
     super(x: x, y: y)

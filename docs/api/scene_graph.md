@@ -325,6 +325,10 @@ lookups (anchors, systems, sibling components) in `on_add` / `on_attach`, never 
 `initialize`. The engine guarantees the anchors are wired before those hooks run, so
 you can't accidentally read them too early.
 
+The mirror of that rule — *attaching* components belongs in `initialize` or a builder,
+and `on_add` only when the component's constructor needs the tree — is
+[Where to add a component](components.md#where-to-add-a-component).
+
 ## Anchors and shared systems
 
 Two back-links let any node reach shared state without it being threaded through

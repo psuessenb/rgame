@@ -33,13 +33,17 @@ class PlayScene < RGame::Engine::Node2D
     @rng = Random.new
     @rock_pool   = RGame::Engine::Pool.new { Rock.new }
     @bullet_pool = RGame::Engine::Pool.new { Bullet.new }
+    # The scene's systems, mounted at construction: neither needs anything from the
+    # tree to be built, so neither has to wait for on_add. That makes them present
+    # before any entity is added no matter what on_add later does — the ScreenWrap
+    # and DespawnOffscreen on each entity resolve their bounds against the World the
+    # moment they enter the tree, and every CircleCollider registers with the
+    # CollisionWorld.
+    add_component(RGame::Engine::Components::World.new(width: width, height: height))
+    add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
   end
 
   def on_add
-    # Mounted before any entity is added, so the ScreenWrap and DespawnOffscreen on
-    # each one resolves its bounds the moment it enters the tree.
-    add_component(RGame::Engine::Components::World.new(width: @width, height: @height))
-    add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
     # Added first, so it is behind every entity in the tree — and in the `:hud`
     # band, so it draws over them anyway. That is the point of a band: the tree
     # decides the rest of the order, and a band overrules it.
