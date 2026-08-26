@@ -7,14 +7,6 @@ walking the tree**, not threaded through constructors. There is **no `GameContex
 bag**: a system is just an `RGame::Engine::Component` on a boundary node, found with the
 same `get_component` every node already has.
 
-> Status: the anchor + lookup mechanism (`root`, `scene`, `system`), the
-> tree-lifecycle hooks, and deferred removal (`queue_free`) are in place.
-> `examples/14_asteroids` exercises the whole path end to end and shows **both
-> scopes**: scene-scoped `World` and `CollisionWorld` systems, and a root-scoped
-> `HighScores` system. `examples/15_tiled_world` adds a second scene-scoped system, `TileWorld`
-> (the tile map: collision, world bounds, drawing). More systems arrive with the
-> rest of the component port (see `docs/wip/components.md`).
-
 ## Two scopes = two anchor nodes
 
 Scope is a property of the **owner** you attach a system to, not of the system
