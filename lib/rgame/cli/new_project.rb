@@ -41,6 +41,7 @@ module RGame
       DOTFILES = {
         'gitignore' => '.gitignore',
         'rspec' => '.rspec',
+        'ruby-version' => '.ruby-version',
         'rubocop.yml' => '.rubocop.yml'
       }.freeze
 
@@ -78,6 +79,14 @@ module RGame
       # "~> 0.2" for a 0.2.0 generator, so a project tracks whatever version
       # created it rather than a number frozen into a template.
       def rgame_requirement = Gem::Version.new(RGame::VERSION).approximate_recommendation
+
+      # The Ruby running `rgame new`, written to .ruby-version and pointed at
+      # from the Gemfile. Whichever Ruby generated the project is the one it was
+      # known to work on, which is the only version this can honestly claim.
+      #
+      # The bare `4.0.5` form rather than mise's `ruby 4.0.5`: every version
+      # manager reads it, and so does Bundler's `ruby file:`.
+      def ruby_version = RUBY_VERSION
 
       private
 

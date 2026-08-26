@@ -11,6 +11,10 @@ ruby main.rb
 
 `F1` toggles the debug overlay, `F2` closes the window.
 
+This project was generated on Ruby <%= ruby_version %>, which is what
+`.ruby-version` holds and what the `Gemfile` points at. Bundler treats that as
+an exact requirement; see the note in the `Gemfile` to loosen it.
+
 ## Testing it
 
 ```

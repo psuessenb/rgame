@@ -97,6 +97,7 @@ RSpec.describe RGame::CLI do
             .gitignore
             .rspec
             .rubocop.yml
+            .ruby-version
             Gemfile
             README.md
             Rakefile
@@ -136,6 +137,14 @@ RSpec.describe RGame::CLI do
         requirement = Gem::Version.new(RGame::VERSION).approximate_recommendation
 
         expect(File.read(File.join(project, 'Gemfile'))).to include("gem 'rgame', '#{requirement}'")
+      end
+
+      it 'records the Ruby that generated it, and points the Gemfile at it' do
+        # Written from RUBY_VERSION rather than baked into the template: the
+        # Ruby that ran the generator is the one the project is known to work
+        # on, and it is the only one this can honestly claim.
+        expect(File.read(File.join(project, '.ruby-version'))).to eq("#{RUBY_VERSION}\n")
+        expect(File.read(File.join(project, 'Gemfile'))).to include("ruby file: '.ruby-version'")
       end
 
       # The layering the generated project is *for*: game.rb is the only file

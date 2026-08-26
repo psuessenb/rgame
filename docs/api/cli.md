@@ -24,6 +24,7 @@ tictactoe/
 ├── Gemfile           rgame, plus rspec and rubocop for development
 ├── Rakefile          rake spec, rake rubocop, rake
 ├── README.md
+├── .ruby-version     the Ruby that ran `rgame new`
 ├── .gitignore  .rspec  .rubocop.yml
 ├── main.rb           boots the game and nothing else
 ├── game.rb           class TictactoeGame < RGame::Game
@@ -48,8 +49,30 @@ ruby main.rb          # a window saying "Hello from tictactoe!"
 
 The name is turned into a class name by splitting on underscores and dashes and
 capitalising each part, so `tic_tac_toe` and `tic-tac-toe` both give
-`TicTacToeGame`. The `Gemfile` pins the engine to the version that generated the
-project (`gem 'rgame', '~> 0.2'`).
+`TicTacToeGame`.
+
+Two versions are recorded, both taken from whatever generated the project rather
+than baked into a template. The `Gemfile` pins the engine loosely
+(`gem 'rgame', '~> 0.2'`), and `.ruby-version` records the exact Ruby that ran
+`rgame new` — the one interpreter the project is actually known to work on. The
+Gemfile points at that file rather than repeating the number:
+
+```ruby
+ruby file: '.ruby-version'
+```
+
+Every version manager reads `.ruby-version`, and so does Bundler, so the two
+cannot drift apart.
+
+Bundler treats it as a **hard, exact** requirement: on any other Ruby,
+`bundle install` refuses rather than resolving against it — and `4.0` does not
+match `4.0.5`, it matches only `4.0`. To accept a range instead, state the
+requirement in the `Gemfile` rather than in `.ruby-version`, which has to stay a
+plain version number for version managers to read:
+
+```ruby
+ruby '~> 4.0'   # instead of `ruby file: '.ruby-version'`
+```
 
 ## Why the layout is shaped like this
 

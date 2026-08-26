@@ -19,6 +19,8 @@ index, not the argument.
   that is green, a Gemfile, a Rakefile and a README. The layout it writes is the
   engine's own layering — `game.rb` is the only file that loads SDL, so `nodes/`
   and `spec/` stay graphics-free and the generated suite runs with no display.
+  It also writes a `.ruby-version` holding the Ruby that ran the command, with
+  the Gemfile pointing at that file rather than repeating the number.
   Also `rgame version` and `rgame help`. See [docs/api/cli.md](docs/api/cli.md).
 
 ### Fixed
