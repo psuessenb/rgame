@@ -4,7 +4,6 @@ require 'rgame'
 
 # The root of the scene tree. Everything the game draws hangs below it.
 #
-#
 # The three hooks to override are `on_control(actions)`, `on_update(dt)` and
 # `on_draw(renderer, view)`. Override those rather than `control`, `update` or
 # `draw`: the engine does its own bookkeeping in the outer methods and calls

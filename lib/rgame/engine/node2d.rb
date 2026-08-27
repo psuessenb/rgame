@@ -29,34 +29,39 @@ module RGame
       alias y rel_y
       alias angle rel_angle
 
-      attr_accessor :width, :height, :parent
+      attr_accessor :width, :height
       attr_writer :scene, :context
 
-      # Moving a node re-resolves its world transform straight away, rather than
-      # leaving it stale until the next phase reaches this node.
+      # The other way a node moves, and the only one that does not go through a
+      # coordinate writer: its `x`/`y` do not change, but they are now an offset
+      # from somewhere else. Set by #add_node and #remove_node — a game does not
+      # call this — and it invalidates the subtree for the same reason a move
+      # does.
+      def parent=(value)
+        @parent = value
+        soil
+      end
+
+      # Moving a node invalidates the world transform of the node *and its whole
+      # subtree* — every one of them is now somewhere else — but computes none of
+      # them. Whoever reads one next pays for that one.
       #
-      # It has to happen on the write, because the traversal resolves a node
-      # *once*, at the top of its own phase, and then runs the hooks that may
-      # move it — so everything after that point in the same tick, this node's
-      # own children included, would otherwise read where the node was before it
-      # moved and catch up a tick later. `node.x += dx` from a component
-      # (Components::Velocity does exactly that) has the same problem.
-      #
-      # Only this node is re-resolved. Its children are resolved after it in
-      # every phase, so they pick the new value up on their own.
+      # `node.x += dx` from a component (Components::Velocity does exactly that)
+      # is two writes and so two invalidations, which is why #soil returns
+      # immediately on a subtree that is already stale.
       def rel_x=(value)
         @rel_x = value
-        resolve_transform
+        soil
       end
 
       def rel_y=(value)
         @rel_y = value
-        resolve_transform
+        soil
       end
 
       def rel_angle=(value)
         @rel_angle = value
-        resolve_transform
+        soil
       end
 
       alias x= rel_x=
@@ -67,17 +72,48 @@ module RGame
       # bookkeeping, set by the parent's #add_node the way `parent` is — not for
       # game code, and meaningless on a node with no parent.
       attr_accessor :sibling_order
-      # This node's transform **in world space**, resolved by the traversal from
-      # its whole ancestry. Read-only: a node is moved by setting `x`/`y`/`angle`,
-      # which is the space it actually lives in.
+
+      # This node's transform **in world space**, accumulated from its whole
+      # ancestry. Read-only: a node is moved by setting `x`/`y`/`angle`, which is
+      # the space it actually lives in.
       #
       # `world_` rather than `abs_`, because the name should say which space the
       # value is in. `abs_band` and `abs_input_owner` keep theirs deliberately —
       # those are *inherited* from the nearest ancestor that declares one rather
       # than expressed in a space, and a band is not in world coordinates.
-      attr_reader :world_x, :world_y, :world_angle
+      #
+      # **Computed on demand and cached**, which is how Godot and Unity do it and
+      # why no phase resolves this any more. Moving a node marks it and its whole
+      # subtree stale (see #soil); the next read walks up to the nearest node
+      # still current, recomputing on the way back down. Two consequences worth
+      # knowing:
+      #
+      # - It is never stale. There is no "resolved at the top of the phase" value
+      #   to go out of date, so a node that moved, a node whose *ancestor* moved,
+      #   and a paused node under a moving ancestor all answer correctly, at any
+      #   point in any phase.
+      # - Nothing is computed for a node nobody asks about. A still frame costs
+      #   nothing at all, where resolving the tree eagerly cost a full pass per
+      #   phase whether or not anything had moved.
+      # hot-path
+      def world_x
+        resolve_transform unless @world_current
+        @world_x
+      end
 
-      attr_reader :children, :components, :abs_input_owner, :z, :band, :abs_band
+      # hot-path
+      def world_y
+        resolve_transform unless @world_current
+        @world_y
+      end
+
+      # hot-path
+      def world_angle
+        resolve_transform unless @world_current
+        @world_angle
+      end
+
+      attr_reader :children, :components, :parent, :abs_input_owner, :z, :band, :abs_band
 
       # Where this node sits among its **siblings**, and nowhere else.
       #
@@ -159,12 +195,11 @@ module RGame
         @rel_angle = angle
         @width = width
         @height = height
-        # Resolved at the top of each phase, by whichever half that phase reads
-        # (see #resolve_origin). Seeded here so
-        # a node that has not been driven yet reads as being at the origin
-        # rather than as nil — which is the same answer resolve_origin gives an
-        # unparented node, and saves every reader of abs_* from a NoMethodError
-        # on a node built but not yet ticked.
+        # A fresh node has never resolved its world transform, so the first read
+        # of one computes it — including on a node built but never ticked, which
+        # is why these seeds are a floor rather than an answer. They exist so
+        # that nothing reads nil if a future path ever bypasses the readers.
+        @world_current = false
         @world_x = @world_y = @world_angle = 0
         @abs_input_owner = @input_owner
         @abs_band = @band || Util::Z::DEFAULT
@@ -281,9 +316,10 @@ module RGame
       # updates input, both from player (readings actions) as well as
       # AI-driven node control. This run first in a game tick
       # Each phase settles this node first (components, then the node's own
-      # hook), then descends into children. Self-before-subtree keeps the
-      # transform flowing downward: a component or hook that moves this node
-      # does so before children resolve their origin from it.
+      # hook), then descends into children. Nothing about a node's position
+      # depends on that order — a world position is computed when it is read —
+      # but it is what lets a hook decide something the subtree then acts on in
+      # the same tick.
 
       # `input` is an input *source*, not one player's snapshot: an
       # RGame::Engine::Players registry, or a bare Actions when there is only
@@ -316,11 +352,9 @@ module RGame
       def update(dt)
         return if @paused
 
-        # Only the transform. Nothing on this path reads the inherited
-        # attributes — `abs_input_owner` is read by `control` and `abs_band` by
-        # `draw`, and each phase resolves what it needs — so resolving them here
-        # would be work no reader of this phase ever looks at.
-        resolve_transform
+        # Nothing is resolved here at all. The world transform is computed on
+        # demand by whoever reads it (see #world_x), and the inherited attributes
+        # are read by `control` and `draw` rather than by anything on this path.
         @components.each { it.update(dt) }
         on_update(dt)
         children_in_order.each { it.update(dt) }
@@ -335,17 +369,16 @@ module RGame
       # half of it — and because culling needs it once the world is drawn more
       # than once. Most nodes ignore it and simply draw.
       def draw(renderer, view)
-        # The full resolve, even though nothing *drawn* reads a coordinate any
-        # more — the node's position is expressed by pushing its transform below
-        # rather than by baking it into what it draws.
+        # Only the inherited attributes: `renderer.layered` below needs the band.
         #
-        # It stays because **culling is world-space** and happens here: a view is
-        # a camera rectangle in the world, so a node's local box says nothing
-        # about whether it is on screen (see RGame::Engine::Culling). Reusing
-        # what `update` resolved would be stale in one real case — a paused node
-        # under an ancestor that is still moving, which draws but does not
-        # update, and which spec/rgame/engine/node2d_paused_spec.rb covers.
-        resolve_origin
+        # Nothing here resolves a coordinate. Drawing expresses position by
+        # pushing this node's transform rather than by reading a resolved one,
+        # and culling — which *is* world-space, since a view is a camera
+        # rectangle in the world — asks `node.world_x`, which computes itself if
+        # it has to. That is what lets a paused node under a moving ancestor cull
+        # correctly despite never running `update`; see
+        # spec/rgame/engine/node2d_paused_spec.rb.
+        resolve_inherited
         # Everything this node and its subtree draws happens in the node's own
         # local space: (0, 0) is the node, +x is its right. `in_local_space`
         # pushes the transform that makes that true, the renderer composes it
@@ -438,10 +471,11 @@ module RGame
       # renderer's job and this is the same mechanism WorldView uses for the
       # camera, one level further down. Translate first, then rotate about the
       # node's own origin: that composes to `parent_origin + R(parent) * local`,
-      # which is what #resolve_origin computes arithmetically for the update path.
+      # which is the same thing #resolve_transform computes arithmetically for
+      # anything that asks where the node is in the world.
       #
-      # A root pushes nothing, matching #resolve_origin pinning a parentless node
-      # to the identity regardless of its own x/y/angle.
+      # A root pushes nothing, matching #resolve_transform pinning a parentless
+      # node to the identity regardless of its own x/y/angle.
       #
       # An identity transform is skipped here rather than left to the renderer,
       # which short-circuits it too. Most nodes are organizational and sit at
@@ -514,23 +548,14 @@ module RGame
       # `z` is **not** among them, and that is the point: depth is decided by
       # where the traversal reaches a node, not by summing what its ancestors
       # picked. See #z= and RGame::Util::Z.
-      # Both halves, which only `draw` needs: it reads `abs_band` to open the
-      # node's layer, and it keeps the transform current for culling (see #draw).
-      # `control` and `update` each call the one half they read.
-      # TODO: Do not recalculate every time, but use a @dirty flag
-      def resolve_origin
-        resolve_inherited
-        resolve_transform
-      end
-
-      # The transform half: where this node is in the world, from where its
-      # parent is and where it sits inside its parent.
-      #
-      # Its own method because the two halves are needed at different moments.
-      # This one is also what a coordinate writer calls, so a node that moves
-      # mid-phase is immediately where it says it is.
+      # Where this node is in the world, from where its parent is and where it
+      # sits inside its parent. Called by the `world_*` readers when the cached
+      # answer is stale, and by nothing else — reading the parent's `world_x`
+      # (the reader, not the ivar) is what walks up to the nearest ancestor still
+      # current and recomputes back down from there.
       # hot-path
       def resolve_transform
+        @world_current = true
         if @parent.nil?
           @world_x = @world_y = 0
           @world_angle = 0 # root pinned to identity, like its position
@@ -549,6 +574,34 @@ module RGame
         end
         @world_angle = pa + @rel_angle
       end
+
+      protected
+
+      # Mark this node's world transform stale, and every descendant's with it —
+      # they are all somewhere else now. Nothing is recomputed here; the next
+      # read of each one pays for that one, and a node nobody asks about pays
+      # nothing at all.
+      #
+      # A subtree that is already stale is left alone, which is what keeps a
+      # burst of writes cheap: `node.x += dx` followed by `node.y += dy` walks
+      # the subtree once, and the second call stops at this node. That is sound
+      # because staleness always covers a whole subtree — the only thing that
+      # clears it is a read, and a read of a node clears that node and its
+      # ancestors, never a descendant.
+      # hot-path
+      def soil
+        return unless @world_current
+
+        @world_current = false
+        # rubocop:disable Style/SymbolProc -- `&:soil` would call through
+        # Symbol#to_proc, which dispatches publicly and so cannot reach a
+        # protected method. An explicit receiver is the only form that works
+        # here, and it allocates no more than the symbol would.
+        @children.each { it.soil }
+        # rubocop:enable Style/SymbolProc
+      end
+
+      private
 
       # The half of the resolution that is *not* the transform: which player owns
       # this node, and which band it draws in. Both are inherited from the

@@ -25,7 +25,7 @@ module RGame
     #   requires it — `examples/14_asteroids` does not) reads as 0×0, which would
     #   otherwise cull everything instantly. Unknown means draw.
     # - **A rotated node is measured generously.** `Node2D#draw` rotates about the
-    #   node's absolute origin, so a rotated footprint can reach further than its
+    #   node's own origin, so a rotated footprint can reach further than its
     #   box in any direction. The margin is `width + height`, which is always at
     #   least the diagonal `hypot(width, height)` and costs no square root on a
     #   path that runs once per drawable per viewport.

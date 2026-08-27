@@ -21,13 +21,20 @@ and emit signals without opting in. See [Signals](signals.md).
 
 ### The tick: control → update → draw
 
-A node is driven in three phases, run in this order every frame:
+A node is driven in three phases, always in this order:
 
 1. `control(actions)` — read intent, both from the player (the `actions`
    snapshot) and from AI/scripted controllers.
 2. `update(dt)` — advance game logic and physics over the timestep `dt`.
 3. `draw(renderer, view)` — render the current visual state into `view`, the
    viewport being drawn.
+
+The first two run once per **simulation tick** and the third once per **rendered
+frame**, which are not the same count: the loop is fixed-timestep, so a slow
+frame runs several ticks before drawing, and a frame in which nothing has
+advanced is skipped entirely. That is why a `draw` must be a pure function of
+state and must never read a clock — see
+[Drawing](drawing.md), and CLAUDE.md's "`draw` renders state".
 
 Each phase **settles the node itself first — its components, then its own hook —
 and only then descends into the children**. So you override the hook, not the
@@ -44,9 +51,9 @@ out against the edges of *this* region rather than the whole window
 optimisation once the world is drawn once per player. See
 [Viewports](#viewports-and-views).
 
-Self-before-subtree keeps the transform flowing downward: a component or hook
-that moves the node does so before its children resolve their origin from it (see
-[The two spaces](#the-two-spaces)).
+Self-before-subtree is the order the hooks run in, and nothing about a node's
+position depends on it: a world position is computed when it is read, from
+wherever everything is at that moment (see [The two spaces](#the-two-spaces)).
 
 Because the traversal recurses into children for you, **never re-implement child
 iteration** — add children with `add_node` and let the tree drive them.
@@ -57,27 +64,39 @@ iteration** — add children with `add_node` and let the tree drive them.
 sets, and the space it lives in. `rel_x`/`rel_y`/`rel_angle` are the same three
 under their long names.
 
-`world_x`/`world_y`/`world_angle` are the same transform resolved against the
+`world_x`/`world_y`/`world_angle` are the same transform accumulated against the
 whole ancestry: `world_x = parent.world_x + x`, with the parent's rotation
-applied, and a node with no parent pinned to the origin. They are read-only, and
-resolved by the traversal at the start of `update` and `draw`. Moving a node
-therefore moves its whole subtree, and it does so **within the same tick** —
-writing `x` re-resolves the node straight away, so its children read where it now
-is rather than where it was. (Dirty-flag caching is noted as future work in the
-source.)
+applied, and a node with no parent pinned to the origin. They are read-only.
+
+**They are computed when read, and cached** — the arrangement Godot and Unity
+use. Moving a node marks it and its whole subtree stale; the next read of any of
+them walks up to the nearest node still current and recomputes back down. Two
+things follow, and both are relied on:
+
+- **A world position is never stale.** No phase snapshots one, so there is
+  nothing to go out of date: a node that moved, a node whose *ancestor* moved, a
+  node that was just reparented, and a paused node under a moving ancestor all
+  answer correctly, at any point in any phase.
+- **Nothing is computed for a node nobody asks about.** A frame in which nothing
+  moves costs nothing at all.
+
+The two ways a node moves are therefore the two places that invalidate: writing
+`x`/`y`/`angle`, and being given a new parent (`add_node`/`remove_node`) — the
+same offset from somewhere else is still a move.
 
 **Which one to use.** Drawing needs neither: see "Drawing happens in local
 space" below. Game logic that reasons about the world — a distance, a collision,
 a camera target — wants `world_x`. Moving a node wants `x`.
 
-**Each phase resolves only what it reads**, which is worth knowing when a spec
-drives one phase and asserts on another's answer:
+**No phase resolves the transform**, which is worth knowing when a spec drives
+one phase and asserts on another's answer. What the phases still resolve is the
+*inherited* attributes, which are not coordinates:
 
 | Phase | Resolves | Because it reads |
 |---|---|---|
 | `control` | `abs_input_owner` | whose actions to hand each node |
-| `update` | `world_x`/`world_y`/`world_angle` | collision, camera targets, range queries |
-| `draw` | both, and the transform | `abs_band` to open the node's layer, the transform to cull |
+| `update` | nothing | it reads neither |
+| `draw` | `abs_band` | to open the node's own layer |
 
 **`z` is not among them, and there is no `abs_z`.** Depth is decided by where
 the traversal reaches a node, not by summing what its ancestors picked — see
@@ -157,8 +176,9 @@ only ever one answer. Each node asks the source for the actions of whichever
 player owns it, and hands its components and its own `on_control` that plain
 `Actions`.
 
-Ownership is `input_owner`, and it is **inherited down the tree exactly like the
-transform**, resolved onto `abs_input_owner` alongside `world_x`/`world_y`:
+Ownership is `input_owner`, and it is **inherited down the tree the way the
+transform accumulates**, resolved onto `abs_input_owner` by `control` — the one
+phase that reads it:
 
 ```ruby
 ship.input_owner = game.players[1]   # the ship and everything under it
@@ -178,10 +198,16 @@ the `control(actions)` it always did.
 
 ### View transforms and the camera
 
-A node's transform is its place in the **world**. A *view* transform is different: it
-maps that world onto the screen (a camera), and it must wrap a whole subtree's draw
-without being baked into any node's position. So `draw` calls a `draw_children` step a
-subclass can override to wrap the subtree in a renderer transform.
+A node's transform is its place in its **parent**, and `draw` pushes it onto the
+renderer as the traversal descends. A *view* transform is different in kind: it
+maps the world onto the screen (a camera), it belongs to no node in the tree, and
+it has to wrap a whole subtree's draw — including the drawing the subtree's own
+root does. So a node that owns a view transform overrides **`draw`** and calls
+`super` inside it.
+
+(`draw_children` is a separate seam, for a node that wants to wrap or skip its
+*children's* draw while still drawing itself normally — `examples/15_tiled_world`'s
+inventory panel closes by not calling `super` from it.)
 
 ### Two words that are easy to confuse
 
@@ -197,10 +223,11 @@ mean. See [Drawing](drawing.md#draw-order).
 They are not the same partition. All screen-space content is one *space* and is
 drawn once; the bands subdivide it by what should cover what.
 
-`RGame::Engine::WorldView` is that subclass, and it is where **world space begins**.
-Its children draw at their own world origin and never know about a camera; the node
-draws them **once per active viewport**, clipping to that viewport's rectangle and
-translating by its camera:
+`RGame::Engine::WorldView` is such a node, and it is where **world space begins**.
+Its children draw in their own local space and never know about a camera; the node
+draws the subtree **once per active viewport**, clipping to that viewport's
+rectangle and translating by its camera, so what a child draws at its own origin
+lands wherever that viewport is looking:
 
 ```ruby
 view = scene.add_node(RGame::Engine::WorldView.new)
@@ -412,8 +439,12 @@ There is no `abs_paused` to go with `abs_input_owner`: ownership has to be
 resolved because a node needs to know whose input it reads even when its parent
 claims nobody, while a paused node simply never descends.
 
-`draw` still resolves the transform, so a paused node under an ancestor that is
-still moving is drawn where it now is rather than where it was when it stopped.
+A paused node under an ancestor that is still moving is drawn where it now is
+rather than where it stopped, and it is culled against where it now is too —
+neither depends on the node having run a phase. Its placement comes from the
+transform the traversal pushes as it descends, and its cull box from
+`world_x`, which computes itself when read. See
+[The two spaces](#the-two-spaces).
 
 ## Deferred free
 

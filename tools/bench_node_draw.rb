@@ -16,8 +16,8 @@
 #
 #   A   the old design: full resolve_origin, on_draw at world_x/world_y
 #   B   what shipped: the transform pushed, on_draw at (0, 0)
-#   C   B without resolving a transform drawing no longer reads -- what could be
-#       saved if culling ever stopped needing a world coordinate at draw time
+#   C   B with the eager transform resolve the draw path used to do, which the
+#       cached world transform removed -- so the saving stays measurable
 #   A0/B0  the same trees with every node at (0, 0), where the transform push is
 #       skipped entirely and resolve_origin still runs
 #
@@ -31,8 +31,14 @@
 # scene. A frame at 60fps has 16.6 ms; a mid-size scene draws on the order of a
 # thousand nodes per frame once split-screen doubles it.
 #
-# It uses the real RGame::Engine::Node2D, so it stays honest as the refactor
-# lands: after each step, rerun it.
+# It uses the real RGame::Engine::Node2D, so it stays honest: rerun it after
+# anything that touches the draw path.
+#
+# Where it stands: pushing the transform costs about +75 ns per node-draw against
+# drawing at world coordinates, which is half a percent of a 16.6 ms frame at a
+# thousand node-draws. Variant C is the eager per-draw transform resolve that the
+# cached world transform removed, and it is worth about 240 ns per node-draw --
+# more than the push costs, which is why the two changes together came out ahead.
 
 $LOAD_PATH.unshift File.expand_path('../lib', __dir__)
 require 'rgame'
@@ -48,7 +54,7 @@ class WorldSpaceNode < RGame::Engine::Node2D
   def on_draw(renderer, _view) = renderer.rect(world_x, world_y, 8, 8, color: RED)
 
   def draw(renderer, view)
-    resolve_origin
+    resolve_inherited
     renderer.layered(abs_band) do
       if world_angle.zero?
         draw_content(renderer, view)
@@ -69,12 +75,13 @@ class LocalSpaceNode < RGame::Engine::Node2D
   def on_draw(renderer, _view) = renderer.rect(0, 0, 8, 8, color: RED)
 end
 
-# The cost of resolving a transform that drawing no longer reads. `draw` keeps
-# doing it because culling is world-space (see Node2D#draw); this is what it
-# would save if that were ever moved off the draw path.
-class LocalSpaceNodeNoResolve < LocalSpaceNode
+# The old design's other half: resolving the whole tree's transform eagerly on
+# the draw path, which is what the cached transform removed. Kept as a variant so
+# the saving stays measurable rather than remembered.
+class LocalSpaceNodeEagerResolve < LocalSpaceNode
   def draw(renderer, view)
     resolve_inherited
+    send(:resolve_transform)
     in_local_space(renderer) do
       renderer.layered(abs_band) { draw_content(renderer, view) }
       draw_children(renderer, view)
@@ -130,7 +137,7 @@ end
 trees = {
   'A  world space (the old design)' => build(WorldSpaceNode),
   'B  local space (what shipped)' => build(LocalSpaceNode),
-  'C  local space, no transform resolve' => build(LocalSpaceNodeNoResolve),
+  'C  local space + eager transform resolve' => build(LocalSpaceNodeEagerResolve),
   'A0 world space, all nodes at (0,0)' => build(WorldSpaceNode, offset: false),
   'B0 local space, all nodes at (0,0)' => build(LocalSpaceNode, offset: false)
 }

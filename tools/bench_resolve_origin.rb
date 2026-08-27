@@ -11,21 +11,30 @@
 #
 # ## What it compares
 #
-#   Eager x3   today. Node2D#resolve_origin runs in control, update AND draw
-#   Eager x1   the same, once per tick -- what the draw refactor leaves behind,
-#              since local-space drawing needs no transform and on_control takes
-#              no coordinates
-#   Lazy       no stored absolute at all: walk to the root on every read
-#   Cached     walk once, cache, invalidate the subtree when a transform is written
+#   Eager x2   what the engine did before the transform was cached: resolved in
+#              update and again in draw (control never needed it)
+#   Eager x1   the same, once per tick -- the least an eager design could do
+#   Lazy       no stored transform at all: walk to the root on every read
+#   Cached     what shipped. Walk once, cache, invalidate the subtree on a write
 #
 # ## Why the workloads look like this
 #
 # Read volume is the whole story, and it is not one read per node per tick.
-# RGame::Engine::Components::CircleCollider exposes cx/cy as node.abs_x/abs_y,
+# RGame::Engine::Components::CircleCollider exposes cx/cy as node.world_x/world_y,
 # and CollisionWorld calls them on insert, on every spatial-hash query and again
 # per candidate pair -- so a collision-heavy scene reads the same node's world
 # position several times a tick. That is the case uncached lazy is worst at, and
 # the deep-chain workload is there because an uncached read costs O(depth).
+#
+# ## What it decided
+#
+# Cached. Against the eager x2 it replaced: -32% on the collision workload, -77%
+# on a typical one, -98% on a frame where nothing is read, -18% query-heavy. It
+# loses in one place, +28% on a 21-node chain 20 deep being read 57 times per
+# node per tick, which is not a shape this engine has. Lazy-uncached was ruled
+# out by the same numbers: +37% collision-ish, +154% query-heavy, +706% on the
+# deep chain, because an uncached read costs O(depth) and collision reads the
+# same node several times a tick.
 #
 # ## What it models, and what it does not
 #
@@ -56,16 +65,16 @@ end
 class EagerNode
   include Tree
 
-  attr_reader :abs_x, :abs_y
+  attr_reader :world_x, :world_y
   attr_accessor :x, :y
 
   def resolve_tree
     if @parent
-      @abs_x = @parent.abs_x + @x
-      @abs_y = @parent.abs_y + @y
+      @world_x = @parent.world_x + @x
+      @world_y = @parent.world_y + @y
     else
-      @abs_x = @x
-      @abs_y = @y
+      @world_x = @x
+      @world_y = @y
     end
     @children.each(&:resolve_tree)
   end
@@ -77,8 +86,8 @@ class LazyNode
 
   attr_accessor :x, :y
 
-  def abs_x = @parent ? @parent.abs_x + @x : @x
-  def abs_y = @parent ? @parent.abs_y + @y : @y
+  def world_x = @parent ? @parent.world_x + @x : @x
+  def world_y = @parent ? @parent.world_y + @y : @y
   def resolve_tree; end
 end
 
@@ -103,14 +112,14 @@ class CachedNode
     soil
   end
 
-  def abs_x
+  def world_x
     resolve unless @clean
-    @abs_x
+    @world_x
   end
 
-  def abs_y
+  def world_y
     resolve unless @clean
-    @abs_y
+    @world_y
   end
 
   def resolve_tree; end
@@ -119,11 +128,11 @@ class CachedNode
 
   def resolve
     if @parent
-      @abs_x = @parent.abs_x + @x
-      @abs_y = @parent.abs_y + @y
+      @world_x = @parent.world_x + @x
+      @world_y = @parent.world_y + @y
     else
-      @abs_x = @x
-      @abs_y = @y
+      @world_x = @x
+      @world_y = @y
     end
     @clean = true
   end
@@ -138,9 +147,9 @@ class CachedNode
 end
 
 # The four strategies, and the label each reports under.
-VARIANTS = [['Eager x3 (today)', EagerNode, 3], ['Eager x1', EagerNode, 1],
-            ['Lazy uncached', LazyNode, 1], ['Cached + dirty', CachedNode, 1]].freeze
-BASELINE = 'Eager x3 (today)'
+VARIANTS = [['Eager x2 (before)', EagerNode, 2], ['Eager x1', EagerNode, 1],
+            ['Lazy uncached', LazyNode, 1], ['Cached (shipped)', CachedNode, 1]].freeze
+BASELINE = 'Eager x2 (before)'
 CHECKED = [EagerNode, LazyNode, CachedNode].freeze
 
 def build(klass, breadth)
@@ -170,7 +179,7 @@ def run(label, breadth, movers_pct, queries_per_tick, ticks: 2000)
     ticks.times do
       passes.times { root.resolve_tree }
       movers.each { |n| n.x = n.x + 1 }
-      targets.each { |n| sink += n.abs_x + n.abs_y }
+      targets.each { |n| sink += n.world_x + n.world_y }
     end
     t1 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     @sink = sink
@@ -192,7 +201,7 @@ def check(breadth)
   trees.each(&:resolve_tree)
   flat = trees.map { flatten(it) }
   flat[0].each_index do |i|
-    vals = flat.map { |ns| [ns[i].abs_x, ns[i].abs_y] }
+    vals = flat.map { |ns| [ns[i].world_x, ns[i].world_y] }
     raise "disagreement at node #{i}: #{vals.inspect}" unless vals.uniq.size == 1
   end
   # And again after a write. The eager tree needs another pass to see it at all
@@ -200,7 +209,7 @@ def check(breadth)
   flat.each { |ns| ns[3].x = 99 }
   trees[0].resolve_tree
   flat[0].each_index do |i|
-    vals = flat.map { |ns| [ns[i].abs_x, ns[i].abs_y] }
+    vals = flat.map { |ns| [ns[i].world_x, ns[i].world_y] }
     raise "stale after write at node #{i}: #{vals.inspect}" unless vals.uniq.size == 1
   end
   puts 'correctness: all strategies agree on every node, before and after a write'
@@ -214,8 +223,8 @@ n = flatten(build(EagerNode, WIDE)).size
 puts "525-node tree (#{n} nodes, depth 4) unless noted; per-tick cost, 2000 ticks\n\n"
 
 check(WIDE)
-run('collision-ish: 20% of nodes move, 1200 abs reads/tick', WIDE, 20, 1200)
-run('typical: 10% move, 200 abs reads/tick',                 WIDE, 10, 200)
-run('draw-only world: 10% move, 0 abs reads/tick',           WIDE, 10, 0)
-run('query-heavy: 2% move, 4000 abs reads/tick',             WIDE, 2, 4000)
+run('collision-ish: 20% of nodes move, 1200 world reads/tick', WIDE, 20, 1200)
+run('typical: 10% move, 200 world reads/tick',                 WIDE, 10, 200)
+run('draw-only world: 10% move, 0 world reads/tick',           WIDE, 10, 0)
+run('query-heavy: 2% move, 4000 world reads/tick',             WIDE, 2, 4000)
 run("deep chain (#{DEEP.size + 1} nodes, depth #{DEEP.size}): 20% move, 1200 reads", DEEP, 20, 1200)

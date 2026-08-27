@@ -162,7 +162,7 @@ Points a camera at the node it is attached to.
 - **Construct:** `CameraFollow.new(camera:, offset_x: 0.0, offset_y: 0.0)` — the offsets
   shift the point being centred on, for a node whose origin is not what should be in the
   middle of the screen (a bottom-anchored sprite usually wants its feet).
-- **Phase:** `update(dt)` calls `camera.center_on` with the node's resolved absolute
+- **Phase:** `update(dt)` calls `camera.center_on` with the node's world
   origin. The camera trails the node's own movement by one step, uniformly.
 
 The camera belongs to a [player](input.md#players-seats-and-joining), not to this
@@ -201,7 +201,7 @@ registration.
   layer-agnostic.
 - **Lifecycle:** `on_attach` registers with `node.system(CollisionWorld)`; `on_detach`
   unregisters.
-- **Geometry:** `cx`/`cy` are the node's resolved absolute origin; `radius` is a
+- **Geometry:** `cx`/`cy` are the node's world origin (`node.world_x`/`world_y`); `radius` is a
   read/write accessor (so a pooled entity can retune its shape on reset — see
   `ScreenWrap`/pooling), `layer` is a reader; `overlap?(other)` is the circle-vs-circle
   test.
@@ -306,7 +306,8 @@ edge reappears on the opposite one.
 
 ### `Sprite`
 
-Draws a single registered image centered on the node's absolute origin.
+Draws a single registered image centred on the node's own origin — at `0, 0`,
+which the traversal has already placed and rotated.
 
 - **Construct:** `Sprite.new(id:, scale: 1.0, z: 0)` — `id` is a renderer image id; `z`
   orders this component against the node's *other* drawing (a shadow under a sprite),

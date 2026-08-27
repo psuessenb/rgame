@@ -717,6 +717,71 @@ RSpec.describe RGame::Engine::Node2D do
     end
   end
 
+  # Reparenting moves a node without touching its `x`/`y`: the same offset now
+  # means something else, because it is an offset from somewhere else. Whatever
+  # keeps the world transform current has to notice that, and it is the one way
+  # of moving a node that does not go through a coordinate writer.
+  describe 'moving a node to a different parent' do
+    subject(:root) { described_class.new }
+
+    let(:left)  { root.add_node(described_class.new(x: 100, y: 0)) }
+    let(:right) { root.add_node(described_class.new(x: 500, y: 0)) }
+
+    def reparent(node, to)
+      node.parent.remove_node(node)
+      to.add_node(node)
+    end
+
+    it 'takes its world position from the new parent' do
+      node = left.add_node(described_class.new(x: 5))
+      root.update(0)
+      expect(node.world_x).to eq(105)
+
+      reparent(node, right)
+      root.update(0)
+
+      expect(node.world_x).to eq(505)
+    end
+
+    it 'carries its own subtree across' do
+      node = left.add_node(described_class.new(x: 5))
+      leaf = node.add_node(described_class.new(x: 2))
+      root.update(0)
+      expect(leaf.world_x).to eq(107)
+
+      reparent(node, right)
+      root.update(0)
+
+      expect(leaf.world_x).to eq(507)
+    end
+
+    # The world transform is computed when it is read, not at the top of a phase,
+    # so there is no window in which a reparented node reports where it used to
+    # be. Nothing drives the tree between the move and the read here.
+    it 'is right immediately, with no phase in between' do
+      node = left.add_node(described_class.new(x: 5))
+      expect(node.world_x).to eq(105)
+
+      reparent(node, right)
+
+      expect(node.world_x).to eq(505)
+    end
+
+    # Not just a translation: the new parent turns the space the node sits in.
+    it 'picks up a rotation the new parent has and the old one did not' do
+      right.angle = Math::PI / 2
+      node = left.add_node(described_class.new(x: 10))
+      root.update(0)
+      expect([node.world_x, node.world_y]).to eq([110, 0])
+
+      reparent(node, right)
+      root.update(0)
+
+      expect(node.world_x).to be_within(1e-9).of(500)
+      expect(node.world_y).to be_within(1e-9).of(10)
+    end
+  end
+
   # A node that moves itself is at its new position immediately, not at the next
   # phase. The traversal resolves a node's transform once, at the top of its own
   # update, and then runs the hooks that may move it — so anything reading the
@@ -752,6 +817,22 @@ RSpec.describe RGame::Engine::Node2D do
       # The child sits 5 to the right of a parent that steps 10 per tick, so it
       # is at 15, 25, 35 — not 5, 15, 25 a tick behind.
       expect(followed).to eq([15, 25, 35])
+    end
+
+    # Reading is what resolves, so a subtree is right the moment its ancestor
+    # moves — no phase has to reach it first. This is what lets a *paused*
+    # subtree cull correctly under an ancestor that is still moving: it draws
+    # without ever updating, and its world position is computed when culling
+    # asks for it.
+    it 'is right immediately when an ancestor moves, with no phase in between' do
+      branch = root.add_node(described_class.new(x: 100.0))
+      leaf = branch.add_node(described_class.new(x: 5.0))
+      leaf.paused = true
+      expect(leaf.world_x).to eq(105.0)
+
+      branch.x = 900.0
+
+      expect(leaf.world_x).to eq(905.0)
     end
 
     it 'carries a rotation the same way' do

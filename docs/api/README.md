@@ -138,7 +138,7 @@ class Hero < RGame::Engine::Node2D
   # The renderer is handed in and never stored; `view` is the viewport being
   # drawn into, which most nodes ignore. Draw in the node's own space: the
   # traversal has already put the renderer on this node, so (0, 0) is here.
-  # See docs/api/drawing.md.
+  # See docs/api/scene_graph.md, "Drawing happens in local space".
   def on_draw(renderer, _view)
     renderer.rect(0, 0, width, height)
   end
@@ -158,7 +158,7 @@ RGame::Game.new(root: Scene.new, width: 800, height: 600, caption: 'My Game').st
 You subclass `Node2D` and override the hooks you care about — `on_control`,
 `on_update`, `on_draw`, and the lifecycle hooks around them. Everything you do
 not override is an inherited no-op, and the phase methods that do the
-bookkeeping (resolving the transform, driving components, descending into
+bookkeeping (pushing the node's transform, driving components, descending into
 children) are not the ones you override — so there is no `super` to remember and
 no way to break the tree by forgetting one. See [Scene graph](scene_graph.md)
 for the full list, and [Game](game.md) for what `Game` assembles around it: the
