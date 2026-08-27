@@ -46,23 +46,61 @@ optimisation once the world is drawn once per player. See
 
 Self-before-subtree keeps the transform flowing downward: a component or hook
 that moves the node does so before its children resolve their origin from it (see
-[Absolute position](#absolute-position)).
+[The two spaces](#the-two-spaces)).
 
 Because the traversal recurses into children for you, **never re-implement child
 iteration** — add children with `add_node` and let the tree drive them.
 
-### Absolute position
+### The two spaces
 
-`x`/`y` are **relative to the parent**. At the start of each phase a node
-resolves its absolute position by accumulating onto the parent's origin
-(`abs_x = parent.abs_x + x`, and likewise for `y`, with the parent's rotation
-applied); a node with no parent sits at the origin. Moving a node therefore
-moves its whole subtree. (Dirty-flag caching is noted as future work in the
+`x`/`y`/`angle` are **relative to the parent** — the only position a node ever
+sets, and the space it lives in. `rel_x`/`rel_y`/`rel_angle` are the same three
+under their long names.
+
+`world_x`/`world_y`/`world_angle` are the same transform resolved against the
+whole ancestry: `world_x = parent.world_x + x`, with the parent's rotation
+applied, and a node with no parent pinned to the origin. They are read-only, and
+resolved by the traversal at the start of `update` and `draw`. Moving a node
+therefore moves its whole subtree, and it does so **within the same tick** —
+writing `x` re-resolves the node straight away, so its children read where it now
+is rather than where it was. (Dirty-flag caching is noted as future work in the
 source.)
+
+**Which one to use.** Drawing needs neither: see "Drawing happens in local
+space" below. Game logic that reasons about the world — a distance, a collision,
+a camera target — wants `world_x`. Moving a node wants `x`.
 
 **`z` is not among them, and there is no `abs_z`.** Depth is decided by where
 the traversal reaches a node, not by summing what its ancestors picked — see
 "Draw order" below.
+
+### Drawing happens in local space
+
+**A node's `on_draw` never mentions where the node is.** `Node2D#draw` pushes the
+node's transform onto the renderer before running the node's own drawing and its
+children's, so inside `on_draw` the origin *is* the node, turned the way the node
+is turned:
+
+```ruby
+def on_draw(renderer, _view)
+  renderer.rect(0, 0, width, height)   # this node's own box, wherever it is
+end
+```
+
+Passing a position there applies it a second time. That is true of both
+spellings — `world_x` doubles the whole ancestry including the camera, `x`
+doubles this node's own offset — and both are silent, showing up only once
+something is nested under a parent that is not at the origin. `Game/DrawInLocalSpace`
+flags them.
+
+A **component** drawing for its node is on the same path and draws at `0, 0` too.
+It may still ask the node for a world coordinate by name — `node.world_x` — which
+is what culling against the camera needs, and which is a different object's
+coordinate rather than the node reading its own.
+
+This is what the renderer's transform stack is for, and it is the same mechanism
+that gives a `WorldView` its camera: one `renderer.translated` around a subtree,
+composed with every other.
 
 ### Draw order
 
@@ -111,7 +149,7 @@ player owns it, and hands its components and its own `on_control` that plain
 `Actions`.
 
 Ownership is `input_owner`, and it is **inherited down the tree exactly like the
-transform**, resolved onto `abs_input_owner` alongside `abs_x`/`abs_y`:
+transform**, resolved onto `abs_input_owner` alongside `world_x`/`world_y`:
 
 ```ruby
 ship.input_owner = game.players[1]   # the ship and everything under it

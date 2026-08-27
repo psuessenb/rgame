@@ -16,11 +16,13 @@ class Grid < RGame::Engine::Node2D
     self.height = rows * CELL_SIZE
   end
 
+  # Drawn in the grid's own space: (0, 0) is the grid's top-left corner
+  # wherever the tree has put it.
   def on_draw(renderer, _view)
-    renderer.line(abs_x, abs_y, abs_x, abs_y + height)
-    renderer.line(abs_x + width, abs_y + height, abs_x + width, abs_y)
-    renderer.line(abs_x + width, abs_y, abs_x, abs_y)
-    renderer.line(abs_x, abs_y + height, abs_x + width, abs_y + height)
+    renderer.line(0, 0, 0, height)
+    renderer.line(width, height, width, 0)
+    renderer.line(width, 0, 0, 0)
+    renderer.line(0, height, width, height)
   end
 
   def cell_size
@@ -102,7 +104,7 @@ class SnakePart < RGame::Engine::Node2D
   end
 
   def on_draw(renderer, _view)
-    renderer.rect(abs_x, abs_y, Snake::CELL_SIZE, Snake::CELL_SIZE, color: RGame::Util::Color::GREEN)
+    renderer.rect(0, 0, Snake::CELL_SIZE, Snake::CELL_SIZE, color: RGame::Util::Color::GREEN)
   end
 
   def attach(x:, y:, previous:)
@@ -117,7 +119,7 @@ class Fruit < RGame::Engine::Node2D
   attr_reader :cell_x, :cell_y
 
   def on_draw(renderer, _view)
-    renderer.rect(abs_x, abs_y, width, height, color: RGame::Util::Color::RED)
+    renderer.rect(0, 0, width, height, color: RGame::Util::Color::RED)
   end
 
   def on_add

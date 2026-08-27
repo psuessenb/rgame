@@ -148,10 +148,12 @@ from the sheet's animation table.
   sibling (the facing source). The renderer resolves the same path when drawing, so nothing is
   registered or passed in by hand.
 - **Phase:** `update(dt)` selects + advances the animation; `draw(renderer, view)` renders the
-  current frame via `renderer.sprite` at the node's **world** origin (`abs_x`/`abs_y`) with no
-  angle — a [`WorldView`](scene_graph.md#view-transforms-and-the-camera) ancestor applies the
-  camera offset, so the component never touches the camera. It skips the draw when the view
-  cannot show it, measuring the node's box. (`Sprite` above is the single-image counterpart.)
+  current frame via `renderer.sprite` at **`0, 0`** with no angle — the traversal has already
+  put the renderer on the node, and a [`WorldView`](scene_graph.md#view-transforms-and-the-camera)
+  ancestor has already applied the camera, so the component passes neither a position nor an
+  angle. It skips the draw when the view cannot show it, measuring the node's box against
+  `node.world_x`/`world_y` — culling is the one thing here still stated in world coordinates,
+  because it compares against the camera. (`Sprite` above is the single-image counterpart.)
 
 ### `CameraFollow`
 
@@ -311,11 +313,11 @@ Draws a single registered image centered on the node's absolute origin.
   inside the node's own slot. It is not the node's `z`, which orders the node against
   its siblings. See [Drawing](drawing.md#draw-order).
 - **State:** `scale` is a read/write accessor (a pooled entity can retune it).
-- **Phase:** `draw(renderer, view)` draws the image with **no angle** — `Node2D#draw`
-  already wraps a node's own draws in `renderer.rotated(abs_angle, …)`, so the node's
-  rotation orients the sprite; passing an angle here would rotate it twice. It skips the
-  draw entirely when the view cannot show it, measuring the node's box scaled — a node
-  that never set a size is never culled.
+- **Phase:** `draw(renderer, view)` draws the image at **`0, 0`** with **no angle** —
+  `Node2D#draw` has already pushed the node's transform, so its own origin is where the
+  renderer already is and its rotation already applies; passing either would apply it
+  twice. It skips the draw entirely when the view cannot show it, measuring the node's box
+  scaled against `node.world_x`/`world_y` — a node that never set a size is never culled.
 
 ### `Targeting`
 

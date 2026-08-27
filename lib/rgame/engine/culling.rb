@@ -32,12 +32,15 @@ module RGame
     module Culling
       private
 
-      # Can this box be skipped for `view`? Coordinates are in the space the
-      # caller draws in — world coordinates under a camera.
+      # Can this box be skipped for `view`? Coordinates are **world** ones, which
+      # is the one thing on the draw path still stated that way: the view is a
+      # camera rectangle in the world, so a node's local box says nothing about
+      # whether it is on screen. Callers draw at their own origin and cull at
+      # `node.world_x`/`world_y`.
       # hot-path
       def culled?(view, x, y, width, height)
         return false if width.zero? || height.zero?
-        return !view.visible?(x, y, width, height) if node.abs_angle.zero?
+        return !view.visible?(x, y, width, height) if node.world_angle.zero?
 
         margin = width + height
         !view.visible?(x - margin, y - margin, width + (margin * 2), height + (margin * 2))

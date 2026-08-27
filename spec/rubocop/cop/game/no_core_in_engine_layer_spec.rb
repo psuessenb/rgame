@@ -62,7 +62,7 @@ RSpec.describe RuboCop::Cop::Game::NoCoreInEngineLayer, :config do
   it 'accepts duck-typed calls on a renderer it was handed' do
     expect_no_offenses(<<~RUBY)
       def draw(renderer)
-        renderer.sprite(:hero, 0, 0, @abs_x, @abs_y)
+        renderer.sprite(:hero, 0, 0, @world_x, @world_y)
       end
     RUBY
   end

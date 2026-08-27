@@ -8,11 +8,12 @@ module RGame
       # (horizontal wins on a diagonal), stand when still. Owns its Animator + the pure
       # AnimationSet built from the sheet's animation table.
       #
-      # Like Sprite, it passes NO angle and draws at the node's *world* origin
-      # (node.abs_x/abs_y): a WorldView ancestor wraps the draw in renderer.translated to
-      # map world → screen, so this component never touches the camera. `z` is the render
-      # layer (kept as @layer, distinct from the node's transform z); it must sit between
-      # the tile map's ground and canopy z bands, so canopies draw in front.
+      # Like Sprite, it passes NO angle and NO position: it draws at (0, 0), which
+      # Node2D#draw has already made mean "at this node, correctly rotated", and a
+      # WorldView ancestor has already made mean "through the camera". `z` is the
+      # render layer (kept as @layer, distinct from the node's transform z); it must
+      # sit between the tile map's ground and canopy z bands, so canopies draw in
+      # front.
       #
       # `sheet` is the asset's relative path. The component resolves it from the game's
       # asset manager on attach — via node.root.context.assets (the platform seam) — to
@@ -42,13 +43,14 @@ module RGame
         end
 
         # Top-left anchored, and sized by the sheet's frame — so the footprint
-        # to cull against is exactly the node's box.
+        # to cull against is exactly the node's box. Culling is stated in world
+        # coordinates because it compares against the camera; drawing is local.
         def draw(renderer, view)
-          return if culled?(view, node.abs_x, node.abs_y, node.width, node.height)
+          return if culled?(view, node.world_x, node.world_y, node.width, node.height)
 
           # Read row/col/flip_x separately (not @animator.frame, which allocates an Array
           # every call) to keep the draw path allocation-free.
-          renderer.sprite(@sheet, @animator.row, @animator.col, node.abs_x, node.abs_y,
+          renderer.sprite(@sheet, @animator.row, @animator.col, 0, 0,
                           flip_x: @animator.flip_x, z: @layer)
         end
 

@@ -101,7 +101,7 @@ RSpec.describe RGame::Engine::Node2D do
       branch.x = 900.0
       root.draw(renderer, screen_view)
 
-      expect(leaf.abs_x).to eq(905.0)
+      expect(leaf.world_x).to eq(905.0)
     end
   end
 

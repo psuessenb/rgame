@@ -8,18 +8,19 @@ RSpec.describe RGame::Engine::Components::Sprite do
 
   before do
     node.add_component(sprite)
-    node.parent.control(RGame::Engine::Actions.new) # resolve node.abs_x/abs_y
+    node.parent.update(0.0) # resolve node.world_x/world_y (only `update` resolves the transform)
   end
 
   describe '#draw' do
     let(:renderer) { instance_double(FakeRenderer) }
 
-    it 'draws the image centered on the absolute origin, with no angle (the node rotates it)' do
+    it 'draws the image at its own origin, with no angle (the node places and rotates it)' do
       allow(renderer).to receive(:image)
       sprite.draw(renderer, screen_view)
-      # No angle argument: the Node2D rotation wrapper orients the sprite, so passing
-      # one here would double-rotate. The mock's #image has no angle parameter.
-      expect(renderer).to have_received(:image).with(:ship, 5, 6, scale: 2.0, z: 3)
+      # Neither a position nor an angle: Node2D#draw has already pushed this node's
+      # transform, so (0, 0) *is* the node, correctly rotated. Passing either would
+      # apply it a second time. The node is at (5, 6) and draws at (0, 0).
+      expect(renderer).to have_received(:image).with(:ship, 0, 0, scale: 2.0, z: 3)
     end
   end
 end

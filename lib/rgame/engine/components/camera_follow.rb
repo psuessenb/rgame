@@ -36,7 +36,7 @@ module RGame
         # screen, and the alternative — re-resolving here — would put this
         # component's ordering among its siblings on show.
         def update(_dt)
-          @camera.center_on(node.abs_x + @offset_x, node.abs_y + @offset_y)
+          @camera.center_on(node.world_x + @offset_x, node.world_y + @offset_y)
         end
       end
     end

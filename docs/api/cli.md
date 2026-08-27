@@ -161,7 +161,7 @@ display. Put it in `game.rb` and it stops being.
 
 A stock config — `rubocop-performance` and `rubocop-rspec`, the `Metrics/*`
 relaxations a game's `update`/`draw` methods need, and short coordinate names
-allowed. The engine's own five custom cops (`Game/UseAbsoluteCoords` and
+allowed. The engine's own five custom cops (`Game/DrawInLocalSpace` and
 friends) are **not** part of it: they live in the engine's repository rather than
 in the gem, and two of them police a layer boundary that only exists inside it.
 

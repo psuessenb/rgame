@@ -29,8 +29,8 @@ module RGame
         def on_detach = node.system(CollisionWorld)&.unregister(self)
 
         # World-space centre — the node's resolved absolute origin.
-        def cx = node.abs_x
-        def cy = node.abs_y
+        def cx = node.world_x
+        def cy = node.world_y
 
         def overlap?(other)
           Engine::CircleCollider.overlap?(cx, cy, @radius, other.cx, other.cy, other.radius)

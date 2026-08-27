@@ -21,5 +21,6 @@ class ScoreLabel < RGame::Engine::Node2D
     @text = "Score #{value}"
   end
 
-  def on_draw(renderer, _view) = renderer.text(@text, abs_x, abs_y, color: COLOR)
+  # At its own origin: the traversal has already put the renderer there.
+  def on_draw(renderer, _view) = renderer.text(@text, 0, 0, color: COLOR)
 end

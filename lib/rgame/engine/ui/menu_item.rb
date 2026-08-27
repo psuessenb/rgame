@@ -62,7 +62,7 @@ module RGame
         # question is which of the two goes on top — and `z: 1` says exactly
         # that, about this item and nothing else in the frame.
         def on_draw(renderer, _view)
-          renderer.nine_slice(@style.fetch(state), abs_x, abs_y, width, height)
+          renderer.nine_slice(@style.fetch(state), 0, 0, width, height)
           renderer.text(@label, label_x(renderer), label_y(renderer),
                         z: 1, color: @enabled ? LABEL_COLOR : DISABLED_LABEL_COLOR)
         end
@@ -76,8 +76,10 @@ module RGame
           @pressed ? :pressed : :focus
         end
 
-        def label_x(renderer) = abs_x + ((width - renderer.text_width(@label)) / 2)
-        def label_y(renderer) = abs_y + ((height - renderer.text_height) / 2)
+        # Centred in this item's own box, which starts at its own origin — the
+        # traversal has already put the renderer there.
+        def label_x(renderer) = (width - renderer.text_width(@label)) / 2
+        def label_y(renderer) = (height - renderer.text_height) / 2
       end
     end
   end

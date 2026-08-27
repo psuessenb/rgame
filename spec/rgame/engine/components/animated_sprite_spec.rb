@@ -79,10 +79,10 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
   describe '#draw' do
     it 'draws at the node resolved world origin with the configured layer and no flip' do
       body.set_intent(0.0, 0.0)
-      node.update(0.0) # resolves abs_x/abs_y; zero intent so the body makes no move
+      node.update(0.0) # resolves world_x/world_y; zero intent so the body makes no move
       node.draw(renderer, screen_view)
       expect(renderer).to have_received(:sprite)
-        .with(:hero, 0, anything, node.abs_x, node.abs_y, flip_x: false, z: 10)
+        .with(:hero, 0, anything, node.world_x, node.world_y, flip_x: false, z: 10)
     end
   end
 end
