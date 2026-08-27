@@ -115,7 +115,7 @@ and `LayerBoundary` mixins), loaded by `.rubocop.yml`:
 |---|---|
 | `Game/NoInterpolationInHotPath` | no string interpolation in per-frame methods |
 | `Game/NoNeedlessAllocation` | no throwaway Array/Range literals on a per-frame path |
-| `Game/UseAbsoluteCoords` | in `draw`/`update`/`contains?` use the resolved `@abs_*`, never parent-relative `@x`/`@y` |
+| `Game/UseAbsoluteCoords` | in a node's lifecycle methods (`draw`/`update`/`control` and their `on_*` halves) use the resolved `abs_*` transform, never parent-relative `x`/`y`/`angle` |
 | `Game/NoCoreInEngineLayer` | no `RGame::Core` reference in `lib/rgame/engine/` or `spec/` — the engine layer must stay headless |
 | `Game/NoEngineInCoreLayer` | the mirror: no `Engine` reference in `lib/rgame/core/` or `spec_core/` — Core must not know Engine exists |
 
