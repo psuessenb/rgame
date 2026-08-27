@@ -159,7 +159,8 @@ module RGame
         @rel_angle = angle
         @width = width
         @height = height
-        # Resolved by #resolve_origin at the top of every phase. Seeded here so
+        # Resolved at the top of each phase, by whichever half that phase reads
+        # (see #resolve_origin). Seeded here so
         # a node that has not been driven yet reads as being at the origin
         # rather than as nil — which is the same answer resolve_origin gives an
         # unparented node, and saves every reader of abs_* from a NoMethodError
@@ -315,7 +316,11 @@ module RGame
       def update(dt)
         return if @paused
 
-        resolve_origin
+        # Only the transform. Nothing on this path reads the inherited
+        # attributes — `abs_input_owner` is read by `control` and `abs_band` by
+        # `draw`, and each phase resolves what it needs — so resolving them here
+        # would be work no reader of this phase ever looks at.
+        resolve_transform
         @components.each { it.update(dt) }
         on_update(dt)
         children_in_order.each { it.update(dt) }
@@ -509,6 +514,9 @@ module RGame
       # `z` is **not** among them, and that is the point: depth is decided by
       # where the traversal reaches a node, not by summing what its ancestors
       # picked. See #z= and RGame::Util::Z.
+      # Both halves, which only `draw` needs: it reads `abs_band` to open the
+      # node's layer, and it keeps the transform current for culling (see #draw).
+      # `control` and `update` each call the one half they read.
       # TODO: Do not recalculate every time, but use a @dirty flag
       def resolve_origin
         resolve_inherited

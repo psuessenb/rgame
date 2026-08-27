@@ -3,7 +3,8 @@
 # Which player a node answers to, and how that reaches its subtree.
 #
 # The mechanism is deliberately the one the transform already uses: ownership is
-# resolved onto `abs_input_owner` in `resolve_origin` and accumulates down the tree.
+# resolved onto `abs_input_owner` in `resolve_inherited` and accumulates down the
+# tree. `control` is the phase that resolves it, being the only one that reads it.
 # So `ship.input_owner = players[1]` puts everything under the ship on player two,
 # and a tree that names nobody reads the primary player — which is what keeps
 # single player free of ceremony.

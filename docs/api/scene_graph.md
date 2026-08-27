@@ -70,6 +70,15 @@ source.)
 space" below. Game logic that reasons about the world — a distance, a collision,
 a camera target — wants `world_x`. Moving a node wants `x`.
 
+**Each phase resolves only what it reads**, which is worth knowing when a spec
+drives one phase and asserts on another's answer:
+
+| Phase | Resolves | Because it reads |
+|---|---|---|
+| `control` | `abs_input_owner` | whose actions to hand each node |
+| `update` | `world_x`/`world_y`/`world_angle` | collision, camera targets, range queries |
+| `draw` | both, and the transform | `abs_band` to open the node's layer, the transform to cull |
+
 **`z` is not among them, and there is no `abs_z`.** Depth is decided by where
 the traversal reaches a node, not by summing what its ancestors picked — see
 "Draw order" below.

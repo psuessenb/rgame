@@ -98,12 +98,16 @@ RSpec.describe RGame::Engine::UI::MenuItem do
       expect(item.abs_band).to eq(:world)
     end
 
+    # Driven with `draw`, because the band is resolved by the phase that reads
+    # it, and with the item's own draw rather than the root's: drawing through
+    # the PlayerLayer would need the Viewports system it looks its region up in,
+    # which is viewport plumbing this example is not about.
     it 'is in the HUD band under a PlayerLayer' do
       player = RGame::Engine::Player.new(id: 0)
       layer = root.add_node(RGame::Engine::PlayerLayer.new(player: player))
       menu_item = layer.add_node(described_class.new(label: 'Resume', width: 200, height: 40))
       root.enter_tree
-      root.update(0)
+      menu_item.draw(renderer, screen_view)
 
       expect(menu_item.abs_band).to eq(:hud)
     end

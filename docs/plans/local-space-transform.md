@@ -126,12 +126,19 @@ not update, and which `spec/rgame/engine/node2d_paused_spec.rb` already covered.
 Sites: 40 draw-path references lose their coordinates entirely, mostly becoming
 `0`; `on_draw` bodies get shorter.
 
-### 2. `control` drops the transform entirely
+### 2. Each phase resolves only what it reads
 
 `on_control(actions)` receives no coordinates, and there is no pointer in this
 engine by design (`lib/rgame/core/input.rb:33`). Nothing on the control path
 reads a position. `Node2D#control` keeps the reduced resolve for
 `abs_input_owner` and stops resolving the transform.
+
+The mirror of that also landed: **`update` stops resolving the inherited half.**
+`abs_input_owner` is read only by `control` and `abs_band` only by `draw`, so
+resolving either in `update` was work no reader of that phase ever looked at.
+Two specs asserted `abs_band` after driving `update`, which is the same "relying
+on a phase doing another phase's work" shape the collider specs had; both now
+drive `draw`, the phase that reads the band.
 
 ### 3. `update` — pick a resolution strategy
 
