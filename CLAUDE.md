@@ -801,9 +801,11 @@ eyeballs**, and it **lives in the repo** — the harness this replaces did not, 
 it was a caller no project-wide rename could reach, and it broke after every
 sweep. `tools/` is outside the gem's packaged glob, so it ships nothing.
 
-Assert on structure — scenes entered, sounds fired, clip and translate counts —
-not on exact draw counts: `examples/14_asteroids` spawns from an unseeded
-`Random.new`, so those vary run to run.
+Assert on structure — scenes entered, sounds fired, clip and translate counts.
+Exact draw counts are comparable **only with `--seed N`**, which seeds the
+example's own RNG (through `RGAME_SEED`) so that two runs produce byte-identical
+output. Without it `examples/14_asteroids` seeds itself from the system and
+varies run to run, which is what a game being played should do.
 
 ### Why the Ruby specs are two suites, in two directories
 

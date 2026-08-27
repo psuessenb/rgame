@@ -297,9 +297,10 @@ deliberate mutations of `resolve_origin` were each caught by it.
   commit**. `15_tiled_world` matched exactly: same 1647 sprite and 717 tilemap
   draws, same bands (3346 world / 478 hud / 239 overlay), same clips — with the
   positions moved out of the draw calls and into translates, which is the change.
-  Split-screen still produces its two half-height clips. `14_asteroids` differs
-  run to run on both sides, because it spawns from an unseeded `Random.new`;
-  collisions still fire on the new code (`boom`, `hurt`).
+  Split-screen still produces its two half-height clips. `14_asteroids` differed
+  run to run on both sides, because it seeded itself from the system; collisions
+  still fired on the new code (`boom`, `hurt`). It now takes `--seed N`, so a
+  future before/after can compare it exactly too.
 - Allocation: the draw path allocates **0 objects per call** through a
   non-recording renderer, at the origin, offset, and offset+rotated. The ~0.94
   objects/call on an update that moves a node by a float is Float boxing and

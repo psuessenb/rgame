@@ -30,13 +30,22 @@ WIDTH  = 640
 HEIGHT = 480
 MEDIA  = File.join(__dir__, '../../media')
 
+# Unset, the game seeds itself from the system and plays differently every time,
+# which is what a game should do. Set, every rock spawns in the same place at the
+# same tick, which is what comparing two runs of it needs —
+# `tools/drive_example.rb --seed N` sets it. Read here rather than in the scene:
+# where a number comes from is the entry point's business, and PlayScene just
+# takes one.
+SEED = ENV.fetch('RGAME_SEED', nil)&.to_i
+
 # Root: owns scene navigation (SceneStack) and program-lifetime state (HighScores,
 # a global/root-scoped system). Scene switches are deferred to #on_update so a scene
 # never tears itself down mid-traversal — #go only records the request, and Root's
 # on_update (which runs after the active scene's whole update has unwound) applies it.
 class Root < RGame::Engine::Node2D
-  def initialize
-    super
+  def initialize(seed: nil)
+    super()
+    @seed = seed
     @stack = add_component(RGame::Engine::Scene::SceneStack.new)
     add_component(HighScores.new)
     @pending = nil
@@ -61,14 +70,14 @@ class Root < RGame::Engine::Node2D
   def build_scene(name, score: 0)
     case name
     when :start     then StartScene.new
-    when :play      then PlayScene.new(width: WIDTH, height: HEIGHT)
+    when :play      then PlayScene.new(width: WIDTH, height: HEIGHT, seed: @seed)
     when :game_over then GameOverScene.new(score: score)
     end
   end
 end
 
 game = RGame::Game.new(
-  root: Root.new,
+  root: Root.new(seed: SEED),
   caption: 'Example 14 - Asteroids',
   width: WIDTH,
   height: HEIGHT,

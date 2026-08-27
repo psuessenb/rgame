@@ -4,6 +4,7 @@
 #
 #   ruby tools/drive_example.rb examples/15_tiled_world/main.rb
 #   ruby tools/drive_example.rb examples/14_asteroids/main.rb --ticks 200
+#   ruby tools/drive_example.rb examples/14_asteroids/main.rb --seed 7
 #
 # ## Why this exists
 #
@@ -617,14 +618,20 @@ end
 # ------------------------------------------------------------------------ CLI
 
 if $PROGRAM_NAME == __FILE__
-  options = { ticks: 240, script: nil, gamepad: false }
+  options = { ticks: 240, script: nil, gamepad: false, seed: nil }
   parser = OptionParser.new do |o|
     o.banner = 'Usage: ruby tools/drive_example.rb EXAMPLE_MAIN [options]'
     o.on('--ticks N', Integer, 'Stop after N simulation ticks (default 240)') { options[:ticks] = it }
     o.on('--script PATH', 'Input script (default: tools/drive/<example dir>.rb)') { options[:script] = it }
     o.on('--gamepad', 'Drive a synthetic SDL controller instead of the input backend') { options[:gamepad] = true }
+    o.on('--seed N', Integer, 'Seed the example RNG, so two runs can be compared') { options[:seed] = it }
   end
   parser.parse!
+
+  # Passed to the example through the environment rather than through ARGV,
+  # because the example is `load`ed into this process and never sees a command
+  # line of its own. An example that has nothing random ignores it.
+  ENV['RGAME_SEED'] = options[:seed].to_s if options[:seed]
 
   example = ARGV.shift or abort(parser.to_s)
 

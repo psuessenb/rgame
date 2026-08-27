@@ -24,13 +24,20 @@ class PlayScene < RGame::Engine::Node2D
   AIM_JITTER     = 0.5
   SCORE_MARGIN   = 12
 
-  def initialize(width:, height:)
+  # `seed` makes a run reproducible: same seed, same rocks, in the same places, at
+  # the same ticks. Everything random in this scene comes out of this one
+  # generator — where a rock enters, where it is aiming, how a split scatters —
+  # so seeding it is enough to make the whole game deterministic.
+  #
+  # nil means "seed from the system", which is what a game being played should
+  # do. The caller decides; see main.rb.
+  def initialize(width:, height:, seed: nil)
     super()
     @width = width
     @height = height
     @score = 0
     @spawn_timer = SPAWN_INTERVAL
-    @rng = Random.new
+    @rng = seed.nil? ? Random.new : Random.new(seed)
     @rock_pool   = RGame::Engine::Pool.new { Rock.new }
     @bullet_pool = RGame::Engine::Pool.new { Bullet.new }
     # The scene's systems, mounted at construction: neither needs anything from the
