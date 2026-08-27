@@ -111,10 +111,13 @@ RSpec.describe RGame::Engine::Node2D do
       expect(node.abs_band).to eq(:world)
     end
 
+    # Driven with `draw`, because the band is a draw concept: `draw` is the phase
+    # that reads it, and so the phase that resolves it. `update` resolves only
+    # the transform, and `control` only the input owner.
     it 'inherits down the tree, like the input owner' do
       layer = root.add_node(described_class.new(band: :overlay))
       deep = layer.add_node(described_class.new).add_node(described_class.new)
-      root.update(0)
+      root.draw(renderer, screen_view)
 
       expect(deep.abs_band).to eq(:overlay)
     end

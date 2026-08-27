@@ -7,14 +7,6 @@ walking the tree**, not threaded through constructors. There is **no `GameContex
 bag**: a system is just an `RGame::Engine::Component` on a boundary node, found with the
 same `get_component` every node already has.
 
-> Status: the anchor + lookup mechanism (`root`, `scene`, `system`), the
-> tree-lifecycle hooks, and deferred removal (`queue_free`) are in place.
-> `examples/14_asteroids` exercises the whole path end to end and shows **both
-> scopes**: a scene-scoped `CollisionWorld` system and a root-scoped `HighScores`
-> system. `examples/15_tiled_world` adds a second scene-scoped system, `TileWorld`
-> (the tile map: collision, world bounds, drawing). More systems arrive with the
-> rest of the component port (see `docs/wip/components.md`).
-
 ## Two scopes = two anchor nodes
 
 Scope is a property of the **owner** you attach a system to, not of the system
@@ -51,6 +43,30 @@ node.system(CollisionWorld)
 scene can override a global default and free-standing nodes still find globals. Use
 the explicit anchor (`node.root.get_component` / `node.scene.get_component`) when you
 specifically mean one scope.
+
+### Ask for a contract, not a class
+
+The lookup matches by **ancestry**, so `klass` can be a module a system includes rather
+than the system's own class. That is how one question gets more than one answer.
+
+"How big is the world" is the worked example. A flat game mounts
+[`Components::World`](components.md#world); a tile game mounts
+[`Components::TileWorld`](components.md#tileworld), which derives the same two numbers
+from its map. Both include `Components::WorldBounds`, so a component that needs bounds
+asks for the *contract*:
+
+```ruby
+def on_attach
+  world = node.system(RGame::Engine::Components::WorldBounds)
+  @width = world.world_width
+  @height = world.world_height
+end
+```
+
+`ScreenWrap` and `DespawnOffscreen` are written this way, which is why they work
+unchanged in either kind of scene and never learn which one they are in. Naming the
+contract is what keeps the two implementations from drifting apart — the same reasoning
+behind the renderer and audio [shared example groups](../../spec/support/shared_examples/).
 
 ## Registering with a system — use the lifecycle, not `initialize`
 

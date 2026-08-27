@@ -19,8 +19,14 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
     collider
   end
 
+  # Resolve the collider nodes' world positions without running the scene's own
+  # components -- the world is one of those, and driving it is the next line's
+  # job. Only `update` resolves the transform: `control` reads no coordinates and
+  # `draw` expresses position by pushing a transform instead of resolving one.
+  def resolve_positions = scene.children.each { it.update(0.0) }
+
   def tick
-    scene.control(RGame::Engine::Actions.new) # resolve absolute positions
+    resolve_positions
     world.update(0.0)
   end
 
@@ -86,7 +92,7 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
 
     it 'yields nothing before the first update has built the index' do
       place(100, 100, :enemy)
-      scene.control(RGame::Engine::Actions.new) # resolves positions but does not run the world
+      resolve_positions # the world itself is deliberately not driven
       expect(in_circle(100, 100, 50)).to be_empty
     end
   end

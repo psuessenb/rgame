@@ -18,10 +18,11 @@ module RGame
     #
     # ## The subtree does not know how many times it is drawn
     #
-    # Children draw at their own absolute origin and never see a camera. This
-    # node supplies the view, so the same world serves one player or four with
-    # nothing below it changing — which is exactly what a camera owned by a node
-    # *inside* the world could not do, and why cameras belong to players.
+    # Children draw in their own local space and never see a camera. This node
+    # supplies the view — one clip and one translate around the whole subtree —
+    # so the same world serves one player or four with nothing below it changing,
+    # which is exactly what a camera owned by a node *inside* the world could not
+    # do, and why cameras belong to players.
     #
     # ## Only `draw` multiplies, and deliberately
     #

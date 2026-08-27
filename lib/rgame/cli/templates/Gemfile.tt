@@ -1,0 +1,23 @@
+# frozen_string_literal: true
+
+source 'https://rubygems.org'
+
+# The Ruby this project was generated with, kept in one place so bundler and
+# your version manager cannot disagree about it. Bundler reads .ruby-version as
+# an exact requirement and refuses to install on anything else; for a range,
+# replace this line with something like `ruby '~> <%= ruby_version.split('.').first(2).join('.') %>'`.
+ruby file: '.ruby-version'
+
+# The engine. It has no runtime dependencies of its own — SDL2 and OpenGL are
+# system libraries rather than gems — but installing it compiles two C
+# extensions, so a C compiler, `make`, `pkg-config` and the SDL2/OpenGL
+# development headers have to be present. See the rgame README.
+gem 'rgame', '<%= rgame_requirement %>'
+
+group :development, :test do
+  gem 'rake', require: false
+  gem 'rspec'
+  gem 'rubocop', require: false
+  gem 'rubocop-performance', require: false
+  gem 'rubocop-rspec', require: false
+end

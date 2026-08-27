@@ -18,6 +18,28 @@ module RGame
       def on_attach; end
       def on_detach; end
 
+      # The sibling component this one drives, or a raise naming both — for the
+      # `@body = require_sibling(CharacterBody)` line an `on_attach` opens with.
+      #
+      # Worth a helper rather than a bare `get_component` because the nil it returns
+      # is silent, and stays silent until the first frame calls a method on it: the
+      # error you see is a NoMethodError on nil, in `control`, naming neither the
+      # component that is missing nor the one that wanted it.
+      #
+      # And the cause is nearly always the same, which is why the message says it.
+      # A node assembled *outside* the tree collects every component before any
+      # on_attach runs (Node2D#enter_tree), so add order does not matter there. A
+      # node that adds components from its own `on_add` is already in the tree, so
+      # each one attaches as it arrives and can only see the ones before it. Same
+      # two lines, opposite outcome, depending on where they were written.
+      def require_sibling(klass)
+        node.get_component(klass) ||
+          raise("#{self.class} needs a #{klass} on the same node, and there is none. If you did " \
+                'add one, add it before this component: a node that is already in the tree ' \
+                'attaches each component as it arrives, so a sibling added after this one is ' \
+                'not there yet when this one attaches.')
+      end
+
       def control(actions); end
       def update(dt); end
       def draw(renderer, view); end

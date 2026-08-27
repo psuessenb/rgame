@@ -7,7 +7,7 @@ require:
   - ./rubocop/cop/game/no_core_in_engine_layer.rb
   - ./rubocop/cop/game/no_engine_in_core_layer.rb
   - ./rubocop/cop/game/no_needless_allocation.rb
-  - ./rubocop/cop/game/use_absolute_coords.rb
+  - ./rubocop/cop/game/draw_in_local_space.rb
 
 AllCops:
   NewCops: enable
@@ -18,11 +18,14 @@ AllCops:
 # - NoInterpolationInHotPath: no string interpolation in per-frame methods.
 # - NoNeedlessAllocation: no needless Array/Range literals (receiver literals anywhere,
 #   any literal inside a per-frame method).
-# - UseAbsoluteCoords: in draw/update/contains?, use the resolved `@abs_*`, never the
-#   parent-relative `@x`/`@y`/`@z`.
+# - DrawInLocalSpace: a node's draw methods must not read its own position, in
+#   either space. Node2D#draw pushes the node's transform onto the renderer, so
+#   both `x` and `world_x` are already applied by the time `on_draw` runs.
 #
 # Specs are test code (their `on_draw`/`update` stubs and array fixtures aren't a
-# shipping per-frame path), so these runtime guards don't police either suite.
+# shipping per-frame path), so the two allocation guards don't police either suite.
+# DrawInLocalSpace is not excluded: a spec that draws a node in the wrong place is
+# describing a game that draws it in the wrong place too.
 Game/NoInterpolationInHotPath:
   Exclude:
     - 'spec/**/*'

@@ -1,0 +1,57 @@
+plugins:
+  - rubocop-performance
+  - rubocop-rspec
+
+AllCops:
+  NewCops: enable
+  TargetRubyVersion: 4.0
+
+# This is a game, not a web app: update/draw methods naturally run long, and
+# short coordinate and loop variable names (x, y, dt, id) are idiomatic in the
+# maths they contain. Relax the size and naming cops accordingly.
+Metrics/AbcSize:
+  Enabled: false
+Metrics/BlockLength:
+  Enabled: false
+Metrics/ClassLength:
+  Enabled: false
+Metrics/CyclomaticComplexity:
+  Enabled: false
+Metrics/MethodLength:
+  Enabled: false
+Metrics/ModuleLength:
+  Enabled: false
+Metrics/ParameterLists:
+  Enabled: false
+Metrics/PerceivedComplexity:
+  Enabled: false
+Naming/MethodParameterName:
+  Enabled: false
+
+# Maths-heavy code reads fine on standard operator precedence
+# (row * cols + col, x + w / 2); requiring parentheses everywhere is just noise.
+Lint/AmbiguousOperatorPrecedence:
+  Enabled: false
+
+Style/Documentation:
+  Enabled: false
+
+# Integration-flavoured specs in a game naturally run longer than five lines and
+# assert more than one thing about the frame they drove.
+RSpec/ExampleLength:
+  Enabled: false
+RSpec/MultipleExpectations:
+  Enabled: false
+
+# A node is handed a renderer and calls it by name — it never learns what class
+# answered, which is exactly what lets the spec suite run with no window.
+# Verifying a double against RGame::Core::Renderer would mean loading SDL and
+# OpenGL into the spec process, so these doubles are deliberately unverified.
+RSpec/VerifiedDoubles:
+  Enabled: false
+
+# Spec paths mirror the source tree, and a class with a trailing dimension maps
+# to node2d_spec.rb rather than the cop's default node2_d_spec.rb.
+RSpec/SpecFilePathFormat:
+  CustomTransform:
+    Node2D: node2d

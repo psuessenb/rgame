@@ -8,6 +8,7 @@ read or write any C.
 | Page | Covers |
 |---|---|
 | This page | Loading the library, the three namespaces, a working program, testing |
+| [The `rgame` command](cli.md) | `rgame new NAME` — starting a project, and the layout it gives you |
 | [App](app.md) | `RGame::Core::App` — the window and the frame loop |
 | [Game](game.md) | `RGame::Game` — the entry point that wires both halves together |
 | [Input](input.md) | `RGame::Core::Input`, `RGame::Util::Controls`, `RGame::Core::Gamepad` |
@@ -135,10 +136,11 @@ class Hero < RGame::Engine::Node2D
   end
 
   # The renderer is handed in and never stored; `view` is the viewport being
-  # drawn into, which most nodes ignore. Draw from the resolved absolute
-  # position, not from `x`/`y`. See docs/api/drawing.md.
+  # drawn into, which most nodes ignore. Draw in the node's own space: the
+  # traversal has already put the renderer on this node, so (0, 0) is here.
+  # See docs/api/scene_graph.md, "Drawing happens in local space".
   def on_draw(renderer, _view)
-    renderer.rect(abs_x, abs_y, width, height)
+    renderer.rect(0, 0, width, height)
   end
 end
 
@@ -156,7 +158,7 @@ RGame::Game.new(root: Scene.new, width: 800, height: 600, caption: 'My Game').st
 You subclass `Node2D` and override the hooks you care about — `on_control`,
 `on_update`, `on_draw`, and the lifecycle hooks around them. Everything you do
 not override is an inherited no-op, and the phase methods that do the
-bookkeeping (resolving the transform, driving components, descending into
+bookkeeping (pushing the node's transform, driving components, descending into
 children) are not the ones you override — so there is no `super` to remember and
 no way to break the tree by forgetting one. See [Scene graph](scene_graph.md)
 for the full list, and [Game](game.md) for what `Game` assembles around it: the
@@ -203,10 +205,11 @@ Two things make that work:
   checked by passing a recording double and asserting on what the node asked
   for — see the renderer contract in `spec/support/shared_examples/`. All tests can be run completely headless.
 
-`hero.x` is asserted rather than `abs_x` because this node has no parent here.
-Absolute position accumulates from the parent, and a node with no parent resolves
-to the origin. Put it under a root and `abs_x` is what the rest of the engine
-reads. See [Scene graph](scene_graph.md#absolute-position).
+`hero.x` is asserted rather than `world_x` because this node has no parent here.
+The world transform accumulates from the parent, and a node with no parent
+resolves to the origin. Put it under a root and `world_x` is what game logic
+reads — though drawing reads neither, see
+[Scene graph](scene_graph.md#drawing-happens-in-local-space).
 
 Keep the parts of your game that decide *what happens* in `RGame::Engine` — the
 layer cannot name `RGame::Core`, so it cannot accidentally acquire a dependency

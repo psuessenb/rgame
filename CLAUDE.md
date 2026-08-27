@@ -115,7 +115,7 @@ and `LayerBoundary` mixins), loaded by `.rubocop.yml`:
 |---|---|
 | `Game/NoInterpolationInHotPath` | no string interpolation in per-frame methods |
 | `Game/NoNeedlessAllocation` | no throwaway Array/Range literals on a per-frame path |
-| `Game/UseAbsoluteCoords` | in `draw`/`update`/`contains?` use the resolved `@abs_*`, never parent-relative `@x`/`@y` |
+| `Game/DrawInLocalSpace` | a node's draw methods never read its own position — `Node2D#draw` pushes its transform, so both `x` and `world_x` are already applied |
 | `Game/NoCoreInEngineLayer` | no `RGame::Core` reference in `lib/rgame/engine/` or `spec/` — the engine layer must stay headless |
 | `Game/NoEngineInCoreLayer` | the mirror: no `Engine` reference in `lib/rgame/core/` or `spec_core/` — Core must not know Engine exists |
 
@@ -574,6 +574,32 @@ file to a folder already listed needs nothing.
   tile maps, pathfinding. Pure Ruby, no graphics library, and the layer a game
   is actually written against. `lib/rgame/engine.rb` requires the lot and is
   separately requirable.
+- `exe/rgame` + `lib/rgame/cli.rb` + `lib/rgame/cli/` — the `rgame` command, and
+  the project generator behind `rgame new NAME`. Declared in the gemspec via
+  `spec.bindir`/`spec.executables`, so `gem install rgame` puts it on PATH.
+
+  Two rules hold it up. **It requires only stdlib and `rgame/version`** — never
+  `rgame`, `rgame/core` or `rgame/game` — so scaffolding works before either
+  extension is built, and so the CLI can be specced from `spec/`, where
+  `RGame::Core` is undefined and a stray require fails loudly.
+
+  And **no file under `lib/rgame/cli/templates/` may be named with a leading
+  dot.** `Dir.glob('lib/**/*')` is how the gemspec derives `spec.files`, and it
+  does not match dotfiles, so a template called `.gitignore` would be absent
+  from the installed gem while working perfectly in the checkout — the same
+  shape of invisible-until-it-is-someone-else's-machine failure as a `.c` left
+  out of the list. Dotfile templates are stored under plain names
+  (`gitignore.tt`) and renamed on the way out through `NewProject::DOTFILES`.
+  `spec/packaging_spec.rb` asserts it, *without* going through `Dir.glob`, for
+  the reason its `.dSYM` example gives: a guard that shares the blind spot it is
+  guarding is not a guard.
+
+  What the generator writes is the layering above, made the default in a new
+  project: `game.rb` is the one file that requires `rgame/game`, `nodes/` and
+  `spec/` require `rgame`, and so a generated suite is headless from the first
+  commit. `spec/rgame/cli/generated_project_spec.rb` generates a project and
+  runs its RSpec and RuboCop for real — the promise is worth nothing described.
+  See `docs/api/cli.md`.
 - `lib/rgame/boot.rb` — enables YJIT if this Ruby has it. Not engine code, which
   is why it sits directly under `rgame/`; `RGame::Game` requires it, so it is
   the entry point's decision rather than a line every game remembers. Note
@@ -775,9 +801,11 @@ eyeballs**, and it **lives in the repo** — the harness this replaces did not, 
 it was a caller no project-wide rename could reach, and it broke after every
 sweep. `tools/` is outside the gem's packaged glob, so it ships nothing.
 
-Assert on structure — scenes entered, sounds fired, clip and translate counts —
-not on exact draw counts: `examples/14_asteroids` spawns from an unseeded
-`Random.new`, so those vary run to run.
+Assert on structure — scenes entered, sounds fired, clip and translate counts.
+Exact draw counts are comparable **only with `--seed N`**, which seeds the
+example's own RNG (through `RGAME_SEED`) so that two runs produce byte-identical
+output. Without it `examples/14_asteroids` seeds itself from the system and
+varies run to run, which is what a game being played should do.
 
 ### Why the Ruby specs are two suites, in two directories
 

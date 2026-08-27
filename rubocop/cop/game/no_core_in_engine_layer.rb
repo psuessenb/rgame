@@ -34,8 +34,8 @@ module RuboCop
       #   require 'rgame/core'
       #
       #   # good — duck-typed against whatever it is handed
-      #   def draw(renderer)
-      #     renderer.sprite(:hero, 0, 0, @abs_x, @abs_y)
+      #   def draw(renderer, _view)
+      #     renderer.sprite(:hero, 0, 0, 0, 0)
       #   end
       #
       #   # good — Util types may be held as attributes

@@ -18,9 +18,15 @@ class BeachScene < RGame::Engine::Node2D
   WALKER_SPACING = 48 # so a second player starts beside the first, not inside them
   UI_MARGIN      = 20 # from the corner of that player's region, not of the window
 
+  # Seeded, so the villagers wander the same way every run and two runs of this
+  # example can be compared. `RGAME_SEED` overrides it —
+  # `tools/drive_example.rb --seed N` sets that, and it means the same thing in
+  # every example that has anything random in it.
+  DEFAULT_SEED = 0xBEAC4
+
   def initialize
     super
-    @rng = Random.new(0xBEAC4)
+    @rng = Random.new(ENV.fetch('RGAME_SEED', DEFAULT_SEED).to_i)
     @walkers = {}
   end
 
@@ -96,7 +102,7 @@ class BeachScene < RGame::Engine::Node2D
   # set by AnimatedSprite#on_attach — so reading it from `build_player` bakes a
   # box computed from a 0x0 sprite, for the collision system as well as for this.
   def follow_camera(node, camera)
-    box = node.get_component(RGame::Engine::Components::CharacterBody).collision_box
+    box = node.get_component(RGame::Engine::Components::TileCharacterBody).collision_box
     node.add_component(RGame::Engine::Components::CameraFollow.new(
                          camera: camera,
                          offset_x: box.offset_x + (box.width / 2.0),
@@ -107,8 +113,8 @@ class BeachScene < RGame::Engine::Node2D
   def build_player
     node = RGame::Engine::Node2D.new(x: @map.pixel_width / 2.0, y: @map.pixel_height / 2.0)
     node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: PLAYER_SHEET))
-    node.add_component(RGame::Engine::Components::CharacterBody.new(feet_width: 10, feet_height: 8,
-                                                                    speed: PLAYER_SPEED))
+    node.add_component(RGame::Engine::Components::TileCharacterBody.new(feet_width: 10, feet_height: 8,
+                                                                        speed: PLAYER_SPEED))
     node.add_component(RGame::Engine::Components::PlayerController.new)
     node
   end
@@ -116,7 +122,8 @@ class BeachScene < RGame::Engine::Node2D
   def build_npc(x, y)
     node = RGame::Engine::Node2D.new(x: x, y: y)
     node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: NPC_SHEET))
-    node.add_component(RGame::Engine::Components::CharacterBody.new(feet_width: 14, feet_height: 10, speed: NPC_SPEED))
+    node.add_component(RGame::Engine::Components::TileCharacterBody.new(feet_width: 14, feet_height: 10,
+                                                                        speed: NPC_SPEED))
     node.add_component(RGame::Engine::Components::WanderController.new(rng: @rng))
     node
   end

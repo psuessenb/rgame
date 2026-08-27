@@ -45,7 +45,7 @@ module RGame
         # to an allocation-free CollisionWorld query.
         def pick
           case @policy
-          when :nearest then @world.nearest(node.abs_x, node.abs_y, @range, layer: @layer)
+          when :nearest then @world.nearest(node.world_x, node.world_y, @range, layer: @layer)
           end
         end
       end

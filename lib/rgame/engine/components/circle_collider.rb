@@ -6,7 +6,7 @@ module RGame
       # A circular collision shape on a node. It registers itself with the scene's
       # CollisionWorld system when it enters the tree and unregisters on leaving —
       # the engine fires both hooks, so a spawned/despawned entity can't leak a
-      # registration. Its world centre is the node's resolved absolute origin; the
+      # registration. Its world centre is the node's world origin; the
       # `layer` is an opaque tag the game reads in its on_hit handler to decide what a
       # contact means (bullet-vs-rock, etc.). See docs/api/systems.md.
       class CircleCollider < Engine::Component
@@ -28,9 +28,9 @@ module RGame
         def on_attach = node.system(CollisionWorld).register(self)
         def on_detach = node.system(CollisionWorld)&.unregister(self)
 
-        # World-space centre — the node's resolved absolute origin.
-        def cx = node.abs_x
-        def cy = node.abs_y
+        # World-space centre — the node's own origin, in world coordinates.
+        def cx = node.world_x
+        def cy = node.world_y
 
         def overlap?(other)
           Engine::CircleCollider.overlap?(cx, cy, @radius, other.cx, other.cy, other.radius)

@@ -12,6 +12,46 @@ index, not the argument.
 
 ## [Unreleased]
 
+### Added
+
+- **`rgame new NAME`** — the gem now installs an `rgame` command that scaffolds
+  a project: a game class, a root node, a passing spec suite, a RuboCop config
+  that is green, a Gemfile, a Rakefile and a README. The layout it writes is the
+  engine's own layering — `game.rb` is the only file that loads SDL, so `nodes/`
+  and `spec/` stay graphics-free and the generated suite runs with no display.
+  It also writes a `.ruby-version` holding the Ruby that ran the command, with
+  the Gemfile pointing at that file rather than repeating the number.
+  Also `rgame version` and `rgame help`. See [docs/api/cli.md](docs/api/cli.md).
+
+### Changed
+
+- **Drawing happens in local space.** `Node2D#draw` pushes the node's transform
+  onto the renderer before running `on_draw` and descending into children, so a
+  node draws at its own origin: `renderer.rect(0, 0, width, height)`. Passing a
+  position applies it a second time, so an `on_draw` that drew at
+  `abs_x`/`abs_y` now drops the coordinates. Components do the same — `Sprite`
+  and `AnimatedSprite` pass neither a position nor an angle — while culling
+  stays in world coordinates and asks the node for one by name
+  (`node.world_x`).
+  See [docs/api/scene_graph.md](docs/api/scene_graph.md).
+- **`abs_x`/`abs_y`/`abs_angle` are now `world_x`/`world_y`/`world_angle`, and
+  are computed when read and cached** instead of being resolved by every phase.
+  Moving a node — or reparenting it — marks its subtree stale, and the next read
+  recomputes only what it needs. A world position is therefore never stale: a
+  node whose ancestor moved, a node just reparented, and a paused node under a
+  moving ancestor all answer correctly at any point in any phase, where the
+  resolved value used to lag a tick behind. A frame in which nothing moves
+  computes nothing at all.
+  The parent-relative transform is `rel_x`/`rel_y`/`rel_angle`, which keep
+  `x`/`y`/`angle` as their short names, and the ivar behind it is `@rel_x` —
+  `@x` no longer exists. `abs_band` and `abs_input_owner` keep their names:
+  those are inherited from an ancestor rather than expressed in a space.
+
+### Fixed
+
+- The README's hello-world gave `on_draw` one parameter; it takes two
+  (`renderer, view`).
+
 ## [0.2.0] - 2026-08-26
 
 ### Added

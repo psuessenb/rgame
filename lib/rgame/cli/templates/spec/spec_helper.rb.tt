@@ -1,0 +1,21 @@
+# frozen_string_literal: true
+
+# `rgame` and never `rgame/game`. It loads RGame::Util and RGame::Engine —
+# everything that runs without a window — so no SDL and no OpenGL enter this
+# process, and the whole suite runs with no display: in CI, over SSH, anywhere.
+#
+# It also means `RGame::Core` is an undefined constant here. A spec that reached
+# for it would fail loudly rather than quietly opening a window, which is the
+# point: game logic that can only be tested with a GPU attached is game logic
+# that stops being tested.
+require 'rgame'
+
+# The project root, so `require 'nodes/root'` works from anywhere in the suite.
+$LOAD_PATH.unshift File.expand_path('..', __dir__)
+
+Dir[File.expand_path('../nodes/**/*.rb', __dir__)].each { |file| require file }
+
+RSpec.configure do |config|
+  config.expect_with(:rspec) { |c| c.syntax = :expect }
+  config.disable_monkey_patching!
+end

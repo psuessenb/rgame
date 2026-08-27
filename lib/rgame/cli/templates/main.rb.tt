@@ -1,0 +1,11 @@
+# frozen_string_literal: true
+
+# Entry point: `ruby main.rb`.
+#
+# Deliberately nothing but a boot. Everything the game *is* lives in game.rb and
+# nodes/, which is what lets the spec suite load the interesting half without
+# also starting a window.
+
+require_relative 'game'
+
+<%= game_class %>.new.start

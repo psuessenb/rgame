@@ -42,6 +42,36 @@ RSpec.describe RGame::Util::Color do
       expect(described_class::BLACK.packed).to eq(0x000000FF)
       expect(described_class::TRANSPARENT.a).to be_zero
     end
+
+    it 'names the primaries and secondaries' do
+      expect(described_class::RED.packed).to eq(0xFF0000FF)
+      expect(described_class::GREEN.packed).to eq(0x00FF00FF)
+      expect(described_class::BLUE.packed).to eq(0x0000FFFF)
+      expect(described_class::YELLOW.packed).to eq(0xFFFF00FF)
+      expect(described_class::CYAN.packed).to eq(0x00FFFFFF)
+      expect(described_class::MAGENTA.packed).to eq(0xFF00FFFF)
+    end
+
+    it 'names the mixed colours and the greys' do
+      expect(described_class::ORANGE.packed).to eq(0xFFA500FF)
+      expect(described_class::PURPLE.packed).to eq(0x800080FF)
+      expect(described_class::BROWN.packed).to eq(0x8B4513FF)
+      expect(described_class::PINK.packed).to eq(0xFFC0CBFF)
+      expect(described_class::GRAY.packed).to eq(0x808080FF)
+      expect(described_class::LIGHT_GRAY.packed).to eq(0xC0C0C0FF)
+      expect(described_class::DARK_GRAY.packed).to eq(0x404040FF)
+    end
+
+    it 'are opaque and frozen, so one can be shared as a default tint' do
+      # The Ruby-defined half of the palette goes through the same C
+      # constructor as WHITE, so this checks the reopened class did not
+      # introduce a second, laxer way to build a Color.
+      palette = %i[RED GREEN BLUE YELLOW CYAN MAGENTA ORANGE PURPLE BROWN PINK
+                   GRAY LIGHT_GRAY DARK_GRAY].map { |name| described_class.const_get(name) }
+
+      expect(palette).to all(be_frozen)
+      expect(palette.map(&:a)).to all(eq(255))
+    end
   end
 
   describe 'value semantics' do

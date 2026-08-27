@@ -2,7 +2,7 @@
 
 Low-level, pure-Ruby classes the engine's [components](components.md) and
 [systems](systems.md) are built on. A game author rarely constructs these directly —
-they sit *behind* a component (a `CharacterBody` resolves through `CollisionSystem`, an
+they sit *behind* a component (a `TileCharacterBody` resolves through `CollisionSystem`, an
 `AnimatedSprite` plays through an `Animator`, a `CollisionWorld` indexes through a
 `SpatialHash`) — but they are documented here because they carry the load-bearing
 algorithms and are the seams the component tests drive. None `require "gosu"`.
@@ -61,8 +61,8 @@ engine's speeds. It is the maths inside [`CollisionSystem`](#collisionsystem--mo
 
 `RGame::Engine::CollisionSystem` (`rgame/engine/collision_system`) wraps `TileCollision` with a
 world-bounds clamp and an actor-facing `move`. It is what
-[`TileWorld`](components.md#tileworld) delegates to (and what a `CharacterBody` moves
-through).
+[`TileWorld`](components.md#tileworld) delegates to (and what a
+[`TileCharacterBody`](components.md#tilecharacterbody) moves through).
 
 ```ruby
 collision = RGame::Engine::CollisionSystem.new(

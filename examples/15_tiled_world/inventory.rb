@@ -45,7 +45,7 @@ class Inventory < RGame::Engine::Node2D
     # No z and no band: it is under a PlayerLayer, so it is in that player's
     # HUD band already, and the menu is a child node so it draws over this panel
     # by being drawn after it.
-    renderer.nine_slice(:panel, abs_x, abs_y, panel_width, panel_height)
+    renderer.nine_slice(:panel, 0, 0, panel_width, panel_height)
   end
 
   # The menu is a child, so skipping the child pass is what closes it visually.

@@ -53,7 +53,8 @@
       "Bash(rake spec *)",
       "Bash(rake spec:core)",
       "Bash(rake)",
-      "Bash(rake build *)"
+      "Bash(rake build *)",
+      "Bash(BUNDLE_GEMFILE=/home/paul/Projects/rgame/Gemfile RUBYOPT=\"-I/home/paul/Projects/rgame/lib\" bundle exec rubocop --no-server)"
     ]
   }
 }

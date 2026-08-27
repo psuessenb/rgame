@@ -3,15 +3,25 @@
 module RGame
   module Engine
     module Components
-      # Queues the node for removal once it has fully left the bounds (plus margin).
-      # From Body#offscreen?. Used by short-lived projectiles; removal is deferred via
-      # queue_free so it is safe to trigger from inside the update traversal.
+      # Queues the node for removal once it has fully left the world bounds (plus
+      # margin). From Body#offscreen?. Used by short-lived projectiles; removal is
+      # deferred via queue_free so it is safe to trigger from inside the update
+      # traversal.
+      #
+      # Bounds resolve the same way ScreenWrap's do: from the scene's world system,
+      # at attach time, with `width:`/`height:` as an override.
       class DespawnOffscreen < Engine::Component
-        def initialize(width:, height:, margin: 0.0)
+        def initialize(width: nil, height: nil, margin: 0.0)
           super()
-          @width = width
-          @height = height
+          @given_width = width
+          @given_height = height
           @margin = margin
+        end
+
+        # See ScreenWrap#on_attach: resolved per entry, so a recycled node is correct
+        # after a scene change.
+        def on_attach
+          @width, @height = WorldBounds.resolve(node, @given_width, @given_height)
         end
 
         def update(_dt)

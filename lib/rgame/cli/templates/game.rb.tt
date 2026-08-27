@@ -1,0 +1,23 @@
+# frozen_string_literal: true
+
+require 'rgame/game'
+
+require_relative 'nodes/root'
+
+class <%= game_class %> < RGame::Game
+  WIDTH = 640
+  HEIGHT = 480
+
+  # The bare `**` forwards every keyword straight through to RGame::Game, so
+  # anything it accepts still works here — `players: 2` for split-screen, or
+  # `input:` to hand the game a scripted input backend and drive it from a test
+  # harness with no hardware attached.
+  def initialize(**)
+    super(root: Root.new,
+          caption: '<%= caption %>',
+          width: WIDTH,
+          height: HEIGHT,
+          media_root: File.join(__dir__, 'assets'),
+          **)
+  end
+end

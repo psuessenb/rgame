@@ -26,6 +26,12 @@ class SpecLifecycleNode < RGame::Engine::Node2D
   def on_remove = log << :node_remove
 end
 
+# Moves itself in its own update hook, which is what a node with a velocity of
+# its own does. Used to check that its subtree follows it within the same tick.
+class SpecSelfMovingNode < RGame::Engine::Node2D
+  def on_update(_dt) = self.x += 10
+end
+
 # Records each lifecycle-hook call (with its argument) to a shared log, so the
 # per-phase order (components, then this node's hook, then children) can be
 # asserted without stubbing the node under test.
@@ -461,7 +467,7 @@ RSpec.describe RGame::Engine::Node2D do
     end
 
     describe '#draw' do
-      # An unrotated node (the root resolves to abs_angle 0) draws straight through,
+      # An unrotated node (the root resolves to world_angle 0) draws straight through,
       # without the renderer.rotated wrapper, so a plain double suffices — but
       # every node opens a layer, so that one has to yield.
       let(:renderer) { instance_double(FakeRenderer, layered: nil) }
@@ -487,20 +493,20 @@ RSpec.describe RGame::Engine::Node2D do
     # resolve_origin gives an unparented node, and saves everything that reads
     # abs_* on a draw path from a NoMethodError the first time it runs early.
     it 'reads as the origin before any phase has run' do
-      expect([node.abs_x, node.abs_y]).to eq([0, 0])
+      expect([node.world_x, node.world_y]).to eq([0, 0])
     end
 
     it 'pins a root node to the origin regardless of its own coordinates' do
       node = described_class.new(x: 10, y: 20)
       node.update(0)
-      expect([node.abs_x, node.abs_y]).to eq([0, 0])
+      expect([node.world_x, node.world_y]).to eq([0, 0])
     end
 
     it 'offsets a child from the origin by its own coordinates' do
       child = described_class.new(x: 10, y: 20)
       node.add_node(child)
       node.update(0)
-      expect([child.abs_x, child.abs_y]).to eq([10, 20])
+      expect([child.world_x, child.world_y]).to eq([10, 20])
     end
 
     it 'accumulates coordinates down the tree' do
@@ -511,7 +517,7 @@ RSpec.describe RGame::Engine::Node2D do
 
       node.update(0)
 
-      expect([leaf.abs_x, leaf.abs_y]).to eq([15, 26])
+      expect([leaf.world_x, leaf.world_y]).to eq([15, 26])
     end
 
     it 'does not resolve z into anything — depth is where the traversal reaches a node' do
@@ -531,17 +537,22 @@ RSpec.describe RGame::Engine::Node2D do
 
       node.update(0)
 
-      expect(child.abs_x).to eq(7)
+      expect(child.world_x).to eq(7)
     end
 
+    # Drawing places a node by pushing its transform, not by reading its resolved
+    # coordinates — but `draw` resolves them anyway, because culling is world-space
+    # and a paused node under a moving ancestor would otherwise cull against a
+    # stale box. See Node2D#draw and node2d_paused_spec.rb.
     it 'resolves during draw the same way it does during update' do
       renderer = instance_double(FakeRenderer, layered: nil)
       allow(renderer).to receive(:layered).and_yield
       allow(renderer).to receive(:rotated).and_yield
+      allow(renderer).to receive(:translated).and_yield
       child = described_class.new(x: 4, y: 5)
       node.add_node(child)
       node.draw(renderer, screen_view)
-      expect([child.abs_x, child.abs_y]).to eq([4, 5])
+      expect([child.world_x, child.world_y]).to eq([4, 5])
     end
   end
 
@@ -559,13 +570,13 @@ RSpec.describe RGame::Engine::Node2D do
     end
 
     it 'reads as unrotated before any phase has run' do
-      expect(node.abs_angle).to eq(0)
+      expect(node.world_angle).to eq(0)
     end
 
     it 'pins a root node to zero rotation regardless of its own angle' do
       node = described_class.new(angle: 1.0)
       node.update(0)
-      expect(node.abs_angle).to eq(0)
+      expect(node.world_angle).to eq(0)
     end
 
     it 'accumulates angle down the tree' do
@@ -576,7 +587,7 @@ RSpec.describe RGame::Engine::Node2D do
 
       node.update(0)
 
-      expect(leaf.abs_angle).to be_within(tolerance).of(0.75)
+      expect(leaf.world_angle).to be_within(tolerance).of(0.75)
     end
 
     it 'rotates a child local offset by an ancestor angle' do
@@ -588,8 +599,8 @@ RSpec.describe RGame::Engine::Node2D do
       node.update(0)
 
       # A quarter turn maps local +x onto +y: (10, 0) -> (0, 10).
-      expect(leaf.abs_x).to be_within(tolerance).of(0)
-      expect(leaf.abs_y).to be_within(tolerance).of(10)
+      expect(leaf.world_x).to be_within(tolerance).of(0)
+      expect(leaf.world_y).to be_within(tolerance).of(10)
     end
 
     it 'composes rotation with the rotating ancestor own offset' do
@@ -601,52 +612,308 @@ RSpec.describe RGame::Engine::Node2D do
       node.update(0)
 
       # leaf offset (10, 0) rotated a quarter turn -> (0, 10), added to mid at (5, 0).
-      expect(leaf.abs_x).to be_within(tolerance).of(5)
-      expect(leaf.abs_y).to be_within(tolerance).of(10)
+      expect(leaf.world_x).to be_within(tolerance).of(5)
+      expect(leaf.world_y).to be_within(tolerance).of(10)
     end
 
     it 'keeps a child unrotated and at its plain offset when no ancestor rotates' do
       child = described_class.new(x: 10, y: 20)
       node.add_node(child)
       node.update(0)
-      expect([child.abs_x, child.abs_y, child.abs_angle]).to eq([10, 20, 0])
+      expect([child.world_x, child.world_y, child.world_angle]).to eq([10, 20, 0])
     end
   end
 
-  describe 'drawing rotated subtrees' do
+  # Every other tree in this file sits at the origin, unrotated, and
+  # #resolve_origin has a fast path for exactly that case (`pa.zero?` -> plain
+  # addition, no trig). So an unrotated tree cannot tell a correct
+  # implementation from several wrong ones: the sin/cos terms all vanish, and a
+  # transform that mixes up the axes, applies the rotation on the wrong side, or
+  # updates one axis without the other passes just as happily.
+  #
+  # This is the shape that can tell them apart. The expectations are stated as
+  # plain geometry rather than re-derived from the implementation's formula: a
+  # quarter turn maps the parent's local +x onto world +y and its local +y onto
+  # world -x, so a child walking right in its parent's frame walks *down* the
+  # screen, offset from wherever the parent itself sits.
+  describe 'a child under a rotated, offset parent' do
+    subject(:root) { described_class.new }
+
+    let(:tolerance) { 1e-9 }
+    let(:quarter) { Math::PI / 2 }
+    # Deliberately offset *and* rotated: an implementation that drops the
+    # translation still passes a rotation-only test, and vice versa.
+    let(:parent) { described_class.new(x: 100, y: 40, angle: quarter) }
+
+    def place(child_x, child_y)
+      child = described_class.new(x: child_x, y: child_y)
+      root.add_node(parent)
+      parent.add_node(child)
+      root.update(0)
+      child
+    end
+
+    it 'maps the child local +x onto world +y, offset by the parent origin' do
+      child = place(10, 0)
+      expect(child.world_x).to be_within(tolerance).of(100)
+      expect(child.world_y).to be_within(tolerance).of(50)
+    end
+
+    it 'maps the child local +y onto world -x, offset by the parent origin' do
+      child = place(0, 20)
+      expect(child.world_x).to be_within(tolerance).of(80)
+      expect(child.world_y).to be_within(tolerance).of(40)
+    end
+
+    # The one an axis-at-a-time implementation fails: both components of the
+    # child's offset contribute to both components of its world position.
+    it 'couples the axes when the child is offset on both at once' do
+      child = place(10, 20)
+      expect(child.world_x).to be_within(tolerance).of(80)
+      expect(child.world_y).to be_within(tolerance).of(50)
+    end
+
+    it 'gives the child the parent accumulated angle' do
+      expect(place(10, 20).world_angle).to be_within(tolerance).of(quarter)
+    end
+
+    # Movement, not just placement: the child steps through its parent's frame
+    # over several ticks and must stay on the rotated axis the whole way.
+    it 'tracks a child stepping along the parent local +x across several ticks' do
+      child = place(0, 0)
+
+      walked = Array.new(3) do
+        child.x += 10
+        root.update(0.016)
+        [child.world_x, child.world_y]
+      end
+
+      expect(walked[0][0]).to be_within(tolerance).of(100)
+      expect(walked[0][1]).to be_within(tolerance).of(50)
+      expect(walked[1][1]).to be_within(tolerance).of(60)
+      expect(walked[2][1]).to be_within(tolerance).of(70)
+      # ...and never drifts off the parent's rotated axis.
+      expect(walked.map(&:first)).to all(be_within(tolerance).of(100))
+    end
+
+    # A rotation the fast path cannot reach and neither can a sign error: at a
+    # half turn both axes invert, which distinguishes R from its transpose.
+    it 'inverts both axes under a half turn' do
+      parent.angle = Math::PI
+      child = place(10, 20)
+      expect(child.world_x).to be_within(tolerance).of(90)
+      expect(child.world_y).to be_within(tolerance).of(20)
+    end
+
+    it 'follows the parent when the parent itself rotates between ticks' do
+      child = place(10, 0)
+      expect(child.world_y).to be_within(tolerance).of(50)
+
+      parent.angle = 0 # unrotate: local +x is world +x again
+      root.update(0.016)
+
+      expect(child.world_x).to be_within(tolerance).of(110)
+      expect(child.world_y).to be_within(tolerance).of(40)
+    end
+  end
+
+  # Reparenting moves a node without touching its `x`/`y`: the same offset now
+  # means something else, because it is an offset from somewhere else. Whatever
+  # keeps the world transform current has to notice that, and it is the one way
+  # of moving a node that does not go through a coordinate writer.
+  describe 'moving a node to a different parent' do
+    subject(:root) { described_class.new }
+
+    let(:left)  { root.add_node(described_class.new(x: 100, y: 0)) }
+    let(:right) { root.add_node(described_class.new(x: 500, y: 0)) }
+
+    def reparent(node, to)
+      node.parent.remove_node(node)
+      to.add_node(node)
+    end
+
+    it 'takes its world position from the new parent' do
+      node = left.add_node(described_class.new(x: 5))
+      root.update(0)
+      expect(node.world_x).to eq(105)
+
+      reparent(node, right)
+      root.update(0)
+
+      expect(node.world_x).to eq(505)
+    end
+
+    it 'carries its own subtree across' do
+      node = left.add_node(described_class.new(x: 5))
+      leaf = node.add_node(described_class.new(x: 2))
+      root.update(0)
+      expect(leaf.world_x).to eq(107)
+
+      reparent(node, right)
+      root.update(0)
+
+      expect(leaf.world_x).to eq(507)
+    end
+
+    # The world transform is computed when it is read, not at the top of a phase,
+    # so there is no window in which a reparented node reports where it used to
+    # be. Nothing drives the tree between the move and the read here.
+    it 'is right immediately, with no phase in between' do
+      node = left.add_node(described_class.new(x: 5))
+      expect(node.world_x).to eq(105)
+
+      reparent(node, right)
+
+      expect(node.world_x).to eq(505)
+    end
+
+    # Not just a translation: the new parent turns the space the node sits in.
+    it 'picks up a rotation the new parent has and the old one did not' do
+      right.angle = Math::PI / 2
+      node = left.add_node(described_class.new(x: 10))
+      root.update(0)
+      expect([node.world_x, node.world_y]).to eq([110, 0])
+
+      reparent(node, right)
+      root.update(0)
+
+      expect(node.world_x).to be_within(1e-9).of(500)
+      expect(node.world_y).to be_within(1e-9).of(10)
+    end
+  end
+
+  # A node that moves itself is at its new position immediately, not at the next
+  # phase. The traversal resolves a node's transform once, at the top of its own
+  # update, and then runs the hooks that may move it — so anything reading the
+  # resolved position afterwards, its own children included, used to see where
+  # the node was before it moved and caught up a tick later.
+  describe 'moving a node during a phase' do
+    subject(:root) { described_class.new }
+
+    it 'reads back the new resolved position inside the hook that moved it' do
+      seen = []
+      mover = Class.new(described_class) do
+        define_method(:on_update) do |_dt|
+          self.x = 10
+          seen << world_x
+        end
+      end
+      root.add_node(mover.new)
+
+      root.update(0.016)
+
+      expect(seen).to eq([10])
+    end
+
+    it 'carries the subtree along in the same tick rather than the next one' do
+      mover = root.add_node(SpecSelfMovingNode.new)
+      child = mover.add_node(described_class.new(x: 5))
+
+      followed = Array.new(3) do
+        root.update(0.016)
+        child.world_x
+      end
+
+      # The child sits 5 to the right of a parent that steps 10 per tick, so it
+      # is at 15, 25, 35 — not 5, 15, 25 a tick behind.
+      expect(followed).to eq([15, 25, 35])
+    end
+
+    # Reading is what resolves, so a subtree is right the moment its ancestor
+    # moves — no phase has to reach it first. This is what lets a *paused*
+    # subtree cull correctly under an ancestor that is still moving: it draws
+    # without ever updating, and its world position is computed when culling
+    # asks for it.
+    it 'is right immediately when an ancestor moves, with no phase in between' do
+      branch = root.add_node(described_class.new(x: 100.0))
+      leaf = branch.add_node(described_class.new(x: 5.0))
+      leaf.paused = true
+      expect(leaf.world_x).to eq(105.0)
+
+      branch.x = 900.0
+
+      expect(leaf.world_x).to eq(905.0)
+    end
+
+    it 'carries a rotation the same way' do
+      mover = root.add_node(described_class.new)
+      child = mover.add_node(described_class.new(x: 10))
+      root.update(0.016)
+
+      mover.angle = Math::PI / 2
+      child.parent.update(0.016) # the subtree, without re-resolving from the root
+
+      expect(child.world_x).to be_within(1e-9).of(0)
+      expect(child.world_y).to be_within(1e-9).of(10)
+    end
+  end
+
+  # A node is *placed* by pushing its transform onto the renderer, not by
+  # resolving coordinates and drawing at them. So these examples are about which
+  # calls the traversal issues and what is nested inside what.
+  describe 'drawing in local space' do
     let(:renderer) { instance_double(FakeRenderer, layered: nil) }
 
-    before { allow(renderer).to receive(:layered).and_yield }
+    before do
+      allow(renderer).to receive(:layered).and_yield
+      allow(renderer).to receive(:translated).and_yield
+      allow(renderer).to receive(:rotated).and_yield
+    end
 
-    it 'skips the rotation wrapper for an unrotated node' do
-      allow(renderer).to receive(:rotated)
-      node.draw(renderer, screen_view) # root resolves to abs_angle 0
+    it 'pushes nothing for a node sitting at its parent origin' do
+      node.add_node(described_class.new)
+      node.draw(renderer, screen_view)
+      expect(renderer).not_to have_received(:translated)
+    end
+
+    it 'pushes nothing for a root, which is pinned to the identity' do
+      root = described_class.new(x: 10, y: 20, angle: 1.0)
+      root.draw(renderer, screen_view)
+      expect(renderer).not_to have_received(:translated)
       expect(renderer).not_to have_received(:rotated)
     end
 
-    it 'rotates a node own visuals by its absolute angle in degrees about its origin' do
-      allow(renderer).to receive(:rotated)
-      mid = described_class.new(x: 10, y: 20, angle: Math::PI / 2)
-      node.add_node(mid)
+    it 'translates by the node parent-relative offset, not its resolved one' do
+      mid = node.add_node(described_class.new(x: 10, y: 20))
+      mid.add_node(described_class.new(x: 3, y: 4))
 
       node.draw(renderer, screen_view)
 
-      # Quarter turn -> 90 degrees; pivot is the node's resolved absolute origin.
-      expect(renderer).to have_received(:rotated).with(a_value_within(1e-9).of(90.0), 10, 20)
+      # The child's own push is (3, 4) — its offset from `mid`. The renderer
+      # composes it with mid's (10, 20); nobody hands it the sum.
+      expect(renderer).to have_received(:translated).with(10, 20)
+      expect(renderer).to have_received(:translated).with(3, 4)
     end
 
-    it 'wraps the rotated node own visuals but draws its children outside the rotation' do
-      # Children carry the parent rotation in their resolved coords already, so they
-      # must not be nested inside the parent's rotation (that would rotate twice).
+    it 'skips the rotation wrapper for an unrotated node' do
+      node.add_node(described_class.new(x: 10))
+      node.draw(renderer, screen_view)
+      expect(renderer).not_to have_received(:rotated)
+    end
+
+    it 'rotates by the node own angle in degrees, about its own origin' do
+      node.add_node(described_class.new(x: 10, y: 20, angle: Math::PI / 2))
+
+      node.draw(renderer, screen_view)
+
+      # Quarter turn -> 90 degrees. The pivot is (0, 0) because the translate
+      # above it has already put the renderer on the node.
+      expect(renderer).to have_received(:rotated).with(a_value_within(1e-9).of(90.0), 0, 0)
+    end
+
+    it 'nests both a node own visuals and its children inside its transform' do
+      # The reverse of what it used to be. Children no longer carry the parent's
+      # rotation in resolved coordinates of their own, so the parent's transform
+      # is the only thing placing them and they have to draw underneath it.
       events = []
-      allow(renderer).to receive(:rotated) do |_angle, _x, _y, &block|
-        events << :rotate_begin
+      allow(renderer).to receive(:translated) do |_dx, _dy, &block|
+        events << :translate_begin
         block.call
-        events << :rotate_end
+        events << :translate_end
       end
 
       mid = SpecRecordingNode.new(events) # logs [:hook, renderer] from on_draw
-      mid.angle = Math::PI / 2
+      mid.x = 10
       child = instance_double(described_class, :parent= => nil, :sibling_order= => nil)
       allow(child).to receive(:draw) { events << :child }
       node.add_node(mid)
@@ -654,7 +921,20 @@ RSpec.describe RGame::Engine::Node2D do
 
       node.draw(renderer, screen_view)
 
-      expect(events).to eq([:rotate_begin, [:hook, renderer], :rotate_end, :child])
+      expect(events).to eq([:translate_begin, [:hook, renderer], :child, :translate_end])
+    end
+
+    it 'draws a node own visuals before its children, as it always did' do
+      events = []
+      mid = SpecRecordingNode.new(events)
+      child = instance_double(described_class, :parent= => nil, :sibling_order= => nil)
+      allow(child).to receive(:draw) { events << :child }
+      node.add_node(mid)
+      mid.add_node(child)
+
+      node.draw(renderer, screen_view)
+
+      expect(events).to eq([[:hook, renderer], :child])
     end
   end
 end

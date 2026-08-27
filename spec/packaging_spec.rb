@@ -17,6 +17,7 @@
 # where nothing else has pulled it in — Gem::SilentUI below would be an
 # uninitialized constant without it.
 require 'rubygems/user_interaction'
+require 'tempfile'
 
 RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the subject is the packaged gem, not a class
   subject(:gemspec) { Gem::Specification.load(File.join(root, 'rgame.gemspec')) }
@@ -120,6 +121,47 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
     end
   end
 
+  describe 'the rgame command' do
+    it 'ships the executable and declares it' do
+      # RubyGems puts a wrapper on PATH for each name in `executables`, looked
+      # up under `bindir`. Shipping the file without declaring it means no
+      # command; declaring it without shipping it fails `validate` above.
+      expect(gemspec.bindir).to eq('exe')
+      expect(gemspec.executables).to eq(['rgame'])
+      expect(files).to include('exe/rgame')
+    end
+
+    it 'ships the executable with its executable bit set' do
+      # RubyGems records the mode of the file as packaged. A wrapper that shells
+      # out to a non-executable script is a permission error at the user's first
+      # `rgame new`, on their machine and not ours.
+      skip 'this filesystem does not record a POSIX executable bit' unless executable_bit_recorded?
+
+      expect(File).to be_executable(File.join(root, 'exe/rgame'))
+    end
+
+    it 'packages every project template' do
+      # A template missing from the gem is not a load error — it is `rgame new`
+      # writing an incomplete project, and only on a machine that installed the
+      # gem rather than checking it out.
+      expect(sources('lib/rgame/cli/templates/**/*') - files).to be_empty
+    end
+
+    # Stated without going through `sources`, for the reason the .dSYM example
+    # below gives: both the gemspec and this file derive their lists with
+    # `Dir.glob`, and `Dir.glob` does not match a leading dot. A template named
+    # `.gitignore` would therefore be absent from the gem *and* invisible to the
+    # example above, which is the exact shape of hole that let macOS debug
+    # symbols ship. Templates are stored under plain names and renamed on the
+    # way out — see RGame::CLI::NewProject::DOTFILES.
+    it 'has no dotfile among the templates, which the packaging glob would skip' do
+      dotfiles = Dir.glob('lib/rgame/cli/templates/**/*', File::FNM_DOTMATCH, base: root)
+                    .grep(%r{(\A|/)\.[^/.]})
+
+      expect(dotfiles).to be_empty
+    end
+  end
+
   describe 'what must never ship' do
     it 'excludes compiled extensions and object files' do
       # lib/rgame/*.so is this machine's binary. Shipping it would shadow the
@@ -155,6 +197,27 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
 
     it 'packages the API reference' do
       expect(sources('docs/api/**/*') - files).to be_empty
+    end
+  end
+
+  # Whether this filesystem records a POSIX executable bit at all.
+  #
+  # Probed by chmod-ing a real file rather than asked of the platform, which is
+  # the same rule the Core suite follows for Xvfb and virtual gamepads: a probe
+  # keeps the example running on every machine that can manage it, instead of
+  # switching it off for a whole platform.
+  #
+  # It comes back false on Windows, where there are no mode bits to carry and
+  # `File.executable?` answers from PATHEXT — an extensionless script is never
+  # "executable" there, and a git checkout has nothing to carry the bit in
+  # either. Nothing is lost by skipping: RubyGems installs a `.bat` wrapper on
+  # Windows rather than running the file directly, and the gems that reach
+  # RubyGems are built on a POSIX machine, where this example does run.
+  def executable_bit_recorded?
+    Tempfile.create('rgame-exec-probe') do |file|
+      file.close
+      File.chmod(0o755, file.path)
+      File.executable?(file.path)
     end
   end
 

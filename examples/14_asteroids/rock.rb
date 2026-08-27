@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
-# A drifting, spinning rock with four size tiers. Pool-built blank (the factory
-# captures the world size for ScreenWrap); #reset retunes it to a tier each spawn —
-# velocity, collider radius and sprite scale all come from the per-tier tables.
+# A drifting, spinning rock with four size tiers. Pool-built blank — ScreenWrap finds
+# the world bounds itself, so the factory closes over nothing; #reset retunes it to a
+# tier each spawn — velocity, collider radius and sprite scale all come from the
+# per-tier tables.
 # A bullet hit asks the scene to score + split it (the scene owns the pool); split
 # acquires two rocks one tier smaller, except at the smallest tier. The on_hit
 # listener is wired once at construction (not per-spawn), so reuse never stacks
@@ -19,12 +20,11 @@ class Rock < RGame::Engine::Node2D
 
   attr_reader :tier, :points
 
-  def initialize(world_width:, world_height:)
-    super()
+  def initialize
+    super
     @velocity = add_component(RGame::Engine::Components::Velocity.new)
     @sprite   = add_component(RGame::Engine::Components::Sprite.new(id: :rock))
-    add_component(RGame::Engine::Components::ScreenWrap.new(width: world_width, height: world_height,
-                                                            margin: RADII.first))
+    add_component(RGame::Engine::Components::ScreenWrap.new(margin: RADII.first))
     @collider = add_component(RGame::Engine::Components::CircleCollider.new(radius: RADII.first, layer: :rock))
     @collider.on_hit { |other| scene.destroy_rock(self) if other.layer == :bullet }
   end

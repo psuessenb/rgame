@@ -13,7 +13,7 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
     }
   end
   let(:node) { RGame::Engine::Node2D.new(x: 5.0, y: 7.0) }
-  let(:body) { RGame::Engine::Components::CharacterBody.new(feet_width: 8, feet_height: 6, speed: 50.0) }
+  let(:body) { RGame::Engine::Components::CharacterBody.new(speed: 50.0) }
   let(:sprite) { described_class.new(sheet: :hero, z: 10) }
   let(:renderer) { instance_double(FakeRenderer, layered: nil) }
 
@@ -79,10 +79,10 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
   describe '#draw' do
     it 'draws at the node resolved world origin with the configured layer and no flip' do
       body.set_intent(0.0, 0.0)
-      node.update(0.0) # resolves abs_x/abs_y; zero intent so the body makes no move
+      node.update(0.0) # resolves world_x/world_y; zero intent so the body makes no move
       node.draw(renderer, screen_view)
       expect(renderer).to have_received(:sprite)
-        .with(:hero, 0, anything, node.abs_x, node.abs_y, flip_x: false, z: 10)
+        .with(:hero, 0, anything, node.world_x, node.world_y, flip_x: false, z: 10)
     end
   end
 end

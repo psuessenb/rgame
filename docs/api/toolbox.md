@@ -157,8 +157,8 @@ and applying it is a [`WorldView`](scene_graph.md#view-transforms-and-the-camera
 `RGame::Engine::CollisionBox` (`rgame/engine/collision_box`) is a character's collision rectangle,
 expressed as an offset + size **relative to the sprite's top-left origin** — decoupled
 from the sprite size, so a 32×32 sprite can carry a small box at its feet. A
-[`CharacterBody`](components.md#characterbody) holds one and the collision code resolves
-*it* (not the sprite) against the tiles.
+[`TileCharacterBody`](components.md#tilecharacterbody) holds one and the collision code
+resolves *it* (not the sprite) against the tiles.
 
 ```ruby
 box = RGame::Engine::CollisionBox.bottom_anchored(

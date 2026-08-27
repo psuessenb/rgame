@@ -282,6 +282,13 @@ drawn twice, under two different offsets — which is what split-screen is.
 `rotated(0, …)`, `translated(0, 0)` and `scaled(1)` are free: they skip the
 transform entirely and just run the block, so unrotated drawing pays nothing.
 
+**Inside a scene graph you rarely push either of these yourself.** The examples
+here drive the renderer directly from an `App`, where the coordinates are the
+window's. A `Node2D` is placed by the traversal, which pushes its transform
+before calling `on_draw` — so a node draws at *its own* origin and passing its
+position applies it twice. See
+[Scene graph](scene_graph.md#drawing-happens-in-local-space).
+
 ### Clipping and split-screen
 
 A clip **narrows**. Nesting one inside another intersects them, so a child can

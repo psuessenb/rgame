@@ -26,7 +26,7 @@ module RGame
         end
 
         # The Velocity sibling is only guaranteed present once attached to a node.
-        def on_attach = @velocity = node.get_component(Velocity)
+        def on_attach = @velocity = require_sibling(Velocity)
 
         def control(actions)
           @velocity.spin = actions.axis(@turn_action) * @turn_speed

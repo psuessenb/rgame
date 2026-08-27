@@ -2,12 +2,14 @@
 
 RSpec.describe RGame::Engine::Components::CircleCollider do
   # A collider's world centre is its node's resolved absolute origin, so build it
-  # under a parent and run a phase to resolve coordinates.
+  # under a parent and run an update to resolve coordinates. It has to be `update`:
+  # that is the only phase that resolves the transform, since `control` reads no
+  # coordinates and `draw` expresses position by pushing a transform instead.
   def collider_at(x, y, radius)
     parent = RGame::Engine::Node2D.new
     node = parent.add_node(RGame::Engine::Node2D.new(x: x, y: y))
     collider = node.add_component(described_class.new(radius: radius))
-    parent.control(RGame::Engine::Actions.new) # resolve abs_x/abs_y
+    parent.update(0.0)
     collider
   end
 

@@ -1,5 +1,18 @@
 # frozen_string_literal: true
 
+# A renderer that records nothing, for the allocation example alone.
+# FakeRenderer allocates by design — it records every call it receives, and a
+# draw path now pushes a transform through it as well as issuing draws — so it
+# cannot be on the other end of an allocation measurement. This one only has to
+# be call-compatible with what the draw path uses.
+class SpecSilentRenderer
+  def layered(_band) = yield
+  def translated(_dx, _dy) = yield
+  def rotated(_angle, _pivot_x, _pivot_y) = yield
+  # Never reached: the node under measurement is culled.
+  def image(*, **) = nil
+end
+
 # Exercised through the two components that use it, because what it decides is
 # inseparable from how each of them anchors what it draws.
 RSpec.describe RGame::Engine::Culling do
@@ -65,8 +78,7 @@ RSpec.describe RGame::Engine::Culling do
     def drew?(node)
       node.root.context = FakeGame.new(assets: instance_double(FakeAssets, sheet: sheet))
       renderer.register_sheet(:hero, sheet)
-      node.add_component(RGame::Engine::Components::CharacterBody.new(feet_width: 4, feet_height: 4,
-                                                                      speed: 1.0))
+      node.add_component(RGame::Engine::Components::CharacterBody.new(speed: 1.0))
       node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: :hero))
       node.parent.enter_tree
       node.parent.draw(renderer, world_view)
@@ -112,16 +124,18 @@ RSpec.describe RGame::Engine::Culling do
   # It runs once per drawable per viewport — the most-repeated test in a frame,
   # and four times as often with four players as it ever was with one.
   #
-  # Measured on a node that *is* culled, so nothing but the test itself runs.
-  # The drawing branch cannot be measured through FakeRenderer, which records
-  # every call it receives and so allocates by design.
+  # Measured on a node that *is* culled, so nothing but the test itself runs,
+  # and through SpecSilentRenderer rather than FakeRenderer — see the note on
+  # that class. What is being measured is the engine: the cull test, and the
+  # transform push that wraps it.
   it 'costs no allocation' do
+    silent = SpecSilentRenderer.new
     node = node_at(50_000, 50_000)
     node.add_component(RGame::Engine::Components::Sprite.new(id: :rock))
     node.parent.enter_tree
     view = world_view
-    node.parent.draw(renderer, view)
+    node.parent.draw(silent, view)
 
-    expect { node.parent.draw(renderer, view) }.to allocate_nothing
+    expect { node.parent.draw(silent, view) }.to allocate_nothing
   end
 end

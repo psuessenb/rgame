@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 RSpec.describe RGame::Engine::Components::WanderController do
-  let(:body) { RGame::Engine::Components::CharacterBody.new(feet_width: 8, feet_height: 8, speed: 60.0) }
+  let(:body) { RGame::Engine::Components::CharacterBody.new(speed: 60.0) }
 
   # Build an actor node carrying a CharacterBody + a wander controller with the given
   # options, already in the tree (so on_attach has run).
@@ -28,7 +28,7 @@ RSpec.describe RGame::Engine::Components::WanderController do
 
     it 'is deterministic for a given seed' do
       _na, ca = build(rng: Random.new(42))
-      body_b = RGame::Engine::Components::CharacterBody.new(feet_width: 8, feet_height: 8, speed: 60.0)
+      body_b = RGame::Engine::Components::CharacterBody.new(speed: 60.0)
       nb = RGame::Engine::Node2D.new
       nb.add_component(body_b)
       cb = nb.add_component(described_class.new(rng: Random.new(42)))

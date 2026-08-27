@@ -65,13 +65,16 @@ RSpec.describe RGame::Engine::UI::MenuItem do
   end
 
   describe 'where it draws' do
-    it 'fills its own box, resolved through the tree' do
+    # Its own box starts at its own origin: the traversal has already translated
+    # the renderer by (30, 70) for the parent and (5, 6) for the item, so the
+    # panel is drawn at (0, 0) and lands at (35, 76) on screen.
+    it 'fills its own box, at its own origin' do
       root.add_node(RGame::Engine::Node2D.new(x: 30.0, y: 70.0)).add_node(
         described_class.new(label: 'Resume', width: 200, height: 40, x: 5.0, y: 6.0)
       )
       root.enter_tree
       name, call = drew
-      expect([name, call[1]]).to eq([:idle, [renderer, 35.0, 76.0, 200, 40]])
+      expect([name, call[1]]).to eq([:idle, [renderer, 0, 0, 200, 40]])
     end
 
     it 'centres its label in that box' do
@@ -95,12 +98,16 @@ RSpec.describe RGame::Engine::UI::MenuItem do
       expect(item.abs_band).to eq(:world)
     end
 
+    # Driven with `draw`, because the band is resolved by the phase that reads
+    # it, and with the item's own draw rather than the root's: drawing through
+    # the PlayerLayer would need the Viewports system it looks its region up in,
+    # which is viewport plumbing this example is not about.
     it 'is in the HUD band under a PlayerLayer' do
       player = RGame::Engine::Player.new(id: 0)
       layer = root.add_node(RGame::Engine::PlayerLayer.new(player: player))
       menu_item = layer.add_node(described_class.new(label: 'Resume', width: 200, height: 40))
       root.enter_tree
-      root.update(0)
+      menu_item.draw(renderer, screen_view)
 
       expect(menu_item.abs_band).to eq(:hud)
     end

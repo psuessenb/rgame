@@ -7,7 +7,7 @@ module RGame
     # transform, never baked into a node.
     #
     #   camera = Camera.new(world_width: map.pixel_width, world_height: map.pixel_height)
-    #   camera.center_on(player.abs_x, player.abs_y)   # in update, every tick
+    #   camera.center_on(player.world_x, player.world_y)   # in update, every tick
     #   camera.resolve(view_width, view_height)        # at draw, for one viewport
     #   camera.x, camera.y                             # the offset to translate by
     #
