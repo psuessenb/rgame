@@ -56,9 +56,12 @@ RSpec.describe 'a generated project' do # rubocop:disable RSpec/DescribeClass --
   end
 
   it 'is clean under its own RuboCop configuration' do
-    # --no-server so the run cannot pick up a server started elsewhere with a
-    # different config.
-    output, status = run_in_project('rubocop', '--no-server')
+    # No --no-server here, deliberately. RuboCop keys its server on the project
+    # directory, and this one is a fresh temporary directory, so there is never
+    # a server to pick up — and on Windows `--no-server` is not a no-op but an
+    # error ("RuboCop server is not supported by this Ruby"), because the flag
+    # is rejected wholesale wherever the server is unsupported.
+    output, status = run_in_project('rubocop')
 
     expect(status).to be_success, "rubocop failed:\n#{output}"
     expect(output).to include('no offenses detected')

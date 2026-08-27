@@ -17,6 +17,7 @@
 # where nothing else has pulled it in — Gem::SilentUI below would be an
 # uninitialized constant without it.
 require 'rubygems/user_interaction'
+require 'tempfile'
 
 RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the subject is the packaged gem, not a class
   subject(:gemspec) { Gem::Specification.load(File.join(root, 'rgame.gemspec')) }
@@ -134,6 +135,8 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
       # RubyGems records the mode of the file as packaged. A wrapper that shells
       # out to a non-executable script is a permission error at the user's first
       # `rgame new`, on their machine and not ours.
+      skip 'this filesystem does not record a POSIX executable bit' unless executable_bit_recorded?
+
       expect(File).to be_executable(File.join(root, 'exe/rgame'))
     end
 
@@ -194,6 +197,27 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
 
     it 'packages the API reference' do
       expect(sources('docs/api/**/*') - files).to be_empty
+    end
+  end
+
+  # Whether this filesystem records a POSIX executable bit at all.
+  #
+  # Probed by chmod-ing a real file rather than asked of the platform, which is
+  # the same rule the Core suite follows for Xvfb and virtual gamepads: a probe
+  # keeps the example running on every machine that can manage it, instead of
+  # switching it off for a whole platform.
+  #
+  # It comes back false on Windows, where there are no mode bits to carry and
+  # `File.executable?` answers from PATHEXT — an extensionless script is never
+  # "executable" there, and a git checkout has nothing to carry the bit in
+  # either. Nothing is lost by skipping: RubyGems installs a `.bat` wrapper on
+  # Windows rather than running the file directly, and the gems that reach
+  # RubyGems are built on a POSIX machine, where this example does run.
+  def executable_bit_recorded?
+    Tempfile.create('rgame-exec-probe') do |file|
+      file.close
+      File.chmod(0o755, file.path)
+      File.executable?(file.path)
     end
   end
 
