@@ -6,8 +6,10 @@ RSpec.describe RGame::Engine::CircleCollider do
       expect(described_class.overlap?(0, 0, 5, 6, 0, 5)).to be(true)
     end
 
-    it 'is true when they exactly touch (distance == sum of radii)' do
-      expect(described_class.overlap?(0, 0, 4, 10, 0, 6)).to be(true)
+    # Half-open, like CollisionBox: contact means overlapping area, so circles that
+    # exactly graze are apart. One meaning of contact across both shapes.
+    it 'is false when they exactly touch (distance == sum of radii)' do
+      expect(described_class.overlap?(0, 0, 4, 10, 0, 6)).to be(false)
     end
 
     it 'is false when they are apart' do

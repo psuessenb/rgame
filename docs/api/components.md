@@ -155,6 +155,41 @@ from the sheet's animation table.
   `node.world_x`/`world_y` — culling is the one thing here still stated in world coordinates,
   because it compares against the camera. (`Sprite` above is the single-image counterpart.)
 
+### `BoxCollider`
+
+A rectangular collision shape that participates in a scene's
+[`CollisionWorld`](#collisionworld) — the sibling of [`CircleCollider`](#circlecollider),
+for entities that are honestly box-shaped (a snake segment, a crate, a platform). It
+registers itself when the node enters the tree and unregisters when it leaves, so a
+spawned or despawned entity never leaks a registration.
+
+- **Construct:** `BoxCollider.new(width:, height:, offset_x: 0, offset_y: 0, layer: :default)`.
+  The offsets are relative to the node's origin, so a 32×32 sprite can carry a small box at
+  its feet. `layer` is an opaque tag the *owner* reads to decide what a contact means; the
+  collision system itself is layer-agnostic.
+- **Lifecycle:** `on_attach` registers with `node.system(CollisionWorld)`; `on_detach`
+  unregisters.
+- **Geometry:** the rectangle is an [`RGame::Engine::CollisionBox`](toolbox.md#collisionbox--an-actors-feet-box),
+  reachable as the read/write `box` accessor — assign a new one (including
+  `CollisionBox.bottom_anchored(...)`) to retune a pooled entity's shape on reset, no
+  re-registration needed. `aabb_x`/`aabb_y`/`aabb_w`/`aabb_h` are the world-space box;
+  `cx`/`cy` are the **box's** centre (not the node origin, which is where a circle's
+  centre is), which is what the world's range queries measure from.
+- **Rotation:** the box stays axis-aligned in world space — it does not turn with the
+  node. A spinning entity wants a `CircleCollider`, which is rotation-invariant, rather
+  than a per-frame box recompute.
+- **Contacts:** `overlap?(other)` works against a box *or* a circle: the two colliders
+  settle the test between themselves, so both shapes mix freely in one world.
+- **Signal:** `on_hit` fires with the other collider on each contact —
+  `collider.on_hit { |other| ... }`. The system triggers it via `emit_hit(other)`.
+
+```ruby
+collider = add_component(RGame::Engine::Components::BoxCollider.new(
+  width: cell_size, height: cell_size, layer: :fruit
+))
+collider.on_hit { |other| eat if other.layer == :snake }
+```
+
 ### `CameraFollow`
 
 Points a camera at the node it is attached to.
@@ -203,8 +238,11 @@ registration.
   unregisters.
 - **Geometry:** `cx`/`cy` are the node's world origin (`node.world_x`/`world_y`); `radius` is a
   read/write accessor (so a pooled entity can retune its shape on reset — see
-  `ScreenWrap`/pooling), `layer` is a reader; `overlap?(other)` is the circle-vs-circle
-  test.
+  `ScreenWrap`/pooling), `layer` is a reader; `aabb_x`/`aabb_y`/`aabb_w`/`aabb_h` are the
+  bounding box the world buckets on.
+- **Contacts:** `overlap?(other)` works against a circle *or* a
+  [`BoxCollider`](#boxcollider): the two colliders settle the test between themselves, so
+  both shapes mix freely in one world.
 - **Signal:** `on_hit` fires with the other collider on each contact —
   `collider.on_hit { |other| ... }`. The system triggers it via `emit_hit(other)`.
 
@@ -214,6 +252,12 @@ A scene-scoped broadphase collision **system**: a component that lives on the sc
 node, holds the registered colliders in a `SpatialHash`, and each step reports every
 overlapping pair. Because it is a normal component it rides the `update` traversal and
 is torn down with the scene. See [Systems & shared resources](systems.md).
+
+It is **shape-agnostic**: it buckets each collider by the bounding box it reports
+(`aabb_x`/`aabb_y`/`aabb_w`/`aabb_h`) and leaves the exact test to the pair's own
+`overlap?`. So [`CircleCollider`](#circlecollider) and [`BoxCollider`](#boxcollider)
+share one world and collide with each other, and a game can add a shape of its own by
+answering the same handful of methods.
 
 - **Construct:** `CollisionWorld.new(cell_size:)` — the spatial-hash cell size (tune to
   the typical collider size).
@@ -226,13 +270,38 @@ is torn down with the scene. See [Systems & shared resources](systems.md).
 - **Range queries (targeting):** the same index answers point-radius lookups against the
   most recent `update`, so a tower can find enemies without a contact:
   - `query_circle(x, y, r) { |collider| }` yields every registered collider whose centre
-    is within `r` of `(x, y)` (centre distance — the collider's own radius isn't added,
+    is within `r` of `(x, y)` (centre distance — the collider's own size isn't added,
     so it reads like a range ring); freed-node colliders are skipped, and a collider may
     be yielded more than once (broadphase dedup contract — fine for selecting). Filter by
     `collider.layer` in the block.
   - `nearest(x, y, r, layer: nil)` returns the closest such collider (optionally limited
     to one `layer`), or `nil`. Both are allocation-free, so a targeting component can call
     them every frame.
+- **Cell occupancy (grid games):** `cell_empty?(x, y)` answers whether the cell containing
+  the **world** point `(x, y)` is free — "may the fruit spawn on this square?". A point,
+  not a region: pass any coordinate inside the square you mean, and set `cell_size` to the
+  game's own square so the two grids line up. The cells are the hash's own lattice,
+  anchored at the world origin, so a board also wants its own origin on a multiple of
+  `cell_size` — off that lattice each square straddles two cells and both read occupied.
+  Like the queries above it reads the index the last `update` built and allocates nothing,
+  including on a miss — the case a board scan asks about most.
+
+  A collider whose node is queued for removal doesn't count as occupying a cell, so a
+  corpse can't reserve a square. Everything else is
+  [`SpatialHash#cell_empty?`](internals.md#spatialhash--uniform-grid-broadphase)
+  underneath: its cell walk is half-open on the far edge, so a piece filling one square
+  leaves the squares it borders free.
+
+  It takes *world* coordinates, because that is what a collider reports. A node whose own
+  grid starts elsewhere adds its origin first:
+
+  ```ruby
+  # in a Grid node whose cells are cell_size across
+  def free?(col, row)
+    collisions = system(RGame::Engine::Components::CollisionWorld)
+    collisions.cell_empty?(world_x + (col * cell_size), world_y + (row * cell_size))
+  end
+  ```
 
 ### `DespawnOffscreen`
 

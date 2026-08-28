@@ -9,12 +9,14 @@ module RGame
     class CircleCollider
       attr_reader :radius
 
-      # Squared-distance overlap test (no sqrt): true when two circles touch.
+      # Squared-distance overlap test (no sqrt): true when two circles overlap in area.
+      # Circles that exactly graze are apart, the same half-open convention CollisionBox
+      # uses — one meaning of "contact" across both shapes and the pairs that mix them.
       def self.overlap?(x1, y1, r1, x2, y2, r2)
         dx = x2 - x1
         dy = y2 - y1
         sum = r1 + r2
-        (dx * dx) + (dy * dy) <= sum * sum
+        (dx * dx) + (dy * dy) < sum * sum
       end
 
       def initialize(radius:)

@@ -61,4 +61,57 @@ RSpec.describe RGame::Engine::SpatialHash do
       expect(query_circle(0, 0, 30)).to include(:far) # bbox (-30..30) reaches it
     end
   end
+
+  # cell_size is 10 here, so cell (c, r) is the square [c*10, c*10+10) x [r*10, r*10+10).
+  describe '#cell_empty?' do
+    it 'is true for a cell nothing was inserted into' do
+      hash.insert(:a, 0, 0, 5, 5)
+      expect(hash.cell_empty?(35, 35)).to be(true)
+    end
+
+    it 'is false for the cell an item was inserted into' do
+      hash.insert(:a, 0, 0, 5, 5)
+      expect(hash.cell_empty?(3, 3)).to be(false)
+    end
+
+    it 'takes a point anywhere inside the cell, not the item itself' do
+      hash.insert(:a, 0, 0, 5, 5)
+      expect(hash.cell_empty?(9, 9)).to be(false) # same cell, past the item's box
+    end
+
+    # Items are bucketed by their AABB, so a box reaching into a cell fills it even
+    # where the box does not cover the point asked about.
+    it 'is false for every cell an items box spans' do
+      hash.insert(:big, 5, 5, 25, 25) # covers [5, 30) x [5, 30): cells (0,0)..(2,2)
+      expect([hash.cell_empty?(21, 4), hash.cell_empty?(31, 4)]).to eq([false, true])
+    end
+
+    # The cell walk is half-open on the far edge, matching CollisionBox.overlap?: a box
+    # ending exactly on a boundary stops at the cell before it, so a piece filling one
+    # square leaves the squares it borders free.
+    it 'is true for the cell a box ends exactly on' do
+      hash.insert(:tile, 10, 10, 10, 10) # exactly cell (1, 1)
+      expect([hash.cell_empty?(15, 15), hash.cell_empty?(25, 15),
+              hash.cell_empty?(15, 25), hash.cell_empty?(5, 15)]).to eq([false, true, true, true])
+    end
+
+    it 'works with negative coordinates' do
+      hash.insert(:edge, -25, -25, 8, 8)
+      expect([hash.cell_empty?(-24, -24), hash.cell_empty?(-5, -5)]).to eq([false, true])
+    end
+
+    it 'reports every cell empty again after clear' do
+      hash.insert(:a, 0, 0, 5, 5)
+      hash.clear
+      expect(hash.cell_empty?(3, 3)).to be(true)
+    end
+
+    # A miss must not create the bucket it looked for: the buckets Hash has a default
+    # block that would, which would both allocate and grow the index from a read.
+    it 'allocates nothing and stores nothing when the cell is empty' do
+      hash.insert(:a, 0, 0, 5, 5)
+      expect { hash.cell_empty?(1000, 1000) }.to allocate_nothing
+      expect(query(1000, 1000, 1, 1)).to be_empty
+    end
+  end
 end

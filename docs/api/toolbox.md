@@ -168,7 +168,27 @@ box.aabb(x, y) # => [x + offset_x, y + offset_y, width, height]
 ```
 
 `bottom_anchored` is the common case (feet box); the raw constructor takes explicit
-`offset_x:`/`offset_y:`/`width:`/`height:` for anything else.
+`width:`/`height:` plus optional `offset_x:`/`offset_y:` (both default to 0) for
+anything else.
+
+It is also where rectangle geometry lives, as class methods over plain numbers so a
+per-frame path can call them without building a box first:
+
+```ruby
+RGame::Engine::CollisionBox.overlap?(x1, y1, w1, h1, x2, y2, w2, h2) # rect vs rect
+RGame::Engine::CollisionBox.overlap_circle?(x, y, w, h, cx, cy, r)   # rect vs circle
+```
+
+Both are **half-open**: a shape spans `[x, x + w)`, so shapes that merely share an edge
+(or a circle that exactly grazes) are apart, not touching. `CircleCollider.overlap?`
+agrees, so contact means the same thing for every pair of shapes. That convention is what
+makes a grid work — pieces on neighbouring squares border each other constantly, and an
+inclusive test reports every one of those as a contact — and it is the one the broadphase
+buckets by, so the two never disagree.
+
+A [`BoxCollider`](components.md#boxcollider) component is a `CollisionBox` plus a
+registration in the scene's [`CollisionWorld`](components.md#collisionworld), and these
+two are its narrowphase.
 
 ## `RGame::Engine::I18n` — localization
 

@@ -23,6 +23,8 @@ index, not the argument.
   the Gemfile pointing at that file rather than repeating the number.
   Also `rgame version` and `rgame help`. See [docs/api/cli.md](docs/api/cli.md).
 
+- **BoxColliders for rectangular shaped collision bodies.** Adding a second shape of colliders, which can be used with the already existing `CollisionWorld`. Also extended both `CollisionWorld` and the underlying `SpatialHash` with some utility methods for grid-based collisions. 
+
 ### Changed
 
 - **Drawing happens in local space.** `Node2D#draw` pushes the node's transform

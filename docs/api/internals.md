@@ -39,6 +39,23 @@ range and nearest lookups. It is still broadphase — it carries the same may-yi
 contract, and the caller refines candidates by true distance (see
 [`CollisionWorld`](components.md#collisionworld)'s `query_circle`/`nearest`).
 
+`cell_empty?(x, y)` asks whether the single cell *containing the point* `(x, y)` holds
+nothing — a point, not a region, so pass any coordinate inside the cell you mean. Like
+the queries it allocates nothing, and unlike them a miss does not create the bucket it
+looked for (the bucket Hash builds one on a plain `[]` read).
+
+An item is bucketed by its bounding box, and the cell walk is **half-open on the far
+edge** — a box ending exactly on a cell boundary stops at the cell before it. So a piece
+filling one cell is bucketed into that cell and no other, "bucketed here" means "overlaps
+this cell's area" exactly, and `cell_empty?` is a true occupancy test rather than a
+candidate test. That convention is shared with `CollisionBox.overlap?`, and the two have
+to agree: bucketing that reached one cell further would only cost candidates, but one
+that reached less far would miss a real contact.
+
+The one thing the index cannot know is whether an occupant still counts, so
+[`CollisionWorld#cell_empty?`](components.md#collisionworld) wraps this and skips
+colliders whose node is queued for removal.
+
 ## `TileCollision` — axis-separated AABB-vs-tile resolution
 
 `RGame::Engine::TileCollision` (`rgame/engine/tile_collision`) resolves an axis-aligned box against a

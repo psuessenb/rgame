@@ -115,8 +115,9 @@ A many-to-many system (broadphase collision) lives on the scene node and keeps i
 own index of registered clients, so it processes only nearby candidates instead of
 walking the tree for every pair. `CollisionWorld`
 (engine/components/collision_world.rb) holds a `SpatialHash` for exactly this — a
-spatial index of registered colliders, rebuilt each `update`. This indexing is the
-same idea as Godot's **groups**: a registry of node references. It is *not* an ECS —
+spatial index of registered colliders, rebuilt each `update` — and it is shape-agnostic,
+so `CircleCollider` and `BoxCollider` share one and collide with each other. This
+indexing is the same idea as Godot's **groups**: a registry of node references. It is *not* an ECS —
 it indexes references, carries no component data, and gains none of ECS's
 data-locality; it's a lightweight index.
 

@@ -66,18 +66,60 @@ module RGame
         query(cx - r, cy - r, d, d, &)
       end
 
+      # Is the one cell containing the point (x, y) holding nothing? A point, not a
+      # region: pass any coordinate inside the cell you mean.
+      #
+      # An item is bucketed by its *bounding box*, and the cell walk is half-open on the
+      # far edge (see #last_cell), so "bucketed here" means "overlaps this cell's area"
+      # exactly: a box filling one cell fills that cell's bucket and no other, and one
+      # covering four cells fills four. So this answers occupancy, not just candidacy —
+      # it is true when nothing overlaps the cell at all. What it cannot know is whether
+      # an occupant still counts; `CollisionWorld#cell_empty?` adds that, skipping
+      # colliders whose node is queued for removal.
+      #
+      # Reads whatever the most recent inserts left behind: after `clear` every cell is
+      # empty until something is inserted again. Allocation-free — `fetch` deliberately
+      # sidesteps the bucket Hash's default block, which would *create* the bucket.
+      def cell_empty?(x, y)
+        bucket = @buckets.fetch(cell_key((x / @cell_size).floor, (y / @cell_size).floor), nil)
+        bucket.nil? || bucket.empty?
+      end
+
       private
+
+      # The one place the packing above is spelled out — see OFFSET/STRIDE for what
+      # keeps the result a Fixnum on every platform.
+      def cell_key(col, row) = (col + OFFSET) * STRIDE + (row + OFFSET)
 
       def each_cell(x, y, w, h)
         col0 = (x / @cell_size).floor
         row0 = (y / @cell_size).floor
-        col1 = ((x + w) / @cell_size).floor
-        row1 = ((y + h) / @cell_size).floor
+        col1 = last_cell(x + w, col0)
+        row1 = last_cell(y + h, row0)
         row0.upto(row1) do |row|
           col0.upto(col1) do |col|
-            yield (col + OFFSET) * STRIDE + (row + OFFSET)
+            yield cell_key(col, row)
           end
         end
+      end
+
+      # The cell holding the far edge of a region starting in cell `first`.
+      #
+      # A region spans [start, edge), so one ending exactly on a cell boundary stops at
+      # the cell before it — a box filling one cell is bucketed into that cell and no
+      # other. This mirrors CollisionBox.overlap?, and the two have to agree: bucketing
+      # that reached one cell further would report neighbours as candidates (harmless
+      # but wasteful), and one that reached less far would miss a real contact.
+      #
+      # The floor is for a zero-size region, which the occupancy queries use to name a
+      # single cell: [x, x) ends where it starts, and would otherwise span nothing.
+      def last_cell(edge, first)
+        cell = (edge / @cell_size).floor
+        cell -= 1 if (edge % @cell_size).zero?
+        # rubocop:disable Style/MinMaxComparison -- the [cell, first].max it asks for is
+        # what the project's own Game/NoNeedlessAllocation rejects on a per-frame path.
+        cell < first ? first : cell
+        # rubocop:enable Style/MinMaxComparison
       end
     end
   end
