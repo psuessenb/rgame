@@ -785,6 +785,14 @@ script from `tools/drive/`:
 ruby tools/drive_test_project.rb test_projects/tiled_world/main.rb --ticks 240
 ```
 
+**A script's path mirrors its project's**, so the line above reads
+`tools/drive/test_projects/tiled_world.rb`. Deriving it from the directory's
+*basename* instead would make two trees of projects collide silently — a game
+driven by another game's inputs reports something confusing rather than failing
+— so the mirror is what makes the collision impossible. `--script` overrides it,
+which is how one project has several scripts (`tiled_world_2p.rb`,
+`tiled_world_cutscene.rb`).
+
 It boots the test project unmodified (prepending its probes before `load`ing the
 project's own `main.rb`), feeds it a scripted input backend through
 `RGame::Game`'s `input:` keyword, stops on a tick budget, and reports draw calls

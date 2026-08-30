@@ -7,6 +7,11 @@
 #   ruby tools/drive_test_project.rb test_projects/asteroids/main.rb --ticks 200
 #   ruby tools/drive_test_project.rb test_projects/asteroids/main.rb --seed 7
 #
+# The input script is found by mirroring the project's own path under
+# `tools/drive/`, so the first line above reads
+# `tools/drive/test_projects/tiled_world.rb`. `--script` overrides it, which is
+# how one project has several scripts (`tiled_world_2p.rb`, `_cutscene.rb`).
+#
 # ## Why this exists
 #
 # The test projects are the acceptance test for anything that changes how the
@@ -81,6 +86,28 @@ require_relative '../spec_core/support/headless_display'
 
 module DriveTestProject
   ROOT = File.expand_path('..', __dir__)
+
+  # Where a project's default input script lives: `tools/drive/` with the
+  # project's own directory path under it, so
+  # `test_projects/tiled_world/main.rb` reads `tools/drive/test_projects/tiled_world.rb`.
+  #
+  # **It mirrors the path rather than taking the basename**, which it used to.
+  # A basename is unique only by luck once there is more than one tree of
+  # projects: `examples/snake` and `test_projects/snake` would silently share
+  # one script, and the symptom would be a game driven by inputs written for a
+  # different game — a confusing report rather than an error. Mirroring makes
+  # the collision impossible instead of merely unlikely.
+  def self.default_script_for(project)
+    directory = File.dirname(File.expand_path(project, ROOT))
+    relative = directory.delete_prefix("#{ROOT}/")
+    # Only a path under the repo has a mirror position under tools/drive/. One
+    # from outside it would compose an absolute path onto `drive/` and produce a
+    # nonsense filename, so say what is wrong instead of reporting it missing.
+    abort "#{project} is outside #{ROOT}, so it has no default script — pass --script." \
+      if relative == directory
+
+    File.join(__dir__, 'drive', "#{relative}.rb")
+  end
 
   # ---------------------------------------------------------------- the script
 
@@ -623,7 +650,7 @@ if $PROGRAM_NAME == __FILE__
   parser = OptionParser.new do |o|
     o.banner = 'Usage: ruby tools/drive_test_project.rb PROJECT_MAIN [options]'
     o.on('--ticks N', Integer, 'Stop after N simulation ticks (default 240)') { options[:ticks] = it }
-    o.on('--script PATH', 'Input script (default: tools/drive/<project dir>.rb)') { options[:script] = it }
+    o.on('--script PATH', 'Input script (default: tools/drive/<project path>.rb)') { options[:script] = it }
     o.on('--gamepad', 'Drive a synthetic SDL controller instead of the input backend') { options[:gamepad] = true }
     o.on('--seed N', Integer, 'Seed the project RNG, so two runs can be compared') { options[:seed] = it }
   end
@@ -636,12 +663,9 @@ if $PROGRAM_NAME == __FILE__
 
   project = ARGV.shift or abort(parser.to_s)
 
-  # The default script is named after the project's directory, so adding a test
-  # project means adding a script beside this file rather than editing it.
-  script_path = options[:script] ||
-                File.join(__dir__, 'drive', "#{File.basename(File.dirname(project))}.rb")
+  script_path = options[:script] || DriveTestProject.default_script_for(project)
   unless File.exist?(script_path)
-    abort "No script at #{script_path}. Write one (see tools/drive/*.rb) or pass --script."
+    abort "No script at #{script_path}. Write one (see tools/drive/**/*.rb) or pass --script."
   end
 
   DriveTestProject.run(project: project, script_path: script_path,

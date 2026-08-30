@@ -192,7 +192,8 @@ tools/                       Development tools, outside the engine and not
   drive_test_project.rb      Boots a test project unmodified, feeds it a
                              scripted input backend and reports what it actually
                              asked for — draws, clips, sounds, scenes.
-  drive/                     One input script per test project run.
+  drive/                     One input script per project run, at a path
+                             mirroring the project's own.
   make_ogg_fixture.c         Generates the audio suite's .ogg fixture.
 rubocop/cop/game/            The project's own cops, loaded by .rubocop.yml:
                              the per-frame allocation guards and the two that

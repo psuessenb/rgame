@@ -54,9 +54,10 @@ logic that tier 1 could cover.
 **Tier 3b — driven test project.** The acceptance test for anything that changes how
 the layers are wired: `RGame::Game`, the asset loaders, input polling, the
 renderer's id registries. It is the only tier where all three layers are present
-at once. Boots a test project unmodified, drives it from a script in `tools/drive/`,
-bounds the ticks, and reports what the game asked for — scenes entered, sounds
-played, clips and translates pushed, ticks against frames. **Booting is not
+at once. Boots a test project unmodified, drives it from the script in
+`tools/drive/` whose path mirrors the project's own, bounds the ticks, and
+reports what the game asked for — scenes entered, sounds played, clips and
+translates pushed, ticks against frames. **Booting is not
 driving**: a plain boot of a game whose menu responded to nothing once reported
 "90 ticks, 90 frames" and looked healthy. Assert on structure, not on exact draw
 counts (asteroids spawns from an unseeded RNG).

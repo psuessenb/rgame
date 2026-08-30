@@ -40,31 +40,30 @@ it.
    literal. Sourcing art is the slowest part of this whole plan, so a concept
    that can be shown with rects and text is shown that way. See "Assets" below
    for the full manifest.
-5. **A drive script**, so the example is covered by tier 3b rather than only by
-   somebody opening a window. See "Harness change" below.
+5. **A drive script** at `tools/drive/examples/<name>.rb`, so the example is
+   covered by tier 3b rather than only by somebody opening a window. The
+   harness finds it by mirroring the example's own path — see "Harness change".
 6. **Linked from `docs/api/`.** An example nothing points at is an example
    nobody finds. Each one gets a line in the page for its concept.
 
-## Harness change needed first
+## Harness change — **done**
 
-`tools/drive_test_project.rb` derives the default input script from the
-*basename* of the project's directory:
+`tools/drive_test_project.rb` used to derive the default input script from the
+*basename* of the project's directory, which is unique only by luck once there
+is more than one tree of projects: `examples/snake` and `test_projects/snake`
+would have silently shared one script, and the symptom is a game driven by
+another game's inputs — a confusing report rather than an error.
 
-```ruby
-File.join(__dir__, 'drive', "#{File.basename(File.dirname(project))}.rb")
-```
+It now mirrors the project's path instead, in `DriveTestProject.default_script_for`:
+`test_projects/tiled_world/main.rb` reads `tools/drive/test_projects/tiled_world.rb`,
+and a future `examples/walk/main.rb` will read `tools/drive/examples/walk.rb`.
+The existing scripts moved into `tools/drive/test_projects/` accordingly, and a
+project outside the repo now aborts saying to pass `--script` rather than
+reporting a nonsense path as missing.
 
-With two project trees that is a collision waiting to happen — `examples/snake`
-and `test_projects/snake` would silently share one script. Change it to mirror
-the path instead: `tools/drive/examples/walk.rb`,
-`tools/drive/test_projects/tiled_world.rb`. Collisions become impossible rather
-than merely unlikely, which is the standing rule in CLAUDE.md, "Design out
-misuse".
-
-(While there: `test_projects/snake` has no drive script at all and aborts. Write
-one — it is a pre-existing gap the rename made visible.)
-
----
+`test_projects/snake` also got the drive script it never had
+(`tools/drive/test_projects/snake.rb`). So **nothing in this section is
+outstanding** — a new example only has to drop a script at its mirrored path.
 
 ## The examples
 
@@ -521,10 +520,11 @@ either; come back to the art when it is unblocked.
 
 **Phase A — establish the shape, no new engine code.**
 
-3. Harness change (script path mirrors project path) + the missing `snake` script.
-4. `examples/walk` (needs **A**)
-5. `examples/scroll_map` (needs **B**)
-6. `examples/game_menu` (no assets)
+3. `examples/walk` (needs **A**)
+4. `examples/scroll_map` (needs **B**)
+5. `examples/game_menu` (no assets)
+
+(The harness change these depend on is already done — see "Harness change".)
 
 Three examples that add nothing to the engine come first on purpose. They set the
 house style for what an example looks like, and they are the check that the
@@ -534,9 +534,9 @@ planned on top of it.
 
 **Phase B — small self-contained additions, in dependency order. No assets.**
 
-7. `examples/fullscreen` (C + Core; the only C work in the batch)
-8. `examples/save_load` (`Util::SaveFile`)
-9. `examples/menu_navigation` (`UI::OptionItem`; consumes 7 and 8 so its settings
+6. `examples/fullscreen` (C + Core; the only C work in the batch)
+7. `examples/save_load` (`Util::SaveFile`)
+8. `examples/menu_navigation` (`UI::OptionItem`; consumes 6 and 7 so its settings
    are real and persist)
 
 This whole phase is asset-free, which is what makes it the fallback if Phase 0
@@ -544,17 +544,17 @@ stalls.
 
 **Phase C — new gameplay components, small before large.**
 
-10. `examples/jump_topdown` (`Components::Hop` — small, and it is the one that
-    makes the "a jump is a draw offset" point that the sidescroller then
-    contrasts with; reuses **A** and **B**)
-11. `examples/jump_sidescroller` (`Components::PlatformerBody` — the big one; do
+9. `examples/jump_topdown` (`Components::Hop` — small, and it is the one that
+   makes the "a jump is a draw offset" point that the sidescroller then
+   contrasts with; reuses **A** and **B**)
+10. `examples/jump_sidescroller` (`Components::PlatformerBody` — the big one; do
     it after the small jump so the contrast between the two is deliberate. No
     assets, by decision)
 
 **Phase D — the two largest, both independent of everything above.**
 
-12. `examples/radial_menu` (no assets)
-13. `examples/pathfinding` (reuses **A** and **B**, but wants a map with an
+11. `examples/radial_menu` (no assets)
+12. `examples/pathfinding` (reuses **A** and **B**, but wants a map with an
     obstacle worth routing around — see "Assets")
 
 Both are self-contained and could move earlier if wanted. Pathfinding is last
