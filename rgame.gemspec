@@ -95,10 +95,22 @@ Gem::Specification.new do |spec|
   # never ship. So none of them are dotfiles; they are stored under plain names
   # and renamed on the way out (RGame::CLI::NewProject::DOTFILES), and
   # spec/packaging_spec.rb fails if one ever appears.
+  #
+  # `examples/**/*` carries the single-concept examples *and their art*. They
+  # ship because an example is documentation that runs, and one that lands
+  # somewhere the reader cannot run it is just a listing. Shipping the art is
+  # also what makes examples/assets/README.md's rule load-bearing rather than
+  # tidy: the gem redistributes those files to everyone who installs it, so
+  # nothing may go in there that is not CC0 or drawn in this repo.
+  #
+  # `test_projects/` and `tools/` deliberately stay out. They read from `media/`,
+  # which cannot be redistributed at all — shipping them would put files in the
+  # gem that only work on a machine which has assembled that directory by hand.
   packaged = %w[
     lib/**/*
     ext/**/*
     exe/**/*
+    examples/**/*
     docs/api/**/*
     README.md
     CHANGELOG.md

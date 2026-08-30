@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Authored for the examples; edit it in Tiled. See README.md.
+
+     60x40 tiles at 16px = 960x640 pixels, larger than the 640x480 window on
+     both axes so the camera has somewhere to scroll. Two layers: the ground is
+     entirely walkable, and everything solid lives in "obstacles" - a tree
+     border, a fence right across the middle, and scattered trees.
+
+     The fence has exactly one gap, at x=12..14, and it is deliberately far
+     west of both clearings. A gap sitting between them would be no obstacle at
+     all: the shortest route through it would cost exactly the straight-line
+     distance, and a pathfinder would have nothing to show. Placed out here, a
+     walker starting in the north clearing has to head away from the south one
+     to get through - a route you can watch being taken. The fence runs the full
+     interior width for the same reason: stopping it a tile short of the border
+     leaves a second gap nobody planned, and the route quietly uses that
+     instead. -->
+<map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="60" height="40" tilewidth="16" tileheight="16" infinite="0" nextlayerid="3" nextobjectid="1">
+ <tileset firstgid="1" source="tileset.tsx"/>
+ <layer id="1" name="ground" width="60" height="40">
+  <data encoding="base64" compression="zlib">eJztWU1vwzAIzexzt3O7czdNyv//fU0PlqwM8/EAJ5t6eFIbJ5gHGGNclmV5Y1CIZ6vwjQaU3Jokl3qmBaXTyoxpwdmwjXn0fgGLg9E7lRkrDtmF+Z6bcx8viN57GVabcfF/2fAO4EOpr1aPWbhuuAH4TNInK283W0fzPSLXVcP8mf7N4u6R6+UbEWvZHGf5F9VTY8MCzpG1fnsdpLys3TettqTGI/hWwid18Dubj4T7hi8A34QsjrMXlhyM2jRrL7TKzOKXFXdRep/hHOOpz/v/Px3655wPPHaOsB13Nmjjo3dGfDm9VuV7lDxtLGfFVM+XyyGe+bm1O/ssM/LvX4WU91G+M/apjDkovmfIx1mIimdN7WqV9/xGqhGs4/9t/SL+1dZynE/X5XevLGIv0vbfrPpK83LjSJ1K5VXN2VPq82flVUkHT3/Sq+/IJl5bUH5ttZ3n/JtVk2TJ9fJFfWj1XWS9P6Nfx9XAkXdsfX4ZyT0inr35Sbpj4XxwxvU7sgvFw9pviV6/1rpK+h8dG0feH6F38Uj90ezo6U/u90qvniiQHqLmm6N7ICg3DaJykaYGReKaGkd7PxFcuT0jIs9KXK2cZ8VDlD57e0XJ1fJ6AGJxLzQ=</data>
+ </layer>
+ <layer id="2" name="obstacles" width="60" height="40">
+  <data encoding="base64" compression="zlib">eJztmU0OAiEMhdnofg7gEdT7385xQVIJP4X2wZvgl5DZOGD7WiidI4RwO8ex0XMXos278Ah1fe/KOXrfXxVXUt+abTWbWjDFT0lfja5XhDF/kb5u5a830pbV+YuanwmEvmw2SqS+KJ1lDFv2eQ9SfVt7xehe0vLlDF9/8crflm6rdY2g92e2s857f/bUERF3JX2tazHomrMr1ddiu0f9jfC9XL9WP/fGpsUmy3w9v7fmr1wjnccyb+2MtNTXs+vn1UR9n+d4KYdE+w7DeAc/fa9yX2a8/0ZG/pemztsxf5lA6RqfnvquugflyPlAo++M+ysqp7T1c0rJJ4h+FPLuyJi/SKS+I98JUnK+Y9r/U31z8R7xjAPp45m1isf3oxFW5dCs/hULyPqK0QdafUd9wta3RPWvWPmfv796e/ZoJJ49mh521Xen5wfjJRxI</data>
+ </layer>
+</map>

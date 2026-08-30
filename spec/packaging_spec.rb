@@ -162,6 +162,36 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
     end
   end
 
+  describe 'the examples' do
+    it 'packages every example, including its assets' do
+      # An example is documentation that runs, so it ships — and a missing asset
+      # is not a load error but an example that crashes at its first draw, on a
+      # machine that installed the gem rather than checking it out. Same shape as
+      # the project templates above, same reason.
+      expect(sources('examples/**/*') - files).to be_empty
+    end
+
+    # Stated without going through `sources`, exactly as the template dotfile
+    # example is, and for the same reason: both the gemspec and `sources` derive
+    # their lists with `Dir.glob`, which does not match a leading dot, so a check
+    # that shares the blind spot it is guarding is not a guard. `examples/` is a
+    # shipped directory now, so it inherits the rule.
+    it 'has no dotfile among the examples, which the packaging glob would skip' do
+      dotfiles = Dir.glob('examples/**/*', File::FNM_DOTMATCH, base: root)
+                    .grep(%r{(\A|/)\.[^/.]})
+
+      expect(dotfiles).to be_empty
+    end
+
+    it 'ships the asset provenance record' do
+      # examples/assets/ ships, so the gem redistributes third-party art to
+      # everyone who installs it. The README is where each file's source and
+      # licence is recorded; shipping the art without it would distribute the
+      # files and leave the provenance behind.
+      expect(files).to include('examples/assets/README.md')
+    end
+  end
+
   describe 'what must never ship' do
     it 'excludes compiled extensions and object files' do
       # lib/rgame/*.so is this machine's binary. Shipping it would shadow the
@@ -187,6 +217,15 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
 
     it 'excludes plans, which describe work rather than the shipped code' do
       expect(files.grep(%r{\Adocs/plans/})).to be_empty
+    end
+
+    it 'excludes the test projects and the drive harness' do
+      # Unlike examples/, these read from media/, whose contents cannot be
+      # redistributed — so shipping them would put files in the gem that work
+      # only on a machine which has assembled that directory by hand. This is
+      # the guard against reading the two project trees as interchangeable and
+      # widening the examples glob to cover both.
+      expect(files.grep(%r{\A(test_projects|tools)/})).to be_empty
     end
   end
 

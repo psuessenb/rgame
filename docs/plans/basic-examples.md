@@ -378,14 +378,15 @@ default font ships as runtime data rather than being looked up on the user's
 machine. It also means the licensing rule below is not a formality: these files
 are redistributed, by us, to everyone who installs the gem.
 
-**What changes in `rgame.gemspec`:** `examples/**/*` joins the `packaged` glob
-list, beside `lib/**/*`, `ext/**/*`, `exe/**/*` and `docs/api/**/*`. That is the
-whole change — the glob is over whole directories by design, so dropping a file
-under `examples/` is enough to get it packaged, and no enumeration has to be
-kept in step.
+**Done.** `examples/**/*` joins the `packaged` glob list in `rgame.gemspec`,
+beside `lib/**/*`, `ext/**/*`, `exe/**/*` and `docs/api/**/*`. That was the whole
+change — the glob is over whole directories by design, so dropping a file under
+`examples/` is enough to get it packaged, and no enumeration has to be kept in
+step. A built gem grew by 14.5 KB and carries all six asset files.
 
-**What `spec/packaging_spec.rb` gains.** Three examples, in the shapes that file
-already uses:
+**`spec/packaging_spec.rb` gained four examples** (three plus the inverse), in
+the shapes that file already used. All four were mutation-checked by removing
+the glob entry and confirming they go red:
 
 - **`packages every example, including its assets`** — `sources('examples/**/*') - files`
   is empty. Mirrors `packages every project template`, and for the same reason:
@@ -397,8 +398,11 @@ already uses:
   a check that shares the blind spot it is guarding is not a guard. This is a new
   shipped directory, so it inherits the rule: no asset may be named with a
   leading dot.
+- **`ships the asset provenance record`** — `examples/assets/README.md` is in
+  the gem. Shipping the art without it would distribute the files and leave
+  where they came from behind.
 - **`excludes the test projects and the drive harness`** — `test_projects/` and
-  `tools/` must stay out. They depend on `media/`, which cannot be
+  `tools/` stay out. They depend on `media/`, which cannot be
   redistributed, so shipping them would put files in the gem that only work on
   a machine that has assembled that directory. This is the guard that keeps the
   new glob from being widened into `test_projects/**/*` by anyone who reads the
@@ -424,12 +428,24 @@ neither costs anything if they are got right the first time:
 
 ### Licensing
 
-**CC0 / public domain, or authored in this repo. Nothing else.** This is now a
-hard requirement rather than a preference: the gem redistributes these files to
-every person who installs it, so anything with an attribution or share-alike
+**CC0 / public domain, or authored in this repo. Nothing else.** This is a hard
+requirement rather than a preference: the gem redistributes these files to every
+person who installs it, so anything with an attribution or share-alike
 obligation would attach that obligation to `rgame` itself and to everyone
-downstream. CC0 has no such tail. CC-BY is not worth the paperwork at this
-size.
+downstream. CC0 has no such tail.
+
+**The test to apply is not "is this licence permissive" but:**
+
+> *Would shipping this file in the gem count as redistributing it?*
+
+Always yes — `gem install` copies the raw file onto a stranger's disk, and so
+does a public git clone, so the restriction bites before the gem does. That
+question is what settled the one real candidate this ruled out: an itch.io pack
+whose terms read "you may use these assets for personal and commercial
+projects" but also "redistribution or resale of the raw assets is not allowed".
+Permissive for a *game*; disqualifying for a *library*, which is nothing but
+redistribution. Asking "is it CC0" was the easy question; this was the one that
+needed asking.
 
 The project already has the pattern for shipped third-party content, twice:
 `lib/rgame/fonts/` puts `OFL.txt` beside the font it ships, and
@@ -450,23 +466,35 @@ examples. Three more are deferred, and one is refused outright.
 
 | | Asset | Files | Used by | Status |
 |---|---|---|---|---|
-| **A** | Character sprite sheet | `hero.png` + `hero.json` | 1 walk, 7 jump_topdown, 10 pathfinding | **required** |
-| **B** | Top-down tileset + a map | `tileset.png`, `tileset.tsx`, `<name>.tmx` | 2 scroll_map, 7 jump_topdown, 10 pathfinding | **required** |
+| **A** | Character sprite sheet | `hero.png` + `hero.json` | 1 walk, 7 jump_topdown, 10 pathfinding | **done** |
+| **B** | Top-down tileset + a map | `tileset.png`, `tileset.tsx`, `town.tmx` | 2 scroll_map, 7 jump_topdown, 10 pathfinding | **done** |
 | **C** | UI nine-slice sheet | `ui.png` + `ui_atlas.json` | 3 game_menu, 6 menu_navigation | deferred |
 | **D** | Radial icon sheet | `icons.png` + `icons.json` | 9 radial_menu | deferred |
 | **E** | Side-view tileset + character | — | 8 jump_sidescroller | **refused** — rects instead |
+
+**A and B are in `examples/assets/`**, about 10 KB in total, with full
+provenance in `examples/assets/README.md`. A is sodri's CC0 *Character 4
+directional walking*, background keyed out and repacked into a uniform 16x22
+grid; B is Kenney's CC0 *Tiny Town* copied unchanged, with a `.tsx` and a
+`.tmx` authored here. What follows is what they had to satisfy, kept because it
+is what a replacement would have to satisfy too.
 
 Nothing else in the list needs a file: 4 fullscreen, 5 save_load and
 6 menu_navigation draw with primitives and the shipped font.
 
 **A — character sprite sheet.** A four-direction walk cycle plus an idle, which
-is what `Components::AnimatedSprite` and `AnimationSet` expect. Roughly 16×32 or
-32×32 frames, 4–6 frames per direction. The `.json` descriptor is **ours**,
-authored not sourced — it is the format documented in `docs/api/assets.md`
-(`cell_width`/`cell_height` grid, `frame_width`/`frame_height` and
-`origin_x`/`origin_y` for the drawn rectangle, an `animations` table). `flip_x`
-mirrors a frame inside the same rectangle, so `walk_left` can reuse the
-`walk_right` row and the sheet only needs three directions of art.
+is what `Components::AnimatedSprite` and `AnimationSet` expect — they resolve
+`stand` / `walk_up` / `walk_down` / `walk_left` / `walk_right` by name, so those
+five keys are the real contract. The `.json` descriptor is **ours**, in the
+format `docs/api/assets.md` documents. `flip_x` mirrors a frame inside the same
+rectangle, so `walk_left` reuses the `walk_right` row and the sheet is three
+rows rather than four — verified frame by frame against the source rather than
+assumed. The delivered sheet is 6 columns x 3 rows of 16x22.
+
+Two things worth knowing if this is ever replaced: the source had **no
+transparency** (opaque white background, which had to be keyed out after
+checking white was never used inside the art), and **no idle frame**, so
+`stand` is a single column off the walk cycle.
 
 **B — tileset and map.** 16×16 or 32×32 tiles, with enough variety for ground,
 a solid obstacle and an edge. Two things about the authoring, both of which
@@ -476,13 +504,26 @@ have to be right or the examples that use it silently misbehave:
   reads a tile as solid when it carries a Tiled collision shape — an
   `<objectgroup>` on the tile — so the collision has to be drawn in Tiled's
   collision editor. There is no solid-tile list in code to fall back on.
+- **Layer data must be base64 + zlib.** `TileMap.parse` inflates the layer and
+  unpacks little-endian `uint32` gids; CSV does not load. Tiled writes this when
+  the layer format is "Base64 (zlib compressed)".
 - **The map's shape is part of what example 10 teaches.** A* over an open field
-  produces a straight line and demonstrates nothing. The map wants a wall with a
-  gap in it, or a U-shaped obstacle — something where the route is visibly not
-  the direct line.
+  produces a straight line and demonstrates nothing. `town.tmx` is 60x40 tiles
+  (960x640 px, larger than the window on both axes) with a fence right across
+  the middle and exactly one gap.
 
-The `.tsx` and `.tmx` are ours, authored in Tiled; only the `.png` is sourced.
-One map serves all three examples that use it.
+Two mistakes were made getting that gap right, both caught by walking the grid
+with a BFS rather than by looking at it:
+
+- **A gap between the start and the goal is not an obstacle.** At x=29..31 the
+  shortest route cost exactly the straight-line distance — 55 steps against a
+  55-step Manhattan distance. Moved far west, the same trip is 84 against 22,
+  and the walker has to head *away* from its goal to get through.
+- **A fence has to span the whole interior.** Stopping it one tile short of the
+  border left a second gap at x=58, and the route quietly used that instead.
+
+The `.tsx` and `.tmx` are ours; only the `.png` is sourced. One map serves all
+three examples that use it.
 
 **C and D are deferred on purpose.** Both are cosmetic: a menu works with rects,
 a radial menu works with labels, and neither concept is any clearer with art.
@@ -494,37 +535,29 @@ the plain versions read badly.
 
 ### Consequence for the order
 
-Sourcing A and B is a prerequisite for examples 1 and 2, which are the first two
-in Phase A. That is the only external dependency in this whole plan, and it
-gates the very first thing — so **start sourcing before writing any code.** If
-it stalls, Phase B (fullscreen, save_load, menu_navigation) needs no assets at
-all and can be done first without disturbing anything else.
+None any more — this was the only external dependency in the plan and it is
+discharged. Everything from here is code.
 
 ## Implementation order
 
 The order is chosen so that each phase either needs no new engine code or needs
 exactly one new thing, and so that nothing is built before the thing it consumes.
 
-**Phase 0 — the only thing with an outside dependency.**
+**Phase 0 — done.**
 
-1. Source assets **A** and **B** (CC0) and commit them under `examples/assets/`
-   with the README naming source and licence.
-2. Add `examples/**/*` to the gemspec's `packaged` glob, and the three
-   `packaging_spec.rb` examples that hold it up — examples ship with their
-   assets, no dotfiles among them, `test_projects/` and `tools/` stay out.
+1. ~~Source assets **A** and **B** (CC0) and commit them under
+   `examples/assets/` with the README naming source and licence.~~
+2. ~~Add `examples/**/*` to the gemspec's `packaged` glob, and the
+   `packaging_spec.rb` examples that hold it up.~~
 
-Step 1 goes first because it is the one thing in this plan that cannot be
-finished by writing code, and it gates the first two examples. If it stalls, do
-step 2 anyway (it needs no art) and then jump to Phase B, which needs no assets
-either; come back to the art when it is unblocked.
+Both landed, along with the harness change. **Nothing outside the repo is
+needed from here on** — everything below is code.
 
 **Phase A — establish the shape, no new engine code.**
 
-3. `examples/walk` (needs **A**)
-4. `examples/scroll_map` (needs **B**)
+3. `examples/walk` (uses **A**)
+4. `examples/scroll_map` (uses **B**)
 5. `examples/game_menu` (no assets)
-
-(The harness change these depend on is already done — see "Harness change".)
 
 Three examples that add nothing to the engine come first on purpose. They set the
 house style for what an example looks like, and they are the check that the
@@ -539,8 +572,7 @@ planned on top of it.
 8. `examples/menu_navigation` (`UI::OptionItem`; consumes 6 and 7 so its settings
    are real and persist)
 
-This whole phase is asset-free, which is what makes it the fallback if Phase 0
-stalls.
+This whole phase is asset-free.
 
 **Phase C — new gameplay components, small before large.**
 
@@ -554,7 +586,7 @@ stalls.
 **Phase D — the two largest, both independent of everything above.**
 
 11. `examples/radial_menu` (no assets)
-12. `examples/pathfinding` (reuses **A** and **B**, but wants a map with an
+12. `examples/pathfinding` (reuses **A** and **B**; `town.tmx` already has the
     obstacle worth routing around — see "Assets")
 
 Both are self-contained and could move earlier if wanted. Pathfinding is last
@@ -562,6 +594,9 @@ only because it is the largest single algorithm; it has no dependency on
 anything in phases B or C.
 
 ## Open questions, collected
+
+*(The asset-sourcing question is settled: Kenney *Tiny Town* for the tileset,
+sodri's character sheet repacked. See "Assets".)*
 
 - **2** — camera rig vs. a new `Components::CameraPan`. Build the rig, decide after
   reading it.
@@ -573,10 +608,6 @@ anything in phases B or C.
   in like `tiled_world` does with `:cutscene`?
 - **9** — does the radial read `move_x`/`move_y`, or declare its own axes? And can
   the icon ring avoid needing `Renderer#pie` entirely?
-- **Assets** — source **A** and **B** from a CC0 pack (Kenney), or draw them in
-  this repo? Drawing sidesteps provenance entirely at 16×16 and gives exactly the
-  tiles the pathfinding map wants; a pack looks better and is faster. Either is
-  fine; decide before Phase 0 rather than during it.
 - **Discoverability** — a shipped example lands inside the installed gem's
   directory, which nobody browses. Should the `rgame` command grow an
   `rgame examples` that lists them (and maybe copies one into the working

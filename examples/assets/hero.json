@@ -1,0 +1,12 @@
+{
+  "image": "hero.png",
+  "frame_width": 16,
+  "frame_height": 22,
+  "animations": {
+    "stand":      { "row": 0, "col": 0, "frames": 1, "fps": 1 },
+    "walk_down":  { "row": 0, "frames": 6, "fps": 8 },
+    "walk_up":    { "row": 1, "frames": 6, "fps": 8 },
+    "walk_right": { "row": 2, "frames": 6, "fps": 8 },
+    "walk_left":  { "row": 2, "frames": 6, "fps": 8, "flip_x": true }
+  }
+}
