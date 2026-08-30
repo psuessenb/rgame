@@ -14,7 +14,7 @@
 #   players.accepting_joins = false   nobody joins mid-scene
 #
 # A real game would trigger this from a trigger volume or a script beat rather
-# than a key. It reads a key here so the example can be driven.
+# than a key. It reads a key here so the test project can be driven.
 class Cutscene < RGame::Engine::Node2D
   TITLE = 'Something happens on the beach'
   HINT  = 'Tab to carry on'

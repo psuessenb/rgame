@@ -238,7 +238,7 @@ end
 
 game = RGame::Game.new(
   root: Root.new,
-  caption: 'Example - Snake',
+  caption: 'Snake',
   width: 800,
   height: 600
 )

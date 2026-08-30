@@ -150,7 +150,7 @@ not to a scene: a scene may have any number of viewers. Nothing calls `resolve` 
 the platform resolves each camera against the viewport it is about to draw. Pointing one
 is a [`CameraFollow`](components.md#camerafollow) component on the node being followed,
 and applying it is a [`WorldView`](scene_graph.md#view-transforms-and-the-camera). See
-`examples/15_tiled_world`.
+`test_projects/tiled_world`.
 
 ## `CollisionBox` — an actor's feet box
 

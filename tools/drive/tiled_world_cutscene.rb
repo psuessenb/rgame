@@ -1,4 +1,4 @@
-# Cutscene script for examples/15_tiled_world.
+# Cutscene script for test_projects/tiled_world.
 #
 # The acceptance test for step 5. Player one walks; player two joins on a pad
 # and walks the other way, so the screen splits into two viewports with two
@@ -8,7 +8,7 @@
 #
 # What the report should show: the two half-height clips stop appearing while
 # the cutscene is open, the full-screen clip takes over, and `nine_slice`
-# appears — for the first time in any example.
+# appears — for the first time in any test project.
 
 on controls::KEYBOARD do
   idle 10

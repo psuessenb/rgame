@@ -55,10 +55,10 @@ module RGame
     # `Controls.gamepad(slot)` for a controller.
     #
     # `input:` overrides the input backend. It exists so a harness can drive a
-    # game from a script instead of from hardware — see tools/drive_example.rb,
-    # and CLAUDE.md's "The examples are the acceptance test for wiring", which
-    # is why driving one has to be possible at all. A game passes nothing and
-    # gets the real thing.
+    # game from a script instead of from hardware — see
+    # tools/drive_test_project.rb, and CLAUDE.md's "The test projects are the
+    # acceptance test for wiring", which is why driving one has to be possible
+    # at all. A game passes nothing and gets the real thing.
     # `players:` is how many seats the game has, and therefore the most people
     # who can play it. Player 0 starts on `device:`; the rest start empty and
     # are filled when someone uses a controller — see RGame::Engine::Players for

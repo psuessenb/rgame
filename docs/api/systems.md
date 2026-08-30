@@ -131,5 +131,5 @@ collider.on_hit { |other| queue_free if other.layer == :bullet } # in a Rock nod
 
 Because it's a normal component on the scene node, it rides the `update` traversal
 (its broadphase runs in `update`) and is torn down with the scene. See
-`examples/14_asteroids` for the whole loop: ship, bullets, and rocks spawning,
+`test_projects/asteroids` for the whole loop: ship, bullets, and rocks spawning,
 colliding, and despawning through this system.

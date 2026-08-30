@@ -52,7 +52,7 @@ RSpec.describe RGame::Engine::Culling do
     end
 
     # A node that never set a size reads as 0x0, and culling on that would skip
-    # everything instantly. `examples/14_asteroids` never sets one.
+    # everything instantly. `test_projects/asteroids` never sets one.
     it 'draws one that never declared a size' do
       expect(drew?(node_at(5000, 5000, width: 0, height: 0))).to be(true)
     end

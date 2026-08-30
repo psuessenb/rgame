@@ -1,4 +1,4 @@
-# Per-player inventory script for examples/15_tiled_world.
+# Per-player inventory script for test_projects/tiled_world.
 #
 # The acceptance scenario for the whole split-screen rework: **one player
 # browsing a menu while the other walks.**

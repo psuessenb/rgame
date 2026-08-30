@@ -132,8 +132,8 @@ of the groundwork. What it does *not* currently do is produce artifacts.
 
 4. **A smoke-test job.** The step that gets skipped: install the built `.gem` on
    a *clean* runner — not the one that built it — and require it. This project
-   is unusually well placed for that, because `tools/drive_example.rb` boots all
-   three layers and drives them, and `examples/16_hello_world` needs no assets
+   is unusually well placed for that, because `tools/drive_test_project.rb` boots all
+   three layers and drives them, and `test_projects/hello_world` needs no assets
    beyond the shipped font.
 
 ## Release automation

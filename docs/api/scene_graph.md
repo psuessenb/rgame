@@ -206,7 +206,7 @@ root does. So a node that owns a view transform overrides **`draw`** and calls
 `super` inside it.
 
 (`draw_children` is a separate seam, for a node that wants to wrap or skip its
-*children's* draw while still drawing itself normally — `examples/15_tiled_world`'s
+*children's* draw while still drawing itself normally — `test_projects/tiled_world`'s
 inventory panel closes by not calling `super` from it.)
 
 ### Two words that are easy to confuse
@@ -249,7 +249,7 @@ however many players are watching, which is what keeps simulation cost independe
 player count — and what makes the standing "draw renders state" rule load-bearing rather
 than stylistic: a `draw` with a side effect now runs once per player.
 
-See `examples/15_tiled_world`.
+See `test_projects/tiled_world`.
 
 ## Viewports and views
 

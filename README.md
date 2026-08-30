@@ -279,7 +279,7 @@ A file-by-file map of the whole repository is in
 ## Roadmap
 
 All three layers exist and the engine is usable end to end: the games under
-[examples/](examples/) are written against exactly what is documented.
+[test_projects/](test_projects/) are written against exactly what is documented.
 
 **Done**
 

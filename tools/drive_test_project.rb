@@ -1,20 +1,21 @@
 # frozen_string_literal: true
 
-# Drives an example from a script and reports what the game actually asked for.
+# Drives a test project from a script and reports what the game actually asked
+# for.
 #
-#   ruby tools/drive_example.rb examples/15_tiled_world/main.rb
-#   ruby tools/drive_example.rb examples/14_asteroids/main.rb --ticks 200
-#   ruby tools/drive_example.rb examples/14_asteroids/main.rb --seed 7
+#   ruby tools/drive_test_project.rb test_projects/tiled_world/main.rb
+#   ruby tools/drive_test_project.rb test_projects/asteroids/main.rb --ticks 200
+#   ruby tools/drive_test_project.rb test_projects/asteroids/main.rb --seed 7
 #
 # ## Why this exists
 #
-# The examples are the acceptance test for anything that changes how the three
-# layers are wired together, because they are the only tier where all three are
-# present at once (CLAUDE.md, "The examples are the acceptance test for wiring").
-# But **booting one is not enough**, and that is not a theoretical worry: a
-# polling bug that consumed every input edge before a tick could read it left a
-# game whose menu responded to nothing, and a plain boot of it reported
-# "90 ticks, 90 frames" and looked perfectly healthy.
+# The test projects are the acceptance test for anything that changes how the
+# three layers are wired together, because they are the only tier where all
+# three are present at once (CLAUDE.md, "The test projects are the acceptance
+# test for wiring"). But **booting one is not enough**, and that is not a
+# theoretical worry: a polling bug that consumed every input edge before a tick
+# could read it left a game whose menu responded to nothing, and a plain boot of
+# it reported "90 ticks, 90 frames" and looked perfectly healthy.
 #
 # So this harness counts rather than eyeballs. It swaps in a scripted input
 # backend, bounds the tick count, and reports the draw calls issued, the clips
@@ -28,9 +29,9 @@
 # tools that are not built by `make` and do not ship in the gem (it is not in
 # rgame.gemspec's packaged glob, and spec/packaging_spec.rb asserts that).
 #
-# ## How it drives an example without modifying it
+# ## How it drives a test project without modifying it
 #
-# An example's `main.rb` builds a Game and calls `start` at the bottom, as a
+# A test project's `main.rb` builds a Game and calls `start` at the bottom, as a
 # game would. This file prepares the ground and then `load`s it unchanged:
 #
 #   - `RGame::Game` gains an `input:` keyword (the one production change this
@@ -39,9 +40,9 @@
 #     loop after the tick budget;
 #   - the renderer and audio server are wrapped in recording proxies.
 #
-# Prepending is the right tool here precisely because the example must stay a
-# caller like any other. The moment this harness constructs its own Game instead
-# of loading the example's, it stops testing the wiring the example uses.
+# Prepending is the right tool here precisely because the test project must stay
+# a caller like any other. The moment this harness constructs its own Game
+# instead of loading the project's, it stops testing the wiring it uses.
 #
 # ## What the counts do and do not promise
 #
@@ -58,14 +59,14 @@
 #
 # Exact draw counts are **not** stable, for two reasons.
 #
-# `examples/14_asteroids` seeds its rock spawns with an unseeded `Random.new`,
+# `test_projects/asteroids` seeds its rock spawns with an unseeded `Random.new`,
 # so two runs differ by tens of `image` calls and may or may not reach a
 # collision. That is the game's choice, not a defect here.
 #
 # And the fixed-timestep loop decouples ticks from frames: a slow frame runs
 # several catch-up ticks, so the budget can be spent — and `close` called —
-# before that frame draws. Even a seeded example can therefore come in one draw
-# short of its usual count. Observed once in about a dozen runs of example 15.
+# before that frame draws. Even a seeded project can therefore come in one draw
+# short of its usual count. Observed once in about a dozen runs of tiled_world.
 #
 # So "the number went from 843 to 944" is not by itself a regression, and
 # neither is a difference of one. Compare orders of magnitude, and assert on
@@ -78,7 +79,7 @@ require 'optparse'
 # after Core's own — which is why this require and this call come first.
 require_relative '../spec_core/support/headless_display'
 
-module DriveExample
+module DriveTestProject
   ROOT = File.expand_path('..', __dir__)
 
   # ---------------------------------------------------------------- the script
@@ -525,9 +526,9 @@ module DriveExample
   # ------------------------------------------------------------- the harness
 
   class << self
-    def run(example:, script_path:, ticks:, gamepad: false, out: $stdout)
+    def run(project:, script_path:, ticks:, gamepad: false, out: $stdout)
       HeadlessDisplay.start
-      # The example's own main.rb does this too, but the probes have to be
+      # The project's own main.rb does this too, but the probes have to be
       # installed before it is loaded, and installing them means the classes
       # must already exist.
       $LOAD_PATH.unshift(File.join(ROOT, 'lib')) unless $LOAD_PATH.include?(File.join(ROOT, 'lib'))
@@ -541,7 +542,7 @@ module DriveExample
       else
         install(report, ScriptedInput.new(script), ticks)
       end
-      load File.expand_path(example, ROOT)
+      load File.expand_path(project, ROOT)
 
       out.puts report
       report
@@ -549,8 +550,8 @@ module DriveExample
 
     private
 
-    # Prepend the counting behaviour onto the classes the example will build.
-    # Done before the example is loaded, so the example itself is untouched.
+    # Prepend the counting behaviour onto the classes the project will build.
+    # Done before the project is loaded, so the project itself is untouched.
     def install(report, input, budget, pad: nil)
       RGame::Game.prepend(game_probe(report, input, budget, pad))
       RGame::Engine::Scene::SceneStack.prepend(scene_probe(report))
@@ -620,29 +621,29 @@ end
 if $PROGRAM_NAME == __FILE__
   options = { ticks: 240, script: nil, gamepad: false, seed: nil }
   parser = OptionParser.new do |o|
-    o.banner = 'Usage: ruby tools/drive_example.rb EXAMPLE_MAIN [options]'
+    o.banner = 'Usage: ruby tools/drive_test_project.rb PROJECT_MAIN [options]'
     o.on('--ticks N', Integer, 'Stop after N simulation ticks (default 240)') { options[:ticks] = it }
-    o.on('--script PATH', 'Input script (default: tools/drive/<example dir>.rb)') { options[:script] = it }
+    o.on('--script PATH', 'Input script (default: tools/drive/<project dir>.rb)') { options[:script] = it }
     o.on('--gamepad', 'Drive a synthetic SDL controller instead of the input backend') { options[:gamepad] = true }
-    o.on('--seed N', Integer, 'Seed the example RNG, so two runs can be compared') { options[:seed] = it }
+    o.on('--seed N', Integer, 'Seed the project RNG, so two runs can be compared') { options[:seed] = it }
   end
   parser.parse!
 
-  # Passed to the example through the environment rather than through ARGV,
-  # because the example is `load`ed into this process and never sees a command
-  # line of its own. An example that has nothing random ignores it.
+  # Passed to the project through the environment rather than through ARGV,
+  # because the project is `load`ed into this process and never sees a command
+  # line of its own. A project that has nothing random ignores it.
   ENV['RGAME_SEED'] = options[:seed].to_s if options[:seed]
 
-  example = ARGV.shift or abort(parser.to_s)
+  project = ARGV.shift or abort(parser.to_s)
 
-  # The default script is named after the example's directory, so adding an
-  # example means adding a script beside this file rather than editing it.
+  # The default script is named after the project's directory, so adding a test
+  # project means adding a script beside this file rather than editing it.
   script_path = options[:script] ||
-                File.join(__dir__, 'drive', "#{File.basename(File.dirname(example))}.rb")
+                File.join(__dir__, 'drive', "#{File.basename(File.dirname(project))}.rb")
   unless File.exist?(script_path)
     abort "No script at #{script_path}. Write one (see tools/drive/*.rb) or pass --script."
   end
 
-  DriveExample.run(example: example, script_path: script_path,
-                   ticks: options[:ticks], gamepad: options.fetch(:gamepad, false))
+  DriveTestProject.run(project: project, script_path: script_path,
+                       ticks: options[:ticks], gamepad: options.fetch(:gamepad, false))
 end

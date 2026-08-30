@@ -1,4 +1,4 @@
-# Two-player script for examples/15_tiled_world.
+# Two-player script for test_projects/tiled_world.
 #
 # The acceptance test for split-screen. Player one is on the keyboard from the
 # start; the second seat is empty, so the game opens as an ordinary full-screen

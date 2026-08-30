@@ -1581,10 +1581,10 @@ are the deliverable at least as much as the code is.
 
 **But the layer above is no longer invisible, and that changes how phase 6 is
 verified.** `lib/engine/` (3,083 lines, 57 files), `lib/son_gosu_game.rb`, two
-runnable games under `examples/`, and `docs/engine/` are all in the tree now.
+runnable games under `test_projects/`, and `docs/engine/` are all in the tree now.
 Constraint 1 stopped being a promise nothing could check:
 
-> **`examples/14_asteroids` and `examples/15_tiled_world` running on
+> **`test_projects/asteroids` and `test_projects/tiled_world` running on
 > `RGame::Core` is the definition of done.** Step 6.8 is that, and it is the
 > step the rest of the phase exists to reach.
 
@@ -1601,8 +1601,8 @@ change to be ported to.**
 
 Three lines in the whole tree name the platform in code, and all three are game
 boot: `lib/son_gosu_game.rb` (the `AssetManager` / `GosuRenderer` / `GameWindow`
-trio) and `examples/14_asteroids/main.rb:76,82`.
-`examples/15_tiled_world/main.rb` names it zero times and should come through
+trio) and `test_projects/asteroids/main.rb:76,82`.
+`test_projects/tiled_world/main.rb` names it zero times and should come through
 the port untouched — a useful control.
 
 **Nothing calls `SpriteSheet.load`, `UiAtlas.load` or `TileMapRenderer.load`.**
@@ -1761,7 +1761,7 @@ facade that assembles a mapper, an asset manager, a renderer and a window, then
 - **The ordering rule is not new, only visible.** `app.assets` means the window
   exists before anything loads. That was already true under Gosu, which needed a
   window before `Gosu::Image.new` and enforced it with a runtime failure —
-  `examples/14_asteroids/main.rb:75` says so in a comment. The one place it
+  `test_projects/asteroids/main.rb:75` says so in a comment. The one place it
   bites is `SonGosuGame`, which today builds the asset manager and renderer
   *before* the window; 6.8 reorders it, and it is being rewritten anyway.
 
@@ -2150,7 +2150,7 @@ defensive and becomes load-bearing.
 
 The open question turned out to have an answer already implied by the rest of
 the codebase. Grepping for a clock read anywhere in `lib/engine/`,
-`lib/platform/` or `examples/` returns **one** hit outside `Clock` itself:
+`lib/platform/` or `test_projects/` returns **one** hit outside `Clock` itself:
 `Gosu.milliseconds` in `TileMapRenderer#draw_animated`. `Engine::Animator` and
 `Engine::Timer` both accumulate `dt` in `update`, and `DebugOverlay` is handed
 the frame rate rather than asking for it. So the pattern is already universal
@@ -2569,11 +2569,11 @@ owns them.
 
 Then the two games, in this order — the second is the control:
 
-- **`examples/14_asteroids`** — drop its own `AssetManager` (it builds one while
+- **`test_projects/asteroids`** — drop its own `AssetManager` (it builds one while
   `game.assets` already exists, so today there are two caches) and its
   `Platform::GosuAudio`, using `game.assets` and `game.audio`. Three lines
   change; everything from `register_image` down is untouched.
-- **`examples/15_tiled_world`** — names the platform zero times. It must run
+- **`test_projects/tiled_world`** — names the platform zero times. It must run
   with **no edit at all**, and if it needs one, that is a finding about the port
   rather than about the example. It is also the only thing that exercises
   `TileMapRenderer`, `AnimatedSprite` and the camera end to end.

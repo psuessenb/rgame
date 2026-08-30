@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Example 14 — Asteroids.
+# Asteroids.
 #
 # A full small game on the Node2D/Component architecture, exercising it end to end:
 #   - three scenes (start → play → game-over) navigated through a SceneStack;
@@ -33,7 +33,7 @@ MEDIA  = File.join(__dir__, '../../media')
 # Unset, the game seeds itself from the system and plays differently every time,
 # which is what a game should do. Set, every rock spawns in the same place at the
 # same tick, which is what comparing two runs of it needs —
-# `tools/drive_example.rb --seed N` sets it. Read here rather than in the scene:
+# `tools/drive_test_project.rb --seed N` sets it. Read here rather than in the scene:
 # where a number comes from is the entry point's business, and PlayScene just
 # takes one.
 SEED = ENV.fetch('RGAME_SEED', nil)&.to_i
@@ -78,7 +78,7 @@ end
 
 game = RGame::Game.new(
   root: Root.new(seed: SEED),
-  caption: 'Example 14 - Asteroids',
+  caption: 'Asteroids',
   width: WIDTH,
   height: HEIGHT,
   media_root: MEDIA,
@@ -98,7 +98,7 @@ game = RGame::Game.new(
 )
 
 # Bind ids to assets the game's own manager loads. This scene names things by
-# id rather than by path, so the ids have to be registered; example 15 names
+# id rather than by path, so the ids have to be registered; tiled_world names
 # paths instead and registers nothing.
 game.renderer.register_image(:space,  game.assets.image('space.png'))
 game.renderer.register_image(:ship,   game.assets.image('example 09/player.png'))

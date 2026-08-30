@@ -19,9 +19,9 @@ class BeachScene < RGame::Engine::Node2D
   UI_MARGIN      = 20 # from the corner of that player's region, not of the window
 
   # Seeded, so the villagers wander the same way every run and two runs of this
-  # example can be compared. `RGAME_SEED` overrides it —
-  # `tools/drive_example.rb --seed N` sets that, and it means the same thing in
-  # every example that has anything random in it.
+  # test project can be compared. `RGAME_SEED` overrides it —
+  # `tools/drive_test_project.rb --seed N` sets that, and it means the same thing in
+  # every test project that has anything random in it.
   DEFAULT_SEED = 0xBEAC4
 
   def initialize

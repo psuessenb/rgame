@@ -1,4 +1,4 @@
-# Input script for examples/15_tiled_world.
+# Input script for test_projects/tiled_world.
 #
 # Physical ids, as the backend takes them. One long walk in each direction: the
 # map is larger than the window, so a player that actually moves drags the

@@ -66,7 +66,7 @@ one you use is decided by whether the node is a class of its own:
 
 - **A plain `Node2D` composed from components — in a builder method** that returns the
   assembled node. Reach for this when the node is nothing but its components and a
-  subclass would add no behaviour; the walkers in `examples/15_tiled_world` are built
+  subclass would add no behaviour; the walkers in `test_projects/tiled_world` are built
   this way.
 
   ```ruby
@@ -108,7 +108,7 @@ end
 
 That is the test to apply: **does the constructor need the tree?** A `World` built from
 numbers the scene already has, or a `CollisionWorld` built from a constant, does not —
-so `examples/14_asteroids` mounts both in `initialize`, where they are guaranteed to
+so `test_projects/asteroids` mounts both in `initialize`, where they are guaranteed to
 precede every entity the scene later spawns rather than merely happening to. A
 `TileWorld` parsed out of the asset manager does, so it waits.
 

@@ -188,7 +188,7 @@ going dead in their hands.
 lockout wants.
 
 `on_joined` fires with the player who got the device, which is how a scene
-spawns their character without polling for one. See `examples/15_tiled_world`.
+spawns their character without polling for one. See `test_projects/tiled_world`.
 
 ## `RGame::Core::Input`
 

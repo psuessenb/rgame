@@ -1,4 +1,4 @@
-# Input script for examples/14_asteroids.
+# Input script for test_projects/asteroids.
 #
 # Names are physical ids from RGame::Util::Controls, because the script stands
 # where RGame::Core::Input does and that is what the input backend now speaks.

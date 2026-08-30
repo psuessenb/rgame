@@ -1,4 +1,4 @@
-# Gamepad script for examples/15_tiled_world — run it with --gamepad.
+# Gamepad script for test_projects/tiled_world — run it with --gamepad.
 #
 # This is the acceptance test for the input rework. It drives a synthetic SDL
 # controller, so nothing is stubbed: the pad's events go through SDL, the C

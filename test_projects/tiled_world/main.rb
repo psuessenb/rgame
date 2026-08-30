@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Example 15 — Tiled world walkaround (Node2D/Component architecture).
+# Tiled world walkaround (Node2D/Component architecture).
 #
 # Rebuilds the tiled-map + collision + follow-camera idea of example 08 on the new
 # scene graph: a controllable player and several randomly-walking NPCs roam the larger
@@ -41,7 +41,7 @@ end
 # almost nothing is loaded or registered here.
 game = RGame::Game.new(
   root: Root.new,
-  caption: 'Example 15 - Tiled World',
+  caption: 'Tiled World',
   width: WIDTH,
   height: HEIGHT,
   media_root: MEDIA,

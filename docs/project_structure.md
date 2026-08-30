@@ -183,16 +183,16 @@ spec/                        Headless RSpec specs: RGame::Util and
 spec_core/                   RSpec specs for RGame::Core (`rake spec:core`).
                              Opens real windows; boots its own Xvfb.
 
-examples/                    Complete games built on the public API. They are
+test_projects/               Complete games built on the public API. They are
                              the acceptance test for how the layers are wired,
                              because they are the only tier where all three are
                              present at once.
 tools/                       Development tools, outside the engine and not
                              built by make.
-  drive_example.rb           Boots an example unmodified, feeds it a scripted
-                             input backend and reports what it actually asked
-                             for — draws, clips, sounds, scenes.
-  drive/                     One input script per example run.
+  drive_test_project.rb      Boots a test project unmodified, feeds it a
+                             scripted input backend and reports what it actually
+                             asked for — draws, clips, sounds, scenes.
+  drive/                     One input script per test project run.
   make_ogg_fixture.c         Generates the audio suite's .ogg fixture.
 rubocop/cop/game/            The project's own cops, loaded by .rubocop.yml:
                              the per-frame allocation guards and the two that

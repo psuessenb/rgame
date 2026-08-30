@@ -36,8 +36,8 @@ Game/NoNeedlessAllocation:
     - 'spec_core/**/*'
 # The engine layer must stay headless: it may never name RGame::Core, in lib or
 # in its specs. Everything else is allowed to (Core's own code, its specs, the
-# example driver), so the cop is scoped to where the rule applies rather than
-# excluded from where it doesn't.
+# test-project driver), so the cop is scoped to where the rule applies rather
+# than excluded from where it doesn't.
 Game/NoCoreInEngineLayer:
   Include:
     - 'lib/rgame/engine/**/*.rb'
@@ -54,11 +54,11 @@ Game/NoEngineInCoreLayer:
     - 'lib/rgame/core/**/*.rb'
     - 'spec_core/**/*.rb'
 
-# tools/drive/ holds input scripts for the example driver: Ruby syntax, but data
-# rather than source. Each is read and `instance_eval`'d by
-# tools/drive_example.rb, never required — so a file-level `frozen_string_literal`
-# magic comment in one is inert, and adding it would be cargo cult rather than a
-# fix. The scripts are a flat sequence of DSL calls with no strings in them.
+# tools/drive/ holds input scripts for the test-project driver: Ruby syntax, but
+# data rather than source. Each is read and `instance_eval`'d by
+# tools/drive_test_project.rb, never required — so a file-level
+# `frozen_string_literal` magic comment in one is inert, and adding it would be
+# cargo cult rather than a fix. The scripts are a flat sequence of DSL calls with no strings in them.
 Style/FrozenStringLiteralComment:
   Exclude:
     - 'tools/drive/**/*.rb'

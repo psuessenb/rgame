@@ -134,7 +134,7 @@ running from a checkout, and it is published on RubyGems (`gem install rgame`).
 
 **Gosu is gone.** `lib/platform/` is deleted and nothing in the project depends
 on it in any form. `RGame::Game` (`lib/rgame/game.rb`) is the entry point a game
-is written against, and both games under `examples/` run on it.
+is written against, and the games under `test_projects/` run on it.
 
 **All three layers are now where they belong.** The scene graph is
 `RGame::Engine` under `lib/rgame/engine/`, no bare top-level constant is left,
@@ -146,7 +146,7 @@ runs without a window".
 table, a camera and a region of the screen; the shared world is updated once and
 drawn once per viewport by a `WorldView`; and which player a node answers to is
 inherited down the tree like its transform. A device is seated when somebody
-uses it rather than when it is plugged in. `examples/15_tiled_world` runs two
+uses it rather than when it is plugged in. `test_projects/tiled_world` runs two
 players, collapses to one view for a cutscene, and gives each player a menu they
 can open while the other keeps walking. See `docs/api/scene_graph.md`,
 `input.md` and `ui.md`.
@@ -764,11 +764,11 @@ to crash while learning pointers/SDL/GL).
 `rake` with no argument runs everything: `make test`, `rake spec`,
 `rake spec:core`.
 
-### The examples are the acceptance test for wiring — but only if they are *driven*
+### The test projects are the acceptance test for wiring — but only if they are *driven*
 
 Anything that changes how the layers are wired together — `RGame::Game`, the
 asset loaders, input polling, the renderer's id registries — is verified by
-running the games under `examples/`, because that is the only tier where all
+running the games under `test_projects/`, because that is the only tier where all
 three layers are present at once.
 
 **Booting one is not enough.** Drive it: swap in a scripted input backend, bound
@@ -778,15 +778,15 @@ polling bug that consumed every input edge before a tick could read it left a
 game whose menu did not respond to anything, and a plain boot of it reported
 "90 ticks, 90 frames" and looked perfectly healthy.
 
-That harness is `tools/drive_example.rb`, and it takes a per-example input
+That harness is `tools/drive_test_project.rb`, and it takes a per-project input
 script from `tools/drive/`:
 
 ```
-ruby tools/drive_example.rb examples/15_tiled_world/main.rb --ticks 240
+ruby tools/drive_test_project.rb test_projects/tiled_world/main.rb --ticks 240
 ```
 
-It boots the example unmodified (prepending its probes before `load`ing the
-example's own `main.rb`), feeds it a scripted input backend through
+It boots the test project unmodified (prepending its probes before `load`ing the
+project's own `main.rb`), feeds it a scripted input backend through
 `RGame::Game`'s `input:` keyword, stops on a tick budget, and reports draw calls
 with their first and last arguments, clips pushed with what moved inside each,
 sounds played, scenes entered, and ticks against frames.
@@ -803,8 +803,8 @@ sweep. `tools/` is outside the gem's packaged glob, so it ships nothing.
 
 Assert on structure — scenes entered, sounds fired, clip and translate counts.
 Exact draw counts are comparable **only with `--seed N`**, which seeds the
-example's own RNG (through `RGAME_SEED`) so that two runs produce byte-identical
-output. Without it `examples/14_asteroids` seeds itself from the system and
+test project's own RNG (through `RGAME_SEED`) so that two runs produce byte-identical
+output. Without it `test_projects/asteroids` seeds itself from the system and
 varies run to run, which is what a game being played should do.
 
 ### Why the Ruby specs are two suites, in two directories
