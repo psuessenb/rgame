@@ -68,6 +68,79 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
     end
   end
 
+  describe 'town.tmx' do
+    subject(:map) { RGame::Engine::TileMap.load(File.join(assets, 'town.tmx')).first }
+
+    let(:fence_row) { 20 }
+    let(:gap) { 12..14 }
+    let(:north) { [45, 8] }
+    let(:south) { [45, 30] }
+
+    it 'is larger than the window on both axes, so there is something to scroll' do
+      # A map that fits on screen makes examples/scroll_map a still image:
+      # Camera#resolve pins a camera to the origin when the world is smaller
+      # than the view, so the failure is a scrolling example that does not.
+      # 640x480 is the window every example opens. Written out rather than read
+      # off RGame::Game, which lives behind rgame/core and is an undefined
+      # constant in this suite by design.
+      expect(map.pixel_width).to be > 640
+      expect(map.pixel_height).to be > 480
+    end
+
+    it 'has exactly one gap in the fence, where the map says it is' do
+      # The mistake this catches was made once already: a fence stopping a tile
+      # short of the border leaves a second gap nobody planned, and the route
+      # quietly uses that one instead of the intended one.
+      open_tiles = (0...map.width).reject { |col| map.solid_tile?(col, fence_row) }
+
+      expect(open_tiles).to eq(gap.to_a)
+    end
+
+    it 'starts and ends the route on walkable tiles' do
+      expect(map.solid_tile?(*north)).to be(false)
+      expect(map.solid_tile?(*south)).to be(false)
+    end
+
+    it 'forces a route far longer than the straight line between the clearings' do
+      # The other mistake made once: with the gap sitting between start and
+      # goal, the shortest route cost exactly the straight-line distance and a
+      # pathfinder had nothing to show. This is what examples/pathfinding needs
+      # from the map, so it is asserted rather than admired.
+      steps = shortest_route(map, north, south)
+      straight = (south[0] - north[0]).abs + (south[1] - north[1]).abs
+
+      expect(steps).not_to be_nil, 'the two clearings are not connected at all'
+      expect(steps).to be > straight * 2
+    end
+  end
+
+  # Breadth-first over the walkable tiles: how many steps the shortest route
+  # takes, or nil if there is none. Deliberately not A* — this states what the
+  # map guarantees without depending on the algorithm the example under test
+  # will use to find it.
+  def shortest_route(map, from, to)
+    # Bound once rather than written inside the loop, which would rebuild it per
+    # tile visited.
+    neighbours = [[1, 0], [-1, 0], [0, 1], [0, -1]].freeze
+    distance = { from => 0 }
+    queue = [from]
+    until queue.empty?
+      col, row = queue.shift
+      return distance[[col, row]] if [col, row] == to
+
+      neighbours.each do |d_col, d_row|
+        step = [col + d_col, row + d_row]
+        next if distance.key?(step)
+        next unless step[0].between?(0, map.width - 1) && step[1].between?(0, map.height - 1)
+        next if map.solid_tile?(*step)
+
+        distance[step] = distance[[col, row]] + 1
+        queue << step
+      end
+    end
+    nil
+  end
+
   # A PNG opens with an 8-byte signature and then the IHDR chunk, whose first
   # two fields are width and height as big-endian uint32 at offsets 16 and 20.
   # Reading them here rather than loading the image keeps this suite headless —

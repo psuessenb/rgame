@@ -202,6 +202,9 @@ Points a camera at the node it is attached to.
   middle of the screen (a bottom-anchored sprite usually wants its feet).
 - **Phase:** `update(dt)` calls `camera.center_on` with the node's world
   origin. The camera trails the node's own movement by one step, uniformly.
+- **Example:** `examples/scroll_map` — the node it follows is an invisible rig
+  with a `CharacterBody` and a `PlayerController`, which is all "scroll the map
+  with the arrow keys" turns out to be.
 
 The camera belongs to a [player](input.md#players-seats-and-joining), not to this
 component or to the scene — a scene may have any number of viewers. Ownership and
@@ -466,6 +469,8 @@ This stays the thing actors ask questions of.
   `tilemap_id` and `elapsed`, which the layers read; `layer_count` and `first_above_layer`,
   which `TileMapLayer.mount` reads to decide where the actors go.
 - **Phase:** `update(dt)` advances the map's animation clock.
+- **Example:** `examples/scroll_map` — a `.tmx` through the asset manager, this
+  system, `TileMapLayer.mount`, and a camera clamped to the map's edges.
 
 ```ruby
 world  = scene.add_node(RGame::Engine::WorldView.new)

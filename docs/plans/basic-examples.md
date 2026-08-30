@@ -107,7 +107,7 @@ and raises nothing at all.
 
 **Assets:** **A**, delivered.
 
-### 2. `examples/scroll_map` — a Tiled map a player scrolls
+### 2. `examples/scroll_map` — a Tiled map a player scrolls — **done**
 
 **Shows** loading a `.tmx` through the asset manager, drawing it through a
 `WorldView`, and a camera clamped to the map bounds.
@@ -117,27 +117,38 @@ and raises nothing at all.
 `Engine::WorldView`, `Engine::Camera` (it already has `world_width` /
 `world_height` and clamps), `Components::CameraFollow`.
 
-**New:** *probably none.* The camera is moved by pointing `CameraFollow` at an
-invisible "camera rig" node that carries `CharacterBody` + `PlayerController` —
-zero new engine code, and it composes existing pieces the way a game would.
+**New: none. The open question is settled — the rig wins, and no `CameraPan`.**
 
-> **Open question.** That rig reads slightly indirectly for a teaching example.
-> The alternative is a small `Components::CameraPan` that writes
-> `camera.center_on` straight from `move_x`/`move_y`. Decide when writing it:
-> build the rig first, and only add `CameraPan` if the rig needs a paragraph of
-> explanation to justify itself.
+The camera is moved by pointing `CameraFollow` at an invisible rig node carrying
+`CharacterBody` + `PlayerController`. The worry was that this would read
+indirectly and need a paragraph to justify. It needs two sentences, and they
+teach the right thing rather than apologising for a workaround: *a camera is
+owned by a player and pointed by a component on a node, so moving a camera means
+moving a node.* The rig is `examples/walk`'s hero with the sprite left off —
+same body, same controller — which makes "the camera follows the player" and
+"the player scrolls the map" visibly the same construction rather than two
+features. A `CameraPan` component would have hidden exactly that.
+
+Two things the file has to say out loud, both found by building it:
+
+- **The rig needs its own clamp to the world.** `Camera#resolve` already refuses
+  to show past the world's edges, but the rig is not the camera: without a clamp
+  it walks off into nothing while the view stays pinned, and the player is left
+  holding a key that does nothing visible.
+- **A colour is not an Integer.** `renderer.line(..., color: 0xFFFFFFFF)` raises
+  `TypeError` out of `Color.coerce`, which takes `nil`, `[r, g, b]`, `[r, g, b, a]`
+  or a `Color`. The example holds a `Util::Color` constant — an array literal in
+  a draw method allocates one per frame, which is what `Game/NoNeedlessAllocation`
+  exists to stop.
 
 **Assets:** **B**, delivered.
 
-**Extend `spec/example_assets_spec.rb` when this lands.** It covers `hero.json`
-today and deliberately says nothing about `town.tmx`, because the map's
-guarantees are this example's and example 10's rather than example 1's. Two are
-worth asserting, and both are mistakes already made once: that the fence row is
-solid at every tile **except** the three-tile gap (a fence stopping short of the
-border leaves a second gap nobody planned), and that the route between the two
-clearings is meaningfully longer than the straight line (a gap between start and
-goal is not an obstacle at all). A BFS over `solid_tile?` is enough for both and
-runs headless.
+`spec/example_assets_spec.rb` now covers `town.tmx` as well: that it is larger
+than the window on both axes (a map that fits makes this example a still image),
+that the fence row is solid at every tile **except** the three-tile gap, and that
+the route between the clearings is more than twice the straight line. The last
+two are the mistakes made once each while authoring the map, and both were
+mutation-checked — punching a second hole in the fence fails them.
 
 ### 3. `examples/game_menu` — opening an in-game menu
 
@@ -587,7 +598,7 @@ needed from here on** — everything below is code.
 **Phase A — establish the shape, no new engine code.**
 
 3. ~~`examples/walk`~~ — **done**; needed no new engine code, as hoped.
-4. `examples/scroll_map` (uses **B**)
+4. ~~`examples/scroll_map`~~ — **done**; no new engine code either.
 5. `examples/game_menu` (no assets)
 
 Three examples that add nothing to the engine come first on purpose. They set the
@@ -629,8 +640,6 @@ anything in phases B or C.
 *(The asset-sourcing question is settled: Kenney *Tiny Town* for the tileset,
 sodri's character sheet repacked. See "Assets".)*
 
-- **2** — camera rig vs. a new `Components::CameraPan`. Build the rig, decide after
-  reading it.
 - **6** — one `OptionItem` cycling discrete volume steps, or an `OptionItem` plus a
   `SliderItem`?
 - **7** — should `TileWorld` know about `airborne?` (hop over a gap), or does that

@@ -209,6 +209,9 @@ root does. So a node that owns a view transform overrides **`draw`** and calls
 *children's* draw while still drawing itself normally — `test_projects/tiled_world`'s
 inventory panel closes by not calling `super` from it.)
 
+`examples/scroll_map` is the smallest thing that has a camera at all: a
+`WorldView`, a map under it, and one node the camera follows.
+
 ### Two words that are easy to confuse
 
 **Space** is structural and the tree enforces it: a node is either inside a
