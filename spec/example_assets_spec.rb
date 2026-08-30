@@ -68,6 +68,41 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
     end
   end
 
+  describe 'ui.json' do
+    subject(:elements) { descriptor[:nine_slices] }
+
+    let(:descriptor) { JSON.parse(File.read(File.join(assets, 'ui.json')), symbolize_names: true) }
+
+    # UI::MenuItem draws one of these four by state, and a nine-slice id is
+    # resolved by *registration* only — it is an element name, never a file — so
+    # a missing one is a KeyError out of the renderer the first time an item
+    # reaches that state. The disabled and pressed ones are the nasty pair: a
+    # menu can run for a long time before either is drawn.
+    it 'declares every element UI::MenuItem draws, plus the panel' do
+      required = RGame::Engine::UI::MenuItem::STYLE.values.map(&:to_sym) + [:panel]
+
+      expect(elements.keys).to include(*required)
+    end
+
+    it 'keeps every element inside ui.png' do
+      width, height = png_size(File.join(assets, descriptor[:image]))
+
+      elements.each_value do |e|
+        expect(e[:x] + e[:w]).to be <= width
+        expect(e[:y] + e[:h]).to be <= height
+      end
+    end
+
+    it 'leaves a middle for every element to stretch' do
+      # A nine-slice cuts `border` off each side; borders meeting in the middle
+      # leave nothing to tile and the widget draws as corners alone.
+      elements.each_value do |e|
+        expect(e[:border] * 2).to be < e[:w]
+        expect(e[:border] * 2).to be < e[:h]
+      end
+    end
+  end
+
   describe 'town.tmx' do
     subject(:map) { RGame::Engine::TileMap.load(File.join(assets, 'town.tmx')).first }
 

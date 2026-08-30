@@ -150,7 +150,7 @@ the route between the clearings is more than twice the straight line. The last
 two are the mistakes made once each while authoring the map, and both were
 mutation-checked — punching a second hole in the fence fails them.
 
-### 3. `examples/game_menu` — opening an in-game menu
+### 3. `examples/game_menu` — opening an in-game menu — **done**
 
 **Shows** a menu that opens over a running world, pauses only the player who
 opened it, and closes again.
@@ -159,13 +159,32 @@ opened it, and closes again.
 `Node2D#paused`, `Node2D#draw_children` (the "close by not calling `super`"
 seam), `renderer.nine_slice`, `ui_cancel` / `ui_confirm` from the default map.
 
-**New:** none. `test_projects/tiled_world/inventory.rb` already does exactly
-this; the example is that idea stripped to the concept, with the world reduced
-to something that visibly keeps moving while the menu is up.
+**New engine code:** none, as expected.
 
-**Assets:** none. A panel is `renderer.rect` and the shipped font. Asset **C**
-(a nine-slice UI sheet) would make it prettier and is deliberately deferred —
-see "Assets".
+**But the asset claim below was wrong, and that is the finding.** This example
+was planned as asset-free — "a panel is `renderer.rect` and the shipped font".
+It is not, and cannot be: `UI::MenuItem#on_draw` calls `renderer.nine_slice`,
+and a nine-slice id resolves by **registration only** — it names an element of
+an atlas, never a file — so `UI::Menu` does not draw at all without one
+registered. `Menu` also constructs `MenuItem` itself, and its `style:` option
+swaps *element names*, not the drawing, so there is no seam to route around it.
+
+So **asset C stopped being cosmetic and became required**, and it shipped here
+rather than being deferred to example 6. It is worth stating plainly in
+`docs/api/ui.md` at some point: the UI package needs art before it draws
+anything.
+
+Two constraints on which art, both found by looking rather than by reading:
+
+- **Several of the pack's panels are frames with transparent middles**, which
+  read as solid on the sheet's own dark background and then show the world
+  through them in place.
+- **`MenuItem`'s label colour is a constant**, so the buttons must be light or
+  the label vanishes into them. A widget whose text colour cannot be set
+  constrains the art rather than the other way round.
+
+**Assets:** **C**, delivered — `ui.png` + `ui.json`, five 32x32 elements cut
+from Kenney's CC0 *UI Pack - Pixel Adventure*, 1 KB.
 
 ### 4. `examples/fullscreen` — toggling fullscreen
 
@@ -224,7 +243,8 @@ much larger design question and nothing here needs it yet.
 change something real.
 
 **Existing:** `Scene::SceneStack` (`push` / `pop` / `replace`), `UI::Menu`,
-`ui_cancel` for back.
+`ui_cancel` for back, and the `ui.png` atlas example 3 shipped — so this one is
+no longer asset-gated either.
 
 **New:**
 
@@ -242,7 +262,7 @@ fullscreen on/off (example 4) and master volume (`Core::Audio#volume=` already
 exists, reachable from a node as `root.context.audio`) — and should persist
 through example 5's `SaveFile`. That is why it comes after both.
 
-**Assets:** none required; text and rects.
+**Assets:** **C**, already shipped by example 3.
 
 ### 7. `examples/jump_topdown` — a hop in a top-down view
 
@@ -510,7 +530,7 @@ examples. Three more are deferred, and one is refused outright.
 |---|---|---|---|---|
 | **A** | Character sprite sheet | `hero.png` + `hero.json` | 1 walk, 7 jump_topdown, 10 pathfinding | **done** |
 | **B** | Top-down tileset + a map | `tileset.png`, `tileset.tsx`, `town.tmx` | 2 scroll_map, 7 jump_topdown, 10 pathfinding | **done** |
-| **C** | UI nine-slice sheet | `ui.png` + `ui_atlas.json` | 3 game_menu, 6 menu_navigation | deferred |
+| **C** | UI nine-slice sheet | `ui.png` + `ui.json` | 3 game_menu, 6 menu_navigation | **done** — and it was never optional |
 | **D** | Radial icon sheet | `icons.png` + `icons.json` | 9 radial_menu | deferred |
 | **E** | Side-view tileset + character | — | 8 jump_sidescroller | **refused** — rects instead |
 
@@ -567,11 +587,16 @@ with a BFS rather than by looking at it:
 The `.tsx` and `.tmx` are ours; only the `.png` is sourced. One map serves all
 three examples that use it.
 
-**C and D are deferred on purpose.** Both are cosmetic: a menu works with rects,
-a radial menu works with labels, and neither concept is any clearer with art.
-Deferring them keeps the sourcing work — the slowest step here — down to one
-character and one tileset before anything can be written. Pick them up only if
-the plain versions read badly.
+**C was not optional after all.** It was deferred as cosmetic — "a menu works
+with rects" — and that was simply wrong: `UI::MenuItem` draws its background
+with `renderer.nine_slice`, nine-slice ids resolve by registration only, and
+`Menu` builds its own items, so there is no way to have a menu without an atlas.
+It shipped with example 3. See that example for the two constraints the widget
+puts on the art.
+
+**D is still deferred**, and on firmer ground: a radial menu genuinely does work
+with text labels, because nothing in it draws chrome the way `MenuItem` does.
+Pick it up only if the labelled version reads badly.
 
 **E is refused.** See example 8: the physics is the point, and rects show it.
 
@@ -599,7 +624,8 @@ needed from here on** — everything below is code.
 
 3. ~~`examples/walk`~~ — **done**; needed no new engine code, as hoped.
 4. ~~`examples/scroll_map`~~ — **done**; no new engine code either.
-5. `examples/game_menu` (no assets)
+5. ~~`examples/game_menu`~~ — **done**; no new engine code, but it needed asset
+   **C**, which the plan had wrongly called optional.
 
 Three examples that add nothing to the engine come first on purpose. They set the
 house style for what an example looks like, and they are the check that the

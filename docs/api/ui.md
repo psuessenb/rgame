@@ -87,6 +87,10 @@ game.renderer.register_ui_atlas(game.assets.ui_atlas('ui/ui_atlas.json'))
 `media/ui/ui_atlas.json` ships with `panel` and the four button elements above.
 See [Sheets, atlases and maps](assets.md).
 
+`examples/game_menu` is the smallest complete use of all of this: a menu that
+opens over a running world, pauses only the node that opened it, and closes
+again.
+
 ## What this is not
 
 It is a menu, not a widget library. Items are stacked vertically at a fixed

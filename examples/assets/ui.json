@@ -1,0 +1,11 @@
+{
+  "image": "ui.png",
+  "scale": 1,
+  "nine_slices": {
+    "panel":           { "x": 0,   "y": 0, "w": 32, "h": 32, "border": 8 },
+    "button_idle":     { "x": 32,  "y": 0, "w": 32, "h": 32, "border": 8 },
+    "button_focus":    { "x": 64,  "y": 0, "w": 32, "h": 32, "border": 8 },
+    "button_pressed":  { "x": 96,  "y": 0, "w": 32, "h": 32, "border": 8 },
+    "button_disabled": { "x": 128, "y": 0, "w": 32, "h": 32, "border": 8 }
+  }
+}
