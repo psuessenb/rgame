@@ -183,10 +183,16 @@ spec/                        Headless RSpec specs: RGame::Util and
 spec_core/                   RSpec specs for RGame::Core (`rake spec:core`).
                              Opens real windows; boots its own Xvfb.
 
+examples/                    One runnable file per concept — "how do I do X".
+                             Ships in the gem, so an installed copy can be run.
+  assets/                    The art they draw, CC0 or drawn here, with its
+                             provenance in README.md. Nothing from media/: it
+                             cannot be redistributed and this directory ships.
 test_projects/               Complete games built on the public API. They are
                              the acceptance test for how the layers are wired,
                              because they are the only tier where all three are
-                             present at once.
+                             present at once. Unlike examples/ these read from
+                             media/, so they do not ship.
 tools/                       Development tools, outside the engine and not
                              built by make.
   drive_test_project.rb      Boots a test project unmodified, feeds it a

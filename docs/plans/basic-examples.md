@@ -70,7 +70,7 @@ outstanding** — a new example only has to drop a script at its mirrored path.
 Each entry lists what the example demonstrates, what it needs that **already
 exists**, what is **new engine work**, and what assets it wants.
 
-### 1. `examples/walk` — a player-controlled sprite
+### 1. `examples/walk` — a player-controlled sprite — **done**
 
 **Shows** the smallest complete thing: a node, a component stack, and input
 reaching it as actions rather than keys.
@@ -79,11 +79,33 @@ reaching it as actions rather than keys.
 `Components::CharacterBody`, `Components::PlayerController`,
 `InputMap.default` (`move_x`/`move_y`), `AnimationSet`.
 
-**New:** none. This is the control — if it needs new engine code, something is
-wrong with the engine rather than with the example.
+**New: none — and that was the point.** This example was the control: if the
+smallest possible game had needed new engine code, that would have been a
+finding about the engine before nine more examples were planned on top of it. It
+did not. `examples/walk/main.rb` is one file, and the only class it defines
+beyond the root is a four-line `Hero < Node2D` whose `on_update` keeps the
+walker inside the window — a plain `CharacterBody` moves the node wherever the
+intent points, by design, because giving it edges is `TileWorld`'s job and that
+is example 2's subject.
 
-**Assets:** **A — the character sheet** (new). This example is *about* a sprite,
-so it is one of only two that genuinely cannot be primitives.
+Two things it turned out to be worth saying out loud in the file, because both
+are silent when got wrong:
+
+- **Build a node whole, then add it.** `add_component` runs `on_attach`
+  immediately once the node is live, and `AnimatedSprite`'s attach requires a
+  `CharacterBody` sibling. Composing in `initialize` — before anything is in the
+  tree — makes the order components go on in stop mattering.
+- **The five animation names are a contract**, not a convention.
+  `AnimatedSprite` resolves `stand` / `walk_up` / `walk_down` / `walk_left` /
+  `walk_right` by name through `AnimationSet#row`, which uses `fetch`.
+
+That contract is now asserted by `spec/example_assets_spec.rb`, headless: the
+descriptor declares all five, `walk_left` mirrors `walk_right`'s row, each walk
+cycles all six frames, and every frame fits inside `hero.png` — the last one
+guarding a re-export at a different size, which slices frames out of empty space
+and raises nothing at all.
+
+**Assets:** **A**, delivered.
 
 ### 2. `examples/scroll_map` — a Tiled map a player scrolls
 
@@ -105,8 +127,17 @@ zero new engine code, and it composes existing pieces the way a game would.
 > build the rig first, and only add `CameraPan` if the rig needs a paragraph of
 > explanation to justify itself.
 
-**Assets:** **B — the tileset and a map** (new). The other unavoidable one: a
-tile map example needs tiles.
+**Assets:** **B**, delivered.
+
+**Extend `spec/example_assets_spec.rb` when this lands.** It covers `hero.json`
+today and deliberately says nothing about `town.tmx`, because the map's
+guarantees are this example's and example 10's rather than example 1's. Two are
+worth asserting, and both are mistakes already made once: that the fence row is
+solid at every tile **except** the three-tile gap (a fence stopping short of the
+border leaves a second gap nobody planned), and that the route between the two
+clearings is meaningfully longer than the straight line (a gap between start and
+goal is not an obstacle at all). A BFS over `solid_tile?` is enough for both and
+runs headless.
 
 ### 3. `examples/game_menu` — opening an in-game menu
 
@@ -555,7 +586,7 @@ needed from here on** — everything below is code.
 
 **Phase A — establish the shape, no new engine code.**
 
-3. `examples/walk` (uses **A**)
+3. ~~`examples/walk`~~ — **done**; needed no new engine code, as hoped.
 4. `examples/scroll_map` (uses **B**)
 5. `examples/game_menu` (no assets)
 

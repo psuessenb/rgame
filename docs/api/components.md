@@ -7,6 +7,9 @@ baked into a node subclass. A node composes several of them; each knows its owni
 for how nodes drive components, and [Systems & shared resources](systems.md) for
 components that act as shared, scene- or program-scoped services.
 
+`examples/walk` is the smallest working composition of the three that make an
+actor — `AnimatedSprite` + `CharacterBody` + `PlayerController` — in one file.
+
 ## The `Component` base
 
 `RGame::Engine::Component` (`rgame/engine/component`) gives every component a `node` back-link and
@@ -223,6 +226,8 @@ scene**: an actor in a world with nothing to bump into is just `CharacterBody` +
 - **Seam:** `apply_move(dx, dy)` is where a step lands — the one method a collision-aware body
   overrides, so it inherits the intent, the speed and the standing-still check rather than
   restating them.
+- **Example:** `examples/walk` — a `Node2D` with this, a `PlayerController` and an
+  `AnimatedSprite`, and nothing else.
 
 ### `CircleCollider`
 
@@ -339,6 +344,7 @@ walking, no inertia (unlike `ThrustController`).
 
 - **Construct:** `PlayerController.new(x_axis: :move_x, y_axis: :move_y)`.
 - **Lifecycle:** `on_attach` pulls the node's `CharacterBody` (`require_sibling`).
+- **Example:** `examples/walk`.
 - **Phase:** `control(actions)` copies the two axes into the body's intent.
 
 ### `Pool`
@@ -512,6 +518,7 @@ deterministic in tests.
 
 - **Construct:** `WanderController.new(rng: Random.new, change_interval: 1.0..3.0, idle_chance: 0.25)`.
 - **Lifecycle:** `on_attach` pulls the node's `CharacterBody` (`require_sibling`).
+- **Example:** `examples/walk`.
 - **Phase:** `update(dt)` counts down the timer and re-rolls on timeout or when blocked.
   "Blocked" is *the node did not move while intending to* — measured, not asked of a
   collision world — so it works over a plain `CharacterBody` too, and simply never fires
