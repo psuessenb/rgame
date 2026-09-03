@@ -1,6 +1,7 @@
 # Example assets
 
-Everything the examples draw. Seven files, about 21 KB in total.
+Everything the examples draw and play. Nine files, about 80 KB in total —
+of which the music is 53 KB, and the reason for `tools/shrink_ogg.c`.
 
 ## Why these files and not the ones in `media/`
 
@@ -144,11 +145,57 @@ Layout, 6 columns x 3 rows of 16x22:
 There is no idle art in the original, so `stand` is a single frame off the walk
 cycle rather than an animation of its own.
 
+### `blip.ogg` — Kenney, *Interface Sounds*
+
+- Source: <https://kenney.nl/assets/interface-sounds>
+- Licence: CC0 1.0 (stated on the page and in the `License.txt` inside the
+  download)
+- Modification: none. This is `Audio/click_001.ogg` from the pack, renamed.
+
+4.8 KB. The pack has 100 of these, 4 to 29 KB each, so if an example ever wants
+a second sound it costs nothing to take another.
+
+### `music.ogg` — hernandack's *Short Loops Background Music Pack*, re-encoded
+
+- Source: <https://opengameart.org/content/short-loops-background-music-pack>
+- Author: hernandack
+- Licence: CC0
+- Modification: the track *A Brand New Wisdom* downmixed to mono and re-encoded
+  at Vorbis quality -0.1, with `tools/shrink_ogg.c`. **The length is unchanged.**
+
+16.63 seconds. The original is 259 KB — stereo, 44.1 kHz, ~125 kbps, encoded for
+listening rather than for a library gem. Everything else in this directory is
+21 KB in total, so shipping it as-is would have made the music twelve times the
+rest of the assets put together, in a gem most of whose users will never run the
+audio example. Mono at a low quality setting is 53 KB and is background music in
+a teaching example.
+
+**Length was deliberately not touched.** A seamless loop is seamless at exactly
+its own length, because the author arranged for the end to lead back into the
+start. Trimming it to save more bytes would put an audible seam in the middle of
+the one property the file is shipped to demonstrate.
+
+That property is measured rather than taken on trust. `tools/shrink_ogg.c`
+reports the jump across the loop point against the largest sample-to-sample step
+found anywhere in the track:
+
+| | seam | largest internal step | ratio |
+|---|---|---|---|
+| original (stereo) | 0.00540 | 0.20526 | 2.6% |
+| shipped (mono, q -0.1) | 0.00134 | 0.19580 | **0.7%** |
+
+It got *better*, because the downmix and the re-encode both smooth the boundary.
+A seam well under the music's own steps is inaudible; the same measurement on
+the other candidates ranged from 0.0% to 35%, which is how this one was chosen.
+
 ## Adding an asset here
 
 1. CC0, or drawn in this repo. If the licence says anything about redistribution
    at all, it does not go here — see the top of this file.
 2. Record it above: source URL, author, licence, and every modification made.
-3. No leading dots in filenames. `Dir.glob` does not match them, so the gemspec
+3. **Audio is Ogg Vorbis or WAV, and nothing else.** MP3 and FLAC are compiled
+   out of miniaudio (`ext/rgame_core/vendor/miniaudio_impl.c`), so a file that
+   plays in every desktop player can still fail to load here.
+4. No leading dots in filenames. `Dir.glob` does not match them, so the gemspec
    would silently leave the file out of the gem while the checkout kept working
    — `spec/packaging_spec.rb` has an example that catches it.

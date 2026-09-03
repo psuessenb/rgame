@@ -353,6 +353,39 @@ harness (so this is testable with a synthetic SDL pad, no hardware).
 menu itself works; the mechanism being taught is direction-to-sector, not the
 picture in the sector.
 
+### 11. `examples/audio` — a sound effect and a looping track
+
+**Shows** the two kinds of sound and, more importantly, **how the engine layer
+plays anything at all** — which is the part no test project demonstrates on its
+own.
+
+**Existing:** `Engine::AudioBus`, `Engine::AudioDirector`, `Core::Audio` with
+`register_sound` / `register_music` / `play_sound` / `play_music` / `stop_music`,
+and `Core::Sample` / `Core::Song`.
+
+**New:** none expected. This is an assembly example like 1 and 3.
+
+**The point of it is the seam, not the noise.** A node in the scene graph may
+not name `RGame::Core`, so it cannot reach the audio device — it emits on
+`AudioBus`, a global signal hub, and an `AudioDirector` subscribed to that bus
+does the playing. That indirection looks like ceremony until you notice it is
+the same rule that keeps the whole engine layer spec-able with no sound card:
+a headless spec substitutes `FakeAudio` and asserts on what was *asked for*.
+
+Two things worth drawing out:
+
+- **Two types, deliberately.** A `Sample` is decoded up front and gets a fresh
+  voice per play, so pressing the key repeatedly layers it; a `Song` is streamed
+  and has one voice that can be stopped and asked `playing?`. That is why
+  `playing?` cannot be asked of a fire-and-forget effect.
+- **Audio is registration-only.** Unlike images, sheets and tile maps — which
+  resolve on demand when the id is a path — `Audio#play_sound` is
+  `samples.fetch(id)` with no asset-manager fallback, so every sound and song is
+  a hand-registered line. Worth stating in the example, because it is the one
+  place the "just pass the path" rule does not hold.
+
+**Assets:** **F**, delivered.
+
 ### 10. `examples/pathfinding` — a character walking a computed route
 
 **Shows** a click-free "go there" — pick a target tile, compute a route around
@@ -533,6 +566,7 @@ examples. Three more are deferred, and one is refused outright.
 | **C** | UI nine-slice sheet | `ui.png` + `ui.json` | 3 game_menu, 6 menu_navigation | **done** — and it was never optional |
 | **D** | Radial icon sheet | `icons.png` + `icons.json` | 9 radial_menu | deferred |
 | **E** | Side-view tileset + character | — | 8 jump_sidescroller | **refused** — rects instead |
+| **F** | A sound effect and a music loop | `blip.ogg`, `music.ogg` | 11 audio | **done** |
 
 **A and B are in `examples/assets/`**, about 10 KB in total, with full
 provenance in `examples/assets/README.md`. A is sodri's CC0 *Character 4
@@ -586,6 +620,19 @@ with a BFS rather than by looking at it:
 
 The `.tsx` and `.tmx` are ours; only the `.png` is sourced. One map serves all
 three examples that use it.
+
+**F is the only asset that costs anything.** At 53 KB the music is two-thirds of
+this directory, and that is *after* an 80% reduction: the CC0 loops worth having
+are encoded for listening (stereo, 44.1 kHz, ~125 kbps) rather than for a
+library gem. `tools/shrink_ogg.c` does the downmix and re-encode, and reports
+the loop seam as a number so "loops seamlessly" stops being a claim on a
+download page. Two constraints, both easy to get wrong:
+
+- **The engine plays Ogg Vorbis and WAV only.** MP3 and FLAC are compiled out of
+  miniaudio, so an MP3 that plays everywhere else fails at load here. That ruled
+  out one otherwise-ideal CC0 loop distributed only as WAV and MP3.
+- **Never trim a loop to save bytes.** It is seamless at exactly its own length.
+  Channels and quality are free; length is not.
 
 **C was not optional after all.** It was deferred as cosmetic — "a menu works
 with rects" — and that was simply wrong: `UI::MenuItem` draws its background
@@ -654,7 +701,9 @@ This whole phase is asset-free.
 **Phase D — the two largest, both independent of everything above.**
 
 11. `examples/radial_menu` (no assets)
-12. `examples/pathfinding` (reuses **A** and **B**; `town.tmx` already has the
+12. `examples/pathfinding`
+13. `examples/audio` (uses **F**) — could move anywhere; it depends on nothing
+    and adds nothing. Placed last only because it was added last. (reuses **A** and **B**; `town.tmx` already has the
     obstacle worth routing around — see "Assets")
 
 Both are self-contained and could move earlier if wanted. Pathfinding is last

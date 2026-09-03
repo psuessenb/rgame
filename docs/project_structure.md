@@ -201,6 +201,9 @@ tools/                       Development tools, outside the engine and not
   drive/                     One input script per project run, at a path
                              mirroring the project's own.
   make_ogg_fixture.c         Generates the audio suite's .ogg fixture.
+  shrink_ogg.c               Downmixes and re-encodes an .ogg smaller, and
+                             measures its loop seam. Prepares examples/assets/
+                             music; needs libvorbisenc to run.
 rubocop/cop/game/            The project's own cops, loaded by .rubocop.yml:
                              the per-frame allocation guards and the two that
                              police the Core/Engine layer boundary.

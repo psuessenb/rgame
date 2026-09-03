@@ -103,6 +103,28 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
     end
   end
 
+  describe 'the audio' do
+    # The engine plays Ogg Vorbis and WAV, and nothing else: MP3 and FLAC are
+    # compiled out of miniaudio (ext/rgame_core/vendor/miniaudio_impl.c) to save
+    # object code and parser surface. So dropping in an .mp3 that plays fine in
+    # every desktop player fails at load, on whatever machine first runs the
+    # example. The magic bytes are cheap to check and this suite has no decoder.
+    %w[music.ogg blip.ogg].each do |name|
+      it "ships #{name} as Ogg Vorbis, which is a format the engine can play" do
+        header = File.binread(File.join(assets, name), 64)
+
+        expect(header[0, 4]).to eq('OggS')
+        expect(header).to include('vorbis')
+      end
+    end
+
+    it 'keeps the music mono, which is what makes it small enough to ship' do
+      # Re-exported in stereo it is five times the size, and it is background
+      # music in an example — see tools/shrink_ogg.c and the asset README.
+      expect(vorbis_channels(File.join(assets, 'music.ogg'))).to eq(1)
+    end
+  end
+
   describe 'town.tmx' do
     subject(:map) { RGame::Engine::TileMap.load(File.join(assets, 'town.tmx')).first }
 
@@ -174,6 +196,14 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
       end
     end
     nil
+  end
+
+  # Channel count from the Vorbis identification header, which follows the
+  # `\x01vorbis` marker in the first Ogg page: one byte of version-and-channels
+  # layout where the channel count sits at offset 11.
+  def vorbis_channels(path)
+    data = File.binread(path, 128)
+    data.getbyte(data.index("\x01vorbis") + 11)
   end
 
   # A PNG opens with an 8-byte signature and then the IHDR chunk, whose first
