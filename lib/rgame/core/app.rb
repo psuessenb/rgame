@@ -80,6 +80,18 @@ module RGame
       # reaching back through `app.audio` to make a sound.
       def audio = @audio ||= Audio.new(assets: assets)
 
+      # Fullscreen is `#fullscreen?` and `#fullscreen=`, both defined in C. It is
+      # *desktop* fullscreen — the window takes the whole screen at the screen's
+      # own resolution rather than asking the display to change mode — so the
+      # switch is instant, reversible, and leaves every other window alone.
+      #
+      # Pass `fullscreen: true` to the constructor to open fullscreen. Setting it
+      # afterwards works, but a game that starts that way shows one windowed
+      # frame first, which is the flash a player reads as a broken startup.
+      #
+      # Either way the switch resizes the window, so `#resize` is called with the
+      # new size exactly as it is for a user dragging a window edge.
+
       # Where #assets resolves relative paths from. Set once, as a keyword to
       # the constructor; there is deliberately no writer, because changing it
       # after an asset has loaded would leave a cache keyed against two roots.

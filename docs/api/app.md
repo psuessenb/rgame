@@ -142,11 +142,41 @@ end
 | `close` | Asks the loop to stop. Safe to call from inside any hook. |
 | `width`, `height` | Current window size. |
 | `caption`, `caption=` | The window title. |
+| `fullscreen?`, `fullscreen=` | Whether the window covers the screen. |
 | `ticks_ms` | Monotonic milliseconds since startup. For animation phase. |
 | `fps` | Most recent frames-per-second reading, updated about once a second. |
 
 `close` takes effect promptly — the loop checks between steps, so it will not
 start further work in the current frame.
+
+### Fullscreen
+
+```ruby
+App.new(width: 640, height: 480, caption: 'demo', fullscreen: true)  # opens fullscreen
+app.fullscreen = !app.fullscreen?                                    # switches either way
+```
+
+**Opening fullscreen is a constructor argument, not a switch afterwards.** Both
+end up fullscreen, but setting it after the window is up shows one windowed
+frame first — the flash a player reads as a broken startup. A game whose
+settings say fullscreen passes the setting to `new`.
+
+`width` and `height` still matter when opening fullscreen: they are the size the
+window takes when it leaves. A game that never offers a way out simply never
+uses them.
+
+It is **desktop** fullscreen — the window covers the screen at the screen's own
+resolution. Nothing asks the display to change mode, so the switch is instant,
+needs no mode list, and leaves other windows alone. What a game gets is a bigger
+view, not a different one.
+
+**Switching resizes the window**, so [`resize`](#hooks-you-can-override) is
+called with the new size, exactly as it is when a user drags a window edge.
+Anything that lays out against the window learns about the change through that
+one path — which is why a scene should read the `view` it is drawn with rather
+than the width it passed to `new`.
+
+`examples/fullscreen` shows both openings and the switch.
 
 ## Raw input queries
 

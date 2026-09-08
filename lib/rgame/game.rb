@@ -63,10 +63,16 @@ module RGame
     # who can play it. Player 0 starts on `device:`; the rest start empty and
     # are filled when someone uses a controller — see RGame::Engine::Players for
     # why that is a press rather than a plug.
+    # `fullscreen:` opens the window fullscreen rather than switching after it is
+    # already up, so a game that always runs fullscreen never flashes a windowed
+    # frame at startup. `width` and `height` still matter: they are the size the
+    # window takes when it leaves fullscreen, whether or not this game offers a
+    # way to do that.
     def initialize(root:, width: WIDTH, height: HEIGHT, caption: 'RGame',
                    media_root: 'media', input_map: nil, device: Controls::KEYBOARD,
-                   players: 1, input: nil)
-      super(width: width, height: height, caption: caption, media_root: media_root)
+                   players: 1, input: nil, fullscreen: false)
+      super(width: width, height: height, caption: caption, media_root: media_root,
+            fullscreen: fullscreen)
 
       @root = root
       @renderer = RGame::Core::Renderer.new(self)

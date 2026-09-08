@@ -256,7 +256,7 @@ not evidence about the device at all.
 **Assets:** `music.ogg` (part of **F**) — and this example is what caught the
 first one being unloopable, which no automated tier could have.
 
-### 6. `examples/fullscreen` — toggling fullscreen
+### 6. `examples/fullscreen` — toggling fullscreen — **done**
 
 **Shows** a window switching between windowed and fullscreen, and the layout
 following it.
@@ -276,7 +276,25 @@ free. `Engine::Layout` divides whatever size it is given.
 
 There is no pure-logic half to put in layer 1 here — it is two SDL calls and a
 flag read, which is exactly what "thin real shim" in CLAUDE.md's tier list is
-for. Check the `windows-portability` skill before writing the binding.
+for.
+
+**Opening fullscreen is a creation flag, not a switch afterwards**, so
+`rgame_app_create` took a `fullscreen` parameter rather than the example calling
+the setter on its first tick. Both end up fullscreen; only one of them avoids
+showing a windowed frame first, and that flash is what a player reads as a
+broken startup. Three call sites, all ours.
+
+**The one real trap was the event.** SDL raises `SDL_WINDOWEVENT_RESIZED` only
+when something *outside* the program resizes the window, and
+`SDL_WINDOWEVENT_SIZE_CHANGED` for that case *and* for a size the program asked
+for. The loop listened for `RESIZED`, so a fullscreen switch changed the window
+and told nobody: viewports kept the old rects and the scene drew for the old
+size. Listening for `SIZE_CHANGED` covers both, and the driven run is what shows
+it — the border coordinates move from 616 to 776 when the switch lands.
+
+One environment note for anyone driving this: under Xvfb with no window manager
+the window does not shrink back on the way out of fullscreen, because nothing is
+there to restore it. `#fullscreen?` still flips correctly; the size does not.
 
 **Assets:** none. This example runs on a fresh clone.
 
@@ -738,7 +756,7 @@ trace in any report. Fixed while writing example 7.
 
 **Phase C — small self-contained additions, in dependency order. No assets.**
 
-8. `examples/fullscreen` (C + Core; the only C work in the batch)
+8. ~~`examples/fullscreen`~~ — **done**; the only C work in the batch.
 9. `examples/save_load` (`Util::SaveFile`)
 10. `examples/menu_navigation` (`UI::OptionItem`; consumes 8 and 9 so its
     settings are real and persist)

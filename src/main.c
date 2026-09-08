@@ -104,7 +104,7 @@ static void on_button_down(void *userdata, int button_id) {
 }
 
 int main(void) {
-    rgame_app *app = rgame_app_create(800, 600, "rgame - SDL + OpenGL");
+    rgame_app *app = rgame_app_create(800, 600, "rgame - SDL + OpenGL", 0);
     if (!app) {
         fprintf(stderr, "Failed to create app\n");
         return 1;

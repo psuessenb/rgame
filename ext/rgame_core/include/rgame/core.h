@@ -19,8 +19,19 @@ extern "C" {
 
 typedef struct rgame_app rgame_app;
 
-/* Creates the window, GL context and internal state. Returns NULL on failure. */
-rgame_app *rgame_app_create(int width, int height, const char *title);
+/*
+ * Creates the window, GL context and internal state. Returns NULL on failure.
+ *
+ * `fullscreen` non-zero opens the window fullscreen straight away, rather than
+ * opening it windowed and switching after. The difference is visible: a switch
+ * made after creation shows one windowed frame first, which is the flash a
+ * player sees when a game starts up wrong.
+ *
+ * `width` and `height` still matter when starting fullscreen — they are the
+ * size the window returns to when it leaves fullscreen, and the size SDL keeps
+ * for it in the meantime.
+ */
+rgame_app *rgame_app_create(int width, int height, const char *title, int fullscreen);
 
 /* Destroys the GL context/window and frees the app. Safe to call with NULL. */
 void rgame_app_destroy(rgame_app *app);
@@ -271,6 +282,19 @@ void rgame_app_close(rgame_app *app);
 /* Current window size, in window coordinates. */
 int rgame_app_width(const rgame_app *app);
 int rgame_app_height(const rgame_app *app);
+
+/*
+ * Fullscreen, toggled at any time. This is *desktop* fullscreen: the window
+ * takes the whole screen at the screen's own resolution, rather than asking the
+ * display to change mode. That makes the switch instant and reversible, costs
+ * no mode list to choose from, and leaves other windows where they were.
+ *
+ * Switching resizes the window, so the `resize` callback fires with the new
+ * size — the same path a user dragging a window edge takes. Nothing else needs
+ * telling.
+ */
+void rgame_app_set_fullscreen(rgame_app *app, int fullscreen);
+int rgame_app_fullscreen(const rgame_app *app);
 
 /* Window title. The returned string is owned by the window, not the caller. */
 const char *rgame_app_title(const rgame_app *app);

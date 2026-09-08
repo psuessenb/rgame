@@ -95,7 +95,11 @@ struct rgame_app {
     int drawing;
 };
 
-rgame_app *rgame_app_create(int width, int height, const char *title) {
+/* Desktop fullscreen, never a mode change — see the header for why. Named once
+ * so the creation flags and the runtime toggle cannot disagree. */
+#define RGAME_FULLSCREEN_FLAG SDL_WINDOW_FULLSCREEN_DESKTOP
+
+rgame_app *rgame_app_create(int width, int height, const char *title, int fullscreen) {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) {
         SDL_Log("SDL_Init failed: %s", SDL_GetError());
         return NULL;
@@ -114,7 +118,8 @@ rgame_app *rgame_app_create(int width, int height, const char *title) {
         title,
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         width, height,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN |
+            (fullscreen ? RGAME_FULLSCREEN_FLAG : 0u));
     if (!app->window) {
         SDL_Log("SDL_CreateWindow failed: %s", SDL_GetError());
         free(app);
@@ -467,7 +472,13 @@ static void rgame_app_poll_events(rgame_app *app, const rgame_app_callbacks *cb)
             break;
         }
         case SDL_WINDOWEVENT:
-            if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
+            /* SIZE_CHANGED rather than RESIZED, and the difference matters:
+             * SDL sends RESIZED only when something *outside* the program
+             * resized the window, and SIZE_CHANGED for that case as well as for
+             * a size this program asked for. Toggling fullscreen is the second
+             * kind, so a listener on RESIZED alone never hears about it and the
+             * game carries on laying out for the old size. */
+            if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
                 /* The viewport is set from the current size every frame, in the
                  * backend's begin_frame, so there is nothing to update here. */
                 if (cb->resize) {
@@ -863,6 +874,25 @@ const char *rgame_app_title(const rgame_app *app) {
 
 void rgame_app_set_title(rgame_app *app, const char *title) {
     SDL_SetWindowTitle(app->window, title);
+}
+
+void rgame_app_set_fullscreen(rgame_app *app, int fullscreen) {
+    if (!app) {
+        return;
+    }
+    SDL_SetWindowFullscreen(app->window, fullscreen ? RGAME_FULLSCREEN_FLAG : 0u);
+}
+
+int rgame_app_fullscreen(const rgame_app *app) {
+    if (!app) {
+        return 0;
+    }
+    /* Tested against the whole mask rather than for any bit in it:
+     * SDL_WINDOW_FULLSCREEN_DESKTOP is SDL_WINDOW_FULLSCREEN plus one more,
+     * so `flags & FLAG` is also true of an exclusive-fullscreen window — which
+     * this engine never asks for, but a caller could have set behind our back. */
+    Uint32 flags = SDL_GetWindowFlags(app->window);
+    return (flags & RGAME_FULLSCREEN_FLAG) == RGAME_FULLSCREEN_FLAG;
 }
 
 int rgame_app_input_down(const rgame_app *app, int device, int button_id) {

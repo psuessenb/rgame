@@ -61,6 +61,7 @@ static ID id_width;
 static ID id_height;
 static ID id_caption;
 static ID id_media_root;
+static ID id_fullscreen;
 
 /* ------------------------------------------------------------------------- *
  * rgame_app lifetime, wrapped as a Ruby object
@@ -110,8 +111,9 @@ static VALUE app_alloc(VALUE klass) {
     return TypedData_Wrap_Struct(klass, &app_data_type, NULL);
 }
 
-/* App.new(width:, height:, caption:) — keyword arguments, matching the shape a
- * subclass's own initialize will forward to via super. */
+/* App.new(width:, height:, caption:, media_root:, fullscreen:) — keyword
+ * arguments, matching the shape a subclass's own initialize will forward to via
+ * super. The first three are required; the last two have defaults. */
 static VALUE app_initialize(int argc, VALUE *argv, VALUE self) {
     VALUE opts = Qnil;
     rb_scan_args(argc, argv, "0:", &opts); /* no positional args, keywords only */
@@ -119,14 +121,19 @@ static VALUE app_initialize(int argc, VALUE *argv, VALUE self) {
         rb_raise(rb_eArgError, "missing keywords: :width, :height, :caption");
     }
 
-    const ID keys[4] = { id_width, id_height, id_caption, id_media_root };
-    VALUE values[4];
-    /* 3 required, 1 optional: raises on a missing or unknown keyword. An absent
+    const ID keys[5] = { id_width, id_height, id_caption, id_media_root, id_fullscreen };
+    VALUE values[5];
+    /* 3 required, 2 optional: raises on a missing or unknown keyword. An absent
      * optional comes back as Qundef. */
-    rb_get_kwargs(opts, keys, 3, 1, values);
+    rb_get_kwargs(opts, keys, 3, 2, values);
 
+    /* Passed to create rather than set afterwards, so a game that starts
+     * fullscreen never shows a windowed frame first. RTEST treats both nil and
+     * false as off, so `fullscreen: settings[:fullscreen]` works with a key that
+     * is missing. */
     rgame_app *app = rgame_app_create(NUM2INT(values[0]), NUM2INT(values[1]),
-                                      StringValueCStr(values[2]));
+                                      StringValueCStr(values[2]),
+                                      values[4] != Qundef && RTEST(values[4]));
     if (!app) {
         rb_raise(rb_eRuntimeError, "failed to create rgame app");
     }
@@ -363,6 +370,18 @@ static VALUE app_set_caption(VALUE self, VALUE title) {
     return title;
 }
 
+static VALUE app_fullscreen_p(VALUE self) {
+    return rgame_app_fullscreen(rgame_app_unwrap(self)) ? Qtrue : Qfalse;
+}
+
+/* Returns what it was given, as an assignment must in Ruby — so
+ * `app.fullscreen = settings.fullscreen?` reads back the value that was set,
+ * not the window's state. Read #fullscreen? for that. */
+static VALUE app_set_fullscreen(VALUE self, VALUE on) {
+    rgame_app_set_fullscreen(rgame_app_unwrap(self), RTEST(on));
+    return on;
+}
+
 /*
  * Raw input queries. These take the numeric device and button/axis ids from
  * RGame::Core::Input rather than symbolic action names — turning `:fire` into
@@ -482,6 +501,7 @@ void Init_core_ext(void) {
     id_height = rb_intern("height");
     id_caption = rb_intern("caption");
     id_media_root = rb_intern("media_root");
+    id_fullscreen = rb_intern("fullscreen");
 
     /*
      * rb_define_module is idempotent — it returns the existing RGame if some
@@ -501,6 +521,8 @@ void Init_core_ext(void) {
     rb_define_method(cApp, "height", app_height, 0);
     rb_define_method(cApp, "caption", app_caption, 0);
     rb_define_method(cApp, "caption=", app_set_caption, 1);
+    rb_define_method(cApp, "fullscreen?", app_fullscreen_p, 0);
+    rb_define_method(cApp, "fullscreen=", app_set_fullscreen, 1);
     rb_define_method(cApp, "ticks_ms", app_ticks_ms, 0);
     rb_define_method(cApp, "fps", app_fps, 0);
     rb_define_method(cApp, "input_down?", app_input_down_p, 2);

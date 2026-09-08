@@ -20,7 +20,8 @@ sound device, the input mapper, the debug overlay — and drives the root node.
 
 ```ruby
 RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
-                media_root: 'media', input_map: nil, device: Controls::KEYBOARD)
+                media_root: 'media', input_map: nil, device: Controls::KEYBOARD,
+                players: 1, fullscreen: false)
 ```
 
 | Reader | |
@@ -29,6 +30,11 @@ RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
 | `renderer` | what scenes draw through |
 | `players` | who is playing: their devices, bindings and cameras |
 | `assets`, `audio`, `media_root`, `width`, `height`, `fps` | inherited from [App](app.md) |
+
+`fullscreen:` opens the window fullscreen instead of switching once it is up,
+which is what keeps a fullscreen game from flashing a windowed frame at startup.
+`width` and `height` are then the size it returns to, if the game offers a way
+back at all. See [Fullscreen](app.md#fullscreen) and `examples/fullscreen`.
 
 `start` brings the tree live — it hands the game to the root as its `context`,
 calls `enter_tree`, and runs the loop until the window closes. `F1` toggles the

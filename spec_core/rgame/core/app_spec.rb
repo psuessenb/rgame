@@ -4,8 +4,60 @@ RSpec.describe RGame::Core::App do
   # Every example builds its own window. That only works because the engine
   # refcounts SDL's lifetime across apps — before it did, a garbage-collected
   # app called SDL_Quit out from under the live ones and the suite segfaulted.
-  def app(width: 200, height: 150, caption: 'spec')
-    described_class.new(width: width, height: height, caption: caption)
+  def app(width: 200, height: 150, caption: 'spec', **extra)
+    described_class.new(width: width, height: height, caption: caption, **extra)
+  end
+
+  describe 'fullscreen' do
+    it 'opens windowed by default' do
+      expect(app).not_to be_fullscreen
+    end
+
+    it 'opens fullscreen when asked' do
+      # A constructor argument rather than a switch on the first tick: both end
+      # up fullscreen, but switching afterwards shows one windowed frame first.
+      expect(app(fullscreen: true)).to be_fullscreen
+    end
+
+    it 'treats a falsey value as windowed' do
+      # `fullscreen: settings[:fullscreen]` with the key missing is the usual
+      # way this arrives, so nil has to mean off rather than raise.
+      expect(app(fullscreen: nil)).not_to be_fullscreen
+    end
+
+    it 'switches on and off again' do
+      window = app
+
+      window.fullscreen = true
+      expect(window).to be_fullscreen
+
+      window.fullscreen = false
+      expect(window).not_to be_fullscreen
+    end
+
+    it 'takes a window that opened fullscreen back to a window' do
+      window = app(fullscreen: true)
+
+      window.fullscreen = false
+
+      expect(window).not_to be_fullscreen
+    end
+
+    it 'returns what it was assigned, as an assignment must' do
+      # Ruby discards a writer's return value and yields the right-hand side, so
+      # this is about `(app.fullscreen = x)` in an expression, not about the
+      # window. #fullscreen? is what reports the window.
+      expect(app.send(:fullscreen=, true)).to be(true)
+    end
+
+    it 'grows the view to the screen' do
+      # The reason any of this matters to a scene: fullscreen is a bigger view,
+      # and a game laying out against its constructor's width would ignore it.
+      window = app(width: 200, height: 150)
+      window.fullscreen = true
+
+      expect(window.width).to be > 200
+    end
   end
 
   describe '.new' do
