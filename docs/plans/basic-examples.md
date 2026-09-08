@@ -205,10 +205,10 @@ forwards it to the real one. That is what lets a headless spec substitute
 `playing?` — the question has no answer for a sound that may be going five times
 at once.
 
-**Two lines are easy to forget, and one of them fails silently:** the sample has
-to be registered under the name the bus emits, *and* a director has to be
-subscribed. Without the second the game runs, the events fire, and nothing comes
-out.
+**Nothing is wired here at all any more.** The sample is named by path, and
+`RGame::Game` subscribes the `AudioDirector`. Both lines this example used to
+carry were removable, and the director one was a footgun: forgetting it was
+silent — the game ran, the events fired, and nothing came out.
 
 Two things about the display, and one of them was a bug in our own cop:
 
@@ -762,25 +762,47 @@ Both are self-contained and could move earlier if wanted. Pathfinding is last
 only because it is the largest single algorithm; it has no dependency on
 anything in phases C or D.
 
-## Next: does audio have to be registered at all?
+## Audio resolves by path now — and what that cost
 
-Phase B exists partly to set this up. Everything else the renderer draws
-resolves on demand when its id is a String path — `resolve_asset` offers the id
-to the asset manager and caches the answer — and `examples/walk` names
-`'hero.json'` with no registration anywhere. Audio is the exception:
-`Audio#play_sound` is `samples.fetch(id)` with no fallback at all, so every
-sound and song is a hand-registered line.
+Phase B existed partly to set this question up, and the answer was yes.
+`Audio#play_sound` and `#play_music` take the same two id spaces the renderer's
+draw-by-id does: a String is a path resolved through the asset manager and
+remembered, a Symbol is a name only registration can bind, and registration
+overrides a path. `examples/sound` and `examples/music` now name their files and
+register nothing; `test_projects/asteroids` still uses Symbols and still works,
+which is the check that both spaces survive.
 
-The reason given in `audio.rb` is that there is "no per-frame path to make
-resolving one worth caching", which explains why it is not *cached like the
-renderer's registries* — a different question from whether it can *resolve*.
+Caching turned out to be a **correctness** requirement rather than an
+optimisation: `play_music` asks the song whether it is already playing, so
+resolving one path to two Songs would defeat that guard and restart the track on
+every request.
 
-So the next step is to try it: give `Audio` the asset manager, let a String id
-resolve exactly the way a sprite sheet does, keep Symbols working for a game
-that wants stable names, and see whether `examples/sound` and `examples/music`
-still play with their registration lines deleted. It touches the shared
-`an_audio_server` contract and `FakeAudio` as well as `Core::Audio`, because the
-engine layer knows the audio server only by method name.
+**The interesting part was the lifetime bug it exposed.** Giving `Audio` the
+asset manager added one edge to a graph that already had a permanent root:
+
+```
+AudioBus (a module — process-global, never unsubscribed)
+  -> the connected block -> AudioDirector -> the Audio device
+  -> the asset manager        <- the new edge
+  -> the App -> the GL window
+```
+
+Every audio-using project broke under `tools/drive_test_project.rb`, which tears
+down its Xvfb after a `GC.start` meant to close the window first. Measured:
+subscribing a director and playing nothing left one live `App` after three full
+collections. It was not the resolution that was wrong — any path resolution
+downstream of the bus reaches the App, because the asset manager needs the app
+to build images — it was that a module-level hub held a listener for ever.
+
+So `RGame::Game` owns the director now: it subscribes one in `start` and
+releases it in `ensure`. That deletes a line from every game's `main.rb` which
+was a footgun in its own right — forgetting to subscribe was **silent**, the
+tree running and the events firing and nothing playing.
+
+Worth keeping in mind for the rest of this plan: **a global that never lets go
+is invisible until something else reaches through it.** The bus had been holding
+the audio device for ever the whole time, and nobody noticed until the device
+started holding the window.
 
 ## Open questions, collected
 

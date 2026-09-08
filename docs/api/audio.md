@@ -98,20 +98,43 @@ one before starting the new one.
 ## Playing by id
 
 The same boundary drawing has: gameplay emits a fact and names the sound,
-because a scene may not hold a `Sample`.
+because a scene may not hold a `Sample`. `examples/sound` and `examples/music`
+are the two kinds side by side — a Sample fired by a button and layered, and a
+Song looped, stopped and restarted.
 
 ```ruby
-audio.register_sound(:hit, app.assets.sound('example 09/hurt.ogg'))
-audio.register_music(:theme, app.assets.song('example 09/theme.ogg'))
-
-audio.play_sound(:hit)
-audio.play_music(:theme)   # loops
+audio.play_sound('hurt.ogg')
+audio.play_music('theme.ogg')   # loops
 audio.stop_music
 ```
 
-Registration only, unlike the renderer's draw-by-id: a sound id is whatever a
-game wants to call it, and there is no per-frame path here to make resolving a
-path worth caching. An unknown id is a `KeyError`.
+**Two id spaces, the same two the renderer's draw-by-id has.** A **String is a
+root-relative path**, resolved through the asset manager on first use and then
+remembered. A **Symbol is a name the game chose**, and only registration can
+bind one:
+
+```ruby
+audio.register_sound(:hit, app.assets.sound('hurt.ogg'))
+audio.play_sound(:hit)
+```
+
+Registration also *overrides* a path, which is how a game binds a sound it
+assembled rather than loaded. An id that is neither registered nor resolvable is
+a `KeyError`; `nil` is a `TypeError`, because an asset that resolved to nothing
+is a different bug from a mistyped name.
+
+**Resolution is cached, and has to be.** `play_music` asks the song whether it
+is already playing, so resolving one path to two `Song` objects would defeat
+that guard and restart the track on every request.
+
+**A game wires none of this.** `RGame::Game` subscribes an
+[`AudioDirector`](toolbox.md) to the global `AudioBus` when it starts and
+releases it when the loop ends, so a scene emitting on the bus is heard with
+nothing set up. Both halves are the engine's job for the same reason: a missing
+director is silent — the tree runs, the events fire, nothing plays — and a
+director left on the bus holds the device, the asset manager and the whole `App`
+for the life of the process, which a game never notices and anything running two
+games does.
 
 **`play_music` is idempotent.** Asking for the track that is already playing
 does nothing, so a scene that re-emits the request every time it is entered
@@ -187,9 +210,6 @@ and calls it by method name, never by class, so a headless spec can substitute
 one that makes no sound and records everything.
 
 `spec/support/fake_audio.rb` is that stand-in, and
-`examples/sound` and `examples/music` are the two kinds side by side: a Sample
-fired by a button and layered, and a Song looped, stopped and restarted.
-
 `spec/support/shared_examples/an_audio_server.rb` is the interface both it and
 the real device are run against — so the fake cannot drift into describing an
 engine that no longer exists.

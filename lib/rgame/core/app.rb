@@ -73,7 +73,12 @@ module RGame
       # This app's sound device. Not tied to the window in any way — audio has
       # no GL context and survives one being recreated — it lives here because
       # a game wants exactly one, the same way it wants one asset manager.
-      def audio = @audio ||= Audio.new
+      # It is handed this app's asset manager, so `audio.play_sound('hurt.ogg')`
+      # resolves a path the same way `renderer.sprite('hero.json', …)` does.
+      # Building the manager does not touch audio — its loaders are lambdas,
+      # called at load time — so there is no cycle here despite the manager
+      # reaching back through `app.audio` to make a sound.
+      def audio = @audio ||= Audio.new(assets: assets)
 
       # Where #assets resolves relative paths from. Set once, as a keyword to
       # the constructor; there is deliberately no writer, because changing it

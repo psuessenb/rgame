@@ -5,7 +5,7 @@
 #
 # What the report should show, in the audio section:
 #
-#   - **4 x music theme and 1 x music stop**. Every start is emitted, because the
+#   - **4 x music music.ogg and 1 x music stop**. Every start is emitted, because the
 #     scene deliberately keeps no copy of "is it playing" — so this count is
 #     presses, not restarts;
 #   - two `rect` and two `text` calls per frame.

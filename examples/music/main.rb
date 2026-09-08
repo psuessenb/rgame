@@ -9,10 +9,11 @@
 # Enter or Space starts it; Escape stops it. Press start again while it is
 # already playing and **nothing happens** — that is deliberate, and the reason
 # is below. It exercises:
-#   - Core::Audio#register_music and Core::Song — a streamed track with one
-#     voice, which can be stopped and asked whether it is playing;
+#   - Core::Song — a streamed track with one voice, which can be stopped and
+#     asked whether it is playing, named by its path;
 #   - Engine::AudioBus play_music / stop_music;
-#   - Engine::AudioDirector, the same one `examples/sound` uses.
+#   - Engine::AudioDirector, the same one `examples/sound` uses, subscribed by
+#     RGame::Game.
 #
 # ## A Song is not a Sample
 #
@@ -99,10 +100,10 @@ class Scene < RGame::Engine::Node2D
   # Audio#play_music, which owns the state that answers it.
   #
   # `@playing` below is *not* that state duplicated — it only drives the bar and
-  # the label, and it is why the bar keeps running on a second press rather than
-  # proving anything about the device.
+  # the label, which is why the bar carrying on through a second press proves
+  # nothing about the device.
   def start
-    RGame::Engine::AudioBus.play_music(:theme)
+    RGame::Engine::AudioBus.play_music('music.ogg')
     return if @playing
 
     @playing = true
@@ -124,8 +125,5 @@ game = RGame::Game.new(
   height: HEIGHT,
   media_root: ASSETS
 )
-
-game.audio.register_music(:theme, game.assets.song('music.ogg'))
-RGame::Engine::AudioDirector.new(game.audio).subscribe
 
 game.start

@@ -62,9 +62,17 @@ class FakeAudio
 
   # --- play-by-id ---------------------------------------------------------
   #
-  # Registration only, like the real device. A spec asserting that a scene
-  # played the right thing usually reads #played? rather than these, but the
-  # scene under test reaches them by id, so they have to exist and behave.
+  # A registered id, or a path resolved once and remembered — the same two id
+  # spaces the real device has. A spec asserting that a scene played the right
+  # thing usually reads #played? rather than these, but the scene under test
+  # reaches them by id, so they have to exist and behave.
+  #
+  # Where the real one asks its asset manager, this makes the sound itself.
+  # That stands in faithfully for everything a caller can observe: a path plays
+  # without being registered, and the *same* path gives back the *same* object,
+  # which is what makes play_music's already-playing guard work by path. What it
+  # cannot stand in for is a path that does not exist — the fake opens nothing,
+  # so a missing file is `spec_core`'s to cover.
 
   def register_sound(id, sample)
     sounds[id] = sample
@@ -76,10 +84,10 @@ class FakeAudio
     self
   end
 
-  def play_sound(id) = sounds.fetch(id).play
+  def play_sound(id) = lookup(sounds, :sample, id).play
 
   def play_music(id)
-    song = music.fetch(id)
+    song = lookup(music, :song, id)
     return song if song.playing?
 
     @playing_song = song
@@ -142,6 +150,19 @@ class FakeAudio
   private
 
   attr_reader :sounds, :music
+
+  # Registered ids win; a String is a path and is resolved once. Caching is not
+  # an optimisation here — resolving one path to two Songs would break the
+  # already-playing guard above, exactly as it would on the real device.
+  def lookup(table, kind, id)
+    raise TypeError, "no implicit conversion of nil into #{kind}" if id.nil?
+
+    table.fetch(id) do
+      raise KeyError, "no #{kind} registered for #{id.inspect}" unless id.is_a?(String)
+
+      table[id] = public_send(kind, id)
+    end
+  end
 end
 
 # A short sound from a FakeAudio. Playing it records; nothing else happens.

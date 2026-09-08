@@ -26,10 +26,27 @@ RSpec.describe RGame::Core::Audio do
   let(:audio) { RGame::Core::Audio.new }
   # rubocop:enable RSpec/DescribedClass
 
+  # An asset manager for the device, so the contract's path-resolution examples
+  # exercise the real route: `play_sound(path)` -> AssetManager#sound ->
+  # `app.audio.sample`. It is attached after construction rather than passed to
+  # `.new`, because the manager needs the device that is being built.
+  #
+  # The app is a double because the manager wants exactly one thing from it. The
+  # root does not matter: `AudioFixture::OGG` is absolute, and `File.expand_path`
+  # leaves an absolute path alone, so the same value the contract yields for
+  # `audio.sample(path)` works unchanged as a resolvable id.
+  let(:assets) do
+    RGame::Core::AssetManager.new(root: File.dirname(AudioFixture::OGG),
+                                  app: instance_double(RGame::Core::App, audio: audio))
+  end
+
   # The contract's hook. The real device is opened here and the path is a
   # fixture that exists, which is the whole of what it needs that the fake does
   # not.
-  def with_audio = yield(audio, AudioFixture::OGG)
+  def with_audio
+    audio.assets = assets
+    yield(audio, AudioFixture::OGG)
+  end
 
   it_behaves_like 'an audio server'
 
@@ -41,6 +58,34 @@ RSpec.describe RGame::Core::Audio do
   def live_sounds
     3.times { GC.start(full_mark: true, immediate_sweep: true) }
     described_class.debug_live_sounds
+  end
+
+  # The half of play-by-id the shared contract cannot state, because the fake
+  # opens no files and so cannot fail to find one.
+  describe 'playing a path that does not resolve' do
+    it 'raises when the file is not there' do
+      audio.assets = assets
+
+      expect { audio.play_sound('nothing-here.ogg') }.to raise_error(StandardError)
+    end
+
+    it 'raises a KeyError for a path when it has no asset manager at all' do
+      # A device built by hand plays only what it is handed. The message says
+      # both halves — not registered, and nothing to resolve it with — because
+      # either one alone sends you looking in the wrong place.
+      expect { audio.play_sound('anything.ogg') }
+        .to raise_error(KeyError, /no sound registered.*no AssetManager/m)
+    end
+
+    it 'does not cache a failure, so a later registration still works' do
+      # The lookup writes to the table only on success. A resolution failure
+      # that poisoned the entry would make a game unrecoverable from a
+      # mis-typed path even after the right sound was registered.
+      expect { audio.play_sound('anything.ogg') }.to raise_error(KeyError)
+      audio.register_sound('anything.ogg', audio.sample(AudioFixture::OGG))
+
+      expect { audio.play_sound('anything.ogg') }.not_to raise_error
+    end
   end
 
   describe '#backend' do

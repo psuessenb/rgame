@@ -109,8 +109,27 @@ module RGame
       # on_add anywhere in it can already resolve node.system(...) for either.
       @root.add_component(@players)
       @root.add_component(@viewports)
+      # What turns `AudioBus.play_sound(:hit)` into a noise: the bus is where the
+      # scene graph emits audio facts, and this is the only thing listening.
+      #
+      # It belongs here for the same reason the asset loaders do — the glue is
+      # what may name both layers — and it is wired here rather than by a game
+      # because a step that *must* happen is the engine's job. Nothing about a
+      # missing director is loud: the tree runs, the events fire, and no sound
+      # comes out.
+      #
+      # **The `ensure` is half of it.** AudioBus is a module, one hub for the
+      # whole process, and it holds its listeners until something takes them
+      # off. A director left on it keeps the audio device alive, and with it the
+      # asset manager that device resolves paths through and the App that
+      # manager loads images for — down to the window. A game never notices,
+      # because its App lives as long as the process; anything that runs two
+      # does.
+      @audio_director = Engine::AudioDirector.new(audio).subscribe
       @root.enter_tree # components attach, then on_add
       run
+    ensure
+      @audio_director&.unsubscribe
     end
 
     # One fixed simulation tick. `dt` is always the engine's fixed step, so the

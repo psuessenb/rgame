@@ -6,7 +6,7 @@
 #
 # What the report should show:
 #
-#   - **eight `sound blip` lines in the audio section**, one per press. That is
+#   - **eight `sound blip.ogg` lines in the audio section**, one per press. That is
 #     the count to assert on: it goes through AudioBus, the AudioDirector and
 #     Core::Audio, so a break anywhere in that chain drops it to zero;
 #   - one `circle` and one `text` call per frame, plus one `rect` per pip —

@@ -110,6 +110,5 @@ game.audio.register_sound(:boom,  game.assets.sound('example 09/boom.ogg'))
 game.audio.register_sound(:hurt,  game.assets.sound('example 09/hurt.ogg'))
 game.audio.register_sound(:blip,  game.assets.sound('example 09/blip.ogg'))
 game.audio.register_music(:heartbeat, game.assets.song('example 09/heartbeat.ogg'))
-RGame::Engine::AudioDirector.new(game.audio).subscribe
 
 game.start

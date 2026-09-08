@@ -8,17 +8,19 @@
 #
 # Space (or A on a pad) plays a blip. Press it fast: each press is another
 # voice, so they overlap rather than cutting each other off. It exercises:
-#   - Core::Audio#register_sound and Core::Sample — a decoded, fire-and-forget
-#     effect;
+#   - Core::Sample — a decoded, fire-and-forget effect, named by its path;
 #   - Engine::AudioBus — where gameplay says *what happened*;
-#   - Engine::AudioDirector — the one thing that turns that into playback.
+#   - Engine::AudioDirector — what turns that into playback, subscribed by
+#     RGame::Game.
 #
 # ## Why a node does not just call the audio device
 #
 # It cannot. A node lives in `RGame::Engine`, and that layer may not name
 # `RGame::Core` at all — not a require, not a constant. So `Scene#on_control`
 # below emits on `AudioBus`, a global signal hub that knows nothing about sound,
-# and an `AudioDirector` wired up in this file forwards it to the real device.
+# and an `AudioDirector` forwards it to the real device. `RGame::Game` subscribes
+# that director when it starts and releases it when the loop ends, so this file
+# wires nothing.
 #
 # That looks like ceremony until you notice what it buys: the same scene runs in
 # a headless spec with a recording fake substituted for the device, and the spec
@@ -33,12 +35,16 @@
 # It has no `playing?`, because the question has no answer for a sound that may
 # be going five times at once. `examples/music` is the other type.
 #
-# ## The one place "just pass the path" does not hold
+# ## Naming a sound is naming a file
 #
-# Images, sprite sheets and tile maps resolve on demand when the id is a path —
-# `examples/walk` names `'hero.json'` and registers nothing. Audio does not:
-# `Audio#play_sound` is `samples.fetch(id)` with no asset-manager fallback, so
-# every sound is a hand-registered line at the bottom of this file.
+# `'blip.ogg'` is a path, resolved through the asset manager on first use and
+# remembered — the same thing `examples/walk` does with `'hero.json'`. Nothing is
+# registered anywhere in this file.
+#
+# The other id space is a Symbol, which `audio.register_sound(:hit, ...)` binds
+# to a sound the game chose the name for, or assembled rather than loaded. Audio
+# and the renderer take the same two, so one rule covers both: a String is a
+# file, a Symbol is a name.
 
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
@@ -70,7 +76,7 @@ class Scene < RGame::Engine::Node2D
 
     # The whole of "make a noise": a fact, emitted. Nothing here knows whether
     # anything is listening, or what it would play it on.
-    RGame::Engine::AudioBus.play_sound(:blip)
+    RGame::Engine::AudioBus.play_sound('blip.ogg')
 
     @flash = 1.0
     @plays += 1
@@ -95,7 +101,7 @@ class Scene < RGame::Engine::Node2D
   # the operands off the stack. Measured at 0 objects over 200,000 calls.
   def on_draw(renderer, _view)
     renderer.circle(WIDTH / 2, HEIGHT / 2, MIN_R + (GROW * @flash), color: RING)
-    renderer.text('Press Space (or A) — fast, to hear them overlap', 12, 12)
+    renderer.text('Press Space (or A on a controller) — fast, to hear them overlap', 12, 12)
 
     [@plays, PIP_MAX].min.times do |i|
       renderer.rect(12 + (i * (PIP_SIZE + PIP_GAP)), PIP_Y, PIP_SIZE, PIP_SIZE, color: PIP)
@@ -110,15 +116,5 @@ game = RGame::Game.new(
   height: HEIGHT,
   media_root: ASSETS
 )
-
-# The two lines that make sound possible, and both are easy to forget:
-#
-#   1. the sample is registered under the name the bus will emit;
-#   2. a director is subscribed, or the bus emits into nothing at all.
-#
-# Forgetting the second is silent — the game runs, the events fire, and no sound
-# comes out.
-game.audio.register_sound(:blip, game.assets.sound('blip.ogg'))
-RGame::Engine::AudioDirector.new(game.audio).subscribe
 
 game.start

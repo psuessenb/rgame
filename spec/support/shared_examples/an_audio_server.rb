@@ -31,6 +31,10 @@
 # opens a device with no device behind it and reads the mixed samples back, the
 # audio equivalent of reading the framebuffer.
 #
+# It says nothing about a path that does not *exist*, either. The fake opens
+# nothing, so a missing file is only a failure on the real device, and covering
+# it is `spec_core/rgame/core/audio_spec.rb`'s job.
+#
 # It also says nothing about a sound *finishing*. Playback runs against a clock
 # either way, so "is it still playing a moment later" is a timing question with
 # no stable answer. Only the transitions a caller controls are stated here.
@@ -81,8 +85,11 @@ RSpec.shared_examples 'an audio server' do
 
   # The other half of the interface, and the one a scene actually uses: game
   # logic emits a fact — "the ship was hit" — naming the sound, because it may
-  # not hold a Sample. Registration only, unlike the renderer's draw-by-id:
-  # there is no per-frame path here to make resolving a path worth caching.
+  # not hold a Sample.
+  #
+  # There are two id spaces, the same two the renderer's draw-by-id has. A
+  # **String is a path**, resolved once and remembered. A **Symbol is a name the
+  # game chose**, and only registration can bind it.
   describe 'playing by id' do
     # A song that only counts. See "ignores a request to play music that is
     # already playing" for why a real one cannot answer that question.
@@ -117,6 +124,43 @@ RSpec.shared_examples 'an audio server' do
 
     it 'raises for a sound id it does not know' do
       with_audio { |audio, _path| expect { audio.play_sound(:nobody) }.to raise_error(KeyError) }
+    end
+
+    it 'plays a sample named by a path, with nothing registered' do
+      with_audio do |audio, path|
+        expect { audio.play_sound(path) }.not_to raise_error
+      end
+    end
+
+    it 'plays music named by a path, with nothing registered' do
+      with_audio do |audio, path|
+        expect { audio.play_music(path) }.not_to raise_error
+      end
+    end
+
+    it 'resolves a path to the same sound every time' do
+      # Not an optimisation — a correctness requirement, and the reason
+      # resolution is cached rather than repeated. `play_music` asks the song
+      # whether it is already playing; two Songs from one path would defeat that
+      # guard and restart the track on every request.
+      with_audio do |audio, path|
+        first = audio.play_music(path)
+        second = audio.play_music(path)
+
+        expect(second).to equal(first)
+      end
+    end
+
+    it 'lets a registered id shadow a path that would otherwise resolve' do
+      # Registration is the override, so a game can bind a name to a sound it
+      # assembled itself and have that win.
+      with_audio do |audio, path|
+        song = recording_song
+        audio.register_music(path, song)
+        audio.play_music(path)
+
+        expect(song.plays).to eq(1)
+      end
     end
 
     it 'loops a registered song' do
@@ -186,6 +230,13 @@ RSpec.shared_examples 'an audio server' do
     it 'refuses a nil path' do
       with_audio { |audio, _path| expect { audio.sample(nil) }.to raise_error(TypeError) }
       with_audio { |audio, _path| expect { audio.song(nil) }.to raise_error(TypeError) }
+    end
+
+    it 'refuses a nil id' do
+      # An asset that resolved to nothing, not a name. Reported as a TypeError
+      # rather than "no sound registered for nil", which describes a typo.
+      with_audio { |audio, _path| expect { audio.play_sound(nil) }.to raise_error(TypeError) }
+      with_audio { |audio, _path| expect { audio.play_music(nil) }.to raise_error(TypeError) }
     end
 
     it 'refuses a volume that is not a number on a sound' do

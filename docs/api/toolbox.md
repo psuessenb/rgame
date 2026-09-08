@@ -225,6 +225,14 @@ emits audio *facts* (`play this sound`, `play this music`) here, decoupled from 
 and an `AudioDirector` subscribes and turns them into actual
 sound. A module rather than an instance so any node can reach it without wiring.
 
+`RGame::Game` subscribes a director when it starts and calls `unsubscribe` when
+the loop ends. Both are its job, not a game's. The release is the half worth
+knowing about: the bus is a module, so it holds its listeners until something
+takes them off, and a listener holds the director, the audio device, the asset
+manager that device resolves paths through, and the `App` that manager loads
+images for — down to the window. A game never notices, because its App lives as
+long as the process. Anything that runs two does.
+
 ```ruby
 RGame::Engine::AudioBus.play_sound(:boom)
 RGame::Engine::AudioBus.play_music(:theme)
