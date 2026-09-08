@@ -187,6 +187,9 @@ and calls it by method name, never by class, so a headless spec can substitute
 one that makes no sound and records everything.
 
 `spec/support/fake_audio.rb` is that stand-in, and
+`examples/sound` and `examples/music` are the two kinds side by side: a Sample
+fired by a button and layered, and a Song looped, stopped and restarted.
+
 `spec/support/shared_examples/an_audio_server.rb` is the interface both it and
 the real device are run against — so the fake cannot drift into describing an
 engine that no longer exists.

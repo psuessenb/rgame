@@ -14,10 +14,12 @@ RSpec.describe RuboCop::Cop::Game::NoNeedlessAllocation, :config do
   end
 
   describe 'a literal used as a method receiver (flagged anywhere)' do
+    # Deliberately not `.max`: that one compiles to `opt_newarray_send` and builds
+    # no Array, so it belongs among the allowed cases below rather than here.
     it 'flags an array literal built just to call a method on it' do
-      expect_offense(<<~RUBY, msg: receiver_msg(kind: 'array', method: 'max'))
+      expect_offense(<<~RUBY, msg: receiver_msg(kind: 'array', method: 'sum'))
         def span(a, b)
-          [a, b].max
+          [a, b].sum
           ^^^^^^ %{msg}
         end
       RUBY
@@ -83,6 +85,67 @@ RSpec.describe RuboCop::Cop::Game::NoNeedlessAllocation, :config do
       expect_no_offenses(<<~RUBY)
         def initialize(interval: 1.0..3.0)
           @interval = interval
+        end
+      RUBY
+    end
+
+    # These four are the sends the VM rewrites to `opt_newarray_send`, which reads
+    # the operands off the stack and builds no Array. Measured: 0 allocations over
+    # 200,000 calls. Flagging them put this cop in direct conflict with
+    # Style/MinMaxComparison, which asks for exactly this form.
+    it 'allows the sends the VM optimises into opt_newarray_send' do
+      expect_no_offenses(<<~RUBY)
+        def draw(r)
+          a = [@x, LIMIT].min
+          b = [@x, LIMIT].max
+          c = [@x, @y].hash
+          d = [@x, @y].include?(@z)
+        end
+      RUBY
+    end
+
+    it 'allows the optimised sends with more than two elements' do
+      expect_no_offenses(<<~RUBY)
+        def draw(r)
+          [@a, @b, @c].max
+        end
+      RUBY
+    end
+
+    # The optimisation is narrow, and the cop has to be too, or it stops catching
+    # the allocations it exists for.
+    it 'still flags an optimised send once it takes a block' do
+      expect_offense(<<~RUBY, msg: receiver_msg(kind: 'array', method: 'min'))
+        def draw(r)
+          [@a, @b].min { |x, y| x <=> y }
+          ^^^^^^^^ %{msg}
+        end
+      RUBY
+    end
+
+    it 'still flags an optimised send once it takes an argument' do
+      expect_offense(<<~RUBY, msg: receiver_msg(kind: 'array', method: 'min'))
+        def draw(r)
+          [@a, @b].min(1)
+          ^^^^^^^^ %{msg}
+        end
+      RUBY
+    end
+
+    it 'still flags a send the VM does not optimise' do
+      expect_offense(<<~RUBY, msg: receiver_msg(kind: 'array', method: 'sum'))
+        def draw(r)
+          [@a, @b].sum
+          ^^^^^^^^ %{msg}
+        end
+      RUBY
+    end
+
+    it 'still flags a splat, which is assembled at runtime and does allocate' do
+      expect_offense(<<~RUBY, msg: receiver_msg(kind: 'array', method: 'min'))
+        def draw(r)
+          [*@a, @b].min
+          ^^^^^^^^^ %{msg}
         end
       RUBY
     end

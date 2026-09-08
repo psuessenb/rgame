@@ -483,6 +483,16 @@ module DriveTestProject
       @report.record_sound('music', id)
       @target.play_music(id, **)
     end
+
+    # Recorded with no id because it takes none: `stop_music` stops whatever
+    # *this registry* started, deliberately rather than "whatever is playing".
+    # It is reported for the same reason the other two are — a scene that stops
+    # its music on the way out is a structural fact, and its absence from a run
+    # that should have had one is the kind of thing this harness exists to show.
+    def stop_music
+      @report.record_sound('music', 'stop')
+      @target.stop_music
+    end
   end
 
   # Drives a *synthetic controller* instead of the input backend.

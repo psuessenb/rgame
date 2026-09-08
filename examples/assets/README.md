@@ -1,7 +1,7 @@
 # Example assets
 
-Everything the examples draw and play. Nine files, about 80 KB in total —
-of which the music is 53 KB, and the reason for `tools/shrink_ogg.c`.
+Everything the examples draw and play. Nine files, about 122 KB in total —
+of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
 
 ## Why these files and not the ones in `media/`
 
@@ -160,35 +160,45 @@ a second sound it costs nothing to take another.
 - Source: <https://opengameart.org/content/short-loops-background-music-pack>
 - Author: hernandack
 - Licence: CC0
-- Modification: the track *A Brand New Wisdom* downmixed to mono and re-encoded
-  at Vorbis quality -0.1, with `tools/shrink_ogg.c`. **The length is unchanged.**
+- Modification: the track *Just Saying Tho* downmixed to mono and re-encoded at
+  Vorbis quality -0.1, with `tools/shrink_ogg.c`. **The length is unchanged.**
 
-16.63 seconds. The original is 259 KB — stereo, 44.1 kHz, ~125 kbps, encoded for
-listening rather than for a library gem. Everything else in this directory is
-21 KB in total, so shipping it as-is would have made the music twelve times the
-rest of the assets put together, in a gem most of whose users will never run the
-audio example. Mono at a low quality setting is 53 KB and is background music in
-a teaching example.
+24.05 seconds, 93 KB, down from 388 KB. The original is stereo, 44.1 kHz,
+~128 kbps — encoded for listening rather than for a library gem — and mono at a
+low quality setting is background music in a teaching example.
 
 **Length was deliberately not touched.** A seamless loop is seamless at exactly
 its own length, because the author arranged for the end to lead back into the
-start. Trimming it to save more bytes would put an audible seam in the middle of
-the one property the file is shipped to demonstrate.
+start. Trimming it to save more bytes would put a seam in the middle of the one
+property the file is shipped to demonstrate.
 
-That property is measured rather than taken on trust. `tools/shrink_ogg.c`
-reports the jump across the loop point against the largest sample-to-sample step
-found anywhere in the track:
+#### Why this is the second track here
 
-| | seam | largest internal step | ratio |
+The first one shipped was *A Brand New Wisdom* from the same pack, chosen on a
+seam measurement of 2.6% — and it loops audibly badly, because **it ends with
+0.79 seconds of silence.** The wrap has no click. It has a *gap*.
+
+That is a hole in the measurement, not bad luck. A seam figure asks "does the
+last sample join smoothly onto the first", and silence joins onto silence
+perfectly. Fading out to nothing is the ordinary way to end a piece of music and
+the ordinary way to ruin a loop, and the number said 0.7% the whole time.
+
+`tools/shrink_ogg.c` now reports both, and the whole pack looks different under
+the second one:
+
+| track | seam | tail silence | |
 |---|---|---|---|
-| original (stereo) | 0.00540 | 0.20526 | 2.6% |
-| shipped (mono, q -0.1) | 0.00134 | 0.19580 | **0.7%** |
+| A Brand New Wisdom | 2.6% | **0.79s** | shipped first, wrong |
+| Swinging Sweet | 4.5% | **1.48s** | worse |
+| Winter Dust | 34.9% | 0.00s | no gap, bad seam |
+| **Just Saying Tho** | 2.8% | **0.00s** | shipped now |
+| 8BitBattleLoop (other pack) | 0.0% | 0.01s | cleanest, but 108 KB and chiptune |
 
-It got *better*, because the downmix and the re-encode both smooth the boundary.
-A seam well under the music's own steps is inaudible; the same measurement on
-the other candidates ranged from 0.0% to 35%, which is how this one was chosen.
+Measured back off the shipped file: seam 2.3%, no silence at either end.
 
-## Adding an asset here
+**A loop wants both numbers.** A small seam alone is not evidence.
+
+## Adding an asset here## Adding an asset here
 
 1. CC0, or drawn in this repo. If the licence says anything about redistribution
    at all, it does not go here — see the top of this file.

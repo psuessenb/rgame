@@ -118,6 +118,17 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
       end
     end
 
+    it 'matches the loop length examples/music draws its playhead against' do
+      # examples/music has to state the loop length as a constant — nothing can
+      # ask a Song how long it is — so the constant and the file are two copies
+      # of one fact, free to drift the moment the track is replaced. It was
+      # replaced once already.
+      source = File.read(File.expand_path('../examples/music/main.rb', __dir__))
+      declared = source[/^LOOP_SECONDS\s*=\s*([0-9.]+)/, 1].to_f
+
+      expect(ogg_seconds(File.join(assets, 'music.ogg'))).to be_within(0.05).of(declared)
+    end
+
     it 'keeps the music mono, which is what makes it small enough to ship' do
       # Re-exported in stereo it is five times the size, and it is background
       # music in an example — see tools/shrink_ogg.c and the asset README.
@@ -196,6 +207,17 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
       end
     end
     nil
+  end
+
+  # Length in seconds: the last Ogg page's granule position is the total sample
+  # count, and the sample rate is in the identification header. Read here rather
+  # than decoded, so this suite stays headless.
+  def ogg_seconds(path)
+    data = File.binread(path)
+    header = data.index("\x01vorbis")
+    rate = data[header + 12, 4].unpack1('V')
+    granule = data[data.rindex('OggS') + 6, 8].unpack1('q<')
+    granule.to_f / rate
   end
 
   # Channel count from the Vorbis identification header, which follows the

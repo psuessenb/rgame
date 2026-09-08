@@ -31,13 +31,21 @@
  * the file is being shipped to demonstrate. Channels and quality are free to
  * change; length is not.
  *
- * ## The seam figure
+ * ## The two loop figures, and why one is not enough
  *
- * It reports the discontinuity across the loop point — the jump from the last
- * sample back to the first, against the largest sample-to-sample step found
- * anywhere inside the track. A seam no bigger than the music's own steps is
- * inaudible; one many times larger is a click every time the loop wraps. That
- * turns "loops seamlessly" from a claim on a download page into a number.
+ * **The seam** is the discontinuity across the loop point: the jump from the
+ * last sample back to the first, against the largest sample-to-sample step
+ * found anywhere inside the track. A seam no bigger than the music's own steps
+ * is inaudible; one many times larger is a click every wrap.
+ *
+ * **The silence** is how much of the head and tail is effectively quiet. This
+ * one was added after a track passed the seam test with 0.7% and still looped
+ * audibly badly: it ends with about a second of silence, so the wrap has no
+ * click at all — it has a *gap*. Fading out to nothing is the ordinary way to
+ * end a piece of music and the ordinary way to ruin a loop, and a seam figure
+ * cannot see it, because silence meeting silence is a perfectly smooth join.
+ *
+ * So both are reported, and a loop wants **a small seam and no tail silence**.
  */
 
 #include <math.h>
@@ -74,6 +82,10 @@ static void drain_encoder(vorbis_dsp_state *dsp, vorbis_block *block,
     }
 }
 
+/* Anything below this counts as silence: about -40 dBFS, quiet enough that a
+ * listener hears a gap rather than a quiet passage. */
+#define SILENCE 0.01f
+
 /* The loop seam, against the track's own largest internal step. */
 static void report_seam(const float *mono, int frames) {
     if (frames < 2) {
@@ -92,6 +104,23 @@ static void report_seam(const float *mono, int frames) {
     printf("  loop seam   %.5f, against a largest internal step of %.5f (%.1f%%)\n",
            (double)seam, (double)biggest,
            biggest > 0.0f ? (double)(seam / biggest * 100.0f) : 0.0);
+}
+
+/* Quiet run at each end. A seam figure cannot see this and it ruins a loop. */
+static void report_silence(const float *mono, int frames, int rate) {
+    int head = 0;
+    while (head < frames && fabsf(mono[head]) < SILENCE) {
+        head++;
+    }
+
+    int tail = 0;
+    while (tail < frames && fabsf(mono[frames - 1 - tail]) < SILENCE) {
+        tail++;
+    }
+
+    printf("  silence     %.3fs at the head, %.3fs at the tail%s\n",
+           (double)head / rate, (double)tail / rate,
+           tail > rate / 10 ? "   <-- this is a gap in the loop" : "");
 }
 
 int main(int argc, char **argv) {
@@ -129,6 +158,7 @@ int main(int argc, char **argv) {
     printf("read %s: %.2fs, %d channels, %d Hz\n",
            argv[1], (double)frames / rate, channels, rate);
     report_seam(mono, frames);
+    report_silence(mono, frames, rate);
 
     vorbis_info info;
     vorbis_info_init(&info);

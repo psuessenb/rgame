@@ -186,7 +186,77 @@ Two constraints on which art, both found by looking rather than by reading:
 **Assets:** **C**, delivered — `ui.png` + `ui.json`, five 32x32 elements cut
 from Kenney's CC0 *UI Pack - Pixel Adventure*, 1 KB.
 
-### 4. `examples/fullscreen` — toggling fullscreen
+### 4. `examples/sound` — a sound effect fired by a button — **done**
+
+**Shows** the smallest complete noise, and the seam it travels through.
+
+**Existing:** `Core::Audio#register_sound`, `Core::Sample`, `Engine::AudioBus`,
+`Engine::AudioDirector`.
+
+**New:** none.
+
+**The point is the seam, not the noise.** A node may not name `RGame::Core`, so
+it cannot reach the audio device — it emits on `AudioBus`, a global signal hub
+that knows nothing about sound, and an `AudioDirector` wired up in `main.rb`
+forwards it to the real one. That is what lets a headless spec substitute
+`FakeAudio` and assert on what was *asked for*.
+
+**A `Sample` layers.** Decoded up front, a fresh voice per `play_sound`, and no
+`playing?` — the question has no answer for a sound that may be going five times
+at once.
+
+**Two lines are easy to forget, and one of them fails silently:** the sample has
+to be registered under the name the bus emits, *and* a director has to be
+subscribed. Without the second the game runs, the events fire, and nothing comes
+out.
+
+Two things about the display, and one of them was a bug in our own cop:
+
+- A `"#{n} plays"` label allocates a String every frame, so the play count is
+  drawn as a row of pips instead. `Game/NoInterpolationInHotPath` is right; the
+  fix is the code.
+- **`[n, MAX].min` does not allocate**, and `Game/NoNeedlessAllocation` was
+  wrong to say it did. The VM compiles `min` on an array literal to a single
+  `opt_newarray_send` that reads the operands off the stack — 0 objects over
+  200,000 calls. The cop now allows the four sends the VM optimises (`min`,
+  `max`, `hash`, `include?`, each only without a block or extra argument) and
+  still flags everything else. Its own spec had used `[a, b].max` as the
+  canonical *offence*, so that example was wrong too.
+
+**Assets:** `blip.ogg` (part of **F**).
+
+### 5. `examples/music` — a looping track, started and stopped — **done**
+
+**Shows** the other kind of sound, and the guard that makes re-entering a scene
+safe.
+
+**Existing:** `Core::Audio#register_music` / `play_music` / `stop_music`,
+`Core::Song`, and the same bus and director as example 4.
+
+**New:** none — though it did turn up a **gap in the drive harness**:
+`AudioProbe` recorded `play_sound` and `play_music` and silently ignored
+`stop_music`, so a game stopping its music was invisible in every report. Fixed.
+
+**A `Song` is not a `Sample`.** Streamed, one voice, stoppable, and it can be
+asked `playing?`. The two types exist so that distinction is in the type rather
+than in a convention.
+
+**Starting it twice does not restart it** — `Audio#play_music` returns early when
+the song is already playing, so a scene emitting `play_music` from `on_add` does
+not chop the track back to zero every time the player walks through a door.
+
+**And that is where a driven run stops being able to help.** The report proves
+the events were emitted and reached the device. Whether the guard actually
+prevented a restart, and whether the loop wraps without a click at 16.6s, are
+facts about what came out of a speaker. The example says so rather than implying
+its on-screen playhead proves either — the bar is the scene's own timer, and
+keeps running on a second press because *this scene* did not reset it, which is
+not evidence about the device at all.
+
+**Assets:** `music.ogg` (part of **F**) — and this example is what caught the
+first one being unloopable, which no automated tier could have.
+
+### 6. `examples/fullscreen` — toggling fullscreen
 
 **Shows** a window switching between windowed and fullscreen, and the layout
 following it.
@@ -210,7 +280,7 @@ for. Check the `windows-portability` skill before writing the binding.
 
 **Assets:** none. This example runs on a fresh clone.
 
-### 5. `examples/save_load` — saving and restoring game state
+### 7. `examples/save_load` — saving and restoring game state
 
 **Shows** writing state to disk and reading it back on the next run.
 
@@ -237,7 +307,7 @@ much larger design question and nothing here needs it yet.
 
 **Assets:** none.
 
-### 6. `examples/menu_navigation` — a main menu and a settings menu
+### 8. `examples/menu_navigation` — a main menu and a settings menu
 
 **Shows** more than one screen: title → settings → back, and settings that
 change something real.
@@ -264,7 +334,7 @@ through example 5's `SaveFile`. That is why it comes after both.
 
 **Assets:** **C**, already shipped by example 3.
 
-### 7. `examples/jump_topdown` — a hop in a top-down view
+### 9. `examples/jump_topdown` — a hop in a top-down view
 
 **Shows** that in a top-down game a jump is a *drawing* offset, not a change of
 position: the character's ground position stays authoritative for collision
@@ -288,7 +358,7 @@ while the sprite arcs above it.
 
 **Assets:** **A** and **B**, both already committed by then. No new art.
 
-### 8. `examples/jump_sidescroller` — jumping in a side view
+### 10. `examples/jump_sidescroller` — jumping in a side view
 
 **Shows** gravity, ground contact, and a jump that is a real change of position.
 
@@ -321,7 +391,7 @@ coloured rect falling onto another coloured rect shows every one of them. Build
 the level from `renderer.rect` and say so in the example's header, so the next
 reader knows it is a choice rather than an omission.
 
-### 9. `examples/radial_menu` — a controller-driven radial menu
+### 11. `examples/radial_menu` — a controller-driven radial menu
 
 **Shows** selection by *direction* rather than by list position, which is the
 thing a stick is good at and a d-pad list is not.
@@ -353,40 +423,7 @@ harness (so this is testable with a synthetic SDL pad, no hardware).
 menu itself works; the mechanism being taught is direction-to-sector, not the
 picture in the sector.
 
-### 11. `examples/audio` — a sound effect and a looping track
-
-**Shows** the two kinds of sound and, more importantly, **how the engine layer
-plays anything at all** — which is the part no test project demonstrates on its
-own.
-
-**Existing:** `Engine::AudioBus`, `Engine::AudioDirector`, `Core::Audio` with
-`register_sound` / `register_music` / `play_sound` / `play_music` / `stop_music`,
-and `Core::Sample` / `Core::Song`.
-
-**New:** none expected. This is an assembly example like 1 and 3.
-
-**The point of it is the seam, not the noise.** A node in the scene graph may
-not name `RGame::Core`, so it cannot reach the audio device — it emits on
-`AudioBus`, a global signal hub, and an `AudioDirector` subscribed to that bus
-does the playing. That indirection looks like ceremony until you notice it is
-the same rule that keeps the whole engine layer spec-able with no sound card:
-a headless spec substitutes `FakeAudio` and asserts on what was *asked for*.
-
-Two things worth drawing out:
-
-- **Two types, deliberately.** A `Sample` is decoded up front and gets a fresh
-  voice per play, so pressing the key repeatedly layers it; a `Song` is streamed
-  and has one voice that can be stopped and asked `playing?`. That is why
-  `playing?` cannot be asked of a fire-and-forget effect.
-- **Audio is registration-only.** Unlike images, sheets and tile maps — which
-  resolve on demand when the id is a path — `Audio#play_sound` is
-  `samples.fetch(id)` with no asset-manager fallback, so every sound and song is
-  a hand-registered line. Worth stating in the example, because it is the one
-  place the "just pass the path" rule does not hold.
-
-**Assets:** **F**, delivered.
-
-### 10. `examples/pathfinding` — a character walking a computed route
+### 12. `examples/pathfinding` — a character walking a computed route
 
 **Shows** a click-free "go there" — pick a target tile, compute a route around
 the solid tiles, walk it.
@@ -566,7 +603,7 @@ examples. Three more are deferred, and one is refused outright.
 | **C** | UI nine-slice sheet | `ui.png` + `ui.json` | 3 game_menu, 6 menu_navigation | **done** — and it was never optional |
 | **D** | Radial icon sheet | `icons.png` + `icons.json` | 9 radial_menu | deferred |
 | **E** | Side-view tileset + character | — | 8 jump_sidescroller | **refused** — rects instead |
-| **F** | A sound effect and a music loop | `blip.ogg`, `music.ogg` | 11 audio | **done** |
+| **F** | A sound effect and a music loop | `blip.ogg`, `music.ogg` | 4 sound, 5 music | **done** |
 
 **A and B are in `examples/assets/`**, about 10 KB in total, with full
 provenance in `examples/assets/README.md`. A is sodri's CC0 *Character 4
@@ -621,18 +658,23 @@ with a BFS rather than by looking at it:
 The `.tsx` and `.tmx` are ours; only the `.png` is sourced. One map serves all
 three examples that use it.
 
-**F is the only asset that costs anything.** At 53 KB the music is two-thirds of
-this directory, and that is *after* an 80% reduction: the CC0 loops worth having
-are encoded for listening (stereo, 44.1 kHz, ~125 kbps) rather than for a
-library gem. `tools/shrink_ogg.c` does the downmix and re-encode, and reports
-the loop seam as a number so "loops seamlessly" stops being a claim on a
-download page. Two constraints, both easy to get wrong:
+**F is the only asset that costs anything.** At 93 KB the music is three
+quarters of this directory, and that is *after* a 76% reduction:
+`tools/shrink_ogg.c` downmixes to mono and re-encodes, because the CC0 loops
+worth having are encoded for listening (stereo, 44.1 kHz, ~128 kbps) rather than
+for a library gem. Three constraints, all easy to get wrong:
 
 - **The engine plays Ogg Vorbis and WAV only.** MP3 and FLAC are compiled out of
   miniaudio, so an MP3 that plays everywhere else fails at load here. That ruled
   out one otherwise-ideal CC0 loop distributed only as WAV and MP3.
 - **Never trim a loop to save bytes.** It is seamless at exactly its own length.
   Channels and quality are free; length is not.
+- **A seam figure alone does not tell you a track loops.** The first music file
+  shipped here measured 2.6% on the seam and looped audibly badly: it ends with
+  0.79s of silence, so the wrap has no click but a *gap* — and silence joining
+  silence is a perfectly smooth seam, which is exactly why the number could not
+  see it. The tool reports head and tail silence too now, and the track was
+  replaced. Both figures, or neither means anything.
 
 **C was not optional after all.** It was deferred as cosmetic — "a menu works
 with rects" — and that was simply wrong: `UI::MenuItem` draws its background
@@ -680,35 +722,65 @@ engine can already express the basics — if one of them turns out to need new
 code, that is a finding about the engine and worth knowing before nine more are
 planned on top of it.
 
-**Phase B — small self-contained additions, in dependency order. No assets.**
+**Phase B — audio, and no new engine code.**
 
-6. `examples/fullscreen` (C + Core; the only C work in the batch)
-7. `examples/save_load` (`Util::SaveFile`)
-8. `examples/menu_navigation` (`UI::OptionItem`; consumes 6 and 7 so its settings
-   are real and persist)
+6. ~~`examples/sound`~~ — **done**.
+7. ~~`examples/music`~~ — **done**.
 
-This whole phase is asset-free.
+Moved up from the back of the queue to answer a question rather than to tick a
+box: audio is the one asset kind that **cannot** be resolved by path, and these
+two are what a change to that would have to keep working. They are also the last
+easy examples — everything after this adds engine code.
 
-**Phase C — new gameplay components, small before large.**
+The one thing they turned up was in the harness rather than the engine:
+`AudioProbe` did not record `stop_music`, so a game stopping its music left no
+trace in any report. Fixed while writing example 7.
 
-9. `examples/jump_topdown` (`Components::Hop` — small, and it is the one that
-   makes the "a jump is a draw offset" point that the sidescroller then
-   contrasts with; reuses **A** and **B**)
-10. `examples/jump_sidescroller` (`Components::PlatformerBody` — the big one; do
+**Phase C — small self-contained additions, in dependency order. No assets.**
+
+8. `examples/fullscreen` (C + Core; the only C work in the batch)
+9. `examples/save_load` (`Util::SaveFile`)
+10. `examples/menu_navigation` (`UI::OptionItem`; consumes 8 and 9 so its
+    settings are real and persist)
+
+**Phase D — new gameplay components, small before large.**
+
+11. `examples/jump_topdown` (`Components::Hop` — small, and it is the one that
+    makes the "a jump is a draw offset" point that the sidescroller then
+    contrasts with; reuses **A** and **B**)
+12. `examples/jump_sidescroller` (`Components::PlatformerBody` — the big one; do
     it after the small jump so the contrast between the two is deliberate. No
     assets, by decision)
 
-**Phase D — the two largest, both independent of everything above.**
+**Phase E — the two largest, both independent of everything above.**
 
-11. `examples/radial_menu` (no assets)
-12. `examples/pathfinding`
-13. `examples/audio` (uses **F**) — could move anywhere; it depends on nothing
-    and adds nothing. Placed last only because it was added last. (reuses **A** and **B**; `town.tmx` already has the
+13. `examples/radial_menu` (no assets)
+14. `examples/pathfinding` (reuses **A** and **B**; `town.tmx` already has the
     obstacle worth routing around — see "Assets")
 
 Both are self-contained and could move earlier if wanted. Pathfinding is last
 only because it is the largest single algorithm; it has no dependency on
-anything in phases B or C.
+anything in phases C or D.
+
+## Next: does audio have to be registered at all?
+
+Phase B exists partly to set this up. Everything else the renderer draws
+resolves on demand when its id is a String path — `resolve_asset` offers the id
+to the asset manager and caches the answer — and `examples/walk` names
+`'hero.json'` with no registration anywhere. Audio is the exception:
+`Audio#play_sound` is `samples.fetch(id)` with no fallback at all, so every
+sound and song is a hand-registered line.
+
+The reason given in `audio.rb` is that there is "no per-frame path to make
+resolving one worth caching", which explains why it is not *cached like the
+renderer's registries* — a different question from whether it can *resolve*.
+
+So the next step is to try it: give `Audio` the asset manager, let a String id
+resolve exactly the way a sprite sheet does, keep Symbols working for a game
+that wants stable names, and see whether `examples/sound` and `examples/music`
+still play with their registration lines deleted. It touches the shared
+`an_audio_server` contract and `FakeAudio` as well as `Core::Audio`, because the
+engine layer knows the audio server only by method name.
 
 ## Open questions, collected
 
