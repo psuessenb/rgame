@@ -6,9 +6,8 @@ require 'rgame/core'
 class MyGame < RGame::Core::App
   def initialize
     super(width: 800, height: 600, caption: 'demo')
-    @audio = RGame::Core::Audio.new
-    @hit = @audio.sample('assets/hit.ogg')
-    @music = @audio.song('assets/theme.ogg')
+    @hit = audio.sample('assets/hit.ogg')
+    @music = audio.song('assets/theme.ogg')
     @music.play(looping: true)
   end
 
@@ -27,15 +26,22 @@ here](#what-is-not-here).
 ## The device
 
 ```ruby
-audio = RGame::Core::Audio.new
-audio.backend    # => "PulseAudio"
-audio.volume     # => 1.0
+audio = app.audio          # the one a game uses
+audio.backend              # => "PulseAudio"
+audio.volume               # => 1.0
 audio.volume = 0.8
 ```
 
-**It takes no app.** Sound is not tied to a window: it survives one being
-resized or recreated, and there is no GL context involved. One device for the
-program is the normal arrangement.
+**`App#audio` is the device to reach for.** An app opens one on first use and
+hands it its asset manager, which is what lets `play_sound('hurt.ogg')` name a
+file. `RGame::Core::Audio.new` builds a standalone device for a tool or a spec;
+it has no manager, so it plays only what it is handed or what has been
+registered on it.
+
+**Nothing about it is tied to a window.** Unlike an `Image`, a sound belongs to
+no GL context: it survives a window being resized or recreated, and
+`Audio.new` takes no app. An app holds one only because a program wants exactly
+one, the same way it wants one asset manager.
 
 **A machine with no sound hardware still gets a working device.** It opens a
 null backend and plays silently rather than raising, and `#backend` returns
@@ -140,10 +146,10 @@ games does.
 does nothing, so a scene that re-emits the request every time it is entered
 never restarts the music mid-loop.
 
-**`stop_music` stops the song *this registry* started.** Gosu had a
-process-wide "current song"; there is no such global here, because one-song-at-
-a-time is a game's policy rather than the engine's. A `Song` you started by hand
-is yours to stop, and `stop_music` with nothing playing is a no-op.
+**`stop_music` stops the song *this device* started**, not whatever happens to
+be sounding. There is no process-wide "current song", because one-song-at-a-time
+is a game's policy rather than the engine's — so a `Song` you started by hand is
+yours to stop, and `stop_music` with nothing playing is a no-op.
 
 ## Loading and failure
 
@@ -211,8 +217,9 @@ one that makes no sound and records everything.
 
 `spec/support/fake_audio.rb` is that stand-in, and
 `spec/support/shared_examples/an_audio_server.rb` is the interface both it and
-the real device are run against — so the fake cannot drift into describing an
-engine that no longer exists.
+the real device are run against. Running both against one contract is what keeps
+them the same shape: a fake that accepts a call the device refuses, or misses one
+it offers, leaves `rake spec` green while the game plays nothing.
 
 ```ruby
 audio = FakeAudio.new

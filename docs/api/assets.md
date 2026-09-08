@@ -196,8 +196,7 @@ occupies the same pixels whichever way it faces:
 sheet.draw(renderer, row, col, x, y, flip_x: moving_left)
 ```
 
-There is no width to add back — see
-[Mirroring](drawing.md#mirroring) for why, if you are coming from Gosu.
+There is no width to add back — see [Mirroring](drawing.md#mirroring) for why.
 
 ### Animations are handed back raw
 

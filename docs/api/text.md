@@ -81,10 +81,11 @@ A file that cannot be read or is not a TrueType font raises
 The engine ships **Liberation Sans** and uses it when no path is given. There is
 no font-*name* lookup and no system font database — a font is a file.
 
-That is a deliberate trade. Asking the operating system for "Arial" (which is
-what Gosu does) means a different font on every machine, so a UI laid out on the
-developer's box can overflow on a player's. Shipping one means text renders
-identically everywhere, at the cost of ~400 KB in the gem.
+That is a deliberate trade. Asking the operating system for a font by *name* —
+"Arial" — gets whatever that machine keeps under that name, or a substitute for
+it, so a UI laid out on the developer's box can overflow on a player's. Shipping
+one means text renders identically everywhere, at the cost of ~400 KB in the
+gem.
 
 | | |
 |---|---|

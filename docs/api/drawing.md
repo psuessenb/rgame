@@ -176,11 +176,11 @@ It does not move it:
 renderer.image_at(frame, x, y, scale_x: facing_left ? -1 : 1)
 ```
 
-Both calls cover the same pixels; only the picture is reversed. That is worth
-knowing if you are coming from Gosu, where a negative scale mirrors *about* the
-anchor and the caller adds a width back to compensate. Here `(x, y)` is the
-top-left corner whatever the sign, so there is nothing to compensate for — and
-nothing to forget.
+Both calls cover the same pixels; only the picture is reversed. `(x, y)` is the
+top-left corner whatever the sign of the scale, so a mirrored sprite stays put
+and there is nothing to compensate for. Mirroring *about* the anchor instead
+would push the image a width to the left and leave every flipped draw to add
+that width back — one more thing to get right, and to forget.
 
 A scale of `0` draws nothing.
 
@@ -391,8 +391,9 @@ expect(ground.draws.map(&:args)).to eq([[-camera.x, -camera.y]])
 
 That runs with no window, no GPU and no clock. The fake and the real renderer
 are both checked against one shared contract (`spec/support/shared_examples/
-a_renderer.rb`), so the fake cannot drift into describing a renderer that does
-not exist — which would leave a green test suite and a game that no longer runs.
+a_renderer.rb`), which is what keeps them the same shape: a fake that accepts a
+call the real renderer refuses, or misses one it offers, leaves the test suite
+green and the game not drawing.
 
 ## Text
 
