@@ -326,6 +326,42 @@ entities like projectiles.
   one-shot [`Timer`](#timer) (`repeating: false`) with `on_timeout { node.queue_free }`
   instead.
 
+### `Identity`
+
+A stable name for one node, so something outside the tree can refer to it.
+
+```ruby
+sheep.add_component(RGame::Engine::Components::Identity.new(id: 7))
+RGame::Engine::Components::Identity.of(sheep)   # => 7
+```
+
+- **Construct:** `Identity.new(id:)` — any object; `nil` raises.
+- **Read:** `#id`, or `Identity.of(node)`, which answers `nil` for a node with no
+  identity and for no node at all.
+- **Phase:** none. It holds a value and does nothing per frame.
+
+**Most saving needs no identity.** A scene is a recipe and a save file is state,
+so a *singular* thing is named by the variable holding it, and *interchangeable*
+things are named by their order in an array. `examples/save_load` restores a dog
+and a flock using exactly those two and nothing else; `examples/save_load_ids`
+is the one that needs this.
+
+This is for what those do not cover: **a collection whose members can die**,
+where an array index stops naming anything once the middle is removed, and **a
+reference from one saved thing to another** — a dog chasing a particular sheep.
+The second is what genuinely forces ids, because a collection can be respawned
+from its own records but a reference into it cannot be written without a name for
+what it points at. `Targeting#target` is the worked example of the problem: it
+holds a *node*, and `Identity.of` is how that becomes something a file can hold.
+
+Two things are the game's to get right, not this component's:
+
+- **Ids must be unique** among the things that can refer to each other. Nothing
+  is checked here; a duplicate restores the wrong object, silently.
+- **The allocator belongs in the save.** A counter that restarts at 1 on load
+  reissues ids the restored objects already hold. Save the next id alongside
+  them.
+
 ### `PathFollow`
 
 Walks the owning node along an [`RGame::Engine::Path`](toolbox.md#path--a-walkable-polyline)

@@ -307,7 +307,7 @@ there to restore it. `#fullscreen?` still flips correctly; the size does not.
 
 **Assets:** none. This example runs on a fresh clone.
 
-### 7. `examples/save_load` — saving and restoring game state
+### 7. `examples/save_load` — saving and restoring game state — **done**
 
 **Shows** writing state to disk and reading it back on the next run.
 
@@ -329,8 +329,88 @@ there to restore it. `#fullscreen?` still flips correctly; the size does not.
   default. Assert it in the spec, with a deliberately truncated fixture.
 
 **Deliberately not built:** automatic scene-graph serialization. The example
-writes an explicit Hash and reads it back. Reflective save of a live tree is a
-much larger design question and nothing here needs it yet.
+writes an explicit Hash and reads it back. That is not a shortcut — it is what
+Godot, Unreal and Unity all land on, for the same reason: **a scene is a recipe
+and a save file is state.** Only an ECS whose graph is already data (Bevy's
+`DynamicScene`) can serialize the graph itself.
+
+**Which raised the question the example had to answer:** with no node identity —
+an rgame node has no name, no path and no id — how does a load put the dog's
+position back on the dog? Two answers, and the example uses both:
+
+- **A singular thing needs no identity, because a variable is one.** `@dog` is
+  set where the dog is built and written straight to on load. The code that made
+  it never lost track of which one it was.
+- **Interchangeable things use their order.** The flock is an array; the save is
+  an array of positions; loading zips them. If two sheep swapped, nothing
+  observable changed — which is what "interchangeable" means.
+
+The example states what breaks that: a flock whose members can die and must keep
+their own state needs a real id. `Components::Identity` is the mechanism, and
+`examples/save_load_ids` (7a below, 9a in the order) is where it is shown. The engine supplies the
+component; a game decides what gets one, what the ids are, and how they are
+handed out — the same division as `Timer`, which counts without an opinion about
+what happens next. Bolting an id onto anything that needs naming is what
+Unreal's save libraries and Unity's GUID packages do, for the same reason.
+
+**Also deliberately not done:** restoring velocity. The sheep resume standing
+still, because a `WanderController`'s timer is not saved. The example names it,
+because the serious version is a game that saves a falling player's position and
+not their velocity and restores them hanging in the air.
+
+**Assets:** none.
+
+### 7a. `examples/save_load_ids` — a save that has to name things — **done**
+
+**Shows** the case `examples/save_load` deliberately does not: a collection whose
+members can die, and a reference from one saved thing to another.
+
+**Existing:** `Components::Identity`, written for this example and already
+specced. `Components::Targeting`, which holds a *node* and is therefore the
+worked example of what a save cannot write. `Util::SaveFile`.
+
+**New:** none expected beyond the example itself.
+
+**Why a second one.** Example 9 restores a dog by variable and a flock by array
+order, and both are right for what they are. This one breaks each assumption on
+purpose:
+
+- **Sheep can be lost.** Once the middle of a list can be removed, an array index
+  stops naming anything — the third record is no longer the third sheep.
+- **The dog chases a particular sheep.** That is a reference between two saved
+  objects, and it is what genuinely forces ids: a collection can always be
+  respawned from its own records, but a reference *into* it cannot be written
+  without a name for what it points at.
+
+**The shape it should teach:**
+
+- every sheep gets an `Identity` when it is spawned;
+- the save holds a record per sheep including its id, and the dog's target as an
+  **id rather than a node** — `Identity.of(target)` is exactly that conversion;
+- loading rebuilds the flock from the records, then re-links the dog by finding
+  the saved id in the new flock;
+- **the id allocator is part of the save.** A counter that restarts at 1 reissues
+  ids the restored sheep already hold, and the collision surfaces later as a dog
+  chasing the wrong animal. One number, easy to forget, and the best reason this
+  is an example rather than a paragraph.
+
+**Also worth showing:** a save whose target no longer exists. The reference has
+to survive pointing at something that is gone — the honest answer is that the dog
+picks a new target, not that loading raises.
+
+**How it came out.** Three driven runs against one save directory show the whole
+thing. Shearing two sheep out of the middle leaves `[1, 4, 5, 6]` in the file —
+the survivors keep their numbers, which an array index cannot manage — with
+`target: 5` and `next_id: 7`. A second process, given no input at all, draws the
+tether ending exactly where sheep 5 was saved. A third presses **N** after
+loading and gets sheep **7**; had the allocator not been in the save it would
+have been 1, a duplicate of a sheep already standing there.
+
+The example also states something the plan had half-wrong: **a changing
+collection does not by itself force ids.** A flock can always be saved as records
+and rebuilt from them, whatever died. What cannot be written that way is the
+*reference* from the dog to one particular sheep, and that is the honest reason
+`Identity` exists.
 
 **Assets:** none.
 
@@ -766,7 +846,9 @@ trace in any report. Fixed while writing example 7.
 **Phase C — small self-contained additions, in dependency order. No assets.**
 
 8. ~~`examples/fullscreen`~~ — **done**; the only C work in the batch.
-9. `examples/save_load` (`Util::SaveFile`)
+9. ~~`examples/save_load`~~ — **done**.
+9a. ~~`examples/save_load_ids`~~ — **done**; no new engine code, `Identity` was
+    written with it in mind.
 10. `examples/menu_navigation` (`UI::OptionItem`; consumes 8 and 9 so its
     settings are real and persist)
 
