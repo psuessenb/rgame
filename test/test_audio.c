@@ -377,6 +377,32 @@ START_TEST(sounds_are_accounted_for) {
 }
 END_TEST
 
+/*
+ * The order sounds and their device are released in is not ours to choose.
+ * Ruby's collector frees unreachable objects in whatever order it sweeps them,
+ * so a Song and the Audio it came from can go in one pass with the Audio first
+ * — and this is that order, written down.
+ *
+ * Without the device's refcount it does not fail, it *hangs*: tearing down a
+ * streaming voice waits for the resource manager's job thread to acknowledge
+ * it, and that thread went with the engine. Check forks each test and caps it,
+ * so the deadlock reads as a timeout here instead of a CI run that never ends.
+ */
+START_TEST(a_sound_outlives_the_device_it_came_from) {
+    long before = rgame_audio_live_sounds();
+    rgame_audio *audio = open_audio();
+    rgame_sample *sample = rgame_sample_load(audio, FIXTURE, NULL, 0);
+    rgame_song *song = rgame_song_load(audio, FIXTURE, NULL, 0);
+
+    /* The device goes first, while both sounds are still holding it. */
+    rgame_audio_destroy(audio);
+
+    rgame_song_destroy(song);
+    rgame_sample_destroy(sample);
+    ck_assert_int_eq(rgame_audio_live_sounds(), before);
+}
+END_TEST
+
 START_TEST(a_refused_load_leaves_nothing_behind) {
     long before = rgame_audio_live_sounds();
     rgame_audio *audio = open_audio();
@@ -519,6 +545,7 @@ Suite *audio_suite(void) {
     tcase_add_test(tc, a_null_song_answers_rather_than_crashing);
 
     tcase_add_test(tc, sounds_are_accounted_for);
+    tcase_add_test(tc, a_sound_outlives_the_device_it_came_from);
     tcase_add_test(tc, a_refused_load_leaves_nothing_behind);
     tcase_add_test(tc, loading_the_same_file_many_times_is_fine);
 

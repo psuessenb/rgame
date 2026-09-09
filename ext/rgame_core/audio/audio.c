@@ -53,6 +53,11 @@ struct rgame_audio {
      * lookup to find.
      */
     int forced_no_device;
+    /*
+     * How many things still need this engine: the owner counts as one, and so
+     * does every sample and song loaded from it. See audio_release.
+     */
+    int refs;
 };
 
 struct rgame_sample {
@@ -213,6 +218,8 @@ static rgame_audio *create_audio(int offline, unsigned int sample_rate, char *er
         return NULL;
     }
 
+    /* The caller's own claim. Sounds add theirs as they are loaded. */
+    audio->refs = 1;
     return audio;
 }
 
@@ -234,8 +241,28 @@ unsigned int rgame_audio_read(rgame_audio *audio, float *out, unsigned int frame
     return (unsigned int)read;
 }
 
-void rgame_audio_destroy(rgame_audio *audio) {
-    if (!audio) {
+/*
+ * Drops one claim on the device, and tears it down when the last one goes.
+ *
+ * The device has to outlive every sound made from it, and a refcount is what
+ * makes that true regardless of the order things are released in. That order is
+ * not ours to choose: Ruby's collector frees unreachable objects in whatever
+ * order it sweeps them, so a Song and the Audio it came from can be freed in
+ * the same pass with the Audio going first. Tearing down a *streaming* voice
+ * then asks the resource manager's job thread to acknowledge it — and that
+ * thread went with the engine, so the wait never returns and the process hangs
+ * rather than crashing.
+ *
+ * Marking the device from the sound, which audio_ext.c does, is a different
+ * guarantee: it keeps the device alive while a sound is still *reachable*. It
+ * says nothing about two objects that became garbage together.
+ *
+ * So the owner holds a reference, every sound holds one, and the last one out
+ * does the uninit. Same shape as the refcounted texture sheet in
+ * graphics/texture.c, and for the same kind of reason.
+ */
+static void audio_release(rgame_audio *audio) {
+    if (!audio || --audio->refs > 0) {
         return;
     }
 
@@ -244,6 +271,10 @@ void rgame_audio_destroy(rgame_audio *audio) {
     ma_engine_uninit(&audio->engine);
     ma_resource_manager_uninit(&audio->resources);
     free(audio);
+}
+
+void rgame_audio_destroy(rgame_audio *audio) {
+    audio_release(audio);
 }
 
 void rgame_audio_set_volume(rgame_audio *audio, float volume) {
@@ -367,6 +398,7 @@ rgame_sample *rgame_sample_load(rgame_audio *audio, const char *path, char *err,
     strcpy(sample->path, path);
 
     sample->audio = audio;
+    audio->refs++;
     live_sounds++;
     return sample;
 }
@@ -394,8 +426,10 @@ void rgame_sample_destroy(rgame_sample *sample) {
      * same file hold their own, so the last one out frees it. */
     ma_sound_uninit(&sample->decoded);
     free(sample->path);
+    rgame_audio *audio = sample->audio;
     free(sample);
     live_sounds--;
+    audio_release(audio);
 }
 
 void rgame_sample_play(rgame_sample *sample) {
@@ -470,6 +504,7 @@ rgame_song *rgame_song_load(rgame_audio *audio, const char *path, char *err, siz
     }
 
     song->audio = audio;
+    audio->refs++;
     live_sounds++;
     return song;
 }
@@ -480,8 +515,10 @@ void rgame_song_destroy(rgame_song *song) {
     }
 
     ma_sound_uninit(&song->sound);
+    rgame_audio *audio = song->audio;
     free(song);
     live_sounds--;
+    audio_release(audio);
 }
 
 void rgame_song_play(rgame_song *song, int looping) {

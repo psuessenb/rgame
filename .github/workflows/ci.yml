@@ -92,7 +92,7 @@ jobs:
             ported: true
 
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       # Linux needs SDL2 and OpenGL to build, Check to run the C suite, and
       # three things purely for `rake spec:core`:
@@ -382,7 +382,7 @@ jobs:
       contents: write # push the tag and create the GitHub release
 
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Read the pinned Ruby version
         id: ruby

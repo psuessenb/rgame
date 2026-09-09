@@ -9,6 +9,28 @@ RSpec.describe RGame::Core::App do
   end
 
   describe 'fullscreen' do
+    # Every window this group opens is put back to windowed before the example
+    # ends, and it has to be automatic rather than a line each example
+    # remembers — forgetting it does not fail that example, it hangs a later
+    # one.
+    #
+    # A fullscreen window left behind on a display with no window manager stays
+    # mapped and holding the display; the next app's loop then never receives
+    # the events that drive it, so `update` is never called, the `close` that
+    # would end it never happens, and `run` spins until something kills the
+    # process. Three such windows are enough: the suite reached the frame
+    # lifecycle group and stopped there, with no failure and no output.
+    #
+    # It is invisible when these examples run alone, which is exactly why the
+    # cleanup belongs here rather than in each of them.
+    def app(...)
+      super.tap { |window| windows << window }
+    end
+
+    def windows = @windows ||= []
+
+    after { windows.each { |window| window.fullscreen = false } }
+
     it 'opens windowed by default' do
       expect(app).not_to be_fullscreen
     end

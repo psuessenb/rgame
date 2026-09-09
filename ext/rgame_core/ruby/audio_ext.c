@@ -114,10 +114,15 @@ static VALUE audio_s_debug_live_sounds(VALUE klass) {
  * ------------------------------------------------------------------------- */
 
 /*
- * Both wrap a C handle plus the Ruby Audio it came from. Marking the device is
- * what stops the collector taking it first: the sound is a voice inside that
- * device's mixer, and freeing the mixer out from under it would be a crash at
- * an unpredictable moment.
+ * Both wrap a C handle plus the Ruby Audio it came from. Marking the device
+ * keeps it alive for as long as any sound made from it is *reachable*: the
+ * sound is a voice inside that device's mixer, and freeing the mixer out from
+ * under a live sound would be a crash at an unpredictable moment.
+ *
+ * It is only half the guarantee, and the half it leaves out is worth knowing.
+ * When a sound and its device become garbage in the same collection, marking
+ * has nothing left to say and the sweep frees them in whatever order it reaches
+ * them. audio.c refcounts the device for that case; see audio_release there.
  */
 typedef struct {
     void *handle; /* rgame_sample * or rgame_song * */
