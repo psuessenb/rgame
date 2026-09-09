@@ -21,7 +21,7 @@ sound device, the input mapper, the debug overlay — and drives the root node.
 ```ruby
 RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
                 media_root: 'media', input_map: nil, device: Controls::KEYBOARD,
-                players: 1, fullscreen: false)
+                players: 1, fullscreen: false, scale_mode: :disabled)
 ```
 
 | Reader | |
@@ -30,6 +30,42 @@ RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
 | `renderer` | what scenes draw through |
 | `players` | who is playing: their devices, bindings and cameras |
 | `assets`, `audio`, `media_root`, `width`, `height`, `fps` | inherited from [App](app.md) |
+
+### `scale_mode:` — what `width` and `height` mean
+
+By default they are the window, and the view a node draws into is the window
+too: make the window bigger and every `draw` is handed a bigger view. A layout
+written against the view grows into the space; one written against fixed numbers
+stays in the top-left corner with the new space piled up beside it.
+
+A `scale_mode` changes what they mean. `width` and `height` become the **logical
+size** — the resolution the game is designed in — and the whole frame is mapped
+onto whatever the window happens to be. The view stays that size forever, so a
+hardcoded layout keeps working at any window size, fullscreen included.
+
+| | |
+|---|---|
+| `:disabled` | The default. No scaling; the view is the window. |
+| `:stretch` | Fill the window, distorting if the aspect ratios differ. |
+| `:letterbox` | Largest uniform scale that fits, centred, bars on two sides. |
+| `:integer` | The same, rounded down to a whole number. |
+
+```ruby
+RGame::Game.new(root: Root.new, width: 320, height: 180, scale_mode: :integer)
+```
+
+**`:integer` is the pixel-art one.** A whole-number factor makes every source
+pixel exactly the same square on screen; a fractional one gives some of them two
+screen pixels and some three, and the unevenness crawls whenever anything moves.
+It costs screen, sometimes a lot — a 640x480 design gets only 1x on a 1600x900
+window, because 2x needs 960 rows. `RGame::Engine::Presentation` documents the
+measurements and is where the arithmetic lives; it is pure and specced on its
+own.
+
+Whatever the mode, a resize refits it and nothing else changes: viewports, split
+screen rects and camera clamps are all computed in logical units already.
+
+`examples/fullscreen` runs in every mode from an environment variable.
 
 `fullscreen:` opens the window fullscreen instead of switching once it is up,
 which is what keeps a fullscreen game from flashing a windowed frame at startup.

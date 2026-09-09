@@ -70,7 +70,7 @@ module RGame
     # way to do that.
     def initialize(root:, width: WIDTH, height: HEIGHT, caption: 'RGame',
                    media_root: 'media', input_map: nil, device: Controls::KEYBOARD,
-                   players: 1, input: nil, fullscreen: false)
+                   players: 1, input: nil, fullscreen: false, scale_mode: :disabled)
       super(width: width, height: height, caption: caption, media_root: media_root,
             fullscreen: fullscreen)
 
@@ -83,7 +83,19 @@ module RGame
                                     input_map: input_map)
         end
       )
-      @viewports = RGame::Engine::Viewports.new(@players, width: width, height: height)
+      # How `width` and `height` reach the screen. Under the default
+      # `:disabled` they are simply the window and this changes nothing; under
+      # any other mode they become the *logical* size and the window is mapped
+      # onto them, so nothing above here has to know the window's size at all.
+      #
+      # Fitted against the window rather than against the arguments, because the
+      # two differ from the first frame when `fullscreen: true` opened the
+      # window at the screen's resolution instead of the requested one.
+      @presentation = RGame::Engine::Presentation.new(width: width, height: height,
+                                                      mode: scale_mode)
+      @presentation.fit(self.width, self.height)
+      @viewports = RGame::Engine::Viewports.new(@players, width: @presentation.width,
+                                                          height: @presentation.height)
       @debug = RGame::Engine::DebugOverlay.new # always wired up; F1 reveals it
       @dirty = true # draw the first frame
 
@@ -178,13 +190,37 @@ module RGame
     # `node.root` meaning the game's own root: nothing is inserted above it.
     def draw
       @viewports.refresh # rects from the layout, then reclamp every camera
-      @root.draw(@renderer, @viewports.screen)
-      @debug.draw(@renderer, @viewports.screen, fps) # last, so it layers on top
+      if @presentation.scaled?
+        presented { draw_tree }
+      else
+        draw_tree
+      end
       @dirty = false
     end
 
-    # The window changed size, so every rect and every camera clamp does too.
-    def resize(width, height) = @viewports.resize(width, height)
+    # How `width` and `height` are mapped onto the window: `:disabled`,
+    # `:stretch`, `:letterbox` or `:integer`. See RGame::Engine::Presentation.
+    def scale_mode = @presentation.mode
+
+    # Switchable while the game runs, for a settings screen.
+    #
+    # The viewports are resized as well as the presentation refitted, because
+    # the two modes disagree about what the logical size *is*: leaving `:integer`
+    # for `:disabled` turns a fixed 640x480 back into the window's own size, and
+    # a viewport still holding the old one would lay out into a corner.
+    def scale_mode=(mode)
+      @presentation.mode = mode
+      @viewports.resize(@presentation.width, @presentation.height)
+    end
+
+    # The window changed size, so the presentation is refitted and every rect and
+    # camera clamp follows. Under a scaling mode the logical size does not move,
+    # so the viewports are handed the same numbers again and only the transform
+    # in `draw` changes — which is the whole point of the mode.
+    def resize(width, height)
+      @presentation.fit(width, height)
+      @viewports.resize(@presentation.width, @presentation.height)
+    end
 
     # Hot-plug is bookkeeping, not seating: a controller arriving becomes a
     # device the registry watches, and it is someone *using* it that gives it to
@@ -203,6 +239,33 @@ module RGame
     end
 
     private
+
+    def draw_tree
+      @root.draw(@renderer, @viewports.screen)
+      @debug.draw(@renderer, @viewports.screen, fps) # last, so it layers on top
+    end
+
+    # Wraps a frame in the transform that maps the logical size onto the window.
+    #
+    # The order is clip, translate, scale, and none of the three is optional:
+    #
+    #   - the **clip** is what makes a letterbox a letterbox. Without it a game
+    #     drawing outside its own logical bounds spills into the bars, which
+    #     looks like a rendering bug rather than a game bug;
+    #   - the **translate** centres, in screen pixels, before anything is
+    #     scaled — Presentation floors it for that reason, since a half-pixel
+    #     offset puts every sprite edge between two screen pixels;
+    #   - the **scale** is last, so the numbers above it are screen pixels and
+    #     everything below it is logical ones.
+    def presented(&)
+      @renderer.clipped(@presentation.offset_x, @presentation.offset_y,
+                        (@presentation.width * @presentation.scale_x).round,
+                        (@presentation.height * @presentation.scale_y).round) do
+        @renderer.translated(@presentation.offset_x, @presentation.offset_y) do
+          @renderer.scaled(@presentation.scale_x, @presentation.scale_y, &)
+        end
+      end
+    end
 
     # Teaches the asset manager the types Core cannot build for itself.
     #

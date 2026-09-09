@@ -176,7 +176,12 @@ Anything that lays out against the window learns about the change through that
 one path — which is why a scene should read the `view` it is drawn with rather
 than the width it passed to `new`.
 
-`examples/fullscreen` shows both openings and the switch.
+A bigger window means a bigger view, and a layout written against fixed numbers
+will not follow it. [`scale_mode:`](game.md#scale_mode--what-width-and-height-mean)
+on `RGame::Game` is the other answer: keep a logical size and scale it onto the
+window instead.
+
+`examples/fullscreen` shows both openings, the switch, and every scale mode.
 
 ## Raw input queries
 

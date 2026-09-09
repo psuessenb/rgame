@@ -292,6 +292,15 @@ and told nobody: viewports kept the old rects and the scene drew for the old
 size. Listening for `SIZE_CHANGED` covers both, and the driven run is what shows
 it — the border coordinates move from 616 to 776 when the switch lands.
 
+**A second answer landed with it.** Re-layout is what this example shows, and it
+is right for a HUD; a play area usually wants the opposite — keep the design
+size and scale it onto the window. That is `RGame::Game.new(scale_mode:)` over
+`RGame::Engine::Presentation`, with `:integer` for pixel art. It also fixed a
+bug this example shipped with: a game opened with `fullscreen: true` had its
+viewports sized to the *requested* width and height while the window was the
+screen, and no resize event ever fires to correct it, because the size never
+changes.
+
 One environment note for anyone driving this: under Xvfb with no window manager
 the window does not shrink back on the way out of fullscreen, because nothing is
 there to restore it. `#fullscreen?` still flips correctly; the size does not.
