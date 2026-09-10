@@ -117,7 +117,14 @@ RSpec.describe RGame::Util::SaveFile do
     it 'raises rather than losing progress quietly' do
       # Reading has a sensible answer for failure and writing does not: a
       # discarded save is noticed hours later, by which time it is gone.
-      unwritable = described_class.new('slot1.json', dir: '/proc/nope/never')
+      #
+      # A plain file standing where a directory needs to be created is what
+      # makes this fail on every platform alike: on Windows `/proc/nope/never`
+      # is not a pseudo-filesystem, it is just a path under the current
+      # drive's root, and `mkdir_p` happily creates it.
+      blocker = File.join(dir, 'blocker')
+      File.write(blocker, '')
+      unwritable = described_class.new('slot1.json', dir: File.join(blocker, 'nested'))
 
       expect { unwritable.write(dog: [1, 2]) }.to raise_error(SystemCallError)
     end
