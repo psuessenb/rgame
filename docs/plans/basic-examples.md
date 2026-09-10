@@ -414,30 +414,47 @@ and rebuilt from them, whatever died. What cannot be written that way is the
 
 **Assets:** none.
 
-### 8. `examples/menu_navigation` — a main menu and a settings menu
+### 8. `examples/menu_navigation` — a main menu and a settings menu — **done**
 
 **Shows** more than one screen: title → settings → back, and settings that
 change something real.
 
-**Existing:** `Scene::SceneStack` (`push` / `pop` / `replace`), `UI::Menu`,
-`ui_cancel` for back, and the `ui.png` atlas example 3 shipped — so this one is
-no longer asset-gated either.
+**Built:** `UI::OptionItem`, one row per setting, over fullscreen, the scale mode
+and master volume — all applied the moment they change and written to a
+`SaveFile` on every change. `Menu` grew `add_option` and a seam: vertical input
+belongs to the menu, horizontal to the focused row, which the menu reaches
+through `MenuItem#adjust` without knowing what kind of row answered.
 
-**New:**
+**The open question is settled: one control, not two.** An `OptionItem` over
+`[0, 25, 50, 75, 100]` is enough for volume, and a `SliderItem` would have been
+a second control with its own focus and draw behaviour earning nothing this
+example needed. `docs/api/ui.md` now says a continuous control is missing rather
+than pretending otherwise.
 
-- `Engine::UI::OptionItem` — a menu row whose value cycles with
-  `ui_left` / `ui_right` and which draws `Label   < value >`. This is the first
-  genuinely new UI control, and it is what a settings menu *is*.
-- Possibly `Engine::UI::SliderItem` for volume. **Decide when writing:** an
-  option item over `[0%, 25%, 50%, 75%, 100%]` may be enough, and one control is
-  cheaper to justify than two.
-- Both need a `docs/api/ui.md` section, and "What this is not" in that page needs
-  its list trimmed to what is still missing.
+**Values clamp, focus wraps** — decided while writing. A list of items has no
+magnitude, so joining its ends only makes a short list quicker to get around; a
+list of *values* usually does, and wrapping turns "one louder" at the top of a
+volume range into silence.
 
-**Consumes 4 and 5:** the settings this menu offers should be real —
-fullscreen on/off (example 4) and master volume (`Core::Audio#volume=` already
-exists, reachable from a node as `root.context.audio`) — and should persist
-through example 5's `SaveFile`. That is why it comes after both.
+**A settings file is untrusted input, and that has teeth here.**
+`Game#scale_mode=` raises on a mode it does not know, so a hand-edited file or
+one written by a newer version of the game is otherwise a game that will not
+start. `Settings#load` checks every value against the list the menu offers, and
+`OptionItem#value=` ignores a value the list no longer has — the same rule at
+both ends. Driven against `{"scale":"holographic","volume":9999}`, it starts.
+
+**Push and replace turned out to be the example's best half.** A SceneStack
+updates only its top scene but draws all of them, so the choice is one question:
+should the thing underneath still be there? Settings is *pushed* over the title
+and the title keeps drawing behind it, which is why the settings screen needs a
+panel at all. Play *replaces* the title. The driven report shows both.
+
+**One gotcha worth carrying to the next example.** A proc written at the top
+level of a script captures that script's locals — including `game` — and a
+constant holding that proc pins them for the life of the process. The window is
+then never released, and it surfaces not as a leak but as the process dying on
+the way out with the driven report still in an unflushed buffer. The tables in
+this example live inside a class for that reason.
 
 **Assets:** **C**, already shipped by example 3.
 
@@ -576,7 +593,7 @@ Sorted by where it lands, because that decides who may use it.
 |---|---|---|---|
 | `rgame_app_set_fullscreen` / `_fullscreen` + Ruby binding | C + `Core::App` | 4 | S |
 | `Util::SaveFile` + save-dir helper | `Util` (pure Ruby) | 5, 6 | S |
-| `UI::OptionItem` (+ maybe `SliderItem`) | `Engine::UI` | 6 | S |
+| ~~`UI::OptionItem`~~ | `Engine::UI` | 6 | **done** — no `SliderItem`, see 8 |
 | `Components::Hop` | `Engine` | 7 | S |
 | `Components::PlatformerBody` | `Engine` | 8 | **L** |
 | `UI::RadialMenu` | `Engine::UI` | 9 | M |
@@ -719,8 +736,9 @@ grid; B is Kenney's CC0 *Tiny Town* copied unchanged, with a `.tsx` and a
 `.tmx` authored here. What follows is what they had to satisfy, kept because it
 is what a replacement would have to satisfy too.
 
-Nothing else in the list needs a file: 4 fullscreen, 5 save_load and
-6 menu_navigation draw with primitives and the shipped font.
+Nothing else in the list needs a file: 4 fullscreen and 5 save_load draw with
+primitives and the shipped font, and 6 menu_navigation adds only the nine-slices
+of **C**.
 
 **A — character sprite sheet.** A four-direction walk cycle plus an idle, which
 is what `Components::AnimatedSprite` and `AnimationSet` expect — they resolve
@@ -849,8 +867,8 @@ trace in any report. Fixed while writing example 7.
 9. ~~`examples/save_load`~~ — **done**.
 9a. ~~`examples/save_load_ids`~~ — **done**; no new engine code, `Identity` was
     written with it in mind.
-10. `examples/menu_navigation` (`UI::OptionItem`; consumes 8 and 9 so its
-    settings are real and persist)
+10. ~~`examples/menu_navigation`~~ — **done**; consumes 8 and 9, so its settings
+    are real and persist.
 
 **Phase D — new gameplay components, small before large.**
 
@@ -916,10 +934,9 @@ started holding the window.
 ## Open questions, collected
 
 *(The asset-sourcing question is settled: Kenney *Tiny Town* for the tileset,
-sodri's character sheet repacked. See "Assets".)*
+sodri's character sheet repacked. See "Assets". So is 6: one `OptionItem` and no
+`SliderItem` — see example 8.)*
 
-- **6** — one `OptionItem` cycling discrete volume steps, or an `OptionItem` plus a
-  `SliderItem`?
 - **7** — should `TileWorld` know about `airborne?` (hop over a gap), or does that
   stay the game's business?
 - **8** — does `jump` join `InputMap::DEFAULT_ACTIONS`, or does the example merge it

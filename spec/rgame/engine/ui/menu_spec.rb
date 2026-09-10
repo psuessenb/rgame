@@ -10,7 +10,7 @@ RSpec.describe RGame::Engine::UI::Menu do
   # Every action a menu reads is declared, down or not: Actions answers only for
   # what it was given, which is the point of it being strict.
   let(:snapshot) do
-    reads = %i[ui_up ui_down ui_confirm]
+    reads = %i[ui_up ui_down ui_left ui_right ui_confirm]
     held = reads.to_h { |name| [name, false] }
     previous = reads.to_h { |name| [name, false] }
     actions = RGame::Engine::Actions.new(held: held, axes: {}, prev_held: previous)
@@ -140,6 +140,52 @@ RSpec.describe RGame::Engine::UI::Menu do
     it 'gives them the size it was built with' do
       build('One')
       expect([menu.items.first.width, menu.items.first.height]).to eq([200, 40])
+    end
+  end
+
+  # Vertical belongs to the menu, horizontal to the focused row. The menu does
+  # not know what kind of row it is talking to — it calls `adjust` and a plain
+  # item answers nil.
+  describe 'option rows' do
+    def build_options
+      menu.add_item('Back')
+      option = menu.add_option('Volume', values: [0, 50, 100], index: 1)
+      root.enter_tree
+      option
+    end
+
+    it 'moves the focused row\'s value right' do
+      option = build_options
+      press(:ui_down)
+      press(:ui_right)
+      expect(option.value).to eq(100)
+    end
+
+    it 'moves it left' do
+      option = build_options
+      press(:ui_down)
+      press(:ui_left)
+      expect(option.value).to eq(0)
+    end
+
+    # Horizontal reaches exactly one row, the same way confirm does.
+    it 'leaves an unfocused row alone' do
+      option = build_options
+      press(:ui_right)
+      expect(option.value).to eq(50)
+    end
+
+    it 'does nothing when the focused row is a plain item' do
+      menu.add_item('Back')
+      root.enter_tree
+      expect { press(:ui_right) }.not_to raise_error
+    end
+
+    it 'stacks an option row like any other' do
+      menu.add_item('Back')
+      menu.add_option('Volume', values: [0, 100])
+      root.enter_tree
+      expect(menu.items.map(&:y)).to eq([0, 48])
     end
   end
 

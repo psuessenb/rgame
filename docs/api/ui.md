@@ -36,14 +36,20 @@ menu.add_item('Quit', enabled: false)
 | | |
 |---|---|
 | `ui_up` / `ui_down` | move focus, wrapping at the ends |
+| `ui_left` / `ui_right` | change the value on the focused row |
 | `ui_confirm` | activate the focused item |
 | `add_item(label, enabled: true)` | append an item and return it |
+| `add_option(label, values:, ...)` | append a settings row and return it |
 | `items`, `focused`, `focused_index` | what it holds and where focus is |
 | `focus(index)`, `focus_by(delta)` | move focus directly |
 
-Those three actions come from the [universal set](input.md#the-universal-ui-set)
-that every `InputMap` is merged over, so a menu works without a game declaring
+Those actions come from the [universal set](input.md#the-universal-ui-set) that
+every `InputMap` is merged over, so a menu works without a game declaring
 anything.
+
+**Vertical belongs to the menu, horizontal to the focused row.** The menu does
+not know what kind of row it is talking to — it calls `adjust` and a plain item
+answers `nil`.
 
 ### Focus is per player, and it costs nothing
 
@@ -75,6 +81,42 @@ The element names are `MenuItem::STYLE`, and a menu can be built with a
 different hash — a game with its own art is not obliged to name it the way the
 shipped atlas does.
 
+### `RGame::Engine::UI::OptionItem`
+
+A row whose value is chosen from a list. It draws `Label   < value >`, and the
+chevrons appear only where there is somewhere to go, which is the only feedback
+a player gets that they have reached an end.
+
+```ruby
+volume = menu.add_option('Volume', values: [0, 25, 50, 75, 100],
+                                   display: ->(percent) { "#{percent}%" })
+volume.on_changed { |value| game.audio.volume = value / 100.0 }
+```
+
+| | |
+|---|---|
+| `values`, `index`, `value`, `caption` | the list, where it sits, and what is drawn |
+| `value = something` | select by value; a value the list does not offer is ignored |
+| `adjust(delta)` | move the selection, clamped; the item if it moved, `nil` if not |
+| `on_changed` | emits the new value, and only when it actually changed |
+
+It is a `MenuItem`, so focus, the four state elements and `enabled: false` all
+work exactly as they do on any other row.
+
+**Values clamp while focus wraps.** A list of menu items has no magnitude, so
+joining its ends only makes a short list quicker to get around. A list of values
+usually does have one, and wrapping would turn "one louder" at the top of a
+volume range into silence.
+
+**`display` runs once per value, when the row is built.** It turns a value into
+the text drawn for it, so the values themselves stay whatever the game acts on.
+Doing it at draw time would allocate a String every frame for every row on
+screen — see [Drawing](drawing.md) and `Game/NoInterpolationInHotPath`.
+
+`value=` ignoring a value the list does not offer is for restoring a setting
+from a file: a save written by an older version of the game, or edited by hand,
+leaves the row where it is instead of raising.
+
 ### Getting the art on screen
 
 Nine-slice ids name an *element of an atlas*, not a file, so there is nothing
@@ -89,13 +131,17 @@ See [Sheets, atlases and maps](assets.md).
 
 `examples/game_menu` is the smallest complete use of all of this: a menu that
 opens over a running world, pauses only the node that opened it, and closes
-again.
+again. `examples/menu_navigation` is the next step up — a title screen, a
+settings screen pushed over it, and rows that change fullscreen, the scale mode
+and the volume for real and write them to a file.
 
 ## What this is not
 
 It is a menu, not a widget library. Items are stacked vertically at a fixed
-size, and that is the whole of its layout — no nesting, no scrolling lists, no
-text entry, and no general answer to how UI should be laid out.
+size, and that is the whole of its layout — no nesting, no scrolling lists, and
+no general answer to how UI should be laid out. There is no text entry, and no
+continuous control: `OptionItem` covers a setting with a handful of values, and
+anything wanting a free-moving slider needs a control that does not exist yet.
 
 The package this replaces positioned everything absolutely and hit-tested a
 mouse cursor. It was deleted with the mouse, none of it is a reference, and its

@@ -48,6 +48,12 @@ module RGame
         def enabled? = @enabled
         def focused? = @focused
 
+        # What the focused item does with `ui_left` / `ui_right`, which Menu
+        # hands down without knowing what kind of row it is talking to. A plain
+        # item has nothing to change, and answers nil the way a disabled
+        # `activate` does. UI::OptionItem is the one that overrides it.
+        def adjust(_delta) = nil
+
         # Fires the signal and returns the item, or nil if it is disabled — so a
         # caller never has to check first, and a disabled item cannot be
         # activated by any route.

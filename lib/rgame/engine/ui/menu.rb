@@ -53,13 +53,15 @@ module RGame
         # Adds an item below the last one and returns it, so a caller can
         # connect to its signal in the same line.
         def add_item(label, enabled: true)
-          item = MenuItem.new(label: label, enabled: enabled, style: @style,
-                              x: 0, y: @items.size * (@item_height + @spacing),
-                              width: @item_width, height: @item_height)
-          @items << item
-          add_node(item)
-          refocus
-          item
+          append(MenuItem.new(label: label, enabled: enabled, style: @style, **slot))
+        end
+
+        # Adds a row whose value is chosen from `values` with `ui_left` and
+        # `ui_right` — a settings row. See UI::OptionItem, which is also where
+        # `display` is explained.
+        def add_option(label, values:, index: 0, display: :to_s.to_proc, enabled: true)
+          append(OptionItem.new(label: label, values: values, index: index, display: display,
+                                enabled: enabled, style: @style, **slot))
         end
 
         def focused = @items[@focused_index]
@@ -84,6 +86,9 @@ module RGame
           @items.each_with_index { |item, i| item.focused = (i == index) }
         end
 
+        # Vertical moves focus and belongs to the menu; horizontal belongs to
+        # the focused row, because only the row knows whether it has anything to
+        # change. A plain MenuItem answers nil to `adjust` and nothing happens.
         def on_control(actions)
           focus_by(-1) if actions.pressed?(:ui_up)
           focus_by(1) if actions.pressed?(:ui_down)
@@ -91,11 +96,29 @@ module RGame
           current = focused
           return if current.nil?
 
+          current.adjust(-1) if actions.pressed?(:ui_left)
+          current.adjust(1) if actions.pressed?(:ui_right)
+
           current.pressed = actions.held?(:ui_confirm)
           current.activate if actions.pressed?(:ui_confirm)
         end
 
         private
+
+        # Where the next row goes. Items are stacked at a fixed size and that is
+        # the whole of the layout, which is why both kinds of row can share one
+        # line of arithmetic — read `slot` before the item joins `@items`.
+        def slot
+          { x: 0, y: @items.size * (@item_height + @spacing),
+            width: @item_width, height: @item_height }
+        end
+
+        def append(item)
+          @items << item
+          add_node(item)
+          refocus
+          item
+        end
 
         # Keeps focus on something usable as items arrive: the first item to be
         # added takes it, and a disabled first item hands it on.
