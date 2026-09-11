@@ -45,10 +45,34 @@
 # extra room. That is what a HUD or a menu wants.
 #
 # With a `scale_mode`, `width` and `height` stop describing the window and start
-# describing the game. The view stays 640x480 however big the window is, and the
+# describing the game. The view stays 512x320 however big the window is, and the
 # whole frame is scaled onto it — so the border stays exactly where it is and
 # gets bigger. That is what a play area wants, and it is the only one of the two
 # that saves a game whose layout is hardcoded.
+#
+# ## Why 512x320, which is nobody's screen
+#
+# The size is picked to make the four modes *differ*, which is the opposite of
+# what a real game wants and exactly what an example about them needs.
+#
+# A logical size that shares its aspect ratio with the display makes `:stretch`
+# and `:letterbox` compute the same numbers, and one that divides the display
+# evenly makes `:integer` agree with both. Choose 640x360 on a 1920x1080 screen
+# and all three land on 3.000x3.000 — four modes, three of them identical, and
+# nothing to look at. **The prettiest resolution is the one that teaches least.**
+#
+# 8:5 matches no common display, so `:stretch` always distorts. And the fit is
+# never a whole number on a 16:9 screen, so `:integer` always gives up some
+# screen that `:letterbox` keeps. Measured, on the sizes people actually own:
+#
+#   screen       stretch        letterbox   integer
+#   1920x1080    3.75 x 3.375   3.375       3
+#   2560x1440    5.00 x 4.500   4.500       4
+#   3840x2160    7.50 x 6.750   6.750       6
+#
+# A game would choose the other way round. Pick the logical size so that the
+# scale on your players' screens is a whole number, and `:integer` costs nothing
+# at all.
 #
 # Cycling through the four with left and right is the quickest way to see what
 # each costs:
@@ -77,8 +101,10 @@ require 'rgame/game'
 
 Controls = RGame::Util::Controls
 
-WIDTH  = 640
-HEIGHT = 480
+# Deliberately not a shape any display has — see the note above on why an
+# example about scale modes wants a resolution that scales *badly*.
+WIDTH  = 512
+HEIGHT = 320
 ASSETS = File.expand_path('../assets', __dir__)
 
 # Set in the environment so one file can demonstrate both openings without being

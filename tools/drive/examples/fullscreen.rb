@@ -18,16 +18,21 @@
 #     example, and it is visible as numbers here.
 #
 # The window size under Xvfb is whatever the harness started, so the exact scale
-# factors depend on that rather than on this script.
+# factors depend on that rather than on this script. The offsets above are the
+# letterbox bars and the integer-mode margin, and they are the other half of what
+# the clip section shows.
 #
-# **`:stretch` cannot be told from `:letterbox` in this run, and that is the
-# harness rather than a bug.** They differ only when the window's aspect ratio
-# differs from the game's, and the harness runs an 800x600 screen against a
-# 640x480 game — both 4:3, so both modes land on the same uniform 1.25x. On a
-# 16:9 display stretch scales the axes by different factors and the circle goes
-# oval. The arithmetic for that case is covered where it can be pinned down
-# exactly: spec/rgame/engine/presentation_spec.rb asserts 2.5 against 1.875 for
-# a 1600x900 window.
+# **All three scaling modes are distinguishable in this run**, which is what the
+# game's 8:5 logical size buys. The harness opens an 800x600 window, so:
+#
+#   stretch    1.5625 x 1.8750   offset   0,   0
+#   letterbox  1.5625 x 1.5625   offset   0,  50
+#   integer    1.0000 x 1.0000   offset 144, 140
+#
+# Three different `scaled` argument pairs and three different clip rectangles, so
+# a mode that stopped working is visible here rather than only on a real display.
+# A 4:3 game would not show this: against a 4:3 window stretch and letterbox
+# compute the same uniform factor and the report cannot tell them apart.
 
 idle 20
 press controls::KEY_RIGHT # :disabled -> :stretch

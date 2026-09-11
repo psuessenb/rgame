@@ -67,8 +67,13 @@ require 'rgame/game'
 
 UI = RGame::Engine::UI
 
-WIDTH  = 640
-HEIGHT = 480
+# The same 8:5 `examples/fullscreen` uses, and for the same reason: this screen
+# offers a scale mode as a setting, so the four choices have to look like four
+# different things. A logical size that matched the display's aspect ratio would
+# make `:stretch` and `:letterbox` identical, and one that divided it evenly
+# would bring `:integer` in with them.
+WIDTH  = 512
+HEIGHT = 320
 ASSETS = File.expand_path('../assets', __dir__)
 
 BLIP = 'blip.ogg'
@@ -189,10 +194,10 @@ end
 # limitation `examples/game_menu` runs into — centring needs the region's size
 # and that only arrives at draw time. See docs/api/ui.md, "What this is not".
 class TitleScene < RGame::Engine::Node2D
-  MENU_X = 60
-  MENU_Y = 150
+  MENU_X = 56
+  MENU_Y = 104
   ITEM_WIDTH = 240
-  ITEM_HEIGHT = 40
+  ITEM_HEIGHT = 34
 
   def on_add
     menu = add_node(UI::Menu.new(x: MENU_X, y: MENU_Y,
@@ -203,8 +208,8 @@ class TitleScene < RGame::Engine::Node2D
   end
 
   def on_draw(renderer, _view)
-    renderer.text('Menu navigation', MENU_X, 80)
-    renderer.text('Up and down to move, Enter to choose', MENU_X, 104)
+    renderer.text('Menu navigation', MENU_X, 44)
+    renderer.text('Up and down to move, Enter to choose', MENU_X, 68)
   end
 end
 
@@ -213,13 +218,13 @@ end
 # It draws a panel because the title is still drawing behind it — that is the
 # visible half of what pushing rather than replacing means.
 class SettingsScene < RGame::Engine::Node2D
-  PANEL_X = 40
-  PANEL_Y = 60
+  PANEL_X = 28
+  PANEL_Y = 28
   PANEL_WIDTH = WIDTH - (PANEL_X * 2)
   PANEL_HEIGHT = HEIGHT - (PANEL_Y * 2)
-  PADDING = 24
+  PADDING = 18
   ITEM_WIDTH = PANEL_WIDTH - (PADDING * 2)
-  ITEM_HEIGHT = 40
+  ITEM_HEIGHT = 34
 
   def initialize(settings:, **)
     super(**)
@@ -227,7 +232,7 @@ class SettingsScene < RGame::Engine::Node2D
   end
 
   def on_add
-    @menu = add_node(UI::Menu.new(x: PANEL_X + PADDING, y: PANEL_Y + PADDING + 40,
+    @menu = add_node(UI::Menu.new(x: PANEL_X + PADDING, y: PANEL_Y + PADDING + 30,
                                   item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT))
     Settings::ROWS.each { |key, row| option(key, row) }
     @menu.add_item('Back').on_activated { root.back }
@@ -278,7 +283,7 @@ end
 # Somewhere for the settings to be true: a marker sweeping the view, and a sound
 # on demand so the volume is something you can hear rather than read.
 class PlayScene < RGame::Engine::Node2D
-  MARGIN = 48
+  MARGIN = 34
   RADIUS = 16
   SPEED = 0.6 # sweeps per second
   DISC = RGame::Util::Color.new(180, 160, 240)
