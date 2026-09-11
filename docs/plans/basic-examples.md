@@ -583,6 +583,276 @@ would go — pure logic, no SDL — but **do not start there**.
 with a wall worth going around, or the search has nothing to show. Note that
 under "Assets".
 
+### 13. `examples/sprite` — one frame, no animation
+
+**Shows** the plain sprite: an image drawn at a node, with no animation state
+behind it. It is the half of `AnimatedSprite` that is left once the walk cycle
+is taken away, and most things in a game are this — a crate, a pickup, a rock.
+
+**Existing:** `Components::Sprite`, `renderer.register_image`, `Image#subimage`.
+
+**New:** nothing.
+
+The points worth making, and there are exactly three:
+
+- **It passes no position and no angle.** `Node2D#draw` has already pushed the
+  node's transform, so drawing at `(0, 0)` *is* drawing at the node, correctly
+  rotated. Passing either would apply it twice. Rotate the node and the sprite
+  turns for free — which is the clearest possible demonstration of what the
+  transform stack is for.
+- **`z` is the render layer, not the node's transform z.** The component keeps it
+  under `@layer` to say so, and an example is where that distinction stops being
+  a comment nobody reads.
+- **`scale` is writable** because a pooled entity retunes it on reset — a forward
+  reference to example 17 rather than something this example needs.
+
+**Open question — what image.** `Sprite` takes an image *id*, and both assets on
+hand are sheets, so drawing `'hero.png'` whole shows the entire strip. Leaning
+toward showing both id spaces: one node drawing a whole image by path, another
+drawing a registered `subimage` of the sheet, which also makes the point that
+slicing a sheet costs no second decode. Decide when writing; a new asset is not
+warranted for this.
+
+**Assets:** **A**, already committed.
+
+### 14. `examples/velocity` — movement with nobody driving
+
+**Shows** the other way a node moves. Every example so far has used
+`CharacterBody`, which turns an *intent* in -1..1 into a step at a speed. A rock
+has no intent: it has a velocity, and something integrates it.
+
+**Existing:** `Components::Velocity` (vx / vy / spin), `Components::ScreenWrap`,
+`Components::World`.
+
+**New:** nothing.
+
+- **`spin` is why this pairs with 13.** Angular velocity integrated into the
+  node's angle, and the sprite on it turns without the sprite knowing.
+- **`ScreenWrap` needs to know how big the world is, and does not ask the
+  scene.** It reads `node.system(WorldBounds)` — a *contract*, answered here by
+  `Components::World` and in a tiled game by `Components::TileWorld`, so the same
+  component wraps correctly in both without a branch. That indirection looks like
+  ceremony until you see the two implementations, which is what this example is
+  for.
+- Bounds are re-resolved on every attach rather than cached, so a recycled entity
+  wraps against the scene it landed in. Another forward reference to 17.
+
+**Assets:** none — coloured shapes, and the drift is the subject.
+
+### 15. `examples/signals` — a node announcing that something happened
+
+**Shows** declaring a signal of your own. Every example so far has *consumed*
+signals the engine declares — `on_activated`, `on_changed` — and none has
+written `signal :on_something`, which is the half a game actually does.
+
+**Existing:** `Engine::Signal::DSL` (`signal :name`, `Signal.define(:field)` for a
+typed one), the connect handle and `disconnect`, `Components::ActionTrigger`.
+
+**New:** nothing.
+
+- **Why a signal rather than the node calling its listener.** A pressure plate
+  does not know what a door is, and should not have to be handed one to be
+  useful. The example is a plate and two unrelated things that react to it, and
+  the whole point is that the plate names neither.
+- **`connect` returns a handle, and `disconnect` takes it.** A listener that
+  outlives its interest and is never disconnected is the leak nobody sees; show
+  one being dropped.
+- **A typed signal carries a payload**, and `Signal.define(:action)` is what
+  `ActionTrigger` uses — so the example ends with one component emitting an
+  action name and a listener filtering on it, which is the shape a game reuses
+  for "fire" here and "jump" somewhere else.
+- **Emitting is private.** The DSL generates a public `on_x(&block)` to subscribe
+  and a private `on_x_signal` to emit on, so only the host can fire its own
+  signal. Worth a sentence: it is the same "give the user a blank hook, keep the
+  machinery separate" rule the rest of the engine follows.
+
+**Assets:** none.
+
+### 16. `examples/timer` — things that happen on a clock
+
+**Shows** periodic behaviour that no input drives: a spawn cadence, a fire rate,
+a wave clock.
+
+**Existing:** `Components::Timer` (repeating and one-shot, `on_timeout`), and the
+pure `Engine::Timer` underneath it.
+
+**New:** nothing.
+
+- **The remainder rolls over.** `consume` carries the leftover forward, so a
+  cadence does not drift against a variable frame — and a metronome next to a
+  hand-rolled `@elapsed += dt; if @elapsed > interval; @elapsed = 0` drifts
+  visibly against it in a driven run. That comparison is the example.
+- **It rides the node's tick**, so nothing can forget to advance it. Contrast
+  with `examples/sound`, which accumulates its own flash by hand — correct there,
+  because a fade is not an interval.
+- **The countdown restarts in `on_attach`**, which is the line that makes a
+  pooled node safe: a recycled projectile gets its full life rather than
+  inheriting the previous one's. Say it here; example 17 relies on it.
+- **One component per slot**, so a node wanting two cadences names them with
+  `as:`.
+
+**Assets:** none.
+
+### 17. `examples/pooling` — spawning without allocating
+
+**Shows** why a game that spawns things does not build them. A steady 60fps
+frame that allocates is a GC pause waiting to happen, and a bullet is the
+canonical thing there are suddenly two hundred of.
+
+**Existing:** `Components::Pool` and `Engine::Pool`, `queue_free`,
+`Components::DespawnOffscreen`, plus the Timer from 16 to drive the spawn.
+
+**New:** nothing.
+
+- **The game writes `pool.spawn` and `node.queue_free`, and nothing else.**
+  Acquire, add as a child, reclaim on free — all of it rides the tick inside the
+  component. A hand-written acquire/add/reclaim bridge is exactly the remembered
+  rule "Design out misuse" rejects.
+- **A pooled node is an ordinary child.** The scene's normal traversal updates
+  and draws it; the pool only manages membership. That is the sentence that stops
+  a reader thinking pooling is a parallel world with its own rules.
+- **Measure it.** Spawn on a timer for a few hundred ticks and report allocations
+  in steady state — the number is the argument, and every other claim in this
+  file is prose. `ObjectSpace.count_objects` around a stretch of ticks is enough.
+- `DespawnOffscreen` retires them, resolving bounds the same way `ScreenWrap` did
+  in 14, so the pair reads as one idea seen twice.
+
+**Assets:** none.
+
+### 18. `examples/collision` — two shapes touching
+
+**Shows** object-to-object collision: a scene-scoped system that pairs up shapes
+each frame and tells them they overlapped.
+
+**Existing:** `Components::CollisionWorld`, `BoxCollider`, `CircleCollider`,
+their `on_hit` signal, and `Velocity` from 14 to move things into each other.
+
+**New:** nothing.
+
+- **The system lives on the scene and the shapes live on the nodes.** Colliders
+  register on entering the tree and unregister on leaving, so a spawned or
+  despawned entity cannot leak a registration — the engine fires both hooks, and
+  no game code is asked to remember.
+- **`layer` is an opaque tag and the system does not read it.** `CollisionWorld`
+  reports contacts; what a contact *means* is the listener's business. Two layers
+  and one handler that ignores same-layer pairs is enough to show why.
+- **A box and a circle collide with each other**, because both answer one
+  broadphase and narrowphase protocol and settle the pair between themselves. Do
+  not hide that: a reader assuming shapes only meet their own kind will build
+  around a limitation that is not there.
+- **An AABB does not rotate with its node.** Put a spinning thing on a
+  `CircleCollider` and a still one on a `BoxCollider`, and say that is the
+  choice rather than a preference.
+- **The broadphase is a spatial hash**, and `cell_size` is the one number a game
+  has to pick. A sentence on how to pick it — about the size of the things being
+  bucketed — is worth more than the algorithm.
+
+**Assets:** none — shapes, drawn as shapes.
+
+### 19. `examples/collision_tiles` — walking into a wall
+
+**Shows** the *other* collision problem, and that it needs different machinery.
+A character against a grid of solid tiles is not a pairwise overlap test: there
+are no pairs, there is a grid query.
+
+**Existing:** `Components::TileWorld` (already shown in `examples/scroll_map`, as
+the thing that owns the map), `Components::TileCharacterBody`, asset **B**.
+
+**New:** nothing.
+
+- **Read against 18, deliberately.** No `CollisionWorld`, no colliders, no
+  `on_hit` — and the reason is that a tile map already knows what is where, so
+  bucketing it into a spatial hash would be paying twice for an index that
+  exists. Two examples that both say "collision" and share no code is the point.
+- **A feet box, not the sprite's box.** A top-down character collides with a
+  small rectangle at the bottom of the sprite, which is what lets them walk
+  "behind" the top half of a wall. Draw the box.
+- **Sliding is the whole feel.** Walking diagonally into a wall keeps the
+  component of the movement that is not blocked, and a version that simply
+  stopped would feel broken without a player being able to say why.
+
+**Ordering note.** Plain collision comes first because it is the general
+mechanism; the tiled one comes second because it is the specialised one *and*
+because Phase E's two jump examples build straight on top of it.
+
+**Assets:** **B**, already committed. Its map may want a wall arrangement worth
+sliding along, the same way example 12's wants one worth routing around.
+
+### 20. `examples/split_screen` — two players, one world
+
+**Shows** the thing CLAUDE.md calls a headline feature and no example has ever
+run: a shared world updated once, drawn once per viewport, with a camera and a
+set of bindings per player.
+
+**Existing:** all of it — `Game.new(players: 2)`, `Engine::Players` and seating,
+`PlayerLayer`, `WorldView`, `Viewports`, and the drive harness's one-timeline-
+per-device scripts. `test_projects/tiled_world` already does this; what is
+missing is a file that does *only* this.
+
+**New:** nothing expected.
+
+- **The world does not know how many times it is drawn.** That is the sentence
+  the whole design exists to make true, and a split-screen example is the only
+  place it can be shown rather than asserted.
+- **The screen splits when someone joins, not when a pad is plugged in.** Start
+  with one seat filled and one empty: the game opens full-screen, and a `ui_confirm`
+  on the controller seats player two and splits it. `Players#on_seated` is how the
+  scene learns to spawn the second avatar.
+- **Ownership is inherited down the tree**, so each player's HUD reads that
+  player's input without either subtree mentioning players. Give both a small
+  per-player overlay so the point lands.
+- Keep the world trivial — a floor and two walkers. Every earlier example put its
+  subject in the world; this one's subject is the plumbing around it.
+
+**Drive script:** two absolute timelines, keyboard and `controls.gamepad(0)`,
+modelled on `tools/drive/test_projects/tiled_world_2p.rb`. The report should show
+one clip per active viewport per frame, going from one to two at the join.
+
+**Assets:** **A**, already committed.
+
+### 21. `examples/input_glyphs` — the prompt matches the thing in your hand
+
+**Shows** switching between keyboard and controller mid-session, and a UI that
+says "Press A" or "Press Space" depending on which was used last. It is the most
+visible piece of polish in this whole list and the one players notice
+immediately when it is missing.
+
+**Existing:** `Players#on_unassigned_input = :takeover` — with a single seat, a
+press on an unassigned device hands it to the primary player rather than seating
+a second one, which *is* keyboard-to-controller switching and is already the
+default for a one-seat game. `Player#device` says which device that is.
+
+**New — the largest addition in this phase, and it lands in two layers:**
+
+- **A device-kind question, in `Util`.** `Controls` has `KEYBOARD = 0`,
+  `GAMEPAD_FIRST = 1` and `PAD_A = 4096`, so the two id spaces are already
+  disjoint — but there is no named boundary and no predicate, so every caller
+  would rediscover the constant. Add `Controls.gamepad?(device)` and a pad-button
+  test with the boundary named once. Values, no handles: `Util`, and specced
+  against the C header the same way the ids are.
+- **"Which of this action's ids apply to my device?"** An `InputMap` entry lists
+  keyboard and pad ids together on purpose, because a device only answers for its
+  own kind. A prompt has to undo that: given `:fire` and a gamepad, it wants
+  `PAD_A` and not `KEY_SPACE`. That is a query on `InputMap` — engine layer, pure,
+  spec-able headless.
+- **A glyph is an id rendered as a picture**, which is a sprite lookup keyed by
+  button id. Keep it in the example first. Promote it to `Engine::UI` only if
+  writing it twice proves it wants to be shared.
+
+**Open question — does it switch back?** Takeover fires on a `ui_confirm` press
+on an *unassigned* device, and once the pad has taken over the keyboard is
+unassigned, so Enter or Space should hand it back. **Verify this before
+building the example**, because a game wants "any key returns to the keyboard"
+and `ui_confirm` is a narrower promise. If it is narrower, decide whether that
+is the engine's bug or the example's constraint, and say which in the file.
+
+**Assets: G, and it is new.** A glyph sheet — key caps and pad face buttons —
+with the same CC0-or-authored-here rule as everything in `examples/assets/`.
+Kenney's *Input Prompts* is CC0 and is the obvious source; take only the handful
+of glyphs the example names, the way **A** was repacked rather than copied
+whole. Fewer than a dozen small images.
+
+
 ---
 
 ## New engine work, gathered
@@ -598,6 +868,8 @@ Sorted by where it lands, because that decides who may use it.
 | `Components::PlatformerBody` | `Engine` | 8 | **L** |
 | `UI::RadialMenu` | `Engine::UI` | 9 | M |
 | `Engine::NavGrid` + `Engine::AStar` | `Engine` | 10 | **L** |
+| `Controls.gamepad?` + a named pad-button boundary | `Util` (values) | 21 | S |
+| "which ids of this action apply to this device" | `Engine::InputMap` | 21 | S |
 | `Components::CameraPan` | `Engine` | 2 | S, *maybe not needed* |
 | `Renderer#pie` + contract + fake | `Core` + contracts | 9 | M, *avoid if possible* |
 
@@ -717,8 +989,8 @@ reasonable at this size and sidesteps the question.
 
 ### The manifest
 
-Two asset sets are unavoidable, and between them they cover four of the ten
-examples. Three more are deferred, and one is refused outright.
+Four sets are committed and cover most of the list. One more is needed, one is
+deferred, and one is refused outright.
 
 | | Asset | Files | Used by | Status |
 |---|---|---|---|---|
@@ -728,6 +1000,7 @@ examples. Three more are deferred, and one is refused outright.
 | **D** | Radial icon sheet | `icons.png` + `icons.json` | 9 radial_menu | deferred |
 | **E** | Side-view tileset + character | — | 8 jump_sidescroller | **refused** — rects instead |
 | **F** | A sound effect and a music loop | `blip.ogg`, `music.ogg` | 4 sound, 5 music | **done** |
+| **G** | Input prompt glyphs | `glyphs.png` + `glyphs.json` | 21 input_glyphs | needed |
 
 **A and B are in `examples/assets/`**, about 10 KB in total, with full
 provenance in `examples/assets/README.md`. A is sodri's CC0 *Character 4
@@ -737,8 +1010,19 @@ grid; B is Kenney's CC0 *Tiny Town* copied unchanged, with a `.tsx` and a
 is what a replacement would have to satisfy too.
 
 Nothing else in the list needs a file: 4 fullscreen and 5 save_load draw with
-primitives and the shipped font, and 6 menu_navigation adds only the nine-slices
-of **C**.
+primitives and the shipped font, 6 menu_navigation adds only the nine-slices of
+**C**, and everything in Phase D except `sprite`, `collision_tiles`,
+`split_screen` and `input_glyphs` is coloured shapes on purpose — the subject in
+each case is the movement, the cadence or the contact, and art would only be
+something else to look at.
+
+**G is the one new set this plan still needs.** Key caps and pad face buttons for
+`examples/input_glyphs`, under the same rule as everything else here: CC0 or
+authored in this repo, with provenance recorded whether or not the licence asks
+for it. Kenney's *Input Prompts* is CC0 and is the obvious source. Take the
+handful of glyphs the example actually names rather than the pack — **A** was
+repacked rather than copied whole for the same reason, and a gem should not carry
+four hundred images to draw six.
 
 **A — character sprite sheet.** A four-direction walk cycle plus an idle, which
 is what `Components::AnimatedSprite` and `AnimationSet` expect — they resolve
@@ -816,13 +1100,20 @@ Pick it up only if the labelled version reads badly.
 
 ### Consequence for the order
 
-None any more — this was the only external dependency in the plan and it is
-discharged. Everything from here is code.
+**One left: asset G**, the input prompt glyphs `examples/input_glyphs` needs.
+Everything before it in the order is code, so sourcing G can happen in parallel
+with all of Phase D and only blocks that example. A, B, C and F are discharged.
 
 ## Implementation order
 
 The order is chosen so that each phase either needs no new engine code or needs
 exactly one new thing, and so that nothing is built before the thing it consumes.
+
+**These numbers are execution positions, not the `### N` numbers above.** The
+catalogue in "The examples" is in the order the entries were written and its
+numbers are cited all over this file — asset rows, the engine-work table, the
+open questions — so it does not get renumbered when the order changes. Below,
+examples are named rather than numbered wherever one is referred to.
 
 **Phase 0 — done.**
 
@@ -870,24 +1161,58 @@ trace in any report. Fixed while writing example 7.
 10. ~~`examples/menu_navigation`~~ — **done**; consumes 8 and 9, so its settings
     are real and persist.
 
-**Phase D — new gameplay components, small before large.**
+**Phase D — engine that already exists and nothing shows. Easiest first.**
 
-11. `examples/jump_topdown` (`Components::Hop` — small, and it is the one that
+11. `examples/sprite` (`Components::Sprite`; reuses **A**)
+12. `examples/velocity` (`Components::Velocity` + `ScreenWrap` + `World`; no assets)
+13. `examples/signals` (a signal of your own, plus `Components::ActionTrigger`;
+    no assets)
+14. `examples/timer` (`Components::Timer`; no assets)
+15. `examples/pooling` (`Components::Pool` + `DespawnOffscreen`, driven by 14;
+    no assets)
+16. `examples/collision` (`CollisionWorld` + `BoxCollider` + `CircleCollider`,
+    moved by 12; no assets)
+17. `examples/collision_tiles` (`Components::TileCharacterBody`; reuses **B**)
+18. `examples/split_screen` (`players: 2`; reuses **A**)
+19. `examples/input_glyphs` (`Controls.gamepad?`, an `InputMap` query, and asset
+    **G** — the only new engine work in this phase)
+
+**This phase is a coverage phase rather than a feature phase**, and that is why
+it comes before the two that add components. Everything up to `split_screen`
+already exists, is already specced, and is already used by a test project — but a
+reader browsing `examples/` never meets any of it, and a test project is a whole
+game rather than a thing that makes one point. Only `input_glyphs` adds engine
+surface.
+
+Ordering inside it is by how much a reader has to absorb, not by how much code it
+takes to write. The first four are one component each. `pooling` leans on
+`timer`, because a pool wants something to drive it; `collision` leans on
+`velocity`, because two shapes have to move into each other; and
+`collision_tiles` comes after `collision` so the general mechanism is read before
+the specialised one — which also lands it next to Phase E, whose jumps build on
+it directly.
+
+**Phase E — new gameplay components, small before large.**
+
+20. `examples/jump_topdown` (`Components::Hop` — small, and it is the one that
     makes the "a jump is a draw offset" point that the sidescroller then
     contrasts with; reuses **A** and **B**)
-12. `examples/jump_sidescroller` (`Components::PlatformerBody` — the big one; do
+21. `examples/jump_sidescroller` (`Components::PlatformerBody` — the big one; do
     it after the small jump so the contrast between the two is deliberate. No
     assets, by decision)
 
-**Phase E — the two largest, both independent of everything above.**
+Both now follow `examples/collision_tiles`, so tile collision is something the
+reader has already met and neither jump example has to introduce it.
 
-13. `examples/radial_menu` (no assets)
-14. `examples/pathfinding` (reuses **A** and **B**; `town.tmx` already has the
+**Phase F — the two largest, both independent of everything above.**
+
+22. `examples/radial_menu` (no assets)
+23. `examples/pathfinding` (reuses **A** and **B**; `town.tmx` already has the
     obstacle worth routing around — see "Assets")
 
 Both are self-contained and could move earlier if wanted. Pathfinding is last
 only because it is the largest single algorithm; it has no dependency on
-anything in phases C or D.
+anything in phases C, D or E.
 
 ## Audio resolves by path now — and what that cost
 
@@ -943,6 +1268,15 @@ sodri's character sheet repacked. See "Assets". So is 6: one `OptionItem` and no
   in like `tiled_world` does with `:cutscene`?
 - **9** — does the radial read `move_x`/`move_y`, or declare its own axes? And can
   the icon ring avoid needing `Renderer#pie` entirely?
+- **13** — one node drawing a whole image and one drawing a registered
+  `subimage`, or a single still image? Leaning toward both, because it shows the
+  two id spaces again and costs no new asset.
+- **21** — does takeover switch *back*? Verify before building: the trigger is a
+  `ui_confirm` press on an unassigned device, and a game wants "any key returns to
+  the keyboard". If the narrow form is all there is, decide whether that is the
+  engine's bug or the example's stated constraint.
+- **21** — does the glyph lookup stay in the example, or become `Engine::UI`?
+  Leaning: keep it local until something writes it twice.
 - **Discoverability** — a shipped example lands inside the installed gem's
   directory, which nobody browses. Should the `rgame` command grow an
   `rgame examples` that lists them (and maybe copies one into the working
@@ -950,16 +1284,100 @@ sodri's character sheet repacked. See "Assets". So is 6: one `OptionItem` and no
   examples exist — it is a CLI feature, not part of this plan, and
   `docs/api/cli.md` is where it would be argued.
 - **General** — do examples get an index page (`examples/README.md`) as well as
-  links from `docs/api/`? Leaning yes: a directory of ten example folders needs a
-  table saying which one answers which question.
+  links from `docs/api/`? Leaning yes — and Phase D turns this from a preference
+  into a requirement. Twenty-odd example folders with names like `velocity` and
+  `collision_tiles` need a table saying which one answers which question, because
+  the directory listing alone stops being one.
+
+## What still has no example when all of this is done
+
+Taken from the whole of `lib/rgame/engine/` against every example above,
+built and planned. **Reviewed once Phase F lands** — the question for each is
+whether it wants an example or whether `docs/api/` is enough, and that is easier
+to answer with the rest of the list in front of you than now.
+
+Everything named here has specs and a `docs/api/` entry already. Nothing is
+undocumented; what these lack is a running file a reader can open.
+
+### Public, used by a test project, never by an example
+
+Two components, both from `test_projects/asteroids`:
+
+| | What it does | Why no example took it |
+|---|---|---|
+| `Components::Targeting` | holds a *node* as a target and answers whether it is still valid | `examples/save_load_ids` names it in a comment — as the component with the same problem it solves by hand — and never builds one |
+| `Components::ThrustController` | turns an action into acceleration along the node's facing | every example moves things in screen axes; nothing in the list flies |
+
+Neither is obscure and both would make a small example. `ThrustController` and
+`Targeting` together are most of a twin-stick shooter, which is an argument for
+one example rather than two.
+
+### Public, used nowhere at all
+
+Not by an example, not by a test project, and not by `lib/` either:
+
+| | What it does |
+|---|---|
+| `Engine::I18n` | locale tables, `t(key)` with `%{var}` interpolation, a fallback locale, and a generation counter so cached UI text knows when to re-resolve |
+| `Engine::CachedLabel` | a display string rebuilt only when its source value changes, so a per-frame draw shows the cached copy |
+
+**`CachedLabel` is the awkward one.** Every example in this plan hand-rolls a
+frozen hash keyed by state to avoid allocating a String per frame — that is the
+house answer to `Game/NoInterpolationInHotPath`, repeated in `sound`,
+`fullscreen`, `save_load` and `menu_navigation`. `CachedLabel` is the engine's
+own answer to the same problem and no example reaches for it. Either it is the
+better answer and the examples should say so, or the frozen hash is, and then
+`CachedLabel` is a class with no callers. That is a decision this plan should
+make rather than leave.
+
+**`I18n` is the largest genuinely unexercised subsystem in the engine**, and its
+own header still compares itself to `EventDispatcher`, which went with Gosu — so
+it has not been read in a while either. A localized menu is a plausible example
+and would want the generation counter and `CachedLabel` together, which may be
+the answer to both rows at once.
+
+### Orphans — the question is deletion, not documentation
+
+Live, specced code with no caller anywhere in `lib/`, `examples/` or
+`test_projects/`:
+
+- **`Engine::Actor`** — a character composing a collision box, an animator, a
+  sprite id and a controller. `Node2D` plus components is that, and its only
+  caller is its own spec; `node2d.rb` and `input/player_controller.rb` reference
+  it in comments as if it were live. It reads as the pre-component shape.
+- **`Engine::Matrix`** — a flat-backed 2-D grid. `TileMap` packs into the C
+  `Util::Tensor` instead.
+- **`Engine::Resettable`** — value classes for pooling. `Engine::Pool` recycles
+  nodes, which reset themselves.
+
+An example is the wrong fix for any of these. Either something should use them
+or they should go, and the honest first step is finding out which.
+
+### Internals, correctly absent
+
+Reached transitively by things the examples do use, and an example that named one
+would be teaching plumbing rather than a concept: `Body`, `CollisionBox`,
+`CollisionSystem`, `Culling`, `SpatialHash`, `TileCollision`, `Layout`, `View`,
+`AnimationSet`, `Animator`, `Tileset`, `DebugOverlay`, `AudioDirector`,
+`ActionMapper` and `Actions`.
+
+These belong in `docs/api/internals.md` and nowhere else. Listed so that a later
+pass over this section does not have to re-derive why they are missing.
 
 ## When this lands
 
 Per CLAUDE.md's rule for `docs/plans`: fold what is still true into
 `docs/api/` (each new component into `components.md`, `ui.md`, `toolbox.md`;
-fullscreen into `app.md`; `SaveFile` into `values.md`), add the examples index,
-update `docs/project_structure.md` with the `examples/` and `examples/assets/`
-entries — and delete this file. Git history keeps it.
+fullscreen into `app.md`; `SaveFile` into `values.md`; the device-kind predicate
+into `input.md`), add the examples index, update `docs/project_structure.md` with
+the `examples/` and `examples/assets/` entries — and delete this file. Git history
+keeps it.
+
+**"What still has no example" is the one section to resolve before deleting**,
+rather than fold in. Its rows are decisions the plan raised and did not take: an
+example, a documentation-only answer, or — for the three orphans — a caller or a
+deletion. Whatever is decided goes into `docs/api/` or into the code; what must
+not happen is the list quietly disappearing with the plan.
 
 Three things are **not** part of that fold-in, because they are permanent:
 `examples/assets/README.md` (the file that keeps the licensing answerable a year
