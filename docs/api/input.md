@@ -68,6 +68,33 @@ only answers for its own kind of input** — asking a gamepad about a keyboard
 scancode is `false`, never the keyboard's answer. So `fire` can be "Space or A",
 and each player's device picks out the half that applies to it.
 
+### Showing a prompt undoes that
+
+One entry lists both ids because reading needs no branch. **Showing** does: a
+prompt saying "press Space or A" tells the player about hardware they are not
+holding.
+
+```ruby
+map.button_for(:fire, Controls::KEYBOARD)     # => KEY_SPACE
+map.button_for(:fire, Controls.gamepad(0))    # => PAD_A
+```
+
+`button_for(action, device)` gives the first id bound to `action` that `device`
+can press, comparing `Controls.pad_button?(id)` against `Controls.gamepad?(device)`
+— which is what the two id spaces being disjoint is *for*. First match, so the
+order an entry lists its ids in is the order a prompt prefers them: `ui_confirm`
+names Return before Space, and a prompt for it says Return.
+
+`nil` for an action nobody bound, one with no buttons at all (a stick or a
+digital axis is not a button, and the picture for one is a different picture),
+and one whose entry has nothing for that kind of device. Allocation-free, so a
+HUD may call it per frame rather than caching a string it would have to
+invalidate.
+
+`examples/input_glyphs` is the whole idea running: three prompts, a glyph sheet
+keyed by button id, and a seat that moves between the keyboard and a controller
+while you watch.
+
 ### A stick's sign is the device's
 
 `AXIS_LEFT_Y` is positive **downwards**, like screen coordinates. An action that
@@ -179,10 +206,14 @@ players.on_joined { |player| spawn(player) }
 | `:ignore` | nothing; the game calls `players.seat(device)` itself | — |
 
 `:takeover` is single-player's answer: one person already playing who picks up a
-controller is not a second person arriving. Their keyboard becomes unassigned,
-so using it again takes them back — last device used wins. And if their
-controller is unplugged they fall back to the keyboard rather than the game
-going dead in their hands.
+controller is not a second person arriving. Their keyboard becomes unassigned, so
+a `ui_confirm` press on it takes them back — last device used wins, and it is the
+same rule in both directions. **A `ui_confirm` press, not any key**: W does
+nothing, because a policy that seated on any input would seat a player whose
+stick is resting slightly off centre. A game that wants any key to return to the
+keyboard sets `:ignore` and calls `seat` itself. And if their controller is
+unplugged they fall back to the keyboard rather than the game going dead in their
+hands.
 
 `accepting_joins = false` refuses both, which is what a cutscene or a mid-round
 lockout wants.
@@ -290,6 +321,19 @@ This module is the **vocabulary only**. It carries no binding tables — what an
 Buttons and keys share one numbering, partitioned into ranges, so a single
 "is it held" query serves every device. You never need the numbers themselves —
 use the constants.
+
+**Which side of the partition** is a question a prompt has to ask, so it is
+named rather than rediscovered:
+
+```ruby
+Controls.gamepad?(device)   # a controller slot, or the keyboard?
+Controls.pad_button?(id)    # a pad button, or a key?
+```
+
+`BUTTON_GAMEPAD_FIRST` is the boundary, and it is the C engine's own
+(`RGAME_BUTTON_GAMEPAD_FIRST`), checked against the header like every other id
+here. Between them the pair is what
+[`InputMap#button_for`](#showing-a-prompt-undoes-that) is built out of.
 
 ## `RGame::Core::Gamepad`
 

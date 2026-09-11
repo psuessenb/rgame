@@ -31,6 +31,60 @@ RSpec.describe RGame::Engine::InputMap do
     end
   end
 
+  # Reading input needs no branch because a device only answers for its own kind
+  # of id. Showing a prompt is the opposite problem: exactly one of them has to
+  # be named, and which one depends on what the player last used.
+  describe '#button_for' do
+    it 'gives the key to a keyboard and the pad button to a controller' do
+      map = described_class.default
+
+      expect(map.button_for(:fire, controls::KEYBOARD)).to eq(controls::KEY_SPACE)
+      expect(map.button_for(:fire, controls.gamepad(0))).to eq(controls::PAD_A)
+    end
+
+    it 'answers for every gamepad slot, not only the first' do
+      map = described_class.default
+
+      expect((0...controls::MAX_GAMEPADS).map { |slot| map.button_for(:fire, controls.gamepad(slot)) })
+        .to all(eq(controls::PAD_A))
+    end
+
+    # The order an entry lists its ids in is the order a prompt prefers them:
+    # ui_confirm names Return first, so a keyboard prompt for it says Return
+    # even though Space would work as well.
+    it 'takes the first id the entry lists for that kind of device' do
+      expect(described_class.default.button_for(:ui_confirm, controls::KEYBOARD)).to eq(controls::KEY_RETURN)
+    end
+
+    it 'is nil for an action with no button on that device' do
+      map = described_class.new(fire: { buttons: [controls::KEY_SPACE] })
+
+      expect(map.button_for(:fire, controls.gamepad(0))).to be_nil
+    end
+
+    # A stick and a digital axis are not buttons, and the picture a prompt would
+    # draw for one is a different picture. Nil says "nothing to show here"
+    # rather than naming half of a pair.
+    it 'is nil for an action bound only to an axis or a stick' do
+      map = described_class.new(turn: { axis: [controls::KEY_LEFT, controls::KEY_RIGHT],
+                                        stick: controls::AXIS_LEFT_X })
+
+      expect(map.button_for(:turn, controls::KEYBOARD)).to be_nil
+    end
+
+    it 'is nil for an action nobody bound' do
+      expect(described_class.default.button_for(:nonesuch, controls::KEYBOARD)).to be_nil
+    end
+
+    # It runs per prompt per frame in a HUD that follows the device in hand, so
+    # it may not allocate — the same rule every per-frame read here follows.
+    it 'allocates nothing' do
+      map = described_class.default
+
+      expect { map.button_for(:fire, controls.gamepad(0)) }.to allocate_nothing
+    end
+  end
+
   describe 'sources' do
     it 'resolves a button list' do
       map = described_class.new(fire: { buttons: [controls::KEY_SPACE, controls::PAD_A] })
