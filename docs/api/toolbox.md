@@ -50,6 +50,17 @@ sanctioned home for build-on-change interpolation, so the per-frame allocation c
 (`rubocop/cop/game/`) exempt it. For a value that changes *every* frame (an FPS or allocation counter) a cached string can't
 help — draw the digits individually from cached glyph strings instead, as `RGame::Engine::DebugOverlay` does.
 
+**Reach for this rather than working around the cop.** A label built from a
+changing value is common, and a per-example dodge is a puzzle for the next
+reader. `examples/sound` is the worked example: a play counter on screen, one
+allocation per press and none in the frames between.
+
+Two cases it is not for. A **constant string chosen by state** — `{ true =>
+'fullscreen', false => 'windowed' }.freeze` — selects a string rather than
+building one, so there is nothing to cache. A value that **never changes** wants
+an ivar built in `initialize`. Both are already allocation-free, and a cache
+around either is indirection with nobody paying for it.
+
 ## `Pool` — reuse, don't allocate
 
 `RGame::Engine::Pool` (`rgame/engine/pool`) recycles many short-lived, homogeneous objects —

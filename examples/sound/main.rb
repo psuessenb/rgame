@@ -11,7 +11,8 @@
 #   - Core::Sample — a decoded, fire-and-forget effect, named by its path;
 #   - Engine::AudioBus — where gameplay says *what happened*;
 #   - Engine::AudioDirector — what turns that into playback, subscribed by
-#     RGame::Game.
+#     RGame::Game;
+#   - Engine::CachedLabel — a count on screen that costs no String per frame.
 #
 # ## Why a node does not just call the audio device
 #
@@ -55,20 +56,18 @@ ASSETS = File.expand_path('../assets', __dir__)
 
 class Scene < RGame::Engine::Node2D
   RING = RGame::Util::Color.new(120, 200, 255)
-  PIP  = RGame::Util::Color.new(120, 200, 255)
   FADE = 3.0        # how fast the flash decays, in units per second
   MIN_R = 18.0      # radius at rest
   GROW  = 90.0      # extra radius at full flash
-
-  PIP_SIZE = 10
-  PIP_GAP  = 6
-  PIP_Y    = 60
-  PIP_MAX  = 40 # a row this long already fills the window
 
   def initialize
     super
     @flash = 0.0
     @plays = 0
+    # Built once, here, and that is the whole trick: the block below is the only
+    # place a String is interpolated, and it runs when the count changes rather
+    # than when a frame is drawn. See the note above on_draw.
+    @plays_label = RGame::Engine::CachedLabel.new { |plays| "plays: #{plays}" }
   end
 
   def on_control(actions)
@@ -90,22 +89,22 @@ class Scene < RGame::Engine::Node2D
     @flash = 0.0 if @flash.negative?
   end
 
-  # One pip per play, rather than a "%d plays" label. A count rendered as text
-  # means building a String every frame, and `Game/NoInterpolationInHotPath` is
-  # right to refuse it: a steady 60fps frame that allocates is a GC pause
-  # waiting to happen. Counting in rectangles costs nothing and reads just as
-  # well at this scale.
+  # A count, drawn as text, allocating nothing.
   #
-  # `[@plays, PIP_MAX].min` allocates nothing, despite the array literal: the VM
-  # compiles `min` on an array literal to a single `opt_newarray_send` that reads
-  # the operands off the stack. Measured at 0 objects over 200,000 calls.
+  # `"plays: #{@plays}"` written here would build a String on every frame
+  # forever, and `Game/NoInterpolationInHotPath` is right to refuse it: a steady
+  # 60fps frame that allocates is a GC pause waiting to happen.
+  # `Engine::CachedLabel` holds the last string and rebuilds it only when the
+  # value it was made from changes, so pressing the key costs one allocation and
+  # the thousand frames between presses cost none.
+  #
+  # **Reach for it rather than inventing a way round the rule.** A label built
+  # from something that changes is common enough that the engine owns the
+  # answer — see CLAUDE.md, "A label built from a changing value".
   def on_draw(renderer, _view)
     renderer.circle(WIDTH / 2, HEIGHT / 2, MIN_R + (GROW * @flash), color: RING)
     renderer.text('Press Space (or A on a controller) — fast, to hear them overlap', 12, 12)
-
-    [@plays, PIP_MAX].min.times do |i|
-      renderer.rect(12 + (i * (PIP_SIZE + PIP_GAP)), PIP_Y, PIP_SIZE, PIP_SIZE, color: PIP)
-    end
+    renderer.text(@plays_label[@plays], 12, 44)
   end
 end
 

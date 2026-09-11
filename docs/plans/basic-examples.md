@@ -1314,44 +1314,51 @@ one example rather than two.
 
 ### Public, used nowhere at all
 
-Not by an example, not by a test project, and not by `lib/` either:
+One left — not used by an example, not by a test project, and not by `lib/`
+either, which makes it the largest genuinely unexercised subsystem in the engine:
 
 | | What it does |
 |---|---|
 | `Engine::I18n` | locale tables, `t(key)` with `%{var}` interpolation, a fallback locale, and a generation counter so cached UI text knows when to re-resolve |
-| `Engine::CachedLabel` | a display string rebuilt only when its source value changes, so a per-frame draw shows the cached copy |
 
-**`CachedLabel` is the awkward one.** Every example in this plan hand-rolls a
-frozen hash keyed by state to avoid allocating a String per frame — that is the
-house answer to `Game/NoInterpolationInHotPath`, repeated in `sound`,
-`fullscreen`, `save_load` and `menu_navigation`. `CachedLabel` is the engine's
-own answer to the same problem and no example reaches for it. Either it is the
-better answer and the examples should say so, or the frozen hash is, and then
-`CachedLabel` is a class with no callers. That is a decision this plan should
-make rather than leave.
+Its own header still compares itself to `EventDispatcher`, which went with Gosu,
+so it has not been read in a while either. A localized menu is a plausible
+example and would want the generation counter and `CachedLabel` together.
 
-**`I18n` is the largest genuinely unexercised subsystem in the engine**, and its
-own header still compares itself to `EventDispatcher`, which went with Gosu — so
-it has not been read in a while either. A localized menu is a plausible example
-and would want the generation counter and `CachedLabel` together, which may be
-the answer to both rows at once.
+**`CachedLabel` was the other row here and is resolved.** The question was
+whether the engine's answer to `Game/NoInterpolationInHotPath` or the examples'
+hand-rolled ones were right, and it turned out to be both, along a line worth
+writing down. A **constant string chosen by state** — `STATE` in
+`examples/fullscreen`, `STATUS` in `examples/save_load` — selects a string rather
+than building one, so there is nothing to cache and a frozen hash is clearer.
+A label built from a **changing** value is what `CachedLabel` is for, and exactly
+one example had one: `examples/sound` drew a row of rectangles to count plays
+*because* a formatted count was refused, with a comment longer than the code
+explaining the dodge. It now draws the count through a `CachedLabel`, four
+constants and a loop lighter. The rule is in CLAUDE.md under "A label built from
+a changing value", so the next example reaches for it instead of inventing a
+third way round.
 
 ### Orphans — the question is deletion, not documentation
 
 Live, specced code with no caller anywhere in `lib/`, `examples/` or
 `test_projects/`:
 
-- **`Engine::Actor`** — a character composing a collision box, an animator, a
-  sprite id and a controller. `Node2D` plus components is that, and its only
-  caller is its own spec; `node2d.rb` and `input/player_controller.rb` reference
-  it in comments as if it were live. It reads as the pre-component shape.
 - **`Engine::Matrix`** — a flat-backed 2-D grid. `TileMap` packs into the C
   `Util::Tensor` instead.
 - **`Engine::Resettable`** — value classes for pooling. `Engine::Pool` recycles
   nodes, which reset themselves.
 
-An example is the wrong fix for any of these. Either something should use them
-or they should go, and the honest first step is finding out which.
+An example is the wrong fix for either. Something should use them or they should
+go, and the honest first step is finding out which.
+
+**`Engine::Actor` was the third of these and is deleted.** It was a character
+composing a collision box, an animator, a sprite id and a controller — the
+pre-component shape of what `Node2D` plus components does now — and its only
+caller was its own spec. `Engine::PlayerController` went with it: a bare class
+whose whole job was answering `intent(dt, input)` for an `Actor`, unrelated to
+the live `Components::PlayerController`. `CollisionSystem#move` stays, because
+`Components::TileCharacterBody` calls it.
 
 ### Internals, correctly absent
 

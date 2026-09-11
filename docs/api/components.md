@@ -7,8 +7,39 @@ baked into a node subclass. A node composes several of them; each knows its owni
 for how nodes drive components, and [Systems & shared resources](systems.md) for
 components that act as shared, scene- or program-scoped services.
 
-`examples/walk` is the smallest working composition of the three that make an
-actor — `AnimatedSprite` + `CharacterBody` + `PlayerController` — in one file.
+`examples/walk` is the smallest working composition of the three that make a
+character — `AnimatedSprite` + `CharacterBody` + `PlayerController` — in one file.
+
+## When what you want is not a component
+
+A component is **behaviour on the node's tick**: it overrides `control`, `update`
+or `draw`, and the node drives it. A good deal of what a game reaches for is not
+that, and scanning this list for it is how a worse answer gets invented —
+`examples/sound` once drew a row of rectangles to show a count, because nothing
+here formats a number.
+
+Those helpers are in [Utilities](toolbox.md) and a game constructs them directly,
+attached to nothing. That is an ordinary thing to do, not a shortcut:
+`examples/sound` emits on `AudioBus` and reads a `CachedLabel` within ten lines
+of each other.
+
+| Looking for | Reach for | |
+|---|---|---|
+| a label from a value that changes, with no `String` per frame | `CachedLabel` | [→](toolbox.md#cachedlabel--a-display-string-rebuilt-only-on-change) |
+| to say *what happened* without naming a sound device | `AudioBus` | [→](toolbox.md#audiobus--decoupled-audio-facts) |
+| a point to follow, clamped to the world | `Camera` | [→](toolbox.md#camera--follow-a-point-clamp-to-the-world) |
+| text in the player's language | `I18n` | [→](toolbox.md#rgameenginei18n--localization) |
+| an ordered route to walk | `Path` | [→](toolbox.md#path--a-walkable-polyline) |
+
+**What earns a component is per-frame work.** Two of those utilities have
+component wrappers, and both exist for that one reason: a timer has to be
+advanced every tick, and a pool has to reclaim freed nodes every tick, so
+`Components::Timer` and `Components::Pool` fold that drive into the traversal
+where nothing can forget it. Where there is no per-frame work there is no
+wrapper — a `CachedLabel` is read when something draws it, and a component that
+overrode none of the hooks would be a component in name only, with the
+one-per-slot rule making a second label on the same node harder rather than
+easier.
 
 ## The `Component` base
 

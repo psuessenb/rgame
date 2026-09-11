@@ -166,9 +166,9 @@ module RGame
       # does), so an `attr_accessor :player` here would quietly claim that ivar
       # out from under every scene that has one — which it did, and the symptom
       # was the input system being handed a Node2D. `controller` is taken too:
-      # Actor#controller is the thing that produces movement intent, a different
-      # idea entirely. This name says exactly what it decides and collides with
-      # neither.
+      # a controller is the component that produces movement intent — see
+      # Components::PlayerController — which is a different idea entirely. This
+      # name says exactly what it decides and collides with neither.
       attr_accessor :input_owner
 
       # A paused node skips `control` and `update` — and so does everything

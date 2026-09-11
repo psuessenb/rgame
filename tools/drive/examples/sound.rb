@@ -9,9 +9,10 @@
 #   - **eight `sound blip.ogg` lines in the audio section**, one per press. That is
 #     the count to assert on: it goes through AudioBus, the AudioDirector and
 #     Core::Audio, so a break anywhere in that chain drops it to zero;
-#   - one `circle` and one `text` call per frame, plus one `rect` per pip —
-#     the pip row is how many plays have happened, counted in rectangles rather
-#     than in a string built every frame;
+#   - one `circle` and **two** `text` calls per frame — the instructions, and the
+#     play count through an `Engine::CachedLabel`. The second one's first
+#     argument is the cached string, so the report shows it advancing `plays: 0`
+#     → `plays: 8` across the run while the call count stays flat;
 #   - no clips and no translates — everything here is screen space.
 #
 # `press` is two ticks, because an edge query compares against the previous

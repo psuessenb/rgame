@@ -24,7 +24,7 @@ RSpec.describe RGame::Engine::CollisionSystem do
   end
 
   it 'resolves the collision box (not the sprite) against solids' do
-    # Wall in column 8 (x 128..144). Actor origin (100, 0) → box at (108, 16, 16, 16),
+    # Wall in column 8 (x 128..144). Origin (100, 0) → box at (108, 16, 16, 16),
     # right edge 124. Moving +10 would push the box into the wall; it snaps so the
     # box right edge rests at 128 → box_x 112 → actor.x 104.
     a = actor(100.0, 0.0)

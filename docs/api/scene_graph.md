@@ -193,8 +193,8 @@ one traversal can read two different controllers, while a component still sees
 the `control(actions)` it always did.
 
 > It is `input_owner` rather than `player` because `@player` is what a game's own
-> scene usually calls its hero node, and rather than `controller` because
-> `Actor#controller` already means the thing producing movement intent.
+> scene usually calls its hero node, and rather than `controller` because a
+> controller already means the component that produces movement intent.
 
 ### View transforms and the camera
 

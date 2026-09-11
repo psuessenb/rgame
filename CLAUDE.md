@@ -123,6 +123,43 @@ These exist because a steady 60fps frame that allocates is a GC pause waiting to
 happen, and the cost is invisible without a guard. Unlike stock cops, these are
 the ones that *do* fit here — fix the code, not the cop.
 
+### A label built from a changing value
+
+`Game/NoInterpolationInHotPath` refuses the obvious `renderer.text("Score:
+#{@score}", ...)`, and the engine owns the answer: **`RGame::Engine::CachedLabel`.**
+Build it, and its format block, off the per-frame path; read it with `[]` in
+`on_draw`.
+
+```ruby
+def initialize
+  super
+  @score_label = Engine::CachedLabel.new { |score| "Score: #{score}" }
+end
+
+def on_draw(renderer, _view) = renderer.text(@score_label[@score], 12, 10)
+```
+
+It keeps the last string and rebuilds only when the value differs, so a score
+that changes once costs one allocation and the frames between cost nothing —
+measured at zero objects over 200,000 unchanged reads. `examples/sound` is the
+worked example.
+
+**Reach for it rather than inventing a way round the rule.** Every hand-rolled
+dodge is a reader's puzzle: `examples/sound` drew a row of rectangles to avoid
+formatting a count, and the comment explaining why was longer than the code. The
+cop is a floor, not a suggestion to be creative under.
+
+**Two things it is not for**, and both are already correct as they stand:
+
+- **A constant string chosen by state.** A frozen hash keyed by the state —
+  `STATE = { true => 'fullscreen', false => 'windowed' }.freeze` in
+  `examples/fullscreen`, `STATUS` in `examples/save_load` — selects a string
+  rather than building one. There is nothing to cache, and a block returning a
+  constant is strictly worse to read.
+- **A value that never changes.** Build it once in `initialize` and keep it in an
+  ivar, the way a `Sheep` in `examples/save_load_ids` keeps `id.to_s`. A cache
+  for something that cannot change is indirection with no payer.
+
 ## Current phase
 
 Both halves exist. The C engine — window, fixed-timestep loop, input, images, a

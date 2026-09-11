@@ -38,9 +38,32 @@
 #     target: Identity.of(@target)     # an id, or nil
 #
 # On load the flock is rebuilt from records, and then the dog is re-linked by
-# looking for that id among the new sheep. `Components::Targeting` has the same
-# problem in the engine — it holds a *node* — which is why `Identity.of` takes a
-# node and answers an id rather than the other way round.
+# looking for that id among the new sheep. That is the shape `Identity.of` is
+# built for: it takes a node and answers an id, because what a game holds is
+# always the node and what a file can hold is only ever the name.
+#
+# ## Why this is not `Components::Targeting`
+#
+# The engine already has a component that holds a target node, and it is the
+# wrong tool here — which is worth saying, because "there is a component for
+# that" is the first thing a reader will think.
+#
+# `Targeting` *derives* its target: every update it asks the scene's
+# `CollisionWorld` for the nearest collider in range. So it holds a node without
+# ever needing to write one down — a save that omitted it entirely would arrive
+# at the same answer on the next frame. The dog here is the opposite: **Tab**
+# chose this sheep, nothing can recompute that choice, and losing it is the thing
+# a player would notice.
+#
+#   Targeting       proximity picks the target, every frame — derived
+#   this example    the player picks it, and it has to survive quitting — chosen
+#
+# **Derived state is never saved; chosen state always is.** Sorting a game's
+# facts into those two piles is most of designing a save file, and the question
+# is cheaper than it looks: could the next frame work this out again? The flock's
+# positions are chosen (the sheep wandered there), the wool is chosen (it grew),
+# the tether is derived from the target — which is why the save holds a target
+# and not a line.
 #
 # ## The allocator is part of the save, and forgetting it is the classic bug
 #
