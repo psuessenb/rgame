@@ -583,7 +583,7 @@ would go — pure logic, no SDL — but **do not start there**.
 with a wall worth going around, or the search has nothing to show. Note that
 under "Assets".
 
-### 13. `examples/sprite` — one frame, no animation
+### 13. `examples/sprite` — one frame, no animation — **done**
 
 **Shows** the plain sprite: an image drawn at a node, with no animation state
 behind it. It is the half of `AnimatedSprite` that is left once the walk cycle
@@ -615,7 +615,7 @@ warranted for this.
 
 **Assets:** **A**, already committed.
 
-### 14. `examples/velocity` — movement with nobody driving
+### 14. `examples/velocity` — movement with nobody driving — **done**
 
 **Shows** the other way a node moves. Every example so far has used
 `CharacterBody`, which turns an *intent* in -1..1 into a step at a speed. A rock
@@ -639,7 +639,7 @@ has no intent: it has a velocity, and something integrates it.
 
 **Assets:** none — coloured shapes, and the drift is the subject.
 
-### 15. `examples/signals` — a node announcing that something happened
+### 15. `examples/signals` — a node announcing that something happened — **done**
 
 **Shows** declaring a signal of your own. Every example so far has *consumed*
 signals the engine declares — `on_activated`, `on_changed` — and none has
@@ -668,7 +668,7 @@ typed one), the connect handle and `disconnect`, `Components::ActionTrigger`.
 
 **Assets:** none.
 
-### 16. `examples/timer` — things that happen on a clock
+### 16. `examples/timer` — things that happen on a clock — **done**
 
 **Shows** periodic behaviour that no input drives: a spawn cadence, a fire rate,
 a wave clock.
@@ -693,7 +693,7 @@ pure `Engine::Timer` underneath it.
 
 **Assets:** none.
 
-### 17. `examples/pooling` — spawning without allocating
+### 17. `examples/pooling` — spawning without allocating — **done**
 
 **Shows** why a game that spawns things does not build them. A steady 60fps
 frame that allocates is a GC pause waiting to happen, and a bullet is the
@@ -1163,13 +1163,11 @@ trace in any report. Fixed while writing example 7.
 
 **Phase D — engine that already exists and nothing shows. Easiest first.**
 
-11. `examples/sprite` (`Components::Sprite`; reuses **A**)
-12. `examples/velocity` (`Components::Velocity` + `ScreenWrap` + `World`; no assets)
-13. `examples/signals` (a signal of your own, plus `Components::ActionTrigger`;
-    no assets)
-14. `examples/timer` (`Components::Timer`; no assets)
-15. `examples/pooling` (`Components::Pool` + `DespawnOffscreen`, driven by 14;
-    no assets)
+11. ~~`examples/sprite`~~ — **done**.
+12. ~~`examples/velocity`~~ — **done**.
+13. ~~`examples/signals`~~ — **done**.
+14. ~~`examples/timer`~~ — **done**.
+15. ~~`examples/pooling`~~ — **done**; driven by 14, as planned.
 16. `examples/collision` (`CollisionWorld` + `BoxCollider` + `CircleCollider`,
     moved by 12; no assets)
 17. `examples/collision_tiles` (`Components::TileCharacterBody`; reuses **B**)
