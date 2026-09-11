@@ -68,9 +68,22 @@ module RGame
     # frame at startup. `width` and `height` still matter: they are the size the
     # window takes when it leaves fullscreen, whether or not this game offers a
     # way to do that.
+    #
+    # `scale_mode:` decides what `width` and `height` *mean*, and the default
+    # answer is "the resolution the game is designed in". Under `:letterbox` the
+    # view a node draws into is always that size, whatever the window is doing,
+    # so a layout written against fixed numbers keeps working at any window size
+    # and in fullscreen — which is what almost every game wants and what nothing
+    # in the engine can supply for it afterwards.
+    #
+    # `:disabled` is the opt-out, and it is the right answer for something that
+    # should genuinely use whatever space it is given: a tool, a HUD-shaped
+    # program, an editor. It hands the window straight through as the view, and
+    # skips the clip, translate and scale that every other mode pushes. See
+    # RGame::Engine::Presentation.
     def initialize(root:, width: WIDTH, height: HEIGHT, caption: 'RGame',
                    media_root: 'media', input_map: nil, device: Controls::KEYBOARD,
-                   players: 1, input: nil, fullscreen: false, scale_mode: :disabled)
+                   players: 1, input: nil, fullscreen: false, scale_mode: :letterbox)
       super(width: width, height: height, caption: caption, media_root: media_root,
             fullscreen: fullscreen)
 

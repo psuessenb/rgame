@@ -40,15 +40,17 @@
 #
 # ## Two answers to a bigger window, and this file shows both
 #
-# With no `scale_mode`, the view *is* the window: it grows, and the border below
+# Under `:disabled` the view *is* the window: it grows, and the border below
 # grows with it because it is drawn from `view.width`. Extra screen becomes
-# extra room. That is what a HUD or a menu wants.
+# extra room. That is what a tool or an editor wants, and it is why the mode
+# exists — but it is the opt-out rather than the default.
 #
-# With a `scale_mode`, `width` and `height` stop describing the window and start
+# Under any other mode `width` and `height` stop describing the window and start
 # describing the game. The view stays 512x320 however big the window is, and the
 # whole frame is scaled onto it — so the border stays exactly where it is and
-# gets bigger. That is what a play area wants, and it is the only one of the two
-# that saves a game whose layout is hardcoded.
+# gets bigger. That is what a play area wants, it is what `RGame::Game` does
+# unless told otherwise, and it is the only one of the two that saves a game
+# whose layout is hardcoded.
 #
 # ## Why 512x320, which is nobody's screen
 #
@@ -112,8 +114,10 @@ ASSETS = File.expand_path('../assets', __dir__)
 # `examples/save_load`.
 START_FULLSCREEN = ENV.fetch('RGAME_FULLSCREEN', '0') != '0'
 
-# :disabled (the default), :stretch, :letterbox or :integer. A real game reads
-# this from its settings the same way it reads the fullscreen flag.
+# :letterbox (what RGame::Game does unless told otherwise), :integer, :stretch
+# or :disabled. A real game reads this from its settings the same way it reads
+# the fullscreen flag. This one starts on `:disabled` so that pressing right
+# walks the list in the order the prose above discusses them.
 SCALE_MODE = ENV.fetch('RGAME_SCALE', 'disabled').to_sym
 
 class Scene < RGame::Engine::Node2D

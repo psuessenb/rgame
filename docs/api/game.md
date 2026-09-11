@@ -21,7 +21,7 @@ sound device, the input mapper, the debug overlay — and drives the root node.
 ```ruby
 RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
                 media_root: 'media', input_map: nil, device: Controls::KEYBOARD,
-                players: 1, fullscreen: false, scale_mode: :disabled)
+                players: 1, fullscreen: false, scale_mode: :letterbox)
 ```
 
 | Reader | |
@@ -33,22 +33,26 @@ RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
 
 ### `scale_mode:` — what `width` and `height` mean
 
-By default they are the window, and the view a node draws into is the window
-too: make the window bigger and every `draw` is handed a bigger view. A layout
-written against the view grows into the space; one written against fixed numbers
-stays in the top-left corner with the new space piled up beside it.
-
-A `scale_mode` changes what they mean. `width` and `height` become the **logical
-size** — the resolution the game is designed in — and the whole frame is mapped
-onto whatever the window happens to be. The view stays that size forever, so a
-hardcoded layout keeps working at any window size, fullscreen included.
+They are the **logical size**: the resolution the game is designed in. The whole
+frame is mapped onto whatever the window happens to be, and the view a node
+draws into stays that size forever — so a layout written against fixed numbers
+keeps working at any window size, fullscreen included.
 
 | | |
 |---|---|
-| `:disabled` | The default. No scaling; the view is the window. |
-| `:stretch` | Fill the window, distorting if the aspect ratios differ. |
-| `:letterbox` | Largest uniform scale that fits, centred, bars on two sides. |
+| `:letterbox` | The default. Largest uniform scale that fits, centred, bars on two sides. |
 | `:integer` | The same, rounded down to a whole number. |
+| `:stretch` | Fill the window, distorting if the aspect ratios differ. |
+| `:disabled` | No scaling at all: `width` and `height` are the window, and the view is too. |
+
+**`:disabled` is the opt-out, and it changes what the numbers mean.** The view
+becomes the window, so making the window bigger hands every `draw` a bigger
+view. A layout written against `view.width` grows into the space; one written
+against fixed numbers stays in the top-left corner with the new space piled up
+beside it. That is the right answer for something that should use whatever space
+it is given — a tool, an editor, a program that is all HUD — and the wrong one
+for a game with a designed play area. It is also the only mode that pushes no
+clip, translate or scale at all.
 
 ```ruby
 RGame::Game.new(root: Root.new, width: 320, height: 180, scale_mode: :integer)

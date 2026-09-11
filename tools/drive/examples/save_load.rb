@@ -13,7 +13,14 @@
 #   - a steady 9 `circle` calls per frame — one dog, eight sheep — and two
 #     `text`. The flock is a fixed size, which is the assumption that lets an
 #     array index stand in for identity;
-#   - no clips and no translates: this is screen space with no camera.
+#   - **one clip per frame, at the logical 640x480.** That is the presentation,
+#     which every game pushes under the default `:letterbox`; nothing in this
+#     example clips anything;
+#   - **a translate per node per frame** — the dog and the eight sheep — spanning
+#     the pasture, plus the presentation's own at the origin. The nodes push
+#     these on the way down even though the scene draws every circle itself from
+#     their coordinates: a transform is pushed because a node was *reached*, not
+#     because it drew anything.
 #
 # **Run it twice to see the interesting half.** The first run leaves a save in
 # the platform's data directory; the second loads it before the first frame and

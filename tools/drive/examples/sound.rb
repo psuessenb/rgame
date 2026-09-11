@@ -13,7 +13,11 @@
 #     play count through an `Engine::CachedLabel`. The second one's first
 #     argument is the cached string, so the report shows it advancing `plays: 0`
 #     → `plays: 8` across the run while the call count stays flat;
-#   - no clips and no translates — everything here is screen space.
+#   - **one clip and one translate per frame, neither of them this example's.**
+#     Both are the presentation, which every game gets under the default
+#     `:letterbox`: the clip is the logical 640x480 and the translate is the
+#     letterbox offset, at the origin here because the harness's 800x600 window
+#     and the game's 640x480 are both 4:3 and so there are no bars.
 #
 # `press` is two ticks, because an edge query compares against the previous
 # poll: a key that goes down and never comes up reads as held forever, which is

@@ -23,8 +23,11 @@
 #     zero. The count comes in two short of twice the frames, since both start at
 #     zero and are still there on the first;
 #   - one `circle` and three `text` calls per frame;
-#   - **no clips at all.** The world being smaller than the window is an offset
-#     and a rectangle, not a viewport.
+#   - **exactly one clip per frame, and it is not this example's.** That is the
+#     presentation, which every game pushes under the default `:letterbox`. The
+#     world being smaller than the window is an offset and a rectangle, and adds
+#     no clip of its own — so a second clip appearing here would mean something
+#     had started treating the world as a viewport.
 #
 # Nothing here needs a seed: the drifters' velocities are a fixed table, so two
 # runs at the same tick budget produce the same numbers.

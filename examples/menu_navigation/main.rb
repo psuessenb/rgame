@@ -104,7 +104,7 @@ class Settings
     fullscreen: { label: 'Fullscreen', default: false,
                   values: [false, true].freeze,
                   display: ->(on) { on ? 'on' : 'off' } },
-    scale: { label: 'Scale mode', default: :disabled,
+    scale: { label: 'Scale mode', default: :letterbox,
              values: RGame::Engine::Presentation::MODES,
              display: :to_s.to_proc },
     volume: { label: 'Volume', default: 75,

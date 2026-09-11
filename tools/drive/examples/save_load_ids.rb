@@ -17,7 +17,12 @@
 #   - a `line` per frame — the tether from dog to target — and one `circle` per
 #     sheep plus one for the dog, so the circle count drops as sheep are sheared
 #     and rises again when one is added;
-#   - no clips and no translates: screen space, no camera.
+#   - **one clip per frame**, the presentation's, at the logical 640x480 — every
+#     game gets one under the default `:letterbox`;
+#   - **a translate per node per frame**, one for each sheep still in the flock
+#     plus the dog, plus the presentation's at the origin. The count falls as
+#     sheep are sheared and rises when one is added, so this row tracks the flock
+#     even though the sheep are what draw themselves.
 #
 # **What a single run cannot show is the point of the example.** Whether the dog
 # is still watching the *same numbered* sheep after a load is a fact about two
