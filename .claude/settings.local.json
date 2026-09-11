@@ -58,7 +58,8 @@
     ]
   },
   "attribution": {
-    "commit": ""
+    "commit": "",
+    "pr": ""
   },
   "hooks": {
     "PreToolUse": [
