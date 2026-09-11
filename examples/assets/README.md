@@ -1,6 +1,6 @@
 # Example assets
 
-Everything the examples draw and play. Nine files, about 122 KB in total —
+Everything the examples draw and play. Eleven files, about 126 KB in total —
 of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
 
 ## Why these files and not the ones in `media/`
@@ -145,6 +145,40 @@ Layout, 6 columns x 3 rows of 16x22:
 There is no idle art in the original, so `stand` is a single frame off the walk
 cycle rather than an animation of its own.
 
+### `glyphs.png` + `glyphs.json` — Kenney, *Input Prompts*, repacked
+
+- Source: <https://kenney.nl/assets/input-prompts>
+- Licence: CC0 1.0 (stated on the page and in the `License.txt` inside the
+  download)
+- Modification: five 64x64 PNGs were laid side by side into one strip. The
+  pixels are untouched; only the sheet and the descriptor are ours.
+
+The pack is thousands of files across seventeen controller families, and
+`examples/input_glyphs` names five buttons, so the strip is 3 KB where the
+download is 5 MB.
+
+Layout, 5 columns x 1 row of 64x64, and **the order is the example's table**:
+`GLYPH_COLUMN` in `examples/input_glyphs/main.rb` maps a `Controls` button id to
+a column here.
+
+| Column | Button id | From the pack |
+|---|---|---|
+| 0 | `KEY_SPACE` | `Keyboard & Mouse/Default/keyboard_space.png` |
+| 1 | `KEY_RETURN` | `Keyboard & Mouse/Default/keyboard_enter.png` |
+| 2 | `KEY_ESCAPE` | `Keyboard & Mouse/Default/keyboard_escape.png` |
+| 3 | `PAD_A` | `Xbox Series/Default/xbox_button_color_a.png` |
+| 4 | `PAD_B` | `Xbox Series/Default/xbox_button_color_b.png` |
+
+**Xbox rather than PlayStation or Switch**, because SDL's button names are
+Xbox's — `PAD_A` is SDL's A — and a sheet whose faces disagree with the ids
+would make every prompt a translation. A game that wants the pad in the player's
+actual hands ships a second sheet per family and picks a table; the ids do not
+change, only the pictures.
+
+The keyboard glyphs are light and the pad glyphs are the pack's colour versions,
+so both need a dark panel under them — which is what `examples/input_glyphs`
+draws.
+
 ### `blip.ogg` — Kenney, *Interface Sounds*
 
 - Source: <https://kenney.nl/assets/interface-sounds>
@@ -198,7 +232,7 @@ Measured back off the shipped file: seam 2.3%, no silence at either end.
 
 **A loop wants both numbers.** A small seam alone is not evidence.
 
-## Adding an asset here## Adding an asset here
+## Adding an asset here
 
 1. CC0, or drawn in this repo. If the licence says anything about redistribution
    at all, it does not go here — see the top of this file.
