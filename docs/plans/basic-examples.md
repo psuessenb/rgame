@@ -719,7 +719,7 @@ canonical thing there are suddenly two hundred of.
 
 **Assets:** none.
 
-### 18. `examples/collision` — two shapes touching
+### 18. `examples/collision` — two shapes touching — **done**
 
 **Shows** object-to-object collision: a scene-scoped system that pairs up shapes
 each frame and tells them they overlapped.
@@ -748,6 +748,45 @@ their `on_hit` signal, and `Velocity` from 14 to move things into each other.
   bucketed — is worth more than the algorithm.
 
 **Assets:** none — shapes, drawn as shapes.
+
+**Landed.** `examples/collision/main.rb` plus `tools/drive/examples/collision.rb`.
+A scene mounting `CollisionWorld` and `World`; a `Mover` base carrying the
+`CircleCollider` and the one-line layer rule, with `Drifter` (velocity + spin)
+and `Walker` (character body + player controller) under it; four `Crate`s with
+`BoxCollider`s, two of them overlapping on purpose. The broadphase lattice is
+drawn on the backdrop at `cell_size`, which is what makes that number a thing a
+reader can look at rather than a constant to take on trust.
+
+Run: `rake spec` 1134 examples, 0 failures; RuboCop clean; the driven run at 240
+ticks reports 240 ticks / 240 frames, 21 `rect` and 7 `text` per frame flat, 4
+`circle` and 4 `line`, 478 `rotated` (two spinners, less the first frame at angle
+zero), one clip per frame, and `visits: 3` as the last `text` — the three
+arrivals the script drives.
+
+What the sketch did not know:
+
+- **`on_hit` is level-triggered *and* can fire twice in one step.** The
+  `SpatialHash` dedup contract lets a collider be yielded once per shared cell,
+  and `CollisionWorld#update` does not deduplicate, so a pair overlapping across
+  two cells reports two contacts per step. Measured: a circle centred in a crate
+  gives 2 emits per step, and the two overlapping crates give 4 between them. A
+  counting handler is therefore wrong twice over, and the first draft's per-crate
+  counter read 419 contacts in 240 ticks. The crate now records *that* a contact
+  happened and detects the edge in `on_update` — which is safe because a child's
+  `on_update` runs after the scene's components. This was documented in
+  `SpatialHash` and nowhere a user of `CollisionWorld` would look;
+  `docs/api/components.md` now says it under `CollisionWorld` and from both
+  colliders' `on_hit` bullets.
+- **The counter's honest unit is "the crate went from untouched to touched".**
+  Telling two simultaneous visitors apart needs the set of colliders in contact
+  last step, which is a per-frame collection where this is two booleans. The file
+  and the drive script both name the compromise rather than letting the number
+  look like something it is not.
+- **An example node built in `initialize` needs no `on_add` at all.** The
+  collider's `on_attach` wants the scene's system, and attachment is deferred
+  until the node enters the tree, so the whole component stack composes in
+  `initialize` and the order is irrelevant — the same rule `examples/pooling`
+  arrived at from the other direction.
 
 ### 19. `examples/collision_tiles` — walking into a wall
 
@@ -1168,8 +1207,8 @@ trace in any report. Fixed while writing example 7.
 13. ~~`examples/signals`~~ — **done**.
 14. ~~`examples/timer`~~ — **done**.
 15. ~~`examples/pooling`~~ — **done**; driven by 14, as planned.
-16. `examples/collision` (`CollisionWorld` + `BoxCollider` + `CircleCollider`,
-    moved by 12; no assets)
+16. ~~`examples/collision`~~ — **done**; no new engine code, but it turned up an
+    undocumented `on_hit` contract (see its landed note).
 17. `examples/collision_tiles` (`Components::TileCharacterBody`; reuses **B**)
 18. `examples/split_screen` (`players: 2`; reuses **A**)
 19. `examples/input_glyphs` (`Controls.gamepad?`, an `InputMap` query, and asset
