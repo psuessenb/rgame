@@ -238,6 +238,12 @@ assertion, and it is the part to get right:
   a hang with no failure and no output. A script that goes fullscreen switches
   back before it ends.
 
+**Never measure allocations under the harness.** It records every draw call with
+its arguments, and that recording is hundreds of times whatever the game itself
+allocates — `examples/pooling` reads about 140 objects a second plainly and
+85,000 under the harness, in both of the modes it exists to compare. Run the
+example directly for any number about the game's own cost.
+
 If the report does not show the thing you need, **extend the harness** rather
 than eyeballing the window. `AudioProbe` did not record `stop_music`, so a game
 stopping its music left no trace anywhere in any report.
