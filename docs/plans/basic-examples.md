@@ -983,6 +983,44 @@ What the sketch did not know:
 
 ---
 
+### 23. `examples/localization` — the same screen in two languages
+
+**Shows** a label that follows the language: text resolved from a translation
+table, a value interpolated into it, a count that picks its plural, and a switch
+that changes every label at once — without looking anything up per frame.
+
+**Existing:** `Engine::I18n` (`t(key)`, `%{var}` interpolation, `count:`
+pluralization, a fallback locale, and `generation`, which ticks on every locale
+change), `Engine::CachedLabel`, `UI::Menu` for the switch.
+
+**New:** probably nothing in the engine; the one candidate is below.
+
+The points worth making:
+
+- **`t` is not a per-frame call.** It interpolates, and `**vars` builds a Hash on
+  every call. The text is resolved once and re-resolved when `I18n.generation`
+  moves, which is the whole reason the counter exists — and the example is where
+  that stops being a sentence in `toolbox.md`.
+- **A label that depends on both the locale and a value.** "3 apples" has to
+  rebuild when the count changes *and* when the language does. `CachedLabel`
+  keys on one value, and passing `[count, I18n.generation]` allocates the Array
+  it exists to avoid. Whether that wants a two-value `CachedLabel`, a label keyed
+  on the generation that is rebuilt by hand on count changes, or something
+  simpler is an **open question** — decide it by writing the example, not before.
+- **The fallback is visible.** One key missing from the second locale shows the
+  first locale's text rather than a raw key, and the example says why that is the
+  right failure.
+- **The tables are data.** Two YAML files beside `main.rb`, loaded with
+  `I18n.load_file`, so the example shows the shape a game's own locale files take.
+
+Before writing it, read `lib/rgame/engine/i18n.rb` properly: its header still
+compares it to `EventDispatcher`, which went with Gosu, so it has not been read
+against the current engine in a while.
+
+**Assets:** none — the shipped font covers both languages if the second one is
+German or another Latin-script language. A non-Latin script would need a font the
+engine does not ship, and that is a different example.
+
 ## New engine work, gathered
 
 Sorted by where it lands, because that decides who may use it.
@@ -999,6 +1037,7 @@ Sorted by where it lands, because that decides who may use it.
 | ~~"which ids of this action apply to this device"~~ | `Engine::InputMap` | 21 | **done** — `#button_for(action, device)` |
 | `Components::CameraPan` | `Engine` | 2 | S, *maybe not needed* |
 | `Renderer#pie` + contract + fake | `Core` + contracts | 9 | M, *avoid if possible* |
+| a label keyed on a value *and* the locale | `Engine` | 23 | S, *maybe not needed* |
 
 Everything in the `Engine` rows is pure Ruby with no graphics library, gets specs
 in `spec/`, and must not name `RGame::Core` — including in its specs. Everything
@@ -1341,6 +1380,16 @@ Both are self-contained and could move earlier if wanted. Pathfinding is last
 only because it is the largest single algorithm; it has no dependency on
 anything in phases C, D or E.
 
+**Phase G — localization.**
+
+23. `examples/localization` (`Engine::I18n` with `CachedLabel` and `UI::Menu`; no
+    assets)
+
+Last by decision rather than by dependency: it was added once the component
+sweep (`docs/plans/component-architecture-sweep.md`) found `I18n` had no caller
+anywhere, and the answer was to keep it and give it an example. Nothing above
+depends on it and it depends on nothing unbuilt.
+
 ## Audio resolves by path now — and what that cost
 
 Phase B existed partly to set this question up, and the answer was yes.
@@ -1445,7 +1494,8 @@ one example rather than two.
 ### Public, used nowhere at all
 
 One left — not used by an example, not by a test project, and not by `lib/`
-either, which makes it the largest genuinely unexercised subsystem in the engine:
+either, which makes it the largest genuinely unexercised subsystem in the engine.
+**Now scheduled as example 23**, so this row closes when that lands:
 
 | | What it does |
 |---|---|
