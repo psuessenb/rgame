@@ -73,6 +73,8 @@ tells both sides they overlapped, without knowing what either of them is.
 The other collision problem: a character against a grid of solid tiles, sliding
 along a wall held diagonally. It shares the collider with the first and mounts no
 `CollisionWorld`, so the feet box here is only ever asked where a step lands.
+Naming an actor layer in `blocked_by` beside `:tiles` is what adds the other half;
+`test_projects/tiled_world` is the scene that does both.
 
 **Uses:** `Components::TileWorld`, `Components::FeetCollider`,
 `Components::CharacterBody` with `blocked_by: [:tiles]`, `Components::CameraFollow`.

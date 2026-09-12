@@ -84,13 +84,18 @@
 # through walls — and the cause would be a scene three files away that never
 # mounted the system.
 #
-# ## What it does not solve
+# ## What this scene does not solve
 #
 # Anything that is not the map. The hero here would walk straight through
-# another character, because `TileWorld` answers questions about tiles and knows
-# nothing about the actors standing on them. Noticing another actor is a
-# `CollisionWorld` on the scene and an `on_hit` on this same feet box — which is
-# `examples/collision` — and a game that wants both mounts both systems.
+# another character, because this scene mounts no `CollisionWorld` and so there
+# is nothing to tell it where the other actors are.
+#
+# That is a choice of this example, not a limit of the engine. Mount one, give
+# each actor a layer, and name that layer in `blocked_by` beside `:tiles` —
+# `blocked_by: %i[tiles npc]` — and the same feet box that stops the hero at a
+# fence stops it at a villager. `test_projects/tiled_world` is that scene.
+# Reporting a contact without stopping anyone is the other half, and stays
+# `on_hit` on this same box, which is `examples/collision`.
 
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'

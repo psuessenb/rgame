@@ -171,7 +171,8 @@ from the sprite size, so a 32×32 sprite can carry a small box at its feet. A
 [`BoxCollider`](components.md#boxcollider) holds one — and
 [`FeetCollider`](components.md#feetcollider) builds this very shape from the node's
 dimensions, so a character rarely constructs one by hand. The collision code resolves
-*it* (not the sprite) against the tiles.
+*it* (not the sprite) against whatever a body declared — solid tiles, other actors, the
+edge of the world.
 
 ```ruby
 box = RGame::Engine::CollisionBox.bottom_anchored(
@@ -193,7 +194,9 @@ RGame::Engine::CollisionBox.overlap_circle?(x, y, w, h, cx, cy, r)   # rect vs c
 ```
 
 Both are **half-open**: a shape spans `[x, x + w)`, so shapes that merely share an edge
-(or a circle that exactly grazes) are apart, not touching. `CircleCollider.overlap?`
+(or a circle that exactly grazes) are apart, not touching. That is also why blocking and
+contact are separate reports: a successfully blocked pair ends up exactly touching, so it
+does not overlap and `on_hit` does not fire. `CircleCollider.overlap?`
 agrees, so contact means the same thing for every pair of shapes. That convention is what
 makes a grid work — pieces on neighbouring squares border each other constantly, and an
 inclusive test reports every one of those as a contact — and it is the one the broadphase

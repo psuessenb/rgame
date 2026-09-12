@@ -46,6 +46,24 @@ module RGame
         each_cell(x, y, w, h) { |key| @buckets[key] << item }
       end
 
+      # Un-bucket an item from the cells the given box covers — the exact inverse of
+      # #insert, so the caller passes the box the item was **inserted at**, not where it
+      # is now. That is what keeps this stateless: nothing here remembers where anything
+      # was bucketed, and a mover that knows where it started can undo its own insert.
+      #
+      # An item that was never inserted (or a box that covers none of its cells) is a
+      # no-op rather than an error — removing something twice, or removing something that
+      # left the tree between two steps, is ordinary rather than a mistake.
+      #
+      # Allocation-free: `fetch` sidesteps the bucket Hash's default block, which would
+      # *create* an empty bucket for every cell walked.
+      def remove(item, x, y, w, h)
+        each_cell(x, y, w, h) do |key|
+          bucket = @buckets.fetch(key, nil)
+          bucket&.delete(item)
+        end
+      end
+
       # Yield every item whose buckets overlap the region. Dedup contract: an item
       # spanning several cells may be yielded more than once. Narrowphase callers
       # must already guard with `next if a.dead? || b.dead?` to make hits idempotent,

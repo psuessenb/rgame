@@ -1,9 +1,9 @@
 # Unifying the two collision systems
 
-**Status: steps 1–3 are implemented; steps 4–6 are not. Steps 4 and 5 have been
-re-planned in detail at `605432f`; step 6 stays rough until they land.** The two
-things landed steps pushed into step 4 — rule 3 of step 2's list, and where a
-per-actor blocker source hangs — are settled below, and so are open questions 1,
+**Status: steps 1–4 are implemented, and step 4 took 5a with it; steps 5b, 5c and 6
+are not. Step 5 was re-planned in detail at `605432f`; step 6 stays rough until it
+lands.** The two things landed steps pushed into step 4 — rule 3 of step 2's list, and
+where a per-actor blocker source hangs — are settled below, and so are open questions 1,
 2, 3, 4 and 5. Re-planning added six measured findings (B6–B11). One overturns a
 candidate the plan had been carrying since it was written, one is a live defect
 nobody had reached yet, and one closes an open question against the convenience it
@@ -1318,6 +1318,103 @@ and loses the clamp. `ScreenWrap` and `DespawnOffscreen` gain a line each saying
 that a body blocked by `:bounds` is the thing they contradict — B9 is a defect
 nobody could have read about anywhere.
 
+**Landed.** Six commits, one per sub-step. `Engine::ActorBlockers` and
+`Engine::BoundsBlockers` in `lib/rgame/engine/`, `SpatialHash#remove`,
+`CollisionWorld#query_box` / `#reindex`, `CharacterBody` owning its resolver and
+resolving in world space, `TileWorld#move` and the world clamp both gone.
+`rake spec` is 1285 examples, 0 failures (1200 before, plus 85); `make test` 326
+checks, 0 failures; `rake spec:core` 367 examples, 0 failures.
+
+The acceptance evidence, in three parts.
+
+**4a is invisible, as B8 predicted.** All eight tile-driven runs are byte-identical
+to `main` at `--ticks 240 --seed 7`.
+
+**4d changes `test_projects/tiled_world` and says so.** It mounts a `CollisionWorld`
+and every walker declares `blocked_by: %i[tiles hero npc]`.
+`tools/drive/test_projects/tiled_world_blocking.rb` walks the player into the villager
+who stands still at (880, 672):
+
+| | player stops at | last `tilemap` camera x | distinct translates |
+|---|---|---|---|
+| `blocked_by: [:tiles]` | x 820, at a wall, having walked through the villager | 508 | 777 |
+| `blocked_by: %i[tiles hero npc]` | **x 900, against the villager** | 588 | 697 |
+
+Every driven run outside `tiled_world` is byte-identical: `examples/collision`,
+`collision_tiles`, `walk`, `scroll_map`, `pooling`, `signals`, `test_projects/snake`,
+`asteroids`. The four other `tiled_world` scripts do change, because the villagers now
+block each other too; `tiled_world_pad` happens not to walk far enough to notice.
+
+**4e is a no-op for every game, as B10 predicted.** All thirteen driven runs are
+byte-identical across the clamp's removal. And B9, measured the same way it was found —
+a 16×22 hero with a 12×6 feet box and a `DespawnOffscreen`, walking left for 60 steps in
+a 320×240 `World` scene:
+
+| | ends at `node.x` | despawned |
+|---|---|---|
+| at 4d, `blocked_by: [:npc]` | −2, held at the world edge and fully inside it | **yes — the defect** |
+| at 4e, `blocked_by: [:npc]` | −20, having genuinely left | yes, correctly |
+| at 4e, `blocked_by: %i[npc bounds]` | −2 | yes — a *declared* contradiction |
+
+That third row is the honest limit and it is worth stating plainly: **4e does not
+reconcile the two coordinate frames, it stops anyone being put between them without
+asking.** A body that declares `:bounds` is still held by its *box* while
+`DespawnOffscreen` and `ScreenWrap` still read its *node*, so declaring both is still
+wrong — it is now wrong on purpose, pinned by a spec and documented at both components.
+
+Nine things the sketch got wrong, and the first is the one step 5 needs:
+
+- **`blocked_x` / `blocked_y` and `TileBlockers::TILES` landed here, not in 5a.** 4d's
+  own sketch lists the two readers, and they cannot mean anything until every source
+  answers `blocker` — which 5a's sketch owned. Pulling the sentinel forward was cheaper
+  than half a protocol. **Step 5a is therefore already done**, and step 5 is now only 5b
+  (the two signals on the body) and 5c (the spiky ball).
+- **The blocker-source protocol went from two methods to four, so every stand-in did
+  too.** `collision_system_spec`'s fake source grew `blocker` and `moved`, and its
+  `moved` records into four preallocated slots rather than pushing an Array — the
+  allocation example drives the same fake, and a recording fake that allocates is the
+  only thing such an example would then see.
+- **`ActorBlockers` checks `freed?` itself**, duplicating `CollisionWorld#query_box`.
+  Deliberate: what may stop a step is the source's rule, and a source that inherits its
+  world's filtering policy is not the pure, world-agnostic thing D3 describes.
+- **"Stops at whichever is nearer, both ways on both axes" cannot be built with a narrow
+  blocker in the direction where the *wall* wins.** `TileBlockers` only tests the column
+  or row the step *lands in*, so a collider beyond a solid column is reachable only by a
+  step that tunnels it. Where the wall has to win, the competing collider must be a wide
+  one whose far edge is just short of the wall's. Said at the spec, because the next
+  person to write one of these will hit it.
+- **A parentless node is pinned to the world origin.** `Node2D#resolve_transform` gives
+  the root identity, so `world_x` is 0 whatever the node's own x says — which meant 4a
+  turned every existing body spec red until each hung its actor under a root. No code
+  changed for it; any later spec of a blocked body has to do the same.
+- **`test_projects/tiled_world` needed a `CollisionWorld` mounted**, which 4d's verify
+  does not mention — "give its NPCs and walkers `blocked_by: %i[tiles npc hero]`" is not
+  possible without one. `cell_size: 32`, following B11: sized to the actors, not to the
+  16px tiles.
+- **An allocation example has to leave the body *pressing* against a blocker, not
+  travelling.** A moving actor enters fresh broadphase cells and the buckets built for
+  them read as a per-frame leak — measured at 32 objects over 1,000 calls before the
+  example was pinned to a stopped body.
+- **4e's rule 5 resolves as "ScreenWrap wins", and the reason is B9 itself.** The body
+  holds the *box* at the edge, which leaves `node.x` at minus the box offset, which is
+  exactly what `ScreenWrap` reads and wraps.
+- **The drive harness dropped a frame in three of about forty runs** (239 of 240), each
+  time reproducing byte-identically on a re-run. It is the documented fixed-timestep
+  effect, not a behaviour change, and it is worth knowing that a first capture of a
+  baseline can be the run that is wrong.
+
+Documented in `docs/api/components.md` (the `blocked_by` table, the three things worth
+knowing about a layer name, why `blocked_by` and `on_hit` are not alternatives, both
+collider entries on what can and cannot stop a step, `TileWorld#blockers`,
+`CollisionWorld#query_box` / `#reindex`, and a contradiction line each on `ScreenWrap`
+and `DespawnOffscreen`), `docs/api/internals.md` (`ActorBlockers` and `BoundsBlockers`
+beside `TileBlockers`; `CollisionSystem` gains the four-method protocol, `blocked_x` /
+`blocked_y`, and loses the clamp), `docs/api/toolbox.md` and `docs/api/examples.md`.
+`examples/collision_tiles`'s "what it does not solve" section was **false after this
+step and has been rewritten** — passing through another character is now a choice of
+that scene rather than a limit of the engine, and the header says which line changes it.
+Step 5c still owns the worked example there.
+
 ### Step 5 — `on_blocked` and `on_unblocked`
 
 The body reports what stopped it. This is what makes the spiky ball work and is
@@ -1326,6 +1423,10 @@ the reason steps 1–4 were worth doing. Small, because step 4 built the parts:
 already implements "this step and last".
 
 #### 5a — the sources report who
+
+> **Landed inside step 4d.** All three sentinels and both `CollisionSystem` readers
+> exist; see step 4's landed note for why they could not wait. What is left of step 5 is
+> 5b and 5c.
 
 ```ruby
 class TileBlockers

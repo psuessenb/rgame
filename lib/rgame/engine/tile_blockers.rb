@@ -18,6 +18,20 @@ module RGame
     class TileBlockers
       EPS = 1e-9
 
+      # What a TileBlockers reports as having stopped a step. One object for the life of
+      # the process, answering the same two questions a collider does — so a handler reads
+      # `by.layer` whatever stopped it and never branches on what kind of thing it was. A
+      # tile has no node, so `node` is nil.
+      #
+      # It holds no state at all, which is what makes one TileBlockers safe to share
+      # between every body on the map: there is nothing here for two of them to race over.
+      class Tiles
+        def layer = :tiles
+        def node = nil
+      end
+
+      TILES = Tiles.new.freeze
+
       def initialize(tile_width:, tile_height:, solid:)
         @tile_width = tile_width
         @tile_height = tile_height
@@ -58,6 +72,14 @@ module RGame
         end
         ny
       end
+
+      # The grid stopped it, and the grid is the same for everybody — so this is a
+      # constant rather than a record of the last step. See TILES.
+      def blocker = TILES
+
+      # A grid does not move, so there is nothing to re-index. Part of the blocker-source
+      # protocol Engine::CollisionSystem calls after every step; see its header.
+      def moved(_actor, _from_x, _from_y, _w, _h) = nil
 
       private
 

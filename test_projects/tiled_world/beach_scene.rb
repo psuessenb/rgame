@@ -8,6 +8,10 @@
 # Actors live in the node TileMapLayer.mount hands back, which sits between the
 # map's ground layers and the layers Tiled flags `above` — so palm canopies
 # render in front of a walker and trunks behind. No z is picked anywhere here.
+#
+# It mounts both collision systems, which is the case a game usually wants and this
+# project is the acceptance test for: TileWorld for the map's walls, CollisionWorld for
+# the actors. Each walker carries one feet box and one body declaring both.
 class BeachScene < RGame::Engine::Node2D
   MAP_KEY      = 'map/beach_large.tmx'
   PLAYER_SHEET = 'player.json'
@@ -15,6 +19,11 @@ class BeachScene < RGame::Engine::Node2D
   PLAYER_SPEED = 120.0
   NPC_SPEED    = 70.0
   NPC_OFFSETS  = [[-80, -48], [96, -32], [-64, 64], [120, 48], [40, -96], [-112, 16]].freeze
+  # The same declaration for everybody who walks: the map's solid tiles, and each other.
+  # One feet box per actor answers both — it is what the step resolves against and what
+  # the broadphase indexes.
+  BLOCKED_BY   = %i[tiles hero npc].freeze
+  ACTOR_CELL     = 32 # the broadphase cell, sized to the actors rather than to the tiles
   WALKER_SPACING = 48 # so a second player starts beside the first, not inside them
   UI_MARGIN      = 20 # from the corner of that player's region, not of the window
 
@@ -38,6 +47,12 @@ class BeachScene < RGame::Engine::Node2D
     add_component(RGame::Engine::Components::TileWorld.new(
                     map: @map, tilemap_id: MAP_KEY, cameras: @players.map(&:camera)
                   ))
+    # The other half of collision: the tile world says where the walls are, this says
+    # where everybody else is. Both walkers and villagers declare each other, so a player
+    # walking into a villager stops the way they stop at a fence. The cell is sized to the
+    # actors rather than to the 16px tiles — a fact about how big the colliders are, not
+    # about the artwork.
+    add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: ACTOR_CELL))
 
     # World space begins here: everything under it draws at its own world
     # coordinates and is drawn once per viewport, through that viewport's camera.
@@ -115,9 +130,9 @@ class BeachScene < RGame::Engine::Node2D
   def build_player
     node = RGame::Engine::Node2D.new(x: @map.pixel_width / 2.0, y: @map.pixel_height / 2.0)
     node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: PLAYER_SHEET))
-    node.add_component(RGame::Engine::Components::FeetCollider.new(width: 10, height: 8))
+    node.add_component(RGame::Engine::Components::FeetCollider.new(width: 10, height: 8, layer: :hero))
     node.add_component(RGame::Engine::Components::CharacterBody.new(speed: PLAYER_SPEED,
-                                                                    blocked_by: [:tiles]))
+                                                                    blocked_by: BLOCKED_BY))
     node.add_component(RGame::Engine::Components::PlayerController.new)
     node
   end
@@ -125,9 +140,9 @@ class BeachScene < RGame::Engine::Node2D
   def build_npc(x, y)
     node = RGame::Engine::Node2D.new(x: x, y: y)
     node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: NPC_SHEET))
-    node.add_component(RGame::Engine::Components::FeetCollider.new(width: 14, height: 10))
+    node.add_component(RGame::Engine::Components::FeetCollider.new(width: 14, height: 10, layer: :npc))
     node.add_component(RGame::Engine::Components::CharacterBody.new(speed: NPC_SPEED,
-                                                                    blocked_by: [:tiles]))
+                                                                    blocked_by: BLOCKED_BY))
     node.add_component(RGame::Engine::Components::WanderController.new(rng: @rng))
     node
   end

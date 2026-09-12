@@ -17,12 +17,30 @@ module RGame
       # the body moves the node freely and needs no sprite, no dimensions, no collider and
       # no system on the scene — an actor in a world with nothing to bump into.
       #
-      #   CharacterBody.new(speed: 80)                       # walks wherever the intent points
-      #   CharacterBody.new(speed: 80, blocked_by: [:tiles])  # slides along the map's solid tiles
+      #   CharacterBody.new(speed: 80)                             # walks wherever the intent points
+      #   CharacterBody.new(speed: 80, blocked_by: [:tiles])        # slides along the map's solid tiles
+      #   CharacterBody.new(speed: 80, blocked_by: %i[tiles npc])   # ...and does not walk through NPCs
+      #   CharacterBody.new(speed: 80, blocked_by: %i[npc bounds])  # ...and cannot leave the world
       #
-      # `:tiles` is the scene's TileWorld, and it is the only blocker there is today. Actors
-      # that must notice each other carry a collider each and read its on_hit; that reports a
-      # contact without stopping anyone.
+      # Two names are reserved: **`:tiles`** is the scene's TileWorld, and **`:bounds`** is the
+      # edge of the region the scene's WorldBounds describes. **Every other name is a collider
+      # layer**, resolved against the scene's CollisionWorld: a body declaring `:npc` is stopped
+      # by any BoxCollider whose `layer` is `:npc`, flush against its edge, exactly the way a
+      # solid tile stops it. A layer that is empty, or whose colliders all leave, is not an
+      # error — the declaration says what *may* stop this body, not what does.
+      #
+      # `:bounds` is declared rather than automatic, and a body that does not declare it walks
+      # out of the world. That is the point: a game whose entities wrap or despawn at the edge
+      # reads the same bounds through ScreenWrap and DespawnOffscreen, which act on the node
+      # rather than on its box, and a clamp nobody asked for made those two misfire. See
+      # Engine::BoundsBlockers.
+      #
+      # Blocking is box-versus-box: a CircleCollider on a declared layer reports its contacts
+      # as usual and stops nothing.
+      #
+      # The two are not alternatives. `blocked_by` and `on_hit` answer different questions —
+      # what may I walk through, and what am I touching — and a flush-blocked pair does not
+      # overlap, so a body that must both stop and react needs both.
       #
       # A declaration this scene cannot honour raises at on_attach rather than quietly
       # falling back to free movement — an actor walking through walls looks like a
@@ -37,8 +55,11 @@ module RGame
       # rectangle both stops the step and reports contacts — there is nothing to hand from
       # one component to the other and nothing to keep in sync.
       class CharacterBody < Engine::Component
-        # The one blocker name that is not a collider layer: the scene's solid tiles.
-        TILES = :tiles
+        # The two blocker names that are not collider layers: the scene's solid tiles, and
+        # the edge of the world.
+        TILES  = :tiles
+        BOUNDS = :bounds
+        RESERVED = [TILES, BOUNDS].freeze
 
         attr_reader :move_x, :move_y
 
@@ -51,11 +72,21 @@ module RGame
           @move_x = 0.0
           @move_y = 0.0
           @collider = nil
-          @tile_world = nil
+          @collision = nil
         end
 
-        # Resolve each declared blocker, once the node is in the tree and both the scene's
-        # systems and this node's other components are reachable.
+        # Resolve each declared blocker and build the resolver that runs them, once the node
+        # is in the tree and both the scene's systems and this node's other components are
+        # reachable.
+        #
+        # **The resolver is the body's own**, rather than something borrowed off the scene.
+        # It has to be: a source over other actors holds this body's collider and this
+        # body's layer list, so two bodies declaring different `blocked_by` cannot share
+        # one — and four scenes in this repository mount a CollisionWorld with no TileWorld
+        # at all, so there is no scene-level resolver to borrow in the first place. What is
+        # shared is what can be: the TileWorld's own source is borrowed, not rebuilt.
+        #
+        # Nothing here runs on a frame. The list is built once, and a step only walks it.
         def on_attach
           return if @blocked_by.empty?
 
@@ -63,7 +94,7 @@ module RGame
           # was declared — and required before the systems, because a missing shape is the
           # likelier mistake of the two.
           @collider = require_sibling(BoxCollider)
-          @blocked_by.each { |blocker| resolve_blocker(blocker) }
+          @collision = Engine::CollisionSystem.new(blockers: resolve_blockers)
         end
 
         # Set this step's movement intent; each axis is in -1..1.
@@ -84,45 +115,89 @@ module RGame
         # them.
         #
         # The branch is on what was declared rather than on a subclass: an unblocked body
-        # writes straight to the node, and a blocked one hands *itself* to the tile world
-        # as the actor the resolver drives (see the adapter below).
+        # writes straight to the node, and a blocked one hands *itself* to its resolver as
+        # the actor being moved (see the adapter below).
         def apply_move(dx, dy)
-          return @tile_world.move(self, dx, dy) if @tile_world
+          return @collision.move(self, dx, dy) if @collision
 
           node.x += dx
           node.y += dy
         end
 
         # The actor adapter CollisionSystem#move drives: it reads x/y/collision_box, works
-        # out where the step lands, and writes the resolved position back. x and y are the
-        # owning node's, and the box is the sibling collider's — the node's one shape, so
-        # retuning `collider.box` retunes what a step collides with.
+        # out where the step lands, and writes the resolved position back. The box is the
+        # sibling collider's — the node's one shape, so retuning `collider.box` retunes
+        # what a step collides with.
+        #
+        # ## The adapter is in world space
+        #
+        # x and y are the node's **world** position, because that is the space everything
+        # else about collision is already in: the tile grid is a world-coordinate grid, and
+        # BoxCollider#aabb_x reports `node.world_x + box.offset_x`. A body under an offset
+        # ancestor that reported its local position would resolve against a map shifted by
+        # the ancestor, and would be compared against other colliders in a different frame
+        # entirely.
+        #
+        # Writing goes back through the node's *local* position as a translation — move the
+        # node by however far the resolved position is from where it is now — because the
+        # node lives in its parent's frame and only the parent knows how to get there.
+        #
+        # **The limit, deliberately not a raise:** that translation is exact for an
+        # unrotated ancestor chain and approximate under a rotated one, since a world-space
+        # delta is applied to local axes the rotation has turned. An actor under a rotated
+        # ancestor is already outside what an axis-aligned box supports (docs/api/components.md:
+        # a thing that spins wants a circle). A guard would only catch an ancestor that was
+        # rotated at attach and miss one that starts rotating later, which is worse than a
+        # sentence that is always true.
         def collision_box = @collider.box
-        def x = node.x
-        def y = node.y
+        def x = node.world_x
+        def y = node.world_y
 
         def x=(value)
-          node.x = value
+          node.x += value - node.world_x
         end
 
         def y=(value)
-          node.y = value
+          node.y += value - node.world_y
         end
 
         private
 
-        def resolve_blocker(blocker)
-          unless blocker == TILES
-            raise "CharacterBody is blocked_by #{blocker.inspect}, and :tiles is the only " \
-                  'blocker there is. Two actors that must notice each other carry a collider ' \
-                  'each and read its on_hit, which reports the contact without stopping ' \
-                  'either of them.'
-          end
+        # One source per *kind* of blocker rather than per declared name: every collider
+        # layer named goes into a single ActorBlockers, since one broadphase query answers
+        # for all of them at once.
+        def resolve_blockers
+          sources = []
+          sources << tile_blockers if @blocked_by.include?(TILES)
+          sources << bounds_blockers if @blocked_by.include?(BOUNDS)
+          layers = @blocked_by.reject { RESERVED.include?(it) }
+          sources << actor_blockers(layers) unless layers.empty?
+          sources
+        end
 
-          @tile_world = node.system(TileWorld) ||
-                        raise('CharacterBody is blocked_by :tiles, and the scene has no ' \
-                              'TileWorld system to resolve a step against. Mount one, or drop ' \
-                              'blocked_by for an actor with nothing to collide with.')
+        def tile_blockers
+          world = node.system(TileWorld) ||
+                  raise('CharacterBody is blocked_by :tiles, and the scene has no TileWorld ' \
+                        'system to resolve a step against. Mount one, or drop blocked_by for ' \
+                        'an actor with nothing to collide with.')
+          world.blockers
+        end
+
+        def bounds_blockers
+          bounds = node.system(WorldBounds) ||
+                   raise('CharacterBody is blocked_by :bounds, and the scene has no world ' \
+                         'bounds to stop at. Mount a World (or a TileWorld, which is one), or ' \
+                         'drop :bounds for an actor that may leave the world.')
+          Engine::BoundsBlockers.new(bounds: bounds)
+        end
+
+        def actor_blockers(layers)
+          world = node.system(CollisionWorld) ||
+                  raise("CharacterBody is blocked_by #{layers.map(&:inspect).join(', ')}, which " \
+                        'names collider layers, and the scene has no CollisionWorld system to ' \
+                        'find them in. Mount one, or drop those names for an actor that only ' \
+                        'the map stops.')
+          Engine::ActorBlockers.new(world: world, owner: @collider, layers: layers)
         end
       end
     end

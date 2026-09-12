@@ -8,9 +8,13 @@ module RGame
       # everything an actor needs from it — collision against the solid tiles, the world
       # bounds, and drawing the map through the scene's camera.
       #
-      # Collision reuses Engine::CollisionSystem, with the map's solid tiles as its one
-      # blocker source (Engine::TileBlockers) plus a world-bounds clamp; the tile solidity
-      # is whatever the map's tileset reports (baked per-tile in Tiled).
+      # **It does not resolve a step.** What it owns is the map's solid tiles as a blocker
+      # source (#blockers, an Engine::TileBlockers); the actor that wants to be stopped by
+      # them borrows it and resolves against it — see Components::CharacterBody, which
+      # builds its own Engine::CollisionSystem out of the sources its `blocked_by` names.
+      # A body may be blocked by tiles, by other actors, or by both, and only the body
+      # knows which, so the resolver is the body's and the grid is this system's. The tile
+      # solidity itself is whatever the map's tileset reports (baked per-tile in Tiled).
       #
       # **It does not draw.** Drawing the map is RGame::Engine::TileMapLayer, one
       # node per Tiled layer, mounted inside the WorldView so the map is drawn
@@ -40,14 +44,17 @@ module RGame
           @tilemap_id = tilemap_id
           @elapsed = 0.0
           Array(cameras).each { |camera| bound(camera) }
-          @collision = Engine::CollisionSystem.new(
-            blockers: Engine::TileBlockers.new(
-              tile_width: map.tile_width, tile_height: map.tile_height,
-              solid: ->(col, row) { map.solid_tile?(col, row) }
-            ),
-            world_width: map.pixel_width, world_height: map.pixel_height
+          # One source for the whole map, shared by every body on it: a TileBlockers holds
+          # no per-move state, so there is nothing for two actors to race over.
+          @blockers = Engine::TileBlockers.new(
+            tile_width: map.tile_width, tile_height: map.tile_height,
+            solid: ->(col, row) { map.solid_tile?(col, row) }
           )
         end
+
+        # The map's solid tiles as a blocker source, for a body that declared
+        # `blocked_by: [:tiles]`.
+        attr_reader :blockers
 
         def world_width = @map.pixel_width
         def world_height = @map.pixel_height
@@ -70,10 +77,6 @@ module RGame
           camera.world_height = @map.pixel_height
           camera
         end
-
-        # Move an actor (responds to x/y/collision_box) by (dx, dy), sliding along solids
-        # and clamped inside the world. Delegates to the reused collision system.
-        def move(actor, dx, dy) = @collision.move(actor, dx, dy)
 
         def solid?(col, row) = @map.solid_tile?(col, row)
 
