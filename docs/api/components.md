@@ -260,10 +260,10 @@ the body turns it into a real move each `update`, at a fixed speed with no inert
 `Velocity`, which integrates a velocity the controller sets, and `ThrustController`, which
 accelerates one.
 
-**What stops a step is declared, not subclassed.** `blocked_by:` lists what a step may not
-pass through; the default is nothing, which moves the node freely and needs **no sprite, no
-dimensions, no collider and no system on the scene** — an actor in a world with nothing to
-bump into is just `CharacterBody` + a controller.
+A character is `CharacterBody` + a controller, and a character the map stops is the same
+with a feet box and a declaration. **What may stop a step is [`Mover`](#mover)'s**, shared
+with `Velocity` and `PathFollow`. `blocked_by:`, `on_blocked`/`on_unblocked` and the
+`apply_move` seam are documented there, and work the same way here.
 
 ```ruby
 add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
@@ -272,101 +272,16 @@ add_component(RGame::Engine::Components::CharacterBody.new(speed: 80, blocked_by
 add_component(RGame::Engine::Components::PlayerController.new)
 ```
 
-Two names are reserved and every other name is a collider layer:
-
-| Name | Resolved against | Stops the step at |
-|---|---|---|
-| `:tiles` | the scene's [`TileWorld`](#tileworld) | the edge of a solid tile |
-| `:bounds` | the scene's [`WorldBounds`](#world) | the edge of the world |
-| anything else | the scene's [`CollisionWorld`](#collisionworld) | the edge of any `BoxCollider` wearing that layer |
-
-Each step is resolved one axis at a time and takes the most restrictive answer, so a
-diagonal held against a wall keeps its free half and the actor slides — and it slides the
-same way off a villager as off a fence.
-
-```ruby
-add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height: 6, layer: :hero))
-add_component(RGame::Engine::Components::CharacterBody.new(speed: 80, blocked_by: %i[tiles npc]))
-```
-
-Three things worth knowing about a layer name:
-
-- **A layer that is empty is not an error.** The declaration says what *may* stop this
-  body, not what does.
-- **The body is never stopped by its own collider**, so a crowd of villagers can all
-  declare `blocked_by: [:npc]` while each of them wears `:npc`.
-- **Blocking is box versus box.** A [`CircleCollider`](#circlecollider) on a declared
-  layer reports its contacts as usual and stops nothing.
-
-`blocked_by` and [`on_hit`](#boxcollider) answer different questions — what may I walk
-through, and what am I touching — and they are not alternatives. A successfully blocked
-pair ends up *touching*, and `CollisionBox.overlap?` is half-open, so blocking a step
-reports no contact. An entity that must both stop and react needs both, which is the Godot
-idiom of a body with a child area.
-
-**What stopped a step is reported.** `on_blocked` fires on the step something starts
-stopping this body, `on_unblocked` on the step it stops, each once per blocker. It is the
-same pair of edges [`BoxCollider`](#boxcollider) reports for a contact, pointed at what a
-step could not pass through — and it is what makes a spiky ball that both stops the player
-and hurts them two ordinary components rather than a hand-rolled `on_hit`.
-
-```ruby
-body.on_blocked { |by| take_damage if by.layer == :spike }
-```
-
-The listener is handed the blocker and reads `by.layer` and `by.node`, the same way
-whichever kind stopped the step: a collider answers its own layer and its owning node, the
-map's solid tiles answer `:tiles` and `nil`, and the world's edge answers `:bounds` and
-`nil`. Three things worth knowing:
-
-- **Standing still is an unblocking.** The set of blockers advances once per `update`, so a
-  body that stops pushing records nothing that step and `on_unblocked` fires. The body has
-  not moved; it has stopped *being stopped*.
-- **Once per blocker, not once per axis.** A step stopped on both axes by the same thing
-  fires once. A step stopped on X by the map and on Y by a villager fires twice, once for
-  each — starting edges before ending ones, the order `CollisionWorld` reports contacts in.
-- **A blocked pair is not a contact**, per the paragraph above. `on_blocked` is what the
-  spiky ball listens to; `on_hit` is what a trigger area listens to.
-
-**`:bounds` is declared, not automatic.** A body that does not name it walks out of the
-world. That is deliberate: [`ScreenWrap`](#screenwrap) and
-[`DespawnOffscreen`](#despawnoffscreen) read the same bounds but act on `node.x`/`node.y`
-rather than on the collision box, so a body held inside the world without having asked
-made those two misfire — a hero with a feet box despawned itself on touching the left
-wall. Declaring `:bounds` *and* one of those components is a contradiction a game now has
-to ask for twice.
-
-**The shape has one owner, and it is not the body.** A blocked step is resolved against the
-sibling [`BoxCollider`](#boxcollider)'s rectangle — [`FeetCollider`](#feetcollider) is the one
-a walking character wants. So the feet box is given once, to the component that *is* a shape,
-and the same rectangle both stops the step and reports contacts: reassigning `collider.box`
-retunes both, and there is nothing to hand from one component to the other.
-
 - **Construct:** `CharacterBody.new(speed:, blocked_by: [])` — walk speed in px/s, and what
-  may stop a step. A bare symbol works too (`blocked_by: :tiles`).
-- **Lifecycle:** `on_attach` resolves what was declared, builds the body's own
-  [`CollisionSystem`](internals.md#collisionsystem--move-an-actor-against-its-blockers) out
-  of the sources it found, and **raises** for anything it cannot find — the node's collider
-  first, then the scene's `TileWorld` for `:tiles`, its `WorldBounds` for `:bounds`, its
-  `CollisionWorld` for any layer name. Falling back to free movement would look like a
-  collision bug, with the cause in a scene three files away that never mounted the system.
+  may stop a step (see [`Mover`](#mover)).
 - **State:** `set_intent(x, y)` writes the step's intent; `move_x`/`move_y` read it back (the facing
   for `AnimatedSprite`).
-- **Signals:** `on_blocked` fires with what stopped the step, `on_unblocked` when it stops
-  stopping it — `body.on_blocked { |by| ... }`. A body that wants the raw per-axis answer
-  instead reads
-  [`CollisionSystem#blocked_x` / `#blocked_y`](internals.md#collisionsystem--move-an-actor-against-its-blockers).
-- **Phase:** `update(dt)` applies `intent * speed * dt` (nothing when the intent is zero),
-  then reports the edges — so a body that overrides `apply_move` still gets them.
-- **Seam:** `apply_move(dx, dy)` is where a step lands — separated from `update` so a body that
-  resolves a step some other way (a platformer's, with gravity and a jump) inherits the intent,
-  the speed and the standing-still check rather than restating them.
-- **Actor adapter:** when blocked, the body hands *itself* to
-  [`CollisionSystem#move`](internals.md#collisionsystem--move-an-actor-against-its-blockers),
-  answering `collision_box` from the collider and `x`/`y`/`x=`/`y=` from the node **in world
-  space** — the frame the tile grid and the broadphase are already in. Writing back is a
-  translation of the node's local position, which is exact under an unrotated ancestor chain
-  and approximate under a rotated one; a thing that spins wants a circle anyway.
+- **Phase:** `update(dt)` applies `intent * speed * dt` through `apply_move`, and moves nothing
+  when the intent is zero. That is still a step, so a body that stops pushing into a wall
+  reports `on_unblocked`.
+- **Seam:** a body that resolves a step some other way (a platformer's, with gravity and a jump)
+  overrides [`apply_move`](#mover) and inherits the intent, the speed and the standing-still
+  check rather than restating them.
 - **Examples:** `examples/walk` — this, a `PlayerController` and an `AnimatedSprite`, and
   nothing else. `examples/collision_tiles` — the same with a feet box and `blocked_by:
   [:tiles]`, drawn over the sprite so what collides is visible.
@@ -602,6 +517,121 @@ Two things are the game's to get right, not this component's:
 - **The allocator belongs in the save.** A counter that restarts at 1 on load
   reissues ids the restored objects already hold. Save the next id alongside
   them.
+
+### `Mover`
+
+The base class of every component that moves its node: [`CharacterBody`](#characterbody),
+[`Velocity`](#velocity) and [`PathFollow`](#pathfollow). They are three classes because
+walking an intent, integrating a velocity and following a path are three different jobs.
+What they share is what happens *after* a step is computed, and that part is `Mover`. It is
+not added to a node on its own.
+
+**What stops a step is declared, not subclassed.** `blocked_by:` lists what a step may not
+pass through. The default is nothing, which writes the node's position directly and needs
+**no sprite, no dimensions, no collider and no system on the scene**.
+
+```ruby
+add_component(RGame::Engine::Components::BoxCollider.new(width: 12, height: 12, layer: :crate))
+add_component(RGame::Engine::Components::Velocity.new(vx: 90, vy: 40, blocked_by: [:wall]))
+```
+
+Two names are reserved and every other name is a collider layer:
+
+| Name | Resolved against | Stops the step at |
+|---|---|---|
+| `:tiles` | the scene's [`TileWorld`](#tileworld) | the edge of a solid tile |
+| `:bounds` | the scene's [`WorldBounds`](#world) | the edge of the world |
+| anything else | the scene's [`CollisionWorld`](#collisionworld) | the edge of any `BoxCollider` wearing that layer |
+
+Each step is resolved one axis at a time and takes the most restrictive answer, so a
+diagonal held against a wall keeps its free half and the mover slides — and it slides the
+same way off a villager as off a fence. That is what a character wants and not what a bullet
+wants, and a bullet does not need a different resolver for it. `on_blocked` fires on the step
+it hits, and a bullet that queue-frees itself there is gone before it has slid anywhere. A
+mover that keeps pushing also keeps its intent: a blocked `Velocity` does not zero its `vx`.
+
+```ruby
+add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height: 6, layer: :hero))
+add_component(RGame::Engine::Components::CharacterBody.new(speed: 80, blocked_by: %i[tiles npc]))
+```
+
+Three things worth knowing about a layer name:
+
+- **A layer that is empty is not an error.** The declaration says what *may* stop this
+  mover, not what does.
+- **A mover is never stopped by its own collider**, so a crowd of villagers can all
+  declare `blocked_by: [:npc]` while each of them wears `:npc`.
+- **Blocking is box versus box.** A [`CircleCollider`](#circlecollider) on a declared
+  layer reports its contacts as usual and stops nothing.
+
+`blocked_by` and [`on_hit`](#boxcollider) answer different questions — what may I walk
+through, and what am I touching — and they are not alternatives. A successfully blocked
+pair ends up *touching*, and `CollisionBox.overlap?` is half-open, so blocking a step
+reports no contact. An entity that must both stop and react needs both, which is the Godot
+idiom of a body with a child area.
+
+**What stopped a step is reported.** `on_blocked` fires on the step something starts
+stopping this mover, `on_unblocked` on the step it stops, each once per blocker. It is the
+same pair of edges [`BoxCollider`](#boxcollider) reports for a contact, pointed at what a
+step could not pass through — and it is what makes a spiky ball that both stops the player
+and hurts them two ordinary components rather than a hand-rolled `on_hit`.
+
+```ruby
+mover.on_blocked { |by| take_damage if by.layer == :spike }
+```
+
+The listener is handed the blocker and reads `by.layer` and `by.node`, the same way
+whichever kind stopped the step: a collider answers its own layer and its owning node, the
+map's solid tiles answer `:tiles` and `nil`, and the world's edge answers `:bounds` and
+`nil`. Three things worth knowing:
+
+- **Standing still is an unblocking.** The set of blockers advances once per `update`, so a
+  mover that stops pushing records nothing that step and `on_unblocked` fires. It has
+  not moved; it has stopped *being stopped*.
+- **Once per blocker, not once per axis.** A step stopped on both axes by the same thing
+  fires once. A step stopped on X by the map and on Y by a villager fires twice, once for
+  each — starting edges before ending ones, the order `CollisionWorld` reports contacts in.
+- **A blocked pair is not a contact**, per the paragraph above. `on_blocked` is what the
+  spiky ball listens to; `on_hit` is what a trigger area listens to.
+
+**`:bounds` is declared, not automatic.** A mover that does not name it leaves the
+world. That is deliberate: [`ScreenWrap`](#screenwrap) and
+[`DespawnOffscreen`](#despawnoffscreen) read the same bounds but act on `node.x`/`node.y`
+rather than on the collision box, so a mover held inside the world without having asked
+made those two misfire — a hero with a feet box despawned itself on touching the left
+wall. Declaring `:bounds` *and* one of those components is a contradiction a game now has
+to ask for twice.
+
+**The shape has one owner, and it is not the mover.** A blocked step is resolved against the
+sibling [`BoxCollider`](#boxcollider)'s rectangle — [`FeetCollider`](#feetcollider) is the one
+a walking character wants. So the box is given once, to the component that *is* a shape,
+and the same rectangle both stops the step and reports contacts: reassigning `collider.box`
+retunes both, and there is nothing to hand from one component to the other.
+
+- **Construct:** every mover takes `blocked_by: []`. A bare symbol works too
+  (`blocked_by: :tiles`).
+- **Lifecycle:** `on_attach` resolves what was declared, builds the mover's own
+  [`CollisionSystem`](internals.md#collisionsystem--move-an-actor-against-its-blockers) out
+  of the sources it found, and **raises** for anything it cannot find — the node's collider
+  first, then the scene's `TileWorld` for `:tiles`, its `WorldBounds` for `:bounds`, its
+  `CollisionWorld` for any layer name. Falling back to free movement would look like a
+  collision bug, with the cause in a scene three files away that never mounted the system.
+- **Signals:** `on_blocked` fires with what stopped the step, `on_unblocked` when it stops
+  stopping it — `mover.on_blocked { |by| ... }`. A mover that wants the raw per-axis answer
+  instead reads
+  [`CollisionSystem#blocked_x` / `#blocked_y`](internals.md#collisionsystem--move-an-actor-against-its-blockers).
+- **Phase:** `update(dt)` opens the step, calls the subclass's private `take_step(dt)`, and
+  reports the edges. It is not for overriding: that is what keeps a mover from forgetting
+  either edge.
+- **Seam:** `apply_move(dx, dy)` is where a step lands. It writes straight onto the node when
+  nothing was declared, and goes through the resolver when something was. A mover may call it
+  several times in one step, and the edges are still reported once.
+- **Actor adapter:** when blocked, the mover hands *itself* to
+  [`CollisionSystem#move`](internals.md#collisionsystem--move-an-actor-against-its-blockers),
+  answering `collision_box` from the collider and `x`/`y`/`x=`/`y=` from the node **in world
+  space** — the frame the tile grid and the broadphase are already in. Writing back is a
+  translation of the node's local position, which is exact under an unrotated ancestor chain
+  and approximate under a rotated one; a thing that spins wants a circle anyway.
 
 ### `PathFollow`
 
