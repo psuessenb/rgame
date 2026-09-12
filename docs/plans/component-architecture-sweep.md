@@ -1,8 +1,10 @@
 # Sweeping the systems and components for architectural fit
 
-**Status: steps 1 and 2 are implemented. Steps 3 and 4 are deliberately rough, and
-step 3 needs its re-plan against what step 2 made possible. Every uncalled class has
-since been decided in conversation — see open question 1.**
+**Status: steps 1 and 2 are implemented. Step 3 is re-planned against the code after
+step 2 and ready to implement. Step 4 is planned from open question 5, is
+independent of step 3, and is ready too. Step 5 is deliberately
+rough. Every uncalled class has since been decided in conversation — see open
+question 1.**
 
 Written out of a retrospective rather than a bug: the collision unification took
 six steps to merge two systems that had each been correct on their own since the
@@ -429,15 +431,31 @@ six steps.
    **Settled — yes, and the slide travels with it**, because it is
    `CollisionSystem`'s axis order and that class does not change. A bullet reacts to
    `on_blocked`. See [step 2, re-planned](#re-planned-against-the-code-after-step-1).
-4. **Is A5 worth reconciling, or is documenting it the right permanent answer?**
-   Does not block steps 1 or 2. Needs its own measurement of how many nodes could
-   ever carry both.
-5. **Should `on_blocked` say which axis was stopped?** A bouncing projectile needs
-   it, and `CollisionSystem#blocked_x`/`#blocked_y` already know. Nothing in the
-   repository bounces. Does not block anything.
-6. **Where does a path-walking character get its facing?** `AnimatedSprite` reads
-   `move_x`/`move_y` off a `CharacterBody`, and `PathFollow` has no intent. Blocks
-   the pathfinding example's animation, not its walk.
+4. ~~**Is A5 worth reconciling, or is documenting it the right permanent answer?**~~
+   **Settled — reconcile the frame and refuse the combination.** Decided in
+   conversation, on the measurement below.
+   The measurement found two contradictions where A5 recorded one. Local position
+   against world position is a defect, so `ScreenWrap` and `DespawnOffscreen` move
+   to world space. Origin against box is a combination with no meaning, so a node
+   may carry only one response to the world's edge. See
+   [step 3, re-planned](#re-planned-against-the-code-after-step-2).
+5. ~~**Should `on_blocked` say which axis was stopped?**~~ **Settled — yes.**
+   Decided in conversation. A bouncing projectile needs it, and
+   `CollisionSystem#blocked_x`/`#blocked_y` already know. Scheduled as
+   [step 4](#step-4--on_blocked-says-which-axis-stopped-the-step).
+6. ~~**Where does a path-walking character get its facing?**~~ **Deferred to
+   `examples/pathfinding`**, decided in conversation. `AnimatedSprite` reads
+   `move_x`/`move_y` off a `CharacterBody`, and `PathFollow` has no intent. It
+   blocks that example's animation, not its walk, and nothing else needs it. This
+   plan will be deleted before that example is written, so the question already
+   sits in the example's entry in `docs/plans/basic-examples.md`, together with the
+   step 2 finding that `PathFollow(blocked_by:)` can walk a blocked route.
+7. ~~**How does `examples/velocity` place its world inside the window once the
+   offset is no longer a parent node?**~~ **Settled — it doesn't: the offset is
+   dropped.** Decided in conversation. The example is already hard to follow for
+   someone who opened it to learn about `Velocity`, and a camera would add another
+   concept. The world starts at the window's origin, with a band left for the
+   text. See [3a](#3a--examplesvelocity-drops-its-offset).
 
 ## E. What this does not deliver
 
@@ -456,7 +474,8 @@ six steps.
 ## F. Roadmap
 
 ```
-1 dead code + game references ──→ 2 the movement seam ──→ 3 the two frames (rough) ──→ 4 fold back
+1 dead code + game references ──→ 2 the movement seam ─┬─→ 3 the world's edge, in one frame ─┬─→ 5 fold back
+                                                        └─→ 4 which axis stopped ─────────────┘
         │                          │
         └── independently useful ──┘
 ```
@@ -469,7 +488,8 @@ six steps.
 |---|---|
 | 1 | A1 and A2 — dead classes loaded into every process and shipped in the gem; A7 — documentation that depends on games the engine does not ship |
 | 2 | A3 and A4 — blocking reachable from one of four movers, with the composition already in four game files |
-| 3 | A5 — two coordinate frames for the edge of the world |
+| 3 | A5 — a node inside the world freed or wrapped because an ancestor is offset, and edge responses that contradict each other on one node without complaint |
+| 4 | Open question 5 — `on_blocked` reports what stopped a mover but not which axis, so a bounce has to reach into a resolver it cannot see |
 
 ### Step 1 — remove the dead code, and the references to games
 
@@ -622,7 +642,7 @@ did not exist. Rule 1 of 1a has no example of its own, because `spec_helper`'s
 Documented in `docs/api/toolbox.md` (grids, `Pool`, `Path`, `Timer`, the camera, the
 collision recipe), `components.md`, `systems.md`, `scene_graph.md` and `input.md`,
 and in CLAUDE.md's current-phase and testing sections. `docs/plans/basic-examples.md`
-still says asteroids uses `Targeting`, as step 4 already records. It is a plan, so
+still says asteroids uses `Targeting`, as the fold-back step already records. It is a plan, so
 the guard does not look at it.
 
 ### Step 2 — the movement seam
@@ -848,7 +868,7 @@ What the sketch got wrong:
 
 Consequences for later steps. **Step 3's premise is now true:** any `Velocity` or
 `PathFollow` can declare `:bounds`, so the nodes that can carry both edge frames are
-no longer only characters. Its re-plan starts from that. **Step 4's note to
+no longer only characters. Its re-plan starts from that. **The fold-back step's note to
 `basic-examples.md` changes:** the pathfinding example can walk a blocked route with
 `PathFollow(blocked_by:)`, but open question 6 still leaves that walker without a
 facing.
@@ -860,7 +880,7 @@ now described as the movers' rather than one component's, and in the headers of
 `Mover`, `Velocity`, `PathFollow`, `ContactSet`, `ActorBlockers`, `TileWorld` and
 `BoxCollider`.
 
-### Step 3 — the two coordinate frames *(rough)*
+### Step 3 — the world's edge, in one frame
 
 A5. Reconcile "where is this node for the purpose of the world's edge", or decide
 that documenting the contradiction is the permanent answer (open question 4).
@@ -869,17 +889,406 @@ Deliberately left rough. It depends on what step 2 does to the movers — if a
 `Velocity` can be bounds-blocked afterwards, the number of nodes that can carry
 both frames goes up sharply, and that changes the answer.
 
-### Step 4 — fold the plan back and delete it
+#### Re-planned, against the code after step 2
+
+**A5 described one contradiction, and there are two.** They look alike, and they
+need opposite fixes. Measured at `175d6e8`:
+
+| | |
+|---|---|
+| Components reading `WorldBounds` to respond to the edge | 3 — `ScreenWrap`, `DespawnOffscreen`, a `Mover` declaring `:bounds` |
+| Of those, reading the node's **local** position | **2** — `ScreenWrap`, `DespawnOffscreen` (`node.x`) |
+| Of those, reading **world** space | 1 — `Mover` (`node.world_x + box.offset_x`) |
+| Everything else that is in world space | `CollisionWorld`, `TileWorld`'s grid, `Culling`, `Camera` |
+| `ScreenWrap` / `DespawnOffscreen` instances outside specs | 8 — 6 and 2, in 5 files |
+| Of those, on a node that also carries a `Mover` | **8 of 8** |
+| Of those, on a node with a `BoxCollider`, so it could declare `:bounds` | **0** — 5 carry a `CircleCollider`, 3 carry no collider |
+| `blocked_by: :bounds` outside specs | **0** |
+| Bounds readers under an offset ancestor | **2**, both in `examples/velocity`, which relies on it |
+| Scratch scenes where the readers disagreed | 4 of 4 (below) |
+
+The scratch script used real components on a `World` of 460×330, stepped with
+`node.update`:
+
+| Scene | What happened |
+|---|---|
+| `Velocity(blocked_by: [:bounds])` + `ScreenWrap`, under a parent at (90, 110) | wrapped at local x 0, which is world x 90. It never reached the edge that would have stopped it, and ended at world x 550, outside the world |
+| the same, no parent, a box at `offset_x: 3` | held at x −3 by the box, then wrapped to 460. This is the case `character_body_spec` already pins |
+| `Velocity(blocked_by: [:bounds])` + `DespawnOffscreen(margin: 5)`, under a parent at (90, 110) | **freed at world x 10, inside the world**, because local x was −80 |
+| `Velocity(blocked_by: [:wall])` + `ScreenWrap`, wall at the far edge | wrapped to x 200, flush against the far side of the wall, and stayed there pressing into it, outside the world, for good |
+
+Three conclusions follow from the tables.
+
+**1. Local against world is a defect, and it does not need `:bounds` to appear.**
+The third scene's `DespawnOffscreen` misfires with or without the mover's
+declaration. All it needs is an ancestor at an offset. `CollisionWorld`,
+`TileWorld`, `Culling`, `Camera` and the mover's adapter all agree that "the world"
+means world coordinates, and the two components that disagree are the two that
+came out of `Engine::Body#wrap!` and `#offscreen?` (A1). `Body` had no parent, so
+`x` *was* the world position, and `node.x` was the literal translation of it. That
+is a leftover from before the tree, and it is the one piece of A1 step 1 did not
+reach.
+
+**2. Origin against box is not a frame problem. It is a combination with no
+meaning.** Stopping at an edge and wrapping past it are two answers to *what
+happens when this node reaches the world's edge*. So are stopping and despawning,
+and wrapping and despawning. The frames do not have to agree for a node carrying
+one response, because nothing compares them. On a node carrying two, no single
+frame makes both meaningful. Today that is documented as "a contradiction a game
+has to ask for twice". CLAUDE.md's "Design out misuse" says a rule someone has to
+remember should fail loudly instead, and constraint 3 already makes this engine
+raise at attach for a declaration it cannot honour. So the answer is to refuse
+the combination at attach, not to reconcile it.
+
+**3. Step 2's consequence note overstated the pressure.** It said step 2 made the
+premise true: any `Velocity` can now declare `:bounds`. That is true in principle
+and zero in fact. Blocking is box-versus-box, and none of the eight bounds-reading
+nodes carries a box. So no caller forces this step. It is here because conclusion
+1 is a live defect, and because refusing is cheapest while nothing uses the
+combination.
+
+**Open question 4 is therefore settled: reconcile the frame, refuse the
+combination.** `ScreenWrap` and `DespawnOffscreen` move to world space, and a
+node may carry at most one response to the world's edge.
+
+**The cost is one example.** `examples/velocity` offsets a `field` node to place
+the world inside the window. Its header says that is so the drifters wrap at the
+outline "without the wrap, the drifters or the outline knowing about the offset at
+all". That only works because the wrap reads local coordinates. In world space the
+offset belongs to the view, not to a parent of the world's contents. Open question
+7 settled that the example drops the offset rather than moving it anywhere.
+
+**Prior art agrees on the frame and has nothing to offer on combinations.** Godot's
+`VisibleOnScreenNotifier2D` takes a rect in the node's local frame and tests it
+after the global transform, so it answers in world/canvas space
+([docs](https://docs.godotengine.org/en/stable/classes/class_visibleonscreennotifier2d.html)).
+Godot ships no wrap node. Unity's `OnBecameInvisible` is camera-relative, and
+bump.lua has no world edge at all: a boundary is an item like any other. None of
+them has a built-in rule against giving one object two edge responses, because
+none of them has two built-in edge responses in the first place.
+
+**Considered and rejected for this step:**
+
+- **Wrap and despawn read the collider's box when there is one.** The attraction is
+  that the box frame then wins everywhere. Rejected: a component's behaviour would
+  change silently when a sibling is added, five of the eight nodes carry a circle,
+  which has no box, and it still gives no meaning to *stop and wrap*.
+- **Move the mover to local space instead.** Two readers would move instead of one.
+  Rejected: the adapter's world space was the collision plan's fix for a body under
+  an offset ancestor resolving against a shifted map (its B8), and the tile grid is
+  a world-space grid.
+- **Give `World` an origin, `World.new(x:, y:, width:, height:)`.** It would keep
+  `examples/velocity` as it is. Rejected: it grows the `WorldBounds` contract,
+  `TileWorld`, `BoundsBlockers` and the camera clamp for one example's screen
+  layout, and screen layout is the view's job.
+- **Fold wrap and despawn into `Mover` as an `at_edge:` response.** This is the
+  bump.lua shape, and all eight callers already carry a mover, so it is the most
+  attractive option: one keyword, and two responses cannot be expressed. Rejected:
+  wrap and despawn act on the node however it moved (a `reset`, an ancestor, a
+  direct write), while blocking is about a mover's step. Folding them in would also
+  add branches to the free path, and step 2 measured a single extra dispatch there
+  at about 12%. A refusal at attach gets the same impossibility for zero frame cost.
+- **Keep documenting the contradiction.** This is the honest fallback. Rejected
+  because of the third scene: a node inside the world freed by a component that
+  claims the node has left it is a defect, not a trade-off.
+
+```
+3a velocity drops its offset ──→ 3b world space + one contract ──→ 3c one response per node
+   (report changes, once)          (byte-identical runs)            (byte-identical runs)
+```
+
+3a comes first so that 3b is provably invisible. Once no bounds reader has an
+offset ancestor, local and world coordinates coincide for every caller, and the
+frame can flip with every driven report unchanged.
+
+##### 3a — `examples/velocity` drops its offset
+
+The one caller of the local frame stops needing it, and the example gets simpler,
+which it needed regardless. Someone who opened it to learn `Velocity` also had to
+follow a parent offset, a world smaller than the window and a section on why the
+two are different. The `field` node, `WORLD_X` and `WORLD_Y` go, and the drifters
+and the walker become children of the scene. The world starts at the window's
+origin and fills the window except for a band that holds the text, so the text no
+longer sits over the world. The world still mounts a `World`, which `ScreenWrap`
+needs, sized to the area above the band.
+
+The header shrinks with it. "The outline is the world, and the world is not the
+window" loses its offset argument and becomes at most a sentence: ask the `view`
+for the window's size and `WorldBounds` for the world's. That lesson is taught
+properly where there is a camera, in `examples/scroll_map`. The "without the wrap
+… knowing about the offset" comment goes. A comment that credits a local-frame
+wrap would be false after 3b.
+
+Rules:
+
+1. Every `ScreenWrap` and `DespawnOffscreen` in `examples/` and `test_projects/`
+   has `world_x == x` and `world_y == y` on every tick. This is checked once, by a
+   probe in the driven run, and recorded in the landed note. It does not become a
+   spec: it describes this commit's callers, not a rule of the engine.
+2. The example still shows what it lists under "It exercises": drifters wrap at
+   the world's edge and two of them spin. That is checked by eye with
+   `ruby examples/velocity/main.rb`.
+3. If `docs/api/examples.md` describes the offset, it is updated in the same
+   commit.
+
+Verify: `ruby tools/drive_test_project.rb examples/velocity/main.rb --ticks 240
+--seed 7`. Its report changes, and this is the only commit in the step where one
+may. Every other script's report is byte-identical to `main`.
+
+##### 3b — `ScreenWrap` and `DespawnOffscreen` read the world
+
+Both read `node.world_x` / `node.world_y`. `ScreenWrap` writes back as a
+translation, which is what `Mover#x=` already does. Two copies of that write would
+be the parallel-vocabulary smell, so it moves to the node that owns the position,
+and the adapter calls it:
+
+```ruby
+class Node2D
+  # Place the node at a world position by translating its local one. Exact under
+  # an unrotated ancestor chain; approximate under a rotated one (the limit
+  # Mover's adapter documents today, moved here with the arithmetic).
+  def world_x=(value)
+    self.x += value - world_x
+  end
+
+  def world_y=(value)
+    self.y += value - world_y
+  end
+end
+
+class Mover
+  def x=(value)
+    node.world_x = value
+  end
+end
+
+class ScreenWrap
+  def update(_dt)
+    x = node.world_x
+    node.world_x = @width + @margin if x < -@margin
+    node.world_x = -@margin if x > @width + @margin
+    # ...y the same
+  end
+end
+```
+
+`WorldBounds`' header states the frame: world coordinates, with the origin at
+(0, 0). No reader can then pick one by accident. `DespawnOffscreen`'s "once it has
+fully left" becomes what the code does, "once its origin is further than `margin`
+past an edge". Every caller already sets the margin to the node's own radius or
+more. The margin still stands in for the node's extent, and that stays out of
+scope (see below).
+
+Rules the tests must pin:
+
+1. **One contract for every reader of the edge.** A shared example group,
+   `spec/support/shared_examples/a_world_edge_response.rb`, runs against
+   `ScreenWrap`, `DespawnOffscreen` and a `Velocity(blocked_by: [:bounds])`, on a
+   node **under an ancestor at an offset**. Each must act at the world's edge and
+   leave a node inside the world alone, in world coordinates. This is the test that
+   would have caught A5 on the day `ScreenWrap` was written. The group is shaped
+   like `a mover`: the host supplies the response, and the group supplies the
+   scene and the offset.
+2. `Node2D#world_x=` / `#world_y=` place the node at the given world position under
+   a translated ancestor, and do nothing to its world position when handed the
+   current one.
+3. The existing `screen_wrap_spec`, `despawn_offscreen_spec` and `mover_spec` pass
+   unedited, because every example in them has no ancestor.
+4. Nothing allocates. `allocate_nothing` over a `ScreenWrap#update` under an
+   ancestor, since `world_x` walks the parent chain.
+
+Verify: `rake spec` green, with the count up only by the contract and the setter
+examples. All 28 driven scripts byte-identical to 3a's reports at `--ticks 240
+--seed 7`, each with a fresh `RGAME_SAVE_DIR` and a worktree with `media/` linked
+(step 2's two lessons). A `ScreenWrap` step under no ancestor benchmarked
+**interleaved** against `main`, not in separate runs, because step 2's landed note
+records how separate runs hid a 12% difference. The increase is recorded whatever
+it is, since it is one method call on a path that runs once per node.
+
+##### 3c — a node has at most one response to the world's edge
+
+`ScreenWrap`, `DespawnOffscreen` and a `Mover` declaring `:bounds` refuse to share
+a node. The contradiction spec in `character_body_spec.rb` ("a bounds-blocked body
+under a ScreenWrap … is wrapped anyway") is replaced by the refusal. The
+"It contradicts `blocked_by: [:bounds]`" bullets in `components.md` become one
+sentence stating the rule.
+
+The check lives in one place, next to the only other thing all three already
+share:
+
+```ruby
+module WorldBounds
+  # Raise if `node` carries more than one response to the world's edge. Called from
+  # each response's on_attach, so whichever of them attaches second is the one that
+  # raises, in either add order. The message names both.
+  def self.one_response!(node, response)
+end
+
+class Mover
+  # Public so the check can ask a mover without reading its ivars.
+  def blocked_by?(name) = @blocked_by.include?(name)
+end
+```
+
+**Why a check in every `on_attach` is order-free.** A node assembled outside the
+tree holds all its components before any attaches, so the first to attach already
+sees the others. A component added to a live node attaches on arrival, so the
+second to arrive sees the first. Either way, the second response to attach finds
+the first. This is the order question A6's checklist asks, and `Blocking` failed
+it in step 2. The spec asserts both orders and both lifecycles rather than trusting
+this paragraph.
+
+Rules the tests must pin:
+
+1. Each pair — `ScreenWrap` + `DespawnOffscreen`, `ScreenWrap` + `:bounds`,
+   `DespawnOffscreen` + `:bounds` — raises at attach, naming both components, in
+   both add orders, assembled before entering the tree and added to a live node.
+2. A `Mover` that declares no `:bounds` beside a `ScreenWrap` is accepted. That is
+   all eight callers.
+3. A pooled node that re-enters the tree is not refused by its own components, and
+   its attach allocates nothing, because a pooled node attaches on every spawn.
+   This goes beside the existing pooling allocation specs.
+
+Verify: `rake spec` green. All 28 driven scripts byte-identical to 3b's, which
+proves no caller carried a refused combination. The refusal is seen to fire by
+temporarily adding `blocked_by: [:bounds]` and a `BoxCollider` to
+`examples/velocity`'s walker: the example raises at boot, naming both components.
+
+##### What step 3 does not deliver
+
+- **Extent.** `margin` still stands in for how big the node is. Every caller sets
+  it by hand to a radius or more, and `Rock` uses its largest tier's radius for
+  all four tiers. Deriving it from `node.width`/`height` would need a footprint
+  convention: these nodes draw centred on their origin, while `Culling` measures a
+  footprint from `world_x`. That is another question about whether two things
+  agree, and it deserves its own count.
+- **Wrap arriving inside a blocker.** A wrap is a placement, not a step, so it does
+  not consult `blocked_by`. The fourth scene is legal after this step and stays
+  stuck. It gets a sentence in `ScreenWrap`'s documentation. No caller combines a
+  wrap with a collider-layer blocker, and resolving a placement against blockers is
+  a spawn-point problem, not an edge problem.
+- **Per-axis responses.** Wrapping left and right while stopping at top and bottom
+  is a real game shape, and 3c's rule refuses it. No caller wants it. If one does,
+  the rule becomes one response per axis, and the refusal is where that would be
+  found.
+
+### Step 4 — `on_blocked` says which axis stopped the step
+
+Open question 5, settled yes. It is independent of step 3: both build on step 2's
+`Mover`, and they touch different parts of it. Step 3 changes attach and the edge
+components, and this step changes the signal. Either may land first. It is one
+commit on its own branch, because it changes a public signal and shares no reason
+with step 3.
+
+**Why now.** The resolver already knows the answer. `CollisionSystem#blocked_x` and
+`#blocked_y` are read in `Mover#apply_move` straight after every move, and
+`@collision` is private. So a mover that wants to bounce today cannot find out which
+axis stopped it without reaching into a private resolver. That is also why nothing
+in the repository bounces.
+
+**The shape.** The signal gains a second field. The listener gets the axis as a
+symbol, which a bounce can branch on without arithmetic:
+
+```ruby
+class Mover
+  signal :on_blocked, Engine::Signal.define(:by, :axis)   # axis: :x, :y or :both
+  signal :on_unblocked, Engine::Signal.define(:by)         # unchanged
+
+  def apply_move(dx, dy)
+    # ...
+    blocked_x = @collision.blocked_x
+    blocked_y = @collision.blocked_y
+    if blocked_x.equal?(blocked_y)
+      record_blocker(blocked_x, :both)
+    else
+      record_blocker(blocked_x, :x)
+      record_blocker(blocked_y, :y)
+    end
+  end
+end
+
+# What it buys a caller:
+velocity = Velocity.new(vx: 120, vy: 80, blocked_by: %i[wall bounds])
+velocity.on_blocked do |_by, axis|
+  velocity.vx = -velocity.vx unless axis == :y
+  velocity.vy = -velocity.vy unless axis == :x
+end
+```
+
+**`on_unblocked` stays one field.** What ends is a blocker stopping this mover, not
+an axis. A blocker that stopped x on one step and y on the next stopped this mover
+the whole time and ends once. Giving the ending edge an axis would need a
+per-blocker axis record that only this signal reads.
+
+**Checked before planning:**
+
+- **Existing listeners keep working unchanged.** `Signal.define` with two fields
+  emits with keywords and calls listeners positionally. A proc drops the arguments
+  it does not name, so `{ |by| ... }` in `examples/collision_tiles` and the
+  `{ stopped_by << it }` in the mover contract both still receive the blocker. This
+  was verified against `Signal.define(:by, :axis)` directly.
+- **Emitting allocates nothing.** 1,000 keyword emits of a two-field signal
+  measured 2 allocations in total, which is harness noise rather than a per-call
+  cost. The contract's `allocates nothing on a blocked step` measures a steady
+  press, which never emits, so the step that *starts* a block gets its own
+  allocation example here.
+
+Rules the tests must pin:
+
+1. **In the `a mover` contract,** so all three movers answer the same way:
+   - pushed into the wall horizontally: `:x`
+   - pushed into a floor collider vertically: `:y`
+   - pushed diagonally into a corner made by two colliders: two `on_blocked`, one
+     `:x` with the first collider and one `:y` with the second
+   - the step that starts a block allocates nothing
+2. **`:both`, where it can actually happen.** `CollisionSystem` resolves x and then
+   y. Once x has snapped flush, a single collider no longer overlaps on the far
+   axis, so one box cannot stop both axes in the same step. The blocker that can is
+   the map. Every solid tile reports the one `TileBlockers::TILES` object, so a
+   diagonal push into an inside corner of wall tiles is stopped on both axes by the
+   same blocker. `character_body_spec`'s `on_blocked` scene already has that corner
+   (the walls in column 8 and row 8), and the example goes there: one `on_blocked`,
+   with `:both`. If an implementation finds a collider case that reaches `:both`,
+   it moves into the contract.
+3. **The edge belongs to the blocker, not the axis.** A block that starts on x and
+   continues on y against the same blocker fires no second `on_blocked`.
+4. **A caller using it.** `mover_spec` gets a `Velocity` that bounces between two
+   walls using the handler above. After N ticks it is still between them and has
+   reversed at each wall. That is open question 5's "a bouncing projectile needs
+   it", built, since nothing in the repository bounces.
+5. **Nothing else changes.** The existing `on_blocked` examples in
+   `character_body_spec` and `collision_tiles`' driven run are unedited and green.
+
+Verify: `rake spec` green, with the count up only by the new examples, three times
+over for the contract. All 28 driven scripts byte-identical to `main` at
+`--ticks 240 --seed 7`, because the one listener in `examples/` ignores the new
+field. Documented in `components.md`'s `Mover` section and the header of
+`Mover`, where "A blocked step slides" gains the bounce as its worked answer to
+"the wrong feel for a bullet". `Mover#record_blocker`'s comment gives "a box moving
+diagonally into one wide collider" as the case where one blocker stops both axes.
+Rule 2 says that case cannot happen, so the comment is corrected to name the tiles
+corner, after the implementation confirms it by running it.
+
+**What it does not deliver.** A `bounce:` option, or a bouncing component. The
+signal is what makes a bounce a two-line handler, and no caller has asked for more
+than that.
+
+### Step 5 — fold the plan back and delete it
 
 Whatever is still true moves into CLAUDE.md, `docs/api/` or a comment at the code
 it describes; the rest is history and `git log` has it.
 
-Two things are already known to be owed. **A6 is the one finding with no code
-change behind it**, and a negative result that nobody records gets re-investigated
-in six months — `docs/api/` should say somewhere that the tile map stack was swept
-against the architecture and passed. And `docs/plans/basic-examples.md` should be told
-two things this sweep found: asteroids does not use `Targeting`, and
-`examples/pathfinding` should walk its route through a `CharacterBody` rather than
-a `PathFollow` — or whatever step 2 settled instead.
+Known to be owed. **A6 is the one finding with no code change behind it**, and a
+negative result that nobody records gets re-investigated in six months —
+`docs/api/` should say somewhere that the tile map stack was swept against the
+architecture and passed. And `docs/plans/basic-examples.md` should be told that
+asteroids does not use `Targeting`.
+
+What this step used to owe the pathfinding example has already been written into
+that example's entry in `basic-examples.md`: open question 6 (a path walker's
+facing), and step 2's finding that `PathFollow(blocked_by:)` can walk a blocked
+route. It was written there early because the question was deferred to that
+example, and a deferral that lives only in a plan scheduled for deletion is lost.
+Check that the entry still says so.
 
 Then delete this file.
