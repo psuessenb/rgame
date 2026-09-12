@@ -219,6 +219,9 @@ spawned or despawned entity never leaks a registration.
   than a per-frame box recompute.
 - **Contacts:** `overlap?(other)` works against a box *or* a circle: the two colliders
   settle the test between themselves, so both shapes mix freely in one world.
+- **Blocking:** a box on a layer some [`CharacterBody`](#characterbody) named in
+  `blocked_by:` also *stops* that body's steps, flush against this box's edge. Nothing has
+  to be done to opt in; the layer is the whole declaration, and it is the other body's.
 - **Signals:** `on_hit` fires with the other collider on the step a contact **starts**,
   `on_separated` on the step it **ends** — `collider.on_hit { |other| ... }`. The system
   triggers them via `emit_hit(other)` / `emit_separated(other)`. Each fires once per
@@ -269,11 +272,45 @@ add_component(RGame::Engine::Components::CharacterBody.new(speed: 80, blocked_by
 add_component(RGame::Engine::Components::PlayerController.new)
 ```
 
-`:tiles` is the scene's [`TileWorld`](#tileworld), and it is the only blocker there is:
-each step is resolved against the map's solid tiles, one axis at a time, so a diagonal held
-against a wall keeps its free half and the actor slides. Actors that must notice *each other*
-carry a collider each and read its [`on_hit`](#boxcollider) — that reports the contact without
-stopping anyone.
+Two names are reserved and every other name is a collider layer:
+
+| Name | Resolved against | Stops the step at |
+|---|---|---|
+| `:tiles` | the scene's [`TileWorld`](#tileworld) | the edge of a solid tile |
+| `:bounds` | the scene's [`WorldBounds`](#world) | the edge of the world |
+| anything else | the scene's [`CollisionWorld`](#collisionworld) | the edge of any `BoxCollider` wearing that layer |
+
+Each step is resolved one axis at a time and takes the most restrictive answer, so a
+diagonal held against a wall keeps its free half and the actor slides — and it slides the
+same way off a villager as off a fence.
+
+```ruby
+add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height: 6, layer: :hero))
+add_component(RGame::Engine::Components::CharacterBody.new(speed: 80, blocked_by: %i[tiles npc]))
+```
+
+Three things worth knowing about a layer name:
+
+- **A layer that is empty is not an error.** The declaration says what *may* stop this
+  body, not what does.
+- **The body is never stopped by its own collider**, so a crowd of villagers can all
+  declare `blocked_by: [:npc]` while each of them wears `:npc`.
+- **Blocking is box versus box.** A [`CircleCollider`](#circlecollider) on a declared
+  layer reports its contacts as usual and stops nothing.
+
+`blocked_by` and [`on_hit`](#boxcollider) answer different questions — what may I walk
+through, and what am I touching — and they are not alternatives. A successfully blocked
+pair ends up *touching*, and `CollisionBox.overlap?` is half-open, so blocking a step
+reports no contact. An entity that must both stop and react needs both, which is the Godot
+idiom of a body with a child area.
+
+**`:bounds` is declared, not automatic.** A body that does not name it walks out of the
+world. That is deliberate: [`ScreenWrap`](#screenwrap) and
+[`DespawnOffscreen`](#despawnoffscreen) read the same bounds but act on `node.x`/`node.y`
+rather than on the collision box, so a body held inside the world without having asked
+made those two misfire — a hero with a feet box despawned itself on touching the left
+wall. Declaring `:bounds` *and* one of those components is a contradiction a game now has
+to ask for twice.
 
 **The shape has one owner, and it is not the body.** A blocked step is resolved against the
 sibling [`BoxCollider`](#boxcollider)'s rectangle — [`FeetCollider`](#feetcollider) is the one
@@ -283,10 +320,12 @@ retunes both, and there is nothing to hand from one component to the other.
 
 - **Construct:** `CharacterBody.new(speed:, blocked_by: [])` — walk speed in px/s, and what
   may stop a step. A bare symbol works too (`blocked_by: :tiles`).
-- **Lifecycle:** `on_attach` resolves what was declared and **raises** for anything it cannot
-  find — the node's collider first, then the scene's `TileWorld`, then any name that is not
-  `:tiles`. Falling back to free movement would look like a collision bug, with the cause in
-  a scene three files away that never mounted the system.
+- **Lifecycle:** `on_attach` resolves what was declared, builds the body's own
+  [`CollisionSystem`](internals.md#collisionsystem--move-an-actor-against-its-blockers) out
+  of the sources it found, and **raises** for anything it cannot find — the node's collider
+  first, then the scene's `TileWorld` for `:tiles`, its `WorldBounds` for `:bounds`, its
+  `CollisionWorld` for any layer name. Falling back to free movement would look like a
+  collision bug, with the cause in a scene three files away that never mounted the system.
 - **State:** `set_intent(x, y)` writes the step's intent; `move_x`/`move_y` read it back (the facing
   for `AnimatedSprite`).
 - **Phase:** `update(dt)` applies `intent * speed * dt` (nothing when the intent is zero).
@@ -294,11 +333,16 @@ retunes both, and there is nothing to hand from one component to the other.
   resolves a step some other way (a platformer's, with gravity and a jump) inherits the intent,
   the speed and the standing-still check rather than restating them.
 - **Actor adapter:** when blocked, the body hands *itself* to
-  [`CollisionSystem#move`](internals.md#collisionsystem--move-an-actor-against-its-blockers-and-the-world),
-  answering `x`/`y`/`x=`/`y=` from the node and `collision_box` from the collider.
+  [`CollisionSystem#move`](internals.md#collisionsystem--move-an-actor-against-its-blockers),
+  answering `collision_box` from the collider and `x`/`y`/`x=`/`y=` from the node **in world
+  space** — the frame the tile grid and the broadphase are already in. Writing back is a
+  translation of the node's local position, which is exact under an unrotated ancestor chain
+  and approximate under a rotated one; a thing that spins wants a circle anyway.
 - **Examples:** `examples/walk` — this, a `PlayerController` and an `AnimatedSprite`, and
   nothing else. `examples/collision_tiles` — the same with a feet box and `blocked_by:
   [:tiles]`, drawn over the sprite so what collides is visible.
+  `test_projects/tiled_world` is the both-at-once case: every walker declares
+  `%i[tiles hero npc]`, so a player is stopped by the map's fences and by the villagers.
 
 ### `CircleCollider`
 
@@ -320,6 +364,10 @@ registration.
 - **Contacts:** `overlap?(other)` works against a circle *or* a
   [`BoxCollider`](#boxcollider): the two colliders settle the test between themselves, so
   both shapes mix freely in one world.
+- **It never blocks.** Blocking is box versus box, so a circle on a layer a
+  [`CharacterBody`](#characterbody) named in `blocked_by:` reports its contacts exactly as
+  it does now and stops nobody. That is a limit, not a check: layer membership is a runtime
+  fact, so a raise at attach would catch only the circles that already existed.
 - **Signals:** `on_hit` fires with the other collider on the step a contact **starts**,
   `on_separated` on the step it **ends** — `collider.on_hit { |other| ... }`. The system
   triggers them via `emit_hit(other)` / `emit_separated(other)`. Each fires once per
@@ -343,6 +391,18 @@ answering the same handful of methods.
   the typical collider size).
 - **Registration:** `register(collider)` / `unregister(collider)`; colliders call these
   through their own lifecycle, so nodes never wire this by hand.
+- **Queries:** `query_box(x, y, w, h)` yields every registered collider bucketed in a cell
+  the region covers, skipping nodes queued for removal — the rectangular counterpart to
+  `query_circle`, and what a blocked [`CharacterBody`](#characterbody) asks each step.
+  `nearest(x, y, r, layer:)` and `cell_empty?(x, y)` are the other two. All of them read
+  the index the most recent `update` built and allocate nothing.
+- **Staying fresh mid-step:** `reindex(collider, from_x, from_y, from_w, from_h)`
+  re-buckets a collider that has moved since the index was built, given the box it *was*
+  bucketed at. Buckets are filled once per step, so a query over cells a mover has left
+  would otherwise miss it — measured at 116 misses in 60,000 queries with two hundred
+  actors, and none once each mover re-buckets itself. A blocked body does this through its
+  resolver; anything else that moves a collider mid-step (a `Velocity`, a `PathFollow`, an
+  ancestor) may call it directly.
 - **Phase:** `update(dt)` rebuilds the spatial index, fires both colliders' `on_hit`
   for each pair that has *started* overlapping, and then both colliders' `on_separated`
   for each pair that has *stopped*. It is **layer-agnostic** — it reports contacts and
@@ -425,6 +485,10 @@ entities like projectiles.
   never leaves the screen, e.g. a projectile that should vanish after N seconds), use a
   one-shot [`Timer`](#timer) (`repeating: false`) with `on_timeout { node.queue_free }`
   instead.
+- **It contradicts `blocked_by: [:bounds]`**, for the same reason `ScreenWrap` does: this
+  reads `node.x`/`node.y` and blocking works on the collision box, so a hero with a feet
+  box held at the world's left edge sits at a slightly negative `node.x` and deletes
+  itself. Do not declare both on one node.
 
 ### `FeetCollider`
 
@@ -554,6 +618,11 @@ edge reappears on the opposite one.
   re-resolves on every entry, so a recycled node follows the scene it lands in. Attaching
   with no bounds and no world system in scope **raises**.
 - **Phase:** `update(dt)` clamps-and-wraps `node.x`/`node.y` against the bounds.
+- **It contradicts `blocked_by: [:bounds]`.** This acts on `node.x`/`node.y`; a body
+  blocked by the world edge acts on the collision **box**, so a node with an offset box is
+  left just outside the bounds this then reads and wraps. Give a wrapping entity a body
+  that does not declare `:bounds` — which is why the edge is declared rather than applied
+  to everybody. See [`CharacterBody`](#characterbody).
 
 ### `Sprite`
 
@@ -607,8 +676,8 @@ a thrust axis accelerates it along its heading.
 ### `TileWorld`
 
 The scene-scoped tile **system** (see [Systems](systems.md)): it holds the parsed `RGame::Engine::TileMap`
-and answers everything an actor needs from it — collision against the solid tiles (reusing
-`RGame::Engine::CollisionSystem`) and the world bounds. Found with `node.system(TileWorld)`.
+and answers everything an actor needs from it — where the solid tiles are, and how big the
+world is. Found with `node.system(TileWorld)`.
 It includes `WorldBounds` (see [`World`](#world)), so `ScreenWrap` and `DespawnOffscreen`
 work in a tile scene with nothing passed to them.
 
@@ -618,10 +687,16 @@ This stays the thing actors ask questions of.
 
 - **Construct:** `TileWorld.new(map:, tilemap_id:, cameras: [])` — it clamps each camera it is given to
   the map's edges, and `bound(camera)` does the same for one that arrives later (a player joining).
-- **Queries:** `move(actor, dx, dy)` slides an actor (anything responding to `x`/`y`/`collision_box`)
-  along solids and clamps it to the world; `solid?(col, row)`; `world_width`/`world_height`;
-  `tilemap_id` and `elapsed`, which the layers read; `layer_count` and `first_above_layer`,
-  which `TileMapLayer.mount` reads to decide where the actors go.
+- **Queries:** `blockers` is the map's solid tiles as an
+  [`Engine::TileBlockers`](internals.md#tileblockers--the-tile-grid-as-a-blocker-source),
+  the same object every time, which a [`CharacterBody`](#characterbody) declaring `:tiles`
+  borrows and resolves its own steps against. Also `solid?(col, row)`;
+  `world_width`/`world_height`; `tilemap_id` and `elapsed`, which the layers read;
+  `layer_count` and `first_above_layer`, which `TileMapLayer.mount` reads to decide where
+  the actors go.
+- **It does not resolve a step.** A body may be stopped by tiles, by other actors, by the
+  world's edge or by any combination, and only the body knows which — so the resolver is
+  the body's and the grid is this system's.
 - **Phase:** `update(dt)` advances the map's animation clock.
 - **Example:** `examples/scroll_map` — a `.tmx` through the asset manager, this
   system, `TileMapLayer.mount`, and a camera clamped to the map's edges.

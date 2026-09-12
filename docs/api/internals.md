@@ -89,7 +89,7 @@ of things at once is a design problem elsewhere, not a reason to index this.
 grid of solid tiles. `solid` is a callable `solid.call(col, row) -> bool`, so the tile
 source is decoupled (a `TileMap`, a fake in tests). Each axis is resolved on its own —
 `resolve_x` and `resolve_y` are independent — and it is
-[`CollisionSystem`](#collisionsystem--move-an-actor-against-its-blockers-and-the-world)
+[`CollisionSystem`](#collisionsystem--move-an-actor-against-its-blockers)
 that feeds one the other's result.
 
 ```ruby
@@ -102,36 +102,95 @@ ny = tiles.resolve_y(nx, y, w, h, dy)
 It assumes per-step movement smaller than a tile (no tunneling), which holds for the
 engine's speeds.
 
-## `CollisionSystem` — move an actor against its blockers and the world
+`blocker` is the sentinel `TileBlockers::TILES` — one object for the life of the process,
+answering `layer` → `:tiles` and `node` → `nil`. Holding no per-step state is what makes
+one `TileBlockers` safe to share between every body on the map, which is what
+[`TileWorld#blockers`](components.md#tileworld) hands out.
 
-`RGame::Engine::CollisionSystem` (`rgame/engine/collision_system`) holds a list of **blocker
-sources**, a world-bounds clamp, and the actor-facing `move`. It is what
-[`TileWorld`](components.md#tileworld) delegates to (and what a
-[`CharacterBody`](components.md#characterbody) with `blocked_by: [:tiles]` moves through).
+## `ActorBlockers` — the registered colliders as a blocker source
+
+`RGame::Engine::ActorBlockers` (`rgame/engine/actor_blockers`) is the same arithmetic with
+the edge coming from another collider instead of a grid line. It asks a broadphase what is
+near the swept box and snaps flush against the nearest candidate.
 
 ```ruby
-collision = RGame::Engine::CollisionSystem.new(
-  blockers: tiles, world_width: map.pixel_width, world_height: map.pixel_height
-)
+actors = RGame::Engine::ActorBlockers.new(world: collision_world, owner: my_collider,
+                                          layers: %i[npc hero])
+```
+
+Unlike the other two sources it is **per body**: it holds the mover's own collider, to
+exclude it by identity, and the layer list that body declared. Two bodies with different
+`blocked_by` cannot share one, which is why a
+[`CharacterBody`](components.md#characterbody) builds its own `CollisionSystem` rather than
+borrowing the scene's.
+
+Three things it does that a grid does not need:
+
+- **The nearest candidate wins**, kept as a running minimum — which also makes the
+  broadphase offering the same collider once per shared cell harmless.
+- **An overlap that already exists is not resolved.** A step is blocked only if it
+  *crosses* an edge the mover was on the near side of, so a pair that starts overlapping
+  stays overlapping rather than being teleported apart.
+- **Boxes only.** A `CircleCollider` on a declared layer is skipped.
+
+Its `moved` hands the mover back to
+[`CollisionWorld#reindex`](components.md#collisionworld), which is what keeps a query later in
+the same step exact.
+
+## `BoundsBlockers` — the edge of the world as a blocker source
+
+`RGame::Engine::BoundsBlockers` (`rgame/engine/bounds_blockers`) stops a box leaving the
+region a [`WorldBounds`](components.md#world) describes. It reads the two numbers once at
+construction, because those bounds are immutable by contract, and its `blocker` is the
+sentinel `BoundsBlockers::BOUNDS`, answering `layer` → `:bounds`.
+
+It exists because `CollisionSystem` used to clamp every step inside the world
+unconditionally, and that clamp works on the collision **box** while `ScreenWrap` and
+`DespawnOffscreen` read the same bounds off `node.x`/`node.y`. A hero with a feet box
+therefore stood at the world's left edge, fully inside it, and despawned. Now the edge is
+declared like anything else, and a body that did not ask is not held.
+
+## `CollisionSystem` — move an actor against its blockers
+
+`RGame::Engine::CollisionSystem` (`rgame/engine/collision_system`) holds a list of **blocker
+sources** and the actor-facing `move`. A blocked
+[`CharacterBody`](components.md#characterbody) builds one at attach out of the sources its
+`blocked_by:` named, and hands itself to it as the actor.
+
+```ruby
+collision = RGame::Engine::CollisionSystem.new(blockers: [tiles, actors])
 collision.move(actor, dx, dy) # actor responds to x / y / x= / y= / collision_box
 ```
 
 `move` reads the actor's [`CollisionBox`](toolbox.md#collisionbox--an-actors-feet-box)
-AABB, resolves it on both axes, clamps the box inside the world as a backstop, and writes
-the resolved position back to the actor (accounting for the box's offset from the sprite
-origin).
+AABB, resolves it on both axes, writes the resolved position back to the actor (accounting
+for the box's offset from the sprite origin), and finally tells every source that the step
+happened. **There is no clamp of its own**: everything that can stop a step, the world's
+edge included, is a source.
 
-A blocker source answers one question, on one axis, over plain numbers:
+A blocker source answers four things, and only the first two are about arithmetic:
 
 ```ruby
-source.resolve_x(x, y, w, h, dx) # -> where the box's left edge lands moving dx
-source.resolve_y(x, y, w, h, dy) # -> where the box's top  edge lands moving dy
+source.resolve_x(x, y, w, h, dx)          # -> where the box's left edge lands moving dx
+source.resolve_y(x, y, w, h, dy)          # -> where the box's top  edge lands moving dy
+source.blocker                            # -> what produced that edge, or nil
+source.moved(actor, from_x, from_y, w, h) # -> the step has been written back
 ```
 
-`TileBlockers` is the only one today. The system asks every source it holds and takes the
-**most restrictive** answer on each axis — the smallest landing for a rightward or downward
-step, the largest for a leftward or upward one — so no source has to know the others exist,
-and `blockers: []` is free movement inside the world bounds.
+There are three sources: `TileBlockers`, `ActorBlockers` and `BoundsBlockers`. The system
+asks every one it holds and takes the **most restrictive** answer on each axis — the
+smallest landing for a rightward or downward step, the largest for a leftward or upward one
+— so no source has to know the others exist, and `blockers: []` is free movement.
+
+`blocked_x` and `blocked_y` are what the winning source reported for each axis, or nil when
+that axis was free. Each is asked of its winner during the resolve rather than afterwards,
+because a source's own `blocker` is per axis and the next resolve overwrites it. Every
+blocker answers `layer` and `node`, tiles and world edges included, so a caller reads
+`blocked_x.layer` without asking what kind of thing stopped it.
+
+`moved` is called on every source with the box the step **started** from. That is what lets
+a source over a moving index re-bucket the mover without anything having stored a box on
+its behalf — see `ActorBlockers` above.
 
 Two things follow from the list living here rather than inside a source. The
 axis-separated order — resolve x, then resolve y fed the resolved x — is what gives

@@ -6,9 +6,10 @@
 # scene graph: a controllable player and several randomly-walking NPCs roam the larger
 # beach map, the camera keeps the player centred (clamping at the map edges), and the
 # palm canopies draw over the actors while the trunks stay behind. It exercises:
-#   - TileWorld — a scene-scoped system: tile collision, world bounds, map drawing;
-#   - FeetCollider + CharacterBody(blocked_by: [:tiles]) + PlayerController /
-#     WanderController — collision-checked walking;
+#   - TileWorld and CollisionWorld — the two collision systems at once, which is
+#     the case a game usually wants: the map's walls, and everybody else;
+#   - FeetCollider + CharacterBody(blocked_by: %i[tiles hero npc]) +
+#     PlayerController / WanderController — walking stopped by both, off one box;
 #   - AnimatedSprite — directional sprite-sheet animation;
 #   - WorldView + renderer.translated — the camera as a draw-time view transform.
 
