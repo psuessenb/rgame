@@ -1,7 +1,7 @@
 # Sweeping the systems and components for architectural fit
 
-**Status: step 1 is implemented. Step 2 is re-planned after measuring its three
-candidates, and steps 3 and 4 are deliberately rough. Every uncalled class has
+**Status: steps 1 and 2 are implemented. Steps 3 and 4 are deliberately rough, and
+step 3 needs its re-plan against what step 2 made possible. Every uncalled class has
 since been decided in conversation — see open question 1.**
 
 Written out of a retrospective rather than a bug: the collision unification took
@@ -795,6 +795,70 @@ under `tools/drive/` is byte-identical to `main` at `--ticks 240 --seed 7`, with
 `RGAME_SAVE_DIR` set per run, because nothing that did not declare `blocked_by:` may
 start colliding. The same benchmark, re-run against the real classes, puts a free
 `Velocity` step within noise of the reference row above.
+
+**Landed.** Four commits: the re-plan above, then one per sub-step. 2a added
+`Components::Mover` and cut `CharacterBody` to its intent, its speed and
+`take_step`, with its spec untouched. 2b made `Velocity` a `Mover` and added the
+shared `a mover` group and `mover_spec.rb`. 2c made `PathFollow` a `Mover` with the
+rewind. Each sub-step carried its own documentation. `rake spec` is 1320 examples, 0
+failures. That is 1284 before, plus 27 from the contract run against three movers, 4
+in `mover_spec`, 3 for the held `PathFollow` and 2 for the blocked `Velocity`, so the
+count moved by exactly the new examples. `make test` is 326 checks, 0 failures, and
+`rake spec:core` 367 examples, 0 failures.
+
+The acceptance evidence:
+
+- **Nothing that did not ask started colliding.** All 28 scripts under `tools/drive/`
+  ran at `--ticks 240 --seed 7`, each with a fresh `RGAME_SAVE_DIR`, on this branch and
+  on a worktree of `main`. 27 reports were byte-identical on the first pass. The 28th,
+  `tiled_world`, drew 239 frames against `main`'s 240, the frame skip step 1 recorded;
+  four re-runs on the branch drew 240 and were byte-identical to `main`.
+- **A one-line `blocked_by:` stops a `Velocity` at a wall** with no handler. The
+  contract asserts it flush at x = 184, with `on_blocked` once and `on_unblocked` once.
+  `mover_spec` asserts it for a `ThrustController` ship, and for a walking
+  `CharacterBody` and a blocked `Velocity` stopping each other.
+- **The contract catches what it is for.** With `Velocity#take_step` writing the node
+  directly, 4 of its examples failed. With `PathFollow`'s rewind removed, 4 failed.
+
+What the sketch got wrong:
+
+- **A free step is not free.** "At the same cost it does today" does not hold, and the
+  re-plan's table said it did. Run interleaved against `main` for six rounds, taking
+  the best of three in each, a free `Velocity` step was 470–496 ns on `main` and
+  538–554 ns on the branch. That is 51–84 ns more, about 12%, every round. The table
+  above compared separate process runs, and the drift between runs hid a gap that
+  size. The cost is one extra dispatch: `Mover#update` calls `take_step`, which calls
+  `apply_move`. Inlining the free write into `Velocity#take_step` measured 3–47 ns
+  over `main` in five interleaved rounds, but it copies `apply_move`'s free branch into
+  every mover and reads the base class's `@collision`. It was not taken. At a thousand
+  free movers that is about 60 µs of a 16.7 ms frame. Constraint 2, no allocation,
+  holds: every allocation measurement read zero.
+- **The driven comparison needs `media/` in the worktree.** It is git-ignored, so a
+  fresh worktree of `main` has none, and seven test projects crashed loading assets
+  there. Step 1's note did not record this. A symlink to the checkout's `media/` fixed
+  it.
+- **`PathFollow` finishing goes through the same path as walking.** The old `finish`
+  placed the node itself. It now reaches the last waypoint the way every step does, so
+  a blocked follower cannot finish short of it. Unblocked, the positions are the same,
+  and the existing spec passed unedited.
+- **Two RuboCop exceptions.** `RSpec/MultipleMemoizedHelpers` is disabled inline, with
+  reasons, around the two-mover scene in `mover_spec.rb` and the held-follower scene in
+  `path_follow_spec.rb`. The shared group got under the limit by making its `dt` a
+  method.
+
+Consequences for later steps. **Step 3's premise is now true:** any `Velocity` or
+`PathFollow` can declare `:bounds`, so the nodes that can carry both edge frames are
+no longer only characters. Its re-plan starts from that. **Step 4's note to
+`basic-examples.md` changes:** the pathfinding example can walk a blocked route with
+`PathFollow(blocked_by:)`, but open question 6 still leaves that walker without a
+facing.
+
+Documented in `docs/api/components.md`, which has a new `Mover` section holding
+everything about blocking that used to sit under `CharacterBody`, plus the `Velocity`
+and `PathFollow` entries. Also in `systems.md` and `internals.md`, where blocking is
+now described as the movers' rather than one component's, and in the headers of
+`Mover`, `Velocity`, `PathFollow`, `ContactSet`, `ActorBlockers`, `TileWorld` and
+`BoxCollider`.
 
 ### Step 3 — the two coordinate frames *(rough)*
 
