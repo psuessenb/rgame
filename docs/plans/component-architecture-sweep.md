@@ -1,9 +1,8 @@
 # Sweeping the systems and components for architectural fit
 
 **Status: nothing implemented. Step 1 is written out, step 2 is sketched pending a
-measurement, and steps 3 and 4 are deliberately rough. Three of the uncalled
-classes were decided in conversation after the first draft — see open question
-1.**
+measurement, and steps 3 and 4 are deliberately rough. Every uncalled
+class has since been decided in conversation — see open question 1.**
 
 Written out of a retrospective rather than a bug: the collision unification took
 six steps to merge two systems that had each been correct on their own since the
@@ -69,8 +68,8 @@ does not ship.
    generalizes blocking inherits that rule rather than softening it.
 4. **Removing public API is a decision, not a tidy-up.** Six of the seven
    uncalled classes are documented in `docs/api/`. "Nobody calls it" is evidence,
-   not a verdict — each removal here was taken in conversation, and open question
-   1 holds the ones that were not.
+   not a verdict — every removal here was decided in conversation, and open
+   question 1 records each answer.
 5. **A sweep may not become a rewrite.** The engine layer works and its specs are
    green. Anything this plan proposes must be justified by a finding below, with
    a number attached.
@@ -87,6 +86,13 @@ Not up for re-litigation inside the plan.
   See A1.
 - **`Engine::Matrix` goes.** Decided in conversation. It is a flat 2D grid that
   nothing uses; the one grid the engine needs went to `Util::Tensor`.
+- **`Engine::Resettable` goes.** Decided in conversation, on A2's account of why
+  it never had a caller.
+- **`Components::Targeting` stays**, reworded by step 1b so it stops describing
+  itself as a tower's aiming.
+- **`Engine::I18n` stays, and gets an example.** Decided in conversation:
+  `examples/localization` is now the last entry of `docs/plans/basic-examples.md`,
+  as example 23.
 - **`Engine::Path` and `Components::PathFollow` stay, for the pathfinding
   example.** Decided in conversation: they are the output half of
   `examples/pathfinding`, the last unbuilt entry in the basic-examples plan, which
@@ -110,7 +116,7 @@ At `dc006ac`, over `lib/`, `examples/`, `test_projects/` and `spec/`.
 | Components that move a node's position | **4** |
 | Of those, components that can be blocked | **1** |
 | Game files carrying a non-blockable mover *and* a collider | **4** |
-| Engine classes with no non-comment caller in `lib/`, `examples/` or `test_projects/` | **7** |
+| Engine classes with no non-comment caller in `lib/`, `examples/` or `test_projects/` | **7** — 3 to remove, 4 kept |
 | Of those, documented in `docs/api/` | 6 |
 | Lines naming a game, outside plans and the games themselves | **67**, in 23 files |
 | Components requiring a hand-written wiring hook | 0 |
@@ -158,11 +164,11 @@ missed `Targeting` and `I18n`, because `examples/save_load_ids` *names*
 |---|---|---|
 | `Body` | no | dead — A1; removed in step 1 |
 | `Matrix` | `toolbox.md` | unused — removed in step 1, by decision |
-| `Resettable` | `toolbox.md` | built for a case the engine designed away — see below |
+| `Resettable` | `toolbox.md` | built for a case the engine designed away — removed in step 1, by decision |
 | `Path` | 2 pages | waiting for `examples/pathfinding` — kept, by decision |
 | `PathFollow` | 2 pages | waiting for `examples/pathfinding` — kept, by decision |
-| `Targeting` | `components.md` | unexercised, and described as a tower-defense part |
-| `I18n` | `toolbox.md` | unexercised |
+| `Targeting` | `components.md` | described as a tower-defense part — kept and reworded, by decision |
+| `I18n` | `toolbox.md` | unexercised — kept, with `examples/localization` scheduled, by decision |
 
 `docs/plans/basic-examples.md` had already listed `Matrix` and `Resettable` as
 orphans and deleted a third, `Engine::Actor`, on the same evidence — so this is
@@ -186,11 +192,9 @@ removed a place it could have been used:
   fields as arguments, so there is no event value to pool either.
 
 So it is not a misfit and not an oversight; it is a solution to a problem both of
-its would-be callers were designed not to have. The recommendation is to remove
-it, and that is left to open question 1 because it was not decided in
-conversation. Its `toolbox.md` entry also points at "the Style notes in
-`CLAUDE.md`", a section that does not exist, which is stale however the question
-goes.
+its would-be callers were designed not to have. It is removed in step 1a. Its
+`toolbox.md` entry, which also pointed at a "Style notes" section CLAUDE.md does
+not have, goes with it.
 
 **`Path` and `PathFollow` are kept, and they collide with A3.** The pathfinding
 example is designed around them: `AStar.find(grid, from, to)` returns an
@@ -210,10 +214,11 @@ facing. The shape that fits is a controller that steers a `CharacterBody` along 
 is step 2's question from the other side. **That has to be answered before the
 pathfinding example is written**, or the example will teach the wrong mover.
 
-**`Targeting` and `I18n` were not raised in conversation.** `Targeting` is also
-the largest single target of step 1b, because its header describes it as a
-tower's aiming — so it is kept by default, reworded by 1b, and its future is open
-question 1. `basic-examples.md` says asteroids uses `Targeting`; it does not, and
+**`Targeting` is kept, and is the largest single target of step 1b**, because its
+header, its `components.md` entry and its spec are written as a tower's aiming
+throughout. **`I18n` is kept** and gets `examples/localization`, which also has
+to settle how a label keyed on both a value and the locale avoids allocating —
+recorded as an open question in that entry. `basic-examples.md` says asteroids uses `Targeting`; it does not, and
 never builds one.
 
 ### A3. Four components move a node, and one of them can be stopped — *(measured: this is the headline)*
@@ -390,8 +395,8 @@ step 2 exists to stop having one copy of in the wrong place.
 **Delete every uncalled class because nothing calls it.** Rejected as a decision
 this plan may not take alone: six of the seven are documented public API in a
 published gem, and "no caller in this repository" is not the same as "no caller".
-Each was put to the user instead, with the evidence attached, and two of the
-answers were not deletion.
+Each was put to the user instead, with the evidence attached, and four of the
+seven answers were not deletion.
 
 **Delete `test_projects/` rather than pruning references to it.** It would remove
 every reference at once. Rejected because it was not asked for, and because
@@ -407,17 +412,15 @@ six steps.
 
 ## D. Open questions
 
-1. **What happens to each uncalled class?** Partly settled.
-   - ~~`Matrix`~~ **Settled — removed, in step 1a.**
-   - ~~`Path`, `PathFollow`~~ **Settled — kept for `examples/pathfinding`**, or a
-     simpler example of their own if that one does not use them. The mover
-     conflict A2 records goes to step 2.
-   - **`Resettable`** — open. A2 explains why it has no caller, and recommends
-     removal. Blocks step 1a's scope only.
-   - **`Targeting`** — open, not yet raised. Step 1b rewords it either way; this
-     is whether it keeps a place, gets an example, or goes.
-   - **`I18n`** — open, not yet raised. `basic-examples.md` already suggests a
-     localized-menu example for it.
+1. ~~**What happens to each uncalled class?**~~ **Settled, class by class.**
+   - `Body` — removed, in step 1a. See A1.
+   - `Matrix` — removed, in step 1a.
+   - `Resettable` — removed, in step 1a, on A2's account of why it was never used.
+   - `Path`, `PathFollow` — kept for `examples/pathfinding`, or a simpler example
+     of their own if that one does not use them. The mover conflict A2 records
+     goes to step 2.
+   - `Targeting` — kept; reworded by step 1b.
+   - `I18n` — kept; `examples/localization` added as the last basic example.
 2. **Where does the shared movement seam live?** Blocks step 2's design. Candidates:
    a module mixed into the movers, a `Motion` component the movers write through,
    or a method on `Node2D` itself. Measure before choosing, the way the collision
@@ -472,21 +475,23 @@ the deletion without 67 rewordings in the way.
 
 #### 1a — dead code
 
-`Engine::Body` and `Engine::Matrix` go: each file, its `require_relative` in
-`lib/rgame/engine.rb`, and its spec. `Matrix`'s section in `docs/api/toolbox.md`
-goes with it, and the paragraph after it that points at `Tensor` for three
-dimensions is reworded to stand on its own. The three component headers that say
+`Engine::Body`, `Engine::Matrix` and `Engine::Resettable` go: each file, its
+`require_relative` in `lib/rgame/engine.rb`, and its spec. Two sections of
+`docs/api/toolbox.md` go with them. The paragraph after `Matrix`'s, which points
+at `Tensor` for three dimensions, is reworded to stand on its own, and `Pool`'s
+entry stops recommending `Resettable` for re-initialising an acquired object —
+what it recommends instead is what every pooled node in the repository already
+does, a `reset` of its own. The three component headers that say
 "From `Body#integrate`" and its siblings lose that clause, because a reference to
 a class that no longer exists is worse than none.
 
-`Resettable` joins this sub-step if open question 1 settles as removal before the
-branch is cut, and not otherwise. `Targeting` and `I18n` do not.
+`Targeting`, `I18n`, `Path` and `PathFollow` are not touched here.
 
 Rules the tests must pin:
 
 1. `require "rgame"` succeeds with the files gone, which is what catches a missed
    `require_relative`.
-2. `RGame::Engine::Body` and `RGame::Engine::Matrix` are not defined afterwards —
+2. `RGame::Engine::Body`, `Matrix` and `Resettable` are not defined afterwards —
    an explicit example, so the removal is asserted rather than merely done.
 3. `spec/packaging_spec.rb` still passes, since it re-derives what ships from the
    tree.
@@ -599,9 +604,7 @@ it describes; the rest is history and `git log` has it.
 Two things are already known to be owed. **A6 is the one finding with no code
 change behind it**, and a negative result that nobody records gets re-investigated
 in six months — `docs/api/` should say somewhere that the tile map stack was swept
-against the architecture and passed. And whatever open question 1 resolves to,
-`docs/api/toolbox.md`'s `Resettable` entry needs to stop pointing at a CLAUDE.md
-section that does not exist. And `docs/plans/basic-examples.md` should be told
+against the architecture and passed. And `docs/plans/basic-examples.md` should be told
 two things this sweep found: asteroids does not use `Targeting`, and
 `examples/pathfinding` should walk its route through a `CharacterBody` rather than
 a `PathFollow` — or whatever step 2 settled instead.
