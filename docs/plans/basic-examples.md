@@ -26,8 +26,8 @@ it.
 
 1. **One concept.** If it needs a second heading to explain, it is two examples.
 2. **One file where possible.** `main.rb` alone. A second file only when the
-   concept *is* the split (the sidescroller's body component is engine code, not
-   example code).
+   concept *is* the split — a component that is engine code rather than
+   example code.
 3. **A header comment naming the concept and the pieces it uses**, in the shape
    `test_projects/tiled_world/main.rb` already uses — the list of what it
    exercises is the most useful thing in that file.
@@ -482,39 +482,6 @@ while the sprite arcs above it.
 
 **Assets:** **A** and **B**, both already committed by then. No new art.
 
-### 10. `examples/jump_sidescroller` — jumping in a side view
-
-**Shows** gravity, ground contact, and a jump that is a real change of position.
-
-**Existing:** `Components::TileWorld` for solid-tile queries, `Engine::Camera`,
-`Components::Velocity` (integrates a velocity, but has no gravity and no
-collision response).
-
-**New — the largest gameplay addition in this list:**
-
-- `Components::PlatformerBody`. `TileCharacterBody` cannot be reused: it is a
-  top-down *feet box* with symmetric sliding, and a side view needs a full AABB
-  resolved **one axis at a time** (horizontal first, then vertical) so that
-  walking into a wall does not cancel the fall and landing does not cancel the
-  walk. That axis split is the whole of why this is a separate component.
-- Gravity, terminal velocity, a jump impulse, and `on_ground?` derived from the
-  vertical resolution rather than tracked separately.
-- **Coyote time and jump buffering** — a few frames of grace after leaving a
-  ledge, and a jump pressed just before landing still firing. Both are what
-  separates a jump that feels right from one that does not, and both are pure
-  `dt` accumulation, so they belong here and are fully spec-able headless.
-- A `jump` action added to `InputMap::DEFAULT_ACTIONS`? **Open question** — the
-  default map is deliberately small. Leaning toward: the example declares it via
-  `InputMap.default.merge(...)`, the way `tiled_world` declares `:cutscene`.
-
-**Assets: none — decided, not deferred.** A side view needs a side-view tileset
-and a side-view character, and neither exists or can be lifted from `media/`.
-Sourcing both is more work than the component itself and teaches nothing extra:
-a platformer body is about gravity, ground contact and coyote time, and a
-coloured rect falling onto another coloured rect shows every one of them. Build
-the level from `renderer.rect` and say so in the example's header, so the next
-reader knows it is a choice rather than an omission.
-
 ### 11. `examples/radial_menu` — a controller-driven radial menu
 
 **Shows** selection by *direction* rather than by list position, which is the
@@ -813,7 +780,7 @@ the thing that owns the map), `Components::TileCharacterBody`, asset **B**.
 
 **Ordering note.** Plain collision comes first because it is the general
 mechanism; the tiled one comes second because it is the specialised one *and*
-because Phase E's two jump examples build straight on top of it.
+because Phase E's jump example builds straight on top of it.
 
 **Assets:** **B**, already committed. Its map may want a wall arrangement worth
 sliding along, the same way example 12's wants one worth routing around.
@@ -1026,7 +993,6 @@ Sorted by where it lands, because that decides who may use it.
 | `Util::SaveFile` + save-dir helper | `Util` (pure Ruby) | 5, 6 | S |
 | ~~`UI::OptionItem`~~ | `Engine::UI` | 6 | **done** — no `SliderItem`, see 8 |
 | `Components::Hop` | `Engine` | 7 | S |
-| `Components::PlatformerBody` | `Engine` | 8 | **L** |
 | `UI::RadialMenu` | `Engine::UI` | 9 | M |
 | `Engine::NavGrid` + `Engine::AStar` | `Engine` | 10 | **L** |
 | ~~`Controls.gamepad?` + a named pad-button boundary~~ | `Util` (values) | 21 | **done** — plus `pad_button?` and `BUTTON_GAMEPAD_FIRST` |
@@ -1150,8 +1116,8 @@ reasonable at this size and sidesteps the question.
 
 ### The manifest
 
-Four sets are committed and cover most of the list. One more is needed, one is
-deferred, and one is refused outright.
+Four sets are committed and cover most of the list. One more is needed and one
+is deferred.
 
 | | Asset | Files | Used by | Status |
 |---|---|---|---|---|
@@ -1159,7 +1125,6 @@ deferred, and one is refused outright.
 | **B** | Top-down tileset + a map | `tileset.png`, `tileset.tsx`, `town.tmx` | 2 scroll_map, 7 jump_topdown, 10 pathfinding | **done** |
 | **C** | UI nine-slice sheet | `ui.png` + `ui.json` | 3 game_menu, 6 menu_navigation | **done** — and it was never optional |
 | **D** | Radial icon sheet | `icons.png` + `icons.json` | 9 radial_menu | deferred |
-| **E** | Side-view tileset + character | — | 8 jump_sidescroller | **refused** — rects instead |
 | **F** | A sound effect and a music loop | `blip.ogg`, `music.ogg` | 4 sound, 5 music | **done** |
 | **G** | Input prompt glyphs | `glyphs.png` + `glyphs.json` | 21 input_glyphs | **done** |
 
@@ -1256,8 +1221,6 @@ puts on the art.
 **D is still deferred**, and on firmer ground: a radial menu genuinely does work
 with text labels, because nothing in it draws chrome the way `MenuItem` does.
 Pick it up only if the labelled version reads badly.
-
-**E is refused.** See example 8: the physics is the point, and rects show it.
 
 ### Consequence for the order
 
@@ -1357,25 +1320,21 @@ takes to write. The first four are one component each. `pooling` leans on
 `timer`, because a pool wants something to drive it; `collision` leans on
 `velocity`, because two shapes have to move into each other; and
 `collision_tiles` comes after `collision` so the general mechanism is read before
-the specialised one — which also lands it next to Phase E, whose jumps build on
+the specialised one — which also lands it next to Phase E, whose jump builds on
 it directly.
 
-**Phase E — new gameplay components, small before large.**
+**Phase E — a new gameplay component.**
 
-20. `examples/jump_topdown` (`Components::Hop` — small, and it is the one that
-    makes the "a jump is a draw offset" point that the sidescroller then
-    contrasts with; reuses **A** and **B**)
-21. `examples/jump_sidescroller` (`Components::PlatformerBody` — the big one; do
-    it after the small jump so the contrast between the two is deliberate. No
-    assets, by decision)
+20. `examples/jump_topdown` (`Components::Hop` — small, and it makes the "a jump
+    is a draw offset" point; reuses **A** and **B**)
 
-Both now follow `examples/collision_tiles`, so tile collision is something the
-reader has already met and neither jump example has to introduce it.
+It follows `examples/collision_tiles`, so tile collision is something the reader
+has already met and the jump example does not have to introduce it.
 
 **Phase F — the two largest, both independent of everything above.**
 
-22. `examples/radial_menu` (no assets)
-23. `examples/pathfinding` (reuses **A** and **B**; `town.tmx` already has the
+21. `examples/radial_menu` (no assets)
+22. `examples/pathfinding` (reuses **A** and **B**; `town.tmx` already has the
     obstacle worth routing around — see "Assets")
 
 Both are self-contained and could move earlier if wanted. Pathfinding is last
@@ -1432,7 +1391,7 @@ sodri's character sheet repacked. See "Assets". So is 6: one `OptionItem` and no
 
 - **7** — should `TileWorld` know about `airborne?` (hop over a gap), or does that
   stay the game's business?
-- **8** — does `jump` join `InputMap::DEFAULT_ACTIONS`, or does the example merge it
+- **7** — does `jump` join `InputMap::DEFAULT_ACTIONS`, or does the example merge it
   in like `tiled_world` does with `:cutscene`?
 - **9** — does the radial read `move_x`/`move_y`, or declare its own axes? And can
   the icon ring avoid needing `Renderer#pie` entirely?
