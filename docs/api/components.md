@@ -528,6 +528,9 @@ about the intent is inherited; what is added is the box a step lands with and th
   rather than falling back to free movement — an actor walking through walls looks like a collision
   bug, and the cause would be a scene that never mounted the system.
 - **Phase:** inherited; the move goes through the tile world instead of straight onto the node.
+- **Example:** `examples/collision_tiles` — this body, a feet box drawn over the sprite so
+  that what collides is visible, and a diagonal held against a wall to show the blocked half
+  of a step being dropped and the free half kept.
 
 Siblings that pull `node.get_component(CharacterBody)` — `PlayerController`, `WanderController`,
 `AnimatedSprite` — find one of these just as readily: `get_component` matches a class key by
@@ -554,6 +557,8 @@ This stays the thing actors ask questions of.
 - **Phase:** `update(dt)` advances the map's animation clock.
 - **Example:** `examples/scroll_map` — a `.tmx` through the asset manager, this
   system, `TileMapLayer.mount`, and a camera clamped to the map's edges.
+  `examples/collision_tiles` is the same scene with an actor that collides, and is where
+  the solid half of this system is shown.
 
 ```ruby
 world  = scene.add_node(RGame::Engine::WorldView.new)

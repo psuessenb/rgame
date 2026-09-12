@@ -749,6 +749,7 @@ their `on_hit` signal, and `Velocity` from 14 to move things into each other.
 
 **Assets:** none — shapes, drawn as shapes.
 
+### 19. `examples/collision_tiles` — walking into a wall — **done**
 **Landed.** `examples/collision/main.rb` plus `tools/drive/examples/collision.rb`.
 A scene mounting `CollisionWorld` and `World`; a `Mover` base carrying the
 `CircleCollider` and the one-line layer rule, with `Drifter` (velocity + spin)
@@ -816,6 +817,37 @@ because Phase E's two jump examples build straight on top of it.
 
 **Assets:** **B**, already committed. Its map may want a wall arrangement worth
 sliding along, the same way example 12's wants one worth routing around.
+
+**Landed.** `examples/collision_tiles/main.rb` plus its drive script. The scene
+is `examples/scroll_map`'s three steps — tilemap asset, `TileWorld`,
+`WorldView` + `TileMapLayer.mount` — with a `Hero` that has an `AnimatedSprite`,
+a `TileCharacterBody`, a `PlayerController` and a `CameraFollow` offset onto the
+feet. The hero draws its own `collision_box` translucently over the sprite, which
+is the "draw the box" the sketch asked for and costs one `rect` at a constant
+local position.
+
+Run: `rake spec` 1134 examples, 0 failures; RuboCop clean; the driven run at 240
+ticks reports 240 ticks / 240 frames, 3 `text`, 2 `tilemap`, 1 `sprite` and 1
+`rect` per frame, two clips per frame, and the last `tilemap` at camera
+(0.0, 160.0).
+
+What the sketch did not know:
+
+- **The map needed no new wall arrangement.** `town.tmx`'s fence — full width but
+  for the gap at columns 12 to 14, authored for the pathfinding example — is
+  already the best sliding demonstration available, and it doubles as the
+  acceptance test: the hero starts ten tiles east of the gap holding down-and-left
+  and can only reach the south of the map by sliding into it. A body that dropped
+  the whole blocked step would sit at the fence for the entire run, so the
+  camera's southern clamp appearing in the report *is* the proof that sliding
+  works.
+- **The first frame is drawn before anything updates.** Its `tilemap` call reports
+  the camera at (0, 0) and the second reports (72, 51), which is where
+  `CameraFollow` puts it. Worth knowing before reading a first-frame coordinate
+  out of any report as though it were a starting position.
+- **Nothing about the two collision examples needed reconciling.** They share no
+  class, no component and no vocabulary beyond the English word, which is what
+  the pair was for; the file says so at the top and points both ways.
 
 ### 20. `examples/split_screen` — two players, one world
 
@@ -1207,6 +1239,10 @@ trace in any report. Fixed while writing example 7.
 13. ~~`examples/signals`~~ — **done**.
 14. ~~`examples/timer`~~ — **done**.
 15. ~~`examples/pooling`~~ — **done**; driven by 14, as planned.
+16. `examples/collision` (`CollisionWorld` + `BoxCollider` + `CircleCollider`,
+    moved by 12; no assets)
+17. ~~`examples/collision_tiles`~~ — **done**; no new engine code and no map
+    change: `town.tmx`'s fence was already the wall worth sliding along.
 16. ~~`examples/collision`~~ — **done**; no new engine code, but it turned up an
     undocumented `on_hit` contract (see its landed note).
 17. `examples/collision_tiles` (`Components::TileCharacterBody`; reuses **B**)
