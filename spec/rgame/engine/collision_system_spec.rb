@@ -11,7 +11,7 @@ RSpec.describe RGame::Engine::CollisionSystem do
 
   def system(solid:, world_width: 1000, world_height: 1000)
     described_class.new(
-      tile_collision: RGame::Engine::TileCollision.new(tile_width: 16, tile_height: 16, solid: solid),
+      blockers: RGame::Engine::TileBlockers.new(tile_width: 16, tile_height: 16, solid: solid),
       world_width: world_width, world_height: world_height
     )
   end
@@ -37,5 +37,84 @@ RSpec.describe RGame::Engine::CollisionSystem do
     system(solid: ->(_c, _r) { false }, world_width: 200, world_height: 200).move(a, 1000, 1000)
     expect(a.x).to eq(176.0) # box clamped to 184 (200-16) → actor 184-8
     expect(a.y).to eq(168.0) # box clamped to 184 → actor 184-16
+  end
+
+  # The system holds a list of sources and asks each one where the step lands, so these
+  # drive resolve_x/resolve_y directly with sources that stop a step at a fixed edge —
+  # no tiles, no broadphase, no world. A source that reports one wall in each direction
+  # is all it takes to see whose answer wins.
+  describe 'with several blocker sources' do
+    # A blocker source that always stops a step at `edge`, whichever way it is going.
+    # Instance methods only, so it satisfies the same protocol TileBlockers does and
+    # allocates nothing when called (an RSpec double allocates per call, which the
+    # allocation example below would measure).
+    let(:fixed_blocker) do
+      Class.new do
+        def initialize(edge)
+          @edge = edge
+        end
+
+        def resolve_x(_x, _y, _w, _h, _dx) = @edge
+        def resolve_y(_x, _y, _w, _h, _dy) = @edge
+      end
+    end
+
+    def fixed(edge) = fixed_blocker.new(edge)
+
+    def resolver(*blockers)
+      described_class.new(blockers: blockers, world_width: 1000, world_height: 1000)
+    end
+
+    it 'moves freely with no sources at all' do
+      expect(resolver.resolve_x(100.0, 0.0, 16, 16, 10)).to eq(110.0)
+      expect(resolver.resolve_y(0.0, 100.0, 16, 16, -10)).to eq(90.0)
+    end
+
+    it 'takes one source at its word on both axes' do
+      expect(resolver(fixed(104.0)).resolve_x(100.0, 0.0, 16, 16, 10)).to eq(104.0)
+      expect(resolver(fixed(104.0)).resolve_y(0.0, 100.0, 16, 16, 10)).to eq(104.0)
+    end
+
+    it 'takes the nearer of two sources moving right' do
+      expect(resolver(fixed(108.0), fixed(104.0)).resolve_x(100.0, 0.0, 16, 16, 20)).to eq(104.0)
+      expect(resolver(fixed(104.0), fixed(108.0)).resolve_x(100.0, 0.0, 16, 16, 20)).to eq(104.0)
+    end
+
+    it 'takes the nearer of two sources moving left' do
+      expect(resolver(fixed(92.0), fixed(96.0)).resolve_x(100.0, 0.0, 16, 16, -20)).to eq(96.0)
+      expect(resolver(fixed(96.0), fixed(92.0)).resolve_x(100.0, 0.0, 16, 16, -20)).to eq(96.0)
+    end
+
+    it 'takes the nearer of two sources moving down' do
+      expect(resolver(fixed(108.0), fixed(104.0)).resolve_y(0.0, 100.0, 16, 16, 20)).to eq(104.0)
+    end
+
+    it 'takes the nearer of two sources moving up' do
+      expect(resolver(fixed(92.0), fixed(96.0)).resolve_y(0.0, 100.0, 16, 16, -20)).to eq(96.0)
+    end
+
+    # A source may only ever restrict: one reporting an edge further away than the step
+    # would reach is ignored rather than dragging the box along behind it.
+    it 'ignores a source that would extend the step' do
+      expect(resolver(fixed(200.0)).resolve_x(100.0, 0.0, 16, 16, 10)).to eq(110.0)
+      expect(resolver(fixed(0.0)).resolve_x(100.0, 0.0, 16, 16, -10)).to eq(90.0)
+    end
+
+    # A standing actor asks nothing of anybody, which is what keeps a crowd of idle NPCs
+    # free; and it is why a source is never called with a zero delta.
+    it 'asks no source about a zero step' do
+      # A strict verified double: reaching it at all fails the example.
+      unasked = instance_double(RGame::Engine::TileBlockers)
+      standing = described_class.new(blockers: unasked, world_width: 1000, world_height: 1000)
+      expect(standing.resolve_x(100.0, 0.0, 16, 16, 0)).to eq(100.0)
+      expect(standing.resolve_y(0.0, 100.0, 16, 16, 0)).to eq(100.0)
+    end
+
+    # move runs per actor per frame, and the loop over the sources is on that path.
+    it 'allocates nothing per move with two sources registered' do
+      a = actor(100.0, 100.0)
+      resolve = resolver(fixed(104.0), fixed(108.0))
+      expect { resolve.move(a, 1.0, 1.0) }.to allocate_nothing
+    end
   end
 end
