@@ -17,15 +17,23 @@ module RGame
       # the body moves the node freely and needs no sprite, no dimensions, no collider and
       # no system on the scene — an actor in a world with nothing to bump into.
       #
-      #   CharacterBody.new(speed: 80)                          # walks wherever the intent points
-      #   CharacterBody.new(speed: 80, blocked_by: [:tiles])     # slides along the map's solid tiles
-      #   CharacterBody.new(speed: 80, blocked_by: %i[tiles npc]) # ...and does not walk through NPCs
+      #   CharacterBody.new(speed: 80)                             # walks wherever the intent points
+      #   CharacterBody.new(speed: 80, blocked_by: [:tiles])        # slides along the map's solid tiles
+      #   CharacterBody.new(speed: 80, blocked_by: %i[tiles npc])   # ...and does not walk through NPCs
+      #   CharacterBody.new(speed: 80, blocked_by: %i[npc bounds])  # ...and cannot leave the world
       #
-      # `:tiles` is reserved and means the scene's TileWorld. **Every other name is a collider
+      # Two names are reserved: **`:tiles`** is the scene's TileWorld, and **`:bounds`** is the
+      # edge of the region the scene's WorldBounds describes. **Every other name is a collider
       # layer**, resolved against the scene's CollisionWorld: a body declaring `:npc` is stopped
       # by any BoxCollider whose `layer` is `:npc`, flush against its edge, exactly the way a
       # solid tile stops it. A layer that is empty, or whose colliders all leave, is not an
       # error — the declaration says what *may* stop this body, not what does.
+      #
+      # `:bounds` is declared rather than automatic, and a body that does not declare it walks
+      # out of the world. That is the point: a game whose entities wrap or despawn at the edge
+      # reads the same bounds through ScreenWrap and DespawnOffscreen, which act on the node
+      # rather than on its box, and a clamp nobody asked for made those two misfire. See
+      # Engine::BoundsBlockers.
       #
       # Blocking is box-versus-box: a CircleCollider on a declared layer reports its contacts
       # as usual and stops nothing.
@@ -47,8 +55,11 @@ module RGame
       # rectangle both stops the step and reports contacts — there is nothing to hand from
       # one component to the other and nothing to keep in sync.
       class CharacterBody < Engine::Component
-        # The one blocker name that is not a collider layer: the scene's solid tiles.
-        TILES = :tiles
+        # The two blocker names that are not collider layers: the scene's solid tiles, and
+        # the edge of the world.
+        TILES  = :tiles
+        BOUNDS = :bounds
+        RESERVED = [TILES, BOUNDS].freeze
 
         attr_reader :move_x, :move_y
 
@@ -83,11 +94,7 @@ module RGame
           # was declared — and required before the systems, because a missing shape is the
           # likelier mistake of the two.
           @collider = require_sibling(BoxCollider)
-          bounds = node.system(WorldBounds)
-          @collision = Engine::CollisionSystem.new(
-            blockers: resolve_blockers,
-            world_width: bounds&.world_width, world_height: bounds&.world_height
-          )
+          @collision = Engine::CollisionSystem.new(blockers: resolve_blockers)
         end
 
         # Set this step's movement intent; each axis is in -1..1.
@@ -162,7 +169,8 @@ module RGame
         def resolve_blockers
           sources = []
           sources << tile_blockers if @blocked_by.include?(TILES)
-          layers = @blocked_by.reject { it == TILES }
+          sources << bounds_blockers if @blocked_by.include?(BOUNDS)
+          layers = @blocked_by.reject { RESERVED.include?(it) }
           sources << actor_blockers(layers) unless layers.empty?
           sources
         end
@@ -173,6 +181,14 @@ module RGame
                         'system to resolve a step against. Mount one, or drop blocked_by for ' \
                         'an actor with nothing to collide with.')
           world.blockers
+        end
+
+        def bounds_blockers
+          bounds = node.system(WorldBounds) ||
+                   raise('CharacterBody is blocked_by :bounds, and the scene has no world ' \
+                         'bounds to stop at. Mount a World (or a TileWorld, which is one), or ' \
+                         'drop :bounds for an actor that may leave the world.')
+          Engine::BoundsBlockers.new(bounds: bounds)
         end
 
         def actor_blockers(layers)

@@ -138,20 +138,6 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
       expect { enter(bare) }.not_to raise_error
     end
 
-    # The world's edges still hold a tile-blocked body in, exactly as they did when the
-    # tile world owned the resolver. Step 4e is what turns that into a declared blocker.
-    it 'is clamped inside the world bounds' do
-      mount_tiles(tile_world(width: 200, height: 200))
-      small = RGame::Engine::Node2D.new(x: 100.0, y: 100.0)
-      allow(small).to receive(:system) { |klass| node.system(klass) }
-      small.add_component(RGame::Engine::Components::BoxCollider.new(width: 16, height: 16))
-      fast = small.add_component(described_class.new(speed: 1000.0, blocked_by: [:tiles]))
-      enter(small)
-      fast.set_intent(1.0, 1.0)
-      fast.update(1.0)
-      expect([small.x, small.y]).to eq([184.0, 184.0]) # 200 - the box's 16
-    end
-
     describe 'the actor adapter CollisionSystem#move drives' do
       it 'reads x/y from the node' do
         expect([body.x, body.y]).to eq([100.0, 100.0])
@@ -195,8 +181,7 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
       @resolver ||= RGame::Engine::CollisionSystem.new(
         blockers: RGame::Engine::TileBlockers.new(
           tile_width: 16, tile_height: 16, solid: ->(col, _row) { col == 8 }
-        ),
-        world_width: 1000, world_height: 1000
+        )
       )
     end
 
@@ -433,6 +418,125 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     end
   end
 
+  # The edge of the world, declared like anything else. A body that does not name it walks
+  # out of the world, which is the point: nothing holds an actor anywhere it did not ask
+  # to be held, so the components that read the same bounds and act on the node instead —
+  # ScreenWrap, DespawnOffscreen — are no longer contradicted by a clamp nobody asked for.
+  describe 'blocked_by: [:bounds]' do
+    let(:body) { described_class.new(speed: 1000.0, blocked_by: [:bounds]) }
+    let(:collider) { RGame::Engine::Components::BoxCollider.new(width: 10, height: 10) }
+
+    def mount_bounds(width: 200, height: 100, on: node)
+      world = RGame::Engine::Components::World.new(width: width, height: height)
+      mount({ RGame::Engine::Components::WorldBounds => world }, on: on)
+      world
+    end
+
+    def step(intent_x, intent_y)
+      body.set_intent(intent_x, intent_y)
+      body.update(1.0)
+      [node.x, node.y]
+    end
+
+    before do
+      mount_bounds
+      node.add_component(collider)
+      node.add_component(body)
+      enter
+    end
+
+    it 'stops flush against the left edge' do
+      expect(step(-1.0, 0.0).first).to eq(0.0)
+    end
+
+    it 'stops flush against the right edge' do
+      expect(step(1.0, 0.0).first).to eq(190.0) # 200 - the box's 10
+    end
+
+    it 'stops flush against the top edge' do
+      expect(step(0.0, -1.0).last).to eq(0.0)
+    end
+
+    it 'stops flush against the bottom edge' do
+      expect(step(0.0, 1.0).last).to eq(90.0)
+    end
+
+    # It bounds the *world*, not a region shifted by wherever the actor's container
+    # happens to sit — which is true because the body resolves in world space.
+    it 'bounds the world region for a body under an offset ancestor' do
+      container = RGame::Engine::Node2D.new(x: 60.0, y: 20.0)
+      inner = RGame::Engine::Node2D.new(x: 40.0, y: 30.0) # world (100, 50)
+      mount_bounds(on: inner)
+      inner.add_component(RGame::Engine::Components::BoxCollider.new(width: 10, height: 10))
+      moving = inner.add_component(described_class.new(speed: 1000.0, blocked_by: [:bounds]))
+      root.add_node(container)
+      container.add_node(inner)
+      root.enter_tree
+      moving.set_intent(1.0, 0.0)
+      moving.update(1.0)
+      expect([inner.x, inner.world_x]).to eq([130.0, 190.0]) # world 190, local 190 - 60
+    end
+  end
+
+  describe 'blocked_by: %i[tiles bounds]' do
+    # A 200x100 map with a wall in column 5, x 80..96.
+    let(:world) { tile_world(solid: ->(col, _row) { col == 5 }, width: 200, height: 100) }
+    let(:body)  { described_class.new(speed: 1000.0, blocked_by: %i[tiles bounds]) }
+
+    before do
+      mount_tiles(world)
+      node.add_component(RGame::Engine::Components::BoxCollider.new(width: 10, height: 10))
+      node.add_component(body)
+      enter
+    end
+
+    it 'stops at the wall when it is nearer than the world edge' do
+      body.set_intent(-1.0, 0.0)
+      body.update(0.01) # a 10px step, smaller than a tile
+      expect(node.x).to eq(96.0)
+    end
+
+    it 'stops at the world edge when nothing else is in the way' do
+      body.set_intent(1.0, 0.0)
+      body.update(1.0)
+      expect(node.x).to eq(190.0)
+    end
+  end
+
+  # The other half of the same decision: a body that did not name the edge is not held by
+  # it. Nothing in the repository relied on the clamp — every map here has a solid border,
+  # so it had never once fired in a game that could reach it.
+  describe 'a body that does not declare :bounds' do
+    it 'walks past the edge of the world it is in' do
+      mount_tiles(tile_world(width: 200, height: 100))
+      node.add_component(RGame::Engine::Components::BoxCollider.new(width: 10, height: 10))
+      body = node.add_component(described_class.new(speed: 1000.0, blocked_by: [:tiles]))
+      enter
+      body.set_intent(1.0, 0.0)
+      body.update(1.0)
+      expect(node.x).to eq(1100.0)
+    end
+  end
+
+  # Two components reading the same bounds and acting on different things. The engine
+  # cannot reconcile them, so what it does instead is make the contradiction something a
+  # game has to ask for twice: a wrapping game declares no `:bounds` and nothing holds it.
+  describe 'a bounds-blocked body under a ScreenWrap' do
+    it 'is wrapped anyway, because ScreenWrap moves the node after the step' do
+      world = RGame::Engine::Components::World.new(width: 200, height: 100)
+      mount({ RGame::Engine::Components::WorldBounds => world })
+      # A feet-shaped box: narrower than the node, so its offset is positive and a body
+      # held at the world edge leaves node.x negative — which is what ScreenWrap reads.
+      node.add_component(RGame::Engine::Components::BoxCollider.new(width: 10, height: 10, offset_x: 3))
+      body = node.add_component(described_class.new(speed: 1000.0, blocked_by: [:bounds]))
+      node.add_component(RGame::Engine::Components::ScreenWrap.new)
+      enter
+      body.set_intent(-1.0, 0.0)
+      node.update(1.0)
+      expect(node.x).to eq(200.0) # the body stopped it at -3; the wrap sent it to the far edge
+    end
+  end
+
   # A body that cannot be blocked the way it was told to says so at attach, rather than
   # falling back to free movement: an actor walking through walls looks like a collision
   # bug, and the cause would be a scene three files away.
@@ -448,6 +552,13 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
       mount_tiles(tile_world)
       node.add_component(described_class.new(speed: 50.0, blocked_by: [:tiles]))
       expect { enter }.to raise_error(/needs a RGame::Engine::Components::BoxCollider/)
+    end
+
+    it 'refuses :bounds on a scene with no WorldBounds, naming both' do
+      mount({})
+      node.add_component(RGame::Engine::Components::BoxCollider.new(width: 4, height: 4))
+      node.add_component(described_class.new(speed: 50.0, blocked_by: [:bounds]))
+      expect { enter }.to raise_error(/blocked_by :bounds.*no world bounds/m)
     end
 
     # The mirror of the :tiles raise, and the one a game is likelier to hit: a layer name

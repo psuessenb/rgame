@@ -3,9 +3,13 @@
 module RGame
   module Engine
     # The actor-facing collision system: moves any actor by a delta, resolving its
-    # *collision box* (not its sprite) against every blocker source it holds, then
-    # clamping the box inside the world as a backstop. Reusable by the player and
-    # any NPC.
+    # *collision box* (not its sprite) against every blocker source it holds. Reusable by
+    # the player and any NPC.
+    #
+    # **Everything that can stop a step is a source**, including the edge of the world —
+    # see Engine::BoundsBlockers, and its header for why that used to be an unconditional
+    # clamp here and is not any more. Nothing holds an actor anywhere it did not ask to
+    # be held.
     #
     # ## What a blocker source is
     #
@@ -40,14 +44,10 @@ module RGame
       # of thing it was. Set by every #move, so read it straight after one.
       attr_reader :blocked_x, :blocked_y
 
-      # `world_width`/`world_height` are optional because a body blocked only by other
-      # actors may be in a scene with no world bounds at all.
-      def initialize(world_width: nil, world_height: nil, blockers: [])
+      def initialize(blockers: [])
         # Array() so a lone source reads as `blockers: tiles`. Built once at
         # construction; a frame only indexes it.
         @blockers = Array(blockers)
-        @world_width = world_width
-        @world_height = world_height
         @blocked_x = nil
         @blocked_y = nil
       end
@@ -64,19 +64,6 @@ module RGame
 
         bx = resolve_x(from_x, from_y, bw, bh, dx)
         by = resolve_y(bx, from_y, bw, bh, dy)
-
-        # Clamp the box inside the world, when the scene said how big it is. Floor each
-        # upper bound at 0 without a [span, 0] array (this runs per actor per frame).
-        if @world_width
-          max_x = @world_width - bw
-          max_x = 0 if max_x.negative?
-          bx = bx.clamp(0.0, max_x.to_f)
-        end
-        if @world_height
-          max_y = @world_height - bh
-          max_y = 0 if max_y.negative?
-          by = by.clamp(0.0, max_y.to_f)
-        end
 
         actor.x = bx - box.offset_x
         actor.y = by - box.offset_y

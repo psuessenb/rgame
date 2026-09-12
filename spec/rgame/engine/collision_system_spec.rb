@@ -9,10 +9,9 @@ RSpec.describe RGame::Engine::CollisionSystem do
     actor_class.new(x, y, box)
   end
 
-  def system(solid:, world_width: 1000, world_height: 1000)
+  def system(solid:)
     described_class.new(
-      blockers: RGame::Engine::TileBlockers.new(tile_width: 16, tile_height: 16, solid: solid),
-      world_width: world_width, world_height: world_height
+      blockers: RGame::Engine::TileBlockers.new(tile_width: 16, tile_height: 16, solid: solid)
     )
   end
 
@@ -32,11 +31,13 @@ RSpec.describe RGame::Engine::CollisionSystem do
     expect(a.x).to eq(104.0)
   end
 
-  it 'clamps the box within the world bounds' do
+  # There is no clamp here any more. The edge of the world is Engine::BoundsBlockers, an
+  # ordinary source a body declares, so nothing holds an actor anywhere it did not ask
+  # to be held.
+  it 'does not hold the actor inside any region of its own' do
     a = actor(100.0, 100.0)
-    system(solid: ->(_c, _r) { false }, world_width: 200, world_height: 200).move(a, 1000, 1000)
-    expect(a.x).to eq(176.0) # box clamped to 184 (200-16) → actor 184-8
-    expect(a.y).to eq(168.0) # box clamped to 184 → actor 184-16
+    system(solid: ->(_c, _r) { false }).move(a, 1000, 1000)
+    expect([a.x, a.y]).to eq([1100.0, 1100.0])
   end
 
   # The system holds a list of sources and asks each one where the step lands, so these
@@ -77,9 +78,7 @@ RSpec.describe RGame::Engine::CollisionSystem do
 
     def fixed(edge, name = :fixed) = fixed_blocker.new(edge, name)
 
-    def resolver(*blockers)
-      described_class.new(blockers: blockers, world_width: 1000, world_height: 1000)
-    end
+    def resolver(*blockers) = described_class.new(blockers: blockers)
 
     it 'moves freely with no sources at all' do
       expect(resolver.resolve_x(100.0, 0.0, 16, 16, 10)).to eq(110.0)
@@ -121,7 +120,7 @@ RSpec.describe RGame::Engine::CollisionSystem do
     it 'asks no source about a zero step' do
       # A strict verified double: reaching it at all fails the example.
       unasked = instance_double(RGame::Engine::TileBlockers)
-      standing = described_class.new(blockers: unasked, world_width: 1000, world_height: 1000)
+      standing = described_class.new(blockers: unasked)
       expect(standing.resolve_x(100.0, 0.0, 16, 16, 0)).to eq(100.0)
       expect(standing.resolve_y(0.0, 100.0, 16, 16, 0)).to eq(100.0)
     end
@@ -160,7 +159,7 @@ RSpec.describe RGame::Engine::CollisionSystem do
       # separately because they were resolved separately.
       it 'is set per axis by a move' do
         a = actor(100.0, 100.0)
-        resolve = described_class.new(blockers: fixed(104.0, :wall), world_width: 1000, world_height: 1000)
+        resolve = described_class.new(blockers: fixed(104.0, :wall))
         resolve.move(a, 20.0, 0.0)
         expect([resolve.blocked_x, resolve.blocked_y]).to eq([:wall, nil])
       end
@@ -173,7 +172,7 @@ RSpec.describe RGame::Engine::CollisionSystem do
         a = actor(100.0, 100.0)
         one = fixed(104.0)
         two = fixed(108.0)
-        described_class.new(blockers: [one, two], world_width: 1000, world_height: 1000).move(a, 20.0, 20.0)
+        described_class.new(blockers: [one, two]).move(a, 20.0, 20.0)
         # The actor's box is offset (8, 16) from its origin at (100, 100).
         expect([one.from_box, two.from_box]).to eq([[108.0, 116.0, 16, 16]] * 2)
       end
@@ -181,7 +180,7 @@ RSpec.describe RGame::Engine::CollisionSystem do
       it 'tells them even when nothing moved' do
         a = actor(100.0, 100.0)
         one = fixed(104.0)
-        described_class.new(blockers: one, world_width: 1000, world_height: 1000).move(a, 0.0, 0.0)
+        described_class.new(blockers: one).move(a, 0.0, 0.0)
         expect(one.move_count).to eq(1)
       end
     end
