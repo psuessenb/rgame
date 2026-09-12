@@ -57,6 +57,13 @@ module RGame
         # just past the edge and the other response fires on a node that was held.
         # Rather than a rule each game has to remember, it raises.
         #
+        # Folding wrap and despawn into Mover as one `at_edge:` option would make two
+        # responses inexpressible too, but they act on the node however it moved — a reset,
+        # an ancestor, a direct write — and every option there is a branch on the free
+        # step's path. A refusal at attach costs no frame anything. It is also the place
+        # to change if a game wants wrapping on one axis and stopping on the other: the
+        # rule then becomes one response per axis.
+        #
         # Every response calls this from its own on_attach, which is what makes it
         # order-free: a node assembled outside the tree already holds all its
         # components when the first attaches, and on a live node each attaches on

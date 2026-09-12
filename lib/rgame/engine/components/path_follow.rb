@@ -27,6 +27,12 @@ module RGame
       # ahead to where it "should" be once let go, and `on_finished` could fire for a
       # walker still standing in front of the obstacle.
       #
+      # One consequence is easy to miss: **a held follower does not slide along what stopped
+      # it** the way a Velocity does. A step's free axis still moves, but the rewind aims the
+      # next step at the same point on the path, from a little closer, so a follower pressed
+      # diagonally against a wall creeps to rest instead of sliding to the corner. A walker
+      # meant to get round something replans its path rather than relying on the slide.
+      #
       # `on_attach` still places the node on the first waypoint absolutely, blocked or
       # not: where a walker starts is a placement, not a step.
       class PathFollow < Mover

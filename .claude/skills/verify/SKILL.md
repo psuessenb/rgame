@@ -71,6 +71,14 @@ reproduces byte-identically on a re-run — so re-run a lone odd report before
 believing it, and take a baseline twice, because the capture you are comparing
 *against* can be the run that was wrong.
 
+Two more things a comparison needs, each of which has produced a false difference:
+
+- **A worktree of `main` has no `media/`.** It is git-ignored, so the test projects
+  crash loading assets there. Symlink the checkout's `media/` into the worktree.
+- **A fresh `RGAME_SAVE_DIR` for every run.** `save_load`, `save_load_ids` and
+  `menu_navigation` otherwise write to the real data directory, and each run reads
+  what the previous one saved. The harness does not set it for you.
+
 **Tier 4 — manual.** Subjective/visual only. Never the only evidence for a
 correctness claim.
 

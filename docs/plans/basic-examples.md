@@ -543,6 +543,10 @@ waypoints.
   waits behind anything standing on it, then resumes where it stopped. The route
   itself avoids solid tiles. `blocked_by` covers what the search could not know
   about, such as another character.
+  It waits rather than going round: a held `PathFollow` rewinds its step and aims
+  at the same point again, so it does not slide along a blocker the way a
+  `Velocity` does. A walker that should get past a character standing on its route
+  has to replan.
 - **Open question — where does the walker get its facing?** `AnimatedSprite`
   reads `move_x`/`move_y` off a sibling `CharacterBody`, and `PathFollow` has no
   intent, so a hero walking a path would slide around the map unanimated. This was
@@ -1396,7 +1400,7 @@ anything in phases C, D or E.
     assets)
 
 Last by decision rather than by dependency: it was added once the component
-sweep (`docs/plans/component-architecture-sweep.md`) found `I18n` had no caller
+sweep (a plan since folded back and deleted; `git log` has it) found `I18n` had no caller
 anywhere, and the answer was to keep it and give it an example. Nothing above
 depends on it and it depends on nothing unbuilt.
 
@@ -1490,30 +1494,35 @@ undocumented; what these lack is a running file a reader can open.
 
 ### Public, used by a test project, never by an example
 
-Two components, both from `test_projects/asteroids`:
+One component, from `test_projects/asteroids`:
 
 | | What it does | Why no example took it |
 |---|---|---|
-| `Components::Targeting` | holds a *node* as a target and answers whether it is still valid | `examples/save_load_ids` names it in a comment — as the component with the same problem it solves by hand — and never builds one |
 | `Components::ThrustController` | turns an action into acceleration along the node's facing | every example moves things in screen axes; nothing in the list flies |
 
-Neither is obscure and both would make a small example. `ThrustController` and
-`Targeting` together are most of a twin-stick shooter, which is an argument for
-one example rather than two.
+`ThrustController` is not obscure and would make a small example — together with
+`Targeting`, below, most of a twin-stick shooter, which is an argument for one
+example rather than two.
 
 ### Public, used nowhere at all
 
-One left — not used by an example, not by a test project, and not by `lib/`
-either, which makes it the largest genuinely unexercised subsystem in the engine.
-**Now scheduled as example 23**, so this row closes when that lands:
+Two — not used by an example, not by a test project, and not by `lib/` either.
 
 | | What it does |
 |---|---|
 | `Engine::I18n` | locale tables, `t(key)` with `%{var}` interpolation, a fallback locale, and a generation counter so cached UI text knows when to re-resolve |
+| `Components::Targeting` | holds a *node* as a target and answers whether it is still valid |
 
-Its own header still compares itself to `EventDispatcher`, which went with Gosu,
-so it has not been read in a while either. A localized menu is a plausible
-example and would want the generation counter and `CachedLabel` together.
+`I18n` is the largest genuinely unexercised subsystem in the engine. **Now
+scheduled as example 23**, so its row closes when that lands. Its own header still
+compares itself to `EventDispatcher`, which went with Gosu, so it has not been
+read in a while either. A localized menu is a plausible example and would want the
+generation counter and `CachedLabel` together.
+
+`Targeting` was listed under "used by a test project" until the component sweep
+found asteroids never builds one. `examples/save_load_ids` names it in a comment —
+as the component with the same problem it solves by hand — and never builds one
+either.
 
 **`CachedLabel` was the other row here and is resolved.** The question was
 whether the engine's answer to `Game/NoInterpolationInHotPath` or the examples'

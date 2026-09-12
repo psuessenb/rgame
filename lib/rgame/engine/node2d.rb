@@ -126,6 +126,8 @@ module RGame
 
         pa = @parent.world_angle
         if pa.zero?
+          # Assigned from the parent, not `x += value - world_x`: that delta form can land
+          # one float step off `value`, which is enough to change a seeded run's output.
           self.rel_x = value - @parent.world_x
         else
           place_in_rotated_parent(value - @parent.world_x, world_y - @parent.world_y, pa)

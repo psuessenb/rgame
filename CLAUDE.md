@@ -134,6 +134,24 @@ So when a new subsystem sits next to an existing one, the acceptance test is not
 anything exercise it?"** If the answer is that nothing does, that is the test to
 write first, and it is the cheapest moment this design will ever be questioned.
 
+### Checking something that already exists
+
+The same question works as a review of existing code, and the first time it was
+applied to the whole engine layer it found a second instance: `Velocity`,
+`PathFollow` and `CharacterBody` all answered *where does this node go this step*,
+and only the last could be stopped by anything. They became three subclasses of
+`Components::Mover`, which owns what happens after a step is computed. For each
+class, the checks that sweep ran were:
+
+- Does it duplicate state the node owns? (`Engine::Body` kept its own `x`/`y`.)
+- Does it need a hand-written hook to hand its data to another component?
+- Does it behave differently depending on a sibling's add order?
+- Does it name a layer it may not name?
+- Is it a node pretending to be a component, or the reverse?
+
+These are interface-depth checks. A misfit inside a method body that presents a
+clean interface gets past them.
+
 ## Spec style
 
 Use `spec/rgame/engine/node2d_spec.rb` as a reference if needed.
