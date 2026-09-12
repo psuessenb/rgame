@@ -120,6 +120,38 @@ module RGame
 
       def actions = @bindings.keys
 
+      # The button bound to `action` that `device` can actually press, or nil.
+      #
+      # This undoes what the section above describes. One entry lists a key and
+      # a pad button together so that polling needs no branch, and that is right
+      # for reading input and wrong for *showing* it: a prompt has to say "press
+      # A" or "press Space", never both, and which one depends on what the
+      # player last touched.
+      #
+      #   map.button_for(:fire, Controls::KEYBOARD)    # => KEY_SPACE
+      #   map.button_for(:fire, Controls.gamepad(0))   # => PAD_A
+      #
+      # The first match wins, so the order an entry lists its ids in is the order
+      # a prompt prefers them — `ui_confirm` names Return before Space, and a
+      # prompt for it says Return.
+      #
+      # Nil for an action nobody bound, for one with no buttons at all (a stick
+      # or a digital axis is not a button and a prompt for one is a different
+      # picture), and for a device kind the entry does not cover. A caller
+      # showing a prompt has to handle that nil either way, because a rebinding
+      # screen can leave an action unbound.
+      #
+      # Allocation-free, so a HUD may call it per frame rather than caching a
+      # string it would then have to invalidate.
+      def button_for(action, device)
+        binding = @bindings[action]
+        buttons = binding&.buttons
+        return nil if buttons.nil?
+
+        pad = Controls.gamepad?(device)
+        buttons.find { |id| Controls.pad_button?(id) == pad }
+      end
+
       # The entries in the shape they were declared in, so a map can be edited
       # and rebuilt (a config screen) or merged.
       def to_h

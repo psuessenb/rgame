@@ -134,6 +134,13 @@ module RGame
       KEY_RSHIFT = 229
       KEY_RALT = 230
 
+      # Where the keyboard's range ends and the gamepad's begins. The two id
+      # spaces are disjoint so that one number says both which button and which
+      # kind of device can press it — which is what lets a prompt ask "is this a
+      # key or a pad button" without being told. Named here so that the boundary
+      # exists once rather than being rediscovered as `>= PAD_A` by every caller.
+      BUTTON_GAMEPAD_FIRST = 0x1000
+
       # --- Gamepad buttons. The gamepad range plus SDL's own controller button
       # number. The first fifteen are on every controller; MISC1, the paddles
       # and TOUCHPAD are hardware the id space describes but most pads do not
@@ -178,6 +185,18 @@ module RGame
 
       # The device id for a player slot: gamepad(0) is the first controller.
       def self.gamepad(slot) = GAMEPAD_FIRST + slot
+
+      # Is this *device* a controller rather than the keyboard? What a game asks
+      # when the answer changes what it shows the player — the prompt for an
+      # action is a key cap or a face button depending on what they last used.
+      def self.gamepad?(device) = device >= GAMEPAD_FIRST
+
+      # Is this *button* one a controller has rather than one a keyboard has?
+      # The mirror of the question above, on the other id space, and the pair is
+      # what lets a caller keep the two apart: an action bound to both lists its
+      # keys and its pad buttons together, and only a device can say which half
+      # of that list applies right now.
+      def self.pad_button?(id) = id >= BUTTON_GAMEPAD_FIRST
     end
   end
 end

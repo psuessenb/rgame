@@ -44,7 +44,8 @@ RSpec.describe RGame::Util::Controls do
   def constant_map
     { 'KEYBOARD' => 'RGAME_INPUT_KEYBOARD',
       'GAMEPAD_FIRST' => 'RGAME_INPUT_GAMEPAD_FIRST',
-      'MAX_GAMEPADS' => 'RGAME_INPUT_MAX_GAMEPADS' }
+      'MAX_GAMEPADS' => 'RGAME_INPUT_MAX_GAMEPADS',
+      'BUTTON_GAMEPAD_FIRST' => 'RGAME_BUTTON_GAMEPAD_FIRST' }
   end
 
   def c_name_for(ruby_name)
@@ -99,6 +100,35 @@ RSpec.describe RGame::Util::Controls do
       expect(described_class::KEYBOARD).to eq(0)
       expect(described_class.gamepad(0)).to be > described_class::KEYBOARD
       expect(described_class.gamepad(3)).to eq(described_class::GAMEPAD_FIRST + 3)
+    end
+  end
+
+  # The two predicates over that id space. They are the whole of what a prompt
+  # needs to tell a key cap from a face button, and the boundary they compare
+  # against is the C engine's own — checked above like every other id.
+  describe 'telling the two id spaces apart' do
+    it 'calls every gamepad slot a gamepad and the keyboard not one' do
+      expect(described_class.gamepad?(described_class::KEYBOARD)).to be(false)
+      expect((0...described_class::MAX_GAMEPADS).map { |slot| described_class.gamepad?(described_class.gamepad(slot)) })
+        .to all(be(true))
+    end
+
+    it 'calls every PAD_ id a pad button and no KEY_ id one' do
+      # Over every constant rather than a sample, so a future id added on the
+      # wrong side of the boundary fails here rather than in a prompt drawing
+      # the wrong picture.
+      pad = described_class.constants.grep(/\APAD_/).map { |name| described_class.const_get(name) }
+      keys = described_class.constants.grep(/\AKEY_/).map { |name| described_class.const_get(name) }
+
+      expect(pad.map { |id| described_class.pad_button?(id) }).to all(be(true))
+      expect(keys.map { |id| described_class.pad_button?(id) }).to all(be(false))
+    end
+
+    it 'puts the boundary between the highest key and the lowest pad button' do
+      keys = described_class.constants.grep(/\AKEY_/).map { |name| described_class.const_get(name) }
+
+      expect(keys.max).to be < described_class::BUTTON_GAMEPAD_FIRST
+      expect(described_class::PAD_A).to eq(described_class::BUTTON_GAMEPAD_FIRST)
     end
   end
 

@@ -882,6 +882,7 @@ one clip per active viewport per frame, going from one to two at the join.
 
 **Assets:** **A**, already committed.
 
+### 21. `examples/input_glyphs` — the prompt matches the thing in your hand — **done**
 **Landed.** `examples/split_screen/main.rb` plus its two-timeline drive script.
 A `Ground` node under a `WorldView`, a `Walker` per player (the walk example's
 hero with a `CameraFollow` and a coloured banner), and a `Badge` under a
@@ -961,6 +962,57 @@ Kenney's *Input Prompts* is CC0 and is the obvious source; take only the handful
 of glyphs the example names, the way **A** was repacked rather than copied
 whole. Fewer than a dozen small images.
 
+**Landed.** Engine work in both layers, asset **G**, and
+`examples/input_glyphs/main.rb` with its two-timeline drive script.
+
+- `RGame::Util::Controls` gains `BUTTON_GAMEPAD_FIRST`, `gamepad?(device)` and
+  `pad_button?(id)`. The boundary is the C engine's own
+  (`RGAME_BUTTON_GAMEPAD_FIRST`) and joins the constant map the header spec
+  already checks, so it cannot drift.
+- `RGame::Engine::InputMap#button_for(action, device)` — the first id bound to
+  that action which that device can press, or nil. Allocation-free, so a HUD may
+  call it per frame.
+- Asset **G** is `examples/assets/glyphs.png` + `glyphs.json`: five 64x64 frames
+  in one 3 KB strip, cut out of Kenney's *Input Prompts* (CC0) at 5 MB.
+
+Run: `rake spec` 1147 examples, 0 failures (13 new); `rake spec:core` 367
+examples, 0 failures; RuboCop clean over everything touched.
+
+**Acceptance — the open question answered by measurement.** The same drive script
+at four tick budgets, reading the last `sprite` call, whose column is the glyph
+the `Wave` row drew:
+
+| ticks | column | device |
+|---|---|---|
+| 40 | 0 | keyboard, Space |
+| 100 | 3 | controller, A |
+| 150 | 0 | keyboard again, after Enter |
+| 240 | 3 | controller again |
+
+What the sketch did not know:
+
+- **Takeover does switch back, through `ui_confirm` and nothing else.** Measured
+  headlessly before anything was built: `PAD_A` takes the seat, `KEY_SPACE` hands
+  it back, `KEY_W` does not. It is the example's stated constraint rather than the
+  engine's bug — the narrowness is the same rule that stops a resting stick
+  seating a player, and `:ignore` plus `seat` is the documented way to want
+  something else. `docs/api/input.md` said "using it again takes them back", which
+  is not true of any key, and now says which press.
+- **`button_for` had to return nil for an axis, and that shaped the example.**
+  Movement is `move_x`/`move_y`, which are a stick and pairs of keys rather than
+  buttons, so the three prompts are all single buttons and the file says why a
+  picture for "the arrow keys" is a different question.
+- **The glyph lookup stayed in the example**, as the plan leaned. It is one frozen
+  hash from button id to column; nothing wrote it twice.
+- **The sheet's column order is checked against the example's table.**
+  `spec/example_assets_spec.rb` parses `GLYPH_COLUMN` out of the source and
+  asserts every column exists in the PNG and that the keyboard glyphs precede the
+  pad ones — the same guard as the hero sheet's, for the same reason: a column
+  past the end of the strip draws nothing and raises nothing.
+- **Anchor a regex that reads an example's source.** The file's own header quotes
+  the table in prose, so the first unanchored match read the comment and the spec
+  saw one entry instead of five.
+
 
 ---
 
@@ -977,8 +1029,8 @@ Sorted by where it lands, because that decides who may use it.
 | `Components::PlatformerBody` | `Engine` | 8 | **L** |
 | `UI::RadialMenu` | `Engine::UI` | 9 | M |
 | `Engine::NavGrid` + `Engine::AStar` | `Engine` | 10 | **L** |
-| `Controls.gamepad?` + a named pad-button boundary | `Util` (values) | 21 | S |
-| "which ids of this action apply to this device" | `Engine::InputMap` | 21 | S |
+| ~~`Controls.gamepad?` + a named pad-button boundary~~ | `Util` (values) | 21 | **done** — plus `pad_button?` and `BUTTON_GAMEPAD_FIRST` |
+| ~~"which ids of this action apply to this device"~~ | `Engine::InputMap` | 21 | **done** — `#button_for(action, device)` |
 | `Components::CameraPan` | `Engine` | 2 | S, *maybe not needed* |
 | `Renderer#pie` + contract + fake | `Core` + contracts | 9 | M, *avoid if possible* |
 
@@ -1109,7 +1161,7 @@ deferred, and one is refused outright.
 | **D** | Radial icon sheet | `icons.png` + `icons.json` | 9 radial_menu | deferred |
 | **E** | Side-view tileset + character | — | 8 jump_sidescroller | **refused** — rects instead |
 | **F** | A sound effect and a music loop | `blip.ogg`, `music.ogg` | 4 sound, 5 music | **done** |
-| **G** | Input prompt glyphs | `glyphs.png` + `glyphs.json` | 21 input_glyphs | needed |
+| **G** | Input prompt glyphs | `glyphs.png` + `glyphs.json` | 21 input_glyphs | **done** |
 
 **A and B are in `examples/assets/`**, about 10 KB in total, with full
 provenance in `examples/assets/README.md`. A is sodri's CC0 *Character 4
@@ -1125,13 +1177,13 @@ primitives and the shipped font, 6 menu_navigation adds only the nine-slices of
 each case is the movement, the cadence or the contact, and art would only be
 something else to look at.
 
-**G is the one new set this plan still needs.** Key caps and pad face buttons for
-`examples/input_glyphs`, under the same rule as everything else here: CC0 or
-authored in this repo, with provenance recorded whether or not the licence asks
-for it. Kenney's *Input Prompts* is CC0 and is the obvious source. Take the
-handful of glyphs the example actually names rather than the pack — **A** was
-repacked rather than copied whole for the same reason, and a gem should not carry
-four hundred images to draw six.
+**G is delivered**, and it went exactly the way the sketch expected: five 64x64
+frames cut out of Kenney's CC0 *Input Prompts* into one 3 KB strip, against a
+5 MB download. Space, Enter and Escape from the keyboard set; A and B from the
+**Xbox** set, because SDL's button names are Xbox's and a sheet whose faces
+disagreed with `PAD_A` would make every prompt a translation. The column order is
+the example's own lookup table, and `spec/example_assets_spec.rb` reads that table
+out of the example and checks it against the strip.
 
 **A — character sprite sheet.** A four-direction walk cycle plus an idle, which
 is what `Components::AnimatedSprite` and `AnimationSet` expect — they resolve
@@ -1209,9 +1261,9 @@ Pick it up only if the labelled version reads badly.
 
 ### Consequence for the order
 
-**One left: asset G**, the input prompt glyphs `examples/input_glyphs` needs.
-Everything before it in the order is code, so sourcing G can happen in parallel
-with all of Phase D and only blocks that example. A, B, C and F are discharged.
+**Nothing outstanding.** Asset G — the input prompt glyphs — was cut from
+Kenney's *Input Prompts* while building `examples/input_glyphs`. A, B, C, F and G
+are all discharged, and everything remaining in the plan is code.
 
 ## Implementation order
 
@@ -1284,6 +1336,10 @@ trace in any report. Fixed while writing example 7.
 16. ~~`examples/collision`~~ — **done**; no new engine code, but it turned up an
     undocumented `on_hit` contract (see its landed note).
 17. `examples/collision_tiles` (`Components::TileCharacterBody`; reuses **B**)
+18. `examples/split_screen` (`players: 2`; reuses **A**)
+19. ~~`examples/input_glyphs`~~ — **done**; `Controls.gamepad?` and
+    `pad_button?`, `InputMap#button_for`, and asset **G** cut from Kenney's
+    *Input Prompts*.
 18. ~~`examples/split_screen`~~ — **done**; no new engine code, and it is where
     `Engine::Culling` finally has an example.
 19. `examples/input_glyphs` (`Controls.gamepad?`, an `InputMap` query, and asset
@@ -1383,12 +1439,15 @@ sodri's character sheet repacked. See "Assets". So is 6: one `OptionItem` and no
 - **13** — one node drawing a whole image and one drawing a registered
   `subimage`, or a single still image? Leaning toward both, because it shows the
   two id spaces again and costs no new asset.
-- **21** — does takeover switch *back*? Verify before building: the trigger is a
-  `ui_confirm` press on an unassigned device, and a game wants "any key returns to
-  the keyboard". If the narrow form is all there is, decide whether that is the
-  engine's bug or the example's stated constraint.
-- **21** — does the glyph lookup stay in the example, or become `Engine::UI`?
-  Leaning: keep it local until something writes it twice.
+- ~~**21** — does takeover switch *back*?~~ **Yes, through `ui_confirm` and
+  nothing else** — `PAD_A` takes the seat, `KEY_SPACE` or `KEY_RETURN` hands it
+  back, `KEY_W` does not. Settled as the example's stated constraint rather than
+  the engine's bug: one action rather than any input is what stops a resting stick
+  seating a player, and it is the same rule in both directions. A game that wants
+  any key sets `on_unassigned_input = :ignore` and calls `seat` itself.
+- ~~**21** — does the glyph lookup stay in the example?~~ **It stayed**, as the
+  leaning said. One frozen hash from button id to sheet column; nothing has
+  written it twice.
 - **Discoverability** — a shipped example lands inside the installed gem's
   directory, which nobody browses. Should the `rgame` command grow an
   `rgame examples` that lists them (and maybe copies one into the working

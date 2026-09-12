@@ -103,6 +103,48 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
     end
   end
 
+  describe 'glyphs.json' do
+    subject(:descriptor) { JSON.parse(File.read(File.join(assets, 'glyphs.json')), symbolize_names: true) }
+
+    # The sheet and examples/input_glyphs are two halves of one table: the
+    # example maps a button id to a column, and only this file says what is in
+    # that column. Neither half can check the other at runtime — a column past
+    # the end of the strip is sliced out of empty space, draws nothing and
+    # raises nothing, which looks exactly like an action nobody bound.
+    let(:columns) do
+      source = File.read(File.expand_path('../examples/input_glyphs/main.rb', __dir__))
+      # Anchored at the start of a line: the file's own header quotes the table
+      # in prose, and an unanchored match reads the comment instead.
+      table = source[/^GLYPH_COLUMN = \{(.+?)\}\.freeze/m, 1]
+      table.scan(/Controls::(\w+)\s*=>\s*(\d+)/).to_h { |name, column| [name, Integer(column)] }
+    end
+
+    it 'has a frame for every column the example names' do
+      width, height = png_size(File.join(assets, descriptor[:image]))
+      frames = width / descriptor[:frame_width]
+
+      expect(columns.values).to all(be < frames)
+      expect(descriptor[:frame_height]).to eq(height)
+    end
+
+    it 'names five buttons, and every one of them is a real id' do
+      expect(columns.size).to eq(5)
+      expect(columns.keys.map { |name| RGame::Util::Controls.const_get(name) }).to all(be_an(Integer))
+    end
+
+    # The two id spaces are what the whole example turns on, so the sheet's own
+    # ordering is checked against them: the keyboard glyphs come first and the
+    # pad glyphs after, and a key filed under a pad column would put a face
+    # button on a keyboard prompt.
+    it 'groups the keyboard glyphs before the pad ones' do
+      controls = RGame::Util::Controls
+      pad_columns, key_columns = columns.partition { |name, _| controls.pad_button?(controls.const_get(name)) }
+                                        .map { |group| group.map(&:last) }
+
+      expect(key_columns.max).to be < pad_columns.min
+    end
+  end
+
   describe 'the audio' do
     # The engine plays Ogg Vorbis and WAV, and nothing else: MP3 and FLAC are
     # compiled out of miniaudio (ext/rgame_core/vendor/miniaudio_impl.c) to save
