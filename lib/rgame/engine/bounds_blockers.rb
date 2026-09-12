@@ -11,18 +11,12 @@ module RGame
     #
     # ## Why the world edge is declared rather than automatic
     #
-    # CollisionSystem used to clamp every step inside the world whether or not the caller
-    # asked, which was wrong in a way nobody could read about anywhere. The clamp works on
-    # the collision **box**, so a clamped node lands at `node.x == -box.offset_x`; and
-    # ScreenWrap and DespawnOffscreen read the same WorldBounds but test the node's origin
-    # against it. A feet box on a wider sprite has a positive offset_x by construction, so a
-    # hero with a DespawnOffscreen despawned itself on touching the left wall, and one
-    # with a ScreenWrap teleported to the right edge.
-    #
-    # Making it a source removes that rather than reporting it. A wrapping game declares
-    # no `:bounds` and nothing holds its node inside the world; a game that wants the world
-    # edge to stop an actor says so, and gets an ordinary blocker with a layer like any
-    # other.
+    # Stopping at the edge is one of three responses to it. ScreenWrap and DespawnOffscreen
+    # are the other two, and a node may carry only one of them
+    # (Components::WorldBounds.one_response!). A clamp applied to every step would be a
+    # response nobody chose, contradicting a wrap or a despawn on every node that has one.
+    # So a game that wants the world edge to stop an actor says so, and gets an ordinary
+    # blocker with a layer like any other.
     class BoundsBlockers
       # What a BoundsBlockers reports as having stopped a step: one object for the life of
       # the process, answering the same two questions a collider does, so a handler reads

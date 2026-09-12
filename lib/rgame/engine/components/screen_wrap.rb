@@ -30,6 +30,7 @@ module RGame
         # Re-resolved on every entry rather than cached from the first, so a pooled
         # entity recycled into a differently sized scene wraps against that scene.
         def on_attach
+          WorldBounds.one_response!(node)
           @width, @height = WorldBounds.resolve(node, @given_width, @given_height)
         end
 

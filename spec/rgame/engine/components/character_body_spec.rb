@@ -522,22 +522,17 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     end
   end
 
-  # Two components reading the same bounds and acting on different things. The engine
-  # cannot reconcile them, so what it does instead is make the contradiction something a
-  # game has to ask for twice: a wrapping game declares no `:bounds` and nothing holds it.
-  describe 'a bounds-blocked body under a ScreenWrap' do
-    it 'is wrapped anyway, because ScreenWrap moves the node after the step' do
+  # Stopping at the edge and wrapping past it are two answers to one question, so a node
+  # may not carry both — WorldBounds.one_response! refuses every pair, and its spec covers
+  # them all. This is the pair a character is likeliest to be given.
+  describe 'a bounds-blocked body beside a ScreenWrap' do
+    it 'is refused at attach, naming both' do
       world = RGame::Engine::Components::World.new(width: 200, height: 100)
       mount({ RGame::Engine::Components::WorldBounds => world })
-      # A feet-shaped box: narrower than the node, so its offset is positive and a body
-      # held at the world edge leaves node.x negative — which is what ScreenWrap reads.
       node.add_component(RGame::Engine::Components::BoxCollider.new(width: 10, height: 10, offset_x: 3))
-      body = node.add_component(described_class.new(speed: 1000.0, blocked_by: [:bounds]))
+      node.add_component(described_class.new(speed: 1000.0, blocked_by: [:bounds]))
       node.add_component(RGame::Engine::Components::ScreenWrap.new)
-      enter
-      body.set_intent(-1.0, 0.0)
-      node.update(1.0)
-      expect(node.x).to eq(200.0) # the body stopped it at -3; the wrap sent it to the far edge
+      expect { enter }.to raise_error(RuntimeError, /CharacterBody \(blocked_by :bounds\) and ScreenWrap/)
     end
   end
 

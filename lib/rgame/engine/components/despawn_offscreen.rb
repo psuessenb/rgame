@@ -26,6 +26,7 @@ module RGame
         # See ScreenWrap#on_attach: resolved per entry, so a recycled node is correct
         # after a scene change.
         def on_attach
+          WorldBounds.one_response!(node)
           @width, @height = WorldBounds.resolve(node, @given_width, @given_height)
         end
 

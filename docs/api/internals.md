@@ -148,11 +148,10 @@ region a [`WorldBounds`](components.md#world) describes. It reads the two number
 construction, because those bounds are immutable by contract, and its `blocker` is the
 sentinel `BoundsBlockers::BOUNDS`, answering `layer` → `:bounds`.
 
-It exists because `CollisionSystem` used to clamp every step inside the world
-unconditionally, and that clamp works on the collision **box** while `ScreenWrap` and
-`DespawnOffscreen` test the node's origin against the same bounds. A hero with a feet box
-therefore stood at the world's left edge, fully inside it, and despawned. Now the edge is
-declared like anything else, and a mover that did not ask is not held.
+The edge is a source a mover declares rather than a clamp every step gets, because
+stopping at the edge is only one of three responses to it: `ScreenWrap` and
+`DespawnOffscreen` are the others, and a node may carry only one
+([`WorldBounds.one_response!`](components.md#world)). A mover that did not ask is not held.
 
 ## `CollisionSystem` — move an actor against its blockers
 
