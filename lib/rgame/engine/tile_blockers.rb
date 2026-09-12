@@ -2,11 +2,20 @@
 
 module RGame
   module Engine
-    # Axis-separated AABB-vs-tile collision resolution (pure). `solid` is a callable
-    # `solid.call(col, row) -> bool`. Resolve X then Y (with the X result) to get
-    # wall-sliding. Assumes per-step movement smaller than a tile (no tunneling),
-    # which holds for our speeds.
-    class TileCollision
+    # The tile grid as a blocker source: axis-separated AABB-vs-tile collision
+    # resolution (pure). `solid` is a callable `solid.call(col, row) -> bool`, so the
+    # tile source is decoupled (a TileMap, a fake in tests). Assumes per-step movement
+    # smaller than a tile (no tunneling), which holds for our speeds.
+    #
+    # It answers the blocker-source question — "where does this box land moving dx" —
+    # which CollisionSystem asks of every source it holds; see its header for the
+    # protocol. Resolving X then Y (with the X result) is what gives wall-sliding, and
+    # that ordering lives in the system rather than here, so every source shares it.
+    #
+    # Nothing needs a grid to be a blocker source: this one divides by the tile size,
+    # and one over moving actors would query a broadphase instead. The arithmetic that
+    # snaps a box flush against an edge is the same either way.
+    class TileBlockers
       EPS = 1e-9
 
       def initialize(tile_width:, tile_height:, solid:)

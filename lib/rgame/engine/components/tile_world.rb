@@ -8,8 +8,9 @@ module RGame
       # everything an actor needs from it — collision against the solid tiles, the world
       # bounds, and drawing the map through the scene's camera.
       #
-      # Collision reuses Engine::CollisionSystem (TileCollision + a world-bounds clamp);
-      # the tile solidity is whatever the map's tileset reports (baked per-tile in Tiled).
+      # Collision reuses Engine::CollisionSystem, with the map's solid tiles as its one
+      # blocker source (Engine::TileBlockers) plus a world-bounds clamp; the tile solidity
+      # is whatever the map's tileset reports (baked per-tile in Tiled).
       #
       # **It does not draw.** Drawing the map is RGame::Engine::TileMapLayer, one
       # node per Tiled layer, mounted inside the WorldView so the map is drawn
@@ -40,7 +41,7 @@ module RGame
           @elapsed = 0.0
           Array(cameras).each { |camera| bound(camera) }
           @collision = Engine::CollisionSystem.new(
-            tile_collision: Engine::TileCollision.new(
+            blockers: Engine::TileBlockers.new(
               tile_width: map.tile_width, tile_height: map.tile_height,
               solid: ->(col, row) { map.solid_tile?(col, row) }
             ),

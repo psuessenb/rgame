@@ -83,42 +83,62 @@ of things at once is a design problem elsewhere, not a reason to index this.
 `started?` reads only the previous step's list, so it answers the same before and after
 `add`, which is what lets the world ask it as a guard in the order the step happens.
 
-## `TileCollision` — axis-separated AABB-vs-tile resolution
+## `TileBlockers` — the tile grid as a blocker source
 
-`RGame::Engine::TileCollision` (`rgame/engine/tile_collision`) resolves an axis-aligned box against a
+`RGame::Engine::TileBlockers` (`rgame/engine/tile_blockers`) resolves an axis-aligned box against a
 grid of solid tiles. `solid` is a callable `solid.call(col, row) -> bool`, so the tile
-source is decoupled (a `TileMap`, a fake in tests). It moves the box **one axis at a
-time** — `resolve_x` then `resolve_y` (fed the resolved x) — which gives wall-sliding: a
-diagonal push into a wall keeps the component that's still free.
+source is decoupled (a `TileMap`, a fake in tests). Each axis is resolved on its own —
+`resolve_x` and `resolve_y` are independent — and it is
+[`CollisionSystem`](#collisionsystem--move-an-actor-against-its-blockers-and-the-world)
+that feeds one the other's result.
 
 ```ruby
-tiles = RGame::Engine::TileCollision.new(tile_width: 16, tile_height: 16,
-                                  solid: ->(col, row) { map.solid_tile?(col, row) })
+tiles = RGame::Engine::TileBlockers.new(tile_width: 16, tile_height: 16,
+                                        solid: ->(col, row) { map.solid_tile?(col, row) })
 nx = tiles.resolve_x(x, y, w, h, dx) # snaps flush against a solid in the dx direction
 ny = tiles.resolve_y(nx, y, w, h, dy)
 ```
 
 It assumes per-step movement smaller than a tile (no tunneling), which holds for the
-engine's speeds. It is the maths inside [`CollisionSystem`](#collisionsystem--move-an-actor-against-the-tiles-and-the-world).
+engine's speeds.
 
-## `CollisionSystem` — move an actor against the tiles and the world
+## `CollisionSystem` — move an actor against its blockers and the world
 
-`RGame::Engine::CollisionSystem` (`rgame/engine/collision_system`) wraps `TileCollision` with a
-world-bounds clamp and an actor-facing `move`. It is what
+`RGame::Engine::CollisionSystem` (`rgame/engine/collision_system`) holds a list of **blocker
+sources**, a world-bounds clamp, and the actor-facing `move`. It is what
 [`TileWorld`](components.md#tileworld) delegates to (and what a
 [`CharacterBody`](components.md#characterbody) with `blocked_by: [:tiles]` moves through).
 
 ```ruby
 collision = RGame::Engine::CollisionSystem.new(
-  tile_collision: tiles, world_width: map.pixel_width, world_height: map.pixel_height
+  blockers: tiles, world_width: map.pixel_width, world_height: map.pixel_height
 )
 collision.move(actor, dx, dy) # actor responds to x / y / x= / y= / collision_box
 ```
 
 `move` reads the actor's [`CollisionBox`](toolbox.md#collisionbox--an-actors-feet-box)
-AABB, resolves it through `TileCollision` on both axes, clamps the box inside the world
-as a backstop, and writes the resolved position back to the actor (accounting for the
-box's offset from the sprite origin).
+AABB, resolves it on both axes, clamps the box inside the world as a backstop, and writes
+the resolved position back to the actor (accounting for the box's offset from the sprite
+origin).
+
+A blocker source answers one question, on one axis, over plain numbers:
+
+```ruby
+source.resolve_x(x, y, w, h, dx) # -> where the box's left edge lands moving dx
+source.resolve_y(x, y, w, h, dy) # -> where the box's top  edge lands moving dy
+```
+
+`TileBlockers` is the only one today. The system asks every source it holds and takes the
+**most restrictive** answer on each axis — the smallest landing for a rightward or downward
+step, the largest for a leftward or upward one — so no source has to know the others exist,
+and `blockers: []` is free movement inside the world bounds.
+
+Two things follow from the list living here rather than inside a source. The
+axis-separated order — resolve x, then resolve y fed the resolved x — is what gives
+wall-sliding, a diagonal push into a wall keeping the component that is still free, and it
+is written once for every source. And the loop is a plain index walk rather than
+`map`/`min`, because it runs per actor per axis per frame and both a block and an
+intermediate array would allocate.
 
 ## `AnimationSet` — pure frame maths
 

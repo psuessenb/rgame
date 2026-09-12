@@ -3,13 +3,33 @@
 module RGame
   module Engine
     # The actor-facing collision system: moves any actor by a delta, resolving its
-    # *collision box* (not its sprite) against the tiles via TileCollision, then
+    # *collision box* (not its sprite) against every blocker source it holds, then
     # clamping the box inside the world as a backstop. Reusable by the player and
     # any NPC.
     #
+    # ## What a blocker source is
+    #
+    # A blocker source answers one question, on one axis, over plain numbers:
+    #
+    #   source.resolve_x(x, y, w, h, dx) # -> where the box's left edge lands moving dx
+    #   source.resolve_y(x, y, w, h, dy) # -> where the box's top  edge lands moving dy
+    #
+    # Engine::TileBlockers is the one there is today — it divides by the tile size and
+    # snaps flush against a solid tile — and a source over moving actors would query a
+    # broadphase instead. Neither needs to know the other exists, because this system
+    # takes the **most restrictive** answer on each axis: a box hemmed in by a wall on
+    # one side and something else nearer stops at whichever is nearer.
+    #
+    # Holding the sources here rather than inside any one of them is what puts the
+    # axis-separated order — resolve X, then resolve Y fed the resolved X — in exactly
+    # one place. That order is what produces wall-sliding (a diagonal push into a wall
+    # keeps the component that is still free), so every source shares one feel rather
+    # than each implementing it.
     class CollisionSystem
-      def initialize(tile_collision:, world_width:, world_height:)
-        @tiles = tile_collision
+      def initialize(world_width:, world_height:, blockers: [])
+        # Array() so a lone source reads as `blockers: tiles`. Built once at
+        # construction; a frame only indexes it.
+        @blockers = Array(blockers)
         @world_width = world_width
         @world_height = world_height
       end
@@ -24,8 +44,8 @@ module RGame
         bw = box.width
         bh = box.height
 
-        bx = @tiles.resolve_x(bx, by, bw, bh, dx)
-        by = @tiles.resolve_y(bx, by, bw, bh, dy)
+        bx = resolve_x(bx, by, bw, bh, dx)
+        by = resolve_y(bx, by, bw, bh, dy)
 
         # Clamp the box inside the world. Floor each upper bound at 0 without a [span, 0]
         # array (this runs per actor per frame).
@@ -38,6 +58,38 @@ module RGame
 
         actor.x = bx - box.offset_x
         actor.y = by - box.offset_y
+      end
+
+      # Where the box's left edge lands moving dx, against every source at once. The most
+      # restrictive answer is the *smallest* landing for a rightward step and the largest
+      # for a leftward one; with no sources at all the box simply moves.
+      #
+      # A plain index loop rather than @blockers.map/min: this runs per actor per axis per
+      # frame, and both the block and the intermediate array would allocate.
+      def resolve_x(x, y, w, h, dx)
+        nx = x + dx
+        return nx if dx.zero?
+
+        i = 0
+        while i < @blockers.size
+          landed = @blockers[i].resolve_x(x, y, w, h, dx)
+          nx = landed if dx.positive? ? landed < nx : landed > nx
+          i += 1
+        end
+        nx
+      end
+
+      def resolve_y(x, y, w, h, dy)
+        ny = y + dy
+        return ny if dy.zero?
+
+        i = 0
+        while i < @blockers.size
+          landed = @blockers[i].resolve_y(x, y, w, h, dy)
+          ny = landed if dy.positive? ? landed < ny : landed > ny
+          i += 1
+        end
+        ny
       end
     end
   end

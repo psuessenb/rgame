@@ -294,7 +294,7 @@ retunes both, and there is nothing to hand from one component to the other.
   resolves a step some other way (a platformer's, with gravity and a jump) inherits the intent,
   the speed and the standing-still check rather than restating them.
 - **Actor adapter:** when blocked, the body hands *itself* to
-  [`CollisionSystem#move`](internals.md#collisionsystem--move-an-actor-against-the-tiles-and-the-world),
+  [`CollisionSystem#move`](internals.md#collisionsystem--move-an-actor-against-its-blockers-and-the-world),
   answering `x`/`y`/`x=`/`y=` from the node and `collision_box` from the collider.
 - **Examples:** `examples/walk` — this, a `PlayerController` and an `AnimatedSprite`, and
   nothing else. `examples/collision_tiles` — the same with a feet box and `blocked_by:

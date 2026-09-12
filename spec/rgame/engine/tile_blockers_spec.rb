@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe RGame::Engine::TileCollision do
+RSpec.describe RGame::Engine::TileBlockers do
   # 16px tiles; column 5 (x 80..96) is a solid wall, everything else open.
   subject(:collision) do
     described_class.new(tile_width: 16, tile_height: 16,
