@@ -1,6 +1,6 @@
 # Unifying the two collision systems
 
-**Status: research only. Nothing here is implemented.** Steps 1–3 of the roadmap
+**Status: step 1 is implemented; steps 2–6 are not.** Steps 1–3 of the roadmap
 are detailed; steps 4–6 are deliberately rough and should be re-planned once the
 layer beneath them exists.
 
@@ -472,6 +472,32 @@ plus the broadphase reporting a contact between a feet collider and a plain box.
 
 Verify: a `FeetCollider` on a 16×22 node with a 12×6 box reports a world AABB at
 the node's feet, and `rake spec` stays green.
+
+**Landed.** `Components::FeetCollider` in `lib/rgame/engine/components/`, nine
+examples in `spec/rgame/engine/components/feet_collider_spec.rb`, documented in
+`docs/api/components.md` with a cross-link from `toolbox.md`. `rake spec` is
+1186 examples, 0 failures. The acceptance case reports `[102, 216, 12, 6]` for a
+12×6 box on a 16×22 node at (100, 200), which is the feet patch. `TileCharacterBody`
+is untouched, as the sketch says.
+
+Two things the sketch got wrong:
+
+- **`BoxCollider` had to change after all**, which D1's "the broadphase needs no
+  change at all" is right about but its code is not. `aabb_x` and friends read
+  `@box` directly, so a subclass overriding `box` would have been invisible to
+  the broadphase — the placeholder built by `super` would have been bucketed
+  instead, silently, since it is a valid box of the right size at the wrong
+  offset. They now go through the `box` reader. That is a method call per read on
+  a per-frame path, so the spec pins `scene.update` allocating nothing with a
+  feet collider registered.
+- **`super` still builds a throwaway box.** The sketch's `@box = nil` discards
+  it. Keeping the call is what keeps the layer, the contact set and the signals
+  set up in one place, so the waste is one `CollisionBox` per collider at
+  construction and never on a frame. Left as sketched, with a comment saying so.
+
+`examples/collision` and `test_projects/snake` drive to byte-identical reports
+before and after at `--ticks 240 --seed 7`, which is what says the `box`-reader
+change moved nothing.
 
 ### Step 2 — `CharacterBody(blocked_by:)`, and `TileCharacterBody` retired
 
