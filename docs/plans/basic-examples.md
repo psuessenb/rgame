@@ -538,6 +538,16 @@ waypoints.
   already tested.
 - **`nil` for unreachable, not an exception and not an empty path.** An
   unreachable target is an ordinary answer.
+- **The walker can be blocked.** `PathFollow` is a `Mover`, so
+  `PathFollow.new(path:, speed:, blocked_by: %i[tiles npc])` walks the route and
+  waits behind anything standing on it, then resumes where it stopped. The route
+  itself avoids solid tiles. `blocked_by` covers what the search could not know
+  about, such as another character.
+- **Open question — where does the walker get its facing?** `AnimatedSprite`
+  reads `move_x`/`move_y` off a sibling `CharacterBody`, and `PathFollow` has no
+  intent, so a hero walking a path would slide around the map unanimated. This was
+  deferred from the component-architecture sweep to be answered when this example
+  is written. It blocks the example's animation, not its walk.
 - Path smoothing (drop waypoints a straight line already covers) — worth it,
   because raw A* output on a grid zig-zags and looks wrong when walked.
 

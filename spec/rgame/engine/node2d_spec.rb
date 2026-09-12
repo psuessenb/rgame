@@ -717,6 +717,63 @@ RSpec.describe RGame::Engine::Node2D do
     end
   end
 
+  # The inverse of the section above: given a world coordinate, work out the local
+  # position that puts the node there. The obvious `x += target - world_x` is exact
+  # only under an unrotated chain, so the rotated case is what these are for.
+  describe '#world_x= and #world_y=' do
+    subject(:root) { described_class.new }
+
+    let(:tolerance) { 1e-9 }
+    let(:container) { root.add_node(described_class.new(x: 100, y: 40)) }
+    let(:child) { container.add_node(described_class.new(x: 10, y: 5)) }
+
+    it 'places the node at a world x under a translated ancestor, as a local x' do
+      child.world_x = 250
+      expect([child.x, child.y, child.world_x, child.world_y]).to eq([150, 5, 250, 45])
+    end
+
+    it 'places the node at a world y under a translated ancestor, as a local y' do
+      child.world_y = 10
+      expect([child.x, child.y, child.world_x, child.world_y]).to eq([10, -30, 110, 10])
+    end
+
+    it 'changes nothing when handed the world position it already has' do
+      here_x = child.world_x
+      here_y = child.world_y
+      child.world_x = here_x
+      child.world_y = here_y
+      expect([child.x, child.y]).to eq([10, 5])
+    end
+
+    # A quarter turn points local +x at world +y, so moving along world x means moving
+    # along local -y — and the world coordinate not being set must stay put.
+    it 'moves along the world axis under a rotated ancestor, keeping the other one' do
+      container.angle = Math::PI / 2
+      child.world_x = child.world_x + 30 # world (95, 50) under the turn, so 125
+
+      expect(child.world_x).to be_within(tolerance).of(125)
+      expect(child.world_y).to be_within(tolerance).of(50)
+      expect([child.x, child.y].map { it.round(9) }).to eq([10.0, -25.0])
+    end
+
+    it 'moves the subtree with it' do
+      grandchild = child.add_node(described_class.new(x: 1, y: 1))
+      child.world_x = 300
+      expect(grandchild.world_x).to eq(301)
+    end
+
+    it 'leaves a root where it is, since a root is pinned to the origin' do
+      root.world_x = 50
+      expect([root.x, root.world_x]).to eq([0, 0])
+    end
+
+    it 'allocates nothing' do
+      container.angle = 0.3
+      child.world_x = 1.0 # warm the transform cache
+      expect { child.world_x = child.world_x + 1.0 }.to allocate_nothing
+    end
+  end
+
   # Reparenting moves a node without touching its `x`/`y`: the same offset now
   # means something else, because it is an offset from somewhere else. Whatever
   # keeps the world transform current has to notice that, and it is the one way

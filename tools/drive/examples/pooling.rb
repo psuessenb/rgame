@@ -16,11 +16,14 @@
 #     same traversal. A pooled node is an ordinary child, and the report is where
 #     that stops being a claim — if pooling changed the shape of the frame, the
 #     counts would step at each Space;
-#   - **translates spanning x -30..670 and y -30..510**, which is the window plus
-#     the 30-pixel despawn margin on each side. That is `Components::DespawnOffscreen`
-#     resolving its bounds through the scene's `Components::World`, exactly as the
-#     wrap in `examples/velocity` does, and it is why no mote is ever retired
-#     somewhere you could see it happen;
+#   - **translates spanning x -350..350 and y -270..270.** A translate is a
+#     mote's place in its parent, and the parent is the spawner at the window's
+#     centre (320, 240), so in world terms that is x -30..670 and y -30..510 —
+#     the window plus the 30-pixel despawn margin on each side. The range is
+#     symmetric because `Components::DespawnOffscreen` tests the mote's *world*
+#     position against the scene's `Components::World`; a range that stopped at
+#     -30 on the left or top would mean motes retired mid-screen, at the
+#     spawner's edge rather than the world's;
 #   - **a live count that climbs and then flattens.** Spawning is a fixed rate and
 #     so is leaving the world, so the number on screen settles rather than growing
 #     without bound. Flat is the sign the reclaim is working: the free list is

@@ -40,18 +40,12 @@
 # enough to make a shape spin — the same reason the sprite in `examples/sprite`
 # turns without Components::Sprite knowing that angles exist.
 #
-# ## The outline is the world, and the world is not the window
+# ## The world is not the window
 #
-# The rectangles wrap at the outline rather than at the edge of the screen, and
-# that gap is the whole point of `Components::World` being a thing at all. The two
-# sizes coincide in a single-screen game, which is exactly what makes binding
-# them together an easy mistake and a hard one to see: a world tied to the
-# viewport changes shape when the window is resized, and changes again the moment
-# the screen is split and each half becomes its own viewport.
-#
-# So there are two questions with two answers. Ask the `view` a draw is handed
-# how big the **window** is. Ask `node.system(WorldBounds)` how big the **world**
-# is.
+# The world stops short of the bottom of the window, where the text is, and the
+# rectangles wrap at its edge rather than the screen's. Ask the `view` a draw is
+# handed how big the **window** is, and `node.system(WorldBounds)` how big the
+# **world** is. `examples/scroll_map` is where the two differ in earnest.
 #
 # ## Why the wrap asks for a contract rather than a class
 #
@@ -79,12 +73,12 @@ WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
 
-# Deliberately smaller than the window, and offset inside it, so that "the world"
-# and "the window" cannot be confused for one number wearing two names.
-WORLD_W = 460
-WORLD_H = 330
-WORLD_X = 90
-WORLD_Y = 110
+# The world is the window minus a band along the bottom for the text. It is
+# shorter by more than the wrap margin, so a shape leaving through the bottom edge
+# is put back before it reaches the text.
+WORLD_W = WIDTH
+WORLD_H = 360
+TEXT_Y  = 410
 
 # How far past the edge a shape travels before it is put back on the other side.
 # Without it a rectangle jumps while half of it is still showing.
@@ -166,34 +160,23 @@ class Scene < RGame::Engine::Node2D
     add_component(RGame::Engine::Components::World.new(width: WORLD_W, height: WORLD_H))
   end
 
-  # Everything that wraps lives under one node, offset to put the world inside
-  # the window. A child's x and y are its place in its parent, so a drifter at
-  # world (0, 0) is drawn at the outline's corner and wraps at the outline's
-  # edges — without the wrap, the drifters or the outline knowing about the
-  # offset at all.
   def on_add
-    field = add_node(RGame::Engine::Node2D.new(x: WORLD_X, y: WORLD_Y))
-
     DRIFTERS.each_with_index do |(vx, vy, spin, rgb), index|
-      field.add_node(Drifter.new(color: RGame::Util::Color.new(*rgb), vx: vx, vy: vy, spin: spin,
-                                 x: 60 + (index * 78), y: 40 + (index * 52)))
+      add_node(Drifter.new(color: RGame::Util::Color.new(*rgb), vx: vx, vy: vy, spin: spin,
+                           x: 60 + (index * 120), y: 40 + (index * 60)))
     end
 
-    field.add_node(Walker.new(x: WORLD_W / 2, y: WORLD_H / 2))
+    add_node(Walker.new(x: WORLD_W / 2, y: WORLD_H / 2))
   end
 
   def on_draw(renderer, view)
     renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
-    renderer.rect(WORLD_X, WORLD_Y, WORLD_W, WORLD_H, color: FLOOR)
+    renderer.rect(0, 0, WORLD_W, WORLD_H, color: FLOOR)
+    renderer.rect(0, WORLD_H - THICK, WORLD_W, THICK, color: EDGE)
 
-    renderer.rect(WORLD_X, WORLD_Y, WORLD_W, THICK, color: EDGE)
-    renderer.rect(WORLD_X, WORLD_Y + WORLD_H - THICK, WORLD_W, THICK, color: EDGE)
-    renderer.rect(WORLD_X, WORLD_Y, THICK, WORLD_H, color: EDGE)
-    renderer.rect(WORLD_X + WORLD_W - THICK, WORLD_Y, THICK, WORLD_H, color: EDGE)
-
-    renderer.text('Arrows / WASD walk the pale circle — the rectangles need nobody', 12, 12)
-    renderer.text('They wrap at the outline, which is the world and not the window', 12, 34)
-    renderer.text('Two of them spin: one component adding to angle, no shape the wiser', 12, 56)
+    renderer.text('Arrows / WASD walk the pale circle — the rectangles need nobody', 12, TEXT_Y)
+    renderer.text('They wrap at the edge of the world, which stops above this text', 12, TEXT_Y + 22)
+    renderer.text('Two of them spin: one component adding to angle, no shape the wiser', 12, TEXT_Y + 44)
   end
 end
 

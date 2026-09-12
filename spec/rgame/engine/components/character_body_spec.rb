@@ -224,18 +224,16 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
       expect([body.x, body.y]).to eq([260.0, 170.0])
     end
 
-    # The documented limit, pinned so it is a decision rather than a surprise. Under a
-    # rotated ancestor the world-space delta is applied to local axes the rotation has
-    # turned, so a +10 world step moves the node ten *local* units — which the rotation
-    # then points somewhere else. An actor under a rotated ancestor is already outside
-    # what an axis-aligned box supports; a circle is what a spinning thing wants.
-    it 'applies a resolved delta on the ancestor’s own axes when it is rotated' do
+    # Under a rotated ancestor the write goes through Node2D#world_x=, which turns the
+    # world delta back into the ancestor's frame, so a +10 world step lands ten world
+    # units on — and not ten *local* units the quarter turn would point at +y. The box
+    # still does not turn with the frame; that limit is the collider's, not the write's.
+    it 'lands a resolved position exactly when the ancestor is rotated' do
       container.angle = Math::PI / 2
       node.x = 0.0
       node.y = 0.0
-      body.x = body.x + 10.0 # reads the world position, writes a local translation
-      expect(node.x).to eq(10.0)             # ten local units...
-      expect(body.y.round(6)).to eq(60.0)    # ...which the quarter turn has pointed at +y
+      body.x = body.x + 10.0
+      expect([body.x.round(6), body.y.round(6)]).to eq([110.0, 50.0])
     end
 
     # world_x is cached and self-invalidating, so reading it per step must not have
@@ -524,22 +522,17 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     end
   end
 
-  # Two components reading the same bounds and acting on different things. The engine
-  # cannot reconcile them, so what it does instead is make the contradiction something a
-  # game has to ask for twice: a wrapping game declares no `:bounds` and nothing holds it.
-  describe 'a bounds-blocked body under a ScreenWrap' do
-    it 'is wrapped anyway, because ScreenWrap moves the node after the step' do
+  # Stopping at the edge and wrapping past it are two answers to one question, so a node
+  # may not carry both — WorldBounds.one_response! refuses every pair, and its spec covers
+  # them all. This is the pair a character is likeliest to be given.
+  describe 'a bounds-blocked body beside a ScreenWrap' do
+    it 'is refused at attach, naming both' do
       world = RGame::Engine::Components::World.new(width: 200, height: 100)
       mount({ RGame::Engine::Components::WorldBounds => world })
-      # A feet-shaped box: narrower than the node, so its offset is positive and a body
-      # held at the world edge leaves node.x negative — which is what ScreenWrap reads.
       node.add_component(RGame::Engine::Components::BoxCollider.new(width: 10, height: 10, offset_x: 3))
-      body = node.add_component(described_class.new(speed: 1000.0, blocked_by: [:bounds]))
+      node.add_component(described_class.new(speed: 1000.0, blocked_by: [:bounds]))
       node.add_component(RGame::Engine::Components::ScreenWrap.new)
-      enter
-      body.set_intent(-1.0, 0.0)
-      node.update(1.0)
-      expect(node.x).to eq(200.0) # the body stopped it at -3; the wrap sent it to the far edge
+      expect { enter }.to raise_error(RuntimeError, /CharacterBody \(blocked_by :bounds\) and ScreenWrap/)
     end
   end
 

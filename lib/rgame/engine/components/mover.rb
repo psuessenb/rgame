@@ -34,10 +34,9 @@ module RGame
       # an error — the declaration says what *may* stop this mover, not what does.
       #
       # `:bounds` is declared rather than automatic, and a mover that does not declare it
-      # leaves the world. That is the point: a game whose entities wrap or despawn at the edge
-      # reads the same bounds through ScreenWrap and DespawnOffscreen, which act on the node
-      # rather than on its box, and a clamp nobody asked for made those two misfire. See
-      # Engine::BoundsBlockers.
+      # leaves the world. Stopping at the edge is one of three responses to it, beside
+      # ScreenWrap and DespawnOffscreen, and a node may carry only one — declaring `:bounds`
+      # beside either raises at attach (WorldBounds.one_response!).
       #
       # Blocking is box-versus-box: a CircleCollider on a declared layer reports its contacts
       # as usual and stops nothing, and a mover that declares anything needs a BoxCollider of
@@ -121,6 +120,8 @@ module RGame
           @stopped_by.reset
           return if @blocked_by.empty?
 
+          WorldBounds.one_response!(node) if blocked_by?(BOUNDS)
+
           # Every blocker resolves the same rectangle, so the collider is required whatever
           # was declared — and required before the systems, because a missing shape is the
           # likelier mistake of the two.
@@ -143,6 +144,9 @@ module RGame
           take_step(dt)
           @stopped_by.each_ended { on_unblocked_signal.emit(it) }
         end
+
+        # Whether `name` is one of the things this mover declared it may be stopped by.
+        def blocked_by?(name) = @blocked_by.include?(name)
 
         # Where a step lands. Public, and kept separate from `take_step`, so a mover that
         # resolves a step some other way — a platformer's CharacterBody, with gravity and a
@@ -183,27 +187,22 @@ module RGame
         # the ancestor, and would be compared against other colliders in a different frame
         # entirely.
         #
-        # Writing goes back through the node's *local* position as a translation — move the
-        # node by however far the resolved position is from where it is now — because the
-        # node lives in its parent's frame and only the parent knows how to get there.
+        # Writing goes back through Node2D#world_x= / #world_y=, which turn the resolved world
+        # position into the local one the node actually lives in.
         #
-        # **The limit, deliberately not a raise:** that translation is exact for an
-        # unrotated ancestor chain and approximate under a rotated one, since a world-space
-        # delta is applied to local axes the rotation has turned. A mover under a rotated
-        # ancestor is already outside what an axis-aligned box supports (docs/api/components.md:
-        # a thing that spins wants a circle). A guard would only catch an ancestor that was
-        # rotated at attach and miss one that starts rotating later, which is worse than a
-        # sentence that is always true.
+        # A mover under a rotated ancestor is still outside what an axis-aligned box supports
+        # (docs/api/components.md: a thing that spins wants a circle) — the position it lands
+        # at is exact, but the box it was resolved with does not turn with the frame.
         def collision_box = @collider.box
         def x = node.world_x
         def y = node.world_y
 
         def x=(value)
-          node.x += value - node.world_x
+          node.world_x = value
         end
 
         def y=(value)
-          node.y += value - node.world_y
+          node.world_y = value
         end
 
         private

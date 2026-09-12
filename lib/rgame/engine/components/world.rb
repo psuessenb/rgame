@@ -14,6 +14,16 @@ module RGame
       #
       # Naming the contract is what keeps the two from drifting: ScreenWrap does
       # not know which kind of world it is wrapping inside, and must not need to.
+      #
+      # ## The bounds are in world coordinates
+      #
+      # The world runs from (0, 0) to (world_width, world_height) in **world**
+      # space — the space `Node2D#world_x` answers in, and the one the tile grid,
+      # the collision world and the camera already use. So everything that
+      # compares a node against these bounds compares `world_x`/`world_y`, never
+      # the node's local `x`/`y`: an entity grouped under an offset container is
+      # still inside the world when it is, whatever its position in the container.
+      # spec/support/shared_examples/a_world_edge_response.rb holds every reader to it.
       module WorldBounds
         def world_width = raise(NotImplementedError, "#{self.class} must define #world_width")
         def world_height = raise(NotImplementedError, "#{self.class} must define #world_height")
@@ -35,6 +45,49 @@ module RGame
 
           [width || bounds.world_width, height || bounds.world_height]
         end
+
+        # Refuse a node carrying more than one response to the edge of the world:
+        # ScreenWrap, DespawnOffscreen, or a Mover declaring `blocked_by: [:bounds]`.
+        #
+        # Stopping at the edge, wrapping past it and being freed beyond it are three
+        # answers to one question, and no two of them mean anything together. Stop and
+        # wrap disagree about where the node ends up; wrap and despawn race on which
+        # margin is reached first; and the stop works on the collision box while the
+        # other two test the node's origin, so a box with an offset holds the origin
+        # just past the edge and the other response fires on a node that was held.
+        # Rather than a rule each game has to remember, it raises.
+        #
+        # Every response calls this from its own on_attach, which is what makes it
+        # order-free: a node assembled outside the tree already holds all its
+        # components when the first attaches, and on a live node each attaches on
+        # arrival, so the second response always finds the first.
+        #
+        # A pooled node re-attaches on every spawn, so this walks the components
+        # without allocating, and builds a message only when it raises.
+        def self.one_response!(node)
+          first = nil
+          node.components.each do |component|
+            next unless edge_response?(component)
+            next first = component if first.nil?
+
+            raise "#{node.class} has two responses to the edge of the world: " \
+                  "#{describe_response(first)} and #{describe_response(component)}. " \
+                  'A node can stop at the edge, wrap past it or be freed beyond it, but ' \
+                  'only one of those — keep the one this node is for.'
+          end
+        end
+
+        def self.edge_response?(component)
+          component.is_a?(ScreenWrap) || component.is_a?(DespawnOffscreen) ||
+            (component.is_a?(Mover) && component.blocked_by?(Mover::BOUNDS))
+        end
+        private_class_method :edge_response?
+
+        def self.describe_response(component)
+          name = component.class.name&.split('::')&.last || component.class.inspect
+          component.is_a?(Mover) ? "#{name} (blocked_by :bounds)" : name
+        end
+        private_class_method :describe_response
       end
 
       # The scene-scoped world: how big it is, and nothing else yet.
