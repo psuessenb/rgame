@@ -67,6 +67,33 @@ game.start
 
 You can learn more about how it works in the [documentation](docs/api/README.md).
 
+## Examples
+
+`examples/` holds one small program per concept, each a single file you can run
+with `ruby examples/<name>/main.rb`. [The examples page](docs/api/examples.md)
+says what each one uses; the file's own header comment is the long version.
+
+| Example | Shows |
+|---|---|
+| [walk](docs/api/examples.md#walk) | A player-controlled sprite — a node, three components, input as actions |
+| [sprite](docs/api/examples.md#sprite) | One frame drawn at a node, with no animation behind it |
+| [velocity](docs/api/examples.md#velocity) | Movement with nobody driving: a velocity, integrated |
+| [scroll_map](docs/api/examples.md#scroll_map) | A Tiled map larger than the window, scrolled by a camera |
+| [collision](docs/api/examples.md#collision) | Two shapes touching, and who gets told about it |
+| [collision_tiles](docs/api/examples.md#collision_tiles) | Walking into a wall of solid tiles, and sliding along it |
+| [signals](docs/api/examples.md#signals) | A node announcing something happened, to nobody in particular |
+| [timer](docs/api/examples.md#timer) | Things that happen on a clock, with nothing pressed |
+| [pooling](docs/api/examples.md#pooling) | Spawning a lot of things without allocating them |
+| [game_menu](docs/api/examples.md#game_menu) | A menu over a world that keeps running |
+| [menu_navigation](docs/api/examples.md#menu_navigation) | Several screens, and settings that persist |
+| [sound](docs/api/examples.md#sound) | A sound effect fired by a button, and the seam it travels |
+| [music](docs/api/examples.md#music) | A looping track, started and stopped |
+| [split_screen](docs/api/examples.md#split_screen) | Two players in one world, drawn once per viewport |
+| [input_glyphs](docs/api/examples.md#input_glyphs) | Prompts that match the device in your hands |
+| [fullscreen](docs/api/examples.md#fullscreen) | Fullscreen, switched at any time, and the scale modes |
+| [save_load](docs/api/examples.md#save_load) | Writing game state to disk and putting it back |
+| [save_load_ids](docs/api/examples.md#save_load_ids) | A save that has to name things, and why a reference forces ids |
+
 ## Requirements
 
 At the moment this gem ships only source-code and no precompiled binaries, which unfortunately means you need to compile a bunch of C code on your locale machine.
