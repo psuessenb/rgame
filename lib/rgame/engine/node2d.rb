@@ -162,9 +162,9 @@ module RGame
       # mention of this at all.
       #
       # **Not `player`**, deliberately, and not `controller` either. `@player` is
-      # what a game's own code calls its hero node (`test_projects/tiled_world`
-      # does), so an `attr_accessor :player` here would quietly claim that ivar
-      # out from under every scene that has one — which it did, and the symptom
+      # what a game's own code naturally calls its hero node, so an
+      # `attr_accessor :player` here would quietly claim that ivar out from
+      # under every scene that has one — which it did, and the symptom
       # was the input system being handed a Node2D. `controller` is taken too:
       # a controller is the component that produces movement intent — see
       # Components::PlayerController — which is a different idea entirely. This

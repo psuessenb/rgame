@@ -3,12 +3,12 @@
 module RGame
   module Engine
     # A repeating interval timer for periodic events that aren't driven by input — a
-    # spawner emitting an enemy every N seconds, a tower's fire rate, a wave clock.
+    # spawner emitting an enemy every N seconds, a turret's fire rate, a wave clock.
     #
     # It only accumulates time; the owner decides what each elapsed interval means. That
     # split lets one primitive serve both styles: "act automatically" (consume every ready
     # interval) and "stay loaded until conditions allow" (check `ready?`, but `consume`
-    # only when actually acting — so a tower with no target keeps its shot ready instead of
+    # only when actually acting — so a turret with no target keeps its shot ready instead of
     # wasting it). Pure and allocation-free, so it ticks on the per-frame path.
     #
     #   timer = Engine::Timer.new(0.8)

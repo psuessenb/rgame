@@ -100,7 +100,7 @@ one you use is decided by whether the node is a class of its own:
 
 - **A plain `Node2D` composed from components — in a builder method** that returns the
   assembled node. Reach for this when the node is nothing but its components and a
-  subclass would add no behaviour; the walkers in `test_projects/tiled_world` are built
+  subclass would add no behaviour; the walkers in `examples/save_load` are built
   this way.
 
   ```ruby
@@ -143,7 +143,7 @@ end
 
 That is the test to apply: **does the constructor need the tree?** A `World` built from
 numbers the scene already has, or a `CollisionWorld` built from a constant, does not —
-so `test_projects/asteroids` mounts both in `initialize`, where they are guaranteed to
+so `examples/collision` mounts both in `initialize`, where they are guaranteed to
 precede every entity the scene later spawns rather than merely happening to. A
 `TileWorld` parsed out of the asset manager does, so it waits.
 
@@ -194,7 +194,7 @@ from the sheet's animation table.
 
 A rectangular collision shape that participates in a scene's
 [`CollisionWorld`](#collisionworld) — the sibling of [`CircleCollider`](#circlecollider),
-for entities that are honestly box-shaped (a snake segment, a crate, a platform). It
+for entities that are honestly box-shaped (a crate, a platform, a wall segment). It
 registers itself when the node enters the tree and unregisters when it leaves, so a
 spawned or despawned entity never leaks a registration.
 
@@ -230,9 +230,9 @@ spawned or despawned entity never leaks a registration.
 
 ```ruby
 collider = add_component(RGame::Engine::Components::BoxCollider.new(
-  width: cell_size, height: cell_size, layer: :fruit
+  width: 32, height: 32, layer: :pickup
 ))
-collider.on_hit { |other| eat if other.layer == :snake }
+collider.on_hit { |other| collect if other.layer == :player }
 ```
 
 ### `CameraFollow`
@@ -370,8 +370,8 @@ retunes both, and there is nothing to hand from one component to the other.
 - **Examples:** `examples/walk` — this, a `PlayerController` and an `AnimatedSprite`, and
   nothing else. `examples/collision_tiles` — the same with a feet box and `blocked_by:
   [:tiles]`, drawn over the sprite so what collides is visible.
-  `test_projects/tiled_world` is the both-at-once case: every walker declares
-  `%i[tiles hero npc]`, so a player is stopped by the map's fences and by the villagers.
+  A crowd is the same thing with more names: walkers that each declare
+  `%i[tiles hero npc]` are stopped by the map and by one another.
 
 ### `CircleCollider`
 
@@ -477,7 +477,7 @@ answering the same handful of methods.
   once and counts it. The broadphase grid is drawn on the backdrop, so `cell_size` is a
   thing you can look at.
 - **Range queries (targeting):** the same index answers point-radius lookups against the
-  most recent `update`, so a tower can find enemies without a contact:
+  most recent `update`, so a turret can find enemies without a contact:
   - `query_circle(x, y, r) { |collider| }` yields every registered collider whose centre
     is within `r` of `(x, y)` (centre distance — the collider's own size isn't added,
     so it reads like a range ring); freed-node colliders are skipped, and a collider may
@@ -487,7 +487,7 @@ answering the same handful of methods.
     to one `layer`), or `nil`. Both are allocation-free, so a targeting component can call
     them every frame.
 - **Cell occupancy (grid games):** `cell_empty?(x, y)` answers whether the cell containing
-  the **world** point `(x, y)` is free — "may the fruit spawn on this square?". A point,
+  the **world** point `(x, y)` is free — "may a pickup spawn on this square?". A point,
   not a region: pass any coordinate inside the square you mean, and set `cell_size` to the
   game's own square so the two grids line up. The cells are the hash's own lattice,
   anchored at the world origin, so a board also wants its own origin on a multiple of
@@ -606,8 +606,8 @@ Two things are the game's to get right, not this component's:
 ### `PathFollow`
 
 Walks the owning node along an [`RGame::Engine::Path`](toolbox.md#path--a-walkable-polyline)
-at a constant speed and emits `on_finished` when it reaches the last waypoint — the seam a
-tower-defense game uses to leak a life when an enemy reaches the base.
+at a constant speed and emits `on_finished` when it reaches the last waypoint — the seam for
+whatever should happen when a walker arrives.
 
 - **Construct:** `PathFollow.new(path:, speed:)`.
 - **Lifecycle:** `on_attach` (re)starts the walk — back to the first waypoint with progress
@@ -683,18 +683,18 @@ which the traversal has already placed and rotated.
 
 ### `Targeting`
 
-Picks an enemy for the owning node (a tower) to aim at: each `update` it queries the
-scene's [`CollisionWorld`](#collisionworld) around the node's world origin and exposes the
-chosen target. It only *selects* — it never moves or fires; the owner reads `target` and
-acts. Because enemies already register with the broadphase through their
-[`CircleCollider`](#circlecollider), targeting keeps no entity list of its own.
+Picks a node for the owning node to aim at: each `update` it queries the scene's
+[`CollisionWorld`](#collisionworld) around the node's world origin and exposes the chosen
+target. It only *selects* — it never moves or fires; the owner reads `target` and acts.
+Because every candidate already registers with the broadphase through its collider,
+targeting keeps no entity list of its own.
 
 - **Construct:** `Targeting.new(range:, policy: :nearest, layer: nil)`. `range` is the
-  reach in pixels; `layer` restricts candidates (a tower passes `:enemy`, so it ignores
-  other towers/projectiles); an unknown `policy` raises at construction.
+  reach in pixels; `layer` restricts candidates (passing `:enemy` ignores allies and
+  projectiles); an unknown `policy` raises at construction.
 - **Policies** (how to choose among the in-range candidates):
-  - `:nearest` — the closest enemy (the default; one broadphase nearest-lookup).
-- **State:** `target` is the chosen enemy **node** (or `nil` when nothing is in range),
+  - `:nearest` — the closest candidate (the default; one broadphase nearest-lookup).
+- **State:** `target` is the chosen **node** (or `nil` when nothing is in range),
   refreshed every `update` — so a freed/out-of-range target clears on its own. It's a node
   (not a collider) so the owner can read its position and components.
 - **Lifecycle:** `on_attach` pulls the scene's `CollisionWorld`.
@@ -758,7 +758,7 @@ overrides that for a map with a different arrangement. Nothing here picks a `z`.
 
 A node-driven interval timer: it rides the node's update tick (so nothing can forget to
 advance it) and emits `on_timeout` each time a whole interval elapses — a spawn cadence, a
-tower's fire rate, a wave clock. Wraps the pure [`RGame::Engine::Timer`](toolbox.md#timer--paced-periodic-events),
+turret's fire rate, a wave clock. Wraps the pure [`RGame::Engine::Timer`](toolbox.md#timer--paced-periodic-events),
 reusing its drift-free carry-forward.
 
 - **Construct:** `Timer.new(interval, repeating: true)` (seconds). Add it named when a node

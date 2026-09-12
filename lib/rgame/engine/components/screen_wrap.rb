@@ -4,7 +4,7 @@ module RGame
   module Engine
     module Components
       # Wraps the node's position toroidally within the world bounds (plus margin), so
-      # an entity leaving one edge reappears on the opposite one. From Body#wrap!.
+      # an entity leaving one edge reappears on the opposite one.
       #
       # The bounds come from the scene's world system — anything answering the
       # WorldBounds contract, so Components::World or Components::TileWorld — and are

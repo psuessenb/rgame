@@ -4,9 +4,8 @@ module RGame
   module Engine
     module Components
       # Queues the node for removal once it has fully left the world bounds (plus
-      # margin). From Body#offscreen?. Used by short-lived projectiles; removal is
-      # deferred via queue_free so it is safe to trigger from inside the update
-      # traversal.
+      # margin). Used by short-lived projectiles; removal is deferred via
+      # queue_free so it is safe to trigger from inside the update traversal.
       #
       # Bounds resolve the same way ScreenWrap's do: from the scene's world system,
       # at attach time, with `width:`/`height:` as an override.

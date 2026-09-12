@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Components::Timer#update ticks every frame for every spawner/tower that owns one, so it
+# Components::Timer#update ticks every frame for every spawner/turret that owns one, so it
 # must not allocate. The emit path runs only every ~Nth frame, so warm up past one fire.
 RSpec.describe RGame::Engine::Components::Timer do
   it 'ticks (and emits) without allocating per frame' do

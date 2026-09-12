@@ -206,8 +206,8 @@ root does. So a node that owns a view transform overrides **`draw`** and calls
 `super` inside it.
 
 (`draw_children` is a separate seam, for a node that wants to wrap or skip its
-*children's* draw while still drawing itself normally — `test_projects/tiled_world`'s
-inventory panel closes by not calling `super` from it.)
+*children's* draw while still drawing itself normally — `examples/game_menu`'s
+menu closes by not calling `super` from it.)
 
 `examples/scroll_map` is the smallest thing that has a camera at all: a
 `WorldView`, a map under it, and one node the camera follows.
@@ -254,7 +254,6 @@ than stylistic: a `draw` with a side effect now runs once per player.
 
 `examples/split_screen` is the smallest thing that has two viewports at all: one
 `Ground`, two walkers, a badge each, and a second player who arrives mid-session.
-`test_projects/tiled_world` is the same shape inside a whole game.
 
 ## Viewports and views
 

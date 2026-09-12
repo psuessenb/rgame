@@ -29,7 +29,7 @@ RSpec.describe RGame::Engine::Timer do
     end
   end
 
-  it 'stays ready until consumed (a tower with no target keeps its shot)' do
+  it 'stays ready until consumed (a turret with no target keeps its shot)' do
     timer.update(1.0)
     expect(timer).to be_ready
     timer.update(0.0)

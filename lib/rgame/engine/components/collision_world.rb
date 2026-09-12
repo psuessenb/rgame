@@ -51,7 +51,7 @@ module RGame
 
         # Yield every registered collider whose centre lies within `r` of (x, y), using
         # the spatial index built by the most recent #update. The narrowphase is a
-        # centre-distance test — the query is a point + range (a tower's range ring), so
+        # centre-distance test — the query is a point + range (a turret's range ring), so
         # the collider's own size isn't added in. Colliders whose node is queued for
         # removal are skipped. As with SpatialHash#query a collider spanning several cells
         # may be yielded more than once, so callers that *select* (e.g. #nearest) are
@@ -108,7 +108,7 @@ module RGame
         end
 
         # The registered collider nearest to (x, y) within range `r`, or nil when none
-        # qualifies. Restrict to a single `layer:` (the common case: a tower targeting only
+        # qualifies. Restrict to a single `layer:` (the common case: a turret targeting only
         # :enemy). Dup-safe — it keeps the running minimum, so #query_circle's possible
         # multi-cell repeats don't matter. Allocation-free.
         def nearest(x, y, r, layer: nil)
@@ -128,7 +128,7 @@ module RGame
           best
         end
 
-        # Is the cell containing the *world* point (x, y) free — "may the fruit spawn on
+        # Is the cell containing the *world* point (x, y) free — "may a pickup spawn on
         # this square?" A point, not a region: pass any coordinate inside the square you
         # mean. The cells are the broadphase's own, so set `cell_size` to the game's
         # square and the two grids line up.

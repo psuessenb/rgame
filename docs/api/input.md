@@ -221,7 +221,7 @@ lockout wants.
 `on_joined` fires with the player who got the device, which is how a scene
 spawns their character without polling for one. `examples/split_screen` is the
 whole of it in one file — a game that opens full-screen on one player, and splits
-when a controller presses A. See also `test_projects/tiled_world`.
+when a controller presses A.
 
 ## `RGame::Core::Input`
 

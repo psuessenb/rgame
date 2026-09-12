@@ -1,8 +1,8 @@
 # Sweeping the systems and components for architectural fit
 
-**Status: nothing implemented. Step 1 is written out, step 2 is sketched pending a
-measurement, and steps 3 and 4 are deliberately rough. Every uncalled
-class has since been decided in conversation — see open question 1.**
+**Status: step 1 is implemented. Step 2 is sketched pending a measurement, and
+steps 3 and 4 are deliberately rough. Every uncalled class has since been decided
+in conversation — see open question 1.**
 
 Written out of a retrospective rather than a bug: the collision unification took
 six steps to merge two systems that had each been correct on their own since the
@@ -552,6 +552,72 @@ which is the acceptance criterion for both halves: deleting unreferenced classes
 and rewording comments must be invisible, and a byte-identical report is what
 proves it. Then grep once more by hand for the vocabulary kind, which the guard
 spec deliberately does not attempt.
+
+**Landed.** Two commits, one per sub-step. 1a deleted `Engine::Body`, `Matrix` and
+`Resettable` with their requires and specs, and added `spec/rgame/engine_spec.rb`
+asserting the three constants stay undefined. 1b reworded every reference to a game
+outside the exemptions and added `spec/game_references_spec.rb`, which keeps it that
+way. `rake spec` is 1284 examples, 0 failures — 1296 before, minus the 18 deleted
+examples, plus 3 for the removal and 3 for the guard, so the count moved by exactly
+that. `make test` 326 checks, 0 failures; `rake spec:core` 367 examples, 0 failures.
+
+The acceptance evidence is the driven runs: all 28 scripts under `tools/drive/`, at
+`--ticks 240 --seed 7`, on this branch and on a worktree of `main`. Every report is
+byte-identical to `main`'s whenever the two runs drew the same number of frames. The
+two `tiled_world` scripts that did not always match flipped between 239 and 240
+frames on **both** trees, and grouping the reports by frame count gave one hash per
+group across both trees. That is the frame skip the verify skill already warns
+about, not this change. The guard was checked by adding a file naming a test
+project in a path and a game in prose, and it failed on both lines and let
+`snake_case` through.
+
+What the sketch got wrong:
+
+- **The guard does not scan a list of directories.** Rule 1 listed eight places, and
+  that list already missed `tools/drive_test_project.rb`, which A7 counted at nine
+  lines. The spec scans every file `git ls-files --cached --others
+  --exclude-standard` returns, minus its exemptions. That is the same derive-don't-list
+  reasoning as `packaging_spec.rb`, and it means a new top-level document is covered
+  without anyone editing the spec. It turned up one exemption the plan did not name:
+  `CHANGELOG.md`, which records releases under the names the examples had then.
+- **A whole-word match needs one stated exception.** `\b` treats `_` as a word
+  character, so it would miss `tiled_world_2p.rb`. With letters and digits as the
+  only boundary, `snake_casing` in `.rubocop.yml` matches instead. The spec strips
+  `snake_case` before matching and says why, and an example pins both directions.
+- **The vocabulary reached further than A7's count.** `fruit` was not only in
+  `collision_world_spec.rb`. It was also in `collision_box_spec.rb` and in
+  `CollisionWorld#cell_empty?`'s header and `components.md` entry ("may the fruit
+  spawn on this square?"). A tower's fire rate became a turret's, which is generic
+  and keeps the example.
+- **Two illustrations have no example to move to, so they narrowed.** The
+  `tiled_world` sentence that a split-screen game collapses to one view for a
+  cutscene was dropped, because no example calls `solo!`. And `systems.md`'s
+  "whole loop" pointer now goes to `examples/collision`, which registers, overlaps
+  and separates but does not spawn and despawn the way asteroids did.
+  `examples/pooling` spawns and despawns but has no collision. Neither is this step's
+  to fix.
+- **A driven comparison over the stateful examples is not reproducible without
+  `RGAME_SAVE_DIR`.** `save_load`, `save_load_ids` and `menu_navigation` write to the
+  real data directory unless it is set, so a run reads what the previous one saved.
+  The first comparison here showed all three differing from `main` for that reason
+  alone. Their drive scripts say to set it, but only in a comment. Nothing in the
+  harness enforces it, which is the kind of remembered rule CLAUDE.md's "Design out
+  misuse" rejects. Out of scope here; the obvious fix is the harness giving every run
+  a fresh temporary directory unless one is passed.
+
+Smaller deviations. `Matrix`'s `toolbox.md` section became a short "Grids" section,
+because the paragraph pointing at `Tensor` needed a heading to stand under. The
+removal examples went into a new `spec/rgame/engine_spec.rb` rather than a file that
+did not exist. Rule 1 of 1a has no example of its own, because `spec_helper`'s
+`require "rgame"` is already that check. CLAUDE.md's harness illustration moved to
+`examples/collision_tiles`, whose two scripts (`collision_tiles.rb` and
+`collision_tiles_spike.rb`) show `--script` just as `tiled_world`'s did.
+
+Documented in `docs/api/toolbox.md` (grids, `Pool`, `Path`, `Timer`, the camera, the
+collision recipe), `components.md`, `systems.md`, `scene_graph.md` and `input.md`,
+and in CLAUDE.md's current-phase and testing sections. `docs/plans/basic-examples.md`
+still says asteroids uses `Targeting`, as step 4 already records. It is a plan, so
+the guard does not look at it.
 
 ### Step 2 — the movement seam
 

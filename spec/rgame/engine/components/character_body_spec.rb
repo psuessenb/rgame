@@ -302,8 +302,8 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
       expect(hero.x).to eq(115.0)
     end
 
-    # A scene with a broadphase and no bounds at all is ordinary — test_projects/snake is
-    # one — so an actor-blocked body must not need them.
+    # A scene with a broadphase and no bounds at all is ordinary — nothing requires a
+    # WorldBounds — so an actor-blocked body must not need them.
     it 'is not clamped, and does not raise, in a scene with no WorldBounds' do
       expect(root.get_component(RGame::Engine::Components::WorldBounds)).to be_nil
       fast = described_class.new(speed: 1000.0, blocked_by: [:npc])

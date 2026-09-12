@@ -105,9 +105,8 @@
 # ## What this scene does not solve
 #
 # Nothing here moves but the hero. The ball is an ordinary actor with a box in
-# the broadphase, so it could walk about and block just the same — which is what
-# `test_projects/tiled_world` is, a crowd whose every walker declares
-# `%i[tiles hero npc]` and shoulders past itself. A hazard that holds still is
+# the broadphase, so it could walk about and block just the same — a crowd whose
+# every walker declares `%i[tiles hero npc]` is that, and shoulders past itself. A hazard that holds still is
 # simply the smaller thing to read.
 #
 # Nor is anything here overlapping. Blocking and contact are reports of two

@@ -3,14 +3,14 @@
 # Drives a test project from a script and reports what the game actually asked
 # for.
 #
-#   ruby tools/drive_test_project.rb test_projects/tiled_world/main.rb
-#   ruby tools/drive_test_project.rb test_projects/asteroids/main.rb --ticks 200
-#   ruby tools/drive_test_project.rb test_projects/asteroids/main.rb --seed 7
+#   ruby tools/drive_test_project.rb examples/collision_tiles/main.rb
+#   ruby tools/drive_test_project.rb examples/pooling/main.rb --ticks 200
+#   ruby tools/drive_test_project.rb examples/pooling/main.rb --seed 7
 #
 # The input script is found by mirroring the project's own path under
 # `tools/drive/`, so the first line above reads
-# `tools/drive/test_projects/tiled_world.rb`. `--script` overrides it, which is
-# how one project has several scripts (`tiled_world_2p.rb`, `_cutscene.rb`).
+# `tools/drive/examples/collision_tiles.rb`. `--script` overrides it, which is
+# how one project has several scripts (`collision_tiles.rb`, `_spike.rb`).
 #
 # ## Why this exists
 #
@@ -64,14 +64,14 @@
 #
 # Exact draw counts are **not** stable, for two reasons.
 #
-# `test_projects/asteroids` seeds its rock spawns with an unseeded `Random.new`,
-# so two runs differ by tens of `image` calls and may or may not reach a
-# collision. That is the game's choice, not a defect here.
+# A project that seeds its RNG from the system rather than from `--seed` differs
+# run to run — by tens of `image` calls, and perhaps in whether a collision
+# happens at all. That is the game's choice, not a defect here.
 #
 # And the fixed-timestep loop decouples ticks from frames: a slow frame runs
 # several catch-up ticks, so the budget can be spent — and `close` called —
 # before that frame draws. Even a seeded project can therefore come in one draw
-# short of its usual count. Observed once in about a dozen runs of tiled_world.
+# short of its usual count. Observed once in about a dozen runs of a tile-map game.
 #
 # So "the number went from 843 to 944" is not by itself a regression, and
 # neither is a difference of one. Compare orders of magnitude, and assert on
@@ -89,11 +89,11 @@ module DriveTestProject
 
   # Where a project's default input script lives: `tools/drive/` with the
   # project's own directory path under it, so
-  # `test_projects/tiled_world/main.rb` reads `tools/drive/test_projects/tiled_world.rb`.
+  # `examples/collision_tiles/main.rb` reads `tools/drive/examples/collision_tiles.rb`.
   #
   # **It mirrors the path rather than taking the basename**, which it used to.
   # A basename is unique only by luck once there is more than one tree of
-  # projects: `examples/snake` and `test_projects/snake` would silently share
+  # projects: `examples/maze` and `test_projects/maze` would silently share
   # one script, and the symptom would be a game driven by inputs written for a
   # different game — a confusing report rather than an error. Mirroring makes
   # the collision impossible instead of merely unlikely.
