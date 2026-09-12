@@ -224,18 +224,16 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
       expect([body.x, body.y]).to eq([260.0, 170.0])
     end
 
-    # The documented limit, pinned so it is a decision rather than a surprise. Under a
-    # rotated ancestor the world-space delta is applied to local axes the rotation has
-    # turned, so a +10 world step moves the node ten *local* units — which the rotation
-    # then points somewhere else. An actor under a rotated ancestor is already outside
-    # what an axis-aligned box supports; a circle is what a spinning thing wants.
-    it 'applies a resolved delta on the ancestor’s own axes when it is rotated' do
+    # Under a rotated ancestor the write goes through Node2D#world_x=, which turns the
+    # world delta back into the ancestor's frame, so a +10 world step lands ten world
+    # units on — and not ten *local* units the quarter turn would point at +y. The box
+    # still does not turn with the frame; that limit is the collider's, not the write's.
+    it 'lands a resolved position exactly when the ancestor is rotated' do
       container.angle = Math::PI / 2
       node.x = 0.0
       node.y = 0.0
-      body.x = body.x + 10.0 # reads the world position, writes a local translation
-      expect(node.x).to eq(10.0)             # ten local units...
-      expect(body.y.round(6)).to eq(60.0)    # ...which the quarter turn has pointed at +y
+      body.x = body.x + 10.0
+      expect([body.x.round(6), body.y.round(6)]).to eq([110.0, 50.0])
     end
 
     # world_x is cached and self-invalidating, so reading it per step must not have

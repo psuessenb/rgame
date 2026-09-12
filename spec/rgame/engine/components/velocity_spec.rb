@@ -24,6 +24,20 @@ RSpec.describe RGame::Engine::Components::Velocity do
     def build_mover(blocked_by:) = described_class.new(vx: 60.0, blocked_by: blocked_by)
   end
 
+  # Standing in for every Mover: the edge is resolved by Mover's adapter, which all three
+  # share, and a Velocity is the one of them that needs no intent or path to get there.
+  it_behaves_like 'a world edge response' do
+    let(:stopped_by) { [] }
+
+    def add_response(node, vx:)
+      node.add_component(RGame::Engine::Components::BoxCollider.new(width: 10, height: 10))
+      node.add_component(described_class.new(vx: vx, blocked_by: [:bounds]))
+          .on_blocked { |by| stopped_by << by.layer }
+    end
+
+    def responded?(_node, _from) = stopped_by.include?(:bounds)
+  end
+
   # Being stopped is a position question. A box does not turn with its node, so the angle
   # has nothing to be blocked by, and the velocity is the intent a handler may act on.
   describe 'when blocked' do

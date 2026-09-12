@@ -14,6 +14,16 @@ module RGame
       #
       # Naming the contract is what keeps the two from drifting: ScreenWrap does
       # not know which kind of world it is wrapping inside, and must not need to.
+      #
+      # ## The bounds are in world coordinates
+      #
+      # The world runs from (0, 0) to (world_width, world_height) in **world**
+      # space — the space `Node2D#world_x` answers in, and the one the tile grid,
+      # the collision world and the camera already use. So everything that
+      # compares a node against these bounds compares `world_x`/`world_y`, never
+      # the node's local `x`/`y`: an entity grouped under an offset container is
+      # still inside the world when it is, whatever its position in the container.
+      # spec/support/shared_examples/a_world_edge_response.rb holds every reader to it.
       module WorldBounds
         def world_width = raise(NotImplementedError, "#{self.class} must define #world_width")
         def world_height = raise(NotImplementedError, "#{self.class} must define #world_height")

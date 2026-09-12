@@ -10,6 +10,15 @@ module RGame
       # WorldBounds contract, so Components::World or Components::TileWorld — and are
       # resolved when the node enters the tree. Passing `width:`/`height:` overrides
       # that for a node whose wrap region is not the whole world.
+      #
+      # The node is tested and placed in **world space**, which is the frame WorldBounds
+      # is stated in: a node under an offset container wraps at the world's edge, not at
+      # an edge shifted by wherever the container sits. The write goes through
+      # Node2D#world_x=, so the node's local position is what actually changes.
+      #
+      # A wrap is a placement, not a step: it does not ask a sibling Mover's `blocked_by`
+      # whether the far edge is free, so a node wrapped onto a blocker is left pressed
+      # against it.
       class ScreenWrap < Engine::Component
         def initialize(width: nil, height: nil, margin: 0.0)
           super()
@@ -25,10 +34,13 @@ module RGame
         end
 
         def update(_dt)
-          node.x = @width + @margin if node.x < -@margin
-          node.x = -@margin if node.x > @width + @margin
-          node.y = @height + @margin if node.y < -@margin
-          node.y = -@margin if node.y > @height + @margin
+          x = node.world_x
+          node.world_x = @width + @margin if x < -@margin
+          node.world_x = -@margin if x > @width + @margin
+
+          y = node.world_y
+          node.world_y = @height + @margin if y < -@margin
+          node.world_y = -@margin if y > @height + @margin
         end
       end
     end

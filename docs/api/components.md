@@ -430,22 +430,25 @@ answering the same handful of methods.
 
 ### `DespawnOffscreen`
 
-Removes the node once it has fully left the world bounds (plus margin) — for short-lived
-entities like projectiles.
+Removes the node once its origin is further than `margin` past an edge of the world
+bounds — for short-lived entities like projectiles. The margin stands in for the node's
+size: one drawn centred on its origin has fully left once the margin is at least half
+its extent.
 
 - **Construct:** `DespawnOffscreen.new(margin: 0.0)`, with the same optional
   `width:`/`height:` override.
 - **Lifecycle:** `on_attach` resolves the bounds, exactly as `ScreenWrap` does.
-- **Phase:** `update(dt)` calls `node.queue_free` when the node is past every edge.
+- **Phase:** `update(dt)` calls `node.queue_free` when the node's **world** position is
+  past an edge. A projectile spawned as the child of an offset emitter leaves at the
+  world's edge, not at one shifted by where the emitter stands.
   Removal is *deferred* (see [deferred free](scene_graph.md#deferred-free)), so it is
   safe to trigger from inside the update traversal. For a *fixed* board (an entity that
   never leaves the screen, e.g. a projectile that should vanish after N seconds), use a
   one-shot [`Timer`](#timer) (`repeating: false`) with `on_timeout { node.queue_free }`
   instead.
 - **It contradicts `blocked_by: [:bounds]`**, for the same reason `ScreenWrap` does: this
-  reads `node.x`/`node.y` and blocking works on the collision box, so a hero with a feet
-  box held at the world's left edge sits at a slightly negative `node.x` and deletes
-  itself. Do not declare both on one node.
+  tests the node's origin and blocking works on the collision box, so a hero with a feet
+  box held at the world's left edge has its origin slightly outside and deletes itself. Do not declare both on one node.
 
 ### `FeetCollider`
 
@@ -597,7 +600,7 @@ map's solid tiles answer `:tiles` and `nil`, and the world's edge answers `:boun
 
 **`:bounds` is declared, not automatic.** A mover that does not name it leaves the
 world. That is deliberate: [`ScreenWrap`](#screenwrap) and
-[`DespawnOffscreen`](#despawnoffscreen) read the same bounds but act on `node.x`/`node.y`
+[`DespawnOffscreen`](#despawnoffscreen) read the same bounds but act on the node's origin
 rather than on the collision box, so a mover held inside the world without having asked
 made those two misfire — a hero with a feet box despawned itself on touching the left
 wall. Declaring `:bounds` *and* one of those components is a contradiction a game now has
@@ -697,8 +700,13 @@ edge reappears on the opposite one.
   a pooled entity is built long before it is in a tree and has nothing to ask yet. It
   re-resolves on every entry, so a recycled node follows the scene it lands in. Attaching
   with no bounds and no world system in scope **raises**.
-- **Phase:** `update(dt)` clamps-and-wraps `node.x`/`node.y` against the bounds.
-- **It contradicts `blocked_by: [:bounds]`.** This acts on `node.x`/`node.y`; a mover
+- **Phase:** `update(dt)` wraps the node's **world** position against the bounds, and
+  writes it back through [`Node2D#world_x=`](scene_graph.md#the-two-spaces). A node under an
+  offset container wraps at the world's edge, not at an edge shifted by the container.
+- **A wrap is a placement, not a step.** It does not ask a sibling mover's `blocked_by`
+  whether the far side is free, so a node wrapped onto something it is blocked by stays
+  pressed against it.
+- **It contradicts `blocked_by: [:bounds]`.** This acts on the node's origin; a mover
   blocked by the world edge acts on the collision **box**, so a node with an offset box is
   left just outside the bounds this then reads and wraps. Give a wrapping entity a mover
   that does not declare `:bounds` — which is why the edge is declared rather than applied

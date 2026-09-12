@@ -14,8 +14,8 @@ module RGame
     # CollisionSystem used to clamp every step inside the world whether or not the caller
     # asked, which was wrong in a way nobody could read about anywhere. The clamp works on
     # the collision **box**, so a clamped node lands at `node.x == -box.offset_x`; and
-    # ScreenWrap and DespawnOffscreen read the same WorldBounds but test `node.x` against
-    # it. A feet box on a wider sprite has a positive offset_x by construction, so a
+    # ScreenWrap and DespawnOffscreen read the same WorldBounds but test the node's origin
+    # against it. A feet box on a wider sprite has a positive offset_x by construction, so a
     # hero with a DespawnOffscreen despawned itself on touching the left wall, and one
     # with a ScreenWrap teleported to the right edge.
     #

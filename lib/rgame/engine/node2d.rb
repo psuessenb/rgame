@@ -74,8 +74,9 @@ module RGame
       attr_accessor :sibling_order
 
       # This node's transform **in world space**, accumulated from its whole
-      # ancestry. Read-only: a node is moved by setting `x`/`y`/`angle`, which is
-      # the space it actually lives in.
+      # ancestry. A node lives in its parent's space and is moved by setting
+      # `x`/`y`/`angle`; `world_x=`/`world_y=` below are that same move, worked
+      # out from a world position for the code that thinks in one.
       #
       # `world_` rather than `abs_`, because the name should say which space the
       # value is in. `abs_band` and `abs_input_owner` keep theirs deliberately —
@@ -105,6 +106,42 @@ module RGame
       def world_y
         resolve_transform unless @world_current
         @world_y
+      end
+
+      # Place the node at a world coordinate, leaving the other one where it is.
+      #
+      # For code that decides where a node goes in world space — the edge of the
+      # world, a resolved collision — and must still write the node's own, local
+      # position. The target is turned back into the parent's frame, so the
+      # answer is exact under a rotated ancestor too: there it moves the local
+      # position along *both* axes, which is what one world axis looks like from
+      # inside a turned frame.
+      #
+      # A node with no parent is pinned to the origin (see #resolve_transform),
+      # so there is no local position that would put it anywhere else, and this
+      # changes nothing.
+      # hot-path
+      def world_x=(value)
+        return if @parent.nil?
+
+        pa = @parent.world_angle
+        if pa.zero?
+          self.rel_x = value - @parent.world_x
+        else
+          place_in_rotated_parent(value - @parent.world_x, world_y - @parent.world_y, pa)
+        end
+      end
+
+      # hot-path
+      def world_y=(value)
+        return if @parent.nil?
+
+        pa = @parent.world_angle
+        if pa.zero?
+          self.rel_y = value - @parent.world_y
+        else
+          place_in_rotated_parent(world_x - @parent.world_x, value - @parent.world_y, pa)
+        end
       end
 
       # hot-path
@@ -573,6 +610,22 @@ module RGame
           @world_y = @parent.world_y + (@rel_x * sin) + (@rel_y * cos)
         end
         @world_angle = pa + @rel_angle
+      end
+
+      # The inverse of the rotation #resolve_transform applies: `offset_x`/`offset_y`
+      # is where the node should be relative to its parent, in world axes, and
+      # turning it by minus the parent's angle gives the local position that puts
+      # it there.
+      #
+      # The unrotated case never comes here. It assigns `value - parent.world_x`
+      # directly rather than adding a delta to the old position, so a node under an
+      # ancestor at the origin lands on exactly the number it was handed rather
+      # than on a rounding of it.
+      def place_in_rotated_parent(offset_x, offset_y, pa)
+        cos = Math.cos(pa)
+        sin = Math.sin(pa)
+        self.rel_x = (offset_x * cos) + (offset_y * sin)
+        self.rel_y = (offset_y * cos) - (offset_x * sin)
       end
 
       protected

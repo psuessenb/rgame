@@ -150,7 +150,7 @@ sentinel `BoundsBlockers::BOUNDS`, answering `layer` → `:bounds`.
 
 It exists because `CollisionSystem` used to clamp every step inside the world
 unconditionally, and that clamp works on the collision **box** while `ScreenWrap` and
-`DespawnOffscreen` read the same bounds off `node.x`/`node.y`. A hero with a feet box
+`DespawnOffscreen` test the node's origin against the same bounds. A hero with a feet box
 therefore stood at the world's left edge, fully inside it, and despawned. Now the edge is
 declared like anything else, and a mover that did not ask is not held.
 

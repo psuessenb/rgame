@@ -66,7 +66,22 @@ under their long names.
 
 `world_x`/`world_y`/`world_angle` are the same transform accumulated against the
 whole ancestry: `world_x = parent.world_x + x`, with the parent's rotation
-applied, and a node with no parent pinned to the origin. They are read-only.
+applied, and a node with no parent pinned to the origin.
+
+`world_x=`/`world_y=` place a node at a world coordinate by working out the local
+position that puts it there, leaving the other coordinate where it is. They are
+a way of *writing `x`/`y`*, not a second position: the node still lives in its
+parent's space, and the write is exact under a rotated ancestor too, where
+moving along one world axis moves the local position along both. A node with no
+parent is pinned to the origin, so on it they change nothing.
+
+```ruby
+container = RGame::Engine::Node2D.new(x: 100, y: 40)
+child = container.add_node(RGame::Engine::Node2D.new(x: 10, y: 5))
+child.world_x = 250
+child.x       # => 150
+child.world_x # => 250
+```
 
 **They are computed when read, and cached** — the arrangement Godot and Unity
 use. Moving a node marks it and its whole subtree stale; the next read of any of
@@ -86,7 +101,10 @@ same offset from somewhere else is still a move.
 
 **Which one to use.** Drawing needs neither: see "Drawing happens in local
 space" below. Game logic that reasons about the world — a distance, a collision,
-a camera target — wants `world_x`. Moving a node wants `x`.
+a camera target — wants `world_x`. Moving a node wants `x`, or `world_x=` when
+where it should go was decided in world space: that is how
+[`ScreenWrap`](components.md#screenwrap) puts a node on the far edge of the world,
+and how a [`Mover`](components.md#mover) writes back a resolved step.
 
 **No phase resolves the transform**, which is worth knowing when a spec drives
 one phase and asserts on another's answer. What the phases still resolve is the
