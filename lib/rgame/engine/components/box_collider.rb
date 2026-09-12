@@ -11,9 +11,10 @@ module RGame
       # on_attach).
       #
       # The rectangle is an Engine::CollisionBox: an offset + size relative to the
-      # node's origin, so a 32x32 sprite can carry a small box at its feet the same
-      # way a TileCharacterBody does. The `layer` is an opaque tag the game reads in
-      # its on_hit handler to decide what a contact means. See docs/api/systems.md.
+      # node's origin, so a 32x32 sprite can carry a small box at its feet —
+      # FeetCollider is the subclass that works that offset out for you. The `layer`
+      # is an opaque tag the game reads in its on_hit handler to decide what a contact
+      # means. See docs/api/systems.md.
       #
       # The box stays axis-aligned in world space: it does not rotate with the node.
       # That is what an AABB buys — a spinning entity wants a CircleCollider, which

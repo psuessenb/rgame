@@ -6,7 +6,7 @@ module RGame
       # Drives a CharacterBody sibling from two input axes — direct 8-way walking, no
       # inertia (unlike ThrustController). Each frame it copies the axis snapshot into
       # the body's movement intent; what the body then does with it is the body's
-      # business — a plain CharacterBody moves the node, a TileCharacterBody resolves
+      # business — an unblocked CharacterBody moves the node, a blocked one resolves
       # the step against the map. The lookup names the base class and get_component
       # matches by ancestry, so this needs to know nothing about which is there.
       class PlayerController < Engine::Component

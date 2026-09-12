@@ -23,13 +23,15 @@ RSpec.describe RGame::Engine::Component do
       expect(driver.body).to be(body)
     end
 
+    # Anonymous again, and for a second reason: the helper must find a subclass of what
+    # was asked for, and borrowing a real subclass to show it would tie this example to
+    # whichever subclasses happen to exist.
     it 'finds a subclass of the requested component, as get_component does' do
-      tile_body = RGame::Engine::Components::TileCharacterBody.new(feet_width: 4, feet_height: 4, speed: 10.0)
-      allow(node).to receive(:system).and_return(instance_double(RGame::Engine::Components::TileWorld))
-      node.add_component(tile_body)
+      subclassed = Class.new(RGame::Engine::Components::CharacterBody).new(speed: 10.0)
+      node.add_component(subclassed)
       driver = node.add_component(driver_class.new)
       node.enter_tree
-      expect(driver.body).to be(tile_body)
+      expect(driver.body).to be(subclassed)
     end
 
     it 'raises naming both components when the sibling is absent' do

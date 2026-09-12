@@ -97,12 +97,14 @@ class BeachScene < RGame::Engine::Node2D
   # so "player two's camera follows player two" is the same line with their
   # camera in it.
   #
-  # **Only valid once the node is in the tree.** `collision_box` is derived from
-  # the sprite's frame size and memoised on first read, and the sprite size is
-  # set by AnimatedSprite#on_attach — so reading it from `build_player` bakes a
-  # box computed from a 0x0 sprite, for the collision system as well as for this.
+  # **Only valid once the node is in the tree.** A FeetCollider's box is derived
+  # from the sprite's frame size and memoised on first read, and the sprite size
+  # is set by AnimatedSprite#on_attach — so reading it from `build_player` bakes
+  # a box computed from a 0x0 sprite, for the collision system as well as for
+  # this. Asking for the base BoxCollider is deliberate: this wants the node's
+  # shape, whichever kind of collider happens to be carrying it.
   def follow_camera(node, camera)
-    box = node.get_component(RGame::Engine::Components::TileCharacterBody).collision_box
+    box = node.get_component(RGame::Engine::Components::BoxCollider).box
     node.add_component(RGame::Engine::Components::CameraFollow.new(
                          camera: camera,
                          offset_x: box.offset_x + (box.width / 2.0),
@@ -113,8 +115,9 @@ class BeachScene < RGame::Engine::Node2D
   def build_player
     node = RGame::Engine::Node2D.new(x: @map.pixel_width / 2.0, y: @map.pixel_height / 2.0)
     node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: PLAYER_SHEET))
-    node.add_component(RGame::Engine::Components::TileCharacterBody.new(feet_width: 10, feet_height: 8,
-                                                                        speed: PLAYER_SPEED))
+    node.add_component(RGame::Engine::Components::FeetCollider.new(width: 10, height: 8))
+    node.add_component(RGame::Engine::Components::CharacterBody.new(speed: PLAYER_SPEED,
+                                                                    blocked_by: [:tiles]))
     node.add_component(RGame::Engine::Components::PlayerController.new)
     node
   end
@@ -122,8 +125,9 @@ class BeachScene < RGame::Engine::Node2D
   def build_npc(x, y)
     node = RGame::Engine::Node2D.new(x: x, y: y)
     node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: NPC_SHEET))
-    node.add_component(RGame::Engine::Components::TileCharacterBody.new(feet_width: 14, feet_height: 10,
-                                                                        speed: NPC_SPEED))
+    node.add_component(RGame::Engine::Components::FeetCollider.new(width: 14, height: 10))
+    node.add_component(RGame::Engine::Components::CharacterBody.new(speed: NPC_SPEED,
+                                                                    blocked_by: [:tiles]))
     node.add_component(RGame::Engine::Components::WanderController.new(rng: @rng))
     node
   end
