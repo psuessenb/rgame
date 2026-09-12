@@ -7,6 +7,11 @@ module RGame
     # turns a per-step overlap test into the two edges a game actually wants: the step
     # a contact starts and the step it ends. Pure logic; no graphics.
     #
+    # Nothing here is about overlapping, though, and it has a second user:
+    # Components::CharacterBody keeps one of *what stopped its step*, and gets on_blocked
+    # and on_unblocked out of it on exactly the same terms. What this class is, underneath
+    # its names, is "the set of things that were true this step and last".
+    #
     # Two arrays, swapped rather than reallocated. `begin_frame` makes this step's list
     # into last step's and empties the other one for refilling, so after the first few
     # frames nothing here allocates — `Array#clear` keeps the capacity it grew to, the

@@ -304,6 +304,30 @@ pair ends up *touching*, and `CollisionBox.overlap?` is half-open, so blocking a
 reports no contact. An entity that must both stop and react needs both, which is the Godot
 idiom of a body with a child area.
 
+**What stopped a step is reported.** `on_blocked` fires on the step something starts
+stopping this body, `on_unblocked` on the step it stops, each once per blocker. It is the
+same pair of edges [`BoxCollider`](#boxcollider) reports for a contact, pointed at what a
+step could not pass through — and it is what makes a spiky ball that both stops the player
+and hurts them two ordinary components rather than a hand-rolled `on_hit`.
+
+```ruby
+body.on_blocked { |by| take_damage if by.layer == :spike }
+```
+
+The listener is handed the blocker and reads `by.layer` and `by.node`, the same way
+whichever kind stopped the step: a collider answers its own layer and its owning node, the
+map's solid tiles answer `:tiles` and `nil`, and the world's edge answers `:bounds` and
+`nil`. Three things worth knowing:
+
+- **Standing still is an unblocking.** The set of blockers advances once per `update`, so a
+  body that stops pushing records nothing that step and `on_unblocked` fires. The body has
+  not moved; it has stopped *being stopped*.
+- **Once per blocker, not once per axis.** A step stopped on both axes by the same thing
+  fires once. A step stopped on X by the map and on Y by a villager fires twice, once for
+  each — starting edges before ending ones, the order `CollisionWorld` reports contacts in.
+- **A blocked pair is not a contact**, per the paragraph above. `on_blocked` is what the
+  spiky ball listens to; `on_hit` is what a trigger area listens to.
+
 **`:bounds` is declared, not automatic.** A body that does not name it walks out of the
 world. That is deliberate: [`ScreenWrap`](#screenwrap) and
 [`DespawnOffscreen`](#despawnoffscreen) read the same bounds but act on `node.x`/`node.y`
@@ -328,7 +352,12 @@ retunes both, and there is nothing to hand from one component to the other.
   collision bug, with the cause in a scene three files away that never mounted the system.
 - **State:** `set_intent(x, y)` writes the step's intent; `move_x`/`move_y` read it back (the facing
   for `AnimatedSprite`).
-- **Phase:** `update(dt)` applies `intent * speed * dt` (nothing when the intent is zero).
+- **Signals:** `on_blocked` fires with what stopped the step, `on_unblocked` when it stops
+  stopping it — `body.on_blocked { |by| ... }`. A body that wants the raw per-axis answer
+  instead reads
+  [`CollisionSystem#blocked_x` / `#blocked_y`](internals.md#collisionsystem--move-an-actor-against-its-blockers).
+- **Phase:** `update(dt)` applies `intent * speed * dt` (nothing when the intent is zero),
+  then reports the edges — so a body that overrides `apply_move` still gets them.
 - **Seam:** `apply_move(dx, dy)` is where a step lands — separated from `update` so a body that
   resolves a step some other way (a platformer's, with gravity and a jump) inherits the intent,
   the speed and the standing-still check rather than restating them.
