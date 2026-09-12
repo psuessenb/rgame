@@ -70,11 +70,12 @@ tells both sides they overlapped, without knowing what either of them is.
 
 ### collision_tiles
 
-The other collision problem, which shares no code with the first: a character
-against a grid of solid tiles, sliding along a wall held diagonally.
+The other collision problem: a character against a grid of solid tiles, sliding
+along a wall held diagonally. It shares the collider with the first and mounts no
+`CollisionWorld`, so the feet box here is only ever asked where a step lands.
 
-**Uses:** `Components::TileWorld`, `Components::TileCharacterBody`,
-`Engine::CollisionBox`, `Components::CameraFollow`.
+**Uses:** `Components::TileWorld`, `Components::FeetCollider`,
+`Components::CharacterBody` with `blocked_by: [:tiles]`, `Components::CameraFollow`.
 
 ## Structure
 

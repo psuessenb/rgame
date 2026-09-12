@@ -7,12 +7,14 @@ module RGame
       # entities that are honestly box-shaped (a snake segment, a crate, a platform).
       # It registers itself with the scene's CollisionWorld when it enters the tree
       # and unregisters on leaving, so a spawned/despawned entity can't leak a
-      # registration.
+      # registration. A scene with no world mounted leaves it a bare shape (see
+      # on_attach).
       #
       # The rectangle is an Engine::CollisionBox: an offset + size relative to the
-      # node's origin, so a 32x32 sprite can carry a small box at its feet the same
-      # way a TileCharacterBody does. The `layer` is an opaque tag the game reads in
-      # its on_hit handler to decide what a contact means. See docs/api/systems.md.
+      # node's origin, so a 32x32 sprite can carry a small box at its feet —
+      # FeetCollider is the subclass that works that offset out for you. The `layer`
+      # is an opaque tag the game reads in its on_hit handler to decide what a contact
+      # means. See docs/api/systems.md.
       #
       # The box stays axis-aligned in world space: it does not rotate with the node.
       # That is what an AABB buys — a spinning entity wants a CircleCollider, which
@@ -42,7 +44,15 @@ module RGame
           @contacts = Engine::ContactSet.new
         end
 
-        def on_attach = node.system(CollisionWorld).register(self)
+        # A collider is a *shape*; a CollisionWorld is what turns shapes into contacts. So
+        # a scene with no world mounted leaves this a bare shape instead of raising, which
+        # is what a tile-only game wants: its character's feet box stops its steps (that is
+        # CharacterBody's `blocked_by`) and there are no pairs to report to anyone.
+        #
+        # The cost is that an on_hit handler in such a scene never fires and nothing says
+        # so. That is the trade taken deliberately: what declares "I expect to be stopped"
+        # is `blocked_by`, and that *does* raise for a system it cannot find.
+        def on_attach = node.system(CollisionWorld)&.register(self)
         def on_detach = node.system(CollisionWorld)&.unregister(self)
 
         # The broadphase AABB in world space, one component per call rather than

@@ -11,18 +11,24 @@
 # exercises:
 #   - Components::TileWorld — the scene-scoped system that owns the map, and
 #     answers every question about what is solid;
-#   - Components::TileCharacterBody — a CharacterBody whose steps are resolved
-#     against that map;
-#   - Engine::CollisionBox — the feet box, bottom-anchored to the sprite;
+#   - Components::FeetCollider — the shape at the hero's feet, derived from the
+#     sprite's size;
+#   - Components::CharacterBody with `blocked_by: [:tiles]` — steps resolved
+#     against that map, using that shape;
 #   - Components::CameraFollow — a camera on the feet rather than on the head;
 #   - the `:tilemap` asset loader and TileMapLayer, both from `examples/scroll_map`.
 #
-# ## This is the other collision problem, and it shares no code with the first
+# ## This is the other collision problem
 #
 # `examples/collision` is a world of shapes that are told when they start and
-# stop overlapping. There is none of that here: no `CollisionWorld`, no collider
-# component, no `on_hit` and nothing to separate from. Nothing in this file
-# registers a shape, and the walls are not objects at all.
+# stop overlapping. There is none of that here: no `CollisionWorld`, no
+# `on_hit`, nothing to separate from, and the walls are not objects at all.
+#
+# The hero does carry a collider, and that is the one thing the two examples
+# share. A collider is a *shape*; what turns shapes into pairwise contacts is a
+# `CollisionWorld`, and this scene mounts none. So the feet box here is only
+# ever asked where a step lands — it is never bucketed, queried or paired with
+# anything.
 #
 # That is the point of the pair. A character against a grid of solid tiles is
 # not a pairwise overlap problem, because there are no pairs to find — a tile map
@@ -53,10 +59,11 @@
 # frame collided could not stand with their head overlapping the fence behind
 # them — which is what standing close to it looks like from this angle.
 #
-# `Engine::CollisionBox.bottom_anchored` builds it from the node's own
-# dimensions, which `AnimatedSprite` fills in from the sprite frame when it
-# attaches. So the box follows the art: re-export the hero at a different size
-# and the feet stay at the feet.
+# `FeetCollider` builds it from the node's own dimensions, which
+# `AnimatedSprite` fills in from the sprite frame when it attaches. So the box
+# follows the art: re-export the hero at a different size and the feet stay at
+# the feet. Note what the `Hero` does *not* pass — a sprite size, an offset, or
+# the box to anybody else. One component owns the shape and the body reads it.
 #
 # ## Sliding is the whole feel
 #
@@ -71,18 +78,19 @@
 #
 # ## The system is not optional, and says so
 #
-# `TileCharacterBody#on_attach` raises when the scene has no `TileWorld`, rather
-# than falling back to free movement. The fallback would look like a collision
-# bug — an actor walking through walls — and the cause would be a scene three
-# files away that never mounted the system.
+# `blocked_by: [:tiles]` raises at attach when the scene has no `TileWorld`, and
+# again when the node has no collider to resolve, rather than falling back to
+# free movement. The fallback would look like a collision bug — an actor walking
+# through walls — and the cause would be a scene three files away that never
+# mounted the system.
 #
 # ## What it does not solve
 #
 # Anything that is not the map. The hero here would walk straight through
 # another character, because `TileWorld` answers questions about tiles and knows
-# nothing about the actors standing on them. Things that bump into each other
-# want the shapes and the system in `examples/collision`, and a game with both
-# runs both.
+# nothing about the actors standing on them. Noticing another actor is a
+# `CollisionWorld` on the scene and an `on_hit` on this same feet box — which is
+# `examples/collision` — and a game that wants both mounts both systems.
 
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
@@ -109,21 +117,23 @@ CAMERA_OFFSET_Y = 19
 START_X = 384.0
 START_Y = 272.0
 
-# A sprite, a body that knows about walls, and a camera. The only thing this
-# class writes itself is the box, drawn so that what collides is visible.
+# A sprite, a feet box, a body that knows about walls, and a camera. The only
+# thing this class writes itself is the drawing of that box, so what collides is
+# visible.
 class Hero < RGame::Engine::Node2D
   FEET = RGame::Util::Color.rgba(255, 110, 110, 120)
 
   def initialize(camera:, **)
     super(**)
     add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-    # The one line that differs from `examples/walk`. Everything about the
-    # intent — the controller writing it, the sprite reading it back as a
-    # facing, the speed it is scaled by — is inherited from CharacterBody; this
-    # subclass only changes where a step is allowed to land.
-    @body = add_component(RGame::Engine::Components::TileCharacterBody.new(
-                            feet_width: FEET_WIDTH, feet_height: FEET_HEIGHT, speed: SPEED
-                          ))
+    # The two lines that differ from `examples/walk`: a shape, and a body told
+    # what that shape may not pass through. Everything about the intent — the
+    # controller writing it, the sprite reading it back as a facing, the speed it
+    # is scaled by — is the same CharacterBody as there.
+    @collider = add_component(RGame::Engine::Components::FeetCollider.new(
+                                width: FEET_WIDTH, height: FEET_HEIGHT
+                              ))
+    add_component(RGame::Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
     add_component(RGame::Engine::Components::PlayerController.new)
     add_component(RGame::Engine::Components::CameraFollow.new(
                     camera: camera, offset_x: CAMERA_OFFSET_X, offset_y: CAMERA_OFFSET_Y
@@ -134,7 +144,7 @@ class Hero < RGame::Engine::Node2D
   # relative to the node's origin, which is exactly where the renderer already
   # is — a collision box and local space agree about what (0, 0) means.
   def on_draw(renderer, _view)
-    box = @body.collision_box
+    box = @collider.box
     renderer.rect(box.offset_x, box.offset_y, box.width, box.height, color: FEET)
   end
 end
