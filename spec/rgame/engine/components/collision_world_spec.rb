@@ -397,4 +397,99 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
       expect { world.nearest(120, 100, 100, layer: :enemy) }.to allocate_nothing
     end
   end
+
+  # The rectangular query a blocker source asks: "what is bucketed near this box". No
+  # narrowphase at all — the bucket walk is the answer, and refining it is the caller's.
+  describe '#query_box' do
+    def in_box(x, y, w, h)
+      found = []
+      world.query_box(x, y, w, h) { |collider| found << collider }
+      found
+    end
+
+    it 'yields a collider bucketed in a cell the region covers' do
+      near = place_box(100, 100, :npc)
+      place_box(400, 400, :npc) # a different cell
+      tick
+      expect(in_box(100, 100, 10, 10)).to eq([near])
+    end
+
+    it 'yields nothing from cells the region does not reach' do
+      place_box(400, 400, :npc)
+      tick
+      expect(in_box(0, 0, 10, 10)).to be_empty
+    end
+
+    it 'skips a collider whose node is queued for removal' do
+      place_box(100, 100, :npc).node.queue_free
+      tick
+      expect(in_box(100, 100, 10, 10)).to be_empty
+    end
+
+    it 'yields nothing before the first update has built the index' do
+      place_box(100, 100, :npc)
+      resolve_positions
+      expect(in_box(100, 100, 10, 10)).to be_empty
+    end
+
+    # A resolver queries once per axis per actor per step.
+    it 'allocates nothing per query' do
+      place_box(100, 100, :npc)
+      tick
+      expect { world.query_box(100, 100, 10, 10) { |_collider| nil } }.to allocate_nothing
+    end
+  end
+
+  # Buckets are filled once per step, so a collider that moves afterwards is still
+  # bucketed where it was and a query over the cells it has left does not reach it.
+  # Re-indexing is what makes a mid-step query exact; the mover passes the box it was
+  # bucketed at, so nothing here has to have remembered one.
+  describe '#reindex' do
+    def in_box(x, y, w, h)
+      found = []
+      world.query_box(x, y, w, h) { |collider| found << collider }
+      found
+    end
+
+    # The measurement the whole mechanism exists for: without the reindex line this
+    # example's second expectation is [] — the mover is genuinely in the far cell and
+    # the index says otherwise.
+    it 'finds a collider at its new position within the same step' do
+      mover = place_box(0, 0, :npc)
+      tick
+      mover.node.x = 400
+      mover.node.y = 400
+      mover.node.update(0.0) # resolve the world transform the AABB is read from
+      world.reindex(mover, 0, 0, mover.aabb_w, mover.aabb_h)
+      expect(in_box(400, 400, 10, 10)).to eq([mover])
+    end
+
+    it 'stops finding it at the cell it left' do
+      mover = place_box(0, 0, :npc)
+      tick
+      mover.node.x = 400
+      mover.node.y = 400
+      mover.node.update(0.0)
+      world.reindex(mover, 0, 0, mover.aabb_w, mover.aabb_h)
+      expect(in_box(0, 0, 10, 10)).to be_empty
+    end
+
+    it 'leaves the colliders that did not move where they are' do
+      mover = place_box(0, 0, :npc)
+      still = place_box(10, 10, :npc)
+      tick
+      mover.node.x = 400
+      mover.node.update(0.0)
+      world.reindex(mover, 0, 0, mover.aabb_w, mover.aabb_h)
+      expect(in_box(10, 10, 4, 4)).to eq([still])
+    end
+
+    # Called from CollisionSystem#move, so it is on the per-actor per-step path.
+    it 'allocates nothing' do
+      mover = place_box(0, 0, :npc)
+      tick
+      world.reindex(mover, 0, 0, mover.aabb_w, mover.aabb_h) # warm the buckets it lands in
+      expect { world.reindex(mover, 0, 0, mover.aabb_w, mover.aabb_h) }.to allocate_nothing
+    end
+  end
 end

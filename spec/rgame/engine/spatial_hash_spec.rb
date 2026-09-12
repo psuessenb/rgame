@@ -114,4 +114,51 @@ RSpec.describe RGame::Engine::SpatialHash do
       expect(query(1000, 1000, 1, 1)).to be_empty
     end
   end
+
+  # The inverse of #insert, and what a mover uses to re-bucket itself after moving: the
+  # caller passes the box it was inserted at, so the hash keeps no per-item state.
+  describe '#remove' do
+    it 'un-buckets an item from a single cell' do
+      hash.insert(:a, 0, 0, 5, 5)
+      hash.remove(:a, 0, 0, 5, 5)
+      expect(query(0, 0, 5, 5)).to be_empty
+    end
+
+    it 'un-buckets from every cell a multi-cell box covered' do
+      hash.insert(:big, 5, 5, 25, 25) # cells (0,0)..(2,2)
+      hash.remove(:big, 5, 5, 25, 25)
+      expect([query(6, 6, 1, 1), query(15, 15, 1, 1), query(28, 28, 1, 1)]).to all(be_empty)
+    end
+
+    it 'leaves the other items in those cells alone' do
+      hash.insert(:a, 0, 0, 5, 5)
+      hash.insert(:b, 1, 1, 5, 5)
+      hash.remove(:a, 0, 0, 5, 5)
+      expect(query(0, 0, 5, 5)).to eq([:b])
+    end
+
+    # Removing something that was never there is ordinary rather than a mistake: an item
+    # that left the tree between two steps is exactly this call.
+    it 'is a no-op for an item that was never inserted' do
+      hash.insert(:a, 0, 0, 5, 5)
+      expect { hash.remove(:ghost, 0, 0, 5, 5) }.not_to raise_error
+      expect(query(0, 0, 5, 5)).to eq([:a])
+    end
+
+    it 'is a no-op over cells that hold nothing, and creates no bucket there' do
+      hash.remove(:ghost, 1000, 1000, 5, 5)
+      expect(hash.cell_empty?(1000, 1000)).to be(true)
+    end
+
+    # A resolver removes and re-inserts one collider per step, so the pair is on the
+    # per-frame path. Warmed first: the buckets themselves are built on first insert.
+    it 'allocates nothing paired with insert once the buckets exist' do
+      hash.insert(:a, 0, 0, 25, 25)
+      hash.remove(:a, 0, 0, 25, 25)
+      expect do
+        hash.insert(:a, 0, 0, 25, 25)
+        hash.remove(:a, 0, 0, 25, 25)
+      end.to allocate_nothing
+    end
+  end
 end
