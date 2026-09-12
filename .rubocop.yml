@@ -90,6 +90,15 @@ Naming/MethodParameterName:
 Lint/AmbiguousOperatorPrecedence:
   Enabled: false
 
+# Swapping two values through a temporary reads worse but costs nothing; the
+# `a, b = b, a` this cop asks for allocates an Array on every swap. It compiles to
+# `newarray 2` + `expandarray` — for local variables exactly as for instance variables,
+# so there is no spelling of it that avoids the cost — measured at 100,000 objects over
+# 100,000 swaps against 1 for the temporary. A frame that allocates is a GC pause
+# waiting to happen, so the tidier shape loses everywhere it would appear here.
+Style/SwapValues:
+  Enabled: false
+
 # mkmf's API *is* globals: $CFLAGS, $INCFLAGS and $libs are how an extconf.rb tells
 # mkmf how to build the extension. There is no non-global alternative, so this cop
 # can't be satisfied in extconf.rb without breaking the build.

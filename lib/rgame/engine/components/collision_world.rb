@@ -6,9 +6,16 @@ module RGame
       # Scene-scoped broadphase collision system: a Component that lives on the scene
       # node (so it is born and torn down with the scene, and rides the normal update
       # traversal). Colliders register/unregister with it via their tree lifecycle;
-      # each update it buckets them in a SpatialHash and fires on_hit on every
-      # overlapping pair. It is layer-agnostic — it reports contacts and lets the
-      # colliders' owners decide meaning. See docs/api/systems.md.
+      # each update it buckets them in a SpatialHash and reports every overlapping
+      # pair. It is layer-agnostic — it reports contacts and lets the colliders'
+      # owners decide meaning. See docs/api/systems.md.
+      #
+      # **A contact is reported as two edges, not as a state.** `on_hit` fires on the
+      # step a pair starts overlapping and `on_separated` on the step it stops, each
+      # once, on both colliders. Nothing fires in between, so a handler is free to
+      # count, to play a sound, or to do anything else that must happen once — which
+      # is the whole reason the world keeps a ContactSet per collider rather than
+      # simply forwarding what the broadphase found.
       #
       # It is also *shape*-agnostic, which is what lets CircleCollider and BoxCollider
       # share it (and collide with each other). A collider is anything answering:
@@ -17,7 +24,10 @@ module RGame
       #   cx, cy                          its centre, for the range queries below
       #   overlap?(other)                 the narrowphase, which the two colliders
       #                                   settle between themselves by double dispatch
-      #   layer, node, emit_hit(other)    the tag, the owner, and the contact signal
+      #   layer, node                     the tag and the owner
+      #   contacts                        an Engine::ContactSet, which this drives
+      #   emit_hit(other)                 the contact's two edges
+      #   emit_separated(other)
       #
       # None of those may allocate: they run per collider per frame.
       class CollisionWorld < Engine::Component
@@ -27,7 +37,16 @@ module RGame
           @colliders = []
         end
 
-        def register(collider) = @colliders << collider
+        # Reset rather than merely add: the collider may be a pooled one coming back
+        # from the dead, still carrying the contacts it held when it was freed.
+        def register(collider)
+          collider.contacts.reset
+          @colliders << collider
+        end
+
+        # The partners of a collider that leaves are told on their next step, by the
+        # ordinary separation pass — it is gone from the index, so the pair no longer
+        # overlaps. Nothing has to be emitted here.
         def unregister(collider) = @colliders.delete(collider)
 
         # Yield every registered collider whose centre lies within `r` of (x, y), using
@@ -111,10 +130,30 @@ module RGame
           free
         end
 
+        # Rebuild the index, then report the step's two kinds of edge. Starting edges
+        # come first and every one of them for the step is emitted before the first
+        # ending one, because a separation is only knowable once every pair has been
+        # looked at.
         def update(_dt)
           @hash.clear
-          @colliders.each { |c| insert(c) }
+          @colliders.each do |collider|
+            collider.contacts.begin_frame
+            insert(collider)
+          end
 
+          report_contacts
+          report_separations
+        end
+
+        private
+
+        def insert(collider)
+          @hash.insert(collider, collider.aabb_x, collider.aabb_y, collider.aabb_w, collider.aabb_h)
+        end
+
+        # Find this step's overlapping pairs, record them, and fire on_hit for the ones
+        # that were not overlapping last step.
+        def report_contacts
           # Index-bounded over the count at frame start: an on_hit handler may spawn
           # entities (a rock splitting), which `register`s new colliders mid-loop; those
           # appended ones are skipped this frame (processed next) rather than mutating
@@ -127,23 +166,51 @@ module RGame
             i += 1
             next if a.node.freed?
 
-            @hash.query(a.aabb_x, a.aabb_y, a.aabb_w, a.aabb_h) do |b|
-              # object_id ordering visits each unordered pair once (and skips self);
-              # the freed? guards skip nodes already queued for removal, so a dead
-              # entity stops colliding and duplicate (multi-cell) yields are ignored.
-              next if a.node.freed? || b.node.freed? || a.object_id >= b.object_id
-              next unless a.overlap?(b)
-
-              a.emit_hit(b)
-              b.emit_hit(a)
-            end
+            pair_up(a)
           end
         end
 
-        private
+        def pair_up(a)
+          contacts = a.contacts
+          @hash.query(a.aabb_x, a.aabb_y, a.aabb_w, a.aabb_h) do |b|
+            # object_id ordering visits each unordered pair once (and skips self);
+            # the freed? guards skip nodes already queued for removal, so a dead
+            # entity stops colliding — and its partners are told it is gone, by the
+            # separation pass finding the pair missing from this step.
+            next if a.node.freed? || b.node.freed? || a.object_id >= b.object_id
+            # The broadphase offers a pair once per cell the two share, so a pair
+            # sharing two cells arrives here twice. This is where the repeat stops,
+            # which is what makes the edge below per pair rather than per cell.
+            next if contacts.touching?(b)
+            next unless a.overlap?(b)
 
-        def insert(collider)
-          @hash.insert(collider, collider.aabb_x, collider.aabb_y, collider.aabb_w, collider.aabb_h)
+            # Asked before recording, and of one side only: the two lists are filled
+            # in lockstep, so b would give the same answer about a.
+            started = contacts.started?(b)
+            contacts.add(b)
+            b.contacts.add(a)
+            next unless started
+
+            a.emit_hit(b)
+            b.emit_hit(a)
+          end
+        end
+
+        # Fire on_separated for every pair that was in contact last step and is not in
+        # contact now — including the pairs that ended because one side was destroyed
+        # or left the tree, which is exactly the case a game would otherwise have to
+        # notice for itself. A collider whose own node is queued for removal is skipped,
+        # the same rule everything else here follows.
+        def report_separations
+          count = @colliders.size
+          i = 0
+          while i < count
+            collider = @colliders[i]
+            i += 1
+            next if collider.node.freed?
+
+            collider.contacts.each_ended { |other| collider.emit_separated(other) }
+          end
         end
       end
     end

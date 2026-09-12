@@ -19,10 +19,10 @@
 #
 # ## This is the other collision problem, and it shares no code with the first
 #
-# `examples/collision` is a world of shapes that are told when they overlap.
-# There is none of that here: no `CollisionWorld`, no collider component, no
-# `on_hit`. Nothing in this file registers a shape, and the walls are not
-# objects at all.
+# `examples/collision` is a world of shapes that are told when they start and
+# stop overlapping. There is none of that here: no `CollisionWorld`, no collider
+# component, no `on_hit` and nothing to separate from. Nothing in this file
+# registers a shape, and the walls are not objects at all.
 #
 # That is the point of the pair. A character against a grid of solid tiles is
 # not a pairwise overlap problem, because there are no pairs to find — a tile map

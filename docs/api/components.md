@@ -214,10 +214,11 @@ spawned or despawned entity never leaks a registration.
   than a per-frame box recompute.
 - **Contacts:** `overlap?(other)` works against a box *or* a circle: the two colliders
   settle the test between themselves, so both shapes mix freely in one world.
-- **Signal:** `on_hit` fires with the other collider on each contact —
-  `collider.on_hit { |other| ... }`. The system triggers it via `emit_hit(other)`. It
-  repeats for as long as the overlap lasts, and may fire twice in one step, so the
-  handler has to be idempotent — see [`CollisionWorld`](#collisionworld).
+- **Signals:** `on_hit` fires with the other collider on the step a contact **starts**,
+  `on_separated` on the step it **ends** — `collider.on_hit { |other| ... }`. The system
+  triggers them via `emit_hit(other)` / `emit_separated(other)`. Each fires once per
+  pair, so a handler may count, play a sound or spend a life — see
+  [`CollisionWorld`](#collisionworld).
 
 ```ruby
 collider = add_component(RGame::Engine::Components::BoxCollider.new(
@@ -284,17 +285,18 @@ registration.
 - **Contacts:** `overlap?(other)` works against a circle *or* a
   [`BoxCollider`](#boxcollider): the two colliders settle the test between themselves, so
   both shapes mix freely in one world.
-- **Signal:** `on_hit` fires with the other collider on each contact —
-  `collider.on_hit { |other| ... }`. The system triggers it via `emit_hit(other)`. It
-  repeats for as long as the overlap lasts, and may fire twice in one step, so the
-  handler has to be idempotent — see [`CollisionWorld`](#collisionworld).
+- **Signals:** `on_hit` fires with the other collider on the step a contact **starts**,
+  `on_separated` on the step it **ends** — `collider.on_hit { |other| ... }`. The system
+  triggers them via `emit_hit(other)` / `emit_separated(other)`. Each fires once per
+  pair — see [`CollisionWorld`](#collisionworld).
 
 ### `CollisionWorld`
 
 A scene-scoped broadphase collision **system**: a component that lives on the scene
-node, holds the registered colliders in a `SpatialHash`, and each step reports every
-overlapping pair. Because it is a normal component it rides the `update` traversal and
-is torn down with the scene. See [Systems & shared resources](systems.md).
+node, holds the registered colliders in a `SpatialHash`, and each step reports where
+overlapping pairs begin and end. Because it is a normal component it rides the `update`
+traversal and is torn down with the scene. See
+[Systems & shared resources](systems.md).
 
 It is **shape-agnostic**: it buckets each collider by the bounding box it reports
 (`aabb_x`/`aabb_y`/`aabb_w`/`aabb_h`) and leaves the exact test to the pair's own
@@ -306,22 +308,38 @@ answering the same handful of methods.
   the typical collider size).
 - **Registration:** `register(collider)` / `unregister(collider)`; colliders call these
   through their own lifecycle, so nodes never wire this by hand.
-- **Phase:** `update(dt)` rebuilds the spatial index and, for each overlapping pair,
-  fires both colliders' `on_hit`. It is **layer-agnostic** — it reports contacts and
+- **Phase:** `update(dt)` rebuilds the spatial index, fires both colliders' `on_hit`
+  for each pair that has *started* overlapping, and then both colliders' `on_separated`
+  for each pair that has *stopped*. It is **layer-agnostic** — it reports contacts and
   lets each collider's owner decide meaning by reading the other's `layer`. Colliders
   whose node is queued for removal are skipped.
-- **A handler must be safe to run again.** `on_hit` fires on every step an overlap
-  lasts, and it can fire more than once *within* a step: a collider is bucketed into
-  every cell its bounding box covers, and a pair sharing two cells reaches the
-  narrowphase twice (the [`SpatialHash`](internals.md#spatialhash--uniform-grid-broadphase)
-  dedup contract, which the world keeps rather than paying for a visited set). Setting
-  a flag, lighting a colour and `queue_free` are all fine; `count += 1` and playing a
-  sound are not. For "how many times did something arrive", record *that* a contact
-  happened and compare against the previous step in `on_update`, which runs after the
-  scene's own components — `examples/collision`'s crate is eleven lines of exactly that.
+- **A contact is two edges, not a state.** Each signal fires **once per pair**: nothing
+  at all on the steps between the two, however long the overlap lasts, and one report
+  however many broadphase cells the pair happens to span. So a handler may do what must
+  happen exactly once — `score += 100`, play a sound, spend a life — with nothing to
+  remember and nothing to guard. `examples/collision`'s crate counts arrivals in one
+  line because of it.
+
+  The world keeps an [`Engine::ContactSet`](internals.md#contactset--the-two-edges-of-a-contact)
+  per collider to do this, which is also what absorbs the
+  [`SpatialHash`](internals.md#spatialhash--uniform-grid-broadphase) may-yield-twice
+  contract: a pair spanning three cells is offered three times and recorded once.
+- **`on_separated` also fires when the other side goes.** A contact ends when the
+  partner is destroyed (`queue_free`) or leaves the tree, not only when the two move
+  apart, and the survivor is told on its next step. Without that a ship could stay "in
+  contact" with a rock that no longer exists. The collider on its way out is told
+  nothing; it is leaving.
+
+  That last part is the one thing to remember when pooling. The world clears a
+  collider's own contacts when it registers, so a recycled entity never reports a
+  separation from its previous life — but state a *node* derived from those contacts
+  (a "how many things am I touching" count) never unwinds, because the edge that would
+  have unwound it was never delivered. Zero it in the node's `reset`, with the rest.
 - **Example:** `examples/collision` — this system on the scene, circles and boxes on
-  the nodes, two layers and the one line that ignores same-layer pairs. The broadphase
-  grid is drawn on the backdrop, so `cell_size` is a thing you can look at.
+  the nodes, two layers and the one line that ignores same-layer pairs. A circle stays
+  lit while it is inside a crate (`on_hit` up, `on_separated` down) and the crate blinks
+  once and counts it. The broadphase grid is drawn on the backdrop, so `cell_size` is a
+  thing you can look at.
 - **Range queries (targeting):** the same index answers point-radius lookups against the
   most recent `update`, so a tower can find enemies without a contact:
   - `query_circle(x, y, r) { |collider| }` yields every registered collider whose centre

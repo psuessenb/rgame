@@ -121,13 +121,19 @@ indexing is the same idea as Godot's **groups**: a registry of node references. 
 it indexes references, carries no component data, and gains none of ECS's
 data-locality; it's a lightweight index.
 
-`CollisionWorld` is layer-agnostic: it reports every overlapping pair by firing each
-collider's `on_hit` signal with the other collider, and the owning node decides what
-a contact *means* by reading the other's `layer` tag:
+`CollisionWorld` is layer-agnostic: it reports every overlapping pair to both of its
+colliders, and the owning node decides what a contact *means* by reading the other's
+`layer` tag:
 
 ```ruby
 collider.on_hit { |other| queue_free if other.layer == :bullet } # in a Rock node
 ```
+
+A contact is reported as two **edges**, not as a state: `on_hit` on the step a pair
+starts overlapping, `on_separated` on the step it stops, each once per pair and nothing
+in between. That is what lets a handler count, play a sound or spend a life without
+guarding itself, and it is why the system keeps an `Engine::ContactSet` per collider
+rather than simply forwarding what the broadphase found each step.
 
 Because it's a normal component on the scene node, it rides the `update` traversal
 (its broadphase runs in `update`) and is torn down with the scene. See

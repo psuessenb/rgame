@@ -101,6 +101,9 @@ RSpec.describe RGame::Engine::Components::BoxCollider do
     end
   end
 
+  # The two edges CollisionWorld drives: the step a contact starts, and the step it
+  # ends. They are separate signals rather than one with a flag, so a listener that
+  # only cares about arrivals never has to ask which kind of call it is in.
   describe '#emit_hit' do
     it 'notifies listeners connected via #on_hit with the other collider' do
       collider = RGame::Engine::Node2D.new.add_component(described_class.new(width: 5, height: 5))
@@ -109,6 +112,33 @@ RSpec.describe RGame::Engine::Components::BoxCollider do
       collider.on_hit { |o| received = o }
       collider.emit_hit(other)
       expect(received).to be(other)
+    end
+
+    it 'does not notify listeners connected via #on_separated' do
+      collider = RGame::Engine::Node2D.new.add_component(described_class.new(width: 5, height: 5))
+      received = nil
+      collider.on_separated { |o| received = o }
+      collider.emit_hit(instance_double(described_class))
+      expect(received).to be_nil
+    end
+  end
+
+  describe '#emit_separated' do
+    it 'notifies listeners connected via #on_separated with the other collider' do
+      collider = RGame::Engine::Node2D.new.add_component(described_class.new(width: 5, height: 5))
+      other = instance_double(described_class)
+      received = nil
+      collider.on_separated { |o| received = o }
+      collider.emit_separated(other)
+      expect(received).to be(other)
+    end
+
+    it 'does not notify listeners connected via #on_hit' do
+      collider = RGame::Engine::Node2D.new.add_component(described_class.new(width: 5, height: 5))
+      received = nil
+      collider.on_hit { |o| received = o }
+      collider.emit_separated(instance_double(described_class))
+      expect(received).to be_nil
     end
   end
 end
