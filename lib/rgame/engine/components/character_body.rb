@@ -55,6 +55,18 @@ module RGame
       # rectangle both stops the step and reports contacts — there is nothing to hand from
       # one component to the other and nothing to keep in sync.
       class CharacterBody < Engine::Component
+        # The two edges of being stopped: on_blocked on the step this body starts being
+        # stopped by something, on_unblocked on the step it stops. Each fires once per
+        # blocker, so a handler may spend a life or play a sound — the spiky ball that
+        # both stops the player and hurts them is the two signals plus an on_hit.
+        #
+        # The listener gets whatever stopped the step and reads its #layer and #node, so
+        # one handler covers every kind: a collider answers its own layer and its owning
+        # node, the map's solid tiles answer :tiles and nil (Engine::TileBlockers::TILES),
+        # and the world's edge answers :bounds and nil.
+        signal :on_blocked, Engine::Signal.define(:by)
+        signal :on_unblocked, Engine::Signal.define(:by)
+
         # The two blocker names that are not collider layers: the scene's solid tiles, and
         # the edge of the world.
         TILES  = :tiles
@@ -73,6 +85,9 @@ module RGame
           @move_y = 0.0
           @collider = nil
           @collision = nil
+          # What stopped this body, this step and last — the same two-array swap that turns
+          # a per-step overlap into on_hit / on_separated, pointed at blockers instead.
+          @stopped_by = Engine::ContactSet.new
         end
 
         # Resolve each declared blocker and build the resolver that runs them, once the node
@@ -88,6 +103,11 @@ module RGame
         #
         # Nothing here runs on a frame. The list is built once, and a step only walks it.
         def on_attach
+          # A pooled body coming back from the dead would otherwise still be holding
+          # whatever stopped it when it was freed, and would report one spurious
+          # on_unblocked on its first step — the rule CollisionWorld#register follows for
+          # contacts, for the same reason.
+          @stopped_by.reset
           return if @blocked_by.empty?
 
           # Every blocker resolves the same rectangle, so the collider is required whatever
@@ -103,10 +123,20 @@ module RGame
           @move_y = intent_y
         end
 
+        # Take this step, then report what stopped being in the way.
+        #
+        # **The set advances once per update, not once per apply_move**, and that is what
+        # makes standing still an unblocking: a body that stops pushing into something
+        # records nothing this step, so what it was pressing against ends and on_unblocked
+        # fires. It also keeps the bookkeeping where a subclass cannot lose it — a body
+        # that overrides apply_move to resolve a step some other way still opens the step
+        # and still reports its edges.
         def update(dt)
-          return if @move_x.zero? && @move_y.zero?
+          return take_step(dt) unless @collision
 
-          apply_move(@move_x * @speed * dt, @move_y * @speed * dt)
+          @stopped_by.begin_frame
+          take_step(dt)
+          @stopped_by.each_ended { on_unblocked_signal.emit(it) }
         end
 
         # Where a step lands. Kept separate from `update` so a body that resolves a step
@@ -118,10 +148,18 @@ module RGame
         # writes straight to the node, and a blocked one hands *itself* to its resolver as
         # the actor being moved (see the adapter below).
         def apply_move(dx, dy)
-          return @collision.move(self, dx, dy) if @collision
+          unless @collision
+            node.x += dx
+            node.y += dy
+            return
+          end
 
-          node.x += dx
-          node.y += dy
+          @collision.move(self, dx, dy)
+          # Read straight after the move that set them, rather than once at the end of the
+          # update: a body that resolves a step in several moves records what stopped each
+          # of them, and one that does not move at all records nothing.
+          record_blocker(@collision.blocked_x)
+          record_blocker(@collision.blocked_y)
         end
 
         # The actor adapter CollisionSystem#move drives: it reads x/y/collision_box, works
@@ -162,6 +200,27 @@ module RGame
         end
 
         private
+
+        def take_step(dt)
+          return if @move_x.zero? && @move_y.zero?
+
+          apply_move(@move_x * @speed * dt, @move_y * @speed * dt)
+        end
+
+        # Record what stopped one axis, and fire the starting edge for a blocker that was
+        # not already stopping this body. `started?` is asked before the add and reads only
+        # last step's list, exactly as CollisionWorld does with a contact, so the guard
+        # gives the same answer either side of it.
+        #
+        # The `touching?` check is what makes a step stopped on both axes by the *same*
+        # blocker — a box walking diagonally into one wide collider — fire once.
+        def record_blocker(by)
+          return if by.nil? || @stopped_by.touching?(by)
+
+          started = @stopped_by.started?(by)
+          @stopped_by.add(by)
+          on_blocked_signal.emit(by) if started
+        end
 
         # One source per *kind* of blocker rather than per declared name: every collider
         # layer named goes into a single ActorBlockers, since one broadphase query answers

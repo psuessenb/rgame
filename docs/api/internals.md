@@ -63,7 +63,11 @@ colliders whose node is queued for removal.
 `RGame::Engine::ContactSet` (`rgame/engine/contact_set`) is what turns a per-step overlap
 test into the two edges a game wants: the step a pair *starts* touching and the step it
 *stops*. [`CollisionWorld`](components.md#collisionworld) owns one per registered
-collider and is the only thing that drives it.
+collider and is the only thing that drives it. Nothing in it is about *overlapping*,
+though, and it has a second user: a [`CharacterBody`](components.md#characterbody) keeps
+one of what stopped its step, and gets `on_blocked` / `on_unblocked` out of it on exactly
+the same terms. What the class is, underneath its names, is "the set of things that were
+true this step and last".
 
 ```ruby
 contacts.begin_frame              # last step's list becomes the one to compare against

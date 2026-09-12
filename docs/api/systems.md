@@ -148,3 +148,32 @@ Because it's a normal component on the scene node, it rides the `update` travers
 (its broadphase runs in `update`) and is torn down with the scene. See
 `test_projects/asteroids` for the whole loop: ship, bullets, and rocks spawning,
 colliding, and despawning through this system.
+
+### Blocking and overlapping are two reports, and a pair gets one of them
+
+The same broadphase answers a second question: a
+[`CharacterBody`](components.md#characterbody) that names a collider layer in
+`blocked_by:` is *stopped* by every box wearing it, flush against its edge, exactly
+the way a solid tile stops it. So one `BoxCollider` can be a wall to one actor and a
+trigger for another, and which it is depends on who declared the layer rather than on
+anything the collider itself says.
+
+**The two reports do not overlap, and cannot.** Blocking leaves the boxes exactly
+touching, and `CollisionBox.overlap?` spans the half-open `[x, x + w)` on purpose —
+on a grid, pieces on neighbouring squares border each other constantly and an
+inclusive test would report every one of those as a contact. Measured on two 12×6
+boxes: touching exactly, `on_hit` does not fire; overlapping by half a pixel, it
+does. That convention is right and it is what makes the two reports mutually
+exclusive by construction.
+
+So a blocked pair reports **no** contact, and that is why a body that must both stop
+and react reacts to `on_blocked` rather than to `on_hit` — see
+[`CharacterBody`](components.md#characterbody). The rule of thumb:
+
+| The question | The report | Where it lives |
+|---|---|---|
+| what may I not walk through | `on_blocked` / `on_unblocked` | the body that was stopped |
+| what am I touching | `on_hit` / `on_separated` | both colliders of the pair |
+
+`examples/collision_tiles` is the worked example of the first, `examples/collision`
+of the second.

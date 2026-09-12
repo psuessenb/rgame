@@ -537,6 +537,171 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     end
   end
 
+  # The two edges of being stopped, which are what a game reacts to: the step something
+  # starts stopping this body, and the step it stops. One describe, because every rule
+  # here is about one set — what stopped this body, this step and last — and splitting
+  # them would hide that walking away and standing still are the same case.
+  #
+  # The axis readers underneath these live on the resolver, and collision_system_spec
+  # pins them: #blocked_x / #blocked_y is what a body that wants the answer without
+  # connecting a signal reads.
+  # rubocop:disable RSpec/MultipleMemoizedHelpers -- two of the seven are the recording sinks the
+  # signals write into rather than setup an example has to be read against.
+  describe 'on_blocked and on_unblocked' do
+    # Walls in column 8 and row 8 — x 128..144 and y 128..144 — with the hero's 10x10 box
+    # at (110, 110), 8px clear of both, and a 10px step. So one push reaches a wall, a
+    # diagonal push reaches the corner where the two meet, and every step is smaller than
+    # a tile: TileBlockers tests the column a step *lands in*, so a step longer than a
+    # tile walks straight through a wall and the body is never blocked at all.
+    let(:world) { tile_world(solid: ->(col, row) { col == 8 || row == 8 }) }
+    let(:body) { described_class.new(speed: 10.0, blocked_by: %i[tiles npc]) }
+    let(:hero) { RGame::Engine::Node2D.new(x: 110.0, y: 110.0) }
+
+    # What each signal reported, in order. A handler reads #layer and #node off whatever
+    # it is given, and reads them the same way whether a tile or an actor stopped the step.
+    let(:blocked) { [] }
+    let(:unblocked) { [] }
+
+    def collision_world
+      @collision_world ||= root.add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 64))
+    end
+
+    def npc_at(x, y)
+      npc = RGame::Engine::Node2D.new(x: x, y: y)
+      npc.add_component(RGame::Engine::Components::BoxCollider.new(width: 10, height: 10, layer: :npc))
+      root.add_node(npc)
+    end
+
+    # One frame in a scene's order: the broadphase rebuilds its index, then the children
+    # take their steps. The body is updated exactly **once**, which is what makes the
+    # counts below mean anything — the set advances per update, so a body updated twice in
+    # one frame would report a second step in which it pushed into nothing.
+    def tick(intent_x, intent_y, dt = 1.0)
+      body.set_intent(intent_x, intent_y)
+      collision_world.update(dt)
+      root.children.each { it.update(dt) }
+    end
+
+    before do
+      collision_world
+      mount_tiles(world, on: hero)
+      hero.add_component(RGame::Engine::Components::BoxCollider.new(width: 10, height: 10, layer: :hero))
+      hero.add_component(body)
+      body.on_blocked { |by| blocked << by }
+      body.on_unblocked { |by| unblocked << by }
+      root.add_node(hero)
+      root.enter_tree
+    end
+
+    describe 'the map' do
+      it 'fires on_blocked once when a step is stopped by a solid tile' do
+        tick(1.0, 0.0)
+        expect(hero.x).to eq(118.0) # the box's right edge rests on the wall at 128
+        expect(blocked.map(&:layer)).to eq([:tiles])
+      end
+
+      # A tile has no node, so a handler that reads one gets nil rather than something
+      # standing in for the map.
+      it 'reports the map with no node behind it' do
+        tick(1.0, 0.0)
+        expect(blocked.first.node).to be_nil
+      end
+
+      it 'does not fire again while the body keeps pushing' do
+        3.times { tick(1.0, 0.0) }
+        expect([blocked.size, unblocked.size]).to eq([1, 0])
+      end
+
+      it 'fires on_unblocked once, with the same blocker, when the body walks away' do
+        tick(1.0, 0.0)
+        tick(-1.0, 0.0)
+        expect(unblocked.first).to be(blocked.first)
+        tick(-1.0, 0.0)
+        expect(unblocked.size).to eq(1)
+      end
+
+      # Being unblocked is not being pushed off: the body has not moved, it has simply
+      # stopped being stopped. This is the case the per-update set buys — a body that
+      # records nothing this step ends whatever it recorded last.
+      it 'fires on_unblocked when the body stands still against the wall' do
+        tick(1.0, 0.0)
+        tick(0.0, 0.0)
+        expect(unblocked.map(&:layer)).to eq([:tiles])
+        expect(hero.x).to eq(118.0)
+      end
+
+      # Both axes land against the grid, which reports one blocker for the whole map, so
+      # the body has one thing to report rather than the same thing twice.
+      it 'fires once for a step stopped on both axes by the same blocker' do
+        tick(1.0, 1.0)
+        expect([hero.x, hero.y]).to eq([118.0, 118.0])
+        expect(blocked.map(&:layer)).to eq([:tiles])
+      end
+    end
+
+    describe 'another actor' do
+      it 'fires on_blocked with the collider that stopped the step, and its owner' do
+        npc = npc_at(122.0, 110.0)
+        tick(1.0, 0.0)
+        expect(hero.x).to eq(112.0) # stopped at the NPC, 6px short of the wall
+        expect([blocked.first.layer, blocked.first.node]).to eq([:npc, npc])
+      end
+
+      # Two different things stopped the step, so both are reported — the X axis against
+      # the wall and the Y axis against the NPC standing below the free square.
+      it 'fires once for each of two blockers when the axes were stopped by different things' do
+        npc = npc_at(118.0, 122.0)
+        tick(1.0, 1.0)
+        expect([hero.x, hero.y]).to eq([118.0, 112.0])
+        expect(blocked.map(&:layer)).to eq(%i[tiles npc])
+        expect(blocked.last.node).to be(npc)
+      end
+
+      # No free step in between: the body is against one NPC on one step and against
+      # another on the next. Starting edges are reported before ending ones, the order
+      # CollisionWorld reports contacts in, because what ended is only knowable once the
+      # step has been resolved.
+      it 'reports both edges when one blocker replaces another with no gap' do
+        first = npc_at(122.0, 110.0)  # to the right
+        second = npc_at(115.0, 122.0) # below, across the x the body is stopped at
+        tick(1.0, 0.0)
+        tick(0.0, 1.0)
+        expect(blocked.map(&:node)).to eq([first, second])
+        expect(unblocked.map(&:node)).to eq([first])
+      end
+    end
+
+    # The rule CollisionWorld#register follows for contacts, for the same reason: a body
+    # that died pressed against something must not report the end of that on its first
+    # step back. Components::Pool reclaims a freed node and re-adds it, which is a detach
+    # and an attach.
+    it 'does not report an unblocking for a pooled body reacquired after death' do
+      tick(1.0, 0.0)
+      expect(blocked.size).to eq(1)
+      root.remove_node(hero)
+      root.add_node(hero)
+      tick(0.0, 0.0)
+      expect(unblocked).to be_empty
+    end
+
+    # The edges themselves are on the per-frame path, so they may not allocate either —
+    # not the set that advances every step, not the emit, and not the walk over what
+    # ended. Driven against the map alone so the body is stationary throughout: it pushes
+    # into the wall, stands still, and repeats, which is the pair of steps that fires both
+    # edges without the body ever entering a broadphase cell it was not already in.
+    it 'allocates nothing on the two steps that fire the edges' do
+      tick(1.0, 0.0)
+      expect do
+        body.set_intent(1.0, 0.0)
+        body.update(1.0)
+        body.set_intent(0.0, 0.0)
+        body.update(1.0)
+      end.to allocate_nothing
+    end
+  end
+
+  # rubocop:enable RSpec/MultipleMemoizedHelpers
+
   # A body that cannot be blocked the way it was told to says so at attach, rather than
   # falling back to free movement: an actor walking through walls looks like a collision
   # bug, and the cause would be a scene three files away.
