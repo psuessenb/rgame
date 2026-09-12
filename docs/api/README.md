@@ -18,6 +18,7 @@ read or write any C.
 | [Audio](audio.md) | `RGame::Core::Audio`, `Sample`, `Song` — samples and streamed music |
 | [Sheets, atlases and maps](assets.md) | `RGame::Core::SpriteSheet` and the rest of the asset layer |
 | [Values](values.md) | `RGame::Util::Color`, `RGame::Util::Tensor`, `RGame::Util::Z` |
+| [Examples](examples.md) | What each program under `examples/` demonstrates |
 
 The scene graph — `RGame::Engine`, the layer a game is actually written in:
 
