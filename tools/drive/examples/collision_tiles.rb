@@ -20,23 +20,26 @@
 #     camera is still at its origin; 72 and 51 are where `CameraFollow` puts it
 #     once it has run once — the hero's start, less half the window, plus the
 #     offset that centres the camera on the feet rather than the head;
-#   - **translates spanning x −72..384 and y −160..394.** A translate carries the
+#   - **translates spanning x −72..434 and y −160..394.** A translate carries the
 #     camera as its opposite, so −72 and −160 are the two camera positions above,
-#     the second of them the southern clamp. The positive extremes are the hero's
-#     own place in the world, so 394 is how far south it had walked by the end of
-#     the budget;
+#     the second of them the southern clamp. The positive extremes are things'
+#     own places in the world: 394 is how far south the hero had walked by the end
+#     of the budget, and 434 is the spiky ball, which never moves;
 #   - **two `tilemap` calls per frame**, one per Tiled layer — the ground and the
 #     obstacles — each drawn by its own `TileMapLayer` node inside the WorldView;
-#   - **one `sprite` and one `rect` per frame**, the hero and its feet box. The
-#     rect is at `(2, 16, 12, 6)` in every frame of the run: the box is stated in
-#     the node's own local space, so it never varies with where the node is;
+#   - **one `sprite` and one `rect` per frame**, the hero and its feet box, plus
+#     one `circle` and two `line` calls for the spiky ball this script walks away
+#     from. All of those hold their arguments for the whole run: a collision box
+#     and a drawing are both stated in the node's own local space, so neither
+#     varies with where the node is;
 #   - **two clips per frame**, both the full window. One is the WorldView drawing
 #     the world through the player's camera, the other the presentation's
 #     letterbox. They coincide because this game has one player filling the
 #     window; `examples/split_screen` is where they stop coinciding;
-#   - **no `circle`, no `line`, and no audio.** Tile collision draws nothing and
-#     plays nothing: it is a question asked of the grid between one position and
-#     the next.
+#   - **`text` ending on `"Lives: 3"`, and no audio.** This route never goes near
+#     the ball, so nothing here costs a life — `collision_tiles_spike.rb` is the
+#     script that does. Tile collision itself draws nothing and plays nothing: it
+#     is a question asked of the grid between one position and the next.
 #
 # Nothing here needs a seed — the map is a file and the timestep is fixed, so two
 # runs at one tick budget agree tick for tick.

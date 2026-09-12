@@ -71,13 +71,16 @@ tells both sides they overlapped, without knowing what either of them is.
 ### collision_tiles
 
 The other collision problem: a character against a grid of solid tiles, sliding
-along a wall held diagonally. It shares the collider with the first and mounts no
-`CollisionWorld`, so the feet box here is only ever asked where a step lands.
-Naming an actor layer in `blocked_by` beside `:tiles` is what adds the other half;
-`test_projects/tiled_world` is the scene that does both.
+along a wall held diagonally. East of the start is a spiky ball that stops the hero
+and costs a life, so one feet box is stopped by two indexes at once — the map's grid
+and the broadphase — and `blocked_by: %i[tiles spike]` is the only place the
+difference shows. The life is spent in `on_blocked`, which it has to be: a blocked
+pair ends up touching rather than overlapping, so `on_hit` never fires for it.
 
-**Uses:** `Components::TileWorld`, `Components::FeetCollider`,
-`Components::CharacterBody` with `blocked_by: [:tiles]`, `Components::CameraFollow`.
+**Uses:** `Components::TileWorld`, `Components::CollisionWorld`,
+`Components::FeetCollider`, `Components::CharacterBody` with
+`blocked_by: %i[tiles spike]` and `on_blocked`, `Components::CameraFollow`,
+`Engine::CachedLabel`.
 
 ## Structure
 

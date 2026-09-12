@@ -7,39 +7,39 @@
 #   ruby examples/collision_tiles/main.rb
 #
 # Arrow keys, WASD, a d-pad or a left stick walk the hero. The trees and the
-# fence are solid; hold a diagonal against the fence and watch what happens. It
+# fence are solid; hold a diagonal against the fence and watch what happens.
+# East of the start is a spiky ball that stops the hero and costs a life. It
 # exercises:
 #   - Components::TileWorld — the scene-scoped system that owns the map, and
 #     answers every question about what is solid;
+#   - Components::CollisionWorld — the broadphase the ball's box lives in;
 #   - Components::FeetCollider — the shape at the hero's feet, derived from the
-#     sprite's size;
-#   - Components::CharacterBody with `blocked_by: [:tiles]` — steps resolved
-#     against that map, using that shape;
+#     sprite's size, and the one shape both of those stop;
+#   - Components::CharacterBody with `blocked_by: %i[tiles spike]` — steps
+#     resolved against the map *and* the ball, using that shape;
+#   - CharacterBody's `on_blocked` — what stopped a step, as an event;
 #   - Components::CameraFollow — a camera on the feet rather than on the head;
+#   - Engine::CachedLabel — the life count as a string built only when it changes;
 #   - the `:tilemap` asset loader and TileMapLayer, both from `examples/scroll_map`.
 #
-# ## This is the other collision problem
+# ## Two indexes, one list of names
 #
-# `examples/collision` is a world of shapes that are told when they start and
-# stop overlapping. There is none of that here: no `CollisionWorld`, no
-# `on_hit`, nothing to separate from, and the walls are not objects at all.
-#
-# The hero does carry a collider, and that is the one thing the two examples
-# share. A collider is a *shape*; what turns shapes into pairwise contacts is a
-# `CollisionWorld`, and this scene mounts none. So the feet box here is only
-# ever asked where a step lands — it is never bucketed, queried or paired with
-# anything.
-#
-# That is the point of the pair. A character against a grid of solid tiles is
-# not a pairwise overlap problem, because there are no pairs to find — a tile map
+# The walls are not objects. A character against a grid of solid tiles is not a
+# pairwise overlap problem, because there are no pairs to find — a tile map
 # already knows what is where, so the wall a step would hit is arithmetic on the
 # step: divide by the tile size and ask the grid. Bucketing forty thousand tiles
 # into a spatial hash would be building a second index of something already
 # indexed, and then paying for it every frame.
 #
-# So the two examples answer the same English word with different machinery, and
-# a game normally wants both: `examples/collision` for the things that move, this
-# for the ground they move over.
+# The spiky ball is an object, and it is in one. The scene mounts a
+# `CollisionWorld`, the ball wears a box on the `:spike` layer, and the hero
+# names that layer beside `:tiles`. So a step here is resolved against a grid and
+# against a broadphase at once, one axis at a time, stopping at whichever answer
+# is nearer — and the only place in this file where that shows is the list of
+# names in `blocked_by`.
+#
+# `examples/collision` is the third case, and the one neither of those is: shapes
+# that are told when they start and stop *overlapping*, with nothing stopped.
 #
 # ## What is solid is decided in Tiled, not in code
 #
@@ -76,6 +76,24 @@
 # version that stopped dead on contact would be correct by the letter — you did
 # walk into a wall — and would feel broken in a way a player cannot articulate.
 #
+# ## Being stopped is an event
+#
+# `on_blocked` fires on the step something starts stopping the body and
+# `on_unblocked` on the step it stops, each once per blocker. That is what spends
+# a life here: walk into the ball and lose one, keep pushing and lose no more,
+# back off and walk in again and lose another.
+#
+# It has to be that signal rather than `on_hit`, and this is the part worth
+# reading twice. Blocking leaves the two boxes exactly *touching*, and an overlap
+# test is half-open, so a successfully blocked pair does not overlap and reports
+# no contact at all. A ball that hurt through `on_hit` would have to be walked
+# into — which is exactly what blocking it prevents.
+#
+# The handler is given whatever stopped the step, and reads `layer` and `node`
+# off it the same way whichever kind it was. So the hero's one handler asks
+# `by.layer == :spike` and ignores the fence, which arrives as `:tiles` with no
+# node behind it.
+#
 # ## The system is not optional, and says so
 #
 # `blocked_by: [:tiles]` raises at attach when the scene has no `TileWorld`, and
@@ -86,16 +104,17 @@
 #
 # ## What this scene does not solve
 #
-# Anything that is not the map. The hero here would walk straight through
-# another character, because this scene mounts no `CollisionWorld` and so there
-# is nothing to tell it where the other actors are.
+# Nothing here moves but the hero. The ball is an ordinary actor with a box in
+# the broadphase, so it could walk about and block just the same — which is what
+# `test_projects/tiled_world` is, a crowd whose every walker declares
+# `%i[tiles hero npc]` and shoulders past itself. A hazard that holds still is
+# simply the smaller thing to read.
 #
-# That is a choice of this example, not a limit of the engine. Mount one, give
-# each actor a layer, and name that layer in `blocked_by` beside `:tiles` —
-# `blocked_by: %i[tiles npc]` — and the same feet box that stops the hero at a
-# fence stops it at a villager. `test_projects/tiled_world` is that scene.
-# Reporting a contact without stopping anyone is the other half, and stays
-# `on_hit` on this same box, which is `examples/collision`.
+# Nor is anything here overlapping. Blocking and contact are reports of two
+# different facts and a game usually wants both: a trigger walked through, a
+# pickup that vanishes, a puddle that slows whoever stands in it. Every one of
+# those is `on_hit` on a box nobody named in a `blocked_by`, which is
+# `examples/collision`.
 
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
@@ -122,14 +141,25 @@ CAMERA_OFFSET_Y = 19
 START_X = 384.0
 START_Y = 272.0
 
+# The spiky ball: three tiles east of the hero, on the open ground between the
+# trees, and low enough that its box sits across the hero's feet.
+BALL_X = 434.0
+BALL_Y = 284.0
+BALL_SIZE = 12
+
+LIVES = 3
+
 # A sprite, a feet box, a body that knows about walls, and a camera. The only
 # thing this class writes itself is the drawing of that box, so what collides is
 # visible.
 class Hero < RGame::Engine::Node2D
   FEET = RGame::Util::Color.rgba(255, 110, 110, 120)
 
+  attr_reader :lives
+
   def initialize(camera:, **)
     super(**)
+    @lives = LIVES
     add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
     # The two lines that differ from `examples/walk`: a shape, and a body told
     # what that shape may not pass through. Everything about the intent — the
@@ -138,7 +168,13 @@ class Hero < RGame::Engine::Node2D
     @collider = add_component(RGame::Engine::Components::FeetCollider.new(
                                 width: FEET_WIDTH, height: FEET_HEIGHT
                               ))
-    add_component(RGame::Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
+    body = add_component(RGame::Engine::Components::CharacterBody.new(
+                           speed: SPEED, blocked_by: %i[tiles spike]
+                         ))
+    # One handler for everything that can stop a step, because everything that
+    # can stop a step reports the same two things. The fence arrives here too, as
+    # :tiles with no node behind it, and is ignored.
+    body.on_blocked { |by| @lives = [@lives - 1, 0].max if by.layer == :spike }
     add_component(RGame::Engine::Components::PlayerController.new)
     add_component(RGame::Engine::Components::CameraFollow.new(
                     camera: camera, offset_x: CAMERA_OFFSET_X, offset_y: CAMERA_OFFSET_Y
@@ -151,6 +187,33 @@ class Hero < RGame::Engine::Node2D
   def on_draw(renderer, _view)
     box = @collider.box
     renderer.rect(box.offset_x, box.offset_y, box.width, box.height, color: FEET)
+  end
+end
+
+# The hazard: a box on the `:spike` layer, and a drawing of a ball with spikes on
+# it. It has no body and no controller — it never moves — so the only thing it
+# contributes to a step is its rectangle, sitting in the broadphase waiting to be
+# found.
+class SpikyBall < RGame::Engine::Node2D
+  BODY = RGame::Util::Color.rgba(190, 90, 210, 255)
+  SPIKE = RGame::Util::Color.rgba(120, 40, 140, 255)
+  RADIUS = BALL_SIZE / 2.0
+  SPIKE_LENGTH = 5
+
+  def initialize(**)
+    super
+    add_component(RGame::Engine::Components::BoxCollider.new(
+                    width: BALL_SIZE, height: BALL_SIZE, layer: :spike
+                  ))
+  end
+
+  # Local space, like every other on_draw: the node's transform is already
+  # pushed, so the ball is drawn around its own origin and lands wherever the
+  # node is.
+  def on_draw(renderer, _view)
+    renderer.line(RADIUS, -SPIKE_LENGTH, RADIUS, BALL_SIZE + SPIKE_LENGTH, thickness: 2.0, color: SPIKE)
+    renderer.line(-SPIKE_LENGTH, RADIUS, BALL_SIZE + SPIKE_LENGTH, RADIUS, thickness: 2.0, color: SPIKE)
+    renderer.circle(RADIUS, RADIUS, RADIUS, color: BODY)
   end
 end
 
@@ -168,12 +231,21 @@ class Scene < RGame::Engine::Node2D
     add_component(RGame::Engine::Components::TileWorld.new(
                     map: map, tilemap_id: MAP, cameras: players.map(&:camera)
                   ))
+    # The second index, for the things the map knows nothing about. Its cells are
+    # sized to the actors rather than to the 16px tiles: a broadphase cell wants
+    # to hold a handful of the things it buckets, and these are a dozen pixels
+    # across.
+    add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 32))
 
     view = add_node(RGame::Engine::WorldView.new)
     # The node handed back is the gap between the ground layers and anything
     # Tiled flags `above` — where things that walk around belong.
     actors = RGame::Engine::TileMapLayer.mount(view)
-    actors.add_node(Hero.new(camera: players.primary.camera, x: START_X, y: START_Y))
+    actors.add_node(SpikyBall.new(x: BALL_X, y: BALL_Y))
+    @hero = actors.add_node(Hero.new(camera: players.primary.camera, x: START_X, y: START_Y))
+    # Built here rather than in on_draw: the interpolation runs once per change of
+    # the count, and the frames in between read the string it kept.
+    @lives_label = RGame::Engine::CachedLabel.new { |lives| "Lives: #{lives}" }
   end
 
   # Screen space: outside the WorldView, so it stays put while the map scrolls.
@@ -181,6 +253,8 @@ class Scene < RGame::Engine::Node2D
     renderer.text('Arrows / WASD / gamepad to walk — trees and the fence are solid', 12, 12)
     renderer.text('Hold down and left against the fence: you slide to its one gap', 12, 34)
     renderer.text('The red box is what collides. The rest of the sprite is a picture', 12, 56)
+    renderer.text('Walk east into the spiky ball: it stops you, and it costs a life', 12, 78)
+    renderer.text(@lives_label[@hero.lives], 12, 100)
   end
 end
 
