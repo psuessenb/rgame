@@ -36,7 +36,10 @@ module RGame
           @contacts = Engine::ContactSet.new
         end
 
-        def on_attach = node.system(CollisionWorld).register(self)
+        # A collider is a *shape*; a CollisionWorld is what turns shapes into contacts.
+        # A scene with no world mounted therefore leaves this a bare shape rather than
+        # raising — BoxCollider#on_attach says why, and it is the same trade here.
+        def on_attach = node.system(CollisionWorld)&.register(self)
         def on_detach = node.system(CollisionWorld)&.unregister(self)
 
         # World-space centre — the node's own origin, in world coordinates.

@@ -99,6 +99,19 @@ RSpec.describe RGame::Engine::Components::BoxCollider do
       scene.sweep_freed
       expect(world).to have_received(:unregister).with(collider)
     end
+
+    # A collider is a shape first: a scene with no broadphase mounted leaves it a bare
+    # one rather than raising, which is what a tile-only game wants — its character's
+    # feet box stops its steps through CharacterBody(blocked_by: [:tiles]), and there
+    # are no pairs to report to anyone.
+    it 'is a bare shape on a scene with no CollisionWorld' do
+      bare = RGame::Engine::Node2D.new.tap { it.scene = it }
+      bare.enter_tree
+      child = RGame::Engine::Node2D.new(x: 10, y: 20)
+      collider = child.add_component(described_class.new(width: 8, height: 8))
+      expect { bare.add_node(child) }.not_to raise_error
+      expect([collider.aabb_x, collider.aabb_y]).to eq([10, 20])
+    end
   end
 
   # The two edges CollisionWorld drives: the step a contact starts, and the step it
