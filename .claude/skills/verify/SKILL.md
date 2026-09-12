@@ -62,6 +62,15 @@ driving**: a plain boot of a game whose menu responded to nothing once reported
 "90 ticks, 90 frames" and looked healthy. Assert on structure, not on exact draw
 counts (asteroids spawns from an unseeded RNG).
 
+Comparing a run against `main` is the strongest form of this: with `--seed N` two
+runs of unchanged code are byte-identical, so a diff of nothing is real evidence
+that a refactor moved nothing. One caveat, learned over about forty runs of it:
+three of them reported 239 frames where the rest reported 240. That is the
+fixed-timestep loop skipping a draw under load, not a behaviour change — it
+reproduces byte-identically on a re-run — so re-run a lone odd report before
+believing it, and take a baseline twice, because the capture you are comparing
+*against* can be the run that was wrong.
+
 **Tier 4 — manual.** Subjective/visual only. Never the only evidence for a
 correctness claim.
 
