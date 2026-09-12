@@ -1,7 +1,6 @@
 # Sweeping the systems and components for architectural fit
 
-**Status: steps 1, 2 and 3 are implemented. Step 4 is planned from open question 5
-and ready to implement. Step 5 is deliberately rough. Every uncalled class has since been decided in conversation — see open
+**Status: steps 1–4 are implemented. Step 5, the fold-back, is deliberately rough. Every uncalled class has since been decided in conversation — see open
 question 1.**
 
 Written out of a retrospective rather than a bug: the collision unification took
@@ -1350,6 +1349,58 @@ corner, after the implementation confirms it by running it.
 **What it does not deliver.** A `bounce:` option, or a bouncing component. The
 signal is what makes a bounce a two-line handler, and no caller has asked for more
 than that.
+
+**Landed.** One commit, on `blocked-axis`. `Mover`'s `on_blocked` is now
+`Signal.define(:by, :axis)`, and `apply_move` reports `:both` when the two axes name
+the same blocker, and `:x` and `:y` otherwise, as sketched. `on_unblocked` is unchanged.
+The `a mover` contract gained four examples. `character_body_spec` gained two in its
+tiles corner: `:both`, and x-then-y against the map firing once. `mover_spec` gained the
+bouncing `Velocity`.
+
+Suite numbers:
+- `rake spec`: 1370 examples, 0 failures. That is 1355 before, plus 12 from the contract
+  run against three movers, 2 in `character_body_spec` and 1 in `mover_spec`. So the
+  count moved by exactly the new examples.
+- `make test`: 326 checks, 0 failures.
+- `rake spec:core`: 367 examples, 0 failures.
+
+The acceptance evidence:
+- **Driven runs.** All 28 scripts ran at `--ticks 240 --seed 7`, each with a fresh
+  `RGAME_SAVE_DIR`, on this branch and on a worktree of `main` with `media/` linked. All
+  28 reports were byte-identical on the first pass, `tiled_world` included.
+- **Existing listeners are untouched.** `examples/collision_tiles`' `{ |by| ... }` and
+  every `on_blocked` example already in the specs pass unedited.
+- **The examples catch what they are for.** With `blocked_y` reported as `:x`, 6
+  contract examples failed, the floor and the corner for each mover. With the `:both`
+  branch removed, the tiles-corner example failed.
+- **Rule 2 was confirmed by running it.** 103,684 scenes pushed a 16×16 box diagonally at a
+  single 40×40 collider, from a grid of start offsets in all four
+  diagonals and at random speeds. 70,726 blocks were reported, 35,133 on `:x` and 35,593
+  on `:y`, and none on `:both`. `record_blocker`'s comment now names the tiles corner.
+- **The bounce works with the two-line handler.** Between walls 118 px apart it reverses
+  five times in 300 ticks, stays between them, and keeps its `vy`.
+
+What the sketch got wrong:
+- **The contract could only push rightwards.** Its host hook built a mover that moves
+  right. It is now `build_mover(blocked_by:, heading: [1, 0])`, and the group adds a
+  `:floor` collider below the node. `floor` is a method rather than a `let`, because a
+  sixth memoized helper put the wall-only groups over `RSpec/MultipleMemoizedHelpers`.
+- **A `PathFollow` cannot slide into a corner.** A blocked step rewinds the walk (step 2c),
+  so a follower the wall stops first aims at the same point again. With the floor 24 px
+  down instead of 14, it was held at y 114.1 and never reached the floor, while a
+  `Velocity` slid to it and reported both. The contract's corner puts both colliders the
+  same distance off so that all three movers meet them on one step, and says why. This is
+  a consequence of step 2's rewind, not of this step. A path-walking bouncer would need
+  to replan rather than slide, which matters to `examples/pathfinding` only if it wants
+  corners.
+- **`components.md` pointed at an answer no caller could reach.** Its Signals bullet told
+  a mover wanting the per-axis answer to read `CollisionSystem#blocked_x` / `#blocked_y`.
+  A mover's resolver is private, which is this step's own premise. The pointer is gone and
+  the bullet gives the axis instead.
+
+Documented in `docs/api/components.md`, in the `Mover` section: the bounce as the answer to
+sliding, the axis argument, when `:both` happens, and the Signals bullet. Also in the header
+of `Mover`, on the signal and in "A blocked step slides", and in `record_blocker`'s comment.
 
 ### Step 5 — fold the plan back and delete it
 

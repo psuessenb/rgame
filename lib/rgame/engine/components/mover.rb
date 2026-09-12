@@ -57,6 +57,13 @@ module RGame
       # right feel for a character and the wrong one for a bullet — and a bullet does not
       # need a different resolver for it, it needs to react: `on_blocked` fires on the step
       # it hits, and a bullet that queue-frees itself there is gone before it slides anywhere.
+      # One that bounces reads which axis was stopped and turns that half of its velocity:
+      #
+      #   velocity = Velocity.new(vx: 120, vy: 80, blocked_by: %i[wall bounds])
+      #   velocity.on_blocked do |_by, axis|
+      #     velocity.vx = -velocity.vx unless axis == :y
+      #     velocity.vy = -velocity.vy unless axis == :x
+      #   end
       #
       # ## The shape has one owner, and it is not this
       #
@@ -75,7 +82,16 @@ module RGame
         # one handler covers every kind: a collider answers its own layer and its owning
         # node, the map's solid tiles answer :tiles and nil (Engine::TileBlockers::TILES),
         # and the world's edge answers :bounds and nil.
-        signal :on_blocked, Engine::Signal.define(:by)
+        #
+        # on_blocked also says which axis of the step it stopped — :x, :y, or :both when one
+        # blocker stopped the two at once — which is what a bounce branches on. A listener
+        # that names only the blocker, `{ |by| ... }`, never sees it: a block drops the
+        # arguments it does not name.
+        #
+        # on_unblocked has no axis, because what ends is a blocker stopping this mover, not
+        # an axis. A blocker that stopped x on one step and y on the next was in the way the
+        # whole time, and ends once.
+        signal :on_blocked, Engine::Signal.define(:by, :axis)
         signal :on_unblocked, Engine::Signal.define(:by)
 
         # The two blocker names that are not collider layers: the scene's solid tiles, and
@@ -169,8 +185,12 @@ module RGame
           blocked_x = @collision.blocked_x
           blocked_y = @collision.blocked_y
           @last_move_blocked = !(blocked_x.nil? && blocked_y.nil?)
-          record_blocker(blocked_x)
-          record_blocker(blocked_y)
+          if blocked_x.equal?(blocked_y)
+            record_blocker(blocked_x, :both)
+          else
+            record_blocker(blocked_x, :x)
+            record_blocker(blocked_y, :y)
+          end
         end
 
         # The actor adapter CollisionSystem#move drives: it reads x/y/collision_box, works
@@ -223,14 +243,20 @@ module RGame
         # last step's list, exactly as CollisionWorld does with a contact, so the guard
         # gives the same answer either side of it.
         #
-        # The `touching?` check is what makes a step stopped on both axes by the *same*
-        # blocker — a box moving diagonally into one wide collider — fire once.
-        def record_blocker(by)
+        # A step stopped on both axes by the *same* blocker arrives here once, as :both.
+        # Only the map does that: CollisionSystem snaps x flush before it resolves y, so a
+        # single collider no longer overlaps on the far axis, while every solid tile reports
+        # the one Engine::TileBlockers::TILES — so a diagonal push into an inside corner of
+        # wall tiles is stopped on both axes by one blocker.
+        #
+        # The `touching?` check is for a mover that resolves a step in several moves: what
+        # stopped the first of them is not reported again by the second.
+        def record_blocker(by, axis)
           return if by.nil? || @stopped_by.touching?(by)
 
           started = @stopped_by.started?(by)
           @stopped_by.add(by)
-          on_blocked_signal.emit(by) if started
+          on_blocked_signal.emit(by:, axis:) if started
         end
 
         # One source per *kind* of blocker rather than per declared name: every collider

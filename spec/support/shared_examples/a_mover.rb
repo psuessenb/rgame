@@ -12,14 +12,17 @@
 # ## What the host must provide
 #
 #   it_behaves_like 'a mover' do
-#     def build_mover(blocked_by:) = ...
+#     def build_mover(blocked_by:, heading: [1, 0]) = ...
 #   end
 #
-# A mover, unattached, that carries its node **rightwards at 60 px/s from wherever the node
-# stands** — (170, 100) — for at least four seconds. The group builds everything else: a
-# scene with a real CollisionWorld, a 16x400 `:wall` collider whose left edge is at x = 200,
-# and a node with a 16x16 box. At 60 ticks a second that is one pixel a step, and the box
-# meets the wall after fourteen.
+# A mover, unattached, that carries its node from wherever the node stands — (170, 100) —
+# **in the direction of `heading`**, for at least four seconds: rightwards at 60 px/s for
+# [1, 0], downwards for [0, 1], and down and to the right for [1, 1]. How fast the diagonal
+# goes is the mover's own business. The group builds everything else: a scene with a real
+# CollisionWorld, a 16x400 `:wall` collider whose left edge is at x = 200, and a node with a
+# 16x16 box. At 60 ticks a second that is one pixel a step, and the box meets the wall after
+# fourteen. Some examples add a 200x16 `:floor` whose top edge is at y = 130, fourteen pixels
+# below the box, so the wall and the floor make a corner the diagonal walks into.
 #
 # The names below are prefixed so they cannot shadow, or be shadowed by, the host spec's
 # own `node` and `root`.
@@ -30,6 +33,10 @@ RSpec.shared_examples 'a mover' do
   let(:mover_node) { RGame::Engine::Node2D.new(x: 170.0, y: 100.0) }
   let(:wall_node) { RGame::Engine::Node2D.new(x: 200.0, y: 0.0) }
   let(:wall) { RGame::Engine::Components::BoxCollider.new(width: 16, height: 400, layer: :wall) }
+
+  # A method rather than a let, which would put the wall-only groups one memoized helper over
+  # RuboCop's limit for a collider they never read.
+  def floor = @floor ||= RGame::Engine::Components::BoxCollider.new(width: 200, height: 16, layer: :floor)
 
   def mount_collision_world
     mover_scene.add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 64))
@@ -44,6 +51,7 @@ RSpec.shared_examples 'a mover' do
   def enter(mover)
     wall_node.add_component(wall)
     mover_scene.add_node(wall_node)
+    mover_scene.add_node(RGame::Engine::Node2D.new(x: 0.0, y: 130.0).tap { it.add_component(floor) })
     mover_node.add_component(mover)
     mover_scene.add_node(mover_node)
     mover_scene.enter_tree
@@ -109,6 +117,51 @@ RSpec.shared_examples 'a mover' do
     it 'allocates nothing on a blocked step' do
       run_ticks(60)
       expect { mover.update(mover_dt) }.to allocate_nothing
+    end
+  end
+
+  # on_blocked's second argument. A single collider stops one axis a step — CollisionSystem
+  # snaps x flush before it resolves y, so the box no longer overlaps on the far axis — and
+  # :both is the map's, pinned in character_body_spec where a scene has tiles.
+  describe 'which axis stopped the step' do
+    def blocked_on(heading, blocked_by)
+      mount_collision_world
+      add_box
+      mover = enter(build_mover(blocked_by: blocked_by, heading: heading))
+      reports = []
+      mover.on_blocked { |by, axis| reports << [by, axis] }
+      run_ticks(60)
+      reports
+    end
+
+    it 'is :x for a push into the wall' do
+      expect(blocked_on([1, 0], [:wall])).to eq([[wall, :x]])
+    end
+
+    it 'is :y for a push into the floor' do
+      expect(blocked_on([0, 1], [:floor])).to eq([[floor, :y]])
+    end
+
+    # The wall and the floor are both fourteen pixels off, so the diagonal meets them on the
+    # same step. That is what lets a PathFollow in: a blocked step rewinds its walk, so a
+    # follower the wall stops first aims at the same point again and never reaches a floor
+    # further down.
+    it 'reports each collider of a corner with the axis it stopped' do
+      expect(blocked_on([1, 1], %i[wall floor])).to eq([[wall, :x], [floor, :y]])
+    end
+
+    # The steady press above never emits, so the step that does gets its own measurement.
+    # Fourteen steps leave the box flush and not yet blocked; the fifteenth pushes into the
+    # wall, and the count says it was that step which started the block.
+    it 'allocates nothing on the step that starts a block' do
+      mount_collision_world
+      add_box
+      mover = enter(build_mover(blocked_by: [:wall]))
+      started = 0
+      mover.on_blocked { started += 1 }
+      run_ticks(14)
+      expect { mover.update(mover_dt) }.to allocate_nothing
+      expect(started).to eq(1)
     end
   end
 

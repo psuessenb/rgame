@@ -553,6 +553,16 @@ same way off a villager as off a fence. That is what a character wants and not w
 wants, and a bullet does not need a different resolver for it. `on_blocked` fires on the step
 it hits, and a bullet that queue-frees itself there is gone before it has slid anywhere. A
 mover that keeps pushing also keeps its intent: a blocked `Velocity` does not zero its `vx`.
+A bullet that bounces instead reads which axis was stopped, and turns that half of its
+velocity:
+
+```ruby
+velocity = RGame::Engine::Components::Velocity.new(vx: 120, vy: 80, blocked_by: %i[wall bounds])
+velocity.on_blocked do |_by, axis|
+  velocity.vx = -velocity.vx unless axis == :y
+  velocity.vy = -velocity.vy unless axis == :x
+end
+```
 
 ```ruby
 add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height: 6, layer: :hero))
@@ -587,14 +597,20 @@ mover.on_blocked { |by| take_damage if by.layer == :spike }
 The listener is handed the blocker and reads `by.layer` and `by.node`, the same way
 whichever kind stopped the step: a collider answers its own layer and its owning node, the
 map's solid tiles answer `:tiles` and `nil`, and the world's edge answers `:bounds` and
-`nil`. Three things worth knowing:
+`nil`. The second argument is the axis it stopped — `:x`, `:y`, or `:both` — and a listener
+that names only the blocker never sees it. Three things worth knowing:
 
 - **Standing still is an unblocking.** The set of blockers advances once per `update`, so a
   mover that stops pushing records nothing that step and `on_unblocked` fires. It has
   not moved; it has stopped *being stopped*.
 - **Once per blocker, not once per axis.** A step stopped on both axes by the same thing
-  fires once. A step stopped on X by the map and on Y by a villager fires twice, once for
-  each — starting edges before ending ones, the order `CollisionWorld` reports contacts in.
+  fires once, with `:both`. Only the map does that — a diagonal into an inside corner of
+  solid tiles — because a step is resolved X first, and once X is flush a single collider
+  no longer overlaps on Y. A step stopped on X by the map and on Y by a villager fires
+  twice, once for each with its own axis — starting edges before ending ones, the order
+  `CollisionWorld` reports contacts in. And a blocker that stops X on one step and Y on the
+  next was in the way throughout, so it fires once, with the axis it first stopped;
+  `on_unblocked` has no axis for the same reason.
 - **A blocked pair is not a contact**, per the paragraph above. `on_blocked` is what the
   spiky ball listens to; `on_hit` is what a trigger area listens to.
 
@@ -619,10 +635,9 @@ retunes both, and there is nothing to hand from one component to the other.
   first, then the scene's `TileWorld` for `:tiles`, its `WorldBounds` for `:bounds`, its
   `CollisionWorld` for any layer name. Falling back to free movement would look like a
   collision bug, with the cause in a scene three files away that never mounted the system.
-- **Signals:** `on_blocked` fires with what stopped the step, `on_unblocked` when it stops
-  stopping it — `mover.on_blocked { |by| ... }`. A mover that wants the raw per-axis answer
-  instead reads
-  [`CollisionSystem#blocked_x` / `#blocked_y`](internals.md#collisionsystem--move-an-actor-against-its-blockers).
+- **Signals:** `on_blocked` fires with what stopped the step and the axis it stopped,
+  `on_unblocked` with what stopped stopping it — `mover.on_blocked { |by, axis| ... }`,
+  `mover.on_unblocked { |by| ... }`.
 - **Phase:** `update(dt)` opens the step, calls the subclass's private `take_step(dt)`, and
   reports the edges. It is not for overriding: that is what keeps a mover from forgetting
   either edge.
