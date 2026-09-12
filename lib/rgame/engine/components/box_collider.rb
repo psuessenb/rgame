@@ -18,9 +18,12 @@ module RGame
       # That is what an AABB buys — a spinning entity wants a CircleCollider, which
       # is rotation-invariant, rather than a per-frame box recompute.
       class BoxCollider < Engine::Component
-        # Fired by CollisionWorld for each overlapping collider; the listener gets the
-        # other collider and reads its #layer / #node to react.
+        # The two edges of a contact, fired by CollisionWorld: on_hit on the step this
+        # collider starts overlapping another, on_separated on the step it stops. Each
+        # fires once per pair, so a handler may count, play a sound or spend a life.
+        # The listener gets the other collider and reads its #layer / #node to react.
         signal :on_hit, Engine::Signal.define(:other)
+        signal :on_separated, Engine::Signal.define(:other)
 
         # box is writable so a pooled entity can retune its shape on reset — assign any
         # CollisionBox, CollisionBox.bottom_anchored(...) included. CollisionWorld reads
@@ -28,10 +31,15 @@ module RGame
         attr_accessor :box
         attr_reader :layer
 
+        # CollisionWorld's per-collider bookkeeping: who this was touching this step and
+        # last. The world owns what goes in it; nothing else should write to it.
+        attr_reader :contacts
+
         def initialize(width:, height:, offset_x: 0, offset_y: 0, layer: :default)
           super()
           @box = Engine::CollisionBox.new(width:, height:, offset_x:, offset_y:)
           @layer = layer
+          @contacts = Engine::ContactSet.new
         end
 
         def on_attach = node.system(CollisionWorld).register(self)
@@ -65,8 +73,9 @@ module RGame
           Engine::CollisionBox.overlap_circle?(aabb_x, aabb_y, aabb_w, aabb_h, x, y, r)
         end
 
-        # Called by CollisionWorld on contact (the signal's emit is otherwise private).
+        # Called by CollisionWorld on each edge (the signals' emit is otherwise private).
         def emit_hit(other) = on_hit_signal.emit(other)
+        def emit_separated(other) = on_separated_signal.emit(other)
       end
     end
   end

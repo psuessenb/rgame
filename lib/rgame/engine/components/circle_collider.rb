@@ -13,19 +13,27 @@ module RGame
       # BoxCollider is the rectangular sibling, and the two collide with each other:
       # both answer the same broadphase (#aabb_*) and narrowphase (#overlap?) protocol.
       class CircleCollider < Engine::Component
-        # Fired by CollisionWorld for each overlapping collider; the listener gets the
-        # other collider and reads its #layer / #node to react.
+        # The two edges of a contact, fired by CollisionWorld: on_hit on the step this
+        # collider starts overlapping another, on_separated on the step it stops. Each
+        # fires once per pair, so a handler may count, play a sound or spend a life.
+        # The listener gets the other collider and reads its #layer / #node to react.
         signal :on_hit, Engine::Signal.define(:other)
+        signal :on_separated, Engine::Signal.define(:other)
 
         # radius is writable so a pooled entity (e.g. a multi-tier rock) can retune its
         # shape on reset; CollisionWorld reads it fresh each frame, so no re-registration.
         attr_accessor :radius
         attr_reader :layer
 
+        # CollisionWorld's per-collider bookkeeping: who this was touching this step and
+        # last. The world owns what goes in it; nothing else should write to it.
+        attr_reader :contacts
+
         def initialize(radius:, layer: :default)
           super()
           @radius = radius
           @layer = layer
+          @contacts = Engine::ContactSet.new
         end
 
         def on_attach = node.system(CollisionWorld).register(self)
@@ -57,8 +65,9 @@ module RGame
           Engine::CollisionBox.overlap_circle?(x, y, w, h, cx, cy, @radius)
         end
 
-        # Called by CollisionWorld on contact (the signal's emit is otherwise private).
+        # Called by CollisionWorld on each edge (the signals' emit is otherwise private).
         def emit_hit(other) = on_hit_signal.emit(other)
+        def emit_separated(other) = on_separated_signal.emit(other)
       end
     end
   end

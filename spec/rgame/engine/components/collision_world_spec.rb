@@ -6,6 +6,7 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
   # phase, then tick the world and inspect the hits each collider was told about.
   let(:scene) { RGame::Engine::Node2D.new.tap { it.scene = it } }
   let(:hits)  { [] }
+  let(:separations) { [] }
 
   let!(:world) { scene.add_component(described_class.new(cell_size: 64)) }
 
@@ -26,6 +27,7 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
     node = RGame::Engine::Node2D.new(x: x, y: y)
     collider = node.add_component(component)
     collider.on_hit { |other| hits << [layer, other.layer] }
+    collider.on_separated { |other| separations << [layer, other.layer] }
     scene.add_node(node) # scene is live, so on_attach registers the collider
     collider
   end
@@ -122,6 +124,111 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
       place(110, 70, :rock)
       tick
       expect { world.update(0.0) }.to allocate_nothing
+    end
+
+    # The interesting half of the rule now that contacts are remembered between steps:
+    # a pair that *is* touching is recorded every step for as long as it lasts, and
+    # that record must cost nothing after the arrays have grown once. The listeners
+    # are silent here — the pair started overlapping on the first tick, and an edge
+    # fires once — so what is measured is the bookkeeping alone.
+    it 'allocates nothing per step while a pair stays in contact' do
+      place_box(100, 100, :snake, width: 24, height: 24)
+      place_box(110, 110, :fruit, width: 24, height: 24)
+      tick
+      expect { world.update(0.0) }.to allocate_nothing
+    end
+  end
+
+  # The contract, and the reason the world remembers anything at all: a contact is two
+  # edges, not a state. on_hit fires on the step a pair starts overlapping,
+  # on_separated on the step it stops, and nothing fires in between — so a handler may
+  # count, play a sound or spend a life, none of which survives being run again.
+  describe 'contact edges' do
+    it 'reports a lasting contact once, not once per step' do
+      place(100, 100, :bullet)
+      place(108, 100, :rock)
+      3.times { tick }
+      expect(hits).to contain_exactly(%i[bullet rock], %i[rock bullet])
+    end
+
+    # The duplicate this replaces: the broadphase offers a pair once per cell the two
+    # share, and a pair wide enough to span three cells was reported three times in a
+    # single step. These two boxes cover cells (0, 1), (1, 1) and (2, 1) at cell_size 64.
+    it 'reports a pair spanning several cells once' do
+      place_box(50, 100, :snake, width: 100, height: 24)
+      place_box(60, 100, :fruit, width: 80, height: 24)
+      tick
+      expect(hits).to contain_exactly(%i[snake fruit], %i[fruit snake])
+    end
+
+    it 'reports nothing while the pair stays apart' do
+      place(100, 100, :bullet)
+      place(400, 400, :rock)
+      3.times { tick }
+      expect([hits, separations]).to eq([[], []])
+    end
+
+    it 'reports a separation on the step the pair stops overlapping' do
+      bullet = place(100, 100, :bullet)
+      place(108, 100, :rock)
+      tick
+      bullet.node.x = 400
+      tick
+      expect(separations).to contain_exactly(%i[bullet rock], %i[rock bullet])
+    end
+
+    it 'reports no separation while the pair is still overlapping' do
+      place(100, 100, :bullet)
+      place(108, 100, :rock)
+      3.times { tick }
+      expect(separations).to be_empty
+    end
+
+    it 'reports a fresh contact when the pair meets again' do
+      bullet = place(100, 100, :bullet)
+      place(108, 100, :rock)
+      tick
+      bullet.node.x = 400
+      tick
+      bullet.node.x = 100
+      tick
+      expect(hits).to eq([%i[bullet rock], %i[rock bullet], %i[bullet rock], %i[rock bullet]])
+    end
+
+    # A contact also ends when the other side is destroyed, which is the case a game
+    # would otherwise have to notice for itself. The freed collider is told nothing —
+    # it is on its way out of the tree — so only the survivor reports.
+    it 'tells the survivor when its partner is freed' do
+      place(100, 100, :bullet)
+      rock = place(108, 100, :rock)
+      tick
+      rock.node.queue_free
+      tick
+      expect(separations).to eq([%i[bullet rock]])
+    end
+
+    it 'tells the survivor when its partner unregisters' do
+      place(100, 100, :bullet)
+      rock = place(108, 100, :rock)
+      tick
+      world.unregister(rock)
+      tick
+      expect(separations).to eq([%i[bullet rock]])
+    end
+
+    # A pooled entity keeps its component objects, so a collider coming back from the
+    # dead is the same one that died mid-contact. Registering clears what it was
+    # holding; without that its first step would report a separation from whatever it
+    # was touching in its previous life.
+    it 'gives a re-registered collider a clean slate' do
+      place(100, 100, :bullet)
+      rock = place(108, 100, :rock)
+      tick
+      world.unregister(rock)
+      rock.node.x = 400
+      world.register(rock)
+      tick
+      expect(separations).to eq([%i[bullet rock]])
     end
   end
 

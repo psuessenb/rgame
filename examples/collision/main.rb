@@ -10,12 +10,16 @@
 # into a crate and both of you light up; drive into another circle and neither
 # of you does. It exercises:
 #   - Components::CollisionWorld — the scene-scoped system that pairs shapes up
-#     each step and tells them they overlapped;
+#     each step and tells them when they start and stop overlapping;
 #   - Components::CircleCollider — a round shape on a node;
 #   - Components::BoxCollider — the rectangular one, and the two mix freely;
 #   - Components::Velocity — from `examples/velocity`, so that things move into
 #     each other without anybody pressing a key;
 #   - Engine::CachedLabel — a crate's counter, which changes only on a contact.
+#
+# The pale circle stays lit for as long as it is inside a crate, and the crate
+# blinks once and adds one to its counter. Two readings of the same pair of
+# signals: one brackets a contact, the other marks the moment it began.
 #
 # ## The system is on the scene, the shapes are on the nodes
 #
@@ -36,39 +40,40 @@
 # ## A contact is reported to both sides, and neither is asked what it means
 #
 # Each step, the system buckets every collider, finds the overlapping pairs, and
-# emits `on_hit` on both colliders of each pair — each hearing about the other.
-# It stops there. It does not know what a crate is, and it never looks at
-# `layer`.
+# tells both colliders of each pair about the other. It stops there. It does not
+# know what a crate is, and it never looks at `layer`.
 #
 # `layer` is an opaque tag, and the whole of the rule in this example is one
 # line in `Mover`:
 #
-#     collider.on_hit { |other| @flash = FLASH_TIME unless other.layer == :mover }
+#     collider.on_hit { |other| @touching += 1 unless other.layer == :mover }
 #
-# The two circles that drift through each other *are* reported, every frame they
-# overlap, and that line is what makes it look like nothing happened. Pushing the
-# test up into the system would mean the system deciding that same-layer things
-# never interact — which is wrong the moment one kind of thing has to hurt
-# another of its own kind.
+# The two circles that drift through each other *are* reported, and that line is
+# what makes it look like nothing happened. Pushing the test up into the system
+# would mean the system deciding that same-layer things never interact — which is
+# wrong the moment one kind of thing has to hurt another of its own kind.
 #
-# ## `on_hit` is a state, not an event
+# ## A contact is two edges, not a state
 #
-# It fires on **every** step the two shapes overlap, and it can fire more than
-# once within one step: the broadphase buckets a collider into each cell its
-# bounding box covers, and a pair sharing two cells is offered to the narrowphase
-# twice. Measured here, a circle sitting in the middle of a crate reports two
-# contacts per step, not one.
+# `on_hit` fires on the step a pair starts overlapping. `on_separated` fires on
+# the step it stops. Nothing fires on the steps in between, however long the two
+# sit inside each other, and a pair is reported once however many broadphase
+# cells it happens to span.
 #
-# So a handler has to be safe to run again. Setting a flag, lighting a colour,
-# calling `queue_free` — all fine, and all of what this example and the test
-# projects do. `@count += 1` is not, and neither is playing a sound.
+# That is what lets a handler do something that must happen exactly once —
+# `@score += 100`, play a sound, spend a life — with nothing to remember and
+# nothing to guard. `Crate` below counts arrivals in one line because of it.
 #
-# When what you want really is "how many times has a circle arrived", detect the
-# edge yourself: record *that* a contact happened, and compare against the
-# previous step in `on_update`. `Crate` below is eleven lines of exactly that,
-# and it works because a node's `on_update` runs after the scene's components —
-# the system has already had its say for the step by the time a child is
-# reached.
+# The two signals also come in balanced pairs, which is the other thing to see on
+# screen. `Mover` keeps a count: up on `on_hit`, down on `on_separated`, lit
+# while it is above zero. That count is right no matter how many crates the
+# circle is inside at once, because the edges are **per pair** — a second crate
+# is a second `on_hit`, not a louder version of the first.
+#
+# A contact also ends when the other side is destroyed or leaves the tree, and
+# `on_separated` fires then too. Nothing here dies, but a shooter whose bullets
+# vanish on impact depends on it: without it a ship could stay "in contact" with
+# a rock that no longer exists.
 #
 # ## A box and a circle collide with each other
 #
@@ -120,12 +125,18 @@ CELL_SIZE = 64
 
 WALK_SPEED = 150.0
 
-# How long a shape stays lit after being told about a contact. Long enough to see
-# at a glance, short enough that two contacts read as two.
+# How long a crate stays lit after a circle arrives. Long enough to see at a
+# glance, short enough that two arrivals read as two.
 FLASH_TIME = 0.3
 
-# A round thing that reports contacts. Its two subclasses differ only in what
-# moves them — the shape, the layer and the rule are the same for both.
+# A round thing that lights up while it is inside a crate. Its two subclasses
+# differ only in what moves them — the shape, the layer and the rule are the same
+# for both.
+#
+# `@touching` is the balanced pair of edges, kept as a count rather than a flag
+# because a circle can be inside two crates at once: the two in the middle of the
+# field overlap, and driving into the pair is two `on_hit` calls before either
+# `on_separated` arrives. A flag would go dark on leaving the first of them.
 class Mover < RGame::Engine::Node2D
   RADIUS = 16
   BODY  = RGame::Util::Color.new(236, 233, 220)
@@ -134,20 +145,20 @@ class Mover < RGame::Engine::Node2D
 
   def initialize(**)
     super(width: RADIUS * 2, height: RADIUS * 2, **)
-    @flash = 0.0
+    @touching = 0
     collider = add_component(RGame::Engine::Components::CircleCollider.new(radius: RADIUS, layer: :mover))
-    # The contact is reported to both colliders, each handed the other, so this
-    # is written entirely from this node's side. The guard is the example's
-    # subject: same-layer pairs are reported and this line drops them.
-    collider.on_hit { |other| @flash = FLASH_TIME unless other.layer == :mover }
+    # Both edges are reported to both colliders, each handed the other, so this is
+    # written entirely from this node's side. The guard is the example's subject:
+    # same-layer pairs are reported and these lines drop them. It has to be the
+    # same guard on both, or the count would not come back to zero.
+    collider.on_hit { |other| @touching += 1 unless other.layer == :mover }
+    collider.on_separated { |other| @touching -= 1 unless other.layer == :mover }
   end
-
-  def on_update(dt) = @flash -= dt
 
   # The centre is where the traversal has already put the renderer, and the
   # circle's collision centre is the node's origin — the same point.
   def on_draw(renderer, _view)
-    renderer.circle(0, 0, RADIUS, color: @flash.positive? ? HIT : BODY)
+    renderer.circle(0, 0, RADIUS, color: @touching.positive? ? HIT : BODY)
     # Drawn at the node's own angle, which is what makes the spin visible at all:
     # a spinning circle looks like a still one without a mark on it.
     renderer.line(0, 0, RADIUS, 0, thickness: 3, color: SPOKE)
@@ -176,19 +187,14 @@ end
 # A rectangle that never moves and counts the circles that have arrived.
 #
 # Two of them overlap on purpose, in the middle of the field. That pair is in
-# contact on every single step of the run, the system reports it every time, and
-# neither counter moves — which is the same one-line rule `Mover` uses, seen from
-# the other side.
+# contact from the first step to the last, the system reports it exactly once,
+# and neither counter moves — which is the same one-line rule `Mover` uses, seen
+# from the other side.
 #
-# The counter is an edge, worked out here rather than asked of the system: the
-# handler only records *that* a contact happened this step, and `on_update` turns
-# a run of those into one. See the note on `on_hit` at the top of the file for
-# why counting the calls would give a different — and meaningless — number.
-#
-# A visit is this crate going from touched by nothing to touched by something. A
-# second circle arriving while the first is still here is not a new one: telling
-# them apart would mean remembering which colliders were in contact last step,
-# and that is a per-frame collection where this is two booleans.
+# A visit is one circle arriving, and it is counted by adding one in the handler,
+# because `on_hit` is the arrival rather than the overlap. Two circles standing
+# in this crate at once is two visits: the edges are per pair, so each of them
+# announced itself.
 class Crate < RGame::Engine::Node2D
   BODY = RGame::Util::Color.new(88, 104, 136)
   HIT  = RGame::Util::Color.new(150, 196, 255)
@@ -198,8 +204,6 @@ class Crate < RGame::Engine::Node2D
     super
     @flash = 0.0
     @touches = 0
-    @contact = false
-    @was_contact = false
     @label = RGame::Engine::CachedLabel.new { |count| "visits: #{count}" }
     # The box is offset to sit around the node's origin, which is where a circle's
     # centre already is — so both shapes here are drawn and collide about the
@@ -209,21 +213,18 @@ class Crate < RGame::Engine::Node2D
                                width: width, height: height,
                                offset_x: -width / 2, offset_y: -height / 2, layer: :wall
                              ))
-    collider.on_hit { |other| @contact = true unless other.layer == :wall }
-  end
+    collider.on_hit do |other|
+      next if other.layer == :wall
 
-  # Runs after the scene's own components, so every contact for this step has
-  # already been reported by the time this is reached — which is what makes the
-  # comparison below an edge rather than a race.
-  def on_update(dt)
-    @flash -= dt
-    if @contact && !@was_contact
       @touches += 1
       @flash = FLASH_TIME
     end
-    @was_contact = @contact
-    @contact = false
   end
+
+  # Only the flash, which is a cosmetic timer and the one thing here that has to
+  # be advanced rather than announced. The counter is not touched: it moves on the
+  # edge, in the handler above.
+  def on_update(dt) = @flash -= dt
 
   def on_draw(renderer, _view)
     renderer.rect(-width / 2, -height / 2, width, height, color: @flash.positive? ? HIT : BODY)
@@ -272,8 +273,8 @@ class Scene < RGame::Engine::Node2D
     draw_cells(renderer, view)
 
     renderer.text('Arrows / WASD walk the pale circle — the other two need nobody', 12, 12)
-    renderer.text('Circle into crate lights both up; circle into circle does nothing', 12, 34)
-    renderer.text('Same layer, one line ignoring it — the system reports either way', 12, 56)
+    renderer.text('Enter a crate: it blinks once and counts you, you stay lit inside', 12, 34)
+    renderer.text('Circle into circle does nothing — same layer, one line ignoring it', 12, 56)
   end
 
   private

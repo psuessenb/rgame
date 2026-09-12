@@ -4,7 +4,7 @@ Low-level, pure-Ruby classes the engine's [components](components.md) and
 [systems](systems.md) are built on. A game author rarely constructs these directly —
 they sit *behind* a component (a `TileCharacterBody` resolves through `CollisionSystem`, an
 `AnimatedSprite` plays through an `Animator`, a `CollisionWorld` indexes through a
-`SpatialHash`) — but they are documented here because they carry the load-bearing
+`SpatialHash` and remembers through a `ContactSet`) — but they are documented here because they carry the load-bearing
 algorithms and are the seams the component tests drive. None `require "gosu"`.
 
 For the helpers a game *does* reach for directly (pools, localization, the camera,
@@ -27,10 +27,12 @@ hash.query(*bullet.aabb) { |rock| ...narrowphase... }
 Typical per-frame use is `clear`, `insert` every collider of one set, then `query`
 around each moving collider. Both `insert` and `query` take an AABB (`x, y, w, h`);
 an item spanning several cells is inserted into each and so **may be yielded more than
-once** by `query`. That dedup is deliberately the narrowphase caller's job — guard with
-`next if a.dead? || b.dead?` to keep hits idempotent — which lets the hash skip a
-per-query visited set and stay allocation-free. Cell keys are packed into a single
-tagged Fixnum (with an offset so off-screen / mid-wrap negative cells stay
+once** by `query`. That dedup is deliberately the narrowphase caller's job, which lets
+the hash skip a per-query visited set and stay allocation-free. `CollisionWorld` does it
+by checking the pair against the [`ContactSet`](#contactset--the-two-edges-of-a-contact)
+it is filling for the step, which it needs anyway; a caller that only *selects*
+(`nearest`) is written to be indifferent to repeats instead. Cell keys are packed into a
+single tagged Fixnum (with an offset so off-screen / mid-wrap negative cells stay
 non-negative), so keying allocates nothing either.
 
 `query_circle(cx, cy, r, &)` is the radial counterpart to `query`: it yields the items
@@ -55,6 +57,31 @@ that reached less far would miss a real contact.
 The one thing the index cannot know is whether an occupant still counts, so
 [`CollisionWorld#cell_empty?`](components.md#collisionworld) wraps this and skips
 colliders whose node is queued for removal.
+
+## `ContactSet` — the two edges of a contact
+
+`RGame::Engine::ContactSet` (`rgame/engine/contact_set`) is what turns a per-step overlap
+test into the two edges a game wants: the step a pair *starts* touching and the step it
+*stops*. [`CollisionWorld`](components.md#collisionworld) owns one per registered
+collider and is the only thing that drives it.
+
+```ruby
+contacts.begin_frame              # last step's list becomes the one to compare against
+contacts.touching?(other)         # already recorded this step? (the broadphase repeats)
+contacts.started?(other)          # not touching last step, so this is an on_hit
+contacts.add(other)               # record it for this step
+contacts.each_ended { |o| ... }   # touching last step, not now, so this is an on_separated
+contacts.reset                    # forget both steps — a pooled collider registering again
+```
+
+It is two arrays, swapped rather than reallocated, and membership is a linear scan by
+identity. Both choices are about the per-frame path: `Array#clear` keeps the capacity it
+grew to, so a lasting contact costs no allocation at all after the first few steps, while
+a Set or a Hash would allocate on every insert. A collider touching more than a handful
+of things at once is a design problem elsewhere, not a reason to index this.
+
+`started?` reads only the previous step's list, so it answers the same before and after
+`add`, which is what lets the world ask it as a guard in the order the step happens.
 
 ## `TileCollision` — axis-separated AABB-vs-tile resolution
 

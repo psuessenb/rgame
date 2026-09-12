@@ -4,15 +4,20 @@
 # twice quickly, then once more a long time later — so the counter above that
 # crate can be read as arrivals rather than as frames of overlap.
 #
+# That counter is the whole reason this script exists. `on_hit` fires once per
+# pair, on the step the two start overlapping, and a count is the one thing a
+# per-step signal could not produce: the number would be frames of contact, and
+# it would climb while nothing happened. So a wrong number here is the edge
+# having stopped being an edge, which no draw count would show.
+#
 # What the report should show:
 #
-#   - **the last `text` reading `visits: 3`**, at exactly this tick budget. That
-#     is the bottom-left crate, drawn last of the four, and the three are the
-#     three times this script brings the circle to it from somewhere else. The
-#     drifting circle that falls through the same crate around tick 110 adds
-#     none, because the walker is still standing in it when that begins: a visit
-#     is the crate going from touched by nothing to touched by something, which
-#     is what the file says it counts;
+#   - **the last `text` reading `visits: 4`**, at exactly this tick budget. That
+#     is the bottom-left crate, drawn last of the four. Three of the four are the
+#     times this script brings the walking circle to it from somewhere else; the
+#     fourth is the drifting circle that falls through the same crate around tick
+#     110. The edges are per *pair*, so the drifter announces itself whether or
+#     not the walker is standing there at the time;
 #   - **twenty-one `rect` calls per frame, flat** — the backdrop, nine vertical
 #     and seven horizontal cell lines, and one per crate. Contacts change what a
 #     crate is *coloured*, never how much is drawn, so a step in this count would
