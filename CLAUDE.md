@@ -70,6 +70,70 @@ suite lives in its own directory with its own runner, rather than in a shared
 one with an `exclude_pattern` that must not be forgotten. A convention that
 fails loudly beats one that has to be observed.
 
+## Before building: find the thing it resembles
+
+Reuse is the easy half, and this project already does it well — a new component
+reaches for `Pool`, `Timer`, `CollisionBox` without being told. The hard half is
+**generalization**: the existing thing that is not the same as what you are about
+to build, but is close enough that one shape should have covered both.
+
+Nothing in the code asks that question for you. Two subsystems that should have
+been one look perfectly reasonable side by side — each coherent, each tested,
+each with a plausible reason to exist. They only read as a mistake from the one
+place that needs both at once, and that place is usually written last.
+
+So when planning a system or component, inventory what exists and sort it into
+three piles rather than one:
+
+- **Reuse it.** The existing thing does the job.
+- **Extend or generalize it.** The existing thing does most of the job, or the
+  same job for a different input. Either it grows a parameter, or both become
+  one thing with two callers.
+- **Genuinely new.** Nothing resembles it — which is a conclusion to reach, not
+  a default to start from.
+
+The middle pile is what this section is for, and the test that fills it is not
+"do these share code" but **"do these two answer the same question about
+different things?"**
+
+### The worked example, and what it cost
+
+Tile collision and body collision were built independently, and each was
+correct. `TileCharacterBody` resolved a step against a grid; `BoxCollider`
+reported overlapping pairs out of a spatial hash. Different indexes, different
+questions, no shared code — and on that reading, two systems is right.
+
+They answered the same question about different things: *what is in the way*.
+Seen that way the duplication is obvious and it was expensive. The shape had two
+owners, so a character wanting both built one box privately and handed it to the
+other component in an `on_add` hook written for no other purpose — and forgetting
+that hook was **silent**, which is precisely the failure "Design out misuse"
+above exists to refuse. Unifying it afterwards took six steps and touched every
+collision file in the project.
+
+### Two smells, and the reason nobody smelled them
+
+- **Parallel vocabularies.** Two subsystems whose types line up one-for-one —
+  a shape each, a resolver each, a "what stopped me" each — are usually one
+  subsystem with two backends. Write the two lists side by side; the rows that
+  pair up are the generalization.
+- **A hook whose only job is handing one component's data to another.** That is
+  the seam where the two should have met, reported at runtime instead of at
+  design time.
+
+And the reason both went unnoticed for so long is worth stating on its own,
+because it is a second guideline: **two systems verified only in isolation can
+both be green and still compose badly.** Each had its own specs and both passed.
+What no test covered was a node using both, and counting said why — of every
+scene in `examples/`, `test_projects/` and the specs, the number mounting both
+systems was **zero**. The case the whole design was eventually reworked for had
+never once been built.
+
+So when a new subsystem sits next to an existing one, the acceptance test is not
+"does mine pass" but **"what does a caller using both of us look like, and does
+anything exercise it?"** If the answer is that nothing does, that is the test to
+write first, and it is the cheapest moment this design will ever be questioned.
+
 ## Spec style
 
 Use `spec/rgame/engine/node2d_spec.rb` as a reference if needed.
