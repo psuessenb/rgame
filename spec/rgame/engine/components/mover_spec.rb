@@ -64,6 +64,44 @@ RSpec.describe RGame::Engine::Components::Mover do
   end
   # rubocop:enable RSpec/MultipleMemoizedHelpers
 
+  # The caller on_blocked's axis exists for. A bullet bouncing between two walls, with the
+  # two-line handler Mover's header gives: nothing else in the repository bounces, so this
+  # is the scene that shows the axis is enough to build one.
+  describe 'a Velocity bouncing between two walls' do
+    let(:ball_node) { RGame::Engine::Node2D.new(x: 100.0, y: 100.0) }
+    let(:ball) { RGame::Engine::Components::Velocity.new(vx: 120.0, vy: 30.0, blocked_by: [:wall]) }
+    let(:turns) { [] }
+
+    def wall_at(x)
+      wall = RGame::Engine::Node2D.new(x: x, y: 0.0)
+      wall.add_component(RGame::Engine::Components::BoxCollider.new(width: 16, height: 1000, layer: :wall))
+      scene.add_node(wall)
+    end
+
+    before do
+      wall_at(50.0)  # right edge at 66
+      wall_at(200.0) # left edge at 200
+      box(ball_node, layer: :ball)
+      ball_node.add_component(ball)
+      ball.on_blocked do |_by, axis|
+        ball.vx = -ball.vx unless axis == :y
+        ball.vy = -ball.vy unless axis == :x
+        turns << ball.vx.positive?
+      end
+      scene.add_node(ball_node)
+      scene.enter_tree
+    end
+
+    # At 2 px a step the first wall is 42 steps off and each crossing after it 59, so 300
+    # steps reach five walls.
+    it 'stays between them, reversing at each' do
+      tick(300)
+      expect(ball_node.x).to be_between(66.0, 184.0)
+      expect(turns).to eq([false, true, false, true, false])
+      expect(ball.vy).to eq(30.0)
+    end
+  end
+
   # ThrustController is not a mover: it writes a Velocity, so a ship is stopped by what its
   # Velocity declares, with nothing on the controller.
   it 'stops a ThrustController ship by what its Velocity declares' do

@@ -80,8 +80,8 @@ RSpec.describe RGame::Engine::Components::PathFollow do
   end
 
   it_behaves_like 'a mover' do
-    def build_mover(blocked_by:)
-      road = RGame::Engine::Path.new([[170.0, 100.0], [1000.0, 100.0]])
+    def build_mover(blocked_by:, heading: [1, 0])
+      road = RGame::Engine::Path.new([[170.0, 100.0], [170.0 + (830.0 * heading[0]), 100.0 + (830.0 * heading[1])]])
       described_class.new(path: road, speed: 60.0, blocked_by: blocked_by)
     end
   end

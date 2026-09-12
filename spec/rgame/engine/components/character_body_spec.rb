@@ -97,8 +97,8 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
   end
 
   it_behaves_like 'a mover' do
-    def build_mover(blocked_by:)
-      described_class.new(speed: 60.0, blocked_by: blocked_by).tap { it.set_intent(1.0, 0.0) }
+    def build_mover(blocked_by:, heading: [1, 0])
+      described_class.new(speed: 60.0, blocked_by: blocked_by).tap { it.set_intent(*heading) }
     end
   end
 
@@ -635,6 +635,27 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
         tick(1.0, 1.0)
         expect([hero.x, hero.y]).to eq([118.0, 118.0])
         expect(blocked.map(&:layer)).to eq([:tiles])
+      end
+
+      # The one blocker that can stop both axes in one step: a collider no longer overlaps
+      # on y once x has snapped flush, but every solid tile reports the same object.
+      it 'says :both for that step' do
+        axes = []
+        body.on_blocked { |_by, axis| axes << axis }
+        tick(1.0, 1.0)
+        expect(axes).to eq([:both])
+      end
+
+      # The edge belongs to the blocker, not the axis: pressed into column 8, then walked
+      # down into row 8, the map was in the way on both steps.
+      it 'does not fire again when the same blocker goes on to stop the other axis' do
+        axes = []
+        body.on_blocked { |_by, axis| axes << axis }
+        tick(1.0, 0.0)
+        tick(0.0, 1.0)
+        expect([hero.x, hero.y]).to eq([118.0, 118.0])
+        expect(axes).to eq([:x])
+        expect(unblocked).to be_empty
       end
     end
 

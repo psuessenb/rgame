@@ -21,7 +21,9 @@ RSpec.describe RGame::Engine::Components::Velocity do
   end
 
   it_behaves_like 'a mover' do
-    def build_mover(blocked_by:) = described_class.new(vx: 60.0, blocked_by: blocked_by)
+    def build_mover(blocked_by:, heading: [1, 0])
+      described_class.new(vx: 60.0 * heading[0], vy: 60.0 * heading[1], blocked_by: blocked_by)
+    end
   end
 
   # Standing in for every Mover: the edge is resolved by Mover's adapter, which all three
