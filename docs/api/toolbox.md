@@ -2,7 +2,7 @@
 
 Engine classes a **game author reaches for directly** that don't belong to the scene
 graph, components, signals, or systems chapters — pooling, localization, audio facts,
-flat grids, the camera, collision boxes. All are pure Ruby (none `require "gosu"`), so
+the camera, collision boxes. All are pure Ruby (none `require "gosu"`), so
 they stay headless-testable. One section is a recipe rather than a class:
 [making a character that collides](#making-a-character-that-collides), because the
 question it answers has no single class behind it.
@@ -11,24 +11,12 @@ For the low-level classes that sit *behind* components and are rarely constructe
 hand (collision maths, the spatial index, animation playback), see
 [Internal building blocks](internals.md).
 
-## `Matrix` — a flat fixed-size grid
+## Grids
 
-`RGame::Engine::Matrix` is a fixed-size grid addressed as `[x, y]` but backed by a
-**single flat (row-major) array**, not an array-of-arrays. One contiguous
-allocation is cheaper than nested arrays, and it is the shape a C-level buffer
-takes — which is not hypothetical: its 3-D sibling made exactly that move.
-
-```ruby
-grid = RGame::Engine::Matrix.new(width, height, initial: 0)
-grid[col, row] = gid
-grid[col, row]                      # row-major: index = y * width + x
-```
-
-It does no bounds checking on the hot path (callers stay in range).
-
-For three dimensions, reach for [`RGame::Util::Tensor`](values.md#rgameutiltensor) — the C
-one. `TileMap` stacks its tile layers in a single
-`Tensor(width, height, layer_count)`, and that is the worked example of the rule
+The engine has no grid class of its own. A fixed-size grid is
+[`RGame::Util::Tensor`](values.md#rgameutiltensor) — three-dimensional, backed by one
+flat C array; a flat 2-D grid is a `Tensor` with a depth of 1. `TileMap` stacks its
+tile layers in a single `Tensor(width, height, layer_count)`, and that is the worked example of the rule
 that the engine layer may hold `RGame::Util` values: a grid is a value, so the
 layer above owns one outright rather than being handed it.
 
@@ -78,9 +66,9 @@ pool.each { |bullet| bullet.update(dt) }
 pool.reclaim_if(&:dead?)                 # sweep dead → free list, once per frame
 ```
 
-The factory builds a *blank* object; the caller re-initialises it after `acquire`
-(typically via a `reset` from an [`RGame::Engine::Resettable`](#resettable--mutable-only-where-a-pool-needs-it)
-value object). `reclaim_if` is the deferred-removal seam: it sweeps the active list
+The factory builds a *blank* object; the caller re-initialises it after `acquire`,
+typically through a `reset` method of the pooled class's own — `examples/pooling`
+shows it on a node. `reclaim_if` is the deferred-removal seam: it sweeps the active list
 once, moving every object the block marks dead onto the free list. Call it *after*
 iterating with `each` — never mutate the active list mid-iteration. `active`, `size`,
 and `each` expose the live set for update/draw traversal.
@@ -315,29 +303,3 @@ underneath each is an [`RGame::Engine::Signal`](signals.md) (`on_play_sound`, `o
 `on_stop_music`) that is the actual subscription seam the director listens on. Because
 the engine only emits facts and never names an audio device, the bus stays in the engine
 layer and playback stays in `RGame::Core`.
-
-## `Resettable` — mutable only where a pool needs it
-
-`RGame::Engine::Resettable` (`rgame/engine/resettable`) builds value-object classes for pooling. Like
-`Data.define`, instances expose read-only accessors and carry their fields as a unit —
-but where a `Data` value is fully immutable (every change is a fresh allocation), these
-add exactly one mutation: `reset`, which overwrites all fields at once and returns self.
-
-```ruby
-Point = RGame::Engine::Resettable.define(:x, :y)
-p = Point.new(3, 4)
-p.x            # => 3 (read-only; no x= setter)
-p.reset(5, 6)  # overwrite in place, allocation-free → self
-
-Vel = RGame::Engine::Resettable.define(:dx, :dy, keyword_init: true)
-Vel.new(dx: 1, dy: 0).reset(dx: 2, dy: 0)
-```
-
-That single in-place `reset` is the only mutability a [`Pool`](#pool--reuse-dont-allocate)
-needs: acquire a recycled instance and `reset` it, without exposing the per-field setters
-a `Struct` would. Methods are generated fixed-arity with direct ivar assignment (as
-Struct/Data do), so `reset` is allocation-free and recycling stays zero-allocation in
-steady state — including the `keyword_init: true` form, which generates named parameters
-(`reset(x:, y:)`) rather than a `**kwargs` splat (the one form that would build a Hash per
-call). Reach for this over a mutable `Struct` whenever a value object is pool-recycled; see
-the Style notes in `CLAUDE.md`.

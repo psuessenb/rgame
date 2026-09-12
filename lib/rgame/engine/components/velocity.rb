@@ -5,7 +5,7 @@ module RGame
     module Components
       # Integrates linear and angular velocity into the node's transform each step.
       # Free-moving entities (rocks, bullets) use it alone; a controller component
-      # (or the node's own control hook) writes vx/vy/spin as intent. From Body#integrate.
+      # (or the node's own control hook) writes vx/vy/spin as intent.
       class Velocity < Engine::Component
         attr_accessor :vx, :vy, :spin
 
