@@ -2,20 +2,41 @@
 
 RSpec.describe RGame::Engine::Components::CharacterBody do
   # Unit scope: the body turns a movement intent into a step, and `blocked_by:` decides
-  # where that step is allowed to land. Both halves are here because they are one class
-  # now — an unblocked body writes to the node, a `:tiles` body hands itself to the
-  # scene's TileWorld as an actor. The tile-vs-box maths itself is tile_collision_spec's.
+  # where that step is allowed to land. Both halves are here because they are one class —
+  # an unblocked body writes to the node, and a blocked one builds a resolver at attach
+  # and hands itself to it. The tile-vs-box maths itself is tile_blockers_spec's and the
+  # actor-vs-actor maths is actor_blockers_spec's.
+  #
   # The actor hangs under a root, because the body resolves in **world** space and a
-  # parentless node is pinned to the world origin whatever its own x/y say. One node
-  # under a root at the origin is the ordinary case: world position equals local.
-  let(:root) { RGame::Engine::Node2D.new }
+  # parentless node is pinned to the world origin whatever its own x/y say. The root is
+  # also the scene, so a real system mounted on it is found the way a game's would be.
+  let(:root) { RGame::Engine::Node2D.new.tap { it.scene = it } }
   let(:node) { RGame::Engine::Node2D.new(x: 100.0, y: 100.0) }
 
-  # Node2D#system walks the scene and the root, neither of which this tree mounts, so the
-  # scene's mounted systems are stubbed by class. A block rather than `with(...)` because
-  # BoxCollider#on_attach asks for a CollisionWorld on the same node.
-  def mount(systems)
-    allow(node).to receive(:system) { |klass| systems[klass] }
+  # Systems this node should see that the tree does not really carry. Anything not named
+  # falls through to the real lookup, so a spec can mount a real CollisionWorld on the
+  # scene and still hand the body a doubled TileWorld.
+  def mount(systems, on: node)
+    allow(on).to receive(:system).and_wrap_original do |original, klass|
+      systems[klass] || original.call(klass)
+    end
+  end
+
+  # TileWorld *is* a WorldBounds, and Node2D#system finds it by is_a? — which a verifying
+  # double is not — so the two names are answered with the same object.
+  def mount_tiles(world, on: node)
+    mount({ RGame::Engine::Components::TileWorld => world,
+            RGame::Engine::Components::WorldBounds => world }, on: on)
+  end
+
+  # A doubled TileWorld whose blocker source is real: what a body borrows from a tile
+  # world is its Engine::TileBlockers, and the arithmetic that runs is that class's.
+  def tile_world(solid: ->(_col, _row) { false }, width: 1000, height: 1000)
+    instance_double(
+      RGame::Engine::Components::TileWorld,
+      blockers: RGame::Engine::TileBlockers.new(tile_width: 16, tile_height: 16, solid: solid),
+      world_width: width, world_height: height
+    )
   end
 
   # Put the actor in the tree and bring the whole thing live, so world positions resolve
@@ -24,8 +45,6 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     parent.add_node(child)
     parent.enter_tree
   end
-
-  def tile_world = instance_double(RGame::Engine::Components::TileWorld, move: nil)
 
   describe 'an unblocked body — the default' do
     let(:body) { described_class.new(speed: 50.0) }
@@ -78,33 +97,37 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
   end
 
   describe 'blocked_by: [:tiles]' do
-    let(:world)    { tile_world }
+    # A wall in column 8, x 128..144. The node's box is offset (8, 16) from its origin,
+    # so the origin at (100, 100) puts the box at (108, 116) with its right edge at 124.
+    let(:world)    { tile_world(solid: ->(col, _row) { col == 8 }) }
     let(:collider) { RGame::Engine::Components::BoxCollider.new(width: 16, height: 16, offset_x: 8, offset_y: 16) }
     let(:body)     { described_class.new(speed: 50.0, blocked_by: [:tiles]) }
 
     before do
-      mount(RGame::Engine::Components::TileWorld => world)
+      mount_tiles(world)
       node.add_component(collider)
       node.add_component(body)
       enter
     end
 
-    it 'resolves the step through the tile world instead of writing to the node' do
+    # A 10px step, which would put the box's right edge at 134 — past the wall's near
+    # edge, and inside its column. TileBlockers assumes a step smaller than a tile.
+    it 'stops the step flush against a solid tile' do
       body.set_intent(1.0, 0.0)
-      body.update(0.5)
-      expect(world).to have_received(:move).with(body, 25.0, 0.0) # 1.0 * 50 * 0.5
+      body.update(0.2)
+      expect(node.x).to eq(104.0) # the box right edge rests on the wall at 128
     end
 
-    it 'leaves the node where it was — the world writes the resolved position back' do
-      body.set_intent(1.0, 0.0)
+    it 'moves freely where nothing is solid' do
+      body.set_intent(0.0, 1.0)
       body.update(0.5)
-      expect([node.x, node.y]).to eq([100.0, 100.0])
+      expect(node.y).to eq(125.0)
     end
 
     it 'does nothing when the intent is zero' do
       body.set_intent(0.0, 0.0)
       body.update(0.5)
-      expect(world).not_to have_received(:move)
+      expect([node.x, node.y]).to eq([100.0, 100.0])
     end
 
     it 'takes a bare symbol as readily as a list' do
@@ -113,6 +136,20 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
       bare.add_component(RGame::Engine::Components::BoxCollider.new(width: 4, height: 4))
       bare.add_component(described_class.new(speed: 50.0, blocked_by: :tiles))
       expect { enter(bare) }.not_to raise_error
+    end
+
+    # The world's edges still hold a tile-blocked body in, exactly as they did when the
+    # tile world owned the resolver. Step 4e is what turns that into a declared blocker.
+    it 'is clamped inside the world bounds' do
+      mount_tiles(tile_world(width: 200, height: 200))
+      small = RGame::Engine::Node2D.new(x: 100.0, y: 100.0)
+      allow(small).to receive(:system) { |klass| node.system(klass) }
+      small.add_component(RGame::Engine::Components::BoxCollider.new(width: 16, height: 16))
+      fast = small.add_component(described_class.new(speed: 1000.0, blocked_by: [:tiles]))
+      enter(small)
+      fast.set_intent(1.0, 1.0)
+      fast.update(1.0)
+      expect([small.x, small.y]).to eq([184.0, 184.0]) # 200 - the box's 16
     end
 
     describe 'the actor adapter CollisionSystem#move drives' do
@@ -151,7 +188,7 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     let(:collider)  { RGame::Engine::Components::BoxCollider.new(width: 16, height: 16) }
     let(:body)      { described_class.new(speed: 50.0, blocked_by: [:tiles]) }
 
-    # A real resolver rather than a doubled TileWorld: what these are about is which
+    # A resolver of this spec's own rather than the body's: what these are about is which
     # numbers reach the tile arithmetic, so the tiles have to be real too. One solid
     # column at x 128..144.
     def resolver
@@ -164,7 +201,7 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     end
 
     before do
-      mount(RGame::Engine::Components::TileWorld => tile_world)
+      mount_tiles(tile_world)
       node.add_component(collider)
       node.add_component(body)
       root.add_node(container)
@@ -218,6 +255,184 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     end
   end
 
+  # A layer name means the scene's CollisionWorld: the body is stopped flush by any box
+  # collider wearing that layer, the way a solid tile stops it. These mount a real
+  # CollisionWorld, because what is being pinned is the wiring — the body finding the
+  # world, excluding its own collider, and re-indexing itself afterwards.
+  describe 'blocked_by: a collider layer' do
+    let(:collision_world) { root.add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 64)) }
+    let(:body) { described_class.new(speed: 15.0, blocked_by: [:npc]) }
+
+    # An actor: a 10x10 box at the node's origin, plus whatever body is given.
+    def actor(x, y, layer:, body: nil)
+      actor_node = RGame::Engine::Node2D.new(x: x, y: y)
+      actor_node.add_component(RGame::Engine::Components::BoxCollider.new(width: 10, height: 10, layer: layer))
+      actor_node.add_component(body) if body
+      root.add_node(actor_node)
+      actor_node
+    end
+
+    # The scene's own order: the world rebuilds its index, then the children take steps.
+    def tick(dt = 1.0)
+      root.children.each { it.update(0.0) } # resolve world transforms, as a scene's pass does
+      collision_world.update(dt)
+      root.children.each { it.update(dt) }
+    end
+
+    before do
+      collision_world
+      root.enter_tree
+    end
+
+    it 'stops the step flush against a collider on that layer' do
+      hero = actor(100.0, 100.0, layer: :hero, body: body)
+      actor(120.0, 100.0, layer: :npc)
+      body.set_intent(1.0, 0.0)
+      tick
+      expect(hero.x).to eq(110.0) # a 15px step, stopped with its right edge on the NPC
+    end
+
+    it 'is not stopped by a collider on a layer it did not declare' do
+      hero = actor(100.0, 100.0, layer: :hero, body: body)
+      actor(120.0, 100.0, layer: :pickup)
+      body.set_intent(1.0, 0.0)
+      tick
+      expect(hero.x).to eq(115.0)
+    end
+
+    # A layer is a declaration about what *may* stop this body. One that happens to hold
+    # nothing is ordinary, not a misconfiguration.
+    it 'moves freely when the declared layer is empty' do
+      hero = actor(100.0, 100.0, layer: :hero, body: body)
+      body.set_intent(1.0, 0.0)
+      tick
+      expect(hero.x).to eq(115.0)
+    end
+
+    # What lets a crowd of NPCs all declare blocked_by: [:npc].
+    it 'is not stopped by its own collider on a declared layer' do
+      hero = actor(100.0, 100.0, layer: :npc, body: body)
+      body.set_intent(1.0, 0.0)
+      tick
+      expect(hero.x).to eq(115.0)
+    end
+
+    # A scene with a broadphase and no bounds at all is ordinary — test_projects/snake is
+    # one — so an actor-blocked body must not need them.
+    it 'is not clamped, and does not raise, in a scene with no WorldBounds' do
+      expect(root.get_component(RGame::Engine::Components::WorldBounds)).to be_nil
+      fast = described_class.new(speed: 1000.0, blocked_by: [:npc])
+      hero = actor(100.0, 100.0, layer: :hero, body: fast)
+      fast.set_intent(-1.0, 0.0)
+      tick
+      expect(hero.x).to eq(-900.0)
+    end
+
+    # Blocking stops the mover and never moves what it hit, so a pair walking into each
+    # other ends up touching with neither displaced.
+    it 'stops both of two bodies walking into each other' do
+      left_body  = described_class.new(speed: 15.0, blocked_by: [:npc])
+      right_body = described_class.new(speed: 15.0, blocked_by: [:npc])
+      left  = actor(100.0, 100.0, layer: :npc, body: left_body)
+      right = actor(120.0, 100.0, layer: :npc, body: right_body)
+      left_body.set_intent(1.0, 0.0)
+      right_body.set_intent(-1.0, 0.0)
+      tick
+      expect([left.x, right.x]).to eq([110.0, 120.0])
+    end
+
+    # The other half of that: whoever moves first re-indexes itself, so the second finds
+    # it where it now is rather than where the index was built. Without the re-index the
+    # follower walks into the space the leader has taken and the two overlap.
+    it 'sees a blocker that already moved this step' do
+      leader_body   = described_class.new(speed: 15.0, blocked_by: [:npc])
+      follower_body = described_class.new(speed: 15.0, blocked_by: [:npc])
+      actor(100.0, 100.0, layer: :npc, body: leader_body)
+      follower = actor(75.0, 100.0, layer: :npc, body: follower_body)
+      leader_body.set_intent(-1.0, 0.0)  # steps back to 85
+      follower_body.set_intent(1.0, 0.0) # would reach 90, where the leader now is
+      tick
+      expect(follower.x).to eq(75.0)
+    end
+  end
+
+  describe 'blocked_by: %i[tiles npc]' do
+    # Walls at columns and rows 5 and 8 — so x 80..96 and 128..144, and the same in y —
+    # with the hero in the free square between them.
+    let(:world) { tile_world(solid: ->(col, row) { [5, 8].include?(col) || [5, 8].include?(row) }) }
+    let(:body) { described_class.new(speed: 20.0, blocked_by: %i[tiles npc]) }
+    let(:hero) { RGame::Engine::Node2D.new(x: 100.0, y: 100.0) }
+
+    def collision_world
+      @collision_world ||= root.add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 64))
+    end
+
+    def npc_at(x, y, width: 10, height: 10)
+      npc = RGame::Engine::Node2D.new(x: x, y: y)
+      npc.add_component(RGame::Engine::Components::BoxCollider.new(width: width, height: height, layer: :npc))
+      root.add_node(npc)
+    end
+
+    def tick(dt = 1.0)
+      root.children.each { it.update(0.0) }
+      collision_world.update(dt)
+      root.children.each { it.update(dt) }
+    end
+
+    before do
+      collision_world
+      mount_tiles(world, on: hero)
+      hero.add_component(RGame::Engine::Components::BoxCollider.new(width: 10, height: 10, layer: :hero))
+      hero.add_component(body)
+      root.add_node(hero)
+      root.enter_tree
+    end
+
+    # A 20px step, so both blockers are genuinely in reach in each of these and the
+    # answer is a comparison rather than the only candidate there was. Where the *wall*
+    # wins, the NPC has to be a wide one: anything narrow whose edge is beyond a solid
+    # column can only be reached by a step that tunnels the column, which TileBlockers
+    # does not resolve.
+    it 'stops at the NPC when it is the nearer of the two, moving right' do
+      npc_at(120.0, 100.0) # its left edge at 120, against the wall's at 128
+      body.set_intent(1.0, 0.0)
+      tick
+      expect(hero.x).to eq(110.0)
+    end
+
+    it 'stops at the wall when it is the nearer of the two, moving left' do
+      npc_at(59.0, 100.0, width: 36) # its right edge at 95, against the wall's at 96
+      body.set_intent(-1.0, 0.0)
+      tick
+      expect(hero.x).to eq(96.0)
+    end
+
+    it 'stops at the NPC when it is the nearer of the two, moving down' do
+      npc_at(100.0, 120.0) # its top edge at 120, against the wall's at 128
+      body.set_intent(0.0, 1.0)
+      tick
+      expect(hero.y).to eq(110.0)
+    end
+
+    it 'stops at the wall when it is the nearer of the two, moving up' do
+      npc_at(100.0, 59.0, height: 36) # its bottom edge at 95, against the wall's at 96
+      body.set_intent(0.0, -1.0)
+      tick
+      expect(hero.y).to eq(96.0)
+    end
+
+    # Per actor per frame, with a broadphase query on each axis inside it. The body is
+    # driven into the NPC and left pressing against it, which is the steady state the
+    # matcher wants: a body still travelling would enter fresh broadphase cells and the
+    # buckets built for those would be counted as the leak.
+    it 'allocates nothing per update with both kinds of blocker declared' do
+      npc_at(120.0, 100.0)
+      body.set_intent(1.0, 0.0)
+      tick
+      expect { body.update(1.0) }.to allocate_nothing
+    end
+  end
+
   # A body that cannot be blocked the way it was told to says so at attach, rather than
   # falling back to free movement: an actor walking through walls looks like a collision
   # bug, and the cause would be a scene three files away.
@@ -230,19 +445,19 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     end
 
     it 'refuses :tiles on a node with no collider to resolve' do
-      mount(RGame::Engine::Components::TileWorld => tile_world)
+      mount_tiles(tile_world)
       node.add_component(described_class.new(speed: 50.0, blocked_by: [:tiles]))
       expect { enter }.to raise_error(/needs a RGame::Engine::Components::BoxCollider/)
     end
 
-    # Actor-versus-actor blocking is not built: a layer name is refused rather than
-    # accepted and quietly ignored, which would be the silent failure this component's
-    # raises exist to avoid.
-    it 'refuses a collider layer, since :tiles is the only blocker there is' do
-      mount(RGame::Engine::Components::TileWorld => tile_world)
+    # The mirror of the :tiles raise, and the one a game is likelier to hit: a layer name
+    # in a scene that never mounted a broadphase would otherwise be a body silently
+    # blocked by nothing at all.
+    it 'refuses a collider layer on a scene with no CollisionWorld, naming the layer' do
+      mount({})
       node.add_component(RGame::Engine::Components::BoxCollider.new(width: 4, height: 4))
-      node.add_component(described_class.new(speed: 50.0, blocked_by: %i[tiles npc]))
-      expect { enter }.to raise_error(/blocked_by :npc.*only/m)
+      node.add_component(described_class.new(speed: 50.0, blocked_by: [:npc]))
+      expect { enter }.to raise_error(/blocked_by :npc.*no CollisionWorld/m)
     end
   end
 end

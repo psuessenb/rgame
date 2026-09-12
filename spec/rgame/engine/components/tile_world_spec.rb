@@ -59,4 +59,29 @@ RSpec.describe RGame::Engine::Components::TileWorld do
       expect([world.world_width, world.world_height]).to eq([map.pixel_width, map.pixel_height])
     end
   end
+
+  # It no longer resolves a step. What it owns is the grid as a blocker source, and the
+  # actor that wants to be stopped by it borrows this and resolves for itself — see
+  # Components::CharacterBody, which builds its own Engine::CollisionSystem.
+  describe '#blockers' do
+    # A map that answers solidity, which the shared StubTileMap has no reason to.
+    let(:solid_map) do
+      instance_double(RGame::Engine::TileMap, tile_width: 16, tile_height: 16,
+                                              pixel_width: 320, pixel_height: 320)
+    end
+    let(:world) { described_class.new(map: solid_map, tilemap_id: :level) }
+
+    before { allow(solid_map).to receive(:solid_tile?) { |col, _row| col == 8 } }
+
+    it 'is a blocker source over the map’s own solid tiles and tile size' do
+      # A 16x16 box at x 108 stepping 10 right would reach 134; column 8 starts at 128,
+      # so it lands with its right edge there.
+      expect(world.blockers.resolve_x(108.0, 16.0, 16, 16, 10.0)).to eq(112.0)
+    end
+
+    it 'is the same source every time, so every body on the map shares one' do
+      first = world.blockers
+      expect(world.blockers).to be(first)
+    end
+  end
 end
