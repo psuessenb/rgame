@@ -1,20 +1,29 @@
 # Sweeping the systems and components for architectural fit
 
-**Status: nothing implemented. Steps 1 and 2 are written out; steps 3 and 4 are
-deliberately rough and get re-planned once step 2 lands.**
+**Status: nothing implemented. Step 1 is written out, step 2 is sketched pending a
+measurement, and steps 3 and 4 are deliberately rough. Three of the uncalled
+classes were decided in conversation after the first draft — see open question
+1.**
 
 Written out of a retrospective rather than a bug: the collision unification took
 six steps to merge two systems that had each been correct on their own since the
 day they were written, and the question is whether anything else in the engine
 layer is sitting in the same position right now.
 
-The requirement, in the words it arrived in:
+The requirements, in the words they arrived in:
 
 > the whole Tiled map loading and collision originated in a very early build of
 > this system (not in this Git repository) before the Node/Component system was
 > properly built. This can hopefully be avoided by sweeping the systems/components
 > once and look if everything we have now is a good fit for the Node/Component
 > architecture.
+
+And, added once the first draft existed:
+
+> Prune the codebase and documentation from references to games - like in this
+> case the tower defense game, but also Snake or tiled_world. Ignore plans, any
+> reference is fair game in a plan document. Referencing examples is fine, too.
+> Schedule this with the dead code removal.
 
 ## Verdict
 
@@ -38,13 +47,16 @@ This is exactly what CLAUDE.md's ["Before building: find the thing it
 resembles"](../../CLAUDE.md) was written for, and it is worth noticing that the
 guideline caught something on its first application to an area nobody suspected.
 
-**And a smaller, unrelated finding: the engine layer has a speculative tail.**
-Five classes have no caller anywhere outside their own specs. One of them,
-`Engine::Body`, is the pre-Node/Component kinematics class the user's hypothesis
-predicted — ported into three components and then left in the tree, still
-required, still shipped. That one is unambiguously dead. The other four are
-documented public API that no game has ever exercised, which is a different
-problem with a different answer.
+**And two smaller findings, which step 1 lands together.** The engine layer has a
+speculative tail: seven classes have no caller anywhere outside their own specs.
+One of them, `Engine::Body`, is the pre-Node/Component kinematics class the
+user's hypothesis predicted — ported into three components and then left in the
+tree, still required, still shipped. The other six are documented public API
+that no game has exercised, and they do not share one answer. And the engine's
+code and documentation describe themselves in terms of specific games — 67 lines
+in 23 files name one outright, and two components describe their own purpose as a
+tower-defense game's. That makes the engine's documentation depend on games it
+does not ship.
 
 ## Hard constraints
 
@@ -55,9 +67,10 @@ problem with a different answer.
 3. **A missing system fails loudly.** `CharacterBody(blocked_by:)` raises at
    attach rather than falling back to free movement, and anything that
    generalizes blocking inherits that rule rather than softening it.
-4. **Removing public API is a decision, not a tidy-up.** Four of the five
+4. **Removing public API is a decision, not a tidy-up.** Six of the seven
    uncalled classes are documented in `docs/api/`. "Nobody calls it" is evidence,
-   not a verdict — see open question 1.
+   not a verdict — each removal here was taken in conversation, and open question
+   1 holds the ones that were not.
 5. **A sweep may not become a rewrite.** The engine layer works and its specs are
    green. Anything this plan proposes must be justified by a finding below, with
    a number attached.
@@ -72,9 +85,19 @@ Not up for re-litigation inside the plan.
 - **`Engine::Body` goes.** Nothing references it, no documentation mentions it,
   and its three behaviours each live in a component that names it in a comment.
   See A1.
+- **`Engine::Matrix` goes.** Decided in conversation. It is a flat 2D grid that
+  nothing uses; the one grid the engine needs went to `Util::Tensor`.
+- **`Engine::Path` and `Components::PathFollow` stay, for the pathfinding
+  example.** Decided in conversation: they are the output half of
+  `examples/pathfinding`, the last unbuilt entry in the basic-examples plan, which
+  already designs `AStar.find` to return a `Path`. If that example ends up not
+  using them, they get a simpler example of their own rather than deletion. A2
+  records the one thing about that pairing that step 2 has to answer first.
+- **The codebase stops naming games.** Decided in conversation, and scheduled
+  into step 1 beside the dead code. A7 sizes it and step 1b states what counts.
 - **Generalizing the mover is the real work**, and it is step 2 rather than step
-  1, because deleting the dead tail first makes the inventory it has to reason
-  over smaller and is independently worth landing.
+  1, because pruning first makes the inventory it has to reason over smaller and
+  is independently worth landing.
 
 ## What was measured before planning
 
@@ -87,8 +110,9 @@ At `dc006ac`, over `lib/`, `examples/`, `test_projects/` and `spec/`.
 | Components that move a node's position | **4** |
 | Of those, components that can be blocked | **1** |
 | Game files carrying a non-blockable mover *and* a collider | **4** |
-| Engine classes with no caller outside their own spec | **5** |
-| Of those, documented in `docs/api/` | 4 |
+| Engine classes with no non-comment caller in `lib/`, `examples/` or `test_projects/` | **7** |
+| Of those, documented in `docs/api/` | 6 |
+| Lines naming a game, outside plans and the games themselves | **67**, in 23 files |
 | Components requiring a hand-written wiring hook | 0 |
 
 The third and fourth rows are the finding. The last row is the one worth reading
@@ -123,35 +147,74 @@ So the class was correctly decomposed into the architecture and the original was
 never removed. That is the exact shape the user's hypothesis describes, and it is
 the only place the sweep found it intact.
 
-### A2. Five engine classes have no caller, and they are two different problems — *(measured)*
+### A2. Seven engine classes have no caller, and they are four different problems — *(measured)*
 
-Counting references outside each class's own file and its own spec:
+Counting non-comment references in `lib/`, `examples/` and `test_projects/`,
+outside each class's own file. The first draft of this table said five; it
+missed `Targeting` and `I18n`, because `examples/save_load_ids` *names*
+`Targeting` in a comment and a grep that did not skip comments counted it.
 
-| Class | Callers in `lib/` | Callers in games | Documented | Verdict |
-|---|---|---|---|---|
-| `Body` | none | none | no | dead (A1) |
-| `Matrix` | none | none | `toolbox.md` | unexercised |
-| `Resettable` | none | none | `toolbox.md` | unexercised |
-| `Path` | `PathFollow` only | none | 2 pages | unexercised |
-| `PathFollow` | none | none | 2 pages | unexercised |
+| Class | Documented | Verdict |
+|---|---|---|
+| `Body` | no | dead — A1; removed in step 1 |
+| `Matrix` | `toolbox.md` | unused — removed in step 1, by decision |
+| `Resettable` | `toolbox.md` | built for a case the engine designed away — see below |
+| `Path` | 2 pages | waiting for `examples/pathfinding` — kept, by decision |
+| `PathFollow` | 2 pages | waiting for `examples/pathfinding` — kept, by decision |
+| `Targeting` | `components.md` | unexercised, and described as a tower-defense part |
+| `I18n` | `toolbox.md` | unexercised |
 
-**`Matrix` is the near miss.** It is a flat row-major 2D grid, and the one grid
-the engine actually needs — a tile map's layers — went to its 3D sibling,
-`RGame::Util::Tensor`, in C. `toolbox.md` says as much and does not overclaim.
-What it cannot say is who uses the 2D one, because nobody does.
+`docs/plans/basic-examples.md` had already listed `Matrix` and `Resettable` as
+orphans and deleted a third, `Engine::Actor`, on the same evidence — so this is
+not a new kind of cleanup, it is the same one finished.
 
-**`Path` and `PathFollow` are a feature built ahead of its caller.** Both name
-tower defense in their headers, there is no tower-defense example, and
-`docs/plans/basic-examples.md` does not schedule one. They are coherent, specced
-and documented; what they have never been is *used*, which by CLAUDE.md's own
-argument about fakes and contracts is the condition under which a thing quietly
-stops predicting whether the game runs.
+**Why `Resettable` was never used — it was not overlooked.** Git has it arriving
+in `3057e0e`, "old engine layer (reference for rewrite)", and it had no caller
+even there: the only mentions in that tree are its own documentation. It builds
+`Data`-like value classes with one in-place `reset`, for pooling value objects
+without per-field setters. The engine then made two design choices that each
+removed a place it could have been used:
 
-**`Resettable` is a recommendation with no taker.** `toolbox.md` tells a pooled
-value object to reach for it; `Components::Pool` does not, and neither does any
-game. Its entry also ends by pointing at "the Style notes in `CLAUDE.md`", and
-CLAUDE.md has no such section and never names `Resettable` — a stale pointer
-worth fixing whichever way open question 1 goes.
+- **What gets pooled is nodes, not values.** `Engine::Pool` and
+  `Components::Pool` recycle `Node2D` subclasses, and a node carries components,
+  children and a transform. A class generated by `Resettable.define` cannot be
+  one. So every pooled thing in the repository — `Bullet` and `Rock` in
+  asteroids, the motes in `examples/pooling` — writes its own `reset` on the node,
+  and reaches the component state it needs through ordinary readers.
+- **Signals carry no payload object.** `Signal.define(:index, :value)` uses the
+  same generated fixed-arity trick `Resettable` does, but `emit` passes the
+  fields as arguments, so there is no event value to pool either.
+
+So it is not a misfit and not an oversight; it is a solution to a problem both of
+its would-be callers were designed not to have. The recommendation is to remove
+it, and that is left to open question 1 because it was not decided in
+conversation. Its `toolbox.md` entry also points at "the Style notes in
+`CLAUDE.md`", a section that does not exist, which is stale however the question
+goes.
+
+**`Path` and `PathFollow` are kept, and they collide with A3.** The pathfinding
+example is designed around them: `AStar.find(grid, from, to)` returns an
+`Engine::Path`, and the plan calls that "the design point worth stating out
+loud". But what that example walks is a character — its entry reuses the
+hero sheet and `town.tmx`, and routes around the map's solid tiles — and a
+character in this engine is a `CharacterBody` blocked by tiles. `PathFollow` moves a node by assigning
+`node.x` directly. Put both on the hero and the route is walked through whatever
+the body would have stopped, with the body's intent ignored and its
+`on_blocked` silent.
+
+The route itself is safe, since A* only routes through walkable tiles. What breaks
+is everything the body is there for: another character standing on the route,
+a `WanderController` sibling, the walk animation reading the body's intent as a
+facing. The shape that fits is a controller that steers a `CharacterBody` along a
+`Path`, the way `WanderController` steers it toward a random direction — which
+is step 2's question from the other side. **That has to be answered before the
+pathfinding example is written**, or the example will teach the wrong mover.
+
+**`Targeting` and `I18n` were not raised in conversation.** `Targeting` is also
+the largest single target of step 1b, because its header describes it as a
+tower's aiming — so it is kept by default, reworded by 1b, and its future is open
+question 1. `basic-examples.md` says asteroids uses `Targeting`; it does not, and
+never builds one.
 
 ### A3. Four components move a node, and one of them can be stopped — *(measured: this is the headline)*
 
@@ -239,6 +302,47 @@ outstanding, already done.
 The checklist is header-and-interface depth, not line-by-line. Recorded as a
 limit, not a claim of exhaustiveness.
 
+### A7. The engine describes itself in terms of games it does not ship — *(measured)*
+
+Counting lines that name a game — tower defense, Snake, Asteroids, `tiled_world`,
+or a path under `test_projects/` — everywhere except `docs/plans/`, the games
+themselves under `test_projects/`, and the drive scripts under
+`tools/drive/test_projects/` that belong to them:
+
+| Area | Lines |
+|---|---|
+| `spec/` | 22 |
+| `docs/api/` | 17 |
+| `tools/drive_test_project.rb` | 9 |
+| `CLAUDE.md` | 8 |
+| `lib/` | 5 |
+| `examples/` | 2 |
+| `.claude/skills/` | 2 |
+| `README.md`, `docs/project_structure.md` | 1 each |
+| **Total** | **67, in 23 files** |
+
+Three kinds, and they want different fixes:
+
+- **A game used as evidence.** "`test_projects/snake` mounts a broadphase and no
+  bounds", "`test_projects/asteroids` never sets a size". The fact is general and
+  the game is the proof. State the fact; point at an example where one proves it.
+- **A game used as a worked example.** "`test_projects/tiled_world` is the
+  both-at-once case", "see `test_projects/asteroids` for the whole loop". An
+  example exists for nearly every one of these, and where it does not, the
+  sentence can stand without it.
+- **A component describing its purpose as a game's.** `Targeting` "picks an enemy
+  for the owning node (a tower)"; `PathFollow` is "the seam a tower defense game
+  uses to leak a life when an enemy reaches the base"; `Path` exists so "a
+  tower-defense level can mask placement cells". These are the ones that matter
+  most, because they tell a reader what the class is *for*, and what they say is
+  narrower than what the class does.
+
+The count above is names only. Vocabulary that only makes sense inside one game —
+a snake eating fruit in `collision_world_spec.rb`'s layer symbols, a tower
+leaking a life at the base — is in scope by the same rule and not in the number,
+because telling it apart from generic illustration ("a bullet", "a crate") takes
+reading rather than grepping. Step 1b states the line.
+
 ## B. Prior art
 
 How other engines attach "something is in the way" to "this thing moves".
@@ -283,11 +387,16 @@ triplicates the attach-time resolution, the `CollisionSystem` construction and t
 signal pair that `CharacterBody` already carries — three copies of the code that
 step 2 exists to stop having one copy of in the wrong place.
 
-**Delete `Path`, `PathFollow`, `Resettable` and `Matrix` because nothing calls
-them.** Rejected as a decision this plan may not take alone: four of the five are
-documented public API in a published gem, and "no caller in this repository" is
-not the same as "no caller". It becomes open question 1 instead, with the
-evidence attached.
+**Delete every uncalled class because nothing calls it.** Rejected as a decision
+this plan may not take alone: six of the seven are documented public API in a
+published gem, and "no caller in this repository" is not the same as "no caller".
+Each was put to the user instead, with the evidence attached, and two of the
+answers were not deletion.
+
+**Delete `test_projects/` rather than pruning references to it.** It would remove
+every reference at once. Rejected because it was not asked for, and because
+CLAUDE.md makes a driven test project the acceptance tier for wiring. Step 1b
+prunes what *names* a game and leaves the directory and its harness alone.
 
 **Do nothing, on the grounds that the engine works.** The honest option, and it
 is what constraint 5 is protecting. Rejected for A3 specifically, on the grounds
@@ -298,11 +407,17 @@ six steps.
 
 ## D. Open questions
 
-1. **What happens to the four documented-but-uncalled classes?** Blocks step 1's
-   scope and nothing else. The options are: delete them and their documentation;
-   keep them and write the example that exercises each; or keep them and mark them
-   explicitly as provisional. **Needs a decision from the user rather than a
-   measurement.**
+1. **What happens to each uncalled class?** Partly settled.
+   - ~~`Matrix`~~ **Settled — removed, in step 1a.**
+   - ~~`Path`, `PathFollow`~~ **Settled — kept for `examples/pathfinding`**, or a
+     simpler example of their own if that one does not use them. The mover
+     conflict A2 records goes to step 2.
+   - **`Resettable`** — open. A2 explains why it has no caller, and recommends
+     removal. Blocks step 1a's scope only.
+   - **`Targeting`** — open, not yet raised. Step 1b rewords it either way; this
+     is whether it keeps a place, gets an example, or goes.
+   - **`I18n`** — open, not yet raised. `basic-examples.md` already suggests a
+     localized-menu example for it.
 2. **Where does the shared movement seam live?** Blocks step 2's design. Candidates:
    a module mixed into the movers, a `Motion` component the movers write through,
    or a method on `Node2D` itself. Measure before choosing, the way the collision
@@ -332,7 +447,7 @@ six steps.
 ## F. Roadmap
 
 ```
-1 remove the dead tail ──→ 2 the movement seam ──→ 3 the two frames (rough) ──→ 4 fold back
+1 dead code + game references ──→ 2 the movement seam ──→ 3 the two frames (rough) ──→ 4 fold back
         │                          │
         └── independently useful ──┘
 ```
@@ -343,42 +458,95 @@ six steps.
 
 | Step | Defect it closes |
 |---|---|
-| 1 | A1 — a dead class loaded into every process and shipped in the gem |
+| 1 | A1 and A2 — dead classes loaded into every process and shipped in the gem; A7 — documentation that depends on games the engine does not ship |
 | 2 | A3 and A4 — blocking reachable from one of four movers, with the composition already in four game files |
 | 3 | A5 — two coordinate frames for the edge of the world |
 
-### Step 1 — remove the dead tail
+### Step 1 — remove the dead code, and the references to games
 
-First because it is unambiguous for `Body`, because it shrinks the inventory step
-2 reasons over, and because it is worth landing even if step 2 never happens.
+First because both halves are decided, because they shrink what step 2 has to
+read, and because both are worth landing if step 2 never happens. One branch, two
+sub-steps, one commit each — they share a reason (the engine layer describing
+things that are not there) but not a diff, and a reviewer should be able to read
+the deletion without 67 rewordings in the way.
 
-`Engine::Body` goes: the file, its `require` in `lib/rgame/engine.rb`, and
-`spec/rgame/engine/body_spec.rb`. The three component headers that say "From
-`Body#integrate`" and its siblings lose that clause, because a reference to a
-class that no longer exists is worse than no reference — and what those sentences
-were really recording is that the behaviour was ported, which the git history
-holds.
+#### 1a — dead code
 
-Everything else in A2 waits on open question 1 and is **not** part of this step.
+`Engine::Body` and `Engine::Matrix` go: each file, its `require_relative` in
+`lib/rgame/engine.rb`, and its spec. `Matrix`'s section in `docs/api/toolbox.md`
+goes with it, and the paragraph after it that points at `Tensor` for three
+dimensions is reworded to stand on its own. The three component headers that say
+"From `Body#integrate`" and its siblings lose that clause, because a reference to
+a class that no longer exists is worse than none.
+
+`Resettable` joins this sub-step if open question 1 settles as removal before the
+branch is cut, and not otherwise. `Targeting` and `I18n` do not.
 
 Rules the tests must pin:
 
-1. `require "rgame"` succeeds with the file gone, which is what catches a missed
+1. `require "rgame"` succeeds with the files gone, which is what catches a missed
    `require_relative`.
-2. `RGame::Engine::Body` is not defined afterwards — an explicit example, so the
-   removal is asserted rather than merely done.
+2. `RGame::Engine::Body` and `RGame::Engine::Matrix` are not defined afterwards —
+   an explicit example, so the removal is asserted rather than merely done.
 3. `spec/packaging_spec.rb` still passes, since it re-derives what ships from the
    tree.
 
-Tests: the deletion is mostly proved by the suites that already exist. Add the
-`defined?` example to `spec/rgame/no_graphics_spec.rb`'s neighbourhood or a small
-`spec/rgame/engine/engine_spec.rb`, whichever reads better once the file is open.
+#### 1b — references to games
 
-Verify: `rake spec` green with `body_spec.rb`'s five examples gone and the new
-`defined?` example added; `rake spec:core` and `make test` untouched. Every
-driven run byte-identical to `main` at `--ticks 240 --seed 7`, which is the
-acceptance criterion — deleting an unreferenced class must be invisible, and a
-byte-identical report is what proves it rather than asserts it.
+**What counts.** Anything outside `docs/plans/` that names a game —
+tower defense, Snake, Asteroids, `tiled_world`, `hello_world`, or a path under
+`test_projects/<game>` — or uses vocabulary that only makes sense inside one: a
+tower, the base an enemy reaches, a snake and its fruit. Generic nouns used as
+illustration stay: a bullet, an enemy, a crate, a rock, a villager.
+
+**What does not.** Plans. References to `examples/`, which is the point of the
+rewording. The games themselves and their drive scripts under
+`tools/drive/test_projects/`, which belong to their project by the path-mirror
+rule. And naming the **directory** `test_projects/` as a place — in
+`docs/project_structure.md`, the README, the verify skill and CLAUDE.md's testing
+section — because that names the acceptance tier, not a game. Where CLAUDE.md's
+testing section uses a specific game as its illustration, the illustration moves
+to an example the harness can drive.
+
+**How.** By kind, per A7:
+
+| Kind | Fix |
+|---|---|
+| A game used as evidence | state the fact; cite an example that shows it, or nothing |
+| A game used as a worked example | point at the example that shows it |
+| A component's purpose described as a game's | describe what the class does |
+| A spec whose data is a game's | rename the data (`:snake`/`:fruit` layers become neutral ones) |
+
+The one place this changes more than wording is `Targeting`, whose header,
+`components.md` entry and spec are written as tower defense throughout. Its
+behaviour does not change; its description does.
+
+Rules the tests must pin:
+
+1. A spec in `spec/` greps `lib/`, `docs/api/`, `spec/`, `spec_core/`,
+   `examples/`, `.claude/skills/`, `README.md` and `CLAUDE.md` for the game names
+   and fails naming the file and line. It lives beside
+   `spec/packaging_spec.rb`, for the reason CLAUDE.md gives for that spec: a rule
+   that depends on someone remembering it is the wrong design, and this one would
+   otherwise last until the next example cites a test project. The exemptions are
+   listed in the spec, so adding one is a visible decision.
+2. The spec's own list of game names is derived from `test_projects/`' directory
+   names, plus `tower defense`, so a new test project is covered without editing
+   it.
+3. No spec's behaviour changes. `collision_world_spec.rb`,
+   `contact_set_spec.rb` and `targeting_spec.rb` change names and data only.
+
+Tests: the new guard spec, plus the rules above for 1a in
+`spec/rgame/engine/engine_spec.rb` or wherever reads better once the files are
+open.
+
+Verify: `rake spec` green — the guard passes, and the example count moves only by
+the deleted specs and the new guard examples; `rake spec:core` and `make test`
+untouched. Every driven run byte-identical to `main` at `--ticks 240 --seed 7`,
+which is the acceptance criterion for both halves: deleting unreferenced classes
+and rewording comments must be invisible, and a byte-identical report is what
+proves it. Then grep once more by hand for the vocabulary kind, which the guard
+spec deliberately does not attempt.
 
 ### Step 2 — the movement seam
 
@@ -433,6 +601,9 @@ change behind it**, and a negative result that nobody records gets re-investigat
 in six months — `docs/api/` should say somewhere that the tile map stack was swept
 against the architecture and passed. And whatever open question 1 resolves to,
 `docs/api/toolbox.md`'s `Resettable` entry needs to stop pointing at a CLAUDE.md
-section that does not exist.
+section that does not exist. And `docs/plans/basic-examples.md` should be told
+two things this sweep found: asteroids does not use `Targeting`, and
+`examples/pathfinding` should walk its route through a `CharacterBody` rather than
+a `PathFollow` — or whatever step 2 settled instead.
 
 Then delete this file.
