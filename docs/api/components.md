@@ -640,13 +640,21 @@ Walks the owning node along an [`RGame::Engine::Path`](toolbox.md#path--a-walkab
 at a constant speed and emits `on_finished` when it reaches the last waypoint — the seam for
 whatever should happen when a walker arrives.
 
-- **Construct:** `PathFollow.new(path:, speed:)`.
+- **Construct:** `PathFollow.new(path:, speed:, blocked_by: [])` — what may stop it is
+  [`Mover`](#mover)'s.
 - **Lifecycle:** `on_attach` (re)starts the walk — back to the first waypoint with progress
-  cleared — so a pooled follower reacquired and re-added begins a fresh walk.
+  cleared, and the node *placed* there whatever was declared — so a pooled follower
+  reacquired and re-added begins a fresh walk.
 - **Signal:** `on_finished` fires once (no payload) at the end of the path —
   `follow.on_finished { node.queue_free }`.
 - **Phase:** `update(dt)` advances `speed * dt`, crossing as many segments as one step
-  spans and interpolating the node's position; allocation-free.
+  spans and interpolating the node's position; allocation-free. Declaring nothing places
+  the node on that point.
+- **Blocked, the walk waits.** Declaring something moves the node to that point through
+  `apply_move` instead, and a step stopped short **does not advance the walk**: progress
+  goes back to where the step began. So a follower held behind something for a second
+  arrives a second late, rather than racing ahead once let go, and `on_finished` never
+  fires for a walker still standing in front of what stopped it.
 
 ### `PlayerController`
 
