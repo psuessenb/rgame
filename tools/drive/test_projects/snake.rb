@@ -26,9 +26,10 @@
 # `update` on `paused`, not `draw`), so a dead snake keeps its steady seven
 # rects a tick and looks exactly like a live one.
 #
-# Draw counts are not comparable between runs either: the fruit is placed from
-# an unseeded `Random.new`, so how fast the body grows varies. `--seed` does not
-# help — snake does not read `RGAME_SEED`. Assert on structure, as always.
+# Draw counts are comparable between runs only with `--seed N`: the fruit is
+# placed at random, so without one how fast the body grows varies from run to
+# run, which is what a game being played should do. Assert on structure anyway —
+# a seed makes two runs agree, it does not make a count mean anything.
 
 idle 24 # four cells down from the start, to (10, 14)
 

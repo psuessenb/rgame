@@ -6,6 +6,11 @@ require 'rgame/game'
 class Grid < RGame::Engine::Node2D
   CELL_SIZE = 25
 
+  # Where the fruit goes. Unseeded by default, so a game being played puts it
+  # somewhere new each run; `RGAME_SEED` pins it, which is what lets
+  # tools/drive_test_project.rb compare two runs of this project exactly.
+  SEED = ENV.fetch('RGAME_SEED', nil)&.to_i
+
   attr_reader :cols, :rows
 
   def initialize(rows:, cols:)
@@ -16,7 +21,7 @@ class Grid < RGame::Engine::Node2D
     self.height = rows * CELL_SIZE
     self.scene = self
     @collision_world = add_component(RGame::Engine::Components::CollisionWorld.new(cell_size:))
-    @rng = Random.new
+    @rng = SEED.nil? ? Random.new : Random.new(SEED)
   end
 
   # Drawn in the grid's own space: (0, 0) is the grid's top-left corner
