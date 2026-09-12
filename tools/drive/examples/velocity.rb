@@ -6,18 +6,18 @@
 #
 # What the report should show:
 #
-#   - **translates spanning x -40..500 and y -40..370**, which is the whole
-#     argument of the example in two numbers. The world is 460x330 and the wrap
+#   - **translates spanning x -40..680 and y -40..400**, which is the whole
+#     argument of the example in two numbers. The world is 640x360 and the wrap
 #     margin is 40, so those are exactly `0 - margin` to `size + margin` on each
-#     axis. The window is 640x480 and nothing ever reaches it: the bounds being
-#     used are the ones the scene's `Components::World` declares, not the
-#     viewport's;
+#     axis. The window is 480 tall and nothing reaches the text band below 400:
+#     the bounds being used are the ones the scene's `Components::World`
+#     declares, not the viewport's;
 #   - **translates still changing through every idle stretch.** Five of the six
 #     moving nodes are never touched by this script and advance on every frame of
 #     it. A velocity needs nobody;
-#   - **eleven `rect` calls per frame, flat** — the backdrop, the floor, four edge
-#     pieces and one per drifter. A wrap relocates a node; it never adds or drops
-#     a draw, so a dip here would mean a node had stopped being reached;
+#   - **eight `rect` calls per frame, flat** — the backdrop, the floor, the edge
+#     above the text and one per drifter. A wrap relocates a node; it never adds
+#     or drops a draw, so a dip here would mean a node had stopped being reached;
 #   - **two `rotated` pushes per frame**, because two of the five drifters carry a
 #     spin and `Node2D#draw` pushes a rotation only for a node whose angle is not
 #     zero. The count comes in two short of twice the frames, since both start at
@@ -25,9 +25,9 @@
 #   - one `circle` and three `text` calls per frame;
 #   - **exactly one clip per frame, and it is not this example's.** That is the
 #     presentation, which every game pushes under the default `:letterbox`. The
-#     world being smaller than the window is an offset and a rectangle, and adds
-#     no clip of its own — so a second clip appearing here would mean something
-#     had started treating the world as a viewport.
+#     world being smaller than the window is a rectangle, and adds no clip of its
+#     own — so a second clip appearing here would mean something had started
+#     treating the world as a viewport.
 #
 # Nothing here needs a seed: the drifters' velocities are a fixed table, so two
 # runs at the same tick budget produce the same numbers.
