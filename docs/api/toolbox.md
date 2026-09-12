@@ -199,7 +199,8 @@ buckets by, so the two never disagree.
 
 A [`BoxCollider`](components.md#boxcollider) component is a `CollisionBox` plus a
 registration in the scene's [`CollisionWorld`](components.md#collisionworld), and these
-two are its narrowphase.
+two are its narrowphase. [`FeetCollider`](components.md#feetcollider) is that with the
+`bottom_anchored` arithmetic above done for you, from the node's own dimensions.
 
 ## `RGame::Engine::I18n` — localization
 

@@ -48,16 +48,20 @@ module RGame
         # The broadphase AABB in world space, one component per call rather than
         # CollisionBox#aabb's Array: CollisionWorld reads these for every collider
         # every frame, and that path may not allocate.
-        def aabb_x = node.world_x + @box.offset_x
-        def aabb_y = node.world_y + @box.offset_y
-        def aabb_w = @box.width
-        def aabb_h = @box.height
+        #
+        # These go through `box` rather than @box so a subclass that builds its shape
+        # lazily — FeetCollider, which cannot know the node's size until the tree is
+        # live — is seen by the broadphase too. An attr_reader call allocates nothing.
+        def aabb_x = node.world_x + box.offset_x
+        def aabb_y = node.world_y + box.offset_y
+        def aabb_w = box.width
+        def aabb_h = box.height
 
         # World-space centre of the box — what CollisionWorld's range queries measure
         # from, so a box collider is targetable on the same terms as a circle. Note it
         # is the box's centre, not the node's origin, which is where a circle's is.
-        def cx = aabb_x + (@box.width / 2.0)
-        def cy = aabb_y + (@box.height / 2.0)
+        def cx = aabb_x + (box.width / 2.0)
+        def cy = aabb_y + (box.height / 2.0)
 
         # Narrowphase, first half of the double dispatch: hand this shape's numbers to
         # the *other* collider and let it pick the test, so neither side has to ask what
