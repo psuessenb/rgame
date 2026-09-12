@@ -1,8 +1,7 @@
 # Unifying the two collision systems
 
-**Status: steps 1–4 are implemented, and step 4 took 5a with it; steps 5b, 5c and 6
-are not. Step 5 was re-planned in detail at `605432f`; step 6 stays rough until it
-lands.** The two things landed steps pushed into step 4 — rule 3 of step 2's list, and
+**Status: steps 1–5 are implemented; only step 6 is not. Step 5 was re-planned in
+detail at `605432f`, and step 4 took 5a with it; step 6 stays rough until it lands.** The two things landed steps pushed into step 4 — rule 3 of step 2's list, and
 where a per-actor blocker source hangs — are settled below, and so are open questions 1,
 2, 3, 4 and 5. Re-planning added six measured findings (B6–B11). One overturns a
 candidate the plan had been carrying since it was written, one is a live defect
@@ -1520,6 +1519,62 @@ criterion — lives lost, not a screenshot.
 Then `docs/api/components.md` gains the two signals, and `docs/api/systems.md`
 gains the blocking-versus-overlap distinction step 6 was holding, with B4 as the
 reason a blocked pair reports no contact.
+
+**Landed.** Two commits, one per remaining sub-step. `CharacterBody` gained
+`on_blocked` and `on_unblocked` over an `Engine::ContactSet` of its own, and
+`examples/collision_tiles` gained a spiky ball, a `CollisionWorld` and a life count.
+`rake spec` is 1296 examples, 0 failures (1285 before, plus 11); `make test` 326 checks,
+0 failures; `rake spec:core` 367 examples, 0 failures.
+
+The acceptance evidence is the drive report, and it is one line of it:
+`tools/drive/examples/collision_tiles_spike.rb` walks east into the ball, west away from
+it and east into it again, and the run's last `text` call is `"Lives: 1"`. Three lives,
+two arrivals, one life each — and the forty-odd ticks spent pushing into a ball that was
+already stopping the hero cost nothing, which is the whole difference between an edge and
+a state.
+
+Every driven run outside `collision_tiles` is byte-identical to `main` at `--ticks 240
+--seed 7`: `examples/walk`, `scroll_map`, `collision`, `pooling`, `signals`,
+`test_projects/snake`, `asteroids`, and all five `tiled_world` scripts. `collision_tiles`
+itself changes by exactly what was added and nothing else — two more `text` calls a frame,
+one `circle`, two `line`s, one more distinct translate (the ball, at x 434, which never
+moves) — with the camera track that is that script's acceptance test unchanged at
+(0.0, 160.0).
+
+Four things the sketch got wrong:
+
+- **The recording lives in `apply_move`, not in `update`.** The sketch put the whole
+  cycle in `update`; the axis readers are only valid straight after the `move` that set
+  them, so `update` opens the step and reports the edges while `apply_move` records what
+  stopped each axis. It is the better split anyway: a body that resolves a step in two
+  moves records what stopped both, where reading once at the end of `update` would keep
+  only the last. A body that stands still calls neither, which is what makes rule 3 fall
+  out rather than needing a special case.
+- **Rule 5 cannot be tested with a collider at all.** "Stopped on both axes by the same
+  blocker" needs the far axis to already overlap on *both* resolves, and flush blocking on
+  X leaves the mover exactly touching, which is half-open, so Y is then free. The grid is
+  the only source that can report one blocker for both axes — which is what
+  `TileBlockers::TILES` being a constant is for. Said at the spec.
+- **A 20px step through 16px tiles is not blocked at all**, and it looked like the edges
+  were broken. `TileBlockers` tests the column a step *lands in*, so a step longer than a
+  tile walks straight through a wall; the first draft of the spec had a body tunnelling
+  into the map, reporting one `on_blocked` and then an `on_unblocked` it should not have.
+  It also failed the allocation example, because a body travelling through the map enters
+  fresh broadphase cells — the same measurement 4d's note describes, arriving from a
+  different direction.
+- **`examples/collision_tiles`'s existing drive script had to be amended, not just kept.**
+  Its header asserted "no `circle`, no `line`" as part of what tile collision does *not*
+  do, and the ball draws both every frame. The script itself is untouched and the route it
+  drives never meets the ball; what changed is what the report shows, and the header now
+  says which script spends a life.
+
+Documented in `docs/api/components.md` (the two signals, the three things worth knowing
+about them, and a `Signals:` bullet pointing at `CollisionSystem#blocked_x` for a body
+that wants the axis rather than the event), `docs/api/systems.md` ("Blocking and
+overlapping are two reports, and a pair gets one of them", carrying B4's measurement and
+the table of which question each answers), `docs/api/internals.md` (`ContactSet`'s second
+user), and `docs/api/examples.md`. That last one is on step 6's list below and is done;
+so is the `examples/collision_tiles` header rewrite step 2 started.
 
 ### Step 6 — fold the plan back and delete it
 
