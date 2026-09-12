@@ -17,7 +17,7 @@ module RGame
     # A TileBlockers is the same grid for everybody, so one is shared by every actor on
     # the map. This one takes an `owner` and a layer list, so it belongs to exactly one
     # body: two actors declaring different `blocked_by` cannot share one. That is why
-    # Components::CharacterBody builds its own resolver rather than borrowing the scene's.
+    # Components::Mover builds its own resolver rather than borrowing the scene's.
     #
     # ## Three things a grid does not need
     #

@@ -2,7 +2,7 @@
 
 Low-level, pure-Ruby classes the engine's [components](components.md) and
 [systems](systems.md) are built on. A game author rarely constructs these directly —
-they sit *behind* a component (a blocked `CharacterBody` resolves through `CollisionSystem`, an
+they sit *behind* a component (a blocked `Mover` resolves through `CollisionSystem`, an
 `AnimatedSprite` plays through an `Animator`, a `CollisionWorld` indexes through a
 `SpatialHash` and remembers through a `ContactSet`) — but they are documented here because they carry the load-bearing
 algorithms and are the seams the component tests drive. None `require "gosu"`.
@@ -64,7 +64,7 @@ colliders whose node is queued for removal.
 test into the two edges a game wants: the step a pair *starts* touching and the step it
 *stops*. [`CollisionWorld`](components.md#collisionworld) owns one per registered
 collider and is the only thing that drives it. Nothing in it is about *overlapping*,
-though, and it has a second user: a [`CharacterBody`](components.md#characterbody) keeps
+though, and it has a second user: every [`Mover`](components.md#mover) keeps
 one of what stopped its step, and gets `on_blocked` / `on_unblocked` out of it on exactly
 the same terms. What the class is, underneath its names, is "the set of things that were
 true this step and last".
@@ -122,10 +122,10 @@ actors = RGame::Engine::ActorBlockers.new(world: collision_world, owner: my_coll
                                           layers: %i[npc hero])
 ```
 
-Unlike the other two sources it is **per body**: it holds the mover's own collider, to
-exclude it by identity, and the layer list that body declared. Two bodies with different
+Unlike the other two sources it is **per mover**: it holds the mover's own collider, to
+exclude it by identity, and the layer list that mover declared. Two movers with different
 `blocked_by` cannot share one, which is why a
-[`CharacterBody`](components.md#characterbody) builds its own `CollisionSystem` rather than
+[`Mover`](components.md#mover) builds its own `CollisionSystem` rather than
 borrowing the scene's.
 
 Three things it does that a grid does not need:
@@ -152,13 +152,13 @@ It exists because `CollisionSystem` used to clamp every step inside the world
 unconditionally, and that clamp works on the collision **box** while `ScreenWrap` and
 `DespawnOffscreen` read the same bounds off `node.x`/`node.y`. A hero with a feet box
 therefore stood at the world's left edge, fully inside it, and despawned. Now the edge is
-declared like anything else, and a body that did not ask is not held.
+declared like anything else, and a mover that did not ask is not held.
 
 ## `CollisionSystem` — move an actor against its blockers
 
 `RGame::Engine::CollisionSystem` (`rgame/engine/collision_system`) holds a list of **blocker
 sources** and the actor-facing `move`. A blocked
-[`CharacterBody`](components.md#characterbody) builds one at attach out of the sources its
+[`Mover`](components.md#mover) builds one at attach out of the sources its
 `blocked_by:` named, and hands itself to it as the actor.
 
 ```ruby

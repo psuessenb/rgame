@@ -47,7 +47,7 @@ module RGame
         # A collider is a *shape*; a CollisionWorld is what turns shapes into contacts. So
         # a scene with no world mounted leaves this a bare shape instead of raising, which
         # is what a tile-only game wants: its character's feet box stops its steps (that is
-        # CharacterBody's `blocked_by`) and there are no pairs to report to anyone.
+        # a Mover's `blocked_by`) and there are no pairs to report to anyone.
         #
         # The cost is that an on_hit handler in such a scene never fires and nothing says
         # so. That is the trade taken deliberately: what declares "I expect to be stopped"

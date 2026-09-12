@@ -206,7 +206,7 @@ spawned or despawned entity never leaks a registration.
   unregisters. A scene with **no** world mounted leaves it a bare shape rather than
   raising — a collider is a shape, and a world is what turns shapes into contacts, which
   is what lets a tile-only game carry a feet box for
-  [`CharacterBody(blocked_by:)`](#characterbody) alone. The price: an `on_hit` handler in
+  [`CharacterBody(blocked_by:)`](#characterbody) alone, or any other [`Mover`](#mover). The price: an `on_hit` handler in
   such a scene never fires and nothing says so.
 - **Geometry:** the rectangle is an [`RGame::Engine::CollisionBox`](toolbox.md#collisionbox--an-actors-feet-box),
   reachable as the read/write `box` accessor — assign a new one (including
@@ -219,8 +219,8 @@ spawned or despawned entity never leaks a registration.
   than a per-frame box recompute.
 - **Contacts:** `overlap?(other)` works against a box *or* a circle: the two colliders
   settle the test between themselves, so both shapes mix freely in one world.
-- **Blocking:** a box on a layer some [`CharacterBody`](#characterbody) named in
-  `blocked_by:` also *stops* that body's steps, flush against this box's edge. Nothing has
+- **Blocking:** a box on a layer some [`Mover`](#mover) named in
+  `blocked_by:` also *stops* that mover's steps, flush against this box's edge. Nothing has
   to be done to opt in; the layer is the whole declaration, and it is the other body's.
 - **Signals:** `on_hit` fires with the other collider on the step a contact **starts**,
   `on_separated` on the step it **ends** — `collider.on_hit { |other| ... }`. The system
@@ -309,8 +309,9 @@ registration.
   [`BoxCollider`](#boxcollider): the two colliders settle the test between themselves, so
   both shapes mix freely in one world.
 - **It never blocks.** Blocking is box versus box, so a circle on a layer a
-  [`CharacterBody`](#characterbody) named in `blocked_by:` reports its contacts exactly as
-  it does now and stops nobody. That is a limit, not a check: layer membership is a runtime
+  [`Mover`](#mover) named in `blocked_by:` reports its contacts exactly as
+  it does now and stops nobody. Nor can a circle *be* stopped: a mover that declares
+  anything needs a `BoxCollider` of its own, and raises at attach without one. That is a limit, not a check: layer membership is a runtime
   fact, so a raise at attach would catch only the circles that already existed.
 - **Signals:** `on_hit` fires with the other collider on the step a contact **starts**,
   `on_separated` on the step it **ends** — `collider.on_hit { |other| ... }`. The system
@@ -342,16 +343,16 @@ answering the same handful of methods.
   through their own lifecycle, so nodes never wire this by hand.
 - **Queries:** `query_box(x, y, w, h)` yields every registered collider bucketed in a cell
   the region covers, skipping nodes queued for removal — the rectangular counterpart to
-  `query_circle`, and what a blocked [`CharacterBody`](#characterbody) asks each step.
+  `query_circle`, and what a blocked [`Mover`](#mover) asks each step.
   `nearest(x, y, r, layer:)` and `cell_empty?(x, y)` are the other two. All of them read
   the index the most recent `update` built and allocate nothing.
 - **Staying fresh mid-step:** `reindex(collider, from_x, from_y, from_w, from_h)`
   re-buckets a collider that has moved since the index was built, given the box it *was*
   bucketed at. Buckets are filled once per step, so a query over cells a mover has left
   would otherwise miss it — measured at 116 misses in 60,000 queries with two hundred
-  actors, and none once each mover re-buckets itself. A blocked body does this through its
-  resolver; anything else that moves a collider mid-step (a `Velocity`, a `PathFollow`, an
-  ancestor) may call it directly.
+  actors, and none once each mover re-buckets itself. A [`Mover`](#mover) that declares a
+  collider layer does this through its resolver; anything else that moves a collider
+  mid-step (a mover that declared nothing, or an ancestor) may call it directly.
 - **Phase:** `update(dt)` rebuilds the spatial index, fires both colliders' `on_hit`
   for each pair that has *started* overlapping, and then both colliders' `on_separated`
   for each pair that has *stopped*. It is **layer-agnostic** — it reports contacts and
@@ -362,7 +363,7 @@ answering the same handful of methods.
   *before* any actor has moved this step. Contacts therefore describe where things were
   at the end of the previous step — consistently, so nothing jitters, but a pair that
   starts overlapping during step N is reported at the top of step N+1. A blocked
-  [`CharacterBody`](#characterbody) does not read the index this way and is not affected;
+  [`Mover`](#mover) does not read the index this way and is not affected;
   it queries mid-step and re-buckets itself, which is what `reindex` above is for.
 - **A contact is two edges, not a state.** Each signal fires **once per pair**: nothing
   at all on the steps between the two, however long the overlap lasts, and one report
@@ -689,11 +690,11 @@ edge reappears on the opposite one.
   re-resolves on every entry, so a recycled node follows the scene it lands in. Attaching
   with no bounds and no world system in scope **raises**.
 - **Phase:** `update(dt)` clamps-and-wraps `node.x`/`node.y` against the bounds.
-- **It contradicts `blocked_by: [:bounds]`.** This acts on `node.x`/`node.y`; a body
+- **It contradicts `blocked_by: [:bounds]`.** This acts on `node.x`/`node.y`; a mover
   blocked by the world edge acts on the collision **box**, so a node with an offset box is
-  left just outside the bounds this then reads and wraps. Give a wrapping entity a body
+  left just outside the bounds this then reads and wraps. Give a wrapping entity a mover
   that does not declare `:bounds` — which is why the edge is declared rather than applied
-  to everybody. See [`CharacterBody`](#characterbody).
+  to everybody. See [`Mover`](#mover).
 
 ### `Sprite`
 
@@ -760,14 +761,14 @@ This stays the thing actors ask questions of.
   the map's edges, and `bound(camera)` does the same for one that arrives later (a player joining).
 - **Queries:** `blockers` is the map's solid tiles as an
   [`Engine::TileBlockers`](internals.md#tileblockers--the-tile-grid-as-a-blocker-source),
-  the same object every time, which a [`CharacterBody`](#characterbody) declaring `:tiles`
+  the same object every time, which a [`Mover`](#mover) declaring `:tiles`
   borrows and resolves its own steps against. Also `solid?(col, row)`;
   `world_width`/`world_height`; `tilemap_id` and `elapsed`, which the layers read;
   `layer_count` and `first_above_layer`, which `TileMapLayer.mount` reads to decide where
   the actors go.
-- **It does not resolve a step.** A body may be stopped by tiles, by other actors, by the
-  world's edge or by any combination, and only the body knows which — so the resolver is
-  the body's and the grid is this system's.
+- **It does not resolve a step.** A mover may be stopped by tiles, by other actors, by the
+  world's edge or by any combination, and only the mover knows which — so the resolver is
+  the mover's and the grid is this system's.
 - **Phase:** `update(dt)` advances the map's animation clock.
 - **Example:** `examples/scroll_map` — a `.tmx` through the asset manager, this
   system, `TileMapLayer.mount`, and a camera clamped to the map's edges.
@@ -809,13 +810,25 @@ reusing its drift-free carry-forward.
 
 Integrates linear and angular velocity into the node's transform each step.
 
-- **Construct:** `Velocity.new(vx: 0.0, vy: 0.0, spin: 0.0)`.
+- **Construct:** `Velocity.new(vx: 0.0, vy: 0.0, spin: 0.0, blocked_by: [])` — what may
+  stop it is [`Mover`](#mover)'s, and works as it does for a `CharacterBody`.
 - **State:** `vx`, `vy`, `spin` are read/write accessors — a controller (or the node's
   own `control` hook) writes them as movement intent.
-- **Phase:** `update(dt)` adds `vx*dt`/`vy*dt` to `node.x`/`node.y` and `spin*dt` to
-  `node.angle`.
+- **Phase:** `update(dt)` moves the node by `vx*dt`/`vy*dt` through `apply_move`, and adds
+  `spin*dt` to `node.angle` directly: a collision box does not turn with its node, so a
+  rotation has nothing to be blocked by.
+- **Blocked:** a stopped step leaves `vx`/`vy` as they were. They are the intent, and what
+  a stop should do to them — nothing, zero them, bounce — is the game's call, made in an
+  `on_blocked` handler. A `ThrustController` ship is blocked by declaring `blocked_by:` here,
+  on the `Velocity` it drives.
 
 A free-moving entity can use `Velocity` alone; pair it with a controller for input.
+
+```ruby
+add_component(RGame::Engine::Components::BoxCollider.new(width: 8, height: 8, layer: :bullet))
+velocity = add_component(RGame::Engine::Components::Velocity.new(vx: 400, blocked_by: %i[tiles]))
+velocity.on_blocked { queue_free }
+```
 
 ### `WanderController`
 
