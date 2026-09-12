@@ -391,6 +391,37 @@ entities like projectiles.
   one-shot [`Timer`](#timer) (`repeating: false`) with `on_timeout { node.queue_free }`
   instead.
 
+### `FeetCollider`
+
+A [`BoxCollider`](#boxcollider) whose rectangle is the node's **feet**: horizontally
+centred in the node's dimensions and anchored to their bottom. That is the shape a
+top-down character should collide with — a 16×22 hero occupies the 12×6 patch under
+them, not the whole sprite, which is what stops their head bumping into a wall a tile
+away. It is a `BoxCollider` in every other respect: same registration, same signals,
+same mixing with circles, and `get_component(BoxCollider)` finds it.
+
+- **Construct:** `FeetCollider.new(width:, height:, layer: :default)` — the feet box
+  size in px. No sprite size and no offsets: those come from `node.width`/`node.height`,
+  which [`AnimatedSprite`](#animatedsprite) sets from the sprite frame, so the box and
+  the sprite can never disagree. A node with no sprite must set its own dimensions.
+- **Geometry:** `box` is built on **first read** and memoised, not built at
+  construction — a node has no size until its sprite attaches, so the order components
+  were added in never matters. Reading it from a 0×0 node **raises**, naming the size,
+  rather than baking a box anchored to nothing and leaving an actor that walks through
+  walls a long way from the call that caused it. Assigning `box =` still wins, which is
+  how a pooled entity retunes its shape on reset.
+- **Everything else:** as [`BoxCollider`](#boxcollider) — `aabb_*`, `cx`/`cy`,
+  `overlap?`, `on_hit` / `on_separated`, and registration with the scene's
+  [`CollisionWorld`](#collisionworld).
+
+```ruby
+add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+feet = add_component(RGame::Engine::Components::FeetCollider.new(
+  width: 12, height: 6, layer: :hero
+))
+feet.on_hit { |other| take_damage if other.layer == :spike }
+```
+
 ### `Identity`
 
 A stable name for one node, so something outside the tree can refer to it.
