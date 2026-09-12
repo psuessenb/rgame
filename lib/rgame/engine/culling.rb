@@ -22,8 +22,8 @@ module RGame
     #
     # - **No size means no culling.** `node.width`/`height` are what a drawable's
     #   footprint is measured from, and a node that never set them (nothing
-    #   requires it — `test_projects/asteroids` does not) reads as 0×0, which would
-    #   otherwise cull everything instantly. Unknown means draw.
+    #   requires it) reads as 0×0, which would otherwise cull everything
+    #   instantly. Unknown means draw.
     # - **A rotated node is measured generously.** `Node2D#draw` rotates about the
     #   node's own origin, so a rotated footprint can reach further than its
     #   box in any direction. The margin is `width + height`, which is always at

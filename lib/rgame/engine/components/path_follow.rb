@@ -4,8 +4,8 @@ module RGame
   module Engine
     module Components
       # Walks the owning node along an Engine::Path at a constant speed, segment by
-      # segment, and emits `on_finished` once it reaches the final waypoint — the seam a
-      # tower defense game uses to leak a life when an enemy reaches the base.
+      # segment, and emits `on_finished` once it reaches the final waypoint — the seam for
+      # whatever should happen when a walker arrives.
       #
       # The walk is allocation-free: it tracks the current segment and the distance into
       # it, advancing through as many segments as one step crosses (so a fast mover over

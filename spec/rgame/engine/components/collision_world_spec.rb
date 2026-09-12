@@ -66,32 +66,32 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
     end
 
     it 'reports an overlapping pair of boxes' do
-      place_box(100, 100, :snake)
-      place_box(110, 110, :fruit)
+      place_box(100, 100, :player)
+      place_box(110, 110, :pickup)
       tick
-      expect(hits).to contain_exactly(%i[snake fruit], %i[fruit snake])
+      expect(hits).to contain_exactly(%i[player pickup], %i[pickup player])
     end
 
     # The bug this convention exists for: pieces on neighbouring squares border each
     # other constantly, and an inclusive edge test reported every one of those as a
-    # contact — a fruit collected by passing the square next to it.
+    # contact — a pickup collected by passing the square next to it.
     it 'does not report cell-sized boxes on neighbouring squares' do
-      place_box(64, 64, :snake, width: 64, height: 64)
-      place_box(128, 64, :fruit, width: 64, height: 64) # shares an edge
+      place_box(64, 64, :player, width: 64, height: 64)
+      place_box(128, 64, :pickup, width: 64, height: 64) # shares an edge
       tick
       expect(hits).to be_empty
     end
 
     it 'reports cell-sized boxes on the same square exactly once each' do
-      place_box(64, 64, :snake, width: 64, height: 64)
-      place_box(64, 64, :fruit, width: 64, height: 64)
+      place_box(64, 64, :player, width: 64, height: 64)
+      place_box(64, 64, :pickup, width: 64, height: 64)
       tick
-      expect(hits).to contain_exactly(%i[snake fruit], %i[fruit snake])
+      expect(hits).to contain_exactly(%i[player pickup], %i[pickup player])
     end
 
     it 'does not report boxes that only overlap on one axis' do
-      place_box(100, 100, :snake)
-      place_box(110, 200, :fruit)
+      place_box(100, 100, :player)
+      place_box(110, 200, :pickup)
       tick
       expect(hits).to be_empty
     end
@@ -99,14 +99,14 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
     # Shapes mix: the pair's narrowphase is settled by the two colliders between
     # themselves, so a circle and a box in the same world collide with each other.
     it 'reports a box overlapping a circle' do
-      place_box(100, 100, :fruit)   # 24x24 from (100, 100)
-      place(130, 112, :bullet)      # radius 12, centre 6px right of the box edge
+      place_box(100, 100, :pickup) # 24x24 from (100, 100)
+      place(130, 112, :bullet) # radius 12, centre 6px right of the box edge
       tick
-      expect(hits).to contain_exactly(%i[fruit bullet], %i[bullet fruit])
+      expect(hits).to contain_exactly(%i[pickup bullet], %i[bullet pickup])
     end
 
     it 'does not report a circle that clears the box' do
-      place_box(100, 100, :fruit)
+      place_box(100, 100, :pickup)
       place(200, 112, :bullet)
       tick
       expect(hits).to be_empty
@@ -119,8 +119,8 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
     # spec's own on_hit listener, which appends an Array, and measure nothing about
     # the world.
     it 'allocates nothing per step' do
-      place_box(70, 70, :snake, width: 10, height: 10)
-      place_box(100, 100, :fruit, width: 10, height: 10)
+      place_box(70, 70, :player, width: 10, height: 10)
+      place_box(100, 100, :pickup, width: 10, height: 10)
       place(110, 70, :rock)
       tick
       expect { world.update(0.0) }.to allocate_nothing
@@ -132,8 +132,8 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
     # are silent here — the pair started overlapping on the first tick, and an edge
     # fires once — so what is measured is the bookkeeping alone.
     it 'allocates nothing per step while a pair stays in contact' do
-      place_box(100, 100, :snake, width: 24, height: 24)
-      place_box(110, 110, :fruit, width: 24, height: 24)
+      place_box(100, 100, :player, width: 24, height: 24)
+      place_box(110, 110, :pickup, width: 24, height: 24)
       tick
       expect { world.update(0.0) }.to allocate_nothing
     end
@@ -155,10 +155,10 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
     # share, and a pair wide enough to span three cells was reported three times in a
     # single step. These two boxes cover cells (0, 1), (1, 1) and (2, 1) at cell_size 64.
     it 'reports a pair spanning several cells once' do
-      place_box(50, 100, :snake, width: 100, height: 24)
-      place_box(60, 100, :fruit, width: 80, height: 24)
+      place_box(50, 100, :player, width: 100, height: 24)
+      place_box(60, 100, :pickup, width: 80, height: 24)
       tick
-      expect(hits).to contain_exactly(%i[snake fruit], %i[fruit snake])
+      expect(hits).to contain_exactly(%i[player pickup], %i[pickup player])
     end
 
     it 'reports nothing while the pair stays apart' do
@@ -281,13 +281,13 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
   # is also its world x/y. cell_size is 64.
   describe '#cell_empty?' do
     it 'is true for a cell holding no collider' do
-      place_box(0, 0, :snake, width: 10, height: 10)
+      place_box(0, 0, :player, width: 10, height: 10)
       tick
       expect(world.cell_empty?(300, 300)).to be(true)
     end
 
     it 'is false for a cell a collider sits in' do
-      place_box(70, 70, :snake, width: 10, height: 10)
+      place_box(70, 70, :player, width: 10, height: 10)
       tick
       expect(world.cell_empty?(100, 100)).to be(false) # same 64px cell as (70, 70)
     end
@@ -303,7 +303,7 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
     # leave the squares it borders free — otherwise a board of cell-sized pieces reads
     # as fully occupied.
     it 'leaves the neighbouring cells of a cell-sized collider free' do
-      place_box(64, 64, :snake, width: 64, height: 64) # exactly cell (1, 1)
+      place_box(64, 64, :player, width: 64, height: 64) # exactly cell (1, 1)
       tick
       expect([world.cell_empty?(64, 64), world.cell_empty?(128, 64),
               world.cell_empty?(64, 128), world.cell_empty?(0, 64)]).to eq([false, true, true, true])
@@ -313,20 +313,20 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
     # sit on that lattice straddles two cells and occupies both — which is why a board
     # wanting square-per-cell puts its own origin on a multiple of cell_size.
     it 'is false for both cells a collider straddles' do
-      place_box(96, 64, :snake, width: 64, height: 64) # half in cell (1, 1), half in (2, 1)
+      place_box(96, 64, :player, width: 64, height: 64) # half in cell (1, 1), half in (2, 1)
       tick
       expect([world.cell_empty?(64, 64), world.cell_empty?(128, 64)]).to eq([false, false])
     end
 
     it 'is false for every cell a collider larger than one cell really covers' do
-      place_box(64, 64, :snake, width: 128, height: 64) # cells (1, 1) and (2, 1)
+      place_box(64, 64, :player, width: 128, height: 64) # cells (1, 1) and (2, 1)
       tick
       expect([world.cell_empty?(64, 64), world.cell_empty?(128, 64),
               world.cell_empty?(192, 64)]).to eq([false, false, true])
     end
 
     it 'is true before the first update has built the index' do
-      place_box(70, 70, :snake, width: 10, height: 10)
+      place_box(70, 70, :player, width: 10, height: 10)
       resolve_positions # the world itself is deliberately not driven
       expect(world.cell_empty?(70, 70)).to be(true)
     end
@@ -334,14 +334,14 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
     # The same rule query_circle and nearest follow: a collider on its way out of the
     # tree no longer counts, so a corpse cannot reserve a square.
     it 'ignores a collider whose node is queued for removal' do
-      place_box(70, 70, :snake, width: 10, height: 10).node.queue_free
+      place_box(70, 70, :player, width: 10, height: 10).node.queue_free
       tick
       expect(world.cell_empty?(70, 70)).to be(true)
     end
 
     it 'still reports a cell occupied when only some of its colliders are freed' do
-      place_box(70, 70, :snake, width: 10, height: 10).node.queue_free
-      place_box(90, 90, :fruit, width: 10, height: 10)
+      place_box(70, 70, :player, width: 10, height: 10).node.queue_free
+      place_box(90, 90, :pickup, width: 10, height: 10)
       tick
       expect(world.cell_empty?(70, 70)).to be(false)
     end
@@ -350,13 +350,13 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
     # and a read must neither allocate nor grow the index (SpatialHash's bucket Hash
     # creates a bucket on a plain [] miss, which is why the hash is asked first).
     it 'allocates nothing when the cell is empty' do
-      place_box(0, 0, :snake, width: 10, height: 10)
+      place_box(0, 0, :player, width: 10, height: 10)
       tick
       expect { world.cell_empty?(300, 300) }.to allocate_nothing
     end
 
     it 'allocates nothing when the cell is occupied' do
-      place_box(70, 70, :snake, width: 10, height: 10)
+      place_box(70, 70, :player, width: 10, height: 10)
       tick
       expect { world.cell_empty?(70, 70) }.to allocate_nothing
     end
@@ -377,7 +377,7 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
     end
 
     it 'restricts to a layer when one is given' do
-      place(100, 100, :tower) # nearer, wrong layer
+      place(100, 100, :ally) # nearer, wrong layer
       enemy = place(140, 100, :enemy)
       tick
       expect(world.nearest(100, 100, 100, layer: :enemy)).to be(enemy)

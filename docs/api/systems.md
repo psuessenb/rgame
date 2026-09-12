@@ -160,8 +160,8 @@ exactly the way it slides off a fence.
 | The step | — | one `CollisionSystem`, built at attach from the names above |
 
 Neither system needs the other, and most scenes mount one of them. `examples/scroll_map`
-has a map and no broadphase; `examples/collision`, `test_projects/asteroids` and
-`test_projects/snake` have a broadphase and no map. `examples/collision_tiles` mounts both,
+has a map and no broadphase; `examples/collision` has a broadphase and no map.
+`examples/collision_tiles` mounts both,
 and the only place in it that shows is the list of names in `blocked_by`.
 
 What a body is stopped by and what a collider is touching stay two different questions,
@@ -197,8 +197,8 @@ rather than simply forwarding what the broadphase found each step.
 
 Because it's a normal component on the scene node, it rides the `update` traversal
 (its broadphase runs in `update`) and is torn down with the scene. See
-`test_projects/asteroids` for the whole loop: ship, bullets, and rocks spawning,
-colliding, and despawning through this system.
+`examples/collision` for the whole loop: circles and crates registering, overlapping and
+separating through this system.
 
 ### Blocking and overlapping are two reports, and a pair gets one of them
 

@@ -15,7 +15,7 @@
 # ## A spawner is not waiting for a key
 #
 # Every example before this one moved when something was pressed. A wave clock, a
-# tower's rate of fire and an enemy every few seconds are none of them input, and
+# turret's rate of fire and an enemy every few seconds are none of them input, and
 # they are what this is for.
 #
 # ## The race is the point, and the loser is the obvious implementation

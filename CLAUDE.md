@@ -247,10 +247,10 @@ runs without a window".
 table, a camera and a region of the screen; the shared world is updated once and
 drawn once per viewport by a `WorldView`; and which player a node answers to is
 inherited down the tree like its transform. A device is seated when somebody
-uses it rather than when it is plugged in. `test_projects/tiled_world` runs two
-players, collapses to one view for a cutscene, and gives each player a menu they
-can open while the other keeps walking. See `docs/api/scene_graph.md`,
-`input.md` and `ui.md`.
+uses it rather than when it is plugged in. `examples/split_screen` seats a second
+player mid-session, and `examples/game_menu` opens a menu on one node while the
+world around it keeps walking. See `docs/api/scene_graph.md`, `input.md` and
+`ui.md`.
 
 **The UI package is a beginning, not a toolkit.** `PlayerLayer` and
 `UI::Menu` cover a region per player, focus, and activation — which is what
@@ -883,16 +883,16 @@ That harness is `tools/drive_test_project.rb`, and it takes a per-project input
 script from `tools/drive/`:
 
 ```
-ruby tools/drive_test_project.rb test_projects/tiled_world/main.rb --ticks 240
+ruby tools/drive_test_project.rb examples/collision_tiles/main.rb --ticks 240
 ```
 
 **A script's path mirrors its project's**, so the line above reads
-`tools/drive/test_projects/tiled_world.rb`. Deriving it from the directory's
+`tools/drive/examples/collision_tiles.rb`. Deriving it from the directory's
 *basename* instead would make two trees of projects collide silently — a game
 driven by another game's inputs reports something confusing rather than failing
 — so the mirror is what makes the collision impossible. `--script` overrides it,
-which is how one project has several scripts (`tiled_world_2p.rb`,
-`tiled_world_cutscene.rb`).
+which is how one project has several scripts (`collision_tiles.rb` and
+`collision_tiles_spike.rb`).
 
 It boots the test project unmodified (prepending its probes before `load`ing the
 project's own `main.rb`), feeds it a scripted input backend through
@@ -913,8 +913,8 @@ sweep. `tools/` is outside the gem's packaged glob, so it ships nothing.
 Assert on structure — scenes entered, sounds fired, clip and translate counts.
 Exact draw counts are comparable **only with `--seed N`**, which seeds the
 test project's own RNG (through `RGAME_SEED`) so that two runs produce byte-identical
-output. Without it `test_projects/asteroids` seeds itself from the system and
-varies run to run, which is what a game being played should do.
+output. Without it a project that seeds itself from the system varies run to
+run, which is what a game being played should do.
 
 ### Why the Ruby specs are two suites, in two directories
 

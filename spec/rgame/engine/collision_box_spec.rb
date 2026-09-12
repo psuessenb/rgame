@@ -26,7 +26,7 @@ RSpec.describe RGame::Engine::CollisionBox do
     end
 
     # A rect spans [x, x + w), so two that share an edge are apart. Without this a
-    # board of cell-sized pieces reports every neighbour as a contact — a fruit
+    # board of cell-sized pieces reports every neighbour as a contact — a pickup
     # collected by passing the square next to it.
     it 'treats shapes that only share an edge as apart' do
       expect(described_class.overlap?(0, 0, 20, 20, 20, 0, 20, 20)).to be(false)

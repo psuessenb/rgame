@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Timer.update ticks every frame for every spawner/tower that owns one, so it must not
+# Timer.update ticks every frame for every spawner/turret that owns one, so it must not
 # allocate. Guards that with the allocate_nothing matcher.
 RSpec.describe RGame::Engine::Timer do
   it 'ticks without allocating per frame' do

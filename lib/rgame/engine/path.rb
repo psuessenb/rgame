@@ -2,8 +2,8 @@
 
 module RGame
   module Engine
-    # An ordered polyline of waypoints an entity walks along — the "road" of a tower
-    # defense level. Pure data: it holds the waypoints and the precomputed per-segment
+    # An ordered polyline of waypoints an entity walks along — a road, a patrol
+    # route, a track. Pure data: it holds the waypoints and the precomputed per-segment
     # lengths, so a follower walking it at runtime allocates nothing.
     #
     # Waypoints are stored flat (x0, y0, x1, y1, …) in one contiguous array rather than a
@@ -34,7 +34,7 @@ module RGame
       def segment_length(index) = @segment_lengths[index]
 
       # Shortest distance from the point (x, y) to the polyline — e.g. how far a spot is
-      # from the road, so a tower-defense level can mask placement cells that sit on it.
+      # from the road, so a level can keep things from being placed on or beside it.
       # Pure scalar maths, allocation-free.
       def distance_to(x, y)
         min = Float::INFINITY

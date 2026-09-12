@@ -60,7 +60,7 @@ reports what the game asked for — scenes entered, sounds played, clips and
 translates pushed, ticks against frames. **Booting is not
 driving**: a plain boot of a game whose menu responded to nothing once reported
 "90 ticks, 90 frames" and looked healthy. Assert on structure, not on exact draw
-counts (asteroids spawns from an unseeded RNG).
+counts unless the run is seeded with `--seed N`.
 
 Comparing a run against `main` is the strongest form of this: with `--seed N` two
 runs of unchanged code are byte-identical, so a diff of nothing is real evidence

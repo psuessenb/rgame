@@ -4,7 +4,7 @@ module RGame
   module Engine
     module Components
       # A rectangular collision shape on a node — the sibling of CircleCollider for
-      # entities that are honestly box-shaped (a snake segment, a crate, a platform).
+      # entities that are honestly box-shaped (a crate, a platform, a wall segment).
       # It registers itself with the scene's CollisionWorld when it enters the tree
       # and unregisters on leaving, so a spawned/despawned entity can't leak a
       # registration. A scene with no world mounted leaves it a bare shape (see

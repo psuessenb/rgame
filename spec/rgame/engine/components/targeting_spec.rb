@@ -3,7 +3,7 @@
 RSpec.describe RGame::Engine::Components::Targeting do
   # Targeting queries the scene's CollisionWorld, so build the same arrangement the game
   # has: a scene boundary carrying the world, enemy nodes whose CircleColliders register
-  # with it, and a tower node carrying the Targeting under test. A tick resolves positions
+  # with it, and a turret node carrying the Targeting under test. A tick resolves positions
   # (control), rebuilds the broadphase index and runs the targeting (update).
   let(:scene) { RGame::Engine::Node2D.new.tap { it.scene = it } }
 
@@ -20,8 +20,8 @@ RSpec.describe RGame::Engine::Components::Targeting do
     node
   end
 
-  # A tower at (x, y); returns its Targeting component.
-  def tower(x, y, range: 100, **)
+  # A turret at (x, y); returns its Targeting component.
+  def turret(x, y, range: 100, **)
     node = RGame::Engine::Node2D.new(x: x, y: y)
     targeting = node.add_component(described_class.new(range: range, **))
     scene.add_node(node)
@@ -44,29 +44,29 @@ RSpec.describe RGame::Engine::Components::Targeting do
     it 'is the nearest enemy in range' do
       enemy(180, 100)        # 80px away
       near = enemy(140, 100) # 40px away
-      targeting = tower(100, 100)
+      targeting = turret(100, 100)
       tick
       expect(targeting.target).to be(near)
     end
 
     it 'is nil when no enemy is in range' do
       enemy(300, 100) # 200px away, range 100
-      targeting = tower(100, 100)
+      targeting = turret(100, 100)
       tick
       expect(targeting.target).to be_nil
     end
 
     it 'ignores colliders outside the targeted layer' do
-      enemy(120, 100, layer: :tower) # closer, but not an enemy
+      enemy(120, 100, layer: :ally) # closer, but not an enemy
       real = enemy(150, 100, layer: :enemy)
-      targeting = tower(100, 100, layer: :enemy)
+      targeting = turret(100, 100, layer: :enemy)
       tick
       expect(targeting.target).to be(real)
     end
 
     it 'drops a target that has been freed' do
       gone = enemy(150, 100)
-      targeting = tower(100, 100)
+      targeting = turret(100, 100)
       tick
       expect(targeting.target).to be(gone)
 
@@ -77,7 +77,7 @@ RSpec.describe RGame::Engine::Components::Targeting do
 
     it 'selects without allocating per update' do
       enemy(150, 100)
-      targeting = tower(100, 100)
+      targeting = turret(100, 100)
       tick # resolve positions + build the broadphase index
       expect { targeting.update(1.0 / 60) }.to allocate_nothing
     end

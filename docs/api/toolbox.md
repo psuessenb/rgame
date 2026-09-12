@@ -76,7 +76,7 @@ and `each` expose the live set for update/draw traversal.
 ## `Path` — a walkable polyline
 
 `RGame::Engine::Path` (`rgame/engine/path`) is an ordered polyline of waypoints an entity walks along —
-the "road" of a tower-defense level. Pure data: it holds the waypoints and the precomputed
+a road, a patrol route, a track. Pure data: it holds the waypoints and the precomputed
 per-segment lengths, so a follower walking it at runtime allocates nothing. Waypoints are
 stored flat (`x0, y0, x1, y1, …`) in one contiguous array and read back through scalar
 accessors, so neither construction nor traversal leaks a pair-object per waypoint.
@@ -93,17 +93,17 @@ path.distance_to(x, y) # shortest distance from a point to the polyline
 
 A follower ([`Components::PathFollow`](components.md#pathfollow)) reads segments by index
 and interpolates itself; Path never returns a coordinate pair. `distance_to` answers "how
-far is this point from the road" (allocation-free scalar maths) — e.g. to mask the
-tower-placement cells that sit on or hug the road.
+far is this point from the road" (allocation-free scalar maths) — e.g. to keep things
+from being placed on or beside it.
 
 ## `Timer` — paced periodic events
 
 `RGame::Engine::Timer` (`rgame/engine/timer`) is a repeating interval timer for periodic events that
-aren't driven by input — a spawner emitting an enemy every N seconds, a tower's fire
+aren't driven by input — a spawner emitting an enemy every N seconds, a turret's fire
 rate, a wave clock. It only **accumulates** time; the owner decides what each elapsed
 interval means. That split is deliberate: the same primitive serves both "act
 automatically" (consume every ready interval) and "stay loaded until conditions allow"
-(check `ready?`, but `consume` only when actually acting) — so a tower with no target
+(check `ready?`, but `consume` only when actually acting) — so a turret with no target
 keeps its shot ready instead of wasting it. Pure and allocation-free, so it ticks on the
 per-frame path.
 
@@ -151,7 +151,7 @@ not to a scene: a scene may have any number of viewers. Nothing calls `resolve` 
 the platform resolves each camera against the viewport it is about to draw. Pointing one
 is a [`CameraFollow`](components.md#camerafollow) component on the node being followed,
 and applying it is a [`WorldView`](scene_graph.md#view-transforms-and-the-camera). See
-`test_projects/tiled_world`.
+`examples/scroll_map` for one camera and `examples/split_screen` for two.
 
 ## Making a character that collides
 
@@ -179,8 +179,7 @@ An NPC is the same four lines with a
 [`WanderController`](components.md#wandercontroller) and `layer: :npc`. Because the
 hero's `blocked_by` names `:npc` and the NPC's names `:hero`, the two stop each other
 without either knowing what the other is; a crowd of NPCs all declaring `:npc` is fine,
-since a body is never stopped by its own collider. `test_projects/tiled_world` is
-exactly this, for a player and a dozen villagers.
+since a body is never stopped by its own collider.
 
 The scene has to mount what those names refer to — a
 [`TileWorld`](components.md#tileworld) for `:tiles` and a

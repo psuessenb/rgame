@@ -20,8 +20,8 @@
 # because pausing is a property of a *node*, not of the world: `hero.paused =
 # true` halts that node's `control` and `update` and everything below it, and
 # nothing else in the tree notices. That is what lets two players each open
-# their own menu while the shared world runs on — `test_projects/tiled_world`
-# does exactly that, and this is the single-player shape of it.
+# their own menu while the shared world runs on, and this is the single-player
+# shape of it.
 #
 # The hero and the villagers are the same three components with a different
 # controller in the middle: PlayerController reads the player's actions,
