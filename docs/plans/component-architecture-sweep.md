@@ -1,9 +1,7 @@
 # Sweeping the systems and components for architectural fit
 
-**Status: steps 1 and 2 are implemented. Step 3 is re-planned against the code after
-step 2 and ready to implement. Step 4 is planned from open question 5, is
-independent of step 3, and is ready too. Step 5 is deliberately
-rough. Every uncalled class has since been decided in conversation — see open
+**Status: steps 1, 2 and 3 are implemented. Step 4 is planned from open question 5
+and ready to implement. Step 5 is deliberately rough. Every uncalled class has since been decided in conversation — see open
 question 1.**
 
 Written out of a retrospective rather than a bug: the collision unification took
@@ -1171,6 +1169,86 @@ temporarily adding `blocked_by: [:bounds]` and a `BoxCollider` to
   is a real game shape, and 3c's rule refuses it. No caller wants it. If one does,
   the rule becomes one response per axis, and the refusal is where that would be
   found.
+
+**Landed.** Three commits, one per sub-step, on `world-edge-frame`.
+- **3a** dropped `examples/velocity`'s `field` node. Its world is now 640×360 at the
+  window's origin, with the text in a band below.
+- **3b** moved `ScreenWrap` and `DespawnOffscreen` to world space and added
+  `Node2D#world_x=` / `#world_y=`, which the mover's adapter now uses too. It also added
+  the `a world edge response` contract.
+- **3c** added `WorldBounds.one_response!` and `Mover#blocked_by?`, and replaced
+  `character_body_spec`'s contradiction example with the refusal.
+
+Suite numbers:
+- `rake spec`: 1355 examples, 0 failures. That is 1320 before, plus 12 from the contract
+  run against three hosts, 7 for the setters, 1 for `ScreenWrap`'s allocation and 15 in
+  `world_bounds_spec`. The replaced contradiction example is one for one. So the count
+  moved by exactly the new examples.
+- `make test`: 326 checks, 0 failures.
+- `rake spec:core`: 367 examples, 0 failures.
+
+The acceptance evidence:
+
+- **The contract catches the defect.** With `ScreenWrap` and `DespawnOffscreen` restored
+  to local reads, 4 of their 8 contract examples failed: both "leaves the node alone
+  while it is inside the world" cases, for each component.
+- **The refusal is order-free.** With the call removed from `ScreenWrap#on_attach` alone,
+  exactly the two examples in which `ScreenWrap` is added second to a live node failed.
+  Booting `examples/velocity` with a `BoxCollider` and `blocked_by: [:bounds]` on the
+  walker raised "Walker has two responses to the edge of the world: CharacterBody
+  (blocked_by :bounds) and ScreenWrap."
+- **Driven runs.** All 28 scripts ran at `--ticks 240 --seed 7`, each with a fresh
+  `RGAME_SAVE_DIR`, before 3a, after 3a (a worktree with `media/` linked), after 3b and
+  after 3c. 3a changed only `velocity`'s report: 8 rects a frame instead of 11,
+  translates x −40..680, y −40..400. 3b changed only `pooling`'s (below). 3c changed
+  none. The `tiled_world` scripts that differed between trees drew 239 frames on one
+  side. Re-run three times on each tree, every 240-frame report hashed the same across
+  3a, 3b and 3c.
+- **Cost.** `ScreenWrap#update` on a still node, run interleaved against the 3a tree for
+  six rounds with the best of three in each, took 175–186 ns before and 180–190 ns after.
+  That is −3 to +13 ns, higher in 5 of 6 rounds. It is one ancestor lookup per axis. No
+  allocation example read above zero.
+
+What the sketch got wrong:
+
+- **Three callers had an offset ancestor, not two.** `examples/pooling` spawns every mote
+  as a child of a `Spawner` at the window's centre. Its motes heading left or up were
+  freed at world x 290 or y 210, mid-screen, which is conclusion 1's defect in a shipped
+  example. The re-plan's count read construction sites. A probe prepended onto both
+  components, comparing `world_x` with `x` on every update, is what found it (15,917 of
+  15,917 updates mismatched). So 3b, not 3a, changed `pooling`'s report. Motes drawn went
+  from 16,077 to 32,418, and translates went from local −30..633 to −350..350, which is
+  world −30..670, the window plus the margin. `tools/drive/examples/pooling.rb` had
+  claimed the symmetric range all along, and the report had never shown it. Its comment
+  now says what the translates are relative to.
+- **3b rule 3 could not hold.** `screen_wrap_spec` and `despawn_offscreen_spec` wrapped a
+  bare root node, and a root is pinned to world (0, 0). Their nodes now sit under a root.
+- **`world_x=` is exact under a rotated ancestor.** The sketch carried the adapter's
+  "approximate under rotation" limit into `Node2D`. Inverting the parent's rotation costs
+  one sin/cos pair and nothing on the unrotated path, so the limit was removed.
+  `character_body_spec` had pinned the approximation, and now pins the exact landing.
+  The unrotated path assigns `value - parent.world_x` rather than adding a delta, because
+  `x + (value - world_x)` can miss `value` by one float step, and that would have made
+  driven reports differ.
+- **The contract's shape.** The host supplies the motion as well as the response, and
+  `responded?(node, from)` takes a positional start position. The keyword form tripped
+  `Lint/UnusedMethodArgument` in hosts that do not need it. The mover side is run by
+  `velocity_spec` alone, because the edge is resolved in `Mover`'s shared adapter.
+- **In the assembled lifecycle the *first* response to attach raises**, since every
+  component is already present. The sketch said the second. On a live node it is the
+  second, as sketched, and the message names both either way.
+- **`world_bounds_spec` generates its pair examples through metadata** rather than locals
+  captured by the examples, which `RSpec/LeakyLocalVariable` refuses.
+
+Documented in `docs/api/components.md`:
+- `World`: the frame, and `one_response!`.
+- `ScreenWrap`: world space, a wrap is a placement, one response.
+- `DespawnOffscreen`: origin plus margin, world space, one response.
+- `Mover`: `:bounds` is one of three responses, and `blocked_by?`.
+
+Also in `docs/api/scene_graph.md` ("The two spaces", with `world_x=`), `internals.md`
+(`BoundsBlockers`), and the headers of `Node2D`, `ScreenWrap`, `DespawnOffscreen`,
+`Mover`, `WorldBounds` and `BoundsBlockers`.
 
 ### Step 4 — `on_blocked` says which axis stopped the step
 
