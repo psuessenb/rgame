@@ -252,7 +252,9 @@ however many players are watching, which is what keeps simulation cost independe
 player count — and what makes the standing "draw renders state" rule load-bearing rather
 than stylistic: a `draw` with a side effect now runs once per player.
 
-See `test_projects/tiled_world`.
+`examples/split_screen` is the smallest thing that has two viewports at all: one
+`Ground`, two walkers, a badge each, and a second player who arrives mid-session.
+`test_projects/tiled_world` is the same shape inside a whole game.
 
 ## Viewports and views
 

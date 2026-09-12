@@ -719,7 +719,7 @@ canonical thing there are suddenly two hundred of.
 
 **Assets:** none.
 
-### 18. `examples/collision` — two shapes touching
+### 18. `examples/collision` — two shapes touching — **done**
 
 **Shows** object-to-object collision: a scene-scoped system that pairs up shapes
 each frame and tells them they overlapped.
@@ -749,6 +749,46 @@ their `on_hit` signal, and `Velocity` from 14 to move things into each other.
 
 **Assets:** none — shapes, drawn as shapes.
 
+### 19. `examples/collision_tiles` — walking into a wall — **done**
+**Landed.** `examples/collision/main.rb` plus `tools/drive/examples/collision.rb`.
+A scene mounting `CollisionWorld` and `World`; a `Mover` base carrying the
+`CircleCollider` and the one-line layer rule, with `Drifter` (velocity + spin)
+and `Walker` (character body + player controller) under it; four `Crate`s with
+`BoxCollider`s, two of them overlapping on purpose. The broadphase lattice is
+drawn on the backdrop at `cell_size`, which is what makes that number a thing a
+reader can look at rather than a constant to take on trust.
+
+Run: `rake spec` 1134 examples, 0 failures; RuboCop clean; the driven run at 240
+ticks reports 240 ticks / 240 frames, 21 `rect` and 7 `text` per frame flat, 4
+`circle` and 4 `line`, 478 `rotated` (two spinners, less the first frame at angle
+zero), one clip per frame, and `visits: 3` as the last `text` — the three
+arrivals the script drives.
+
+What the sketch did not know:
+
+- **`on_hit` is level-triggered *and* can fire twice in one step.** The
+  `SpatialHash` dedup contract lets a collider be yielded once per shared cell,
+  and `CollisionWorld#update` does not deduplicate, so a pair overlapping across
+  two cells reports two contacts per step. Measured: a circle centred in a crate
+  gives 2 emits per step, and the two overlapping crates give 4 between them. A
+  counting handler is therefore wrong twice over, and the first draft's per-crate
+  counter read 419 contacts in 240 ticks. The crate now records *that* a contact
+  happened and detects the edge in `on_update` — which is safe because a child's
+  `on_update` runs after the scene's components. This was documented in
+  `SpatialHash` and nowhere a user of `CollisionWorld` would look;
+  `docs/api/components.md` now says it under `CollisionWorld` and from both
+  colliders' `on_hit` bullets.
+- **The counter's honest unit is "the crate went from untouched to touched".**
+  Telling two simultaneous visitors apart needs the set of colliders in contact
+  last step, which is a per-frame collection where this is two booleans. The file
+  and the drive script both name the compromise rather than letting the number
+  look like something it is not.
+- **An example node built in `initialize` needs no `on_add` at all.** The
+  collider's `on_attach` wants the scene's system, and attachment is deferred
+  until the node enters the tree, so the whole component stack composes in
+  `initialize` and the order is irrelevant — the same rule `examples/pooling`
+  arrived at from the other direction.
+
 ### 19. `examples/collision_tiles` — walking into a wall
 
 **Shows** the *other* collision problem, and that it needs different machinery.
@@ -777,6 +817,38 @@ because Phase E's two jump examples build straight on top of it.
 
 **Assets:** **B**, already committed. Its map may want a wall arrangement worth
 sliding along, the same way example 12's wants one worth routing around.
+
+### 20. `examples/split_screen` — two players, one world — **done**
+**Landed.** `examples/collision_tiles/main.rb` plus its drive script. The scene
+is `examples/scroll_map`'s three steps — tilemap asset, `TileWorld`,
+`WorldView` + `TileMapLayer.mount` — with a `Hero` that has an `AnimatedSprite`,
+a `TileCharacterBody`, a `PlayerController` and a `CameraFollow` offset onto the
+feet. The hero draws its own `collision_box` translucently over the sprite, which
+is the "draw the box" the sketch asked for and costs one `rect` at a constant
+local position.
+
+Run: `rake spec` 1134 examples, 0 failures; RuboCop clean; the driven run at 240
+ticks reports 240 ticks / 240 frames, 3 `text`, 2 `tilemap`, 1 `sprite` and 1
+`rect` per frame, two clips per frame, and the last `tilemap` at camera
+(0.0, 160.0).
+
+What the sketch did not know:
+
+- **The map needed no new wall arrangement.** `town.tmx`'s fence — full width but
+  for the gap at columns 12 to 14, authored for the pathfinding example — is
+  already the best sliding demonstration available, and it doubles as the
+  acceptance test: the hero starts ten tiles east of the gap holding down-and-left
+  and can only reach the south of the map by sliding into it. A body that dropped
+  the whole blocked step would sit at the fence for the entire run, so the
+  camera's southern clamp appearing in the report *is* the proof that sliding
+  works.
+- **The first frame is drawn before anything updates.** Its `tilemap` call reports
+  the camera at (0, 0) and the second reports (72, 51), which is where
+  `CameraFollow` puts it. Worth knowing before reading a first-frame coordinate
+  out of any report as though it were a starting position.
+- **Nothing about the two collision examples needed reconciling.** They share no
+  class, no component and no vocabulary beyond the English word, which is what
+  the pair was for; the file says so at the top and points both ways.
 
 ### 20. `examples/split_screen` — two players, one world
 
@@ -811,6 +883,44 @@ one clip per active viewport per frame, going from one to two at the join.
 **Assets:** **A**, already committed.
 
 ### 21. `examples/input_glyphs` — the prompt matches the thing in your hand — **done**
+**Landed.** `examples/split_screen/main.rb` plus its two-timeline drive script.
+A `Ground` node under a `WorldView`, a `Walker` per player (the walk example's
+hero with a `CameraFollow` and a coloured banner), and a `Badge` under a
+`PlayerLayer` per player counting that player's `:fire` presses. The scene bounds
+every seat's camera — including the empty one's — mounts the world, and spawns on
+`each_active` plus `on_joined`.
+
+Run: `rake spec` 1134 examples, 0 failures; RuboCop clean; the driven run at 240
+ticks reports 240 ticks / 240 frames, three clip rectangles (the full window 302
+times, and each half 418 times), 499 `sprite` calls, 898 `:hud` layers against
+2005 `:world`, and `waves: 1` as the last `text`.
+
+What the sketch did not know:
+
+- **The signal is `Players#on_joined`, not `on_seated`.** The plan named a method
+  that does not exist.
+- **The walkers had to start side by side, and that turned into the best thing in
+  the file.** Started far apart, each is culled out of the other's viewport and
+  the sprite count is a flat one per viewport — which reads as "each player sees
+  only themselves" and is the opposite of the point. Side by side they appear in
+  both halves and then drop out as they separate: 499 sprite draws rather than the
+  449 of one each, with the extra 50 being the frames both halves could see both.
+  `Engine::Culling` exists because of split-screen, so the example now shows it.
+- **A node's own `on_draw` is not culled, only clipped.** Culling lives in the
+  components that know a node's footprint, so `Walker`'s banner is drawn in every
+  viewport and scissored away in the wrong one. Said in the file, because a reader
+  comparing the sprite count against the rect count would otherwise find it
+  inconsistent.
+- **Ownership was verified by its counterfactual, not by inspection.** A run in
+  which only the keyboard waves three times leaves player two's badge reading
+  `waves: 0`; if either subtree read the other's device, or the raw input, it
+  would read 3.
+- **`--gamepad` cannot drive this example.** That mode points player one at slot 0
+  and leaves the real backend in place, so no device is unassigned and nobody can
+  join. The scripted backend is the right tier for a join, which is what
+  `tiled_world_2p.rb` already did.
+
+### 21. `examples/input_glyphs` — the prompt matches the thing in your hand
 
 **Shows** switching between keyboard and controller mid-session, and a UI that
 says "Press A" or "Press Space" depending on which was used last. It is the most
@@ -1221,11 +1331,19 @@ trace in any report. Fixed while writing example 7.
 15. ~~`examples/pooling`~~ — **done**; driven by 14, as planned.
 16. `examples/collision` (`CollisionWorld` + `BoxCollider` + `CircleCollider`,
     moved by 12; no assets)
+17. ~~`examples/collision_tiles`~~ — **done**; no new engine code and no map
+    change: `town.tmx`'s fence was already the wall worth sliding along.
+16. ~~`examples/collision`~~ — **done**; no new engine code, but it turned up an
+    undocumented `on_hit` contract (see its landed note).
 17. `examples/collision_tiles` (`Components::TileCharacterBody`; reuses **B**)
 18. `examples/split_screen` (`players: 2`; reuses **A**)
 19. ~~`examples/input_glyphs`~~ — **done**; `Controls.gamepad?` and
     `pad_button?`, `InputMap#button_for`, and asset **G** cut from Kenney's
     *Input Prompts*.
+18. ~~`examples/split_screen`~~ — **done**; no new engine code, and it is where
+    `Engine::Culling` finally has an example.
+19. `examples/input_glyphs` (`Controls.gamepad?`, an `InputMap` query, and asset
+    **G** — the only new engine work in this phase)
 
 **This phase is a coverage phase rather than a feature phase**, and that is why
 it comes before the two that add components. Everything up to `split_screen`
