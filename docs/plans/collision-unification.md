@@ -1,9 +1,13 @@
 # Unifying the two collision systems
 
-**Status: steps 1–3 are implemented; steps 4–6 are not.** Steps 4–6 are
-deliberately rough and should be re-planned once the layer beneath them exists.
-Note that two landed notes push work into step 4: step 2's moves rule 3 of its own
-list there, and step 3's adds where a per-actor blocker source hangs.
+**Status: steps 1–3 are implemented; steps 4–6 are not. Steps 4 and 5 have been
+re-planned in detail at `605432f`; step 6 stays rough until they land.** The two
+things landed steps pushed into step 4 — rule 3 of step 2's list, and where a
+per-actor blocker source hangs — are settled below, and so are open questions 1,
+2, 3, 4 and 5. Re-planning added six measured findings (B6–B11). One overturns a
+candidate the plan had been carrying since it was written, one is a live defect
+nobody had reached yet, and one closes an open question against the convenience it
+proposed.
 
 Written out of a question about the shape of the engine, not a bug. Per CLAUDE.md
 this is a working document: it names the code as it stands today, records what
@@ -82,6 +86,28 @@ Not up for re-litigation inside the plan.
 - **Two indexes, one resolver.** See the verdict.
 - **Layers stay opaque symbols.** No bitmask, no layer matrix. The engine keeps
   reporting contacts and letting the owner decide meaning.
+
+Four more were taken when steps 4 and 5 were re-planned, and they are what those
+steps are written against.
+
+- **The resolver hangs on the body, and `TileWorld#move` retires.** A body builds
+  its own `CollisionSystem` at attach out of the sources it resolved, and
+  `TileWorld` goes back to being the map, its bounds and its tile solidity. See
+  D5 for why, and E for the shared-system alternative that was rejected.
+- **`on_blocked` is an edge, and it has an `on_unblocked` twin.** A signal pair,
+  exactly like `on_hit` / `on_separated`, over the same `Engine::ContactSet`.
+  This settles open question 2 against the leaning the plan recorded; the reason
+  is in that question.
+- **What stopped a step always answers `layer`.** The tile source reports a
+  sentinel blocker rather than a bare `:tiles` symbol, so a handler reads
+  `by.layer` whatever stopped it and never branches on type. See D4.
+- **Blocking is box-versus-box.** A `CircleCollider` on a blocked layer does not
+  stop a step and still reports `on_hit` normally. This settles open question 3
+  as that question proposed.
+- **The world edge is a declared blocker, not an unconditional clamp.**
+  `blocked_by: [:bounds]`, and `CollisionSystem` stops clamping. This settles open
+  question 5, and it settles it larger than the question asked, because asking it
+  turned up B9. See D7.
 
 ## What was measured before planning
 
@@ -194,6 +220,169 @@ moment an actor resolves its step against other actors, which is step 4. The
 test used a 188px jump; a real step is one or two pixels against cells of 16 to
 64, so the practical exposure is a near-miss at a cell boundary rather than a
 systematic failure. Open question 1 is what to do about it.
+
+### B6. The stale index misses a candidate, and only re-indexing fixes it — *(measured: this is open question 1, settled)*
+
+Open question 1 offered three candidates and asked for a measurement rather than
+an argument. All three were built and run against the real `SpatialHash` and
+`CollisionWorld`: actors of 12×6 bouncing inside a square world, each one querying
+the index for its own swept box and the result compared against ground truth —
+every other actor whose *live* AABB genuinely overlaps that box. A miss is a
+collider that genuinely overlaps and was not offered.
+
+Live positions are never the problem. A query returns colliders, and a blocker
+source reads each one's AABB fresh, so the geometry it resolves against is
+current. What goes stale is **candidacy**: a collider that moved after the rebuild
+is still bucketed where it was, and a query over cells it has left does not reach
+it.
+
+At 40 actors, cell 32, 300 steps — 12,000 queries:
+
+| Strategy | 40 px/s | 80 px/s | 200 px/s |
+|---|---|---|---|
+| Leave it stale | 0 | 1 | 3 |
+| Inflate the query by this step | 0 | 0 | 0 |
+| Inflate the query by one cell | 0 | 0 | 0 |
+| Re-index the mover after it moves | 0 | 0 | 0 |
+
+At 200 actors, cell 32 — 60,000 queries:
+
+| Strategy | 80 px/s | 200 px/s | candidates/query | ms/step |
+|---|---|---|---|---|
+| Leave it stale | 24 | 116 | 3.98 | 1.44 |
+| Inflate the query by this step | 0 | 2 | 4.26 | 1.46 |
+| Inflate the query by one cell | 0 | 0 | 15.14 | 2.11 |
+| Re-index the mover after it moves | 0 | 0 | 3.98 | 1.92 |
+
+**Inflation is not exact and cannot be made exact**, which is the finding. It pads
+by the *mover's* step, and the staleness it is compensating for is the *other*
+actor's — the two coincide only because every actor in this run moves at the same
+speed. Padding by a whole cell hides that by brute force and costs a 3.8× wider
+broadphase for it.
+
+**Re-indexing is exact at every speed and scale tried, and it allocates nothing.**
+`remove` needs no stored state: the caller knows the box the collider was bucketed
+at, so `remove(collider, x, y, w, h)` walks the same cells `insert` did. Measured
+over 2,000 remove+insert pairs once the buckets exist: 0 objects. Its 33% is 0.5ms
+per step at two hundred actors, and the largest collider count in the repository
+is eleven rocks.
+
+A fourth candidate was measured and rejected on the numbers: **skip the index and
+scan the registered colliders on the blocked layers**, reading live AABBs. Exact
+by construction and the simplest thing that could work, and at ten colliders it
+costs 0.08ms per step against the hash's 0.06. At two hundred it costs **15.7ms
+per step** — the whole frame — against 1.13. A resolver with a cliff that steep is
+not one to ship.
+
+### B7. Rebuilding the index after the update traversal answers a different question — *(measured: candidate 3 does not do what the plan said)*
+
+The third candidate offered for open question 1 was to move the contact pass into
+a post-update traversal beside `sweep_freed`. It does nothing for the staleness
+above, and the same harness says so:
+
+```
+index rebuilt pre   : 5 misses in 18000 queries
+index rebuilt post  : 5 misses in 18000 queries
+```
+
+Identical, and it has to be. Nothing moves between the end of one tick's update
+traversal and the start of the next, so the index a mid-traversal query reads
+holds exactly the same positions either way. What moving the rebuild *does* fix is
+B3 — the contact pass seeing last step's positions — which is a real defect and a
+different one. It stays out of scope here.
+
+### B8. The body resolves in local space and the collider indexes in world space — *(measured: latent today, wrong the moment actors block)*
+
+`CharacterBody`'s actor adapter reports `node.x`, and `BoxCollider#aabb_x` reports
+`node.world_x + box.offset_x`. Under an offset ancestor those are different
+numbers. A hero at local (10, 20) inside a container at (100, 50):
+
+| | |
+|---|---|
+| `body.x + box.offset_x`, what `CollisionSystem` resolves | 12 |
+| `collider.aabb_x`, what the broadphase indexes | 112 |
+
+It costs nothing today, because every actor that carries a body sits at world
+offset zero: `TileMapLayer.mount` adds a plain `Node2D.new(z: gap)` with no
+position, and `WorldView` applies the camera with `renderer.translated` at draw
+time rather than by moving nodes. It is also already wrong for tiles — a map is in
+world coordinates — and nobody has hit it because nobody has offset an actor
+container.
+
+`ActorBlockers` compares the mover's box against other colliders' AABBs, so it
+turns a latent discrepancy into a live one. Step 4a fixes it by putting the body
+in world space, which is the frame the broadphase and the tile map already use.
+
+### B9. The world clamp misfires against `ScreenWrap` and `DespawnOffscreen` — *(measured: this is open question 5, and it is a live defect)*
+
+`CollisionSystem#move` clamps the box inside the world after every source has
+answered, unconditionally. `ScreenWrap` and `DespawnOffscreen` read the same
+`WorldBounds`, but they never touch the collision system at all — they compare
+`node.x` / `node.y` against the region and act on the node directly. So they do
+not merely disagree with the clamp. They misread it.
+
+The clamp works on the **box**, so a clamped node lands at `node.x == -offset_x`,
+and both components test `node.x < -margin`. A `FeetCollider` on a wider node has
+a positive `offset_x` by construction. Walking a hero into the left edge of a
+320×240 world, 60 steps:
+
+| Node | What happens on touching the left wall |
+|---|---|
+| 16px wide, 12px feet box (`offset_x` 2), `DespawnOffscreen` | **despawns itself** |
+| 16px wide, 12px feet box (`offset_x` 2), `ScreenWrap` | **teleports to the right edge** |
+| 16px wide, 16px feet box (`offset_x` 0), `DespawnOffscreen` | stops, correctly |
+
+It is unreachable today only because no node in the repository carries both a
+blocked body and a bounds-reading component, and `CollisionSystem` exists nowhere
+but on `TileWorld`. It stops being unreachable in step 4, which gives every body
+its own resolver.
+
+### B10. The clamp has never once fired in a tile game — *(measured: every map's border is solid)*
+
+Parsed with the engine's own `TileMap`, counting border cells that are not solid:
+
+| Map | Size | Open border cells |
+|---|---|---|
+| `examples/assets/town.tmx` | 60×40 tiles, 960×640 px | **0** of 200 |
+| `media/map/beach_large.tmx` | 120×90 tiles, 1920×1440 px | **0** of 420 |
+| `media/map/island.tmx` | 58×47 tiles, 928×752 px | **0** of 210 |
+
+A walled map stops an actor a whole tile before the clamp could, so the clamp is
+dead code in every game that can currently reach it. That is what makes B9's fix
+cheap: turning the clamp into a declared blocker source is a no-op for every
+existing game, and a byte-identical drive report is what proves it.
+
+### B11. `cell_size` tracks collider size, not tile size — *(measured: this is open question 4, settled against)*
+
+Cost of a full `CollisionWorld#update` — clear, insert, pair — over 400 steps, in
+milliseconds per step. The maps above are all 16px-tiled, so 16 is what a
+tile-derived default would pick:
+
+A 12×6 feet box, which is what a tile-map character carries:
+
+| cell | 10 actors | 60 actors | 200 actors |
+|---|---|---|---|
+| 16 | 0.0380 | 0.2442 | 0.8066 |
+| 32 | 0.0337 | 0.2084 | 0.7167 |
+| 64 | 0.0319 | 0.1980 | 0.7425 |
+
+A 64×64 collider in the same scene — a crate, a boss, a tree trunk:
+
+| cell | 60 actors | 200 actors |
+|---|---|---|
+| 16 | 1.0359 | 4.4969 |
+| 32 | 0.5224 | 2.5137 |
+| 64 | 0.3644 | 2.0647 |
+
+For a feet box a tile-sized cell costs 10–20% over the optimum, which is benign.
+For one large collider in the same scene it costs **2.8×**, because a 64px box in a
+16px grid is bucketed into twenty-five cells and queried out of all of them.
+
+The finding is not the percentage, it is that **the two numbers are unrelated**. A
+tile size is a fact about the map's artwork; a cell size is a fact about how big
+the things that collide are. A default would tie one to the other and be wrong
+whenever a scene holds anything bigger than a tile — invisibly, since the symptom
+is frame budget and not behaviour.
 
 ## C. Prior art
 
@@ -328,12 +517,14 @@ only the source of the edge differs.
 That is the whole of "unify under the hood". The index stays two things; the
 *feel* becomes one thing, decided in one place.
 
-### D4. Blocking reports itself
+### D4. Blocking reports itself, as a pair of edges
 
-Because of B4, the body announces what stopped it:
+Because of B4, the body announces what stopped it — and it announces the start and
+the end of being stopped, the way a contact does:
 
 ```ruby
-body.on_blocked { |other| take_damage if other.layer == :spike }  # other is a collider, or :tiles
+body.on_blocked   { |by| damage(1) if by.layer == :spike }
+body.on_unblocked { |by| stop_grunting if by.layer == :spike }
 ```
 
 Which is `get_slide_collision` and `OnCollisionEnter2D` in this engine's idiom.
@@ -343,14 +534,124 @@ hand-rolled anything:
 ```ruby
 add_component(FeetCollider.new(width: 12, height: 6, layer: :player))
 body = add_component(CharacterBody.new(speed: 80, blocked_by: %i[tiles spike]))
-body.on_blocked { |other| damage(1) if other != :tiles && other.layer == :spike }
+body.on_blocked { |by| damage(1) if by.layer == :spike }
 ```
 
-`on_hit` and `on_separated` keep meaning overlap, and remain the right signals
-for everything that should *not* block: pickups, triggers, hitboxes, the whole of
+**What arrives in the block always answers `layer` and `node`**, whether a tile
+stopped the step or a collider did. The tile source reports a sentinel — one
+object for the life of the process, answering `:tiles` and `nil` — rather than the
+bare `:tiles` symbol the first sketch of this section passed. The difference is
+one a reader feels immediately: with a symbol every handler opens by telling two
+types apart (`by != :tiles && by.layer == :spike`) before it can read anything,
+and a third blocker source later would make that worse rather than better.
+
+`on_hit` and `on_separated` keep meaning overlap, and remain the right signals for
+everything that should *not* block: pickups, triggers, hitboxes, the whole of
 `examples/collision`. A game wanting both behaviours from one entity gives it two
 colliders, which is the Godot idiom of a body with a child area and needs nothing
 new here.
+
+### D5. The resolver hangs on the body
+
+Step 3 left this open, and the argument that decides it is that **a resolver has
+to exist where there is none today.** `CollisionSystem` lives on `TileWorld` and
+nowhere else, and four scenes mount a `CollisionWorld` with no `TileWorld` —
+`examples/collision`, `examples/pooling`, `test_projects/asteroids`,
+`test_projects/snake`. A body blocked only by actors has nothing to ask. So
+"share the scene's system" has to name an owner for the tile-less case before it
+can share anything, and the only candidates are the broadphase (a different
+concern) or a new component that exists to hold one.
+
+So the body builds its own, out of the sources it resolved:
+
+```ruby
+def on_attach
+  return if @blocked_by.empty?
+
+  @collider = require_sibling(BoxCollider)
+  @collision = Engine::CollisionSystem.new(
+    blockers: @blocked_by.map { resolve_blocker(it) },
+    world_width: ..., world_height: ...   # from node.system(WorldBounds), or nil
+  )
+end
+```
+
+Three things make that cheaper than step 3's note feared. `WorldBounds` is
+documented immutable and resolved once at attach, so a body holds two Floats
+rather than a duplicated system. The sources themselves are shared — `:tiles`
+resolves to the `TileBlockers` the `TileWorld` already owns, borrowed rather than
+rebuilt. And nothing here runs on a frame: the list is built once and a step only
+indexes it.
+
+It also keeps `resolve_x(x, y, w, h, dx)` at five arguments. Step 3 made those
+public precisely so `CollisionSystem` satisfies the blocker-source protocol
+itself; threading a caller's extra source through `move` would mean threading it
+through `resolve_x` and `resolve_y` too, and the protocol would grow a parameter
+that only one implementation of it has.
+
+`TileWorld#move` has exactly one caller in the repository — `CharacterBody#apply_move`
+— so once the body owns a resolver, `TileWorld`'s own `CollisionSystem` is dead
+weight. It goes, and `TileWorld` becomes the map, its bounds, its tile solidity
+and its animation clock, exposing the one thing an actor needs from it:
+
+```ruby
+class TileWorld < Engine::Component
+  include WorldBounds
+  attr_reader :blockers   # an Engine::TileBlockers
+  def solid?(col, row) = @map.solid_tile?(col, row)
+  # no #move, no CollisionSystem
+end
+```
+
+### D6. Who stopped the step, and who re-indexes
+
+Two small additions to the blocker-source protocol carry steps 4 and 5, and both
+stay inside `CollisionSystem#move`, so no caller has anything to remember.
+
+**`#blocker`** — who produced the edge the last `resolve_x` / `resolve_y` returned.
+`CollisionSystem` already picks the winner on each axis, so it asks that source
+and nothing else does; it exposes `blocked_x` and `blocked_y`, each nil when the
+axis was free. `TileBlockers#blocker` is the sentinel constant and holds no state
+at all, which is what makes one `TileBlockers` safe to share between every body on
+the map.
+
+**`#moved(actor, from_x, from_y, w, h)`** — called on every source after the
+resolved position is written back, with the box the step started from.
+`TileBlockers` ignores it; `ActorBlockers` hands it to
+`CollisionWorld#reindex(collider, x, y, w, h)`, which is B6's exactness. The
+from-box is a local `move` already has, so nothing new is stored on a collider, on
+the world, or on the source.
+
+### D7. The world edge is a blocker like any other
+
+The clamp at the end of `CollisionSystem#move` is the one piece of blocking that
+is not a source, and B9 measures what that costs. It is unconditional, so a body
+is clamped whether or not it asked, and `ScreenWrap` and `DespawnOffscreen` — which
+read the same bounds but act on `node.x` rather than on the box — misread the
+result and teleport or despawn the node instead.
+
+So bounds join the two reserved names:
+
+```ruby
+CharacterBody.new(speed: 80, blocked_by: %i[tiles bounds npc])
+```
+
+`:bounds` resolves to an `Engine::BoundsBlockers` over `node.system(WorldBounds)`,
+and the clamp leaves `CollisionSystem` entirely. Three things follow, and each of
+them is the plan's own rule applied one more time:
+
+- **A wrapping game declares no `:bounds`** and its `ScreenWrap` works, because
+  nothing is holding the node inside the world any more. The conflict stops being
+  something to know about and becomes something you would have to ask for twice.
+- **"I hit the edge of the world" is an ordinary `on_blocked`**, with a sentinel
+  answering `layer` → `:bounds`, on the same terms as tiles and colliders. There
+  is no special case for a listener to learn.
+- **A game that wants the clamp says so**, which is constraint 3 pointed at the
+  last thing in the system that was still implicit.
+
+B10 is what makes this affordable to land inside step 4: every map in the
+repository has a solid border, so the clamp has never fired in a game that could
+reach it, and removing it is verifiable as a no-op rather than argued as one.
 
 ## E. What was considered and rejected
 
@@ -385,32 +686,100 @@ pushing one actor can shove it into a wall, which then needs re-clamping against
 the tiles and a second pass. Worth reconsidering *only* if open question 1
 resolves badly.
 
+**One scene-level `CollisionSystem`, with `move` taking the caller's own extra
+sources.** The tidier-sounding half of D5's question: bounds live in one place, a
+future scene-wide blocker registers once, and a body contributes only its own
+`ActorBlockers`. Rejected on two counts. Four scenes mount a `CollisionWorld` and
+no `TileWorld`, so something new would have to exist purely to own the shared
+system in those. And an extra source threaded through `move` has to be threaded
+through `resolve_x` and `resolve_y` as well, which gives the blocker-source
+protocol a sixth parameter that only `CollisionSystem` itself has — undoing what
+step 3 landed two commits earlier.
+
+**Skip the index: scan the registered colliders on the blocked layers.** Exact by
+construction, needs no `remove`, no `reindex` and no freshness argument at all,
+and at ten colliders it is within a whisker of the hash. Rejected on the
+measurement in B6: at two hundred colliders it costs 15.7ms per step against
+1.13ms, which is the entire frame. A resolver whose cost curve has a cliff that
+close is one a game falls off without warning.
+
+**Inflate the broadphase query instead of re-indexing.** The free option, and the
+one the plan expected to win. Rejected because B6 shows it is not exact and cannot
+be made exact by choosing a better pad: the query is padded by the *mover's* step,
+and what it is compensating for is some other actor's. Padding by a whole cell
+covers it by brute force at 3.8× the candidates per query, and still only because
+a cell is far larger than a step.
+
+**Fire `on_blocked` every blocked step rather than as an edge.** The plan leaned
+this way and open question 2 records why it was turned round: the plan's own
+example deals damage, and every step is sixty damage a second.
+
+**Rename `Engine::ContactSet` now that a second thing uses it.** `CharacterBody`
+holding something called a contact set to track blockers does read slightly
+crooked. Rejected as a rename touching a class the collision world drives per
+frame, for a word — and because "the things this was touching, this step and
+last" is what the class does and what both callers want from it. Its header gains
+a sentence naming the second caller instead.
+
+**Give the unconditional clamp a sentinel and leave it where it is.** What open
+question 5 actually asked for, and about four lines. Rejected because it reports
+the defect instead of removing it: B9 measures the clamp and the two
+bounds-reading components disagreeing about whose coordinate the bounds describe,
+and a body would still be held inside the world without having asked. A signal on
+a behaviour nobody opted into is a better-documented surprise, not a fixed one.
+
+**Default `cell_size` from the tile map.** Open question 4, and it reads as an
+obvious convenience — a scene with a `TileWorld` knows its tile size. Rejected on
+B11: it ties a number about how big the colliders are to a number about how big
+the artwork is, and costs 2.8× the moment a scene holds one collider larger than a
+tile, with frame budget as the only symptom.
+
 ## F. Open questions
 
-1. **How does the resolver see a fresh index?** B5 measures the hazard: an actor
-   resolving mid-step queries a broadphase built before anything moved. Three
-   candidates — inflate the query box by the maximum step (approximate, free);
-   give `SpatialHash` a `remove` and have the body re-insert after moving (exact,
-   costs a bucket scan per actor per step); or move the contact pass into a
-   post-update traversal beside `sweep_freed` and rebuild the index there
-   (exact, and it fixes B3 as a side effect, but it changes the documented
-   ordering that `examples/collision` used to rely on). **Blocks step 4.** Decide
-   it with a measurement, not an argument.
-2. **Does `on_blocked` carry an edge like `on_hit`, or fire every blocked step?**
-   Leaning every step: unlike an overlap, being blocked is a fact about *this*
-   step's resolution and there is no natural "still blocked" state to track. But
-   it makes the signal the one thing in the collision API that is not an edge,
-   which wants stating loudly if it is chosen. Does not block anything before
-   step 5.
-3. **Does `ActorBlockers` need circles?** `CircleCollider` can be a blocker in
-   principle, but snapping an axis-aligned box flush against a circle is not the
-   same arithmetic and has no obviously right answer at the corners. Proposal:
-   step 4 blocks against boxes only and says so, and a circle collider is a
-   contact-only shape until somebody needs otherwise. Does not block anything.
-4. **Should `cell_size` default from the tile map?** A scene with a `TileWorld`
-   knows its tile size, and `CollisionWorld.new` with no argument could take it.
-   Cosmetic, one line saved, and it couples two systems that are otherwise
-   independent. Does not block anything.
+1. ~~**How does the resolver see a fresh index?**~~ **Settled — the mover
+   re-indexes itself.** All three candidates were built and measured; see B6.
+   Inflating the query is not exact and cannot be made exact, because it pads by
+   the wrong actor's step. Re-indexing is exact at every speed and scale tried and
+   allocates nothing. The third candidate turned out to answer B3 rather than this
+   question at all — see B7.
+2. ~~**Does `on_blocked` carry an edge like `on_hit`, or fire every blocked
+   step?**~~ **Settled — an edge, with an `on_unblocked` twin.** The plan leaned
+   the other way, and the thing that decided it is the plan's own spiky ball:
+   `on_blocked { damage(1) }` firing every step deals sixty damage a second, so
+   every game using the signal for the case it was designed for would have to
+   rate-limit it. An edge is also the whole collision API saying one thing rather
+   than two, and `Engine::ContactSet` already implements "this step and last" for
+   `on_hit`, so the pair costs one reused object per body rather than a new
+   mechanism. What the every-step form was protecting — a fact about *this* step's
+   resolution — is preserved by `CollisionSystem#blocked_x` / `blocked_y`, which a
+   body can read directly.
+3. ~~**Does `ActorBlockers` need circles?**~~ **Settled as proposed — boxes only.**
+   A circle on a blocked layer does not stop a step, and still reports `on_hit`
+   exactly as it does now. It is said at the code and in
+   `docs/api/components.md`, and not raised at attach: layer membership is a
+   runtime fact, so a check at attach would catch only the circles that already
+   exist and quietly miss the ones spawned later — a guard that sometimes works is
+   worse than a documented limit.
+4. ~~**Should `cell_size` default from the tile map?**~~ **Settled — no, and the
+   parameter stays required.** Measured in B11. A tile size is a fact about the
+   map's artwork and a cell size is a fact about how big the things that collide
+   are, and tying one to the other is 10–20% off for a feet box but **2.8× off**
+   the moment the scene holds one 64px collider. The cost is frame budget with no
+   behavioural symptom, which is the worst kind of wrong default. `cell_size` also
+   has a second meaning in `test_projects/snake`, where it is deliberately the
+   game's own board square so `cell_empty?` reads as occupancy — a default would
+   silently break that for any grid game that also had a map. `examples/collision`
+   already explains the number as the one thing the system asks a game to pick,
+   and that stays true.
+5. ~~**Should the world-bounds clamp report a blocker?**~~ **Settled — bigger than
+   a sentinel: the clamp becomes a declared source, `:bounds`.** Asking the
+   question turned up B9, which is a live defect rather than a missing
+   convenience: the clamp and the two bounds-reading components read the same
+   `WorldBounds` and disagree about whose coordinate it is, so a `FeetCollider`
+   walker with a `DespawnOffscreen` despawns itself on touching the left wall. A
+   sentinel on an unconditional clamp would leave that in place. Making bounds an
+   ordinary blocker source removes it, because clamping stops being something a
+   body gets whether or not it asked. See D7; it lands as step 4e.
 
 ## G. What this does not deliver
 
@@ -427,27 +796,47 @@ Stated up front so it does not arrive later disguised as a bug.
   top-down blocking.
 - **A layer matrix.** Layers stay opaque symbols and `blocked_by` stays a list on
   the body.
+- **Circles as blockers.** Settled in open question 3. A `CircleCollider` on a
+  blocked layer reports contacts and stops nothing.
+- **An index that is fresh for movers other than a `CharacterBody`.** Re-indexing
+  is driven from `CollisionSystem#move`, so a collider moved within the same tick
+  by a `Velocity`, a `PathFollow` or an ancestor is bucketed where the last
+  rebuild left it. B6 measures what that costs: a near-miss at a cell boundary,
+  one to three in twelve thousand queries at walking speed. Anything else that
+  moves a collider mid-tick can call `CollisionWorld#reindex` itself, which is the
+  same escape hatch bump.lua's `world:update` is.
+- **Per-axis blocking reports.** `on_blocked` is per blocker, so a step stopped on
+  both axes by the same thing fires once. Which axis stopped is in
+  `CollisionSystem#blocked_x` / `blocked_y` for a body that needs it.
 
 ## H. Roadmap
 
 ```
-1 FeetCollider ──→ 2 CharacterBody(blocked_by:) ──→ 3 blocker sources ──→ 4 actor blocking ──→ 5 on_blocked ──→ 6 fold back
-       │                      │                            │                      ↑
+1 FeetCollider ──→ 2 CharacterBody(blocked_by:) ──→ 3 blocker sources ──→ 4 actor blocking ──→ 5 on_blocked/on_unblocked ──→ 6 fold back
+       │                      │                            │                      │
        └── one box, no handoff┘                            └── pure refactor ─────┘
-                                                                          (open question 1 blocks here)
+                                                       4a world space ─→ 4b index API ─→ 4c ActorBlockers ─→ 4d wiring ─→ 4e :bounds ─→ 4f docs
+                                                                                              5a who stopped it ─→ 5b the edges ─→ 5c the spiky ball
 ```
 
-Steps 1–3 are worth landing even if 4 and 5 never happen:
+Steps 1–3 are worth landing even if 4 and 5 never happen, and 4 is worth landing
+even if 5 never does:
 
 | Step | Defect it closes |
 |---|---|
 | 1 | Trap 1 and 2 of B2 — the placeholder box and the raise |
 | 2 | Trap 3 of B2 — the silent handoff hook; and a missing `CollisionWorld` starts failing loudly |
 | 3 | Nothing user-visible; it is what makes 4 a small step instead of a large one |
+| 4 | Actors pass through each other; a body under an offset ancestor resolves in the wrong frame (B8); and a blocked body with a `ScreenWrap` or `DespawnOffscreen` teleports or despawns itself at the world edge (B9) |
+| 5 | B4 — a flush-blocked pair reports no contact, so the spiky ball deals no damage |
 
 > **The invariant every step must preserve: a node has exactly one collision
 > shape, and exactly one component owns it.** Everything in B2 follows from that
 > being false today.
+
+> **And from step 4 on, a second: everything about collision is in world space.**
+> The broadphase and the tile grid always were; B8 measures the body as the one
+> thing that was not.
 
 ### Step 1 — `Components::FeetCollider` (pure)
 
@@ -657,31 +1046,397 @@ its heading changed, so the one link to it in `docs/api/components.md` moved wit
 `Components::TileWorld`'s header names its one source. Sub-steps were not given in the
 sketch; it landed as two commits, the refactor and the documentation.
 
-### Step 4 — `ActorBlockers` *(rough — re-plan, and step 3 added to what it must decide)*
+### Step 4 — `ActorBlockers`, and the body owns its resolver
 
-Actors block actors. **Open question 1 must be settled first**, with a
-measurement, because the index freshness decides whether this is a query, a
-re-insert, or a new traversal phase. Expect the step to be mostly that decision
-and a narrow amount of code after it.
+Actors block actors. Open question 1 is settled by measurement (B6) and step 3's
+deferred question by D5, so what is left is a known amount of code in six
+commits. It is much the largest step in the plan, and the only one that changes a
+public signature — `TileWorld#move` goes in 4d and `CollisionSystem`'s bounds
+arguments in 4e.
 
-Two things landed steps left here, both to settle before writing code: **where a
-per-actor blocker source hangs** (step 3's note — `CollisionSystem` is scene-scoped and
-`ActorBlockers` is not), and **rule 3 of step 2's list** — a layer name with no
-`CollisionWorld` raising at attach, which could not be pinned while every layer name
-raised.
+Rule 3 of step 2's list lands here too: a layer name with no `CollisionWorld`
+raises at attach. It could not be pinned while every layer name raised.
 
-### Step 5 — `on_blocked` *(rough)*
+#### 4a — `CharacterBody` resolves in world space *(pure, no behaviour change)*
 
-The body reports what stopped it, resolving open question 2 on the way. This is
-what makes the spiky ball work and is the reason steps 1–4 were worth doing.
+First, because `ActorBlockers` compares the mover's box against other colliders'
+AABBs and B8 measures those as being in different frames. World space is the frame
+the broadphase and the tile map already use, so the body moves to it rather than
+the other way round.
+
+```ruby
+# The actor adapter CollisionSystem#move drives. World space, because that is
+# where the tile grid and the broadphase both are.
+def x = node.world_x
+def y = node.world_y
+
+def x=(value)
+  node.x += value - node.world_x
+end
+
+def y=(value)
+  node.y += value - node.world_y
+end
+```
+
+The `+=` form is what keeps this a translation of the node's own local position
+rather than an assignment into a frame it does not live in. It is exact for an
+unrotated ancestor chain and approximate for a rotated one — but an actor under a
+rotated ancestor is already outside what an axis-aligned box supports, and
+`docs/api/components.md` already says a thing that spins wants a circle. So this
+is **a documented limit at the code, not a raise**, for the same reason open
+question 3 refuses one: the ancestor can start rotating after attach, and a guard
+that only catches the rotation that was there at attach is worse than a sentence
+that is always true.
+
+Rules the tests must pin:
+
+1. A body under an offset ancestor resolves against tiles at its world position,
+   not its local one.
+2. Writing the resolved position leaves the node's *local* x/y offset by exactly
+   the resolved delta.
+3. A body under a *rotated* ancestor resolves against the ancestor's unrotated
+   axes — the documented limit, pinned so it is a decision rather than a surprise.
+4. `move` still allocates nothing — `world_x` is cached and self-invalidating, so
+   this must not have introduced a per-step recompute that does.
+
+Verify: every driven run is byte-identical to `main` at `--ticks 240 --seed 7`,
+which is the acceptance criterion — B8 says the discrepancy is latent, and a
+byte-identical report is what proves the claim rather than restating it. Run
+`examples/collision_tiles`, `examples/walk`, `examples/scroll_map` and all five
+`tiled_world` scripts.
+
+#### 4b — `SpatialHash#remove`, `CollisionWorld#reindex` and `#query_box`
+
+The index API the resolver needs, landed on its own so its allocation behaviour is
+pinned before anything depends on it.
+
+```ruby
+class SpatialHash
+  # Un-bucket an item from the cells the given box covers — the exact inverse of
+  # #insert, so the caller passes the box the item was inserted at.
+  def remove(item, x, y, w, h)
+end
+
+class CollisionWorld
+  # Re-bucket a collider that has moved since the index was built, so a query
+  # later in the same step still finds it.
+  def reindex(collider, from_x, from_y, from_w, from_h)
+
+  # Yield every registered collider bucketed in a cell the region covers, skipping
+  # those whose node is queued for removal. The rectangular counterpart to
+  # #query_circle, and it inherits its dedup contract: a collider spanning several
+  # cells may be yielded more than once.
+  def query_box(x, y, w, h)
+end
+```
+
+`remove` needs no stored state because the caller knows the box: that is what
+makes this cheap, and it is why `CollisionSystem#move` passes the from-box to
+`#moved` (D6) rather than anything remembering one.
+
+Rules the tests must pin:
+
+1. `remove` un-buckets from every cell a multi-cell box covered, and leaves other
+   items in those cells alone.
+2. `remove` of an item that was never inserted is a no-op, not a raise.
+3. `remove` + `insert` allocates nothing once the buckets exist.
+4. `reindex` makes a collider that moved findable at its new position and not at
+   its old one, within the same step.
+5. `query_box` skips a collider whose node is `freed?`.
+6. `query_box` allocates nothing.
+
+Tests: `spec/rgame/engine/spatial_hash_spec.rb` and
+`spec/rgame/engine/components/collision_world_spec.rb`.
+
+#### 4c — `Engine::ActorBlockers` *(pure)*
+
+The source itself. It needs no scene, no node and no tree: a double standing in
+for the world and answering `query_box` is enough to drive every case.
+
+```ruby
+# The registered colliders as a blocker source: the broadphase answers "what is
+# near this box", and the same snapping arithmetic TileBlockers uses against a
+# tile edge runs against a collider's edge. Pure.
+class ActorBlockers
+  # `world` answers query_box/reindex; `owner` is the mover's own collider, excluded
+  # by identity so a body is never stopped by itself; `layers` is what may stop it.
+  def initialize(world:, owner:, layers:)
+
+  def resolve_x(x, y, w, h, dx)   # -> where the box's left edge lands
+  def resolve_y(x, y, w, h, dy)   # -> where the box's top edge lands
+  def blocker                     # -> the collider that produced the last edge, or nil
+  def moved(actor, from_x, from_y, w, h)  # -> world.reindex(owner, ...)
+end
+```
+
+The arithmetic is `TileBlockers`' with the edge coming from a collider instead of
+a grid line, plus three things a grid does not need:
+
+- **The most restrictive candidate wins**, since several colliders may be in the
+  way. A running minimum, which is dup-insensitive — the broadphase may offer the
+  same collider once per shared cell, and `CollisionWorld#nearest` is written the
+  same way for the same reason.
+- **An overlap that already exists is not resolved.** A step is blocked only if it
+  *crosses* the blocker's edge: the mover's leading edge was at or before that
+  edge before the step. Two actors that start overlapping stay overlapping and
+  neither is teleported, which is the same "blocking never moves the thing it hit"
+  rule G already states.
+- **Boxes only.** A candidate that is not a `BoxCollider` is skipped (open
+  question 3). `CircleCollider` is a sibling class rather than a subclass, so
+  `is_a?` separates them exactly.
+
+Rules the tests must pin:
+
+1. A step into a collider on a blocked layer lands flush against its edge, in all
+   four directions.
+2. A collider on a layer that was not declared does not stop the step.
+3. The owner's own collider never stops it, even when its own layer is declared —
+   which is what lets a crowd of NPCs all declare `blocked_by: [:npc]`.
+4. A collider whose node is `freed?` does not stop it.
+5. A `CircleCollider` on a declared layer does not stop it.
+6. With several blockers in the way, the step lands against the nearest.
+7. A pair that already overlaps is not pushed apart, and the step is not blocked.
+8. The same collider offered twice by the broadphase gives the same answer as once.
+9. `blocker` names the collider that produced the edge, and is nil when the step
+   was free.
+10. `moved` re-indexes the owner at its new box.
+11. `resolve_x` and `resolve_y` allocate nothing.
+
+Tests: `spec/rgame/engine/actor_blockers_spec.rb`, one case per rule, against an
+instance double for the world.
+
+#### 4d — `CharacterBody` owns its resolver, and `TileWorld#move` retires
+
+The wiring, and the only commit that changes a public signature.
+
+```ruby
+class CharacterBody < Engine::Component
+  # on_attach now resolves each declared source and builds the system:
+  #   :tiles          -> node.system(TileWorld).blockers, or raise
+  #   any other name  -> one ActorBlockers over every such name, or raise for a
+  #                      scene with no CollisionWorld  (step 2, rule 3)
+  # World bounds come from node.system(WorldBounds), and nil means no clamp.
+end
+
+class TileWorld < Engine::Component
+  attr_reader :blockers   # an Engine::TileBlockers
+  # #move and its CollisionSystem are gone
+end
+
+class CollisionSystem
+  def initialize(world_width: nil, world_height: nil, blockers: [])
+  def move(actor, dx, dy)   # now also calls #moved on every source
+  attr_reader :blocked_x, :blocked_y   # set by #move; step 5 reads them
+end
+```
+
+`CollisionSystem`'s bounds become optional here because `test_projects/snake`
+mounts a `CollisionWorld` and no `WorldBounds` at all, so a body blocked only by
+actors has nowhere to get them. That is an interim: 4e takes the clamp out
+altogether and the arguments with it. Nothing changes for a `:tiles` body in
+between — `TileWorld` *is* a `WorldBounds`, so it clamps against the same numbers
+it clamps against today.
+
+Rules the tests must pin:
+
+1. `blocked_by: [:npc]` with no `CollisionWorld` raises at attach, naming the
+   layer — step 2's rule 3, finally pinnable.
+2. `blocked_by: [:npc]` with a `CollisionWorld` and no collider on that layer
+   moves freely, and does not raise. A layer can legitimately be empty.
+3. `blocked_by: %i[tiles npc]` stops at whichever is nearer, both ways on both
+   axes.
+4. `blocked_by: [:npc]` in a scene with no `WorldBounds` is not clamped and does
+   not raise.
+5. `blocked_by: [:tiles]` is clamped to the map exactly as it is today.
+6. Two bodies walking into each other both stop, and neither is pushed.
+7. `update` allocates nothing with both kinds of blocker declared.
+
+Verify: this is the step where `test_projects/tiled_world` must change *behaviour*
+and say so. Give its NPCs and walkers `blocked_by: %i[tiles npc hero]`, add a
+drive script that walks a player into an NPC, and report the difference: today the
+walker passes through, afterwards it stops. Every other driven run stays
+byte-identical at `--ticks 240 --seed 7` — `examples/collision`,
+`examples/collision_tiles`, `examples/walk`, `examples/scroll_map`,
+`examples/pooling`, `examples/signals`, `test_projects/snake`,
+`test_projects/asteroids`.
+
+#### 4e — `:bounds` as a blocker source, and the clamp retires
+
+The last implicit piece of blocking becomes a declared one. Shape as in D7.
+
+```ruby
+# The edges of the world as a blocker source: a box may not leave the region the
+# scene's WorldBounds describes. Pure — it is four numbers and the same snapping
+# arithmetic every other source uses.
+class BoundsBlockers
+  def initialize(bounds:)   # anything answering world_width / world_height
+  def resolve_x(x, y, w, h, dx)
+  def resolve_y(x, y, w, h, dy)
+  def blocker               # -> BOUNDS, a sentinel answering layer -> :bounds
+  def moved(actor, from_x, from_y, w, h) = nil
+end
+
+class CollisionSystem
+  def initialize(blockers: [])   # world_width:/world_height: are gone with the clamp
+end
+```
+
+`CollisionSystem` loses its bounds arguments altogether rather than keeping them
+optional, which is what 4d would otherwise have done. A body that wants the world
+edge names it, and a body that does not is not silently held inside anything.
+
+Rules the tests must pin:
+
+1. `blocked_by: [:bounds]` stops a step flush against each of the four edges.
+2. `blocked_by: [:bounds]` with no `WorldBounds` in scope raises at attach, the
+   same way `:tiles` with no `TileWorld` does.
+3. A body *without* `:bounds` walks past the world edge, and is not clamped.
+4. `blocked_by: %i[tiles bounds]` takes whichever is nearer.
+5. A node carrying both a bounds-blocked body and a `ScreenWrap` is a declared
+   contradiction rather than the silent teleport B9 measures — pin which one wins,
+   so the answer is a decision.
+6. `blocked_by: [:bounds]` on a node under an offset ancestor bounds the *world*
+   region, not one shifted by the ancestor. 4a is what makes this true.
+
+Verify: every tile drive run stays byte-identical at `--ticks 240 --seed 7`, which
+B10 predicts and which is the whole reason this can land here — `examples/collision_tiles`,
+`examples/walk`, `examples/scroll_map` and all five `tiled_world` scripts. Then the
+case B9 could not reach before: a `FeetCollider` walker with a `DespawnOffscreen`
+survives touching the left wall.
+
+#### 4f — documentation
+
+`docs/api/components.md`: `CharacterBody`'s entry gains layer names in
+`blocked_by` and the box-only limit; both collider entries note that a circle
+reports contacts and stops nothing. `docs/api/systems.md`: `TileWorld` loses
+`move` and gains `blockers`; `CollisionWorld` gains `query_box` and `reindex`,
+with B6's numbers behind the re-index rather than an assertion that it is needed.
+`docs/api/internals.md`: `ActorBlockers` and `BoundsBlockers` beside
+`TileBlockers`, and the `CollisionSystem` section gains `#blocker` and `#moved`
+and loses the clamp. `ScreenWrap` and `DespawnOffscreen` gain a line each saying
+that a body blocked by `:bounds` is the thing they contradict — B9 is a defect
+nobody could have read about anywhere.
+
+### Step 5 — `on_blocked` and `on_unblocked`
+
+The body reports what stopped it. This is what makes the spiky ball work and is
+the reason steps 1–4 were worth doing. Small, because step 4 built the parts:
+`CollisionSystem` already knows which source won each axis, and `Engine::ContactSet`
+already implements "this step and last".
+
+#### 5a — the sources report who
+
+```ruby
+class TileBlockers
+  # What a TileBlockers reports as having stopped a step. One object for the life
+  # of the process, answering the same two questions a collider does, so a handler
+  # reads `by.layer` whatever stopped it.
+  TILES = (a frozen object answering `layer` -> :tiles and `node` -> nil)
+
+  def blocker = TILES
+end
+
+class CollisionSystem
+  # The blocker that produced each axis's edge on the last #move, or nil when the
+  # axis was free. Read immediately after #move; #move sets both every call.
+  attr_reader :blocked_x, :blocked_y
+end
+```
+
+`BoundsBlockers#blocker` is a constant on the same terms, answering `:bounds`, so
+the three sources report three sentinels of one shape and a handler reads
+`by.layer` without ever asking which kind stopped it.
+
+`TileBlockers#blocker` being a constant is what keeps one `TileBlockers` shared by
+every body on the map: the source holds no per-move state, so there is nothing for
+two bodies to race over. `ActorBlockers#blocker` *is* per-move state, and it is
+safe for the opposite reason — the source belongs to one body, and that body reads
+it inside its own `update`.
+
+#### 5b — the body emits the two edges
+
+```ruby
+class CharacterBody < Engine::Component
+  # The two edges of being stopped: on_blocked on the step this body starts being
+  # stopped by something, on_unblocked on the step it stops. Each fires once per
+  # blocker, so a handler may spend a life or play a sound. The listener gets the
+  # blocker and reads its #layer / #node — the map's solid tiles included.
+  signal :on_blocked,   Engine::Signal.define(:by)
+  signal :on_unblocked, Engine::Signal.define(:by)
+end
+```
+
+**The set advances once per `update`, not once per `apply_move`.** That is what
+makes standing still an unblocking: a body that stops pressing into the spiky ball
+records nothing this step, so the ball ends and `on_unblocked` fires. It also
+keeps the bookkeeping where a subclass cannot lose it — `update` opens the step,
+calls `apply_move`, and reports the edges, so a platformer body overriding
+`apply_move` (which step 2 says is exactly what that split is for) inherits all of
+it.
+
+Rules the tests must pin:
+
+1. Walking into a wall fires `on_blocked` once, with a blocker whose `layer` is
+   `:tiles`, and not again while the body keeps pushing.
+2. Walking away fires `on_unblocked` once, with the same blocker.
+3. Standing still against a wall fires `on_unblocked` — the body is no longer
+   being stopped.
+4. Walking into a collider fires `on_blocked` with that collider, and `node` is
+   its owner.
+5. A step stopped on both axes by the same blocker fires `on_blocked` once.
+6. A step stopped on X by a tile and on Y by a collider fires twice, once for
+   each.
+7. Being blocked by A and then by B without a gap fires `on_unblocked(A)` and
+   `on_blocked(B)`.
+8. A pooled body reacquired after death does not fire a spurious `on_unblocked`
+   on its first step — `on_attach` resets the set, the same rule
+   `CollisionWorld#register` follows for contacts.
+9. A blocked step allocates nothing, edges included.
+10. `blocked_x` / `blocked_y` name the axis, for a body that wants it without the
+    signals.
+
+Tests: `spec/rgame/engine/components/character_body_spec.rb` gains a `describe`
+for the edges; `spec/rgame/engine/collision_system_spec.rb` gains `blocked_x` /
+`blocked_y` against the fake source it already uses.
+
+#### 5c — the spiky ball, as an example and as documentation
+
+A worked example is what proves the signal answers the question this plan was
+written from. Extend `examples/collision_tiles` rather than adding a nineteenth
+example directory: it already has a map, a walker and a feet box, and what it is
+missing is exactly the actor half. Add a spiky ball on its own layer, give the
+walker `blocked_by: %i[tiles spike]` and an `on_blocked` that spends a life, and
+drive it with a script that walks into the ball and away again. Its header
+currently explains that the scene mounts no `CollisionWorld`, so that paragraph is
+rewritten rather than patched — which is also the other half of the rewrite step 2
+started there, and takes it off step 6's list.
+
+Per the write-example skill: the drive script goes in
+`tools/drive/examples/collision_tiles.rb`, and the report is the acceptance
+criterion — lives lost, not a screenshot.
+
+Then `docs/api/components.md` gains the two signals, and `docs/api/systems.md`
+gains the blocking-versus-overlap distinction step 6 was holding, with B4 as the
+reason a blocked pair reports no contact.
 
 ### Step 6 — fold the plan back and delete it
 
-Real work, not tidy-up. `docs/api/components.md` gains `FeetCollider`, loses
-`TileCharacterBody` and rewrites `CharacterBody`; `docs/api/systems.md` gains the
-blocking-versus-overlap distinction; `docs/api/internals.md` gains the blocker
-sources beside `TileCollision`. `examples/collision_tiles`'s header currently
-says the two examples "share no code", which step 3 makes false and which is
-worth rewriting rather than deleting — the two examples still answer different
-questions, and saying *how* they now share a resolver is a better lesson than the
-old separation was. Then delete this file.
+Real work, not tidy-up — but less of it than when the plan was written, because
+steps 2 to 5 each documented themselves as they landed. What is left is the part
+no single step owned.
+
+`docs/api/systems.md` gains the shape of the whole thing in one place: two
+indexes, one resolver, and the reason blocking and overlapping cannot be the same
+report (B4). Each step wrote its own entries; none of them wrote the paragraph a
+reader needs before those entries make sense.
+
+`docs/api/toolbox.md` gains the four-line node — sprite, feet collider, body,
+controller — as the answer to "how do I make a character that collides with the
+world and with other characters", which is the question this plan started from and
+which had no answer anywhere in the documentation.
+
+`examples/collision_tiles`'s header is done by step 5c, and `examples.md`'s
+catalogue entry for it needs to match.
+
+Then delete this file.
