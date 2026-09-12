@@ -93,10 +93,10 @@ end
 above are `&.`, so a collider on a scene with no `CollisionWorld` is simply a shape
 that reports nothing: that is what a tile-only game wants, since its character carries
 a feet box to be *stopped* by (see
-[`CharacterBody`](components.md#characterbody)) and there are no pairs to find. The
+[`Mover`](components.md#mover)) and there are no pairs to find. The
 price is that an `on_hit` handler in such a scene never fires and nothing says so, so
 weigh it deliberately — a client that is useless without its system raises instead,
-the way `CharacterBody(blocked_by:)` does.
+the way a mover's `blocked_by:` does.
 
 ## The two the platform mounts for you
 
@@ -128,7 +128,7 @@ underneath both. This is the shape they add up to.
 
 **A node has exactly one collision shape, and exactly one component owns it.** The
 [collider](components.md#boxcollider) *is* the shape; a
-[`CharacterBody`](components.md#characterbody) that wants to be stopped reads its
+[mover](components.md#mover) that wants to be stopped reads its
 sibling's box rather than building a second one. So the rectangle that stops a step and
 the rectangle that reports a contact are the same rectangle, and retuning one retunes
 both.
@@ -145,7 +145,7 @@ affordable; this engine declines the problem instead.
 **What is unified is one level up.** A **blocker source** answers one question over
 plain numbers — where does this box land moving `dx` — and there are three of them:
 `TileBlockers` over the grid, `ActorBlockers` over the broadphase, and `BoundsBlockers`
-over the world's edges. A blocked body builds a
+over the world's edges. A blocked mover builds a
 [`CollisionSystem`](internals.md#collisionsystem--move-an-actor-against-its-blockers)
 at attach out of the ones its `blocked_by:` named, and that system asks each of them and
 takes the most restrictive answer on each axis. The axis-separated order that produces
@@ -155,7 +155,7 @@ exactly the way it slides off a fence.
 | | Mounted on the scene | Owned by the node |
 |---|---|---|
 | Tiles | [`TileWorld`](components.md#tileworld), which hands out one shared `TileBlockers` | — |
-| Actors | [`CollisionWorld`](components.md#collisionworld), the broadphase | an `ActorBlockers` per body, holding its own collider and layer list |
+| Actors | [`CollisionWorld`](components.md#collisionworld), the broadphase | an `ActorBlockers` per mover, holding its own collider and layer list |
 | The world's edge | any [`WorldBounds`](components.md#world) | a `BoundsBlockers` |
 | The step | — | one `CollisionSystem`, built at attach from the names above |
 
@@ -164,7 +164,7 @@ has a map and no broadphase; `examples/collision` has a broadphase and no map.
 `examples/collision_tiles` mounts both,
 and the only place in it that shows is the list of names in `blocked_by`.
 
-What a body is stopped by and what a collider is touching stay two different questions,
+What a mover is stopped by and what a collider is touching stay two different questions,
 though, and the difference is visible to a game rather than being an implementation
 detail: see [Blocking and overlapping](#blocking-and-overlapping-are-two-reports-and-a-pair-gets-one-of-them)
 below, once the broadphase itself has been introduced.
@@ -203,7 +203,7 @@ separating through this system.
 ### Blocking and overlapping are two reports, and a pair gets one of them
 
 The same broadphase answers a second question: a
-[`CharacterBody`](components.md#characterbody) that names a collider layer in
+[mover](components.md#mover) that names a collider layer in
 `blocked_by:` is *stopped* by every box wearing it, flush against its edge, exactly
 the way a solid tile stops it. So one `BoxCollider` can be a wall to one actor and a
 trigger for another, and which it is depends on who declared the layer rather than on
@@ -217,13 +217,13 @@ boxes: touching exactly, `on_hit` does not fire; overlapping by half a pixel, it
 does. That convention is right and it is what makes the two reports mutually
 exclusive by construction.
 
-So a blocked pair reports **no** contact, and that is why a body that must both stop
+So a blocked pair reports **no** contact, and that is why a mover that must both stop
 and react reacts to `on_blocked` rather than to `on_hit` — see
-[`CharacterBody`](components.md#characterbody). The rule of thumb:
+[`Mover`](components.md#mover). The rule of thumb:
 
 | The question | The report | Where it lives |
 |---|---|---|
-| what may I not walk through | `on_blocked` / `on_unblocked` | the body that was stopped |
+| what may I not pass through | `on_blocked` / `on_unblocked` | the mover that was stopped |
 | what am I touching | `on_hit` / `on_separated` | both colliders of the pair |
 
 `examples/collision_tiles` is the worked example of the first, `examples/collision`

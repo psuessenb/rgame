@@ -10,10 +10,10 @@ module RGame
       #
       # **It does not resolve a step.** What it owns is the map's solid tiles as a blocker
       # source (#blockers, an Engine::TileBlockers); the actor that wants to be stopped by
-      # them borrows it and resolves against it — see Components::CharacterBody, which
+      # them borrows it and resolves against it — see Components::Mover, which
       # builds its own Engine::CollisionSystem out of the sources its `blocked_by` names.
-      # A body may be blocked by tiles, by other actors, or by both, and only the body
-      # knows which, so the resolver is the body's and the grid is this system's. The tile
+      # A mover may be blocked by tiles, by other actors, or by both, and only the mover
+      # knows which, so the resolver is the mover's and the grid is this system's. The tile
       # solidity itself is whatever the map's tileset reports (baked per-tile in Tiled).
       #
       # **It does not draw.** Drawing the map is RGame::Engine::TileMapLayer, one

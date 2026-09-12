@@ -96,6 +96,12 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     end
   end
 
+  it_behaves_like 'a mover' do
+    def build_mover(blocked_by:)
+      described_class.new(speed: 60.0, blocked_by: blocked_by).tap { it.set_intent(1.0, 0.0) }
+    end
+  end
+
   describe 'blocked_by: [:tiles]' do
     # A wall in column 8, x 128..144. The node's box is offset (8, 16) from its origin,
     # so the origin at (100, 100) puts the box at (108, 116) with its right edge at 124.

@@ -8,7 +8,7 @@ module RGame
     # a contact starts and the step it ends. Pure logic; no graphics.
     #
     # Nothing here is about overlapping, though, and it has a second user:
-    # Components::CharacterBody keeps one of *what stopped its step*, and gets on_blocked
+    # every Components::Mover keeps one of *what stopped its step*, and gets on_blocked
     # and on_unblocked out of it on exactly the same terms. What this class is, underneath
     # its names, is "the set of things that were true this step and last".
     #
