@@ -64,6 +64,15 @@ expectation:
 ### A1. `#include <SDL2/SDL.h>` — optional robustness *(measured: not a blocker)*
 ```
 
+One inventory earns its place every time, and it is the one a plan is most
+likely to skip: **what already in this codebase resembles the thing being
+planned.** Not what it can reuse — that answers itself — but what does a similar
+enough job that one shape should cover both. See CLAUDE.md, "Before building:
+find the thing it resembles", for why and for the worked example; what a plan
+owes is the three piles, in writing, with the "genuinely new" one justified
+rather than assumed. A plan that cannot name what its subject resembles has
+usually not looked.
+
 Two research sections earn their place nearly every time:
 
 - **Prior art.** How Unreal, Unity, Bevy, Godot, or whichever engines are
