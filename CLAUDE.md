@@ -18,16 +18,6 @@ lengthy comments. Use comments to document gotchas (for instance when the
 obvious implementation didn't work for an unforeseen reason), tricky parts of
 the code, or cases where clarity through naming isn't an option.
 
-**Exception — the teaching layer.** C, SDL, OpenGL and Ruby-C-API idioms get
-explained when first introduced, even at length. This is a learning project
-(see the top of this file) and those explanations are load-bearing:
-`ext/rgame_util/tensor.c` spends its header explaining why the GC needs a
-`mark` function, and `ext/rgame_core/ruby/core_ext.c` explains TypedData and
-the alloc/initialize split. Existing implementation files run roughly 35–80%
-comment lines by design — treat them as the target density and don't thin them
-out. "Minimal" applies to comments that restate what the code already says, not
-to ones that teach an unfamiliar mechanism.
-
 Write documentation alongside code. Reference documentation lives under
 `docs/`; the top-level `README.md` and `ext/README.md` stay where they are and
 cover setup and orientation. Documentation describes the state of the code, not
