@@ -1,9 +1,9 @@
 # Unifying the two collision systems
 
-**Status: steps 1 and 2 are implemented; steps 3–6 are not.** Step 3 of the
-roadmap is detailed; steps 4–6 are deliberately rough and should be re-planned
-once the layer beneath them exists. Note step 2's landed note moves rule 3 of its
-own list into step 4.
+**Status: steps 1–3 are implemented; steps 4–6 are not.** Steps 4–6 are
+deliberately rough and should be re-planned once the layer beneath them exists.
+Note that two landed notes push work into step 4: step 2's moves rule 3 of its own
+list there, and step 3's adds where a per-actor blocker source hangs.
 
 Written out of a question about the shape of the engine, not a bug. Per CLAUDE.md
 this is a working document: it names the code as it stands today, records what
@@ -608,12 +608,67 @@ a fake source returning a fixed edge is enough and needs no world.
 
 Verify: `rake spec` green with no example changed in the tile-resolution specs.
 
-### Step 4 — `ActorBlockers` *(rough — re-plan after step 3)*
+**Landed.** `Engine::TileBlockers` in `lib/rgame/engine/tile_blockers.rb` and
+`CollisionSystem` holding a list of sources, with nine new examples in
+`spec/rgame/engine/collision_system_spec.rb`. `rake spec` is 1200 examples, 0 failures
+(1191 before, plus nine); `make test` 326 checks, 0 failures; `rake spec:core` 367
+examples, 0 failures.
+
+The acceptance criterion is met twice over. `spec/rgame/engine/tile_blockers_spec.rb`
+differs from the old `tile_collision_spec.rb` in its `describe` line and nothing else —
+no example changed — and the implementation body is byte-identical apart from the class
+name and its header. Eight driven runs are **byte-identical** to `main` at
+`--ticks 240 --seed 7`: `examples/collision_tiles`, `examples/walk`,
+`examples/scroll_map`, and all five `tiled_world` scripts including `_pad` with
+`--gamepad`.
+
+Three things the sketch got wrong, and the third is the one step 4 has to answer:
+
+- **`TileBlockers` is the rename, not a wrapper.** D3 sketches
+  `TileBlockers.new(tile_collision)`, and building that would have been a class whose
+  every method forwarded — `TileCollision` already implements the blocker-source
+  protocol exactly, having been the only thing the system called. So the class is
+  renamed and the file with it. The name lost a good word: what it does is still
+  tile *collision*, and `Blockers` says instead what it is *for*, which is the thing
+  worth naming once a second source exists. Step 6's "gains the blocker sources beside
+  `TileCollision`" is therefore wrong and should read "renames the `TileCollision`
+  section".
+- **`resolve_x` / `resolve_y` are public on the system**, which the sketch does not say
+  either way. They are what the new examples drive — a fake source returning a fixed
+  edge needs no world, no tiles and no actor — and making them public means
+  `CollisionSystem` satisfies the blocker-source protocol itself, so nesting one inside
+  another would work. Nothing does that and nothing should yet.
+- **A blocker source cannot simply live on the system, and `ActorBlockers` is why.**
+  D3 puts `@blockers` on `CollisionSystem`, which is a scene-scoped object shared by
+  every actor, and that is right for tiles: the grid is the same for everybody. But
+  D3's own `ActorBlockers.new(world:, owner:, layers:)` takes an `owner` and a layer
+  list, so it is **per body** — two actors declaring different `blocked_by` cannot
+  share one. Step 4 therefore has to decide where a per-actor source hangs, and the
+  shapes are: a `CollisionSystem` per body (cheap, but duplicates the world bounds and
+  the tile source), or `move` taking the caller's extra sources as an argument (one
+  shared system, and the argument is the body's own long-lived source, so it still
+  allocates nothing). Nothing speculative was built for it here. **Add this to step 4
+  alongside open question 1.**
+
+Documented in `docs/api/internals.md`: the `TileCollision` section is now
+`TileBlockers` and says what a blocker source is for, the `CollisionSystem` section
+carries the protocol, the most-restrictive rule and why the loop is an index walk, and
+its heading changed, so the one link to it in `docs/api/components.md` moved with it.
+`Components::TileWorld`'s header names its one source. Sub-steps were not given in the
+sketch; it landed as two commits, the refactor and the documentation.
+
+### Step 4 — `ActorBlockers` *(rough — re-plan, and step 3 added to what it must decide)*
 
 Actors block actors. **Open question 1 must be settled first**, with a
 measurement, because the index freshness decides whether this is a query, a
 re-insert, or a new traversal phase. Expect the step to be mostly that decision
 and a narrow amount of code after it.
+
+Two things landed steps left here, both to settle before writing code: **where a
+per-actor blocker source hangs** (step 3's note — `CollisionSystem` is scene-scoped and
+`ActorBlockers` is not), and **rule 3 of step 2's list** — a layer name with no
+`CollisionWorld` raising at attach, which could not be pinned while every layer name
+raised.
 
 ### Step 5 — `on_blocked` *(rough)*
 
