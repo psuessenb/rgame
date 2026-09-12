@@ -818,6 +818,7 @@ because Phase E's two jump examples build straight on top of it.
 **Assets:** **B**, already committed. Its map may want a wall arrangement worth
 sliding along, the same way example 12's wants one worth routing around.
 
+### 20. `examples/split_screen` — two players, one world — **done**
 **Landed.** `examples/collision_tiles/main.rb` plus its drive script. The scene
 is `examples/scroll_map`'s three steps — tilemap asset, `TileWorld`,
 `WorldView` + `TileMapLayer.mount` — with a `Hero` that has an `AnimatedSprite`,
@@ -880,6 +881,43 @@ modelled on `tools/drive/test_projects/tiled_world_2p.rb`. The report should sho
 one clip per active viewport per frame, going from one to two at the join.
 
 **Assets:** **A**, already committed.
+
+**Landed.** `examples/split_screen/main.rb` plus its two-timeline drive script.
+A `Ground` node under a `WorldView`, a `Walker` per player (the walk example's
+hero with a `CameraFollow` and a coloured banner), and a `Badge` under a
+`PlayerLayer` per player counting that player's `:fire` presses. The scene bounds
+every seat's camera — including the empty one's — mounts the world, and spawns on
+`each_active` plus `on_joined`.
+
+Run: `rake spec` 1134 examples, 0 failures; RuboCop clean; the driven run at 240
+ticks reports 240 ticks / 240 frames, three clip rectangles (the full window 302
+times, and each half 418 times), 499 `sprite` calls, 898 `:hud` layers against
+2005 `:world`, and `waves: 1` as the last `text`.
+
+What the sketch did not know:
+
+- **The signal is `Players#on_joined`, not `on_seated`.** The plan named a method
+  that does not exist.
+- **The walkers had to start side by side, and that turned into the best thing in
+  the file.** Started far apart, each is culled out of the other's viewport and
+  the sprite count is a flat one per viewport — which reads as "each player sees
+  only themselves" and is the opposite of the point. Side by side they appear in
+  both halves and then drop out as they separate: 499 sprite draws rather than the
+  449 of one each, with the extra 50 being the frames both halves could see both.
+  `Engine::Culling` exists because of split-screen, so the example now shows it.
+- **A node's own `on_draw` is not culled, only clipped.** Culling lives in the
+  components that know a node's footprint, so `Walker`'s banner is drawn in every
+  viewport and scissored away in the wrong one. Said in the file, because a reader
+  comparing the sprite count against the rect count would otherwise find it
+  inconsistent.
+- **Ownership was verified by its counterfactual, not by inspection.** A run in
+  which only the keyboard waves three times leaves player two's badge reading
+  `waves: 0`; if either subtree read the other's device, or the raw input, it
+  would read 3.
+- **`--gamepad` cannot drive this example.** That mode points player one at slot 0
+  and leaves the real backend in place, so no device is unassigned and nobody can
+  join. The scripted backend is the right tier for a join, which is what
+  `tiled_world_2p.rb` already did.
 
 ### 21. `examples/input_glyphs` — the prompt matches the thing in your hand
 
@@ -1246,7 +1284,8 @@ trace in any report. Fixed while writing example 7.
 16. ~~`examples/collision`~~ — **done**; no new engine code, but it turned up an
     undocumented `on_hit` contract (see its landed note).
 17. `examples/collision_tiles` (`Components::TileCharacterBody`; reuses **B**)
-18. `examples/split_screen` (`players: 2`; reuses **A**)
+18. ~~`examples/split_screen`~~ — **done**; no new engine code, and it is where
+    `Engine::Culling` finally has an example.
 19. `examples/input_glyphs` (`Controls.gamepad?`, an `InputMap` query, and asset
     **G** — the only new engine work in this phase)
 
