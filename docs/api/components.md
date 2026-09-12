@@ -215,7 +215,9 @@ spawned or despawned entity never leaks a registration.
 - **Contacts:** `overlap?(other)` works against a box *or* a circle: the two colliders
   settle the test between themselves, so both shapes mix freely in one world.
 - **Signal:** `on_hit` fires with the other collider on each contact —
-  `collider.on_hit { |other| ... }`. The system triggers it via `emit_hit(other)`.
+  `collider.on_hit { |other| ... }`. The system triggers it via `emit_hit(other)`. It
+  repeats for as long as the overlap lasts, and may fire twice in one step, so the
+  handler has to be idempotent — see [`CollisionWorld`](#collisionworld).
 
 ```ruby
 collider = add_component(RGame::Engine::Components::BoxCollider.new(
@@ -283,7 +285,9 @@ registration.
   [`BoxCollider`](#boxcollider): the two colliders settle the test between themselves, so
   both shapes mix freely in one world.
 - **Signal:** `on_hit` fires with the other collider on each contact —
-  `collider.on_hit { |other| ... }`. The system triggers it via `emit_hit(other)`.
+  `collider.on_hit { |other| ... }`. The system triggers it via `emit_hit(other)`. It
+  repeats for as long as the overlap lasts, and may fire twice in one step, so the
+  handler has to be idempotent — see [`CollisionWorld`](#collisionworld).
 
 ### `CollisionWorld`
 
@@ -306,6 +310,18 @@ answering the same handful of methods.
   fires both colliders' `on_hit`. It is **layer-agnostic** — it reports contacts and
   lets each collider's owner decide meaning by reading the other's `layer`. Colliders
   whose node is queued for removal are skipped.
+- **A handler must be safe to run again.** `on_hit` fires on every step an overlap
+  lasts, and it can fire more than once *within* a step: a collider is bucketed into
+  every cell its bounding box covers, and a pair sharing two cells reaches the
+  narrowphase twice (the [`SpatialHash`](internals.md#spatialhash--uniform-grid-broadphase)
+  dedup contract, which the world keeps rather than paying for a visited set). Setting
+  a flag, lighting a colour and `queue_free` are all fine; `count += 1` and playing a
+  sound are not. For "how many times did something arrive", record *that* a contact
+  happened and compare against the previous step in `on_update`, which runs after the
+  scene's own components — `examples/collision`'s crate is eleven lines of exactly that.
+- **Example:** `examples/collision` — this system on the scene, circles and boxes on
+  the nodes, two layers and the one line that ignores same-layer pairs. The broadphase
+  grid is drawn on the backdrop, so `cell_size` is a thing you can look at.
 - **Range queries (targeting):** the same index answers point-radius lookups against the
   most recent `update`, so a tower can find enemies without a contact:
   - `query_circle(x, y, r) { |collider| }` yields every registered collider whose centre
