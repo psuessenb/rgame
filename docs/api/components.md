@@ -107,8 +107,9 @@ one you use is decided by whether the node is a class of its own:
   def build_player
     node = RGame::Engine::Node2D.new(x: spawn_x, y: spawn_y)
     node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: PLAYER_SHEET))
-    node.add_component(RGame::Engine::Components::TileCharacterBody.new(
-                         feet_width: 10, feet_height: 8, speed: PLAYER_SPEED
+    node.add_component(RGame::Engine::Components::FeetCollider.new(width: 10, height: 8))
+    node.add_component(RGame::Engine::Components::CharacterBody.new(
+                         speed: PLAYER_SPEED, blocked_by: [:tiles]
                        ))
     node.add_component(RGame::Engine::Components::PlayerController.new)
     node
@@ -118,7 +119,7 @@ one you use is decided by whether the node is a class of its own:
 **Both work for the same reason, and it is worth knowing.** The node is not in the tree
 yet, so `add_component` only appends — no `on_attach` fires until the whole set is
 present and the node enters. So **add order is free**: `build_player` above adds an
-`AnimatedSprite` *before* the `TileCharacterBody` it pulls, and that is fine.
+`AnimatedSprite` *before* the `CharacterBody` that pulls it, and that is fine.
 
 ### Adding from `on_add`, and when you have to
 
@@ -202,7 +203,11 @@ spawned or despawned entity never leaks a registration.
   its feet. `layer` is an opaque tag the *owner* reads to decide what a contact means; the
   collision system itself is layer-agnostic.
 - **Lifecycle:** `on_attach` registers with `node.system(CollisionWorld)`; `on_detach`
-  unregisters.
+  unregisters. A scene with **no** world mounted leaves it a bare shape rather than
+  raising — a collider is a shape, and a world is what turns shapes into contacts, which
+  is what lets a tile-only game carry a feet box for
+  [`CharacterBody(blocked_by:)`](#characterbody) alone. The price: an `on_hit` handler in
+  such a scene never fires and nothing says so.
 - **Geometry:** the rectangle is an [`RGame::Engine::CollisionBox`](toolbox.md#collisionbox--an-actors-feet-box),
   reachable as the read/write `box` accessor — assign a new one (including
   `CollisionBox.bottom_anchored(...)`) to retune a pooled entity's shape on reset, no
@@ -252,19 +257,48 @@ the body turns it into a real move each `update`, at a fixed speed with no inert
 `Velocity`, which integrates a velocity the controller sets, and `ThrustController`, which
 accelerates one.
 
-This one moves the node freely, so it needs **no sprite, no dimensions and no system on the
-scene**: an actor in a world with nothing to bump into is just `CharacterBody` + a controller.
-[`TileCharacterBody`](#tilecharacterbody) below is the collision-checked subclass.
+**What stops a step is declared, not subclassed.** `blocked_by:` lists what a step may not
+pass through; the default is nothing, which moves the node freely and needs **no sprite, no
+dimensions, no collider and no system on the scene** — an actor in a world with nothing to
+bump into is just `CharacterBody` + a controller.
 
-- **Construct:** `CharacterBody.new(speed:)` — walk speed in px/s.
+```ruby
+add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height: 6))
+add_component(RGame::Engine::Components::CharacterBody.new(speed: 80, blocked_by: [:tiles]))
+add_component(RGame::Engine::Components::PlayerController.new)
+```
+
+`:tiles` is the scene's [`TileWorld`](#tileworld), and it is the only blocker there is:
+each step is resolved against the map's solid tiles, one axis at a time, so a diagonal held
+against a wall keeps its free half and the actor slides. Actors that must notice *each other*
+carry a collider each and read its [`on_hit`](#boxcollider) — that reports the contact without
+stopping anyone.
+
+**The shape has one owner, and it is not the body.** A blocked step is resolved against the
+sibling [`BoxCollider`](#boxcollider)'s rectangle — [`FeetCollider`](#feetcollider) is the one
+a walking character wants. So the feet box is given once, to the component that *is* a shape,
+and the same rectangle both stops the step and reports contacts: reassigning `collider.box`
+retunes both, and there is nothing to hand from one component to the other.
+
+- **Construct:** `CharacterBody.new(speed:, blocked_by: [])` — walk speed in px/s, and what
+  may stop a step. A bare symbol works too (`blocked_by: :tiles`).
+- **Lifecycle:** `on_attach` resolves what was declared and **raises** for anything it cannot
+  find — the node's collider first, then the scene's `TileWorld`, then any name that is not
+  `:tiles`. Falling back to free movement would look like a collision bug, with the cause in
+  a scene three files away that never mounted the system.
 - **State:** `set_intent(x, y)` writes the step's intent; `move_x`/`move_y` read it back (the facing
   for `AnimatedSprite`).
 - **Phase:** `update(dt)` applies `intent * speed * dt` (nothing when the intent is zero).
-- **Seam:** `apply_move(dx, dy)` is where a step lands — the one method a collision-aware body
-  overrides, so it inherits the intent, the speed and the standing-still check rather than
-  restating them.
-- **Example:** `examples/walk` — a `Node2D` with this, a `PlayerController` and an
-  `AnimatedSprite`, and nothing else.
+- **Seam:** `apply_move(dx, dy)` is where a step lands — separated from `update` so a body that
+  resolves a step some other way (a platformer's, with gravity and a jump) inherits the intent,
+  the speed and the standing-still check rather than restating them.
+- **Actor adapter:** when blocked, the body hands *itself* to
+  [`CollisionSystem#move`](internals.md#collisionsystem--move-an-actor-against-the-tiles-and-the-world),
+  answering `x`/`y`/`x=`/`y=` from the node and `collision_box` from the collider.
+- **Examples:** `examples/walk` — this, a `PlayerController` and an `AnimatedSprite`, and
+  nothing else. `examples/collision_tiles` — the same with a feet box and `blocked_by:
+  [:tiles]`, drawn over the sprite so what collides is visible.
 
 ### `CircleCollider`
 
@@ -277,7 +311,8 @@ registration.
   tag the *owner* reads to decide what a contact means; the collision system itself is
   layer-agnostic.
 - **Lifecycle:** `on_attach` registers with `node.system(CollisionWorld)`; `on_detach`
-  unregisters.
+  unregisters. As with [`BoxCollider`](#boxcollider), a scene with no world mounted
+  leaves it a bare shape rather than raising.
 - **Geometry:** `cx`/`cy` are the node's world origin (`node.world_x`/`world_y`); `radius` is a
   read/write accessor (so a pooled entity can retune its shape on reset — see
   `ScreenWrap`/pooling), `layer` is a reader; `aabb_x`/`aabb_y`/`aabb_w`/`aabb_h` are the
@@ -412,7 +447,12 @@ same mixing with circles, and `get_component(BoxCollider)` finds it.
   how a pooled entity retunes its shape on reset.
 - **Everything else:** as [`BoxCollider`](#boxcollider) — `aabb_*`, `cx`/`cy`,
   `overlap?`, `on_hit` / `on_separated`, and registration with the scene's
-  [`CollisionWorld`](#collisionworld).
+  [`CollisionWorld`](#collisionworld) when there is one.
+
+It is also the shape a blocked [`CharacterBody`](#characterbody) resolves its steps
+against, so one component carries the feet box for both purposes: `examples/collision_tiles`
+mounts no `CollisionWorld` at all and uses this purely as the rectangle a step may not
+push past.
 
 ```ruby
 add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
@@ -474,8 +514,9 @@ tower-defense game uses to leak a life when an enemy reaches the base.
 
 ### `PlayerController`
 
-Drives a `CharacterBody` sibling (or a `TileCharacterBody`) from two input axes — direct 8-way
-walking, no inertia (unlike `ThrustController`).
+Drives a `CharacterBody` sibling from two input axes — direct 8-way walking, no inertia
+(unlike `ThrustController`). It neither knows nor cares whether that body is blocked by
+anything.
 
 - **Construct:** `PlayerController.new(x_axis: :move_x, y_axis: :move_y)`.
 - **Lifecycle:** `on_attach` pulls the node's `CharacterBody` (`require_sibling`).
@@ -562,28 +603,6 @@ a thrust axis accelerates it along its heading.
   `update(dt)` accelerates along the heading (angle 0 = up, so forward is
   `(sin θ, −cos θ)`), applies drag, and clamps to `max_speed`. Firing is intentionally
   not here.
-
-### `TileCharacterBody`
-
-A `CharacterBody` bound to a tile map: each step is resolved against the scene's
-[`TileWorld`](#tileworld), so the actor slides along walls and stays inside the map. Everything
-about the intent is inherited; what is added is the box a step lands with and the resolution.
-
-- **Construct:** `TileCharacterBody.new(feet_width:, feet_height:, speed:)` — the feet box size (in
-  px) and walk speed (px/s). No sprite size is passed: `collision_box` is built lazily from the
-  node's `width`/`height` (which `AnimatedSprite` sets), centred horizontally and bottom-anchored.
-  A body with no sprite must set the node's dimensions itself.
-- **Lifecycle:** `on_attach` caches the scene's `TileWorld`, and **raises** when there is none
-  rather than falling back to free movement — an actor walking through walls looks like a collision
-  bug, and the cause would be a scene that never mounted the system.
-- **Phase:** inherited; the move goes through the tile world instead of straight onto the node.
-- **Example:** `examples/collision_tiles` — this body, a feet box drawn over the sprite so
-  that what collides is visible, and a diagonal held against a wall to show the blocked half
-  of a step being dropped and the free half kept.
-
-Siblings that pull `node.get_component(CharacterBody)` — `PlayerController`, `WanderController`,
-`AnimatedSprite` — find one of these just as readily: `get_component` matches a class key by
-ancestry.
 
 ### `TileWorld`
 

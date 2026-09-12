@@ -84,10 +84,19 @@ the scene-scoped system it looks up is already there.
 # enters the tree and releases the registration when it leaves — the engine fires
 # both hooks, so a spawned/despawned entity can't leak a registration.
 class CircleCollider < RGame::Engine::Component
-  def on_attach = node.system(CollisionWorld).register(self)
+  def on_attach = node.system(CollisionWorld)&.register(self)
   def on_detach = node.system(CollisionWorld)&.unregister(self)
 end
 ```
+
+**A collider tolerates a missing world, and most clients should not.** Both hooks
+above are `&.`, so a collider on a scene with no `CollisionWorld` is simply a shape
+that reports nothing: that is what a tile-only game wants, since its character carries
+a feet box to be *stopped* by (see
+[`CharacterBody`](components.md#characterbody)) and there are no pairs to find. The
+price is that an `on_hit` handler in such a scene never fires and nothing says so, so
+weigh it deliberately — a client that is useless without its system raises instead,
+the way `CharacterBody(blocked_by:)` does.
 
 ## The two the platform mounts for you
 
