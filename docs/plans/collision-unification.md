@@ -1,8 +1,9 @@
 # Unifying the two collision systems
 
-**Status: step 1 is implemented; steps 2–6 are not.** Steps 1–3 of the roadmap
-are detailed; steps 4–6 are deliberately rough and should be re-planned once the
-layer beneath them exists.
+**Status: steps 1 and 2 are implemented; steps 3–6 are not.** Step 3 of the
+roadmap is detailed; steps 4–6 are deliberately rough and should be re-planned
+once the layer beneath them exists. Note step 2's landed note moves rule 3 of its
+own list into step 4.
 
 Written out of a question about the shape of the engine, not a bug. Per CLAUDE.md
 this is a working document: it names the code as it stands today, records what
@@ -531,6 +532,58 @@ Rules the tests must pin:
 Verify: `examples/collision_tiles` and `test_projects/tiled_world` drive to their
 scripts' existing numbers, which is the acceptance criterion — the feel of
 sliding along the fence must not change, and the drive scripts already pin it.
+
+**Landed.** `CharacterBody(speed:, blocked_by: [])` in
+`lib/rgame/engine/components/character_body.rb`, `TileCharacterBody` and its spec
+deleted, seventeen examples in `spec/rgame/engine/components/character_body_spec.rb`.
+`rake spec` is 1191 examples, 0 failures (1186 before, minus the eight that covered
+the deleted class, plus thirteen new); `make test` 326 checks, 0 failures;
+`rake spec:core` 367 examples, 0 failures.
+
+The acceptance criterion holds exactly. `examples/collision_tiles` and all five
+`tiled_world` scripts — `tiled_world`, `_2p`, `_cutscene`, `_inventory`, and `_pad`
+with `--gamepad` — drive to **byte-identical** reports before and after at
+`--ticks 240 --seed 7`. So do `examples/collision`, `examples/pooling`,
+`examples/signals`, `examples/walk`, `test_projects/snake` and
+`test_projects/asteroids`, which is what says the collider change below moved
+nothing where a `CollisionWorld` *is* mounted. (One early run of `tiled_world_2p`
+reported 239 frames rather than 240; nine further runs matched the baseline
+exactly, so it is a frame the harness dropped under load, not a behaviour change.)
+
+Three things the sketch got wrong, and the first is the one to carry into step 4:
+
+- **Registering with a `CollisionWorld` had to become optional**, and the sketch does
+  not mention it. `BoxCollider#on_attach` was `node.system(CollisionWorld).register(self)`
+  — an unguarded call — so the moment `examples/collision_tiles` carried a
+  `FeetCollider` it crashed on a scene that deliberately mounts no broadphase. The
+  alternative was making every tile-only game mount one, which bucket-indexes nothing
+  and couples the two systems the verdict keeps apart. So both colliders now use `&.`,
+  and the sentence that falls out of it is a good one: **a collider is a shape; a
+  `CollisionWorld` is what turns shapes into contacts.** The cost is real and is stated
+  at the code — an `on_hit` handler in a world-less scene never fires and nothing says
+  so — and the thing that *does* declare an expectation, and does raise, is
+  `blocked_by:`.
+- **Rule 3 cannot be pinned yet, and a layer name raises instead.** Sub-step 2a says
+  ":tiles the only accepted name" and rules 3 and 4 assume a layer name is accepted and
+  merely validated; those disagree, and accepting `blocked_by: [:npc]` today would mean
+  a body that silently is not blocked by anything — the exact failure this step exists
+  to close. So a name that is not `:tiles` raises at attach, naming what `on_hit` does
+  instead. **Rule 3 moves to step 4**, which is where a layer name starts meaning
+  something; rule 4 landed anyway, because the collider is required whatever was
+  declared.
+- **The raise order is collider first, then system.** Rule 2's "naming both" is two
+  separate raises rather than one message: `require_sibling(BoxCollider)` runs before
+  any system lookup, because a body declaring `:tiles` with no shape is the likelier of
+  the two mistakes and its message already explains component add order.
+
+Documented in `docs/api/components.md` (the `CharacterBody` entry rewritten around the
+declaration, the `TileCharacterBody` entry gone, both collider entries noting the
+conditional registration), `docs/api/systems.md` (which way a new client should choose),
+and one reference each in `internals.md`, `toolbox.md` and `examples.md`.
+`examples/collision_tiles`'s header claim that it "shares no code" with
+`examples/collision` was **false after this step and has been rewritten** rather than
+left for step 6: it now says the two share the collider and differ in mounting a world.
+Step 6's remaining work there is the other half — what they will share once step 3 lands.
 
 ### Step 3 — blocker sources and the shared resolver (pure)
 
