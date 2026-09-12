@@ -1,8 +1,8 @@
 # Sweeping the systems and components for architectural fit
 
-**Status: step 1 is implemented. Step 2 is sketched pending a measurement, and
-steps 3 and 4 are deliberately rough. Every uncalled class has since been decided
-in conversation — see open question 1.**
+**Status: step 1 is implemented. Step 2 is re-planned after measuring its three
+candidates, and steps 3 and 4 are deliberately rough. Every uncalled class has
+since been decided in conversation — see open question 1.**
 
 Written out of a retrospective rather than a bug: the collision unification took
 six steps to merge two systems that had each been correct on their own since the
@@ -421,17 +421,23 @@ six steps.
      goes to step 2.
    - `Targeting` — kept; reworded by step 1b.
    - `I18n` — kept; `examples/localization` added as the last basic example.
-2. **Where does the shared movement seam live?** Blocks step 2's design. Candidates:
-   a module mixed into the movers, a `Motion` component the movers write through,
-   or a method on `Node2D` itself. Measure before choosing, the way the collision
-   plan measured its three candidates for index freshness.
-3. **Should `on_blocked` be available to a mover with no character semantics?** A
-   bullet stopped by a wall wants to explode, not to slide. Does the generalization
-   carry the axis-separated slide, or is sliding the part that stays in
-   `CharacterBody`? Does not block step 1.
+2. ~~**Where does the shared movement seam live?**~~ **Settled — a base class,
+   `Components::Mover`, that all three movers inherit.** Measured against a sibling
+   component (order-dependent) and a `Node2D` method (collision in every node's base
+   class), at equal cost. See [step 2, re-planned](#re-planned-against-the-code-after-step-1).
+3. ~~**Should `on_blocked` be available to a mover with no character semantics?**~~
+   **Settled — yes, and the slide travels with it**, because it is
+   `CollisionSystem`'s axis order and that class does not change. A bullet reacts to
+   `on_blocked`. See [step 2, re-planned](#re-planned-against-the-code-after-step-1).
 4. **Is A5 worth reconciling, or is documenting it the right permanent answer?**
    Does not block steps 1 or 2. Needs its own measurement of how many nodes could
    ever carry both.
+5. **Should `on_blocked` say which axis was stopped?** A bouncing projectile needs
+   it, and `CollisionSystem#blocked_x`/`#blocked_y` already know. Nothing in the
+   repository bounces. Does not block anything.
+6. **Where does a path-walking character get its facing?** `AnimatedSprite` reads
+   `move_x`/`move_y` off a `CharacterBody`, and `PathFollow` has no intent. Blocks
+   the pathfinding example's animation, not its walk.
 
 ## E. What this does not deliver
 
@@ -652,6 +658,143 @@ byte-identical, because nothing that did not ask may start colliding.
 
 Re-plan this step properly once step 1 has landed and the three candidates have
 been measured.
+
+#### Re-planned, against the code after step 1
+
+**The three candidates were built and measured** at `bd172ce`, as prototypes in a
+scratch script over a real `CollisionWorld`. Each was a `Velocity` pressed into a
+16×400 wall collider, run for 300,000 frames of `node.update`, three rounds. All
+three reach one shared core, which is `CharacterBody`'s blocking half pulled out
+as it stands:
+
+| Candidate | Free step, ns/frame | Blocked step, ns/frame | Allocations per frame | Order-dependent |
+|---|---|---|---|---|
+| today's `Velocity` (reference) | 522–567 | — | 0 | — |
+| A — shared by the movers themselves (module or base class) | 493–513 | 7,203–7,443 | 0 | no |
+| B — a `Blocking` sibling component the mover writes through | 465–473 | 7,360–7,907 | 0 | **yes** |
+| C — `Node2D#move_by`, the node owning `blocked_by` | 487–515 | 7,405–8,097 | 0 | no |
+
+**Cost does not choose between them.** The spread inside one candidate across rounds
+is wider than the spread between candidates, and none allocates. Every free step is
+within noise of today's, so constraint 2 holds whichever wins.
+
+**B fails on order, measured.** A step has two edges, opening it (which makes this
+step's blocker list the previous one) and closing it (which reports what ended). A
+sibling component can close the step only from its own `update`, which runs wherever
+it sits in the component list. With the mover added first, `on_unblocked` fired on
+the tick the mover walked away. With the `Blocking` component added first, it fired
+one tick later. Two add orders gave two behaviours, and nothing said so. That is
+precisely the "order-dependent with a sibling" check A6 applies, failed.
+
+**C is order-free but puts collision into the base of every node.** `Node2D` would
+have to name `BoxCollider`, `CollisionWorld`, `TileWorld` and `WorldBounds`. HUDs
+and menus are `Node2D`s too. `on_blocked` would move from the body to the node, which
+changes `CharacterBody`'s documented signals and `examples/collision_tiles`, a public
+API change that buys nothing A does not.
+
+**A wins, as a base class rather than a mixin:** `Components::Mover`. All three
+movers are already `Component`s, and a module would need its own initialize hook
+for `blocked_by:`, which the base class gets from `super`. It keeps
+`CharacterBody`'s API as it is: `blocked_by:`, `on_blocked`/`on_unblocked` and
+`apply_move` stay where they are and simply become inherited. The step bookkeeping
+follows CLAUDE.md's blank-hook rule. `Mover#update` opens the step, calls the
+subclass's `take_step(dt)` and closes it, so no mover can forget either edge.
+
+**Open question 3 is answered by constraint, not by taste: the slide travels.** It
+is `CollisionSystem`'s axis-separated order, and `CollisionSystem` does not change.
+What it means for a bullet is that `on_blocked` fires on the step it hits the wall,
+and a bullet that wants to stop queue-frees itself there. It slides for zero frames
+it is still alive in. A mover that keeps pressing keeps its intent too: a blocked
+`Velocity` does not zero its `vx`. Bouncing wants to know which axis was stopped,
+which `on_blocked` does not say; that is left open (question 5) rather than widening
+a signal nobody has asked to widen.
+
+**`ThrustController` needs nothing.** It writes a `Velocity`, so a ship is blocked
+by declaring `blocked_by:` on the `Velocity`. So the movers are three and not four,
+and that is the count this step makes blockable.
+
+**The sketch's acceptance criterion cannot be run as written.** A rock in
+asteroids carries a `CircleCollider`, blocking is box-versus-box, and asteroids has
+no wall. The criterion is kept in substance, a one-line `blocked_by:` on a
+`Velocity` stopping at a wall with no hand-written response, and asserted by spec
+instead of by editing a game.
+
+##### 2a — `Components::Mover`, extracted from `CharacterBody`
+
+A pure extraction: nothing a `CharacterBody` does changes, and its 739-line spec is
+the proof. The shape:
+
+```ruby
+class Mover < Engine::Component
+  signal :on_blocked, Engine::Signal.define(:by)
+  signal :on_unblocked, Engine::Signal.define(:by)
+
+  def initialize(blocked_by: [])     # resolved nowhere until on_attach
+  def on_attach                       # collider, then systems; raises naming self.class
+  def update(dt)                      # open the step, take_step(dt), report what ended
+  def apply_move(dx, dy)              # the seam: direct write, or through the resolver
+  def collision_box / x / y / x= / y= # the world-space actor adapter
+
+  private
+
+  def take_step(dt) = nil             # the blank hook each mover fills in
+  def blocking? = !@collision.nil?
+  def last_move_blocked?              # either axis stopped on the most recent apply_move
+end
+```
+
+`CharacterBody < Mover` keeps `speed`, the intent and `take_step`. Its raise
+messages keep matching the existing specs, with the class name read from `self`.
+
+##### 2b — `Velocity` is a `Mover`
+
+`Velocity.new(vx:, vy:, spin:, blocked_by: [])`. `take_step` hands `vx*dt, vy*dt`
+to `apply_move`; `spin` always writes the angle directly, since a box does not
+rotate.
+
+##### 2c — `PathFollow` is a `Mover`
+
+`PathFollow.new(path:, speed:, blocked_by: [])`. The walk still computes where the
+node should be, then gets there through `apply_move`. **A blocked step does not
+advance the walk:** progress is rewound to where the step started, so a follower
+held behind something waits and resumes rather than jumping ahead once it is let go.
+`on_finished` fires only once the last waypoint was actually reached. Unblocked, it
+keeps writing positions absolutely, exactly as today, so the existing spec is
+untouched. `on_attach` still places the node on the first waypoint absolutely,
+because a spawn position is a placement, not a step.
+
+This answers A2 partly. The pathfinding example *can* walk a blocked route with
+`PathFollow`, but `AnimatedSprite` reads its facing from a `CharacterBody` sibling,
+so a hero walking a path would still not animate. That is question 6, and it
+belongs to the example rather than to this step.
+
+Rules the tests must pin:
+
+1. **One contract for every mover.** A shared example group,
+   `spec/support/shared_examples/a_mover.rb`, is run by `character_body_spec`,
+   `velocity_spec` and `path_follow_spec` against one scene: a real `CollisionWorld`
+   and a wall collider. Every mover must:
+   - pass through the wall when nothing is declared
+   - stop flush with `blocked_by: [:wall]`
+   - fire `on_blocked` once, with the wall's collider, however long it presses
+   - fire `on_unblocked` once when the wall leaves
+   - raise at attach with no `BoxCollider`, and with no `CollisionWorld`
+   - allocate nothing on a blocked step
+2. **Both at once.** A spec mounts a `CharacterBody` and a blocked `Velocity` in one
+   scene, each declaring the other's layer, and asserts they stop each other. This is
+   CLAUDE.md's "what does a caller using both of us look like" test. Nothing in the
+   repository builds that scene today.
+3. **Free movers are unchanged.** The existing `velocity_spec`, `path_follow_spec`
+   and `path_follow_allocation_spec` pass without edits.
+4. **The blocked `PathFollow` waits.** Held for N ticks and then released, it
+   arrives N ticks later than an unheld one, and does not skip the stretch it was
+   held on.
+
+Verify: `rake spec` green, counted up only by the new examples. Every driven run
+under `tools/drive/` is byte-identical to `main` at `--ticks 240 --seed 7`, with
+`RGAME_SAVE_DIR` set per run, because nothing that did not declare `blocked_by:` may
+start colliding. The same benchmark, re-run against the real classes, puts a free
+`Velocity` step within noise of the reference row above.
 
 ### Step 3 — the two coordinate frames *(rough)*
 
