@@ -3,7 +3,9 @@
 Engine classes a **game author reaches for directly** that don't belong to the scene
 graph, components, signals, or systems chapters — pooling, localization, audio facts,
 flat grids, the camera, collision boxes. All are pure Ruby (none `require "gosu"`), so
-they stay headless-testable.
+they stay headless-testable. One section is a recipe rather than a class:
+[making a character that collides](#making-a-character-that-collides), because the
+question it answers has no single class behind it.
 
 For the low-level classes that sit *behind* components and are rarely constructed by
 hand (collision maths, the spatial index, animation playback), see
@@ -162,6 +164,58 @@ the platform resolves each camera against the viewport it is about to draw. Poin
 is a [`CameraFollow`](components.md#camerafollow) component on the node being followed,
 and applying it is a [`WorldView`](scene_graph.md#view-transforms-and-the-camera). See
 `test_projects/tiled_world`.
+
+## Making a character that collides
+
+The common case of a top-down game — a character stopped by the world *and* by the
+other characters in it — is four components on a plain node, and there is nothing to
+remember between them:
+
+```ruby
+node = RGame::Engine::Node2D.new(x: 240, y: 320)
+node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+node.add_component(RGame::Engine::Components::FeetCollider.new(width: 10, height: 8, layer: :hero))
+node.add_component(RGame::Engine::Components::CharacterBody.new(speed: 60, blocked_by: %i[tiles hero npc]))
+node.add_component(RGame::Engine::Components::PlayerController.new)
+```
+
+Each line does one thing. The [sprite](components.md#animatedsprite) gives the node its
+dimensions and reads the body's intent back as a facing. The
+[`FeetCollider`](components.md#feetcollider) derives a small box at the bottom of those
+dimensions and is the node's **only** shape. The
+[`CharacterBody`](components.md#characterbody) names what that shape may not pass
+through. The [controller](components.md#playercontroller) writes an intent each step,
+and the body turns it into a move.
+
+An NPC is the same four lines with a
+[`WanderController`](components.md#wandercontroller) and `layer: :npc`. Because the
+hero's `blocked_by` names `:npc` and the NPC's names `:hero`, the two stop each other
+without either knowing what the other is; a crowd of NPCs all declaring `:npc` is fine,
+since a body is never stopped by its own collider. `test_projects/tiled_world` is
+exactly this, for a player and a dozen villagers.
+
+The scene has to mount what those names refer to — a
+[`TileWorld`](components.md#tileworld) for `:tiles` and a
+[`CollisionWorld`](components.md#collisionworld) for the two layer names — and a name
+with nothing behind it **raises at attach**, naming what is missing. That is the point of
+declaring them: an actor that silently walked through walls would look like a collision
+bug with its cause in a scene file three directories away.
+
+Three things that would otherwise be worth remembering, and are not:
+
+- **Component order does not matter.** The feet box cannot be built until the sprite has
+  given the node a size, so it is built on its first read rather than at construction.
+- **One shape, not two.** The body resolves the collider's box, so the rectangle that is
+  stopped by a fence is the same one that reports contacts, and `collider.box =` retunes
+  both.
+- **Reacting is not a second mechanism.** `body.on_blocked { |by| ... }` fires once when
+  something starts stopping the body, whether that is a villager, a solid tile or the
+  edge of the world. A blocked pair ends up *touching* rather than overlapping, so
+  `on_hit` is the wrong signal for it — see
+  [Blocking and overlapping](systems.md#blocking-and-overlapping-are-two-reports-and-a-pair-gets-one-of-them).
+
+For the whole architecture behind those four lines, see
+[Collision: two indexes, one resolver](systems.md#collision-two-indexes-one-resolver).
 
 ## `CollisionBox` — an actor's feet box
 

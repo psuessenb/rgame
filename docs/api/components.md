@@ -416,8 +416,13 @@ It is **shape-agnostic**: it buckets each collider by the bounding box it report
 share one world and collide with each other, and a game can add a shape of its own by
 answering the same handful of methods.
 
-- **Construct:** `CollisionWorld.new(cell_size:)` — the spatial-hash cell size (tune to
-  the typical collider size).
+- **Construct:** `CollisionWorld.new(cell_size:)` — the spatial-hash cell size, which
+  tracks **how big the colliders are** and nothing else. A tile map in the same scene is
+  no guide, however tempting: a 64px collider in a 16px grid is bucketed into twenty-five
+  cells and queried out of all of them, measured at 2.8× the cost of a cell sized to the
+  collider, where a 12×6 feet box in the same 16px cells costs only 10–20% over its own
+  optimum. The symptom of a wrong value is frame budget and never behaviour, which is
+  what makes it worth picking deliberately.
 - **Registration:** `register(collider)` / `unregister(collider)`; colliders call these
   through their own lifecycle, so nodes never wire this by hand.
 - **Queries:** `query_box(x, y, w, h)` yields every registered collider bucketed in a cell
@@ -437,6 +442,13 @@ answering the same handful of methods.
   for each pair that has *stopped*. It is **layer-agnostic** — it reports contacts and
   lets each collider's owner decide meaning by reading the other's `layer`. Colliders
   whose node is queued for removal are skipped.
+- **Contacts are a step behind.** This is a component on the scene node, and a node runs
+  its own components before its children, so the index is built and every pair reported
+  *before* any actor has moved this step. Contacts therefore describe where things were
+  at the end of the previous step — consistently, so nothing jitters, but a pair that
+  starts overlapping during step N is reported at the top of step N+1. A blocked
+  [`CharacterBody`](#characterbody) does not read the index this way and is not affected;
+  it queries mid-step and re-buckets itself, which is what `reindex` above is for.
 - **A contact is two edges, not a state.** Each signal fires **once per pair**: nothing
   at all on the steps between the two, however long the overlap lasts, and one report
   however many broadphase cells the pair happens to span. So a handler may do what must

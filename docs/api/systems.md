@@ -118,6 +118,57 @@ are systems rather than something `Game` hands down.
 See [Input](input.md#players-seats-and-joining) and
 [Scene graph](scene_graph.md#viewports-and-views).
 
+## Collision: two indexes, one resolver
+
+Collision is the largest thing built out of systems here, and it is spread across
+three chapters — the [components](components.md#boxcollider) a node carries, the
+[systems](#systems-that-index-their-clients-the-tag-registry-pattern) a scene mounts,
+and the [building blocks](internals.md#collisionsystem--move-an-actor-against-its-blockers)
+underneath both. This is the shape they add up to.
+
+**A node has exactly one collision shape, and exactly one component owns it.** The
+[collider](components.md#boxcollider) *is* the shape; a
+[`CharacterBody`](components.md#characterbody) that wants to be stopped reads its
+sibling's box rather than building a second one. So the rectangle that stops a step and
+the rectangle that reports a contact are the same rectangle, and retuning one retunes
+both.
+
+**There are two indexes, on purpose.** A tile map is already an index: the wall a step
+would hit is arithmetic on the step, so a `TileWorld` divides by the tile size and asks
+the grid. Actors have no such structure, so a `CollisionWorld` buckets them into a
+[`SpatialHash`](internals.md#spatialhash--uniform-grid-broadphase) each step. Merging
+the two — baking tile shapes into the broadphase, which is what Godot and Unity both do
+— would rebuild an index the grid already is, and pay for it every frame on a map of
+tens of thousands of tiles. Unity ships `CompositeCollider2D` specifically to make that
+affordable; this engine declines the problem instead.
+
+**What is unified is one level up.** A **blocker source** answers one question over
+plain numbers — where does this box land moving `dx` — and there are three of them:
+`TileBlockers` over the grid, `ActorBlockers` over the broadphase, and `BoundsBlockers`
+over the world's edges. A blocked body builds a
+[`CollisionSystem`](internals.md#collisionsystem--move-an-actor-against-its-blockers)
+at attach out of the ones its `blocked_by:` named, and that system asks each of them and
+takes the most restrictive answer on each axis. The axis-separated order that produces
+wall-sliding is therefore written **once**, which is why an actor slides off a villager
+exactly the way it slides off a fence.
+
+| | Mounted on the scene | Owned by the node |
+|---|---|---|
+| Tiles | [`TileWorld`](components.md#tileworld), which hands out one shared `TileBlockers` | — |
+| Actors | [`CollisionWorld`](components.md#collisionworld), the broadphase | an `ActorBlockers` per body, holding its own collider and layer list |
+| The world's edge | any [`WorldBounds`](components.md#world) | a `BoundsBlockers` |
+| The step | — | one `CollisionSystem`, built at attach from the names above |
+
+Neither system needs the other, and most scenes mount one of them. `examples/scroll_map`
+has a map and no broadphase; `examples/collision`, `test_projects/asteroids` and
+`test_projects/snake` have a broadphase and no map. `examples/collision_tiles` mounts both,
+and the only place in it that shows is the list of names in `blocked_by`.
+
+What a body is stopped by and what a collider is touching stay two different questions,
+though, and the difference is visible to a game rather than being an implementation
+detail: see [Blocking and overlapping](#blocking-and-overlapping-are-two-reports-and-a-pair-gets-one-of-them)
+below, once the broadphase itself has been introduced.
+
 ## Systems that index their clients (the tag-registry pattern)
 
 A many-to-many system (broadphase collision) lives on the scene node and keeps its
