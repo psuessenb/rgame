@@ -94,19 +94,40 @@ module RGame
         end
 
         # The actor adapter CollisionSystem#move drives: it reads x/y/collision_box, works
-        # out where the step lands, and writes the resolved position back. x and y are the
-        # owning node's, and the box is the sibling collider's — the node's one shape, so
-        # retuning `collider.box` retunes what a step collides with.
+        # out where the step lands, and writes the resolved position back. The box is the
+        # sibling collider's — the node's one shape, so retuning `collider.box` retunes
+        # what a step collides with.
+        #
+        # ## The adapter is in world space
+        #
+        # x and y are the node's **world** position, because that is the space everything
+        # else about collision is already in: the tile grid is a world-coordinate grid, and
+        # BoxCollider#aabb_x reports `node.world_x + box.offset_x`. A body under an offset
+        # ancestor that reported its local position would resolve against a map shifted by
+        # the ancestor, and would be compared against other colliders in a different frame
+        # entirely.
+        #
+        # Writing goes back through the node's *local* position as a translation — move the
+        # node by however far the resolved position is from where it is now — because the
+        # node lives in its parent's frame and only the parent knows how to get there.
+        #
+        # **The limit, deliberately not a raise:** that translation is exact for an
+        # unrotated ancestor chain and approximate under a rotated one, since a world-space
+        # delta is applied to local axes the rotation has turned. An actor under a rotated
+        # ancestor is already outside what an axis-aligned box supports (docs/api/components.md:
+        # a thing that spins wants a circle). A guard would only catch an ancestor that was
+        # rotated at attach and miss one that starts rotating later, which is worse than a
+        # sentence that is always true.
         def collision_box = @collider.box
-        def x = node.x
-        def y = node.y
+        def x = node.world_x
+        def y = node.world_y
 
         def x=(value)
-          node.x = value
+          node.x += value - node.world_x
         end
 
         def y=(value)
-          node.y = value
+          node.y += value - node.world_y
         end
 
         private
