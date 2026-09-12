@@ -14,11 +14,23 @@ module RGame
       # from it. `update` is not for overriding: it opens the step, calls the hook and
       # reports what stopped being in the way, so no mover can forget either edge.
       #
+      # **Why a base class, and not a sibling component or a Node2D method.** A separate
+      # `Blocking` component that movers write through was tried, and it is order-dependent:
+      # closing the step has to happen after the mover's step, and a sibling can only do
+      # that from its own `update`, which runs wherever it sits in the component list — two
+      # add orders fired on_unblocked on two different ticks. A `Node2D#move_by` owning
+      # `blocked_by` is order-free, but puts collision into the base of every node, HUDs and
+      # menus included. A base class is order-free and touches only what moves.
+      #
       # ## What stops a step is declared, not subclassed
       #
       # `blocked_by:` lists what a step may not pass through, and the default is nothing:
       # the mover writes the node's position directly and needs no collider and no system
-      # on the scene — at the same cost as if this class were not there.
+      # on the scene. That free step is not quite free: `update` → `take_step` →
+      # `apply_move` is one dispatch more than a component writing `node.x` itself, which
+      # measured about 12% on a bare Velocity step (tens of nanoseconds). Inlining the free
+      # write into each subclass wins it back, at the cost of every mover copying
+      # `apply_move`'s free branch and reading this class's ivars — not taken.
       #
       #   Velocity.new(vx: 120)                                    # flies wherever it points
       #   Velocity.new(vx: 120, blocked_by: [:wall])                # stops flush against a :wall collider

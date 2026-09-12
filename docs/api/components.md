@@ -672,6 +672,10 @@ whatever should happen when a walker arrives.
   goes back to where the step began. So a follower held behind something for a second
   arrives a second late, rather than racing ahead once let go, and `on_finished` never
   fires for a walker still standing in front of what stopped it.
+- **A held follower does not slide.** A step's free axis still moves, but each step aims at
+  the same point on the path again, so a follower pressed diagonally against a wall comes to
+  rest rather than sliding along it the way a [`Velocity`](#velocity) does. To get round
+  something, replan the path.
 
 ### `PlayerController`
 
@@ -784,6 +788,21 @@ work in a tile scene with nothing passed to them.
 **It does not draw.** `RGame::Engine::TileMapLayer` does — one node per Tiled layer, mounted
 inside a `WorldView`, so the map is drawn once per viewport like the rest of world space.
 This stays the thing actors ask questions of.
+
+**Why the stack is split the way it is.** Each of the four pieces is the kind of thing it
+is for a reason, and each has been checked against the node/component architecture rather
+than inherited from before it:
+
+| Piece | Kind | Because |
+|---|---|---|
+| `TileMap`, `Tileset` | values | parsed data with no handle; the gid rows are a `Util::Tensor` |
+| `TileWorld` | component, mounted as a system | it is a scene-scoped answer — solid tiles, world size — that actors look up |
+| `TileMapLayer` | node | it draws in world space, and draw order is tree order |
+
+None of them duplicates state the node owns, needs a hand-written hook to hand its data to
+another, depends on a sibling's add order, or names a layer it may not name. A reader
+wondering whether the map stack is a leftover from before the scene graph can take that as
+answered.
 
 - **Construct:** `TileWorld.new(map:, tilemap_id:, cameras: [])` — it clamps each camera it is given to
   the map's edges, and `bound(camera)` does the same for one that arrives later (a player joining).
