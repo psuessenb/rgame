@@ -1,8 +1,7 @@
 # Plan — the menu is a shell, the button is the look
 
-**Status:** steps 1–4 implemented. Step 5 planned in detail at `564e708`, with
-5d amended at `9c6eb00` for the held wheel. Step 6, a menu held open by an action,
-is rough; step 7 is the fold-back. Every open question is settled. Builds on PR
+**Status:** steps 1–5 implemented; step 5 amended question 9 for captions.
+Step 6, a menu held open by an action, is rough; step 7 is the fold-back. Every open question is settled. Builds on PR
 #28 (`UI::Menu` with `layout:` and `navigation:`), merged to `main` as `53f5392`.
 
 | | |
