@@ -45,29 +45,15 @@ module RGame
     # swapping places between frames, and would be very hard to see as a
     # precision problem.
     module Z
-      # How much room a node has for ordering its own drawing. Nothing in this
-      # repo uses more than three offsets; a thousand is room to stop thinking
-      # about it.
       SLOT = 1024
       HALF = SLOT / 2
 
-      # What a `z:` argument on a drawing call may be. Signed, because a node
-      # drawing something *behind* its sprite is as ordinary as drawing
-      # something in front of it, and the sprite's own default is 0.
       Z_MIN = -HALF
       Z_MAX = HALF - 1
 
-      # The gap between bands: 2**30 slots each, which no frame will approach.
       STRIDE = 1 << 40
       SLOTS_PER_BAND = STRIDE / SLOT
 
-      # In order, back to front.
-      #
-      # `:world` is what a node with no band ancestor is in, so a game that
-      # never mentions a band is entirely in it. `:hud` is one player's own
-      # screen space (RGame::Engine::PlayerLayer), `:overlay` is screen space
-      # across the whole window — a cutscene, a results panel — and `:debug` is
-      # the development overlay, over everything by construction.
       BANDS = %i[world hud overlay debug].freeze
       DEFAULT = :world
 

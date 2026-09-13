@@ -1,45 +1,5 @@
 # frozen_string_literal: true
 
-# Measures what it costs to draw one node, so the scene-graph transform can be
-# moved into the renderer on evidence rather than on faith.
-#
-#   make ext-core
-#   xvfb-run -a ruby tools/bench_node_draw.rb     # or without xvfb-run on a desktop
-#
-# ## What it compares
-#
-# A node draws in its own local space and Node2D#draw pushes its transform onto
-# the renderer -- the arrangement every scene-graph engine uses (Godot's `_draw`,
-# Unity's renderers, Bevy), and already how the camera works here, see
-# RGame::Engine::WorldView#draw. This measures what that costs against the design
-# it replaced, and is the regression guard for the draw path.
-#
-#   A   the old design: full resolve_origin, on_draw at world_x/world_y
-#   B   what shipped: the transform pushed, on_draw at (0, 0)
-#   C   B with the eager transform resolve the draw path used to do, which the
-#       cached world transform removed -- so the saving stays measurable
-#   A0/B0  the same trees with every node at (0, 0), where the transform push is
-#       skipped entirely and resolve_origin still runs
-#
-# Every variant puts the identical rects on the queue, and the timing window
-# closes before submission, so the delta is transform bookkeeping and not
-# rasterisation.
-#
-# ## Reading it
-#
-# The number that matters is ns/node-draw, because that is what scales with the
-# scene. A frame at 60fps has 16.6 ms; a mid-size scene draws on the order of a
-# thousand nodes per frame once split-screen doubles it.
-#
-# It uses the real RGame::Engine::Node2D, so it stays honest: rerun it after
-# anything that touches the draw path.
-#
-# Where it stands: pushing the transform costs about +75 ns per node-draw against
-# drawing at world coordinates, which is half a percent of a 16.6 ms frame at a
-# thousand node-draws. Variant C is the eager per-draw transform resolve that the
-# cached world transform removed, and it is worth about 240 ns per node-draw --
-# more than the push costs, which is why the two changes together came out ahead.
-
 $LOAD_PATH.unshift File.expand_path('../lib', __dir__)
 require 'rgame'
 require 'rgame/core'
@@ -105,7 +65,7 @@ def count(node) = 1 + node.children.sum { count(it) }
 class Bench < RGame::Core::App
   FRAMES = 900
   WARMUP = 150
-  VIEWPORTS = 2 # split screen: the whole tree is drawn once per player
+  VIEWPORTS = 2
 
   def initialize(trees)
     super(width: 320, height: 240, caption: 'transform bench')

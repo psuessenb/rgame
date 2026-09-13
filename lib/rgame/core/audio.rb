@@ -43,27 +43,7 @@ module RGame
       # Loads a long one to stream. See {Song}.
       def song(path) = Song.new(self, path)
 
-      # --- play-by-id -----------------------------------------------------
-      #
-      # The same boundary the renderer's draw-by-id serves: game logic emits
-      # facts — "the ship was hit" — and names the sound, because a scene may
-      # not hold a `Sample`.
-      #
-      # An id is normally a **root-relative path**, resolved through the asset
-      # manager on first use and then remembered:
-      #
-      #   audio.play_sound('hurt.ogg')
-      #
-      # `register_*` binds an id to a chosen object, which is what a name that
-      # is not a file needs, and what a sound the game assembled rather than
-      # loaded needs. A registered id also wins over a path that would resolve:
-      #
-      #   audio.register_sound(:hit, app.assets.sound('hurt.ogg'))
       #   audio.play_sound(:hit)
-      #
-      # **Resolution is cached, and has to be.** `play_music` asks the song
-      # whether it is already playing, so resolving one path to two Song objects
-      # would defeat that guard and restart the track on every request.
 
       def register_sound(id, sample)
         samples[id] = sample
@@ -108,27 +88,15 @@ module RGame
       def samples = @samples ||= {}
       def songs = @songs ||= {}
 
-      # Which registry answers for a kind of id. The names differ because the
-      # asset manager's accessors are `sound` and `song` while the tables here
-      # are of samples and songs; one map beats two spellings drifting apart.
       def registry(type) = type == :sound ? samples : songs
 
-      # An id that has been registered, or a path resolved once and remembered.
-      # The same shape as `Renderer#lookup`, deliberately: two id spaces that
-      # behave differently is a thing a caller has to hold in their head.
       def lookup(type, id)
-        # `nil` is never an id, and reporting it as one describes a typo when
-        # the real bug is usually an asset that resolved to nothing.
         raise TypeError, "no implicit conversion of nil into #{type}" if id.nil?
 
         table = registry(type)
         table.fetch(id) { table[id] = resolve_asset(type, id) }
       end
 
-      # Only a String is offered to the asset manager, because only a String can
-      # be a path. A Symbol is a name a game chose, so a missing one is the
-      # KeyError below — naming the id — rather than whatever the manager makes
-      # of being handed a Symbol where it wanted a filename.
       def resolve_asset(type, id)
         resolved = @assets.public_send(type, id) if id.is_a?(String) && @assets.respond_to?(type)
         resolved || raise(KeyError, "no #{type} registered for #{id.inspect} " \

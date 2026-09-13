@@ -34,9 +34,6 @@ class Cutscene < RGame::Engine::Node2D
   def on_add
     @players = root.system(RGame::Engine::Players)
     @viewports = root.system(RGame::Engine::Viewports)
-    # The cinematic camera is bounded by the map like a player's, so the scene
-    # cannot show past the world's edges. A shot that wanted to would leave it
-    # unbounded — that is the only decision a camera nobody owns has to make.
     system(RGame::Engine::Components::TileWorld).bound(@camera)
   end
 
@@ -68,7 +65,6 @@ class Cutscene < RGame::Engine::Node2D
 
   def centered(renderer, text, view, y, color)
     x = view.x + ((view.width - renderer.text_width(text)) / 2)
-    # z: 1 — above this node's own panel, and that is all it can mean.
     renderer.text(text, x, y, z: 1, color: color)
   end
 
@@ -88,9 +84,6 @@ class Cutscene < RGame::Engine::Node2D
     @players.accepting_joins = true
   end
 
-  # Frame everyone at once. A camera nobody owns has to be pointed at something,
-  # and the midpoint of the people playing is the obvious thing for a scene that
-  # pulled them out of their own views.
   def midpoint
     active = @players.each_active.to_a
     return [0.0, 0.0] if active.empty?

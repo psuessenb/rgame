@@ -19,18 +19,11 @@ class BeachScene < RGame::Engine::Node2D
   PLAYER_SPEED = 120.0
   NPC_SPEED    = 70.0
   NPC_OFFSETS  = [[-80, -48], [96, -32], [-64, 64], [120, 48], [40, -96], [-112, 16]].freeze
-  # The same declaration for everybody who walks: the map's solid tiles, and each other.
-  # One feet box per actor answers both — it is what the step resolves against and what
-  # the broadphase indexes.
   BLOCKED_BY   = %i[tiles hero npc].freeze
-  ACTOR_CELL     = 32 # the broadphase cell, sized to the actors rather than to the tiles
-  WALKER_SPACING = 48 # so a second player starts beside the first, not inside them
-  UI_MARGIN      = 20 # from the corner of that player's region, not of the window
+  ACTOR_CELL     = 32
+  WALKER_SPACING = 48
+  UI_MARGIN      = 20
 
-  # Seeded, so the villagers wander the same way every run and two runs of this
-  # test project can be compared. `RGAME_SEED` overrides it —
-  # `tools/drive_test_project.rb --seed N` sets that, and it means the same thing in
-  # every test project that has anything random in it.
   DEFAULT_SEED = 0xBEAC4
 
   def initialize
@@ -41,37 +34,20 @@ class BeachScene < RGame::Engine::Node2D
 
   def on_add
     @map = node_context.assets.tilemap(MAP_KEY).map
-    # Cameras belong to players, not to this scene: a scene may have any number
-    # of viewers. All the scene does is tell them how big the world is.
     @players = root.system(RGame::Engine::Players)
     add_component(RGame::Engine::Components::TileWorld.new(
                     map: @map, tilemap_id: MAP_KEY, cameras: @players.map(&:camera)
                   ))
-    # The other half of collision: the tile world says where the walls are, this says
-    # where everybody else is. Both walkers and villagers declare each other, so a player
-    # walking into a villager stops the way they stop at a fence. The cell is sized to the
-    # actors rather than to the 16px tiles — a fact about how big the colliders are, not
-    # about the artwork.
     add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: ACTOR_CELL))
 
-    # World space begins here: everything under it draws at its own world
-    # coordinates and is drawn once per viewport, through that viewport's camera.
     @view = add_node(RGame::Engine::WorldView.new)
-    # The map is world content, so it is drawn inside the view like everything
-    # else — once per viewport, culled to what that viewport can see. One node
-    # per Tiled layer, and the node handed back is the gap the actors go in.
     @actors = RGame::Engine::TileMapLayer.mount(@view)
 
-    # One walker per player who is already playing, and one more whenever
-    # somebody picks up a controller. The scene never polls for that — the
-    # registry says so.
     @players.each_active { |player| spawn_walker(player) }
     @players.on_joined { |player| spawn_walker(player) }
 
     npc_spawns.each { |x, y| @actors.add_node(build_npc(x, y)) }
 
-    # Outside the WorldView, so it draws once across the whole window and keeps
-    # ticking while the world it covers is frozen.
     add_node(Cutscene.new(world_view: @view))
   end
 
@@ -79,45 +55,21 @@ class BeachScene < RGame::Engine::Node2D
 
   def node_context = root.context
 
-  # A player's own walker: their input drives it, their camera follows it.
-  #
-  # `input_owner` is what makes the second one answer to the second player —
-  # it is inherited down the subtree, so everything under this node reads that
-  # player and nothing else has to be told.
   def spawn_walker(player)
     walker = build_player
     walker.input_owner = player
     walker.x += WALKER_SPACING * player.id
     @actors.add_node(walker)
-    # After add_node, deliberately: the camera offset is read off the walker's
-    # feet box, and that box is sized from the sprite, which AnimatedSprite only
-    # knows once it has attached. See #follow_camera.
     follow_camera(walker, player.camera)
     @walkers[player.id] = walker
     spawn_ui(player, walker)
   end
 
-  # Their own corner of the screen, outside the WorldView, holding whatever only
-  # they should see. Everything under it is drawn inside their viewport, laid out
-  # from its corner, and driven by their controller — none of which this scene or
-  # the inventory has to arrange.
   def spawn_ui(player, walker)
     layer = add_node(RGame::Engine::PlayerLayer.new(player: player))
     layer.add_node(Inventory.new(walker: walker, x: UI_MARGIN, y: UI_MARGIN))
   end
 
-  # Point the camera at the player's feet box rather than the sprite's origin,
-  # which is its top-left. Following is a CameraFollow component on the player
-  # itself: the player owns the camera, and a component in the world moves it —
-  # so "player two's camera follows player two" is the same line with their
-  # camera in it.
-  #
-  # **Only valid once the node is in the tree.** A FeetCollider's box is derived
-  # from the sprite's frame size and memoised on first read, and the sprite size
-  # is set by AnimatedSprite#on_attach — so reading it from `build_player` bakes
-  # a box computed from a 0x0 sprite, for the collision system as well as for
-  # this. Asking for the base BoxCollider is deliberate: this wants the node's
-  # shape, whichever kind of collider happens to be carrying it.
   def follow_camera(node, camera)
     box = node.get_component(RGame::Engine::Components::BoxCollider).box
     node.add_component(RGame::Engine::Components::CameraFollow.new(
@@ -147,7 +99,6 @@ class BeachScene < RGame::Engine::Node2D
     node
   end
 
-  # Spread NPCs around the (sandy) map centre, dropping any that land on a solid tile.
   def npc_spawns
     cx = @map.pixel_width / 2.0
     cy = @map.pixel_height / 2.0

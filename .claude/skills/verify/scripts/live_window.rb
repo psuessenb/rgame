@@ -1,18 +1,5 @@
 # frozen_string_literal: true
 
-# Harness for the live-window tier: boot a private Xvfb, launch a windowed app
-# on it with software GL, hand you an XKeys injector, tear everything down.
-#
-#   require_relative 'live_window'
-#
-#   LiveWindow.run(cmd: ['build/rgame'], title: 'rgame', asan: true) do |w|
-#     w.keys.tap('Escape')
-#     w.wait_for_exit
-#   end
-#
-# Everything here is verified working on this machine (Ubuntu, Wayland session
-# — Xvfb sidesteps Wayland entirely, which is why this works at all).
-
 require_relative 'xkeys'
 require 'tmpdir'
 
@@ -50,7 +37,6 @@ class LiveWindow
                                    out: @log_path, err: [@log_path, 'a'])
     @keys = XKeys.new(@display)
     @window = @keys.find_window(@title)
-    # Give the app a few frames after mapping before sending anything.
     sleep 0.3
     self
   end
@@ -103,13 +89,8 @@ class LiveWindow
   def child_env
     base = {
       'DISPLAY' => @display,
-      # Force Mesa's software rasterizer: Xvfb has no GPU, and without these
-      # SDL_GL_CreateContext fails outright.
       'LIBGL_ALWAYS_SOFTWARE' => '1',
       'GALLIUM_DRIVER' => 'llvmpipe',
-      # Absolute, so `bundle exec` works regardless of the driver's cwd.
-      # Without it you get a bare "Could not locate Gemfile" and the window
-      # simply never appears — which looks exactly like a broken injector.
       'BUNDLE_GEMFILE' => File.join(PROJECT_ROOT, 'Gemfile')
     }
     base['ASAN_OPTIONS'] = 'detect_leaks=1:exitcode=42:abort_on_error=0' if @asan

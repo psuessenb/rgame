@@ -41,8 +41,6 @@ module RGame
 
         private
 
-        # Allocation-free: a symbol dispatch over a known-small policy set, each delegating
-        # to an allocation-free CollisionWorld query.
         def pick
           case @policy
           when :nearest then @world.nearest(node.world_x, node.world_y, @range, layer: @layer)

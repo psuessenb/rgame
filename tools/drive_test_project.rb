@@ -1,87 +1,7 @@
 # frozen_string_literal: true
 
-# Drives a test project from a script and reports what the game actually asked
-# for.
-#
-#   ruby tools/drive_test_project.rb examples/collision_tiles/main.rb
-#   ruby tools/drive_test_project.rb examples/pooling/main.rb --ticks 200
-#   ruby tools/drive_test_project.rb examples/pooling/main.rb --seed 7
-#
-# The input script is found by mirroring the project's own path under
-# `tools/drive/`, so the first line above reads
-# `tools/drive/examples/collision_tiles.rb`. `--script` overrides it, which is
-# how one project has several scripts (`collision_tiles.rb`, `_spike.rb`).
-#
-# ## Why this exists
-#
-# The test projects are the acceptance test for anything that changes how the
-# three layers are wired together, because they are the only tier where all
-# three are present at once (CLAUDE.md, "The test projects are the acceptance
-# test for wiring"). But **booting one is not enough**, and that is not a
-# theoretical worry: a polling bug that consumed every input edge before a tick
-# could read it left a game whose menu responded to nothing, and a plain boot of
-# it reported "90 ticks, 90 frames" and looked perfectly healthy.
-#
-# So this harness counts rather than eyeballs. It swaps in a scripted input
-# backend, bounds the tick count, and reports the draw calls issued, the clips
-# and translates pushed, the sounds played and the scenes entered.
-#
-# ## Why it lives in the repo
-#
-# The harness this replaces lived outside it, which made it a caller no
-# project-wide rename could reach — and it broke after every sweep, silently,
-# because nothing in CI ran it. `tools/` is the documented home for development
-# tools that are not built by `make` and do not ship in the gem (it is not in
-# rgame.gemspec's packaged glob, and spec/packaging_spec.rb asserts that).
-#
-# ## How it drives a test project without modifying it
-#
-# A test project's `main.rb` builds a Game and calls `start` at the bottom, as a
-# game would. This file prepares the ground and then `load`s it unchanged:
-#
-#   - `RGame::Game` gains an `input:` keyword (the one production change this
-#     needed), so the scripted backend goes in where the real one would;
-#   - modules are prepended to `Game` and `SceneStack` to count and to stop the
-#     loop after the tick budget;
-#   - the renderer and audio server are wrapped in recording proxies.
-#
-# Prepending is the right tool here precisely because the test project must stay
-# a caller like any other. The moment this harness constructs its own Game
-# instead of loading the project's, it stops testing the wiring it uses.
-#
-# ## What the counts do and do not promise
-#
-# Structure is stable: which scenes were entered, which sounds fired, how many
-# clips and translates were pushed, ticks against frames. Those are what to
-# assert on.
-#
-# Clips are aggregated by rectangle, and **a player's region is clipped twice a
-# frame** once they have UI: once by the WorldView drawing the world through
-# their camera, and once by their PlayerLayer drawing their own screen. Both
-# push the same rectangle, so a two-player frame shows four clips over three
-# rects and the counts are double what the frame count suggests. The distinct
-# translates inside a rect are the two passes' offsets together.
-#
-# Exact draw counts are **not** stable, for two reasons.
-#
-# A project that seeds its RNG from the system rather than from `--seed` differs
-# run to run — by tens of `image` calls, and perhaps in whether a collision
-# happens at all. That is the game's choice, not a defect here.
-#
-# And the fixed-timestep loop decouples ticks from frames: a slow frame runs
-# several catch-up ticks, so the budget can be spent — and `close` called —
-# before that frame draws. Even a seeded project can therefore come in one draw
-# short of its usual count. Observed once in about a dozen runs of a tile-map game.
-#
-# So "the number went from 843 to 944" is not by itself a regression, and
-# neither is a difference of one. Compare orders of magnitude, and assert on
-# structure.
-
 require 'optparse'
 
-# Xvfb, from the Core suite's helper rather than a second copy of it. It has to
-# be started before rgame/core is loaded — it registers an at_exit that must run
-# after Core's own — which is why this require and this call come first.
 require_relative '../spec_core/support/headless_display'
 
 module DriveTestProject
@@ -100,16 +20,11 @@ module DriveTestProject
   def self.default_script_for(project)
     directory = File.dirname(File.expand_path(project, ROOT))
     relative = directory.delete_prefix("#{ROOT}/")
-    # Only a path under the repo has a mirror position under tools/drive/. One
-    # from outside it would compose an absolute path onto `drive/` and produce a
-    # nonsense filename, so say what is wrong instead of reporting it missing.
     abort "#{project} is outside #{ROOT}, so it has no default script — pass --script." \
       if relative == directory
 
     File.join(__dir__, 'drive', "#{relative}.rb")
   end
-
-  # ---------------------------------------------------------------- the script
 
   # A per-tick timeline of what each device is doing, built with a small DSL:
   #
@@ -230,8 +145,6 @@ module DriveTestProject
 
     private
 
-    # The default is the keyboard, resolved here rather than at construction
-    # because this file is loaded before rgame is.
     def track = @tracks[@device || controls::KEYBOARD] ||= Track.new
   end
 
@@ -268,8 +181,6 @@ module DriveTestProject
     end
   end
 
-  # ---------------------------------------------------------------- the report
-
   # Everything the run observed. Counts, plus the first and last argument tuple
   # for each kind of call — which is what turns "the tilemap was drawn 90 times"
   # into "and the camera moved from (0, 0) to (240, 180) while it happened".
@@ -287,15 +198,7 @@ module DriveTestProject
       @translates = Hash.new(0)
       @sounds = Hash.new(0)
       @scenes = []
-      # Layers opened per band. Draw order is band first, then tree order, so
-      # this is the coarse half of "what covered what" — and the half a boot
-      # cannot show. A game whose HUD never opens a :hud layer draws its score
-      # under the world and looks perfectly healthy from every other count here.
       @bands = Hash.new(0)
-      # Which translates happened inside which clip. Split-screen's signature is
-      # one clip per viewport each containing its *own* camera track, and that is
-      # two facts about the same nesting — reading it off two separate lists left
-      # the reader to correlate them.
       @per_clip = {}
       @clip = nil
     end
@@ -343,9 +246,6 @@ module DriveTestProject
 
     private
 
-    # One line per band, back to front, so the reader sees the frame's coarse
-    # stacking at a glance: how many nodes drew in the world, how many in a
-    # player's HUD, whether an overlay opened at all.
     def band_lines
       RGame::Util::Z::BANDS.filter_map do |band|
         count = @bands[band]
@@ -353,9 +253,6 @@ module DriveTestProject
       end
     end
 
-    # One line per clip, with what moved inside it. Two clips each holding their
-    # own set of translates is what two players looking at one world produces —
-    # and one clip holding both cameras' worth would be the bug.
     def clip_lines
       @clips.map do |rect, count|
         inside = @per_clip.fetch(rect, {})
@@ -365,9 +262,6 @@ module DriveTestProject
       end
     end
 
-    # Translates are the busiest list and the least interesting one by volume —
-    # every rotated sprite pushes one. Show the extremes, which is where a
-    # camera lives.
     def translate_lines
       return [] if @translates.empty?
 
@@ -402,8 +296,6 @@ module DriveTestProject
 
     def round(number) = number.is_a?(Float) ? number.round(1) : number
   end
-
-  # ------------------------------------------------------------- the recorders
 
   # A recording stand-in for something the game is handed and calls by name.
   #
@@ -560,14 +452,9 @@ module DriveTestProject
     end
   end
 
-  # ------------------------------------------------------------- the harness
-
   class << self
     def run(project:, script_path:, ticks:, gamepad: false, out: $stdout)
       HeadlessDisplay.start
-      # The project's own main.rb does this too, but the probes have to be
-      # installed before it is loaded, and installing them means the classes
-      # must already exist.
       $LOAD_PATH.unshift(File.join(ROOT, 'lib')) unless $LOAD_PATH.include?(File.join(ROOT, 'lib'))
       require 'rgame/game'
 
@@ -587,8 +474,6 @@ module DriveTestProject
 
     private
 
-    # Prepend the counting behaviour onto the classes the project will build.
-    # Done before the project is loaded, so the project itself is untouched.
     def install(report, input, budget, pad: nil)
       RGame::Game.prepend(game_probe(report, input, budget, pad))
       RGame::Engine::Scene::SceneStack.prepend(scene_probe(report))
@@ -597,8 +482,6 @@ module DriveTestProject
     def game_probe(report, input, budget, pad)
       Module.new do
         define_method(:initialize) do |**kwargs|
-          # In gamepad mode the real backend stays in place and the game is
-          # pointed at slot 0 — the whole point is that nothing is stubbed.
           extra = pad ? { device: RGame::Util::Controls.gamepad(0) } : { input: input }
           super(**kwargs, **extra)
           @renderer = RendererProbe.new(@renderer, report)
@@ -618,7 +501,6 @@ module DriveTestProject
           if pad
             pad.tick(report.ticks)
           else
-            # Announce the script's controllers once, as SDL would a frame in.
             input.gamepad_slots.each { |slot| gamepad_connected(slot) } if report.ticks.zero?
             input.tick = report.ticks
           end
@@ -653,8 +535,6 @@ module DriveTestProject
   end
 end
 
-# ------------------------------------------------------------------------ CLI
-
 if $PROGRAM_NAME == __FILE__
   options = { ticks: 240, script: nil, gamepad: false, seed: nil }
   parser = OptionParser.new do |o|
@@ -666,9 +546,6 @@ if $PROGRAM_NAME == __FILE__
   end
   parser.parse!
 
-  # Passed to the project through the environment rather than through ARGV,
-  # because the project is `load`ed into this process and never sees a command
-  # line of its own. A project that has nothing random ignores it.
   ENV['RGAME_SEED'] = options[:seed].to_s if options[:seed]
 
   project = ARGV.shift or abort(parser.to_s)

@@ -81,9 +81,6 @@ module RGame
         parsed = JSON.parse(File.read(@path), symbolize_names: true)
         parsed.is_a?(Hash) ? parsed : default
       rescue Errno::ENOENT, Errno::EACCES, Errno::EISDIR, JSON::ParserError
-        # Every one of these means "there is no save here" to a game, and none
-        # of them is worth a different answer. A directory where a file should
-        # be, and an unreadable one, are as much "no save" as an absent one.
         default
       end
 

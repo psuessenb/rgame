@@ -16,9 +16,9 @@ module RGame
 
         def push(scene)
           @stack.push(scene)
-          scene.parent = node          # so scene.root resolves up to the host
-          scene.scene = scene          # mark the scene as its subtree's scene boundary
-          scene.enter_tree             # cascades on_attach/on_add through the scene
+          scene.parent = node
+          scene.scene = scene
+          scene.enter_tree
           self
         end
 
@@ -26,7 +26,7 @@ module RGame
           scene = @stack.pop
           return self unless scene
 
-          scene.exit_tree              # cascades on_remove/on_detach, releasing systems
+          scene.exit_tree
           scene.scene = nil
           scene.parent = nil
           self

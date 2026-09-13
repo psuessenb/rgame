@@ -23,7 +23,7 @@ module RGame
           @rng = rng
           @change_interval = change_interval
           @idle_chance = idle_chance
-          @timer = 0.0 # rolls a direction on the first update
+          @timer = 0.0
         end
 
         def on_attach

@@ -48,11 +48,6 @@ module RuboCop
         MSG_REQUIRE = 'The engine layer must not require `%{path}` — that loads ' \
                       'SDL/OpenGL and breaks headless specs.'
 
-        # Both spellings. Inside `module RGame; module Engine`, a bare
-        # `Core::Image` resolves to `RGame::Core::Image` through the enclosing
-        # namespace — so the short form is the same offence, and it is the one
-        # somebody writes by accident. It could not resolve at all while the
-        # layer sat at the top level, which is exactly why it needs saying now.
         PREFIXES = [%w[RGame Core], %w[Core]].freeze
         RESTRICTED_REQUIRE = %r{\Argame/core(/|\z)|\Argame/core_ext\z}
 

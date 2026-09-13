@@ -67,15 +67,6 @@ module RGame
 
       SOURCES = %i[buttons axis stick].freeze
 
-      # The universal set, merged into every map unless the game overrides it.
-      #
-      # The UI package navigates and activates through these, so a control can
-      # rely on them existing for *every* player without a game having declared
-      # them. They are prefixed rather than plain (`ui_up`, not `up`) so a game
-      # is free to use `:up` for something of its own.
-      #
-      # `ui_cancel` is Escape, which is why RGame::Game's quit key is F2: the
-      # button a player expects to back out of a menu belongs to the menu.
       UI = {
         ui_up: { buttons: [Controls::KEY_UP, Controls::PAD_DPAD_UP] },
         ui_down: { buttons: [Controls::KEY_DOWN, Controls::PAD_DPAD_DOWN] },
@@ -85,9 +76,6 @@ module RGame
         ui_cancel: { buttons: [Controls::KEY_ESCAPE, Controls::PAD_B] }
       }.freeze
 
-      # A playable starting point: eight-way movement on the arrows or the left
-      # stick, and a fire button. A game that wants exactly this declares
-      # nothing at all.
       DEFAULT_ACTIONS = {
         move_x: { axis: [[Controls::KEY_LEFT, Controls::KEY_RIGHT],
                          [Controls::KEY_A, Controls::KEY_D],
@@ -166,11 +154,6 @@ module RGame
 
       private
 
-      # Malformed entries raise here rather than reading as "nothing is ever
-      # pressed" for the rest of the program. An action name misspelled at a
-      # *read* site is still silent — see Actions — but one misspelled in the
-      # map is the mistake that is actually easy to make, and this catches it at
-      # construction rather than at the first frame nobody can move.
       def build(name, entry)
         unknown = entry.keys - SOURCES
         raise ArgumentError, "#{name}: unknown source #{unknown.first.inspect}" unless unknown.empty?
@@ -189,9 +172,6 @@ module RGame
         ids.dup.freeze
       end
 
-      # Accepts one `[negative, positive]` pair or a list of them. A bare pair
-      # is the common case and stays readable; a list is what lets the arrows,
-      # WASD and a d-pad all drive one axis.
       def axis_pairs(name, axis)
         return nil if axis.nil?
 

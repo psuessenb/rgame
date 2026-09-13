@@ -26,7 +26,7 @@ module RGame
       # When a node needs more than one (a spawn cadence and a wave cadence), give them
       # distinct `as:` names — a node holds one component per slot.
       class Timer < Engine::Component
-        signal :on_timeout # emits no payload
+        signal :on_timeout
 
         def initialize(interval, repeating: true)
           super()

@@ -56,15 +56,10 @@ module RGame
         nx = x + dx
         return nx if dx.zero?
 
-        # The swept box: everything the step passes through, which is what has to be
-        # asked about rather than just where the box is now.
         sweep_x = dx.negative? ? nx : x
         @best = nx
         @world.query_box(sweep_x, y, w + dx.abs, h) do |other|
           next unless candidate?(other)
-          # The far axis has to overlap for the near one to be blocked at all: a collider
-          # the box passes above or below is not in the way. Half-open on both edges, like
-          # CollisionBox.overlap?, so boxes that merely touch are not overlapping.
           next unless y < other.aabb_y + other.aabb_h && other.aabb_y < y + h
 
           if dx.positive?
@@ -111,11 +106,6 @@ module RGame
 
       private
 
-      # The running minimum for a step going right or down, and the maximum for one going
-      # left or up. `@best` starts at the unblocked landing, so a candidate further away
-      # than the step reaches loses the comparison and nothing special is needed for it —
-      # and the strict `<` is what makes the same collider offered twice by the broadphase
-      # give the same answer as once.
       def take_min(landed, other)
         return unless landed < @best
 
@@ -130,11 +120,6 @@ module RGame
         @blocker = other
       end
 
-      # A collider queued for removal is skipped here as well as by the world's own query,
-      # which is deliberate duplication: what a source may be stopped by is the source's
-      # rule, and a corpse blocking a step for one more frame is exactly the kind of thing
-      # that would only ever be noticed as a mystery. It costs one call per candidate, and
-      # a candidate list is a handful of colliders.
       def candidate?(other)
         !other.equal?(@owner) &&
           other.is_a?(Components::BoxCollider) &&

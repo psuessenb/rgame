@@ -38,9 +38,6 @@ module RGame
         @height = height
         @solo_camera = nil
         @pending = nil
-        # One View per possible player for the world, one more each for their own
-        # screen space, and one for the whole window. Built once and mutated in
-        # place. See View: these are reused, never rebuilt.
         @pool = []
         @screen_pool = []
         @views = []
@@ -148,8 +145,6 @@ module RGame
         end
       end
 
-      # `each_active` is a filter, so it cannot be indexed without building an
-      # Array. Walking it costs nothing and this runs once per frame.
       def active_at(index)
         found = nil
         i = 0

@@ -34,9 +34,6 @@ module RGame
     # Scripts outside the shipped font's coverage — CJK, Arabic, Hebrew — need
     # their own file. No font of this size covers them.
     class Font
-      # Shipped with the gem, alongside its SIL OFL 1.1 licence. Resolved from
-      # this file's location so it works the same from a checkout and from an
-      # installed gem.
       DEFAULT_PATH = File.expand_path('../fonts/LiberationSans-Regular.ttf', __dir__)
 
       # `path:` is a keyword for callers but positional for the C initialize,

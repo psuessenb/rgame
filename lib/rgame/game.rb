@@ -96,21 +96,13 @@ module RGame
                                     input_map: input_map)
         end
       )
-      # How `width` and `height` reach the screen. Under the default
-      # `:disabled` they are simply the window and this changes nothing; under
-      # any other mode they become the *logical* size and the window is mapped
-      # onto them, so nothing above here has to know the window's size at all.
-      #
-      # Fitted against the window rather than against the arguments, because the
-      # two differ from the first frame when `fullscreen: true` opened the
-      # window at the screen's resolution instead of the requested one.
       @presentation = RGame::Engine::Presentation.new(width: width, height: height,
                                                       mode: scale_mode)
       @presentation.fit(self.width, self.height)
       @viewports = RGame::Engine::Viewports.new(@players, width: @presentation.width,
                                                           height: @presentation.height)
-      @debug = RGame::Engine::DebugOverlay.new # always wired up; F1 reveals it
-      @dirty = true # draw the first frame
+      @debug = RGame::Engine::DebugOverlay.new
+      @dirty = true
 
       install_asset_loaders
     end
@@ -136,28 +128,10 @@ module RGame
     # anything being threaded through its constructor.
     def start
       @root.context = self
-      # Root-scoped systems, mounted before the tree comes alive so that an
-      # on_add anywhere in it can already resolve node.system(...) for either.
       @root.add_component(@players)
       @root.add_component(@viewports)
-      # What turns `AudioBus.play_sound(:hit)` into a noise: the bus is where the
-      # scene graph emits audio facts, and this is the only thing listening.
-      #
-      # It belongs here for the same reason the asset loaders do — the glue is
-      # what may name both layers — and it is wired here rather than by a game
-      # because a step that *must* happen is the engine's job. Nothing about a
-      # missing director is loud: the tree runs, the events fire, and no sound
-      # comes out.
-      #
-      # **The `ensure` is half of it.** AudioBus is a module, one hub for the
-      # whole process, and it holds its listeners until something takes them
-      # off. A director left on it keeps the audio device alive, and with it the
-      # asset manager that device resolves paths through and the App that
-      # manager loads images for — down to the window. A game never notices,
-      # because its App lives as long as the process; anything that runs two
-      # does.
       @audio_director = Engine::AudioDirector.new(audio).subscribe
-      @root.enter_tree # components attach, then on_add
+      @root.enter_tree
       run
     ensure
       @audio_director&.unsubscribe
@@ -180,11 +154,9 @@ module RGame
     # one `pressed?`, which is what a caller means.
     def update(dt)
       @players.poll(@input)
-      # The registry, not one player's snapshot: each node resolves the actions
-      # of whoever owns it, and a node that claims nobody gets the primary.
       @root.control(@players)
       @root.update(dt)
-      @root.sweep_freed # flush queue_free'd nodes outside the update traversal
+      @root.sweep_freed
       @dirty = true
     end
 
@@ -202,7 +174,7 @@ module RGame
     # rather than a shape the platform imposes. That is also what keeps
     # `node.root` meaning the game's own root: nothing is inserted above it.
     def draw
-      @viewports.refresh # rects from the layout, then reclamp every camera
+      @viewports.refresh
       if @presentation.scaled?
         presented { draw_tree }
       else
@@ -255,21 +227,9 @@ module RGame
 
     def draw_tree
       @root.draw(@renderer, @viewports.screen)
-      @debug.draw(@renderer, @viewports.screen, fps) # last, so it layers on top
+      @debug.draw(@renderer, @viewports.screen, fps)
     end
 
-    # Wraps a frame in the transform that maps the logical size onto the window.
-    #
-    # The order is clip, translate, scale, and none of the three is optional:
-    #
-    #   - the **clip** is what makes a letterbox a letterbox. Without it a game
-    #     drawing outside its own logical bounds spills into the bars, which
-    #     looks like a rendering bug rather than a game bug;
-    #   - the **translate** centres, in screen pixels, before anything is
-    #     scaled — Presentation floors it for that reason, since a half-pixel
-    #     offset puts every sprite edge between two screen pixels;
-    #   - the **scale** is last, so the numbers above it are screen pixels and
-    #     everything below it is logical ones.
     def presented(&)
       @renderer.clipped(@presentation.offset_x, @presentation.offset_y,
                         (@presentation.width * @presentation.scale_x).round,
@@ -280,13 +240,6 @@ module RGame
       end
     end
 
-    # Teaches the asset manager the types Core cannot build for itself.
-    #
-    # `:tilemap` is the only one so far, and it is the reason this method
-    # exists: `RGame::Engine::TileMap` reads the `.tmx`, `Image#tiles` slices the
-    # tileset through the cache — so two maps sharing a tileset share one
-    # upload — and `Core::TileMapRenderer` draws the result. Three objects, and
-    # neither of the outer two may name the other.
     def install_asset_loaders
       game = self
       assets.add_loader(:tilemap) do |path|

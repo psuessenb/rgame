@@ -58,22 +58,14 @@ module RGame
 
       Z = RGame::Util::Z
 
-      # Shapes default above sprites, so a debug box or a health bar drawn
-      # without a `z:` lands on top of *that node's* sprite rather than under
-      # it. Well inside one slot, so the defaults order a node's own drawing and
-      # nothing further.
       SHAPE_Z = 50
       IMAGE_Z = 0
 
-      # Enough segments that a circle reads as round at the sizes a 2D game
-      # draws one, and few enough that a screenful of them is still one batch.
       CIRCLE_SEGMENTS = 64
 
-      # Text defaults above sprites but below shapes, within the same slot.
       TEXT_Z = 10
       FONT_SIZE = 18
 
-      # Translucent red, for #debug_box.
       DEBUG_BOX_COLOR = Color.new(255, 40, 40, 120)
 
       # `assets:` is where a draw id that is not registered gets resolved from,
@@ -90,23 +82,6 @@ module RGame
       end
 
       attr_accessor :assets
-
-      # --- draw-by-id ---------------------------------------------------------
-      #
-      # Game logic names assets, it does not hold them: the engine layer may
-      # hold `RGame::Util` values but no `RGame::Core` handle at all, so a
-      # Symbol or a path is the only thing a node *can* carry. Resolving it is
-      # this side of the boundary's job.
-      #
-      # An id is normally a **root-relative path**, resolved through the asset
-      # manager and then remembered, so a per-frame draw neither re-resolves nor
-      # allocates a lookup key:
-      #
-      #   renderer.sprite('example 09/player.json', row, col, x, y)
-      #
-      # `register_*` pre-binds an id to a chosen object, for the two things a
-      # path cannot name: an id that is not a file (nine-slice ids are *atlas
-      # element* names) and an object the game assembled itself.
 
       def register_image(id, image) = registry(:image)[id] = image
       def register_sheet(id, sheet) = registry(:sheet)[id] = sheet
@@ -226,9 +201,6 @@ module RGame
         begin
           yield
         ensure
-          # An ensure, not a plain pop: a scene that raises mid-draw would
-          # otherwise leave the stack deeper than it found it, and every
-          # later frame would draw askew for a reason nothing points at.
           pop
         end
       end
@@ -280,9 +252,6 @@ module RGame
         begin
           yield
         ensure
-          # An ensure for the same reason `rotated` has one: a scene that raises
-          # mid-draw would otherwise leave every later node drawing in its
-          # layer, and the frame would come out interleaved with no clue why.
           pop
         end
       end
@@ -347,9 +316,6 @@ module RGame
           yield
           completed = true
         ensure
-          # A block that raised leaves a half-built recording open, and the
-          # next frame would keep drawing into it. Unwinding here means the
-          # exception is the only thing the caller has to deal with.
           cancel_record unless completed
         end
         end_record
@@ -363,44 +329,19 @@ module RGame
 
       private
 
-      # Colours cross into C as a packed integer. `Color.coerce` is the single
-      # place nil/array/Color are turned into one, so no drawing method has its
-      # own idea of what a colour is.
       def packed(color) = Color.coerce(color).packed
 
-      # An `Image` is already what it is; anything else is an id for one.
-      #
-      # The two callers this serves cannot be reconciled any other way. Core's
-      # own drawing classes — SpriteSheet, NineSlice — hold real images and pass
-      # them; the engine layer is forbidden from holding one and can only pass
-      # an id. Dispatching on the type keeps both spellings of `#image` and
-      # `#background` working without two parallel method names for the same
-      # picture.
       def resolve_image(image) = image.is_a?(Image) ? image : lookup(:image, image)
 
       def registry(type) = (@registries ||= {})[type] ||= {}
 
-      # Prefer an explicit registration, otherwise ask the asset manager, then
-      # remember the answer — so a per-frame draw neither re-resolves nor
-      # allocates a lookup key.
       def lookup(type, id)
-        # `nil` is never an id, and reporting it as one ("no image registered
-        # for nil") describes a typo when the actual bug is an asset that
-        # resolved to nothing. The two want different fixes.
         raise TypeError, "no implicit conversion of nil into #{type}" if id.nil?
 
         table = registry(type)
         table.fetch(id) { table[id] = resolve_asset(type, id) }
       end
 
-      # Only a String is offered to the asset manager, because only a String can
-      # be a path. A Symbol id is a name a game chose, so a missing one is the
-      # KeyError below — naming the id — rather than whatever the manager makes
-      # of being handed a Symbol where it wanted a filename.
-      #
-      # `respond_to?` for the same reason one step along: the manager grows an
-      # accessor per asset type, and asking for one it does not have yet should
-      # be this error rather than a NoMethodError from inside it.
       def resolve_asset(type, id)
         resolved = @assets.public_send(type, id) if id.is_a?(String) && @assets.respond_to?(type)
         resolved || raise(KeyError, "no #{type} registered for #{id.inspect} " \

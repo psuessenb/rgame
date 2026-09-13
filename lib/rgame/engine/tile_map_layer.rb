@@ -50,8 +50,6 @@ module RGame
         gap = under || world.first_above_layer
 
         world.layer_count.times do |index|
-          # A layer at or past the gap sits above the actors; z is only ever
-          # compared to a sibling's, so the +1 is a gap, not a magnitude.
           parent.add_node(new(layer: index, z: index < gap ? index : index + 1))
         end
         parent.add_node(Node2D.new(z: gap))

@@ -105,9 +105,6 @@ module RGame
 
         private
 
-        # Where the next row goes. Items are stacked at a fixed size and that is
-        # the whole of the layout, which is why both kinds of row can share one
-        # line of arithmetic — read `slot` before the item joins `@items`.
         def slot
           { x: 0, y: @items.size * (@item_height + @spacing),
             width: @item_width, height: @item_height }
@@ -120,8 +117,6 @@ module RGame
           item
         end
 
-        # Keeps focus on something usable as items arrive: the first item to be
-        # added takes it, and a disabled first item hands it on.
         def refocus
           return if focused&.enabled?
 

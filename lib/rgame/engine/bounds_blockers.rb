@@ -52,13 +52,6 @@ module RGame
 
       private
 
-      # Both axes are the same two comparisons, so they are written once. A box wider than
-      # the world is pinned to its origin rather than given a negative span to clamp into.
-      #
-      # A box that is *already* outside — one spawned there, or left there by a step this
-      # source did not resolve — is not dragged back in: this reports the edge, and
-      # CollisionSystem takes it only if it restricts the step. Walking inward from outside
-      # is therefore free, and walking further out is stopped at the edge.
       def resolve(landed, span, extent, delta)
         @blocker = nil
         return landed if delta.zero?

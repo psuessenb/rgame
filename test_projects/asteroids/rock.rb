@@ -16,7 +16,7 @@ class Rock < RGame::Engine::Node2D
   SCALES   = [1.0, 0.65, 0.42, 0.28].freeze
   SPLIT_SPREAD = 0.5
   SPLIT_JITTER = 0.2
-  SPLIT_SIGNS  = [-1, 1].freeze # the two diverging directions; frozen so split allocates none
+  SPLIT_SIGNS  = [-1, 1].freeze
 
   attr_reader :tier, :points
 

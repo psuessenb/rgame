@@ -44,7 +44,6 @@ class GameOverScene < RGame::Engine::Node2D
 
   private
 
-  # No z and no band — see StartScene: one node, backdrop under text by default.
   # hot-path
   def centered(renderer, view, text, y, color)
     renderer.text(text, (view.width - renderer.text_width(text)) / 2, y, color: color)

@@ -15,8 +15,6 @@ module RuboCop
       module LayerBoundary
         private
 
-        # The segments of a constant path, outermost first:
-        # `RGame::Core::Renderer` => %w[RGame Core Renderer].
         def const_path(node)
           names = []
           current = node
@@ -27,11 +25,6 @@ module RuboCop
           names
         end
 
-        # Whether `node` is the *outermost* const of a path under one of
-        # `prefixes` — so one written reference is one offence, however many
-        # segments it has.
-        #
-        # Each prefix is an Array of leading segments, e.g. `%w[RGame Engine]`.
         def opens_namespace?(node, prefixes)
           return false unless under?(node, prefixes)
 

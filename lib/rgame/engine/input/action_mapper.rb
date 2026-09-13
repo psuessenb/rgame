@@ -17,10 +17,6 @@ module RGame
     # `down?(physical_id, device:)` and `axis(axis_id, device:)` — a spec passes
     # a fake and a game passes RGame::Core::Input.
     class ActionMapper
-      # A resting analog stick genuinely reports small non-zero values, so
-      # something has to ignore them. Here rather than in the game, because it
-      # is a property of the device, and here rather than in Core, because how
-      # much to ignore is a judgement rather than a fact about the hardware.
       DEAD_ZONE = 0.15
 
       attr_reader :map, :actions
@@ -31,10 +27,6 @@ module RGame
         @device = device
         @dead_zone = dead_zone
 
-        # One reusable snapshot: there is exactly one input state per tick per
-        # player, so these are mutated in place each poll instead of allocated.
-        # Seeded from the map's action list, so the hashes are warm before the
-        # first poll and steady-state polling allocates nothing at all.
         @held = {}
         @prev_held = {}
         @axes = {}
@@ -47,8 +39,6 @@ module RGame
       end
 
       def poll(backend)
-        # Snapshot this frame's held state as "previous" before recomputing it
-        # (in-place copy: no allocation, the keys already exist).
         @held.each { |name, down| @prev_held[name] = down }
 
         return rest if @device.nil?
@@ -63,11 +53,6 @@ module RGame
 
       private
 
-      # A player with no device — an empty seat waiting for a controller — reads
-      # as nothing held and every axis centred. Returning the snapshot rather
-      # than refusing to poll is what lets a game show "press a button to join"
-      # with no special case, and it releases anything that was held when the
-      # controller was unplugged mid-press.
       def rest
         @held.each_key { |name| @held[name] = false }
         @axes.each_key { |name| @axes[name] = 0.0 }
@@ -79,11 +64,6 @@ module RGame
         ids.any? { |id| backend.down?(id, device: @device) }
       end
 
-      # A digital axis and an analog one can both be bound to the same action —
-      # arrows *and* the left stick — so the larger deflection wins. That needs
-      # no per-device branching: a keyboard reads 0.0 for every axis and a stick
-      # reads 0.0 for every key, so whichever device the player is on, the other
-      # source contributes nothing.
       # hot-path
       def axis_value(backend, binding)
         digital = digital_axis(backend, binding)
@@ -93,9 +73,6 @@ module RGame
         digital.abs >= analog.abs ? digital : analog
       end
 
-      # The largest deflection across every pair bound to this axis. Several
-      # pairs is how the arrows, WASD and a d-pad all drive one action; a device
-      # with only one of them reads 0.0 for the rest, so the others cost nothing.
       # hot-path
       def digital_axis(backend, binding)
         pairs = binding.pairs
@@ -110,9 +87,6 @@ module RGame
         best
       end
 
-      # Rescaled rather than merely cut off, so the value ramps from zero as the
-      # stick leaves the dead zone. Cutting off alone makes it jump to the dead
-      # zone's width the moment it starts reading, which is a visible twitch.
       # hot-path
       def dead_zoned(value)
         magnitude = value.abs

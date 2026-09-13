@@ -30,7 +30,7 @@ class Inventory < RGame::Engine::Node2D
                        item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT, spacing: SPACING
                      ))
     ITEMS.each { |label| @menu.add_item(label).on_activated { close } }
-    @menu.paused = true # closed: it neither ticks nor draws until it is opened
+    @menu.paused = true
   end
 
   # Its own hook still runs while the menu below it is paused, which is how it
@@ -42,9 +42,6 @@ class Inventory < RGame::Engine::Node2D
   def on_draw(renderer, _view)
     return unless @open
 
-    # No z and no band: it is under a PlayerLayer, so it is in that player's
-    # HUD band already, and the menu is a child node so it draws over this panel
-    # by being drawn after it.
     renderer.nine_slice(:panel, 0, 0, panel_width, panel_height)
   end
 

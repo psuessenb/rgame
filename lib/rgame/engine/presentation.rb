@@ -133,7 +133,6 @@ module RGame
 
       private
 
-      # The logical size is whatever the window is, and nothing is transformed.
       def fit_disabled(window_width, window_height)
         @width = window_width
         @height = window_height
@@ -149,9 +148,6 @@ module RGame
         @offset_x = @offset_y = 0.0
       end
 
-      # Letterbox and integer differ by one `floor`, so they share everything
-      # else — including the centring, which is the part that is easy to get
-      # subtly wrong when it is written twice.
       def fit_uniform(window_width, window_height)
         @width = @logical_width
         @height = @logical_height
@@ -164,8 +160,6 @@ module RGame
         @offset_y = ((window_height - (@logical_height * scale)) / 2.0).floor
       end
 
-      # Never below 1: see the note on the class about a window smaller than the
-      # design size.
       def integer_scale(fitting)
         floored = fitting.floor
         floored < 1 ? 1.0 : floored.to_f

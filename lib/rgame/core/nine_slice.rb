@@ -41,10 +41,6 @@ module RGame
       # (x, y, w, h) is the source rectangle inside `image`, so one sheet can
       # hold many of these — which is what UiAtlas does with it.
       def initialize(image, x:, y:, w:, h:, border:, scale: 1)
-        # A zero or negative scale would give every tile a step of zero pixels,
-        # and `#draw`'s tiling loops would never advance. Refusing it here costs
-        # nothing; a guard inside the loop would cost a branch per tile, per
-        # widget, per frame.
         raise ArgumentError, "nine-slice scale must be positive, got #{scale}" unless scale.positive?
 
         @scale = scale
@@ -69,10 +65,6 @@ module RGame
         r = @r * s
         t = @t * s
         b = @b * s
-        # These go negative for a rectangle narrower than its own borders, and
-        # are not clamped: #band refuses a non-positive size anyway, so clamping
-        # here would be a second guard that cannot change any outcome — and
-        # would read as if the case were handled in two places.
         inner_w = dw - l - r
         inner_h = dh - t - b
 
@@ -82,8 +74,6 @@ module RGame
         band(renderer, @left, dx, dy + t, l, inner_h, z, color)
         band(renderer, @right, dx + dw - r, dy + t, r, inner_h, z, color)
 
-        # Last, so a tile that reached the edge of its band is covered rather
-        # than showing through a corner's transparent pixels.
         piece(renderer, @tl, dx, dy, z, color)
         piece(renderer, @tr, dx + dw - r, dy, z, color)
         piece(renderer, @bl, dx, dy + dh - b, z, color)
@@ -92,10 +82,6 @@ module RGame
 
       private
 
-      # A uniform integer becomes four equal sides. Accepting both shapes here
-      # rather than in the callers is what makes `NineSlice.new(image, border: 7,
-      # ...)` work on its own — a bare integer would otherwise fail as
-      # `7[:left]`, which names nothing that appears in the caller's code.
       def normalize_border(border)
         return border.transform_keys(&:to_sym) unless border.is_a?(Integer)
 
@@ -122,11 +108,6 @@ module RGame
         @centre = cut(image, x + @l, y + @t, centre_w, centre_h)
       end
 
-      # A piece with no pixels is a legitimate part of a legitimate slice — a
-      # border with no centre column is a bar that only stretches vertically,
-      # and a zero border is one that does not stretch at all on that side. Such
-      # a piece is `nil` and simply never drawn; asking `Image#subimage` for it
-      # would raise.
       def cut(image, x, y, width, height)
         return nil unless width.positive? && height.positive?
 
@@ -139,8 +120,6 @@ module RGame
         renderer.image_at(image, x, y, scale_x: @scale, scale_y: @scale, z: z, color: color)
       end
 
-      # Repeats `image` across (bx, by, bw, bh), clipped to it so the trailing
-      # tile is cropped instead of overrunning into the next band.
       def band(renderer, image, bx, by, bw, bh, z, color)
         return if image.nil? || bw <= 0 || bh <= 0
 

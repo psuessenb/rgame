@@ -106,22 +106,16 @@ module RGame
         signal :on_blocked, Engine::Signal.define(:by, :axis)
         signal :on_unblocked, Engine::Signal.define(:by)
 
-        # The two blocker names that are not collider layers: the scene's solid tiles, and
-        # the edge of the world.
         TILES  = :tiles
         BOUNDS = :bounds
         RESERVED = [TILES, BOUNDS].freeze
 
         def initialize(blocked_by: [])
           super()
-          # Array() so a single blocker reads as `blocked_by: :tiles` too. Built once at
-          # construction; nothing on a frame looks at this list.
           @blocked_by = Array(blocked_by)
           @collider = nil
           @collision = nil
           @last_move_blocked = false
-          # What stopped this mover, this step and last — the same two-array swap that turns
-          # a per-step overlap into on_hit / on_separated, pointed at blockers instead.
           @stopped_by = Engine::ContactSet.new
         end
 
@@ -141,18 +135,11 @@ module RGame
         # A subclass that needs its own attach work calls `super` first — PathFollow does,
         # to place its node before walking.
         def on_attach
-          # A pooled mover coming back from the dead would otherwise still be holding
-          # whatever stopped it when it was freed, and would report one spurious
-          # on_unblocked on its first step — the rule CollisionWorld#register follows for
-          # contacts, for the same reason.
           @stopped_by.reset
           return if @blocked_by.empty?
 
           WorldBounds.one_response!(node) if blocked_by?(BOUNDS)
 
-          # Every blocker resolves the same rectangle, so the collider is required whatever
-          # was declared — and required before the systems, because a missing shape is the
-          # likelier mistake of the two.
           @collider = require_sibling(BoxCollider)
           @collision = Engine::CollisionSystem.new(blockers: resolve_blockers)
         end
@@ -191,9 +178,6 @@ module RGame
           end
 
           @collision.move(self, dx, dy)
-          # Read straight after the move that set them, rather than once at the end of the
-          # update: a mover that resolves a step in several moves records what stopped each
-          # of them, and one that does not move at all records nothing.
           blocked_x = @collision.blocked_x
           blocked_y = @collision.blocked_y
           @last_move_blocked = !(blocked_x.nil? && blocked_y.nil?)
@@ -239,30 +223,12 @@ module RGame
 
         private
 
-        # The blank hook: compute this step and hand it to apply_move. Empty here, so a
-        # Mover on its own is a node that stands still.
         def take_step(_dt) = nil
 
-        # Whether anything was declared — for a subclass whose free path is not a delta,
-        # the way PathFollow places its node absolutely when nothing can stop it.
         def blocking? = !@collision.nil?
 
-        # Whether either axis of the most recent apply_move was stopped short.
         def last_move_blocked? = @last_move_blocked
 
-        # Record what stopped one axis, and fire the starting edge for a blocker that was
-        # not already stopping this mover. `started?` is asked before the add and reads only
-        # last step's list, exactly as CollisionWorld does with a contact, so the guard
-        # gives the same answer either side of it.
-        #
-        # A step stopped on both axes by the *same* blocker arrives here once, as :both.
-        # Only the map does that: CollisionSystem snaps x flush before it resolves y, so a
-        # single collider no longer overlaps on the far axis, while every solid tile reports
-        # the one Engine::TileBlockers::TILES — so a diagonal push into an inside corner of
-        # wall tiles is stopped on both axes by one blocker.
-        #
-        # The `touching?` check is for a mover that resolves a step in several moves: what
-        # stopped the first of them is not reported again by the second.
         def record_blocker(by, axis)
           return if by.nil? || @stopped_by.touching?(by)
 
@@ -271,9 +237,6 @@ module RGame
           on_blocked_signal.emit(by:, axis:) if started
         end
 
-        # One source per *kind* of blocker rather than per declared name: every collider
-        # layer named goes into a single ActorBlockers, since one broadphase query answers
-        # for all of them at once.
         def resolve_blockers
           sources = []
           sources << tile_blockers if @blocked_by.include?(TILES)
@@ -308,8 +271,6 @@ module RGame
           Engine::ActorBlockers.new(world: world, owner: @collider, layers: layers)
         end
 
-        # The class's own short name, so the message names the component the game wrote. An
-        # anonymous subclass has no name, and says what it is instead.
         def mover_name = self.class.name&.split('::')&.last || self.class.inspect
       end
     end
