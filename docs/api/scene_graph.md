@@ -86,6 +86,15 @@ wherever everything is at that moment (see [The two spaces](#the-two-spaces)).
 Because the traversal recurses into children for you, **never re-implement child
 iteration** — add children with `add_node` and let the tree drive them.
 
+**A private method of `Node2D` cannot be replaced.** Those are the machinery the
+phases call, and a subclass method with the same name would quietly take its
+place for that class, so defining one raises `NameError` when the class is
+loaded, naming both. `Component` is guarded the same way. The one private method
+meant for overriding is `draw_children` — see [View transforms and the
+camera](#view-transforms-and-the-camera). Private methods of an engine
+*subclass*, such as `Mover#take_step`, are not covered: those are hooks for the
+next subclass down.
+
 ### The two spaces
 
 `x`/`y`/`angle` are **relative to the parent** — the only position a node ever

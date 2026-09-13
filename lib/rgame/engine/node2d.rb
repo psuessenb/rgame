@@ -8,6 +8,7 @@ module RGame
     # DSL to allow for easy signal usage.
     class Node2D
       extend Engine::Signal::DSL
+      extend Engine::SealedPrivates
 
       # This node's transform **in its parent's space** — where it sits inside
       # whatever contains it, and the only position a node ever sets. `x`, `y`
@@ -477,6 +478,8 @@ module RGame
         @components.each { it.draw(renderer, view) }
         on_draw(renderer, view)
       end
+
+      unsealed :draw_children
 
       # hot-path
       def draw_children(renderer, view)
