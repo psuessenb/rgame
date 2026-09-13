@@ -1,0 +1,140 @@
+# frozen_string_literal: true
+
+RSpec.describe RGame::Engine::UI::ShapeStyle do
+  let(:renderer) { FakeRenderer.new }
+  let(:states) { %i[idle focused pressed disabled] }
+
+  def drawn(style, state, width = 120, height = 40)
+    renderer.clear
+    style.draw(renderer, state, width, height)
+    renderer.calls
+  end
+
+  describe 'building one' do
+    it 'refuses a shape it cannot draw' do
+      expect { described_class.new(shape: :hexagon) }.to raise_error(ArgumentError, /hexagon/)
+    end
+
+    # The late failure the ui.json spec guards against for nine-slices: a style
+    # that only breaks the first frame a button is disabled.
+    it 'refuses colours with a state missing, naming it' do
+      colors = described_class::COLORS.except(:disabled)
+      expect { described_class.new(colors: colors) }.to raise_error(KeyError, /disabled/)
+    end
+
+    it 'coerces array colours once' do
+      style = described_class.new(colors: described_class::COLORS.merge(idle: [1, 2, 3]),
+                                  outline: [4, 5, 6])
+      expect([style.colors[:idle], style.outline]).to eq([RGame::Util::Color.new(1, 2, 3),
+                                                          RGame::Util::Color.new(4, 5, 6)])
+    end
+
+    it 'has a shared default' do
+      expect(described_class::DEFAULT.shape).to eq(:rect)
+    end
+  end
+
+  describe 'z' do
+    # Shapes default to z: 50, which would cover the label and icon every
+    # shipped button draws at z: 1 — so every call names its z, at 0 or below.
+    %i[rect disc].each do |shape|
+      it "draws a #{shape} at z 0 or below, naming it, in every state" do
+        style = described_class.new(shape: shape)
+        zs = states.flat_map { |state| drawn(style, state).map { |call| call.options[:z] } }
+        expect(zs).to all(be <= 0)
+      end
+    end
+
+    it 'draws the outline under the fill' do
+      calls = drawn(described_class.new, :focused)
+      expect(calls.map { |call| call.options[:z] }).to eq([-1, 0])
+    end
+  end
+
+  describe 'the rectangle' do
+    let(:style) { described_class.new }
+
+    # The same inset in every state, so a button does not change size as its
+    # state does: focus only uncovers the ring the fill leaves.
+    it 'insets the fill by the border in every state' do
+      fills = states.map { |state| drawn(style, state).find { |call| call.options[:z].zero? }.args }
+      expect(fills).to all(eq([3, 3, 114, 34]))
+    end
+
+    it 'fills with the colour for the state' do
+      colors = states.map { |state| drawn(style, state).last.options[:color] }
+      expect(colors).to eq(described_class::COLORS.values_at(*states))
+    end
+
+    describe 'the outline' do
+      it 'covers the whole slot while focused or pressed' do
+        outlines = %i[focused pressed].map { |state| drawn(style, state).first }
+        expect(outlines.map { |call| [call.args, call.options[:color]] })
+          .to all(eq([[0, 0, 120, 40], described_class::OUTLINE]))
+      end
+
+      it 'is not drawn while idle or disabled' do
+        counts = %i[idle disabled].map { |state| drawn(style, state).size }
+        expect(counts).to eq([1, 1])
+      end
+    end
+  end
+
+  describe 'the disc' do
+    let(:style) { described_class.new(shape: :disc) }
+
+    it 'is centred in the slot, inset by the border' do
+      fills = states.map { |state| drawn(style, state, 64, 80).last.args }
+      expect(fills).to all(eq([32.0, 40.0, 29.0]))
+    end
+
+    it 'fits the shorter side with its outline' do
+      outline = drawn(style, :focused, 80, 64).first
+      expect([outline.name, outline.args]).to eq([:circle, [40.0, 32.0, 32.0]])
+    end
+  end
+
+  # Not `color: nil`, which the renderer reads as white.
+  describe 'leaving a part out' do
+    it 'draws no fill in a state whose colour is nil' do
+      style = described_class.new(colors: described_class::COLORS.merge(idle: nil))
+      expect(drawn(style, :idle)).to be_empty
+    end
+
+    it 'draws no outline when outline is nil' do
+      style = described_class.new(outline: nil)
+      expect(drawn(style, :focused).size).to eq(1)
+    end
+
+    it 'draws no disc fill for a nil colour either' do
+      style = described_class.new(shape: :disc, colors: described_class::COLORS.merge(focused: nil))
+      expect(drawn(style, :focused).map { |call| call.options[:z] }).to eq([-1])
+    end
+  end
+
+  # A renderer that allocates nothing itself and coerces colours the way
+  # Core::Renderer#packed does, so an array colour reaching it would count.
+  describe 'allocation' do
+    let(:plain_renderer) do
+      Class.new do
+        def rect(_x, _y, _width, _height, z: 50, color: nil)
+          _ = z
+          RGame::Util::Color.coerce(color)
+        end
+
+        def circle(_cx, _cy, _radius, z: 50, color: nil)
+          _ = z
+          RGame::Util::Color.coerce(color)
+        end
+      end.new
+    end
+
+    %i[rect disc].each do |shape|
+      it "draws a #{shape} in every state without allocating" do
+        style = described_class.new(shape: shape, colors: { idle: [1, 2, 3], focused: [4, 5, 6],
+                                                            pressed: [7, 8, 9], disabled: [1, 1, 1] })
+        expect { states.each { |state| style.draw(plain_renderer, state, 64, 48) } }.to allocate_nothing
+      end
+    end
+  end
+end
