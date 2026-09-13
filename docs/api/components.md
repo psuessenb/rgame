@@ -30,6 +30,7 @@ of each other.
 | a point to follow, clamped to the world | `Camera` | [→](toolbox.md#camera--follow-a-point-clamp-to-the-world) |
 | text in the player's language | `I18n` | [→](toolbox.md#rgameenginei18n--localization) |
 | an ordered route to walk | `Path` | [→](toolbox.md#path--a-walkable-polyline) |
+| the cheapest route between two tiles | `NavGrid`, from `TileWorld#nav_grid` | [→](toolbox.md#navgrid--routes-over-a-tile-grid) |
 
 **What earns a component is per-frame work.** Two of those utilities have
 component wrappers, and both exist for that one reason: a timer has to be
@@ -872,7 +873,9 @@ answered.
 - **Queries:** `blockers` is the map's solid tiles as an
   [`Engine::TileBlockers`](internals.md#tileblockers--the-tile-grid-as-a-blocker-source),
   the same object every time, which a [`Mover`](#mover) declaring `:tiles`
-  borrows and resolves its own steps against. Also `solid?(col, row)`;
+  borrows and resolves its own steps against. `nav_grid` is the same solidity as an
+  [`Engine::NavGrid`](toolbox.md#navgrid--routes-over-a-tile-grid), for planning a route
+  rather than resolving a step — built on first ask, the same grid after. Also `solid?(col, row)`;
   `world_width`/`world_height`; `tilemap_id` and `elapsed`, which the layers read;
   `layer_count` and `first_above_layer`, which `TileMapLayer.mount` reads to decide where
   the actors go.

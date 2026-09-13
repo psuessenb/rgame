@@ -84,4 +84,39 @@ RSpec.describe RGame::Engine::Components::TileWorld do
       expect(world.blockers).to be(first)
     end
   end
+
+  # The same solidity #blockers reads, viewed as a graph for planning a route.
+  describe '#nav_grid' do
+    let(:solid_map) do
+      instance_double(RGame::Engine::TileMap, width: 6, height: 4, tile_width: 16, tile_height: 16,
+                                              pixel_width: 96, pixel_height: 64)
+    end
+    let(:world) { described_class.new(map: solid_map, tilemap_id: :level) }
+
+    before { allow(solid_map).to receive(:solid_tile?) { |col, row| col == 2 && row < 3 } }
+
+    it 'agrees with #solid? cell for cell' do
+      cells = (0...4).flat_map { |row| (0...6).map { |col| [col, row] } }
+      disagreements = cells.select { |col, row| world.nav_grid.walkable?(col, row) == world.solid?(col, row) }
+      expect(disagreements).to be_empty
+    end
+
+    it 'is sized to the map in cells' do
+      expect([world.nav_grid.width, world.nav_grid.height]).to eq([6, 4])
+    end
+
+    it 'is the same grid every time' do
+      first = world.nav_grid
+      expect(world.nav_grid).to be(first)
+    end
+
+    it 'reads each tile once, however often it is asked for' do
+      3.times { world.nav_grid }
+      expect(solid_map).to have_received(:solid_tile?).exactly(24).times
+    end
+
+    it 'routes round the map’s solid tiles' do
+      expect(world.nav_grid.find(0, 0, 4, 0)).to include([2, 3])
+    end
+  end
 end

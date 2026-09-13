@@ -20,6 +20,9 @@ tile layers in a single `Tensor(width, height, layer_count)`, and that is the wo
 that the engine layer may hold `RGame::Util` values: a grid is a value, so the
 layer above owns one outright rather than being handed it.
 
+[`NavGrid`](#navgrid--routes-over-a-tile-grid) is not an exception: it is a search over
+a grid's solidity, not a place to keep one.
+
 ## `CachedLabel` — a display string rebuilt only on change
 
 `RGame::Engine::CachedLabel` (`rgame/engine/cached_label`) holds a label string and rebuilds it only when its
@@ -95,6 +98,49 @@ A follower ([`Components::PathFollow`](components.md#pathfollow)) reads segments
 and interpolates itself; Path never returns a coordinate pair. `distance_to` answers "how
 far is this point from the road" (allocation-free scalar maths) — e.g. to keep things
 from being placed on or beside it.
+
+## `NavGrid` — routes over a tile grid
+
+`RGame::Engine::NavGrid` (`rgame/engine/nav_grid`) answers *what is the cheapest route from
+this cell to that one*. It is built once from a solidity callable — the same
+`solid.call(col, row)` a [`TileBlockers`](internals.md#tileblockers--the-tile-grid-as-a-blocker-source)
+takes — copies what it reads, and never asks again. In a tile scene it is not built by hand:
+[`TileWorld#nav_grid`](components.md#tileworld) hands out one over the map's solid tiles.
+
+```ruby
+rows = [
+  '........',
+  '###..###',
+  '........'
+]
+grid = RGame::Engine::NavGrid.new(width: 8, height: 3,
+                                  solid: ->(col, row) { rows[row][col] == '#' })
+
+grid.walkable?(3, 1)        # => true
+grid.find(0, 0, 7, 2)       # => [[0, 0], [1, 0], [2, 0], [3, 0], [4, 1], [4, 2], [5, 2], [6, 2], [7, 2]]
+grid.find(0, 0, 0, 1)       # => nil — the goal is solid
+grid.reachable?(0, 0, 7, 2) # => true
+grid.region(0, 0)           # => 0, an Integer label; nil for a solid or off-grid cell
+```
+
+- **Routes are cells, both ends included**, as `[[col, row], ...]`. Start equal to goal is a
+  route of one cell. Turning a cell into a point a node walks to depends on the node's
+  collider, which is not the grid's business, so nothing here speaks pixels.
+- **Unreachable is `nil`** — a solid or off-grid end, or a goal in another region. It is an
+  ordinary answer, not an error.
+- **Moves are 8-way at octile cost** (1 straight, √2 diagonal), and a diagonal is taken only
+  when both orthogonal cells beside it are open, so a route never cuts the corner of a solid
+  cell. The route returned is a cheapest one; among equally cheap routes the choice is
+  deterministic, so the same query always returns the same route.
+- **Connected regions are labelled when the grid is built.** A goal in another region is the
+  answer a search is slowest to give — it has to exhaust the start's region first — and the
+  labels turn it into a lookup: on a 58x47 island map, a cross-region `nil` takes a few
+  microseconds.
+- **A search runs on demand, never per frame.** It allocates its result; its working buffers
+  are kept between searches, so one grid must not be searched from two threads at once. A
+  corner-to-corner route across a 60x40 town takes about 2.5 ms, and the worst of 200 random
+  routes on a 120x90 map about 25 ms — well within a keypress, and more than a frame.
+- **The grid does not change.** A map whose solidity changes at runtime needs a new grid.
 
 ## `Timer` — paced periodic events
 
