@@ -149,6 +149,18 @@ pressing A at rest never picks what the stick passed over on its way home.
 **Uses:** `UI::RadialMenu`, `UI::IconButton` on a disc `UI::ShapeStyle`,
 `ui_radial_x` / `ui_radial_y`, and a UI atlas's `images` (`icons.json`).
 
+### skill_bar
+
+A farming-sim tool bar: five tools in a row, stepped through with left and right
+and used with Enter, or used directly with the number keys without moving the
+focus. Holding a number uses its tool once, and a tool pressed by its number and
+by Enter together is used once.
+
+**Uses:** `UI::Row`, `UI::Stepping` taking its axis from the layout,
+`UI::Button`'s `hotkey:` and `activate_on: :press`, captioned `UI::IconButton`s
+on a disc `UI::ShapeStyle`, `InputMap.default.merge`, and a UI atlas's `images`
+(`skills.json`).
+
 ## Audio
 
 ### sound

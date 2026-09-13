@@ -91,6 +91,17 @@ index, not the argument.
   to dark while pressed, so a pressed label or icon reads on the gold fill. Drawing a `PanelButton` or `OptionButton` no
   longer allocates. `UI::RadialMenu` is a `Menu` that builds its own `Ring` and
   `Pointing` and draws the wheel's backdrop, dead zone and pointer.
+  **`UI::Row`** lines buttons up side by side; it and `Column` are one `UI::Stack`,
+  and every layout answers `axis`. **`Stepping` steps along the layout's axis**,
+  so a `Row` moves with left and right, and `Stepping.new(axis:)` overrides it;
+  stepping focus no longer allocates. **`navigation: nil`** builds a menu that
+  never moves focus by itself. **`Button hotkey:`** names an action that presses
+  the button whether or not it is focused, activating on the press and leaving
+  focus where it was; `press`, `release` and `cancel_press` take the source,
+  `:confirm` or `:hotkey`, so neither can end the other's hold, and
+  `activate_with_feedback` is the instant press on its own. A captioned
+  `IconButton` draws its style only above the caption, which keeps its own
+  colours rather than the style's content colour.
   See [docs/api/ui.md](docs/api/ui.md).
 
 ### Fixed
