@@ -47,7 +47,7 @@ RSpec.describe RGame::Engine::UI::MenuItem do
 
     it 'is the focus element once it has focus' do
       item.focused = true
-      expect(drew.first).to eq(:focus)
+      expect(drew.first).to eq(:focused)
     end
 
     it 'is the pressed element while confirm is held on it' do
@@ -110,24 +110,6 @@ RSpec.describe RGame::Engine::UI::MenuItem do
       menu_item.draw(renderer, screen_view)
 
       expect(menu_item.abs_band).to eq(:hud)
-    end
-  end
-
-  describe 'activation' do
-    it 'emits when it is enabled' do
-      fired = false
-      subject_item = item
-      subject_item.on_activated { fired = true }
-      expect([subject_item.activate, fired]).to eq([subject_item, true])
-    end
-
-    # A caller never has to check first, and no route can activate a disabled
-    # item.
-    it 'refuses when it is not' do
-      fired = false
-      subject_item = item(enabled: false)
-      subject_item.on_activated { fired = true }
-      expect([subject_item.activate, fired]).to eq([nil, false])
     end
   end
 

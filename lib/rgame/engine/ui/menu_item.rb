@@ -3,27 +3,18 @@
 module RGame
   module Engine
     module UI
-      # One entry in a Menu: a label on a nine-slice, and a signal for when it is
-      # chosen.
+      # The shipped button: a label on a nine-slice, one element per state.
       #
       #   resume = menu.add_item('Resume')
       #   resume.on_activated { cutscene.close }
       #
-      # It draws itself from its **state** — focused, pressed, disabled or
-      # idle — which is why the shipped atlas has an element for each. There is
-      # no hover, because there is no pointer: what a mouse-driven control would
-      # get from the cursor being over it, this gets from the Menu telling it it
-      # is the focused one.
-      #
-      # Its position is its own, resolved through the tree like any node's, so a
-      # Menu inside a PlayerLayer puts its items inside that player's region
-      # without either of them arranging it.
-      class MenuItem < Node2D
-        signal :on_activated
-
+      # It draws `STYLE[state]` — which is why the shipped atlas has an element
+      # for each of the four states — and centres its label on top. Focus,
+      # pressing and activation are all UI::Button's.
+      class MenuItem < Button
         STYLE = {
           idle: :button_idle,
-          focus: :button_focus,
+          focused: :button_focus,
           pressed: :button_pressed,
           disabled: :button_disabled
         }.freeze
@@ -31,35 +22,9 @@ module RGame
         LABEL_COLOR = [46, 34, 24].freeze
         DISABLED_LABEL_COLOR = [120, 110, 100].freeze
 
-        attr_accessor :label, :enabled
-        attr_writer :focused, :pressed
-
-        def initialize(label:, style: STYLE, enabled: true, **)
-          super(**)
-          @label = label
+        def initialize(label:, style: STYLE, **)
+          super(label: label, **)
           @style = style
-          @enabled = enabled
-          @focused = false
-          @pressed = false
-        end
-
-        def enabled? = @enabled
-        def focused? = @focused
-
-        # What the focused item does with `ui_left` / `ui_right`, which Menu
-        # hands down without knowing what kind of row it is talking to. A plain
-        # item has nothing to change, and answers nil the way a disabled
-        # `activate` does. UI::OptionItem is the one that overrides it.
-        def adjust(_delta) = nil
-
-        # Fires the signal and returns the item, or nil if it is disabled — so a
-        # caller never has to check first, and a disabled item cannot be
-        # activated by any route.
-        def activate
-          return nil unless @enabled
-
-          on_activated_signal.emit
-          self
         end
 
         # The panel and its label share this node's slot, so the only ordering
@@ -72,13 +37,6 @@ module RGame
         end
 
         private
-
-        def state
-          return :disabled unless @enabled
-          return :idle unless @focused
-
-          @pressed ? :pressed : :focus
-        end
 
         def label_x(renderer) = (width - renderer.text_width(@label)) / 2
         def label_y(renderer) = (height - renderer.text_height) / 2
