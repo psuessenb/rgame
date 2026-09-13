@@ -11,10 +11,11 @@ RSpec.describe RGame::Engine::UI::Menu do
   # Every action a menu reads is declared, down or not: Actions answers only for
   # what it was given, which is the point of it being strict.
   let(:snapshot) do
-    reads = %i[ui_up ui_down ui_left ui_right ui_confirm]
+    reads = %i[ui_up ui_down ui_left ui_right ui_confirm skill1]
     held = reads.to_h { |name| [name, false] }
     previous = reads.to_h { |name| [name, false] }
-    actions = RGame::Engine::Actions.new(held: held, axes: {}, prev_held: previous)
+    axes = { ui_radial_x: 0.0, ui_radial_y: 0.0 }
+    actions = RGame::Engine::Actions.new(held: held, axes: axes, prev_held: previous)
 
     lambda do |*down|
       held.each { |name, state| previous[name] = state }
@@ -609,6 +610,50 @@ RSpec.describe RGame::Engine::UI::Menu do
 
     it 'still steps by default when the keyword is left out' do
       expect(root.add_node(described_class.new(layout: column)).navigation).to be_a(RGame::Engine::UI::Stepping)
+    end
+  end
+
+  # The rules a hotkey shares with confirm are in menu_press_sources_spec.rb;
+  # these are the ones about the menu around it.
+  describe 'hotkeys' do
+    {
+      'Stepping' => -> { RGame::Engine::UI::Stepping.new },
+      'Pointing' => -> { RGame::Engine::UI::Pointing.new },
+      'no navigation' => -> {}
+    }.each do |name, navigation|
+      it "press their button under #{name}" do
+        custom = root.add_node(described_class.new(layout: column, navigation: navigation.call))
+        custom.add(button('One'))
+        fired = []
+        custom.add(button('Two', hotkey: :skill1)).on_activated { fired << :two }
+        root.enter_tree
+        poll
+        poll(:skill1)
+        expect(fired).to eq([:two])
+      end
+    end
+
+    # Actions refuses a name it was not given; the menu must not swallow that.
+    it 'raise on the first control for an action nobody declared, naming it' do
+      menu.add(button('One', hotkey: :skill9))
+      root.enter_tree
+      expect { poll }.to raise_error(KeyError, /:skill9/)
+    end
+
+    it 'cost nothing to read, five of them, pressed now and then' do
+      5.times { |index| menu.add(button("Skill #{index}", hotkey: :skill1, activate_on: :press)) }
+      root.enter_tree
+      held = %i[ui_up ui_down ui_left ui_right ui_confirm skill1].to_h { |name| [name, false] }
+      previous = held.dup
+      actions = RGame::Engine::Actions.new(held: held, axes: {}, prev_held: previous)
+      tick = 0
+      expect do
+        tick += 1
+        previous[:skill1] = held[:skill1]
+        held[:skill1] = (tick % 7).zero?
+        root.control(actions)
+        root.update(0.016)
+      end.to allocate_nothing.over(2_100).after_warmup(50)
     end
   end
 
