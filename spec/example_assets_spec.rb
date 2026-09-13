@@ -135,6 +135,23 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
     end
   end
 
+  describe 'skills.json' do
+    subject(:images) { descriptor[:images] }
+
+    let(:descriptor) { JSON.parse(File.read(File.join(assets, 'skills.json')), symbolize_names: true) }
+
+    # The same check as icons.json's: a rectangle off the sheet raises only in a
+    # window, where nothing in this suite runs.
+    it 'cuts every image from inside skills.png' do
+      width, height = png_size(File.join(assets, descriptor[:image]))
+
+      images.each_value do |rect|
+        expect(rect[:x] + rect[:w]).to be <= width
+        expect(rect[:y] + rect[:h]).to be <= height
+      end
+    end
+  end
+
   describe 'glyphs.json' do
     subject(:descriptor) { JSON.parse(File.read(File.join(assets, 'glyphs.json')), symbolize_names: true) }
 
