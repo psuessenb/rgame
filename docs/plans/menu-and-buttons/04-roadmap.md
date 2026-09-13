@@ -49,17 +49,35 @@ Tests: `spec/rgame/engine/ui/button_spec.rb` — the four rules, each a case;
 ### 1b. `Menu#add(button)`, and the callers move to it
 
 `add` raises `TypeError` for anything that is not a `UI::Button`. `add_item`,
-`add_option` and `style:` are removed (open question 2); `items` becomes
-`buttons`. `Menu#focus` assigns only where focus changed. The five menus under
-`examples/` and `test_projects/` build their buttons. If open question 1 is
-settled as a rename, it happens here, in the same commit as the callers.
+`add_option` and `style:` are removed; `items` becomes `buttons`. `Menu#focus`
+assigns only where focus changed. `MenuItem` is renamed `PanelButton` and
+`OptionItem` `OptionButton`, in the same commit as the callers, including
+`spec/example_assets_spec.rb`, which reads `MenuItem::STYLE`. The five menus under
+`examples/` and `test_projects/` build their buttons.
 
 Tests: `menu_spec.rb` — `add` returns the button; `add` refuses a plain `Node2D`
 and a String; a subclass of `Button` written in the spec, with its own
 `on_draw`, is focused and activated like a shipped one; `pointing_spec.rb` and
 `option_item_spec.rb` build their buttons.
 
-### 1c. Documentation
+### 1c. Pressed is visible *(blocked on open question 6)*
+
+`state` reports `:pressed` without requiring focus, and a press lasts at least the
+minimum question 6 settles on, counted down in `Button#update(dt)`. This is the
+one sub-step of step 1 that **changes** driven reports on purpose, so the
+invariant is checked against 1b's commit, not `main`, and the difference is
+stated: `:button_pressed` appears where a one-tick press used to leave none.
+
+Rules the tests pin:
+
+1. A one-tick press leaves the button pressed for the minimum time, then focused.
+2. A press held longer than the minimum stays pressed until released.
+3. Time enters through `update(dt)` only; a spec advances it by passing seconds.
+4. Pressing does not move focus.
+
+Tests: `button_spec.rb` and `menu_spec.rb`, for each rule.
+
+### 1d. Documentation
 
 `docs/api/ui.md`: `Button` gets the section `MenuItem` has, with "a button of your
 own" shown as a subclass; the menu table loses `add_item`/`add_option`.
@@ -128,9 +146,11 @@ before it would not have.
   caption speaks".
 - `RadialMenu < Menu`: `Ring` + `Pointing` preset, backdrop, dead zone and
   pointer from `examples/radial_menu`, colours as arguments.
-- `examples/radial_menu` moves to `RadialMenu` with `IconButton`s if asset **D**
-  is sourced in time (open question 5), with `TextButton`s otherwise — which is
-  itself the "prototype before the art exists" case.
+- `examples/radial_menu` moves to `RadialMenu` with `IconButton`s over Kenney's
+  *Game Icons* (open question 5, settled): download, measure, cut the white
+  variant of the icons used into one image and `.json`, provenance in
+  `examples/assets/README.md`, and an `example_assets_spec.rb` check that every
+  cut frame fits the image.
 - Re-plan against: whether `Pointing` should read button centres through a method
   on `Button` rather than `x + width / 2`, now that buttons may draw outside
   their slot (a caption below).
@@ -139,10 +159,14 @@ before it would not have.
 
 - `Row` layout, or `Column` with an axis — decide by writing both `bounds` first.
 - `Stepping.new(axis:)`.
-- `Button hotkey:`; `Menu#on_control` activates any enabled button whose hotkey
-  was pressed, under every navigation. Open questions 3 and 4.
+- `Button hotkey:`; `Menu#on_control` presses and activates any enabled button
+  whose hotkey was pressed, under every navigation, without moving focus (open
+  question 4, settled).
+- `navigation: nil` (open question 3, settled): no focus, confirm does nothing.
+  A WoW-style bar is this plus hotkeys.
 - `examples/skill_bar`: a horizontal bar of round buttons, navigated *and*
-  hotkeyed, with a drive script showing both.
+  hotkeyed, with a drive script showing both — and that the hotkeyed button draws
+  pressed while focus stays put. Its art is open question 7.
 
 ## Step 5 — fold back and delete the plan
 

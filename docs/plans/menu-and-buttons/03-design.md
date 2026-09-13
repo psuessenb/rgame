@@ -5,7 +5,7 @@
 | | Owns | Asks of the other |
 |---|---|---|
 | **`UI::Button`** | label, `enabled`, `focused`, `pressed`, `state`, `on_activated`, `hotkey`, its `on_draw` | nothing |
-| **`UI::Menu`** | the buttons, `layout`, `navigation`, bounds, confirm and hotkey dispatch, its `on_draw` (backdrop) | `focused=`, `pressed=`, `enabled?`, `activate`, `adjust`, `hotkey`, `x`/`y`/`width`/`height` |
+| **`UI::Menu`** | the buttons, `layout`, `navigation` (or none), bounds, confirm and hotkey dispatch, its `on_draw` (backdrop) | `focused=`, `pressed=`, `enabled?`, `activate`, `adjust`, `hotkey`, `x`/`y`/`width`/`height` |
 | **layout** | where a slot is, and the extent of all of them | writes `x`/`y`/`width`/`height` |
 | **navigation** | which button is focused this frame | `menu.focus(index)`, `buttons`, `enabled?`, positions |
 
@@ -70,7 +70,27 @@ end
 ```
 
 `items` becomes `buttons`. `add_item`, `add_option` and `style:` go (open
-questions 1 and 2).
+question 2, settled). `navigation:` may be `nil` (open question 3, settled): the
+menu then never focuses anything and skips confirm.
+
+### Pressed is reached two ways
+
+Open question 4, settled. A button has three looks while enabled — **idle,
+focused, pressed** — plus disabled, and the menu presses a button from either
+source:
+
+| Source | Presses | Activates | Changes focus |
+|---|---|---|---|
+| `ui_confirm` | the focused button | on the press | no |
+| the button's `hotkey` | that button, focused or not | on the press | **no** |
+
+So `state` stops requiring focus for `:pressed`: a hotkeyed button that is not
+focused still draws pressed. The rule becomes *disabled, else pressed, else
+focused, else idle*.
+
+How long pressed lasts after a tap is open question 6. Whatever it settles to, it
+is counted in the button's `update(dt)`, never read from a clock, per CLAUDE.md
+"`draw` renders state".
 
 ### Bounds
 
@@ -103,10 +123,10 @@ the separate focus implementation #28 removed.
 
 | Class | Draws | Needs art |
 |---|---|---|
-| `PanelButton` (today's `MenuItem`) | nine-slice per state + centred label | the UI atlas |
-| `OptionButton` (today's `OptionItem`) | the above + `< value >` | the UI atlas |
+| `PanelButton` (renamed from `MenuItem`) | nine-slice per state + centred label | the UI atlas |
+| `OptionButton` (renamed from `OptionItem`) | the above + `< value >` | the UI atlas |
 | `TextButton` | label; focus as a marker and colour from primitives | no |
-| `IconButton` | an image centred in the slot, tinted/scaled per state, optional caption below | an image |
+| `IconButton` | an image centred in the slot, tinted/scaled per state, optional caption below | an image — white art, so a tint can colour it |
 
 `TextButton` is the prototyping button in the requirement. Round or square is
 the art's business for `IconButton`; for `TextButton` it is an open detail for
@@ -120,8 +140,9 @@ constraint recorded in `basic-examples.md` goes away.
 
 - `Stepping.new(axis: :vertical)` — `:horizontal` swaps which pair of actions
   moves focus and which goes to `adjust`.
-- `Hotkeys` (open question 3) — focuses nothing; hotkey dispatch is the menu's and
-  works under every navigation, so this class only exists to say "no navigation".
+- `navigation: nil` (open question 3, settled) — no class. Hotkey dispatch is the
+  menu's and works under every navigation, including none, so a navigation
+  object would only have existed to say "there is no navigation".
 
 ## Considered and rejected
 

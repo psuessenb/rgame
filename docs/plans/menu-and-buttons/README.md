@@ -113,21 +113,56 @@ Not up for re-litigation inside this plan.
 
 ## Open questions
 
-1. **Names.** `MenuItem` and `OptionItem` become button classes. Rename them
-   (`PanelButton`, `OptionButton`) or keep them? *Leaning rename:* "item" and
-   "button" for the same thing is two vocabularies, which CLAUDE.md calls a
-   smell. Blocks step 1's final names only; the structure does not depend on it.
-2. **Keep `add_item(label)` as sugar?** It builds a default button, which means
-   the menu choosing a look again. *Leaning remove*, so `menu.add(button)` is the
-   only way in. Blocks step 1.
-3. **A navigation that focuses nothing**, for a hotkey-only bar. A `UI::Hotkeys`
-   navigation class, or `navigation: nil`? *Leaning a class*, since `nil` is the
-   value a forgotten argument also has. Blocks step 4 only.
-4. **Does a hotkey focus the button it triggers?** Xenoblade shows the chosen art
-   highlighted; WoW flashes the slot without a focus. Blocks step 4 only.
-5. **The icon asset.** The radial example with round image-only entries needs a
-   CC0 icon set (asset **D** in `basic-examples.md`, deferred there). Kenney's
-   *Game Icons* is the first candidate. Blocks step 3's example, not its code.
+1. ~~**Names.**~~ **Settled — rename.** `MenuItem` becomes `UI::PanelButton` and
+   `OptionItem` becomes `UI::OptionButton`, so "item" and "button" stop being two
+   words for one thing. Happens in step 1b, with the callers. See
+   [03-design.md](03-design.md#the-buttons-that-ship).
+2. ~~**Keep `add_item(label)` as sugar?**~~ **Settled — dropped**, with
+   `add_option`. `menu.add(button)` is the only way in, so the menu never picks a
+   look. Step 1b.
+3. ~~**A navigation that focuses nothing.**~~ **Settled — `navigation: nil`**, the
+   shortest and clearest way to say a menu has none. The worry that `nil` is also
+   what a forgotten argument looks like does not apply: the keyword defaults to
+   `Stepping.new`, so leaving it out never produces `nil`, and passing `nil` is
+   always a statement. A menu with no navigation never focuses anything, so
+   `ui_confirm` does nothing and only hotkeys activate. Step 4. See
+   [03-design.md](03-design.md#navigation-changes).
+4. ~~**Does a hotkey focus the button it triggers?**~~ **Settled — no, but it
+   presses it.** Focus stays where it was. What a hotkey does give is the same
+   visual feedback confirming does: like a button in a browser, a button has a
+   neutral look, a focused look and a pressed look, and **pressed is reached two
+   ways** — being the focused button while `ui_confirm` is pressed, and being
+   activated by its hotkey. See [03-design.md](03-design.md#pressed-is-reached-two-ways).
+   Measured while settling it: the pressed look today is not reliably visible
+   (see [01-current-state.md](01-current-state.md#pressed-is-drawn-only-while-confirm-is-held)),
+   which opens question 6.
+5. ~~**The icon asset.**~~ **Settled — Kenney's *Game Icons*, CC0.** 105 icons in
+   white and black, 1x and 2x PNGs, a spritesheet, and SVG sources
+   (<https://kenney.nl/assets/game-icons>, mirrored with the same CC0 licence at
+   <https://opengameart.org/content/game-icons>). The **white** variant is the one
+   to cut: `renderer.image` tints by multiplying, so white art takes any per-state
+   colour and black art takes none. They are menu symbols — home, settings, save,
+   star, trophy, lock, audio — which fits a radial quick menu, not a skill bar.
+   The pack has not been downloaded yet; step 3 checks the sizes and cuts the
+   handful the example uses into one image with a `.json`, the way asset **G**
+   was cut, and records provenance in `examples/assets/README.md`. Art for
+   step 4's skill bar is not settled by this — see question 7.
+6. **How long is "pressed" visible?** Today it lasts exactly as long as
+   `ui_confirm` is held, which is one frame for a tap, and zero frames when the
+   activation closes the menu before the next draw. Options: a minimum pressed
+   time the button counts down in `update(dt)`; delaying `on_activated` until that
+   time has passed; or activating on *release*, as a browser does. The first is
+   invisible for a menu that closes on activation; the second and third change
+   when every existing menu reacts. *Leaning: a minimum pressed time, with
+   activation still on the press*, and accept that a closing menu shows none.
+   Blocks step 1c.
+7. **Skill-bar art.** Kenney's *Game Icons* are interface symbols, not abilities.
+   A curated OpenGameArt collection of ability icons
+   (<https://opengameart.org/content/icons-for-abilities-skills-etc>) lists no
+   licence of its own and links sixty-odd packs under mixed licences, so each
+   would need checking against the "may we hand copies to everyone" test.
+   `TextButton`s on round discs are the fallback, and are enough to show the
+   mechanism. Blocks step 4's example only.
 
 ## What this plan does not deliver
 

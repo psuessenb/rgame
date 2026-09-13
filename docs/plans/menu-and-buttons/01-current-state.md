@@ -113,6 +113,31 @@ navigation either always focuses something (`Stepping`) or focuses by stick
 (`Pointing`). Needs a per-button input action and a navigation that focuses
 nothing.
 
+## Pressed is drawn only while confirm is held
+
+*(measured at `53f5392`, driving a `Menu` headless tick by tick)*
+
+| Tick | `ui_confirm` | Focused item's state | `on_activated` fires |
+|---|---|---|---|
+| 0 | up | `:focus` | |
+| 1 | **down** | **`:pressed`** | **yes** |
+| 2 | down | `:pressed` | |
+| 3 | up | `:focus` | |
+
+`Menu#on_control` sets `pressed = actions.held?(:ui_confirm)` on the focused
+item and activates on the press edge in the same call. Two consequences:
+
+- **A tap is one frame of pressed**, about 16 ms — technically drawn, practically
+  invisible.
+- **A button whose activation closes its menu never shows pressed at all.**
+  `examples/game_menu`'s Resume sets the menu hidden inside `on_activated`, which
+  runs in `control`, before that tick's draw. Read from the code rather than
+  driven, because the drive report keeps only the first and last argument of
+  each call kind and cannot show one frame in the middle.
+
+And a button pressed any other way than confirm has no pressed look, because
+there is no other way. Open question 6.
+
 ## Text width is a draw-time fact
 
 `renderer.text_width` is the only way to measure a string, and the renderer is
