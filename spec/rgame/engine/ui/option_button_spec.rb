@@ -136,6 +136,13 @@ RSpec.describe RGame::Engine::UI::OptionButton do
   end
 
   describe 'what it draws' do
+    it "draws label, chevrons and value in a shape style's content colour while pressed" do
+      option(index: 1, style: RGame::Engine::UI::ShapeStyle::DEFAULT).press
+      root.draw(renderer, screen_view)
+      expect(renderer.calls_to(:text).map { |call| call.options[:color] }.uniq)
+        .to eq([RGame::Engine::UI::ShapeStyle::CONTENT[:pressed]])
+    end
+
     it 'draws the label and the caption for the current value' do
       option(index: 1)
       expect(texts).to include('Volume', '50')

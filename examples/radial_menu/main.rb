@@ -52,11 +52,13 @@
 # ## White art, coloured by a tint
 #
 # The icons are white, and IconButton draws each one multiplied by a colour for
-# its state — grey at rest, white while focused, dark on the gold of a pressed
-# disc, dim while disabled — so one picture serves all four looks. Dark art would
-# take none of them. The icons are 50 pixels in 64-pixel slots and the chosen one
-# is drawn at scale 2: images sample nearest-neighbour, so only a whole-number
-# scale stays sharp.
+# its state — grey at rest, white while focused, dim while disabled — so one
+# picture serves all four looks. Dark art would take none of them. While pressed
+# the disc is gold, and the disc's ShapeStyle says the icon goes dark on it: what
+# reads on a fill is the style's to decide, since it chose the fill.
+#
+# The icons are 50 pixels in 64-pixel slots and the chosen one is drawn at scale
+# 2: images sample nearest-neighbour, so only a whole-number scale stays sharp.
 #
 # ## What this example does not solve
 #
@@ -97,11 +99,6 @@ class QuickMenu < RGame::Engine::Node2D
 
   DISC = UI::ShapeStyle.new(shape: :disc)
 
-  # A pressed disc is filled gold, which is also IconButton's pressed tint, so
-  # the default would draw a gold icon on a gold disc and the icon would vanish
-  # for as long as the button is held. Dark reads on the gold.
-  TINTS = UI::IconButton::TINTS.merge(pressed: RGame::Util::Color.new(46, 34, 24)).freeze
-
   attr_reader :chosen, :chosen_image
 
   def initialize(**)
@@ -116,7 +113,7 @@ class QuickMenu < RGame::Engine::Node2D
   private
 
   def add_icon(label, image)
-    button = @menu.add(UI::IconButton.new(image: image, style: DISC, tints: TINTS, enabled: image != :locked))
+    button = @menu.add(UI::IconButton.new(image: image, style: DISC, enabled: image != :locked))
     button.on_activated do
       @chosen = label
       @chosen_image = image

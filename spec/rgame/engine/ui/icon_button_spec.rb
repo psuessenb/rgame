@@ -105,6 +105,39 @@ RSpec.describe RGame::Engine::UI::IconButton do
         .to eq([:circle, true])
     end
 
+    describe 'naming a content colour' do
+      let(:disc) { RGame::Engine::UI::ShapeStyle.new(shape: :disc) }
+      let(:dark) { RGame::Engine::UI::ShapeStyle::CONTENT[:pressed] }
+
+      # The measured bug: both defaults are gold, so a pressed icon on a disc
+      # was drawn gold on gold and could not be seen.
+      it "tints the image in the style's colour while pressed" do
+        in_state(:pressed, style: disc)
+        expect(drawn_image.options[:color]).to eq(dark)
+      end
+
+      it "draws the caption in the style's colour while pressed" do
+        in_state(:pressed, style: disc, label: 'Home')
+        expect(draw.last.options[:color]).to eq(dark)
+      end
+
+      it 'keeps its own tint in a state the style leaves nil' do
+        in_state(:focused, style: disc)
+        expect(drawn_image.options[:color]).to eq(described_class::TINTS[:focused])
+      end
+
+      it 'keeps its own pressed tint with no style' do
+        in_state(:pressed)
+        expect(drawn_image.options[:color]).to eq(described_class::TINTS[:pressed])
+      end
+
+      it 'keeps its own pressed tint on a style that answers only draw' do
+        plain = Class.new { def draw(_renderer, _state, _width, _height) = nil }.new
+        in_state(:pressed, style: plain)
+        expect(drawn_image.options[:color]).to eq(described_class::TINTS[:pressed])
+      end
+    end
+
     it 'is handed the state and the slot' do
       style = instance_double(RGame::Engine::UI::ShapeStyle, draw: nil)
       in_state(:pressed, style: style)
@@ -118,6 +151,11 @@ RSpec.describe RGame::Engine::UI::IconButton do
 
     it 'draws without allocating' do
       item = in_state(:focused, style: RGame::Engine::UI::ShapeStyle.new(shape: :disc))
+      expect { item.on_draw(quiet, nil) }.to allocate_nothing
+    end
+
+    it 'draws pressed on a style naming a content colour without allocating' do
+      item = in_state(:pressed, label: 'Home', style: RGame::Engine::UI::ShapeStyle.new(shape: :disc))
       expect { item.on_draw(quiet, nil) }.to allocate_nothing
     end
 

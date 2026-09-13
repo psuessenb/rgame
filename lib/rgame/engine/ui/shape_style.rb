@@ -22,6 +22,15 @@ module RGame
       #
       # Fill and outline are drawn at `z: 0` and `z: -1`. Shapes default to
       # `z: 50`, which would cover the label or icon a button draws at `z: 1`.
+      #
+      # ## What reads on the fill is the style's to say
+      #
+      # `content:` is the colour a button draws its label or icon in over each
+      # state's fill, or `nil` to keep the button's own. The pressed fill is gold,
+      # and so is IconButton's pressed tint, so without it a pressed icon is gold
+      # on gold and vanishes; a light label nearly does. The style picks the fill,
+      # so it is the one place that can pick what goes on it. Defaults to dark
+      # while pressed and the button's own colour otherwise.
       class ShapeStyle
         SHAPES = %i[rect disc].freeze
         OUTLINED = %i[focused pressed].freeze
@@ -33,24 +42,32 @@ module RGame
           disabled: Util::Color.new(40, 38, 46)
         }.freeze
         OUTLINE = Util::Color.new(240, 200, 96)
+        CONTENT = { idle: nil, focused: nil, pressed: Util::Color.new(46, 34, 24), disabled: nil }.freeze
 
         FILL_Z = 0
         OUTLINE_Z = -1
 
-        attr_reader :shape, :colors, :outline, :border
+        attr_reader :shape, :colors, :outline, :border, :content
 
-        def initialize(shape: :rect, colors: COLORS, outline: OUTLINE, border: 3)
+        def initialize(shape: :rect, colors: COLORS, outline: OUTLINE, border: 3, content: CONTENT)
           unless SHAPES.include?(shape)
             raise ArgumentError, "shape: must be one of #{SHAPES.inspect}, not #{shape.inspect}"
           end
 
           @shape = shape
           @colors = Button::STATES.to_h { |state| [state, colors.fetch(state)&.then { Util::Color.coerce(it) }] }.freeze
+          @content = Button::STATES.to_h do |state|
+            [state, content.fetch(state)&.then { Util::Color.coerce(it) }]
+          end.freeze
           @outline = outline&.then { Util::Color.coerce(it) }
           @border = border
         end
 
         DEFAULT = new
+
+        # The colour a button draws its content in over this state's fill, or
+        # nil for the button's own. See "What reads on the fill" above.
+        def content_color(state) = @content.fetch(state)
 
         def draw(renderer, state, width, height)
           outlined = @outline && OUTLINED.include?(state)
