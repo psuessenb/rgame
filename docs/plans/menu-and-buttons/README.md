@@ -1,8 +1,9 @@
 # Plan — the menu is a shell, the button is the look
 
-**Status:** steps 1–4 implemented. Step 5 planned in detail at `564e708`,
-step 6 is the fold-back. Every open question is settled. Builds on PR #28
-(`UI::Menu` with `layout:` and `navigation:`), merged to `main` as `53f5392`.
+**Status:** steps 1–4 implemented. Step 5 planned in detail at `564e708`, with
+5d amended at `9c6eb00` for the held wheel. Step 6, a menu held open by an action,
+is rough; step 7 is the fold-back. Every open question is settled. Builds on PR
+#28 (`UI::Menu` with `layout:` and `navigation:`), merged to `main` as `53f5392`.
 
 | | |
 |---|---|
@@ -35,6 +36,14 @@ this is six steps rather than one:
    thing that happens (`on_activated`, exists) and the input that triggers it
    without focus (a hotkey, as a WoW action bar or Xenoblade's arts are
    triggered). The second does not exist.
+
+A fourth arrived after step 4: **a wheel held open by a button** — hold a
+shoulder button, point, let go to choose — which the menu cannot express at all
+today (measured in
+[01-current-state.md](01-current-state.md#a-wheel-held-open-by-a-button-cannot-be-built--measured-at-9c6eb00-after-step-4)).
+A press there starts on the menu rather than on a button, and survives focus
+moving. Step 5d's press sources are the seam it extends, so 5d is written not to
+assume every hold is on a button, and the wheel itself is step 6.
 
 One thing stays out of scope: buttons **sized to their text**. Measuring text
 outside `draw` already works in Core, but the engine layer — where buttons and
@@ -70,12 +79,24 @@ button the same slot. See
 >   buttons. A skill list in a game like WoW can also be implemented that way,
 >   although that is commonly triggered with hotkeys only and not navigated.
 
+Added after step 4, in a later prompt:
+
+> One common pattern how radial menus in games work is that a button press opens
+> them (say the left shoulder button on the controller), the player navigates to
+> the menu item they want to select and then releases the should button. This
+> triggers the menu item. The radial menu example works differently: It is always
+> present (so probably appeared with a button press, and holding that button was
+> not necessary), and requires selection + then confirm with another button. Both
+> styles are valid, but the engine should definitely support the first style I
+> described.
+
 ## Goal
 
 A game builds any focus-driven menu — list, wheel, bar — by choosing a menu, a
 layout, a navigation and a button class, and writes a new look by subclassing
 `UI::Button` and implementing `on_draw`, without touching focus, activation or
-placement.
+placement. A wheel works both ways: always open and confirmed, or held open by a
+button and chosen by letting go.
 
 ## Hard constraints
 
@@ -128,6 +149,28 @@ Not up for re-litigation inside this plan.
   choosing the recommendation under open question 8, after the old wording of
   hard constraint 1 ("engine layer only") was found to rest on nothing and
   reworded. Step 4b.
+- **A wheel held open by a button is supported by the engine**, alongside the
+  always-open, confirm-to-choose style. Taken in the prompt after step 4 (quoted
+  above), together with how it behaves — the answers to four questions asked
+  there:
+  - **The selection is sticky by default** on a held wheel, **through a grace
+    window**: focus survives the stick entering the dead zone for a short time,
+    counted in `update(dt)`, and then clears. A stick that springs back just
+    before the release still chooses what it pointed at.
+  - **A release with the stick centred activates nothing** — not the last button
+    focused. That is what the grace window running out means; the two decisions
+    are one rule. Hysteresis (a smaller inner radius) was offered and not taken:
+    a stick that springs back fully in one frame still cancels under it.
+  - **`ui_confirm` does not activate** on a menu held open by a trigger. Letting
+    go is the only way to choose.
+  - **Slowing or pausing the world while the wheel is open is the game's
+    decision**, not the engine's. The menu says when it opens and closes; what
+    that does to the world is not its business.
+
+  The grace window's length is not decided; step 6's re-plan picks it from prior
+  art ([02-prior-art.md](02-prior-art.md#a-wheel-held-open-by-a-button--not-yet-researched)).
+  Step 5d is amended so its press sources do not assume every hold is on a
+  button; the wheel is step 6.
 
 ## Open questions
 
@@ -281,3 +324,5 @@ Not up for re-litigation inside this plan.
   does not have), and any game rule about skills.
 - Scrolling, nesting, text entry, and a pointer/mouse — as `docs/api/ui.md`,
   "What this is not", already says.
+- Slowing, pausing or dimming the world while a held wheel is open — the game's,
+  through the menu's open and close signals.

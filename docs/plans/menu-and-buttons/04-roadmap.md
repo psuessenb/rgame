@@ -1,24 +1,28 @@
 # Roadmap
 
 **Status:** steps 1–4 are implemented. Step 5 is planned in detail, at
-`564e708`; step 6 is the fold-back. The rough step 3 was split in two when it was
-re-planned — the buttons (3), and the radial menu with the asset work it needs
-(4) — and the old step 4 became step 5. Before starting step 5, re-read the
-landed notes of 3 and 4: styles now name a content colour (README question 9),
-which 5f's captioned icons on a disc draw in while pressed.
+`564e708`, and 5d was amended at `9c6eb00` so its press sources leave room for a
+hold that is on the menu. Step 6, a menu held open by an action, was added after
+step 4 and is **rough**; step 7 is the fold-back. The rough step 3 was split in
+two when it was re-planned — the buttons (3), and the radial menu with the asset
+work it needs (4) — and the old step 4 became step 5. Before starting step 5,
+re-read the landed notes of 3 and 4: styles now name a content colour (README
+question 9), which 5f's captioned icons on a disc draw in while pressed.
 
 ```
-#28 ─→ 1 Button + Menu#add ─→ 2 bounds + PanelMenu ─→ 3 styles, TextButton, IconButton ─┬─→ 4 RadialMenu, atlas images, icon wheel ─┬─→ 6 fold back
-          │                        │                         │                           │                                           │
-          │                        │                         │                           └─→ 5 Row, axis, nil navigation, hotkeys, ──┘
-          │                        │                         │                                 skill bar (5e–5f need 4b)
+#28 ─→ 1 Button + Menu#add ─→ 2 bounds + PanelMenu ─→ 3 styles, TextButton, IconButton ─┬─→ 4 RadialMenu, atlas images, icon wheel ─┬─→ 6 a menu held ─→ 7 fold back
+          │                        │                         │                           │                                           │     open by an
+          │                        │                         │                           └─→ 5 Row, axis, nil navigation, hotkeys, ──┘     action (needs
+          │                        │                         │                                 skill bar (5e–5f need 4b)                   4a and 5d)
           │                        │                         └─ closes: no button without art; a Color allocated per label per draw
           │                        └─ closes: ITEM_COUNT kept equal to add_item by hand
           └─ closes: no other kind of button can exist
 ```
 
 5a–5d (layouts, axis, `navigation: nil`, hotkeys) depend on nothing after step 2
-and could land before step 4; 5e–5f need step 4's atlas images.
+and could land before step 4; 5e–5f need step 4's atlas images. Step 6 needs
+`RadialMenu` (4a) and 5d's instant press and generalized "seen up" rule, and
+nothing from 5a–5c or 5e–5f.
 
 ## What was measured before re-planning steps 3–5
 
@@ -945,6 +949,25 @@ bit becomes one method taking the button, the action, the source and the stored
 bit: confirm keeps its single flag, and each button's hotkey gets one in an array
 grown on `add`, so the hot path allocates nothing.
 
+**Amended at `9c6eb00`, for step 6.** Step 6 adds a third press, a menu's
+`trigger`, whose hold is on the *menu*: it starts with nothing focused, survives
+focus moving, and on release hands the focused button an instant press (see
+[03-design.md](03-design.md#a-hold-belongs-to-whoever-it-was-started-on)). 5d
+does not build it, but must not close the door on it:
+
+- **The instant press is its own entry point**, not a branch reachable only
+  through `source == :hotkey` — step 6 calls it for a trigger's release. How it
+  is spelt (`press(:hotkey)` reused, or a separate `activate_with_feedback`) is
+  5d's call; what it must not do is require the button to be holding anything.
+- **The "seen up" method takes no button.** Its question — has this action been
+  up since this menu could see it — is about the menu and the action, and a
+  trigger has a bit and no button. The button is passed where the press lands,
+  not where the bit is kept.
+- **The shared example group "a press source" covers holds on a button.** Its
+  rules 7 and 8 are about two holds on one button, which a trigger never is, so
+  the trigger gets its own examples in step 6 rather than a third run of the
+  group.
+
 Rules the tests pin:
 
 1. **A hotkey activates its button on the press edge**, whatever `activate_on:`
@@ -1025,7 +1048,68 @@ reference if it is wanted), and rebinding hotkeys at runtime.
 
 ---
 
-## Step 6 — fold back and delete the plan
+## Step 6 — a menu held open by an action *(rough)*
+
+**Why.** The hold, point, release wheel is the common console quick menu, and
+it cannot be built today (measured in
+[01-current-state.md](01-current-state.md#a-wheel-held-open-by-a-button-cannot-be-built--measured-at-9c6eb00-after-step-4)).
+After step 5d there is a way to activate a button instantly and a "seen up" rule
+that is not tied to a button, which are the two pieces it needs from the menu.
+The behaviour is decided (README, "A wheel held open by a button"); the shape
+is in [03-design.md](03-design.md#a-menu-held-open-by-an-action) and is to be
+re-planned once step 5 has landed.
+
+**What it resembles**, to sort properly at re-planning:
+
+- **Generalize.** Open and closed: `game_menu` and the inventory each hand-write
+  it with `paused` and a `draw_children` override. A menu that owns `open?`
+  serves them and the trigger both. Whether they move to it in this step, or
+  only get a note, is the re-plan's call — it would change their driven reports.
+- **Extend.** `Pointing` grows a grace window. The dead-zone rule stays; the
+  window only delays it.
+- **Reuse.** 5d's instant press and "seen up" method; `PRESS_FEEDBACK`'s
+  countdown shape for the grace window, time entering through `update(dt)`.
+
+**Rough sub-steps.**
+
+- **6a** `Pointing grace:` — focus survives the dead zone for `grace` seconds,
+  then clears; 0 is today's behaviour, and `examples/radial_menu` stays on it.
+- **6b** `Menu trigger:`, `open?` / `open` / `close`, `on_opened` / `on_closed`.
+  `RadialMenu` forwards `trigger:` and gives its `Pointing` a grace when one is
+  set.
+- **6c** An example of a held wheel — a second mode of `examples/radial_menu` or
+  a sibling example, decided at re-planning — with a drive script per case below,
+  and once with `--gamepad` on a shoulder button.
+- **6d** Documentation: `docs/api/ui.md`'s `RadialMenu` and `Pointing` sections,
+  "A menu held open by an action", CHANGELOG.
+
+**Rules the tests will pin**, from the decisions:
+
+1. Closed until the trigger's press edge; open while held.
+2. Release with a button focused activates it, once, and closes — whether the
+   press started with nothing focused, or focus moved while held.
+3. Stick released within the grace window before the trigger: the last focused
+   button activates.
+4. Stick centred for longer than the grace window: the release activates
+   nothing, not the last button, and closes.
+5. `ui_confirm` while the trigger is held activates nothing.
+6. A trigger already down when the menu starts watching opens nothing; one that
+   comes up unseen (paused mid-hold) closes the menu and activates nothing.
+7. Opening resets the navigation: the first open frame draws no stale aim.
+8. A closed menu draws neither its backdrop nor its buttons, and still sees the
+   trigger.
+9. The world is not touched: `on_opened` and `on_closed` fire, and nothing else
+   outside the menu changes.
+10. `Menu#on_control` allocates nothing, open or closed.
+
+**Open at re-planning:** the grace window's default length, from prior art
+([02-prior-art.md](02-prior-art.md#a-wheel-held-open-by-a-button--not-yet-researched));
+whether a game may `open` a trigger menu by hand; and what a `trigger:` menu with
+`navigation: nil` (5c) means, if anything.
+
+---
+
+## Step 7 — fold back and delete the plan
 
 `docs/api/ui.md` already carries the reference by then. What has to be rescued
 from here: the text-width constraint (into `ui.md`, "What this is not"), the

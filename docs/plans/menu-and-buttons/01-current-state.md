@@ -201,6 +201,50 @@ sheet — takes neither a tint nor a scale. So an icon button takes an **image i
 (a path, or a registered `Image#subimage`, which `examples/sprite` shows) rather
 than a sheet frame, and constraint 2 holds.
 
+## A wheel held open by a button cannot be built — *(measured at `9c6eb00`, after step 4)*
+
+The common console quick menu: holding a button (a shoulder button, Tab) opens a
+wheel, the stick points at an entry, and letting go of the button activates that
+entry and closes the wheel. `examples/radial_menu` is the other style — always
+present, point, then confirm with a second button. Both are valid; only the
+second can be built today.
+
+Measured by driving a `RadialMenu` of four `Button`s (N, E, S, W) directly, with
+`ui_confirm` standing in for the held button — rebinding `ui_confirm` is the
+closest a game can get, since `Menu#confirm` names that action and takes no other:
+
+| Input, one row per tick | Activated |
+|---|---|
+| confirm down, stick at rest → held, stick E → held → up, stick E | **nothing** |
+| stick E → confirm down → up (the example's style) | E |
+| confirm down at rest → held, stick E → held, stick at rest → up | **nothing** |
+| confirm down, stick N → held, stick E → up | **nothing** |
+
+Three rules cause it, each correct for the style it was written for:
+
+1. **A press must land on a focused button.** `Menu#confirm` returns before
+   pressing when nothing is focused, and when the held button goes down the
+   stick is at rest.
+2. **Losing focus drops a held press.** `Button#focused=` clears `@held`, so a
+   list player who moves away while holding cancels. On a held wheel, moving
+   focus while holding is the whole gesture.
+3. **The dead zone clears focus.** `Pointing#on_control` focuses nothing below
+   `dead_zone`, so a player who lets the stick spring back a frame before the
+   button gets nothing.
+
+A game can write the gesture around the menu — read `released?` on its own
+action, call `wheel.focused&.activate`, pause and hide the wheel — but it then
+re-implements, and has to remember, what the menu already does for confirm: act
+only on a release whose press it saw, close without activating when the release
+was missed while paused, and not draw the previous opening's aim on the first
+frame. `Pointing` keeps `aim_x`/`aim_y` across a pause.
+
+**Opening and closing a menu is hand-written in both menus that do it.**
+`examples/game_menu` and `test_projects/tiled_world/inventory.rb` each keep an
+`@open` flag, set `@menu.paused`, and override `draw_children` to skip the menu
+while closed — the state in two places, and the inventory's `close` is the one
+step 2's landed note found undefined.
+
 ## What already resembles the thing being planned
 
 The three piles from CLAUDE.md, "Before building".

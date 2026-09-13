@@ -98,6 +98,19 @@ What that adds up to:
    and globally in WoW and Godot's project settings. Nobody configures it per
    container.
 
+## A wheel held open by a button — *not yet researched*
+
+Hold a button to open a wheel, point, release to choose (see
+[01-current-state.md](01-current-state.md#a-wheel-held-open-by-a-button-cannot-be-built--measured-at-9c6eb00-after-step-4)).
+Added after step 4, with the behaviour decided in a prompt rather than from
+sources — see the README's decisions. None of the three toolkits above ships a
+radial menu (below), so the prior art is in games and in marketplace plugins,
+not engines. **Step 6's re-plan owes this section**: how shipped games and the
+common Unity/Unreal radial-menu packages treat a stick that springs back just
+before the release, a release with the stick centred, and a confirm pressed
+while holding — cited, and compared with the decisions already taken, most of
+all the length of the grace window.
+
 ## What they agree on
 
 1. **The button owns its state and its look.** All three. None puts the look on

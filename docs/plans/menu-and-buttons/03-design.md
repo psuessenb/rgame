@@ -5,7 +5,7 @@
 | | Owns | Asks of the other |
 |---|---|---|
 | **`UI::Button`** | label, `enabled`, `focused`, `pressed`, `state`, `on_activated`, `hotkey`, its `on_draw` | nothing |
-| **`UI::Menu`** | the buttons, `layout`, `navigation` (or none), bounds, confirm and hotkey dispatch, its `on_draw` (backdrop) | `focused=`, `press`/`release`/`cancel_press`, `enabled?`, `adjust`, `hotkey`, `x`/`y`/`width`/`height` |
+| **`UI::Menu`** | the buttons, `layout`, `navigation` (or none), bounds, confirm and hotkey dispatch, a held trigger's hold, being open or closed, its `on_draw` (backdrop) | `focused=`, `press`/`release`/`cancel_press`, `enabled?`, `adjust`, `hotkey`, `x`/`y`/`width`/`height` |
 | **layout** | where a slot is, and the extent of all of them | writes `x`/`y`/`width`/`height` |
 | **navigation** | which button is focused this frame | `menu.focus(index)`, `buttons`, `enabled?`, positions |
 
@@ -107,6 +107,26 @@ Both sources go through one rule in the menu, and the button records which one
 holds it — `press(source)`, `release(source)`, `cancel_press(source)` — so a
 hotkey's release cannot end a hold confirm started, or the reverse.
 
+### A hold belongs to whoever it was started on
+
+Added after step 4, for the wheel held open by a button (see
+[A menu held open by an action](#a-menu-held-open-by-an-action)). That is a
+third way to press, and it differs from the two above in *what* it holds:
+
+| Source | The press starts on | Focus moving while held | The release |
+|---|---|---|---|
+| `ui_confirm` | the focused button | cancels the hold | activates that button, under `:release` |
+| a button's `hotkey` | that button | changes nothing | activates nothing — it activated on the press |
+| a menu's `trigger` | **the menu** | **the hold goes with it** | activates the button focused *now*, if any, then closes |
+
+Confirm and hotkeys hold a button, so the button keeps their bookkeeping. A
+trigger holds the menu, so the menu keeps it, and at release the menu hands the
+focused button an instant press — the same way into `press` that a hotkey uses.
+What all three share is the menu-side rule "only a press this menu saw start",
+which step 5d turns into one method over an action and a stored bit; the trigger
+is one more bit. Step 5d is written so that its source bookkeeping does not
+assume every hold is on a button.
+
 And for both: a press counts only if its edge arrived while this button could see
 it. That closes the double activation measured in
 [01-current-state.md](01-current-state.md#one-confirm-activates-two-menus).
@@ -199,6 +219,45 @@ it from the rejected `look:` below.
 - `navigation: nil` (open question 3, settled) — no class. Hotkey dispatch is the
   menu's and works under every navigation, including none, so a navigation
   object would only have existed to say "there is no navigation".
+
+## A menu held open by an action
+
+Sketched roughly, for step 6; re-planned once step 5 has landed.
+
+```ruby
+class Menu < Node2D
+  # trigger: an action name. The menu is closed until its press edge, open while
+  # it is held, and on its release activates the focused button (if any) and
+  # closes. nil (the default): open from construction, as today.
+  def initialize(layout:, navigation: Stepping.new, trigger: nil, **)
+
+  def open? ; def open ; def close      # also what game_menu and the inventory hand-write
+  signal :on_opened
+  signal :on_closed                     # with the button activated, or nil
+end
+
+class Pointing < Navigation
+  # How long focus survives the stick entering the dead zone, in seconds,
+  # counted in update(dt). 0: not sticky, as today.
+  def initialize(dead_zone: DEAD_ZONE, grace: 0.0)
+end
+```
+
+Decided (README, decisions): while a trigger is held, focus survives the dead
+zone for a short **grace window** and then clears, so a stick that springs back
+just before the release still chooses, and a release with the stick left centred
+chooses nothing — not the last button. `RadialMenu` with a `trigger:` builds its
+`Pointing` with a grace by default. `ui_confirm` activates nothing on a menu with
+a trigger. Slowing or pausing the world while the wheel is open is the game's,
+through `on_opened` / `on_closed`.
+
+**Closed is not paused.** A paused node reads no input, and a closed menu with a
+trigger has to read that trigger to see the press that opens it. So a closed menu
+still runs its own `on_control` for the trigger, but runs no navigation and draws
+neither its backdrop nor its buttons. Opening resets the navigation, so the first
+frame does not draw the previous opening's aim. A trigger that comes up with no
+release edge — the menu's subtree was paused mid-hold — closes it and activates
+nothing.
 
 ## Considered and rejected
 
