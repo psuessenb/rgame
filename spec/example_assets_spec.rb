@@ -150,6 +150,17 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
         expect(rect[:y] + rect[:h]).to be <= height
       end
     end
+
+    it 'declares every tool examples/skill_bar names' do
+      source = File.read(File.expand_path('../examples/skill_bar/main.rb', __dir__))
+      # Anchored at the start of a line, so the header's prose cannot be read
+      # as the table.
+      table = source[/^  SKILLS = \[(.+?)\]\.freeze/m, 1]
+      named = table.scan(/\['[^']+', :(\w+),/).flatten.map(&:to_sym)
+
+      expect(named.size).to eq(5)
+      expect(images.keys).to include(*named)
+    end
   end
 
   describe 'glyphs.json' do
