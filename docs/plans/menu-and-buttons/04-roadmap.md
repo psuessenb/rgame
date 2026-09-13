@@ -1,13 +1,12 @@
 # Roadmap
 
-**Status:** steps 1–4 are implemented. Step 5 is planned in detail, at
-`564e708`, and 5d was amended at `9c6eb00` so its press sources leave room for a
-hold that is on the menu. Step 6, a menu held open by an action, was added after
-step 4 and is **rough**; step 7 is the fold-back. The rough step 3 was split in
-two when it was re-planned — the buttons (3), and the radial menu with the asset
-work it needs (4) — and the old step 4 became step 5. Before starting step 5,
-re-read the landed notes of 3 and 4: styles now name a content colour (README
-question 9), which 5f's captioned icons on a disc draw in while pressed.
+**Status:** steps 1–5 are implemented. Step 6, a menu held open by an action,
+was added after step 4 and is **rough**, to be re-planned against step 5's landed
+note — 5d's instant press is `Button#activate_with_feedback`, and its "seen up"
+method is `Menu#press_edge`. Step 7 is the fold-back. The rough step 3 was split
+in two when it was re-planned — the buttons (3), and the radial menu with the
+asset work it needs (4) — and the old step 4 became step 5. Step 5 amended README
+question 9 for captions.
 
 ```
 #28 ─→ 1 Button + Menu#add ─→ 2 bounds + PanelMenu ─→ 3 styles, TextButton, IconButton ─┬─→ 4 RadialMenu, atlas images, icon wheel ─┬─→ 6 a menu held ─→ 7 fold back
@@ -1045,6 +1044,120 @@ and once with `--gamepad` for the d-pad and A.
 **What this step does not deliver.** Grids and two-dimensional stepping, cooldown
 sweeps, a hotkey glyph drawn on a button (`examples/input_glyphs` is the
 reference if it is wanted), and rebinding hotkeys at runtime.
+
+**Landed.** Eight commits on branch `menu-skill-bar`: one per sub-step, and one
+more between 5e and 5f that amends README question 9 for captions, which drawing
+the art raised.
+
+- **5a** `UI::Stack` (`axis`, `AXES`, `arrange`, `bounds`), with `Column` and
+  `Row` as subclasses spelling out their keywords; `Ring#axis` → `:vertical`.
+- **5b** `Stepping.new(axis: nil)`, resolved in `attach` from `menu.layout.axis`
+  and refused outside `Stack::AXES`; the four action names kept in ivars from a
+  frozen `ACTIONS` table; `step` a `while` loop.
+- **5c** `navigation: nil` — `&.` at the three calls in `Menu`.
+- **5d** `Button hotkey:`, `press/release/cancel_press(source = :confirm)`
+  holding a single `@holder` (`nil`, `:confirm` or `:hotkey`), `SOURCES`, and
+  `activate_with_feedback` as the instant press. `Menu#on_control` is navigation
+  → `press_hotkeys` → confirm, both through `press_edge(actions, action,
+  seen_up)` and `pass_edge(button, edge, source)`; the hotkey bits live in
+  `@hotkey_seen_up`, grown on `add`.
+- **5e** `examples/assets/skills.png` (3,487 B) + `skills.json`: Basic, 64 px.
+  Provenance and the choice in `examples/assets/README.md`.
+- **Question 9, amended** — a captioned `IconButton` hands its style only the
+  space above the caption, and the caption keeps its own colours.
+- **5f** `examples/skill_bar`, `tools/drive/examples/skill_bar.rb` and
+  `skill_bar_pad.rb`, and the `skills.json` examples in
+  `spec/example_assets_spec.rb`.
+- **5g** `docs/api/ui.md` (layouts table with `Row` and `axis`, `Stepping`'s
+  axis, "A menu with no navigation", "Hotkeys"), `docs/api/examples.md`, the
+  CHANGELOG's `UI::Menu` entry.
+
+Suites: `rake spec` **1735 examples, 0 failures** (1645 before);
+`spec/rgame/engine/ui/` **350** (262 before). RuboCop clean on all 21 changed
+Ruby files. No C and no Core file changed, so `make test` and `rake spec:core`
+were not rerun.
+
+Invariant, `--seed 1`, fresh `RGAME_SAVE_DIR`: `game_menu`, `menu_navigation` and
+the inventory at 600 ticks, `radial_menu` at 600 and `radial_menu_pad` with
+`--gamepad` at 112 are **byte-identical** after each of 5a, 5b, 5c, 5d and the
+caption change, against the commit before each, and at the end against `main`,
+which was driven twice first and matched itself.
+
+Allocations, measured directly rather than under the harness. `Menu#on_control`
+with a focus step every 7 ticks over 200,000 control+update ticks: **28,572 → 1**,
+the measuring loop's own; `allocate_nothing` in `menu_spec.rb` over 2,100. With
+five `:press` buttons on one hotkey pressed every 7 ticks: **1** over 210,000
+ticks and **0** over 2,100,000.
+
+`skill_bar`, keyboard script at 180 ticks, from the run (header of the script):
+
+| `--ticks` | clicks | last caption | shows |
+|---|---|---|---|
+| 26 | 1 | `Used: Torch` | right twice and Enter |
+| 49 | 2 | `Used: Watering can` | 5 with the Torch focused |
+| 72 | 3 | `Used: Torch` | Enter again: focus never left the Torch |
+| 142 | 4 | `Used: Wrench` | 2 held for 20 ticks: one use |
+| 180 | 5 | `Used: Wand` | 1 and Enter on the same tick: one use |
+
+Pressed frames counted with a probe prepended to `IconButton#on_draw`: the
+Watering can pressed and unfocused **6 frames** (0.1 s), the held Wrench 20, the
+Torch 12 (two taps, focused), the Wand 6. `--gamepad` at 60 ticks: `Used: Hammer`
+at 29 and `Used: Torch` at 60, 2 clicks. And a frame grabbed at 50 under Xvfb
+(`glReadPixels` at `frame_end`): Torch outlined, Watering can dark on gold, every
+caption legible.
+
+Guards mutation-checked, each deletion failing the examples written for it: the
+`while` loop back to `times` (the allocation example), the axis taken from the
+layout (5), each of the three `&.` (6 each); `@holder.nil?` on press (6), `source
+== :confirm` on release (6), keeping a hotkey hold on focus loss (2, once the
+examples were moved past `PRESS_FEEDBACK`), `source == :hotkey` making a press
+instant (11), `@holder == source` on release (3), a new button's bit starting
+`false` (1), `:press if seen_up` (6), the missed-release branch (4), hotkeys not
+dispatched at all (16), the caption height taken off the style (2), and a tool
+missing from `skills.json` (1).
+
+What the sketch got wrong:
+
+- **A pressed caption on a disc did not read, as step 4's note suspected.** Drawn
+  in the style's dark content colour it sat half on the gold disc and half on the
+  ground; in its own light colour it was the 1.4:1 case. Three options were
+  rendered and the user chose the style above the caption — README question 9,
+  amended. `IconButton#draw_caption` no longer takes the content colour, which
+  changes step 3's and question 9's rule for captions.
+- **5b's "measured 28,596" was step 1's harness.** The same shape measured here
+  on `main` gave 28,572, one per focus step; either way it is now 1.
+- **"The button records whether an activation is still pending" was not
+  needed.** One `@holder` recording the source answers it: only a confirm
+  release under `:release` activates, and only when confirm holds.
+- **`:skill_1` became `:skill1`.** `Naming/VariableNumber` refuses the
+  underscore, nothing in the project used it, and the cop is not one that makes
+  a game engine worse, so the names follow it.
+- **The shared group "a press source" is its own file**,
+  `spec/rgame/engine/ui/menu_press_sources_spec.rb`, rather than inside
+  `menu_spec.rb` and `button_spec.rb`. It takes its differences as parameters —
+  `instant_under_release` and `survives_focus_loss` — because rules 1, 3 and 8
+  are not the same for the two sources. The button it presses is the focused one
+  with a hotkey, so rules 7 and 9 can put both sources on it; rule 2's "whether
+  or not it is focused" and "a button added while its hotkey is down" are
+  hotkey-only examples beside the group.
+- **The report could not show focus.** It keeps a draw call's first and last
+  arguments and cuts strings at 24 characters, so "Focused: Torch" never reaches
+  it. The script shows focus through input instead: Enter after the hotkey uses
+  the Torch again. Every use clicks, so a use is also counted in `audio`.
+- **A budget's last frame is drawn before its last tick**, so a caption trails
+  the click by one tick (`--ticks 25` has the click, 26 the caption). Recorded in
+  the script rather than the plan's "on the press tick".
+- **5f's plan pressed 1 alone on the focused Wand**; the script presses 1 and
+  Enter on the same tick, rule 9, which is the case that could double.
+- **Found, not fixed: the stored "seen up" bits can be mutated to always `true`
+  and nothing fails**, for confirm as on `main` and for hotkeys. Only the initial
+  `false` is load-bearing in any example. The update matters only when a key
+  goes up *and down again* while the menu is paused, and then the rule refuses a
+  press whose edge the menu did see. Whether that is right is **worth deciding
+  in step 6's re-plan**, which adds a third bit for the trigger.
+- **The allocation example for hotkeys needs `after_warmup(50)`.** Each button's
+  first activation allocates twice, once; five warm-up ticks were too few to
+  reach the first press.
 
 ---
 

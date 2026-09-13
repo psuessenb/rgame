@@ -143,6 +143,82 @@ RSpec.describe RGame::Engine::UI::Button do
     end
   end
 
+  # A hold remembers which source started it, so the two sources on one button
+  # cannot end each other's press.
+  describe 'press sources' do
+    let(:fired) { [] }
+
+    before do
+      button.on_activated { fired << :activated }
+      button.focused = true
+    end
+
+    it 'presses from confirm when no source is named' do
+      button.press
+      expect([button.release(:hotkey), button.pressed?]).to eq([nil, true])
+    end
+
+    it 'activates a hotkey press at once under activate_on: :release' do
+      expect([button.press(:hotkey), fired]).to eq([button, [:activated]])
+    end
+
+    it 'activates nothing on a hotkey release' do
+      button.press(:hotkey)
+      expect([button.release(:hotkey), fired]).to eq([nil, [:activated]])
+    end
+
+    it 'ignores a press from one source while the other holds it' do
+      button.press(:confirm)
+      expect([button.press(:hotkey), fired]).to eq([nil, []])
+    end
+
+    it 'ends no hold another source started' do
+      button.press(:hotkey)
+      button.release(:confirm)
+      button.cancel_press(:confirm)
+      expect(button.pressed?).to be(true)
+    end
+
+    it 'drops a hotkey hold, feedback included, on a cancel from the hotkey' do
+      button.press(:hotkey)
+      button.cancel_press(:hotkey)
+      expect(button.state).to eq(:focused)
+    end
+
+    it 'keeps a hotkey hold when focus is lost' do
+      button.press(:hotkey)
+      button.update(described_class::PRESS_FEEDBACK * 2)
+      button.focused = false
+      expect(button.state).to eq(:pressed)
+    end
+
+    it 'refuses a source it does not know' do
+      expect { button.press(:mouse) }.to raise_error(ArgumentError, /:confirm or :hotkey/)
+    end
+  end
+
+  # The instant press with nothing holding the button — how a press that ends
+  # somewhere else hands its activation over.
+  describe '#activate_with_feedback' do
+    it 'activates and shows pressed for PRESS_FEEDBACK with no hold' do
+      fired = []
+      button.on_activated { fired << :activated }
+      button.activate_with_feedback
+      states = [button.state]
+      button.update(described_class::PRESS_FEEDBACK)
+      expect([states << button.state, fired]).to eq([%i[pressed idle], [:activated]])
+    end
+
+    it 'does nothing while disabled' do
+      button.enabled = false
+      expect([button.activate_with_feedback, button.pressed?]).to eq([nil, false])
+    end
+  end
+
+  it 'has no hotkey unless given one' do
+    expect([button.hotkey, described_class.new(hotkey: :skill1).hotkey]).to eq([nil, :skill1])
+  end
+
   it 'refuses an activate_on: it does not know' do
     expect { described_class.new(activate_on: :hold) }.to raise_error(ArgumentError, /:release or :press/)
   end

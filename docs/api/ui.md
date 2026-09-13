@@ -46,8 +46,8 @@ with one of each:
 
 | | Answers | Shipped |
 |---|---|---|
-| `layout:` | where each button goes, its size, and the [bounds](#layouts-column-and-ring) of them all | [`Column`](#layouts-column-and-ring), [`Ring`](#layouts-column-and-ring) |
-| `navigation:` | which button this frame's input focuses | [`Stepping`](#stepping) (the default), [`Pointing`](#pointing) |
+| `layout:` | where each button goes, its size, and the [bounds](#layouts-column-row-and-ring) of them all | [`Column`](#layouts-column-row-and-ring), [`Row`](#layouts-column-row-and-ring), [`Ring`](#layouts-column-row-and-ring) |
+| `navigation:` | which button this frame's input focuses | [`Stepping`](#stepping) (the default), [`Pointing`](#pointing), or [`nil`](#a-menu-with-no-navigation) |
 
 ```ruby
 ring = UI::Ring.new(radius: 120, item_width: 96, item_height: 30)
@@ -61,6 +61,7 @@ What the menu keeps is what is the same for every combination:
 | | |
 |---|---|
 | `ui_confirm` | press the focused button on the way down, release it on the way up — see [When a press activates](#when-a-press-activates) |
+| each button's `hotkey` | press that button, focused or not — see [Hotkeys](#hotkeys) |
 | `add(button)` | append a button, re-arrange them all, and return it; `TypeError` for anything that is not a `UI::Button` |
 | `buttons`, `focused`, `focused_index` | what it holds and what is focused — `nil` when nothing is |
 | `focus(index)` | focus a button directly, or nothing with `nil`; only buttons whose focus changes are told |
@@ -73,48 +74,78 @@ anything.
 
 **Confirming is the menu's, not the navigation's.** A navigation only says which
 button is focused, so a new one cannot forget to activate it, and every
-combination of layout and navigation confirms the same way.
+combination of layout and navigation confirms the same way. Each frame the menu
+runs its navigation, then every hotkey, then confirm.
 
-### Layouts: `Column` and `Ring`
+### Layouts: `Column`, `Row` and `Ring`
 
-| | Places buttons | Built with |
-|---|---|---|
-| `Column` | downwards from the menu's origin | `item_width:`, `item_height:`, `spacing: 8` |
-| `Ring` | round a circle **centred on** the menu's origin, the first straight up, then clockwise | `radius:`, `item_width:`, `item_height:` |
+| | Places buttons | `axis` | Built with |
+|---|---|---|---|
+| `Column` | downwards from the menu's origin | `:vertical` | `item_width:`, `item_height:`, `spacing: 8` |
+| `Row` | rightwards from the menu's origin | `:horizontal` | `item_width:`, `item_height:`, `spacing: 8` |
+| `Ring` | round a circle **centred on** the menu's origin, the first straight up, then clockwise | `:vertical` | `radius:`, `item_width:`, `item_height:` |
 
-A layout is anything answering two methods, both relative to the menu:
+```ruby
+bar = layer.add_node(UI::Menu.new(layout: UI::Row.new(item_width: 64, item_height: 64)))
+```
+
+`Column` and `Row` are one `UI::Stack` with its `axis:` fixed, because they are
+the same computation with x and y swapped. Neither takes `axis:` — a column that
+is not vertical is a row — so passing one is an unknown keyword rather than
+something quietly ignored. `Stack.new(axis:, item_width:, item_height:,
+spacing: 8)` takes either axis in `Stack::AXES` and raises `ArgumentError` for
+anything else.
+
+A layout is anything answering three methods, the first two relative to the
+menu:
 
 - `arrange(buttons)` sets each button's `x`, `y`, `width` and `height`;
 - `bounds(buttons)` returns `[x, y, width, height]`, the rectangle enclosing
-  them — `[0, 0, 0, 0]` for none.
+  them — `[0, 0, 0, 0]` for none;
+- `axis` is `:vertical` or `:horizontal`, the direction [`Stepping`](#stepping)
+  moves focus along unless it is told otherwise. A layout of a game's own that
+  does not answer it raises `NoMethodError` when a menu is built with it and the
+  default navigation, and works with an explicit `Stepping.new(axis:)` or any
+  other navigation.
 
 The menu calls both after every `add`, which is how a ring re-spaces itself as
 it grows, and copies the bounds into its own readers, so a backdrop drawn from
 them allocates nothing. A layout keeps no state about a menu, so one instance
 may serve several.
 
-`Column`'s bounds are the stacked slots, exactly. `Ring`'s are the square round
+`Column`'s and `Row`'s bounds are their slots, exactly. `Ring`'s are the square round
 the whole circle of slots, `2 * radius + item_width` wide and
 `2 * radius + item_height` tall, whatever the count — so a backdrop behind a
 wheel does not change size as buttons are added.
 
 ### `Stepping`
 
-Focus moves one button at a time, in the order they were added. The default.
+Focus moves one button at a time, in the order they were added, along an axis.
+The default.
+
+| | Vertical axis | Horizontal axis |
+|---|---|---|
+| move focus, skipping disabled buttons, wrapping at the ends | `ui_up` / `ui_down` | `ui_left` / `ui_right` |
+| `adjust` the focused button | `ui_left` / `ui_right` | `ui_up` / `ui_down` |
 
 | | |
 |---|---|
-| `ui_up` / `ui_down` | move focus, skipping disabled buttons, wrapping at the ends |
-| `ui_left` / `ui_right` | `adjust` the focused row |
-| `step(delta)` | move focus as `ui_down` would, `delta` times |
+| `Stepping.new(axis: nil)` | `nil` takes the layout's `axis`; `:vertical` or `:horizontal` overrides it |
+| `axis` | the axis in use — resolved when the menu is built |
+| `step(delta)` | move focus forwards along the axis, `delta` times |
+
+**The axis follows the layout**, so `Menu.new(layout: UI::Row.new(...))` steps
+with left and right with nothing else said. An axis the navigation had to be told
+separately would be a row stepped by up and down the day somebody forgot it. An
+axis outside `Stack::AXES` raises `ArgumentError` when the menu is built.
 
 Focus starts on the first enabled button and is never empty while the menu has
 one.
 
-**Vertical belongs to the navigation, horizontal to the focused row.** It does
-not know what kind of button it is talking to — it calls `adjust` and a plain
-button answers `nil`. That is what makes an `OptionButton` work, and why a settings menu
-wants `Stepping`.
+**The axis belongs to the navigation, the other pair to the focused button.** It
+does not know what kind of button it is talking to — it calls `adjust` and a
+plain button answers `nil`. That is what makes an `OptionButton` work, and why a
+settings menu wants `Stepping`.
 
 ### `Pointing`
 
@@ -171,6 +202,22 @@ end
 `Pointing` keeps the last direction it read — so handing one instance to a second
 menu raises `ArgumentError` rather than letting two menus share a pointer. The
 constructor default builds a fresh `Stepping` for every menu.
+
+### A menu with no navigation
+
+`navigation: nil` says input never moves focus:
+
+```ruby
+bar = layer.add_node(UI::Menu.new(layout: UI::Row.new(item_width: 48, item_height: 48), navigation: nil))
+bar.add(UI::IconButton.new(image: :potion, hotkey: :skill1)).on_activated { drink }
+```
+
+Nothing is focused when a button is added, and nothing focuses one afterwards, so
+`ui_confirm` has nothing to act on and [hotkeys](#hotkeys) are the only way in —
+the action bar of a game played on hotkeys alone. Leaving the keyword out is a
+`Stepping`, so `nil` is always something the caller said, never a forgotten
+argument. A game that calls `focus` on such a menu has said something too, and
+confirm acts on the button it focused.
 
 ### Focus is per player, and it costs nothing
 
@@ -273,12 +320,15 @@ no look. A subclass supplies the look in `on_draw`, reading `state`:
 | `label`, `enabled`, `enabled?` | optional — an image-only button still has somewhere to keep a name |
 | `focused?`, `pressed?`, `state` | read by `on_draw` |
 | `activate_on` | `:release` (the default) or `:press`; anything else raises `ArgumentError` |
+| `hotkey` | an action name that presses this button, focused or not, or `nil` — see [Hotkeys](#hotkeys) |
 | `activate` | fire `on_activated` and return the button, or `nil` when disabled |
+| `activate_with_feedback` | `activate`, and draw pressed for `PRESS_FEEDBACK` — the instant press, needing nothing held |
 | `adjust(delta)` | what horizontal input does to it under `Stepping`; `nil` — nothing to change |
 | `on_focus_changed(focused)` | hook, called only when focus actually changes |
 
-`focused=`, `press`, `release` and `cancel_press` are the menu's side of the
-same interface. A disabled button is skipped by focus movement and cannot be
+`focused=`, `press(source)`, `release(source)` and `cancel_press(source)` are
+the menu's side of the same interface; `source` is `:confirm` (the default) or
+`:hotkey`. A disabled button is skipped by focus movement and cannot be
 activated by any route, so a caller never has to check first.
 
 #### A button of your own
@@ -342,6 +392,51 @@ of its feedback, and shows it when reopened. A menu covered by a pushed scene is
 not controlled either, so it keeps drawing whatever state it was in when it was
 covered.
 
+#### Hotkeys
+
+`hotkey:` names an action that presses the button from wherever focus is:
+
+```ruby
+controls = RGame::Util::Controls
+input_map = RGame::Engine::InputMap.default.merge(
+  skill1: { buttons: [controls::KEY_1] },
+  skill2: { buttons: [controls::KEY_2] }
+)
+
+bar.add(UI::IconButton.new(image: :torch, label: 'Torch', hotkey: :skill1)).on_activated { light }
+bar.add(UI::IconButton.new(image: :hammer, label: 'Hammer', hotkey: :skill2)).on_activated { build }
+```
+
+| | |
+|---|---|
+| activates | as the key goes down, **whatever `activate_on:` says** |
+| drawn pressed | at least `PRESS_FEEDBACK`, or while held if longer — focused or not |
+| its release | activates nothing |
+| focus | does not move |
+
+A hotkey is a second way to press a button, not a way to move to it: pressed is
+reached by being the focused button while confirm goes down, or by the button's
+own key. It follows the same rules as confirm — a menu takes a hotkey's press only
+once it has seen that key up since the button was added, so a menu opened by a
+hotkey does not fire from the same press, and a press whose release was never
+seen is dropped. A disabled button ignores its hotkey. Hotkeys work under every
+navigation, and under none.
+
+The action has to be declared in the player's `InputMap`. The menu reads it every
+frame, so an undeclared one raises `KeyError`, naming it, on the first frame
+rather than doing nothing.
+
+**A press belongs to the source that started it.** The button records whether
+confirm or its hotkey is holding it, and while one does, a press from the other
+is ignored and its release ends nothing:
+
+- confirm held on a `:release` button, its hotkey pressed and released: nothing
+  activates and the button stays pressed; confirm let go: it activates, once;
+- a hotkey and confirm going down on the same tick on the focused button: it
+  activates once;
+- focus moving away: ends a confirm hold, as always, and leaves a hotkey hold
+  alone.
+
 ### Styles
 
 What sits behind a button's content, per state. A style is anything answering
@@ -359,8 +454,8 @@ its `z` out would cover them.
 
 **What reads on a fill is the style's to say.** A style that answers
 `content_color(state)` sets the colour of the button's label or icon in any state
-where it returns a colour. `TextButton`, `OptionButton` and `IconButton` all
-follow it, and fall back to their own `label_color:` or `tints:` wherever it
+where it returns a colour. `TextButton`, `OptionButton` and `IconButton`'s
+picture all follow it, and fall back to their own `label_color:` or `tints:` wherever it
 returns `nil`, and for a style without the method. The style is the object that
 picks the fill, so it is the only one that can pick what shows up on it. A
 `ShapeStyle`'s pressed fill is the same gold as `IconButton`'s pressed tint, so
@@ -537,7 +632,11 @@ bar.add(UI::IconButton.new(image: 'icons/hoe.png', label: 'Hoe', style: disc))
 
 The image is drawn at its natural size, centred in the slot — or, with a
 caption, centred in the space above it, with the caption centred along the
-bottom edge. **Everything stays inside the slot**, so a navigation reading the
+bottom edge. **With a caption the style is drawn in that space above it too**,
+so a disc sits round the picture and the caption reads below it, on whatever is
+behind the button. A caption is often wider than the disc — "Watering can" under
+a tool — and one drawn across the disc's edge would sit half on the fill and
+half off it, legible on neither. **Everything stays inside the slot**, so a navigation reading the
 slot's centre and a backdrop sized from the menu's bounds are right for an icon
 button as for any other.
 
@@ -548,9 +647,11 @@ some rows of pixels and not others; focus shows through the tint and the style
 instead. `tints:` and `scales:` must name every state, and raise `KeyError` when
 the button is built if one is missing.
 
-On a style that names a content colour, that colour replaces both the tint and
-the caption colour in the states it names. On the default `ShapeStyle` that
-means pressed only, where a dark icon shows on the gold fill. With no style, the
+On a style that names a content colour, that colour replaces the tint in the
+states it names. On the default `ShapeStyle` that means pressed only, where a
+dark icon shows on the gold fill. The caption keeps `label_color:` and
+`disabled_label_color:` whatever the style says, because it is not on the
+style's fill. With no style, the
 pressed tint stays gold, which reads on a dark ground.
 
 `image: nil` draws the caption alone, for an entry whose art is not in yet. An id
@@ -590,12 +691,14 @@ opens over a running world, pauses only the node that opened it, and closes
 again. `examples/menu_navigation` is the next step up — a title screen, a
 settings screen pushed over it, and rows that change fullscreen, the scale mode
 and the volume for real and write them to a file. `examples/radial_menu` is a
-`RadialMenu` of `IconButton`s, its icons from a UI atlas.
+`RadialMenu` of `IconButton`s, its icons from a UI atlas. `examples/skill_bar` is
+a `Row` of captioned `IconButton`s, stepped with left and right and each fired by
+a hotkey.
 
 ## What this is not
 
 It is a menu, not a widget library. Every button is the same size and placed by a
-column or a ring, and that is the whole of its layout — no grid, no nesting, no
+column, a row or a ring, and that is the whole of its layout — no grid, no nesting, no
 scrolling lists, and no general answer to how UI should be laid out. There is no text entry, and no
 continuous control: `OptionButton` covers a setting with a handful of values, and
 anything wanting a free-moving slider needs a control that does not exist yet.

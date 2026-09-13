@@ -47,17 +47,38 @@ module RGame
       # dropped rather than finished, so a menu that closes itself from
       # `on_activated` and is opened again does not come back pressed. See
       # UI::Menu for the other half, a menu that has not yet seen confirm up.
+      #
+      # ## A hotkey
+      #
+      # `hotkey:` names an action that presses this button whether or not it is
+      # focused, and without moving focus — a skill bar's number keys:
+      #
+      #   UI::IconButton.new(image: :torch, hotkey: :skill3)
+      #
+      # A hotkey always activates on the press, whatever `activate_on:` says,
+      # and draws pressed for `PRESS_FEEDBACK` or while held. Its release
+      # activates nothing. The menu reads it, so the action has to be declared
+      # in the player's InputMap; an undeclared one raises on the first frame.
+      #
+      # **A press belongs to the source that started it.** The menu passes
+      # `:confirm` or `:hotkey` to `press`, `release` and `cancel_press`, and
+      # while one source holds the button a press from the other is ignored and
+      # its release ends nothing. So a player holding confirm on a `:release`
+      # button who taps that button's hotkey activates it once, when confirm is
+      # let go; and losing focus ends a confirm hold but not a hotkey one.
       class Button < Node2D
         signal :on_activated
 
         PRESS_FEEDBACK = 0.1
         STATES = %i[idle focused pressed disabled].freeze
         ACTIVATE_ON = %i[release press].freeze
+        SOURCES = %i[confirm hotkey].freeze
 
         attr_accessor :label, :enabled
-        attr_reader :activate_on
+        # `hotkey` is an action name, or nil.
+        attr_reader :activate_on, :hotkey
 
-        def initialize(label: nil, enabled: true, activate_on: :release, **)
+        def initialize(label: nil, enabled: true, activate_on: :release, hotkey: nil, **)
           super(**)
           unless ACTIVATE_ON.include?(activate_on)
             raise ArgumentError, "activate_on: must be :release or :press, not #{activate_on.inspect}"
@@ -66,14 +87,15 @@ module RGame
           @label = label
           @enabled = enabled
           @activate_on = activate_on
+          @hotkey = hotkey
           @focused = false
-          @held = false
+          @holder = nil
           @feedback = 0.0
         end
 
         def enabled? = @enabled
         def focused? = @focused
-        def pressed? = @held || @feedback.positive?
+        def pressed? = !@holder.nil? || @feedback.positive?
 
         # What to draw: `:disabled` whenever the button is disabled, whatever
         # else is true; then `:pressed`, `:focused`, and otherwise `:idle`.
@@ -89,46 +111,61 @@ module RGame
         # Called by the Menu. Calls `on_focus_changed` when the value actually
         # changes, and never for a repeated assignment, so a menu that reasserts
         # focus every frame does not replay a focus sound every frame. Losing
-        # focus lets go of a held press without activating it.
+        # focus lets go of a confirm press without activating it; a hotkey press
+        # was never about focus, and is kept.
         def focused=(value)
           return if @focused == value
 
           @focused = value
-          @held = false unless value
+          @holder = nil if !value && @holder == :confirm
           on_focus_changed(value)
         end
 
-        # Called by the Menu when a press starts on this button. Activates at
-        # once under `activate_on: :press` and returns what `activate` did;
-        # otherwise holds the press and returns nil. A disabled button ignores
-        # it.
-        def press
-          return nil unless @enabled
+        # Called by the Menu when a press from `source` — `:confirm` or
+        # `:hotkey` — starts on this button. A hotkey press, or any press under
+        # `activate_on: :press`, activates at once and returns what `activate`
+        # did; a confirm press under `:release` holds and returns nil. Ignored,
+        # returning nil, while disabled or while any source already holds it.
+        def press(source = :confirm)
+          unless SOURCES.include?(source)
+            raise ArgumentError, "source must be :confirm or :hotkey, not #{source.inspect}"
+          end
+          return nil unless @enabled && @holder.nil?
 
-          @held = true
-          return nil unless @activate_on == :press
+          @holder = source
+          return nil unless source == :hotkey || @activate_on == :press
+
+          activate_with_feedback
+        end
+
+        # Called by the Menu when a press `source` started is let go. Activates
+        # a confirm press under `activate_on: :release`, and returns what
+        # `activate` did; ends nothing another source started.
+        def release(source = :confirm)
+          return nil unless @holder == source
+
+          @holder = nil
+          activate if source == :confirm && @activate_on == :release
+        end
+
+        # Called by the Menu for a press from `source` whose release this button
+        # never saw. Drops it, and the feedback with it, activating nothing.
+        def cancel_press(source = :confirm)
+          return unless @holder == source
+
+          @holder = nil
+          @feedback = 0.0
+        end
+
+        # The instant press: activates, and shows pressed for `PRESS_FEEDBACK`
+        # though nothing holds the button. What a hotkey press and a
+        # `:press` confirm do, available on its own for a press that ends
+        # somewhere other than on this button. Returns what `activate` did.
+        def activate_with_feedback
+          return nil unless @enabled
 
           @feedback = PRESS_FEEDBACK
           activate
-        end
-
-        # Called by the Menu when a press this button saw start is let go.
-        # Activates under `activate_on: :release`, and returns what `activate`
-        # did.
-        def release
-          return nil unless @held
-
-          @held = false
-          activate if @activate_on == :release
-        end
-
-        # Called by the Menu for a press whose release this button never saw.
-        # Drops it, and the feedback with it, activating nothing.
-        def cancel_press
-          return unless @held
-
-          @held = false
-          @feedback = 0.0
         end
 
         # What the focused button does with `ui_left` / `ui_right`, which the

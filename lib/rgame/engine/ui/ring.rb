@@ -15,9 +15,12 @@ module RGame
       # there are.
       #
       # Paired with UI::Pointing it is a radial menu. With the default
-      # UI::Stepping it is a ring that `ui_up` and `ui_down` step round.
+      # UI::Stepping it is a ring that `ui_up` and `ui_down` step round, which is
+      # why its `axis` is `:vertical`.
       class Ring
         attr_reader :radius, :item_width, :item_height
+
+        def axis = :vertical
 
         def initialize(radius:, item_width:, item_height:)
           @radius = radius

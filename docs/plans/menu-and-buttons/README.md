@@ -1,8 +1,7 @@
 # Plan — the menu is a shell, the button is the look
 
-**Status:** steps 1–4 implemented. Step 5 planned in detail at `564e708`, with
-5d amended at `9c6eb00` for the held wheel. Step 6, a menu held open by an action,
-is rough; step 7 is the fold-back. Every open question is settled. Builds on PR
+**Status:** steps 1–5 implemented; step 5 amended question 9 for captions.
+Step 6, a menu held open by an action, is rough; step 7 is the fold-back. Every open question is settled. Builds on PR
 #28 (`UI::Menu` with `layout:` and `navigation:`), merged to `main` as `53f5392`.
 
 | | |
@@ -313,6 +312,16 @@ Not up for re-litigation inside this plan.
    B, C and D each fixed one case by moving the collision somewhere else. A
    leaves every game to remember an override, which "Design out misuse" rejects.
    Landed on step 4's branch; see its note.
+
+   **Amended in step 5, for captions.** Drawing `examples/skill_bar` showed the
+   case step 4's note warned of: a pressed caption in the dark content colour
+   sits half on the gold disc and half on the dark ground, and reads on neither;
+   a caption in its own light colour instead is the 1.4:1 case again. Chosen, in
+   the prompt that implemented step 5, from a render of both against a third:
+   **a captioned `IconButton` hands its style only the space above the
+   caption**, so the disc sits round the picture and the caption reads below it,
+   in the button's own label colours. The content colour applies to the picture
+   only. The caption is still inside the slot.
 
 ## What this plan does not deliver
 

@@ -31,19 +31,29 @@ module RGame
       # | | Answers | Shipped |
       # |---|---|---|
       # | `layout:` | where each button goes, its size, and the bounds of them all | UI::Column, UI::Ring |
-      # | `navigation:` | which button this frame's input focuses | UI::Stepping (default), UI::Pointing |
+      # | `navigation:` | which button this frame's input focuses | UI::Stepping (default), UI::Pointing, or nil |
       #
       # What stays here is what every menu does the same way: holding the
-      # buttons, and passing `ui_confirm` to the focused one as a press and a
-      # release — when that activates is the button's `activate_on:`. A
-      # navigation cannot forget to do that, because it is never asked to.
+      # buttons, passing `ui_confirm` to the focused one as a press and a
+      # release — when that activates is the button's `activate_on:` — and
+      # passing each button's `hotkey` to that button, focused or not. A
+      # navigation cannot forget to do either, because it is never asked to.
+      #
+      # ## A menu with no navigation
+      #
+      # `navigation: nil` says input never moves focus: the menu focuses nothing
+      # when a button is added, so `ui_confirm` has nothing to act on. What
+      # focuses a button then is the game calling `focus` — which confirm then
+      # acts on, as it would for any navigation.
       #
       # ## A menu acts only on a press it saw start
       #
-      # A menu takes no press until it has seen `ui_confirm` up. A menu opened
-      # from `on_activated` — a submenu — is controlled later in the same tick,
-      # while the key that opened it is still down, and would otherwise read the
-      # same press edge again and activate its own focused button with it.
+      # A menu takes no press until it has seen `ui_confirm` up, and no hotkey
+      # press on a button until it has seen that hotkey up since the button was
+      # added. A menu opened from `on_activated` — a submenu — is controlled
+      # later in the same tick, while the key that opened it is still down, and
+      # would otherwise read the same press edge again and activate its own
+      # button with it.
       #
       #   wheel = UI::Menu.new(x: 320, y: 240, navigation: UI::Pointing.new,
       #                        layout: UI::Ring.new(radius: 120, item_width: 96, item_height: 30))
@@ -78,7 +88,8 @@ module RGame
           @bounds_x = @bounds_y = @bounds_width = @bounds_height = 0
           @focused_index = nil
           @confirm_seen_up = false
-          navigation.attach(self)
+          @hotkey_seen_up = []
+          navigation&.attach(self)
         end
 
         # Adds a button, re-arranges them all, and returns it, so a caller can
@@ -88,10 +99,11 @@ module RGame
           raise TypeError, "a Menu holds UI::Button instances, not #{button.class}" unless button.is_a?(Button)
 
           @buttons << button
+          @hotkey_seen_up << false
           add_node(button)
           @layout.arrange(@buttons)
           @bounds_x, @bounds_y, @bounds_width, @bounds_height = @layout.bounds(@buttons)
-          @navigation.on_buttons_changed
+          @navigation&.on_buttons_changed
           button
         end
 
@@ -111,24 +123,48 @@ module RGame
           current&.focused = true
         end
 
+        # Navigation first, so a focus change and a confirm on the same frame
+        # confirm the newly focused button; then every hotkey; then confirm.
         def on_control(actions)
-          @navigation.on_control(actions)
-          confirm(focused, actions)
+          @navigation&.on_control(actions)
+          press_hotkeys(actions)
+          edge = press_edge(actions, :ui_confirm, @confirm_seen_up)
+          @confirm_seen_up = !actions.held?(:ui_confirm)
+          button = focused
+          pass_edge(button, edge, :confirm) if button
         end
 
         private
 
-        def confirm(button, actions)
-          armed = @confirm_seen_up
-          @confirm_seen_up = !actions.held?(:ui_confirm)
-          return if button.nil?
+        def press_hotkeys(actions)
+          index = 0
+          while index < @buttons.size
+            button = @buttons[index]
+            hotkey = button.hotkey
+            if hotkey
+              edge = press_edge(actions, hotkey, @hotkey_seen_up[index])
+              @hotkey_seen_up[index] = !actions.held?(hotkey)
+              pass_edge(button, edge, :hotkey)
+            end
+            index += 1
+          end
+        end
 
-          if actions.pressed?(:ui_confirm)
-            button.press if armed
-          elsif actions.released?(:ui_confirm)
-            button.release
-          elsif @confirm_seen_up
-            button.cancel_press
+        def press_edge(actions, action, seen_up)
+          if actions.pressed?(action)
+            :press if seen_up
+          elsif actions.released?(action)
+            :release
+          elsif !actions.held?(action)
+            :missed_release
+          end
+        end
+
+        def pass_edge(button, edge, source)
+          case edge
+          when :press then button.press(source)
+          when :release then button.release(source)
+          when :missed_release then button.cancel_press(source)
           end
         end
       end

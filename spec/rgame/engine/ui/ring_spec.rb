@@ -27,6 +27,11 @@ RSpec.describe RGame::Engine::UI::Ring do
     expect(placed.map { [it.width, it.height] }.uniq).to eq([[40, 20]])
   end
 
+  # Stepping round a ring uses up and down, as it always has.
+  it 'is vertical' do
+    expect(ring.axis).to eq(:vertical)
+  end
+
   describe '#bounds' do
     def contains?(bounds, item)
       left, top, width, height = bounds

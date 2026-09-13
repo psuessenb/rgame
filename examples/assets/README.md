@@ -1,7 +1,7 @@
 # Example assets
 
-Everything the examples draw and play. Thirteen files besides this one, about
-120 KB in total — of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
+Everything the examples draw and play. Fifteen files besides this one, about
+124 KB in total — of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
 
 ## Why these files and not the ones in `media/`
 
@@ -217,6 +217,44 @@ holds Adobe XMP, so the eight files are 121 KB; the strip is 2 KB. It is a UI
 atlas rather than a sprite sheet so the icons are cut and registered by name —
 `renderer.register_ui_atlas(game.assets.ui_atlas('icons.json'))` makes
 `UI::IconButton.new(image: :home)` draw.
+
+### `skills.png` + `skills.json` — Kenney, *Cursor Pack*, repacked
+
+- Source: <https://kenney.nl/assets/cursor-pack>, version 1.1
+- Licence: CC0 1.0 (the `License.txt` inside the download reads "License:
+  (Creative Commons Zero, CC0)")
+- Modification: five 64x64 PNGs were laid side by side into one strip and saved
+  as RGBA. The pixels are untouched; only the sheet and the descriptor are ours.
+
+Layout, 5 columns x 1 row of 64x64, named in the descriptor's `images` section
+in `snake_case`:
+
+| Column | Name | From the pack |
+|---|---|---|
+| 0 | `wand` | `PNG/Basic/Double/tool_wand.png` |
+| 1 | `wrench` | `PNG/Basic/Double/tool_wrench.png` |
+| 2 | `torch` | `PNG/Basic/Double/tool_torch.png` |
+| 3 | `hammer` | `PNG/Basic/Double/tool_hammer.png` |
+| 4 | `watering_can` | `PNG/Basic/Double/tool_watering_can.png` |
+
+`torch` is the pack's flashlight, named for the British word. The pack has
+`tool_hoe`, `tool_shovel`, `tool_axe` and `tool_pickaxe` in the same styles, if
+the bar ever wants more.
+
+**`Basic`, not `Outline`.** Both were drawn on `examples/skill_bar`'s discs in
+all four states. `Basic` is a light-grey silhouette with no border, so a tint
+colours all of it: grey at rest, white focused, dim disabled, dark on the gold
+pressed disc. `Outline` adds a black border, which a multiply leaves black —
+a disabled tool barely dims, and a pressed one is a dark shape on gold with its
+edges lost.
+
+**`Double` (64 pixels), not `Default` (32).** The glyph sits in about half its
+square, so a 32-pixel cursor on an 80-pixel disc is a thumbnail. Either draws at
+scale 1, which nearest-neighbour sampling needs.
+
+**One pack per atlas.** These are not in `icons.png` so that each file's
+provenance stays one paragraph; one more `register_ui_atlas` call is the whole
+cost.
 
 ### `blip.ogg` — Kenney, *Interface Sounds*
 

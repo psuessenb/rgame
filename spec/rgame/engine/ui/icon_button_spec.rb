@@ -116,9 +116,11 @@ RSpec.describe RGame::Engine::UI::IconButton do
         expect(drawn_image.options[:color]).to eq(dark)
       end
 
-      it "draws the caption in the style's colour while pressed" do
+      # The caption is under the style rather than on its fill, so what reads
+      # on the fill is not what reads under it.
+      it "keeps the caption in its own colour, not the style's, while pressed" do
         in_state(:pressed, style: disc, label: 'Home')
-        expect(draw.last.options[:color]).to eq(dark)
+        expect(draw.last.options[:color]).to eq(RGame::Engine::UI::TextButton::LABEL_COLOR)
       end
 
       it 'keeps its own tint in a state the style leaves nil' do
@@ -143,6 +145,22 @@ RSpec.describe RGame::Engine::UI::IconButton do
       in_state(:pressed, style: style)
       draw
       expect(style).to have_received(:draw).with(renderer, :pressed, 64, 80)
+    end
+
+    # FakeRenderer's lines are 18 pixels, so the style gets 80 - 18.
+    it 'is handed only the space above a caption' do
+      style = instance_double(RGame::Engine::UI::ShapeStyle, draw: nil)
+      in_state(:pressed, style: style, label: 'Home')
+      draw
+      expect(style).to have_received(:draw).with(renderer, :pressed, 64, 62)
+    end
+
+    it 'puts the disc round the picture, with the caption below it' do
+      in_state(:focused, style: RGame::Engine::UI::ShapeStyle.new(shape: :disc), label: 'Home')
+      calls = draw
+      disc = calls.find { |call| call.name == :circle }
+      caption = calls.find { |call| call.name == :text }
+      expect([disc.args[1], disc.args[1] + disc.args[2]]).to eq([drawn_image.args[2], caption.args[2]])
     end
   end
 
