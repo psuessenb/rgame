@@ -1,7 +1,9 @@
 # Roadmap
 
-**Status:** nothing implemented. Steps 1–2 are detailed; 3–5 are rough and are
-re-planned when the step before them lands. Its prerequisite, PR #28, is merged.
+**Status:** step 1 is implemented. Step 2 is detailed; 3–5 are rough and are
+re-planned when the step before them lands. Step 4 needs a hotkey path into
+`Button#press` that ignores `activate_on:`, and the allocation in `Stepping#step`
+(see step 1's landed note).
 
 ```
 #28 (merged) ─→ 1 Button + Menu#add ─→ 2 bounds + PanelMenu ─→ 3 TextButton, IconButton, RadialMenu ─→ 4 Row, axis, hotkeys ─→ 5 fold back
@@ -99,6 +101,82 @@ CHANGELOG: under the existing `UI::Menu` entry.
 **Verify.** `rake spec` green; RuboCop clean; the invariant above; a spec-defined
 button drawing through `FakeRenderer` in a menu. `Menu#on_control` still 0
 allocations under `Stepping`.
+
+**Landed.** Four commits, one per sub-step, on branch `menu-buttons`.
+
+- **1a** `UI::Button` (`lib/rgame/engine/ui/button.rb`): `label` optional,
+  `enabled`, `focused?`, public `state`, `focused=` calling a blank
+  `on_focus_changed` only on a change, `activate`, `adjust → nil`. `MenuItem < Button`
+  kept `STYLE` and its drawing.
+- **1b** `Menu#add(button)` raising `TypeError`; `add_item`, `add_option`,
+  `style:` gone; `items` → `buttons`; `Navigation#on_items_changed` →
+  `on_buttons_changed`; `Menu#focus` assigns only to the buttons whose focus
+  changed. `MenuItem` → `PanelButton`, `OptionItem` → `OptionButton`, files and
+  specs renamed with them. The four callers construct `PanelButton`s.
+- **1c** `activate_on: :release | :press` (anything else raises),
+  `PRESS_FEEDBACK = 0.1` counted in `Button#update`, and `Button#press`,
+  `#release`, `#cancel_press` as the menu's side. `state` is *disabled, else
+  pressed, else focused, else idle*.
+- **1d** `docs/api/ui.md` (`Button`, "A button of your own", "When a press
+  activates", `PanelButton`, `OptionButton`), the CHANGELOG's `UI::Menu` entry,
+  and the old names in `docs/api/examples.md`, `docs/project_structure.md` and
+  the write-example skill.
+
+Suites: `rake spec` **1499 examples, 0 failures** (1447 before); `spec/rgame/engine/ui/`
+**140** (88 before). RuboCop clean on all 20 changed Ruby files. No C and no Core
+file changed, so `make test` and `rake spec:core` were not rerun.
+
+Invariant, `--seed 1`, fresh `RGAME_SAVE_DIR`: after 1a and after 1b, `game_menu`,
+`menu_navigation`, the `tiled_world` inventory and both `radial_menu` scripts are
+**byte-identical** to `main`. After 1c, measured against 1b:
+
+| Report | Change | Why |
+|---|---|---|
+| `game_menu` | `nine_slice` 160 → 164, `text` 520 → 523, hud layers 960 → 964 | Resume activates on the up tick, so the panel and three buttons draw one more frame |
+| `menu_navigation` | `nine_slice` 2350 → 2348, `text` 4529 → 4520, `circle` 44 → 43, `line` 88 → 86 | Settings and Play each activate one tick later: one frame less of settings, one fewer frame of play |
+| inventory, `radial_menu` ×2 | none | their scripts never confirm, or the drive ends before a difference reaches the report |
+
+`:button_pressed` counted with a probe on `Renderer#nine_slice` over 600 ticks:
+`game_menu` **0 → 1** (Resume is now seen pressed on its down tick), and
+`menu_navigation` **138 → 2**. That second number was a bug nobody had measured:
+on `main` the title's Settings button stayed frozen `pressed` under the settings
+screen for its whole stay, because a covered scene is not controlled and `pressed`
+was only ever cleared by the next control.
+
+Rules pinned, and each guard mutation-checked (deleting it fails the examples
+written for it): the `armed` check fails 4 submenu examples, `cancel_press` fails
+2 hide-and-show examples, the focus-loss release fails 2.
+
+What the sketch got wrong:
+
+- **`pressed=` did not survive.** The design's `pressed=(value)` setter cannot
+  express "a press this button saw start". The menu now calls `press`, `release`
+  and `cancel_press`, and the button owns `@held` and the feedback. Step 4's
+  hotkey "always activates on press, ignoring `activate_on:`" needs a way into
+  `press` that ignores `activate_on`, which does not exist yet.
+- **"A press this button saw start" is two rules, one per menu and one per button.**
+  A submenu's button *is* focused when the press edge arrives in the same
+  traversal, so focus alone could not tell. The menu takes no press until it has
+  seen `ui_confirm` up (initially false). One consequence: a menu refuses a press
+  on the very first tick it is controlled, and specs poll once before pressing.
+- **Pausing, open question 6's remaining detail, is decided by input edges, not
+  time.** A paused subtree gets no `control` and no `update`, and there is no tick
+  counter, so a gap cannot be detected directly. What can be seen is a key that
+  is up with no release edge: that press is dropped, feedback and all. Two cases
+  stay undetectable and are documented in `ui.md`: a `:press` button hidden
+  *after* its release was seen but within `PRESS_FEEDBACK` keeps the rest of its
+  feedback; and a covered menu draws whatever state it was covered in.
+- **`Menu#on_control` is not 0 allocations under `Stepping` — and was not on
+  `main` either.** Over 200,000 control+update ticks with a focus step every 7:
+  28,596 objects here, 28,591 on `main`. The `return` inside
+  `buttons.size.times do … end` in `Stepping#step` allocates once per step.
+  With no focus movement: 21 (`:release`) and 2 (`:press`); `Pointing` 1. Not
+  fixed here, being unrelated; step 4 rewrites `Stepping` for its axis and should
+  close it.
+- **`tiled_world` drops a frame now and then on `main` too** (599 of 600), so the
+  invariant was compared on runs reporting ticks equal to frames.
+- `STYLE`'s `focus:` key became `focused:` to match `state`; the element names
+  are unchanged. `PanelButton` keeps `label:` required, because it draws it.
 
 ---
 

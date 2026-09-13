@@ -1,6 +1,6 @@
 # Plan — the menu is a shell, the button is the look
 
-**Status:** planned, nothing implemented, every open question settled. Steps 1 and 2 are detailed; steps 3–5
+**Status:** step 1 implemented, every open question settled. Steps 1 and 2 are detailed; steps 3–5
 are rough and get re-planned when the step before them lands. Builds on PR #28
 (`UI::Menu` with `layout:` and `navigation:`), merged to `main` as `53f5392`.
 
@@ -175,8 +175,11 @@ Not up for re-litigation inside this plan.
      otherwise come back still pressed when reopened.
 
    Changing the default to `:release` changes when every existing menu reacts,
-   one tick later on a tap — accepted with the rest. Step 1c is unblocked; the
-   one detail it still owns is what pausing does to a running countdown. See
+   one tick later on a tap — accepted with the rest. **Pausing, decided in step
+   1c:** a button cannot see ticks it was not controlled for, so a press whose
+   release it never saw — the key is up with no release edge — is dropped, with
+   its feedback; a paused countdown otherwise freezes. See the step's landed note
+   for the two cases that rule cannot see. See
    [03-design.md](03-design.md#pressed-is-reached-two-ways).
 7. ~~**Skill-bar art.**~~ **Settled — Kenney's *Cursor Pack*, its tool cursors as
    farming-sim skills.** <https://kenney.nl/assets/cursor-pack>, version 1.1,
