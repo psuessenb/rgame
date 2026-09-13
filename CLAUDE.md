@@ -53,6 +53,30 @@ suite lives in its own directory with its own runner, rather than in a shared
 one with an `exclude_pattern` that must not be forgotten. A convention that
 fails loudly beats one that has to be observed.
 
+### `Node2D` and `Component`: an underscore seals a method
+
+These two are the classes a game subclasses, so their non-public methods are
+names a game author can collide with without knowing they exist — and in Ruby
+`private` limits who may *call* a method, not who may *replace* one. A subclass
+method named like the base's machinery is found first and silently switches
+that machinery off for the class. (A UI button's draw hook was first named
+`draw_content`, and broke every draw.)
+
+So in `Node2D` and `Component`, and **only** there:
+
+- **A private or protected method whose name starts with `_` is machinery.**
+  `Engine::SealedPrivates` raises `NameError` when a subclass defines one of the
+  same name, at class definition rather than on some later frame.
+- **A private or protected method without the `_` is a seam**, meant to be
+  overridden with `super` — `Node2D#draw_children` is the one there is.
+  Unguarded by design.
+
+Adding a non-public method to either class is therefore a decision about which
+of the two it is, and `spec/rgame/engine/sealed_privates_spec.rb` lists each
+class's seams so that an unprefixed method added without deciding fails there.
+Everywhere else — engine subclasses included — the usual naming applies, and a
+private hook such as `Components::Mover#take_step` is ordinary.
+
 ## Before building: find the thing it resembles
 
 Reuse is the easy half, and this project already does it well — a new component

@@ -2,93 +2,99 @@
 
 RSpec.describe RGame::Engine::SealedPrivates do
   # A base class of its own, so the rules are pinned without leaning on which
-  # private methods Node2D happens to have today.
+  # methods Node2D happens to have today.
   let(:base) do
     Class.new do
       extend RGame::Engine::SealedPrivates
 
-      def run = machinery + seam
+      def run = _machinery + seam + _shared
 
-      unsealed :seam
+      protected
+
+      def _shared = 100
 
       private
 
-      def machinery = 1
+      def _machinery = 1
       def seam = 10
     end
   end
 
-  describe 'a subclass replacing a private method of the base' do
+  describe 'a subclass replacing an underscored method of the base' do
     it 'raises when the method is defined' do
-      expect { Class.new(base) { def machinery = 2 } }.to raise_error(NameError, /#machinery would replace/)
+      expect { Class.new(base) { def _machinery = 2 } }.to raise_error(NameError, /#_machinery would replace/)
     end
 
     it 'names the method on the error' do
       error = begin
-        Class.new(base) { def machinery = 2 }
+        Class.new(base) { def _machinery = 2 }
       rescue NameError => e
         e
       end
-      expect(error.name).to eq(:machinery)
+      expect(error.name).to eq(:_machinery)
+    end
+
+    it 'raises for a protected one as well as a private one' do
+      expect { Class.new(base) { def _shared = 2 } }.to raise_error(NameError, /#_shared/)
     end
 
     it 'raises however the method is private in the subclass' do
-      expect { Class.new(base) { private def machinery = 2 } }.to raise_error(NameError)
+      expect { Class.new(base) { private def _machinery = 2 } }.to raise_error(NameError)
     end
 
     it 'raises for a method made by define_method' do
-      expect { Class.new(base) { define_method(:machinery) { 2 } } }.to raise_error(NameError)
+      expect { Class.new(base) { define_method(:_machinery) { 2 } } }.to raise_error(NameError)
     end
 
     it 'raises for a method made by an attribute' do
-      expect { Class.new(base) { attr_reader :machinery } }.to raise_error(NameError)
+      expect { Class.new(base) { attr_reader :_machinery } }.to raise_error(NameError)
     end
 
     it 'raises a subclass further down, too' do
       middle = Class.new(base)
-      expect { Class.new(middle) { def machinery = 2 } }.to raise_error(NameError)
+      expect { Class.new(middle) { def _machinery = 2 } }.to raise_error(NameError)
     end
   end
 
   describe 'what it allows' do
+    # No underscore: a seam, meant for `super`.
+    it 'lets a subclass override a private method with no underscore' do
+      subclass = Class.new(base) { def seam = super * 2 }
+      expect(subclass.new.run).to eq(121)
+    end
+
     it 'lets a subclass override a public method' do
       expect(Class.new(base) { def run = 3 }.new.run).to eq(3)
     end
 
-    it 'lets a subclass have private methods of its own' do
-      expect(Class.new(base) { private def helper = 3 }.private_method_defined?(:helper)).to be(true)
+    it 'lets a subclass have underscored methods the base does not' do
+      expect(Class.new(base) { private def _helper = 3 }.private_method_defined?(:_helper)).to be(true)
     end
 
     it 'lets a subclass define initialize' do
       expect { Class.new(base) { def initialize(*) = super() } }.not_to raise_error
     end
 
-    # A private hook meant for super — the seam the base declared.
-    it 'lets a subclass override a private method the base unsealed' do
-      subclass = Class.new(base) { def seam = super * 2 }
-      expect(subclass.new.run).to eq(21)
-    end
-
-    # Only the base's own privates are sealed: a private hook written by one
-    # engine subclass for the next, like TextButton#draw_foreground, stays usable.
-    it 'lets a subclass override a private method of an intermediate class' do
-      middle = Class.new(base) { private def step = 1 }
-      expect { Class.new(middle) { def step = 2 } }.not_to raise_error
+    # Only the base's own methods are sealed: the convention belongs to the base
+    # class, not to everything under it.
+    it 'lets a subclass override an underscored method of an intermediate class' do
+      middle = Class.new(base) { private def _step = 1 }
+      expect { Class.new(middle) { def _step = 2 } }.not_to raise_error
     end
 
     it 'lets the base itself be reopened' do
-      expect { base.class_eval { private def machinery = 5 } }.not_to raise_error
+      expect { base.class_eval { private def _machinery = 5 } }.not_to raise_error
     end
   end
 
-  it 'refuses unsealed from a subclass, which could otherwise unseal anything' do
-    expect { Class.new(base) { unsealed :machinery } }.to raise_error(NameError, /only/)
+  it 'lists what it seals' do
+    expect(base.sealed_methods).to contain_exactly(:_machinery, :_shared)
   end
 
   describe 'the classes a game subclasses' do
     it 'seals Node2D' do
-      expect { Class.new(RGame::Engine::Node2D) { def draw_content(_renderer, _view) = nil } }
-        .to raise_error(NameError, /Node2D#draw_content/)
+      expect { Class.new(RGame::Engine::Node2D) { def _draw_content(_renderer, _view) = nil } }
+        .to raise_error(NameError, /Node2D#_draw_content/)
     end
 
     # The documented seam examples/game_menu uses to hide a closed menu.
@@ -101,10 +107,20 @@ RSpec.describe RGame::Engine::SealedPrivates do
       expect(RGame::Engine::Component.singleton_class).to include(described_class)
     end
 
-    # A declaration naming nothing would unseal nothing and say nothing.
-    [RGame::Engine::Node2D, RGame::Engine::Component].each do |klass|
-      it "unseals only private methods #{klass} actually has" do
-        expect(klass.unsealed_privates).to all(satisfy { |name| klass.private_method_defined?(name, false) })
+    # The underscore is a decision, so a non-public method without one has to
+    # have been meant as a seam. Adding one fails here until it is either renamed
+    # or listed — which is where that decision gets made.
+    {
+      RGame::Engine::Node2D => %i[draw_children initialize],
+      RGame::Engine::Component => %i[]
+    }.each do |klass, seams|
+      it "has no non-public method on #{klass} without an underscore but its seams" do
+        non_public = klass.private_instance_methods(false) + klass.protected_instance_methods(false)
+        expect(non_public.reject { |name| name.start_with?('_') }).to match_array(seams)
+      end
+
+      it "keeps every underscored method on #{klass} non-public" do
+        expect(klass.public_instance_methods(false).grep(/\A_/)).to be_empty
       end
     end
   end

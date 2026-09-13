@@ -59,7 +59,7 @@ module RuboCop
               '`%{method}` runs, so passing it places this %{distance} a second ' \
               'time. Draw at your own origin (0, 0), or an offset from it.'
 
-        METHODS = %i[draw on_draw draw_content draw_children].freeze
+        METHODS = %i[draw on_draw _draw_content draw_children].freeze
 
         RELATIVE = %i[x y angle].freeze
         WORLD = %i[world_x world_y world_angle].freeze

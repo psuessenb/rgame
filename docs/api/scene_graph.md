@@ -86,14 +86,15 @@ wherever everything is at that moment (see [The two spaces](#the-two-spaces)).
 Because the traversal recurses into children for you, **never re-implement child
 iteration** — add children with `add_node` and let the tree drive them.
 
-**A private method of `Node2D` cannot be replaced.** Those are the machinery the
-phases call, and a subclass method with the same name would quietly take its
-place for that class, so defining one raises `NameError` when the class is
-loaded, naming both. `Component` is guarded the same way. The one private method
-meant for overriding is `draw_children` — see [View transforms and the
-camera](#view-transforms-and-the-camera). Private methods of an engine
-*subclass*, such as `Mover#take_step`, are not covered: those are hooks for the
-next subclass down.
+**A method of `Node2D` whose name starts with `_` cannot be replaced.** Those are
+the machinery the phases call — `_draw_content`, `_resolve_inherited` and the
+rest — and a subclass method of the same name would quietly take its place for
+that class, so defining one raises `NameError` when the class is loaded, naming
+both. `Component` follows the same rule. A non-public method *without* the
+underscore is a seam meant for overriding with `super`; `draw_children` is the
+one `Node2D` has — see [View transforms and the
+camera](#view-transforms-and-the-camera). The rule is these two classes' only:
+underscored methods of an engine subclass are not guarded.
 
 ### The two spaces
 
