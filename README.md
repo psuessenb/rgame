@@ -4,7 +4,7 @@ RGame is a small 2D game engine for Ruby, written in Ruby and C. It's build on t
 
 While still a work in progress, RGame aims to be more than a SDL/OpenGL
 binding - it ships with high level features like a scene graph, sprites,
-collision systems, debugging tools and an UI toolkit.
+collision systems, debugging tools and an UI toolkit. You can check out the examples to get a feel for its capabilities.
 
 ## Why does this exist and should you use it?
 
@@ -14,16 +14,17 @@ RGame puts a lot of emphazis on testing and being testable: It separates the lay
 
 It also tries to marry the beauty of Ruby with the hard performance requirements of games: Hot paths have no per-frame allocation, because garbadge collection is what really slows down Ruby interpreation, and math-heavy use-cases are backed by C code instead of Ruby classes.
 
-Should you use it, though? If you're looking for something mature, free, and more battle-tested take a look at Godot instead. If you're looking for something mature and battle-tested in Ruby land, take a look at dragonruby instead (it's not free, but it's probably worth the price).
+Should you use it, though? If you're looking for something mature, free, and more battle-tested take a look at Godot instead. If you're looking for something mature and battle-tested _in Ruby land_, take a look at dragonruby instead (it's not free, but it's probably worth the price).
 
 If you're just starting with game development and planning on making the next big indie hit, might as well pick this one as the engine for the game you never finish!
 
-In all seriousness, though: This is a hobby project of mine, and while it might develop into something actually useful, at the time of writing it's a playground. If you search for something I searched and found nothing, you can try this. I would be really happy if someone else actually uses it, but at this point I can't really recommend it for anything else than small projects and/or learning the ropes of game development.
+In all seriousness, though: This is a hobby project of mine, and while it might develop into something actually useful, at the time of writing it's a playground. If you search for something I searched and found nothing - try RGame! If you want to learn how to write games or just need a small prototype, and you really like Ruby - try RGame! If all you know is Rails, but you want to make a game that doesn't run in a browser and don't care about shipping it - try RGame!
+
+I would be really happy if someone else actually uses it, but at this point I can't really recommend it for anything else than small projects and/or learning the ropes of game development.
 
 ## Getting started
 
-Installing the gem puts an `rgame` command on your PATH, and it will write you a
-project to start from:
+Installing the gem puts an `rgame` command on your PATH, which you can use to setup a project:
 
 ```
 gem install rgame
@@ -35,18 +36,13 @@ bundle exec rspec     # the game logic, headless — no window needed
 ruby main.rb          # the game itself
 ```
 
-What it writes is small — a game class, a root node, a spec and the usual
-configuration — but it is laid out the way the engine wants to be used: one file
-loads SDL, everything else stays graphics-free and therefore testable with no
-display. [The `rgame` command](docs/api/cli.md) explains the layout and why it
-matters.
+What it writes is small — a game class, a root node, a spec and the usual configuration — but it is laid out the way the engine wants to be used: one file loads SDL, everything else stays graphics-free and therefore testable with no display. [The `rgame` command](docs/api/cli.md) explains the layout and why it matters.
 
-`gem install` compiles two C extensions, so the [requirements](#requirements)
-below have to be in place first.
+`gem install` compiles two C extensions, so the [requirements](#requirements) below have to be in place first. That's the one big hurdle at the moment: This gem ships source-only, so you have to compile a lot of C _on your machine_ to get this running.
 
 ## Hello world
 
-The whole of it in one file, if you would rather see it that way:
+The simplest "game" you can write, all in one file:
 
 ```ruby
 require 'rgame/game'
@@ -69,9 +65,7 @@ You can learn more about how it works in the [documentation](docs/api/README.md)
 
 ## Examples
 
-`examples/` holds one small program per concept, each a single file you can run
-with `ruby examples/<name>/main.rb`. [The examples page](docs/api/examples.md)
-says what each one uses; the file's own header comment is the long version.
+`examples/` holds one small program per concept, each a single file you can run with `ruby examples/<name>/main.rb`. [The examples page](docs/api/examples.md) says what each one uses; the file's own header comment is the long version.
 
 | Example | Shows |
 |---|---|
@@ -96,7 +90,7 @@ says what each one uses; the file's own header comment is the long version.
 
 ## Requirements
 
-At the moment this gem ships only source-code and no precompiled binaries, which unfortunately means you need to compile a bunch of C code on your locale machine.
+At the moment this gem ships only source-code and no precompiled binaries, which unfortunately means you need to compile a bunch of C code on your locale machine. This _also_ means you need to install some system libaries and have header files present.
 
 ### C engine
 
@@ -118,30 +112,17 @@ so there is nothing to install for sound either. See the README in
 built by `make` — currently one, which generates the audio suite's `.ogg`
 fixture and needs `libvorbisenc` to run.
 
-Commits go through `.githooks/pre-commit`, which runs
-`tools/strip_comments.rb` over the staged Ruby files. It deletes comments
-inside method bodies and on private methods, and keeps class and module
-descriptions, comments on public methods, RuboCop directives and
-`# hot-path` tags. `examples/`, `spec/` and `spec_core/` are left untouched.
-Any `rake` run in a checkout points `core.hooksPath` at `.githooks`, and the
-headless suite fails in a checkout where it isn't.
-
 ### Ruby side
 
-- **Ruby 4.0.5**, pinned in `.ruby-version`. Installed here with
-  [mise](https://mise.jdx.dev) (`mise install` in the project root picks up
-  `.ruby-version`); any version manager that reads `.ruby-version` works just
-  as well.
-- **Ruby development headers.** Version-manager builds (mise, rbenv, rvm,
-  asdf) include them. On a distro-packaged Ruby, install `ruby-dev`
+- **Ruby 4.0.5**, pinned in `.ruby-version`.
+- **Ruby development headers.** Version-manager builds (mise, rbenv, rvm, asdf) include them. On a distro-packaged Ruby, install `ruby-dev`
   (Debian/Ubuntu). These are what `extconf.rb` compiles against.
 - **Bundler**, then `bundle install` for the dev/test gems (RSpec, RuboCop).
 
-Nothing else — the engine has no runtime Ruby dependencies, and the `Gemfile`
-holds only development gems.
+Nothing else — the engine has no runtime Ruby dependencies, and the `Gemfile` holds only development gems.
 
 All three platforms below are built and tested on every push by
-[CI](.github/workflows/ci.yml).
+[CI](.github/workflows/ci.yml) - with that people have usually at home, so Apple Silicon and not Apple Intel, etc.
 
 ### Debian / Ubuntu
 
@@ -269,8 +250,7 @@ ruby ext/rgame_core/example.rb
 
 ## Packaging
 
-Both extensions and the Ruby layer ship as one gem, built from `rgame.gemspec`
-and published at [rubygems.org/gems/rgame](https://rubygems.org/gems/rgame):
+Both extensions and the Ruby layer ship as one gem, built from `rgame.gemspec` and published at [rubygems.org/gems/rgame](https://rubygems.org/gems/rgame):
 
 ```
 gem install rgame               # from RubyGems; compiles both extensions here
@@ -302,10 +282,7 @@ The version is `RGame::VERSION` in [lib/rgame/version.rb](lib/rgame/version.rb).
 
 ## Project structure
 
-The C lives under `ext/rgame_core/` rather than a top-level `src/`, because
-`gem install` runs each `extconf.rb` and an extension can only build sources
-inside its own directory — so one copy of the code serves both the standalone
-binary and the gem. The Ruby half is split the same way it is namespaced:
+The C lives under `ext/rgame_core/` rather than a top-level `src/`, because`gem install` runs each `extconf.rb` and an extension can only build sources inside its own directory — so one copy of the code serves both the standalone binary and the gem. The Ruby half is split the same way it is namespaced:
 `lib/rgame/util/`, `lib/rgame/core/` and `lib/rgame/engine/`.
 
 A file-by-file map of the whole repository is in
@@ -313,49 +290,14 @@ A file-by-file map of the whole repository is in
 
 ## Roadmap
 
-All three layers exist and the engine is usable end to end: the games under
-[test_projects/](test_projects/) are written against exactly what is documented.
+There is no long-term roadmap for this project, but I usually have a shape in mind I want to achive before publishing a new version. For 0.3 that roadmap looks like this:
 
-**Done**
-
-1. **C engine** — an SDL2 window and a fixed-timestep loop, keyboard and
-   gamepad input with hot-plug, a z-sorted batching renderer with transforms,
-   clipping and baked recordings, text from a shipped TrueType font, and audio.
-   Linux, macOS and Windows are all supported and all gated by CI.
-2. **Ruby C extensions** — both halves. `RGame::Core` binds
-   `include/rgame/core.h` (the app, the renderer, images, fonts, recordings,
-   sound); `RGame::Util` is the graphics-free one, so values can be required
-   without pulling SDL and OpenGL into the process.
-3. **Pure-Ruby half** — `RGame::Engine`, the layer a game is actually written
-   in: the scene graph, components, signals, tile maps, collision,
-   pathfinding, and split-screen players with a camera and a binding table
-   each. `RGame::Game` wires it to `RGame::Core` and is the only class allowed
-   to name both.
-4. **Gem** — `rgame.gemspec` packages both halves, compiling each extension
-   into `lib/rgame/` on install the way `make ext` does in a checkout.
-   [Published to RubyGems](https://rubygems.org/gems/rgame), so
-   `gem install rgame` works.
-
-**Next**
-
-- **A UI package worth the name.** What exists covers a region per player,
-  focus and activation — enough for keyboard-and-controller menus. Layout,
-  nesting, scrolling lists and text entry are all still open; see
-  ["What this is not"](docs/api/ui.md#what-this-is-not).
-- **Precompiled binary gems**, so installing needs no compiler. The compiling
-  is the easy part — CI already does it on three platforms — and the real
-  blocker is that the binary still needs SDL2 at runtime. The options are
-  written up in
-  [docs/plans/precompiled-binary-gems.md](docs/plans/precompiled-binary-gems.md).
-- **Hot paths into C, where profiling says so** — the nine-slice tiling loops
-  and the animated-tile draw loop are the candidates. Deliberately last: each
-  is a straightforward move once the geometry is separable, and doing it early
-  would trade readability for a speedup nobody has measured.
-
-Also known and deliberately deferred: the drawing path uses legacy
-compatibility-profile OpenGL (`glBegin`/`glEnd`), which needs no loader library.
-Moving to core-profile GL is a decision to take on purpose, not a drive-by
-change.
+* a command line tool to setup new projects easily - DONE
+* each core concept is showcased by an example, not just in a game where it's hard to find and grasp - IN PROGRESS
+* unify game concepts that were developed in isolation - DONE
+* fix the UI package to at least make it useable - IN PROGRESS
+* fix the I18n package to at least make it useable
+* improve the workflow and make better use of agent capabilities - DONE
 
 ## AI clause
 
