@@ -62,20 +62,33 @@ and a String; a subclass of `Button` written in the spec, with its own
 
 ### 1c. Pressed is visible *(blocked on open question 6)*
 
-`state` reports `:pressed` without requiring focus, and a press lasts at least the
-minimum question 6 settles on, counted down in `Button#update(dt)`. This is the
-one sub-step of step 1 that **changes** driven reports on purpose, so the
-invariant is checked against 1b's commit, not `main`, and the difference is
-stated: `:button_pressed` appears where a one-tick press used to leave none.
+`Button#activate_on:`, the press-must-start-here rule, `PRESS_FEEDBACK`, and
+`state` reporting `:pressed` without requiring focus — the recommendation under
+open question 6, re-checked here once it is confirmed. This is the one sub-step
+of step 1 that **changes** driven reports on purpose, so the invariant is checked
+against 1b's commit, not `main`, and each difference is stated: activation a tick
+later on a tap under `:release`, and `:button_pressed` appearing where a one-tick
+press used to leave none.
 
 Rules the tests pin:
 
-1. A one-tick press leaves the button pressed for the minimum time, then focused.
-2. A press held longer than the minimum stays pressed until released.
-3. Time enters through `update(dt)` only; a spec advances it by passing seconds.
-4. Pressing does not move focus.
+1. Under `:release`, a tap presses on the down tick and activates on the up tick;
+   moving focus while held activates nothing.
+2. Under `:press`, a tap activates on the down tick and stays pressed for
+   `PRESS_FEEDBACK`, then returns to focused; a longer hold stays pressed until
+   released.
+3. **A menu added by an activation does not activate from the same press**, and
+   does not draw pressed while that key stays down — the measured double
+   activation, as a spec.
+4. Time enters through `update(dt)` only; a spec advances it by passing seconds.
+5. Pressing does not move focus.
+6. Whatever a paused menu does to a running countdown is decided and pinned: a
+   menu hidden in `on_activated` and shown again does not reappear pressed.
 
-Tests: `button_spec.rb` and `menu_spec.rb`, for each rule.
+Tests: `button_spec.rb` and `menu_spec.rb`, for each rule. `game_menu` and
+`menu_navigation` are driven again, and their scripts re-read: a `press` is one
+tick down and one up, so under `:release` every activation they assert moves by
+one tick.
 
 ### 1d. Documentation
 
@@ -166,7 +179,10 @@ before it would not have.
   A WoW-style bar is this plus hotkeys.
 - `examples/skill_bar`: a horizontal bar of round buttons, navigated *and*
   hotkeyed, with a drive script showing both — and that the hotkeyed button draws
-  pressed while focus stays put. Its art is open question 7.
+  pressed while focus stays put, and that a skill fires on the press. Its art is
+  Kenney's *Cursor Pack* tools (open question 7, settled): wand, wrench, torch,
+  hammer, watering can, cut into one image and `.json` with provenance and an
+  `example_assets_spec.rb` frame check, like asset **G**.
 
 ## Step 5 — fold back and delete the plan
 

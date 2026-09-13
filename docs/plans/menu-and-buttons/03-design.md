@@ -88,9 +88,27 @@ So `state` stops requiring focus for `:pressed`: a hotkeyed button that is not
 focused still draws pressed. The rule becomes *disabled, else pressed, else
 focused, else idle*.
 
-How long pressed lasts after a tap is open question 6. Whatever it settles to, it
-is counted in the button's `update(dt)`, never read from a clock, per CLAUDE.md
-"`draw` renders state".
+When activation happens, and how long pressed lasts after an instant one, is
+open question 6. The recommendation, pending confirmation:
+
+```ruby
+class Button < Node2D
+  PRESS_FEEDBACK = 0.1   # seconds pressed stays visible after an activation on press
+
+  def initialize(label: nil, enabled: true, hotkey: nil, activate_on: :release, **)
+```
+
+| Source | `activate_on: :release` (default) | `activate_on: :press` |
+|---|---|---|
+| `ui_confirm` on the focused button | pressed while held; activates on release, if focus did not move | activates on press; pressed for `PRESS_FEEDBACK`, or while held if longer |
+| the button's `hotkey` | **activates on press** either way; pressed for `PRESS_FEEDBACK`, or while held | same |
+
+And for both: a press counts only if its edge arrived while this button could see
+it. That closes the double activation measured in
+[01-current-state.md](01-current-state.md#one-confirm-activates-two-menus).
+
+Whatever it settles to, time is counted in the button's `update(dt)`, never read
+from a clock, per CLAUDE.md "`draw` renders state".
 
 ### Bounds
 

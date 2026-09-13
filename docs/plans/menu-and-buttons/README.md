@@ -147,22 +147,47 @@ Not up for re-litigation inside this plan.
    handful the example uses into one image with a `.json`, the way asset **G**
    was cut, and records provenance in `examples/assets/README.md`. Art for
    step 4's skill bar is not settled by this — see question 7.
-6. **How long is "pressed" visible?** Today it lasts exactly as long as
-   `ui_confirm` is held, which is one frame for a tap, and zero frames when the
-   activation closes the menu before the next draw. Options: a minimum pressed
-   time the button counts down in `update(dt)`; delaying `on_activated` until that
-   time has passed; or activating on *release*, as a browser does. The first is
-   invisible for a menu that closes on activation; the second and third change
-   when every existing menu reacts. *Leaning: a minimum pressed time, with
-   activation still on the press*, and accept that a closing menu shows none.
-   Blocks step 1c.
-7. **Skill-bar art.** Kenney's *Game Icons* are interface symbols, not abilities.
-   A curated OpenGameArt collection of ability icons
-   (<https://opengameart.org/content/icons-for-abilities-skills-etc>) lists no
-   licence of its own and links sixty-odd packs under mixed licences, so each
-   would need checking against the "may we hand copies to everyone" test.
-   `TextButton`s on round discs are the fallback, and are enough to show the
-   mechanism. Blocks step 4's example only.
+6. **When does a press activate, and how long is "pressed" visible?** Today
+   pressed lasts exactly as long as `ui_confirm` is held — one frame for a tap,
+   none when the activation closes the menu — and one press can activate two
+   menus (see [01-current-state.md](01-current-state.md#one-confirm-activates-two-menus)).
+   **Researched** in [02-prior-art.md](02-prior-art.md#when-a-press-activates--press-release-or-both):
+   every toolkit with both paths activates a hotkey on press, splits on the menu
+   path, and the game engines make it a per-button setting. **Recommended, not
+   yet confirmed:**
+   - A per-button **`activate_on:`**, `:release` (the default) or `:press`. A
+     settings menu keeps the default; a skill bar navigated by confirm, the
+     Xenoblade case, builds its buttons with `:press`.
+   - **A hotkey always activates on press**, ignoring `activate_on:`, as Godot's
+     shortcut does. WoW's release opt-out is the precedent if anyone ever needs
+     it; nothing here does.
+   - **Every activation needs a press this button saw start** — the press edge
+     arrived while it was focused (or, for a hotkey, while it was in a live menu).
+     A button added while the key is already down never presses or activates from
+     it. Moving focus away while held cancels a `:release` activation.
+   - **Pressed is visible at least `PRESS_FEEDBACK` seconds**, 0.1 as Unity
+     uses, after any activation on press; a `:release` activation needs no timer,
+     because the hold itself was the feedback. The countdown runs in
+     `update(dt)`, and step 1c has to decide what a paused menu does to it: a
+     menu that hides itself in `on_activated` stops ticking, and the button would
+     otherwise come back still pressed when reopened.
+
+   Changing the default to `:release` changes when every existing menu reacts,
+   one tick later on a tap. Blocks step 1c.
+7. ~~**Skill-bar art.**~~ **Settled — Kenney's *Cursor Pack*, its tool cursors as
+   farming-sim skills.** <https://kenney.nl/assets/cursor-pack>, version 1.1,
+   `License.txt` reads "License: (Creative Commons Zero, CC0)". Downloaded and
+   checked: the five tools are `tool_wand`, `tool_wrench`, `tool_torch` (the
+   flashlight — the file is named for the British word), `tool_hammer` and
+   `tool_watering_can`, each 32×32 (`Default`) and 64×64 (`Double`), in a
+   `Basic` style (white-to-light-grey silhouette, values 203–255, which a tint
+   colours directly) and an `Outline` style (the same with a black border, which
+   stays black under a tint and so reads on any background). The pack also has
+   `tool_hoe`, `tool_shovel`, `tool_axe` and `tool_pickaxe` if the farm wants
+   more. Step 4 picks the style after seeing both on the example's background.
+   An OpenGameArt collection of ability icons was looked at first and passed
+   over: it has no licence of its own and links sixty-odd packs under mixed
+   licences.
 
 ## What this plan does not deliver
 

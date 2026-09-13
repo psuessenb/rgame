@@ -138,6 +138,30 @@ item and activates on the press edge in the same call. Two consequences:
 And a button pressed any other way than confirm has no pressed look, because
 there is no other way. Open question 6.
 
+### One confirm activates two menus
+
+*(measured at `53f5392`: a menu whose button adds a second menu from
+`on_activated`, driven tick by tick with confirm held for three ticks)*
+
+| Tick | `ui_confirm` | What happened |
+|---|---|---|
+| 1 | **down** | "Settings" activated, added the second menu — **and that menu's "Back" activated in the same tick** |
+| 1–3 | down | "Back" drawn `:pressed` |
+| 4 | up | "Back" `:focus` |
+
+A node added during `control` is controlled later in the same traversal, so the
+new menu reads the press edge that created it. `examples/menu_navigation` escapes
+only because `root.show` is deferred to the end of the tick; a game that adds a
+menu directly — the obvious way to write a submenu — gets both activations from
+one press. And even with the deferral, the new screen's focused button draws
+pressed for as long as the key stays down, because `pressed` is read from
+`held?` rather than from a press this button saw.
+
+Both are the same fault: **a button acts on a press it did not see start.**
+Unreal's `DownAndUp` rule (see
+[02-prior-art.md](02-prior-art.md#when-a-press-activates--press-release-or-both))
+is the fix, and it holds whichever moment activation happens at.
+
 ## Text width is a draw-time fact
 
 `renderer.text_width` is the only way to measure a string, and the renderer is
