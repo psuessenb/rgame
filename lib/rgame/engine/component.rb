@@ -33,8 +33,19 @@ module RGame
       # node that adds components from its own `on_add` is already in the tree, so
       # each one attaches as it arrives and can only see the ones before it. Same
       # two lines, opposite outcome, depending on where they were written.
+      #
+      # A class several components answer to — `Components::Mover` has three — can match
+      # twice on one node, and then there is no telling which one was meant. That raises
+      # too, naming each match, rather than quietly taking the first.
       def require_sibling(klass)
-        node.get_component(klass) ||
+        matches = node.components.grep(klass)
+        if matches.length > 1
+          raise ArgumentError, "#{self.class} reads one #{klass} on the same node, and this node has " \
+                               "#{matches.length}: #{matches.map(&:class).join(', ')}. " \
+                               'Keep one of them on this node.'
+        end
+
+        matches.first ||
           raise("#{self.class} needs a #{klass} on the same node, and there is none. If you did " \
                 'add one, add it before this component: a node that is already in the tree ' \
                 'attaches each component as it arrives, so a sibling added after this one is ' \

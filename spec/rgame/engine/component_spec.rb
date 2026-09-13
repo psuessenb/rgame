@@ -39,6 +39,16 @@ RSpec.describe RGame::Engine::Component do
       expect { node.enter_tree }.to raise_error(/needs a RGame::Engine::Components::CharacterBody/)
     end
 
+    # Two subclasses of what was asked for are two equally good answers, and taking the
+    # first would make which one drives the node a matter of add order.
+    it 'raises naming each match when two siblings answer to the requested class' do
+      node.add_component(body)
+      node.add_component(Class.new(RGame::Engine::Components::CharacterBody).new(speed: 10.0))
+      node.add_component(driver_class.new)
+      named_both = /reads one RGame::Engine::Components::CharacterBody .* has 2: .*CharacterBody, #<Class:/
+      expect { node.enter_tree }.to raise_error(ArgumentError, named_both)
+    end
+
     # The case the message's second half is about, and the reason the helper is not just
     # a nicer nil: a node already in the tree attaches each component as it arrives, so
     # the same two lines in the other order fail — silently, before this raise existed.

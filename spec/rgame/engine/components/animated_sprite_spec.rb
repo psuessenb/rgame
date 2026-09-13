@@ -76,6 +76,46 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
     end
   end
 
+  # Any mover is a facing source, and a PathFollow is the one with no intent to read: it faces
+  # the road it is on.
+  describe 'beside a PathFollow' do
+    # A walker on a 100 px rightward road, taking one step of `dt` and drawing it.
+    def walk_and_draw(dt)
+      follow = RGame::Engine::Components::PathFollow.new(path: RGame::Engine::Path.new([[0.0, 0.0], [100.0, 0.0]]),
+                                                         speed: 50.0)
+      walker_sprite = described_class.new(sheet: :hero)
+      walker = RGame::Engine::Node2D.new
+      walker.context = node.context
+      walker.add_component(follow)
+      walker.add_component(walker_sprite)
+      walker.enter_tree
+      follow.update(dt)
+      walker_sprite.update(dt)
+      walker_sprite.draw(renderer, screen_view)
+    end
+
+    it 'walks right along a rightward segment' do
+      walk_and_draw(0.5)
+      expect(renderer).to have_received(:sprite).with(:hero, 1, any_args)
+    end
+
+    it 'stands once the road is walked' do
+      walk_and_draw(10.0)
+      expect(renderer).to have_received(:sprite).with(:hero, 0, any_args)
+    end
+  end
+
+  # Two movers both write the position, so there is no telling which way the node faces.
+  it 'refuses a node with two movers, naming both' do
+    crowded = RGame::Engine::Node2D.new
+    crowded.context = node.context
+    crowded.add_component(RGame::Engine::Components::CharacterBody.new(speed: 50.0))
+    crowded.add_component(RGame::Engine::Components::PathFollow.new(speed: 50.0))
+    crowded.add_component(described_class.new(sheet: :hero))
+    expect { crowded.enter_tree }
+      .to raise_error(ArgumentError, /AnimatedSprite reads one .*Mover .* has 2: .*CharacterBody, .*PathFollow/)
+  end
+
   describe '#draw' do
     it 'draws at the node resolved world origin with the configured layer and no flip' do
       body.set_intent(0.0, 0.0)

@@ -8,7 +8,7 @@ module RGame
       # each update, at a fixed speed and with no inertia (unlike Velocity, which integrates
       # a velocity the controller sets, and ThrustController, which accelerates one).
       #
-      # The intent doubles as the facing for AnimatedSprite (move_x / move_y readers), so
+      # The intent doubles as the mover's heading, which is what AnimatedSprite faces by, so
       # a character is just CharacterBody + a controller + AnimatedSprite.
       #
       # What may stop a step — `blocked_by:`, `on_blocked` / `on_unblocked`, and the
@@ -26,6 +26,10 @@ module RGame
           @move_x = 0.0
           @move_y = 0.0
         end
+
+        # The heading is the intent as set, blocked or not.
+        def heading_x = @move_x
+        def heading_y = @move_y
 
         # Set this step's movement intent; each axis is in -1..1.
         def set_intent(intent_x, intent_y)

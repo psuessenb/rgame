@@ -79,6 +79,104 @@ RSpec.describe RGame::Engine::Components::PathFollow do
     end
   end
 
+  describe 'its heading' do
+    def heading = [follow.heading_x, follow.heading_y]
+
+    it 'heads along the first segment as soon as it enters the tree' do
+      expect(heading).to eq([1.0, 0.0])
+    end
+
+    it 'turns with the road once the walk crosses the corner' do
+      follow.update(3.0) # 50 px down the second leg
+      expect(heading).to eq([0.0, 1.0])
+    end
+
+    it 'is a unit direction on a diagonal segment' do
+      follow.follow(RGame::Engine::Path.new([[0.0, 0.0], [30.0, -40.0]]))
+      expect(heading).to eq([0.6, -0.8])
+    end
+
+    it 'heads nowhere once finished' do
+      follow.update(10.0)
+      expect(heading).to eq([0.0, 0.0])
+    end
+
+    it 'heads nowhere along a segment of no length' do
+      follow.follow(RGame::Engine::Path.new([[0.0, 0.0], [0.0, 0.0], [10.0, 0.0]]))
+      expect(heading).to eq([0.0, 0.0])
+    end
+  end
+
+  describe 'with no path' do
+    subject(:idle) { described_class.new(speed: 50.0) }
+
+    let(:idle_node) { RGame::Engine::Node2D.new(x: 30.0, y: 40.0) }
+
+    before do
+      idle_node.add_component(idle)
+      idle_node.enter_tree
+    end
+
+    it 'leaves the node where it stands, on attach and on every step' do
+      idle.update(1.0)
+      expect([idle_node.x, idle_node.y]).to eq([30.0, 40.0])
+    end
+
+    it 'never finishes, and heads nowhere' do
+      finishes = 0
+      idle.on_finished { finishes += 1 }
+      idle.update(10.0)
+      expect([idle.finished?, finishes, idle.heading_x, idle.heading_y]).to eq([false, 0, 0.0, 0.0])
+    end
+
+    it 'walks the first path it is handed' do
+      idle.follow(RGame::Engine::Path.new([[30.0, 40.0], [30.0, 140.0]]))
+      idle.update(1.0)
+      expect([idle_node.x, idle_node.y]).to eq([30.0, 90.0])
+    end
+  end
+
+  describe '#follow' do
+    let(:detour) { RGame::Engine::Path.new([[0.0, 0.0], [0.0, -100.0]]) }
+
+    it 'is the path it was handed, afterwards' do
+      follow.follow(detour)
+      expect(follow.path).to be(detour)
+    end
+
+    it 'walks again after finishing, and finishes again' do
+      finishes = 0
+      follow.on_finished { finishes += 1 }
+      follow.update(10.0)
+      follow.follow(detour)
+      expect(follow).not_to be_finished
+      follow.update(10.0)
+      expect([node.x, node.y, finishes]).to eq([0.0, -100.0, 2])
+    end
+
+    it 'abandons a route still being walked at once, placing the node on the new start' do
+      follow.update(3.0) # halfway down the L's second leg
+      follow.follow(RGame::Engine::Path.new([[10.0, 10.0], [110.0, 10.0]]))
+      expect([node.x, node.y]).to eq([10.0, 10.0])
+      follow.update(1.0)
+      expect([node.x, node.y, follow.heading_x, follow.heading_y]).to eq([60.0, 10.0, 1.0, 0.0])
+    end
+
+    it 'can be handed a new route from its own on_finished' do
+      follow.on_finished { follow.follow(detour) if follow.path.equal?(path) }
+      follow.update(10.0)
+      follow.update(10.0)
+      expect([node.x, node.y, follow.finished?]).to eq([0.0, -100.0, true])
+    end
+
+    it 'stops the walk where it stands when handed nil' do
+      follow.update(1.0)
+      follow.follow(nil)
+      follow.update(1.0)
+      expect([node.x, node.y, follow.heading_x]).to eq([50.0, 0.0, 0.0])
+    end
+  end
+
   it_behaves_like 'a mover' do
     def build_mover(blocked_by:, heading: [1, 0])
       road = RGame::Engine::Path.new([[170.0, 100.0], [170.0 + (830.0 * heading[0]), 100.0 + (830.0 * heading[1])]])

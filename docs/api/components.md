@@ -72,7 +72,10 @@ list; the default is a no-op (see [deferred free](scene_graph.md#deferred-free))
 drives a sibling — `@body = require_sibling(CharacterBody)`. It returns the component
 or raises naming both, instead of returning the `nil` that stays silent until the first
 frame calls a method on it. When it does raise, the cause is nearly always add order —
-see [Where to add a component](#where-to-add-a-component) below.
+see [Where to add a component](#where-to-add-a-component) below. It also raises, naming
+each one, when *several* siblings answer to `klass` — two [`Mover`](#mover)s under one
+[`AnimatedSprite`](#animatedsprite), say — rather than quietly taking whichever was added
+first.
 
 A node holds **at most one component per slot**. The slot defaults to the component's
 class, so by default that's one per class (`add_component` raises on a taken slot) — but
@@ -119,7 +122,7 @@ one you use is decided by whether the node is a class of its own:
 **Both work for the same reason, and it is worth knowing.** The node is not in the tree
 yet, so `add_component` only appends — no `on_attach` fires until the whole set is
 present and the node enters. So **add order is free**: `build_player` above adds an
-`AnimatedSprite` *before* the `CharacterBody` that pulls it, and that is fine.
+`AnimatedSprite` *before* the `CharacterBody` it faces by, and that is fine.
 
 ### Adding from `on_add`, and when you have to
 
@@ -169,9 +172,11 @@ here, or "jump"/"fire" in a platformer.
 
 ### `AnimatedSprite`
 
-Draws a sprite-sheet animation and picks the animation from a [`CharacterBody`](#characterbody)
-sibling's movement intent: `walk_left`/`walk_right`/`walk_up`/`walk_down` while moving (horizontal wins
-on a diagonal), `stand` when still. Owns an `RGame::Engine::Animator` over the pure `AnimationSet` built
+Draws a sprite-sheet animation and picks the animation from its [`Mover`](#mover) sibling's
+[heading](#mover): `walk_left`/`walk_right`/`walk_up`/`walk_down` while moving (horizontal wins
+on a diagonal), `stand` when still. Any mover will do — a [`CharacterBody`](#characterbody)
+faces its intent, a [`PathFollow`](#pathfollow) the segment it is walking, a
+[`Velocity`](#velocity) where it flies. Owns an `RGame::Engine::Animator` over the pure `AnimationSet` built
 from the sheet's animation table.
 
 - **Construct:** `AnimatedSprite.new(sheet:, z: 0)` — `sheet` is the asset's relative path; `z`
@@ -179,8 +184,9 @@ from the sheet's animation table.
   for [`Sprite`](#sprite)).
 - **Lifecycle:** `on_attach` resolves the sheet from the game's asset manager
   (`node.root.context.assets.sheet(sheet)`), builds its animation set, **sizes the node** to the
-  sheet's frame (`node.width`/`height`, so a `CharacterBody` sibling can read them), and pulls that
-  sibling (the facing source). The renderer resolves the same path when drawing, so nothing is
+  sheet's frame (`node.width`/`height`, so a [`FeetCollider`](#feetcollider) can read them), and
+  pulls the mover sibling it faces by. A node with **two** movers raises here, naming both: they
+  both write the position, so there is no telling which way it faces. The renderer resolves the same path when drawing, so nothing is
   registered or passed in by hand.
 - **Phase:** `update(dt)` selects + advances the animation; `draw(renderer, view)` renders the
   current frame via `renderer.sprite` at **`0, 0`** with no angle — the traversal has already
@@ -276,8 +282,8 @@ add_component(RGame::Engine::Components::PlayerController.new)
 
 - **Construct:** `CharacterBody.new(speed:, blocked_by: [])` — walk speed in px/s, and what
   may stop a step (see [`Mover`](#mover)).
-- **State:** `set_intent(x, y)` writes the step's intent; `move_x`/`move_y` read it back (the facing
-  for `AnimatedSprite`).
+- **State:** `set_intent(x, y)` writes the step's intent; `move_x`/`move_y` read it back, and so
+  do `heading_x`/`heading_y` — a body pressed into a wall still heads into it.
 - **Phase:** `update(dt)` applies `intent * speed * dt` through `apply_move`, and moves nothing
   when the intent is zero. That is still a step, so a body that stops pushing into a wall
   reports `on_unblocked`.
@@ -675,6 +681,12 @@ retunes both, and there is nothing to hand from one component to the other.
 - **Phase:** `update(dt)` opens the step, calls the subclass's private `take_step(dt)`, and
   reports the edges. It is not for overriding: that is what keeps a mover from forgetting
   either edge.
+- **Heading:** `heading_x`/`heading_y` say which way the step is going, each axis in -1..1, and
+  `0, 0` when the mover is not trying to move — what [`AnimatedSprite`](#animatedsprite) faces
+  by. It is a facing, not a velocity: a mover pressed into a wall still heads into it. A
+  [`CharacterBody`](#characterbody) answers its intent, a [`Velocity`](#velocity) its velocity
+  scaled so the larger axis is ±1, a [`PathFollow`](#pathfollow) the unit direction of the
+  segment it is on. Reading it allocates nothing.
 - **Seam:** `apply_move(dx, dy)` is where a step lands. It writes straight onto the node when
   nothing was declared, and goes through the resolver when something was. A mover may call it
   several times in one step, and the edges are still reported once.
@@ -691,11 +703,26 @@ Walks the owning node along an [`RGame::Engine::Path`](toolbox.md#path--a-walkab
 at a constant speed and emits `on_finished` when it reaches the last waypoint — the seam for
 whatever should happen when a walker arrives.
 
-- **Construct:** `PathFollow.new(path:, speed:, blocked_by: [])` — what may stop it is
-  [`Mover`](#mover)'s.
+- **Construct:** `PathFollow.new(speed:, path: nil, blocked_by: [])` — what may stop it is
+  [`Mover`](#mover)'s. With no path the follower is idle: it moves nothing, never finishes, and
+  heads nowhere until it is handed one.
 - **Lifecycle:** `on_attach` (re)starts the walk — back to the first waypoint with progress
   cleared, and the node *placed* there whatever was declared — so a pooled follower
   reacquired and re-added begins a fresh walk.
+- **A new route:** `follow(path)` is the same restart with a different path, at any time. A
+  finished follower walks it and emits `on_finished` again; one halfway along another route
+  drops it at once and is placed on the new first waypoint. It may be called from an
+  `on_finished` handler, and `follow(nil)` stops the walk where it stands. `path` reads the
+  route being walked.
+
+  ```ruby
+  out  = RGame::Engine::Path.new([[40.0, 100.0], [200.0, 100.0]])
+  back = RGame::Engine::Path.new([[200.0, 100.0], [40.0, 100.0]])
+  patrol = RGame::Engine::Components::PathFollow.new(path: out, speed: 40)
+  patrol.on_finished { patrol.follow(patrol.path.equal?(out) ? back : out) }
+  ```
+- **Heading:** the unit direction of the segment being walked, worked out as the walk crosses
+  into it; `0, 0` while idle, once finished, and along a segment of no length.
 - **Signal:** `on_finished` fires once (no payload) at the end of the path —
   `follow.on_finished { node.queue_free }`.
 - **Phase:** `update(dt)` advances `speed * dt`, crossing as many segments as one step

@@ -1,6 +1,6 @@
 # Pathfinding — `examples/pathfinding` and the engine it needs
 
-**Status:** planned at `707ea1a`. Steps 1–4 are detailed; step 5 (the C search) is
+**Status:** planned at `707ea1a`. **Step 1 is implemented.** Steps 1–4 are detailed; step 5 (the C search) is
 rough and is to be re-planned once step 4 has put a real caller on the API; step 6
 deletes this file.
 
@@ -88,6 +88,10 @@ Not up for re-litigation inside this plan.
    or is the raise the right answer and only its message needs to say so?
    *Blocks nothing in the example* (its hero has one mover); decide in step 1,
    leaning "raise, with a message that names both".
+   **Resolved in step 1: raise, naming both** (decided in the prompt, "raise is fine
+   for now"). The raise lives in `Component#require_sibling`, so it covers every
+   component pulling a sibling by a class several components answer to, not just
+   `AnimatedSprite`.
 2. **Where the camera looks.** The cursor is in world space and the camera follows
    the hero; a cursor walked off-screen is lost. Options: clamp the cursor to the
    view, have the camera follow the cursor, or follow the hero and let the cursor
@@ -319,6 +323,49 @@ a segment.
 **Verify.** `rake spec` green; driven reports of `examples/walk`,
 `collision_tiles`, `jump_topdown`, `split_screen`, `input_glyphs` and `game_menu`
 at `--seed 1 --ticks 240` are **byte-identical** before and after.
+
+**Landed.** `Mover#heading_x`/`#heading_y` (0, 0), answered by `CharacterBody` (its
+intent), `Velocity` (scaled so the larger axis is ±1) and `PathFollow` (the unit
+direction of its segment, cached when the walk crosses into one; 0, 0 idle, finished,
+or on a zero-length segment). `PathFollow.new(speed:, path: nil, blocked_by: [])`,
+`#follow(path)` — the same restart `on_attach` does, callable from `on_finished`, and
+`follow(nil)` stops — and a `path` reader. `AnimatedSprite` pulls `require_sibling(Mover)`.
+One commit, as a step with no sub-steps.
+
+- `rake spec`: 1822 examples, 0 failures (1783 at planning; the 39 new ones are this
+  step's, 18 of them the heading group run against three movers).
+- The `a mover` contract gained a heading group (direction for `[1,0]`, `[0,1]`,
+  `[1,1]`; within -1..1; still heading into the wall it is pressed against; zero
+  allocation to read), so all three movers are held to rule 1 by the same examples.
+- Driven reports of `walk`, `collision_tiles`, `jump_topdown`, `split_screen`,
+  `input_glyphs` and `game_menu` at `--seed 1 --ticks 240` are **byte-identical**
+  before and after — and so is `test_projects/tiled_world`, the seventh caller the
+  measurement table names, which the Verify block left out. The reports do exercise
+  facing: `walk`'s sprite rows span 0..2, `tiled_world`'s 0..3.
+
+What the sketch got wrong or left out:
+
+- **The two-mover raise is not `AnimatedSprite`'s.** `get_component` already raised,
+  with a message naming neither component. `require_sibling` now looks for every match
+  and raises `ArgumentError` naming each one ("AnimatedSprite reads one …Mover on the
+  same node, and this node has 2: …CharacterBody, …PathFollow"), for any caller.
+- **`Float#fdiv` allocates** when the numerator is `0.0` (one object per call on Ruby
+  4.0.5; `/` does not). The first `Velocity#heading_*` used it and the shared allocation
+  example caught it — a heading of `[1, 0]` has a zero axis on every read. It divides by
+  `larger.to_f` instead.
+- **For step 3: `AnimatedSprite` faces sideways on any non-zero x.** "Horizontal wins
+  on a diagonal" was right for keyboard intents, which are -1/0/1, but a smoothed
+  route's segments run at any angle, so a hero walking a segment 10° off vertical plays
+  `walk_right`. Step 3's rule 10 should decide it; the likely answer is "the larger
+  axis wins, ties go horizontal", which is identical for every keyboard intent (so the
+  seven reports above would not move) and changes only an analog stick held mostly
+  vertical — arguably for the better.
+- `follow(nil)` and the `path` reader were not in the sketch; step 3's `Navigator`
+  wanted `path` readable anyway.
+
+Documented in `docs/api/components.md`: `Mover` (Heading), `PathFollow` (idle, a new
+route with a standalone patrol example, heading), `AnimatedSprite` (any mover, the
+two-mover raise), `CharacterBody` (heading), and `require_sibling`'s second raise.
 
 ### Step 2 — `Engine::NavGrid` (pure), and `TileWorld#nav_grid`
 

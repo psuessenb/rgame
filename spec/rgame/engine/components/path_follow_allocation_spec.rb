@@ -20,4 +20,17 @@ RSpec.describe RGame::Engine::Components::PathFollow do
     dt = 1.0 / 60.0
     expect { follow.update(dt) }.to allocate_nothing
   end
+
+  # What an AnimatedSprite reads beside every step.
+  it 'reads its heading without allocating' do
+    follow.update(1.0 / 60.0)
+    expect { follow.heading_x + follow.heading_y }.to allocate_nothing
+  end
+
+  # A step that crosses into the next segment is the one that works the heading out again.
+  it 'turns a corner without allocating' do
+    zigzag = RGame::Engine::Path.new(Array.new(20_000) { |i| [i * 10.0, i.even? ? 0.0 : 10.0] })
+    follow.follow(zigzag)
+    expect { follow.update(0.3) }.to allocate_nothing
+  end
 end

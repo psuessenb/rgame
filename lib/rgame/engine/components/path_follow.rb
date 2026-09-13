@@ -35,18 +35,27 @@ module RGame
       #
       # `on_attach` still places the node on the first waypoint absolutely, blocked or
       # not: where a walker starts is a placement, not a step.
+      #
+      # ## A new route, and none
+      #
+      # `path: nil` builds an idle follower, which moves nothing and never finishes, and
+      # `follow(path)` hands any follower a route to walk from its start — the same restart
+      # entering the tree gives, so a walker that finished one route walks the next and
+      # finishes again, and one still walking drops its old route at once.
+      #
+      # Its heading is the unit direction of the segment it is on, worked out when the walk
+      # crosses into a segment rather than on every read.
       class PathFollow < Mover
         signal :on_finished
 
         attr_accessor :speed
+        attr_reader :path, :heading_x, :heading_y
 
-        def initialize(path:, speed:, blocked_by: [])
+        def initialize(speed:, path: nil, blocked_by: [])
           super(blocked_by: blocked_by)
           @path = path
           @speed = speed
-          @segment = 0
-          @distance = 0.0
-          @finished = false
+          restart
         end
 
         def finished? = @finished
@@ -56,25 +65,30 @@ module RGame
         # rather than resuming (or staying finished) where its previous life ended.
         def on_attach
           super
-          @segment = 0
-          @distance = 0.0
-          @finished = false
-          place_at(0)
+          restart
+        end
+
+        # Walk `path` from its first waypoint, where the node is placed, whatever this
+        # follower was doing — idle, finished, or halfway along another route. `nil` stops
+        # it where it stands.
+        def follow(path)
+          @path = path
+          restart
         end
 
         private
 
         def take_step(dt)
-          return if @finished
+          return if @finished || @path.nil?
 
           from_segment = @segment
           from_distance = @distance
 
           if advance_to_end?(@speed * dt)
             last = @path.count - 1
-            return rewind(from_segment, from_distance) unless moved_to?(@path.x_at(last), @path.y_at(last))
+            return finish if moved_to?(@path.x_at(last), @path.y_at(last))
 
-            finish
+            rewind(from_segment, from_distance)
           else
             seg_len = @path.segment_length(@segment)
             t = seg_len.zero? ? 0.0 : @distance / seg_len
@@ -84,6 +98,7 @@ module RGame
                                 sy + ((@path.y_at(@segment + 1) - sy) * t))
             rewind(from_segment, from_distance) unless reached
           end
+          aim
         end
 
         def advance_to_end?(remaining)
@@ -119,7 +134,36 @@ module RGame
 
         def finish
           @finished = true
+          head_nowhere
           on_finished_signal.emit
+        end
+
+        def restart
+          @segment = 0
+          @distance = 0.0
+          @finished = false
+          head_nowhere
+          return unless @path
+
+          aim
+          place_at(0) if node
+        end
+
+        def aim
+          return if @segment == @aimed_segment
+
+          @aimed_segment = @segment
+          length = @path.segment_length(@segment)
+          return head_nowhere if length.zero?
+
+          @heading_x = (@path.x_at(@segment + 1) - @path.x_at(@segment)) / length
+          @heading_y = (@path.y_at(@segment + 1) - @path.y_at(@segment)) / length
+        end
+
+        def head_nowhere
+          @aimed_segment = nil
+          @heading_x = 0.0
+          @heading_y = 0.0
         end
 
         def place_at(waypoint)
