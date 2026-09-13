@@ -112,28 +112,14 @@ RSpec.describe RGame::Engine::UI::ShapeStyle do
     end
   end
 
-  # A renderer that allocates nothing itself and coerces colours the way
-  # Core::Renderer#packed does, so an array colour reaching it would count.
   describe 'allocation' do
-    let(:plain_renderer) do
-      Class.new do
-        def rect(_x, _y, _width, _height, z: 50, color: nil)
-          _ = z
-          RGame::Util::Color.coerce(color)
-        end
-
-        def circle(_cx, _cy, _radius, z: 50, color: nil)
-          _ = z
-          RGame::Util::Color.coerce(color)
-        end
-      end.new
-    end
+    let(:renderer) { QuietRenderer.new }
 
     %i[rect disc].each do |shape|
       it "draws a #{shape} in every state without allocating" do
         style = described_class.new(shape: shape, colors: { idle: [1, 2, 3], focused: [4, 5, 6],
                                                             pressed: [7, 8, 9], disabled: [1, 1, 1] })
-        expect { states.each { |state| style.draw(plain_renderer, state, 64, 48) } }.to allocate_nothing
+        expect { states.each { |state| style.draw(renderer, state, 64, 48) } }.to allocate_nothing
       end
     end
   end

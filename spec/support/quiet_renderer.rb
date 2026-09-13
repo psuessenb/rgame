@@ -1,0 +1,30 @@
+# frozen_string_literal: true
+
+# A renderer for `allocate_nothing`, and for nothing else.
+#
+#   expect { button.on_draw(QuietRenderer.new, nil) }.to allocate_nothing
+#
+# FakeRenderer records every call, which allocates, so it cannot measure a draw;
+# an RSpec double allocates per call too. This one answers the drawing methods a
+# UI draw uses with explicit keyword parameters, so a call collects no Hash, and
+# keeps nothing. What it does do is run each colour through
+# RGame::Util::Color.coerce, as Core::Renderer#packed does — so a draw that hands
+# over an Array colour allocates a Color per call here exactly as it would in
+# the game, and the matcher sees it.
+#
+# It refuses nothing and records nothing, so it says nothing about *what* was
+# drawn. That is FakeRenderer's job, checked against the renderer contract.
+class QuietRenderer
+  def rect(_x, _y, _width, _height, z: 50, color: nil) = coerce(z, color)
+  def circle(_cx, _cy, _radius, z: 50, color: nil) = coerce(z, color)
+  def nine_slice(_id, _x, _y, _width, _height, z: 0, tint: nil) = coerce(z, tint)
+  def text(_string, _x, _y, z: 10, color: nil) = coerce(z, color)
+  def image(_image, _cx, _cy, scale: 1, z: 0, color: nil) = coerce(z + scale, color)
+
+  def text_width(string) = string.length * 8.0
+  def text_height = 18
+
+  private
+
+  def coerce(_z, color) = RGame::Util::Color.coerce(color)
+end
