@@ -14,7 +14,14 @@ module RGame
       # `image:` is an image id — a registered Symbol or a path String — drawn at
       # its natural size, centred in the slot, or centred in the space above the
       # caption when there is one. The caption is centred along the bottom edge,
-      # inside the slot, so the slot's centre is still where the button is.
+      # inside the slot, so the slot is still the button's whole extent.
+      #
+      # **A caption sits under the style, not on it.** With a caption the style
+      # is handed the space above it, so a disc is drawn round the picture and the
+      # caption reads on whatever is behind the button, in the button's own label
+      # colours. A caption wider than the disc — "Watering can" under a tool — is
+      # the ordinary case in a skill bar, and one drawn across a disc's edge would
+      # be half on the fill and half off it, legible on neither.
       #
       # `image: nil` draws no picture and leaves the caption, for an entry whose
       # art is not in yet. An id nobody registered is a mistake rather than that
@@ -30,9 +37,9 @@ module RGame
       # No style by default: an icon on its own is a complete look. The style is
       # drawn at `z: 0` or below, the picture and the caption at `z: 1`. A style
       # answering `content_color(state)` — UI::ShapeStyle does — replaces the tint
-      # and the caption colour in any state it names, because what reads on its
-      # fill is the style's to say: the pressed tint is the same gold as a
-      # ShapeStyle's pressed fill.
+      # in any state it names, because what reads on its fill is the style's to
+      # say: the pressed tint is the same gold as a ShapeStyle's pressed fill. It
+      # does not touch the caption, which is not on the fill.
       class IconButton < Button
         TINTS = {
           idle: Util::Color.new(200, 200, 212),
@@ -59,11 +66,11 @@ module RGame
 
         def on_draw(renderer, _view)
           current = state
-          @style&.draw(renderer, current, width, height)
-          content = @style_names_content ? @style.content_color(current) : nil
           caption_height = @label ? renderer.text_height : 0
+          @style&.draw(renderer, current, width, height - caption_height)
+          content = @style_names_content ? @style.content_color(current) : nil
           draw_image(renderer, current, content, (height - caption_height) / 2.0)
-          draw_caption(renderer, content, caption_height) if @label
+          draw_caption(renderer, caption_height) if @label
         end
 
         private
@@ -75,9 +82,9 @@ module RGame
                          scale: @scales.fetch(current), z: 1, color: content || @tints.fetch(current))
         end
 
-        def draw_caption(renderer, content, caption_height)
+        def draw_caption(renderer, caption_height)
           renderer.text(@label, (width - renderer.text_width(@label)) / 2, height - caption_height,
-                        z: 1, color: content || (@enabled ? @label_color : @disabled_label_color))
+                        z: 1, color: @enabled ? @label_color : @disabled_label_color)
         end
       end
     end

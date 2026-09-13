@@ -314,6 +314,16 @@ Not up for re-litigation inside this plan.
    leaves every game to remember an override, which "Design out misuse" rejects.
    Landed on step 4's branch; see its note.
 
+   **Amended in step 5, for captions.** Drawing `examples/skill_bar` showed the
+   case step 4's note warned of: a pressed caption in the dark content colour
+   sits half on the gold disc and half on the dark ground, and reads on neither;
+   a caption in its own light colour instead is the 1.4:1 case again. Chosen, in
+   the prompt that implemented step 5, from a render of both against a third:
+   **a captioned `IconButton` hands its style only the space above the
+   caption**, so the disc sits round the picture and the caption reads below it,
+   in the button's own label colours. The content colour applies to the picture
+   only. The caption is still inside the slot.
+
 ## What this plan does not deliver
 
 - Buttons sized to their content, and any layout that flows (see verdict, and

@@ -359,8 +359,8 @@ its `z` out would cover them.
 
 **What reads on a fill is the style's to say.** A style that answers
 `content_color(state)` sets the colour of the button's label or icon in any state
-where it returns a colour. `TextButton`, `OptionButton` and `IconButton` all
-follow it, and fall back to their own `label_color:` or `tints:` wherever it
+where it returns a colour. `TextButton`, `OptionButton` and `IconButton`'s
+picture all follow it, and fall back to their own `label_color:` or `tints:` wherever it
 returns `nil`, and for a style without the method. The style is the object that
 picks the fill, so it is the only one that can pick what shows up on it. A
 `ShapeStyle`'s pressed fill is the same gold as `IconButton`'s pressed tint, so
@@ -537,7 +537,11 @@ bar.add(UI::IconButton.new(image: 'icons/hoe.png', label: 'Hoe', style: disc))
 
 The image is drawn at its natural size, centred in the slot — or, with a
 caption, centred in the space above it, with the caption centred along the
-bottom edge. **Everything stays inside the slot**, so a navigation reading the
+bottom edge. **With a caption the style is drawn in that space above it too**,
+so a disc sits round the picture and the caption reads below it, on whatever is
+behind the button. A caption is often wider than the disc — "Watering can" under
+a tool — and one drawn across the disc's edge would sit half on the fill and
+half off it, legible on neither. **Everything stays inside the slot**, so a navigation reading the
 slot's centre and a backdrop sized from the menu's bounds are right for an icon
 button as for any other.
 
@@ -548,9 +552,11 @@ some rows of pixels and not others; focus shows through the tint and the style
 instead. `tints:` and `scales:` must name every state, and raise `KeyError` when
 the button is built if one is missing.
 
-On a style that names a content colour, that colour replaces both the tint and
-the caption colour in the states it names. On the default `ShapeStyle` that
-means pressed only, where a dark icon shows on the gold fill. With no style, the
+On a style that names a content colour, that colour replaces the tint in the
+states it names. On the default `ShapeStyle` that means pressed only, where a
+dark icon shows on the gold fill. The caption keeps `label_color:` and
+`disabled_label_color:` whatever the style says, because it is not on the
+style's fill. With no style, the
 pressed tint stays gold, which reads on a dark ground.
 
 `image: nil` draws the caption alone, for an entry whose art is not in yet. An id
