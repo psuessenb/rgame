@@ -89,7 +89,7 @@ focused still draws pressed. The rule becomes *disabled, else pressed, else
 focused, else idle*.
 
 When activation happens, and how long pressed lasts after an instant one, is
-open question 6. The recommendation, pending confirmation:
+open question 6, settled as follows:
 
 ```ruby
 class Button < Node2D

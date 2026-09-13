@@ -1,6 +1,6 @@
 # Plan — the menu is a shell, the button is the look
 
-**Status:** planned, nothing implemented. Steps 1 and 2 are detailed; steps 3–5
+**Status:** planned, nothing implemented, every open question settled. Steps 1 and 2 are detailed; steps 3–5
 are rough and get re-planned when the step before them lands. Builds on PR #28
 (`UI::Menu` with `layout:` and `navigation:`), merged to `main` as `53f5392`.
 
@@ -147,14 +147,14 @@ Not up for re-litigation inside this plan.
    handful the example uses into one image with a `.json`, the way asset **G**
    was cut, and records provenance in `examples/assets/README.md`. Art for
    step 4's skill bar is not settled by this — see question 7.
-6. **When does a press activate, and how long is "pressed" visible?** Today
+6. ~~**When does a press activate, and how long is "pressed" visible?**~~
+   **Settled — every recommendation below, confirmed as written.** Today
    pressed lasts exactly as long as `ui_confirm` is held — one frame for a tap,
    none when the activation closes the menu — and one press can activate two
    menus (see [01-current-state.md](01-current-state.md#one-confirm-activates-two-menus)).
    **Researched** in [02-prior-art.md](02-prior-art.md#when-a-press-activates--press-release-or-both):
    every toolkit with both paths activates a hotkey on press, splits on the menu
-   path, and the game engines make it a per-button setting. **Recommended, not
-   yet confirmed:**
+   path, and the game engines make it a per-button setting. **Decided:**
    - A per-button **`activate_on:`**, `:release` (the default) or `:press`. A
      settings menu keeps the default; a skill bar navigated by confirm, the
      Xenoblade case, builds its buttons with `:press`.
@@ -173,7 +173,9 @@ Not up for re-litigation inside this plan.
      otherwise come back still pressed when reopened.
 
    Changing the default to `:release` changes when every existing menu reacts,
-   one tick later on a tap. Blocks step 1c.
+   one tick later on a tap — accepted with the rest. Step 1c is unblocked; the
+   one detail it still owns is what pausing does to a running countdown. See
+   [03-design.md](03-design.md#pressed-is-reached-two-ways).
 7. ~~**Skill-bar art.**~~ **Settled — Kenney's *Cursor Pack*, its tool cursors as
    farming-sim skills.** <https://kenney.nl/assets/cursor-pack>, version 1.1,
    `License.txt` reads "License: (Creative Commons Zero, CC0)". Downloaded and

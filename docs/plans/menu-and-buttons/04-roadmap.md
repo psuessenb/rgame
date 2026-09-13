@@ -60,11 +60,11 @@ and a String; a subclass of `Button` written in the spec, with its own
 `on_draw`, is focused and activated like a shipped one; `pointing_spec.rb` and
 `option_item_spec.rb` build their buttons.
 
-### 1c. Pressed is visible *(blocked on open question 6)*
+### 1c. Press, release, and a visible pressed state
 
 `Button#activate_on:`, the press-must-start-here rule, `PRESS_FEEDBACK`, and
-`state` reporting `:pressed` without requiring focus — the recommendation under
-open question 6, re-checked here once it is confirmed. This is the one sub-step
+`state` reporting `:pressed` without requiring focus — as settled under open
+question 6. This is the one sub-step
 of step 1 that **changes** driven reports on purpose, so the invariant is checked
 against 1b's commit, not `main`, and each difference is stated: activation a tick
 later on a tap under `:release`, and `:button_pressed` appearing where a one-tick
