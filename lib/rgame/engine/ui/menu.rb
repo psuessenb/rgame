@@ -31,12 +31,19 @@ module RGame
       # | | Answers | Shipped |
       # |---|---|---|
       # | `layout:` | where each button goes, its size, and the bounds of them all | UI::Column, UI::Ring |
-      # | `navigation:` | which button this frame's input focuses | UI::Stepping (default), UI::Pointing |
+      # | `navigation:` | which button this frame's input focuses | UI::Stepping (default), UI::Pointing, or nil |
       #
       # What stays here is what every menu does the same way: holding the
       # buttons, and passing `ui_confirm` to the focused one as a press and a
       # release — when that activates is the button's `activate_on:`. A
       # navigation cannot forget to do that, because it is never asked to.
+      #
+      # ## A menu with no navigation
+      #
+      # `navigation: nil` says input never moves focus: the menu focuses nothing
+      # when a button is added, so `ui_confirm` has nothing to act on. What
+      # focuses a button then is the game calling `focus` — which confirm then
+      # acts on, as it would for any navigation.
       #
       # ## A menu acts only on a press it saw start
       #
@@ -78,7 +85,7 @@ module RGame
           @bounds_x = @bounds_y = @bounds_width = @bounds_height = 0
           @focused_index = nil
           @confirm_seen_up = false
-          navigation.attach(self)
+          navigation&.attach(self)
         end
 
         # Adds a button, re-arranges them all, and returns it, so a caller can
@@ -91,7 +98,7 @@ module RGame
           add_node(button)
           @layout.arrange(@buttons)
           @bounds_x, @bounds_y, @bounds_width, @bounds_height = @layout.bounds(@buttons)
-          @navigation.on_buttons_changed
+          @navigation&.on_buttons_changed
           button
         end
 
@@ -112,7 +119,7 @@ module RGame
         end
 
         def on_control(actions)
-          @navigation.on_control(actions)
+          @navigation&.on_control(actions)
           confirm(focused, actions)
         end
 

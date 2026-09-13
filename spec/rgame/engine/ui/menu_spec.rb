@@ -569,6 +569,49 @@ RSpec.describe RGame::Engine::UI::Menu do
     end
   end
 
+  # Passing nil is a statement — leaving the keyword out is a Stepping — so a
+  # menu built that way never moves focus on its own.
+  describe 'with no navigation' do
+    let(:menu) { root.add_node(described_class.new(layout: column, navigation: nil)) }
+    let(:fired) { [] }
+
+    before do
+      %w[One Two].each { |label| menu.add(button(label)).on_activated { fired << label } }
+      root.enter_tree
+      poll
+    end
+
+    it 'has none' do
+      expect(menu.navigation).to be_nil
+    end
+
+    it 'focuses nothing when a button is added' do
+      expect([menu.focused, menu.buttons.map(&:focused?)]).to eq([nil, [false, false]])
+    end
+
+    it 'moves no focus on input' do
+      press(:ui_down)
+      press(:ui_right)
+      expect(menu.focused).to be_nil
+    end
+
+    it 'activates nothing on confirm' do
+      press(:ui_confirm)
+      expect(fired).to eq([])
+    end
+
+    # A game calling focus has said something, the same way passing nil has.
+    it 'confirms the button the game focused' do
+      menu.focus(1)
+      press(:ui_confirm)
+      expect([menu.focused.label, fired]).to eq(['Two', ['Two']])
+    end
+
+    it 'still steps by default when the keyword is left out' do
+      expect(root.add_node(described_class.new(layout: column)).navigation).to be_a(RGame::Engine::UI::Stepping)
+    end
+  end
+
   # Vertical belongs to the menu, horizontal to the focused row. The menu does
   # not know what kind of row it is talking to — it calls `adjust` and a plain
   # item answers nil.
