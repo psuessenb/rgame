@@ -118,6 +118,14 @@ so there is nothing to install for sound either. See the README in
 built by `make` — currently one, which generates the audio suite's `.ogg`
 fixture and needs `libvorbisenc` to run.
 
+Commits go through `.githooks/pre-commit`, which runs
+`tools/strip_comments.rb` over the staged Ruby files. It deletes comments
+inside method bodies and on private methods, and keeps class and module
+descriptions, comments on public methods, RuboCop directives and
+`# hot-path` tags. `examples/`, `spec/` and `spec_core/` are left untouched.
+Any `rake` run in a checkout points `core.hooksPath` at `.githooks`, and the
+headless suite fails in a checkout where it isn't.
+
 ### Ruby side
 
 - **Ruby 4.0.5**, pinned in `.ruby-version`. Installed here with

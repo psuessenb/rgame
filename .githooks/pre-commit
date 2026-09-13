@@ -1,0 +1,4 @@
+#!/bin/sh
+# Strips explanatory comments from staged Ruby files; see tools/strip_comments.rb.
+# Wired up by core.hooksPath, which the Rakefile sets in any checkout.
+exec ruby tools/strip_comments.rb --staged

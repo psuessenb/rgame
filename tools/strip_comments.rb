@@ -13,7 +13,8 @@ require 'prism'
 #   - the description directly above a `class`, a `module`, or a constant that
 #     builds one (`Point = Data.define(:x, :y)`)
 #   - the description directly above a public method: a `def`, an `attr_*`,
-#     a `define_method` or an alias, when it is public at that point
+#     a `define_method`, an alias, or a declaration like `signal :on_hit` in a
+#     class body, when it is public at that point
 #   - the comment directly above a `class_eval`-style call; comments *inside* its
 #     heredoc are string content and never touched
 #
@@ -43,8 +44,9 @@ class CommentStripper
     METHOD_DEFINERS = %i[attr_reader attr_writer attr_accessor attr define_method alias_method].freeze
     EVALS = %i[class_eval module_eval instance_eval class_exec module_exec instance_exec].freeze
     CLASS_BUILDERS = %i[Class Module Struct Data].freeze
+    NOT_DSL = %i[module_function private_constant public_constant undef_method remove_method].freeze
 
-    Scope = Struct.new(:visibility, :instance_lines, :singleton_lines)
+    Scope = Struct.new(:visibility, :namespace, :instance_lines, :singleton_lines)
 
     attr_reader :lines, :openers
 
@@ -53,6 +55,7 @@ class CommentStripper
       @lines = Set.new
       @openers = Set.new
       @forced = {}.compare_by_identity
+      @namespace_blocks = {}.compare_by_identity
       @scopes = [new_scope(:private)]
     end
 
@@ -64,23 +67,23 @@ class CommentStripper
     def visit_class_node(node)
       @lines << node.location.start_line
       @openers << (node.superclass || node.constant_path).location.end_line
-      in_scope { super }
+      in_scope(namespace: true) { super }
     end
 
     def visit_module_node(node)
       @lines << node.location.start_line
       @openers << node.constant_path.location.end_line
-      in_scope { super }
+      in_scope(namespace: true) { super }
     end
 
     def visit_singleton_class_node(node)
       @openers << node.expression.location.end_line
-      in_scope { super }
+      in_scope(namespace: true) { super }
     end
 
     def visit_block_node(node)
       @openers << (node.parameters&.location || node.opening_loc).end_line
-      in_scope { super }
+      in_scope(namespace: @namespace_blocks.key?(node)) { super }
     end
 
     def visit_lambda_node(node)
@@ -121,16 +124,19 @@ class CommentStripper
 
     def visit_call_node(node)
       @lines << node.location.start_line if EVALS.include?(node.name)
+      @namespace_blocks[node.block] = true if node.block && class_builder?(node)
       handle_receiverless_call(node) if node.receiver.nil?
       super
     end
 
     private
 
-    def new_scope(visibility) = Scope.new(visibility, Hash.new { |h, k| h[k] = [] }, Hash.new { |h, k| h[k] = [] })
+    def new_scope(visibility, namespace: false)
+      Scope.new(visibility, namespace, Hash.new { |h, k| h[k] = [] }, Hash.new { |h, k| h[k] = [] })
+    end
 
-    def in_scope
-      @scopes.push(new_scope(:public))
+    def in_scope(namespace: false)
+      @scopes.push(new_scope(:public, namespace:))
       yield
       settle(@scopes.pop)
     end
@@ -151,7 +157,13 @@ class CommentStripper
         arguments.each { force_or_retract(it, :private, singleton: true) }
       elsif METHOD_DEFINERS.include?(node.name)
         defined_names(node.name, arguments).each { register(it, node.location.start_line, node:) }
+      elsif dsl_declaration?(node, arguments)
+        register(arguments.first.unescaped.to_sym, node.location.start_line, node:)
       end
+    end
+
+    def dsl_declaration?(node, arguments)
+      @scopes.last.namespace && arguments.first.is_a?(Prism::SymbolNode) && !NOT_DSL.include?(node.name)
     end
 
     def change_visibility(visibility, arguments)

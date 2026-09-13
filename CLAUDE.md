@@ -1,22 +1,15 @@
 # rgame
 
-A learning project: SDL2 + OpenGL in C, wrapped as Ruby C extensions. The user
-is not an experienced C programmer — prefer explaining unfamiliar C/SDL/GL
-idioms briefly when introducing them, and favor straightforward code over
-clever code.
+A small 2D game engine for Ruby, written in Ruby and C. SDL2 + OpenGL in C, wrapped as Ruby C extensions.
 
 ## Code comments, documentation and code style
 
 Add top-level comments to modules, classes and C files describing what they are
 and do. Public methods of Ruby classes — and their C-layer equivalents, the
 functions exposed via `rb_define_method` — get an explaining comment when
-they're non-trivial and the name doesn't already tell the whole story. Apart
-from that, keep comments to a minimum.
+they're non-trivial and the name doesn't already tell the whole story. 
 
-Prefer code that speaks for itself through variable and method names over
-lengthy comments. Use comments to document gotchas (for instance when the
-obvious implementation didn't work for an unforeseen reason), tricky parts of
-the code, or cases where clarity through naming isn't an option.
+Comments inside methods or on private methods get automatically deleted on commit - write them freely, but don't rely on them. Write code that speaks and reads cleanly without those comments.
 
 Write documentation alongside code. Reference documentation lives under
 `docs/`; the top-level `README.md` and `ext/README.md` stay where they are and

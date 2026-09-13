@@ -54,6 +54,22 @@ RSpec.describe CommentStripper do
       expect(strip(source)).to eq(source)
     end
 
+    it 'keeps the description above a public DSL declaration in a class body' do
+      source = <<~RUBY
+        class Thing
+          # Fires when hit.
+          signal :on_hit, Signal.define(:other)
+
+          Built = Class.new do
+            # Fires when built.
+            signal :on_built
+          end
+        end
+      RUBY
+
+      expect(strip(source)).to eq(source)
+    end
+
     it 'keeps rubocop directives with the lines that continue their reason, and hot-path tags' do
       source = <<~RUBY
         class Thing
@@ -138,6 +154,37 @@ RSpec.describe CommentStripper do
           protected
 
           def d; end
+        end
+      RUBY
+    end
+
+    it 'deletes the description above a DSL-like call that declares nothing public' do
+      expect(strip(<<~RUBY)).to eq(<<~RUBY)
+        class Thing
+          # constant
+          private_constant :X
+
+          def a
+            # inside a method
+            signal :on_hit
+          end
+
+          private
+
+          # private
+          signal :on_secret
+        end
+      RUBY
+        class Thing
+          private_constant :X
+
+          def a
+            signal :on_hit
+          end
+
+          private
+
+          signal :on_secret
         end
       RUBY
     end
