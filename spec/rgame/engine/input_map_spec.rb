@@ -18,6 +18,13 @@ RSpec.describe RGame::Engine::InputMap do
       expect(described_class.new[:ui_cancel].buttons).to include(controls::KEY_ESCAPE)
     end
 
+    # Separate from move_x / move_y although they share the stick, so a game can
+    # rebind the wheel without rebinding how its players walk.
+    it 'gives a radial menu its own axes on the left stick' do
+      map = described_class.new
+      expect([map[:ui_radial_x].stick, map[:ui_radial_y].stick]).to eq([controls::AXIS_LEFT_X, controls::AXIS_LEFT_Y])
+    end
+
     it 'lets a game override one of them' do
       map = described_class.new(ui_confirm: { buttons: [controls::PAD_X] })
       expect(map[:ui_confirm].buttons).to eq([controls::PAD_X])

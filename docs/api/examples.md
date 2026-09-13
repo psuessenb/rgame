@@ -140,6 +140,15 @@ scene and replacing one.
 **Uses:** `Scene::SceneStack`, `UI::OptionItem`, `Util::SaveFile`,
 `RGame::Game`'s fullscreen, scale mode and volume.
 
+### radial_menu
+
+Choosing by pointing: eight colours on a ring, focused by the direction of the
+stick or the arrow keys. A stick let go of selects nothing, so pressing A at rest
+never picks what the stick passed over on its way home.
+
+**Uses:** `UI::RadialMenu`, `UI::MenuItem`, `ui_radial_x` / `ui_radial_y`,
+`renderer.circle`, `renderer.line`.
+
 ## Audio
 
 ### sound

@@ -73,7 +73,13 @@ module RGame
         ui_left: { buttons: [Controls::KEY_LEFT, Controls::PAD_DPAD_LEFT] },
         ui_right: { buttons: [Controls::KEY_RIGHT, Controls::PAD_DPAD_RIGHT] },
         ui_confirm: { buttons: [Controls::KEY_RETURN, Controls::KEY_SPACE, Controls::PAD_A] },
-        ui_cancel: { buttons: [Controls::KEY_ESCAPE, Controls::PAD_B] }
+        ui_cancel: { buttons: [Controls::KEY_ESCAPE, Controls::PAD_B] },
+        ui_radial_x: { axis: [[Controls::KEY_LEFT, Controls::KEY_RIGHT],
+                              [Controls::PAD_DPAD_LEFT, Controls::PAD_DPAD_RIGHT]],
+                       stick: Controls::AXIS_LEFT_X },
+        ui_radial_y: { axis: [[Controls::KEY_UP, Controls::KEY_DOWN],
+                              [Controls::PAD_DPAD_UP, Controls::PAD_DPAD_DOWN]],
+                       stick: Controls::AXIS_LEFT_Y }
       }.freeze
 
       DEFAULT_ACTIONS = {

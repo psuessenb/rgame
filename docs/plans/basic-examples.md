@@ -532,7 +532,7 @@ Documented in `docs/api/components.md` (a `Hop` section, and the lift under
 `AnimatedSprite` and `Sprite`), `docs/api/scene_graph.md` ("Elevation"), and
 `docs/api/examples.md`.
 
-### 11. `examples/radial_menu` — a controller-driven radial menu
+### 11. `examples/radial_menu` — a controller-driven radial menu — **done**
 
 **Shows** selection by *direction* rather than by list position, which is the
 thing a stick is good at and a d-pad list is not.
@@ -563,6 +563,65 @@ harness (so this is testable with a synthetic SDL pad, no hardware).
 (an icon sheet) is what a real radial menu shows, and is deferred until the
 menu itself works; the mechanism being taught is direction-to-sector, not the
 picture in the sector.
+
+**Landed.** `Engine::UI::RadialMenu` with its spec, two new actions in
+`InputMap::UI` (`ui_radial_x` / `ui_radial_y`), `examples/radial_menu/main.rb`,
+and two drive scripts: `tools/drive/examples/radial_menu.rb` on the keyboard and
+`radial_menu_pad.rb` for `--gamepad`. Eight colours on a ring, one of them
+disabled; the chosen one fills the middle, and a caption drawn last names it.
+
+Run: `rake spec` 1434 examples, 0 failures; RuboCop clean over every touched file.
+`make test` and `rake spec:core` were not run: nothing in C or `RGame::Core`
+changed. `game_menu` and `input_glyphs` drive to the same reports as before the
+new actions joined every map. `RadialMenu#on_control` allocates 2 objects over
+200,000 calls.
+
+The acceptance evidence is the caption, read off the last `text` call at several
+budgets. Keyboard: Yellow at 35, still Yellow at 65 with the arrows on Blue,
+**still Yellow at 100** after Enter pressed at rest, still Yellow at 130 with
+Locked confirmed, Teal at 180. Making the selection sticky below the dead zone
+turns the 100-tick result into Blue, and fails two specs. Synthetic pad: nothing
+chosen at 38 after A on a 0.35 nudge (pointer tip at 35.3, inside the 75 px dead
+zone disc), Yellow at 60, still Yellow at 112 after A at rest.
+
+What the sketch did not know:
+
+- **The open question is answered: its own axes.** `ui_radial_x` / `ui_radial_y`
+  join the universal UI set, bound to the left stick, the arrows and the d-pad.
+  Same stick as `move_x` by default, but separate actions, so a game can move the
+  wheel to the right stick without rebinding how its players walk. Being in the
+  universal set is what lets the example declare nothing, the way a `Menu` does.
+- **"No assets" was half wrong, the same way it was for `game_menu`.** The items
+  are `UI::MenuItem`s, which draw nine-slices, so the example registers asset
+  **C**. That was the three-pile sort's answer rather than an accident: `Menu` and
+  `RadialMenu` answer the same question about an item — which one is focused,
+  and activate it — and what an item *is* does not change with how it is chosen.
+  Only the focus rule is new. `Menu`'s focus bookkeeping was not shared: it moves
+  relative to itself, wraps, and is never empty, where this one is absolute and
+  empty below the dead zone, and the overlap came to a handful of lines.
+- **No `Renderer#pie`**, so the second half of the open question is answered too.
+  A filled disc for the backdrop, a smaller one for the dead zone drawn to scale,
+  and a line for the pointer read clearly; nothing in the contract changed.
+- **The dead zone is a length, and it sits on top of the per-axis one.**
+  `ActionMapper` already takes 0.15 off each axis and rescales, so a raw 0.35
+  reaches the wheel as 0.235, and the wheel's 0.5 corresponds to about 0.58 raw
+  along an axis. The two are kept apart on purpose: the per-axis one stops drift
+  and is far too small to decide a player means a direction.
+- **`each_with_index` allocates.** `Menu#focus` uses it and is fine, because it
+  runs on a keypress; `RadialMenu` refocuses every frame, and the first version
+  allocated one object per frame for it. `each_index` does not.
+- **A digital diagonal is longer than a stick.** Two arrow keys read as (1, 1), so
+  the example clamps its pointer to the ring. The menu itself does not care: only
+  the angle and whether the length clears the dead zone matter.
+- **A pad script needs `--gamepad`**, so the example has two scripts rather than
+  one. Under the scripted backend the keyboard holds the seat and a pad track
+  would first have to take it over; the keyboard script is the default, and the
+  pad script is the one that can exercise a deflection that is real but too
+  small.
+
+Documented in `docs/api/ui.md` (a `RadialMenu` section, and "What this is not"
+widened to two menus), `docs/api/input.md` (the universal set), and
+`docs/api/examples.md`.
 
 ### 12. `examples/pathfinding` — a character walking a computed route
 
@@ -1095,12 +1154,12 @@ Sorted by where it lands, because that decides who may use it.
 | `Util::SaveFile` + save-dir helper | `Util` (pure Ruby) | 5, 6 | S |
 | ~~`UI::OptionItem`~~ | `Engine::UI` | 6 | **done** — no `SliderItem`, see 8 |
 | ~~`Components::Hop`~~ | `Engine` | 7 | **done** — with `Node2D#elevation` |
-| `UI::RadialMenu` | `Engine::UI` | 9 | M |
+| ~~`UI::RadialMenu`~~ | `Engine::UI` | 9 | **done** — with `ui_radial_x` / `ui_radial_y` |
 | `Engine::NavGrid` + `Engine::AStar` | `Engine` | 10 | **L** |
 | ~~`Controls.gamepad?` + a named pad-button boundary~~ | `Util` (values) | 21 | **done** — plus `pad_button?` and `BUTTON_GAMEPAD_FIRST` |
 | ~~"which ids of this action apply to this device"~~ | `Engine::InputMap` | 21 | **done** — `#button_for(action, device)` |
 | `Components::CameraPan` | `Engine` | 2 | S, *maybe not needed* |
-| `Renderer#pie` + contract + fake | `Core` + contracts | 9 | M, *avoid if possible* |
+| ~~`Renderer#pie` + contract + fake~~ | `Core` + contracts | 9 | **not needed** — discs and a line read fine |
 | a label keyed on a value *and* the locale | `Engine` | 23 | S, *maybe not needed* |
 
 Everything in the `Engine` rows is pure Ruby with no graphics library, gets specs
@@ -1227,7 +1286,7 @@ is deferred.
 | **A** | Character sprite sheet | `hero.png` + `hero.json` | 1 walk, 7 jump_topdown, 10 pathfinding | **done** |
 | **B** | Top-down tileset + a map | `tileset.png`, `tileset.tsx`, `town.tmx` | 2 scroll_map, 7 jump_topdown, 10 pathfinding | **done** |
 | **C** | UI nine-slice sheet | `ui.png` + `ui.json` | 3 game_menu, 6 menu_navigation | **done** — and it was never optional |
-| **D** | Radial icon sheet | `icons.png` + `icons.json` | 9 radial_menu | deferred |
+| **D** | Radial icon sheet | `icons.png` + `icons.json` | 9 radial_menu | not needed — labels read fine |
 | **F** | A sound effect and a music loop | `blip.ogg`, `music.ogg` | 4 sound, 5 music | **done** |
 | **G** | Input prompt glyphs | `glyphs.png` + `glyphs.json` | 21 input_glyphs | **done** |
 
@@ -1321,9 +1380,9 @@ with `renderer.nine_slice`, nine-slice ids resolve by registration only, and
 It shipped with example 3. See that example for the two constraints the widget
 puts on the art.
 
-**D is still deferred**, and on firmer ground: a radial menu genuinely does work
-with text labels, because nothing in it draws chrome the way `MenuItem` does.
-Pick it up only if the labelled version reads badly.
+**D was not needed.** `examples/radial_menu` shipped with text labels on asset
+**C**'s buttons — its items are `MenuItem`s, so it has exactly the chrome a list
+menu has, and the labelled wheel reads well.
 
 ### Consequence for the order
 
@@ -1436,7 +1495,8 @@ has already met and the jump example does not have to introduce it.
 
 **Phase F — the two largest, both independent of everything above.**
 
-21. `examples/radial_menu` (no assets)
+21. ~~`examples/radial_menu`~~ — **done**; `UI::RadialMenu`, its own two axes, and
+    asset **C** again, because its items are `MenuItem`s.
 22. `examples/pathfinding` (reuses **A** and **B**; `town.tmx` already has the
     obstacle worth routing around — see "Assets")
 
@@ -1509,8 +1569,10 @@ sodri's character sheet repacked. See "Assets". So is 6: one `OptionItem` and no
 - ~~**7** — does `jump` join `InputMap::DEFAULT_ACTIONS`, or does the example merge it
   in like `tiled_world` does with `:cutscene`?~~ **Resolved:** merged in by the
   example, and `DEFAULT_ACTIONS` is unchanged.
-- **9** — does the radial read `move_x`/`move_y`, or declare its own axes? And can
-  the icon ring avoid needing `Renderer#pie` entirely?
+- ~~**9** — does the radial read `move_x`/`move_y`, or declare its own axes? And can
+  the icon ring avoid needing `Renderer#pie` entirely?~~ **Resolved:** its own,
+  `ui_radial_x` / `ui_radial_y` in the universal set, on the same stick by
+  default; and no `pie` — see the landed note on `examples/radial_menu`.
 - **13** — one node drawing a whole image and one drawing a registered
   `subimage`, or a single still image? Leaning toward both, because it shows the
   two id spaces again and costs no new asset.
