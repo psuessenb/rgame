@@ -35,6 +35,17 @@ module RGame
             item.height = @item_height
           end
         end
+
+        # `[x, y, width, height]` of the square that encloses the whole circle
+        # of slots, centred on the menu's origin — not the tightest box round
+        # the items placed so far, so a backdrop keeps its size as a ring grows.
+        # All zero for no items.
+        def bounds(items)
+          return [0, 0, 0, 0] if items.empty?
+
+          [-@radius - (@item_width / 2.0), -@radius - (@item_height / 2.0),
+           (@radius * 2) + @item_width, (@radius * 2) + @item_height]
+        end
       end
     end
   end

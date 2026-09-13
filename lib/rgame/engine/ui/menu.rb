@@ -30,7 +30,7 @@ module RGame
       #
       # | | Answers | Shipped |
       # |---|---|---|
-      # | `layout:` | where each button goes, and its size | UI::Column, UI::Ring |
+      # | `layout:` | where each button goes, its size, and the bounds of them all | UI::Column, UI::Ring |
       # | `navigation:` | which button this frame's input focuses | UI::Stepping (default), UI::Pointing |
       #
       # What stays here is what every menu does the same way: holding the
@@ -65,11 +65,17 @@ module RGame
       class Menu < Node2D
         attr_reader :buttons, :focused_index, :layout, :navigation
 
+        # The rectangle the layout says encloses every button, relative to the
+        # menu — what a subclass draws its backdrop round. Copied on each `add`,
+        # so reading them on a draw path costs nothing.
+        attr_reader :bounds_x, :bounds_y, :bounds_width, :bounds_height
+
         def initialize(layout:, navigation: Stepping.new, **)
           super(**)
           @layout = layout
           @navigation = navigation
           @buttons = []
+          @bounds_x = @bounds_y = @bounds_width = @bounds_height = 0
           @focused_index = nil
           @confirm_seen_up = false
           navigation.attach(self)
@@ -84,6 +90,7 @@ module RGame
           @buttons << button
           add_node(button)
           @layout.arrange(@buttons)
+          @bounds_x, @bounds_y, @bounds_width, @bounds_height = @layout.bounds(@buttons)
           @navigation.on_buttons_changed
           button
         end

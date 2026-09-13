@@ -17,4 +17,26 @@ RSpec.describe RGame::Engine::UI::Column do
     placed = items(2).tap { described_class.new(item_width: 200, item_height: 40).arrange(it) }
     expect(placed.map { [it.width, it.height] }.uniq).to eq([[200, 40]])
   end
+
+  describe '#bounds' do
+    let(:column) { described_class.new(item_width: 200, item_height: 40, spacing: 10) }
+
+    it 'encloses the stacked items, with a gap between each pair and none outside' do
+      expect(column.bounds(items(3))).to eq([0, 0, 200, 140])
+    end
+
+    it 'is the one slot for a single item' do
+      expect(column.bounds(items(1))).to eq([0, 0, 200, 40])
+    end
+
+    it 'has no extent for no items' do
+      expect(column.bounds([])).to eq([0, 0, 0, 0])
+    end
+
+    it 'ends where the last arranged item ends' do
+      placed = items(4).tap { column.arrange(it) }
+      _, _, width, height = column.bounds(placed)
+      expect([width, height]).to eq([placed.last.x + placed.last.width, placed.last.y + placed.last.height])
+    end
+  end
 end

@@ -65,6 +65,7 @@ What the menu keeps is what is the same for every combination:
 | `buttons`, `focused`, `focused_index` | what it holds and what is focused — `nil` when nothing is |
 | `focus(index)` | focus a button directly, or nothing with `nil`; only buttons whose focus changes are told |
 | `layout`, `navigation` | the two parts it was built with |
+| `bounds_x`, `bounds_y`, `bounds_width`, `bounds_height` | the rectangle enclosing every button, relative to the menu, as its layout reports it — all zero while empty |
 
 The actions come from the [universal set](input.md#the-universal-ui-set) that
 every `InputMap` is merged over, so a menu works without a game declaring
@@ -81,10 +82,21 @@ combination of layout and navigation confirms the same way.
 | `Column` | downwards from the menu's origin | `item_width:`, `item_height:`, `spacing: 8` |
 | `Ring` | round a circle **centred on** the menu's origin, the first straight up, then clockwise | `radius:`, `item_width:`, `item_height:` |
 
-A layout is anything answering `arrange(buttons)` by setting each button's `x`,
-`y`, `width` and `height`, relative to the menu. The menu calls it after every
-`add`, which is how a ring re-spaces itself as it grows. A layout keeps no
-state about a menu, so one instance may serve several.
+A layout is anything answering two methods, both relative to the menu:
+
+- `arrange(buttons)` sets each button's `x`, `y`, `width` and `height`;
+- `bounds(buttons)` returns `[x, y, width, height]`, the rectangle enclosing
+  them — `[0, 0, 0, 0]` for none.
+
+The menu calls both after every `add`, which is how a ring re-spaces itself as
+it grows, and copies the bounds into its own readers, so a backdrop drawn from
+them allocates nothing. A layout keeps no state about a menu, so one instance
+may serve several.
+
+`Column`'s bounds are the stacked slots, exactly. `Ring`'s are the square round
+the whole circle of slots, `2 * radius + item_width` wide and
+`2 * radius + item_height` tall, whatever the count — so a backdrop behind a
+wheel does not change size as buttons are added.
 
 ### `Stepping`
 

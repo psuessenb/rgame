@@ -26,4 +26,31 @@ RSpec.describe RGame::Engine::UI::Ring do
     placed = items(3).tap { ring.arrange(it) }
     expect(placed.map { [it.width, it.height] }.uniq).to eq([[40, 20]])
   end
+
+  describe '#bounds' do
+    def contains?(bounds, item)
+      left, top, width, height = bounds
+      epsilon = 1e-9
+      item.x >= left - epsilon && item.y >= top - epsilon &&
+        item.x + item.width <= left + width + epsilon && item.y + item.height <= top + height + epsilon
+    end
+
+    it 'is the square round the whole circle of slots, centred on the origin' do
+      expect(ring.bounds(items(4))).to eq([-120.0, -110.0, 240, 220])
+    end
+
+    it 'has no extent for no items' do
+      expect(ring.bounds([])).to eq([0, 0, 0, 0])
+    end
+
+    # Three, five and eight put slots off the axes, which is what a box of just
+    # the radius, without the slot size, gets wrong.
+    [1, 2, 3, 5, 8].each do |count|
+      it "contains every slot of a ring of #{count}" do
+        placed = items(count).tap { ring.arrange(it) }
+        bounds = ring.bounds(placed)
+        expect(placed).to all(satisfy { contains?(bounds, it) })
+      end
+    end
+  end
 end

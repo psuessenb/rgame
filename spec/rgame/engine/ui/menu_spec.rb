@@ -419,6 +419,30 @@ RSpec.describe RGame::Engine::UI::Menu do
     end
   end
 
+  describe 'bounds' do
+    def bounds = [menu.bounds_x, menu.bounds_y, menu.bounds_width, menu.bounds_height]
+
+    it 'has no extent while it holds no buttons' do
+      expect(bounds).to eq([0, 0, 0, 0])
+    end
+
+    it 'follows each add' do
+      menu.add(button('One'))
+      expect { menu.add(button('Two')) }.to change { bounds }.from([0, 0, 200, 40]).to([0, 0, 200, 88])
+    end
+
+    it 'is what its layout answers' do
+      menu.add(button('One'))
+      menu.add(button('Two'))
+      expect(bounds).to eq(column.bounds(menu.buttons))
+    end
+
+    it 'costs nothing to read' do
+      build('One', 'Two')
+      expect { menu.bounds_x + menu.bounds_y + menu.bounds_width + menu.bounds_height }.to allocate_nothing
+    end
+  end
+
   # Confirming belongs to the menu whatever moves focus, so a navigation only
   # has to say which item is focused.
   describe 'navigation' do
