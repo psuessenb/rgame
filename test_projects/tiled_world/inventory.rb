@@ -21,39 +21,25 @@ class Inventory < RGame::Engine::Node2D
   def initialize(walker:, **)
     super(**)
     @walker = walker
-    @open = false
   end
 
   def on_add
     column = RGame::Engine::UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT, spacing: SPACING)
     @menu = add_node(RGame::Engine::UI::PanelMenu.new(x: PADDING, y: PADDING, padding: PADDING, layout: column))
-    ITEMS.each { |label| @menu.add(RGame::Engine::UI::PanelButton.new(label: label)).on_activated { close } }
-    @menu.paused = true
+    ITEMS.each { |label| @menu.add(RGame::Engine::UI::PanelButton.new(label: label)).on_activated { toggle } }
+    @menu.close
   end
 
-  # Its own hook still runs while the menu below it is paused, which is how it
-  # can be reopened.
+  # A closed menu neither draws nor takes input, but this node still reads the
+  # key that opens it.
   def on_control(actions)
     toggle if actions.pressed?(:ui_cancel)
   end
 
-  # The menu is a child, so skipping the child pass is what closes it visually.
-  # Pausing alone would stop it ticking and leave it on screen.
-  def draw_children(renderer, view)
-    super if @open
-  end
-
   private
 
-  if @open
-    def close
-      toggle
-    end
-  end
-
   def toggle
-    @open = !@open
-    @menu.paused = !@open
-    @walker.paused = @open
+    @menu.open? ? @menu.close : @menu.open
+    @walker.paused = @menu.open?
   end
 end
