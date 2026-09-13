@@ -1,7 +1,7 @@
 # Systems & shared resources
 
 Some things a node needs don't live on the node: a tilemap, the world bounds, a
-shared collision world. The engine resolves this the way scene-graph engines do —
+shared collision world. The engine resolves this —
 shared resources are **systems that live on an anchor node and are reached by
 walking the tree**, not threaded through constructors. There is **no `GameContext`
 bag**: a system is just an `RGame::Engine::Component` on a boundary node, found with the
@@ -10,9 +10,7 @@ same `get_component` every node already has.
 ## Two scopes = two anchor nodes
 
 Scope is a property of the **owner** you attach a system to, not of the system
-itself — the same insight behind Unreal's `UGameInstanceSubsystem` (whole session)
-vs `UWorldSubsystem` (one level), and Godot's autoload singletons vs per-scene
-nodes.
+itself.
 
 - **Global scope → the root node.** `root` is set once and never changes, reachable
   from every node. Program-lifetime systems (e.g. an audio bus, i18n) are components
@@ -137,10 +135,9 @@ both.
 would hit is arithmetic on the step, so a `TileWorld` divides by the tile size and asks
 the grid. Actors have no such structure, so a `CollisionWorld` buckets them into a
 [`SpatialHash`](internals.md#spatialhash--uniform-grid-broadphase) each step. Merging
-the two — baking tile shapes into the broadphase, which is what Godot and Unity both do
+the two — baking tile shapes into the broadphase
 — would rebuild an index the grid already is, and pay for it every frame on a map of
-tens of thousands of tiles. Unity ships `CompositeCollider2D` specifically to make that
-affordable; this engine declines the problem instead.
+tens of thousands of tiles.
 
 **What is unified is one level up.** A **blocker source** answers one question over
 plain numbers — where does this box land moving `dx` — and there are three of them:
@@ -177,7 +174,7 @@ walking the tree for every pair. `CollisionWorld`
 (engine/components/collision_world.rb) holds a `SpatialHash` for exactly this — a
 spatial index of registered colliders, rebuilt each `update` — and it is shape-agnostic,
 so `CircleCollider` and `BoxCollider` share one and collide with each other. This
-indexing is the same idea as Godot's **groups**: a registry of node references. It is *not* an ECS —
+indexing is a registry of node references. It is *not* an ECS —
 it indexes references, carries no component data, and gains none of ECS's
 data-locality; it's a lightweight index.
 

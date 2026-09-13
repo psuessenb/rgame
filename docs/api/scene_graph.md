@@ -121,8 +121,7 @@ child.x       # => 150
 child.world_x # => 250
 ```
 
-**They are computed when read, and cached** — the arrangement Godot and Unity
-use. Moving a node marks it and its whole subtree stale; the next read of any of
+**They are computed when read, and cached.** Moving a node marks it and its whole subtree stale; the next read of any of
 them walks up to the nearest node still current and recomputes back down. Two
 things follow, and both are relied on:
 
@@ -427,9 +426,7 @@ own hook and before its children. It also has the two tree-lifecycle hooks below
 
 ## Lifecycle: constructing vs. entering the tree
 
-A node has two distinct moments, and conflating them is a classic source of bugs
-(it is why mature engines split Godot's `_init`/`_ready`, Unity's `Awake`/`OnEnable`,
-Unreal's constructor/`BeginPlay`):
+A node has two distinct moments, and conflating them is a classic source of bugs:
 
 1. **Construction** (`initialize`) — the node and its components exist, but the node
    is **not yet in the live tree**. It has no resolved anchors: `root`/`scene` (below)
@@ -510,7 +507,7 @@ transform the traversal pushes as it descends, and its cull box from
 
 A node that detaches itself or a sibling mid-tick would mutate a parent's `children`
 while that list is being iterated — the classic scene-graph footgun. So removal is
-**deferred** (as in Godot's `queue_free`):
+**deferred**:
 
 - `queue_free` marks a node for removal; `freed?` reports the mark. The node stays in
   the tree and keeps ticking until the sweep.

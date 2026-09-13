@@ -616,8 +616,7 @@ Three things worth knowing about a layer name:
 `blocked_by` and [`on_hit`](#boxcollider) answer different questions — what may I walk
 through, and what am I touching — and they are not alternatives. A successfully blocked
 pair ends up *touching*, and `CollisionBox.overlap?` is half-open, so blocking a step
-reports no contact. An entity that must both stop and react needs both, which is the Godot
-idiom of a body with a child area.
+reports no contact. An entity that must both stop and react needs both.
 
 **What stopped a step is reported.** `on_blocked` fires on the step something starts
 stopping this mover, `on_unblocked` on the step it stops, each once per blocker. It is the

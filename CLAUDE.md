@@ -21,6 +21,8 @@ context, and valid against the current code. Rule of thumb: the documentation
 is written for a reader who has *only* the current code and took no part in
 writing it, and it should help them understand and use that code.
 
+Documentation does not reference other game engines or games ("Prior Art") - _plans_ do that and it's useful there, the official documentation **does not**.
+
 The exception is everything under `docs/plans`. Documentation there serves an
 implementation or refactoring effort, so it can and should reference previous
 iterations of the code, raise open questions, and record decisions taken in

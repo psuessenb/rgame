@@ -113,19 +113,8 @@ understood before the step existed.
 
 ## Finishing the plan
 
-The last step of a roadmap is folding the plan back and deleting it, and it is
-real work rather than a tidy-up.
+The last step of a roadmap is folding the plan back and deleting it.
 
-Whatever is still true moves into CLAUDE.md, `docs/api/`, or a comment at the
-code it describes. Then the file or folder goes; `git log` keeps the rest. A
-plan that outlives its work is a stale description of code that no longer
-exists.
+Whatever is still true moves into CLAUDE.md or `docs/api/`. Often the implementation of the plan already updates the documentation, but now is the time to double-check and made sure documentation is up to date. Open questions or writen down further todos need to be rescued from the plan - when it's unclear where they should be recorded, ask the user. Then the file or folder goes; `git log` keeps the rest.
 
-The thing to hunt for is **anything a landed note records that exists nowhere
-else** — a deliberate deviation from the obvious implementation, a decision
-whose reasoning the code does not show, a bug that a test now guards without
-saying why. Those are the rescues, and a plan of any size usually has three or
-four. Everything else is history, and git already has it.
-
-That fold-back is itself a step, so it gets a branch and a pull request like any
-other.
+That fold-back is itself a step, so it gets a branch and a pull request like any other.

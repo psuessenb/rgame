@@ -5,7 +5,7 @@ Low-level, pure-Ruby classes the engine's [components](components.md) and
 they sit *behind* a component (a blocked `Mover` resolves through `CollisionSystem`, an
 `AnimatedSprite` plays through an `Animator`, a `CollisionWorld` indexes through a
 `SpatialHash` and remembers through a `ContactSet`) — but they are documented here because they carry the load-bearing
-algorithms and are the seams the component tests drive. None `require "gosu"`.
+algorithms and are the seams the component tests drive.
 
 For the helpers a game *does* reach for directly (pools, localization, the camera,
 collision boxes, …), see [Utilities](toolbox.md).

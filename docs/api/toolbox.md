@@ -2,7 +2,7 @@
 
 Engine classes a **game author reaches for directly** that don't belong to the scene
 graph, components, signals, or systems chapters — pooling, localization, audio facts,
-the camera, collision boxes. All are pure Ruby (none `require "gosu"`), so
+the camera, collision boxes. All are pure Ruby, so
 they stay headless-testable. One section is a recipe rather than a class:
 [making a character that collides](#making-a-character-that-collides), because the
 question it answers has no single class behind it.
