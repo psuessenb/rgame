@@ -295,13 +295,15 @@ panel drawn at 1x.
 
 ## UI atlases
 
-One sheet of UI chrome, cut into named [nine-slices](#nine-slices).
+One sheet of UI chrome, cut into named [nine-slices](#nine-slices) and named
+images.
 
 ```ruby
 atlas = app.assets.ui_atlas('ui/ui_atlas.json')
 renderer.register_ui_atlas(atlas)
 
 renderer.nine_slice(:button_idle, x, y, width, height)
+renderer.image(:home, cx, cy)
 ```
 
 A button has four states, a panel has one, a scrollbar has three pieces — all
@@ -318,29 +320,43 @@ small, and all cheaper as sub-rectangles of one texture than as a dozen files.
     "button_focus": { "x": 43, "y": 59, "w": 26, "h": 28, "border": 7 },
     "panel":        { "x": 0, "y": 0, "w": 32, "h": 32, "scale": 2,
                       "border": { "left": 4, "right": 4, "top": 8, "bottom": 4 } }
+  },
+  "images": {
+    "home": { "x": 0,  "y": 96, "w": 50, "h": 50 },
+    "gear": { "x": 50, "y": 96, "w": 50, "h": 50 }
   }
 }
 ```
 
-`image` is resolved next to the descriptor. Each entry is a source rectangle
-plus a `border` — a uniform integer or one value per side — and an optional
-`scale` that overrides the sheet-wide one. A sheet with no `scale` draws at 1.
+`image` is resolved next to the descriptor. Each `nine_slices` entry is a source
+rectangle plus a `border` — a uniform integer or one value per side — and an
+optional `scale` that overrides the sheet-wide one. A sheet with no `scale` draws
+at 1.
+
+Each `images` entry is a rectangle and nothing more, cut from the sheet with
+`Image#subimage`: an icon is drawn whole, so it has no border, and how large to
+draw it is the draw call's `scale:`, so it takes no scale either. `atlas.images`
+is a Hash of name to `Image`. Either section may be missing or `null`, and one
+atlas may carry both.
 
 ### Element names, not filenames
 
-`nine_slices` is keyed by whatever the descriptor calls each element, and those
+Both sections are keyed by whatever the descriptor calls each element, and those
 names are what a widget asks for. That is why nine-slices are the one asset the
 renderer resolves **by registration only** — `:button_focus` is not a file and
-never can be. `register_ui_atlas` binds every element in one call:
+never can be. `register_ui_atlas` binds every element of both kinds in one call,
+nine-slices with `register_nine_slice` and images with `register_image`:
 
 ```ruby
-renderer.register_ui_atlas(atlas)          # all of them
+renderer.register_ui_atlas(atlas)                                  # all of them
 renderer.register_nine_slice(:panel, atlas.nine_slices[:panel])   # or one
+renderer.register_image(:home, atlas.images[:home])
 ```
 
 ### When an entry is wrong
 
-A descriptor holds a dozen of these, so a broken one **names itself**:
+A descriptor holds a dozen of these, so a broken one — a nine-slice whose border
+does not fit, or an image rectangle off the edge of the sheet — **names itself**:
 
 ```
 ArgumentError: ui atlas element :button_idle: nine-slice borders (40, 40, 40, 40)

@@ -25,6 +25,11 @@ index, not the argument.
 
 - **BoxColliders for rectangular shaped collision bodies.** Adding a second shape of colliders, which can be used with the already existing `CollisionWorld`. Also extended both `CollisionWorld` and the underlying `SpatialHash` with some utility methods for grid-based collisions. 
 
+- **A UI atlas can name images.** A descriptor's `images` section cuts whole
+  rectangles from the sheet, `UiAtlas#images` holds them, and
+  `Renderer#register_ui_atlas` registers each under its name — so a strip of
+  icons reaches `UI::IconButton.new(image: :home)` in one call.
+
 ### Changed
 
 - **`Node2D`'s internal methods start with `_`, and a subclass may not redefine
@@ -82,7 +87,8 @@ index, not the argument.
   `STYLE.with(...)` — and its label colours are `label_color:` and
   `disabled_label_color:`. `UI::IconButton` draws an image tinted and scaled by
   state, with an optional caption. Drawing a `PanelButton` or `OptionButton` no
-  longer allocates.
+  longer allocates. `UI::RadialMenu` is a `Menu` that builds its own `Ring` and
+  `Pointing` and draws the wheel's backdrop, dead zone and pointer.
   See [docs/api/ui.md](docs/api/ui.md).
 
 ### Fixed
