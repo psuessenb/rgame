@@ -1,7 +1,7 @@
 # Plan — the menu is a shell, the button is the look
 
-**Status:** steps 1, 2 and 3 implemented. Steps 3–5 planned in detail at
-`564e708`, step 6 is the fold-back. Every open question is settled. Builds on PR #28
+**Status:** steps 1–4 implemented. Step 5 planned in detail at `564e708`,
+step 6 is the fold-back. Open question 9, raised by step 4, blocks 5f. Builds on PR #28
 (`UI::Menu` with `layout:` and `navigation:`), merged to `main` as `53f5392`.
 
 | | |
@@ -243,6 +243,22 @@ Not up for re-litigation inside this plan.
      grid, which an icon set picked from a pack is not in general.
    - *One PNG per icon, by path.* Needs no code at all; measured at 121 KB for
      eight, doubling `examples/assets`.
+
+9. **Should `IconButton`'s pressed tint and `ShapeStyle`'s pressed fill stop
+   being the same colour?** *Open, raised by step 4.* Both default to
+   `(240, 200, 96)`, so `IconButton.new(image:, style: ShapeStyle.new(shape: :disc))`
+   — the pairing `IconButton`'s own header shows — draws a gold icon on a gold
+   disc while pressed, and the icon disappears. `examples/radial_menu` passes a
+   dark pressed tint. That depends on every game remembering, which CLAUDE.md's
+   "Design out misuse" rejects, so the defaults are the likelier fix; the
+   candidates:
+   - *A dark pressed tint in `IconButton::TINTS`.* Fixes every styled icon; an
+     unstyled icon on a dark background then goes dark while pressed.
+   - *A different pressed fill in `ShapeStyle::COLORS`.* Also changes every
+     `TextButton`'s pressed look, whose light label reads on the gold.
+   - *Leave both, and document the tint* (what step 4 did).
+
+   Step 5f's skill bar builds exactly this pairing, so it waits on the answer.
 
 ## What this plan does not deliver
 
