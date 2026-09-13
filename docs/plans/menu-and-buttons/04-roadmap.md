@@ -1,11 +1,9 @@
 # Roadmap
 
-**Status:** steps 1–5 are implemented. Step 6, a menu held open by an action,
-was added after step 4 and re-planned against step 5's landed note; it is
-detailed below and in progress. Step 7 is the fold-back. The rough step 3 was
-split in two when it was re-planned — the buttons (3), and the radial menu with
-the asset work it needs (4) — and the old step 4 became step 5. Step 5 amended
-README question 9 for captions; step 6's re-plan settled question 10.
+**Status:** steps 1–6 are implemented. Step 7, the fold-back, is next. The rough
+step 3 was split in two when it was re-planned — the buttons (3), and the radial
+menu with the asset work it needs (4) — and the old step 4 became step 5. Step 5
+amended README question 9 for captions; step 6's re-plan settled question 10.
 
 ```
 #28 ─→ 1 Button + Menu#add ─→ 2 bounds + PanelMenu ─→ 3 styles, TextButton, IconButton ─┬─→ 4 RadialMenu, atlas images, icon wheel ─┬─→ 6 a menu held ─→ 7 fold back
@@ -1381,6 +1379,98 @@ under Xvfb with a frame grabbed mid-hold.
 centred on the view; a toggle-style trigger (tap to open, tap to choose); slowing
 the world as an engine feature.
 
+**Landed.** Six commits on branch `menu-held-wheel`: the re-plan, then one per
+sub-step.
+
+- **Re-plan** this step, the "A wheel held open by a button" section of
+  [02-prior-art.md](02-prior-art.md#a-wheel-held-open-by-a-button), and README
+  question 10.
+- **6a** `Pointing grace:` and `GRACE = 0.15`; `Navigation#update(dt)` and
+  `#on_opened`; `Menu#update` forwarding to the navigation unless paused.
+- **6b** `Menu trigger:`, `open?` / `open` / `close`, `on_opened` and
+  `on_closed` (`Menu::ClosedSignal`, one `button` field), `Menu#draw` drawing only
+  while open; `Pointing`'s `grace: nil` resolving from `menu.trigger`;
+  `RadialMenu grace:`.
+- **6c** `GameMenu` and `Inventory` on `open` / `close`.
+- **6d** `examples/quick_wheel`, `tools/drive/examples/quick_wheel.rb` and
+  `quick_wheel_pad.rb`, and `quick_wheel` in `example_assets_spec.rb`'s icon
+  check.
+- **6e** `docs/api/ui.md` ("Open and closed", "A menu held open by an action",
+  `Pointing`'s grace, the navigation hooks, `RadialMenu`'s `grace:`),
+  `docs/api/examples.md`, the CHANGELOG's `UI::Menu` entry, and a line in the
+  write-example skill.
+
+Suites: `rake spec` **1783 examples, 0 failures** (1735 before);
+`spec/rgame/engine/ui/` **397** (350 before). RuboCop clean on all 15 changed Ruby
+files. No C and no Core file changed, so `make test` and `rake spec:core` were not
+rerun.
+
+Invariant, `--seed 1`, fresh `RGAME_SAVE_DIR`: `game_menu`, `menu_navigation`
+and the inventory at 600 ticks, `radial_menu` at 600, `radial_menu_pad` with
+`--gamepad` at 112 and `skill_bar` at 180 are **byte-identical** to `main` after
+each of 6a, 6b, 6c and at the end. `main` was driven twice first and matched
+itself.
+
+`quick_wheel`, from the run (header of the script):
+
+| `--ticks` | last caption | shows |
+|---|---|---|
+| 24 | `Chosen: Save` | Tab and Right let go on the same tick |
+| 60 | `Chosen: Trophies` | Down let go four ticks before Tab: the grace window |
+| 130 | `Chosen: Trophies` | Left let go twenty ticks before Tab: nothing |
+| 155 | `Chosen: Trophies` | Enter while holding: nothing |
+| 156 | `Chosen: Sound` | Tab let go |
+
+At 180 ticks: 84 `line` (one per open frame: 12 + 16 + 32 + 24), 672 `image`
+(8 × 84), 989 `circle` (11 × 84 plus 65 outlines), 720 `rect` for the dots on
+every frame. Pad, `--gamepad`: `Chosen: Save` at 40, still at 121 after half a
+second at rest. **With `grace: 0.0` passed to the wheel, 24, 60 and the pad's 57
+all read "nothing yet"** — including letting go of both keys on one tick, because
+the menu reads the stick before the release. A probe on `Dot#on_update` counted
+1.5 px per tick against 0.375 for exactly the 12 ticks of the first opening. Two
+frames grabbed under Xvfb (`glReadPixels` at `frame_end`): at 19, the wheel open
+with Save outlined and the pointer on it; at 30, no wheel and `Chosen: Save`.
+
+Allocations: `Menu#on_control` + `update` on a `RadialMenu` of eight
+`IconButton`s with a trigger, opening, pointing, choosing and closing every 30
+ticks, **1 object over 200,000 ticks**, the measuring loop's own;
+`allocate_nothing` in `menu_trigger_spec.rb` over 3,000 and in `pointing_spec.rb`
+over 2,100.
+
+Guards mutation-checked, each deletion failing the examples written for it:
+`Menu#update` forwarding (1) and its `unless @paused` (1); the rest timer reset
+only on entering the dead zone (1), `@at_rest = false` outside it (2), the grace
+comparison (5), `on_opened` clearing focus (1); starting closed with a trigger
+(6), opening on the press (15), `return unless @open` (10), `super if @open` (3),
+confirm skipped under a trigger (1), `activate` rather than
+`activate_with_feedback` (1), the missed-release close (1), the trigger bit
+starting `false` (1), calling the navigation's `on_opened` (1), the guards in
+`close` (1) and `open` (1), the raise in `open` (1), the grace resolving from the
+trigger (3) and `RadialMenu` forwarding `grace:` (1).
+
+What the sketch got wrong:
+
+- **Inventory's missing `close` raised on the first confirm.** Step 2's note
+  found it undefined; driving a confirm into the inventory on the commit before
+  6c ends the run with `NameError`. After 6c it closes and the walker moves again
+  — 408 panel `nine_slice` calls against 52 over 130 ticks.
+- **The `!@open` guard on opening was dead**, and a mutation said so: a press
+  edge cannot reach an open trigger menu, because the stored bit is false for as
+  long as the trigger is held. It was removed.
+- **The stored trigger bit updating can be mutated to always `true`** and nothing
+  fails, as step 5 found for confirm and hotkeys. Kept, per question 10.
+- **The release's instant press became `activate`**, as the re-plan's sketch
+  already said and 03-design's "hands the focused button an instant press" did
+  not: pressed feedback on a menu closing that tick shows only on a reopening
+  inside 0.1 s. A spec pins it.
+- **Opening reads the stick on its first frame.** The sketch's rule 7, "the first
+  open frame draws no stale aim", holds by ordering the trigger's press before
+  the navigation, so the aim is this frame's reading rather than (0, 0).
+- **`@grace ||= 0.0` is a RuboCop `Naming/MemoizedInstanceVariableName` offence**
+  as the last line of `attach`; it is spelt `@grace = … if @grace.nil?`.
+- `menu_trigger_spec.rb` keeps its two logs as memoized methods rather than
+  `let`s, which `RSpec/MultipleMemoizedHelpers` counts.
+
 ---
 
 ## Step 7 — fold back and delete the plan
@@ -1390,4 +1480,6 @@ from here: the text-width constraint (into `ui.md`, "What this is not"), the
 rejected `look:` and factory alternatives (a sentence each in the `Button`
 section, so they are not proposed again), the prior-art agreement that the button
 owns its look, and that a style is the stylebox / transition of Godot and Unity
-rather than a look on the container. Then delete `docs/plans/menu-and-buttons/`.
+rather than a look on the container; and why `Pointing::GRACE` is 0.15 s — the
+stick's return and its ~50 ms snapback, from step 6's prior art — as a comment at
+the constant. Then delete `docs/plans/menu-and-buttons/`.

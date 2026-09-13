@@ -66,6 +66,9 @@ What the menu keeps is what is the same for every combination:
 | `buttons`, `focused`, `focused_index` | what it holds and what is focused — `nil` when nothing is |
 | `focus(index)` | focus a button directly, or nothing with `nil`; only buttons whose focus changes are told |
 | `layout`, `navigation` | the two parts it was built with |
+| `open?`, `open`, `close` | whether it is shown and takes input — see [Open and closed](#open-and-closed) |
+| `trigger:`, `trigger` | an action that holds the menu open — see [A menu held open by an action](#a-menu-held-open-by-an-action) |
+| `on_opened`, `on_closed` | signals; `on_closed` passes the button a trigger's release activated, or `nil` |
 | `bounds_x`, `bounds_y`, `bounds_width`, `bounds_height` | the rectangle enclosing every button, relative to the menu, as its layout reports it — all zero while empty |
 
 The actions come from the [universal set](input.md#the-universal-ui-set) that
@@ -75,7 +78,8 @@ anything.
 **Confirming is the menu's, not the navigation's.** A navigation only says which
 button is focused, so a new one cannot forget to activate it, and every
 combination of layout and navigation confirms the same way. Each frame the menu
-runs its navigation, then every hotkey, then confirm.
+runs its navigation, then every hotkey, then confirm — or, on a menu with a
+trigger, the trigger's press first and its release last.
 
 ### Layouts: `Column`, `Row` and `Ring`
 
@@ -155,6 +159,7 @@ Focus is the button a stick points at — with a `Ring`, a radial menu.
 |---|---|
 | `ui_radial_x` / `ui_radial_y` | the direction; focuses the button nearest to it by angle |
 | `dead_zone` | the shortest deflection that selects, on the combined vector (default 0.5) |
+| `grace` | how long focus survives the stick entering the dead zone, in seconds — see below |
 | `index_at(x, y)` | the index a vector points at, or `nil` inside the dead zone |
 | `aim_x`, `aim_y` | the last direction read, for a game drawing a pointer |
 
@@ -174,6 +179,14 @@ That dead zone is measured on the combined vector *after* `ActionMapper`'s own
 per-axis one (0.15) is taken off and the rest rescaled. The two do different
 jobs: the per-axis one stops a worn stick drifting, and is far too small to
 decide that a player means a direction.
+
+**A grace window delays that, on a wheel chosen by letting go.** `grace:` keeps
+focus for that many seconds after the stick enters the dead zone, counted in
+`update(dt)`, and then clears it. Left out, it is `Pointing::GRACE` (0.15 s) on
+a menu with a [trigger](#a-menu-held-open-by-an-action) and 0 on any other, so an
+always-open wheel behaves as described above and a held one gets the window
+without asking. The stick leaving the dead zone starts a fresh window; pointing
+at a disabled button still clears focus at once.
 
 **A disabled button is never focused**, so pointing at one selects nothing. Left
 and right are directions here, so an `OptionButton` under `Pointing` cannot be
@@ -195,8 +208,10 @@ end
 
 | Hook | Called |
 |---|---|
-| `on_control(actions)` | every frame, before the menu handles `ui_confirm` |
+| `on_control(actions)` | every frame the menu is open, before the menu handles `ui_confirm` |
 | `on_buttons_changed` | after a button is added |
+| `update(dt)` | every update while the menu is not paused — where a navigation counts time |
+| `on_opened` | when the menu opens; `Pointing` forgets its aim and focus here |
 
 `menu` is the menu it drives. **A navigation drives exactly one menu** —
 `Pointing` keeps the last direction it read — so handing one instance to a second
@@ -218,6 +233,97 @@ the action bar of a game played on hotkeys alone. Leaving the keyword out is a
 `Stepping`, so `nil` is always something the caller said, never a forgotten
 argument. A game that calls `focus` on such a menu has said something too, and
 confirm acts on the button it focused.
+
+### Open and closed
+
+A menu is open or closed. **A closed menu draws nothing** — neither its own
+backdrop nor its buttons — and its navigation, hotkeys and confirm do nothing.
+A menu without a trigger starts open, and a pause menu is built once and toggled:
+
+```ruby
+class PauseMenu < RGame::Engine::Node2D
+  UI = RGame::Engine::UI
+
+  def on_add
+    @menu = add_node(UI::PanelMenu.new(x: 56, y: 56, layout: UI::Column.new(item_width: 180, item_height: 34)))
+    @menu.add(UI::PanelButton.new(label: 'Resume')).on_activated { @menu.close }
+    @menu.close
+  end
+
+  def on_control(actions)
+    return unless actions.pressed?(:ui_cancel)
+
+    @menu.open? ? @menu.close : @menu.open
+  end
+end
+```
+
+`open` and `close` do nothing when the menu is already that way, and each emits
+`on_opened` or `on_closed` (with `nil`) only on a change. Opening calls the
+navigation's `on_opened`; focus under `Stepping` stays where it was.
+
+**Closed is not paused.** A closed menu still gets `control` and `update`, which
+is what lets a trigger reopen it, and a button's pressed feedback runs out while
+it is shut instead of being there when it reappears. Pausing a menu's node still
+stops everything, as for any node. What the rest of the game does while a menu is
+open — pausing the hero, dimming the world — is the game's, from the two signals
+or from wherever it calls `open`.
+
+### A menu held open by an action
+
+The console quick menu: hold a button to open a wheel, point, and let go to
+choose.
+
+```ruby
+UI = RGame::Engine::UI
+
+input_map = RGame::Engine::InputMap.default.merge(
+  quick_menu: { buttons: [RGame::Util::Controls::KEY_TAB, RGame::Util::Controls::PAD_LEFT_SHOULDER] }
+)
+
+wheel = layer.add_node(UI::RadialMenu.new(x: 320, y: 240, radius: 150, button_width: 64, trigger: :quick_menu))
+disc = UI::ShapeStyle.new(shape: :disc)
+wheel.add(UI::IconButton.new(image: :home, style: disc)).on_activated { go_home }
+wheel.on_opened { world.time_scale = 0.25 }
+wheel.on_closed { |_chosen| world.time_scale = 1.0 }
+```
+
+`trigger:` names an action, and with one:
+
+| When | The menu |
+|---|---|
+| built | is closed |
+| the trigger goes down | opens, and the navigation forgets the last opening |
+| it is held | moves focus as its navigation says; hotkeys work |
+| it comes up | activates the focused button, if any, and closes; `on_closed` passes that button, or `nil` |
+| `ui_confirm` is pressed | nothing — letting go is the only way to choose |
+
+**A release with nothing focused chooses nothing**, not the last button the
+stick passed. That is how a player changes their mind: centre the stick and let
+go. Because a stick is back in the middle a frame or two before a shoulder
+button comes up, a `Pointing` on a menu with a trigger keeps focus for its
+[grace window](#pointing) first — without it, letting go of both at once would
+nearly always choose nothing.
+
+**Only a press it saw start opens it**, as with every other press: a trigger
+already down when the menu appears opens nothing until it is let go and pressed
+again. A trigger that comes up while the menu is paused closes it without
+choosing.
+
+**`open` raises on a menu with a trigger**; a menu opened by hand would wait for
+the release of a press it never saw. `close` works, and is the cancel for a
+player who is hit while holding the wheel: the release that follows neither
+chooses nor reopens.
+
+The trigger works under every navigation. With `navigation: nil`, the release
+activates whatever the game focused, typically in `on_opened`.
+
+The release activates the button with `activate`, not with pressed feedback: the
+menu closes on that frame, so nothing would show it.
+
+One limit: a stick that overshoots the middle as it springs back can point at
+the opposite button for a frame or two. The grace window only delays the dead
+zone and does not cover that.
 
 ### Focus is per player, and it costs nothing
 
@@ -283,6 +389,7 @@ wheel.add(UI::IconButton.new(image: :save, style: disc)).on_activated { save }
 | `radius:` | from the centre to each button's middle, as `Ring`'s |
 | `button_width:`, `button_height:` | the slot size; `button_height` defaults to `button_width` |
 | `dead_zone:` | as `Pointing`'s (default `Pointing::DEAD_ZONE`, 0.5) |
+| `grace:` | as `Pointing`'s: `Pointing::GRACE` with a `trigger:`, 0 without, unless given |
 | `padding:` | how far the backdrop reaches beyond the bounds (default 16) |
 | `backdrop:`, `dead_zone_color:`, `pointer:` | a colour for each part, `RadialMenu::BACKDROP`, `DEAD_ZONE` and `POINTER` by default; `nil` omits that part |
 
@@ -293,6 +400,9 @@ drawn at `dead_zone * radius`, which is exactly where a pointer tip inside it
 selects nothing. **The pointer's tip is clamped to the ring**: two arrow keys
 read as (1, 1), longer than a stick can reach, and would otherwise poke past it.
 All three are drawn before the buttons, which are the menu's children.
+
+Every other keyword goes to `Menu`, `trigger:` included — a `RadialMenu` with a
+trigger is the [held wheel](#a-menu-held-open-by-an-action).
 
 **`layout:` and `navigation:` raise `ArgumentError`.** A preset forwarding them
 would let either silently replace the ring or the pointing it is made of. A ring
@@ -691,7 +801,8 @@ opens over a running world, pauses only the node that opened it, and closes
 again. `examples/menu_navigation` is the next step up — a title screen, a
 settings screen pushed over it, and rows that change fullscreen, the scale mode
 and the volume for real and write them to a file. `examples/radial_menu` is a
-`RadialMenu` of `IconButton`s, its icons from a UI atlas. `examples/skill_bar` is
+`RadialMenu` of `IconButton`s, its icons from a UI atlas, and
+`examples/quick_wheel` the same wheel held open by Tab or a shoulder button. `examples/skill_bar` is
 a `Row` of captioned `IconButton`s, stepped with left and right and each fired by
 a hotkey.
 

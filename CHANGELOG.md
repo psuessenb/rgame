@@ -102,6 +102,13 @@ index, not the argument.
   `activate_with_feedback` is the instant press on its own. A captioned
   `IconButton` draws its style only above the caption, which keeps its own
   colours rather than the style's content colour.
+  **A menu is open or closed**: `open?`, `open` and `close`, with `on_opened` and
+  `on_closed` signals; a closed menu draws nothing and takes no input.
+  **`Menu trigger:`** names an action that holds a menu open — the quick wheel
+  opened by a shoulder button and chosen by letting go — activating the focused
+  button on its release. **`Pointing grace:`** keeps focus for a moment after the
+  stick comes home, `Pointing::GRACE` (0.15 s) by default on a menu with a
+  trigger. A navigation may define `update(dt)` and `on_opened`.
   See [docs/api/ui.md](docs/api/ui.md).
 
 ### Fixed

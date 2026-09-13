@@ -56,7 +56,8 @@ hold controls::KEY_TAB, 20                                       # the arrow up 
 idle 20                                                          # tick 110: Tab up at rest
 
 hold controls::KEY_TAB, 2
-hold [controls::KEY_TAB, controls::KEY_DOWN, controls::KEY_LEFT], 10                  # south-west: Sound
-hold [controls::KEY_TAB, controls::KEY_DOWN, controls::KEY_LEFT, controls::KEY_RETURN], 2 # Enter
+# South-west: Sound, with Enter pressed while it is held.
 hold [controls::KEY_TAB, controls::KEY_DOWN, controls::KEY_LEFT], 10
-idle 20                                                          # tick 154: Tab up
+hold [controls::KEY_TAB, controls::KEY_DOWN, controls::KEY_LEFT, controls::KEY_RETURN], 2
+hold [controls::KEY_TAB, controls::KEY_DOWN, controls::KEY_LEFT], 10
+idle 20 # tick 154: Tab up
