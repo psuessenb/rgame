@@ -103,6 +103,24 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
     end
   end
 
+  describe 'icons.json' do
+    subject(:images) { descriptor[:images] }
+
+    let(:descriptor) { JSON.parse(File.read(File.join(assets, 'icons.json')), symbolize_names: true) }
+
+    # An icon is cut with Image#subimage when the atlas loads, which raises for
+    # a rectangle off the sheet — but only in a window, where nothing in this
+    # suite runs. Checked here instead, against the PNG's own header.
+    it 'cuts every image from inside icons.png' do
+      width, height = png_size(File.join(assets, descriptor[:image]))
+
+      images.each_value do |rect|
+        expect(rect[:x] + rect[:w]).to be <= width
+        expect(rect[:y] + rect[:h]).to be <= height
+      end
+    end
+  end
+
   describe 'glyphs.json' do
     subject(:descriptor) { JSON.parse(File.read(File.join(assets, 'glyphs.json')), symbolize_names: true) }
 
