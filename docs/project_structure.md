@@ -151,7 +151,7 @@ lib/rgame/engine/components/ Reusable behaviour attached to a node — sprites,
                              bodies, colliders, controllers, timers.
 lib/rgame/engine/input/      InputMap, ActionMapper and the Actions snapshot:
                              physical ids in, named actions out.
-lib/rgame/engine/ui/         Menu and MenuItem — focus-navigated UI.
+lib/rgame/engine/ui/         Menu and its buttons — focus-navigated UI.
 lib/rgame/engine/scene/      SceneStack.
 lib/rgame/engine/*.rb        The rest of the layer: players and viewports,
                              tile maps, collision, pathfinding, camera,

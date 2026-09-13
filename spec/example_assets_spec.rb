@@ -73,13 +73,13 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
 
     let(:descriptor) { JSON.parse(File.read(File.join(assets, 'ui.json')), symbolize_names: true) }
 
-    # UI::MenuItem draws one of these four by state, and a nine-slice id is
+    # UI::PanelButton draws one of these four by state, and a nine-slice id is
     # resolved by *registration* only — it is an element name, never a file — so
     # a missing one is a KeyError out of the renderer the first time an item
     # reaches that state. The disabled and pressed ones are the nasty pair: a
     # menu can run for a long time before either is drawn.
-    it 'declares every element UI::MenuItem draws, plus the panel' do
-      required = RGame::Engine::UI::MenuItem::STYLE.values.map(&:to_sym) + [:panel]
+    it 'declares every element UI::PanelButton draws, plus the panel' do
+      required = RGame::Engine::UI::PanelButton::STYLE.values.map(&:to_sym) + [:panel]
 
       expect(elements.keys).to include(*required)
     end

@@ -116,8 +116,8 @@ class ColourWheel < RGame::Engine::Node2D
   private
 
   def add_colour(label, colour)
-    item = @menu.add_item(label, enabled: !colour.nil?)
-    item.on_activated do
+    button = @menu.add(RGame::Engine::UI::PanelButton.new(label: label, enabled: !colour.nil?))
+    button.on_activated do
       @chosen = label
       @swatch = colour
     end
@@ -157,7 +157,7 @@ game = RGame::Game.new(
   media_root: ASSETS
 )
 
-# The items are MenuItems, which draw their four states as nine-slices, and a
+# The buttons are PanelButtons, which draw their four states as nine-slices, and a
 # nine-slice id names an element of an atlas rather than a file — so the atlas is
 # registered once, by hand.
 game.renderer.register_ui_atlas(game.assets.ui_atlas('ui.json'))

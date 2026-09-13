@@ -24,9 +24,14 @@ RSpec.describe RGame::Engine::UI::Pointing do
 
   def ring = RGame::Engine::UI::Ring.new(radius: 100, item_width: 40, item_height: 20)
 
+  def button(label, **) = RGame::Engine::UI::PanelButton.new(label: label, **)
+
+  # A menu takes no press until it has seen confirm up, so a built menu is
+  # polled once at rest first.
   def build(*labels)
-    labels.each { |label| menu.add_item(label) }
+    labels.each { |label| menu.add(button(label)) }
     root.enter_tree
+    poll(0.0, 0.0)
     menu
   end
 
@@ -70,7 +75,7 @@ RSpec.describe RGame::Engine::UI::Pointing do
 
     it 'marks only the focused item as focused' do
       poll(0.0, 1.0)
-      expect(menu.items.map(&:focused?)).to eq([false, false, true, false])
+      expect(menu.buttons.map(&:focused?)).to eq([false, false, true, false])
     end
 
     it 'maps a diagonal on the edge of two sectors to one of them rather than neither' do
@@ -87,10 +92,10 @@ RSpec.describe RGame::Engine::UI::Pointing do
   describe 'items it did not place' do
     it 'points at wherever an item actually is' do
       build('A', 'B')
-      menu.items[0].x = 60 # (60..100, -10..10): due east of the origin
-      menu.items[0].y = -10
-      menu.items[1].x = -20 # centred on (0, 90): due south
-      menu.items[1].y = 80
+      menu.buttons[0].x = 60 # (60..100, -10..10): due east of the origin
+      menu.buttons[0].y = -10
+      menu.buttons[1].x = -20 # centred on (0, 90): due south
+      menu.buttons[1].y = 80
       expect([pointing.index_at(1.0, 0.0), pointing.index_at(0.0, 1.0)]).to eq([0, 1])
     end
   end
@@ -116,7 +121,7 @@ RSpec.describe RGame::Engine::UI::Pointing do
 
     it 'can be set per navigation' do
       wide = described_class.new(dead_zone: 0.9)
-      root.add_node(RGame::Engine::UI::Menu.new(layout: ring, navigation: wide)).add_item('Only')
+      root.add_node(RGame::Engine::UI::Menu.new(layout: ring, navigation: wide)).add(button('Only'))
       expect(wide.index_at(0.0, -0.8)).to be_nil
     end
   end
@@ -125,19 +130,30 @@ RSpec.describe RGame::Engine::UI::Pointing do
     let(:chosen) { [] }
 
     before do
-      build('N', 'E', 'S', 'W').items.each do |item|
-        item.on_activated { chosen << item.label }
+      build('N', 'E', 'S', 'W').buttons.each do |button|
+        button.on_activated { chosen << button.label }
       end
     end
 
-    it 'activates the focused item on confirm' do
+    it 'activates the focused item when confirm is let go' do
       poll(1.0, 0.0, confirm: true)
+      poll(1.0, 0.0)
       expect(chosen).to eq(['E'])
     end
 
     it 'fires once for a held confirm, not every frame' do
       3.times { poll(1.0, 0.0, confirm: true) }
+      poll(1.0, 0.0)
       expect(chosen).to eq(['E'])
+    end
+
+    # Pointing somewhere else while holding confirm moves focus, and moving focus
+    # cancels a press that has not been let go.
+    it 'activates nothing when the stick moves to another button while confirm is held' do
+      poll(1.0, 0.0, confirm: true)
+      poll(0.0, 1.0, confirm: true)
+      poll(0.0, 1.0)
+      expect(chosen).to be_empty
     end
 
     # Letting go of the stick and pressing A must not pick whatever was under
@@ -145,15 +161,17 @@ RSpec.describe RGame::Engine::UI::Pointing do
     it 'activates nothing when confirm is pressed after the stick has come back to centre' do
       poll(1.0, 0.0)
       poll(0.0, 0.0, confirm: true)
+      poll(0.0, 0.0)
       expect(chosen).to be_empty
     end
   end
 
   describe 'a disabled item' do
     before do
-      menu.add_item('N')
-      menu.add_item('S', enabled: false) # two items on a ring: the second is due south
+      menu.add(button('N'))
+      menu.add(button('S', enabled: false)) # two items on a ring: the second is due south
       root.enter_tree
+      poll(0.0, 0.0)
     end
 
     it 'is never focused, so pointing at it selects nothing' do
@@ -163,8 +181,9 @@ RSpec.describe RGame::Engine::UI::Pointing do
 
     it 'cannot be activated by pointing at it and confirming' do
       activated = false
-      menu.items[1].on_activated { activated = true }
+      menu.buttons[1].on_activated { activated = true }
       poll(0.0, 1.0, confirm: true)
+      poll(0.0, 1.0)
       expect(activated).to be(false)
     end
   end

@@ -128,7 +128,7 @@ count on screen as the argument.
 A menu that opens over a world which keeps running: pausing is a property of a
 node, so only the hero stops while the villagers walk on.
 
-**Uses:** `PlayerLayer`, `UI::Menu`, `UI::MenuItem`, `Node2D#paused`,
+**Uses:** `PlayerLayer`, `UI::Menu`, `UI::PanelButton`, `Node2D#paused`,
 `Node2D#draw_children`, `renderer.nine_slice`.
 
 ### menu_navigation
@@ -137,7 +137,7 @@ More than one screen — title, settings, back — and settings that change
 something real and survive a restart. Shows the difference between pushing a
 scene and replacing one.
 
-**Uses:** `Scene::SceneStack`, `UI::OptionItem`, `Util::SaveFile`,
+**Uses:** `Scene::SceneStack`, `UI::OptionButton`, `Util::SaveFile`,
 `RGame::Game`'s fullscreen, scale mode and volume.
 
 ### radial_menu

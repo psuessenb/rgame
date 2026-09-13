@@ -87,11 +87,11 @@ The pack is 91 tiles and we use five, so shipping the strip rather than the
 sheet keeps this to 1 KB and makes the descriptor readable — each element is at
 a round multiple of 32.
 
-**This is not optional chrome.** `RGame::Engine::UI::MenuItem` draws its
+**This is not optional chrome.** `RGame::Engine::UI::PanelButton` draws its
 background with `renderer.nine_slice`, and a nine-slice id is resolved by
 *registration* only — it names an element of an atlas, never a file — so
 `UI::Menu` cannot draw at all without one of these registered. Which elements
-are needed is not our choice either: `MenuItem::STYLE` names `button_idle`,
+are needed is not our choice either: `PanelButton::STYLE` names `button_idle`,
 `button_focus`, `button_pressed` and `button_disabled`, and a menu draws each of
 them when an item reaches that state.
 
@@ -100,7 +100,7 @@ Two things constrained which tiles could be used, both discovered by looking:
 - **Several of the pack's panels are frames with transparent middles.** They
   read as solid panels on the sheet's dark background and then show the world
   through them. The five here are all filled.
-- **`MenuItem`'s label colour is a constant** — a dark brown, with a muted grey
+- **`PanelButton`'s label colour is a constant** — a dark brown, with a muted grey
   for a disabled item — so the buttons have to be *light* or the label
   disappears into them.
 

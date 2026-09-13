@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe RGame::Engine::UI::MenuItem do
+RSpec.describe RGame::Engine::UI::PanelButton do
   # FakeRenderer hands a nine-slice draw straight to the registered slice, so
   # that is where the call lands — the same shape a sprite takes through a sheet.
   let(:slices) { described_class::STYLE.values.to_h { |id| [id, recorder] } }
@@ -47,13 +47,13 @@ RSpec.describe RGame::Engine::UI::MenuItem do
 
     it 'is the focus element once it has focus' do
       item.focused = true
-      expect(drew.first).to eq(:focus)
+      expect(drew.first).to eq(:focused)
     end
 
     it 'is the pressed element while confirm is held on it' do
       subject_item = item
       subject_item.focused = true
-      subject_item.pressed = true
+      subject_item.press
       expect(drew.first).to eq(:pressed)
     end
 
@@ -105,29 +105,11 @@ RSpec.describe RGame::Engine::UI::MenuItem do
     it 'is in the HUD band under a PlayerLayer' do
       player = RGame::Engine::Player.new(id: 0)
       layer = root.add_node(RGame::Engine::PlayerLayer.new(player: player))
-      menu_item = layer.add_node(described_class.new(label: 'Resume', width: 200, height: 40))
+      button = layer.add_node(described_class.new(label: 'Resume', width: 200, height: 40))
       root.enter_tree
-      menu_item.draw(renderer, screen_view)
+      button.draw(renderer, screen_view)
 
-      expect(menu_item.abs_band).to eq(:hud)
-    end
-  end
-
-  describe 'activation' do
-    it 'emits when it is enabled' do
-      fired = false
-      subject_item = item
-      subject_item.on_activated { fired = true }
-      expect([subject_item.activate, fired]).to eq([subject_item, true])
-    end
-
-    # A caller never has to check first, and no route can activate a disabled
-    # item.
-    it 'refuses when it is not' do
-      fired = false
-      subject_item = item(enabled: false)
-      subject_item.on_activated { fired = true }
-      expect([subject_item.activate, fired]).to eq([nil, false])
+      expect(button.abs_band).to eq(:hud)
     end
   end
 
