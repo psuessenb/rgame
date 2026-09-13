@@ -38,16 +38,42 @@ module RGame
       # small to decide that a player means a direction.
       #
       # A disabled button is never focused, so pointing at one selects nothing.
+      #
+      # ## A grace window, for a stick that springs back
+      #
+      # `grace:` is how long, in seconds, focus survives the stick entering the
+      # dead zone before it clears. A player choosing by letting go of a
+      # trigger lets go of the stick a moment earlier, and the stick is back in
+      # the middle before the trigger comes up; the window is what lets that
+      # release still choose. Leaving the stick at rest for longer than it
+      # chooses nothing, which is the dead-zone rule again, only later.
+      #
+      # It applies to the dead zone only: pointing at a disabled button clears
+      # focus at once. Time is counted in `update(dt)`, so a paused menu's window
+      # does not run out.
       class Pointing < Navigation
         DEAD_ZONE = 0.5
+        GRACE = 0.15
 
-        attr_reader :dead_zone, :aim_x, :aim_y
+        # `grace` is what was passed, or once the menu is built, the resolved
+        # default. nil before then when none was passed.
+        attr_reader :dead_zone, :grace, :aim_x, :aim_y
 
-        def initialize(dead_zone: DEAD_ZONE)
+        # `grace: nil` resolves when the menu is built: 0.0, focus clearing the
+        # moment the stick is at rest.
+        def initialize(dead_zone: DEAD_ZONE, grace: nil)
           super()
           @dead_zone = dead_zone
+          @grace = grace
           @aim_x = 0.0
           @aim_y = 0.0
+          @at_rest = false
+          @at_rest_for = 0.0
+        end
+
+        def attach(menu)
+          super
+          @grace = 0.0 if @grace.nil?
         end
 
         # The index of the button `(x, y)` points at, or nil if the vector is
@@ -73,8 +99,29 @@ module RGame
         def on_control(actions)
           @aim_x = actions.axis(:ui_radial_x)
           @aim_y = actions.axis(:ui_radial_y)
-          index = index_at(@aim_x, @aim_y)
-          menu.focus(index && menu.buttons[index].enabled? ? index : nil)
+          if Math.hypot(@aim_x, @aim_y) < @dead_zone
+            @at_rest_for = 0.0 unless @at_rest
+            @at_rest = true
+            menu.focus(nil) unless @at_rest_for < @grace
+          else
+            @at_rest = false
+            index = index_at(@aim_x, @aim_y)
+            menu.focus(index && menu.buttons[index].enabled? ? index : nil)
+          end
+        end
+
+        # Counts how long the stick has been at rest, for the grace window.
+        def update(dt)
+          @at_rest_for += dt if @at_rest
+        end
+
+        # Forgets the last aim and focuses nothing, so a menu opened again does
+        # not start where the last opening left off.
+        def on_opened
+          @aim_x = 0.0
+          @aim_y = 0.0
+          @at_rest = false
+          menu.focus(nil)
         end
 
         private

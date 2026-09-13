@@ -134,6 +134,12 @@ module RGame
           pass_edge(button, edge, :confirm) if button
         end
 
+        # Lets the navigation count time, then does what every node does.
+        def update(dt)
+          @navigation&.update(dt) unless @paused
+          super
+        end
+
         private
 
         def press_hotkeys(actions)
