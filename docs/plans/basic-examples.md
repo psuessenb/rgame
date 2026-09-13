@@ -181,7 +181,9 @@ Two constraints on which art, both found by looking rather than by reading:
   through them in place.
 - **`MenuItem`'s label colour is a constant**, so the buttons must be light or
   the label vanishes into them. A widget whose text colour cannot be set
-  constrains the art rather than the other way round.
+  constrains the art rather than the other way round. *No longer true:* the
+  button is `PanelButton` now, and its label colour is `label_color:`
+  (menu-and-buttons step 3).
 
 **Assets:** **C**, delivered — `ui.png` + `ui.json`, five 32x32 elements cut
 from Kenney's CC0 *UI Pack - Pixel Adventure*, 1 KB.

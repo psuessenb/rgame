@@ -100,9 +100,9 @@ Two things constrained which tiles could be used, both discovered by looking:
 - **Several of the pack's panels are frames with transparent middles.** They
   read as solid panels on the sheet's dark background and then show the world
   through them. The five here are all filled.
-- **`PanelButton`'s label colour is a constant** — a dark brown, with a muted grey
-  for a disabled item — so the buttons have to be *light* or the label
-  disappears into them.
+- **`PanelButton`'s label colour defaults to** a dark brown, with a muted grey
+  for a disabled item, so with the default the buttons have to be *light* or the
+  label disappears into them. `label_color:` changes it.
 
 `border` is 8 for every element: the largest decorated frame in the set is 8
 pixels, the interiors are flat, and a uniform value keeps a button's inner
