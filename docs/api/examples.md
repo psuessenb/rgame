@@ -82,6 +82,18 @@ pair ends up touching rather than overlapping, so `on_hit` never fires for it.
 `blocked_by: %i[tiles spike]` and `on_blocked`, `Components::CameraFollow`,
 `Engine::CachedLabel`.
 
+### jump_topdown
+
+A hop in a top-down view, where "up" on the screen is north and a jump therefore
+cannot move the character. The sprite rises along `Hop`'s parabola, while the feet
+box, the shadow and the camera stay on the ground — so hopping at the fence does
+not clear it, because what collides never left the ground. What a hop may cross
+is left to the game, through `airborne?`.
+
+**Uses:** `Components::Hop`, `Node2D#elevation`, `Components::AnimatedSprite`,
+`Components::FeetCollider`, `Components::CharacterBody`, `Components::TileWorld`,
+`Components::CameraFollow`, `InputMap.default.merge`.
+
 ## Structure
 
 ### signals

@@ -19,6 +19,34 @@ name leaves room for a future 3D node; today everything is 2D.) A node carries:
 Nodes extend the signal DSL (`RGame::Engine::Signal::DSL`), so any subclass can declare
 and emit signals without opting in. See [Signals](signals.md).
 
+### Elevation
+
+`node.elevation` is how far above the ground a node's picture is drawn, in pixels,
+for a top-down view. It defaults to 0, and positive is up the screen.
+
+It is **not** part of the transform. `y`, `world_y`, colliders, cameras and children
+all ignore it, so a character can leave the ground without its feet box, or the
+camera following it, leaving too. Components that draw the node's picture read
+it — `Components::Sprite` and `Components::AnimatedSprite` draw lifted by it — and
+`Components::Hop` is the one that writes it. A node's own `on_draw` is not lifted,
+which is where the parts that stay on the ground go:
+
+```ruby
+class Hero < RGame::Engine::Node2D
+  def initialize(**)
+    super
+    add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+    add_component(RGame::Engine::Components::CharacterBody.new(speed: 80))
+    add_component(RGame::Engine::Components::Hop.new(peak: 18, duration: 0.5))
+  end
+
+  # A shadow at the feet: drawn in on_draw, so it stays down while the sprite rises.
+  def on_draw(renderer, _view)
+    renderer.rect(2, 19, 12, 3, color: RGame::Util::Color.rgba(0, 0, 0, 90))
+  end
+end
+```
+
 ### The tick: control → update → draw
 
 A node is driven in three phases, always in this order:

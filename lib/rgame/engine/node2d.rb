@@ -30,6 +30,16 @@ module RGame
       alias angle rel_angle
 
       attr_accessor :width, :height
+
+      # Height above the ground in pixels, for a top-down view: how far this
+      # node's picture is drawn above the spot it stands on. Positive is up.
+      #
+      # It is **not** part of the transform. `y`, `world_y`, colliders, cameras
+      # and children all ignore it, which is what lets a character leave the
+      # ground without its feet box leaving too. Components::Sprite and
+      # Components::AnimatedSprite draw lifted by it, in the node's local space;
+      # Components::Hop is one thing that writes it.
+      attr_accessor :elevation
       attr_writer :scene, :context
 
       # The other way a node moves, and the only one that does not go through a
@@ -232,6 +242,7 @@ module RGame
         @rel_angle = angle
         @width = width
         @height = height
+        @elevation = 0
         @world_current = false
         @world_x = @world_y = @world_angle = 0
         @abs_input_owner = @input_owner

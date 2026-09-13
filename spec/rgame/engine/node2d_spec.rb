@@ -69,6 +69,22 @@ RSpec.describe RGame::Engine::Node2D do
     end
   end
 
+  describe '#elevation' do
+    let(:parent) { described_class.new }
+    let(:child) { described_class.new(x: 3, y: 4) }
+
+    before { parent.add_node(child) }
+
+    it 'starts on the ground' do
+      expect(child.elevation).to eq(0)
+    end
+
+    it 'moves neither the node nor its world position' do
+      child.elevation = 12
+      expect([child.y, child.world_x, child.world_y]).to eq([4, 3, 4])
+    end
+  end
+
   describe '#add_node' do
     let(:child) { described_class.new }
 

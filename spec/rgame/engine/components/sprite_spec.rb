@@ -22,5 +22,12 @@ RSpec.describe RGame::Engine::Components::Sprite do
       # apply it a second time. The node is at (5, 6) and draws at (0, 0).
       expect(renderer).to have_received(:image).with(:ship, 0, 0, scale: 2.0, z: 3)
     end
+
+    it 'draws the image lifted by the node elevation' do
+      allow(renderer).to receive(:image)
+      node.elevation = 9
+      sprite.draw(renderer, screen_view)
+      expect(renderer).to have_received(:image).with(:ship, 0, -9, scale: 2.0, z: 3)
+    end
   end
 end

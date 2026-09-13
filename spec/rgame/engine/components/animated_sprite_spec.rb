@@ -84,5 +84,17 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
       expect(renderer).to have_received(:sprite)
         .with(:hero, 0, anything, node.world_x, node.world_y, flip_x: false, z: 10)
     end
+
+    it 'draws the picture lifted by the node elevation' do
+      node.elevation = 6
+      step(0.0, 0.0)
+      expect(renderer).to have_received(:sprite).with(:hero, 0, anything, 0, -6, flip_x: false, z: 10)
+    end
+
+    it 'culls against the lifted box rather than the spot the node stands on' do
+      node.elevation = 40 # the 32-tall frame now spans y -40..-8, above a view starting at 0
+      step(0.0, 0.0)
+      expect(renderer).not_to have_received(:sprite)
+    end
   end
 end
