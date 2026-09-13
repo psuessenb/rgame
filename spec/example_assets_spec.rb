@@ -79,7 +79,7 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
     # reaches that state. The disabled and pressed ones are the nasty pair: a
     # menu can run for a long time before either is drawn.
     it 'declares every element UI::PanelButton draws, plus the panel' do
-      required = RGame::Engine::UI::PanelButton::STYLE.values.map(&:to_sym) + [:panel]
+      required = RGame::Engine::UI::PanelButton::STYLE.elements.values.map(&:to_sym) + [:panel]
 
       expect(elements.keys).to include(*required)
     end

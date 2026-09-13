@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status:** steps 1 and 2 are implemented. Steps 3, 4 and 5 are planned in
+**Status:** steps 1, 2 and 3 are implemented. Steps 4 and 5 are planned in
 detail, at `564e708`; step 6 is the fold-back. The rough step 3 was split in two
 when it was re-planned — the buttons (3), and the radial menu with the asset work
 it needs (4) — and the old step 4 became step 5. Before starting step 5, re-read
@@ -512,6 +512,65 @@ the focused one in its focused look.
 
 **What this step does not deliver.** Buttons sized to their label (see the
 verdict), a toggle or checked state, and animated state changes.
+
+**Landed.** Four commits, one per sub-step, on branch `menu-button-styles`.
+
+- **3a** `UI::NineSliceStyle` (`elements`, `with`, `draw`) and `UI::ShapeStyle`
+  (`shape`, `colors`, `outline`, `border`, `DEFAULT`), both in
+  `lib/rgame/engine/ui/`. Fill at `z: 0`, outline at `z: -1`.
+- **3b** `UI::TextButton`, with `style`, `label_color` and `disabled_label_color`
+  readers. `PanelButton < TextButton` keeps only `STYLE`, its two colours, and an
+  `initialize` that changes the defaults. `OptionButton` overrides
+  `draw_foreground`. `spec/support/quiet_renderer.rb` is the allocation-free
+  renderer the draw measurements run against.
+- **3c** `UI::IconButton` as sketched, and the composition spec in
+  `menu_spec.rb`, "buttons of every kind in one menu".
+- **3d** `docs/api/ui.md` ("Styles", "A style of your own", `TextButton`,
+  `PanelButton` rewritten, `IconButton`, "Getting the art on screen"), the
+  CHANGELOG's `UI::Menu` entry, `examples/assets/README.md`, and a line in
+  `docs/plans/basic-examples.md` marking its label-colour constraint as gone.
+
+Suites: `rake spec` **1585 examples, 0 failures** (1520 before);
+`spec/rgame/engine/ui/` **226** (161 before). RuboCop clean on all 18 changed Ruby
+files. No C and no Core file changed, so `make test` and `rake spec:core` were not
+rerun.
+
+Invariant, `--seed 1`, fresh `RGAME_SAVE_DIR`: `game_menu`, `menu_navigation` and
+the inventory at 600 ticks, `radial_menu` at 600 and `radial_menu_pad` with
+`--gamepad` at 112 are **byte-identical** to `main` after each of 3a, 3b and 3c.
+`main` was driven twice first and matched itself.
+
+Allocations, `allocate_nothing` over 1,000 draws against `QuietRenderer`, which
+coerces colours as `Core::Renderer#packed` does: `PanelButton#on_draw` **1 → 0**
+per draw, `OptionButton#on_draw` **4 → 0** — the new examples run against the
+old implementation report exactly the plan's numbers. `TextButton`, `IconButton`
+(captioned and not) and `ShapeStyle` (both shapes, all four states) **0**.
+
+Guards mutation-checked, each deletion failing the examples written for it:
+the colour coercion in `ShapeStyle` (3) and in `IconButton`'s tints (1), the
+outline's `z:` (2), `outline: nil` (1), `style&.` in `TextButton` (3),
+`image: nil` (1), and the caption's height being reserved only with a label (1).
+
+What the sketch got wrong:
+
+- **`draw_content` is taken.** `Node2D` already has a private
+  `draw_content(renderer, view)` — the machinery that runs components and then
+  `on_draw` — so a `TextButton#draw_content(renderer)` replaced it and every draw
+  raised `ArgumentError`. The hook is `draw_foreground(renderer)`. A private
+  method on `Node2D` is a name any subclass can shadow silently; this one failed
+  loudly only because the arity differed.
+- **Three constant reads, not two.** `spec/rgame/engine/ui/panel_menu_spec.rb`
+  also read `PanelButton::STYLE.values`. All three now read `STYLE.elements`.
+- **The four state names had no home.** `ShapeStyle` and `IconButton` both check
+  a table against the list, so it became `Button::STATES`, next to `state`,
+  which answers them. `NineSliceStyle` spells them as keywords instead, so a
+  missing one is an `ArgumentError` from Ruby itself.
+- **`docs/api/ui.md`'s "A button of your own" example was a class named
+  `TextButton`**, which would now shadow the shipped one for anyone pasting it.
+  Renamed `EdgeButton`.
+- Rule 6 of 3a is pinned with an `instance_double(FakeRenderer)` rather than
+  through a registered nine-slice, because what it asserts is the call and its
+  absent keywords.
 
 ---
 

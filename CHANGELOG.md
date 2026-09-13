@@ -66,6 +66,16 @@ index, not the argument.
   activates from that same press. A layout answers `bounds(buttons)` and a menu
   exposes it as `bounds_x`/`bounds_y`/`bounds_width`/`bounds_height`;
   `UI::PanelMenu` draws a nine-slice round them, so a panel grows with its menu.
+  **A button draws its background from a style**: `UI::NineSliceStyle` (an atlas
+  element per state) or `UI::ShapeStyle` (a rect or disc per state, no art
+  needed), or any object answering `draw(renderer, state, width, height)`.
+  `UI::TextButton` is a label on a style, and draws with nothing registered;
+  `PanelButton` is now a `TextButton` whose `PanelButton::STYLE` is a
+  `NineSliceStyle` — read its names with `STYLE.elements` and vary it with
+  `STYLE.with(...)` — and its label colours are `label_color:` and
+  `disabled_label_color:`. `UI::IconButton` draws an image tinted and scaled by
+  state, with an optional caption. Drawing a `PanelButton` or `OptionButton` no
+  longer allocates.
   See [docs/api/ui.md](docs/api/ui.md).
 
 ### Fixed

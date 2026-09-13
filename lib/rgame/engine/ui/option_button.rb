@@ -80,16 +80,14 @@ module RGame
           self
         end
 
-        def on_draw(renderer, _view)
-          renderer.nine_slice(@style.fetch(state), 0, 0, width, height)
+        private
 
+        def draw_foreground(renderer)
           y = label_y(renderer)
-          color = enabled? ? LABEL_COLOR : DISABLED_LABEL_COLOR
+          color = current_label_color
           renderer.text(@label, PADDING, y, z: 1, color: color)
           draw_value(renderer, y, color)
         end
-
-        private
 
         def draw_value(renderer, y, color)
           return if @values.empty?

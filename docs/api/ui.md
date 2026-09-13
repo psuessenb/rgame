@@ -245,7 +245,7 @@ Subclass it and draw. Focus, pressing, activation and placement are all
 inherited, so the class is only its look:
 
 ```ruby
-class TextButton < RGame::Engine::UI::Button
+class EdgeButton < RGame::Engine::UI::Button
   COLORS = {
     idle: [200, 200, 200], focused: [255, 255, 255],
     pressed: [255, 220, 120], disabled: [110, 110, 110]
@@ -258,11 +258,14 @@ class TextButton < RGame::Engine::UI::Button
   end
 end
 
-menu.add(TextButton.new(label: 'Continue')).on_activated { resume }
+menu.add(EdgeButton.new(label: 'Continue')).on_activated { resume }
 ```
 
 A `Button` with no `on_draw` draws nothing, which is also what an invisible slot
 legitimately wants.
+
+A look that differs from a shipped button only in what sits behind the label is
+not a subclass at all: it is a [style](#styles) handed to a `TextButton`.
 
 #### When a press activates
 
@@ -297,10 +300,108 @@ of its feedback, and shows it when reopened. A menu covered by a pushed scene is
 not controlled either, so it keeps drawing whatever state it was in when it was
 covered.
 
+### Styles
+
+What sits behind a button's content, per state. A style is anything answering
+one method, in the button's local space:
+
+```ruby
+style.draw(renderer, state, width, height)
+```
+
+The button holds its style and calls it before drawing its own content; the menu
+never sees it. **A style draws at `z: 0` or below**, because the button's label or
+icon is drawn at `z: 1` — and shapes default to `z: 50`, so a style that left
+its `z` out would cover them. Two ship.
+
+`UI::NineSliceStyle` stretches one element of a UI atlas over the slot:
+
+```ruby
+style = RGame::Engine::UI::NineSliceStyle.new(idle: :plank, focused: :plank_lit,
+                                              pressed: :plank_down, disabled: :plank_grey)
+style.with(focused: :plank_glow)   # a copy with one element replaced
+```
+
+| | |
+|---|---|
+| `idle:`, `focused:`, `pressed:`, `disabled:` | the element drawn in each state; all four required |
+| `elements` | the four, as a Hash keyed by state |
+| `with(**changes)` | a copy with some elements replaced |
+
+`UI::ShapeStyle` draws a rectangle or a disc, and needs nothing registered:
+
+```ruby
+UI = RGame::Engine::UI
+
+round = UI::ShapeStyle.new(shape: :disc)
+flat = UI::ShapeStyle.new(colors: UI::ShapeStyle::COLORS.merge(idle: nil), outline: nil)
+```
+
+| | |
+|---|---|
+| `shape:` | `:rect` (default) or `:disc`; anything else raises `ArgumentError` |
+| `colors:` | the fill per state, a `Color` or `[r, g, b]`; `nil` draws no fill in that state; a state missing raises `KeyError` |
+| `outline:` | drawn under the fill while focused or pressed; `nil` for none |
+| `border:` | how far the fill is inset (default 3) |
+
+The fill is inset by `border` in every state and the outline is the whole shape
+under it, so a button does not change size as its state changes — focus
+uncovers the ring the fill leaves. A disc is centred in the slot, as wide as its
+shorter side. `UI::ShapeStyle::DEFAULT` is one built with every default, and is
+what a `TextButton` draws unless told otherwise.
+
+Both check every state when they are built, not on the first frame a button
+reaches it, and coerce their colours then too, so drawing one allocates nothing.
+
+#### A style of your own
+
+```ruby
+class Underline
+  LIT = RGame::Util::Color.new(255, 255, 255)
+  DIM = RGame::Util::Color.new(90, 90, 90)
+
+  def draw(renderer, state, width, height)
+    return if state == :idle
+
+    renderer.rect(0, height - 2, width, 2, z: 0, color: state == :disabled ? DIM : LIT)
+  end
+end
+
+menu.add(RGame::Engine::UI::TextButton.new(label: 'Continue', style: Underline.new))
+```
+
+The colours are `Color`s built once rather than `[r, g, b]` literals, which the
+renderer would turn into a new `Color` on every draw.
+
+### `RGame::Engine::UI::TextButton`
+
+A label centred on a style. It needs no art, which makes it the button to build a
+menu with before the art exists:
+
+```ruby
+UI = RGame::Engine::UI
+
+menu.add(UI::TextButton.new(label: 'Play')).on_activated { start }
+menu.add(UI::TextButton.new(label: 'Credits', style: UI::ShapeStyle.new(shape: :disc)))
+menu.add(UI::TextButton.new(label: 'Quit', style: nil))
+```
+
+| | |
+|---|---|
+| `label:` | required, because it is drawn |
+| `style:` | a [style](#styles); `UI::ShapeStyle::DEFAULT` unless given, `nil` for the label alone |
+| `label_color:`, `disabled_label_color:` | a `Color` or `[r, g, b]`; defaults `TextButton::LABEL_COLOR` and `DISABLED_LABEL_COLOR` |
+
+The style draws first and the label over it at `z: 1`. A subclass that draws
+more than a label overrides the private `draw_foreground(renderer)` rather than
+`on_draw`, so it keeps its style without having to remember to draw it —
+`OptionButton` is one.
+
 ### `RGame::Engine::UI::PanelButton`
 
-The shipped button: a label centred on a nine-slice, one element per state,
-which is why the shipped atlas has an element for each:
+A `TextButton` with a nine-slice style: the shipped atlas's button, with a dark
+label. Its style is `PanelButton::STYLE`, which is why the shipped atlas has an
+element for each state:
 
 | `state` | Element |
 |---|---|
@@ -309,10 +410,14 @@ which is why the shipped atlas has an element for each:
 | `:idle` | `button_idle` |
 | `:disabled` | `button_disabled` |
 
-The element names are `PanelButton::STYLE`, and a button can be built with a
-different hash through `style:` — a game with its own art is not obliged to name
-it the way the shipped atlas does. `label:` is required here, because it is
-drawn.
+Everything else is `TextButton`'s, and every default can still be passed — a game
+with its own art is not obliged to name it the way the shipped atlas does:
+
+```ruby
+UI = RGame::Engine::UI
+
+menu.add(UI::PanelButton.new(label: 'Load', style: UI::PanelButton::STYLE.with(idle: :my_idle)))
+```
 
 ### `RGame::Engine::UI::OptionButton`
 
@@ -350,6 +455,47 @@ screen — see [Drawing](drawing.md) and `Game/NoInterpolationInHotPath`.
 from a file: a save written by an older version of the game, or edited by hand,
 leaves the row where it is instead of raising.
 
+### `RGame::Engine::UI::IconButton`
+
+A picture, tinted by state, with an optional caption — the round entry of a
+quick-select wheel, or a skill with its name underneath.
+
+```ruby
+UI = RGame::Engine::UI
+
+game.renderer.register_image(:torch, game.assets.image('icons/torch.png'))
+
+disc = UI::ShapeStyle.new(shape: :disc)
+bar.add(UI::IconButton.new(image: :torch, style: disc)).on_activated { light }
+bar.add(UI::IconButton.new(image: 'icons/hoe.png', label: 'Hoe', style: disc))
+```
+
+| | |
+|---|---|
+| `image:` | an image id — a registered Symbol or a path String — or `nil` |
+| `label:` | optional; a caption along the bottom of the slot |
+| `style:` | a [style](#styles); none unless given |
+| `tints:` | the `color:` the image is drawn with, per state (default `IconButton::TINTS`) |
+| `scales:` | the image's scale per state (default 1 in every state) |
+| `label_color:`, `disabled_label_color:` | the caption's, as `TextButton`'s |
+
+The image is drawn at its natural size, centred in the slot — or, with a
+caption, centred in the space above it, with the caption centred along the
+bottom edge. **Everything stays inside the slot**, so a navigation reading the
+slot's centre and a backdrop sized from the menu's bounds are right for an icon
+button as for any other.
+
+**Tint is a multiply**, so the art should be white: white shows each tint
+exactly, and dark art takes none of them. **Scales default to 1** because images
+are sampled nearest-neighbour, and any scale that is not a whole number doubles
+some rows of pixels and not others; focus shows through the tint and the style
+instead. `tints:` and `scales:` must name every state, and raise `KeyError` when
+the button is built if one is missing.
+
+`image: nil` draws the caption alone, for an entry whose art is not in yet. An id
+that nothing was registered under is not that case: it raises on the first draw,
+as it would for any other image.
+
 ### Getting the art on screen
 
 Nine-slice ids name an *element of an atlas*, not a file, so there is nothing
@@ -361,6 +507,10 @@ game.renderer.register_ui_atlas(game.assets.ui_atlas('ui/ui_atlas.json'))
 
 `media/ui/ui_atlas.json` ships with `panel` and the four button elements above.
 See [Sheets, atlases and maps](assets.md).
+
+A `TextButton` on a `ShapeStyle` needs none of this, and an `IconButton` needs
+only its image: a path String resolves through the asset manager, and a Symbol
+through `renderer.register_image` — see [Drawing](drawing.md).
 
 `examples/game_menu` is the smallest complete use of all of this: a menu that
 opens over a running world, pauses only the node that opened it, and closes

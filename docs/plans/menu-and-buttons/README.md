@@ -1,6 +1,6 @@
 # Plan — the menu is a shell, the button is the look
 
-**Status:** steps 1 and 2 implemented. Steps 3–5 planned in detail at
+**Status:** steps 1, 2 and 3 implemented. Steps 3–5 planned in detail at
 `564e708`, step 6 is the fold-back. Every open question is settled. Builds on PR #28
 (`UI::Menu` with `layout:` and `navigation:`), merged to `main` as `53f5392`.
 

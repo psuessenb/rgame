@@ -1,0 +1,88 @@
+# frozen_string_literal: true
+
+RSpec.describe RGame::Engine::UI::TextButton do
+  # Nothing registered: the prototyping promise is that this button draws
+  # before any atlas exists, and a FakeRenderer asked for an unregistered
+  # nine-slice raises.
+  let(:renderer) { FakeRenderer.new }
+  let(:root) { RGame::Engine::Node2D.new }
+
+  def button(**)
+    root.add_node(described_class.new(label: 'Play', width: 200, height: 40, **))
+        .tap { root.enter_tree }
+  end
+
+  def draw
+    renderer.clear
+    root.draw(renderer, screen_view)
+    renderer.calls.reject { |call| call.name == :translated }
+  end
+
+  describe 'with no style given' do
+    it 'draws with nothing registered with the renderer' do
+      button
+      expect(draw.map(&:name)).to eq(%i[rect text])
+    end
+
+    it 'draws the shared shape style' do
+      expect(button.style).to be(RGame::Engine::UI::ShapeStyle::DEFAULT)
+    end
+  end
+
+  it 'draws only its label with style: nil' do
+    button(style: nil)
+    expect(draw.map(&:name)).to eq(%i[text])
+  end
+
+  describe 'the style' do
+    let(:style) { instance_double(RGame::Engine::UI::ShapeStyle, draw: nil) }
+
+    it 'is handed the state and the slot' do
+      button(style: style).focused = true
+      draw
+      expect(style).to have_received(:draw).with(renderer, :focused, 200, 40)
+    end
+
+    it 'is handed the disabled state when disabled' do
+      button(style: style, enabled: false)
+      draw
+      expect(style).to have_received(:draw).with(renderer, :disabled, 200, 40)
+    end
+  end
+
+  describe 'the label' do
+    # FakeRenderer's stand-in metrics: 8 pixels a character, 18 a line.
+    it 'is centred in the slot' do
+      button
+      expect(draw.last.args).to eq(['Play', 84.0, 11])
+    end
+
+    it 'is drawn above everything the style draws, focused or not' do
+      item = button
+      unfocused = draw
+      item.focused = true
+      focused = draw
+      [unfocused, focused].each do |calls|
+        style_z = calls.reject { |call| call.name == :text }.map { |call| call.options[:z] }
+        expect(calls.last.options[:z]).to be > style_z.max
+      end
+    end
+
+    it 'takes its colour from label_color' do
+      button(label_color: [1, 2, 3])
+      expect(draw.last.options[:color]).to eq(RGame::Util::Color.new(1, 2, 3))
+    end
+
+    it 'takes the disabled colour while disabled' do
+      button(enabled: false)
+      expect(draw.last.options[:color]).to eq(described_class::DISABLED_LABEL_COLOR)
+    end
+  end
+
+  it 'draws without allocating, with array colours given' do
+    item = button(label_color: [1, 2, 3])
+    item.focused = true
+    quiet = QuietRenderer.new
+    expect { item.on_draw(quiet, nil) }.to allocate_nothing
+  end
+end

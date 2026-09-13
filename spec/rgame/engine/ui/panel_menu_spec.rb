@@ -9,7 +9,7 @@ RSpec.describe RGame::Engine::UI::PanelMenu do
   # can be told apart and ordered against each other.
   let(:log) { [] }
   let(:renderer) do
-    ids = [:panel, *RGame::Engine::UI::PanelButton::STYLE.values]
+    ids = [:panel, *RGame::Engine::UI::PanelButton::STYLE.elements.values]
     FakeRenderer.new.tap { |r| ids.each { |id| r.register_nine_slice(id, slice(id)) } }
   end
 

@@ -3,7 +3,7 @@
 RSpec.describe RGame::Engine::UI::PanelButton do
   # FakeRenderer hands a nine-slice draw straight to the registered slice, so
   # that is where the call lands — the same shape a sprite takes through a sheet.
-  let(:slices) { described_class::STYLE.values.to_h { |id| [id, recorder] } }
+  let(:slices) { described_class::STYLE.elements.values.to_h { |id| [id, recorder] } }
 
   let(:renderer) do
     FakeRenderer.new.tap { |r| slices.each { |id, slice| r.register_nine_slice(id, slice) } }
@@ -31,7 +31,7 @@ RSpec.describe RGame::Engine::UI::PanelButton do
   def drew
     root.draw(renderer, screen_view)
     key, slice = slices.find { |_id, s| s.received.any? }
-                       .then { |id, s| [described_class::STYLE.key(id), s] }
+                       .then { |id, s| [described_class::STYLE.elements.key(id), s] }
     [key, slice.received.last]
   end
 
@@ -119,9 +119,21 @@ RSpec.describe RGame::Engine::UI::PanelButton do
     mine = recorder
     renderer.register_nine_slice(:mine, mine)
     root.add_node(described_class.new(label: 'Resume', width: 10, height: 10,
-                                      style: described_class::STYLE.merge(idle: :mine)))
+                                      style: described_class::STYLE.with(idle: :mine)))
     root.enter_tree
     root.draw(renderer, screen_view)
     expect(mine.received.map(&:first)).to eq([:draw])
+  end
+
+  describe 'allocation' do
+    let(:quiet) { QuietRenderer.new }
+
+    %i[idle focused disabled].each do |state|
+      it "draws #{state} without allocating" do
+        subject_item = item(enabled: state != :disabled)
+        subject_item.focused = state == :focused
+        expect { subject_item.on_draw(quiet, nil) }.to allocate_nothing
+      end
+    end
   end
 end

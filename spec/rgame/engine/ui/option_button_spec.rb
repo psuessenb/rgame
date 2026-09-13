@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 RSpec.describe RGame::Engine::UI::OptionButton do
-  let(:slices) { described_class::STYLE.values.to_h { |id| [id, recorder] } }
+  let(:slices) { described_class::STYLE.elements.values.to_h { |id| [id, recorder] } }
 
   let(:renderer) do
     FakeRenderer.new.tap { |r| slices.each { |id, slice| r.register_nine_slice(id, slice) } }
@@ -181,7 +181,22 @@ RSpec.describe RGame::Engine::UI::OptionButton do
       option(enabled: false)
       root.draw(renderer, screen_view)
       drawn = slices.select { |_id, slice| slice.received.any? }.keys
-      expect(drawn).to eq([described_class::STYLE.fetch(:disabled)])
+      expect(drawn).to eq([described_class::STYLE.elements.fetch(:disabled)])
+    end
+  end
+
+  # Label, two chevrons and a value: four colours a draw, all built once.
+  describe 'allocation' do
+    let(:quiet) { QuietRenderer.new }
+
+    it 'draws with both chevrons without allocating' do
+      subject_item = option(index: 1)
+      expect { subject_item.on_draw(quiet, nil) }.to allocate_nothing
+    end
+
+    it 'draws disabled without allocating' do
+      subject_item = option(index: 1, enabled: false)
+      expect { subject_item.on_draw(quiet, nil) }.to allocate_nothing
     end
   end
 end
