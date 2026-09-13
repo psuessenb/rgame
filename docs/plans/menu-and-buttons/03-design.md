@@ -176,7 +176,8 @@ What sits behind a button's content, per state. The button holds one; the menu
 never sees it.
 
 ```ruby
-style.draw(renderer, state, width, height)   # the whole duck type, in the button's local space
+style.draw(renderer, state, width, height)   # in the button's local space
+style.content_color(state)                   # optional: what content takes on this fill, or nil
 
 NineSliceStyle.new(idle:, focused:, pressed:, disabled:)          # element names
 ShapeStyle.new(shape: :rect, colors: COLORS, outline: OUTLINE, border: 3)

@@ -7,11 +7,12 @@ require_relative 'nine_slice'
 
 module RGame
   module Core
-    # One sheet of UI chrome, cut into named nine-slices.
+    # One sheet of UI chrome, cut into named nine-slices and named images.
     #
     #   atlas = RGame::Core::UiAtlas.load(app, 'media/ui.json')
     #   renderer.register_ui_atlas(atlas)
     #   renderer.nine_slice(:button_idle, x, y, width, height)
+    #   renderer.image(:home, cx, cy)
     #
     # A button has four states, a panel has one, a scrollbar has three pieces —
     # all of them small, and all of them cheaper as sub-rectangles of a single
@@ -29,26 +30,37 @@ module RGame
     #       "panel":        { "x": 0,  "y": 0,  "w": 32, "h": 32,
     #                         "border": { "left": 4, "right": 4, "top": 8, "bottom": 4 },
     #                         "scale": 2 }
+    #     },
+    #     "images": {
+    #       "home": { "x": 0,  "y": 96, "w": 50, "h": 50 },
+    #       "gear": { "x": 50, "y": 96, "w": 50, "h": 50 }
     #     }
     #   }
     #
-    # `image` is resolved next to the descriptor. Each entry is a source
-    # rectangle plus a border — a uniform integer or one value per side — and an
-    # optional `scale` overriding the sheet default. See
+    # `image` is resolved next to the descriptor. Each nine-slice entry is a
+    # source rectangle plus a border — a uniform integer or one value per side —
+    # and an optional `scale` overriding the sheet default. See
     # RGame::Core::NineSlice for what those mean when it is drawn.
+    #
+    # Each `images` entry is a rectangle and nothing else: an icon is drawn
+    # whole, so it has no border, and no scale either, because how large to draw
+    # it is the draw call's `scale:`. Either section may be absent or `null`.
     #
     # ## Element names, not filenames
     #
-    # `nine_slices` is keyed by whatever the descriptor calls each element, and
+    # Both sections are keyed by whatever the descriptor calls each element, and
     # those names are what a widget asks for. That is why nine-slices are the
     # one asset the renderer resolves by registration only: `:button_focus` is
     # not a file and never can be. `Renderer#register_ui_atlas` registers every
-    # element in one call.
+    # element of both kinds in one call.
     #
     # Parsing happens once, at load. Nothing here is touched again per frame.
     class UiAtlas
-      # The elements, by name. Values are `NineSlice`s.
+      # The nine-slice elements, by name. Values are `NineSlice`s.
       attr_reader :nine_slices
+
+      # The image elements, by name. Values are `Image`s cut from the sheet.
+      attr_reader :images
 
       # Loads a descriptor and the sheet beside it.
       #
@@ -65,15 +77,22 @@ module RGame
         sheet_scale = data[:scale] || 1
 
         @nine_slices = (data[:nine_slices] || {}).to_h do |id, spec|
-          [id, build(image, id, spec, sheet_scale)]
+          [id, element(id) { build_nine_slice(image, spec, sheet_scale) }]
+        end
+        @images = (data[:images] || {}).to_h do |id, spec|
+          [id, element(id) { image.subimage(spec[:x], spec[:y], spec[:w], spec[:h]) }]
         end
       end
 
       private
 
-      def build(image, id, spec, sheet_scale)
+      def build_nine_slice(image, spec, sheet_scale)
         NineSlice.new(image, x: spec[:x], y: spec[:y], w: spec[:w], h: spec[:h],
                              border: spec[:border], scale: spec[:scale] || sheet_scale)
+      end
+
+      def element(id)
+        yield
       rescue StandardError => e
         raise ArgumentError, "ui atlas element #{id.inspect}: #{e.message}"
       end

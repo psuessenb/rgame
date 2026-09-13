@@ -88,10 +88,11 @@ module RGame
       def register_tilemap(id, tilemap) = registry(:tilemap)[id] = tilemap
       def register_nine_slice(id, nine_slice) = registry(:nine_slice)[id] = nine_slice
 
-      # Registers every element of a UiAtlas under its own name, since those
-      # names are what a widget asks for.
+      # Registers every element of a UiAtlas — its nine-slices and its images —
+      # under its own name, since those names are what a widget asks for.
       def register_ui_atlas(atlas)
         atlas.nine_slices.each { |id, nine_slice| register_nine_slice(id, nine_slice) }
+        atlas.images.each { |id, image| register_image(id, image) }
         self
       end
 

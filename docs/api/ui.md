@@ -148,9 +148,9 @@ decide that a player means a direction.
 and right are directions here, so an `OptionButton` under `Pointing` cannot be
 adjusted.
 
-Nothing about a wheel is drawn by the menu: a backdrop or a pointer is the
-game's, and `aim_x` / `aim_y` are what that pointer reads. `examples/radial_menu`
-draws both.
+A plain `Menu` draws nothing of a wheel; [`RadialMenu`](#rgameengineuiradialmenu)
+draws the backdrop, the dead zone and a pointer from `aim_x` / `aim_y`, and a
+wheel of a game's own reads the same two.
 
 ### A navigation of your own
 
@@ -213,6 +213,48 @@ with no `z`.
 
 A backdrop of any other kind is the same shape: subclass `Menu` and draw it in
 `on_draw` from `bounds_x`, `bounds_y`, `bounds_width` and `bounds_height`.
+
+### `RGame::Engine::UI::RadialMenu`
+
+A wheel: a `Menu` that builds its own `Ring` and `Pointing`, and draws a backdrop
+disc, the dead zone to scale, and a pointer from the centre towards where the
+stick aims.
+
+```ruby
+UI = RGame::Engine::UI
+
+game.renderer.register_ui_atlas(game.assets.ui_atlas('icons.json'))
+
+wheel = layer.add_node(UI::RadialMenu.new(x: 320, y: 240, radius: 150, button_width: 64))
+disc = UI::ShapeStyle.new(shape: :disc)
+wheel.add(UI::IconButton.new(image: :home, style: disc)).on_activated { go_home }
+wheel.add(UI::IconButton.new(image: :save, style: disc)).on_activated { save }
+```
+
+| | |
+|---|---|
+| `radius:` | from the centre to each button's middle, as `Ring`'s |
+| `button_width:`, `button_height:` | the slot size; `button_height` defaults to `button_width` |
+| `dead_zone:` | as `Pointing`'s (default `Pointing::DEAD_ZONE`, 0.5) |
+| `padding:` | how far the backdrop reaches beyond the bounds (default 16) |
+| `backdrop:`, `dead_zone_color:`, `pointer:` | a colour for each part, `RadialMenu::BACKDROP`, `DEAD_ZONE` and `POINTER` by default; `nil` omits that part |
+
+**The menu's origin is the centre of the wheel.** The backdrop's radius is half
+the larger side of the bounds plus `padding` — and because `Ring`'s bounds are
+the whole circle, it is the same with one button as with eight. The dead zone is
+drawn at `dead_zone * radius`, which is exactly where a pointer tip inside it
+selects nothing. **The pointer's tip is clamped to the ring**: two arrow keys
+read as (1, 1), longer than a stick can reach, and would otherwise poke past it.
+All three are drawn before the buttons, which are the menu's children.
+
+**`layout:` and `navigation:` raise `ArgumentError`.** A preset forwarding them
+would let either silently replace the ring or the pointing it is made of. A ring
+stepped through with `Stepping` is a plain `Menu` built with a `Ring`.
+
+Something drawn in the middle of the wheel — the chosen item, say — belongs to
+a node added *after* the menu. Between nodes the tree decides what lands on top,
+so anything the wheel's parent draws itself sits under the backdrop.
+`backdrop_radius` is the disc's radius, for a game sizing something to it.
 
 ### `RGame::Engine::UI::Button`
 
@@ -303,16 +345,26 @@ covered.
 ### Styles
 
 What sits behind a button's content, per state. A style is anything answering
-one method, in the button's local space:
+one method, in the button's local space, and optionally a second:
 
 ```ruby
 style.draw(renderer, state, width, height)
+style.content_color(state)   # optional: the colour content takes on this state's fill, or nil
 ```
 
 The button holds its style and calls it before drawing its own content; the menu
 never sees it. **A style draws at `z: 0` or below**, because the button's label or
 icon is drawn at `z: 1` — and shapes default to `z: 50`, so a style that left
-its `z` out would cover them. Two ship.
+its `z` out would cover them.
+
+**What reads on a fill is the style's to say.** A style that answers
+`content_color(state)` sets the colour of the button's label or icon in any state
+where it returns a colour. `TextButton`, `OptionButton` and `IconButton` all
+follow it, and fall back to their own `label_color:` or `tints:` wherever it
+returns `nil`, and for a style without the method. The style is the object that
+picks the fill, so it is the only one that can pick what shows up on it. A
+`ShapeStyle`'s pressed fill is the same gold as `IconButton`'s pressed tint, so
+without this a pressed icon on a disc would vanish. Two styles ship.
 
 `UI::NineSliceStyle` stretches one element of a UI atlas over the slot:
 
@@ -327,6 +379,7 @@ style.with(focused: :plank_glow)   # a copy with one element replaced
 | `idle:`, `focused:`, `pressed:`, `disabled:` | the element drawn in each state; all four required |
 | `elements` | the four, as a Hash keyed by state |
 | `with(**changes)` | a copy with some elements replaced |
+| `content_color(state)` | always `nil`: the art is the game's, so the button's own colours are chosen for it — `PanelButton`'s dark label for the shipped atlas |
 
 `UI::ShapeStyle` draws a rectangle or a disc, and needs nothing registered:
 
@@ -343,6 +396,7 @@ flat = UI::ShapeStyle.new(colors: UI::ShapeStyle::COLORS.merge(idle: nil), outli
 | `colors:` | the fill per state, a `Color` or `[r, g, b]`; `nil` draws no fill in that state; a state missing raises `KeyError` |
 | `outline:` | drawn under the fill while focused or pressed; `nil` for none |
 | `border:` | how far the fill is inset (default 3) |
+| `content:` | the colour content takes over each state's fill, or `nil` for the button's own (default `ShapeStyle::CONTENT`: dark `(46, 34, 24)` while pressed, `nil` otherwise); a state missing raises `KeyError` |
 
 The fill is inset by `border` in every state and the outline is the whole shape
 under it, so a button does not change size as its state changes — focus
@@ -371,7 +425,9 @@ menu.add(RGame::Engine::UI::TextButton.new(label: 'Continue', style: Underline.n
 ```
 
 The colours are `Color`s built once rather than `[r, g, b]` literals, which the
-renderer would turn into a new `Color` on every draw.
+renderer would turn into a new `Color` on every draw. `Underline` has no
+`content_color`, so the label keeps the button's own colour in every state. A
+style that fills behind the label should say what reads on that fill.
 
 ### `RGame::Engine::UI::TextButton`
 
@@ -390,7 +446,7 @@ menu.add(UI::TextButton.new(label: 'Quit', style: nil))
 |---|---|
 | `label:` | required, because it is drawn |
 | `style:` | a [style](#styles); `UI::ShapeStyle::DEFAULT` unless given, `nil` for the label alone |
-| `label_color:`, `disabled_label_color:` | a `Color` or `[r, g, b]`; defaults `TextButton::LABEL_COLOR` and `DISABLED_LABEL_COLOR` |
+| `label_color:`, `disabled_label_color:` | a `Color` or `[r, g, b]`; defaults `TextButton::LABEL_COLOR` and `DISABLED_LABEL_COLOR`; a style's [content colour](#styles) takes precedence in the states it names |
 
 The style draws first and the label over it at `z: 1`. A subclass that draws
 more than a label overrides the private `draw_foreground(renderer)` rather than
@@ -463,10 +519,10 @@ quick-select wheel, or a skill with its name underneath.
 ```ruby
 UI = RGame::Engine::UI
 
-game.renderer.register_image(:torch, game.assets.image('icons/torch.png'))
+game.renderer.register_ui_atlas(game.assets.ui_atlas('icons.json'))
 
 disc = UI::ShapeStyle.new(shape: :disc)
-bar.add(UI::IconButton.new(image: :torch, style: disc)).on_activated { light }
+bar.add(UI::IconButton.new(image: :star, style: disc)).on_activated { favourite }
 bar.add(UI::IconButton.new(image: 'icons/hoe.png', label: 'Hoe', style: disc))
 ```
 
@@ -492,6 +548,11 @@ some rows of pixels and not others; focus shows through the tint and the style
 instead. `tints:` and `scales:` must name every state, and raise `KeyError` when
 the button is built if one is missing.
 
+On a style that names a content colour, that colour replaces both the tint and
+the caption colour in the states it names. On the default `ShapeStyle` that
+means pressed only, where a dark icon shows on the gold fill. With no style, the
+pressed tint stays gold, which reads on a dark ground.
+
 `image: nil` draws the caption alone, for an entry whose art is not in yet. An id
 that nothing was registered under is not that case: it raises on the first draw,
 as it would for any other image.
@@ -508,16 +569,28 @@ game.renderer.register_ui_atlas(game.assets.ui_atlas('ui/ui_atlas.json'))
 `media/ui/ui_atlas.json` ships with `panel` and the four button elements above.
 See [Sheets, atlases and maps](assets.md).
 
+The same call registers **images**. An atlas descriptor with an `images`
+section — rectangles cut whole from the sheet — puts each one in the renderer's
+image registry under its name, so one strip of icons becomes
+`IconButton.new(image: :home)` with nothing else to write:
+
+```ruby
+game.renderer.register_ui_atlas(game.assets.ui_atlas('icons.json'))
+```
+
+`examples/assets/icons.json` names eight, used by `examples/radial_menu`. See
+[UI atlases](assets.md#ui-atlases) for the descriptor.
+
 A `TextButton` on a `ShapeStyle` needs none of this, and an `IconButton` needs
-only its image: a path String resolves through the asset manager, and a Symbol
-through `renderer.register_image` — see [Drawing](drawing.md).
+only its image: a path String resolves through the asset manager, a Symbol
+through a UI atlas or `renderer.register_image` — see [Drawing](drawing.md).
 
 `examples/game_menu` is the smallest complete use of all of this: a menu that
 opens over a running world, pauses only the node that opened it, and closes
 again. `examples/menu_navigation` is the next step up — a title screen, a
 settings screen pushed over it, and rows that change fullscreen, the scale mode
-and the volume for real and write them to a file. `examples/radial_menu` is the
-same menu built with a `Ring` and `Pointing`.
+and the volume for real and write them to a file. `examples/radial_menu` is a
+`RadialMenu` of `IconButton`s, its icons from a UI atlas.
 
 ## What this is not
 

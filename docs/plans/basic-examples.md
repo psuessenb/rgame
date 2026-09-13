@@ -637,6 +637,12 @@ driven reports of `game_menu`, `radial_menu` (both scripts) and the tiled_world
 inventory are byte-identical across the change; `menu_navigation` differs only
 in its first `nine_slice` becoming `button_focus`, which is that fix.
 
+**Returned as a preset, and the icons arrived.** Step 4 of
+`docs/plans/menu-and-buttons/` brought `UI::RadialMenu` back — not as a second
+focus implementation, but as a `Menu` that builds its `Ring` and `Pointing` and
+draws the backdrop, dead zone and pointer this example used to draw itself. Asset
+**D** shipped with it, and the wheel became a quick menu of eight `IconButton`s.
+
 ### 12. `examples/pathfinding` — a character walking a computed route
 
 **Shows** a click-free "go there" — pick a target tile, compute a route around
@@ -1305,7 +1311,7 @@ is deferred.
 | **A** | Character sprite sheet | `hero.png` + `hero.json` | 1 walk, 7 jump_topdown, 10 pathfinding | **done** |
 | **B** | Top-down tileset + a map | `tileset.png`, `tileset.tsx`, `town.tmx` | 2 scroll_map, 7 jump_topdown, 10 pathfinding | **done** |
 | **C** | UI nine-slice sheet | `ui.png` + `ui.json` | 3 game_menu, 6 menu_navigation | **done** — and it was never optional |
-| **D** | Radial icon sheet | `icons.png` + `icons.json` | 9 radial_menu | not needed — labels read fine |
+| **D** | Radial icon sheet | `icons.png` + `icons.json` | 9 radial_menu | **done** — Kenney's *Game Icons*, with the menu-and-buttons plan |
 | **F** | A sound effect and a music loop | `blip.ogg`, `music.ogg` | 4 sound, 5 music | **done** |
 | **G** | Input prompt glyphs | `glyphs.png` + `glyphs.json` | 21 input_glyphs | **done** |
 
@@ -1399,9 +1405,10 @@ with `renderer.nine_slice`, nine-slice ids resolve by registration only, and
 It shipped with example 3. See that example for the two constraints the widget
 puts on the art.
 
-**D was not needed.** `examples/radial_menu` shipped with text labels on asset
-**C**'s buttons — its items are `MenuItem`s, so it has exactly the chrome a list
-menu has, and the labelled wheel reads well.
+**D was not needed at first.** `examples/radial_menu` shipped with text labels on
+asset **C**'s buttons, and the labelled wheel read well. It arrived later, with
+step 4 of `docs/plans/menu-and-buttons/`, once a button could draw an image and a
+UI atlas could name one.
 
 ### Consequence for the order
 

@@ -16,7 +16,10 @@ module RGame
       # always on top. Focus, pressing and activation are all UI::Button's.
       #
       # The label colours are coerced once, so they may be arrays and a draw
-      # still allocates nothing. A subclass that draws more than a label —
+      # still allocates nothing. A style answering `content_color(state)` —
+      # UI::ShapeStyle does — overrides them in any state it names, because what
+      # reads on a fill is the style's to say: a light label on a gold pressed
+      # fill would all but disappear. A subclass that draws more than a label —
       # UI::OptionButton — overrides `draw_foreground`, and so keeps its style
       # without having to remember to draw it.
       class TextButton < Button
@@ -29,6 +32,7 @@ module RGame
                        disabled_label_color: DISABLED_LABEL_COLOR, **)
           super(label: label, **)
           @style = style
+          @style_names_content = style.respond_to?(:content_color)
           @label_color = Util::Color.coerce(label_color)
           @disabled_label_color = Util::Color.coerce(disabled_label_color)
         end
@@ -44,7 +48,8 @@ module RGame
           renderer.text(@label, label_x(renderer), label_y(renderer), z: 1, color: current_label_color)
         end
 
-        def current_label_color = @enabled ? @label_color : @disabled_label_color
+        def current_label_color = style_content_color || (@enabled ? @label_color : @disabled_label_color)
+        def style_content_color = @style_names_content ? @style.content_color(state) : nil
         def label_x(renderer) = (width - renderer.text_width(@label)) / 2
         def label_y(renderer) = (height - renderer.text_height) / 2
       end

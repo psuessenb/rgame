@@ -54,6 +54,50 @@ RSpec.describe RGame::Core::UiAtlas do
     end
   end
 
+  describe 'images' do
+    def rect(x, y, w = 10, h = 10) = { x: x, y: y, w: w, h: h }
+
+    it 'cuts one subimage per named entry, each from its own rectangle' do
+      built = atlas(images: { home: rect(0, 0), gear: rect(10, 20, 12, 8) })
+
+      expect(built.images.transform_values(&:region)).to eq(home: [0, 0, 10, 10], gear: [10, 20, 12, 8])
+    end
+
+    it 'has no images when the descriptor names none' do
+      expect(atlas(nine_slices: { panel: entry }).images).to eq({})
+    end
+
+    it 'has no images when the descriptor sets them to null' do
+      expect(atlas(images: nil).images).to eq({})
+    end
+
+    it 'holds both kinds of element from one sheet' do
+      built = atlas(nine_slices: { panel: entry }, images: { home: rect(20, 20) })
+
+      expect([built.nine_slices.keys, built.images.keys]).to eq([%i[panel], %i[home]])
+    end
+
+    it 'names an image the sheet refuses to cut' do
+      expect { atlas(images: { home: rect(60, 0) }) }
+        .to raise_error(ArgumentError, /ui atlas element :home: .*does not fit in a 64x64 image/)
+    end
+
+    it 'names an image missing part of its rectangle' do
+      expect { atlas(images: { home: rect(0, 0).except(:w) }) }
+        .to raise_error(ArgumentError, /ui atlas element :home/)
+    end
+
+    it 'cuts real subimages from a loaded sheet' do
+      app = RGame::Core::App.new(width: 32, height: 32, caption: 'ui atlas images')
+      png = PngFixture.write(20, 10) { [255, 255, 255, 255] }
+      path = File.join(PngFixture.directory, "ui_#{PngFixture.next_id}.json")
+      File.write(path, JSON.generate(image: File.basename(png), images: { home: rect(10, 0) }))
+
+      home = described_class.load(app, path).images[:home]
+      expect([home.class, home.width, home.height]).to eq([RGame::Core::Image, 10, 10])
+    end
+  end
+
   describe 'scale' do
     it 'applies the sheet default to every element' do
       built = atlas(scale: 3, nine_slices: { panel: entry })

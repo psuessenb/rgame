@@ -1,11 +1,11 @@
 # Roadmap
 
-**Status:** steps 1, 2 and 3 are implemented. Steps 4 and 5 are planned in
-detail, at `564e708`; step 6 is the fold-back. The rough step 3 was split in two
-when it was re-planned — the buttons (3), and the radial menu with the asset work
-it needs (4) — and the old step 4 became step 5. Before starting step 5, re-read
-the landed notes of 3 and 4: its example builds on `IconButton`, `ShapeStyle`
-and atlas images, which are sketched here but not yet written.
+**Status:** steps 1–4 are implemented. Step 5 is planned in detail, at
+`564e708`; step 6 is the fold-back. The rough step 3 was split in two when it was
+re-planned — the buttons (3), and the radial menu with the asset work it needs
+(4) — and the old step 4 became step 5. Before starting step 5, re-read the
+landed notes of 3 and 4: styles now name a content colour (README question 9),
+which 5f's captioned icons on a disc draw in while pressed.
 
 ```
 #28 ─→ 1 Button + Menu#add ─→ 2 bounds + PanelMenu ─→ 3 styles, TextButton, IconButton ─┬─→ 4 RadialMenu, atlas images, icon wheel ─┬─→ 6 fold back
@@ -727,6 +727,105 @@ read as the tint colours and not as white.
 
 **What this step does not deliver.** A wheel centred on the view (the example's
 existing limit), captions on a wheel, and any icon beyond the eight.
+
+**Landed.** Five commits, one per sub-step, on branch `menu-radial`, and a sixth
+that settles README question 9, which this step raised.
+
+- **4a** `UI::RadialMenu` (`lib/rgame/engine/ui/radial_menu.rb`) as sketched,
+  with `padding`, `backdrop`, `dead_zone_color`, `pointer` and `backdrop_radius`
+  readers; `spec/support/quiet_renderer.rb` gained `line`. `examples/radial_menu`
+  drew its wheel through it with `padding: 0`, the swatch moving into a `Swatch`
+  node added after the menu.
+- **4b** `UiAtlas#images`, and both `register_ui_atlas`es register them. The
+  contract's "registers every element of a UI atlas" gained a sibling for images.
+- **4c** `examples/assets/icons.png` (2,088 B) + `icons.json`, provenance in
+  `examples/assets/README.md`, and an `icons.json` group in
+  `spec/example_assets_spec.rb`.
+- **4d** `examples/radial_menu` as a quick menu: `QuickMenu` with an `ICONS`
+  table, `IconButton`s on one disc `ShapeStyle`, a `ChosenIcon` node drawing the
+  choice at scale 2, `icons.json` registered in place of `ui.json`, and default
+  `padding` (backdrop radius 198.0 again, from 182 + 16).
+- **Question 9** `content_color(state)` on styles: `ShapeStyle` takes
+  `content:` (`ShapeStyle::CONTENT`, dark while pressed), `NineSliceStyle`
+  answers `nil`, and `TextButton` (so `OptionButton`) and `IconButton` draw in
+  it where it names a colour. The example's dark-tint workaround is gone.
+- **4e** `docs/api/ui.md` (`RadialMenu`; `Pointing` and `IconButton` pointing at
+  it; "Getting the art on screen" gains images; "Styles" gains the content
+  colour), `docs/api/assets.md` (the
+  `images` section), `docs/api/examples.md`, the CHANGELOG (an "Added" entry for
+  atlas images, `RadialMenu` in the `UI::Menu` entry), and asset **D** in
+  `docs/plans/basic-examples.md`.
+
+Suites: `rake spec` **1645 examples, 0 failures** (1585 before; 1628 before
+question 9); `spec/rgame/engine/ui/` **262** (226 before); `rake spec:core` **375, 0
+failures**, rerun because 4b changes Core. RuboCop clean on every changed Ruby
+file. No C changed, so `make test` was not rerun.
+
+4a's invariant, `--seed 1`, fresh `RGAME_SAVE_DIR`, against `main`: every budget
+of both scripts (35, 65, 100, 130, 180 and 600; pad 38, 60, 112) reports the same
+caption, the same call counts and the same tip spans (−106.1..150.0, and
+0..35.3 for the pad nudge). The lines that differ, and why:
+
+| Line | `main` | 4a |
+|---|---|---|
+| `circle first(...)` | `(0, 0, 194)` | `(0, 0, 198.0)` — backdrop from bounds |
+| `circle last(...)` | the pointer's tip | `(0, 0, 34)` — the swatch, now drawn after the menu |
+| `layers per band` at 600 | `7200 × world` | `7800 × world` — one more node per frame, the `Swatch` |
+
+After 4d, from the run: captions `Save` where `Yellow` was and `Trophies` where
+`Teal`, at every budget. At 600 ticks: 2 `text` per frame; 5377 `image` (8 per
+frame, plus the chosen icon on 577 frames); 6660 `circle` (11 per frame —
+backdrop, dead zone, tip, eight discs — plus the outline on the 60 frames
+something is focused); 600 `line`; no `nine_slice`. Both script headers record
+these. `game_menu`, `menu_navigation` and the inventory, 600 ticks, are
+**byte-identical** to `main`.
+
+Allocations: `RadialMenu#on_draw` with the stick deflected passes
+`allocate_nothing`; by hand, 200,000 draws and 20,000 draws of eight wheel buttons
+against `QuietRenderer` each count 1 object, the loop's own.
+
+Guards mutation-checked: the `layout:`/`navigation:` refusal (2 examples), the
+tip clamp (1), `if @backdrop` (1), `if @pointer` (1), `+ @padding` (1); the images
+loop in the real `register_ui_atlas` (1 contract example), in `FakeRenderer`'s (1),
+and the element name on a refused image rectangle (2).
+
+**Looked at by hand**, as the Verify block asked: a screenshot under Xvfb with
+Enter held on Trophies. The white art does read as the tints — grey at rest,
+white focused, dim on Locked, the chosen gear doubled and sharp in the middle —
+and, after question 9, the pressed trophy is dark on the gold disc with nothing
+overridden by the example. Question 9's change leaves every driven report above
+byte-identical (colours are keywords, which the report does not keep), and was
+mutation-checked: dropping the content colour from `TextButton` fails 2
+examples, from the icon's tint 1, from the caption 1, the `respond_to?` guard 12
+(forced true) and 2 (true for any style), and the coercion in `ShapeStyle` 3.
+Drawing pressed on a content-naming style allocates nothing, for both buttons.
+
+What the sketch got wrong:
+
+- **A pressed icon on a `ShapeStyle` disc was invisible, and step 3 had shipped
+  it.** `ShapeStyle::COLORS` filled a pressed shape with `(240, 200, 96)` and
+  `IconButton::TINTS` tinted a pressed image the same gold. Rendering the
+  candidate fixes showed a second case nobody had measured: `TextButton`'s light
+  label on that fill is 1.4:1. No report can show either, because a tint and a
+  fill are keywords, which is exactly why the step asked for a look. The first
+  fix was a dark tint passed by the example. It was replaced by README question
+  9's answer, content colours on styles, which changes step 3's API. **For 5f:** a
+  caption on a disc also takes the content colour, and part of a caption at the
+  bottom of a round slot sits outside the disc, over the ground, so the pressed
+  caption is worth a look there.
+- **"The same per-frame counts" held; the report did not.** Moving the swatch to
+  a node of its own adds a layer per frame and makes it the last `circle`, as the
+  table above shows. The sketch's padding plan held: `padding: 0` gave 198 in 4a,
+  and 4d took the default back to 198 with 64-pixel slots.
+- **4c's second asset example could not land in 4c.** It reads `ICONS` out of
+  the example, which only exists after 4d, so it went in with 4d.
+- **Anything passed to `register_ui_atlas` must now answer `images`.** The
+  contract's existing nine-slice example built a `Struct.new(:nine_slices)`,
+  which raised `NoMethodError` after 4b; it gained the member. `UiAtlas` is the
+  only atlas in the project, so nothing else broke.
+- `examples/assets/README.md` first said "in snake case", which
+  `spec/game_references_spec.rb` reads as the name of a test project. It says
+  `snake_case`, the spelling that spec allows.
 
 ---
 

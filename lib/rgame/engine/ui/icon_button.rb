@@ -28,7 +28,11 @@ module RGame
       # every state, checked here rather than the first frame one is reached.
       #
       # No style by default: an icon on its own is a complete look. The style is
-      # drawn at `z: 0` or below, the picture and the caption at `z: 1`.
+      # drawn at `z: 0` or below, the picture and the caption at `z: 1`. A style
+      # answering `content_color(state)` — UI::ShapeStyle does — replaces the tint
+      # and the caption colour in any state it names, because what reads on its
+      # fill is the style's to say: the pressed tint is the same gold as a
+      # ShapeStyle's pressed fill.
       class IconButton < Button
         TINTS = {
           idle: Util::Color.new(200, 200, 212),
@@ -46,6 +50,7 @@ module RGame
           super(**)
           @image = image
           @style = style
+          @style_names_content = style.respond_to?(:content_color)
           @tints = STATES.to_h { |state| [state, Util::Color.coerce(tints.fetch(state))] }.freeze
           @scales = STATES.to_h { |state| [state, scales.fetch(state)] }.freeze
           @label_color = Util::Color.coerce(label_color)
@@ -55,23 +60,24 @@ module RGame
         def on_draw(renderer, _view)
           current = state
           @style&.draw(renderer, current, width, height)
+          content = @style_names_content ? @style.content_color(current) : nil
           caption_height = @label ? renderer.text_height : 0
-          draw_image(renderer, current, (height - caption_height) / 2.0)
-          draw_caption(renderer, caption_height) if @label
+          draw_image(renderer, current, content, (height - caption_height) / 2.0)
+          draw_caption(renderer, content, caption_height) if @label
         end
 
         private
 
-        def draw_image(renderer, current, cy)
+        def draw_image(renderer, current, content, cy)
           return unless @image
 
           renderer.image(@image, width / 2.0, cy,
-                         scale: @scales.fetch(current), z: 1, color: @tints.fetch(current))
+                         scale: @scales.fetch(current), z: 1, color: content || @tints.fetch(current))
         end
 
-        def draw_caption(renderer, caption_height)
+        def draw_caption(renderer, content, caption_height)
           renderer.text(@label, (width - renderer.text_width(@label)) / 2, height - caption_height,
-                        z: 1, color: @enabled ? @label_color : @disabled_label_color)
+                        z: 1, color: content || (@enabled ? @label_color : @disabled_label_color))
         end
       end
     end

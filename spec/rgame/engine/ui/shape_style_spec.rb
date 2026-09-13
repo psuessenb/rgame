@@ -29,6 +29,11 @@ RSpec.describe RGame::Engine::UI::ShapeStyle do
                                                           RGame::Util::Color.new(4, 5, 6)])
     end
 
+    it 'refuses content colours with a state missing, naming it' do
+      content = described_class::CONTENT.except(:focused)
+      expect { described_class.new(content: content) }.to raise_error(KeyError, /focused/)
+    end
+
     it 'has a shared default' do
       expect(described_class::DEFAULT.shape).to eq(:rect)
     end
@@ -121,6 +126,23 @@ RSpec.describe RGame::Engine::UI::ShapeStyle do
                                                             pressed: [7, 8, 9], disabled: [1, 1, 1] })
         expect { states.each { |state| style.draw(renderer, state, 64, 48) } }.to allocate_nothing
       end
+    end
+  end
+
+  describe 'the content colour' do
+    # The pressed fill is gold, and so is IconButton's pressed tint: without a
+    # dark content colour a pressed icon vanishes into its own disc.
+    it 'is dark while pressed, where the fill is gold' do
+      expect(described_class.new.content_color(:pressed)).to eq(RGame::Util::Color.new(46, 34, 24))
+    end
+
+    it "leaves the button's own colour in every other state" do
+      expect(%i[idle focused disabled].map { described_class.new.content_color(it) }).to all(be_nil)
+    end
+
+    it 'takes what it is given, arrays coerced once' do
+      style = described_class.new(content: described_class::CONTENT.merge(idle: [1, 2, 3]))
+      expect(style.content_color(:idle)).to eq(RGame::Util::Color.new(1, 2, 3))
     end
   end
 end

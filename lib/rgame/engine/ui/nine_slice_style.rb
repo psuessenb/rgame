@@ -18,6 +18,12 @@ module RGame
       # the button's local space, drawing at `z: 0` or below so the button's own
       # content, at `z: 1`, stays on top. This one draws at the nine-slice
       # default of 0.
+      #
+      # A style may also answer `content_color(state)`: the colour a button's
+      # label or icon should take over that state's background, or nil to keep
+      # the button's own. Art is the game's, so this one cannot know what reads
+      # on it and always answers nil — PanelButton's dark label is chosen for
+      # the shipped atlas instead.
       class NineSliceStyle
         # The element name drawn for each state, keyed by `idle`, `focused`,
         # `pressed` and `disabled`.
@@ -32,6 +38,8 @@ module RGame
         #
         #   UI::PanelButton::STYLE.with(focused: :my_glow)
         def with(**changes) = self.class.new(**@elements, **changes)
+
+        def content_color(_state) = nil
 
         def draw(renderer, state, width, height)
           renderer.nine_slice(@elements.fetch(state), 0, 0, width, height)

@@ -1,7 +1,7 @@
 # Example assets
 
-Everything the examples draw and play. Eleven files, about 126 KB in total —
-of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
+Everything the examples draw and play. Thirteen files besides this one, about
+120 KB in total — of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
 
 ## Why these files and not the ones in `media/`
 
@@ -178,6 +178,45 @@ change, only the pictures.
 The keyboard glyphs are light and the pad glyphs are the pack's colour versions,
 so both need a dark panel under them — which is what `examples/input_glyphs`
 draws.
+
+### `icons.png` + `icons.json` — Kenney, *Game Icons*, repacked
+
+- Source: <https://kenney.nl/assets/game-icons>, mirrored with the same licence
+  at <https://opengameart.org/content/game-icons>
+- Licence: CC0 1.0 (stated on the page and in the `license.txt` inside the
+  download)
+- Modification: eight 50x50 PNGs were laid side by side into one strip. The
+  pixels are untouched; only the sheet and the descriptor are ours.
+
+Layout, 8 columns x 1 row of 50x50, named in the descriptor's `images` section
+in `snake_case`:
+
+| Column | Name | From the pack |
+|---|---|---|
+| 0 | `home` | `PNG/White/1x/home.png` |
+| 1 | `gear` | `PNG/White/1x/gear.png` |
+| 2 | `save` | `PNG/White/1x/save.png` |
+| 3 | `star` | `PNG/White/1x/star.png` |
+| 4 | `trophy` | `PNG/White/1x/trophy.png` |
+| 5 | `audio_on` | `PNG/White/1x/audioOn.png` |
+| 6 | `music_on` | `PNG/White/1x/musicOn.png` |
+| 7 | `locked` | `PNG/White/1x/locked.png` |
+
+**White, because a tint is a multiply.** The white variant is RGB 255 with the
+shape in alpha only, so `renderer.image(..., color:)` — and `UI::IconButton`'s
+per-state tints — colour it exactly; the black variant would stay black under
+any tint.
+
+**1x, because images sample nearest-neighbour.** A 50-pixel icon in
+`examples/radial_menu`'s 64-pixel slots draws at scale 1 and the chosen one in
+the middle at scale 2, both whole numbers; a 2x icon would need scale 0.5 or
+thereabouts, which drops pixel rows unevenly.
+
+**A strip, because the separate files carry metadata.** Each PNG in the pack
+holds Adobe XMP, so the eight files are 121 KB; the strip is 2 KB. It is a UI
+atlas rather than a sprite sheet so the icons are cut and registered by name —
+`renderer.register_ui_atlas(game.assets.ui_atlas('icons.json'))` makes
+`UI::IconButton.new(image: :home)` draw.
 
 ### `blip.ogg` — Kenney, *Interface Sounds*
 

@@ -86,6 +86,7 @@ class FakeRenderer
 
   def register_ui_atlas(atlas)
     atlas.nine_slices.each { |id, nine_slice| register_nine_slice(id, nine_slice) }
+    atlas.images.each { |id, image| register_image(id, image) }
     self
   end
 

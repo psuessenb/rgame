@@ -1,7 +1,7 @@
 # Plan — the menu is a shell, the button is the look
 
-**Status:** steps 1, 2 and 3 implemented. Steps 3–5 planned in detail at
-`564e708`, step 6 is the fold-back. Every open question is settled. Builds on PR #28
+**Status:** steps 1–4 implemented. Step 5 planned in detail at `564e708`,
+step 6 is the fold-back. Every open question is settled. Builds on PR #28
 (`UI::Menu` with `layout:` and `navigation:`), merged to `main` as `53f5392`.
 
 | | |
@@ -243,6 +243,33 @@ Not up for re-litigation inside this plan.
      grid, which an icon set picked from a pack is not in general.
    - *One PNG per icon, by path.* Needs no code at all; measured at 121 KB for
      eight, doubling `examples/assets`.
+
+9. ~~**Should `IconButton`'s pressed tint and `ShapeStyle`'s pressed fill stop
+   being the same colour?**~~ **Settled: the style says what reads on its fill**
+   (option E), in the prompt that followed step 4's pull request. The question
+   was raised by step 4. Both defaults were `(240, 200, 96)`, so an `IconButton`
+   on a `ShapeStyle` disc drew a gold icon on a gold disc while pressed (1.0:1
+   contrast), and a `TextButton`'s light label on the same fill measured 1.4:1.
+   Five options were rendered in the engine and compared in the "Pressed Icon
+   Contrast" artifact, with the pressed contrast of each:
+
+   | | Option | Icon on disc | Icon, no style | Label on fill |
+   |---|---|---|---|---|
+   | A | leave the defaults | 1.0 | 10.8 | 1.4 |
+   | B | dark pressed tint on `IconButton` | 9.7 | 1.1 | 1.4 |
+   | C | violet pressed fill on `ShapeStyle` | 3.4 | 10.8 | 4.6 |
+   | D | white pressed tint on `IconButton` | 1.6 | 17.2, same as focused | 1.4 |
+   | **E** | **a style names a content colour per state** | **9.7** | **10.8** | **9.7** |
+
+   **Chosen: E.** A style may answer `content_color(state)`. `TextButton`,
+   `OptionButton` and `IconButton` draw their label, caption or icon in it
+   wherever it returns a colour, and use their own colours where it returns
+   `nil` or the style has no such method. `ShapeStyle` takes `content:`, dark
+   `(46, 34, 24)` while pressed by default; `NineSliceStyle` answers `nil`. The
+   style picks the fill, so it is the one place that can pick what reads on it.
+   B, C and D each fixed one case by moving the collision somewhere else. A
+   leaves every game to remember an override, which "Design out misuse" rejects.
+   Landed on step 4's branch; see its note.
 
 ## What this plan does not deliver
 

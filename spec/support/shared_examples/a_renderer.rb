@@ -332,11 +332,23 @@ RSpec.shared_examples 'a renderer' do
       # this is the one asset kind with no path form at all.
       render do |renderer, _image|
         panel = recorder
-        atlas = Struct.new(:nine_slices).new({ panel: panel })
+        atlas = Struct.new(:nine_slices, :images).new({ panel: panel }, {})
         renderer.register_ui_atlas(atlas)
         renderer.nine_slice(:panel, 0, 0, 1, 1)
 
         expect(panel.received.first.first).to eq(:draw)
+      end
+    end
+
+    it 'registers every image of a UI atlas under its own name' do
+      # An icon cut from an atlas is drawn whole, by `image`, so it goes in the
+      # image registry — which is what lets a button name it by Symbol.
+      render do |renderer, image|
+        atlas = Struct.new(:nine_slices, :images).new({}, { home: image, gear: image })
+        renderer.register_ui_atlas(atlas)
+
+        expect { renderer.image(:home, 0, 0) }.not_to raise_error
+        expect { renderer.image(:gear, 0, 0) }.not_to raise_error
       end
     end
 

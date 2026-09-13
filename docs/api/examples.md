@@ -142,12 +142,12 @@ scene and replacing one.
 
 ### radial_menu
 
-Choosing by pointing: eight colours on a ring, focused by the direction of the
-stick or the arrow keys. A stick let go of selects nothing, so pressing A at rest
-never picks what the stick passed over on its way home.
+Choosing by pointing: a quick menu of eight icons on a wheel, focused by the
+direction of the stick or the arrow keys. A stick let go of selects nothing, so
+pressing A at rest never picks what the stick passed over on its way home.
 
-**Uses:** `UI::Menu` with `UI::Ring` and `UI::Pointing`, `ui_radial_x` / `ui_radial_y`,
-`renderer.circle`, `renderer.line`.
+**Uses:** `UI::RadialMenu`, `UI::IconButton` on a disc `UI::ShapeStyle`,
+`ui_radial_x` / `ui_radial_y`, and a UI atlas's `images` (`icons.json`).
 
 ## Audio
 

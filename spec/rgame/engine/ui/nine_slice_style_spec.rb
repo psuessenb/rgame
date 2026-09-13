@@ -53,4 +53,9 @@ RSpec.describe RGame::Engine::UI::NineSliceStyle do
       expect { style.draw(renderer, :hovered, 200, 40) }.to raise_error(KeyError, /hovered/)
     end
   end
+
+  it "names no content colour in any state, leaving the button's own" do
+    style = described_class.new(idle: :a, focused: :b, pressed: :c, disabled: :d)
+    expect(RGame::Engine::UI::Button::STATES.map { style.content_color(it) }).to all(be_nil)
+  end
 end
