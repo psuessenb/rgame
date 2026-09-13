@@ -9,7 +9,7 @@
 # Walk with the arrow keys / WASD / a gamepad. Escape (or B) opens the menu;
 # up and down move the focus, Enter or A activates, Escape closes. It exercises:
 #   - PlayerLayer — one player's own region of the screen, above the world;
-#   - UI::Menu / UI::MenuItem — a focused list, navigated without a pointer;
+#   - UI::Menu / UI::PanelButton — a focused list, navigated without a pointer;
 #   - Node2D#paused — one node stops while the rest of the tree carries on;
 #   - Node2D#draw_children — the seam that hides a subtree without unbuilding it;
 #   - renderer.nine_slice — chrome drawn at any size from one small piece of art.
@@ -81,11 +81,11 @@ class GameMenu < RGame::Engine::Node2D
   def on_add
     column = RGame::Engine::UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT, spacing: SPACING)
     @menu = add_node(RGame::Engine::UI::Menu.new(x: PADDING, y: PADDING, layout: column))
-    @menu.add_item('Resume').on_activated { close }
+    @menu.add(RGame::Engine::UI::PanelButton.new(label: 'Resume')).on_activated { close }
     # Disabled, so the example shows that state of the art — and because saving
     # is `examples/save_load`'s subject rather than this one's.
-    @menu.add_item('Save game', enabled: false)
-    @menu.add_item('Quit').on_activated { root.context.close }
+    @menu.add(RGame::Engine::UI::PanelButton.new(label: 'Save game', enabled: false))
+    @menu.add(RGame::Engine::UI::PanelButton.new(label: 'Quit')).on_activated { root.context.close }
     @menu.paused = true # closed: it neither ticks nor draws until it is opened
   end
 

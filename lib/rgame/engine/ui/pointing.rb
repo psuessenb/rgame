@@ -3,7 +3,7 @@
 module RGame
   module Engine
     module UI
-      # Focus chosen by direction: the item a stick points at is the focused
+      # Focus chosen by direction: the button a stick points at is the focused
       # one. Built for a UI::Ring, which is what makes a radial menu.
       #
       #   wheel = UI::Menu.new(x: 320, y: 240,
@@ -15,13 +15,13 @@ module RGame
       # `move_y` by default and are still separate actions, so a game can move
       # its wheel to the right stick without rebinding how its players walk.
       #
-      # ## The item pointed at is the nearest by angle
+      # ## The button pointed at is the nearest by angle
       #
-      # Each item's centre, seen from the menu's origin, is a direction, and the
-      # stick's direction focuses whichever item's direction is closest. On a
+      # Each button's centre, seen from the menu's origin, is a direction, and the
+      # stick's direction focuses whichever button's direction is closest. On a
       # ring centred on the origin that cuts the circle into one equal sector per
-      # item, centred on it. It asks the layout nothing: the angles come from
-      # where the items actually are, so a ring that starts somewhere else, or a
+      # button, centred on it. It asks the layout nothing: the angles come from
+      # where the buttons actually are, so a ring that starts somewhere else, or a
       # layout that is not a ring, cannot disagree with it.
       #
       # ## Below the dead zone nothing is focused
@@ -37,7 +37,7 @@ module RGame
       # and rescales, and exists to stop a worn stick drifting. It is far too
       # small to decide that a player means a direction.
       #
-      # A disabled item is never focused, so pointing at one selects nothing.
+      # A disabled button is never focused, so pointing at one selects nothing.
       class Pointing < Navigation
         DEAD_ZONE = 0.5
 
@@ -50,9 +50,9 @@ module RGame
           @aim_y = 0.0
         end
 
-        # The index of the item `(x, y)` points at, or nil if the vector is
+        # The index of the button `(x, y)` points at, or nil if the vector is
         # shorter than the dead zone. `y` is positive downwards, like the stick
-        # and the screen. Whether that item is enabled is not this method's
+        # and the screen. Whether that button is enabled is not this method's
         # question.
         def index_at(x, y)
           return nil if Math.hypot(x, y) < @dead_zone
@@ -60,8 +60,8 @@ module RGame
           aim = Math.atan2(y, x)
           nearest = nil
           best = Float::INFINITY
-          menu.items.each_index do |index|
-            gap = angle_between(aim, direction_of(menu.items[index]))
+          menu.buttons.each_index do |index|
+            gap = angle_between(aim, direction_of(menu.buttons[index]))
             next unless gap < best
 
             best = gap
@@ -74,13 +74,13 @@ module RGame
           @aim_x = actions.axis(:ui_radial_x)
           @aim_y = actions.axis(:ui_radial_y)
           index = index_at(@aim_x, @aim_y)
-          menu.focus(index && menu.items[index].enabled? ? index : nil)
+          menu.focus(index && menu.buttons[index].enabled? ? index : nil)
         end
 
         private
 
-        def direction_of(item)
-          Math.atan2(item.y + (item.height / 2.0), item.x + (item.width / 2.0))
+        def direction_of(button)
+          Math.atan2(button.y + (button.height / 2.0), button.x + (button.width / 2.0))
         end
 
         def angle_between(first, second)

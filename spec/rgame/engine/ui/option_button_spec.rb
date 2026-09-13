@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe RGame::Engine::UI::OptionItem do
+RSpec.describe RGame::Engine::UI::OptionButton do
   let(:slices) { described_class::STYLE.values.to_h { |id| [id, recorder] } }
 
   let(:renderer) do
@@ -8,7 +8,7 @@ RSpec.describe RGame::Engine::UI::OptionItem do
   end
   let(:root) { RGame::Engine::Node2D.new }
 
-  # The same stand-in menu_item_spec uses: FakeRenderer hands a nine-slice draw
+  # The same stand-in panel_button_spec uses: FakeRenderer hands a nine-slice draw
   # straight to the registered element, so an element can say it was the one
   # drawn without pretending to be a real nine-slice.
   def recorder
@@ -175,7 +175,7 @@ RSpec.describe RGame::Engine::UI::OptionItem do
       expect(renderer.calls_to(:text).map { |call| call.options[:z] }).to all(be > 0)
     end
 
-    # Inherited whole from MenuItem: a settings row is focused, pressed or
+    # Inherited whole from PanelButton: a settings row is focused, pressed or
     # disabled exactly as any other row is.
     it 'draws the disabled element when it is disabled' do
       option(enabled: false)

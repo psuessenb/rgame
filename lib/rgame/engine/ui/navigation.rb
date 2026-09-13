@@ -8,12 +8,12 @@ module RGame
       #
       #   class Cycling < UI::Navigation
       #     def on_control(actions)
-      #       menu.focus((menu.focused_index.to_i + 1) % menu.items.size) if actions.pressed?(:ui_right)
+      #       menu.focus((menu.focused_index.to_i + 1) % menu.buttons.size) if actions.pressed?(:ui_right)
       #     end
       #   end
       #
-      # A navigation only decides **which item is focused**. Confirming the
-      # focused item, drawing it pressed and firing its signal are the Menu's,
+      # A navigation only decides **which button is focused**. Confirming the
+      # focused button, pressing it and firing its signal are the Menu's,
       # and the same for every navigation, so a subclass cannot forget them.
       #
       # ## One per menu
@@ -37,12 +37,12 @@ module RGame
 
         # Reads this frame's actions and moves focus with `menu.focus`. Called
         # before the Menu handles `ui_confirm`, so a focus change and a confirm on
-        # the same frame activate the newly focused item.
+        # the same frame activate the newly focused button.
         def on_control(actions); end
 
-        # Called after an item is added, for a navigation that has an opinion
+        # Called after a button is added, for a navigation that has an opinion
         # about where focus starts.
-        def on_items_changed; end
+        def on_buttons_changed; end
       end
     end
   end

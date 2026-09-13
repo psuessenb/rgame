@@ -5,13 +5,15 @@ module RGame
     module UI
       # The shipped button: a label on a nine-slice, one element per state.
       #
-      #   resume = menu.add_item('Resume')
+      #   resume = menu.add(UI::PanelButton.new(label: 'Resume'))
       #   resume.on_activated { cutscene.close }
+      #
+      #   menu.add(UI::PanelButton.new(label: 'Save game', enabled: false))
       #
       # It draws `STYLE[state]` — which is why the shipped atlas has an element
       # for each of the four states — and centres its label on top. Focus,
       # pressing and activation are all UI::Button's.
-      class MenuItem < Button
+      class PanelButton < Button
         STYLE = {
           idle: :button_idle,
           focused: :button_focus,
@@ -29,7 +31,7 @@ module RGame
 
         # The panel and its label share this node's slot, so the only ordering
         # question is which of the two goes on top — and `z: 1` says exactly
-        # that, about this item and nothing else in the frame.
+        # that, about this button and nothing else in the frame.
         def on_draw(renderer, _view)
           renderer.nine_slice(@style.fetch(state), 0, 0, width, height)
           renderer.text(@label, label_x(renderer), label_y(renderer),

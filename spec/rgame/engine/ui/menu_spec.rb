@@ -23,8 +23,10 @@ RSpec.describe RGame::Engine::UI::Menu do
     end
   end
 
+  def button(label, **) = RGame::Engine::UI::PanelButton.new(label: label, **)
+
   def build(*labels)
-    labels.each { |label| menu.add_item(label) }
+    labels.each { |label| menu.add(button(label)) }
     root.enter_tree
     menu
   end
@@ -34,6 +36,87 @@ RSpec.describe RGame::Engine::UI::Menu do
   def press(*actions)
     poll(*actions)
     poll # release, so the next press is an edge of its own
+  end
+
+  describe '#add' do
+    it 'returns the button it was given' do
+      given = button('One')
+      expect(menu.add(given)).to be(given)
+    end
+
+    it 'makes the button a child of the menu' do
+      given = menu.add(button('One'))
+      expect(given.parent).to be(menu)
+    end
+
+    # The menu never builds a button, so anything it is handed has to already be
+    # one — and a node that is not would otherwise sit in the list answering
+    # nothing the menu asks.
+    it 'refuses a node that is not a button' do
+      expect { menu.add(RGame::Engine::Node2D.new) }.to raise_error(TypeError, /UI::Button/)
+    end
+
+    it 'refuses a label passed where a button belongs' do
+      expect { menu.add('Resume') }.to raise_error(TypeError, /UI::Button/)
+    end
+
+    it 'adds nothing it refused' do
+      begin
+        menu.add('Resume')
+      rescue TypeError
+        nil
+      end
+      expect([menu.buttons, menu.children]).to eq([[], []])
+    end
+  end
+
+  # A game's own look is a Button subclass with an on_draw, and the menu treats
+  # it exactly as it treats a shipped one.
+  describe 'a button written by the game' do
+    before do
+      swatch = Class.new(RGame::Engine::UI::Button) do
+        def on_draw(renderer, _view)
+          renderer.rect(0, 0, width, height, color: state == :focused ? [255, 255, 255] : [0, 0, 0])
+        end
+      end
+      2.times { menu.add(swatch.new) }
+      root.enter_tree
+    end
+
+    it 'is focused by the navigation' do
+      press(:ui_down)
+      expect(menu.buttons.map(&:state)).to eq(%i[idle focused])
+    end
+
+    it 'is activated on confirm' do
+      fired = false
+      menu.buttons.first.on_activated { fired = true }
+      press(:ui_confirm)
+      expect(fired).to be(true)
+    end
+
+    it 'draws its own look in the slot its layout gave it' do
+      renderer = FakeRenderer.new
+      root.draw(renderer, screen_view)
+      expect(renderer.calls_to(:rect).map { |call| [call.args, call.options[:color]] })
+        .to eq([[[0, 0, 200, 40], [255, 255, 255]], [[0, 0, 200, 40], [0, 0, 0]]])
+    end
+  end
+
+  describe '#focus' do
+    # A focus sound or animation hangs off on_focus_changed, so a menu that
+    # reasserts focus every frame must not replay it.
+    it 'tells only the buttons whose focus changed' do
+      counting = Class.new(RGame::Engine::UI::Button) do
+        def changes = @changes ||= []
+        def on_focus_changed(focused) = changes << focused
+      end
+      buttons = Array.new(3) { menu.add(counting.new) }
+      menu.focus(1)
+      menu.focus(1)
+      menu.focus(2)
+      expect(buttons.map(&:changes)).to eq([[true, false], [true, false], [true]])
+    end
   end
 
   describe 'focus' do
@@ -69,12 +152,12 @@ RSpec.describe RGame::Engine::UI::Menu do
     # Not just `focused` answering: the item has to know, or a menu that has
     # just opened draws with no highlight until the first press.
     it 'tells the first item it has focus before any input' do
-      expect(menu.items.map(&:focused?)).to eq([true, false, false])
+      expect(menu.buttons.map(&:focused?)).to eq([true, false, false])
     end
 
-    it 'tells the items which of them has it' do
+    it 'tells the buttons which of them has it' do
       press(:ui_down)
-      expect(menu.items.map(&:focused?)).to eq([false, true, false])
+      expect(menu.buttons.map(&:focused?)).to eq([false, true, false])
     end
   end
 
@@ -82,7 +165,7 @@ RSpec.describe RGame::Engine::UI::Menu do
     it 'fires the focused item\'s signal on confirm' do
       build('One', 'Two')
       fired = nil
-      menu.items.last.on_activated { fired = 'Two' }
+      menu.buttons.last.on_activated { fired = 'Two' }
       press(:ui_down)
       press(:ui_confirm)
       expect(fired).to eq('Two')
@@ -91,7 +174,7 @@ RSpec.describe RGame::Engine::UI::Menu do
     it 'does not fire an item that is merely focused' do
       build('One')
       fired = false
-      menu.items.first.on_activated { fired = true }
+      menu.buttons.first.on_activated { fired = true }
       press(:ui_down)
       expect(fired).to be(false)
     end
@@ -100,7 +183,7 @@ RSpec.describe RGame::Engine::UI::Menu do
     it 'fires once for a press that is held' do
       build('One')
       count = 0
-      menu.items.first.on_activated { count += 1 }
+      menu.buttons.first.on_activated { count += 1 }
       2.times { poll(:ui_confirm) }
       expect(count).to eq(1)
     end
@@ -108,30 +191,30 @@ RSpec.describe RGame::Engine::UI::Menu do
 
   describe 'disabled items' do
     it 'skips one when moving down' do
-      menu.add_item('One')
-      menu.add_item('Two', enabled: false)
-      menu.add_item('Three')
+      menu.add(button('One'))
+      menu.add(button('Two', enabled: false))
+      menu.add(button('Three'))
       root.enter_tree
       press(:ui_down)
       expect(menu.focused.label).to eq('Three')
     end
 
     it 'does not start on one' do
-      menu.add_item('One', enabled: false)
-      menu.add_item('Two')
+      menu.add(button('One', enabled: false))
+      menu.add(button('Two'))
       root.enter_tree
       expect(menu.focused.label).to eq('Two')
     end
 
     it 'cannot be activated even if focus somehow reaches it' do
-      item = menu.add_item('One', enabled: false)
+      disabled = menu.add(button('One', enabled: false))
       fired = false
-      item.on_activated { fired = true }
-      expect([item.activate, fired]).to eq([nil, false])
+      disabled.on_activated { fired = true }
+      expect([disabled.activate, fired]).to eq([nil, false])
     end
 
     it 'leaves focus alone when nothing can take it' do
-      menu.add_item('One', enabled: false)
+      menu.add(button('One', enabled: false))
       root.enter_tree
       press(:ui_down)
       expect(menu.focused.label).to eq('One')
@@ -141,19 +224,19 @@ RSpec.describe RGame::Engine::UI::Menu do
   describe 'layout' do
     it 'places items where its layout says' do
       build('One', 'Two', 'Three')
-      expect(menu.items.map(&:y)).to eq([0, 48, 96])
+      expect(menu.buttons.map(&:y)).to eq([0, 48, 96])
     end
 
     it 'gives them the size its layout says' do
       build('One')
-      expect([menu.items.first.width, menu.items.first.height]).to eq([200, 40])
+      expect([menu.buttons.first.width, menu.buttons.first.height]).to eq([200, 40])
     end
 
     it 'can be a ring as well as a column' do
       ring = RGame::Engine::UI::Ring.new(radius: 100, item_width: 40, item_height: 20)
       wheel = root.add_node(described_class.new(layout: ring))
-      %w[N E S W].each { |label| wheel.add_item(label) }
-      expect(wheel.items.map { |item| [item.x.round, item.y.round] })
+      %w[N E S W].each { |label| wheel.add(button(label)) }
+      expect(wheel.buttons.map { |item| [item.x.round, item.y.round] })
         .to eq([[-20, -110], [80, -10], [-20, 90], [-120, -10]])
     end
   end
@@ -163,7 +246,7 @@ RSpec.describe RGame::Engine::UI::Menu do
   describe 'navigation' do
     let(:first_enabled) do
       Class.new(RGame::Engine::UI::Navigation) do
-        def on_control(_actions) = menu.focus(menu.items.index(&:enabled?))
+        def on_control(_actions) = menu.focus(menu.buttons.index(&:enabled?))
       end
     end
 
@@ -173,9 +256,9 @@ RSpec.describe RGame::Engine::UI::Menu do
 
     it 'activates what any navigation focused, on confirm' do
       custom = root.add_node(described_class.new(layout: column, navigation: first_enabled.new))
-      custom.add_item('Off', enabled: false)
+      custom.add(button('Off', enabled: false))
       fired = nil
-      custom.add_item('On').on_activated { fired = 'On' }
+      custom.add(button('On')).on_activated { fired = 'On' }
       root.enter_tree
       press(:ui_confirm)
       expect(fired).to eq('On')
@@ -185,7 +268,7 @@ RSpec.describe RGame::Engine::UI::Menu do
       nothing = Class.new(RGame::Engine::UI::Navigation) { def on_control(_actions) = menu.focus(nil) }
       custom = root.add_node(described_class.new(layout: column, navigation: nothing.new))
       fired = false
-      custom.add_item('One').on_activated { fired = true }
+      custom.add(button('One')).on_activated { fired = true }
       root.enter_tree
       press(:ui_confirm)
       expect([custom.focused, fired]).to eq([nil, false])
@@ -206,8 +289,8 @@ RSpec.describe RGame::Engine::UI::Menu do
   # item answers nil.
   describe 'option rows' do
     def build_options
-      menu.add_item('Back')
-      option = menu.add_option('Volume', values: [0, 50, 100], index: 1)
+      menu.add(button('Back'))
+      option = menu.add(RGame::Engine::UI::OptionButton.new(label: 'Volume', values: [0, 50, 100], index: 1))
       root.enter_tree
       option
     end
@@ -234,16 +317,16 @@ RSpec.describe RGame::Engine::UI::Menu do
     end
 
     it 'does nothing when the focused row is a plain item' do
-      menu.add_item('Back')
+      menu.add(button('Back'))
       root.enter_tree
       expect { press(:ui_right) }.not_to raise_error
     end
 
     it 'stacks an option row like any other' do
-      menu.add_item('Back')
-      menu.add_option('Volume', values: [0, 100])
+      menu.add(button('Back'))
+      menu.add(RGame::Engine::UI::OptionButton.new(label: 'Volume', values: [0, 100]))
       root.enter_tree
-      expect(menu.items.map(&:y)).to eq([0, 48])
+      expect(menu.buttons.map(&:y)).to eq([0, 48])
     end
   end
 
@@ -265,7 +348,7 @@ RSpec.describe RGame::Engine::UI::Menu do
       two = root.add_node(RGame::Engine::PlayerLayer.new(player: players[1]))
                 .add_node(described_class.new(layout: column))
       labels = %w[A B]
-      [one, two].each { |m| labels.each { |label| m.add_item(label) } }
+      [one, two].each { |m| labels.each { |label| m.add(button(label)) } }
       root.enter_tree
 
       backend = FakeInputBackend.new

@@ -3,7 +3,7 @@
 RSpec.describe RGame::Engine::UI::Ring do
   let(:ring) { described_class.new(radius: 100, item_width: 40, item_height: 20) }
 
-  def items(count) = Array.new(count) { RGame::Engine::UI::MenuItem.new(label: 'Item') }
+  def items(count) = Array.new(count) { RGame::Engine::UI::PanelButton.new(label: 'Item') }
 
   def centre(item) = [(item.x + 20).round(6), (item.y + 10).round(6)]
 

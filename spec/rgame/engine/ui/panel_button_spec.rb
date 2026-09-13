@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe RGame::Engine::UI::MenuItem do
+RSpec.describe RGame::Engine::UI::PanelButton do
   # FakeRenderer hands a nine-slice draw straight to the registered slice, so
   # that is where the call lands — the same shape a sprite takes through a sheet.
   let(:slices) { described_class::STYLE.values.to_h { |id| [id, recorder] } }
@@ -105,11 +105,11 @@ RSpec.describe RGame::Engine::UI::MenuItem do
     it 'is in the HUD band under a PlayerLayer' do
       player = RGame::Engine::Player.new(id: 0)
       layer = root.add_node(RGame::Engine::PlayerLayer.new(player: player))
-      menu_item = layer.add_node(described_class.new(label: 'Resume', width: 200, height: 40))
+      button = layer.add_node(described_class.new(label: 'Resume', width: 200, height: 40))
       root.enter_tree
-      menu_item.draw(renderer, screen_view)
+      button.draw(renderer, screen_view)
 
-      expect(menu_item.abs_band).to eq(:hud)
+      expect(button.abs_band).to eq(:hud)
     end
   end
 

@@ -10,7 +10,7 @@
 # settings screen **left and right change the value under the cursor**. Quit,
 # run it again, and the settings are where you left them. It exercises:
 #   - Scene::SceneStack — push, pop and replace, and the difference between them;
-#   - UI::OptionItem — a menu row whose value is chosen from a list;
+#   - UI::OptionButton — a menu row whose value is chosen from a list;
 #   - Util::SaveFile holding settings rather than a saved game;
 #   - RGame::Game's fullscreen, scale_mode and audio volume, driven from a menu.
 #
@@ -59,7 +59,7 @@
 # is otherwise a game that cannot be started — and the player's only fix is to
 # find and delete a file nobody told them about.
 #
-# `UI::OptionItem#value=` has the same shape for the same reason: a value the
+# `UI::OptionButton#value=` has the same shape for the same reason: a value the
 # list no longer offers leaves the row where it is instead of raising.
 
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
@@ -90,7 +90,7 @@ class Settings
   # never offer a value the file would reject, or the other way round.
   #
   # The captions are made by `display` once per value, when a row is built,
-  # rather than inside a draw method — see UI::OptionItem, and
+  # rather than inside a draw method — see UI::OptionButton, and
   # Game/NoInterpolationInHotPath for why a label built while drawing is a bug
   # rather than a style.
   #
@@ -202,9 +202,9 @@ class TitleScene < RGame::Engine::Node2D
   def on_add
     menu = add_node(UI::Menu.new(x: MENU_X, y: MENU_Y,
                                  layout: UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT)))
-    menu.add_item('Play').on_activated { root.swap(:play) }
-    menu.add_item('Settings').on_activated { root.show(:settings) }
-    menu.add_item('Quit').on_activated { root.context.close }
+    menu.add(UI::PanelButton.new(label: 'Play')).on_activated { root.swap(:play) }
+    menu.add(UI::PanelButton.new(label: 'Settings')).on_activated { root.show(:settings) }
+    menu.add(UI::PanelButton.new(label: 'Quit')).on_activated { root.context.close }
   end
 
   def on_draw(renderer, _view)
@@ -235,7 +235,7 @@ class SettingsScene < RGame::Engine::Node2D
     @menu = add_node(UI::Menu.new(x: PANEL_X + PADDING, y: PANEL_Y + PADDING + 30,
                                   layout: UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT)))
     Settings::ROWS.each { |key, row| option(key, row) }
-    @menu.add_item('Back').on_activated { root.back }
+    @menu.add(UI::PanelButton.new(label: 'Back')).on_activated { root.back }
   end
 
   # Escape does what Back does, because that is what every player will try
@@ -257,9 +257,9 @@ class SettingsScene < RGame::Engine::Node2D
   # against, and starting on whatever is currently in force.
   def option(key, row)
     values = row.fetch(:values)
-    item = @menu.add_option(row.fetch(:label), values: values, display: row.fetch(:display),
-                                               index: values.index(@settings[key]) || 0)
-    item.on_changed { |value| change(key, value) }
+    button = @menu.add(UI::OptionButton.new(label: row.fetch(:label), values: values, display: row.fetch(:display),
+                                            index: values.index(@settings[key]) || 0))
+    button.on_changed { |value| change(key, value) }
   end
 
   def change(key, value)
