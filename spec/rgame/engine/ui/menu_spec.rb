@@ -543,6 +543,22 @@ RSpec.describe RGame::Engine::UI::Menu do
       expect([custom.focused, fired]).to eq([nil, false])
     end
 
+    # Measured at 28,596 objects over 200,000 ticks before Stepping#step was a
+    # while loop: a `return` from inside `times` allocated once per step.
+    it 'steps focus without allocating' do
+      build('One', 'Two', 'Three')
+      held = %i[ui_up ui_down ui_left ui_right ui_confirm].to_h { |name| [name, false] }
+      previous = held.dup
+      actions = RGame::Engine::Actions.new(held: held, axes: {}, prev_held: previous)
+      tick = 0
+      expect do
+        tick += 1
+        previous[:ui_down] = held[:ui_down]
+        held[:ui_down] = (tick % 7).zero?
+        root.control(actions)
+      end.to allocate_nothing.over(2_100)
+    end
+
     # A navigation may keep state about the menu it drives, so two menus
     # sharing one would share that state without either knowing.
     it 'refuses to drive a second menu' do
