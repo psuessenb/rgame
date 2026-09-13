@@ -11,8 +11,8 @@
 #   - PlayerLayer — one player's own region of the screen, above the world;
 #   - UI::PanelMenu / UI::PanelButton — a focused list on a panel that sizes
 #     itself to the buttons, navigated without a pointer;
+#   - UI::Menu#open / #close — a menu that is built once and shown when wanted;
 #   - Node2D#paused — one node stops while the rest of the tree carries on;
-#   - Node2D#draw_children — the seam that hides a subtree without unbuilding it;
 #   - renderer.nine_slice — chrome drawn at any size from one small piece of art.
 #
 # ## The thing to watch
@@ -75,7 +75,6 @@ class GameMenu < RGame::Engine::Node2D
   def initialize(hero:, **)
     super(**)
     @hero = hero
-    @open = false
   end
 
   def on_add
@@ -88,34 +87,26 @@ class GameMenu < RGame::Engine::Node2D
     # is `examples/save_load`'s subject rather than this one's.
     @menu.add(RGame::Engine::UI::PanelButton.new(label: 'Save game', enabled: false))
     @menu.add(RGame::Engine::UI::PanelButton.new(label: 'Quit')).on_activated { root.context.close }
-    @menu.paused = true # closed: it neither ticks nor draws until it is opened
+    @menu.close # built once, shown when Escape asks for it
   end
 
-  # This node is never paused, which is how the menu below it can be reopened:
-  # pausing the Menu stops the Menu, not its parent.
+  # A closed menu draws nothing and takes no focus or confirm, but its parent
+  # still reads Escape, which is what opens it again.
   def on_control(actions)
     toggle if actions.pressed?(:ui_cancel)
   end
 
-  # The Menu is a child, so skipping the child pass is what hides it. Pausing
-  # alone would stop it ticking and leave it on screen.
-  def draw_children(renderer, view)
-    super if @open
-  end
-
   private
 
-  def toggle = @open ? close : open
+  def toggle = @menu.open? ? close : open
 
   def open
-    @open = true
-    @menu.paused = false
+    @menu.open
     @hero.paused = true # only the hero: the villagers walk on
   end
 
   def close
-    @open = false
-    @menu.paused = true
+    @menu.close
     @hero.paused = false
   end
 end

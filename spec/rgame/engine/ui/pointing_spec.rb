@@ -197,6 +197,119 @@ RSpec.describe RGame::Engine::UI::Pointing do
     end
   end
 
+  describe 'grace' do
+    let(:pointing) { described_class.new(grace: 0.15) }
+
+    # One tick: control, then update, as the loop runs them.
+    def tick(x, y, dt: 0.05)
+      poll(x, y)
+      root.update(dt)
+    end
+
+    before { build('N', 'E', 'S', 'W') }
+
+    it 'is 0.0 when built with nothing said and no trigger, so focus clears at once' do
+      plain = described_class.new
+      root.add_node(RGame::Engine::UI::Menu.new(layout: ring, navigation: plain))
+      expect(plain.grace).to eq(0.0)
+    end
+
+    it 'is GRACE when built with nothing said on a menu with a trigger, which is chosen by letting go' do
+      held = described_class.new
+      RGame::Engine::UI::Menu.new(layout: ring, navigation: held, trigger: :quick)
+      expect(held.grace).to eq(described_class::GRACE)
+    end
+
+    it 'keeps an explicit value' do
+      expect(pointing.grace).to eq(0.15)
+    end
+
+    it 'keeps an explicit 0.0 on a menu with a trigger' do
+      none = described_class.new(grace: 0.0)
+      RGame::Engine::UI::Menu.new(layout: ring, navigation: none, trigger: :quick)
+      expect(none.grace).to eq(0.0)
+    end
+
+    it 'keeps focus while the stick has been at rest for less than the window' do
+      tick(1.0, 0.0)
+      2.times { tick(0.0, 0.0) } # at rest for 0.0, then 0.05 s, when control reads it
+      poll(0.0, 0.0)             # 0.1 s
+      expect(label).to eq('E')
+    end
+
+    it 'clears focus once the window has run out' do
+      tick(1.0, 0.0)
+      4.times { tick(0.0, 0.0) } # 0.2 s at rest by the next control
+      poll(0.0, 0.0)
+      expect(menu.focused).to be_nil
+    end
+
+    it 'counts time only in update, so reading the stick again and again runs nothing out' do
+      tick(1.0, 0.0)
+      20.times { poll(0.0, 0.0) }
+      expect(label).to eq('E')
+    end
+
+    it 'starts a full window again after the stick leaves the dead zone' do
+      tick(1.0, 0.0)
+      2.times { tick(0.0, 0.0) } # 0.1 s used
+      tick(0.0, 1.0)             # pointing at S restarts it
+      2.times { tick(0.0, 0.0) }
+      poll(0.0, 0.0)             # 0.1 s into the new window, not 0.2 s into the old one
+      expect(label).to eq('S')
+    end
+
+    it 'does not run while the menu is paused' do
+      tick(1.0, 0.0)
+      tick(0.0, 0.0)
+      menu.paused = true
+      root.update(10.0)
+      menu.paused = false
+      poll(0.0, 0.0)
+      expect(label).to eq('E')
+    end
+
+    it 'does not keep focus on a disabled button the stick moves on to' do
+      menu.buttons[2].enabled = false
+      tick(1.0, 0.0)
+      poll(0.0, 1.0) # S, disabled
+      expect(menu.focused).to be_nil
+    end
+
+    it 'lets a confirm inside the window activate what was pointed at' do
+      chosen = []
+      menu.buttons[1].on_activated { chosen << :east }
+      tick(1.0, 0.0)
+      tick(0.0, 0.0)
+      poll(0.0, 0.0, confirm: true)
+      poll(0.0, 0.0)
+      expect(chosen).to eq([:east])
+    end
+
+    it 'costs nothing, pointing and resting in turn' do
+      held = { ui_confirm: false }
+      axes = { ui_radial_x: 0.0, ui_radial_y: 0.0 }
+      actions = RGame::Engine::Actions.new(held: held, axes: axes, prev_held: held.dup)
+      count = 0
+      expect do
+        count += 1
+        axes[:ui_radial_x] = (count % 13) < 6 ? 1.0 : 0.0
+        root.control(actions)
+        root.update(0.016)
+      end.to allocate_nothing.over(2_100).after_warmup(50)
+    end
+  end
+
+  describe 'on_opened' do
+    before { build('N', 'E') }
+
+    it 'forgets the aim and focuses nothing' do
+      poll(1.0, 0.0)
+      pointing.on_opened
+      expect([pointing.aim_x, pointing.aim_y, menu.focused]).to eq([0.0, 0.0, nil])
+    end
+  end
+
   it 'selects nothing with no items at all' do
     root.enter_tree
     poll(1.0, 0.0, confirm: true)

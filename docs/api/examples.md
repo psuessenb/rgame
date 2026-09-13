@@ -128,8 +128,8 @@ count on screen as the argument.
 A menu that opens over a world which keeps running: pausing is a property of a
 node, so only the hero stops while the villagers walk on.
 
-**Uses:** `PlayerLayer`, `UI::Menu`, `UI::PanelButton`, `Node2D#paused`,
-`Node2D#draw_children`, `renderer.nine_slice`.
+**Uses:** `PlayerLayer`, `UI::PanelMenu`, `UI::PanelButton`, `UI::Menu#open` /
+`#close`, `Node2D#paused`, `renderer.nine_slice`.
 
 ### menu_navigation
 
@@ -148,6 +148,16 @@ pressing A at rest never picks what the stick passed over on its way home.
 
 **Uses:** `UI::RadialMenu`, `UI::IconButton` on a disc `UI::ShapeStyle`,
 `ui_radial_x` / `ui_radial_y`, and a UI atlas's `images` (`icons.json`).
+
+### quick_wheel
+
+The same eight icons on a wheel held open by Tab or the left shoulder button and
+chosen by letting it go. A stick let go of a moment before the button still
+chooses, a stick left at rest chooses nothing, and the world drifts at a quarter
+speed while the wheel is open.
+
+**Uses:** `UI::RadialMenu` with `trigger:`, `UI::Pointing`'s grace window,
+`UI::Menu#on_opened` / `#on_closed`, `InputMap.default.merge`.
 
 ### skill_bar
 

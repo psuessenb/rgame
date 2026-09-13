@@ -34,6 +34,9 @@
 # uses; a RadialMenu is a UI::Menu handed a UI::Ring where that one has a
 # UI::Column, and UI::Pointing where that one keeps the default UI::Stepping.
 #
+# `examples/quick_wheel` is the other common style of the same wheel: closed until
+# a button is held, and chosen by letting that button go.
+#
 # ## Letting go selects nothing
 #
 # The lighter disc around the middle is the **dead zone**, drawn to scale: the

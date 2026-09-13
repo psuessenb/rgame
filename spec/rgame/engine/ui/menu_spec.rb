@@ -434,6 +434,88 @@ RSpec.describe RGame::Engine::UI::Menu do
     end
   end
 
+  describe 'open and closed' do
+    let(:renderer) { FakeRenderer.new }
+
+    def fired_on(target)
+      [].tap { |log| target.on_activated { log << :fired } }
+    end
+
+    def draw
+      renderer.clear
+      root.draw(renderer, screen_view)
+      renderer.calls
+    end
+
+    it 'starts open with no trigger' do
+      expect(build('One').open?).to be(true)
+    end
+
+    it 'draws nothing while closed, and draws again once opened' do
+      menu.add(RGame::Engine::UI::TextButton.new(label: 'One', style: nil))
+      root.enter_tree
+      menu.close
+      closed = draw.size
+      menu.open
+      expect([closed, draw.map(&:name)]).to eq([0, [:text]])
+    end
+
+    it 'moves no focus while closed' do
+      build('One', 'Two').close
+      press(:ui_down)
+      expect(menu.focused_index).to eq(0)
+    end
+
+    it 'activates nothing on confirm while closed, and does again once opened' do
+      build('One')
+      fired = fired_on(menu.buttons.first)
+      menu.close
+      press(:ui_confirm)
+      menu.open
+      press(:ui_confirm)
+      expect(fired).to eq([:fired])
+    end
+
+    it 'presses no hotkey while closed' do
+      fired = fired_on(menu.add(button('One', hotkey: :skill1)))
+      root.enter_tree
+      poll
+      menu.close
+      press(:skill1)
+      expect(fired).to be_empty
+    end
+
+    it 'emits on_opened and on_closed once per change, and closed with no button' do
+      build('One')
+      events = []
+      menu.on_opened { events << :opened }
+      menu.on_closed { |button| events << [:closed, button] }
+      2.times { menu.close }
+      2.times { menu.open }
+      expect(events).to eq([[:closed, nil], :opened])
+    end
+
+    it 'keeps focus where it was across a close and an open' do
+      build('One', 'Two')
+      press(:ui_down)
+      menu.close
+      menu.open
+      expect(menu.focused_index).to eq(1)
+    end
+
+    # Closing is not pausing: a :press button's feedback runs out while shut.
+    it 'still updates its buttons while closed' do
+      menu.add(button('One', activate_on: :press))
+      first = build('Two').buttons.first
+      poll(:ui_confirm)
+      poll
+      menu.close
+      root.update(1.0)
+      menu.open
+      expect(first.state).to eq(:focused)
+    end
+  end
+
   describe 'disabled items' do
     it 'skips one when moving down' do
       menu.add(button('One'))

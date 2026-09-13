@@ -19,6 +19,10 @@ module RGame
       # `backdrop:`, `dead_zone_color:` and `pointer:` are colours, and `nil`
       # omits that part. The buttons are children, so they draw over all three.
       #
+      # `trigger:` makes it the wheel held open by a button — see UI::Menu, "A
+      # menu held open by an action" — and `grace:` is its UI::Pointing's, which
+      # already defaults to `Pointing::GRACE` on a menu with a trigger.
+      #
       # It builds its own layout and navigation, so passing `layout:` or
       # `navigation:` raises ArgumentError: forwarded on, either would silently
       # replace the ring or the pointing this class is made of. A wheel stepped
@@ -34,10 +38,11 @@ module RGame
         attr_reader :padding, :backdrop, :dead_zone_color, :pointer
 
         def initialize(radius:, button_width:, button_height: button_width, dead_zone: Pointing::DEAD_ZONE,
-                       padding: 16, backdrop: BACKDROP, dead_zone_color: DEAD_ZONE, pointer: POINTER, **options)
+                       grace: nil, padding: 16, backdrop: BACKDROP, dead_zone_color: DEAD_ZONE, pointer: POINTER,
+                       **options)
           refuse_preset_keywords(options)
           super(layout: Ring.new(radius: radius, item_width: button_width, item_height: button_height),
-                navigation: Pointing.new(dead_zone: dead_zone), **options)
+                navigation: Pointing.new(dead_zone: dead_zone, grace: grace), **options)
           @padding = padding
           @backdrop = backdrop&.then { Util::Color.coerce(it) }
           @dead_zone_color = dead_zone_color&.then { Util::Color.coerce(it) }

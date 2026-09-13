@@ -58,6 +58,34 @@ module RGame
       #   wheel = UI::Menu.new(x: 320, y: 240, navigation: UI::Pointing.new,
       #                        layout: UI::Ring.new(radius: 120, item_width: 96, item_height: 30))
       #
+      # ## Open and closed
+      #
+      # A closed menu draws nothing — neither its own backdrop nor its buttons —
+      # and its input moves no focus and presses nothing. A menu starts open;
+      # `close` and `open` are what a pause menu toggles. Closing is not
+      # pausing: a closed menu still ticks, so a button's pressed feedback runs
+      # out while it is shut instead of waiting to be seen again.
+      #
+      # ## A menu held open by an action
+      #
+      # `trigger:` names an action that opens the menu while it is held. Letting
+      # it go activates the button focused at that moment, if any, and closes —
+      # the console quick wheel, held open by a shoulder button:
+      #
+      #   wheel = UI::RadialMenu.new(x: 320, y: 240, radius: 150, button_width: 64, trigger: :quick_menu)
+      #
+      # A menu with a trigger starts closed, and `ui_confirm` activates nothing
+      # on it: letting go is the only way to choose. Opening only happens on a
+      # press this menu saw start, like every other press, so a trigger already
+      # down when the menu appears opens nothing; and a trigger that comes up
+      # while the menu is paused closes it without choosing. `open` raises on
+      # such a menu, because a menu opened by hand would wait for the release of
+      # a press it never saw; `close` does not, and is how a game cancels a held
+      # wheel.
+      #
+      # What the world does while the menu is open is the game's to decide, from
+      # `on_opened` and `on_closed`. The menu only says when.
+      #
       # ## Focus is per player, and that costs nothing
       #
       # A Menu inside a PlayerLayer inherits that player as its `input_owner`,
@@ -73,21 +101,31 @@ module RGame
       # by its layout, and that is the whole of its layout story — see
       # docs/api/ui.md, "What this is not".
       class Menu < Node2D
-        attr_reader :buttons, :focused_index, :layout, :navigation
+        ClosedSignal = Signal.define(:button)
+
+        signal :on_opened
+        # Emits the button a trigger's release activated, or nil.
+        signal :on_closed, ClosedSignal
+
+        # `trigger` is an action name, or nil.
+        attr_reader :buttons, :focused_index, :layout, :navigation, :trigger
 
         # The rectangle the layout says encloses every button, relative to the
         # menu — what a subclass draws its backdrop round. Copied on each `add`,
         # so reading them on a draw path costs nothing.
         attr_reader :bounds_x, :bounds_y, :bounds_width, :bounds_height
 
-        def initialize(layout:, navigation: Stepping.new, **)
+        def initialize(layout:, navigation: Stepping.new, trigger: nil, **)
           super(**)
           @layout = layout
           @navigation = navigation
+          @trigger = trigger
+          @open = trigger.nil?
           @buttons = []
           @bounds_x = @bounds_y = @bounds_width = @bounds_height = 0
           @focused_index = nil
           @confirm_seen_up = false
+          @trigger_seen_up = false
           @hotkey_seen_up = []
           navigation&.attach(self)
         end
@@ -123,18 +161,82 @@ module RGame
           current&.focused = true
         end
 
-        # Navigation first, so a focus change and a confirm on the same frame
-        # confirm the newly focused button; then every hotkey; then confirm.
+        def open? = @open
+
+        # Opens the menu, lets the navigation forget the last opening, and emits
+        # `on_opened`. Nothing if already open. Raises on a menu with a trigger,
+        # which only its trigger opens.
+        def open
+          raise "this menu is opened by holding #{@trigger.inspect}, not by #open" if @trigger
+          return if @open
+
+          open_now
+        end
+
+        # Closes the menu without activating anything and emits `on_closed` with
+        # nil. Nothing if already closed.
+        def close
+          close_with(nil) if @open
+        end
+
+        # Draws nothing while closed.
+        def draw(renderer, view)
+          super if @open
+        end
+
+        # A trigger's press first, so an opening's first frame already reads the
+        # stick; then navigation, so a focus change and a confirm on the same
+        # frame confirm the newly focused button; then every hotkey; then
+        # confirm, on a menu with no trigger; and a trigger's release last, so it
+        # chooses what this frame focused.
         def on_control(actions)
+          trigger_edge = control_trigger(actions) if @trigger
+          open_now if trigger_edge == :press
+          return unless @open
+
           @navigation&.on_control(actions)
           press_hotkeys(actions)
+          @trigger ? release_trigger(trigger_edge) : confirm(actions)
+        end
+
+        # Lets the navigation count time, then does what every node does.
+        def update(dt)
+          @navigation&.update(dt) unless @paused
+          super
+        end
+
+        private
+
+        def open_now
+          @open = true
+          @navigation&.on_opened
+          on_opened_signal.emit
+        end
+
+        def close_with(button)
+          @open = false
+          on_closed_signal.emit(button)
+        end
+
+        def control_trigger(actions)
+          edge = press_edge(actions, @trigger, @trigger_seen_up)
+          @trigger_seen_up = !actions.held?(@trigger)
+          edge
+        end
+
+        def release_trigger(edge)
+          case edge
+          when :release then close_with(focused&.activate)
+          when :missed_release then close_with(nil)
+          end
+        end
+
+        def confirm(actions)
           edge = press_edge(actions, :ui_confirm, @confirm_seen_up)
           @confirm_seen_up = !actions.held?(:ui_confirm)
           button = focused
           pass_edge(button, edge, :confirm) if button
         end
-
-        private
 
         def press_hotkeys(actions)
           index = 0

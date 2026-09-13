@@ -98,18 +98,59 @@ What that adds up to:
    and globally in WoW and Godot's project settings. Nobody configures it per
    container.
 
-## A wheel held open by a button — *not yet researched*
+## A wheel held open by a button
 
 Hold a button to open a wheel, point, release to choose (see
 [01-current-state.md](01-current-state.md#a-wheel-held-open-by-a-button-cannot-be-built--measured-at-9c6eb00-after-step-4)).
-Added after step 4, with the behaviour decided in a prompt rather than from
-sources — see the README's decisions. None of the three toolkits above ships a
-radial menu (below), so the prior art is in games and in marketplace plugins,
-not engines. **Step 6's re-plan owes this section**: how shipped games and the
-common Unity/Unreal radial-menu packages treat a stick that springs back just
-before the release, a release with the stick centred, and a confirm pressed
-while holding — cited, and compared with the decisions already taken, most of
-all the length of the grace window.
+Researched while re-planning step 6. None of the three toolkits above ships a
+radial menu (below), so the prior art is an input layer, plugins and players'
+reports, and it is thinner than the rest of this file: **nobody documents a grace
+window**, and the number chosen is reasoned from the one measurement found.
+
+- **Steam Input** ships radial menus as a controller-configuration feature, with
+  four activation modes: *Button Click* (fires on press), *Button Release* (fires
+  on the release of a press), *Touch Release / Modeshift End* (fires "when input
+  stops (such as releasing a button or lifting your finger off a
+  trackpad/joystick)"), and *Always*. The third is the held wheel. Its advice for
+  a safe exit is a centre button bound to nothing — a release at rest choosing
+  nothing, which is the decision already taken here.
+  ([Steamworks: Radial Menus](https://partner.steamgames.com/doc/features/steam_controller/radial_menus))
+- **The spring-back failure is real and reported.** A Steam Deck thread on
+  exactly that mode: "when you naturally release after selecting an option, the
+  stick falls back towards the centre before your finger leaves the touch sensor,
+  therefore meaning 9/10 times you end up accidentally selecting the middle
+  option." The workaround offered was more dead zone, and moving the menu to a
+  held layer — a separate button whose release ends it, which is this plan's
+  trigger. ([Steam Community](https://steamcommunity.com/app/1675200/discussions/1/3466100515593206443/))
+  Steam's centre is a *selectable* slot; ours is "nothing", so the same physics
+  here cancels rather than mis-chooses. That is the case the grace window exists
+  for.
+- **Unreal plugins** (*Generic Radial Menu*, *Automatic Radial Menus*) expose a
+  gamepad dead zone and report "no selection" (−1) while the stick is inside it.
+  Neither documents holding the last highlight.
+  ([Generic Radial Menu docs](https://genericradialmenus.readthedocs.io/en/master/GettingStarted/Setting_up_Input/),
+  [Automatic Radial Menus](https://samcarey.dev/docs/unreal/automaticradialmenus/))
+- **Snapback** — a released stick overshooting centre into the opposite
+  direction — is measured at about **50 ms** before the spring settles, and games
+  hide it by ignoring stick input for "milliseconds after a stick release".
+  ([Gamepad Tester](https://gamepadtester.pro/snapback-explained-why-your-stick-flicks-back-and-how-to-fix-it/),
+  [PhobGCC snapback filter](https://phobgcc.com/General_Info/Snapback_Filter.html))
+
+**Compared with the decisions taken.** The release-at-rest-chooses-nothing rule
+matches Steam's recommended setup. A confirm while holding: no source addresses
+it, and Steam's *Touch Release* mode has no second button at all, which agrees
+with confirm activating nothing. **The grace window: 0.15 s.** The stick's
+return is one or two frames and its snapback about 50 ms; the window must cover
+those plus the gap between a thumb leaving the stick and a finger leaving the
+shoulder, which the same gesture keeps short. 0.15 s is nine frames at 60 Hz —
+three times the snapback — and still short enough that a deliberate "centre, then
+let go" to cancel does not feel like waiting. It is a constant, `Pointing::GRACE`,
+and a keyword.
+
+**What none of them gives us.** A snapback overshoot long enough to cross our
+0.5 dead zone would focus the *opposite* button for a frame or two, and the grace
+window does not cover that — it only delays the dead zone. Not addressed in step
+6; recorded as a limit in `docs/api/ui.md`.
 
 ## What they agree on
 

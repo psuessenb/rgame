@@ -142,6 +142,9 @@ def draw_children(renderer, view)
 end
 ```
 
+A `UI::Menu` does not need that: `menu.close` hides it and stops its input, and
+`menu.open` brings it back. `examples/game_menu` is the shape.
+
 **Draw from `view`, not from `WIDTH`/`HEIGHT`.** Those constants are what the
 window *opens* at. Under fullscreen the view is the screen; under a scale mode
 it is the logical size. `view.width` is the only honest answer to "how big is

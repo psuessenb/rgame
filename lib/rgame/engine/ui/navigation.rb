@@ -43,6 +43,14 @@ module RGame
         # Called after a button is added, for a navigation that has an opinion
         # about where focus starts.
         def on_buttons_changed; end
+
+        # Called by Menu on each update while the menu is not paused, for a
+        # navigation that counts time. Time enters here and nowhere else.
+        def update(dt); end
+
+        # Called by Menu when it opens, for a navigation holding state that
+        # belongs to one opening — UI::Pointing forgets its aim.
+        def on_opened; end
       end
     end
   end

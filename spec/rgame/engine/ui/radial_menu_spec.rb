@@ -53,6 +53,18 @@ RSpec.describe RGame::Engine::UI::RadialMenu do
       expect([layout.item_width, layout.item_height]).to eq([64, 64])
     end
 
+    it 'gives its pointing no grace window when always open' do
+      expect(wheel.navigation.grace).to eq(0.0)
+    end
+
+    it 'gives its pointing the default grace window when held open by a trigger' do
+      expect(wheel(trigger: :quick).navigation.grace).to eq(RGame::Engine::UI::Pointing::GRACE)
+    end
+
+    it 'passes grace: on to its pointing' do
+      expect(wheel(trigger: :quick, grace: 0.3).navigation.grace).to eq(0.3)
+    end
+
     it 'focuses by pointing, with the given dead zone' do
       navigation = wheel(dead_zone: 0.3).navigation
       expect([navigation.class, navigation.dead_zone]).to eq([RGame::Engine::UI::Pointing, 0.3])
