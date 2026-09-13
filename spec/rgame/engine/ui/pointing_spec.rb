@@ -214,8 +214,20 @@ RSpec.describe RGame::Engine::UI::Pointing do
       expect(plain.grace).to eq(0.0)
     end
 
+    it 'is GRACE when built with nothing said on a menu with a trigger, which is chosen by letting go' do
+      held = described_class.new
+      RGame::Engine::UI::Menu.new(layout: ring, navigation: held, trigger: :quick)
+      expect(held.grace).to eq(described_class::GRACE)
+    end
+
     it 'keeps an explicit value' do
       expect(pointing.grace).to eq(0.15)
+    end
+
+    it 'keeps an explicit 0.0 on a menu with a trigger' do
+      none = described_class.new(grace: 0.0)
+      RGame::Engine::UI::Menu.new(layout: ring, navigation: none, trigger: :quick)
+      expect(none.grace).to eq(0.0)
     end
 
     it 'keeps focus while the stick has been at rest for less than the window' do

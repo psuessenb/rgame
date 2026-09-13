@@ -59,8 +59,8 @@ module RGame
         # default. nil before then when none was passed.
         attr_reader :dead_zone, :grace, :aim_x, :aim_y
 
-        # `grace: nil` resolves when the menu is built: 0.0, focus clearing the
-        # moment the stick is at rest.
+        # `grace: nil` resolves when the menu is built: GRACE on a menu with a
+        # trigger, which is chosen by letting go, and 0.0 on any other.
         def initialize(dead_zone: DEAD_ZONE, grace: nil)
           super()
           @dead_zone = dead_zone
@@ -73,7 +73,7 @@ module RGame
 
         def attach(menu)
           super
-          @grace = 0.0 if @grace.nil?
+          @grace = menu.trigger ? GRACE : 0.0 if @grace.nil?
         end
 
         # The index of the button `(x, y)` points at, or nil if the vector is
