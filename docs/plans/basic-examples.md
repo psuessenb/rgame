@@ -1152,6 +1152,11 @@ Before writing it, read `lib/rgame/engine/i18n.rb` properly: its header still
 compares it to `EventDispatcher`, which went with Gosu, so it has not been read
 against the current engine in a while.
 
+Read "Text measurement for the engine layer" in `docs/plans/possible-todos.md`
+too, before building the screen: this example is that entry's trigger. A menu's
+button slots are fixed-size until the engine layer can measure text, and a
+translated label is the first thing that will not fit one.
+
 **Assets:** none — the shipped font covers both languages if the second one is
 German or another Latin-script language. A non-Latin script would need a font the
 engine does not ship, and that is a different example.

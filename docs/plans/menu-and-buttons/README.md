@@ -36,11 +36,13 @@ this is five steps rather than one:
    without focus (a hotkey, as a WoW action bar or Xenoblade's arts are
    triggered). The second does not exist.
 
-One requirement conflicts with a constraint and the constraint wins: buttons
-**cannot size themselves from their text**, because text width is only
-measurable through a renderer, and the renderer only exists during `draw` —
-after layout. Layouts keep assigning every button the same slot. See
-[01-current-state.md](01-current-state.md#text-width-is-a-draw-time-fact).
+One thing stays out of scope: buttons **sized to their text**. Measuring text
+outside `draw` already works in Core, but the engine layer — where buttons and
+layouts live — has no way to reach it, and giving it one is C work in both
+extensions. It is recorded in `docs/plans/possible-todos.md` with its options,
+triggered by the next look at i18n. Until then layouts keep assigning every
+button the same slot. See
+[01-current-state.md](01-current-state.md#the-engine-layer-cannot-measure-text).
 
 ## The requirement, verbatim
 
@@ -193,7 +195,8 @@ Not up for re-litigation inside this plan.
 
 ## What this plan does not deliver
 
-- Buttons sized to their content, and any layout that flows (see verdict).
+- Buttons sized to their content, and any layout that flows (see verdict, and
+  "Text measurement for the engine layer" in `docs/plans/possible-todos.md`).
 - Grids and two-dimensional navigation — an inventory grid is the obvious next
   layout, and step 4's axis parameter is the seam it would extend.
 - Cooldown sweeps on skill buttons (needs an arc primitive, which the renderer

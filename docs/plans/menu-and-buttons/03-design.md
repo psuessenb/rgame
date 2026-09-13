@@ -196,5 +196,9 @@ menu to find it.
 
 ### Buttons sized by their content
 
-Rejected by measurement, not preference: text width is only knowable at draw
-time. See [01-current-state.md](01-current-state.md#text-width-is-a-draw-time-fact).
+Not rejected — deferred. It needs the engine layer to measure text, which it
+cannot today although Core can, and that is C work across both extensions. See
+[01-current-state.md](01-current-state.md#the-engine-layer-cannot-measure-text)
+and "Text measurement for the engine layer" in `docs/plans/possible-todos.md`.
+When it lands, the layouts here grow a way to ask a button for its preferred size,
+and a label change has to re-arrange the menu.

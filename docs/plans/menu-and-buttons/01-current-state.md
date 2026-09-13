@@ -162,13 +162,30 @@ Unreal's `DownAndUp` rule (see
 [02-prior-art.md](02-prior-art.md#when-a-press-activates--press-release-or-both))
 is the fix, and it holds whichever moment activation happens at.
 
-## Text width is a draw-time fact
+## The engine layer cannot measure text
 
-`renderer.text_width` is the only way to measure a string, and the renderer is
-only handed to `draw`. Layout happens on `add`, long before. Every measuring call
-site today (`MenuItem#label_x`, `OptionItem#draw_value`, `DebugOverlay`) is inside
-a draw method for that reason. So a layout **cannot** size a text button to its
-label, and uniform slots stay. A game that wants wider buttons sets a wider slot.
+Measuring is **not** tied to `draw`. `RGame::Core::Font#text_width` works at any
+time, deliberately — its comment says so, because "laying out a menu happens
+while updating" — and in C `rgame_font_measure` touches no GL: it walks
+`rgame_typeface` (`ext/rgame_core/text/font.c`), which is pure.
+
+What stops a button or a layout using it is the layering, twice over:
+
+1. Engine code may not name or hold a `Core` type, so a `Core::Font` is out of
+   reach.
+2. A `Core::Font` cannot exist without an `app`, because it also owns the GPU
+   glyph atlas.
+
+So the only measuring object engine code is ever handed is the renderer, and
+only inside `draw`. Every measuring call site in the engine today
+(`MenuItem#label_x`, `OptionItem#draw_value`, `DebugOverlay`) is in a draw method
+for that reason, and layout happens on `add`, long before. Within this plan a
+layout therefore cannot size a text button to its label, and uniform slots stay;
+a game that wants wider buttons sets a wider slot.
+
+That is a gap, not a law. Closing it is recorded, with the options, as "Text
+measurement for the engine layer" in `docs/plans/possible-todos.md`, triggered by
+the next look at i18n — where labels change length with the language.
 
 ## What the renderer already offers
 
