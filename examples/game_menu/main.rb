@@ -9,7 +9,8 @@
 # Walk with the arrow keys / WASD / a gamepad. Escape (or B) opens the menu;
 # up and down move the focus, Enter or A activates, Escape closes. It exercises:
 #   - PlayerLayer — one player's own region of the screen, above the world;
-#   - UI::Menu / UI::PanelButton — a focused list, navigated without a pointer;
+#   - UI::PanelMenu / UI::PanelButton — a focused list on a panel that sizes
+#     itself to the buttons, navigated without a pointer;
 #   - Node2D#paused — one node stops while the rest of the tree carries on;
 #   - Node2D#draw_children — the seam that hides a subtree without unbuilding it;
 #   - renderer.nine_slice — chrome drawn at any size from one small piece of art.
@@ -59,7 +60,7 @@ class Walker < RGame::Engine::Node2D
   end
 end
 
-# The pause menu: a panel, a Menu inside it, and the hero it stops.
+# The pause menu: a PanelMenu, and the hero it stops.
 #
 # It lives inside a PlayerLayer, so three things are already true without this
 # class arranging any of them — it draws in that player's region, its
@@ -70,7 +71,6 @@ class GameMenu < RGame::Engine::Node2D
   ITEM_WIDTH  = 180
   ITEM_HEIGHT = 34
   SPACING     = 8
-  ITEM_COUNT  = 3
 
   def initialize(hero:, **)
     super(**)
@@ -80,7 +80,9 @@ class GameMenu < RGame::Engine::Node2D
 
   def on_add
     column = RGame::Engine::UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT, spacing: SPACING)
-    @menu = add_node(RGame::Engine::UI::Menu.new(x: PADDING, y: PADDING, layout: column))
+    # The panel reaches PADDING beyond the buttons, so placing the menu PADDING
+    # in puts the panel's corner at this node's origin.
+    @menu = add_node(RGame::Engine::UI::PanelMenu.new(x: PADDING, y: PADDING, padding: PADDING, layout: column))
     @menu.add(RGame::Engine::UI::PanelButton.new(label: 'Resume')).on_activated { close }
     # Disabled, so the example shows that state of the art — and because saving
     # is `examples/save_load`'s subject rather than this one's.
@@ -93,15 +95,6 @@ class GameMenu < RGame::Engine::Node2D
   # pausing the Menu stops the Menu, not its parent.
   def on_control(actions)
     toggle if actions.pressed?(:ui_cancel)
-  end
-
-  def on_draw(renderer, _view)
-    return unless @open
-
-    # No z and no band: this is under a PlayerLayer, so it is already in that
-    # player's HUD band, and the Menu is a child so it draws over this panel by
-    # being drawn after it.
-    renderer.nine_slice(:panel, 0, 0, panel_width, panel_height)
   end
 
   # The Menu is a child, so skipping the child pass is what hides it. Pausing
@@ -125,9 +118,6 @@ class GameMenu < RGame::Engine::Node2D
     @menu.paused = true
     @hero.paused = false
   end
-
-  def panel_width = ITEM_WIDTH + (PADDING * 2)
-  def panel_height = (ITEM_HEIGHT * ITEM_COUNT) + (SPACING * (ITEM_COUNT - 1)) + (PADDING * 2)
 end
 
 class Scene < RGame::Engine::Node2D
