@@ -63,7 +63,9 @@ index, not the argument.
   release** by default, and a button built with `activate_on: :press` activates
   on the way down and stays drawn pressed for `Button::PRESS_FEEDBACK`. A menu
   acts only on a press it saw start, so a submenu opened by a press no longer
-  activates from that same press.
+  activates from that same press. A layout answers `bounds(buttons)` and a menu
+  exposes it as `bounds_x`/`bounds_y`/`bounds_width`/`bounds_height`;
+  `UI::PanelMenu` draws a nine-slice round them, so a panel grows with its menu.
   See [docs/api/ui.md](docs/api/ui.md).
 
 ### Fixed

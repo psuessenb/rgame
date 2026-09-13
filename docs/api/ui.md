@@ -46,7 +46,7 @@ with one of each:
 
 | | Answers | Shipped |
 |---|---|---|
-| `layout:` | where each button goes, and its size | [`Column`](#layouts-column-and-ring), [`Ring`](#layouts-column-and-ring) |
+| `layout:` | where each button goes, its size, and the [bounds](#layouts-column-and-ring) of them all | [`Column`](#layouts-column-and-ring), [`Ring`](#layouts-column-and-ring) |
 | `navigation:` | which button this frame's input focuses | [`Stepping`](#stepping) (the default), [`Pointing`](#pointing) |
 
 ```ruby
@@ -181,6 +181,38 @@ independent, and neither menu mentions players at all.**
 
 That is not a feature of the menu; it is [ownership
 routing](scene_graph.md#who-a-node-answers-to) doing its job one layer down.
+
+### `RGame::Engine::UI::PanelMenu`
+
+A `Menu` that draws its own backdrop: one nine-slice round its buttons, grown by
+`padding` on every side.
+
+```ruby
+UI = RGame::Engine::UI
+
+column = UI::Column.new(item_width: 180, item_height: 34)
+menu = layer.add_node(UI::PanelMenu.new(x: 56, y: 56, layout: column))
+menu.add(UI::PanelButton.new(label: 'Resume')).on_activated { close }
+menu.add(UI::PanelButton.new(label: 'Quit')).on_activated   { quit }
+```
+
+| | |
+|---|---|
+| `panel:` | the nine-slice id to draw (default `:panel`) |
+| `padding:` | how far the panel reaches beyond the bounds on each side (default 16) |
+
+**The panel is sized from the menu's bounds**, which its layout recomputes on
+every `add` — so a button added later grows the panel, and nothing has to be kept
+equal to the number of buttons.
+
+**The menu's origin is still the layout's.** With a `Column` that is the first
+button's top-left corner, and the panel starts `padding` above and to the left of
+it: to put a panel's corner at (40, 40), place the menu at (40 + padding,
+40 + padding). The buttons are the menu's children, so they draw over the panel
+with no `z`.
+
+A backdrop of any other kind is the same shape: subclass `Menu` and draw it in
+`on_draw` from `bounds_x`, `bounds_y`, `bounds_width` and `bounds_height`.
 
 ### `RGame::Engine::UI::Button`
 
