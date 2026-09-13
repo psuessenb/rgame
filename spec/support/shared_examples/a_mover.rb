@@ -9,6 +9,9 @@
 # its own spec and still be the one thing in a scene that walks through a wall, so the
 # promise is checked here rather than trusted to the base class.
 #
+# The heading group states the other half they share: whichever way the step goes, the
+# mover's heading points that way.
+#
 # ## What the host must provide
 #
 #   it_behaves_like 'a mover' do
@@ -162,6 +165,40 @@ RSpec.shared_examples 'a mover' do
       run_ticks(14)
       expect { mover.update(mover_dt) }.to allocate_nothing
       expect(started).to eq(1)
+    end
+  end
+
+  # What an AnimatedSprite faces by. Compared by sign, because how long the heading is along
+  # each axis is each mover's own business; which way it points is not.
+  describe 'its heading' do
+    def heading_signs(mover) = [mover.heading_x <=> 0, mover.heading_y <=> 0]
+
+    [[1, 0], [0, 1], [1, 1]].each do |heading|
+      it "points the way its step goes, for #{heading.inspect}" do
+        mover = enter(build_mover(blocked_by: [], heading: heading))
+        run_ticks(1)
+        expect(heading_signs(mover)).to eq(heading)
+      end
+    end
+
+    it 'stays within -1..1 on each axis' do
+      mover = enter(build_mover(blocked_by: [], heading: [1, 1]))
+      run_ticks(1)
+      expect([mover.heading_x, mover.heading_y]).to all(be_between(-1.0, 1.0))
+    end
+
+    it 'still heads into the wall it is pressed against' do
+      mount_collision_world
+      add_box
+      mover = enter(build_mover(blocked_by: [:wall]))
+      run_ticks(60)
+      expect(heading_signs(mover)).to eq([1, 0])
+    end
+
+    it 'allocates nothing to read' do
+      mover = enter(build_mover(blocked_by: []))
+      run_ticks(1)
+      expect { mover.heading_x + mover.heading_y }.to allocate_nothing
     end
   end
 

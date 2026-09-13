@@ -160,6 +160,13 @@ module RGame
           @stopped_by.each_ended { on_unblocked_signal.emit(it) }
         end
 
+        # Which way this mover's step is going, each axis in -1..1, and 0, 0 when it is not
+        # trying to move. A facing rather than a velocity: a mover pressed into a wall still
+        # heads into it, so an AnimatedSprite keeps walking against the wall rather than
+        # standing. Each subclass answers from what its step is computed out of.
+        def heading_x = 0.0
+        def heading_y = 0.0
+
         # Whether `name` is one of the things this mover declared it may be stopped by.
         def blocked_by?(name) = @blocked_by.include?(name)
 

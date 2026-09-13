@@ -66,7 +66,12 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
       expect([node.x, node.y]).to eq([100.0, 100.0])
     end
 
-    it 'exposes the intent as the facing for the animator' do
+    it 'exposes the intent as its heading, which the animator faces by' do
+      body.set_intent(-1.0, 0.5)
+      expect([body.heading_x, body.heading_y]).to eq([-1.0, 0.5])
+    end
+
+    it 'keeps the intent readable as move_x and move_y' do
       body.set_intent(-1.0, 1.0)
       expect([body.move_x, body.move_y]).to eq([-1.0, 1.0])
     end
@@ -122,6 +127,12 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
       body.set_intent(1.0, 0.0)
       body.update(0.2)
       expect(node.x).to eq(104.0) # the box right edge rests on the wall at 128
+    end
+
+    it 'heads where it intends, not where it got, while the wall stops it' do
+      body.set_intent(1.0, 0.0)
+      3.times { body.update(0.2) }
+      expect([body.heading_x, body.heading_y]).to eq([1.0, 0.0])
     end
 
     it 'moves freely where nothing is solid' do

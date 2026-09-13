@@ -21,7 +21,17 @@ module RGame
           @spin = spin
         end
 
+        # The velocity scaled so its larger axis is ±1 — the direction, without the square
+        # root a unit vector would cost.
+        def heading_x = scale_to_heading(@vx)
+        def heading_y = scale_to_heading(@vy)
+
         private
+
+        def scale_to_heading(axis)
+          larger = [@vx.abs, @vy.abs].max
+          larger.zero? ? 0.0 : axis / larger.to_f
+        end
 
         def take_step(dt)
           apply_move(@vx * dt, @vy * dt)
