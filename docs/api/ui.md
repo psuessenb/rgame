@@ -469,11 +469,6 @@ legitimately wants.
 A look that differs from a shipped button only in what sits behind the label is
 not a subclass at all: it is a [style](#styles) handed to a `TextButton`.
 
-**Why the look is the button's, and not the menu's.** Godot's `BaseButton`,
-Unity's `Selectable` and Unreal's `UCommonButtonBase` all keep state and look on
-the button, and none puts the look on the container. Three alternatives were
-weighed here and turned down, and are worth knowing before proposing one again:
-
 - **A `look:` on the menu**, applied to every button in it. One argument would
   restyle a whole menu, but a menu could then never mix an icon button with a
   text button, the look would have to know how to draw every kind of button it
@@ -518,12 +513,6 @@ A `:press` button closed within `PRESS_FEEDBACK` of being let go keeps the rest
 of its feedback, and shows it when reopened. A menu covered by a pushed scene is
 not controlled either, so it keeps drawing whatever state it was in when it was
 covered.
-
-The opposite gap is refused on purpose: a key held when the menu was last
-controlled, let go while it was not, and pressed again on the frame it comes
-back, does not press. The menu never saw the key up, and treating a press it
-cannot vouch for as no press is the safe answer — for confirm, hotkeys and a
-trigger alike.
 
 #### Hotkeys
 
@@ -581,9 +570,7 @@ style.content_color(state)   # optional: the colour content takes on this state'
 ```
 
 The button holds its style and calls it before drawing its own content; the menu
-never sees it. It is what Godot calls a per-state stylebox and Unity a
-selectable's transition — configuration of one button, which is what makes it
-different from a look set on a whole menu (see [above](#a-button-of-your-own)). **A style draws at `z: 0` or below**, because the button's label or
+never sees it. **A style draws at `z: 0` or below**, because the button's label or
 icon is drawn at `z: 1` — and shapes default to `z: 50`, so a style that left
 its `z` out would cover them.
 
