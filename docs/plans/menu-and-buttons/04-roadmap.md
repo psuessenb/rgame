@@ -4,8 +4,8 @@
 `564e708`; step 6 is the fold-back. The rough step 3 was split in two when it was
 re-planned — the buttons (3), and the radial menu with the asset work it needs
 (4) — and the old step 4 became step 5. Before starting step 5, re-read the
-landed notes of 3 and 4: **5f needs open question 9 in the README decided** —
-an `IconButton` on a `ShapeStyle` disc vanishes while pressed.
+landed notes of 3 and 4: styles now name a content colour (README question 9),
+which 5f's captioned icons on a disc draw in while pressed.
 
 ```
 #28 ─→ 1 Button + Menu#add ─→ 2 bounds + PanelMenu ─→ 3 styles, TextButton, IconButton ─┬─→ 4 RadialMenu, atlas images, icon wheel ─┬─→ 6 fold back
@@ -728,7 +728,8 @@ read as the tint colours and not as white.
 **What this step does not deliver.** A wheel centred on the view (the example's
 existing limit), captions on a wheel, and any icon beyond the eight.
 
-**Landed.** Five commits, one per sub-step, on branch `menu-radial`.
+**Landed.** Five commits, one per sub-step, on branch `menu-radial`, and a sixth
+that settles README question 9, which this step raised.
 
 - **4a** `UI::RadialMenu` (`lib/rgame/engine/ui/radial_menu.rb`) as sketched,
   with `padding`, `backdrop`, `dead_zone_color`, `pointer` and `backdrop_radius`
@@ -744,16 +745,21 @@ existing limit), captions on a wheel, and any icon beyond the eight.
   table, `IconButton`s on one disc `ShapeStyle`, a `ChosenIcon` node drawing the
   choice at scale 2, `icons.json` registered in place of `ui.json`, and default
   `padding` (backdrop radius 198.0 again, from 182 + 16).
+- **Question 9** `content_color(state)` on styles: `ShapeStyle` takes
+  `content:` (`ShapeStyle::CONTENT`, dark while pressed), `NineSliceStyle`
+  answers `nil`, and `TextButton` (so `OptionButton`) and `IconButton` draw in
+  it where it names a colour. The example's dark-tint workaround is gone.
 - **4e** `docs/api/ui.md` (`RadialMenu`; `Pointing` and `IconButton` pointing at
-  it; "Getting the art on screen" gains images), `docs/api/assets.md` (the
+  it; "Getting the art on screen" gains images; "Styles" gains the content
+  colour), `docs/api/assets.md` (the
   `images` section), `docs/api/examples.md`, the CHANGELOG (an "Added" entry for
   atlas images, `RadialMenu` in the `UI::Menu` entry), and asset **D** in
   `docs/plans/basic-examples.md`.
 
-Suites: `rake spec` **1628 examples, 0 failures** (1585 before);
-`spec/rgame/engine/ui/` **245** (226 before); `rake spec:core` **375, 0
-failures**, rerun because 4b changes Core. RuboCop clean on all 13 changed Ruby
-files. No C changed, so `make test` was not rerun.
+Suites: `rake spec` **1645 examples, 0 failures** (1585 before; 1628 before
+question 9); `spec/rgame/engine/ui/` **262** (226 before); `rake spec:core` **375, 0
+failures**, rerun because 4b changes Core. RuboCop clean on every changed Ruby
+file. No C changed, so `make test` was not rerun.
 
 4a's invariant, `--seed 1`, fresh `RGAME_SAVE_DIR`, against `main`: every budget
 of both scripts (35, 65, 100, 130, 180 and 600; pad 38, 60, 112) reports the same
@@ -785,19 +791,28 @@ and the element name on a refused image rectangle (2).
 
 **Looked at by hand**, as the Verify block asked: a screenshot under Xvfb with
 Enter held on Trophies. The white art does read as the tints — grey at rest,
-white focused, dim on Locked, the chosen gear doubled and sharp in the middle.
+white focused, dim on Locked, the chosen gear doubled and sharp in the middle —
+and, after question 9, the pressed trophy is dark on the gold disc with nothing
+overridden by the example. Question 9's change leaves every driven report above
+byte-identical (colours are keywords, which the report does not keep), and was
+mutation-checked: dropping the content colour from `TextButton` fails 2
+examples, from the icon's tint 1, from the caption 1, the `respond_to?` guard 12
+(forced true) and 2 (true for any style), and the coercion in `ShapeStyle` 3.
+Drawing pressed on a content-naming style allocates nothing, for both buttons.
 
 What the sketch got wrong:
 
-- **A pressed icon on a `ShapeStyle` disc is invisible.** `ShapeStyle::COLORS`
-  fills a pressed shape with `(240, 200, 96)` and `IconButton::TINTS` tints a
-  pressed image the same gold, so the shipped defaults together draw gold on gold
-  for as long as the button is held. No report can show it — a tint and a fill
-  are keywords — which is exactly why the step asked for a look. The example
-  passes `tints: IconButton::TINTS.merge(pressed: Color.new(46, 34, 24))`, and
-  `ui.md` says to. Whether the *defaults* should change instead is a decision on
-  step 3's API, left open as README question 9; **5f builds the same pairing**
-  and should not start until it is decided.
+- **A pressed icon on a `ShapeStyle` disc was invisible, and step 3 had shipped
+  it.** `ShapeStyle::COLORS` filled a pressed shape with `(240, 200, 96)` and
+  `IconButton::TINTS` tinted a pressed image the same gold. Rendering the
+  candidate fixes showed a second case nobody had measured: `TextButton`'s light
+  label on that fill is 1.4:1. No report can show either, because a tint and a
+  fill are keywords, which is exactly why the step asked for a look. The first
+  fix was a dark tint passed by the example. It was replaced by README question
+  9's answer, content colours on styles, which changes step 3's API. **For 5f:** a
+  caption on a disc also takes the content colour, and part of a caption at the
+  bottom of a round slot sits outside the disc, over the ground, so the pressed
+  caption is worth a look there.
 - **"The same per-frame counts" held; the report did not.** Moving the swatch to
   a node of its own adds a layer per frame and makes it the last `circle`, as the
   table above shows. The sketch's padding plan held: `padding: 0` gave 198 in 4a,

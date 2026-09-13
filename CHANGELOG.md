@@ -86,7 +86,9 @@ index, not the argument.
   `NineSliceStyle` — read its names with `STYLE.elements` and vary it with
   `STYLE.with(...)` — and its label colours are `label_color:` and
   `disabled_label_color:`. `UI::IconButton` draws an image tinted and scaled by
-  state, with an optional caption. Drawing a `PanelButton` or `OptionButton` no
+  state, with an optional caption. A style may answer `content_color(state)`, and
+  the buttons draw their label or icon in it: `ShapeStyle`'s `content:` defaults
+  to dark while pressed, so a pressed label or icon reads on the gold fill. Drawing a `PanelButton` or `OptionButton` no
   longer allocates. `UI::RadialMenu` is a `Menu` that builds its own `Ring` and
   `Pointing` and draws the wheel's backdrop, dead zone and pointer.
   See [docs/api/ui.md](docs/api/ui.md).

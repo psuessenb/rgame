@@ -345,16 +345,26 @@ covered.
 ### Styles
 
 What sits behind a button's content, per state. A style is anything answering
-one method, in the button's local space:
+one method, in the button's local space, and optionally a second:
 
 ```ruby
 style.draw(renderer, state, width, height)
+style.content_color(state)   # optional: the colour content takes on this state's fill, or nil
 ```
 
 The button holds its style and calls it before drawing its own content; the menu
 never sees it. **A style draws at `z: 0` or below**, because the button's label or
 icon is drawn at `z: 1` — and shapes default to `z: 50`, so a style that left
-its `z` out would cover them. Two ship.
+its `z` out would cover them.
+
+**What reads on a fill is the style's to say.** A style that answers
+`content_color(state)` sets the colour of the button's label or icon in any state
+where it returns a colour. `TextButton`, `OptionButton` and `IconButton` all
+follow it, and fall back to their own `label_color:` or `tints:` wherever it
+returns `nil`, and for a style without the method. The style is the object that
+picks the fill, so it is the only one that can pick what shows up on it. A
+`ShapeStyle`'s pressed fill is the same gold as `IconButton`'s pressed tint, so
+without this a pressed icon on a disc would vanish. Two styles ship.
 
 `UI::NineSliceStyle` stretches one element of a UI atlas over the slot:
 
@@ -369,6 +379,7 @@ style.with(focused: :plank_glow)   # a copy with one element replaced
 | `idle:`, `focused:`, `pressed:`, `disabled:` | the element drawn in each state; all four required |
 | `elements` | the four, as a Hash keyed by state |
 | `with(**changes)` | a copy with some elements replaced |
+| `content_color(state)` | always `nil`: the art is the game's, so the button's own colours are chosen for it — `PanelButton`'s dark label for the shipped atlas |
 
 `UI::ShapeStyle` draws a rectangle or a disc, and needs nothing registered:
 
@@ -385,6 +396,7 @@ flat = UI::ShapeStyle.new(colors: UI::ShapeStyle::COLORS.merge(idle: nil), outli
 | `colors:` | the fill per state, a `Color` or `[r, g, b]`; `nil` draws no fill in that state; a state missing raises `KeyError` |
 | `outline:` | drawn under the fill while focused or pressed; `nil` for none |
 | `border:` | how far the fill is inset (default 3) |
+| `content:` | the colour content takes over each state's fill, or `nil` for the button's own (default `ShapeStyle::CONTENT`: dark `(46, 34, 24)` while pressed, `nil` otherwise); a state missing raises `KeyError` |
 
 The fill is inset by `border` in every state and the outline is the whole shape
 under it, so a button does not change size as its state changes — focus
@@ -413,7 +425,9 @@ menu.add(RGame::Engine::UI::TextButton.new(label: 'Continue', style: Underline.n
 ```
 
 The colours are `Color`s built once rather than `[r, g, b]` literals, which the
-renderer would turn into a new `Color` on every draw.
+renderer would turn into a new `Color` on every draw. `Underline` has no
+`content_color`, so the label keeps the button's own colour in every state. A
+style that fills behind the label should say what reads on that fill.
 
 ### `RGame::Engine::UI::TextButton`
 
@@ -432,7 +446,7 @@ menu.add(UI::TextButton.new(label: 'Quit', style: nil))
 |---|---|
 | `label:` | required, because it is drawn |
 | `style:` | a [style](#styles); `UI::ShapeStyle::DEFAULT` unless given, `nil` for the label alone |
-| `label_color:`, `disabled_label_color:` | a `Color` or `[r, g, b]`; defaults `TextButton::LABEL_COLOR` and `DISABLED_LABEL_COLOR` |
+| `label_color:`, `disabled_label_color:` | a `Color` or `[r, g, b]`; defaults `TextButton::LABEL_COLOR` and `DISABLED_LABEL_COLOR`; a style's [content colour](#styles) takes precedence in the states it names |
 
 The style draws first and the label over it at `z: 1`. A subclass that draws
 more than a label overrides the private `draw_foreground(renderer)` rather than
@@ -534,11 +548,10 @@ some rows of pixels and not others; focus shows through the tint and the style
 instead. `tints:` and `scales:` must name every state, and raise `KeyError` when
 the button is built if one is missing.
 
-**On a `ShapeStyle`, darken the pressed tint.** A pressed shape is filled with
-`ShapeStyle::COLORS[:pressed]`, the same gold as `IconButton::TINTS[:pressed]`,
-so the defaults together draw a gold icon on a gold disc and the icon vanishes
-while held. `examples/radial_menu` passes
-`tints: UI::IconButton::TINTS.merge(pressed: RGame::Util::Color.new(46, 34, 24))`.
+On a style that names a content colour, that colour replaces both the tint and
+the caption colour in the states it names. On the default `ShapeStyle` that
+means pressed only, where a dark icon shows on the gold fill. With no style, the
+pressed tint stays gold, which reads on a dark ground.
 
 `image: nil` draws the caption alone, for an entry whose art is not in yet. An id
 that nothing was registered under is not that case: it raises on the first draw,
