@@ -40,7 +40,9 @@ module RGame
       # moves focus away while still holding cancels. `:press` activates on the
       # way down — what a skill bar wants — and keeps the button drawn pressed
       # for at least `PRESS_FEEDBACK` seconds, because a tap is otherwise a
-      # single frame of pressed that nobody sees.
+      # single frame of pressed that nobody sees. Its 0.1 s is Unity's, which
+      # holds a submitted button pressed that long; Godot holds a shortcut's for
+      # 0.2 s.
       #
       # Either way a button only acts on a press it saw start. A press whose
       # release it did not see — its menu was paused or covered in between — is

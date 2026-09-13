@@ -75,11 +75,15 @@ You can learn more about how it works in the [documentation](docs/api/README.md)
 | [scroll_map](docs/api/examples.md#scroll_map) | A Tiled map larger than the window, scrolled by a camera |
 | [collision](docs/api/examples.md#collision) | Two shapes touching, and who gets told about it |
 | [collision_tiles](docs/api/examples.md#collision_tiles) | Walking into a wall of solid tiles, and sliding along it |
+| [jump_topdown](docs/api/examples.md#jump_topdown) | A hop in a top-down view, where the sprite rises and the feet stay on the ground |
 | [signals](docs/api/examples.md#signals) | A node announcing something happened, to nobody in particular |
 | [timer](docs/api/examples.md#timer) | Things that happen on a clock, with nothing pressed |
 | [pooling](docs/api/examples.md#pooling) | Spawning a lot of things without allocating them |
 | [game_menu](docs/api/examples.md#game_menu) | A menu over a world that keeps running |
 | [menu_navigation](docs/api/examples.md#menu_navigation) | Several screens, and settings that persist |
+| [radial_menu](docs/api/examples.md#radial_menu) | A wheel of icons, chosen by the direction of the stick |
+| [quick_wheel](docs/api/examples.md#quick_wheel) | A wheel held open by a button and chosen by letting go |
+| [skill_bar](docs/api/examples.md#skill_bar) | A row of tools, stepped through or fired by hotkeys |
 | [sound](docs/api/examples.md#sound) | A sound effect fired by a button, and the seam it travels |
 | [music](docs/api/examples.md#music) | A looping track, started and stopped |
 | [split_screen](docs/api/examples.md#split_screen) | Two players in one world, drawn once per viewport |

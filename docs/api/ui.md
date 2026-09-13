@@ -469,6 +469,18 @@ legitimately wants.
 A look that differs from a shipped button only in what sits behind the label is
 not a subclass at all: it is a [style](#styles) handed to a `TextButton`.
 
+- **A `look:` on the menu**, applied to every button in it. One argument would
+  restyle a whole menu, but a menu could then never mix an icon button with a
+  text button, the look would have to know how to draw every kind of button it
+  might meet, and a game's own button would be a look *and* a menu subclass.
+- **A factory on the menu**, `add_item(label, class:)`. Every button class takes
+  different arguments — an image, a list of values, a style — so the factory
+  either grows all of them or forwards them blindly and reports a typo from a
+  class the caller never named.
+- **A button as a component** on a plain node. A button has a position, a size
+  and children that draw over it, and is itself a child of the menu: it is a
+  node, and as a component the menu would have to look it up on a sibling.
+
 #### When a press activates
 
 `ui_confirm` reaches the focused button as a press and a release, and
@@ -813,6 +825,15 @@ column, a row or a ring, and that is the whole of its layout — no grid, no nes
 scrolling lists, and no general answer to how UI should be laid out. There is no text entry, and no
 continuous control: `OptionButton` covers a setting with a handful of values, and
 anything wanting a free-moving slider needs a control that does not exist yet.
+
+**Buttons are not sized to their text**, and cannot be yet. A layout places
+buttons when they are added, and engine code has nothing to measure a label with
+at that point: the renderer, the only measuring object a node is handed, arrives
+in `draw`, and `RGame::Core::Font#text_width` — which works at any time — is a
+Core type the engine layer may not hold. So every slot is the size its layout
+was built with, and a longer label needs a wider slot. What it would take is
+"Text measurement for the engine layer" in `docs/plans/possible-todos.md`; when
+it lands, a layout also has to re-arrange its menu whenever a label changes.
 
 The package this replaces positioned everything absolutely and hit-tested a
 mouse cursor. It was deleted with the mouse, none of it is a reference, and its
