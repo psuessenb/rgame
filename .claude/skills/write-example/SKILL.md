@@ -195,7 +195,7 @@ game.renderer.register_ui_atlas(game.assets.ui_atlas('ui.json'))
 ```
 
 This is worth checking against the plan before believing "this example needs no
-assets" — `UI::MenuItem` draws nine-slices, which made `examples/game_menu`
+assets" — `UI::PanelButton` draws nine-slices, which made `examples/game_menu`
 asset-gated when the plan said it was not.
 
 ---

@@ -56,6 +56,14 @@ index, not the argument.
   the new universal actions `ui_radial_x` / `ui_radial_y`. A subclass of
   `UI::Navigation` is a third way to move focus. `Menu#focus_by` is now
   `Stepping#step`, and `Menu#focused` can be `nil`.
+  **A menu is handed its buttons**: `Menu#add(button)` replaces `add_item`,
+  `add_option` and `style:`, and `items` is now `buttons`. `UI::Button` is the
+  base a game subclasses for a look of its own; `MenuItem` is now
+  `UI::PanelButton` and `OptionItem` `UI::OptionButton`. **Confirm activates on
+  release** by default, and a button built with `activate_on: :press` activates
+  on the way down and stays drawn pressed for `Button::PRESS_FEEDBACK`. A menu
+  acts only on a press it saw start, so a submenu opened by a press no longer
+  activates from that same press.
   See [docs/api/ui.md](docs/api/ui.md).
 
 ### Fixed
