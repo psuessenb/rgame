@@ -1,33 +1,36 @@
 # frozen_string_literal: true
 
-# Radial menu — choosing by pointing rather than by stepping through a list.
+# Radial menu — a quick menu of icons, chosen by pointing rather than by stepping
+# through a list.
 #
 # Run it:
 #
 #   ruby examples/radial_menu/main.rb
 #
-# Point the left stick at a colour and press A. On a keyboard, hold the arrow
-# keys — two at once for a diagonal — and press Enter or Space. The chosen
-# colour fills the middle of the wheel. It exercises:
+# Point the left stick at an icon and press A. On a keyboard, hold the arrow
+# keys — two at once for a diagonal — and press Enter or Space. The chosen icon
+# appears, doubled, in the middle of the wheel. It exercises:
 #   - UI::RadialMenu — a UI::Menu that builds its own UI::Ring and
 #     UI::Pointing, and draws the backdrop, the dead zone and the pointer;
-#   - UI::Ring — its layout, items spaced round a circle;
-#   - UI::Pointing — its navigation, focus chosen by the direction of a stick;
+#   - UI::IconButton — each entry, a picture tinted by its state;
+#   - UI::ShapeStyle — the disc behind every icon, outlined while focused;
 #   - `ui_radial_x` / `ui_radial_y` — the two axes Pointing reads, from the
-#     universal set every InputMap carries, so nothing here declares an action.
+#     universal set every InputMap carries, so nothing here declares an action;
+#   - a UI atlas's `images` — the eight icons, cut from one strip and registered
+#     by name in one call.
 #
 # ## The direction is the selection
 #
 # A list menu moves focus *relative* to where it already is: down means "the
 # next one". A stick is bad at that and good at pointing, so here nothing is
-# stepped through at all. Whichever item lies closest to the direction the stick
-# points in is focused, which on a ring cuts the circle into one sector per item,
-# centred on it. Eight items is the number that makes a keyboard a first-class
-# input too: the arrow keys, alone and in pairs, produce exactly eight
-# directions, one per colour.
+# stepped through at all. Whichever button lies closest to the direction the
+# stick points in is focused, which on a ring cuts the circle into one sector per
+# button, centred on it. Eight buttons is the number that makes a keyboard a
+# first-class input too: the arrow keys, alone and in pairs, produce exactly
+# eight directions, one per icon.
 #
 # That is the only thing that makes this a wheel rather than a list. The menu,
-# its items and what confirming does are the same classes `examples/game_menu`
+# its buttons and what confirming does are the same classes `examples/game_menu`
 # uses; a RadialMenu is a UI::Menu handed a UI::Ring where that one has a
 # UI::Column, and UI::Pointing where that one keeps the default UI::Stepping.
 #
@@ -35,7 +38,7 @@
 #
 # The lighter disc around the middle is the **dead zone**, drawn to scale: the
 # pointer's tip inside it means the stick is not deflected far enough to mean
-# anything, and no item is focused. That is what makes the obvious mistake
+# anything, and no button is focused. That is what makes the obvious mistake
 # impossible — a player who lets the stick spring back and then presses A has
 # not asked for whatever the stick passed over on its way home, and gets nothing.
 #
@@ -46,13 +49,22 @@
 # **Locked** is disabled, and pointing at it focuses nothing — the same rule a
 # list follows by skipping it.
 #
+# ## White art, coloured by a tint
+#
+# The icons are white, and IconButton draws each one multiplied by a colour for
+# its state — grey at rest, white while focused, dark on the gold of a pressed
+# disc, dim while disabled — so one picture serves all four looks. Dark art would
+# take none of them. The icons are 50 pixels in 64-pixel slots and the chosen one
+# is drawn at scale 2: images sample nearest-neighbour, so only a whole-number
+# scale stays sharp.
+#
 # ## What this example does not solve
 #
-# Icons. A real wheel usually shows pictures rather than words, and the
-# mechanism is exactly the same with a sprite where a label is. The wheel is also
-# at a fixed position rather than centred on the view, because its items are
-# placed when they are added and the view's size only exists at draw time — the
-# same limit `examples/game_menu` names.
+# Captions. The icons carry no text, so the wheel says what was chosen only in
+# the line along the bottom. The wheel is also at a fixed position rather than
+# centred on the view, because its buttons are placed when they are added and the
+# view's size only exists at draw time — the same limit `examples/game_menu`
+# names.
 
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
@@ -62,86 +74,93 @@ HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
 
 # The wheel and what it chooses. The wheel itself — backdrop, dead zone, pointer
-# and buttons — is a UI::RadialMenu; the swatch is a node added after it, because
-# between nodes the tree decides what lands on top, and anything this node drew
-# itself would sit under the menu's backdrop.
-class ColourWheel < RGame::Engine::Node2D
-  Color = RGame::Util::Color
+# and buttons — is a UI::RadialMenu; the chosen icon is a node added after it,
+# because between nodes the tree decides what lands on top, and anything this
+# node drew itself would sit under the menu's backdrop.
+class QuickMenu < RGame::Engine::Node2D
+  UI = RGame::Engine::UI
 
   RADIUS = 150
-  ITEM_WIDTH = 96
-  ITEM_HEIGHT = 30
+  SLOT = 64
 
-  COLOURS = [
-    ['Red', Color.new(214, 64, 56)],
-    ['Orange', Color.new(232, 140, 48)],
-    ['Yellow', Color.new(236, 208, 72)],
-    ['Green', Color.new(92, 176, 84)],
-    ['Teal', Color.new(56, 164, 164)],
-    ['Blue', Color.new(64, 104, 204)],
-    ['Purple', Color.new(140, 84, 188)],
-    ['Locked', nil]
+  # Clockwise from the top. Each image names an entry of icons.json's `images`.
+  ICONS = [
+    ['Home', :home],
+    ['Settings', :gear],
+    ['Save', :save],
+    ['Favourite', :star],
+    ['Trophies', :trophy],
+    ['Sound', :audio_on],
+    ['Music', :music_on],
+    ['Locked', :locked]
   ].freeze
 
-  NOTHING_CHOSEN = Color.new(24, 22, 28)
+  DISC = UI::ShapeStyle.new(shape: :disc)
 
-  attr_reader :chosen, :swatch
+  # A pressed disc is filled gold, which is also IconButton's pressed tint, so
+  # the default would draw a gold icon on a gold disc and the icon would vanish
+  # for as long as the button is held. Dark reads on the gold.
+  TINTS = UI::IconButton::TINTS.merge(pressed: RGame::Util::Color.new(46, 34, 24)).freeze
+
+  attr_reader :chosen, :chosen_image
 
   def initialize(**)
     super
     @chosen = nil
-    @swatch = NOTHING_CHOSEN
-    @menu = add_node(RGame::Engine::UI::RadialMenu.new(radius: RADIUS, button_width: ITEM_WIDTH,
-                                                       button_height: ITEM_HEIGHT, padding: 0))
-    COLOURS.each { |label, colour| add_colour(label, colour) }
-    add_node(Swatch.new(wheel: self))
+    @chosen_image = nil
+    @menu = add_node(UI::RadialMenu.new(radius: RADIUS, button_width: SLOT))
+    ICONS.each { |label, image| add_icon(label, image) }
+    add_node(ChosenIcon.new(menu: self))
   end
 
   private
 
-  def add_colour(label, colour)
-    button = @menu.add(RGame::Engine::UI::PanelButton.new(label: label, enabled: !colour.nil?))
+  def add_icon(label, image)
+    button = @menu.add(UI::IconButton.new(image: image, style: DISC, tints: TINTS, enabled: image != :locked))
     button.on_activated do
       @chosen = label
-      @swatch = colour
+      @chosen_image = image
     end
   end
 end
 
-# The chosen colour, filling the middle of the wheel.
-class Swatch < RGame::Engine::Node2D
-  RADIUS = 34
+# The chosen icon, doubled, in the middle of the wheel.
+class ChosenIcon < RGame::Engine::Node2D
+  SCALE = 2
 
-  def initialize(wheel:, **)
+  def initialize(menu:, **)
     super(**)
-    @wheel = wheel
+    @menu = menu
   end
 
-  def on_draw(renderer, _view) = renderer.circle(0, 0, RADIUS, color: @wheel.swatch)
+  def on_draw(renderer, _view)
+    image = @menu.chosen_image
+    renderer.image(image, 0, 0, scale: SCALE) if image
+  end
 end
 
 # The captions. Added after the wheel, so it draws last and its final line is
 # the last text of every frame — which is what the drive script reads.
 class Caption < RGame::Engine::Node2D
   STATUS = Hash.new('Chosen: nothing yet').merge(
-    ColourWheel::COLOURS.to_h { |label, _| [label, "Chosen: #{label}"] }
+    QuickMenu::ICONS.to_h { |label, _| [label, "Chosen: #{label}"] }
   ).freeze
 
-  def initialize(wheel:, **)
+  def initialize(menu:, **)
     super(**)
-    @wheel = wheel
+    @menu = menu
   end
 
   def on_draw(renderer, _view)
-    renderer.text('Point the stick (or arrow keys) at a colour, then press A (or Enter)', 12, 12)
-    renderer.text(STATUS[@wheel.chosen], 12, HEIGHT - 30)
+    renderer.text('Point the stick (or arrow keys) at an icon, then press A (or Enter)', 12, 12)
+    renderer.text(STATUS[@menu.chosen], 12, HEIGHT - 30)
   end
 end
 
 class Scene < RGame::Engine::Node2D
   def on_add
-    wheel = add_node(ColourWheel.new(x: WIDTH / 2, y: (HEIGHT / 2) + 6))
-    add_node(Caption.new(wheel: wheel))
+    menu = add_node(QuickMenu.new(x: WIDTH / 2, y: (HEIGHT / 2) + 6))
+    add_node(Caption.new(menu: menu))
   end
 end
 
@@ -153,9 +172,9 @@ game = RGame::Game.new(
   media_root: ASSETS
 )
 
-# The buttons are PanelButtons, which draw their four states as nine-slices, and a
-# nine-slice id names an element of an atlas rather than a file — so the atlas is
-# registered once, by hand.
-game.renderer.register_ui_atlas(game.assets.ui_atlas('ui.json'))
+# An image id that is a Symbol is a name rather than a path, so the icons are
+# registered once, by hand: the atlas cuts each from the strip and registers it
+# under its name.
+game.renderer.register_ui_atlas(game.assets.ui_atlas('icons.json'))
 
 game.start

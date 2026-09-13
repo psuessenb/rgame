@@ -119,6 +119,20 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
         expect(rect[:y] + rect[:h]).to be <= height
       end
     end
+
+    # An image id is resolved by registration, so an icon the example names and
+    # the atlas does not declare is a KeyError on the first frame the wheel is
+    # drawn.
+    it 'declares every icon examples/radial_menu names' do
+      source = File.read(File.expand_path('../examples/radial_menu/main.rb', __dir__))
+      # Anchored at the start of a line, so the header's prose cannot be read
+      # as the table.
+      table = source[/^  ICONS = \[(.+?)\]\.freeze/m, 1]
+      named = table.scan(/:(\w+)\]/).flatten.map(&:to_sym)
+
+      expect(named.size).to eq(8)
+      expect(images.keys).to include(*named)
+    end
   end
 
   describe 'glyphs.json' do

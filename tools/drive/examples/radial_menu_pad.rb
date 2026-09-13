@@ -11,8 +11,8 @@
 # What the report should show, again on the last `text` call:
 #
 #     --ticks  38  →  last("Chosen: nothing yet", 12, 450)   the nudge chose nothing
-#     --ticks  60  →  last("Chosen: Yellow", 12, 450)
-#     --ticks 112  →  last("Chosen: Yellow", 12, 450)        A at rest chose nothing
+#     --ticks  60  →  last("Chosen: Save", 12, 450)
+#     --ticks 112  →  last("Chosen: Save", 12, 450)          A at rest chose nothing
 #
 # At 38 the pointer's tip is at **35.3**, inside the dead-zone disc (radius 75).
 # A raw 0.35 arrives as 0.235, not 0.35: ActionMapper's own per-axis dead zone
