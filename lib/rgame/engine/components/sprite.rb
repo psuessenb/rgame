@@ -35,10 +35,11 @@ module RGame
         def draw(renderer, view)
           width = node.width * @scale
           height = node.height * @scale
-          return if culled?(view, node.world_x - (width / 2.0), node.world_y - (height / 2.0),
+          lift = node.elevation
+          return if culled?(view, node.world_x - (width / 2.0), node.world_y - lift - (height / 2.0),
                             width, height)
 
-          renderer.image(@id, 0, 0, scale: @scale, z: @layer)
+          renderer.image(@id, 0, -lift, scale: @scale, z: @layer)
         end
       end
     end

@@ -458,7 +458,7 @@ this example live inside a class for that reason.
 
 **Assets:** **C**, already shipped by example 3.
 
-### 9. `examples/jump_topdown` — a hop in a top-down view
+### 9. `examples/jump_topdown` — a hop in a top-down view — **done**
 
 **Shows** that in a top-down game a jump is a *drawing* offset, not a change of
 position: the character's ground position stays authoritative for collision
@@ -481,6 +481,56 @@ while the sprite arcs above it.
   leave that to the game and keep the component ignorant of tiles.
 
 **Assets:** **A** and **B**, both already committed by then. No new art.
+
+**Landed.** `examples/jump_topdown/main.rb` plus its drive script,
+`Components::Hop` with its spec, and `Node2D#elevation`, which `Sprite` and
+`AnimatedSprite` draw lifted by. The scene is `examples/collision_tiles` less the
+spiky ball: `TileWorld`, a `Hero` with `AnimatedSprite`, `FeetCollider`, a blocked
+`CharacterBody`, `PlayerController`, `Hop` and `CameraFollow`. The hero's
+`on_draw` draws the shadow and the feet box, which is the half of the hero that
+stays on the ground.
+
+Run: `rake spec` 1412 examples, 0 failures; RuboCop clean. `make test` and
+`rake spec:core` were not run: nothing in C or `RGame::Core` changed. Deleting
+`Hop`'s elevation write, either sprite's lift, or reading `held?` for `pressed?`
+each fails the new specs. The driven run at 170 ticks reports `sprite` y
+spanning −18.0..0, the shadow's `circle` radius spanning 0.5..1.0, `rect` and
+`circle` at constant local positions, and the last `tilemap` at camera
+(72.0, 77.0) — the hero stopped at the fence despite a hop pressed there with
+south still held.
+
+What the sketch did not know:
+
+- **The height needed somewhere to live, and it is the node.** Components draw
+  one after another inside `draw_content`, so `Hop` cannot wrap its siblings'
+  drawing in a translate. The alternatives were the sprite looking up an optional
+  `Hop` sibling — one component handing its data to another, the smell CLAUDE.md
+  names — or offsetting the node's whole draw, which lifts the shadow and the feet
+  box too and makes each cancel it. Decided in the prompt: `Node2D#elevation`,
+  outside the transform, written by `Hop` and read by the two sprite components.
+  Any later lift (a knockback, a bob) uses the same field.
+- **The open question is answered no.** `TileWorld` does not consult
+  `airborne?`, and `Hop` knows nothing about tiles. Which tiles a hop clears is a
+  rule of one game; the example says so under "What this does not solve".
+- **The arc is closed-form, not integrated.** Height is `4·peak·t·(T−t)/T²` of the
+  accumulated time, so it peaks at exactly `peak` whatever the step size, and a
+  spec asks for the height at 0.125s rather than stepping there.
+- **First and last could not see a hop.** A run starts and ends on the ground, so
+  the harness report showed a sprite that never moved. `Report` keeps each numeric
+  argument's range and prints `spans` for the ones that varied, which is what shows
+  the picture leaving the ground. The same span cannot show a shadow shrinking
+  through `renderer.scaled`, because the presentation's own `scaled(1.0, 1.0)`
+  shares that line and swamps the range. The shadow shrinks through the circle's
+  radius instead.
+- **`:jump` stays out of `InputMap::DEFAULT_ACTIONS`.** The example merges it in,
+  the way `examples/fullscreen` declares `:fullscreen`; one example needing a
+  button is not a reason for every game to have the action.
+- **`jump` returns nothing.** Returning whether a hop started trips
+  `Naming/PredicateMethod`, and `airborne?` already answers it.
+
+Documented in `docs/api/components.md` (a `Hop` section, and the lift under
+`AnimatedSprite` and `Sprite`), `docs/api/scene_graph.md` ("Elevation"), and
+`docs/api/examples.md`.
 
 ### 11. `examples/radial_menu` — a controller-driven radial menu
 
@@ -1044,7 +1094,7 @@ Sorted by where it lands, because that decides who may use it.
 | `rgame_app_set_fullscreen` / `_fullscreen` + Ruby binding | C + `Core::App` | 4 | S |
 | `Util::SaveFile` + save-dir helper | `Util` (pure Ruby) | 5, 6 | S |
 | ~~`UI::OptionItem`~~ | `Engine::UI` | 6 | **done** — no `SliderItem`, see 8 |
-| `Components::Hop` | `Engine` | 7 | S |
+| ~~`Components::Hop`~~ | `Engine` | 7 | **done** — with `Node2D#elevation` |
 | `UI::RadialMenu` | `Engine::UI` | 9 | M |
 | `Engine::NavGrid` + `Engine::AStar` | `Engine` | 10 | **L** |
 | ~~`Controls.gamepad?` + a named pad-button boundary~~ | `Util` (values) | 21 | **done** — plus `pad_button?` and `BUTTON_GAMEPAD_FIRST` |
@@ -1378,8 +1428,8 @@ it directly.
 
 **Phase E — a new gameplay component.**
 
-20. `examples/jump_topdown` (`Components::Hop` — small, and it makes the "a jump
-    is a draw offset" point; reuses **A** and **B**)
+20. ~~`examples/jump_topdown`~~ — **done**; `Components::Hop`, and the height
+    lives on the node as `Node2D#elevation`.
 
 It follows `examples/collision_tiles`, so tile collision is something the reader
 has already met and the jump example does not have to introduce it.
@@ -1452,10 +1502,13 @@ started holding the window.
 sodri's character sheet repacked. See "Assets". So is 6: one `OptionItem` and no
 `SliderItem` — see example 8.)*
 
-- **7** — should `TileWorld` know about `airborne?` (hop over a gap), or does that
-  stay the game's business?
-- **7** — does `jump` join `InputMap::DEFAULT_ACTIONS`, or does the example merge it
-  in like `tiled_world` does with `:cutscene`?
+- ~~**7** — should `TileWorld` know about `airborne?` (hop over a gap), or does that
+  stay the game's business?~~ **Resolved:** the game's business. `TileWorld`
+  does not consult it and `Hop` knows nothing about tiles; see the landed note
+  on `examples/jump_topdown`.
+- ~~**7** — does `jump` join `InputMap::DEFAULT_ACTIONS`, or does the example merge it
+  in like `tiled_world` does with `:cutscene`?~~ **Resolved:** merged in by the
+  example, and `DEFAULT_ACTIONS` is unchanged.
 - **9** — does the radial read `move_x`/`move_y`, or declare its own axes? And can
   the icon ring avoid needing `Renderer#pie` entirely?
 - **13** — one node drawing a whole image and one drawing a registered

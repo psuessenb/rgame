@@ -184,8 +184,12 @@ module DriveTestProject
   # Everything the run observed. Counts, plus the first and last argument tuple
   # for each kind of call — which is what turns "the tilemap was drawn 90 times"
   # into "and the camera moved from (0, 0) to (240, 180) while it happened".
+  #
+  # First and last cannot see a value that leaves and comes back — a hop starts and
+  # ends on the ground — so each numeric argument's range is kept too, and printed
+  # as `spans` for the positions where it varied.
   class Report
-    Call = Struct.new(:calls, :first_args, :last_args)
+    Call = Struct.new(:calls, :first_args, :last_args, :ranges)
 
     attr_accessor :ticks, :frames
     attr_reader :draws, :clips, :translates, :sounds, :scenes, :bands
@@ -205,9 +209,10 @@ module DriveTestProject
 
     def record_draw(name, args)
       summary = args.map { |a| summarize(a) }
-      call = (@draws[name] ||= Call.new(0, summary, summary))
+      call = (@draws[name] ||= Call.new(0, summary, summary, {}))
       call.calls += 1
       call.last_args = summary
+      widen_ranges(call.ranges, args)
     end
 
     # Entered rather than merely counted, so what happens inside is attributable.
@@ -276,7 +281,18 @@ module DriveTestProject
 
       line = format('%6d  %-18s first(%s)', call.calls, name, call.first_args.join(', '))
       line << " last(#{call.last_args.join(', ')})" if call.last_args != call.first_args
+      spans = call.ranges.filter_map { |index, (min, max)| "#{index}: #{round(min)}..#{round(max)}" if min != max }
+      line << " spans(#{spans.join(', ')})" unless spans.empty?
       line
+    end
+
+    def widen_ranges(ranges, args)
+      args.each_with_index do |arg, index|
+        next unless arg.is_a?(Numeric)
+
+        min, max = ranges[index]
+        ranges[index] = min ? [[min, arg].min, [max, arg].max] : [arg, arg]
+      end
     end
 
     def section(title, lines)

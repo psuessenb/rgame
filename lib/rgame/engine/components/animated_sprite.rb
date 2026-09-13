@@ -42,13 +42,14 @@ module RGame
           @animator.update(dt)
         end
 
-        # Top-left anchored, and sized by the sheet's frame — so the footprint
-        # to cull against is exactly the node's box. Culling is stated in world
-        # coordinates because it compares against the camera; drawing is local.
+        # Top-left anchored, sized by the sheet's frame and lifted by the node's
+        # elevation — so the footprint to cull against is the node's box, raised
+        # by the same amount the picture is.
         def draw(renderer, view)
-          return if culled?(view, node.world_x, node.world_y, node.width, node.height)
+          lift = node.elevation
+          return if culled?(view, node.world_x, node.world_y - lift, node.width, node.height)
 
-          renderer.sprite(@sheet, @animator.row, @animator.col, 0, 0,
+          renderer.sprite(@sheet, @animator.row, @animator.col, 0, -lift,
                           flip_x: @animator.flip_x, z: @layer)
         end
 

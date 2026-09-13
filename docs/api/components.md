@@ -186,9 +186,11 @@ from the sheet's animation table.
   current frame via `renderer.sprite` at **`0, 0`** with no angle — the traversal has already
   put the renderer on the node, and a [`WorldView`](scene_graph.md#view-transforms-and-the-camera)
   ancestor has already applied the camera, so the component passes neither a position nor an
-  angle. It skips the draw when the view cannot show it, measuring the node's box against
-  `node.world_x`/`world_y` — culling is the one thing here still stated in world coordinates,
-  because it compares against the camera. (`Sprite` above is the single-image counterpart.)
+  angle. The frame is lifted by [`node.elevation`](scene_graph.md#elevation), so it is drawn at
+  `0, -elevation`. It skips the draw when the view cannot show it, measuring the node's box —
+  raised by the same elevation — against `node.world_x`/`world_y`; culling is the one thing here
+  still stated in world coordinates, because it compares against the camera. (`Sprite` below is
+  the single-image counterpart.)
 
 ### `BoxCollider`
 
@@ -486,6 +488,39 @@ feet = add_component(RGame::Engine::Components::FeetCollider.new(
 feet.on_hit { |other| take_damage if other.layer == :spike }
 ```
 
+### `Hop`
+
+A jump in a top-down view. The node's picture rises along a parabola and comes back
+down, while the node itself, and every collider, camera and child reading its
+position, stays on the ground.
+
+- **Construct:** `Hop.new(peak:, duration:, action: :jump)` — `peak` is the highest the
+  picture rises, in px, reached halfway through `duration` seconds. Both must be
+  positive and raise `ArgumentError` otherwise. `action` is the action whose **press
+  edge** starts a hop, so holding it hops once; `action: nil` reads no input.
+- **State:** `height` (px above the ground now), `airborne?`, `peak`, `duration`.
+- **Starting one:** pressing `action` during `control`, or calling `jump` — which does
+  nothing while a hop is already under way, and is what an NPC or a script calls.
+- **Phase:** `update(dt)` advances the arc and writes the height to
+  [`node.elevation`](scene_graph.md#elevation), which [`AnimatedSprite`](#animatedsprite)
+  and [`Sprite`](#sprite) draw lifted by. The arc is a function of the time accumulated
+  in `update`, never of a clock, so a paused node hangs in the air.
+- **Lifecycle:** `on_attach` lands the node, so a pooled node reused mid-hop starts
+  on the ground.
+
+What a hop crosses is the game's decision, not the component's. It knows nothing
+about tiles or colliders, and a [`CharacterBody`](#characterbody) blocked by a wall
+is still blocked while its node is in the air. A game whose chasm tiles should be
+passable mid-hop reads `airborne?` where it decides what is solid.
+
+```ruby
+hop = add_component(RGame::Engine::Components::Hop.new(peak: 18, duration: 0.5))
+hop.airborne? # => false, until the :jump action is pressed
+```
+
+`examples/jump_topdown` draws the shadow and the feet box that stay on the ground
+beneath the picture.
+
 ### `Identity`
 
 A stable name for one node, so something outside the tree can refer to it.
@@ -741,8 +776,10 @@ which the traversal has already placed and rotated.
 - **Phase:** `draw(renderer, view)` draws the image at **`0, 0`** with **no angle** —
   `Node2D#draw` has already pushed the node's transform, so its own origin is where the
   renderer already is and its rotation already applies; passing either would apply it
-  twice. It skips the draw entirely when the view cannot show it, measuring the node's box
-  scaled against `node.world_x`/`world_y` — a node that never set a size is never culled.
+  twice. The image is lifted by [`node.elevation`](scene_graph.md#elevation), in the node's
+  local space. It skips the draw entirely when the view cannot show it, measuring the node's
+  box scaled and lifted against `node.world_x`/`world_y` — a node that never set a size is
+  never culled.
 
 ### `Targeting`
 
