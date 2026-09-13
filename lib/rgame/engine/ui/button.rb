@@ -32,42 +32,102 @@ module RGame
       # without either of them arranging it.
       #
       # A Button with no `on_draw` of its own draws nothing.
+      #
+      # ## When a press activates
+      #
+      # `activate_on:` is `:release` by default: confirm draws the button pressed
+      # while it is held and activates it when it is let go, so a player who
+      # moves focus away while still holding cancels. `:press` activates on the
+      # way down — what a skill bar wants — and keeps the button drawn pressed
+      # for at least `PRESS_FEEDBACK` seconds, because a tap is otherwise a
+      # single frame of pressed that nobody sees.
+      #
+      # Either way a button only acts on a press it saw start. A press whose
+      # release it did not see — its menu was paused or covered in between — is
+      # dropped rather than finished, so a menu that closes itself from
+      # `on_activated` and is opened again does not come back pressed. See
+      # UI::Menu for the other half, a menu that has not yet seen confirm up.
       class Button < Node2D
         signal :on_activated
 
-        attr_accessor :label, :enabled
-        attr_writer :pressed
+        PRESS_FEEDBACK = 0.1
+        ACTIVATE_ON = %i[release press].freeze
 
-        def initialize(label: nil, enabled: true, **)
+        attr_accessor :label, :enabled
+        attr_reader :activate_on
+
+        def initialize(label: nil, enabled: true, activate_on: :release, **)
           super(**)
+          unless ACTIVATE_ON.include?(activate_on)
+            raise ArgumentError, "activate_on: must be :release or :press, not #{activate_on.inspect}"
+          end
+
           @label = label
           @enabled = enabled
+          @activate_on = activate_on
           @focused = false
-          @pressed = false
+          @held = false
+          @feedback = 0.0
         end
 
         def enabled? = @enabled
         def focused? = @focused
-        def pressed? = @pressed
+        def pressed? = @held || @feedback.positive?
 
         # What to draw: `:disabled` whenever the button is disabled, whatever
-        # else is true; `:pressed` while it is focused and pressed; `:focused`;
-        # and otherwise `:idle`.
+        # else is true; then `:pressed`, `:focused`, and otherwise `:idle`.
+        # Pressed does not require focus: a press can outlast the focus that
+        # started it by its `PRESS_FEEDBACK`.
         def state
           return :disabled unless @enabled
-          return :idle unless @focused
+          return :pressed if pressed?
 
-          @pressed ? :pressed : :focused
+          @focused ? :focused : :idle
         end
 
         # Called by the Menu. Calls `on_focus_changed` when the value actually
         # changes, and never for a repeated assignment, so a menu that reasserts
-        # focus every frame does not replay a focus sound every frame.
+        # focus every frame does not replay a focus sound every frame. Losing
+        # focus lets go of a held press without activating it.
         def focused=(value)
           return if @focused == value
 
           @focused = value
+          @held = false unless value
           on_focus_changed(value)
+        end
+
+        # Called by the Menu when a press starts on this button. Activates at
+        # once under `activate_on: :press` and returns what `activate` did;
+        # otherwise holds the press and returns nil. A disabled button ignores
+        # it.
+        def press
+          return nil unless @enabled
+
+          @held = true
+          return nil unless @activate_on == :press
+
+          @feedback = PRESS_FEEDBACK
+          activate
+        end
+
+        # Called by the Menu when a press this button saw start is let go.
+        # Activates under `activate_on: :release`, and returns what `activate`
+        # did.
+        def release
+          return nil unless @held
+
+          @held = false
+          activate if @activate_on == :release
+        end
+
+        # Called by the Menu for a press whose release this button never saw.
+        # Drops it, and the feedback with it, activating nothing.
+        def cancel_press
+          return unless @held
+
+          @held = false
+          @feedback = 0.0
         end
 
         # What the focused button does with `ui_left` / `ui_right`, which the
@@ -84,6 +144,12 @@ module RGame
 
           on_activated_signal.emit
           self
+        end
+
+        # Counts down the pressed feedback, then does what every node does.
+        def update(dt)
+          @feedback -= dt if @feedback.positive? && !@paused
+          super
         end
 
         # Hook: override to react to gaining or losing focus — a sound, the

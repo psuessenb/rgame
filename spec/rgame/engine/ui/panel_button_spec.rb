@@ -53,7 +53,7 @@ RSpec.describe RGame::Engine::UI::PanelButton do
     it 'is the pressed element while confirm is held on it' do
       subject_item = item
       subject_item.focused = true
-      subject_item.pressed = true
+      subject_item.press
       expect(drew.first).to eq(:pressed)
     end
 

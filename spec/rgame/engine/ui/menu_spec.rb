@@ -25,9 +25,12 @@ RSpec.describe RGame::Engine::UI::Menu do
 
   def button(label, **) = RGame::Engine::UI::PanelButton.new(label: label, **)
 
+  # A menu takes no press until it has seen confirm up, so a built menu is
+  # polled once with nothing held — it has been on screen for a frame.
   def build(*labels)
     labels.each { |label| menu.add(button(label)) }
     root.enter_tree
+    poll
     menu
   end
 
@@ -81,6 +84,7 @@ RSpec.describe RGame::Engine::UI::Menu do
       end
       2.times { menu.add(swatch.new) }
       root.enter_tree
+      poll
     end
 
     it 'is focused by the navigation' do
@@ -184,8 +188,182 @@ RSpec.describe RGame::Engine::UI::Menu do
       build('One')
       count = 0
       menu.buttons.first.on_activated { count += 1 }
-      2.times { poll(:ui_confirm) }
+      3.times { poll(:ui_confirm) }
+      poll
       expect(count).to eq(1)
+    end
+  end
+
+  describe 'press and release' do
+    def build_with(activate_on:)
+      menu.add(button('One', activate_on: activate_on))
+      menu.add(button('Two', activate_on: activate_on))
+      root.enter_tree
+      poll
+      menu.buttons.first
+    end
+
+    def fired_on(target)
+      [].tap { |log| target.on_activated { log << :fired } }
+    end
+
+    describe 'activate_on: :release' do
+      it 'presses on the down tick and activates nothing yet' do
+        first = build_with(activate_on: :release)
+        fired = fired_on(first)
+        poll(:ui_confirm)
+        expect([first.state, fired]).to eq([:pressed, []])
+      end
+
+      it 'activates on the up tick' do
+        first = build_with(activate_on: :release)
+        fired = fired_on(first)
+        poll(:ui_confirm)
+        poll
+        expect([first.state, fired]).to eq([:focused, [:fired]])
+      end
+
+      it 'activates nothing when focus moves while held' do
+        first = build_with(activate_on: :release)
+        fired = fired_on(first) + fired_on(menu.buttons.last)
+        poll(:ui_confirm)
+        poll(:ui_confirm, :ui_down)
+        poll
+        expect([first.state, fired]).to eq([:idle, []])
+      end
+    end
+
+    describe 'activate_on: :press' do
+      it 'activates on the down tick' do
+        first = build_with(activate_on: :press)
+        fired = fired_on(first)
+        poll(:ui_confirm)
+        expect(fired).to eq([:fired])
+      end
+
+      it 'stays pressed after a tap for PRESS_FEEDBACK, then returns to focused' do
+        first = build_with(activate_on: :press)
+        poll(:ui_confirm)
+        poll
+        states = [first.state]
+        root.update(RGame::Engine::UI::Button::PRESS_FEEDBACK)
+        expect(states << first.state).to eq(%i[pressed focused])
+      end
+
+      it 'stays pressed past PRESS_FEEDBACK while held, until released' do
+        first = build_with(activate_on: :press)
+        poll(:ui_confirm)
+        root.update(RGame::Engine::UI::Button::PRESS_FEEDBACK * 2)
+        poll(:ui_confirm)
+        states = [first.state]
+        poll
+        expect(states << first.state).to eq(%i[pressed focused])
+      end
+    end
+
+    it 'does not move focus' do
+      build('One', 'Two')
+      press(:ui_down)
+      poll(:ui_confirm)
+      expect(menu.focused_index).to eq(1)
+    end
+
+    # The measured double activation: a node added during control is controlled
+    # later in the same traversal, so a submenu opened by a press would read
+    # that same press edge.
+    describe 'a menu opened by an activation' do
+      def open_submenu(activate_on:)
+        opener = build_with(activate_on: activate_on)
+        submenu = described_class.new(layout: column)
+        back = submenu.add(button('Back', activate_on: activate_on))
+        fired = fired_on(back)
+        opener.on_activated { root.add_node(submenu) }
+        [back, fired]
+      end
+
+      it 'does not activate from the press that opened it' do
+        back, fired = open_submenu(activate_on: :press)
+        poll(:ui_confirm)
+        expect([back.in_tree?, fired]).to eq([true, []])
+      end
+
+      it 'does not draw pressed while that key stays down' do
+        back, = open_submenu(activate_on: :press)
+        3.times { poll(:ui_confirm) }
+        expect(back.state).to eq(:focused)
+      end
+
+      it 'does not activate on the release of that press' do
+        _back, fired = open_submenu(activate_on: :press)
+        poll(:ui_confirm)
+        poll
+        expect(fired).to eq([])
+      end
+
+      it 'does not activate from the release that opened it, under :release' do
+        back, fired = open_submenu(activate_on: :release)
+        poll(:ui_confirm)
+        poll
+        poll
+        expect([back.in_tree?, back.state, fired]).to eq([true, :focused, []])
+      end
+
+      it 'answers the next press of its own' do
+        _back, fired = open_submenu(activate_on: :press)
+        press(:ui_confirm)
+        press(:ui_confirm)
+        expect(fired).to eq([:fired])
+      end
+    end
+
+    # A menu that closes itself from on_activated stops being controlled and
+    # updated, so it never sees that key go up. The press is dropped when the
+    # menu next looks and finds the key up with no release edge.
+    describe 'a menu hidden in on_activated and shown again' do
+      def hide_on_activation(activate_on:)
+        first = build_with(activate_on: activate_on)
+        first.on_activated { menu.paused = true }
+        first
+      end
+
+      it 'does not reappear pressed' do
+        first = hide_on_activation(activate_on: :press)
+        poll(:ui_confirm)
+        poll
+        menu.paused = false
+        poll
+        expect(first.state).to eq(:focused)
+      end
+
+      it 'does not activate again when shown' do
+        first = hide_on_activation(activate_on: :press)
+        fired = fired_on(first)
+        poll(:ui_confirm)
+        poll
+        menu.paused = false
+        poll
+        expect(fired).to eq([:fired])
+      end
+
+      it 'is still pressed when shown while that key is still held' do
+        first = hide_on_activation(activate_on: :press)
+        poll(:ui_confirm)
+        poll(:ui_confirm)
+        menu.paused = false
+        poll(:ui_confirm)
+        expect(first.state).to eq(:pressed)
+      end
+
+      it 'does not activate a :release button whose release happened while hidden' do
+        first = build_with(activate_on: :release)
+        fired = fired_on(first)
+        poll(:ui_confirm)
+        menu.paused = true
+        poll
+        menu.paused = false
+        poll
+        expect([first.state, fired]).to eq([:focused, []])
+      end
     end
   end
 
@@ -260,6 +438,7 @@ RSpec.describe RGame::Engine::UI::Menu do
       fired = nil
       custom.add(button('On')).on_activated { fired = 'On' }
       root.enter_tree
+      poll
       press(:ui_confirm)
       expect(fired).to eq('On')
     end

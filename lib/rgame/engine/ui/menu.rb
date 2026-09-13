@@ -34,8 +34,16 @@ module RGame
       # | `navigation:` | which button this frame's input focuses | UI::Stepping (default), UI::Pointing |
       #
       # What stays here is what every menu does the same way: holding the
-      # buttons, and on `ui_confirm` pressing the focused one and activating it.
-      # A navigation cannot forget to do that, because it is never asked to.
+      # buttons, and passing `ui_confirm` to the focused one as a press and a
+      # release — when that activates is the button's `activate_on:`. A
+      # navigation cannot forget to do that, because it is never asked to.
+      #
+      # ## A menu acts only on a press it saw start
+      #
+      # A menu takes no press until it has seen `ui_confirm` up. A menu opened
+      # from `on_activated` — a submenu — is controlled later in the same tick,
+      # while the key that opened it is still down, and would otherwise read the
+      # same press edge again and activate its own focused button with it.
       #
       #   wheel = UI::Menu.new(x: 320, y: 240, navigation: UI::Pointing.new,
       #                        layout: UI::Ring.new(radius: 120, item_width: 96, item_height: 30))
@@ -63,6 +71,7 @@ module RGame
           @navigation = navigation
           @buttons = []
           @focused_index = nil
+          @confirm_seen_up = false
           navigation.attach(self)
         end
 
@@ -97,12 +106,23 @@ module RGame
 
         def on_control(actions)
           @navigation.on_control(actions)
+          confirm(focused, actions)
+        end
 
-          current = focused
-          return if current.nil?
+        private
 
-          current.pressed = actions.held?(:ui_confirm)
-          current.activate if actions.pressed?(:ui_confirm)
+        def confirm(button, actions)
+          armed = @confirm_seen_up
+          @confirm_seen_up = !actions.held?(:ui_confirm)
+          return if button.nil?
+
+          if actions.pressed?(:ui_confirm)
+            button.press if armed
+          elsif actions.released?(:ui_confirm)
+            button.release
+          elsif @confirm_seen_up
+            button.cancel_press
+          end
         end
       end
     end

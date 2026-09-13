@@ -26,9 +26,12 @@ RSpec.describe RGame::Engine::UI::Pointing do
 
   def button(label, **) = RGame::Engine::UI::PanelButton.new(label: label, **)
 
+  # A menu takes no press until it has seen confirm up, so a built menu is
+  # polled once at rest first.
   def build(*labels)
     labels.each { |label| menu.add(button(label)) }
     root.enter_tree
+    poll(0.0, 0.0)
     menu
   end
 
@@ -132,14 +135,25 @@ RSpec.describe RGame::Engine::UI::Pointing do
       end
     end
 
-    it 'activates the focused item on confirm' do
+    it 'activates the focused item when confirm is let go' do
       poll(1.0, 0.0, confirm: true)
+      poll(1.0, 0.0)
       expect(chosen).to eq(['E'])
     end
 
     it 'fires once for a held confirm, not every frame' do
       3.times { poll(1.0, 0.0, confirm: true) }
+      poll(1.0, 0.0)
       expect(chosen).to eq(['E'])
+    end
+
+    # Pointing somewhere else while holding confirm moves focus, and moving focus
+    # cancels a press that has not been let go.
+    it 'activates nothing when the stick moves to another button while confirm is held' do
+      poll(1.0, 0.0, confirm: true)
+      poll(0.0, 1.0, confirm: true)
+      poll(0.0, 1.0)
+      expect(chosen).to be_empty
     end
 
     # Letting go of the stick and pressing A must not pick whatever was under
@@ -147,6 +161,7 @@ RSpec.describe RGame::Engine::UI::Pointing do
     it 'activates nothing when confirm is pressed after the stick has come back to centre' do
       poll(1.0, 0.0)
       poll(0.0, 0.0, confirm: true)
+      poll(0.0, 0.0)
       expect(chosen).to be_empty
     end
   end
@@ -156,6 +171,7 @@ RSpec.describe RGame::Engine::UI::Pointing do
       menu.add(button('N'))
       menu.add(button('S', enabled: false)) # two items on a ring: the second is due south
       root.enter_tree
+      poll(0.0, 0.0)
     end
 
     it 'is never focused, so pointing at it selects nothing' do
@@ -167,6 +183,7 @@ RSpec.describe RGame::Engine::UI::Pointing do
       activated = false
       menu.buttons[1].on_activated { activated = true }
       poll(0.0, 1.0, confirm: true)
+      poll(0.0, 1.0)
       expect(activated).to be(false)
     end
   end
