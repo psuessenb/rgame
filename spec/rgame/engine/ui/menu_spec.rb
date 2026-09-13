@@ -2,7 +2,8 @@
 
 RSpec.describe RGame::Engine::UI::Menu do
   let(:root) { RGame::Engine::Node2D.new }
-  let(:menu) { root.add_node(described_class.new(item_width: 200, item_height: 40)) }
+  let(:column) { RGame::Engine::UI::Column.new(item_width: 200, item_height: 40) }
+  let(:menu) { root.add_node(described_class.new(layout: column)) }
   # One reused snapshot over hashes shifted in place, which is how ActionMapper
   # builds the real thing — and the only way `pressed?` means anything, since it
   # compares this frame against the last.
@@ -63,6 +64,12 @@ RSpec.describe RGame::Engine::UI::Menu do
     it 'wraps before the start' do
       press(:ui_up)
       expect(menu.focused.label).to eq('Three')
+    end
+
+    # Not just `focused` answering: the item has to know, or a menu that has
+    # just opened draws with no highlight until the first press.
+    it 'tells the first item it has focus before any input' do
+      expect(menu.items.map(&:focused?)).to eq([true, false, false])
     end
 
     it 'tells the items which of them has it' do
@@ -132,14 +139,65 @@ RSpec.describe RGame::Engine::UI::Menu do
   end
 
   describe 'layout' do
-    it 'stacks items down the menu' do
+    it 'places items where its layout says' do
       build('One', 'Two', 'Three')
       expect(menu.items.map(&:y)).to eq([0, 48, 96])
     end
 
-    it 'gives them the size it was built with' do
+    it 'gives them the size its layout says' do
       build('One')
       expect([menu.items.first.width, menu.items.first.height]).to eq([200, 40])
+    end
+
+    it 'can be a ring as well as a column' do
+      ring = RGame::Engine::UI::Ring.new(radius: 100, item_width: 40, item_height: 20)
+      wheel = root.add_node(described_class.new(layout: ring))
+      %w[N E S W].each { |label| wheel.add_item(label) }
+      expect(wheel.items.map { |item| [item.x.round, item.y.round] })
+        .to eq([[-20, -110], [80, -10], [-20, 90], [-120, -10]])
+    end
+  end
+
+  # Confirming belongs to the menu whatever moves focus, so a navigation only
+  # has to say which item is focused.
+  describe 'navigation' do
+    let(:first_enabled) do
+      Class.new(RGame::Engine::UI::Navigation) do
+        def on_control(_actions) = menu.focus(menu.items.index(&:enabled?))
+      end
+    end
+
+    it 'steps by default' do
+      expect(menu.navigation).to be_a(RGame::Engine::UI::Stepping)
+    end
+
+    it 'activates what any navigation focused, on confirm' do
+      custom = root.add_node(described_class.new(layout: column, navigation: first_enabled.new))
+      custom.add_item('Off', enabled: false)
+      fired = nil
+      custom.add_item('On').on_activated { fired = 'On' }
+      root.enter_tree
+      press(:ui_confirm)
+      expect(fired).to eq('On')
+    end
+
+    it 'activates nothing when the navigation focuses nothing' do
+      nothing = Class.new(RGame::Engine::UI::Navigation) { def on_control(_actions) = menu.focus(nil) }
+      custom = root.add_node(described_class.new(layout: column, navigation: nothing.new))
+      fired = false
+      custom.add_item('One').on_activated { fired = true }
+      root.enter_tree
+      press(:ui_confirm)
+      expect([custom.focused, fired]).to eq([nil, false])
+    end
+
+    # A navigation may keep state about the menu it drives, so two menus
+    # sharing one would share that state without either knowing.
+    it 'refuses to drive a second menu' do
+      shared = RGame::Engine::UI::Stepping.new
+      described_class.new(layout: column, navigation: shared)
+      expect { described_class.new(layout: column, navigation: shared) }
+        .to raise_error(ArgumentError, /already navigates another menu/)
     end
   end
 
@@ -203,9 +261,9 @@ RSpec.describe RGame::Engine::UI::Menu do
     it 'moves only the menu belonging to the player who pressed' do
       root.add_component(players)
       one = root.add_node(RGame::Engine::PlayerLayer.new(player: players[0]))
-                .add_node(described_class.new(item_width: 100, item_height: 20))
+                .add_node(described_class.new(layout: column))
       two = root.add_node(RGame::Engine::PlayerLayer.new(player: players[1]))
-                .add_node(described_class.new(item_width: 100, item_height: 20))
+                .add_node(described_class.new(layout: column))
       labels = %w[A B]
       [one, two].each { |m| labels.each { |label| m.add_item(label) } }
       root.enter_tree

@@ -9,20 +9,27 @@
 # Point the left stick at a colour and press A. On a keyboard, hold the arrow
 # keys — two at once for a diagonal — and press Enter or Space. The chosen
 # colour fills the middle of the wheel. It exercises:
-#   - UI::RadialMenu — items on a ring, focused by the direction of a stick;
-#   - UI::MenuItem — the same item a vertical Menu holds, in four states of art;
-#   - `ui_radial_x` / `ui_radial_y` — the two axes it reads, from the universal
-#     set every InputMap carries, so nothing here declares an action;
+#   - UI::Menu — the same menu a vertical list is, built from two other parts;
+#   - UI::Ring — its layout, items spaced round a circle;
+#   - UI::Pointing — its navigation, focus chosen by the direction of a stick;
+#   - `ui_radial_x` / `ui_radial_y` — the two axes Pointing reads, from the
+#     universal set every InputMap carries, so nothing here declares an action;
 #   - renderer.circle / renderer.line — the backdrop and the pointer.
 #
 # ## The direction is the selection
 #
 # A list menu moves focus *relative* to where it already is: down means "the
 # next one". A stick is bad at that and good at pointing, so here nothing is
-# stepped through at all. The ring is cut into one sector per item, each centred
-# on its item, and whichever sector the stick points into is focused. Eight items
-# is the number that makes a keyboard a first-class input too: the arrow keys,
-# alone and in pairs, produce exactly eight directions, one per colour.
+# stepped through at all. Whichever item lies closest to the direction the stick
+# points in is focused, which on a ring cuts the circle into one sector per item,
+# centred on it. Eight items is the number that makes a keyboard a first-class
+# input too: the arrow keys, alone and in pairs, produce exactly eight
+# directions, one per colour.
+#
+# That is the only thing that makes this a wheel rather than a list. The Menu,
+# its items and what confirming does are the same classes `examples/game_menu`
+# uses; this one is handed a UI::Ring where that one has a UI::Column, and
+# UI::Pointing where that one keeps the default UI::Stepping.
 #
 # ## Letting go selects nothing
 #
@@ -37,7 +44,7 @@
 # would let a stick barely off centre choose.
 #
 # **Locked** is disabled, and pointing at it focuses nothing — the same rule a
-# vertical Menu follows by skipping it.
+# list follows by skipping it.
 #
 # ## What this example does not solve
 #
@@ -87,20 +94,21 @@ class ColourWheel < RGame::Engine::Node2D
     super
     @chosen = nil
     @swatch = NOTHING_CHOSEN
-    @menu = add_node(RGame::Engine::UI::RadialMenu.new(radius: RADIUS, item_width: ITEM_WIDTH,
-                                                       item_height: ITEM_HEIGHT))
+    @pointing = RGame::Engine::UI::Pointing.new
+    ring = RGame::Engine::UI::Ring.new(radius: RADIUS, item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT)
+    @menu = add_node(RGame::Engine::UI::Menu.new(layout: ring, navigation: @pointing))
     COLOURS.each { |label, colour| add_colour(label, colour) }
   end
 
   # All in the wheel's own space, whose origin is the centre of the ring.
   def on_draw(renderer, _view)
     renderer.circle(0, 0, RIM, color: BACKDROP)
-    renderer.circle(0, 0, @menu.dead_zone * RADIUS, color: DEAD_ZONE)
+    renderer.circle(0, 0, @pointing.dead_zone * RADIUS, color: DEAD_ZONE)
     renderer.circle(0, 0, SWATCH_RADIUS, color: @swatch)
 
-    reach = RADIUS / [Math.hypot(@menu.aim_x, @menu.aim_y), 1.0].max
-    tip_x = @menu.aim_x * reach
-    tip_y = @menu.aim_y * reach
+    reach = RADIUS / [Math.hypot(@pointing.aim_x, @pointing.aim_y), 1.0].max
+    tip_x = @pointing.aim_x * reach
+    tip_y = @pointing.aim_y * reach
     renderer.line(0, 0, tip_x, tip_y, thickness: 3.0, color: POINTER)
     renderer.circle(tip_x, tip_y, 6, color: POINTER)
   end

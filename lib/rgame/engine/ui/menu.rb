@@ -3,20 +3,35 @@
 module RGame
   module Engine
     module UI
-      # A vertical list of things to choose from, navigated by keyboard or
-      # controller.
+      # Things to choose from, navigated by keyboard or controller.
       #
-      #   menu = layer.add_node(UI::Menu.new(item_width: 220, item_height: 44))
+      #   menu = layer.add_node(UI::Menu.new(layout: UI::Column.new(item_width: 220, item_height: 44)))
       #   menu.add_item('Resume').on_activated { close }
       #   menu.add_item('Quit').on_activated   { game.close }
       #
       # ## Focus is the whole design
       #
-      # With no pointer there is no hover, so something has to own *which
-      # control is focused* and how the directions move it. That is this class,
-      # and everything else about a menu follows from it: an item draws
-      # differently because it is focused, and `ui_confirm` activates the focused
-      # one.
+      # With no pointer there is no hover, so something has to own *which item
+      # is focused*. That is this class, and everything else about a menu
+      # follows from it: an item draws differently because it is focused, and
+      # `ui_confirm` activates the focused one.
+      #
+      # ## Two questions are handed off, and one is kept
+      #
+      # A list and a radial wheel are the same menu. What differs is **where the
+      # items sit** and **how input moves focus**, so those two are passed in:
+      #
+      # | | Answers | Shipped |
+      # |---|---|---|
+      # | `layout:` | where each item goes, and its size | UI::Column, UI::Ring |
+      # | `navigation:` | which item this frame's input focuses | UI::Stepping (default), UI::Pointing |
+      #
+      # What stays here is what every menu does the same way: holding the items,
+      # and on `ui_confirm` drawing the focused one pressed and activating it. A
+      # navigation cannot forget to do that, because it is never asked to.
+      #
+      #   wheel = UI::Menu.new(x: 320, y: 240, navigation: UI::Pointing.new,
+      #                        layout: UI::Ring.new(radius: 120, item_width: 96, item_height: 30))
       #
       # ## Focus is per player, and that costs nothing
       #
@@ -29,75 +44,55 @@ module RGame
       #
       # ## What this is not
       #
-      # It is a menu, not a widget library. Items are stacked vertically at a
-      # fixed size, and that is the whole of its layout. The package this
-      # replaces positioned everything absolutely and hit-tested a mouse; none
-      # of it is a reference, and how UI should be laid out in general is still
-      # an open question — see docs/api/ui.md, "What this is not".
+      # It is a menu, not a widget library. Every item is the same size, placed
+      # by its layout, and that is the whole of its layout story — see
+      # docs/api/ui.md, "What this is not".
       class Menu < Node2D
-        # Navigation wraps: a short vertical list is quicker to use when the
-        # ends join, and every console menu does it.
-        def initialize(item_width:, item_height:, spacing: 8,
-                       style: MenuItem::STYLE, **)
+        attr_reader :items, :focused_index, :layout, :navigation
+
+        def initialize(layout:, navigation: Stepping.new, style: MenuItem::STYLE, **)
           super(**)
-          @item_width = item_width
-          @item_height = item_height
-          @spacing = spacing
+          @layout = layout
+          @navigation = navigation
           @style = style
           @items = []
-          @focused_index = 0
+          @focused_index = nil
+          navigation.attach(self)
         end
 
-        attr_reader :items, :focused_index
-
-        # Adds an item below the last one and returns it, so a caller can
-        # connect to its signal in the same line.
+        # Adds an item and returns it, so a caller can connect to its signal in
+        # the same line.
         def add_item(label, enabled: true)
-          append(MenuItem.new(label: label, enabled: enabled, style: @style, **slot))
+          append(MenuItem.new(label: label, enabled: enabled, style: @style))
         end
 
         # Adds a row whose value is chosen from `values` with `ui_left` and
         # `ui_right` — a settings row. See UI::OptionItem, which is also where
-        # `display` is explained.
+        # `display` is explained. Those two actions reach it through
+        # UI::Stepping; under UI::Pointing they are directions instead.
         def add_option(label, values:, index: 0, display: :to_s.to_proc, enabled: true)
           append(OptionItem.new(label: label, values: values, index: index, display: display,
-                                enabled: enabled, style: @style, **slot))
+                                enabled: enabled, style: @style))
         end
 
-        def focused = @items[@focused_index]
+        # The focused item, or nil when nothing is — which under UI::Pointing is
+        # whenever the stick is at rest.
+        def focused = @focused_index && @items[@focused_index]
 
-        # Moves focus by `delta`, skipping anything disabled, and wrapping. Does
-        # nothing at all if no item can take focus.
-        def focus_by(delta)
-          return if @items.empty?
-
-          index = @focused_index
-          @items.size.times do
-            index = (index + delta) % @items.size
-            next unless @items[index].enabled?
-
-            focus(index)
-            return
-          end
-        end
-
+        # Focuses the item at `index`, or nothing for nil, and tells every item
+        # whether it is the one. It does not check `enabled?`: which items may
+        # take focus is the navigation's rule, and a disabled item cannot be
+        # activated whatever holds it.
         def focus(index)
           @focused_index = index
-          @items.each_with_index { |item, i| item.focused = (i == index) }
+          @items.each_index { |i| @items[i].focused = (i == index) }
         end
 
-        # Vertical moves focus and belongs to the menu; horizontal belongs to
-        # the focused row, because only the row knows whether it has anything to
-        # change. A plain MenuItem answers nil to `adjust` and nothing happens.
         def on_control(actions)
-          focus_by(-1) if actions.pressed?(:ui_up)
-          focus_by(1) if actions.pressed?(:ui_down)
+          @navigation.on_control(actions)
 
           current = focused
           return if current.nil?
-
-          current.adjust(-1) if actions.pressed?(:ui_left)
-          current.adjust(1) if actions.pressed?(:ui_right)
 
           current.pressed = actions.held?(:ui_confirm)
           current.activate if actions.pressed?(:ui_confirm)
@@ -105,27 +100,12 @@ module RGame
 
         private
 
-        def slot
-          { x: 0, y: @items.size * (@item_height + @spacing),
-            width: @item_width, height: @item_height }
-        end
-
         def append(item)
           @items << item
           add_node(item)
-          refocus
+          @layout.arrange(@items)
+          @navigation.on_items_changed
           item
-        end
-
-        def refocus
-          return if focused&.enabled?
-
-          @items.each_with_index do |item, index|
-            next unless item.enabled?
-
-            return focus(index)
-          end
-          focus(0)
         end
       end
     end

@@ -48,11 +48,22 @@ index, not the argument.
   `x`/`y`/`angle` as their short names, and the ivar behind it is `@rel_x` —
   `@x` no longer exists. `abs_band` and `abs_input_owner` keep their names:
   those are inherited from an ancestor rather than expressed in a space.
+- **`UI::Menu` is built from a layout and a navigation.** `Menu.new` takes
+  `layout:` — `UI::Column.new(item_width:, item_height:, spacing:)` for the
+  vertical list it used to be — and `navigation:`, defaulting to `UI::Stepping`,
+  which is the up/down focus it always had. `UI::Ring` and `UI::Pointing` make
+  the same class a radial menu that focuses whatever a stick points at, reading
+  the new universal actions `ui_radial_x` / `ui_radial_y`. A subclass of
+  `UI::Navigation` is a third way to move focus. `Menu#focus_by` is now
+  `Stepping#step`, and `Menu#focused` can be `nil`.
+  See [docs/api/ui.md](docs/api/ui.md).
 
 ### Fixed
 
 - The README's hello-world gave `on_draw` one parameter; it takes two
   (`renderer, view`).
+- A newly built `UI::Menu` reported its first item as focused without telling
+  the item, so it drew with no highlight until the first press.
 
 ## [0.2.0] - 2026-08-26
 
