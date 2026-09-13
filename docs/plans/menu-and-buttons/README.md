@@ -1,6 +1,6 @@
 # Plan — the menu is a shell, the button is the look
 
-**Status:** step 1 implemented, every open question settled. Steps 1 and 2 are detailed; steps 3–5
+**Status:** steps 1 and 2 implemented, every open question settled. Steps 3–5
 are rough and get re-planned when the step before them lands. Builds on PR #28
 (`UI::Menu` with `layout:` and `navigation:`), merged to `main` as `53f5392`.
 

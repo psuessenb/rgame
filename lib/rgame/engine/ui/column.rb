@@ -9,10 +9,11 @@ module RGame
       #   UI::Menu.new(layout: UI::Column.new(item_width: 220, item_height: 44))
       #
       # A layout is anything that answers `arrange(items)` by setting each
-      # item's position and size, relative to the menu. The Menu calls it every
-      # time an item is added, so a layout whose places depend on how many items
-      # there are — UI::Ring — re-spaces them all. It holds no state about any one
-      # menu, so one instance may serve several.
+      # item's position and size, relative to the menu, and `bounds(items)` with
+      # the rectangle that encloses them. The Menu calls both every time an item
+      # is added, so a layout whose places depend on how many items there are —
+      # UI::Ring — re-spaces them all. It holds no state about any one menu, so
+      # one instance may serve several.
       class Column
         attr_reader :item_width, :item_height, :spacing
 
@@ -29,6 +30,15 @@ module RGame
             item.width = @item_width
             item.height = @item_height
           end
+        end
+
+        # `[x, y, width, height]` of the stacked items, relative to the menu:
+        # all zero for no items, since no gap sits above the first.
+        def bounds(items)
+          count = items.size
+          return [0, 0, 0, 0] if count.zero?
+
+          [0, 0, @item_width, (count * @item_height) + ((count - 1) * @spacing)]
         end
       end
     end

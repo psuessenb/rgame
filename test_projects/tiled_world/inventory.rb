@@ -26,7 +26,7 @@ class Inventory < RGame::Engine::Node2D
 
   def on_add
     column = RGame::Engine::UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT, spacing: SPACING)
-    @menu = add_node(RGame::Engine::UI::Menu.new(x: PADDING, y: PADDING, layout: column))
+    @menu = add_node(RGame::Engine::UI::PanelMenu.new(x: PADDING, y: PADDING, padding: PADDING, layout: column))
     ITEMS.each { |label| @menu.add(RGame::Engine::UI::PanelButton.new(label: label)).on_activated { close } }
     @menu.paused = true
   end
@@ -35,12 +35,6 @@ class Inventory < RGame::Engine::Node2D
   # can be reopened.
   def on_control(actions)
     toggle if actions.pressed?(:ui_cancel)
-  end
-
-  def on_draw(renderer, _view)
-    return unless @open
-
-    renderer.nine_slice(:panel, 0, 0, panel_width, panel_height)
   end
 
   # The menu is a child, so skipping the child pass is what closes it visually.
@@ -62,7 +56,4 @@ class Inventory < RGame::Engine::Node2D
     @menu.paused = !@open
     @walker.paused = @open
   end
-
-  def panel_width = ITEM_WIDTH + (PADDING * 2)
-  def panel_height = (ITEMS.size * ITEM_HEIGHT) + ((ITEMS.size - 1) * SPACING) + (PADDING * 2)
 end

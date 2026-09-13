@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status:** step 1 is implemented. Step 2 is detailed; 3–5 are rough and are
+**Status:** steps 1 and 2 are implemented. Steps 3–5 are rough and are
 re-planned when the step before them lands. Step 4 needs a hotkey path into
 `Button#press` that ignores `activate_on:`, and the allocation in `Stepping#step`
 (see step 1's landed note).
@@ -225,6 +225,60 @@ invariant checks, and the one place a wrong sign would show.
 **Verify.** The invariant, and a mutation: a fourth button added to `game_menu`
 grows the panel (the last `nine_slice :panel` height in the report changes), where
 before it would not have.
+
+**Landed.** Three commits, one per sub-step, on branch `menu-panel`.
+
+- **2a** `Column#bounds` and `Ring#bounds`, both `[0, 0, 0, 0]` for no buttons;
+  `Menu#bounds_x/_y/_width/_height`, zero until the first `add` and copied from
+  the layout after `arrange` on each one. `ui.md`'s layout contract names both
+  methods.
+- **2b** `UI::PanelMenu` (`lib/rgame/engine/ui/panel_menu.rb`) as sketched, with
+  `panel` and `padding` readers; a `ui.md` section, and the CHANGELOG's
+  `UI::Menu` entry.
+- **2c** `game_menu` and the inventory build a `PanelMenu` with
+  `padding: PADDING`; `on_draw`, `panel_width`, `panel_height` and `ITEM_COUNT`
+  are gone.
+
+Suites: `rake spec` **1520 examples, 0 failures** (1499 before);
+`spec/rgame/engine/ui/` **161** (140 before). RuboCop clean on all 11 changed Ruby
+files. No C and no Core file changed, so `make test` and `rake spec:core` were not
+rerun.
+
+Invariant, `--seed 1`, fresh `RGAME_SAVE_DIR`, 600 ticks: after 2a and 2b,
+`game_menu`, `menu_navigation`, the inventory and `radial_menu` are
+**byte-identical** to `main`. After 2c, `menu_navigation` and `radial_menu` still
+are; `game_menu` and the inventory differ on one line each, and only in the
+panel's position arguments:
+
+| Report | `main` | 2c |
+|---|---|---|
+| `game_menu` | `first(:panel, 0, 0, 212, 150)` | `first(:panel, -16, -16, 212, 150)`, spans for args 1–2 now `-16..0` |
+| inventory | `first(:panel, 0, 0, 204, 138)` | `first(:panel, -12, -12, 204, 138)`, spans `-12..0` |
+
+Call counts, sizes, bands and the translates section are unchanged. The panel is
+now drawn one translate deeper, inside the menu's own `(padding, padding)`, so to
+check the sign a probe accumulated translates and recorded each `:panel` in
+screen space: `[40, 40, 212, 150]` ×41 in `game_menu` and `[20, 260, 204, 138]`
+×527 in the inventory, **identical on `main` and on 2c**.
+
+Mutation, a fourth `PanelButton` added to `game_menu`: on `main` the panel stays
+`212 × 150` behind four buttons, overflowing; on 2c it is `212 × 192`.
+
+What the sketch got wrong:
+
+- **"Byte-identical" could not hold for 2c, and "the menus move by padding" was
+  backwards.** The report records a draw's arguments, not where it lands, and
+  the panel now draws at `-padding` inside a menu that stays where it was. The
+  menus did not move; the panel did, by `-padding`, into the menu's translate.
+  The invariant was checked in screen space instead, above.
+- **`Ring#bounds` is the whole circle, not the tightest box**, as the sketch's
+  formula already implied: a single button in a ring gets a `2r + w` square.
+  Kept deliberately and documented, so a backdrop behind a wheel keeps its size
+  as buttons are added; step 3's `RadialMenu` backdrop disc wants exactly that.
+- **Found, not fixed:** `test_projects/tiled_world/inventory.rb` wraps `def close`
+  in `if @open` at class level, where `@open` is nil, so `close` is never defined
+  and activating an inventory item would raise `NoMethodError`. No drive script
+  confirms in that menu, which is why it has gone unseen. Unrelated to this step.
 
 ---
 
