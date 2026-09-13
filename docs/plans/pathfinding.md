@@ -1,6 +1,6 @@
 # Pathfinding — `examples/pathfinding` and the engine it needs
 
-**Status:** planned at `707ea1a`. **Step 1 is implemented.** Steps 1–4 are detailed; step 5 (the C search) is
+**Status:** planned at `707ea1a`. **Steps 1–2 are implemented.** Steps 1–4 are detailed; step 5 (the C search) is
 rough and is to be re-planned once step 4 has put a real caller on the API; step 6
 deletes this file.
 
@@ -428,6 +428,64 @@ existing `tile_world_spec.rb`, against `spec/support/stub_tile_map.rb`.
 **Verify.** `rake spec` green. Record in the landed note the town corner-to-corner
 time measured by a plain script (not a spec — timing specs are flaky), for step 5 to
 compare against.
+
+**Landed.** `Engine::NavGrid.new(width:, height:, solid:)` with `walkable?`, `region`,
+`reachable?` and `find`, exactly the sketched surface; `TileWorld#nav_grid`, built on first
+ask and memoised. Solidity is copied into a flat Array at construction, regions are labelled
+by an orthogonal flood fill, and `find` is A* over reused `cost`/`parent`/`seen`/`closed`
+buffers stamped with a generation counter, with a binary heap on parallel arrays. One commit.
+
+- `rake spec`: 1856 examples, 0 failures (1822 after step 1; 29 in `nav_grid_spec.rb`, 5 in
+  `tile_world_spec.rb`). RuboCop clean over the five files touched.
+- Rule 6 runs a brute-force Dijkstra (linear-scan, sharing no code with the search) against
+  five fixed queries over three fixtures, and from one corner to *every* open cell of the
+  scattered fixture. Its route-cost helper also raises on a non-step or a corner cut, so an
+  optimal cost cannot be reached by a route that is not a walk.
+- Mutations run by hand, each caught: the generation counter not advancing (3 failures), a
+  diagonal allowed past one open orthogonal (3), relaxation ignoring the better cost (3),
+  the heap's tie-break ignored (5). One survivor, equivalent: gating a straight move on
+  bounds alone, since `relax` checks solidity itself.
+- **Timings, for step 5** — `ruby -Ilib` on a plain script, Ruby 4.0.5 without YJIT, grids
+  built from `TileMap.load` + `solid_tile?`, one warm-up pass, best of 5 per query:
+
+  | | |
+  |---|---|
+  | town (60x40), build | 1.6 ms |
+  | town, `[1, 1]` → `[58, 38]` (65 cells, 635 expanded) | **2.6 ms** |
+  | `beach_large.tmx` (120x90), build | 7.5 ms |
+  | `beach_large`, 200 random pairs seeded `Random.new(1)` | mean 1.5 ms, **worst 24.5 ms** (`[116, 72]` → `[39, 6]`, 5319 expanded, ~4.5 µs each) |
+  | `island.tmx` (58x47), 200 random pairs | mean 0.12 ms, worst 1.4 ms; 46 unreachable, the slowest of them 2–9 µs |
+
+What the sketch got wrong or left out:
+
+- **The implementation is ~30% slower per cell than the prototype** measured before
+  planning: the same worst `beach_large` query expands 5319 cells against the prototype's
+  5359, at ~4.5 µs rather than ~3.5 µs, so 24.5 ms rather than 18.7 ms. Folding the per-
+  neighbour helpers together and dropping an insertion-order tie-break each changed nothing
+  measurable, so it is not call overhead in the obvious places; it was left there, since
+  step 5 is the planned answer to speed. The "~2.2 µs per expanded cell" in the measurement
+  table came from a comb maze, where most neighbours are solid — it is not comparable with
+  an open map's cost, and step 5 should compare against the table above instead.
+- **Rule 4 as sketched proves less than it reads.** Because solidity is copied at
+  construction, "`find` reads nothing from `solid` after construction" holds for *every*
+  query, cross-region or not, so the spy cannot show that no search ran. The example asserts
+  what it can (the answer is `nil` and the reads stayed at one per cell); the O(1) claim is
+  carried by the island timing above. An assertion on a private method was written and
+  removed — step 5 has to inherit the suite unedited, and a private name would not survive
+  the port.
+- **Ties go to the smaller remaining estimate**, not insertion order. Determinism holds
+  either way — the heap is deterministic given its inputs, and the "query after an unrelated
+  query" example guards the reused buffers — and preferring the cell further along is the
+  usual choice for octile grids. The C port should keep the same ordering, or the
+  exact-route examples (the corner and diagonal ones) may pick a different equally cheap
+  route.
+- **The `TileWorld` example is not against `StubTileMap`**, as the Tests line said: that
+  stand-in has no `solid_tile?`, and the existing `#blockers` examples already use an
+  `instance_double(TileMap)` for exactly that reason. The new ones follow them.
+
+Documented in `docs/api/toolbox.md` (a `NavGrid` section after `Path`, and a line in
+"Grids" saying why it is not a grid class) and `docs/api/components.md` (`TileWorld`'s
+queries, and the "Looking for" table).
 
 ### Step 3 — `Components::Navigator`
 

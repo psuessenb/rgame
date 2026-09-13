@@ -15,6 +15,7 @@ module RGame
       # A mover may be blocked by tiles, by other actors, or by both, and only the mover
       # knows which, so the resolver is the mover's and the grid is this system's. The tile
       # solidity itself is whatever the map's tileset reports (baked per-tile in Tiled).
+      # The same solidity, viewed as a graph for planning routes, is #nav_grid.
       #
       # **It does not draw.** Drawing the map is RGame::Engine::TileMapLayer, one
       # node per Tiled layer, mounted inside the WorldView so the map is drawn
@@ -74,6 +75,15 @@ module RGame
         end
 
         def solid?(col, row) = @map.solid_tile?(col, row)
+
+        # The map's solid tiles as an Engine::NavGrid, for planning a route rather than
+        # resolving a step — the same solidity #blockers reads, as a second view. Built on
+        # first ask, since only a scene that plans routes pays for it, and the same grid
+        # every time after.
+        def nav_grid
+          @nav_grid ||= Engine::NavGrid.new(width: @map.width, height: @map.height,
+                                            solid: ->(col, row) { @map.solid_tile?(col, row) })
+        end
 
         # Advances the tile animations. Seconds, like every other duration here.
         def update(dt)
