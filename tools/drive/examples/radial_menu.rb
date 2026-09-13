@@ -23,8 +23,9 @@
 #
 #   - **ten `text` and eight `nine_slice` calls per frame**: a label and a panel
 #     per item, whether it is focused or not, plus two captions;
-#   - **four `circle` calls and one `line` per frame** — backdrop, dead zone,
-#     swatch, and the pointer's tip — with the tip and the line's end spanning
+#   - **four `circle` calls and one `line` per frame** — backdrop (radius 198.0,
+#     from the ring's bounds with `padding: 0`), dead zone, the pointer's tip, and
+#     the swatch, which is drawn last — with the tip and the line's end spanning
 #     −106.1..150.0. 106.1 is a diagonal clamped to the ring: two arrow keys read
 #     as (1, 1), which is longer than a stick can reach;
 #   - **one clip per frame**, the presentation's. There is no WorldView and no

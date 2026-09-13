@@ -9,12 +9,12 @@
 # Point the left stick at a colour and press A. On a keyboard, hold the arrow
 # keys — two at once for a diagonal — and press Enter or Space. The chosen
 # colour fills the middle of the wheel. It exercises:
-#   - UI::Menu — the same menu a vertical list is, built from two other parts;
+#   - UI::RadialMenu — a UI::Menu that builds its own UI::Ring and
+#     UI::Pointing, and draws the backdrop, the dead zone and the pointer;
 #   - UI::Ring — its layout, items spaced round a circle;
 #   - UI::Pointing — its navigation, focus chosen by the direction of a stick;
 #   - `ui_radial_x` / `ui_radial_y` — the two axes Pointing reads, from the
-#     universal set every InputMap carries, so nothing here declares an action;
-#   - renderer.circle / renderer.line — the backdrop and the pointer.
+#     universal set every InputMap carries, so nothing here declares an action.
 #
 # ## The direction is the selection
 #
@@ -26,10 +26,10 @@
 # input too: the arrow keys, alone and in pairs, produce exactly eight
 # directions, one per colour.
 #
-# That is the only thing that makes this a wheel rather than a list. The Menu,
+# That is the only thing that makes this a wheel rather than a list. The menu,
 # its items and what confirming does are the same classes `examples/game_menu`
-# uses; this one is handed a UI::Ring where that one has a UI::Column, and
-# UI::Pointing where that one keeps the default UI::Stepping.
+# uses; a RadialMenu is a UI::Menu handed a UI::Ring where that one has a
+# UI::Column, and UI::Pointing where that one keeps the default UI::Stepping.
 #
 # ## Letting go selects nothing
 #
@@ -61,16 +61,16 @@ WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
 
-# The wheel and what it chooses. Its children are the menu's items, so this
-# node's own drawing — backdrop, dead zone, swatch, pointer — lands beneath them.
+# The wheel and what it chooses. The wheel itself — backdrop, dead zone, pointer
+# and buttons — is a UI::RadialMenu; the swatch is a node added after it, because
+# between nodes the tree decides what lands on top, and anything this node drew
+# itself would sit under the menu's backdrop.
 class ColourWheel < RGame::Engine::Node2D
   Color = RGame::Util::Color
 
   RADIUS = 150
   ITEM_WIDTH = 96
   ITEM_HEIGHT = 30
-  RIM = RADIUS + 44
-  SWATCH_RADIUS = 34
 
   COLOURS = [
     ['Red', Color.new(214, 64, 56)],
@@ -83,34 +83,18 @@ class ColourWheel < RGame::Engine::Node2D
     ['Locked', nil]
   ].freeze
 
-  BACKDROP = Color.new(44, 40, 52)
-  DEAD_ZONE = Color.new(76, 72, 88)
-  POINTER = Color.new(240, 236, 224)
   NOTHING_CHOSEN = Color.new(24, 22, 28)
 
-  attr_reader :chosen
+  attr_reader :chosen, :swatch
 
   def initialize(**)
     super
     @chosen = nil
     @swatch = NOTHING_CHOSEN
-    @pointing = RGame::Engine::UI::Pointing.new
-    ring = RGame::Engine::UI::Ring.new(radius: RADIUS, item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT)
-    @menu = add_node(RGame::Engine::UI::Menu.new(layout: ring, navigation: @pointing))
+    @menu = add_node(RGame::Engine::UI::RadialMenu.new(radius: RADIUS, button_width: ITEM_WIDTH,
+                                                       button_height: ITEM_HEIGHT, padding: 0))
     COLOURS.each { |label, colour| add_colour(label, colour) }
-  end
-
-  # All in the wheel's own space, whose origin is the centre of the ring.
-  def on_draw(renderer, _view)
-    renderer.circle(0, 0, RIM, color: BACKDROP)
-    renderer.circle(0, 0, @pointing.dead_zone * RADIUS, color: DEAD_ZONE)
-    renderer.circle(0, 0, SWATCH_RADIUS, color: @swatch)
-
-    reach = RADIUS / [Math.hypot(@pointing.aim_x, @pointing.aim_y), 1.0].max
-    tip_x = @pointing.aim_x * reach
-    tip_y = @pointing.aim_y * reach
-    renderer.line(0, 0, tip_x, tip_y, thickness: 3.0, color: POINTER)
-    renderer.circle(tip_x, tip_y, 6, color: POINTER)
+    add_node(Swatch.new(wheel: self))
   end
 
   private
@@ -122,6 +106,18 @@ class ColourWheel < RGame::Engine::Node2D
       @swatch = colour
     end
   end
+end
+
+# The chosen colour, filling the middle of the wheel.
+class Swatch < RGame::Engine::Node2D
+  RADIUS = 34
+
+  def initialize(wheel:, **)
+    super(**)
+    @wheel = wheel
+  end
+
+  def on_draw(renderer, _view) = renderer.circle(0, 0, RADIUS, color: @wheel.swatch)
 end
 
 # The captions. Added after the wheel, so it draws last and its final line is
