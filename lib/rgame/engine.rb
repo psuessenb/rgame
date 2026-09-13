@@ -4,6 +4,7 @@ require_relative 'util'
 
 require_relative 'engine/culling'
 require_relative 'engine/signal'
+require_relative 'engine/sealed_privates'
 require_relative 'engine/node2d'
 require_relative 'engine/component'
 require_relative 'engine/animation_set'

@@ -4,6 +4,7 @@ module RGame
   module Engine
     class Component
       extend Signal::DSL
+      extend SealedPrivates
 
       attr_accessor :node
 

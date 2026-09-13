@@ -27,6 +27,13 @@ index, not the argument.
 
 ### Changed
 
+- **`Node2D`'s internal methods start with `_`, and a subclass may not redefine
+  them.** A subclass of `Node2D` or `Component` defining a method named like
+  one of the base class's underscored private or protected methods now raises
+  `NameError` where the class is defined; before, it silently replaced engine
+  machinery for that class. `Node2D#draw_children` keeps its name and stays
+  overridable. See [docs/api/scene_graph.md](docs/api/scene_graph.md).
+
 - **Drawing happens in local space.** `Node2D#draw` pushes the node's transform
   onto the renderer before running `on_draw` and descending into children, so a
   node draws at its own origin: `renderer.rect(0, 0, width, height)`. Passing a
