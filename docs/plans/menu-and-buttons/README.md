@@ -1,7 +1,8 @@
 # Plan — the menu is a shell, the button is the look
 
 **Status:** steps 1–5 implemented; step 5 amended question 9 for captions.
-Step 6, a menu held open by an action, is rough; step 7 is the fold-back. Every open question is settled. Builds on PR
+Step 6, a menu held open by an action, is re-planned and in progress; step 7 is
+the fold-back. Every open question is settled. Builds on PR
 #28 (`UI::Menu` with `layout:` and `navigation:`), merged to `main` as `53f5392`.
 
 | | |
@@ -166,8 +167,8 @@ Not up for re-litigation inside this plan.
     decision**, not the engine's. The menu says when it opens and closes; what
     that does to the world is not its business.
 
-  The grace window's length is not decided; step 6's re-plan picks it from prior
-  art ([02-prior-art.md](02-prior-art.md#a-wheel-held-open-by-a-button--not-yet-researched)).
+  The grace window's length, **0.15 s**, was picked in step 6's re-plan from
+  prior art ([02-prior-art.md](02-prior-art.md#a-wheel-held-open-by-a-button)).
   Step 5d is amended so its press sources do not assume every hold is on a
   button; the wheel is step 6.
 
@@ -322,6 +323,25 @@ Not up for re-litigation inside this plan.
    caption**, so the disc sits round the picture and the caption reads below it,
    in the button's own label colours. The content colour applies to the picture
    only. The caption is still inside the slot.
+
+10. ~~**Step 6's three questions.**~~ **Settled in step 6's re-plan**, each by
+    the rule nearest to it, and not asked of a prompt. Blocks nothing.
+    - *May a game `open` a trigger menu by hand?* **No — it raises.** The trigger
+      owns opening, and a menu opened by hand would wait for a release whose
+      press it never saw. `close` is allowed on every menu, and on a trigger menu
+      is the cancel a game wants when, say, the player is hit.
+    - *What does `trigger:` with `navigation: nil` mean?* **Exactly what it
+      says:** the menu opens and closes on the trigger, and the release activates
+      whatever the game focused, typically in `on_opened`. No special case.
+    - *The "seen up" bits that step 5's note found could be mutated to `true`
+      unnoticed.* **Kept as they are**, and the trigger gets a third one. The
+      update only matters when a key goes up and down again while the menu is
+      paused; refusing that press is the conservative answer, and the same for
+      all three.
+    - *The grace window's default when a `Pointing` is built by hand.*
+      **Resolved from the menu, like `Stepping`'s axis from the layout:**
+      `Pointing.new(grace: nil)` takes `GRACE` on a menu with a trigger and 0
+      without one, so a hand-built held wheel cannot silently miss it.
 
 ## What this plan does not deliver
 

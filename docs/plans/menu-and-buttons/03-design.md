@@ -222,7 +222,10 @@ it from the rejected `look:` below.
 
 ## A menu held open by an action
 
-Sketched roughly, for step 6; re-planned once step 5 has landed.
+Sketched roughly before step 5 landed. Step 6's re-plan in
+[04-roadmap.md](04-roadmap.md) supersedes the details below: `Pointing grace: nil`
+resolves from the menu's trigger, `open` raises on a trigger menu, and the
+navigation gains `update(dt)` and `on_opened`.
 
 ```ruby
 class Menu < Node2D
