@@ -107,6 +107,72 @@ RSpec.describe RGame::Engine::UI::Menu do
     end
   end
 
+  # The menu never asks what kind of button it holds, so one of each — shipped
+  # on art, shipped on shapes, shipped on an image, and the game's own — sit in
+  # one list, step, and draw in their own slots.
+  # rubocop:disable RSpec/MultipleMemoizedHelpers -- four are the file's own menu and input;
+  # the other two are the art every kind of button in it needs registered.
+  describe 'buttons of every kind in one menu' do
+    let(:slice_log) { [] }
+    let(:renderer) do
+      FakeRenderer.new.tap do |r|
+        RGame::Engine::UI::PanelButton::STYLE.elements.each_value { |id| r.register_nine_slice(id, slice(id)) }
+        r.register_image(:home, StubImage.new(50, 50))
+      end
+    end
+
+    def slice(id)
+      log = slice_log
+      Class.new { define_method(:draw) { |*, **| log << id } }.new
+    end
+
+    before do
+      swatch = Class.new(RGame::Engine::UI::Button) do
+        def on_draw(renderer, _view)
+          renderer.rect(0, 0, width, height, color: state == :focused ? [255, 255, 255] : [0, 0, 0])
+        end
+      end
+      menu.add(button('Resume'))
+      menu.add(RGame::Engine::UI::TextButton.new(label: 'Options'))
+      menu.add(RGame::Engine::UI::IconButton.new(image: :home))
+      menu.add(swatch.new)
+      root.enter_tree
+      poll
+      press(:ui_down)
+      press(:ui_down)
+    end
+
+    # Each call keyed by where it lands: the y of the slot it was drawn inside.
+    def by_slot
+      root.draw(renderer, screen_view)
+      renderer.calls.reject { |call| call.name == :translated }.group_by do |call|
+        call.transforms.sum { |transform| transform.args[1] }
+      end
+    end
+
+    it 'steps through all of them' do
+      expect(menu.buttons.map(&:state)).to eq(%i[idle idle focused idle])
+    end
+
+    it 'draws every button in its own slot' do
+      expect(by_slot.transform_values { |calls| calls.map(&:name) })
+        .to eq(0 => %i[text], 48 => %i[rect text], 96 => %i[image], 144 => %i[rect])
+    end
+
+    it 'draws the panel button from its own art' do
+      by_slot
+      expect(slice_log).to eq([:button_idle])
+    end
+
+    it 'draws the focused one, and only that one, in its focused look' do
+      slots = by_slot
+      looks = [slots[48].first.options[:color], slots[96].first.options[:color], slots[144].first.options[:color]]
+      expect(looks).to eq([RGame::Engine::UI::ShapeStyle::COLORS[:idle],
+                           RGame::Engine::UI::IconButton::TINTS[:focused], [0, 0, 0]])
+    end
+  end
+  # rubocop:enable RSpec/MultipleMemoizedHelpers
+
   describe '#focus' do
     # A focus sound or animation hangs off on_focus_changed, so a menu that
     # reasserts focus every frame must not replay it.

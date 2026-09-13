@@ -51,6 +51,7 @@ module RGame
         signal :on_activated
 
         PRESS_FEEDBACK = 0.1
+        STATES = %i[idle focused pressed disabled].freeze
         ACTIVATE_ON = %i[release press].freeze
 
         attr_accessor :label, :enabled

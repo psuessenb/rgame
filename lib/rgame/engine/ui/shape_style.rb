@@ -24,7 +24,6 @@ module RGame
       # `z: 50`, which would cover the label or icon a button draws at `z: 1`.
       class ShapeStyle
         SHAPES = %i[rect disc].freeze
-        STATES = %i[idle focused pressed disabled].freeze
         OUTLINED = %i[focused pressed].freeze
 
         COLORS = {
@@ -46,7 +45,7 @@ module RGame
           end
 
           @shape = shape
-          @colors = STATES.to_h { |state| [state, colors.fetch(state)&.then { Util::Color.coerce(it) }] }.freeze
+          @colors = Button::STATES.to_h { |state| [state, colors.fetch(state)&.then { Util::Color.coerce(it) }] }.freeze
           @outline = outline&.then { Util::Color.coerce(it) }
           @border = border
         end
