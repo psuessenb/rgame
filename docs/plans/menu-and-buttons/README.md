@@ -1,7 +1,7 @@
 # Plan — the menu is a shell, the button is the look
 
-**Status:** steps 1 and 2 implemented, every open question settled. Steps 3–5
-are rough and get re-planned when the step before them lands. Builds on PR #28
+**Status:** steps 1 and 2 implemented. Steps 3–5 planned in detail at
+`564e708`, step 6 is the fold-back. Every open question is settled. Builds on PR #28
 (`UI::Menu` with `layout:` and `navigation:`), merged to `main` as `53f5392`.
 
 | | |
@@ -23,7 +23,7 @@ buttons for prototyping, a horizontal skill bar — is one menu class with a
 different layout, navigation and button class.
 
 Three requirements needed more than the code already had, and are the reason
-this is five steps rather than one:
+this is six steps rather than one:
 
 1. **"The menu draws its backdrop"** needs the menu to know its own extent. Today
    two callers compute a panel size by hand, one from a constant that has to be
@@ -79,16 +79,25 @@ placement.
 
 ## Hard constraints
 
-1. **Engine layer only.** Everything here is `RGame::Engine::UI`, pure Ruby,
-   specced headless in `spec/`, naming no `RGame::Core`.
-2. **No renderer change unless a step proves it is needed.** The renderer
-   contract has three implementations to keep in step (CLAUDE.md, "Fakes must be
-   checked against the same contract"). Measured: everything the shipped
-   buttons need already exists — see
-   [01-current-state.md](01-current-state.md#what-the-renderer-already-offers).
+1. **Menus, buttons, layouts, navigations and styles are `RGame::Engine::UI`**,
+   pure Ruby, specced headless in `spec/`, and name no `RGame::Core` — they reach
+   the renderer only through the object `draw` hands them, and name images and
+   nine-slices by id. That is CLAUDE.md's layering rule applied, nothing more:
+   Core may change where a step needs it, as long as Engine still cannot tell.
+2. **A change to the renderer's surface lands with its contract.** The renderer
+   has three implementations to keep in step (CLAUDE.md, "Fakes must be checked
+   against the same contract"), so any method added or changed — drawing or
+   registering — gets its example in `spec/support/shared_examples/a_renderer.rb`
+   and its `FakeRenderer` counterpart in the same commit. Measured: no drawing
+   method is needed — see
+   [01-current-state.md](01-current-state.md#what-the-renderer-already-offers);
+   step 4b changes what `register_ui_atlas` registers.
 3. **Nothing on a per-frame path allocates.** `Menu#on_control` and every
-   shipped button's `on_draw` are measured allocation-free, as `Stepping` and
-   `Pointing` are today (0 and 1 objects over 200,000 calls).
+   shipped button's `on_draw` are measured allocation-free. *Measured when
+   re-planning step 3, this was not yet true:* `PanelButton#on_draw` allocates
+   one `Color` per draw and `OptionButton#on_draw` four, from array colour
+   constants, and `Stepping#step` one per focus step (step 1's landed note).
+   Steps 3b and 5b close them.
 4. **A mistake fails loudly.** Adding something that is not a button raises; a
    hotkey naming an undeclared action raises (`Actions` already does); a
    navigation shared between menus raises (already does).
@@ -112,6 +121,13 @@ Not up for re-litigation inside this plan.
 - **This starts now, before `examples/localization` and anything else builds on
   `UI::Menu`.** Same prompt: the cheapest moment to move the line is before more
   callers depend on where it is.
+- **Named icons reach the renderer through a UI atlas.** `Core::UiAtlas` grows an
+  `images` key beside `nine_slices`, and `register_ui_atlas` registers both, so
+  `IconButton.new(image: :home)` draws after the one registration call a game
+  already makes for nine-slices. Taken in the prompt that re-planned steps 3–5,
+  choosing the recommendation under open question 8, after the old wording of
+  hard constraint 1 ("engine layer only") was found to rest on nothing and
+  reworded. Step 4b.
 
 ## Open questions
 
@@ -127,7 +143,8 @@ Not up for re-litigation inside this plan.
    what a forgotten argument looks like does not apply: the keyword defaults to
    `Stepping.new`, so leaving it out never produces `nil`, and passing `nil` is
    always a statement. A menu with no navigation never focuses anything, so
-   `ui_confirm` does nothing and only hotkeys activate. Step 4. See
+   `ui_confirm` does nothing and only hotkeys activate — unless the game calls
+   `focus` itself, which is as much a statement as passing `nil`. Step 5c. See
    [03-design.md](03-design.md#navigation-changes).
 4. ~~**Does a hotkey focus the button it triggers?**~~ **Settled — no, but it
    presses it.** Focus stays where it was. What a hotkey does give is the same
@@ -145,10 +162,11 @@ Not up for re-litigation inside this plan.
    to cut: `renderer.image` tints by multiplying, so white art takes any per-state
    colour and black art takes none. They are menu symbols — home, settings, save,
    star, trophy, lock, audio — which fits a radial quick menu, not a skill bar.
-   The pack has not been downloaded yet; step 3 checks the sizes and cuts the
-   handful the example uses into one image with a `.json`, the way asset **G**
-   was cut, and records provenance in `examples/assets/README.md`. Art for
-   step 4's skill bar is not settled by this — see question 7.
+   Downloaded while re-planning step 3: every icon is 50×50 (1x) and 100×100
+   (2x), white is RGB 255 with alpha only. Step 4c cuts eight 1x icons into one
+   strip — 2 KB, against 121 KB for the eight files as shipped — and records
+   provenance in `examples/assets/README.md`. Art for
+   step 5's skill bar is not settled by this — see question 7.
 6. ~~**When does a press activate, and how long is "pressed" visible?**~~
    **Settled — every recommendation below, confirmed as written.** Today
    pressed lasts exactly as long as `ui_confirm` is held — one frame for a tap,
@@ -191,17 +209,47 @@ Not up for re-litigation inside this plan.
    colours directly) and an `Outline` style (the same with a black border, which
    stays black under a tint and so reads on any background). The pack also has
    `tool_hoe`, `tool_shovel`, `tool_axe` and `tool_pickaxe` if the farm wants
-   more. Step 4 picks the style after seeing both on the example's background.
+   more. Step 5e picks the style after seeing both on the example's background.
    An OpenGameArt collection of ability icons was looked at first and passed
    over: it has no licence of its own and links sixty-odd packs under mixed
    licences.
+8. ~~**How does a game get named icons from one sheet onto the renderer?**~~
+   **Settled — through the UI atlas**, as recommended below. See
+   ["Named icons reach the renderer through a UI atlas"](#decisions-already-taken).
+   `IconButton` takes an image id, and a Symbol id resolves by registration only.
+   The icons ship as one strip (see question 5), so something has to cut it into
+   named subimages and register them.
+
+   **Chosen: `UiAtlas` grows an `images` key beside `nine_slices`, and
+   `register_ui_atlas` registers both.** A UI atlas is already "one sheet of UI
+   chrome, cut into named rectangles"; an icon is a named rectangle drawn whole
+   instead of stretched. Same question, another kind of element — the "extend"
+   pile, not a second loader. It comes with `AssetManager` caching and groups for
+   free, and the contract runs it against both renderers.
+
+   What it changes: `Core::UiAtlas`, and what `register_ui_atlas` does in the
+   real renderer and in `FakeRenderer`, with a contract example (hard constraint
+   2). No drawing method, no C, and nothing a caller already writes. Engine code
+   still names the icon by id only (hard constraint 1).
+
+   Considered:
+   - *The example parses its own `.json` and calls `register_image(subimage)` in
+     a loop.* No Core change. But every game with an icon sheet writes that
+     loader again, next to a UI atlas that already parses the same rectangle
+     shape — the parallel-vocabulary smell in CLAUDE.md — and loses the asset
+     manager's cache and groups.
+   - *`renderer.sprite` gains `color:` and `scale:`.* A C and contract change on
+     three implementations for a drawing call, and a sprite sheet is a uniform
+     grid, which an icon set picked from a pack is not in general.
+   - *One PNG per icon, by path.* Needs no code at all; measured at 121 KB for
+     eight, doubling `examples/assets`.
 
 ## What this plan does not deliver
 
 - Buttons sized to their content, and any layout that flows (see verdict, and
   "Text measurement for the engine layer" in `docs/plans/possible-todos.md`).
 - Grids and two-dimensional navigation — an inventory grid is the obvious next
-  layout, and step 4's axis parameter is the seam it would extend.
+  layout, and step 5's `Stack` axis is the seam it would extend.
 - Cooldown sweeps on skill buttons (needs an arc primitive, which the renderer
   does not have), and any game rule about skills.
 - Scrolling, nesting, text entry, and a pointer/mouse — as `docs/api/ui.md`,

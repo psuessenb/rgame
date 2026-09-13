@@ -5,7 +5,7 @@
 | | Owns | Asks of the other |
 |---|---|---|
 | **`UI::Button`** | label, `enabled`, `focused`, `pressed`, `state`, `on_activated`, `hotkey`, its `on_draw` | nothing |
-| **`UI::Menu`** | the buttons, `layout`, `navigation` (or none), bounds, confirm and hotkey dispatch, its `on_draw` (backdrop) | `focused=`, `pressed=`, `enabled?`, `activate`, `adjust`, `hotkey`, `x`/`y`/`width`/`height` |
+| **`UI::Menu`** | the buttons, `layout`, `navigation` (or none), bounds, confirm and hotkey dispatch, its `on_draw` (backdrop) | `focused=`, `press`/`release`/`cancel_press`, `enabled?`, `adjust`, `hotkey`, `x`/`y`/`width`/`height` |
 | **layout** | where a slot is, and the extent of all of them | writes `x`/`y`/`width`/`height` |
 | **navigation** | which button is focused this frame | `menu.focus(index)`, `buttons`, `enabled?`, positions |
 
@@ -103,6 +103,10 @@ class Button < Node2D
 | `ui_confirm` on the focused button | pressed while held; activates on release, if focus did not move | activates on press; pressed for `PRESS_FEEDBACK`, or while held if longer |
 | the button's `hotkey` | **activates on press** either way; pressed for `PRESS_FEEDBACK`, or while held | same |
 
+Both sources go through one rule in the menu, and the button records which one
+holds it — `press(source)`, `release(source)`, `cancel_press(source)` — so a
+hotkey's release cannot end a hold confirm started, or the reverse.
+
 And for both: a press counts only if its edge arrived while this button could see
 it. That closes the double activation measured in
 [01-current-state.md](01-current-state.md#one-confirm-activates-two-menus).
@@ -129,8 +133,11 @@ class PanelMenu < Menu          # nine_slice(panel) around bounds, grown by padd
   def initialize(panel: :panel, padding: 16, **)
 
 class RadialMenu < Menu         # a Ring and a Pointing, built for you
-  def initialize(radius:, button_size:, dead_zone: Pointing::DEAD_ZONE,
-                 backdrop: nil, pointer: nil, **)   # colours; nil draws nothing
+  def initialize(radius:, button_width:, button_height: button_width,
+                 dead_zone: Pointing::DEAD_ZONE, padding: 16,
+                 backdrop: BACKDROP, dead_zone_color: DEAD_ZONE, pointer: POINTER, **)
+                 # colours default to the example's; nil omits that part.
+                 # layout: or navigation: in ** raises, rather than silently replacing the preset.
 ```
 
 `RadialMenu` is the reusable half of `examples/radial_menu`: backdrop disc, dead
@@ -143,21 +150,51 @@ the separate focus implementation #28 removed.
 |---|---|---|
 | `PanelButton` (renamed from `MenuItem`) | nine-slice per state + centred label | the UI atlas |
 | `OptionButton` (renamed from `OptionItem`) | the above + `< value >` | the UI atlas |
-| `TextButton` | label; focus as a marker and colour from primitives | no |
-| `IconButton` | an image centred in the slot, tinted/scaled per state, optional caption below | an image — white art, so a tint can colour it |
+| `TextButton` | its style, then a centred label | no — its default style is shapes |
+| `IconButton` | its style (none by default), an image tinted/scaled per state, optional caption along the bottom of the slot | an image — white art, so a tint can colour it |
 
-`TextButton` is the prototyping button in the requirement. Round or square is
-the art's business for `IconButton`; for `TextButton` it is an open detail for
-step 3 (a `shape:` of `:rect` or `:disc`).
+`PanelButton` becomes a `TextButton` whose default style is a nine-slice one, and
+`OptionButton` stays a `PanelButton`.
+
+`TextButton` is the prototyping button in the requirement. Round or square is a
+property of the style (`ShapeStyle shape: :rect | :disc`), so a round image-only
+entry is an `IconButton` with a disc style rather than a shape option on each
+button class.
+
+Every shipped button draws inside its slot — including the caption — so a
+navigation reading `x + width / 2` and a backdrop sized from bounds stay right
+without asking a button where its centre is.
 
 Label colours become constructor arguments with the current values as defaults,
-so the "button art must be light because the label colour is a constant"
-constraint recorded in `basic-examples.md` goes away.
+held as `Util::Color`s so a draw allocates nothing, and the "button art must be
+light because the label colour is a constant" constraint recorded in
+`basic-examples.md` goes away.
+
+### Styles
+
+What sits behind a button's content, per state. The button holds one; the menu
+never sees it.
+
+```ruby
+style.draw(renderer, state, width, height)   # the whole duck type, in the button's local space
+
+NineSliceStyle.new(idle:, focused:, pressed:, disabled:)          # element names
+ShapeStyle.new(shape: :rect, colors: COLORS, outline: OUTLINE, border: 3)
+```
+
+A style draws at `z: 0` or below and the button's own content at `z: 1`: shapes
+default to `z: 50` and would otherwise cover it. This is Godot's per-state
+stylebox and Unity's per-selectable transition (see
+[02-prior-art.md](02-prior-art.md)) — held by the button, which is what separates
+it from the rejected `look:` below.
 
 ## Navigation changes
 
-- `Stepping.new(axis: :vertical)` — `:horizontal` swaps which pair of actions
-  moves focus and which goes to `adjust`.
+- Every layout answers `axis`. `Column` and `Row` are one `Stack` with the axis
+  fixed; `Ring` answers `:vertical`.
+- `Stepping.new(axis: nil)` — nil takes the layout's axis, so a `Row` steps with
+  left and right without being told; an explicit axis overrides. `:horizontal`
+  swaps which pair of actions moves focus and which goes to `adjust`.
 - `navigation: nil` (open question 3, settled) — no class. Hotkey dispatch is the
   menu's and works under every navigation, including none, so a navigation
   object would only have existed to say "there is no navigation".
