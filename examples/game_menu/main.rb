@@ -79,10 +79,8 @@ class GameMenu < RGame::Engine::Node2D
   end
 
   def on_add
-    @menu = add_node(RGame::Engine::UI::Menu.new(
-                       x: PADDING, y: PADDING,
-                       item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT, spacing: SPACING
-                     ))
+    column = RGame::Engine::UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT, spacing: SPACING)
+    @menu = add_node(RGame::Engine::UI::Menu.new(x: PADDING, y: PADDING, layout: column))
     @menu.add_item('Resume').on_activated { close }
     # Disabled, so the example shows that state of the art — and because saving
     # is `examples/save_load`'s subject rather than this one's.

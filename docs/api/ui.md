@@ -24,32 +24,137 @@ it decides there is nothing to draw.
 
 ## `RGame::Engine::UI::Menu`
 
-A vertical list of things to choose from.
+Things to choose from, one of them focused.
 
 ```ruby
-menu = layer.add_node(RGame::Engine::UI::Menu.new(item_width: 220, item_height: 44))
+column = RGame::Engine::UI::Column.new(item_width: 220, item_height: 44)
+menu = layer.add_node(RGame::Engine::UI::Menu.new(layout: column))
 menu.add_item('Resume').on_activated { close }
 menu.add_item('Save').on_activated   { save }
 menu.add_item('Quit', enabled: false)
 ```
 
+A list and a radial wheel are the same class. What differs between them is
+**where the items sit** and **how input moves focus**, and a menu is built with
+one of each:
+
+| | Answers | Shipped |
+|---|---|---|
+| `layout:` | where each item goes, and its size | [`Column`](#layouts-column-and-ring), [`Ring`](#layouts-column-and-ring) |
+| `navigation:` | which item this frame's input focuses | [`Stepping`](#stepping) (the default), [`Pointing`](#pointing) |
+
+```ruby
+ring = RGame::Engine::UI::Ring.new(radius: 120, item_width: 96, item_height: 30)
+wheel = layer.add_node(RGame::Engine::UI::Menu.new(x: 320, y: 240, layout: ring,
+                                                   navigation: RGame::Engine::UI::Pointing.new))
+wheel.add_item('Sword').on_activated { equip(:sword) }
+wheel.add_item('Bow').on_activated   { equip(:bow) }
+```
+
+What the menu keeps is what is the same for every combination:
+
 | | |
 |---|---|
-| `ui_up` / `ui_down` | move focus, wrapping at the ends |
-| `ui_left` / `ui_right` | change the value on the focused row |
-| `ui_confirm` | activate the focused item |
-| `add_item(label, enabled: true)` | append an item and return it |
+| `ui_confirm` | draw the focused item pressed while held, activate it on the press |
+| `add_item(label, enabled: true)` | append an item, re-arrange them all, and return it |
 | `add_option(label, values:, ...)` | append a settings row and return it |
-| `items`, `focused`, `focused_index` | what it holds and where focus is |
-| `focus(index)`, `focus_by(delta)` | move focus directly |
+| `items`, `focused`, `focused_index` | what it holds and what is focused — `nil` when nothing is |
+| `focus(index)` | focus an item directly, or nothing with `nil` |
+| `layout`, `navigation` | the two parts it was built with |
 
-Those actions come from the [universal set](input.md#the-universal-ui-set) that
+The actions come from the [universal set](input.md#the-universal-ui-set) that
 every `InputMap` is merged over, so a menu works without a game declaring
 anything.
 
-**Vertical belongs to the menu, horizontal to the focused row.** The menu does
+**Confirming is the menu's, not the navigation's.** A navigation only says which
+item is focused, so a new one cannot forget to activate it, and every
+combination of layout and navigation confirms the same way.
+
+### Layouts: `Column` and `Ring`
+
+| | Places items | Built with |
+|---|---|---|
+| `Column` | downwards from the menu's origin | `item_width:`, `item_height:`, `spacing: 8` |
+| `Ring` | round a circle **centred on** the menu's origin, the first straight up, then clockwise | `radius:`, `item_width:`, `item_height:` |
+
+A layout is anything answering `arrange(items)` by setting each item's `x`, `y`,
+`width` and `height`, relative to the menu. The menu calls it after every
+`add_item`, which is how a ring re-spaces itself as it grows. A layout keeps no
+state about a menu, so one instance may serve several.
+
+### `Stepping`
+
+Focus moves one item at a time, in the order items were added. The default.
+
+| | |
+|---|---|
+| `ui_up` / `ui_down` | move focus, skipping disabled items, wrapping at the ends |
+| `ui_left` / `ui_right` | `adjust` the focused row |
+| `step(delta)` | move focus as `ui_down` would, `delta` times |
+
+Focus starts on the first enabled item and is never empty while the menu has an
+item.
+
+**Vertical belongs to the navigation, horizontal to the focused row.** It does
 not know what kind of row it is talking to — it calls `adjust` and a plain item
-answers `nil`.
+answers `nil`. That is what makes an `OptionItem` work, and why a settings menu
+wants `Stepping`.
+
+### `Pointing`
+
+Focus is the item a stick points at — with a `Ring`, a radial menu.
+
+| | |
+|---|---|
+| `ui_radial_x` / `ui_radial_y` | the direction; focuses the item nearest to it by angle |
+| `dead_zone` | the shortest deflection that selects, on the combined vector (default 0.5) |
+| `index_at(x, y)` | the index a vector points at, or `nil` inside the dead zone |
+| `aim_x`, `aim_y` | the last direction read, for a game drawing a pointer |
+
+**The direction is the selection.** There is no "next". Each item's centre, seen
+from the menu's origin, is a direction, and whichever is closest to the stick's
+is focused. On a ring that cuts the circle into one sector per item, centred on
+it — and because the angles come from where the items actually are, no layout
+can disagree with it. Eight items on a ring line up with the eight directions
+the arrow keys make, so a keyboard works too.
+
+**Below the dead zone nothing is focused**, and a confirm then activates nothing.
+A stick springs back through the middle when it is let go of, so a wheel that
+kept its last selection would hand a player who releases the stick and presses A
+whatever the stick passed on its way home.
+
+That dead zone is measured on the combined vector *after* `ActionMapper`'s own
+per-axis one (0.15) is taken off and the rest rescaled. The two do different
+jobs: the per-axis one stops a worn stick drifting, and is far too small to
+decide that a player means a direction.
+
+**A disabled item is never focused**, so pointing at one selects nothing. Left
+and right are directions here, so an `OptionItem` under `Pointing` cannot be
+adjusted.
+
+Nothing about a wheel is drawn by the menu: a backdrop or a pointer is the
+game's, and `aim_x` / `aim_y` are what that pointer reads. `examples/radial_menu`
+draws both.
+
+### A navigation of your own
+
+Subclass `RGame::Engine::UI::Navigation` and override its two hooks:
+
+```ruby
+class FirstEnabled < RGame::Engine::UI::Navigation
+  def on_control(_actions) = menu.focus(menu.items.index(&:enabled?))
+end
+```
+
+| Hook | Called |
+|---|---|
+| `on_control(actions)` | every frame, before the menu handles `ui_confirm` |
+| `on_items_changed` | after an item is added |
+
+`menu` is the menu it drives. **A navigation drives exactly one menu** —
+`Pointing` keeps the last direction it read — so handing one instance to a second
+menu raises `ArgumentError` rather than letting two menus share a pointer. The
+constructor default builds a fresh `Stepping` for every menu.
 
 ### Focus is per player, and it costs nothing
 
@@ -133,60 +238,14 @@ See [Sheets, atlases and maps](assets.md).
 opens over a running world, pauses only the node that opened it, and closes
 again. `examples/menu_navigation` is the next step up — a title screen, a
 settings screen pushed over it, and rows that change fullscreen, the scale mode
-and the volume for real and write them to a file.
-
-## `RGame::Engine::UI::RadialMenu`
-
-Items on a ring, chosen by pointing a stick at one.
-
-```ruby
-wheel = layer.add_node(RGame::Engine::UI::RadialMenu.new(x: 320, y: 240, radius: 120,
-                                                         item_width: 96, item_height: 30))
-wheel.add_item('Sword').on_activated { equip(:sword) }
-wheel.add_item('Bow').on_activated   { equip(:bow) }
-```
-
-The node's position is the **centre** of the ring. The first item sits straight
-up, the rest go clockwise at even spacing, and adding an item re-spaces them all.
-
-| | |
-|---|---|
-| `ui_radial_x` / `ui_radial_y` | the direction; focuses the item whose sector it points into |
-| `ui_confirm` | activate the focused item |
-| `add_item(label, enabled: true)` | append an item and return it |
-| `items`, `focused`, `focused_index` | what it holds and what is focused — `nil` when nothing is |
-| `sector_at(x, y)` | the index a vector points at, or `nil` inside the dead zone |
-| `dead_zone` | the shortest deflection that selects, on the combined vector (default 0.5) |
-| `aim_x`, `aim_y` | the last direction read, for a game drawing a pointer |
-
-**The direction is the selection.** `Menu` moves focus relative to where it
-is; this one has no "next". The ring is cut into one sector per item, centred on
-it, and a direction focuses whatever sector it falls in. Eight items line up
-with the eight directions the arrow keys make, so a keyboard works too.
-
-**Below the dead zone nothing is focused**, and a confirm then activates nothing.
-A stick springs back through the middle when it is let go of, so a wheel that
-kept its last selection would hand a player who releases the stick and presses A
-whatever the stick passed on its way home.
-
-That dead zone is measured on the combined vector *after* `ActionMapper`'s own
-per-axis one (0.15) is taken off and the rest rescaled. The two do different
-jobs: the per-axis one stops a worn stick drifting, and is far too small to
-decide that a player means a direction.
-
-**A disabled item is never focused**, so pointing at one selects nothing — the
-same rule as `Menu` skipping it.
-
-Its items are `MenuItem`s — the same label, the same four states of art, the
-same `on_activated` — because an item is the same thing however it is chosen.
-It draws nothing of its own: a backdrop or a pointer is the game's, and `aim_x`
-/ `aim_y` are what that pointer reads. `examples/radial_menu` draws both.
+and the volume for real and write them to a file. `examples/radial_menu` is the
+same menu built with a `Ring` and `Pointing`.
 
 ## What this is not
 
-It is two menus, not a widget library. Items are stacked vertically at a fixed
-size or spaced round a ring, and that is the whole of its layout — no nesting, no scrolling lists, and
-no general answer to how UI should be laid out. There is no text entry, and no
+It is a menu, not a widget library. Every item is the same size and placed by a
+column or a ring, and that is the whole of its layout — no grid, no nesting, no
+scrolling lists, and no general answer to how UI should be laid out. There is no text entry, and no
 continuous control: `OptionItem` covers a setting with a handful of values, and
 anything wanting a free-moving slider needs a control that does not exist yet.
 

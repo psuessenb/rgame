@@ -25,10 +25,8 @@ class Inventory < RGame::Engine::Node2D
   end
 
   def on_add
-    @menu = add_node(RGame::Engine::UI::Menu.new(
-                       x: PADDING, y: PADDING,
-                       item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT, spacing: SPACING
-                     ))
+    column = RGame::Engine::UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT, spacing: SPACING)
+    @menu = add_node(RGame::Engine::UI::Menu.new(x: PADDING, y: PADDING, layout: column))
     ITEMS.each { |label| @menu.add_item(label).on_activated { close } }
     @menu.paused = true
   end

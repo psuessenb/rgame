@@ -623,6 +623,18 @@ Documented in `docs/api/ui.md` (a `RadialMenu` section, and "What this is not"
 widened to two menus), `docs/api/input.md` (the universal set), and
 `docs/api/examples.md`.
 
+**Folded into `Menu` afterwards.** `RadialMenu` and `Menu` were the same menu
+with a different layout and a different rule for focus, so `RadialMenu` is gone:
+`Menu.new` takes `layout:` (`UI::Column`, `UI::Ring`) and `navigation:`
+(`UI::Stepping`, the default, and `UI::Pointing`). `Pointing` picks the item
+nearest by angle to where it actually sits rather than computing sectors from an
+index, so it no longer shares an unstated convention with the ring. Doing it
+turned up a bug in the old `Menu`: a new menu's `focused` named the first item
+without telling the item, so nothing was highlighted until the first press. The
+driven reports of `game_menu`, `radial_menu` (both scripts) and the tiled_world
+inventory are byte-identical across the change; `menu_navigation` differs only
+in its first `nine_slice` becoming `button_focus`, which is that fix.
+
 ### 12. `examples/pathfinding` — a character walking a computed route
 
 **Shows** a click-free "go there" — pick a target tile, compute a route around
@@ -1154,7 +1166,7 @@ Sorted by where it lands, because that decides who may use it.
 | `Util::SaveFile` + save-dir helper | `Util` (pure Ruby) | 5, 6 | S |
 | ~~`UI::OptionItem`~~ | `Engine::UI` | 6 | **done** — no `SliderItem`, see 8 |
 | ~~`Components::Hop`~~ | `Engine` | 7 | **done** — with `Node2D#elevation` |
-| ~~`UI::RadialMenu`~~ | `Engine::UI` | 9 | **done** — with `ui_radial_x` / `ui_radial_y` |
+| ~~`UI::RadialMenu`~~ | `Engine::UI` | 9 | **done** — with `ui_radial_x` / `ui_radial_y`; since folded into `Menu` as `Ring` + `Pointing` |
 | `Engine::NavGrid` + `Engine::AStar` | `Engine` | 10 | **L** |
 | ~~`Controls.gamepad?` + a named pad-button boundary~~ | `Util` (values) | 21 | **done** — plus `pad_button?` and `BUTTON_GAMEPAD_FIRST` |
 | ~~"which ids of this action apply to this device"~~ | `Engine::InputMap` | 21 | **done** — `#button_for(action, device)` |

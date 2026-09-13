@@ -201,7 +201,7 @@ class TitleScene < RGame::Engine::Node2D
 
   def on_add
     menu = add_node(UI::Menu.new(x: MENU_X, y: MENU_Y,
-                                 item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT))
+                                 layout: UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT)))
     menu.add_item('Play').on_activated { root.swap(:play) }
     menu.add_item('Settings').on_activated { root.show(:settings) }
     menu.add_item('Quit').on_activated { root.context.close }
@@ -233,7 +233,7 @@ class SettingsScene < RGame::Engine::Node2D
 
   def on_add
     @menu = add_node(UI::Menu.new(x: PANEL_X + PADDING, y: PANEL_Y + PADDING + 30,
-                                  item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT))
+                                  layout: UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT)))
     Settings::ROWS.each { |key, row| option(key, row) }
     @menu.add_item('Back').on_activated { root.back }
   end

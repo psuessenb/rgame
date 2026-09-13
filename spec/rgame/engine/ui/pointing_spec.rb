@@ -1,10 +1,9 @@
 # frozen_string_literal: true
 
-RSpec.describe RGame::Engine::UI::RadialMenu do
+RSpec.describe RGame::Engine::UI::Pointing do
   let(:root) { RGame::Engine::Node2D.new }
-  let(:menu) do
-    root.add_node(described_class.new(x: 300, y: 200, radius: 100, item_width: 40, item_height: 20))
-  end
+  let(:pointing) { described_class.new }
+  let(:menu) { root.add_node(RGame::Engine::UI::Menu.new(x: 300, y: 200, layout: ring, navigation: pointing)) }
 
   # One reused snapshot over hashes shifted in place, the way ActionMapper
   # builds it — `pressed?` means nothing otherwise.
@@ -23,6 +22,8 @@ RSpec.describe RGame::Engine::UI::RadialMenu do
     end
   end
 
+  def ring = RGame::Engine::UI::Ring.new(radius: 100, item_width: 40, item_height: 20)
+
   def build(*labels)
     labels.each { |label| menu.add_item(label) }
     root.enter_tree
@@ -33,23 +34,9 @@ RSpec.describe RGame::Engine::UI::RadialMenu do
 
   def label = menu.focused&.label
 
-  describe 'placing items on the ring' do
-    before { build('N', 'E', 'S', 'W') }
-
-    it 'puts the first item straight up, centred on the ring' do
-      item = menu.items.first
-      expect([item.world_x + 20, item.world_y + 10]).to eq([300, 100])
-    end
-
-    it 'goes clockwise, so the second of four is to the right' do
-      item = menu.items[1]
-      expect([item.world_x + 20, item.world_y + 10]).to eq([400, 200])
-    end
-
-    it 're-spaces every item when another is added' do
-      menu.add_item('Fifth')
-      expect(menu.items[1].world_y + 10).to be_within(0.001).of(200 - (100 * Math.cos(Math::PI * 2 / 5)))
-    end
+  it 'starts with nothing focused' do
+    build('N', 'E')
+    expect(menu.focused).to be_nil
   end
 
   describe 'selection by direction' do
@@ -75,7 +62,7 @@ RSpec.describe RGame::Engine::UI::RadialMenu do
       expect(label).to eq('S')
     end
 
-    it 'follows the stick from one sector to another' do
+    it 'follows the stick from one item to another' do
       poll(1.0, 0.0)
       poll(-1.0, 0.0)
       expect(label).to eq('W')
@@ -87,7 +74,24 @@ RSpec.describe RGame::Engine::UI::RadialMenu do
     end
 
     it 'maps a diagonal on the edge of two sectors to one of them rather than neither' do
-      expect(menu.sector_at(1.0, 1.0)).to eq(2)
+      expect(pointing.index_at(1.0, 1.0)).to eq(1).or eq(2)
+    end
+
+    it 'wraps round the back of the circle, where the angle jumps' do
+      expect(pointing.index_at(-1.0, -0.01)).to eq(3)
+    end
+  end
+
+  # The angles come from where the items are, not from a convention it shares
+  # with Ring — so a layout that is not a ring cannot disagree with it.
+  describe 'items it did not place' do
+    it 'points at wherever an item actually is' do
+      build('A', 'B')
+      menu.items[0].x = 60 # (60..100, -10..10): due east of the origin
+      menu.items[0].y = -10
+      menu.items[1].x = -20 # centred on (0, 90): due south
+      menu.items[1].y = 80
+      expect([pointing.index_at(1.0, 0.0), pointing.index_at(0.0, 1.0)]).to eq([0, 1])
     end
   end
 
@@ -101,7 +105,7 @@ RSpec.describe RGame::Engine::UI::RadialMenu do
 
     it 'measures the combined vector, not each axis on its own' do
       poll(0.4, 0.4)
-      expect(label).to eq('S')
+      expect(label).to eq('E').or eq('S')
     end
 
     it 'drops the selection when the stick returns to centre' do
@@ -110,10 +114,10 @@ RSpec.describe RGame::Engine::UI::RadialMenu do
       expect(menu.focused).to be_nil
     end
 
-    it 'can be set per menu' do
-      wide = root.add_node(described_class.new(radius: 50, item_width: 10, item_height: 10, dead_zone: 0.9))
-      wide.add_item('Only')
-      expect(wide.sector_at(0.0, -0.8)).to be_nil
+    it 'can be set per navigation' do
+      wide = described_class.new(dead_zone: 0.9)
+      root.add_node(RGame::Engine::UI::Menu.new(layout: ring, navigation: wide)).add_item('Only')
+      expect(wide.index_at(0.0, -0.8)).to be_nil
     end
   end
 
@@ -148,19 +152,19 @@ RSpec.describe RGame::Engine::UI::RadialMenu do
   describe 'a disabled item' do
     before do
       menu.add_item('N')
-      menu.add_item('E', enabled: false)
+      menu.add_item('S', enabled: false) # two items on a ring: the second is due south
       root.enter_tree
     end
 
     it 'is never focused, so pointing at it selects nothing' do
-      poll(1.0, 0.0)
+      poll(0.0, 1.0)
       expect(menu.focused).to be_nil
     end
 
     it 'cannot be activated by pointing at it and confirming' do
       activated = false
       menu.items[1].on_activated { activated = true }
-      poll(1.0, 0.0, confirm: true)
+      poll(0.0, 1.0, confirm: true)
       expect(activated).to be(false)
     end
   end
@@ -170,7 +174,7 @@ RSpec.describe RGame::Engine::UI::RadialMenu do
 
     it 'keeps the last vector read, for a game drawing a pointer' do
       poll(0.25, -0.5)
-      expect([menu.aim_x, menu.aim_y]).to eq([0.25, -0.5])
+      expect([pointing.aim_x, pointing.aim_y]).to eq([0.25, -0.5])
     end
   end
 

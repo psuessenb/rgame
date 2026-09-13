@@ -110,7 +110,7 @@ declares them:
 `ui_up`, `ui_down`, `ui_left`, `ui_right`, `ui_confirm`, `ui_cancel` — buttons
 
 `ui_radial_x`, `ui_radial_y` — axes, on the left stick, the arrow keys and the
-d-pad, for a [radial menu](ui.md#rgameengineuiradialmenu)
+d-pad, read by a menu built with [`Pointing`](ui.md#pointing)
 
 Keyboard navigation and menus rely on them being there for **every** player. They
 are prefixed so a game is free to use `:up` for something of its own, and a game
