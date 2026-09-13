@@ -30,7 +30,7 @@ module RGame
       #
       # | | Answers | Shipped |
       # |---|---|---|
-      # | `layout:` | where each button goes, its size, and the bounds of them all | UI::Column, UI::Ring |
+      # | `layout:` | where each button goes, its size, and the bounds of them all | UI::Column, UI::Row, UI::Ring |
       # | `navigation:` | which button this frame's input focuses | UI::Stepping (default), UI::Pointing, or nil |
       #
       # What stays here is what every menu does the same way: holding the

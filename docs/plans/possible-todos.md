@@ -159,7 +159,7 @@ cannot drift. The engine layer cannot reach any of it: it may not hold a `Core`
 type, a `Core::Font` needs an `app` because it also owns the glyph atlas, and the
 renderer — the one measuring object engine code is handed — only arrives inside
 `draw`. So `UI::Menu` layouts give every button the same slot
-(`docs/plans/menu-and-buttons/`, which records this).
+(`docs/api/ui.md`, "What this is not", records this).
 
 It is standard elsewhere for measurement to be independent of painting: Godot's
 `Font.get_string_size`, TextMeshPro's `GetPreferredValues`, Unreal's
@@ -167,7 +167,7 @@ It is standard elsewhere for measurement to be independent of painting: Godot's
 when this was written.)
 
 **Why not now.** Nothing needs it yet. A fixed slot fits every current menu, and
-the menu-and-buttons plan is deliberately scoped without it. It becomes needed
+the UI package was deliberately built without it. It becomes needed
 the moment labels change length at runtime — which is what switching language
 does.
 

@@ -51,6 +51,12 @@ module RGame
       # It applies to the dead zone only: pointing at a disabled button clears
       # focus at once. Time is counted in `update(dt)`, so a paused menu's window
       # does not run out.
+      #
+      # `GRACE`, 0.15 s, is nine frames at 60 Hz. A released stick is back in the
+      # middle within a frame or two and overshoots for about 50 ms more before
+      # its spring settles; the window covers both, plus the moment between a
+      # thumb leaving the stick and a finger leaving the shoulder button. Much
+      # longer, and centring the stick to cancel starts to feel like waiting.
       class Pointing < Navigation
         DEAD_ZONE = 0.5
         GRACE = 0.15
