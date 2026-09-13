@@ -107,7 +107,10 @@ flag every reader would have to check for.
 Every map is merged over a universal set, so these exist whether or not a game
 declares them:
 
-`ui_up`, `ui_down`, `ui_left`, `ui_right`, `ui_confirm`, `ui_cancel`
+`ui_up`, `ui_down`, `ui_left`, `ui_right`, `ui_confirm`, `ui_cancel` — buttons
+
+`ui_radial_x`, `ui_radial_y` — axes, on the left stick, the arrow keys and the
+d-pad, for a [radial menu](ui.md#rgameengineuiradialmenu)
 
 Keyboard navigation and menus rely on them being there for **every** player. They
 are prefixed so a game is free to use `:up` for something of its own, and a game
@@ -116,6 +119,10 @@ that wants different bindings just declares one:
 ```ruby
 InputMap.new(ui_confirm: { buttons: [Controls::PAD_X] })
 ```
+
+The radial axes share the left stick with `move_x` / `move_y` by default and are
+still separate actions, so a game that walks on the left stick can move its wheel
+to the right one without touching movement.
 
 `ui_cancel` is Escape — which is why `RGame::Game`'s quit key is `F2`. The button
 a player expects to back out of a menu belongs to the menu.

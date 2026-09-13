@@ -135,10 +135,57 @@ again. `examples/menu_navigation` is the next step up — a title screen, a
 settings screen pushed over it, and rows that change fullscreen, the scale mode
 and the volume for real and write them to a file.
 
+## `RGame::Engine::UI::RadialMenu`
+
+Items on a ring, chosen by pointing a stick at one.
+
+```ruby
+wheel = layer.add_node(RGame::Engine::UI::RadialMenu.new(x: 320, y: 240, radius: 120,
+                                                         item_width: 96, item_height: 30))
+wheel.add_item('Sword').on_activated { equip(:sword) }
+wheel.add_item('Bow').on_activated   { equip(:bow) }
+```
+
+The node's position is the **centre** of the ring. The first item sits straight
+up, the rest go clockwise at even spacing, and adding an item re-spaces them all.
+
+| | |
+|---|---|
+| `ui_radial_x` / `ui_radial_y` | the direction; focuses the item whose sector it points into |
+| `ui_confirm` | activate the focused item |
+| `add_item(label, enabled: true)` | append an item and return it |
+| `items`, `focused`, `focused_index` | what it holds and what is focused — `nil` when nothing is |
+| `sector_at(x, y)` | the index a vector points at, or `nil` inside the dead zone |
+| `dead_zone` | the shortest deflection that selects, on the combined vector (default 0.5) |
+| `aim_x`, `aim_y` | the last direction read, for a game drawing a pointer |
+
+**The direction is the selection.** `Menu` moves focus relative to where it
+is; this one has no "next". The ring is cut into one sector per item, centred on
+it, and a direction focuses whatever sector it falls in. Eight items line up
+with the eight directions the arrow keys make, so a keyboard works too.
+
+**Below the dead zone nothing is focused**, and a confirm then activates nothing.
+A stick springs back through the middle when it is let go of, so a wheel that
+kept its last selection would hand a player who releases the stick and presses A
+whatever the stick passed on its way home.
+
+That dead zone is measured on the combined vector *after* `ActionMapper`'s own
+per-axis one (0.15) is taken off and the rest rescaled. The two do different
+jobs: the per-axis one stops a worn stick drifting, and is far too small to
+decide that a player means a direction.
+
+**A disabled item is never focused**, so pointing at one selects nothing — the
+same rule as `Menu` skipping it.
+
+Its items are `MenuItem`s — the same label, the same four states of art, the
+same `on_activated` — because an item is the same thing however it is chosen.
+It draws nothing of its own: a backdrop or a pointer is the game's, and `aim_x`
+/ `aim_y` are what that pointer reads. `examples/radial_menu` draws both.
+
 ## What this is not
 
-It is a menu, not a widget library. Items are stacked vertically at a fixed
-size, and that is the whole of its layout — no nesting, no scrolling lists, and
+It is two menus, not a widget library. Items are stacked vertically at a fixed
+size or spaced round a ring, and that is the whole of its layout — no nesting, no scrolling lists, and
 no general answer to how UI should be laid out. There is no text entry, and no
 continuous control: `OptionItem` covers a setting with a handful of values, and
 anything wanting a free-moving slider needs a control that does not exist yet.
