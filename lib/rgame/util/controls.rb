@@ -26,17 +26,6 @@ module RGame
     # by _Static_assert at compile time, and spec/rgame/util/controls_spec.rb
     # parses that header and compares every value here against it.
     module Controls
-      # --- Keyboard. Values are SDL scancodes, which name a physical *position*
-      # rather than a letter: KEY_A is the key marked A on a QWERTY board and Q
-      # on AZERTY. A game rebinding controls shows the player what their layout
-      # calls it; the engine only ever compares numbers. ---
-      #
-      # The set is what a Western keyboard can be relied on to have. No numpad
-      # (most laptops have none), no GUI/Windows/Command key, no print-screen
-      # cluster, and nothing whose position depends on the layout.
-
-      # Letters. Scancodes are physical *positions*, so KEY_A is the key marked A on
-      # a QWERTY board and Q on AZERTY.
       KEY_A = 4
       KEY_B = 5
       KEY_C = 6
@@ -64,7 +53,6 @@ module RGame
       KEY_Y = 28
       KEY_Z = 29
 
-      # Digits along the top row.
       KEY_1 = 30
       KEY_2 = 31
       KEY_3 = 32
@@ -76,14 +64,12 @@ module RGame
       KEY_9 = 38
       KEY_0 = 39
 
-      # Editing and whitespace.
       KEY_RETURN = 40
       KEY_ESCAPE = 41
       KEY_BACKSPACE = 42
       KEY_TAB = 43
       KEY_SPACE = 44
 
-      # Punctuation, by position on a US board.
       KEY_MINUS = 45
       KEY_EQUALS = 46
       KEY_LEFTBRACKET = 47
@@ -96,7 +82,6 @@ module RGame
       KEY_PERIOD = 55
       KEY_SLASH = 56
 
-      # Function row and caps lock.
       KEY_CAPSLOCK = 57
       KEY_F1 = 58
       KEY_F2 = 59
@@ -111,7 +96,6 @@ module RGame
       KEY_F11 = 68
       KEY_F12 = 69
 
-      # The navigation cluster.
       KEY_INSERT = 73
       KEY_HOME = 74
       KEY_PAGEUP = 75
@@ -119,14 +103,11 @@ module RGame
       KEY_END = 77
       KEY_PAGEDOWN = 78
 
-      # Arrows.
       KEY_RIGHT = 79
       KEY_LEFT = 80
       KEY_DOWN = 81
       KEY_UP = 82
 
-      # Modifiers. No GUI key: that is Windows on a PC and Command on a Mac, which
-      # is exactly the platform-specific territory this list stays out of.
       KEY_LCTRL = 224
       KEY_LSHIFT = 225
       KEY_LALT = 226
@@ -134,17 +115,8 @@ module RGame
       KEY_RSHIFT = 229
       KEY_RALT = 230
 
-      # Where the keyboard's range ends and the gamepad's begins. The two id
-      # spaces are disjoint so that one number says both which button and which
-      # kind of device can press it — which is what lets a prompt ask "is this a
-      # key or a pad button" without being told. Named here so that the boundary
-      # exists once rather than being rediscovered as `>= PAD_A` by every caller.
       BUTTON_GAMEPAD_FIRST = 0x1000
 
-      # --- Gamepad buttons. The gamepad range plus SDL's own controller button
-      # number. The first fifteen are on every controller; MISC1, the paddles
-      # and TOUCHPAD are hardware the id space describes but most pads do not
-      # have, and read as never pressed on one that does not. ---
       PAD_A = 4096
       PAD_B = 4097
       PAD_X = 4098
@@ -167,9 +139,6 @@ module RGame
       PAD_PADDLE4 = 4115
       PAD_TOUCHPAD = 4116
 
-      # --- Analog axes. Their own small space: they are float-valued and read
-      # through a different call, so folding them into the button space would
-      # only invite asking for an axis as if it were a button. ---
       AXIS_LEFT_X = 0
       AXIS_LEFT_Y = 1
       AXIS_RIGHT_X = 2
@@ -177,8 +146,6 @@ module RGame
       AXIS_TRIGGER_LEFT = 4
       AXIS_TRIGGER_RIGHT = 5
 
-      # --- Devices. The keyboard is 0 so single-player code can leave it out;
-      # gamepads follow, one per player slot. ---
       KEYBOARD = 0
       GAMEPAD_FIRST = 1
       MAX_GAMEPADS = 4

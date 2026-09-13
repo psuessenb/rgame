@@ -19,7 +19,6 @@ module RGame
         def initialize(cooldowns)
           super()
           @cooldowns = cooldowns
-          # action => seconds remaining until it may fire again (0 = ready).
           @timers = cooldowns.transform_values { 0.0 }
         end
 

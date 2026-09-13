@@ -55,7 +55,6 @@ module RGame
     # `loaders:` is what lets the caching, path resolution and grouping be
     # specced with no window, no GL context and no files at all.
     class AssetManager
-      # Owner of every ungrouped load. Never released, only cleared.
       PERMANENT = :__permanent__
 
       # `app` is what images are loaded into and where the audio device comes
@@ -65,7 +64,7 @@ module RGame
         @app = app
         @loaders = {}
         @cache = {}
-        @owners = {} # cache key => Set of groups holding it
+        @owners = {}
 
         (loaders || default_loaders).each { |type, loader| add_loader(type, &loader) }
       end
@@ -91,9 +90,6 @@ module RGame
       # offering it an id.
       def add_loader(type, &loader)
         @loaders[type] = loader
-        # A singleton method rather than a class-level one: two managers may
-        # know different types, and a game that adds `:tilemap` should not be
-        # teaching it to everyone else's.
         define_singleton_method(type) { |path, group = PERMANENT| leaf(type, path, group) }
         self
       end
@@ -130,10 +126,6 @@ module RGame
       # Takes `group` off every asset's owner set and drops whatever no group
       # still holds.
       def release(group)
-        # Without this, `release(PERMANENT)` would empty every ungrouped
-        # asset's owner set and drop the lot — the exact opposite of what the
-        # constant's name promises, and silent. It is only reachable by naming
-        # the sentinel, so saying what to use instead beats ignoring the call.
         raise ArgumentError, 'ungrouped assets are dropped by #clear, not #release' if group == PERMANENT
 
         @owners.each_value { |groups| groups.delete(group) }
@@ -159,9 +151,6 @@ module RGame
 
       private
 
-      # The app is reached through the ivar rather than captured, so
-      # `app.audio` is not called until a sound is actually asked for — loading
-      # an image opens no sound device.
       def default_loaders
         {
           image: ->(path) { Image.new(@app, path) },
@@ -175,20 +164,8 @@ module RGame
         fetch(type, path, group) { @loaders.fetch(type).call(resolve(path)) }
       end
 
-      # Where a path actually is on disk.
-      #
-      # `expand_path` rather than `join` for two reasons. An **absolute** path
-      # is used as it stands, which is what lets a loader hand one back — the
-      # tile-map loader gets its tileset image that way, since the path comes
-      # out of a `.tsx` that was itself found on disk. And `'a/./b.png'`,
-      # `'a/../b.png'` and `'b.png'` all land on one cache key rather than
-      # three, so a file cannot be loaded twice by being named twice.
       def resolve(path) = File.expand_path(path, @root)
 
-      # Memoise on miss, then record the owning group — so a cache *hit* under a
-      # new group is tagged too. Tagging after the load rather than before is
-      # what leaves a failed load with no owner behind it, which makes a retry a
-      # clean retry rather than a permanently half-registered asset.
       def fetch(type, path, group)
         key = [type, resolve(path)]
         object = (@cache[key] ||= yield)
@@ -204,17 +181,11 @@ module RGame
         UiAtlas.new(*composite_parts(relative_path, group))
       end
 
-      # The two halves a composite is made of, both through the cache: the
-      # descriptor as a cached `read`, and the image it names as a cached
-      # `image` resolved beside it.
       def composite_parts(relative_path, group)
         data = JSON.parse(read(relative_path, group), symbolize_names: true)
         [image(sibling(relative_path, data[:image]), group), data]
       end
 
-      # A path next to `relative_path`, still relative to the root — so a
-      # descriptor's image lands on the same `[:image, path]` cache key a
-      # standalone `image` of that file would.
       def sibling(relative_path, name)
         directory = File.dirname(relative_path)
         directory == '.' ? name : File.join(directory, name)

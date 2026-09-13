@@ -41,8 +41,6 @@ module RuboCop
 
         private
 
-        # A `dstr` is interpolated when any direct child is a `#{...}` (begin) node;
-        # plain adjacent/multiline literals have only `str` children.
         def interpolated?(dstr)
           dstr.children.any?(&:begin_type?)
         end

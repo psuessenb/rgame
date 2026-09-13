@@ -19,10 +19,8 @@ module RGame
       # Menu inside a PlayerLayer puts its items inside that player's region
       # without either of them arranging it.
       class MenuItem < Node2D
-        signal :on_activated # emits no payload; the item is the handle
+        signal :on_activated
 
-        # Atlas element per state. Replaceable per menu, so a game with its own
-        # art is not obliged to name it the way the shipped atlas does.
         STYLE = {
           idle: :button_idle,
           focus: :button_focus,
@@ -82,8 +80,6 @@ module RGame
           @pressed ? :pressed : :focus
         end
 
-        # Centred in this item's own box, which starts at its own origin — the
-        # traversal has already put the renderer there.
         def label_x(renderer) = (width - renderer.text_width(@label)) / 2
         def label_y(renderer) = (height - renderer.text_height) / 2
       end

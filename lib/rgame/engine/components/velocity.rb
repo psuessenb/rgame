@@ -23,8 +23,6 @@ module RGame
 
         private
 
-        # The angle is written straight to the node whatever was declared: a collision box
-        # does not turn with its node, so there is nothing for a rotation to be blocked by.
         def take_step(dt)
           apply_move(@vx * dt, @vy * dt)
           node.angle += @spin * dt

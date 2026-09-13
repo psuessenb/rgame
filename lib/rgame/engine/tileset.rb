@@ -15,7 +15,7 @@ module RGame
       Frame = Struct.new(:tile_id, :duration)
 
       attr_reader :firstgid, :columns, :tile_width, :tile_height, :image_source, :animations
-      attr_accessor :solid_ids # Set of *local* tile ids treated as solid
+      attr_accessor :solid_ids
 
       def self.parse(tsx_string, firstgid:)
         root = REXML::Document.new(tsx_string).root

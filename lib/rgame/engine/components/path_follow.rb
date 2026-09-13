@@ -36,7 +36,7 @@ module RGame
       # `on_attach` still places the node on the first waypoint absolutely, blocked or
       # not: where a walker starts is a placement, not a step.
       class PathFollow < Mover
-        signal :on_finished # emits no payload; the owning node identifies which follower finished
+        signal :on_finished
 
         attr_accessor :speed
 
@@ -44,8 +44,8 @@ module RGame
           super(blocked_by: blocked_by)
           @path = path
           @speed = speed
-          @segment = 0       # walking from waypoint @segment to @segment + 1
-          @distance = 0.0    # distance travelled into the current segment
+          @segment = 0
+          @distance = 0.0
           @finished = false
         end
 
@@ -67,8 +67,6 @@ module RGame
         def take_step(dt)
           return if @finished
 
-          # Where the walk stood before this step, to go back to if the step is stopped.
-          # Two locals rather than a saved pair, which would allocate.
           from_segment = @segment
           from_distance = @distance
 
@@ -88,8 +86,6 @@ module RGame
           end
         end
 
-        # Move the walk `remaining` further along the path, crossing as many segments as it
-        # spans. True when that reaches the last waypoint.
         def advance_to_end?(remaining)
           while remaining.positive?
             left = @path.segment_length(@segment) - @distance
@@ -97,7 +93,6 @@ module RGame
               @distance += remaining
               return false
             end
-            # Consume the rest of this segment and step onto the next waypoint.
             remaining -= left
             @segment += 1
             @distance = 0.0
@@ -106,8 +101,6 @@ module RGame
           false
         end
 
-        # Put the node at (x, y) and say whether it got there: always, when nothing was
-        # declared, and only if no blocker stopped the move short otherwise.
         def moved_to?(x, y)
           unless blocking?
             node.x = x

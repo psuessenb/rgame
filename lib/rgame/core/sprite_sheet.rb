@@ -97,9 +97,6 @@ module RGame
         end
       end
 
-      # A typo'd or missing key would otherwise surface as a NoMethodError on nil
-      # from inside the slicing arithmetic, which says nothing about the file
-      # that is actually wrong.
       def missing(key)
         raise ArgumentError, "sprite sheet descriptor has no #{key}"
       end

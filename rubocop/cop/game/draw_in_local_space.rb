@@ -59,13 +59,8 @@ module RuboCop
               '`%{method}` runs, so passing it places this %{distance} a second ' \
               'time. Draw at your own origin (0, 0), or an offset from it.'
 
-        # The draw path, and only it. `update` is deliberately not policed: there
-        # both spellings are legitimate and the cop could not tell them apart — a
-        # node moving itself in its parent's frame wants `x`, and one measuring a
-        # distance to something else wants `world_x`.
         METHODS = %i[draw on_draw draw_content draw_children].freeze
 
-        # Its own transform, in both spaces and both spellings.
         RELATIVE = %i[x y angle].freeze
         WORLD = %i[world_x world_y world_angle].freeze
         IVARS = { :@rel_x => :x, :@rel_y => :y, :@rel_angle => :angle,
@@ -86,10 +81,6 @@ module RuboCop
 
         private
 
-        # The transform name this reads, or nil if it reads none. A bare `x` with
-        # no receiver and no arguments is the node's own; `node.world_x` and
-        # `view.x` have a receiver and belong to somebody else, and a local named
-        # `x` parses as an `lvar` and never arrives here at all.
         def own_transform_read(node)
           if node.ivar_type?
             IVARS[node.children.first]

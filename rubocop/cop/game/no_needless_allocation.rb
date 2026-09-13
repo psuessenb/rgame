@@ -36,9 +36,6 @@ module RuboCop
         MSG_RECEIVER = 'Needless %{kind} allocation: this literal is built every call ' \
                        'just to call `%{method}` on it — rewrite without the literal.'
 
-        # Sends the VM compiles to `opt_newarray_send`, which builds no Array. The
-        # value is the argument count that keeps the optimisation; anything else, or a
-        # block, and the compiler falls back to `newarray`.
         OPTIMISED_SENDS = { min: 0, max: 0, hash: 0, include?: 1 }.freeze
         MSG_HOT_PATH = 'Needless %{kind} allocation in a per-frame method: this literal ' \
                        'is built every frame — build it once or expose the parts directly.'
@@ -69,17 +66,14 @@ module RuboCop
         end
 
         def allowed?(node)
-          return true if node.array_type? && node.children.empty? # []  (mutable-state seed)
-          return true if frozen?(node)                            # [...].freeze (once)
-          return true if node.parent&.masgn_type?                 # a, b = c, d (no allocation)
-          return true if optimised_send?(node)                    # [a, b].min (opt_newarray_send)
+          return true if node.array_type? && node.children.empty?
+          return true if frozen?(node)
+          return true if node.parent&.masgn_type?
+          return true if optimised_send?(node)
 
           false
         end
 
-        # True for an array literal the VM reduces without building it. Splats are
-        # excluded: `[*a, b]` is assembled at runtime by a different path that does
-        # allocate, whatever is called on it.
         def optimised_send?(node)
           return false unless node.array_type?
           return false if node.children.any?(&:splat_type?)
@@ -96,8 +90,6 @@ module RuboCop
           send&.method?(:freeze)
         end
 
-        # The send-node the literal is the (possibly parenthesised) receiver of, if any.
-        # `(a..b).each` wraps the range in a one-child `begin`, so unwrap that first.
         def receiving_send(node)
           receiver = node
           parent = node.parent

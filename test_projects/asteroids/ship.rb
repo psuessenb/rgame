@@ -43,7 +43,6 @@ class Ship < RGame::Engine::Node2D
 
   private
 
-  # Emit the muzzle position + heading; the scene spawns the actual bullet.
   def fire
     on_fire_signal.emit(
       x: x + (Math.cos(angle) * RADIUS),

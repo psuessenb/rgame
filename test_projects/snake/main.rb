@@ -6,9 +6,6 @@ require 'rgame/game'
 class Grid < RGame::Engine::Node2D
   CELL_SIZE = 25
 
-  # Where the fruit goes. Unseeded by default, so a game being played puts it
-  # somewhere new each run; `RGAME_SEED` pins it, which is what lets
-  # tools/drive_test_project.rb compare two runs of this project exactly.
   SEED = ENV.fetch('RGAME_SEED', nil)&.to_i
 
   attr_reader :cols, :rows
@@ -99,9 +96,6 @@ class SnakePart < RGame::Engine::Node2D
 
   private
 
-  # Board square and pixel position are set together, never one without the other:
-  # Snake#move works out the next square from the head's, so a part whose cell_x has
-  # drifted from its x stops the whole snake.
   def place(cell_x, cell_y)
     @cell_x = cell_x
     @cell_y = cell_y

@@ -30,14 +30,6 @@ module RGame
 
       TEMPLATE_ROOT = File.expand_path('templates', __dir__)
 
-      # Templates whose generated name starts with a dot, keyed by the name they
-      # are stored under.
-      #
-      # They cannot simply *be* dotfiles in the template directory: rgame.gemspec
-      # derives `spec.files` with `Dir.glob('lib/**/*')`, which does not match a
-      # leading dot, so a template named `.gitignore` would be missing from the
-      # gem and nothing local would notice. spec/packaging_spec.rb has a guard
-      # that fails if one ever appears here.
       DOTFILES = {
         'gitignore' => '.gitignore',
         'rspec' => '.rspec',
@@ -45,8 +37,6 @@ module RGame
         'rubocop.yml' => '.rubocop.yml'
       }.freeze
 
-      # A directory the generated project needs but has no file to put in it.
-      # Git cannot track an empty directory, hence the `.keep`.
       KEEP_DIRS = ['assets'].freeze
 
       NAME_PATTERN = /\A[a-z0-9][a-z0-9_-]*\z/i
@@ -90,10 +80,6 @@ module RGame
 
       private
 
-      # Derived from the template tree rather than listed, so adding a template
-      # file is the whole of adding it to a generated project. Returns pairs of
-      # [source path relative to TEMPLATE_ROOT, destination relative to the
-      # project root].
       def templates
         Dir.glob('**/*.tt', base: TEMPLATE_ROOT).sort.map do |source|
           [source, destination_for(source)]
@@ -108,12 +94,7 @@ module RGame
         dir == '.' ? base : File.join(dir, base)
       end
 
-      # ERB evaluates against this method's binding, which is why the values a
-      # template names — `app_name`, `game_class`, `caption`,
-      # `rgame_requirement` — are ordinary public methods of this class.
       def render(source)
-        # `trim_mode: '-'` so a template can write `<%- ... -%>` and not leave a
-        # blank line behind it.
         erb = ERB.new(File.read(File.join(TEMPLATE_ROOT, source)), trim_mode: '-')
         erb.filename = source
         erb.result(binding)

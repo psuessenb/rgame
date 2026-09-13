@@ -81,18 +81,10 @@ module RGame
 
       private
 
-      # A block rather than `fetch(name)`'s bare KeyError, for a message that
-      # says what to do about it. The block only runs on a miss, so the reading
-      # path stays one hash lookup with nothing allocated.
       def undeclared(name)
         raise KeyError, "no such action #{name.inspect} — declare it in the InputMap " \
                         "(this snapshot has #{declared.inspect})"
       end
-
-      # `prev_held` is read with a default on purpose. It is one frame behind, so
-      # on the very first poll after an action is added it legitimately has no
-      # entry, and "was not held before" is the right answer rather than an
-      # error. The current-frame lookup above is what catches a typo.
     end
   end
 end

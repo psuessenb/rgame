@@ -83,8 +83,6 @@ module RGame
 
       private
 
-      # Plain integer loops rather than (a..b).any? { ... }: the Range literal would
-      # allocate on this per-frame collision path.
       def solid_in_rows?(col, first_row, last_row)
         row = first_row
         while row <= last_row

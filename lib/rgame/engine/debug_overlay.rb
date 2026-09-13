@@ -35,22 +35,21 @@ module RGame
       OBJ_LABEL   = 'OBJ'
       DELTA_LABEL = 'Δ/f'
 
-      COLOR = [80, 255, 120].freeze # frozen so the renderer caches the resolved colour
-      PAD   = 8                     # margin from the screen edge
-      GAP   = 8                     # space between a label and its number
+      COLOR = [80, 255, 120].freeze
+      PAD   = 8
+      GAP   = 8
 
       def initialize
         @visible = false
         @prev_allocated = 0
-        @digit_widths  = Array.new(10) # measured once, then reused
-        @label_widths  = {}            # measured once per label, then reused
+        @digit_widths  = Array.new(10)
+        @label_widths  = {}
       end
 
       def visible? = @visible
 
       def toggle
         @visible = !@visible
-        # Baseline the counter on reveal so the first Δ/f isn't the whole run's history.
         @prev_allocated = GC.stat(:total_allocated_objects) if @visible
       end
 
@@ -70,8 +69,6 @@ module RGame
         @prev_allocated = allocated
 
         line_h  = renderer.text_height
-        # The view's size, not its position: inside a region that has been
-        # translated to its corner, adding `view.x` would offset a second time.
         right_x = view.width - PAD
         top_y   = view.height - PAD - (line_h * 3)
 
@@ -84,14 +81,11 @@ module RGame
 
       private
 
-      # A right-aligned "label  number" row ending at right_x.
       def draw_line(renderer, label, value, right_x, y)
         number_left = draw_uint(renderer, value, right_x, y)
         renderer.text(label, number_left - GAP - label_width(renderer, label), y, color: COLOR)
       end
 
-      # Draw a non-negative integer right-aligned ending at right_x, digit by digit so no
-      # String is built per frame. Returns the x of the leftmost digit.
       def draw_uint(renderer, value, right_x, y)
         x = right_x
         more = true

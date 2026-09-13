@@ -20,7 +20,7 @@ module RGame
     # this class (see CLAUDE.md, "The rule points both ways"). So `load` hands
     # back a path and stops there.
     class TileMap
-      FLIP_MASK = 0x1FFFFFFF # strip Tiled's flip/rotation flags from a gid
+      FLIP_MASK = 0x1FFFFFFF
 
       attr_reader :width, :height, :tile_width, :tile_height,
                   :pixel_width, :pixel_height, :tileset_source, :firstgid
@@ -133,7 +133,6 @@ module RGame
 
       private
 
-      # Pack the parsed per-layer gid rows into one flat Tensor ([col, row, layer]).
       def build_tiles(layers)
         tiles = Util::Tensor.new(@width, @height, layers.length, initial: 0)
         layers.each_with_index do |gids, layer|

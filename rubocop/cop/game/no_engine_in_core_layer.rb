@@ -74,9 +74,6 @@ module RuboCop
 
         private
 
-        # The namespace that made this an offence — `Engine` or `RGame::Engine`
-        # — rather than the whole path, so the message names the boundary that
-        # was crossed and not the particular class that crossed it.
         def matched_prefix(node)
           path = const_path(node)
           PREFIXES.find { |prefix| path.first(prefix.length) == prefix }

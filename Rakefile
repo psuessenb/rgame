@@ -1,21 +1,11 @@
 # frozen_string_literal: true
 
-# Packaging tasks from rgame.gemspec: `rake build` (gem into pkg/), plus
-# `install` and `release`. Note `build` only packages sources — the extensions
-# are compiled by `gem install` on the target machine, or by `make ext` here.
 require 'bundler/gem_tasks'
 require 'rspec/core/rake_task'
 
-# Two Ruby spec suites, deliberately two separate processes.
-#
-# `spec` must never load SDL/OpenGL: it covers RGame::Util and RGame::Engine,
-# and the whole point of the engine layer is that it can be specified with no
-# window and no graphics libraries in the process at all. `spec:core` is the
-# one allowed to open real windows.
-#
-# They are separate directories with separate runners rather than one tree with
-# an exclude rule, because a rule you have to remember is a rule that gets
-# forgotten — see CLAUDE.md, "Design out misuse".
+if File.exist?('.git') && `git config --get core.hooksPath`.strip.empty?
+  system('git', 'config', 'core.hooksPath', '.githooks', exception: true)
+end
 
 RSpec::Core::RakeTask.new(:spec) do |t|
   t.pattern = 'spec/**/*_spec.rb'

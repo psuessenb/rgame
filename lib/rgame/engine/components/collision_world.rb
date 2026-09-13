@@ -159,11 +159,6 @@ module RGame
         def cell_empty?(x, y)
           return true if @hash.cell_empty?(x, y)
 
-          # A zero-size region is the single cell containing the point. The loop runs to
-          # the end of the bucket rather than stopping at the first occupant: a non-local
-          # `return` out of a block allocates in CRuby (measurably — one object per call),
-          # and a bucket holds a handful of items, so the flag is cheaper than the
-          # short-circuit it replaces.
           free = true
           @hash.query(x, y, 0, 0) { |collider| free &&= collider.node.freed? }
           free
@@ -190,14 +185,7 @@ module RGame
           @hash.insert(collider, collider.aabb_x, collider.aabb_y, collider.aabb_w, collider.aabb_h)
         end
 
-        # Find this step's overlapping pairs, record them, and fire on_hit for the ones
-        # that were not overlapping last step.
         def report_contacts
-          # Index-bounded over the count at frame start: an on_hit handler may spawn
-          # entities (a rock splitting), which `register`s new colliders mid-loop; those
-          # appended ones are skipped this frame (processed next) rather than mutating
-          # the array being iterated. The hash was built before the loop, so they're
-          # absent from queries too — consistent.
           count = @colliders.size
           i = 0
           while i < count
@@ -212,19 +200,10 @@ module RGame
         def pair_up(a)
           contacts = a.contacts
           @hash.query(a.aabb_x, a.aabb_y, a.aabb_w, a.aabb_h) do |b|
-            # object_id ordering visits each unordered pair once (and skips self);
-            # the freed? guards skip nodes already queued for removal, so a dead
-            # entity stops colliding — and its partners are told it is gone, by the
-            # separation pass finding the pair missing from this step.
             next if a.node.freed? || b.node.freed? || a.object_id >= b.object_id
-            # The broadphase offers a pair once per cell the two share, so a pair
-            # sharing two cells arrives here twice. This is where the repeat stops,
-            # which is what makes the edge below per pair rather than per cell.
             next if contacts.touching?(b)
             next unless a.overlap?(b)
 
-            # Asked before recording, and of one side only: the two lists are filled
-            # in lockstep, so b would give the same answer about a.
             started = contacts.started?(b)
             contacts.add(b)
             b.contacts.add(a)
@@ -235,11 +214,6 @@ module RGame
           end
         end
 
-        # Fire on_separated for every pair that was in contact last step and is not in
-        # contact now — including the pairs that ended because one side was destroyed
-        # or left the tree, which is exactly the case a game would otherwise have to
-        # notice for itself. A collider whose own node is queued for removal is skipped,
-        # the same rule everything else here follows.
         def report_separations
           count = @colliders.size
           i = 0

@@ -62,9 +62,6 @@ module RGame
       def initialize(players = [])
         super()
         @list = players
-        # One seat means there is no second player to become, so an unassigned
-        # device is that player picking up a controller. More than one means the
-        # game expects company.
         @on_unassigned_input = players.size > 1 ? :join : :takeover
         @accepting_joins = true
         @connected = []
@@ -157,10 +154,6 @@ module RGame
 
       private
 
-      # Watch the devices nobody is holding, and seat one when it is used.
-      #
-      # Costs nothing when there is nobody to seat: with every seat full, or the
-      # policy set to ignore, there is no candidate and no device is looked at.
       def admit(backend)
         return if @on_unassigned_input == :ignore || candidate.nil?
 
@@ -172,8 +165,6 @@ module RGame
         end
       end
 
-      # Who the next unassigned device would go to, and therefore whose bindings
-      # decide what counts as a press. Nil when nobody could take one.
       def candidate
         return primary if @on_unassigned_input == :takeover
 
@@ -191,10 +182,6 @@ module RGame
         buttons.any? { |id| backend.down?(id, device: device) }
       end
 
-      # Connected pads nobody holds — plus the keyboard, but only while taking
-      # over. The keyboard is always "connected", so under `:join` it would sit
-      # waiting to seat whoever pressed Return, which is right for some games and
-      # a surprise in most; one that wants a keyboard player seats it explicitly.
       def each_unassigned_device
         @connected.each do |slot|
           device = Controls.gamepad(slot)

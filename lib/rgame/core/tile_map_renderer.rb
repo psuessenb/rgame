@@ -81,8 +81,6 @@ module RGame
         @tileset = map.tileset
         @tiles = tiles
         @animated = collect_animated_tiles
-        # Baked on first draw, not here: recording needs a live frame, and there
-        # is no renderer at construction.
         @static = Array.new(map.layer_count)
       end
 
@@ -115,10 +113,6 @@ module RGame
 
       private
 
-      # [col, row, local_id] for every animated tile, per layer. Walked once at
-      # construction: a map is thousands of tiles and a handful of animated
-      # ones, and finding them again each frame would be the whole cost this
-      # class exists to avoid.
       def collect_animated_tiles
         found = Array.new(@map.layer_count) { [] }
         each_tile do |layer, col, row, local|
@@ -129,7 +123,6 @@ module RGame
         found
       end
 
-      # Every non-empty tile of every layer, as [layer, col, row, local_id].
       def each_tile
         @map.layer_count.times do |layer|
           @map.height.times do |row|
@@ -143,9 +136,6 @@ module RGame
         end
       end
 
-      # Bakes one layer's static tiles into a recording. An empty layer bakes an
-      # empty recording, which replays as nothing — so a map with a spacer layer
-      # in it needs no special case here or at the call site.
       def bake(renderer, index)
         renderer.record do
           each_tile do |layer, col, row, local|
@@ -161,15 +151,8 @@ module RGame
         tile_width = @map.tile_width
         tile_height = @map.tile_height
 
-        # Tiled writes frame durations in milliseconds; everything here counts
-        # in seconds. Converted once per draw rather than once per tile.
         ms = (elapsed * 1000.0).to_i
 
-        # fdiv, not `/`. With two Integers — an integer camera position, which
-        # is entirely ordinary — `/` floors first and the `.ceil` below becomes
-        # a no-op, leaving the last column of tiles undrawn: a one-tile strip of
-        # nothing along the right and bottom edges of the screen, and only when
-        # the camera happens to be on a whole pixel.
         col_start = cull_x.fdiv(tile_width).floor
         row_start = cull_y.fdiv(tile_height).floor
         col_end = (cull_x + cull_width).fdiv(tile_width).ceil
@@ -178,8 +161,6 @@ module RGame
         tiles.each do |col, row, local|
           next if col < col_start || col >= col_end || row < row_start || row >= row_end
 
-          # World coordinates, like the baked band above it: the caller's
-          # transform is what puts either on screen.
           renderer.image_at(@tiles[@tileset.frame_local_id(local, ms)],
                             col * tile_width, row * tile_height)
         end

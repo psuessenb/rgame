@@ -126,8 +126,6 @@ module RGame
 
         pa = @parent.world_angle
         if pa.zero?
-          # Assigned from the parent, not `x += value - world_x`: that delta form can land
-          # one float step off `value`, which is enough to change a seeded run's output.
           self.rel_x = value - @parent.world_x
         else
           place_in_rotated_parent(value - @parent.world_x, world_y - @parent.world_y, pa)
@@ -234,23 +232,15 @@ module RGame
         @rel_angle = angle
         @width = width
         @height = height
-        # A fresh node has never resolved its world transform, so the first read
-        # of one computes it — including on a node built but never ticked, which
-        # is why these seeds are a floor rather than an answer. They exist so
-        # that nothing reads nil if a future path ever bypasses the readers.
         @world_current = false
         @world_x = @world_y = @world_angle = 0
         @abs_input_owner = @input_owner
         @abs_band = @band || Util::Z::DEFAULT
         @children = []
-        # Siblings are drawn in `z` order, and in insertion order within one
-        # `z`. Ruby's sort is not stable, so insertion order is carried as a
-        # number rather than relied on — the same reason the C draw queue
-        # compares (z, order) instead of trusting qsort.
         @child_seq = 0
         @children_sorted = true
         @components = []
-        @component_slots = {} # slot (Class by default, or a Symbol name) => component
+        @component_slots = {}
         @parent = nil
         @scene = nil
         @in_tree = false
@@ -262,9 +252,6 @@ module RGame
         node.parent = self
         node.sibling_order = (@child_seq += 1)
         @children_sorted = false
-        # Defer the entered-tree cascade until this node is itself live; otherwise it
-        # fires when an ancestor enters (see #enter_tree). This is the construct-vs-enter
-        # split — a node built inside another node's initialize is not yet in the tree.
         node.enter_tree if @in_tree
         node
       end
@@ -326,11 +313,6 @@ module RGame
         component
       end
 
-      # Anchors, resolved by walking parents so they can never go stale (a cached
-      # back-link set at add-time breaks when children are built before the node is
-      # in the tree). Shared systems live as components on an anchor node and are
-      # reached through these, not threaded through constructors.
-
       # The top-most node — a node with no parent is its own root. Global,
       # program-lifetime systems live here as components.
       def root
@@ -352,14 +334,6 @@ module RGame
         scene&.get_component(klass) || root.get_component(klass)
       end
 
-      # updates input, both from player (readings actions) as well as
-      # AI-driven node control. This run first in a game tick
-      # Each phase settles this node first (components, then the node's own
-      # hook), then descends into children. Nothing about a node's position
-      # depends on that order — a world position is computed when it is read —
-      # but it is what lets a hook decide something the subtree then acts on in
-      # the same tick.
-
       # `input` is an input *source*, not one player's snapshot: an
       # RGame::Engine::Players registry, or a bare Actions when there is only
       # ever one answer (which is what a spec usually passes).
@@ -375,9 +349,6 @@ module RGame
       def control(input)
         return if @paused
 
-        # Only the inherited attributes: `control` reads no coordinates. There is
-        # no pointer in this engine by design (see RGame::Core::Input), so
-        # `on_control(actions)` is handed input and nothing spatial at all.
         resolve_inherited
         actions = input.actions_for(@abs_input_owner)
         @components.each { it.control(actions) }
@@ -391,9 +362,6 @@ module RGame
       def update(dt)
         return if @paused
 
-        # Nothing is resolved here at all. The world transform is computed on
-        # demand by whoever reads it (see #world_x), and the inherited attributes
-        # are read by `control` and `draw` rather than by anything on this path.
         @components.each { it.update(dt) }
         on_update(dt)
         children_in_order.each { it.update(dt) }
@@ -408,31 +376,9 @@ module RGame
       # half of it — and because culling needs it once the world is drawn more
       # than once. Most nodes ignore it and simply draw.
       def draw(renderer, view)
-        # Only the inherited attributes: `renderer.layered` below needs the band.
-        #
-        # Nothing here resolves a coordinate. Drawing expresses position by
-        # pushing this node's transform rather than by reading a resolved one,
-        # and culling — which *is* world-space, since a view is a camera
-        # rectangle in the world — asks `node.world_x`, which computes itself if
-        # it has to. That is what lets a paused node under a moving ancestor cull
-        # correctly despite never running `update`; see
-        # spec/rgame/engine/node2d_paused_spec.rb.
         resolve_inherited
-        # Everything this node and its subtree draws happens in the node's own
-        # local space: (0, 0) is the node, +x is its right. `in_local_space`
-        # pushes the transform that makes that true, the renderer composes it
-        # with every ancestor's, and the node never sees a world coordinate.
         in_local_space(renderer) do
-          # This node's own drawing goes in its own layer: the renderer hands out
-          # the next slot in the node's band, and every `z:` the node passes is an
-          # offset inside it. Because the traversal takes slots in the order it
-          # reaches nodes, draw order *is* tree order — and because a slot is
-          # narrow, nothing a node draws can reach past itself. The node never
-          # asks for this and cannot forget it; see RGame::Util::Z.
           renderer.layered(@abs_band) { draw_content(renderer, view) }
-          # Outside that block: a child takes a slot of its own, after this one.
-          # Inside this one: a child's coordinates are relative to this node, so
-          # its whole subtree must draw under this node's transform.
           draw_children(renderer, view)
         end
       end
@@ -456,7 +402,7 @@ module RGame
         while i < @children.size
           child = @children[i]
           if child.freed?
-            remove_node(child) # detaches + exit_tree; @children shrinks, so don't advance i
+            remove_node(child)
           else
             child.sweep_freed
             i += 1
@@ -472,7 +418,7 @@ module RGame
         return if @in_tree
 
         @in_tree = true
-        @freed = false # revive: a pooled node reacquired after death re-enters here
+        @freed = false
         @components.each(&:on_attach)
         on_add
         children_in_order.each(&:enter_tree)
@@ -489,11 +435,6 @@ module RGame
         @in_tree = false
       end
 
-      # Lifecycle hooks: Subclasses should implement these instead of
-      # overwriting the public interface draw/update/add etc. on_add/on_remove
-      # fire when the node enters/leaves the live tree (see #enter_tree), not at
-      # construction — so anchors and systems are available inside them.
-
       def on_control(actions); end
       def on_update(dt); end
       def on_draw(renderer, view); end
@@ -502,26 +443,6 @@ module RGame
 
       private
 
-      # Push this node's transform, so everything drawn inside the block is placed
-      # and oriented relative to the node rather than to the window.
-      #
-      # The transform pushed is the node's **parent-relative** one, because the
-      # renderer is already inside every ancestor's — composing them is the
-      # renderer's job and this is the same mechanism WorldView uses for the
-      # camera, one level further down. Translate first, then rotate about the
-      # node's own origin: that composes to `parent_origin + R(parent) * local`,
-      # which is the same thing #resolve_transform computes arithmetically for
-      # anything that asks where the node is in the world.
-      #
-      # A root pushes nothing, matching #resolve_transform pinning a parentless
-      # node to the identity regardless of its own x/y/angle.
-      #
-      # An identity transform is skipped here rather than left to the renderer,
-      # which short-circuits it too. Most nodes are organizational and sit at
-      # their parent's origin, so the common case costs one comparison and no
-      # block at all — and the call sequence a node issues is then unchanged from
-      # before this was a transform push, which is what lets the recording fakes
-      # keep their expectations.
       # hot-path
       # rubocop:disable Style/ExplicitBlockArgument -- an explicit &block would
       # allocate a Proc for every node, every frame, per viewport. `yield` is
@@ -540,37 +461,25 @@ module RGame
       end
       # rubocop:enable Style/ExplicitBlockArgument
 
-      # This node's own drawing: its components and its draw hook, in that order.
-      # Both draw in the node's local space — see #in_local_space.
       # hot-path
       def draw_content(renderer, view)
         @components.each { it.draw(renderer, view) }
         on_draw(renderer, view)
       end
 
-      # Draw the child subtrees. Its own method so a node can wrap the whole subtree's
-      # draw in a transform without each child knowing about it.
       # hot-path
       def draw_children(renderer, view)
         children_in_order.each { it.draw(renderer, view) }
       end
 
-      # The children, in the order every phase visits them: by `z`, then by when
-      # they were added. Sorted lazily — a scene that never touches `z` after
-      # building sorts once and then pays one boolean per phase.
       # hot-path
       def children_in_order
         sort_children unless @children_sorted
         @children
       end
 
-      # Ruby's sort is not stable, so the insertion counter is compared
-      # explicitly. Without it two same-z siblings would swap places between
-      # frames, which reads on screen as flicker rather than as a sort problem.
       def sort_children
         @children_sorted = true
-        # Nothing to order, and the overwhelmingly common case for a leaf or a
-        # node with one visual — worth skipping before touching the array.
         return if @children.size < 2
 
         @children.sort! do |a, b|
@@ -579,30 +488,17 @@ module RGame
         end
       end
 
-      # Resolve this node's absolute transform from the parent origin passed down by the
-      # traversal. Relative x/y/angle accumulate, so a nested Node offsets and rotates
-      # its whole subtree: a child's local (x, y) is rotated by the parent's accumulated
-      # angle before being added to the parent's origin.
-      #
-      # `z` is **not** among them, and that is the point: depth is decided by
-      # where the traversal reaches a node, not by summing what its ancestors
-      # picked. See #z= and RGame::Util::Z.
-      # Where this node is in the world, from where its parent is and where it
-      # sits inside its parent. Called by the `world_*` readers when the cached
-      # answer is stale, and by nothing else — reading the parent's `world_x`
-      # (the reader, not the ivar) is what walks up to the nearest ancestor still
-      # current and recomputes back down from there.
       # hot-path
       def resolve_transform
         @world_current = true
         if @parent.nil?
           @world_x = @world_y = 0
-          @world_angle = 0 # root pinned to identity, like its position
+          @world_angle = 0
           return
         end
 
         pa = @parent.world_angle
-        if pa.zero? # fast path: parent unrotated -> plain translation, no trig
+        if pa.zero?
           @world_x = @parent.world_x + @rel_x
           @world_y = @parent.world_y + @rel_y
         else
@@ -614,15 +510,6 @@ module RGame
         @world_angle = pa + @rel_angle
       end
 
-      # The inverse of the rotation #resolve_transform applies: `offset_x`/`offset_y`
-      # is where the node should be relative to its parent, in world axes, and
-      # turning it by minus the parent's angle gives the local position that puts
-      # it there.
-      #
-      # The unrotated case never comes here. It assigns `value - parent.world_x`
-      # directly rather than adding a delta to the old position, so a node under an
-      # ancestor at the origin lands on exactly the number it was handed rather
-      # than on a rounding of it.
       def place_in_rotated_parent(offset_x, offset_y, pa)
         cos = Math.cos(pa)
         sin = Math.sin(pa)
@@ -632,17 +519,6 @@ module RGame
 
       protected
 
-      # Mark this node's world transform stale, and every descendant's with it —
-      # they are all somewhere else now. Nothing is recomputed here; the next
-      # read of each one pays for that one, and a node nobody asks about pays
-      # nothing at all.
-      #
-      # A subtree that is already stale is left alone, which is what keeps a
-      # burst of writes cheap: `node.x += dx` followed by `node.y += dy` walks
-      # the subtree once, and the second call stops at this node. That is sound
-      # because staleness always covers a whole subtree — the only thing that
-      # clears it is a read, and a read of a node clears that node and its
-      # ancestors, never a descendant.
       # hot-path
       def soil
         return unless @world_current
@@ -658,15 +534,6 @@ module RGame
 
       private
 
-      # The half of the resolution that is *not* the transform: which player owns
-      # this node, and which band it draws in. Both are inherited from the
-      # nearest ancestor that declares one, so they have to be walked down the
-      # tree even though neither is a coordinate.
-      #
-      # Its own method because `control` and `draw` need exactly this and nothing
-      # more — control reads no coordinates, and draw expresses position by
-      # pushing a transform rather than by resolving one. Only `update` still
-      # pays for the trig.
       # hot-path
       def resolve_inherited
         if @parent.nil?
@@ -675,15 +542,7 @@ module RGame
           return
         end
 
-        # Ownership accumulates the same way the transform does: this node's own
-        # if it has one, otherwise whatever it inherits. Resolved rather than
-        # walked on demand so it costs one assignment per phase, and so it is
-        # equally available in update and draw — a HUD node drawing in its
-        # player's corner wants the same answer `control` used.
         @abs_input_owner = @input_owner || @parent.abs_input_owner
-        # The band inherits the same way. A node that declares one overrides it
-        # for its whole subtree, which is the only way out of a band and is
-        # spelled with a name rather than a number.
         @abs_band = @band || @parent.abs_band
       end
     end

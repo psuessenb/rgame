@@ -28,9 +28,6 @@ class StartScene < RGame::Engine::Node2D
 
   private
 
-  # No z and no band. This scene is the only thing on screen and draws its
-  # backdrop and its text in one node, and `text` already defaults above
-  # `background` inside a node's own slot.
   # hot-path
   def centered(renderer, view, text, y, color)
     renderer.text(text, (view.width - renderer.text_width(text)) / 2, y, color: color)

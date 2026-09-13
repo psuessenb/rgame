@@ -71,10 +71,6 @@ module RGame
 
       private
 
-      # A descriptor holds many elements, and a mistake in one of them surfaces
-      # from inside NineSlice's arithmetic — "undefined method '-' for nil" says
-      # nothing about *which* button is wrong. Naming the element is the whole
-      # value this wrapper adds, so it catches broadly on purpose.
       def build(image, id, spec, sheet_scale)
         NineSlice.new(image, x: spec[:x], y: spec[:y], w: spec[:w], h: spec[:h],
                              border: spec[:border], scale: spec[:scale] || sheet_scale)

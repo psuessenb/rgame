@@ -37,7 +37,7 @@ module RGame
           @pool.reclaim_if do |child|
             next false unless child.freed?
 
-            node.remove_node(child) # idempotent if the deferred-free sweep already detached it
+            node.remove_node(child)
             true
           end
         end

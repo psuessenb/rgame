@@ -1,21 +1,5 @@
 # frozen_string_literal: true
 
-# Asteroids.
-#
-# A full small game on the Node2D/Component architecture, exercising it end to end:
-#   - three scenes (start → play → game-over) navigated through a SceneStack;
-#   - a scene-scoped CollisionWorld system + a root-scoped HighScores system
-#     (the two service scopes — see docs/api/systems.md);
-#   - a scene-scoped World system, so wrapping and despawning find the world size
-#     themselves instead of it being threaded through every constructor;
-#   - reusable components: Velocity, ScreenWrap, DespawnOffscreen, CircleCollider,
-#     Sprite, ThrustController, ActionTrigger;
-#   - pooled bullets and rocks (RGame::Engine::Pool) with deferred removal (queue_free);
-#   - audio via the global AudioBus + AudioDirector.
-
-# lib/ on the load path, so `require 'rgame/game'` resolves the same way it
-# would from an installed gem — which is also how the compiled extensions are
-# found.
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
@@ -30,12 +14,6 @@ WIDTH  = 640
 HEIGHT = 480
 MEDIA  = File.join(__dir__, '../../media')
 
-# Unset, the game seeds itself from the system and plays differently every time,
-# which is what a game should do. Set, every rock spawns in the same place at the
-# same tick, which is what comparing two runs of it needs —
-# `tools/drive_test_project.rb --seed N` sets it. Read here rather than in the scene:
-# where a number comes from is the entry point's business, and PlayScene just
-# takes one.
 SEED = ENV.fetch('RGAME_SEED', nil)&.to_i
 
 # Root: owns scene navigation (SceneStack) and program-lifetime state (HighScores,
@@ -82,14 +60,6 @@ game = RGame::Game.new(
   width: WIDTH,
   height: HEIGHT,
   media_root: MEDIA,
-  # Physical ids, not another layer of names. Each action lists every input that
-  # triggers it, keyboard and pad together — a device only answers for its own
-  # kind, so one table serves both.
-  #
-  # `thrust` binds the right trigger rather than the stick's y axis, because
-  # that axis is positive *downwards* and thrust is forward; see InputMap's
-  # note on stick signs. `:ui_confirm` is not declared at all — it comes from
-  # the universal set every map is merged over.
   input_map: RGame::Engine::InputMap.new(
     turn: { axis: [Controls::KEY_LEFT, Controls::KEY_RIGHT], stick: Controls::AXIS_LEFT_X },
     thrust: { axis: [Controls::KEY_DOWN, Controls::KEY_UP], stick: Controls::AXIS_TRIGGER_RIGHT },
@@ -97,9 +67,6 @@ game = RGame::Game.new(
   )
 )
 
-# Bind ids to assets the game's own manager loads. This scene names things by
-# id rather than by path, so the ids have to be registered; tiled_world names
-# paths instead and registers nothing.
 game.renderer.register_image(:space,  game.assets.image('space.png'))
 game.renderer.register_image(:ship,   game.assets.image('example 09/player.png'))
 game.renderer.register_image(:rock,   game.assets.image('example 09/rock_000.png'))

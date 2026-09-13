@@ -45,8 +45,6 @@ module RGame
       attr_reader :blocked_x, :blocked_y
 
       def initialize(blockers: [])
-        # Array() so a lone source reads as `blockers: tiles`. Built once at
-        # construction; a frame only indexes it.
         @blockers = Array(blockers)
         @blocked_x = nil
         @blocked_y = nil
@@ -55,8 +53,6 @@ module RGame
       # Move `actor` by (dx, dy), writing the resolved position back to it.
       def move(actor, dx, dy)
         box = actor.collision_box
-        # Read the box AABB into locals directly rather than via box.aabb, which would
-        # allocate an Array on this per-frame path.
         from_x = actor.x + box.offset_x
         from_y = actor.y + box.offset_y
         bw = box.width
@@ -68,9 +64,6 @@ module RGame
         actor.x = bx - box.offset_x
         actor.y = by - box.offset_y
 
-        # Every source is told, with the box the step *started* from — which is what lets
-        # one over a moving index re-bucket the mover without anything having stored a box
-        # on its behalf.
         i = 0
         while i < @blockers.size
           @blockers[i].moved(actor, from_x, from_y, bw, bh)
@@ -100,8 +93,6 @@ module RGame
           end
           i += 1
         end
-        # Asked here rather than lazily from the reader, because a source's own answer is
-        # per axis: resolve_y runs next and overwrites it.
         @blocked_x = winner&.blocker
         nx
       end

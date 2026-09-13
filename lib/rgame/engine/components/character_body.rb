@@ -35,8 +35,6 @@ module RGame
 
         private
 
-        # "Don't bother when standing still" lives here, so a body overriding apply_move to
-        # resolve a step some other way inherits it along with the intent and the speed.
         def take_step(dt)
           return if @move_x.zero? && @move_y.zero?
 

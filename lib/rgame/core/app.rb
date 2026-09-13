@@ -1,48 +1,5 @@
 # frozen_string_literal: true
 
-# RGame::Core::App is implemented in C — see ext/rgame_core/. It wraps the
-# engine's public API (ext/rgame_core/include/rgame/core.h): an SDL window plus
-# OpenGL context, and a fixed-timestep main loop that drives callbacks.
-#
-# App is meant to be subclassed. The engine calls back into methods on the
-# object itself, so a game overrides the hooks it needs and inherits no-ops for
-# the rest:
-#
-#   class MyGame < RGame::Core::App
-#     def initialize = super(width: 800, height: 600, caption: 'my game')
-#
-#     def frame_begin; end     # once per frame, before that frame's ticks
-#     def update(dt); end      # one fixed simulation tick; dt is always the
-#                              # fixed step, never wall-clock frame time
-#     def needs_redraw?; end   # false skips the draw (simulation still runs)
-#     def draw; end            # render one frame
-#     def frame_end; end       # after draw is submitted, before the swap —
-#                              # rarely needed outside a test that reads pixels
-#     def button_down(id); end # discrete key press (no repeats)
-#     def button_up(id); end
-#     def resize(w, h); end
-#   end
-#
-#   MyGame.new.run
-#
-# Also inherited: #close (stops the loop; safe from inside a callback), #width,
-# #height, #caption, #caption=, #ticks_ms (monotonic ms since startup) and #fps.
-#
-# The loop owns the fixed-timestep accumulator, so #update is called once per
-# whole tick and may run zero or several times per rendered frame. #frame_begin
-# is the place to sample input once and reuse it across every tick of that
-# frame.
-#
-# If a callback raises, the exception is carried out of #run with its original
-# class, message and backtrace, and the loop shuts down cleanly first. A
-# non-local exit (throw/break/return) out of a callback cannot be carried
-# across the C loop and is reported as a RuntimeError instead — use #close to
-# stop the loop.
-#
-# Loading this .so pulls SDL2 and OpenGL into the process — see
-# lib/rgame/core.rb for why that's kept off the default `require "rgame"`.
-# It loads from lib/rgame/core_ext.so, which the build (`make ext-core`)
-# copies out of ext/rgame_core/.
 require 'rgame/core_ext'
 
 module RGame
@@ -79,18 +36,6 @@ module RGame
       # called at load time — so there is no cycle here despite the manager
       # reaching back through `app.audio` to make a sound.
       def audio = @audio ||= Audio.new(assets: assets)
-
-      # Fullscreen is `#fullscreen?` and `#fullscreen=`, both defined in C. It is
-      # *desktop* fullscreen — the window takes the whole screen at the screen's
-      # own resolution rather than asking the display to change mode — so the
-      # switch is instant, reversible, and leaves every other window alone.
-      #
-      # Pass `fullscreen: true` to the constructor to open fullscreen. Setting it
-      # afterwards works, but a game that starts that way shows one windowed
-      # frame first, which is the flash a player reads as a broken startup.
-      #
-      # Either way the switch resizes the window, so `#resize` is called with the
-      # new size exactly as it is for a user dragging a window edge.
 
       # Where #assets resolves relative paths from. Set once, as a keyword to
       # the constructor; there is deliberately no writer, because changing it

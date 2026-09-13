@@ -1,20 +1,5 @@
 # frozen_string_literal: true
 
-# The `rgame` command: `rgame new NAME`, `rgame version`, `rgame help`.
-#
-# ## What this file may require
-#
-# Only stdlib and `rgame/version`. **Never `rgame`, `rgame/core` or
-# `rgame/game`** — `lib/rgame/version.rb` is documented as loading nothing
-# compiled, and that property is what this file rests on.
-#
-# Two things follow from it. `rgame new` works before either extension has been
-# built, which matters on a machine where SDL is missing or the install is
-# half-finished. And the CLI can be specced from `spec/`, the headless suite,
-# where `RGame::Core` is an undefined constant — so a require that crept in here
-# would fail loudly there rather than quietly dragging SDL into a process that
-# has no window to put it in.
-
 require_relative 'version'
 require_relative 'cli/new_project'
 

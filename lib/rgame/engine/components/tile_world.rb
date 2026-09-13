@@ -28,9 +28,6 @@ module RGame
       # draw time. Stop calling `update` and the water freezes, which is what pausing
       # should look like.
       class TileWorld < Engine::Component
-        # It is a WorldBounds: a scene with a tile map answers "how big is the world"
-        # from the map's own pixel size, and ScreenWrap/DespawnOffscreen find it here
-        # exactly as they would find a plain Components::World.
         include WorldBounds
 
         attr_reader :tilemap_id, :elapsed
@@ -44,8 +41,6 @@ module RGame
           @tilemap_id = tilemap_id
           @elapsed = 0.0
           Array(cameras).each { |camera| bound(camera) }
-          # One source for the whole map, shared by every body on it: a TileBlockers holds
-          # no per-move state, so there is nothing for two actors to race over.
           @blockers = Engine::TileBlockers.new(
             tile_width: map.tile_width, tile_height: map.tile_height,
             solid: ->(col, row) { map.solid_tile?(col, row) }

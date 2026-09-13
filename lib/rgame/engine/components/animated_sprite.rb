@@ -48,15 +48,12 @@ module RGame
         def draw(renderer, view)
           return if culled?(view, node.world_x, node.world_y, node.width, node.height)
 
-          # Read row/col/flip_x separately (not @animator.frame, which allocates an Array
-          # every call) to keep the draw path allocation-free.
           renderer.sprite(@sheet, @animator.row, @animator.col, 0, 0,
                           flip_x: @animator.flip_x, z: @layer)
         end
 
         private
 
-        # Horizontal movement wins over vertical, so a diagonal walk faces left/right.
         def walk_animation(move_x, move_y)
           if move_x.negative? then :walk_left
           elsif move_x.positive? then :walk_right

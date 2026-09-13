@@ -37,8 +37,8 @@ module RGame
         LEFT_CHEVRON = '<'
         RIGHT_CHEVRON = '>'
 
-        PADDING = 12 # from either end of the row to the text
-        GAP = 8      # between a chevron and the caption
+        PADDING = 12
+        GAP = 8
 
         def initialize(label:, values:, index: 0, display: :to_s.to_proc, **)
           super(label: label, **)
@@ -91,11 +91,6 @@ module RGame
 
         private
 
-        # The caption sits in a column as wide as the longest caption, so the
-        # chevrons stay put as the value changes instead of sliding about with
-        # every press. The width needs a renderer to measure, so it is worked out
-        # on the first draw and kept — the font a row is drawn with does not
-        # change under it.
         def draw_value(renderer, y, color)
           return if @values.empty?
 

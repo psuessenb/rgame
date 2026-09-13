@@ -18,9 +18,6 @@ module RGame
       # gives the feet box and nothing else, and the two can never disagree.
       class FeetCollider < BoxCollider
         def initialize(width:, height:, layer: :default)
-          # super builds a box from these, which #box replaces on its first read. Paying
-          # for one throwaway CollisionBox at construction keeps the layer, the contact
-          # set and the signals set up in exactly one place.
           super
           @feet_width = width
           @feet_height = height

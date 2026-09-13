@@ -66,10 +66,10 @@ module RGame
       private
 
       def clamp(value, world_size, view_size)
-        return value.to_f if world_size.nil? # unbounded: follow exactly
+        return value.to_f if world_size.nil?
 
         max = world_size - view_size
-        return 0.0 if max <= 0 # world smaller than the view -> pin to origin
+        return 0.0 if max <= 0
 
         value.clamp(0.0, max.to_f)
       end

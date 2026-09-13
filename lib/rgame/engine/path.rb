@@ -47,8 +47,6 @@ module RGame
 
       private
 
-      # Distance from (px, py) to the segment (ax, ay)-(bx, by): project the point onto the
-      # segment, clamp the projection to the segment's ends, and measure to that foot.
       def segment_distance(px, py, ax, ay, bx, by)
         abx = bx - ax
         aby = by - ay
