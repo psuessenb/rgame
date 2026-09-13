@@ -31,6 +31,7 @@ of each other.
 | text in the player's language | `I18n` | [→](toolbox.md#rgameenginei18n--localization) |
 | an ordered route to walk | `Path` | [→](toolbox.md#path--a-walkable-polyline) |
 | the cheapest route between two tiles | `NavGrid`, from `TileWorld#nav_grid` | [→](toolbox.md#navgrid--routes-over-a-tile-grid) |
+| a node that walks itself to a point, around the map | `Components::Navigator` | [→](#navigator) |
 
 **What earns a component is per-frame work.** Two of those utilities have
 component wrappers, and both exist for that one reason: a timer has to be
@@ -174,9 +175,11 @@ here, or "jump"/"fire" in a platformer.
 ### `AnimatedSprite`
 
 Draws a sprite-sheet animation and picks the animation from its [`Mover`](#mover) sibling's
-[heading](#mover): `walk_left`/`walk_right`/`walk_up`/`walk_down` while moving (horizontal wins
-on a diagonal), `stand` when still. Any mover will do — a [`CharacterBody`](#characterbody)
-faces its intent, a [`PathFollow`](#pathfollow) the segment it is walking, a
+[heading](#mover): `walk_left`/`walk_right`/`walk_up`/`walk_down` while moving, `stand` when
+still. The heading's larger axis picks the direction and a tie goes horizontal, so a keyboard
+diagonal walks sideways while a stick held mostly down, or a route segment running mostly
+down, walks down. Any mover will do — a [`CharacterBody`](#characterbody)
+faces its intent, a [`PathFollow`](#pathfollow) or [`Navigator`](#navigator) the segment it is walking, a
 [`Velocity`](#velocity) where it flies. Owns an `RGame::Engine::Animator` over the pure `AnimationSet` built
 from the sheet's animation table.
 
@@ -698,6 +701,59 @@ retunes both, and there is nothing to hand from one component to the other.
   translation of the node's local position, which is exact under an unrotated ancestor chain
   and approximate under a rotated one; a thing that spins wants a circle anyway.
 
+### `Navigator`
+
+A [`PathFollow`](#pathfollow) that plans its own paths: `go_to(world_x, world_y)` finds a route
+over the scene's [`TileWorld`](#tileworld) to the tile containing that point, smooths it into as
+few straight segments as the node's collider can travel, and walks it.
+
+```ruby
+# `actors` is the node TileMapLayer.mount returned, in a scene with a TileWorld mounted.
+hero = RGame::Engine::Node2D.new(x: 40, y: 40)
+hero.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+hero.add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height: 6))
+navigator = hero.add_component(RGame::Engine::Components::Navigator.new(speed: 80, blocked_by: [:tiles]))
+actors.add_node(hero)
+
+navigator.go_to(200.0, 360.0) # => true, and the hero sets off; false when there is no route
+```
+
+- **Construct:** `Navigator.new(speed:, blocked_by: [])` — no `path:`; it is idle until the first
+  `go_to`. What may stop it is [`Mover`](#mover)'s, and a navigator that should stay off solid
+  tiles while it walks declares `:tiles` like any other mover.
+- **Lifecycle:** `on_attach` raises when the scene has no `TileWorld` to plan over, and looks up
+  the node's `BoxCollider`, if it has one.
+- **`go_to(world_x, world_y)`** plans from where the node stands and starts walking at once, from
+  exactly where the node is — a navigator halfway along one route turns onto the next with no
+  jump. It returns `true`, or `false` when there is no route: the target is solid, outside the
+  map, or in a part of the map the node cannot reach. On `false` nothing changes, and a walk
+  already under way carries on. `on_finished` never fires inside `go_to`, even for a target in
+  the cell the node already stands in; it fires on the next step.
+- **The anchor.** What reaches the target is the centre of the collider's box — the feet, for a
+  [`FeetCollider`](#feetcollider) — or the node's origin on a node with no collider. The walk ends
+  with the anchor on the centre of the target tile.
+- **Readers:** `cells` is the route as the search found it, `[[col, row], ...]` from the start
+  tile to the target, or `nil` before the first `go_to` — for drawing the route. `path` is the
+  smoothed [`Path`](toolbox.md#path--a-walkable-polyline) actually walked, in the node's
+  coordinates, starting where the node stood.
+- **A route it plans, it can walk.** Smoothing keeps a straight segment only if the map's own
+  blocker source — `TileWorld#blockers`, the one a mover declaring `:tiles` is stopped by — lets
+  the collider's box travel it. A test on tiles alone would keep a diagonal past a tree's corner
+  that a point clears and a feet box clips, and a `PathFollow` held on a corner does not slide
+  off it: it would stand there. The box is swept in overlapping half-tile windows, each resolved
+  X-then-Y and Y-then-X, which covers every position a walker taking steps under a quarter tile
+  passes through — 240 px/s at 60 ticks a second on 16 px tiles.
+- **It waits; it does not replan.** The route is planned against the map, and the map is all it
+  knows. A navigator declaring other collider layers waits behind one standing on its route,
+  exactly as a `PathFollow` waits, and resumes when it leaves; to go round instead, call `go_to`
+  again.
+- **Cost.** A plan runs when `go_to` is called, never per frame, and allocates. Smoothing
+  re-sweeps from each corner as it extends, so it costs more than the search on a long open
+  route: about 10 ms for a 65-tile route across a 60x40 map, of which the search is 2.5 ms. The
+  walk itself is `PathFollow`'s, and allocation-free.
+- Planned in world space and walked in the parent's, which agree under an unrotated ancestor
+  chain — the limit a blocked [`Mover`](#mover) already has.
+
 ### `PathFollow`
 
 Walks the owning node along an [`RGame::Engine::Path`](toolbox.md#path--a-walkable-polyline)
@@ -875,7 +931,8 @@ answered.
   the same object every time, which a [`Mover`](#mover) declaring `:tiles`
   borrows and resolves its own steps against. `nav_grid` is the same solidity as an
   [`Engine::NavGrid`](toolbox.md#navgrid--routes-over-a-tile-grid), for planning a route
-  rather than resolving a step — built on first ask, the same grid after. Also `solid?(col, row)`;
+  rather than resolving a step — built on first ask, the same grid after; `tile_width` and
+  `tile_height` turn a world position into one of its cells. Also `solid?(col, row)`;
   `world_width`/`world_height`; `tilemap_id` and `elapsed`, which the layers read;
   `layer_count` and `first_above_layer`, which `TileMapLayer.mount` reads to decide where
   the actors go.
