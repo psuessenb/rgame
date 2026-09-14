@@ -71,13 +71,25 @@ reproduces byte-identically on a re-run — so re-run a lone odd report before
 believing it, and take a baseline twice, because the capture you are comparing
 *against* can be the run that was wrong.
 
-Two more things a comparison needs, each of which has produced a false difference:
+Three more things a comparison needs, each of which has produced a false result:
 
 - **A worktree of `main` has no `media/`.** It is git-ignored, so the test projects
   crash loading assets there. Symlink the checkout's `media/` into the worktree.
+- **A worktree has no compiled extensions either, and copied ones can be stale.**
+  `lib/rgame/*.so` is git-ignored too, so the usual move is copying the checkout's into
+  the worktree — but `make clean` deletes both, and a later `make ext-util` rebuilds only
+  one. Measured: a Core extension left over from an older build was copied, and every
+  report crashed at boot with `unknown keyword: :fullscreen`. Run `make ext` immediately
+  before copying.
 - **A fresh `RGAME_SAVE_DIR` for every run.** `save_load`, `save_load_ids` and
   `menu_navigation` otherwise write to the real data directory, and each run reads
   what the previous one saved. The harness does not set it for you.
+
+**Read a baseline before trusting it.** Capturing it twice catches a flaky run, not a
+broken one: the crashed baselines above were byte-identical to each other, so "the
+two captures agree" passed. Check that each report has its `ticks / frames` section
+and no backtrace — for example, grep the captures for `Error` — before diffing
+anything against them.
 
 **Tier 4 — manual.** Subjective/visual only. Never the only evidence for a
 correctness claim.
