@@ -74,6 +74,17 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
       step(1.0, 1.0) # walk_right, not walk_down
       expect(renderer).to have_received(:sprite).with(:hero, 1, any_args)
     end
+
+    # A stick, or a route segment, rarely points straight down: the larger axis decides.
+    it 'faces down while moving mostly down' do
+      step(-0.3, 0.9)
+      expect(renderer).to have_received(:sprite).with(:hero, 4, any_args)
+    end
+
+    it 'faces left while moving mostly left' do
+      step(-0.9, -0.3)
+      expect(renderer).to have_received(:sprite).with(:hero, 2, any_args)
+    end
   end
 
   # Any mover is a facing source, and a PathFollow is the one with no intent to read: it faces

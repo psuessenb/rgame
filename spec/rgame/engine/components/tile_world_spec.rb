@@ -105,6 +105,10 @@ RSpec.describe RGame::Engine::Components::TileWorld do
       expect([world.nav_grid.width, world.nav_grid.height]).to eq([6, 4])
     end
 
+    it 'has cells the size of the map’s tiles, to turn a world position into one' do
+      expect([world.tile_width, world.tile_height]).to eq([16, 16])
+    end
+
     it 'is the same grid every time' do
       first = world.nav_grid
       expect(world.nav_grid).to be(first)

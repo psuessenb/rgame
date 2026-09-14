@@ -55,6 +55,11 @@ module RGame
         def world_width = @map.pixel_width
         def world_height = @map.pixel_height
 
+        # The size of one cell, in pixels — what turns a world position into the cell
+        # #nav_grid plans over.
+        def tile_width = @map.tile_width
+        def tile_height = @map.tile_height
+
         def layer_count = @map.layer_count
 
         # The first layer Tiled flags `above`, or the layer count if none is —

@@ -1,6 +1,6 @@
 # Pathfinding — `examples/pathfinding` and the engine it needs
 
-**Status:** planned at `707ea1a`. **Steps 1–2 are implemented.** Steps 1–4 are detailed; step 5 (the C search) is
+**Status:** planned at `707ea1a`. **Steps 1–3 are implemented.** Steps 1–4 are detailed; step 5 (the C search) is
 rough and is to be re-planned once step 4 has put a real caller on the API; step 6
 deletes this file.
 
@@ -555,6 +555,75 @@ that it waits rather than replans.
 **Verify.** `rake spec` green, including rule 1 over at least the town fence
 fixture and one scattered-obstacle fixture.
 
+**Landed.** `Components::Navigator < PathFollow` with `Navigator.new(speed:, blocked_by: [])`,
+`go_to(world_x, world_y)` → `true`/`false`, and `cells`; `path` is `PathFollow`'s. `on_attach`
+raises without a `TileWorld` and looks up the `BoxCollider` whose box centre is the anchor.
+`TileWorld` gained `tile_width`/`tile_height`, and `AnimatedSprite` now faces by the larger axis
+of the heading (step 1's note for rule 10). One commit, as a step with no sub-steps.
+
+- `rake spec`: 1879 examples, 0 failures (1856 after step 2; 20 in `navigator_spec.rb`, 2 in
+  `animated_sprite_spec.rb`, 1 in `tile_world_spec.rb`). RuboCop clean over the seven files
+  touched.
+- Rule 1 runs 30 chained random `go_to`s per fixture, half of them abandoned partway for another
+  so a route also starts off a cell's centre, over the fence and a scattered fixture, and asserts
+  no `on_blocked` and the anchor on the target's centre at every arrival.
+- **The invariant on real maps**, by a plain script (hero-sized node, 12x6 feet, `blocked_by:
+  [:tiles]`, walked to `on_finished` at 1/60 s): `town.tmx` 300 routes at 80 px/s and 200 at
+  230 px/s, `island.tmx` 264 routes, `beach_large.tmx` 60 routes — **0 blocked**, all finished.
+- The seven driven reports step 1 compared (`walk`, `collision_tiles`, `jump_topdown`,
+  `split_screen`, `input_glyphs`, `game_menu`, `test_projects/tiled_world`, `--seed 1 --ticks 240`)
+  are **byte-identical** with and without the facing change.
+- **Timings, for step 5** (step 2's method: best of 5 after a warm-up):
+
+  | | `find` | `go_to` (find + smoothing) |
+  |---|---|---|
+  | town `[1, 1]` → `[58, 38]` (65 cells → 8 waypoints) | 2.5 ms | **10.0 ms** |
+  | `beach_large` `[116, 72]` → `[39, 6]` (117 cells → 13 waypoints) | 23.7 ms | **45.0 ms** |
+
+- Mutations run by hand: the sweep as sketched (below) fails both rule 1 examples; a box-blind
+  `clear?` fails 6; sweeping a point instead of the box fails 8; no smoothing fails 5; windows
+  without overlap fail 1 — and that 1 exists only because the scattered fixture was *searched
+  for* as a map that catches it, since the hand-drawn one did not.
+
+What the sketch got wrong or left out:
+
+- **The sweep as sketched is not sound.** Quarter-tile steps resolved X-then-Y blocked 18 of 100
+  random routes on `town.tmx`. A quarter-tile staircase can jump diagonally past a tile corner that
+  the continuous segment clips and that the walker, stepping a pixel or so at a time, meets. What
+  landed sweeps **overlapping half-tile windows at a quarter-tile stride, each resolved both
+  X-then-Y and Y-then-X**: both orders cover every position between a window's ends, and the
+  overlap covers a walker step straddling two windows, so long as that step is under a quarter
+  tile (240 px/s at 60 Hz on 16 px tiles). Without the overlap the real maps showed 19 blocks over
+  the runs above; with it, none. It is still the map's own `TileBlockers` answering.
+- **"The furthest later cell" became greedy**: extend cell by cell until the next is not clear.
+  Scanning back from the route's end for the furthest clear cell costs a sweep per candidate per
+  corner. The next cell is taken without a test, since from a cell centre (or from the node to the
+  centre of its own cell) the box stays in cells it already occupies or the search's corner-free
+  step — which holds only for a **box no larger than a tile**, a limit nothing checks yet.
+- **Smoothing costs more than the search**: 7.5 of town's 10 ms, 21 of `beach_large`'s 45 ms,
+  because every extension re-sweeps from the corner. Step 5 leaned "smoothing stays Ruby"; that
+  lean was taken before this was measured, and its re-plan should weigh it — either the sweep
+  moves with the search, or smoothing gets cheaper (e.g. a search for the turn rather than a
+  linear extension).
+- **Rule 9 is not `it_behaves_like 'a mover'`.** The contract's heading group asserts the exact
+  sign of each heading axis from a node at (170, 100), but a navigator walks its anchor to a cell
+  centre, and no tile size puts both the bare origin and a 16x16 box's centre on centres on both
+  axes. The rule is carried by the "held by another actor" example instead — `blocked_by: %i[tiles
+  npc]` with a real `CollisionWorld`, which is also the caller-using-both example — and
+  `Navigator` overrides none of `Mover`'s or `PathFollow`'s step machinery that the contract
+  already holds `PathFollow` to.
+- **Rule 10 decided "the larger axis wins, ties go horizontal"**, as step 1's note leaned, and it
+  is pinned twice: in `animated_sprite_spec.rb` against a `CharacterBody` intent, and beside a
+  `Navigator` on a mostly-downward route.
+- Not in the sketch: `go_to` before the node is in the tree raises rather than failing on `nil`;
+  `TileWorld#tile_width`/`#tile_height`, which the sketch's "take tile size" assumed existed.
+- **For step 4:** `path` waypoints are the node's origin, not the anchor, so drawing the walked
+  route at the feet adds the collider's centre offset back.
+
+Documented in `docs/api/components.md` (a `Navigator` section, in the alphabetical order the page
+keeps rather than after `PathFollow`; `AnimatedSprite`'s facing rule; `TileWorld`'s tile size; the
+"Looking for" table) and `docs/api/toolbox.md` (`NavGrid`'s routes point to `Navigator`).
+
 ### Step 4 — `examples/pathfinding` and its drive script
 
 **Why here.** Everything it names exists. This is also where open questions 2 and 3
@@ -612,6 +681,8 @@ known now:
   the pairs `find` returns today, and whether smoothing moves too. Leaning: flat
   array inside, pairs at the Ruby surface; smoothing stays Ruby, because it is
   O(route) and calls a Ruby blocker source.
+  *Step 3's landed note measured smoothing at three times the search on town and about
+  equal on `beach_large`, so this lean needs re-deciding in the re-plan.*
 
 ### Step 6 — fold back and delete this plan
 

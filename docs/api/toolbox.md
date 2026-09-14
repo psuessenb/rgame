@@ -125,7 +125,8 @@ grid.region(0, 0)           # => 0, an Integer label; nil for a solid or off-gri
 
 - **Routes are cells, both ends included**, as `[[col, row], ...]`. Start equal to goal is a
   route of one cell. Turning a cell into a point a node walks to depends on the node's
-  collider, which is not the grid's business, so nothing here speaks pixels.
+  collider, which is not the grid's business, so nothing here speaks pixels —
+  [`Components::Navigator`](components.md#navigator) does that, and walks the result.
 - **Unreachable is `nil`** — a solid or off-grid end, or a goal in another region. It is an
   ordinary answer, not an error.
 - **Moves are 8-way at octile cost** (1 straight, √2 diagonal), and a diagonal is taken only
