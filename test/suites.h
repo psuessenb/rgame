@@ -14,6 +14,8 @@ Suite *frame_loop_suite(void);
 Suite *device_slots_suite(void);
 Suite *input_suite(void);
 Suite *color_suite(void);
+Suite *solid_grid_suite(void);
+Suite *route_search_suite(void);
 Suite *transform_suite(void);
 Suite *clip_suite(void);
 Suite *draw_queue_suite(void);

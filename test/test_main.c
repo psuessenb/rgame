@@ -50,6 +50,8 @@ static SRunner *create_main_runner(void) {
     srunner_add_suite(runner, device_slots_suite());
     srunner_add_suite(runner, input_suite());
     srunner_add_suite(runner, color_suite());
+    srunner_add_suite(runner, solid_grid_suite());
+    srunner_add_suite(runner, route_search_suite());
     srunner_add_suite(runner, transform_suite());
     srunner_add_suite(runner, clip_suite());
     srunner_add_suite(runner, draw_queue_suite());
