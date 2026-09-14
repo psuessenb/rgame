@@ -737,20 +737,23 @@ navigator.go_to(200.0, 360.0) # => true, and the hero sets off; false when there
   smoothed [`Path`](toolbox.md#path--a-walkable-polyline) actually walked, in the node's
   coordinates, starting where the node stood.
 - **A route it plans, it can walk.** Smoothing keeps a straight segment only if the map's own
-  blocker source — `TileWorld#blockers`, the one a mover declaring `:tiles` is stopped by — lets
-  the collider's box travel it. A test on tiles alone would keep a diagonal past a tree's corner
-  that a point clears and a feet box clips, and a `PathFollow` held on a corner does not slide
-  off it: it would stand there. The box is swept in overlapping half-tile windows, each resolved
-  X-then-Y and Y-then-X, which covers every position a walker taking steps under a quarter tile
-  passes through — 240 px/s at 60 ticks a second on 16 px tiles.
+  blocker source — `TileWorld#blockers`, the one a mover declaring `:tiles` is stopped by — says
+  the collider's box can travel it, through
+  [`TileBlockers#travel?`](internals.md#tileblockers--the-tile-grid-as-a-blocker-source). A test on
+  tiles alone would keep a diagonal past a tree's corner that a point clears and a feet box clips,
+  and a `PathFollow` held on a corner does not slide off it: it would stand there. `travel?` holds
+  for a walker taking steps under a quarter tile — 240 px/s at 60 ticks a second on 16 px tiles.
+- **Colliders up to one tile only.** Pathfinding for a collider wider or taller than a tile is not
+  supported: smoothing assumes the box fits the cells the search found, and `go_to` raises
+  `ArgumentError`, naming the box and the tile size, rather than plan a route such a walker could
+  stall on. A collider exactly one tile is fine.
 - **It waits; it does not replan.** The route is planned against the map, and the map is all it
   knows. A navigator declaring other collider layers waits behind one standing on its route,
   exactly as a `PathFollow` waits, and resumes when it leaves; to go round instead, call `go_to`
   again.
-- **Cost.** A plan runs when `go_to` is called, never per frame, and allocates. Smoothing
-  re-sweeps from each corner as it extends, so it costs more than the search on a long open
-  route: about 10 ms for a 65-tile route across a 60x40 map, of which the search is 2.5 ms. The
-  walk itself is `PathFollow`'s, and allocation-free.
+- **Cost.** A plan runs when `go_to` is called, never per frame, and allocates. It is about
+  0.2 ms for a 65-tile route across a 60x40 map and 1.3 ms for a 117-tile route across 120x90, where
+  the search is 1 ms of it. The walk itself is `PathFollow`'s, and allocation-free.
 - Planned in world space and walked in the parent's, which agree under an unrotated ancestor
   chain — the limit a blocked [`Mover`](#mover) already has.
 - **Example:** `examples/pathfinding` — a tile cursor picks the target, and the scene draws

@@ -306,6 +306,32 @@ RSpec.describe RGame::Engine::Components::Navigator do
       expect([navigator.cells.first, navigator.cells.last]).to eq([[1, 1], [18, 10]])
     end
 
+    describe 'for a collider the size of a tile or larger' do
+      def navigator_with_box(width, height)
+        mount(fence)
+        node = RGame::Engine::Node2D.new(x: 20.0, y: 20.0)
+        node.add_component(RGame::Engine::Components::BoxCollider.new(width: width, height: height))
+        navigator = node.add_component(described_class.new(speed: 120.0, blocked_by: [:tiles]))
+        scene.add_node(node)
+        scene.enter_tree
+        navigator
+      end
+
+      it 'plans for a collider exactly one tile' do
+        navigator = navigator_with_box(16, 16)
+        expect([navigator.go_to(*centre(18, 10)), walk(navigator).nil?]).to eq([true, false])
+      end
+
+      it 'refuses one wider than a tile, naming its size and the tile size' do
+        expect { navigator_with_box(17, 6).go_to(*centre(18, 10)) }
+          .to raise_error(ArgumentError, /Navigator#go_to .* 17x6 over 16x16 tiles/)
+      end
+
+      it 'refuses one taller than a tile' do
+        expect { navigator_with_box(12, 20).go_to(*centre(18, 10)) }.to raise_error(ArgumentError, /12x20/)
+      end
+    end
+
     it 'refuses to plan before the node is in the tree' do
       mount(fence)
       expect { go_to_cell(hero_at(1, 1), 3, 3) }.to raise_error(/Navigator#go_to .* in the tree first/)
