@@ -295,8 +295,38 @@ end
 ```
 
 **Verified:** against a correct class this reports 0 → 0; against a class whose
-`dfree` forgets the inner buffer it reports 0 → 500. Exact, deterministic, no
-sanitizer, runs in the normal spec suite.
+`dfree` forgets the inner buffer it reports 0 → 500. No sanitizer, runs in the
+normal spec suite.
+
+**Build the batch on a finished thread, or the count is off by one on CI.**
+Ruby's collector scans the machine stack *conservatively*: any word there that
+looks like a pointer keeps its object alive. A returned C frame leaves its words
+behind, and the frames `GC.start` pushes do not always overwrite them, so the
+*last* object the loop built can survive every collection. Whether it does
+depends on the compiler's frame layout. Measured on `Util::SolidGrid` and
+`Util::RouteSearch`: exactly one survivor on Linux and Windows CI, none in 26
+local runs of the same code. So a spec that passes here proves nothing about
+the runners.
+
+Once a thread has ended, its stack is no longer scanned. In `spec/`,
+`spec/support/live_object_helper.rb` provides this:
+
+```ruby
+it 'frees its C buffer when collected' do
+  collect_garbage
+  before = RGame::Util::Thing.debug_live_things
+  build_in_finished_thread { 500.times { RGame::Util::Thing.new(...) } }
+  collect_garbage
+  expect(RGame::Util::Thing.debug_live_things).to eq(before)
+end
+```
+
+**Verified:** an object held by a local on the main thread counts +1 after
+collection; the same object held only by a finished thread counts +0. Deleting
+the counter's decrement from `dfree` still fails both specs. The Core counters
+in `spec_core/` (`debug_live_textures`, `debug_live_sounds`) do not use a
+thread and pass on CI today. That is luck of frame layout, not immunity, so
+reach for the helper if one of them starts reading one high.
 
 Also worth doing once per new TypedData class, since it catches GC-mark bugs
 that leak nothing but crash later:
