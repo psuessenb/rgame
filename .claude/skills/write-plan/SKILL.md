@@ -200,6 +200,33 @@ schedule its own removal does not get removed.
 - **State what the plan does not cover**, explicitly. A "what this does not
   deliver" section per phase stops scope arriving later disguised as a bug.
 
+## Question rounds, between research and writing
+
+After reading the code and before writing any plan document, settle what only
+the user can decide. This is a loop, and each round ends your turn:
+
+1. **Write the questions** to `docs/plans/<topic>-questions.md`. Where the
+   research already turned up viable options, present them as lettered choices,
+   each with its trade-off and your recommendation. Where it is genuinely open,
+   ask plainly. Leave space under each question for the answer.
+2. **Score your confidence** at the top of the file: the probability that the
+   user's answers would *not* materially change the design or the roadmap's
+   detailed steps. Beneath it, list what is holding the score down.
+3. **Stop.** End the turn and tell the user the file is ready. Do not answer
+   the questions yourself, and do not start the plan.
+4. **Read the answers**, research anything they open up, and re-score. Below
+   90%, write the next round into the same file under a new heading and go back
+   to 3. At 90% or above, write the plan.
+
+Only ask what changes the plan now. A question that cannot be answered until an
+earlier step has landed is not a question-round question; it goes into the
+plan's **Open questions**, marked with what it waits on.
+
+When the plan is written, move every answered question into the brief: as a
+**Decision already taken** with its reasoning, or visibly built into the
+design. Then delete the questions file. A question dropped without being
+recorded gets asked again.
+
 ## Worked examples, recoverable from git
 
 Every earlier plan was folded back and deleted as intended, so the exemplars
