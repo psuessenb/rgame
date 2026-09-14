@@ -11,25 +11,7 @@ they're non-trivial and the name doesn't already tell the whole story.
 
 Comments inside methods or on private methods get automatically deleted on commit - write them freely, but don't rely on them. Write code that speaks and reads cleanly without those comments.
 
-Write documentation alongside code. Reference documentation lives under
-`docs/`; the top-level `README.md` and `ext/README.md` stay where they are and
-cover setup and orientation. Documentation describes the state of the code, not
-the road that got it there — it must not reference prompts, previous
-implementations that are now gone, or throwaway example code. Code examples in
-documentation must stand on their own: complete enough to read without outside
-context, and valid against the current code. Rule of thumb: the documentation
-is written for a reader who has *only* the current code and took no part in
-writing it, and it should help them understand and use that code.
-
-Documentation does not reference other game engines or games ("Prior Art") - _plans_ do that and it's useful there, the official documentation **does not**.
-
-The exception is everything under `docs/plans`. Documentation there serves an
-implementation or refactoring effort, so it can and should reference previous
-iterations of the code, raise open questions, and record decisions taken in
-prompts. Plans are working documents: when the work lands, fold whatever is
-still true into the real documentation and delete the plan — git history keeps
-it. A plan that outlives its refactor is just a stale description of code that
-no longer exists.
+Documentation rules live in the [write-docs](.claude/skills/write-docs/SKILL.md) skill; plans follow [write-plan](.claude/skills/write-plan/SKILL.md).
 
 ## Design out misuse: the right thing must be the easy thing
 

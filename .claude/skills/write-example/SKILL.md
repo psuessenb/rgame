@@ -50,7 +50,8 @@ Four rules for the header:
   fixed inset because centring needs a size that only exists at draw time.
   That sentence is what stops a reader copying a limitation as if it were a
   design.
-- **No history.** Same rule as `docs/`: no "used to", no "now", no "still".
+- **No history.** Same rule as `docs/api/` (see
+  [write-docs](../write-docs/SKILL.md)): no "used to", no "now", no "still".
   Written for someone who has only the current code.
 
 The end of the file is the wiring: `RGame::Game.new(...)`, any registration, and
@@ -285,8 +286,9 @@ Plus `rake spec:core` and `make test` if the example needed engine or C work.
 
 New engine code that an example needs is **still engine code**: a control goes
 in `lib/rgame/engine/ui/` with its own spec in `spec/`, a section in the matching
-`docs/api/` page, and — if the page has a "What this is not" list — that list
-trimmed to what is still genuinely missing.
+`docs/api/` page written per [write-docs](../write-docs/SKILL.md), and — if the
+page has a "What this is not" list — that list trimmed to what is still
+genuinely missing.
 
 Then update `docs/plans/basic-examples.md`: mark the entry done, record what the
 example decided about any open question it was carrying, and write down anything

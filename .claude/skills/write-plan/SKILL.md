@@ -11,10 +11,14 @@ the roadmap at the end was the short part that fell out of it. Write it in that
 order and the roadmap mostly writes itself. Write the roadmap first and it will
 be fiction.
 
-Plans live in `docs/plans/`. Per CLAUDE.md they are **working documents**: they
-may name previous iterations of the code, record what a prompt decided, and
-leave questions open. They are also temporary, and a roadmap schedules its own
-removal as its last step.
+Plans live in `docs/plans/`. They are **working documents** that serve an
+implementation or refactoring effort. So, unlike the reference documentation
+([write-docs](../write-docs/SKILL.md)), they may name previous iterations of the
+code, reference other engines and games, record what a prompt decided, and leave
+questions open. They are also temporary. When the work lands, whatever is still
+true moves into the real documentation, and the plan is deleted; git history
+keeps it. A plan that outlives its refactor is a stale description of code that
+no longer exists, so a roadmap schedules its own removal as its last step.
 
 ## One file, or a folder
 

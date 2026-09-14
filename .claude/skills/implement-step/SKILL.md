@@ -115,6 +115,6 @@ understood before the step existed.
 
 The last step of a roadmap is folding the plan back and deleting it.
 
-Whatever is still true moves into CLAUDE.md or `docs/api/`. Often the implementation of the plan already updates the documentation, but now is the time to double-check and made sure documentation is up to date. Open questions or writen down further todos need to be rescued from the plan - when it's unclear where they should be recorded, ask the user. Then the file or folder goes; `git log` keeps the rest.
+Whatever is still true moves into CLAUDE.md or `docs/api/` (written per [write-docs](../write-docs/SKILL.md)). Often the implementation of the plan already updates the documentation, but now is the time to double-check and made sure documentation is up to date. Open questions or writen down further todos need to be rescued from the plan - when it's unclear where they should be recorded, ask the user. Then the file or folder goes; `git log` keeps the rest.
 
 That fold-back is itself a step, so it gets a branch and a pull request like any other.
