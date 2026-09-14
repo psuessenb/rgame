@@ -102,12 +102,12 @@ RSpec.describe RGame::Util::SolidGrid do
   end
 
   describe 'memory' do
-    def live = 3.times { GC.start(full_mark: true, immediate_sweep: true) }.then { described_class.debug_live_grids }
-
     it 'frees its cells when collected' do
-      before = live
-      200.times { described_class.new(32, 32) }
-      expect(live).to eq(before)
+      collect_garbage
+      before = described_class.debug_live_grids
+      build_in_finished_thread { 200.times { described_class.new(32, 32) } }
+      collect_garbage
+      expect(described_class.debug_live_grids).to eq(before)
     end
   end
 end

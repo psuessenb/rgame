@@ -68,19 +68,17 @@ RSpec.describe RGame::Util::RouteSearch do
   end
 
   describe 'memory' do
-    def settle = 3.times { GC.start(full_mark: true, immediate_sweep: true) }
-
     it 'frees its buffers when collected' do
-      settle
+      collect_garbage
       before = described_class.debug_live_searches
-      200.times { described_class.new(grid).find(0, 0, 4, 2) }
-      settle
+      build_in_finished_thread { 200.times { described_class.new(grid).find(0, 0, 4, 2) } }
+      collect_garbage
       expect(described_class.debug_live_searches).to eq(before)
     end
 
     it 'keeps its grid alive while it is' do
       kept = described_class.new(grid_from(['..#..', '.....']))
-      settle
+      collect_garbage
       expect(kept.find(0, 0, 4, 0)).to eq([[0, 0], [1, 1], [2, 1], [3, 1], [4, 0]])
     end
 
