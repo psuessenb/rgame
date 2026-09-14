@@ -120,7 +120,8 @@ BACKEND_OBJ := $(BUILD_DIR)/backend.o
 COLOR_OBJ := $(BUILD_DIR)/color.o
 SOLID_GRID_OBJ := $(BUILD_DIR)/solid_grid.o
 ROUTE_SEARCH_OBJ := $(BUILD_DIR)/route_search.o
-UTIL_OBJS := $(COLOR_OBJ) $(SOLID_GRID_OBJ) $(ROUTE_SEARCH_OBJ)
+TILE_SWEEP_OBJ := $(BUILD_DIR)/tile_sweep.o
+UTIL_OBJS := $(COLOR_OBJ) $(SOLID_GRID_OBJ) $(ROUTE_SEARCH_OBJ) $(TILE_SWEEP_OBJ)
 GAMEPAD_OBJ := $(BUILD_DIR)/gamepad.o
 CORE_LIB := $(BUILD_DIR)/librgame_core.a
 
@@ -138,6 +139,7 @@ TEST_OBJS := $(BUILD_DIR)/test_main.o \
              $(BUILD_DIR)/test_color.o \
              $(BUILD_DIR)/test_solid_grid.o \
              $(BUILD_DIR)/test_route_search.o \
+             $(BUILD_DIR)/test_tile_sweep.o \
              $(BUILD_DIR)/test_transform.o \
              $(BUILD_DIR)/test_clip.o \
              $(BUILD_DIR)/test_draw_queue.o \
@@ -297,6 +299,10 @@ $(SOLID_GRID_OBJ): $(EXT_UTIL_DIR)/solid_grid.c $(EXT_UTIL_DIR)/solid_grid.h | $
 
 $(ROUTE_SEARCH_OBJ): $(EXT_UTIL_DIR)/route_search.c $(EXT_UTIL_DIR)/route_search.h \
                      $(EXT_UTIL_DIR)/solid_grid.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+$(TILE_SWEEP_OBJ): $(EXT_UTIL_DIR)/tile_sweep.c $(EXT_UTIL_DIR)/tile_sweep.h \
+                   $(EXT_UTIL_DIR)/solid_grid.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/test_%.o: test/test_%.c test/suites.h | $(BUILD_DIR)
