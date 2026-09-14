@@ -672,10 +672,11 @@ file to a folder already listed needs nothing.
   `extconf.rb` has no `pkg_config` and no `-lGL`, which is what enforces the
   split above. `util_ext.c` is the entry point and does nothing but hand the
   module to each class's init, so adding a class means adding a file rather
-  than editing an unrelated one. `Tensor`, `Color`, `SolidGrid` and
-  `RouteSearch` live here, and so does any future pure-data/pure-logic code
-  Ruby needs to call. Note `color.{c,h}`, `solid_grid.{c,h}` and
-  `route_search.{c,h}` are pure and have no `ruby.h`, so the Check suite covers
+  than editing an unrelated one. `Tensor`, `Color`, `SolidGrid`, `RouteSearch`
+  and `TileSweep` live here, and so does any future pure-data/pure-logic code
+  Ruby needs to call. Note `color.{c,h}`, `solid_grid.{c,h}`,
+  `route_search.{c,h}` and `tile_sweep.{c,h}` are pure and have no `ruby.h`, so
+  the Check suite covers
   them directly — the same layer-1 split the engine side uses; the `*_ext.c`
   beside each is only the binding.
 - Both extensions build to a `.so` that `make ext` copies into `lib/rgame/`

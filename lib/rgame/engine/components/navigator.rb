@@ -19,16 +19,13 @@ module RGame
       # corner that a point clears and a 12x6 feet box clips, and a PathFollow does not
       # slide: the walker would stand at that corner.
       #
-      # The box is swept along the segment in overlapping windows half a tile long, moving
-      # stride a quarter tile, and each window is resolved both ways round — X then Y, and
-      # Y then X. A single X-then-Y staircase is not enough: at a quarter tile a step can
-      # jump diagonally past a corner that the walker, moving a pixel or so at a time,
-      # meets. Resolving both ways covers every position between a window's ends, and the
-      # overlap covers a walker's own X-then-Y step straddling two windows, as long as that
-      # step is under a quarter tile — 240 px/s at 60 ticks a second on 16 px tiles.
+      # The question is TileBlockers#travel?, which holds for a walker stepping under a
+      # quarter tile at a time — 240 px/s at 60 ticks a second on 16 px tiles.
       #
       # Smoothing is greedy: from each corner it extends the segment cell by cell until the
-      # next cell would not be clear, and turns there.
+      # next cell would not be clear, and turns there. The next cell after a corner is taken
+      # without asking, which is sound only for a collider **no larger than a tile** on
+      # either axis — so `go_to` refuses a larger one rather than plan a route it may stall on.
       #
       # So what is walked is measured from the **anchor** — the centre of the sibling
       # BoxCollider's box, or the node's origin on a node with none — and a route ends
@@ -44,8 +41,6 @@ module RGame
       # The route is planned in world space and walked in the node's parent's space, which
       # agree under an unrotated ancestor chain — the same limit a blocked Mover has.
       class Navigator < PathFollow
-        SWEEP_STEP = 0.25
-
         # The cells of the last route `go_to` planned, start to target, before smoothing —
         # `[[col, row], ...]`, or nil before the first one. For drawing; `path` is what is
         # walked.
@@ -71,6 +66,9 @@ module RGame
         # Returns false, and leaves whatever the node was doing alone, when there is no
         # route: the target is solid, outside the map, or cut off from the node.
         #
+        # Raises ArgumentError when the node's collider is wider or taller than a tile:
+        # pathfinding for such a collider is not supported.
+        #
         # rubocop:disable Naming/PredicateMethod -- a command that reports whether it could be
         # carried out, not a question; `go_to?` would read as "may I go there?".
         def go_to(world_x, world_y)
@@ -80,6 +78,7 @@ module RGame
           end
 
           measure_anchor
+          refuse_a_box_larger_than_a_tile
           cells = @world.nav_grid.find(*cell_at(@anchor_x, @anchor_y), *cell_at(world_x, world_y))
           return false unless cells
 
@@ -99,6 +98,14 @@ module RGame
           @anchor_y = node.world_y + (box ? box.offset_y + (@box_h / 2.0) : 0.0)
         end
 
+        def refuse_a_box_larger_than_a_tile
+          return if @box_w <= @world.tile_width && @box_h <= @world.tile_height
+
+          raise ArgumentError, "#{mover_name}#go_to plans for a collider no larger than a tile, and this " \
+                               "node's is #{@box_w}x#{@box_h} over #{@world.tile_width}x" \
+                               "#{@world.tile_height} tiles. Pathfinding for a larger collider is not supported."
+        end
+
         def cell_at(x, y) = [(x / @world.tile_width).floor, (y / @world.tile_height).floor]
 
         def centre_x(cell) = (cell[0] + 0.5) * @world.tile_width
@@ -116,33 +123,13 @@ module RGame
 
         def furthest_clear(x, y, cells, index)
           index += 1 while index < cells.length - 1 &&
-                           clear?(x, y, centre_x(cells[index + 1]), centre_y(cells[index + 1]))
+                           box_travels?(x, y, centre_x(cells[index + 1]), centre_y(cells[index + 1]))
           index
         end
 
-        def clear?(from_x, from_y, to_x, to_y)
-          dx = to_x - from_x
-          dy = to_y - from_y
-          steps = [(dx.abs / (@world.tile_width * SWEEP_STEP)).ceil,
-                   (dy.abs / (@world.tile_height * SWEEP_STEP)).ceil, 1].max
-          step_x = dx / steps
-          step_y = dy / steps
-          span = [steps, 2].min
-          left = from_x - (@box_w / 2.0)
-          top = from_y - (@box_h / 2.0)
-          (steps - span + 1).times.all? do |sample|
-            window_clear?(left + (step_x * sample), top + (step_y * sample), step_x * span, step_y * span)
-          end
-        end
-
-        def window_clear?(x, y, dx, dy)
-          blockers = @world.blockers
-          w = @box_w
-          h = @box_h
-          blockers.resolve_x(x, y, w, h, dx) == x + dx &&
-            blockers.resolve_y(x + dx, y, w, h, dy) == y + dy &&
-            blockers.resolve_y(x, y, w, h, dy) == y + dy &&
-            blockers.resolve_x(x, y + dy, w, h, dx) == x + dx
+        def box_travels?(from_x, from_y, to_x, to_y)
+          @world.blockers.travel?(from_x - (@box_w / 2.0), from_y - (@box_h / 2.0), @box_w, @box_h,
+                                  to_x - from_x, to_y - from_y)
         end
 
         def waypoints(corners)

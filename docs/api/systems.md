@@ -149,6 +149,10 @@ takes the most restrictive answer on each axis. The axis-separated order that pr
 wall-sliding is therefore written **once**, which is why an actor slides off a villager
 exactly the way it slides off a fence.
 
+A source may also answer `travel?` — can this box move along a segment without being
+stopped — and `TileBlockers` does: it is how a [`Navigator`](components.md#navigator) checks
+a route against the very resolver its walk will be stopped by.
+
 | | Mounted on the scene | Owned by the node |
 |---|---|---|
 | Tiles | [`TileWorld`](components.md#tileworld), which hands out one shared `TileBlockers` | — |

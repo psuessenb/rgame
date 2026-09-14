@@ -33,6 +33,17 @@ module RGame
     # `blocker` is how #blocked_x / #blocked_y name what stopped a step; `moved` is how a
     # source over a moving index re-buckets the mover, with the box the step started from.
     #
+    # A fourth question is optional, and only Engine::TileBlockers answers it today:
+    #
+    #   source.travel?(x, y, w, h, dx, dy)  # -> can the box move (dx, dy) without being stopped?
+    #
+    # "Stopped" means what it means here: a resolve landing *short* of where the step was
+    # heading. A landing past it is ignored below, so it does not stop a travel either. Read
+    # that way the question splits by source — a box travels past several sources exactly when
+    # it travels past each one alone — so no source needs to know the others exist for this
+    # question any more than for the other three. The shared example group "a blocker source
+    # answering travel?" states it.
+    #
     # Holding the sources here rather than inside any one of them is what puts the
     # axis-separated order — resolve X, then resolve Y fed the resolved X — in exactly
     # one place. That order is what produces wall-sliding (a diagonal push into a wall

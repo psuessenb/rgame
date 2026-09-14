@@ -34,7 +34,8 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
   def tile_world(solid: ->(_col, _row) { false }, width: 1000, height: 1000)
     instance_double(
       RGame::Engine::Components::TileWorld,
-      blockers: RGame::Engine::TileBlockers.new(tile_width: 16, tile_height: 16, solid: solid),
+      blockers: RGame::Engine::TileBlockers.new(grid: RGame::Util::SolidGrid.build(64, 64, &solid),
+                                                tile_width: 16, tile_height: 16),
       world_width: width, world_height: height
     )
   end
@@ -197,7 +198,7 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     def resolver
       @resolver ||= RGame::Engine::CollisionSystem.new(
         blockers: RGame::Engine::TileBlockers.new(
-          tile_width: 16, tile_height: 16, solid: ->(col, _row) { col == 8 }
+          grid: RGame::Util::SolidGrid.build(64, 64) { |col, _row| col == 8 }, tile_width: 16, tile_height: 16
         )
       )
     end

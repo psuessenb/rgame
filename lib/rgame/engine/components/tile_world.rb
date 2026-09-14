@@ -53,8 +53,8 @@ module RGame
         # `blocked_by: [:tiles]`. The same source every time, so every body on the map
         # shares one.
         def blockers
-          @blockers ||= Engine::TileBlockers.new(tile_width: @map.tile_width, tile_height: @map.tile_height,
-                                                 solid: solid_grid.method(:solid?))
+          @blockers ||= Engine::TileBlockers.new(grid: solid_grid, tile_width: @map.tile_width,
+                                                 tile_height: @map.tile_height)
         end
 
         def world_width = @map.pixel_width

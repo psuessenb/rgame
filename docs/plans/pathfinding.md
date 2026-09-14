@@ -1,8 +1,7 @@
 # Pathfinding — `examples/pathfinding` and the engine it needs
 
-**Status:** planned at `707ea1a`. **Steps 1–5 are implemented.** Step 6 (`Util::TileSweep`, the
-tile resolver and travel query in C) was re-planned at `3e36b49` and is detailed; step 7 deletes
-this file.
+**Status:** planned at `707ea1a`. **Steps 1–6 are implemented.** Step 7 folds this plan back into
+the documentation and deletes it.
 
 The requirement, from `docs/plans/basic-examples.md` ("12. `examples/pathfinding`"):
 *a click-free "go there" — pick a target tile, compute a route around the solid
@@ -1288,6 +1287,79 @@ Ruby touched, and rule 9's reports. The landed note records, on the table's meth
 routes (expected ~0.2 / ~1.2 ms), one x+y resolve pair through `TileBlockers` against today's
 0.77 µs, and `find` unchanged. If `go_to` lands well above the prototype, the delegation hop or the
 binding's argument conversion is where to look first.
+
+**Landed.** `ext/rgame_util/tile_sweep.{c,h}`, pure, with 13 Check tests; `tile_sweep_ext.c` and
+`lib/rgame/util/tile_sweep.rb` (`Util::TileSweep`); `Engine::TileBlockers.new(grid:, tile_width:,
+tile_height:)` delegating `resolve_x`, `resolve_y` and `travel?` to one; the shared group `a blocker
+source answering travel?`; `CollisionSystem`'s header stating the optional question; `Navigator`
+smoothing through `blockers.travel?` and refusing a collider larger than a tile. Four commits, one per
+sub-step.
+
+- `make test`: **353 checks, 0 failures** (340 before, 13 in `test_tile_sweep.c`), and the same 353
+  under the ASan/UBSan/`bounds-strict` build. `rake spec`: **1949 examples, 0 failures** (1925 before;
+  14 in `tile_sweep_spec.rb`, 6 in the travel contract, 1 in `tile_blockers_allocation_spec.rb`, 3 in
+  `navigator_spec.rb`). `rake spec:core`: 375, 0 failures. RuboCop clean over every Ruby file touched.
+- **Rule 9 held exactly as predicted**: the eight driven reports at `--seed 1`, taken against a
+  worktree of 6b and each captured twice, are byte-identical except `jump_topdown`'s
+  `y -77.0..298` → `y -77.0..298.0`. `pathfinding` still ends on `"no route there; arriv..."`.
+- **Rule 1 held**: `navigator_spec.rb`, `nav_grid_spec.rb` and `tile_world_spec.rb` have no existing
+  example changed; the four specs building a `TileBlockers` changed only those lines.
+- **Rule 5, beyond the specs**, by throwaway scripts: the C resolves equal the pre-port Ruby
+  `TileBlockers` on **360 000** random resolves over three tile sizes, and `travel?` equals the
+  pre-port `Navigator#clear?` on **36 000** random segments over `town.tmx` and `beach_large.tmx`
+  (19 512 of them clear).
+- **Timings** — the table's method, same machine:
+
+  | | before | after |
+  |---|---|---|
+  | town `[1, 1]` → `[58, 38]`: `find` / `go_to` | 0.08 / 3.90 ms | 0.08 / **0.21 ms** (8 waypoints, as before) |
+  | `beach_large` `[116, 72]` → `[39, 6]`: `find` / `go_to` | 0.97 / 10.17 ms | 1.01 / **1.29 ms** (13 waypoints) |
+  | one x+y resolve pair through `TileBlockers` | 0.77 µs | **131 ns** — 89 ns on the `TileSweep` directly |
+
+- Mutations, each caught: in C (under the sanitizer build) X-then-Y only, either tile-range clamp,
+  the tile index's bounds, the NaN guard on a span, the edge epsilon on the far side of a span, the
+  window count's NaN guard and its limit, a wrong left snap, the window count ignoring the longer
+  axis, half-tile stride, sweeping only the first window, **and non-overlapping windows** (see below);
+  in the binding a missing `dmark` (segfaults), the live counter, each refusal; in `Navigator` the
+  size guard removed, made strict, or checking width only. Two survivors, both equivalent: `==` for
+  "not short" (a tile resolve never lands past its target), and the epsilon on the moving edge
+  (snapping flush gives the same value either way).
+
+What the sketch got wrong or left out:
+
+- **The contract's soundness example did not catch non-overlapping windows at 400 samples.** A probe
+  over 20 000 segments showed why: with the overlap removed, a walker is stopped on about 3 cleared
+  segments in 1000, and only at steps near a quarter tile. The example now runs **3000** segments
+  with steps of 1, 2.3, 3.52 and 3.99 px and catches it, in 0.35 s for the whole file. In step 3 this
+  was carried only by `navigator_spec.rb`'s searched-for fixture, which is still there.
+- **A NaN delta travelled.** `ceil(NaN)` fell through the window count's `max` as 1 and every
+  comparison against NaN said "not short", so the first C `travel` cleared it. The pure function
+  `rgame_tile_sweep_travel_windows` (not in the sketch, exposed so the binding can refuse a travel too
+  long before sweeping) now answers NaN, and `travel` refuses it.
+- **Refusals the sketch did not list.** `travel?` refuses a non-finite number with `FloatDomainError`
+  even with no movement (there is no "returned unchanged" to preserve for a new query), and a travel
+  of more than `2**31 - 1` windows with `ArgumentError`; the pure layer answers `false` for both.
+- **The host hook is a method, `def blocker_source(rows, tile:)`**, not a yielding block — each
+  example needs several sources, and a return value reads better than nested blocks there.
+- **`Navigator` keeps one private helper, `box_travels?`**, converting its anchor-centred corners to a
+  top-left box and a delta. It is arithmetic, not a sweep, so rule 2 holds, but "`clear?` is gone, not
+  wrapped" was literally false.
+- **The unbounded predicates became 64x64 grids**, passed as `SolidGrid.build(64, 64, &solid)` so
+  `character_body_spec.rb`'s helper keeps its `solid:` lambda. Negative coordinates are now open where
+  a predicate like `row == 8` had called them solid; no example relied on it.
+- **The delegation hop costs ~21 ns a resolve**, not the ~35 ns estimated.
+- **Two more doc pages were stale**: `toolbox.md` said `NavGrid`'s callable was "the same one a
+  `TileBlockers` takes", and `systems.md` described the protocol without `travel?`. `TileBlockers::EPS`
+  was deleted with the Ruby arithmetic, and `TileBlockers#grid` was added.
+- **For whoever re-takes a driven baseline**: `make clean` removes both extensions, so copying
+  `lib/rgame/*.so` into a comparison worktree afterwards copies a stale Core extension, and every
+  report crashes at boot with `unknown keyword: :fullscreen`. Run `make ext` first.
+
+Documented in `docs/api/values.md` (`TileSweep`), `docs/api/internals.md` (`TileBlockers` over `grid:`,
+`travel?`, the optional fifth protocol question), `docs/api/systems.md` (`travel?` on the blocker
+source), `docs/api/components.md` (`Navigator`: smoothing through `travel?`, colliders up to one tile
+only, the new cost), `docs/api/toolbox.md` (`NavGrid`'s callable), and CLAUDE.md's `ext/rgame_util/`
+entry.
 
 ### Step 7 — fold back and delete this plan
 

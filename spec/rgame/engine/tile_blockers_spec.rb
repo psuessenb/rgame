@@ -3,12 +3,19 @@
 RSpec.describe RGame::Engine::TileBlockers do
   # 16px tiles; column 5 (x 80..96) is a solid wall, everything else open.
   subject(:collision) do
-    described_class.new(tile_width: 16, tile_height: 16,
-                        solid: ->(col, _row) { col == 5 })
+    described_class.new(grid: RGame::Util::SolidGrid.build(20, 20) { |col, _row| col == 5 },
+                        tile_width: 16, tile_height: 16)
+  end
+
+  def blocker_source(rows, tile:)
+    grid = RGame::Util::SolidGrid.build(rows.first.length, rows.length) { |col, row| rows[row][col] == '#' }
+    described_class.new(grid: grid, tile_width: tile, tile_height: tile)
   end
 
   let(:w) { 16 }
   let(:h) { 16 }
+
+  it_behaves_like 'a blocker source answering travel?'
 
   it 'passes freely through open space' do
     expect(collision.resolve_x(16, 0, w, h, 4)).to eq(20)
@@ -32,8 +39,8 @@ RSpec.describe RGame::Engine::TileBlockers do
   end
 
   it 'stops flush against a solid floor when moving down into it' do
-    floor = described_class.new(tile_width: 16, tile_height: 16,
-                                solid: ->(_col, row) { row == 5 })
+    floor = described_class.new(grid: RGame::Util::SolidGrid.build(20, 20) { |_col, row| row == 5 },
+                                tile_width: 16, tile_height: 16)
     # Mover at y=60 (bottom 76) moving +10 would put its bottom at 86, inside the
     # floor row (80..96); it snaps so the bottom rests at 80 → y=64.
     expect(floor.resolve_y(0, 60, w, h, 10)).to eq(80 - h)
