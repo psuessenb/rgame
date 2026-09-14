@@ -1,8 +1,7 @@
 # Pathfinding — `examples/pathfinding` and the engine it needs
 
-**Status:** planned at `707ea1a`. **Steps 1–4 are implemented.** Step 5 (one solidity
-store and the search in C) was re-planned at `73cf044` and is detailed; step 6 (the sweep
-in C) is rough and is re-planned once step 5 has landed; step 7 deletes this file.
+**Status:** planned at `707ea1a`. **Steps 1–5 are implemented.** Step 6 (the sweep in C) is
+rough and is re-planned next, from step 5's landed timings; step 7 deletes this file.
 
 The requirement, from `docs/plans/basic-examples.md` ("12. `examples/pathfinding`"):
 *a click-free "go there" — pick a target tile, compute a route around the solid
@@ -967,6 +966,97 @@ case (the number to beat is **23.9 ms**, into tens of microseconds), `go_to` on 
 and a relabel after one `set_solid` on `beach_large`. If `go_to` does not land near the baked
 row above (6.5 / 33 ms minus the search), `Method#call` on the store costs more than the array
 did, and step 6's re-plan starts there.
+
+**Landed.** `ext/rgame_util/solid_grid.{c,h}` and `route_search.{c,h}`, pure, with 14 Check
+tests; `solid_grid_ext.c` and `route_search_ext.c` with `lib/rgame/util/solid_grid.rb`
+(`SolidGrid.build`) and `route_search.rb`; `Engine::NavGrid` as a thin wrapper taking `grid:` or
+`width:`/`height:`/`solid:`; `TileWorld` over one `SolidGrid` that `blockers`, `nav_grid` and
+`solid?` all read. Three commits, one per sub-step.
+
+- `make test`: 340 checks, 0 failures (326 before; 6 in `test_solid_grid.c`, 8 in
+  `test_route_search.c`), and the same 340 under the ASan/UBSan/`bounds-strict` build with no
+  warnings. `rake spec`: **1925 examples, 0 failures** (1879 before; 31 in the two Util specs, 10
+  in `nav_grid_spec.rb`, 3 in `tile_world_spec.rb`, 2 in the new
+  `tile_blockers_allocation_spec.rb`). `rake spec:core`: 375, 0 failures. RuboCop clean over every
+  Ruby file touched.
+- **The nine driven reports are byte-identical** before and after, at `--seed 1`: `walk`,
+  `collision_tiles`, `jump_topdown`, `split_screen`, `input_glyphs`, `game_menu` and
+  `test_projects/tiled_world` at `--ticks 240`, `pathfinding` at `--ticks 630`.
+- **Hard constraint 4 held**: `nav_grid_spec.rb`, `navigator_spec.rb`, `tile_blockers_spec.rb`,
+  `collision_system_spec.rb` and `character_body_spec.rb` pass with nothing edited, and the whole
+  `NavGrid` suite passed on the C search at the first run. `tile_world_spec.rb` needed one setup
+  line — see below.
+- Mutations, each caught: in C (under the sanitizer build) a revision bumped on every write, the
+  size overflow check removed, `solid` without its bounds check, labels never relabelled, the
+  wrap not clearing `closed`, the heap not reset between searches, a diagonal past a solid
+  orthogonal, a west neighbour past column 0; in the binding, `dmark` not marking the grid
+  (segfaults the spec); in Ruby, `TileWorld#blockers` reading the map again, `grid:` copied
+  instead of shared, `walkable?` checking bounds before the type, both constructor forms
+  accepted.
+- **Timings** — the table's method, same machine, both measured in this branch (before is
+  `main`):
+
+  | | before | after |
+  |---|---|---|
+  | town `[1, 1]` → `[58, 38]`: `find` / `go_to` | 2.50 / 10.01 ms | **0.08 / 3.9 ms** |
+  | `beach_large` `[116, 72]` → `[39, 6]`: `find` / `go_to` | 24.0 / 45.3 ms | **0.98 / 10.1 ms** |
+  | `beach_large`, 200 random pairs, `Random.new(1)`: mean / worst | 1.79 / 19.6 ms | **0.07 / 0.75–0.95 ms** |
+  | store build through `TileMap#solid_tile?`, town / `beach_large` | — | 0.83 / 4.4 ms, on first ask |
+  | `set_solid` + relabel on `beach_large`, twice | — | 0.09 ms — about 45 µs a relabel |
+  | `go_to` with the blockers over `SolidGrid#method(:solid?)` / over a lambda | — | town 3.87 / 3.83, `beach_large` 10.05 / 9.96 ms |
+
+What the sketch got wrong or left out:
+
+- **The worst route is ~0.8 ms, not "tens of microseconds".** The same `beach_large` query expands
+  5319 cells, so C costs **~0.19 µs per expanded cell** on an open map at `-O3` — five times the
+  prototype's 0.035 µs, which came from the comb maze step 2's note already called not comparable
+  (most neighbours solid, so few relaxations and pushes). It is still 25x faster than Ruby on the
+  same queries, and 1 ms is far below a frame. Nothing was tuned; a struct-of-entries heap and
+  cheaper stamps are the obvious first moves if a crowd ever needs it.
+- **`go_to` landed on the baked row**, so `Method#call` on the store costs nothing measurable (a
+  lambda is ~1% faster). Step 6's re-plan starts from `go_to` being **~96% smoothing on town (3.8
+  of 3.9 ms) and ~90% on `beach_large` (9.1 of 10.1 ms)**, close to the rough step's "about 4 ms
+  and 10 ms".
+- **The store is built on first ask, not eagerly.** The sketch built it in `TileWorld#initialize`,
+  but `StubTileMap` has no `solid_tile?`, so every `TileWorld` built over it — the main subject of
+  `tile_world_spec.rb` and the one in `tile_map_layer_spec.rb`, neither of which touches
+  collision — would have failed. The first ask is `blockers` at a mover's attach, so a scene with
+  a tile-colliding actor still pays it at load. One setup line did change: the `#blockers` group's
+  `instance_double(TileMap)` gained `width: 20, height: 20`, since the store needs a size and the
+  live lambda never did. No example body changed.
+- **`RouteSearch` holds its grid** rather than taking it per call, as the sketch's C signatures
+  did. A search's buffers are sized to one grid, and handing it a larger one would index past
+  them; holding the pointer makes that impossible, and still lets many searches read one grid.
+  The binding marks the grid so it cannot be collected under a search.
+- **`revision` is `uint64_t`**, so a count of changes can never wrap back onto the value some
+  search labelled at.
+- **Equal-cost ties needed the compiler told.** GCC under `-std=gnu17` may fuse `a + b * c` into
+  one instruction on a target that has it, which rounds differently and would pick a different
+  equally cheap route there. `extconf.rb` adds `-ffp-contract=off`; `route_search.c` carries the
+  `STDC FP_CONTRACT OFF` pragma for clang, whose `-std=c17` default contracts too.
+- **"One neighbour-expansion function" is public**: `rgame_route_neighbours`, which A* calls and
+  the corner-rule Check tests call directly; a distance field is its second caller.
+- **`rgame_route_find` returns a three-way result**, found / none / no memory, since the heap
+  grows during a search. The binding raises `NoMemoryError` for the third.
+- Not in the sketch: `set_solid` outside the grid raises `IndexError` (a write that went nowhere
+  is an invisible missing wall); neither class has an allocator, so `dup` is a `TypeError` and a
+  grid cannot be re-sized under a search; `SolidGrid.debug_live_grids` and
+  `RouteSearch.debug_live_searches` are the leak counters the verify skill prescribes; and
+  `RouteSearch#grid` is readable. Rule 5's refusals cover every `NavGrid` query, not only `find`.
+- **The C heap test needed two fixtures to bite.** A comb maze never grew the heap past its first
+  64 entries, and the first open-ground fixture's goal was the last cell reached, so the heap was
+  empty at return and "not reset between searches" survived. The goal now sits just past a wall's
+  gap with the bottom row still queued, and the query repeats eight times.
+- Rule 8's example is its own file, `tile_blockers_allocation_spec.rb`, following the other
+  `*_allocation_spec.rb` files rather than living inside `tile_blockers_spec.rb`.
+- Rule 6, run before writing it: today's `NavGrid` at 0x0, 0x3 and 3x0 answered `false`/`nil`
+  to every query, and the C one does the same.
+
+Documented in `docs/api/values.md` (`SolidGrid`, `RouteSearch`), `docs/api/toolbox.md` (`NavGrid`:
+the two ways to build one, regions following a shared grid, the refusals, the new costs; the
+"Grids" note on why the store is not a `Tensor`), `docs/api/components.md` (`TileWorld` reads the
+map once), `docs/api/internals.md` (`TileBlockers`' example over a `SolidGrid`), and CLAUDE.md's
+`ext/rgame_util/` entry.
 
 ### Step 6 — the sweep in C *(rough)*
 
