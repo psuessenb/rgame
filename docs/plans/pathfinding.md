@@ -1,8 +1,8 @@
 # Pathfinding — `examples/pathfinding` and the engine it needs
 
-**Status:** planned at `707ea1a`. **Steps 1–4 are implemented.** Steps 1–4 are detailed; step 5 (the C search) is
-rough and is to be re-planned once step 4 has put a real caller on the API; step 6
-deletes this file.
+**Status:** planned at `707ea1a`. **Steps 1–4 are implemented.** Step 5 (one solidity
+store and the search in C) was re-planned at `73cf044` and is detailed; step 6 (the sweep
+in C) is rough and is re-planned once step 5 has landed; step 7 deletes this file.
 
 The requirement, from `docs/plans/basic-examples.md` ("12. `examples/pathfinding`"):
 *a click-free "go there" — pick a target tile, compute a route around the solid
@@ -21,6 +21,10 @@ worth routing around.
   direction ("only extend the Ruby wrapper once the C API is settled") applies
   here as "only port to C once the Ruby API is settled". It lands in
   `ext/rgame_util/`, because a grid search is pure logic with no SDL.
+  *Re-planned after step 4:* the search alone is the smaller half of a `go_to` — see
+  step 5 — so step 5 also gives the tile world **one mutable solidity store** that the
+  blockers and the search both read, and step 6 takes on the sweep. That store is what
+  keeps runtime map changes, replanning, crowds and flow fields buildable later.
 - **Three things already exist that this must extend rather than sit beside**
   (see "What it resembles"):
   1. **Solidity has one owner, `TileWorld`.** The navigation grid is a second
@@ -61,7 +65,8 @@ engine is spec-able headless.
    `game_menu` all mount `AnimatedSprite` on a `CharacterBody`; their driven reports
    are compared before and after step 1.
 4. **Step 5's C is `ext/rgame_util/`**, layer-1 pure with Check tests, and the
-   Ruby `NavGrid` specs from step 2 are its contract unchanged.
+   Ruby `NavGrid` specs from step 2 are its contract unchanged. Examples may be *added*
+   to that suite (a refusal the port introduces); none may be edited.
 5. **No asset changes.** `town.tmx` already has the obstacle (measured below).
 
 ## Decisions already taken
@@ -78,6 +83,12 @@ Not up for re-litigation inside this plan.
   than left as "if profiling ever says so" — the 18.7 ms on a map in this repo is
   the profiling. (Decided while writing this plan; the prompt asked for C to be
   looked into.)
+- **The C work must not rule out five later additions**: maps that change at runtime,
+  replanning around moving actors, crowds, avoidance, and flow fields. None of them is
+  built by this plan; step 5's design is checked against each (see its "What the
+  additions need" table). **Weighted terrain and mouse picking are not design inputs** —
+  not important, so nothing is shaped for them and nothing is contorted to exclude them.
+  (Decided in the prompt that re-planned step 5.)
 
 ## Open questions
 
@@ -106,6 +117,33 @@ Not up for re-litigation inside this plan.
    **Resolved in step 4: it repeats, through `Components::ActionTrigger`.** `UI::Stepping`
    is press-only, so the menu has no repeat to reuse; `ActionTrigger` fires a held action
    on the press and every cooldown after, which is a key repeat with no initial delay.
+4. ~~**Does `TileWorld` expose its solidity store?**~~ **Settled — not in this plan.** A
+   reader would let a game change solidity with the drawn tile unchanged (an invisible wall),
+   and a `Navigator` already walking through that cell would stand at it, `on_blocked` by
+   `:tiles`, with nothing telling it why. `SolidGrid#set_solid` exists and is tested in Util;
+   the map-change feature adds the engine-level API together with the drawn tile and what a
+   walking navigator does when `revision` moves. (Decided in the prompt after the re-plan.)
+5. ~~**`TileBlockers` over a callable, or over a `SolidGrid` only?**~~ **Settled — a
+   `SolidGrid` only, from step 6: `TileBlockers.new(grid:, tile_width:, tile_height:)`.**
+   Three shapes were weighed. *Both forms* (callable in Ruby, grid in C) was rejected
+   outright: two copies of the snapping arithmetic, and the design rests on the walker and the
+   smoother running one resolver. *Grid inside, callable accepted and copied* (the way
+   `NavGrid` takes one) was rejected because its only lasting gain is one line per
+   construction, and it costs later: two constructor modes, a copy that silently stops
+   seeing a callable's changes where today's form reads live, and — once maps change — an easy
+   way to build blockers and a `NavGrid` over **two private stores** that drift, where
+   `SolidGrid.build` then `grid:` hands the same store to both by construction. Solidity with
+   no edges is not lost: it writes its own blocker source, which is what the
+   `resolve_x`/`resolve_y`/`blocker`/`moved` protocol is for. Step 5 is unaffected; it keeps
+   the callable form and `TileWorld` passes its store's `solid?`. (Decided in the prompt after
+   the re-plan.)
+6. ~~**Does `NavGrid.new(width:, height:, solid:)` outlive step 5?**~~ **Settled — it
+   stays**, beside `grid:`. Route specs draw grids as text through it, and a game with a
+   grid but no `TileMap` wants exactly that form. Its docs say it copies, so a game that
+   will change solidity builds a `SolidGrid` and passes `grid:`. It is kept where
+   `TileBlockers`' callable form (question 5) is not because a search is useful on its own,
+   over a board with no collision at all; blockers exist to stop a walker on a map that is
+   usually also searched. (Decided in the prompt after the re-plan.)
 
 ## What was measured before planning
 
@@ -246,9 +284,13 @@ RSpec, deterministically.
 
 ```
 1 Mover heading + PathFollow#follow ─┐
-                                     ├─→ 3 Navigator ─→ 4 examples/pathfinding ─→ 5 C search (rough) ─→ 6 fold back
+                                     ├─→ 3 Navigator ─→ 4 examples/pathfinding ─→ 5 SolidGrid + C search ─→ 6 C sweep (rough) ─→ 7 fold back
 2 NavGrid (pure) ────────────────────┘
 ```
+
+Step 5 is worth landing even if step 6 never does: it makes the search ~60x cheaper,
+takes `TileMap#solid_tile?` off the sweep (which roughly halved smoothing when measured with a baked array), and gives every later
+addition one store to read.
 
 Steps 1 and 2 are independent and each worth landing alone:
 
@@ -713,49 +755,266 @@ Documented in `docs/api/components.md` (an "Example" line under `Navigator`), an
 `docs/plans/basic-examples.md` (entry 12 done with a landed note, Implementation order item 22
 struck).
 
-### Step 5 — the search in C *(rough)*
+### Step 5 — `Util::SolidGrid` and `Util::RouteSearch` (pure C), one solidity store for the tile world
 
-To be re-planned once step 4 has landed and the Ruby API has a real caller. What is
-known now:
+**Why here.** Step 4 settled the surface a caller uses (`go_to`, `cells`, `path`,
+`nav_grid.walkable?`), which was the condition for porting. The re-plan's measurements
+below changed *what* is ported: the rough step was "the search in C", and the search is not
+where a `go_to` spends its time.
 
-- `ext/rgame_util/nav_grid.{c,h}`: pure, no `ruby.h` — grid of bytes, region labels,
-  A* into caller-owned buffers — covered by `test/test_nav_grid.c` in the Check suite
-  (a new suite in `test/suites.h`).
-- `ext/rgame_util/nav_grid_ext.c`: `RGame::Util::NavGrid` (a value in the sense
-  CLAUDE.md means — no OS handle), registered from `util_ext.c`.
-- `Engine::NavGrid` keeps its interface and delegates `find`/`region` to it, so the
-  step 2 spec suite is the contract with no edits. If it needs edits, the port
-  changed behaviour.
-- Windows: see the `windows-portability` skill before writing the binding
-  (`NUM2INT` widths, no `long` for sizes).
-- The number to beat: `beach_large.tmx`'s 18.7 ms worst case, into the low tens of
-  microseconds — re-measure on the step 2 landed note's methodology, not on the
-  prototype's.
-- Open: whether the result comes back as a flat Integer array (one allocation) or as
-  the pairs `find` returns today, and whether smoothing moves too. Leaning: flat
-  array inside, pairs at the Ruby surface; smoothing stays Ruby, because it is
-  O(route) and calls a Ruby blocker source.
-  *Step 3's landed note measured smoothing at three times the search on town and about
-  equal on `beach_large`, so this lean needs re-deciding in the re-plan.*
+#### What was measured for the re-plan
 
-### Step 6 — fold back and delete this plan
+At `73cf044`, Ruby 4.0.5 without YJIT, the step 2 method (plain script, `TileMap.load`, one
+warm-up, best of 5). The script was throwaway.
+
+| | |
+|---|---|
+| `rake spec` | 1879 examples, 0 failures, 3.85 s |
+| town (60x40), `NavGrid` built through `TileMap#solid_tile?` / from a pre-baked flat array | 1.55 ms / 0.81 ms |
+| `beach_large` (120x90), the same | 7.65 ms / 3.67 ms |
+| `island` (58x47), the same | 1.25 ms / 0.46 ms, 3 regions |
+| town `[1, 1]` → `[58, 38]`: `find` / `go_to` | 2.53 ms / **11.62 ms** — 8 waypoints, **8614** `resolve_x`/`resolve_y` calls in one `go_to` |
+| `beach_large` `[116, 72]` → `[39, 6]`: `find` / `go_to` | 23.84 ms / **49.88 ms** — 13 waypoints, **22 905** resolve calls |
+| `beach_large`, 200 random pairs, `Random.new(1)` | mean 1.46 ms, worst 23.9 ms |
+| `go_to` with the world's `TileBlockers` reading a baked flat array instead of `TileMap#solid_tile?` *(measured)* | town **6.47 ms**, `beach_large` **33.38 ms** |
+| Readers of tile solidity | `TileWorld` only, three times: the `blockers` lambda (live, every resolve), the `nav_grid` lambda (copied once), `#solid?` (live) |
+| Writers of tile solidity after load | **0** — `Tileset#solid_ids` is writable, and only `tileset_spec.rb` writes it, before any `TileWorld` exists |
+| `TileBlockers.new` callers | `TileWorld` (lib); `tile_blockers_spec.rb` (over an *unbounded* callable), `collision_system_spec.rb` 1, `character_body_spec.rb` 2 |
+| `NavGrid` callers | `TileWorld#nav_grid`, `Navigator#go_to` (`find`), `examples/pathfinding` (`walkable?`) |
+| `NavGrid#find(0.5, 0, 3, 0)` today *(measured)* | `[[0.5, 0.125], [1.5, 0.375], [2.5, 0.625], [3, 0]]` — a **Float cell is accepted and returns a nonsense route**; `nil` raises `NoMethodError`; `2**40` returns `nil` |
+| `Util::Tensor`'s cells | `VALUE`s marked for the GC, not bytes — nothing a C search can index |
+| `Makefile`'s `$(EXT_UTIL_SO)` rule *(read, not run)* | names its four `.c` files explicitly: a new util source rebuilds on first build (the mkmf Makefile regenerates) but **not when edited afterwards** |
+
+Three things these settle:
+
+- **Porting only the search leaves `go_to` at roughly 9 ms on town and 26 ms on
+  `beach_large`**, since smoothing is 9.1 of town's 11.6 ms. The search in C is still
+  right — it is the whole cost of an unreachable or far `find`, and every later addition
+  calls it more often — but it is not the fix for `go_to`.
+- **Half of smoothing is reading solidity**, through `TileMap#solid_tile?`'s per-layer
+  tileset lookups: a baked array took town's smoothing from 9.1 to 3.9 ms. That same read is
+  on the per-frame path of every mover declaring `blocked_by: [:tiles]`.
+- **Solidity has one owner and would have two copies the moment it could change.** The
+  blockers read the map live; the `NavGrid` copied it. Nothing writes today, so they agree —
+  but a destructible wall would be walked into by routes that still think it open, or refused
+  as `nil` through a gap the blockers let through.
+
+#### What the additions need
+
+The prompt's constraint, checked addition by addition. "Builds" is done in this step;
+"leaves room" is a layout choice that costs nothing now; neither column builds the addition.
+
+| Addition | What it needs from this layer | Step 5 |
+|---|---|---|
+| **Maps that change at runtime** | one mutable store both the blockers and the search read; region labels that follow a change; a way for a planned route to know the map moved under it | **Builds** the store, `set_solid`, a `revision` that moves only on a real change, and region labels recomputed lazily when `revision` differs from the one they were labelled at. `TileWorld` shares **one** store between `blockers`, `nav_grid` and `#solid?`. Does *not* build a map-editing API or what a walking `Navigator` does when `revision` moves (open question 4). |
+| **Replanning around moving actors** | a search cheap enough to call on every `on_blocked`; a way to treat a few cells as blocked *for one query* without writing the store other walkers share | **Builds** the cheap search. **Leaves room**: search state (costs, parents, heap) lives in a `RouteSearch` separate from the `SolidGrid`, so a per-query overlay is a later parameter of `find`, not a second grid. |
+| **Crowds** | many walkers over one map; a `go_to` measured in microseconds | **Builds** the shared store (many `Navigator`s, one grid). The `go_to` cost is smoothing — step 6. |
+| **Avoidance** | "can this box travel from here to there", callable from wherever steering pushed the walker, to rejoin a route | Nothing in step 5. Step 6 turns `Navigator`'s private `clear?` into a query on the blocker source, which is where it belongs anyway. |
+| **Flow fields** | the same neighbour and corner rule as A*, run from a goal with no heuristic into a caller-owned distance buffer | **Leaves room**: one neighbour-expansion function in C that A* calls, with the heuristic separate, so a distance field is a second caller of the same rule rather than a copy of it. |
+
+#### Considered and rejected in the re-plan
+
+- **Port the search alone, as the rough step said.** The smallest change, and it leaves
+  `go_to` at ~9 ms of 11.6 on town and makes nothing about runtime changes easier: the C grid
+  would be a third place solidity lives.
+- **Store solidity in a `Util::Tensor`.** Reuse would be the right instinct, and Tensor is a
+  C grid in this extension already — but its cells are GC-marked `VALUE`s, so a C search could
+  not read them as bytes, and it has no notion of a change for region labels to follow.
+- **A bitset instead of a byte per cell.** Eight times smaller; `beach_large` is 10 800 cells,
+  so the byte grid is 11 KB. Nothing to win at these sizes, and a byte is one index away.
+- **Keep `TileBlockers` reading the map live and give `NavGrid` a change notification.** Two
+  copies kept in step by a notification is the "hook whose only job is handing one
+  component's data to another" again, and a forgotten notify is silent.
+- **A per-query blocked overlay on `find` now.** It is what replanning around actors wants,
+  and it has no caller; the workspace split is what keeps adding it cheap.
+
+**Shape.**
+
+```c
+/* ext/rgame_util/solid_grid.h — which cells of a tile grid are solid (pure). */
+typedef struct {
+    int32_t width, height;
+    uint8_t *cells;    /* 1 solid, 0 open */
+    uint32_t revision; /* moves whenever a cell changes, and only then */
+} rgame_solid_grid;
+
+bool rgame_solid_grid_init(rgame_solid_grid *grid, int32_t width, int32_t height); /* all open */
+void rgame_solid_grid_free(rgame_solid_grid *grid);
+bool rgame_solid_grid_solid(const rgame_solid_grid *grid, int32_t col, int32_t row); /* false outside */
+void rgame_solid_grid_set(rgame_solid_grid *grid, int32_t col, int32_t row, bool solid);
+
+/* ext/rgame_util/route_search.h — regions and A* over a solid grid (pure). The grid is
+ * never written; everything a search keeps between queries lives here, so several
+ * searches may read one grid. */
+typedef struct {
+    int32_t *regions; uint32_t labelled_at;         /* valid while == grid->revision */
+    double *cost; int32_t *parent;
+    uint32_t *seen, *closed; uint32_t generation;   /* stamps; reset on wrap */
+    int32_t *heap_cell; double *heap_total, *heap_remaining;
+    int32_t heap_size, heap_capacity;               /* grows, never shrinks */
+    int32_t *route; int32_t route_length;           /* flat indices, start first */
+} rgame_route_search;
+
+bool    rgame_route_search_init(rgame_route_search *search, const rgame_solid_grid *grid);
+void    rgame_route_search_free(rgame_route_search *search);
+int32_t rgame_route_region(rgame_route_search *search, const rgame_solid_grid *grid,
+                           int32_t col, int32_t row);            /* -1 solid or outside */
+bool    rgame_route_find(rgame_route_search *search, const rgame_solid_grid *grid,
+                         int32_t from_col, int32_t from_row, int32_t to_col, int32_t to_row);
+```
+
+```ruby
+module RGame::Util
+  class SolidGrid                                   # C; lib/rgame/util/solid_grid.rb adds .build
+    def self.build(width, height)                   # yields col, row once per cell
+    def initialize(width, height)                   # all open
+    attr_reader :width, :height, :revision
+    def solid?(col, row)                            # false outside
+    def set_solid(col, row, solid)
+  end
+
+  class RouteSearch                                 # C
+    def initialize(grid)                            # a SolidGrid, held and GC-marked
+    def region(col, row)                            # Integer or nil
+    def find(from_col, from_row, to_col, to_row)    # [[col, row], ...] or nil
+  end
+end
+
+module RGame::Engine
+  class NavGrid                                     # interface unchanged; now a thin wrapper
+    def initialize(grid: nil, width: nil, height: nil, solid: nil)
+    # grid: shares that SolidGrid; width:/height:/solid: builds a private one, as today.
+    # Anything else — both, or neither — is an ArgumentError.
+  end
+end
+
+class Components::TileWorld
+  def initialize(map:, tilemap_id:, cameras: [])
+    @solid = Util::SolidGrid.build(map.width, map.height) { |col, row| map.solid_tile?(col, row) }
+    @blockers = Engine::TileBlockers.new(tile_width: ..., tile_height: ..., solid: @solid.method(:solid?))
+  end
+  def solid?(col, row) = @solid.solid?(col, row)
+  def nav_grid = @nav_grid ||= Engine::NavGrid.new(grid: @solid)
+end
+```
+
+Decisions inside the shape, each one a rule below:
+
+- **`double`, not `float`, for costs**, and ties go to the smaller remaining estimate exactly
+  as step 2's heap does. The exact-route examples of step 2's suite pick between equally cheap
+  routes, and a different rounding picks differently.
+- **The route comes back as pairs.** It is built once per `find` and allocates anyway; a flat
+  array inside, pairs at the surface is one conversion loop in the binding.
+- **Coordinates are Integers.** A Float is a `TypeError` — today it returns a nonsense route.
+  An Integer outside `int32_t` is *outside the grid*, answered like any other (nil, false),
+  never a `RangeError` from `NUM2INT`: check `FIXNUM_P`/bignum before converting.
+- **The store is built eagerly.** `nav_grid` stays lazy, but the blockers need the store from
+  the first frame. Its build is the "built through the map" row above minus labelling — about
+  0.7 ms on town and 4 ms on `beach_large`, once, at scene load.
+- **`Makefile`**: `$(EXT_UTIL_SO)` depends on `$(wildcard $(EXT_UTIL_DIR)/*.c
+  $(EXT_UTIL_DIR)/*.h)`, as `EXT_CORE_SOURCES` already does; the two new modules join
+  `COLOR_OBJ` in what `$(TEST_BIN)` links.
+
+**Sub-steps.**
+
+- **5a** `solid_grid.{c,h}` and `route_search.{c,h}`, pure, with `test/test_solid_grid.c`
+  and `test/test_route_search.c`; `Makefile` wiring.
+- **5b** `solid_grid_ext.c` and `route_search_ext.c` (registered from `util_ext.c`),
+  `lib/rgame/util/solid_grid.rb` and `route_search.rb`, and their specs under `spec/rgame/util/`.
+- **5c** `Engine::NavGrid` over `RouteSearch`, `TileWorld` over one `SolidGrid`; the refusal
+  examples added to `nav_grid_spec.rb`; docs.
+
+**Rules the tests pin.**
+
+1. `spec/rgame/engine/nav_grid_spec.rb`, `navigator_spec.rb`, `tile_world_spec.rb`,
+   `tile_blockers_spec.rb`, `collision_system_spec.rb` and `character_body_spec.rb` pass with
+   **no example edited** (hard constraint 4).
+2. **One store.** A `TileWorld` reads `map.solid_tile?` exactly once per cell, at construction,
+   and never again — however many resolves, `find`s and `solid?` calls follow.
+3. **`revision` moves only on a change**: setting a cell to what it already is leaves it.
+4. **Regions follow the store.** Walling a region in two gives two labels and a `nil` across
+   the wall; opening it again gives one label and a route; both through `RouteSearch` and
+   through an `Engine::NavGrid` built with `grid:`, with no rebuild.
+5. Refusals, added to `nav_grid_spec.rb` and to the Util specs: a Float or `nil` coordinate
+   raises `TypeError`; an Integer beyond `int32_t` is outside (nil, false); `NavGrid.new` with
+   both `grid:` and `solid:`, or with neither, raises `ArgumentError`.
+6. `SolidGrid.new` refuses a negative size and a `width * height` past `INT32_MAX` with
+   `ArgumentError`; a zero size answers the way today's `NavGrid` does — run it to find out
+   before writing the example.
+7. **No allocation in C after the first search of a given size**: the heap capacity after a
+   worst-case query does not grow when the same query runs again (the `draw_queue` test's
+   shape). The generation stamp wrapping at `UINT32_MAX` clears the stamps and still returns
+   the right route.
+8. A `TileBlockers` step over the store allocates nothing (a new example beside its spec).
+9. **Driven reports byte-identical** before and after, at `--seed 1`: `walk`,
+   `collision_tiles`, `jump_topdown`, `split_screen`, `input_glyphs`, `game_menu` and
+   `test_projects/tiled_world` at `--ticks 240`, and `pathfinding` at `--ticks 630`.
+
+**Tests.** `test/test_solid_grid.c` (set, revision, outside, size refusal),
+`test/test_route_search.c` (lazy relabel on split and join, capacity stable, generation wrap,
+corner rule on a three-cell fixture — the route rules themselves stay in RSpec, where both
+implementations' history is); `spec/rgame/util/solid_grid_spec.rb`,
+`spec/rgame/util/route_search_spec.rb`; additions to `nav_grid_spec.rb`,
+`tile_world_spec.rb`, `tile_blockers_spec.rb`.
+
+**Docs.** `docs/api/values.md` (`SolidGrid`, `RouteSearch`); `docs/api/toolbox.md` (`NavGrid`:
+built over a grid or a callable, regions follow the grid, the refusals, the measured cost);
+`docs/api/components.md` (`TileWorld` reads the map's solidity once).
+
+**Verify.** `make test`, `rake spec`, and the nine driven reports above byte-identical. The
+landed note records, on the table's method: `find` town and `beach_large`, the 200-pair worst
+case (the number to beat is **23.9 ms**, into tens of microseconds), `go_to` on both routes,
+and a relabel after one `set_solid` on `beach_large`. If `go_to` does not land near the baked
+row above (6.5 / 33 ms minus the search), `Method#call` on the store costs more than the array
+did, and step 6's re-plan starts there.
+
+### Step 6 — the sweep in C *(rough)*
+
+To be re-planned once step 5 has landed. What is known now:
+
+- After step 5, `go_to` is expected to be nearly all smoothing — about 4 ms on town and 10 ms
+  on `beach_large`, from the baked row above — still far from what a crowd replanning on
+  `on_blocked` can afford.
+- **One resolver, not two.** Smoothing is only sound because it asks the resolver the walker
+  collides with. So the sweep moves to C only if `TileBlockers#resolve_x`/`#resolve_y` move with
+  it, over the same `SolidGrid`, and the walker and the smoother keep calling one
+  implementation. A C copy of the arithmetic beside a Ruby original is the design step 3
+  refused.
+- **`TileBlockers` takes a `SolidGrid` only** (open question 5):
+  `TileBlockers.new(grid:, tile_width:, tile_height:)`, resolving in C. The callable form goes.
+  Its five spec constructions (`tile_blockers_spec.rb`'s subject and floor, one in
+  `collision_system_spec.rb`, two in `character_body_spec.rb`) move to grids built from text
+  rows; `tile_blockers_spec.rb`'s wall on *every* row becomes a wall on every row of a finite
+  grid, and outside the grid is open, as `TileMap#solid_tile?` answers today.
+- **`Navigator#clear?` becomes a public query on the blocker source** — "can this box travel
+  from here to there" — whichever way the above goes. It is avoidance's first need, and it is
+  a question about the tile grid asked from a component that happens to own it today.
+- Measure first: if step 5's `go_to` numbers show smoothing is cheap enough, the query moves
+  and stays Ruby, and this step shrinks to that.
+
+### Step 7 — fold back and delete this plan
 
 - `docs/api/toolbox.md` (`NavGrid`, including "unreachable is `nil`, and answered
   without a search across regions", and the measured cost) and
   `docs/api/components.md` (`Mover` heading, `PathFollow#follow`, `Navigator`) hold
-  everything still true — most of it written by steps 1–5 already; this step checks
+  everything still true — most of it written by steps 1–6 already; this step checks
   and trims.
 - The rejected alternatives worth keeping — box-blind line-of-sight, the separate
   search component — become one sentence each in the `Navigator` section, as the
   reason the design is what it is, without history.
-- `docs/api/internals.md` if the C `NavGrid` needs naming there.
+- `docs/api/internals.md` if `SolidGrid` and `RouteSearch` need naming there.
+- The five later additions and what the store already gives each (step 5's table, minus
+  the planning) go where a reader looking for them will land — `toolbox.md`'s `NavGrid`
+  section — as current limits, not as a roadmap.
 - Delete `docs/plans/pathfinding.md`.
 
 ## What this does not deliver
 
-- Replanning around moving actors, crowds, avoidance, or flow fields.
-- Maps that change at runtime — the grid is built once; a destructible wall would
-  need a `NavGrid` invalidation this plan does not design.
-- Weighted terrain (a road cheaper than grass), and non-tile navigation.
+- Replanning around moving actors, crowds, avoidance, or flow fields. Step 5 leaves each
+  buildable — see its "What the additions need" table — and builds none.
+- Maps that change at runtime at the engine level. After step 5 the store under the tile
+  world can change and the routes follow it, but nothing in the engine changes it, and a
+  `Navigator` already walking is not told (open question 4).
+- Weighted terrain (a road cheaper than grass), and non-tile navigation. Not a design input.
 - Mouse picking of a target. The example is "click-free" by requirement, and the
   engine's pointer input is not part of it.
