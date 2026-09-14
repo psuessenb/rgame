@@ -643,7 +643,7 @@ focus implementation, but as a `Menu` that builds its `Ring` and `Pointing` and
 draws the backdrop, dead zone and pointer this example used to draw itself. Asset
 **D** shipped with it, and the wheel became a quick menu of eight `IconButton`s.
 
-### 12. `examples/pathfinding` — a character walking a computed route
+### 12. `examples/pathfinding` — a character walking a computed route — **done**
 
 **Shows** a click-free "go there" — pick a target tile, compute a route around
 the solid tiles, walk it.
@@ -692,6 +692,45 @@ would go — pure logic, no SDL — but **do not start there**.
 **Assets:** **A** and **B**. Nothing new — though **B**'s map wants a shape
 with a wall worth going around, or the search has nothing to show. Note that
 under "Assets".
+
+**Landed.** `examples/pathfinding/main.rb` plus `tools/drive/examples/pathfinding.rb`,
+built over four steps of `docs/plans/pathfinding.md`, which replaced the sketch
+above rather than implementing it:
+
+- **`AStar.find(grid, from, to) #=> Path` did not survive.** A `Path` is in
+  node-origin pixels, and turning a cell into the point a node's origin must reach
+  needs the node's collider — which a grid search has no business knowing. So the
+  search is `Engine::NavGrid#find`, cells in and cells out, owned by `TileWorld`
+  (`#nav_grid`) beside the blockers that answer the same solidity; and pixels come
+  out of `Components::Navigator < PathFollow`, whose `go_to(world_x, world_y)`
+  searches, smooths and walks. One component, not a search component handing paths
+  to a sibling `PathFollow`.
+- **Smoothing asks the walker's own resolver**, not cell line-of-sight: a segment is
+  kept only if `TileWorld#blockers` lets the feet box travel it, because a
+  `PathFollow` does not slide and a box-blind shortcut past a tree corner would
+  leave the hero standing at it.
+- **The facing question** was answered by `Mover#heading_x`/`#heading_y`, which
+  every mover implements, and `AnimatedSprite` reads any mover.
+- **"Waits, does not replan"** held as written, and is in the example's header.
+
+What the example decided:
+
+- **The camera follows the cursor**, not the hero: the hero may walk out of view,
+  a cursor that could be walked off-screen could not. Decided by reasoning about
+  what a player must see to pick a tile, and by looking at captured frames of the
+  driven run — not by playing it by hand.
+- **The cursor repeats while held, through `Components::ActionTrigger`** — one
+  cooldown per `ui_*` direction fires on the press and every 0.12 s after. Nothing
+  in `UI` repeats (`Stepping` is press-only), so this is the engine's only repeat.
+- **The status label leads with the newest fact** (`no route there; arrived: 6
+  waypoints, 26 cells`), because the harness shows the last `text` truncated to 21
+  characters. Worth knowing for the next label-driven drive script.
+- `ui_left`/`ui_right`/`ui_up`/`ui_down` are the arrows and the d-pad only — not
+  WASD, not a stick — so an example that moves by `ui_*` should say so.
+
+Run: `rake spec` 1879 examples, 0 failures; RuboCop clean; the driven run at 630
+ticks reaches `arrived` (the confirm at tick 169, arrival at 472), then a refused
+confirm on a tree, with 26 dots and 5 lines a frame while the route is up.
 
 ### 13. `examples/sprite` — one frame, no animation — **done**
 
@@ -1523,8 +1562,8 @@ has already met and the jump example does not have to introduce it.
 
 21. ~~`examples/radial_menu`~~ — **done**; `UI::RadialMenu`, its own two axes, and
     asset **C** again, because its items are `MenuItem`s.
-22. `examples/pathfinding` (reuses **A** and **B**; `town.tmx` already has the
-    obstacle worth routing around — see "Assets")
+22. ~~`examples/pathfinding`~~ — **done**; `NavGrid`, `Navigator` and `Mover`
+    headings, over the four steps of `docs/plans/pathfinding.md`.
 
 Both are self-contained and could move earlier if wanted. Pathfinding is last
 only because it is the largest single algorithm; it has no dependency on
