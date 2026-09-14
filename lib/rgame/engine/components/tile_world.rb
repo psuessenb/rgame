@@ -17,6 +17,11 @@ module RGame
       # solidity itself is whatever the map's tileset reports (baked per-tile in Tiled).
       # The same solidity, viewed as a graph for planning routes, is #nav_grid.
       #
+      # **Solidity is read from the map once**, into one Util::SolidGrid, the first time
+      # anything asks — and #blockers, #nav_grid and #solid? all read that store, never the
+      # map. So they cannot disagree about a cell, and a resolve costs a byte lookup rather
+      # than a walk through the map's layers and tileset.
+      #
       # **It does not draw.** Drawing the map is RGame::Engine::TileMapLayer, one
       # node per Tiled layer, mounted inside the WorldView so the map is drawn
       # once per viewport like the rest of the world. This stays a system — the
@@ -42,15 +47,15 @@ module RGame
           @tilemap_id = tilemap_id
           @elapsed = 0.0
           Array(cameras).each { |camera| bound(camera) }
-          @blockers = Engine::TileBlockers.new(
-            tile_width: map.tile_width, tile_height: map.tile_height,
-            solid: ->(col, row) { map.solid_tile?(col, row) }
-          )
         end
 
         # The map's solid tiles as a blocker source, for a body that declared
-        # `blocked_by: [:tiles]`.
-        attr_reader :blockers
+        # `blocked_by: [:tiles]`. The same source every time, so every body on the map
+        # shares one.
+        def blockers
+          @blockers ||= Engine::TileBlockers.new(tile_width: @map.tile_width, tile_height: @map.tile_height,
+                                                 solid: solid_grid.method(:solid?))
+        end
 
         def world_width = @map.pixel_width
         def world_height = @map.pixel_height
@@ -79,20 +84,24 @@ module RGame
           camera
         end
 
-        def solid?(col, row) = @map.solid_tile?(col, row)
+        def solid?(col, row) = solid_grid.solid?(col, row)
 
         # The map's solid tiles as an Engine::NavGrid, for planning a route rather than
-        # resolving a step — the same solidity #blockers reads, as a second view. Built on
-        # first ask, since only a scene that plans routes pays for it, and the same grid
-        # every time after.
+        # resolving a step — over the same store #blockers reads, as a second view. Built on
+        # first ask, and the same grid every time after.
         def nav_grid
-          @nav_grid ||= Engine::NavGrid.new(width: @map.width, height: @map.height,
-                                            solid: ->(col, row) { @map.solid_tile?(col, row) })
+          @nav_grid ||= Engine::NavGrid.new(grid: solid_grid)
         end
 
         # Advances the tile animations. Seconds, like every other duration here.
         def update(dt)
           @elapsed += dt
+        end
+
+        private
+
+        def solid_grid
+          @solid_grid ||= Util::SolidGrid.build(@map.width, @map.height) { |col, row| @map.solid_tile?(col, row) }
         end
       end
     end

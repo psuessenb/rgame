@@ -939,6 +939,12 @@ answered.
   `world_width`/`world_height`; `tilemap_id` and `elapsed`, which the layers read;
   `layer_count` and `first_above_layer`, which `TileMapLayer.mount` reads to decide where
   the actors go.
+- **Solidity is read from the map once.** The first time anything asks, the map's
+  `solid_tile?` is read once per cell into one
+  [`Util::SolidGrid`](values.md#rgameutilsolidgrid), and `blockers`, `nav_grid` and `solid?`
+  all read that store from then on, never the map. They cannot disagree about a cell, and a
+  resolve on the per-frame path is a byte lookup rather than a walk through the map's layers
+  and tileset. Past the map's edges is open.
 - **It does not resolve a step.** A mover may be stopped by tiles, by other actors, by the
   world's edge or by any combination, and only the mover knows which — so the resolver is
   the mover's and the grid is this system's.

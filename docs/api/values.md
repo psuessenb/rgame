@@ -115,6 +115,59 @@ grid.depth.times do |z|
 end
 ```
 
+## `RGame::Util::SolidGrid`
+
+Which cells of a tile grid are solid: a byte per cell, in C. It is the one store a tile
+world's solidity lives in — [`TileWorld`](components.md#tileworld) builds one from its map,
+and both the blockers that stop a walker and the search that plans a route read it, so the
+two cannot disagree about a wall.
+
+```ruby
+fence = RGame::Util::SolidGrid.build(8, 3) { |col, row| col == 3 && row < 2 }  # asks once per cell, row by row
+fence.solid?(3, 1)     # => true
+fence.solid?(-1, 0)    # => false — outside the grid is open
+fence.width            # => 8, and #height
+
+field = RGame::Util::SolidGrid.new(8, 3)                                        # every cell open
+field.set_solid(3, 1, true)
+field.set_solid(3, 1, true)
+field.revision         # => 1 — the second write changed nothing
+```
+
+- **`revision` counts changes.** It moves on a `set_solid` that changes a cell and on no
+  other, so anything derived from the cells — a [`RouteSearch`](#rgameutilroutesearch)'s
+  region labels — can tell whether it is stale.
+- **Coordinates are Integers**; anything else is a `TypeError`. An Integer outside the grid,
+  however large, is outside: `solid?` answers `false`, and `set_solid` raises `IndexError`,
+  since a wall written nowhere is a wall that is not there.
+- **The size is fixed.** A negative size, or one with more than `2**31 - 1` cells, is an
+  `ArgumentError`; a zero size is an empty grid. A grid cannot be `dup`ed — a search keeps
+  hold of the grid it was built over.
+
+## `RGame::Util::RouteSearch`
+
+Connected regions and A* routes over a `SolidGrid`, in C. The game-facing form is
+[`Engine::NavGrid`](toolbox.md#navgrid--routes-over-a-tile-grid), which wraps one of these
+and states the route rules; this is the value underneath.
+
+```ruby
+grid = RGame::Util::SolidGrid.build(8, 3) { |col, row| col == 3 && row < 2 }
+search = RGame::Util::RouteSearch.new(grid)
+
+search.find(0, 0, 7, 0)   # => [[0, 0], [1, 1], [2, 2], [3, 2], [4, 2], [5, 1], [6, 0], [7, 0]]
+search.region(0, 0)       # => 0; nil for a solid cell or one outside the grid
+search.grid               # => the grid, which the search keeps alive
+```
+
+- **It reads its grid and never writes it.** Any number of searches may read one grid, and
+  each sees a change to it on its next query; region labels are recomputed then, only if the
+  grid's `revision` has moved.
+- **A repeated query allocates nothing but its result.** Its per-cell buffers are allocated
+  once, and its heap grows to the largest query it has run and stays there. One search is
+  therefore not safe to use from two threads at once.
+- Coordinates follow `SolidGrid`'s rules: an Integer or a `TypeError`, and an Integer outside
+  the grid is outside — `find` and `region` answer `nil`.
+
 ## `RGame::Util::Z`
 
 The vocabulary of draw order: which band a thing is drawn in, and the arithmetic

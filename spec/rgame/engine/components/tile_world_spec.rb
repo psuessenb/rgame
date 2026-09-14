@@ -66,7 +66,7 @@ RSpec.describe RGame::Engine::Components::TileWorld do
   describe '#blockers' do
     # A map that answers solidity, which the shared StubTileMap has no reason to.
     let(:solid_map) do
-      instance_double(RGame::Engine::TileMap, tile_width: 16, tile_height: 16,
+      instance_double(RGame::Engine::TileMap, width: 20, height: 20, tile_width: 16, tile_height: 16,
                                               pixel_width: 320, pixel_height: 320)
     end
     let(:world) { described_class.new(map: solid_map, tilemap_id: :level) }
@@ -121,6 +121,34 @@ RSpec.describe RGame::Engine::Components::TileWorld do
 
     it 'routes round the map’s solid tiles' do
       expect(world.nav_grid.find(0, 0, 4, 0)).to include([2, 3])
+    end
+  end
+
+  # #blockers, #nav_grid and #solid? are three views of one store, read from the map once.
+  describe 'one store of solidity' do
+    let(:solid_map) do
+      instance_double(RGame::Engine::TileMap, width: 6, height: 4, tile_width: 16, tile_height: 16,
+                                              pixel_width: 96, pixel_height: 64)
+    end
+    let(:world) { described_class.new(map: solid_map, tilemap_id: :level) }
+
+    before { allow(solid_map).to receive(:solid_tile?) { |col, row| col == 2 && row < 3 } }
+
+    it 'reads each tile from the map exactly once, whatever is asked of it after' do
+      50.times { |step| world.blockers.resolve_x(0.0, step % 48, 12, 6, 30.0) }
+      world.nav_grid.find(0, 0, 4, 0)
+      24.times { |cell| world.solid?(cell % 6, cell / 6) }
+      expect(solid_map).to have_received(:solid_tile?).exactly(24).times
+    end
+
+    it 'reads nothing from the map until something asks' do
+      world
+      expect(solid_map).not_to have_received(:solid_tile?)
+    end
+
+    it 'gives the blockers and the route the same wall' do
+      stopped_at = world.blockers.resolve_x(0.0, 0.0, 12, 6, 30.0)
+      expect([stopped_at, world.nav_grid.walkable?(2, 0), world.solid?(2, 0)]).to eq([20.0, false, true])
     end
   end
 end

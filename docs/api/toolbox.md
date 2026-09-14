@@ -21,7 +21,9 @@ that the engine layer may hold `RGame::Util` values: a grid is a value, so the
 layer above owns one outright rather than being handed it.
 
 [`NavGrid`](#navgrid--routes-over-a-tile-grid) is not an exception: it is a search over
-a grid's solidity, not a place to keep one.
+a grid's solidity, not a place to keep one. The solidity itself is a
+[`Util::SolidGrid`](values.md#rgameutilsolidgrid), a byte per cell in C, because a C search
+has to read it and a `Tensor`'s cells are Ruby objects.
 
 ## `CachedLabel` — a display string rebuilt only on change
 
@@ -102,10 +104,21 @@ from being placed on or beside it.
 ## `NavGrid` — routes over a tile grid
 
 `RGame::Engine::NavGrid` (`rgame/engine/nav_grid`) answers *what is the cheapest route from
-this cell to that one*. It is built once from a solidity callable — the same
-`solid.call(col, row)` a [`TileBlockers`](internals.md#tileblockers--the-tile-grid-as-a-blocker-source)
-takes — copies what it reads, and never asks again. In a tile scene it is not built by hand:
-[`TileWorld#nav_grid`](components.md#tileworld) hands out one over the map's solid tiles.
+this cell to that one*. The search runs in C, as a
+[`Util::RouteSearch`](values.md#rgameutilroutesearch). In a tile scene it is not built by
+hand: [`TileWorld#nav_grid`](components.md#tileworld) hands out one over the map's solid
+tiles.
+
+It is built one of two ways, and anything else — both, or neither — is an `ArgumentError`:
+
+- **From a callable**, `NavGrid.new(width:, height:, solid:)` — the same `solid.call(col, row)`
+  a [`TileBlockers`](internals.md#tileblockers--the-tile-grid-as-a-blocker-source) takes. It
+  is read once per cell into a grid of the `NavGrid`'s own and never asked again, so a change
+  behind the callable is never seen.
+- **Over a shared grid**, `NavGrid.new(grid:)` — a
+  [`Util::SolidGrid`](values.md#rgameutilsolidgrid). Nothing is copied: a cell changed in
+  that grid is changed for the `NavGrid` at once. This is how `TileWorld` builds one, and the
+  form to use for solidity that will change.
 
 ```ruby
 rows = [
@@ -133,15 +146,29 @@ grid.region(0, 0)           # => 0, an Integer label; nil for a solid or off-gri
   when both orthogonal cells beside it are open, so a route never cuts the corner of a solid
   cell. The route returned is a cheapest one; among equally cheap routes the choice is
   deterministic, so the same query always returns the same route.
-- **Connected regions are labelled when the grid is built.** A goal in another region is the
-  answer a search is slowest to give — it has to exhaust the start's region first — and the
-  labels turn it into a lookup: on a 58x47 island map, a cross-region `nil` takes a few
-  microseconds.
+- **Connected regions are labelled whenever the grid has changed since they last were.** A
+  goal in another region is the answer a search is slowest to give — it has to exhaust the
+  start's region first — and the labels turn it into a lookup. Relabelling a 120x90 map
+  after a change takes about 45 µs, on the first query that needs it.
+- **Regions and routes follow a shared grid.** Wall a region in two through the `SolidGrid`
+  and the next `find` across the wall is `nil`; open it again and the route goes through,
+  with nothing rebuilt:
+
+  ```ruby
+  store = RGame::Util::SolidGrid.build(8, 3) { |col, row| rows[row][col] == '#' }
+  shared = RGame::Engine::NavGrid.new(grid: store)
+  store.set_solid(3, 1, true)
+  store.set_solid(4, 1, true)
+  shared.find(0, 0, 7, 2)       # => nil — the gap is closed
+  shared.reachable?(0, 0, 7, 2) # => false
+  ```
+
+- **Coordinates are Integers.** A `Float` or `nil` is a `TypeError`, since it names no cell.
+  An Integer outside the grid, however large, is answered like any other cell outside it.
 - **A search runs on demand, never per frame.** It allocates its result; its working buffers
-  are kept between searches, so one grid must not be searched from two threads at once. A
-  corner-to-corner route across a 60x40 town takes about 2.5 ms, and the worst of 200 random
-  routes on a 120x90 map about 25 ms — well within a keypress, and more than a frame.
-- **The grid does not change.** A map whose solidity changes at runtime needs a new grid.
+  are kept between searches, so one `NavGrid` must not be searched from two threads at once.
+  A corner-to-corner route across a 60x40 town takes under 0.1 ms, and the worst of 200
+  random routes on a 120x90 map about 1 ms.
 
 ## `Timer` — paced periodic events
 
