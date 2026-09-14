@@ -91,16 +91,19 @@ of things at once is a design problem elsewhere, not a reason to index this.
 
 `RGame::Engine::TileBlockers` (`rgame/engine/tile_blockers`) resolves an axis-aligned box against a
 grid of solid tiles. `solid` is a callable `solid.call(col, row) -> bool`, so the tile
-source is decoupled (a `TileMap`, a fake in tests). Each axis is resolved on its own —
+source is decoupled — [`TileWorld`](components.md#tileworld) passes its
+[`Util::SolidGrid`](values.md#rgameutilsolidgrid)'s `solid?`, and a spec can pass a lambda. Each axis is resolved on its own —
 `resolve_x` and `resolve_y` are independent — and it is
 [`CollisionSystem`](#collisionsystem--move-an-actor-against-its-blockers)
 that feeds one the other's result.
 
 ```ruby
-tiles = RGame::Engine::TileBlockers.new(tile_width: 16, tile_height: 16,
-                                        solid: ->(col, row) { map.solid_tile?(col, row) })
-nx = tiles.resolve_x(x, y, w, h, dx) # snaps flush against a solid in the dx direction
-ny = tiles.resolve_y(nx, y, w, h, dy)
+grid = RGame::Util::SolidGrid.build(20, 15) { |col, _row| col == 5 }   # a wall at x 80..96
+tiles = RGame::Engine::TileBlockers.new(tile_width: 16, tile_height: 16, solid: grid.method(:solid?))
+
+x, y, w, h = 58.0, 32.0, 12, 6
+nx = tiles.resolve_x(x, y, w, h, 14.0)   # => 68 — snapped flush against the wall's left edge
+ny = tiles.resolve_y(nx, y, w, h, 4.0)   # => 36.0
 ```
 
 It assumes per-step movement smaller than a tile (no tunneling), which holds for the

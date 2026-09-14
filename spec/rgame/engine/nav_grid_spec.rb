@@ -258,4 +258,75 @@ RSpec.describe RGame::Engine::NavGrid do
       end
     end
   end
+
+  # Built with `grid:`, the NavGrid reads a store someone else can change, and every answer
+  # follows the change with nothing rebuilt.
+  describe 'over a shared grid' do
+    subject(:grid) { described_class.new(grid: store) }
+
+    let(:store) { RGame::Util::SolidGrid.build(5, 3) { |_col, _row| false } }
+
+    def wall(solid) = 3.times { |row| store.set_solid(2, row, solid) }
+
+    it 'is sized to the grid' do
+      expect([grid.width, grid.height]).to eq([5, 3])
+    end
+
+    it 'splits a region the grid walls in two, and has no route across' do
+      grid.find(0, 0, 4, 2)
+      wall(true)
+      expect([grid.reachable?(0, 0, 4, 2), grid.find(0, 0, 4, 2), grid.walkable?(2, 1)]).to eq([false, nil, false])
+    end
+
+    it 'joins the two again when the grid opens the wall, and routes through the gap' do
+      wall(true)
+      grid.find(0, 0, 4, 2)
+      store.set_solid(2, 1, false)
+      expect([grid.reachable?(0, 0, 4, 2),
+              grid.find(0, 1, 4, 1)]).to eq([true, [[0, 1], [1, 1], [2, 1], [3, 1], [4, 1]]])
+    end
+  end
+
+  describe 'arguments it refuses' do
+    subject(:grid) { grid_from(islands) }
+
+    it 'refuses a Float coordinate, which would otherwise name no cell at all' do
+      expect { grid.find(0.5, 0, 2, 0) }.to raise_error(TypeError)
+    end
+
+    it 'refuses a Float coordinate to every query, even one that would be outside' do
+      refused = [
+        -> { grid.walkable?(-1.5, 0) }, -> { grid.region(1.5, 0) }, -> { grid.reachable?(0, 0, 2.0, 0) }
+      ].count do |query|
+        query.call
+        false
+      rescue TypeError
+        true
+      end
+      expect(refused).to eq(3)
+    end
+
+    it 'refuses a nil coordinate' do
+      expect { grid.find(0, nil, 2, 0) }.to raise_error(TypeError)
+    end
+
+    it 'answers an Integer beyond any grid as outside it' do
+      expect([grid.find(0, 0, 2**40, 0), grid.walkable?(2**40, 0), grid.region(0, -(2**40)),
+              grid.reachable?(0, 0, 0, 2**70)]).to eq([nil, false, nil, false])
+    end
+
+    it 'refuses to be built both over a grid and from a callable' do
+      store = RGame::Util::SolidGrid.new(8, 3)
+      expect { described_class.new(grid: store, width: 8, height: 3, solid: ->(*) { false }) }
+        .to raise_error(ArgumentError)
+    end
+
+    it 'refuses to be built from neither' do
+      expect { described_class.new }.to raise_error(ArgumentError)
+    end
+
+    it 'refuses to be built from half a callable form' do
+      expect { described_class.new(width: 8, height: 3) }.to raise_error(ArgumentError)
+    end
+  end
 end

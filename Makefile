@@ -42,6 +42,7 @@ INCLUDES := -I$(EXT_CORE_DIR) -I$(EXT_CORE_DIR)/include -I$(EXT_UTIL_DIR)
 # out to a Makefile that tracks its own prerequisites. `*/` covers exactly the
 # subsystem directories: nothing is compiled from the top level any more.
 EXT_CORE_SOURCES := $(wildcard $(EXT_CORE_DIR)/*/*.c $(EXT_CORE_DIR)/*/*.h)
+EXT_UTIL_SOURCES := $(wildcard $(EXT_UTIL_DIR)/*.c $(EXT_UTIL_DIR)/*.h)
 
 SDL_CFLAGS := $(shell pkg-config --cflags sdl2)
 SDL_LIBS := $(shell pkg-config --libs sdl2)
@@ -117,6 +118,9 @@ VENDOR_SOURCES := $(wildcard $(EXT_CORE_DIR)/vendor/*.h $(EXT_CORE_DIR)/vendor/*
 BACKEND_OBJ := $(BUILD_DIR)/backend.o
 # Util is a separate extension, but its pure modules are Check-tested too.
 COLOR_OBJ := $(BUILD_DIR)/color.o
+SOLID_GRID_OBJ := $(BUILD_DIR)/solid_grid.o
+ROUTE_SEARCH_OBJ := $(BUILD_DIR)/route_search.o
+UTIL_OBJS := $(COLOR_OBJ) $(SOLID_GRID_OBJ) $(ROUTE_SEARCH_OBJ)
 GAMEPAD_OBJ := $(BUILD_DIR)/gamepad.o
 CORE_LIB := $(BUILD_DIR)/librgame_core.a
 
@@ -132,6 +136,8 @@ TEST_OBJS := $(BUILD_DIR)/test_main.o \
              $(BUILD_DIR)/test_device_slots.o \
              $(BUILD_DIR)/test_input.o \
              $(BUILD_DIR)/test_color.o \
+             $(BUILD_DIR)/test_solid_grid.o \
+             $(BUILD_DIR)/test_route_search.o \
              $(BUILD_DIR)/test_transform.o \
              $(BUILD_DIR)/test_clip.o \
              $(BUILD_DIR)/test_draw_queue.o \
@@ -286,12 +292,19 @@ $(MAIN_BIN): $(MAIN_OBJ) $(CORE_LIB)
 $(COLOR_OBJ): $(EXT_UTIL_DIR)/color.c $(EXT_UTIL_DIR)/color.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
+$(SOLID_GRID_OBJ): $(EXT_UTIL_DIR)/solid_grid.c $(EXT_UTIL_DIR)/solid_grid.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+$(ROUTE_SEARCH_OBJ): $(EXT_UTIL_DIR)/route_search.c $(EXT_UTIL_DIR)/route_search.h \
+                     $(EXT_UTIL_DIR)/solid_grid.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+
 $(BUILD_DIR)/test_%.o: test/test_%.c test/suites.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(DEPFLAGS) -I$(EXT_CORE_DIR) -I$(EXT_CORE_DIR)/include -I$(EXT_UTIL_DIR) -Itest \
 	       -Itest/support $(CHECK_CFLAGS) -c $< -o $@
 
-$(TEST_BIN): $(TEST_OBJS) $(CORE_LIB) $(COLOR_OBJ)
-	$(CC) $(CFLAGS) -o $@ $(TEST_OBJS) $(CORE_LIB) $(COLOR_OBJ) $(SDL_LIBS) $(GL_LIBS) $(MATH_LIBS) $(AUDIO_LIBS) $(CHECK_LIBS)
+$(TEST_BIN): $(TEST_OBJS) $(CORE_LIB) $(UTIL_OBJS)
+	$(CC) $(CFLAGS) -o $@ $(TEST_OBJS) $(CORE_LIB) $(UTIL_OBJS) $(SDL_LIBS) $(GL_LIBS) $(MATH_LIBS) $(AUDIO_LIBS) $(CHECK_LIBS)
 
 run: all
 	./$(MAIN_BIN)
@@ -333,9 +346,7 @@ ext-util: $(LIB_UTIL_SO)
 $(LIB_UTIL_SO): $(EXT_UTIL_SO)
 	cp $(EXT_UTIL_SO) $@
 
-$(EXT_UTIL_SO): $(EXT_UTIL_DIR)/tensor.c $(EXT_UTIL_DIR)/color.c \
-                $(EXT_UTIL_DIR)/color_ext.c $(EXT_UTIL_DIR)/util_ext.c \
-                $(EXT_UTIL_DIR)/Makefile
+$(EXT_UTIL_SO): $(EXT_UTIL_SOURCES) $(EXT_UTIL_DIR)/Makefile
 	$(MAKE) -C $(EXT_UTIL_DIR)
 
 $(EXT_UTIL_DIR)/Makefile: $(EXT_UTIL_DIR)/extconf.rb $(wildcard $(EXT_UTIL_DIR)/*.c)
