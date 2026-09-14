@@ -753,6 +753,9 @@ navigator.go_to(200.0, 360.0) # => true, and the hero sets off; false when there
   walk itself is `PathFollow`'s, and allocation-free.
 - Planned in world space and walked in the parent's, which agree under an unrotated ancestor
   chain — the limit a blocked [`Mover`](#mover) already has.
+- **Example:** `examples/pathfinding` — a tile cursor picks the target, and the scene draws
+  `cells` as a dot per tile and `path` as lines, adding the feet box's centre back to each
+  waypoint so the lines sit on the dots.
 
 ### `PathFollow`
 

@@ -1,6 +1,6 @@
 # Pathfinding — `examples/pathfinding` and the engine it needs
 
-**Status:** planned at `707ea1a`. **Steps 1–3 are implemented.** Steps 1–4 are detailed; step 5 (the C search) is
+**Status:** planned at `707ea1a`. **Steps 1–4 are implemented.** Steps 1–4 are detailed; step 5 (the C search) is
 rough and is to be re-planned once step 4 has put a real caller on the API; step 6
 deletes this file.
 
@@ -97,9 +97,15 @@ Not up for re-litigation inside this plan.
    view, have the camera follow the cursor, or follow the hero and let the cursor
    push the camera. *Blocks step 4's feel, not its engine work*; decide by trying
    it, leaning "the camera follows the cursor, the hero may walk out of view".
+   **Resolved in step 4: the camera follows the cursor**, as leaned. Decided from what
+   picking a tile needs and from frames captured off the driven run, not by playing
+   it by hand.
 3. **Cursor repeat.** Does a held arrow key repeat, and if so is there a repeat the
    engine already owns (`UI::Menu`'s navigation) that can be reused rather than
    re-implemented? *Blocks nothing*; step 4 checks, and press-only is acceptable.
+   **Resolved in step 4: it repeats, through `Components::ActionTrigger`.** `UI::Stepping`
+   is press-only, so the menu has no repeat to reuse; `ActionTrigger` fires a held action
+   on the press and every cooldown after, which is a key repeat with no initial delay.
 
 ## What was measured before planning
 
@@ -658,6 +664,54 @@ shows the above; RuboCop over the new files; `rake spec`; update
 `docs/plans/basic-examples.md` — entry 12 marked done with a landed note that
 records how this plan's design replaced its sketch (`AStar.find → Path`), and
 Implementation order item 22 struck.
+
+**Landed.** `examples/pathfinding/main.rb` and `tools/drive/examples/pathfinding.rb`, no
+engine change. `Hero` (AnimatedSprite, FeetCollider, `Navigator` with `blocked_by: [:tiles]`),
+`Cursor` (a tile outline moved by an `ActionTrigger` over the four `ui_*` directions, coloured by
+`nav_grid.walkable?` on each move, emitting `on_confirmed` with the tile's centre), `Route` (a dot
+per `cells` entry, a line per `path` segment), and a `Scene` wiring the confirm to `go_to` and
+`on_finished` to a `CachedLabel`. One commit, as a step with no sub-steps.
+
+- `rake spec`: 1879 examples, 0 failures (unchanged; no engine code). RuboCop clean over both new
+  files.
+- The driven run, `--ticks 630`, byte-identical across two runs: the cursor walks from (24, 18) to
+  (4, 33) and confirms at tick 169; the hero arrives at tick 472 (`on_finished`); the cursor steps
+  onto the tree at (7, 31) and the confirm is refused. The last `text` is `"no route there;
+  arriv..."` (in full: `no route there; arrived: 6 waypoints, 26 cells`). The dots run from
+  `(390, 294)` — the start tile — to `(70, 534)`, the target. 11986 `rect` and 4825 `line` calls
+  are 26 dots and 5 lines over the 461 frames the route was up, plus the cursor's 4 lines a frame.
+  The `sprite` spans rows 0..2 and ends on the frame it began. The camera reaches (0.0, 160.0),
+  the southern clamp.
+- Frames captured off the harness's Xvfb mid-walk show the dots down through the fence gap and
+  the lines pulled tight over them. Nobody has played it by hand.
+
+What the sketch got wrong or left out:
+
+- **"The camera's southern clamp reached (only possible through the gap)" is not evidence here.**
+  That assertion is `collision_tiles`', where the camera follows the hero. Once open question 2 put
+  the camera on the cursor, the clamp only says the cursor went south. The acceptance evidence is
+  the label reaching `arrived`, which `on_finished` sets, and which a walker held by a tile would
+  never reach.
+- **The label's sketched text, `"route: 84 cells, 6 waypoints"`, is unreadable in a report**: the
+  harness truncates strings to 21 characters and shows only the first and last `text` of the run,
+  so "arrived" would never show. The label leads with the newest fact instead — `walking:` /
+  `arrived:`, and `no route there;` before either — and the drive script ends on the refusal so
+  one line carries both. Extending the harness to list distinct texts was the alternative, and was
+  not needed.
+- **The cell and waypoint counts are read off call counts**, not the label: the route's `rect` and
+  `line` totals divided by the frames it was up. "The line count well below the cell count" is
+  5 against 26 on this route — not the 84 the sketch guessed, because the target is closer to the
+  gap than a corner-to-corner trip.
+- **`ui_*` directions are the arrows and d-pad only**, so the cursor is not on WASD or a stick. The
+  example says so rather than adding bindings.
+- **For step 5:** nothing in the example stresses the search. One `go_to` per confirm, on a 60x40
+  map, is the whole load, so the re-plan's cost numbers still have to come from step 2's and 3's
+  scripts rather than from this caller. What the caller *did* settle is the surface it uses:
+  `go_to`, `cells`, `path`, `nav_grid.walkable?` — nothing else of `NavGrid` is touched.
+
+Documented in `docs/api/components.md` (an "Example" line under `Navigator`), and
+`docs/plans/basic-examples.md` (entry 12 done with a landed note, Implementation order item 22
+struck).
 
 ### Step 5 — the search in C *(rough)*
 
