@@ -168,6 +168,37 @@ search.grid               # => the grid, which the search keeps alive
 - Coordinates follow `SolidGrid`'s rules: an Integer or a `TypeError`, and an Integer outside
   the grid is outside — `find` and `region` answer `nil`.
 
+## `RGame::Util::TileSweep`
+
+An axis-aligned box against the solid tiles of a `SolidGrid`, at a tile size, in C. The
+game-facing form is [`Engine::TileBlockers`](internals.md#tileblockers--the-tile-grid-as-a-blocker-source),
+the blocker source every mover declaring `blocked_by: [:tiles]` resolves against; this is the
+arithmetic underneath, and the one implementation both of its questions share.
+
+```ruby
+grid = RGame::Util::SolidGrid.build(20, 15) { |col, _row| col == 5 }   # a wall at x 80..96
+sweep = RGame::Util::TileSweep.new(grid, 16, 16)
+
+sweep.resolve_x(58.0, 32.0, 12, 6, 14.0)    # => 68.0 — flush against the wall
+sweep.resolve_y(58.0, 32.0, 12, 6, 4.0)     # => 36.0
+sweep.travel?(10.0, 32.0, 12, 6, 50.0, 0)   # => true
+sweep.travel?(10.0, 32.0, 12, 6, 90.0, 0)   # => false
+sweep.grid                                  # => the grid, which the sweep keeps alive
+```
+
+- **Boxes are top-left corner and size, in pixels**; results are Floats. Outside the grid is open.
+- **`resolve_x`/`resolve_y`** move the box along one axis and snap it flush against a solid
+  tile it would enter. A step is assumed smaller than a tile.
+- **`travel?`** is whether the box can move `(dx, dy)` with no resolve along the way landing
+  short of where it was heading. It sweeps overlapping half-tile windows a quarter tile apart,
+  each resolved both ways round, so it holds for a walker stepping under a quarter tile at a time.
+- **It reads its grid and never writes it**, so a `set_solid` is seen on the next call. Nothing
+  it answers allocates.
+- **Refusals.** A tile size that is not positive and finite is an `ArgumentError`, and so is a
+  travel too long to sweep (more than `2**31 - 1` windows). A coordinate that is not a number is
+  a `TypeError`. A non-finite one is a `FloatDomainError` — except in a resolve that does not
+  move, which returns the box where it is.
+
 ## `RGame::Util::Z`
 
 The vocabulary of draw order: which band a thing is drawn in, and the arithmetic

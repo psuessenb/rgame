@@ -89,25 +89,37 @@ of things at once is a design problem elsewhere, not a reason to index this.
 
 ## `TileBlockers` — the tile grid as a blocker source
 
-`RGame::Engine::TileBlockers` (`rgame/engine/tile_blockers`) resolves an axis-aligned box against a
-grid of solid tiles. `solid` is a callable `solid.call(col, row) -> bool`, so the tile
-source is decoupled — [`TileWorld`](components.md#tileworld) passes its
-[`Util::SolidGrid`](values.md#rgameutilsolidgrid)'s `solid?`, and a spec can pass a lambda. Each axis is resolved on its own —
-`resolve_x` and `resolve_y` are independent — and it is
+`RGame::Engine::TileBlockers` (`rgame/engine/tile_blockers`) resolves an axis-aligned box against the
+solid tiles of a [`Util::SolidGrid`](values.md#rgameutilsolidgrid), at a tile size.
+[`TileWorld`](components.md#tileworld) builds one over the grid it reads the map into; a spec builds
+the grid itself. The grid is read, never copied, so a cell changed with `set_solid` stops the very
+next step. Each axis is resolved on its own — `resolve_x` and `resolve_y` are independent — and it is
 [`CollisionSystem`](#collisionsystem--move-an-actor-against-its-blockers)
 that feeds one the other's result.
 
 ```ruby
 grid = RGame::Util::SolidGrid.build(20, 15) { |col, _row| col == 5 }   # a wall at x 80..96
-tiles = RGame::Engine::TileBlockers.new(tile_width: 16, tile_height: 16, solid: grid.method(:solid?))
+tiles = RGame::Engine::TileBlockers.new(grid: grid, tile_width: 16, tile_height: 16)
 
 x, y, w, h = 58.0, 32.0, 12, 6
-nx = tiles.resolve_x(x, y, w, h, 14.0)   # => 68 — snapped flush against the wall's left edge
+nx = tiles.resolve_x(x, y, w, h, 14.0)   # => 68.0 — snapped flush against the wall's left edge
 ny = tiles.resolve_y(nx, y, w, h, 4.0)   # => 36.0
+tiles.travel?(10.0, 32.0, w, h, 50.0, 0.0)   # => true
+tiles.travel?(10.0, 32.0, w, h, 90.0, 0.0)   # => false — the wall is in the way
 ```
 
-It assumes per-step movement smaller than a tile (no tunneling), which holds for the
-engine's speeds.
+The arithmetic is [`Util::TileSweep`](values.md#rgameutiltilesweep)'s, in C; `TileBlockers` is its
+blocker-source face. Results are Floats. It assumes per-step movement smaller than a tile (no
+tunneling), which holds for the engine's speeds.
+
+`travel?(x, y, w, h, dx, dy)` answers whether the box can move by `(dx, dy)` without any resolve
+along the way landing short of where it was heading — the optional fourth question of the
+[blocker-source protocol](#collisionsystem--move-an-actor-against-its-blockers). It sweeps the box in
+overlapping windows half a tile long, a quarter tile apart, each resolved x-then-y and y-then-x, so a
+`true` holds for a walker resolving its own steps against this source as long as each step is under a
+quarter tile — 240 px/s at 60 ticks a second on 16 px tiles. It may refuse a segment such a walker
+would in fact get along; it never clears one it would not.
+[`Navigator`](components.md#navigator) smooths its routes with it.
 
 `blocker` is the sentinel `TileBlockers::TILES` — one object for the life of the process,
 answering `layer` → `:tiles` and `node` → `nil`. Holding no per-step state is what makes
@@ -182,6 +194,19 @@ source.resolve_y(x, y, w, h, dy)          # -> where the box's top  edge lands m
 source.blocker                            # -> what produced that edge, or nil
 source.moved(actor, from_x, from_y, w, h) # -> the step has been written back
 ```
+
+A fifth is optional, and only `TileBlockers` answers it today:
+
+```ruby
+source.travel?(x, y, w, h, dx, dy)        # -> can the box move (dx, dy) without being stopped?
+```
+
+"Stopped" means what it means to the system: a resolve landing **short** of where the step was
+heading. A landing past it — which `BoundsBlockers` gives a box that starts outside the world — is
+ignored by `move`, and does not stop a travel either. Read that way the question splits by source: a
+box travels past several sources exactly when it travels past each one on its own. The shared example
+group `a blocker source answering travel?` (`spec/support/shared_examples/`) states that meaning and
+checks a source's answer against a walker stepping through the source's own resolves.
 
 There are three sources: `TileBlockers`, `ActorBlockers` and `BoundsBlockers`. The system
 asks every one it holds and takes the **most restrictive** answer on each axis — the

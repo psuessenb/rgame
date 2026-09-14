@@ -11,7 +11,8 @@ RSpec.describe RGame::Engine::CollisionSystem do
 
   def system(solid:)
     described_class.new(
-      blockers: RGame::Engine::TileBlockers.new(tile_width: 16, tile_height: 16, solid: solid)
+      blockers: RGame::Engine::TileBlockers.new(grid: RGame::Util::SolidGrid.build(64, 64, &solid),
+                                                tile_width: 16, tile_height: 16)
     )
   end
 

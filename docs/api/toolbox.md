@@ -111,14 +111,15 @@ tiles.
 
 It is built one of two ways, and anything else — both, or neither — is an `ArgumentError`:
 
-- **From a callable**, `NavGrid.new(width:, height:, solid:)` — the same `solid.call(col, row)`
-  a [`TileBlockers`](internals.md#tileblockers--the-tile-grid-as-a-blocker-source) takes. It
-  is read once per cell into a grid of the `NavGrid`'s own and never asked again, so a change
-  behind the callable is never seen.
+- **From a callable**, `NavGrid.new(width:, height:, solid:)` — `solid.call(col, row)`, true for
+  a solid cell. It is read once per cell into a grid of the `NavGrid`'s own and never asked
+  again, so a change behind the callable is never seen.
 - **Over a shared grid**, `NavGrid.new(grid:)` — a
   [`Util::SolidGrid`](values.md#rgameutilsolidgrid). Nothing is copied: a cell changed in
   that grid is changed for the `NavGrid` at once. This is how `TileWorld` builds one, and the
-  form to use for solidity that will change.
+  form to use for solidity that will change — it is also the grid a
+  [`TileBlockers`](internals.md#tileblockers--the-tile-grid-as-a-blocker-source) is built over,
+  so a route and the collision that stops a walker read one store.
 
 ```ruby
 rows = [
