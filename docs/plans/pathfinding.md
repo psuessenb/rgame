@@ -1,7 +1,8 @@
 # Pathfinding — `examples/pathfinding` and the engine it needs
 
-**Status:** planned at `707ea1a`. **Steps 1–5 are implemented.** Step 6 (the sweep in C) is
-rough and is re-planned next, from step 5's landed timings; step 7 deletes this file.
+**Status:** planned at `707ea1a`. **Steps 1–5 are implemented.** Step 6 (`Util::TileSweep`, the
+tile resolver and travel query in C) was re-planned at `3e36b49` and is detailed; step 7 deletes
+this file.
 
 The requirement, from `docs/plans/basic-examples.md` ("12. `examples/pathfinding`"):
 *a click-free "go there" — pick a target tile, compute a route around the solid
@@ -88,6 +89,26 @@ Not up for re-litigation inside this plan.
   additions need" table). **Weighted terrain and mouse picking are not design inputs** —
   not important, so nothing is shaped for them and nothing is contorted to exclude them.
   (Decided in the prompt that re-planned step 5.)
+- **The tile resolver's C is a Util class, `Util::TileSweep`, held by `Engine::TileBlockers`**, which
+  delegates to it — not methods on `SolidGrid` taking a tile size, and not `TileBlockers` inheriting
+  the C class. It mirrors `RouteSearch` (holds and marks its grid), keeps `SolidGrid` cells-only, and
+  is usable without the engine; the cost is one Ruby hop per resolve. (Step 6 question round.)
+- **`travel?` is answered by `TileBlockers` only, shaped as the blocker-source protocol's.** Three
+  things make adding it to the other sources later purely additive, so avoidance is not designed
+  out: (1) the protocol shape `travel?(x, y, w, h, dx, dy)`, box by top-left like `resolve_x`, with
+  `Navigator` converting from its anchor; (2) the protocol meaning, "no resolve along the way falls
+  short of the intended landing", stated in `CollisionSystem`'s header as an optional fourth question;
+  (3) a shared contract checking any source's `travel?` against an oracle over its own resolves.
+  The protocol-wide version was weighed and deferred: `ActorBlockers`' semantics need avoidance as a
+  caller. See step 6's "How the travel query grows". (Step 6 question round.)
+- **Float results are accepted.** A C resolve returns a Float where Ruby returned an Integer on a
+  snap; the values are equal, every spec passes, and the one visible effect — `jump_topdown`'s report
+  printing `298.0` — is the expected difference rather than something to engineer away. (Step 6
+  question round.)
+- **`Navigator#go_to` raises for a collider box larger than a tile**, and the docs say plainly that
+  pathfinding for such colliders is not supported. Smoothing takes the next cell untested, which is
+  sound only up to one tile, and a silent stall at a corner is the failure "design out misuse"
+  refuses. (Step 6 question round.)
 
 ## Open questions
 
@@ -283,7 +304,7 @@ RSpec, deterministically.
 
 ```
 1 Mover heading + PathFollow#follow ─┐
-                                     ├─→ 3 Navigator ─→ 4 examples/pathfinding ─→ 5 SolidGrid + C search ─→ 6 C sweep (rough) ─→ 7 fold back
+                                     ├─→ 3 Navigator ─→ 4 examples/pathfinding ─→ 5 SolidGrid + C search ─→ 6 TileSweep ─→ 7 fold back
 2 NavGrid (pure) ────────────────────┘
 ```
 
@@ -1058,29 +1079,215 @@ the two ways to build one, regions following a shared grid, the refusals, the ne
 map once), `docs/api/internals.md` (`TileBlockers`' example over a `SolidGrid`), and CLAUDE.md's
 `ext/rgame_util/` entry.
 
-### Step 6 — the sweep in C *(rough)*
+### Step 6 — `Util::TileSweep` (pure C): the tile resolver and the travel query, one implementation
 
-To be re-planned once step 5 has landed. What is known now:
+**Why here.** Step 5 left `go_to` at 90–96% smoothing, and smoothing is almost entirely
+`TileBlockers#resolve_x`/`#resolve_y` calls (measured below). **One resolver, not two**: smoothing is
+only sound because it asks the resolver the walker collides with, so the sweep cannot move to C
+without the resolves moving with it — a C copy of the arithmetic beside a Ruby original is the
+design step 3 refused. So both move, into one pure module over the step 5 store, and the walker
+(through `CollisionSystem`) and the smoother (through the new `travel?`) call that one
+implementation. The per-frame resolve of every mover declaring `blocked_by: [:tiles]` gets the same
+speedup for free.
 
-- After step 5, `go_to` is expected to be nearly all smoothing — about 4 ms on town and 10 ms
-  on `beach_large`, from the baked row above — still far from what a crowd replanning on
-  `on_blocked` can afford.
-- **One resolver, not two.** Smoothing is only sound because it asks the resolver the walker
-  collides with. So the sweep moves to C only if `TileBlockers#resolve_x`/`#resolve_y` move with
-  it, over the same `SolidGrid`, and the walker and the smoother keep calling one
-  implementation. A C copy of the arithmetic beside a Ruby original is the design step 3
-  refused.
-- **`TileBlockers` takes a `SolidGrid` only** (open question 5):
-  `TileBlockers.new(grid:, tile_width:, tile_height:)`, resolving in C. The callable form goes.
-  Its five spec constructions (`tile_blockers_spec.rb`'s subject and floor, one in
-  `collision_system_spec.rb`, two in `character_body_spec.rb`) move to grids built from text
-  rows; `tile_blockers_spec.rb`'s wall on *every* row becomes a wall on every row of a finite
-  grid, and outside the grid is open, as `TileMap#solid_tile?` answers today.
-- **`Navigator#clear?` becomes a public query on the blocker source** — "can this box travel
-  from here to there" — whichever way the above goes. It is avoidance's first need, and it is
-  a question about the tile grid asked from a component that happens to own it today.
-- Measure first: if step 5's `go_to` numbers show smoothing is cheap enough, the query moves
-  and stays Ruby, and this step shrinks to that.
+#### What was measured for the re-plan
+
+At `3e36b49`, Ruby 4.0.5 without YJIT, best of 5–7 after a warm-up. Throwaway scripts; the C was a
+standalone prototype replaying the exact `clear?` queries `go_to` made, not engine code.
+
+| | |
+|---|---|
+| `rake spec` | 1925 examples, 0 failures, 3.73 s |
+| town `[1, 1]` → `[58, 38]`: `find` / `go_to` | 0.08 / **3.90 ms** — 64 `clear?` queries, 2156 windows, 8614 resolves |
+| `beach_large` `[116, 72]` → `[39, 6]`: `find` / `go_to` | 0.97 / **10.17 ms** — 116 `clear?`, 5733 windows, 22 905 resolves |
+| Cost per window, Ruby | ~1.8 µs, of which the four resolves ~1.5 µs; one x+y resolve pair on open ground **0.77 µs** |
+| Ruby → C method call, 2 Integer args (`SolidGrid#solid?`) / a lambda call | 35 ns / 32 ns |
+| **The whole `clear?` sweep in C** (`-O2 -ffp-contract=off`), same 64 / 116 queries *(measured, prototype)* | **0.085 ms town, 0.205 ms `beach_large`**, every answer identical to Ruby's |
+| Only the resolves in C, the window loop still Ruby | ~1 ms town, ~2.5 ms `beach_large` *(estimated, not measured)* |
+| `rake spec` with every `TileBlockers` resolve coerced `.to_f` | 1925, 0 failures (a `+ 1000` patch fails 34, so the patch bites) |
+| Driven reports at `--seed 1` with resolves coerced `.to_f` | `walk`, `collision_tiles`, `split_screen`, `pathfinding`, `tiled_world` byte-identical; **`jump_topdown` differs in one line**: `y -77.0..298` → `y -77.0..298.0` |
+| Today's `resolve_x` on odd input | `nil` → `NoMethodError`; `NaN`/`Infinity` with a zero delta → returned unchanged, non-zero → `FloatDomainError` from `floor`; `2**40` → answered, open |
+| Does any source land **past** the intended position? *(read)* | `TileBlockers` never (`col * tw - w < nx`); `ActorBlockers` never (its best starts at `nx` and only shortens); **`BoundsBlockers` does**, for a box starting outside the world (`x = -10, dx = 2` → `0.0`), which `CollisionSystem` already ignores |
+| `TileBlockers.new` constructions | `TileWorld` (lib); `tile_blockers_spec.rb` 2, `tile_blockers_allocation_spec.rb` 1, `collision_system_spec.rb` 1, `character_body_spec.rb` 2 |
+
+What the numbers settle:
+
+- **With the sweep in C, `go_to` is ~0.2 ms on town and ~1.2 ms on `beach_large`**, and the search
+  is the larger half again. Moving the resolves alone would leave roughly a quarter of today's cost
+  in the Ruby window loop and its 8614 boundary crossings.
+- **The greedy corner loop stays Ruby.** `corners`/`furthest_clear` run 64–116 iterations a route;
+  that is not where the time is.
+- **Integer vs Float results are invisible except in one report line**, and it is the same number.
+
+#### How the travel query grows, and why step 6 builds only the tile half
+
+Decided in the prompt (see "Decisions already taken"): `TileBlockers` answers `travel?` now and
+nothing else does, but its signature and meaning are the **blocker-source protocol's**, so avoidance
+against actors later is additive and touches neither `TileBlockers` nor `Navigator`.
+
+- **The query splits by source.** `CollisionSystem` keeps an answer only when it falls *short* of the
+  intended landing, so a combined resolve lands on `x + dx` exactly when no source's answer falls
+  short — and each of a window's four resolves splits the same way. A segment is therefore clear for
+  a system exactly when it is clear for every source alone:
+  `CollisionSystem#travel?(...) = every source's travel?(...)`. No sweep has to run over several
+  sources, and the window/stride rule stays a tile detail rather than protocol.
+- **"Clear" means "no resolve along the way falls short of the intended landing"**, not `==`. For
+  `TileBlockers` and `ActorBlockers` the two coincide; `BoundsBlockers` lands past the intended
+  position from outside the world, and only the short-of reading agrees with `CollisionSystem` there.
+- **What later sources would do**, recorded, not built: `BoundsBlockers` in closed form (blocked only
+  when the segment ends past an edge it is moving toward); `ActorBlockers` is the open design —
+  snapshot semantics over moving actors, its existing-overlap rule, and its own sweep versus a
+  closed-form swept box. Those need avoidance as a caller to answer, which is why they are not here.
+
+#### Considered and rejected in the re-plan
+
+- **Only the resolves in C, the sweep left in `Navigator`.** Smaller, and keeps the window rule in
+  Ruby; leaves ~1 / 2.5 ms of Ruby loop and boundary crossings, and `clear?` private.
+- **Methods on `SolidGrid` taking the tile size per call** (`grid.resolve_x(tw, th, x, y, w, h, dx)`).
+  No new class, but it puts pixel geometry on a store that is deliberately cells only, and seven
+  positional numbers per call is easy to get wrong.
+- **`Engine::TileBlockers < Util::TileSweep`.** Saves the delegation hop (~35 ns a resolve), but the C
+  class's custom `new` fights the keyword constructor, and no Engine class here inherits a C one.
+- **`travel?` on the whole protocol now** (`CollisionSystem`, `ActorBlockers`, `BoundsBlockers`).
+  Costs a method every source — and every source a game writes — must answer, and settles
+  `ActorBlockers`' semantics without a caller. The shape below keeps it additive instead.
+- **C reproducing Ruby's Integer results** so every driven report stays byte-identical. Type-juggling
+  on a per-frame binding whose only beneficiary is a report's formatting of an equal number.
+- **A shared helper turning text rows into a `SolidGrid` for the edited specs.** `SolidGrid.build`
+  already takes a block, and each construction is one predicate.
+
+**Shape.**
+
+```c
+/* ext/rgame_util/tile_sweep.h — a box against a solid grid's tiles (pure). */
+typedef struct {
+    const rgame_solid_grid *grid; /* must outlive the sweep */
+    double tile_width, tile_height;
+} rgame_tile_sweep;
+
+/* Where the box's left (top) edge lands moving dx (dy), snapping flush against a solid tile.
+ * Outside the grid is open. Row/column ranges are clamped to the grid before any cast to int,
+ * so no coordinate — however large — is undefined behaviour or a long loop. */
+double rgame_tile_sweep_resolve_x(const rgame_tile_sweep *s, double x, double y, double w, double h, double dx);
+double rgame_tile_sweep_resolve_y(const rgame_tile_sweep *s, double x, double y, double w, double h, double dy);
+
+/* Whether the box travels (dx, dy) with no resolve along the way falling short: overlapping
+ * windows half a tile long at a quarter-tile stride, each resolved X-then-Y and Y-then-X.
+ * Sound for a walker whose own step is under a quarter tile. */
+bool rgame_tile_sweep_travel(const rgame_tile_sweep *s, double x, double y, double w, double h,
+                             double dx, double dy);
+```
+
+```ruby
+module RGame::Util
+  class TileSweep                                   # C; holds and GC-marks its grid, like RouteSearch
+    def initialize(grid, tile_width, tile_height)   # TypeError for a non-grid; ArgumentError for a size <= 0
+    attr_reader :grid, :tile_width, :tile_height
+    def resolve_x(x, y, w, h, dx)                   # Float
+    def resolve_y(x, y, w, h, dy)                   # Float
+    def travel?(x, y, w, h, dx, dy)
+  end
+end
+
+module RGame::Engine
+  class TileBlockers                                # Ruby: the blocker-source face of a TileSweep
+    def initialize(grid:, tile_width:, tile_height:)  # the callable `solid:` form is gone
+    def resolve_x(x, y, w, h, dx) = @sweep.resolve_x(x, y, w, h, dx)
+    def resolve_y(x, y, w, h, dy) = @sweep.resolve_y(x, y, w, h, dy)
+    # Whether a box travels (dx, dy) without any resolve along the way falling short of where it
+    # was heading. The blocker-source protocol's optional fourth question; see CollisionSystem.
+    def travel?(x, y, w, h, dx, dy) = @sweep.travel?(x, y, w, h, dx, dy)
+    def blocker = TILES
+    def moved(...) = nil
+  end
+end
+
+class Components::TileWorld
+  def blockers = @blockers ||= Engine::TileBlockers.new(grid: solid_grid, tile_width: ..., tile_height: ...)
+end
+
+class Components::Navigator
+  # go_to: raises ArgumentError when the anchor box is wider or taller than a tile — smoothing
+  # takes the next cell untested, which is sound only up to one tile. `clear?` and `window_clear?`
+  # are deleted; `furthest_clear` asks `@world.blockers.travel?` with the box's top-left.
+end
+```
+
+**Sub-steps.**
+
+- **6a** `tile_sweep.{c,h}`, pure, with `test/test_tile_sweep.c`; `Makefile` wiring (`TILE_SWEEP_OBJ`
+  joins `UTIL_OBJS`, the test file joins `TEST_OBJS` and `suites.h`).
+- **6b** `tile_sweep_ext.c` (registered from `util_ext.c`), `lib/rgame/util/tile_sweep.rb`,
+  `spec/rgame/util/tile_sweep_spec.rb`, and `TileSweep.debug_live_sweeps`.
+- **6c** `TileBlockers.new(grid:, …)` over a `TileSweep` with `travel?`; the shared contract; the six
+  spec constructions; `TileWorld#blockers`; `CollisionSystem`'s header states the fourth question.
+- **6d** `Navigator` over `blockers.travel?`, the larger-than-a-tile raise; docs; the timings.
+
+**Rules the tests pin.**
+
+1. **No example edited**: `navigator_spec.rb`, `nav_grid_spec.rb` and `tile_world_spec.rb` pass with
+   every existing example as it is (new examples may be added). `tile_blockers_spec.rb`, `tile_blockers_allocation_spec.rb`, `collision_system_spec.rb`
+   and `character_body_spec.rb` change **only their `TileBlockers.new` lines** — a predicate becomes
+   `SolidGrid.build(w, h) { predicate }` on a grid large enough for every example (the unbounded
+   "column 5 on every row" becomes every row of a finite grid). No example body changes.
+2. **One implementation.** `TileBlockers#resolve_x`/`#resolve_y`/`#travel?` are `TileSweep`'s, and
+   `Navigator` has no sweep of its own left (`clear?` is gone, not wrapped).
+3. **`travel?` is sound against its own resolves** — the shared contract, below — and not trivially
+   so: open ground is `true`, a segment through a solid is `false`, and the 12x6 box past step 3's
+   tree corner is `false` where a zero-size box is `true`.
+4. **Short-of, not equal**: in the contract, a source whose resolve lands past the intended position
+   is still clear — stated with a double of such a source against the oracle, so the reading cannot
+   silently become `==`.
+5. **Same answers as the Ruby it replaces**: C resolves agree with the pre-port Ruby on the cases
+   `tile_blockers_spec.rb` already holds, and `navigator_spec.rb` passing unedited carries smoothing
+   (its route and waypoint examples are exact).
+6. **Refusals**, in `tile_sweep_spec.rb`: `nil` or a String coordinate is `TypeError` (was
+   `NoMethodError`); a non-finite coordinate or delta with a non-zero delta is `FloatDomainError`,
+   and with a zero delta is returned unchanged, as today; a coordinate like `2**40` is open ground; a
+   non-`SolidGrid` is `TypeError`; a tile size `<= 0` is `ArgumentError`.
+7. **`Navigator#go_to` raises `ArgumentError`** naming the box and the tile size when the anchor box
+   exceeds a tile on either axis; a box exactly a tile is accepted.
+8. **Nothing allocates**: a resolve and a `travel?` through `TileBlockers` allocate no Ruby object
+   (Floats come back as flonums), and `rgame_tile_sweep_*` allocate nothing in C.
+9. **Driven reports** at `--seed 1` — `walk`, `collision_tiles`, `jump_topdown`, `split_screen`,
+   `input_glyphs`, `game_menu` and `test_projects/tiled_world` at `--ticks 240`, `pathfinding` at
+   `--ticks 630` — are byte-identical **except `jump_topdown`'s translate-range line, `298` →
+   `298.0`**, which is expected and is the only permitted difference.
+
+**Tests.**
+
+- `test/test_tile_sweep.c`: snap flush right/left/down/up; zero delta; outside the grid open;
+  coordinates near `±1e12` and a box taller than the grid clamp without UB (run under the sanitizer
+  build); `travel` on open ground, through a wall, past the tree corner; a segment shorter than one
+  window; a zero-length segment; a diagonal that X-then-Y alone would accept and Y-then-X refuses.
+- `spec/support/shared_examples/a_blocker_source_answering_travel.rb` — host hook
+  `blocker_source { |rows, tile| ... }` building a source over text rows. Its oracle walks the box
+  along the segment X-then-Y at several step sizes under a quarter tile (1 px, and just under the
+  limit) using **the source's own** `resolve_x`/`resolve_y`, and asserts `travel? == true` implies no
+  step fell short; plus rule 3's non-trivial cases and rule 4's past-landing double. Run against
+  `TileBlockers` from `tile_blockers_spec.rb`. The oracle is test code, the way step 2's brute-force
+  Dijkstra was — not a second production sweep.
+- `spec/rgame/util/tile_sweep_spec.rb`: rule 6, `grid` held (GC-stress a sweep whose grid has no
+  other reference), `debug_live_sweeps`.
+- `tile_blockers_allocation_spec.rb` gains a `travel?` example; `navigator_spec.rb` gains rule 7's two
+  examples (rule 1 forbids editing examples, not adding them).
+
+**Docs.**
+
+- `docs/api/values.md`: `TileSweep`.
+- `docs/api/internals.md`: `TileBlockers` over `grid:`, `travel?` and what "clear" means, the
+  quarter-tile step limit; the `CollisionSystem` section states `travel?` as the optional fourth
+  question, answered by `TileBlockers` only today.
+- `docs/api/systems.md`: the blocker-source paragraph names `travel?`.
+- `docs/api/components.md`: `Navigator` — **pathfinding for a collider larger than a tile is not
+  supported, and `go_to` raises for one**; the smoothing description points at `TileBlockers#travel?`.
+- `docs/api/toolbox.md`: the `NavGrid`/`Navigator` cost numbers.
+
+**Verify.** `make test` (and the ASan/UBSan build), `rake spec`, `rake spec:core`, RuboCop over the
+Ruby touched, and rule 9's reports. The landed note records, on the table's method: `go_to` on both
+routes (expected ~0.2 / ~1.2 ms), one x+y resolve pair through `TileBlockers` against today's
+0.77 µs, and `find` unchanged. If `go_to` lands well above the prototype, the delegation hop or the
+binding's argument conversion is where to look first.
 
 ### Step 7 — fold back and delete this plan
 
@@ -1092,7 +1299,9 @@ To be re-planned once step 5 has landed. What is known now:
 - The rejected alternatives worth keeping — box-blind line-of-sight, the separate
   search component — become one sentence each in the `Navigator` section, as the
   reason the design is what it is, without history.
-- `docs/api/internals.md` if `SolidGrid` and `RouteSearch` need naming there.
+- `docs/api/internals.md` if `SolidGrid` and `RouteSearch` need naming there; check that
+  `travel?` reads as a current fact there ("answered by `TileBlockers` only") and that the split-by-
+  source reasoning from step 6 survives as the explanation of what "clear" means, not as a roadmap.
 - The five later additions and what the store already gives each (step 5's table, minus
   the planning) go where a reader looking for them will land — `toolbox.md`'s `NavGrid`
   section — as current limits, not as a roadmap.
@@ -1102,6 +1311,10 @@ To be re-planned once step 5 has landed. What is known now:
 
 - Replanning around moving actors, crowds, avoidance, or flow fields. Step 5 leaves each
   buildable — see its "What the additions need" table — and builds none.
+- `travel?` on `ActorBlockers`, `BoundsBlockers` or `CollisionSystem`. Step 6 shapes it so they can
+  be added without touching `TileBlockers` or `Navigator`, and records how, but builds only the tile
+  half.
+- Pathfinding for a collider larger than a tile. `go_to` refuses one.
 - Maps that change at runtime at the engine level. After step 5 the store under the tile
   world can change and the routes follow it, but nothing in the engine changes it, and a
   `Navigator` already walking is not told (open question 4).
