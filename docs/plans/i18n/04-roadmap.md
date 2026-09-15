@@ -434,28 +434,37 @@ source.
 **Landed.** One commit per sub-step. What shipped:
 
 - **`Button#label` holds an `Engine::Text`.** A String or Symbol is a key the
-  button builds one from, a `Text` is kept as it is, and a `Text` declaring
-  variables raises `ArgumentError` when assigned. `TextButton`, `PanelButton`,
-  `IconButton` and `OptionButton` draw `label.to_s`.
+  button builds one from, and a `Text` is kept as it is, variables included.
+  `TextButton`, `PanelButton`, `IconButton` and `OptionButton` draw `label.to_s`.
+- **`Text#to_s` on a `Text` with names** returns what its last `with` rendered,
+  and renders those values again after a locale switch or `scope=`. Before the
+  first `with` it raises as before. Added after review, so that a game can build a
+  label with variables and update it from `update`.
 - **`Menu.new(scope:)`** and a new **`Button#label_scope`**. The menu sets
   `label_scope` as a button is added, unless the button has one. A button applies
   it to labels and captions it built from keys, including a key assigned later.
 - **`OptionButton`**: `display:` returns a key or a `Text`, and
   `OptionButton::DISPLAY` is the default. `caption` answers the `Text`. The value
-  column is measured again when `I18n.generation` moves or the scope changes.
+  column is measured again whenever a caption's String changes, compared by object
+  identity on each draw.
 - **`docs/api/ui.md`**: every `label:` is a key, plus a new section, "Labels are
   translation keys", with a headless example asserted by `spec/api_docs`. The
   toolbox's `Text` scope section points to it.
 
-`make test` 363 checks; `rake spec` 2254 examples (was 2215); `rake spec:core`
-400 examples; all 0 failures. `spec/rgame/engine/ui/` holds 435 (was 397).
+`make test` 363 checks; `rake spec` 2268 examples (was 2215); `rake spec:core`
+400 examples; all 0 failures. `spec/rgame/engine/ui/` holds 440 (was 397), and
+`text_spec.rb` 52 (was 44).
 RuboCop is clean on every touched Ruby file. `rake docs:coverage` reports 39 gaps,
 as before.
 
 Rules 1–5 are pinned in `menu_spec.rb` (1, 3), `text_button_spec.rb` (1, 2) and
 `option_button_spec.rb` (4, 5). Four mutations were each caught: dropping the
 "unless it has one" check in `Menu#add`, re-scoping a `Text` the button was
-handed, never re-measuring the column, and not re-measuring it on a scope change.
+handed, and twice never re-measuring the column. The last fails three examples: a
+locale switch, a scope change, and a `with` with new values. Dropping the "before
+the first `with`" guard in `Text#to_s` fails two. Comparing captions with `==`
+instead of `equal?` is an equivalent mutant: it is correct, but compares contents
+instead of one object identity.
 
 Drive reports, 600 ticks, `--seed 1`, for `menu_navigation`, `game_menu`,
 `radial_menu`, `quick_wheel` and `skill_bar`: byte-identical to `main` after 3a,
@@ -491,8 +500,17 @@ What the sketch got wrong:
   50, 100]` therefore draws numbers without a table, and `%i[off low high]`
   translates. `menu_navigation`'s `display` for `true`/`false` returns `'on'` and
   `'off'`, which are keys. A table must quote them, as step 0 found.
-- **A label with variables is refused at assignment.** `to_s` would raise on the
-  first frame, from a draw method in another file.
+- **A label with variables is allowed, which changes step 1's `to_s`.** The
+  first version refused one at assignment, because `to_s` raised on a `Text` with
+  names. After review `to_s` returns the last `with`'s rendering instead, so a game
+  owns the values and the button stays unaware of them. That supersedes step 1's
+  bullet "`to_s` on a `Text` with names raises". What it costs: the values belong
+  to the `Text`, so two nodes sharing one show the last `with` either gave. The
+  toolbox and CLAUDE.md say so.
+- **`OptionButton` re-measures by String identity, not by generation.** A caption
+  with variables can change without the generation moving. A `Text` never edits a
+  String in place, so a new String on any caption is the signal. That covers a
+  locale switch and a scope change too, and makes the generation check redundant.
 - **The UI specs needed more than tables.** About 40 examples used a label to
   identify a button (`menu.focused.label == 'Two'`) and now compare `label.key`.
   The rest load their drawn labels through `load_hash`, because the suite raises
