@@ -39,7 +39,10 @@ that mention it in passing, written when it worked differently. So:
    names, remove it from the list.
 5. **Name every new public class and method on a page, or take it out of the
    public API.** `spec_core/api_docs/coverage_spec.rb` fails on one no page names;
-   `bundle exec rake docs:coverage` prints the whole list. For each name, decide:
+   `bundle exec rake docs:coverage` prints the whole list, and CI runs it too. Run
+   it through `bundle exec rake`, not as `ruby tools/doc_coverage.rb`: outside the
+   bundle it can load an installed rgame gem instead of this checkout. For each
+   name, decide:
    - **A game author calls it** → document it.
    - **Only its own class calls it** → make it private. A C binding behind a Ruby
      wrapper is registered with `rb_define_private_method`.

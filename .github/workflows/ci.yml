@@ -15,6 +15,7 @@
 #   make ext           both extensions, into lib/rgame/.
 #   rake spec          headless: Util + Engine + packaging. No SDL in-process.
 #   rake spec:core     Core: opens real windows, boots its own Xvfb on Linux.
+#   rake docs:coverage every public name docs/api leaves undocumented; Linux only.
 #
 # `rake` with no argument runs the three test tasks, but it does not build the
 # extensions — `make ext` is their prerequisite (CLAUDE.md, "Build"), so the
@@ -308,6 +309,16 @@ jobs:
         continue-on-error: ${{ !matrix.ported }}
         shell: bash
         run: bundle exec rake spec:core
+
+      # The coverage spec inside `rake spec:core` already fails on a gap, but it
+      # reports one JSON array. This prints the gaps grouped by class, and fails
+      # the same way. The documentation is the same on every platform, so one
+      # leg runs it.
+      - name: Documentation coverage
+        if: runner.os == 'Linux'
+        continue-on-error: ${{ !matrix.ported }}
+        shell: bash
+        run: bundle exec rake docs:coverage
 
       # A native crash inside the Ruby process (unlike the C suite's own binary)
       # leaves nothing behind but "Process completed with exit code 1" — no
