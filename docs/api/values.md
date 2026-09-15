@@ -1,13 +1,12 @@
 # Value types
 
-Everything in `RGame::Util` is a *value*: cheap, comparable, and owning no
-window or GPU handle. That is what makes them safe for game logic to hold as
-attributes — they load with `require 'rgame'` and pull in no graphics libraries
-at all.
+**Everything in `RGame::Util` is a value**: cheap, comparable, and owning no
+window or GPU handle. Game logic can therefore hold these types as attributes.
+They load with `require 'rgame'` and pull in no graphics library.
 
-`SaveFile` is the one that touches the disk, and it belongs here for the same
-reason: it holds a *path*, not an open handle. It opens a file, reads or writes
-it, and closes it again. The line is ownership, not I/O.
+`SaveFile` touches the disk, and still belongs here. It holds a *path*, not an
+open handle. It opens a file, reads or writes it, and closes it again. What
+decides the namespace is ownership, not I/O.
 
 ```ruby
 require 'rgame'
@@ -15,8 +14,8 @@ require 'rgame'
 
 ## `RGame::Util::Color`
 
-An RGBA colour. Instances are **frozen** and compare **by value**, so one can be
-shared freely and used as a Hash key.
+`Color` is an RGBA colour. Instances are **frozen** and compare **by value**, so
+you can share one freely and use it as a Hash key.
 
 ```ruby
 Color = RGame::Util::Color
@@ -44,8 +43,8 @@ Color::ORANGE  Color::PURPLE  Color::BROWN     Color::PINK
 Color::GRAY    Color::LIGHT_GRAY               Color::DARK_GRAY
 ```
 
-All are opaque except `TRANSPARENT`, and all follow the CSS/X11 values, so
-`Color::ORANGE` is the orange a colour picker would give you.
+Every named colour except `TRANSPARENT` is opaque. They use the CSS/X11 values,
+so `Color::ORANGE` matches the orange a colour picker gives you.
 
 ### Out-of-range components raise
 
@@ -53,12 +52,12 @@ All are opaque except `TRANSPARENT`, and all follow the CSS/X11 values, so
 Color.new(300, 0, 0)   # ArgumentError: red must be in 0..255, got 300
 ```
 
-Silently clamping would hide the bug that produced the 300.
+Clamping would hide the bug that produced the 300.
 
 ### `Color.coerce`
 
-Drawing calls accept a colour in several forms, and `coerce` is the single
-place that conversion happens:
+Drawing calls accept a colour in several forms. **`coerce` performs every such
+conversion:**
 
 ```ruby
 Color.coerce(nil)               # => Color::WHITE — an untinted draw
@@ -67,7 +66,8 @@ Color.coerce([255, 128, 0, 64]) # => with alpha
 Color.coerce(Color::WHITE)      # => returned unchanged, not copied
 ```
 
-Anything else raises `TypeError`; a wrongly-sized array raises `ArgumentError`.
+Any other type raises `TypeError`. An array of the wrong size raises
+`ArgumentError`.
 
 ### Value semantics in practice
 
@@ -80,14 +80,14 @@ a == b            # => true — two objects, one value
 a.frozen?         # => true
 ```
 
-Because a colour is frozen, handing the same one to two sprites is safe: nobody
-can tint it out from under the other.
+A frozen colour is safe to hand to two sprites. Neither can change it under the
+other.
 
 ## `RGame::Util::Tensor`
 
-A fixed-size three-dimensional grid, addressed as `[x, y, z]`. Backed by a
-single flat array in C, so it stays compact for the sizes a tile map or a
-lighting volume needs.
+`Tensor` is a fixed-size three-dimensional grid, addressed as `[x, y, z]`. One
+flat C array backs it, so it stays compact at the sizes a tile map or a lighting
+volume needs.
 
 ```ruby
 grid = RGame::Util::Tensor.new(width, height, depth)
@@ -101,8 +101,8 @@ grid.width             # also #height and #depth
 
 Cells hold any Ruby object. `initial:` is optional and defaults to `nil`.
 
-The layout is x-fastest, then y, then z, so one z-slice is a contiguous run —
-worth knowing if you iterate a layer at a time and care about locality.
+**x varies fastest, then y, then z**, so each z-slice is one contiguous run. For
+good locality, iterate a layer at a time:
 
 ```ruby
 grid.depth.times do |z|
@@ -117,10 +117,11 @@ end
 
 ## `RGame::Util::SolidGrid`
 
-Which cells of a tile grid are solid: a byte per cell, in C. It is the one store a tile
-world's solidity lives in — [`TileWorld`](components.md#tileworld) builds one from its map,
-and both the blockers that stop a walker and the search that plans a route read it, so the
-two cannot disagree about a wall.
+`SolidGrid` records which cells of a tile grid are solid, one byte per cell, in C.
+**It is the single store of a tile world's solidity.**
+[`TileWorld`](components.md#tileworld) builds one from its map. The blockers that
+stop a walker and the search that plans a route both read it, so they never
+disagree about a wall.
 
 ```ruby
 fence = RGame::Util::SolidGrid.build(8, 3) { |col, row| col == 3 && row < 2 }  # asks once per cell, row by row
@@ -134,21 +135,21 @@ field.set_solid(3, 1, true)
 field.revision         # => 1 — the second write changed nothing
 ```
 
-- **`revision` counts changes.** It moves on a `set_solid` that changes a cell and on no
-  other, so anything derived from the cells — a [`RouteSearch`](#rgameutilroutesearch)'s
-  region labels — can tell whether it is stale.
-- **Coordinates are Integers**; anything else is a `TypeError`. An Integer outside the grid,
-  however large, is outside: `solid?` answers `false`, and `set_solid` raises `IndexError`,
-  since a wall written nowhere is a wall that is not there.
-- **The size is fixed.** A negative size, or one with more than `2**31 - 1` cells, is an
-  `ArgumentError`; a zero size is an empty grid. A grid cannot be `dup`ed — a search keeps
-  hold of the grid it was built over.
+- **`revision` counts changes.** It advances only when `set_solid` changes a
+  cell. Anything derived from the cells can then tell whether it is stale, such
+  as a [`RouteSearch`](#rgameutilroutesearch)'s region labels.
+- **Coordinates are Integers**; anything else raises `TypeError`. An Integer
+  outside the grid, however large, is outside. `solid?` answers `false` there.
+  `set_solid` raises `IndexError`, because a wall written nowhere does not exist.
+- **The size is fixed.** A negative size, or more than `2**31 - 1` cells, raises
+  `ArgumentError`. A zero size gives an empty grid. A grid cannot be `dup`ed,
+  because a search holds on to the grid it was built over.
 
 ## `RGame::Util::RouteSearch`
 
-Connected regions and A* routes over a `SolidGrid`, in C. The game-facing form is
-[`Engine::NavGrid`](toolbox.md#navgrid--routes-over-a-tile-grid), which wraps one of these
-and states the route rules; this is the value underneath.
+`RouteSearch` finds connected regions and A* routes over a `SolidGrid`, in C.
+Games use [`Engine::NavGrid`](toolbox.md#navgrid--routes-over-a-tile-grid), which
+wraps a `RouteSearch` and states the route rules.
 
 ```ruby
 grid = RGame::Util::SolidGrid.build(8, 3) { |col, row| col == 3 && row < 2 }
@@ -159,21 +160,23 @@ search.region(0, 0)       # => 0; nil for a solid cell or one outside the grid
 search.grid               # => the grid, which the search keeps alive
 ```
 
-- **It reads its grid and never writes it.** Any number of searches may read one grid, and
-  each sees a change to it on its next query; region labels are recomputed then, only if the
-  grid's `revision` has moved.
-- **A repeated query allocates nothing but its result.** Its per-cell buffers are allocated
-  once, and its heap grows to the largest query it has run and stays there. One search is
-  therefore not safe to use from two threads at once.
-- Coordinates follow `SolidGrid`'s rules: an Integer or a `TypeError`, and an Integer outside
-  the grid is outside — `find` and `region` answer `nil`.
+- **It reads its grid and never writes it.** Any number of searches may share a
+  grid. Each sees a change on its next query. It recomputes region labels then,
+  but only if the grid's `revision` moved.
+- **A repeated query allocates nothing but its result.** The search allocates
+  its per-cell buffers once. Its heap grows to the largest query so far and
+  stays there. One search is therefore not safe to use from two threads at once.
+- Coordinates follow `SolidGrid`'s rules. A non-Integer raises `TypeError`, and
+  for a cell outside the grid `find` and `region` return `nil`.
 
 ## `RGame::Util::TileSweep`
 
-An axis-aligned box against the solid tiles of a `SolidGrid`, at a tile size, in C. The
-game-facing form is [`Engine::TileBlockers`](internals.md#tileblockers--the-tile-grid-as-a-blocker-source),
-the blocker source every mover declaring `blocked_by: [:tiles]` resolves against; this is the
-arithmetic underneath, and the one implementation both of its questions share.
+`TileSweep` tests an axis-aligned box against the solid tiles of a `SolidGrid`,
+at a given tile size, in C. Games use
+[`Engine::TileBlockers`](internals.md#tileblockers--the-tile-grid-as-a-blocker-source).
+Every mover that declares `blocked_by: [:tiles]` resolves against it.
+`TileSweep` does the arithmetic underneath, and both of its queries share one
+implementation.
 
 ```ruby
 grid = RGame::Util::SolidGrid.build(20, 15) { |col, _row| col == 5 }   # a wall at x 80..96
@@ -186,24 +189,27 @@ sweep.travel?(10.0, 32.0, 12, 6, 90.0, 0)   # => false
 sweep.grid                                  # => the grid, which the sweep keeps alive
 ```
 
-- **Boxes are top-left corner and size, in pixels**; results are Floats. Outside the grid is open.
-- **`resolve_x`/`resolve_y`** move the box along one axis and snap it flush against a solid
-  tile it would enter. A step is assumed smaller than a tile.
-- **`travel?`** is whether the box can move `(dx, dy)` with no resolve along the way landing
-  short of where it was heading. It sweeps overlapping half-tile windows a quarter tile apart,
-  each resolved both ways round, so it holds for a walker stepping under a quarter tile at a time.
-- **It reads its grid and never writes it**, so a `set_solid` is seen on the next call. Nothing
-  it answers allocates.
-- **Refusals.** A tile size that is not positive and finite is an `ArgumentError`, and so is a
-  travel too long to sweep (more than `2**31 - 1` windows). A coordinate that is not a number is
-  a `TypeError`. A non-finite one is a `FloatDomainError` — except in a resolve that does not
-  move, which returns the box where it is.
+- **A box is a top-left corner and a size, in pixels.** Results are Floats.
+  Outside the grid is open.
+- **`resolve_x` and `resolve_y`** move the box along one axis. If the box would
+  enter a solid tile, they snap it flush against that tile. They assume a step
+  smaller than a tile.
+- **`travel?`** answers whether the box can move `(dx, dy)` without any resolve
+  stopping it short. It sweeps overlapping half-tile windows a quarter tile
+  apart, resolving each in both axis orders. The answer holds for a walker that
+  steps less than a quarter tile at a time.
+- **It reads its grid and never writes it**, so the next call sees a
+  `set_solid`. No query allocates.
+- **Refusals.** A tile size that is not positive and finite raises
+  `ArgumentError`. So does a travel too long to sweep, beyond `2**31 - 1`
+  windows. A coordinate that is not a number raises `TypeError`. A non-finite
+  coordinate raises `FloatDomainError`, except in a resolve that does not move:
+  that returns the box where it is.
 
 ## `RGame::Util::Z`
 
-The vocabulary of draw order: which band a thing is drawn in, and the arithmetic
-that turns a band plus a position in the tree into the single number the renderer
-sorts a frame by.
+`Z` is the vocabulary of draw order. It names the bands, and turns a band plus a
+position in the tree into the single number the renderer sorts by.
 
 ```ruby
 RGame::Util::Z::BANDS     # => [:world, :hud, :overlay, :debug]
@@ -212,13 +218,13 @@ RGame::Util::Z::Z_MIN     # => -512, the smallest `z:` a drawing call may pass
 RGame::Util::Z::Z_MAX     # =>  511
 ```
 
-It lives here for the same reason [`Controls`](input.md) does: both the scene
-graph (which decides a node's band) and the renderer (which turns one into a z)
-have to name it, and neither may name the other's layer.
+It lives in `Util` for the same reason as [`Controls`](input.md). The scene
+graph decides a node's band and the renderer turns it into a z. Both must name
+`Z`, and neither may name the other's layer.
 
-Games rarely touch it. What a game writes is a node's `z` and, occasionally, a
-`band:` — see [the scene graph](scene_graph.md#draw-order). What it buys is that
-`z` numbers cannot leak between nodes and bands cannot leak into each other:
+**Games rarely touch `Z`.** A game sets a node's `z` and, occasionally, a
+`band:`; see [the scene graph](scene_graph.md#draw-order). `Z` guarantees that `z`
+numbers cannot leak between nodes, and bands cannot leak into each other:
 
 | | |
 |---|---|
@@ -226,14 +232,14 @@ Games rarely touch it. What a game writes is a node's `z` and, occasionally, a
 | `Z_MIN`…`Z_MAX` | what a `z:` on a drawing call may be; anything else raises |
 | `STRIDE` | `2**40` — the gap between bands, which no `z:` can cross |
 
-Every value is an integer below `2**42`, and the `double` the draw queue sorts on
-is exact below `2**53`, so two different slots can never compare equal by
-rounding — which would show up as two sprites swapping places between frames, and
-would be very hard to recognise as a precision problem.
+Every value is an integer below `2**42`. The draw queue sorts on a `double`, which
+is exact below `2**53`. Two different slots therefore never round to the same
+key. If they did, two sprites would swap places between frames, and nobody would
+suspect a precision problem.
 
 ## `RGame::Util::SaveFile`
 
-A game's saved state, as one JSON file.
+`SaveFile` stores a game's saved state as one JSON file.
 
 ```ruby
 save = RGame::Util::SaveFile.new('slot1.json', game: 'sheepdog')
@@ -245,38 +251,40 @@ save.delete
 ```
 
 Keys come back as Symbols, so a game writes and reads one shape. JSON comes from
-the standard library, so this adds no runtime dependency.
+the standard library, so `SaveFile` adds no runtime dependency.
 
 ### Reading never raises
 
-`read` answers with its default — `{}`, or whatever you pass — for a file that
-is missing, empty, truncated, not JSON, or JSON that is not an object. A
-directory in the way and an unreadable file are the same answer.
+**`read` returns its default for any file it cannot use.** The default is `{}`,
+or whatever you pass. That covers a file that is missing, empty, truncated, not
+JSON, or JSON that is not an object. A directory in the way and an unreadable
+file get the same answer.
 
-That is the reason to use this rather than `JSON.parse(File.read(path))`. A save
-file is the one input a game has that it did not produce this run: it survives
-crashes, full disks, a killed process, an editor, and a copy from someone else's
-machine. A game that raises on any of those cannot be started again, and the
-player's only remedy is to find and delete a file nobody told them about. Losing
-a save is bad; refusing to launch is worse.
+This is why to prefer `SaveFile` over `JSON.parse(File.read(path))`. A save file
+is the one input a game did not produce this run. It survives crashes, full
+disks, killed processes, text editors, and copies from other machines. A game
+that raises on any of those cannot start again. The player's only remedy is to
+find and delete a file nobody told them about. Losing a save is bad; refusing to
+launch is worse.
 
-**Writing still raises.** A failed read has a sensible answer — "there is no
-save" — and a failed write does not: quietly discarding the player's progress is
-noticed hours later, when it is gone.
+**Writing still raises.** A failed read has a sensible answer: "there is no
+save". A failed write has none. Discarding progress without a word gets noticed
+hours later, when the progress is gone.
 
 ### Writing is atomic
 
-`write` writes a temporary file beside the target and renames it over the top.
-`File.rename` within a directory is atomic on every platform the engine
-supports, so a save is either the old one or the new one, never half of each.
+**`write` never leaves half a save.** It writes a temporary file beside the
+target and renames it over the top. `File.rename` within one directory is atomic
+on every platform the engine supports. A save is either the old one or the new
+one.
 
-The moment a game most wants to save is on the way out, which is also when it is
-most likely to be killed — and a plain `File.write` truncates first and fills in
-after, so a crash in between leaves a zero-byte file where the afternoon was.
+A game most wants to save on the way out, which is also when it is most likely
+to be killed. A plain `File.write` truncates first and fills in after. A crash in
+between leaves a zero-byte file where the afternoon's progress was.
 
 ### Where saves go
 
-`SaveFile.directory(game)` follows each platform's own convention rather than
+`SaveFile.directory(game)` follows each platform's convention instead of
 dropping a dotfile in the home directory:
 
 | | |
@@ -285,13 +293,13 @@ dropping a dotfile in the home directory:
 | macOS | `~/Library/Application Support/<game>` |
 | Windows | `%APPDATA%\<game>` |
 
-Pass `dir:` to put the file somewhere else entirely, which is what a spec does.
+Pass `dir:` to store the file somewhere else. Specs do this.
 
 ### What it does not do
 
-It does not serialize a scene tree, and neither should a game. A scene is a
-recipe and a save file is state: the scene rebuilds itself identically every
-run, and the save supplies the few facts that differ. `examples/save_load` shows
-the shape, matching objects back up without any node needing a name;
-`examples/save_load_ids` shows the case that does need one, using
+**`SaveFile` does not serialize a scene tree, and a game should not either.** A
+scene is a recipe; a save file is state. The scene rebuilds itself identically
+every run, and the save supplies the few facts that differ. `examples/save_load`
+shows the pattern, matching objects back up without naming any node.
+`examples/save_load_ids` shows the case that needs names, using
 [`Components::Identity`](components.md#identity).

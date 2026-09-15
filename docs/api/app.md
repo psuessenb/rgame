@@ -1,7 +1,7 @@
 # `RGame::Core::App`
 
-The window and the frame loop. Subclass it, override the hooks you need, call
-`run`.
+`App` owns the window and runs the frame loop. Subclass it, override the hooks
+you need, and call `run`.
 
 ```ruby
 require 'rgame/core'
@@ -13,44 +13,44 @@ end
 MyGame.new.run   # returns when the loop stops
 ```
 
-`App.new` takes keyword arguments only. `width:`, `height:` and `caption:` are
-required; `media_root:` is optional and defaults to `'media'`. Creating one
-opens a real window immediately.
+`App.new` takes keyword arguments only. It requires `width:`, `height:` and
+`caption:`. `media_root:` is optional and defaults to `'media'`. The constructor
+opens a real window at once.
 
 ## What the app owns
 
-Two things a game needs exactly one of, built on first use:
+The app builds two objects on first use. A game needs exactly one of each:
 
 ```ruby
+require 'rgame/core'
+
 class MyGame < RGame::Core::App
-  def initialize = super(width: 640, height: 480, caption: 'demo', media_root: MEDIA)
+  def initialize = super(width: 640, height: 480, caption: 'demo', media_root: 'assets')
 end
 
+app = MyGame.new
 app.assets   # => RGame::Core::AssetManager, rooted at media_root
 app.audio    # => RGame::Core::Audio, the sound device
 ```
 
 **A game never constructs either of them.** An image belongs to one OpenGL
-context and has to be told which, so something must hold the app — and since the
-asset manager is the only thing in the engine that loads from a path, that
-something is the app itself, once, rather than a parameter threaded through
-every class that ends up owning an image.
+context, so whatever loads it must know the app. The asset manager is the only
+class that loads from a path. The app therefore builds it once, and no class has
+to pass the app along to reach an image.
 
-Both are lazy, and that matters in each case. An app that draws only shapes
-builds no asset manager; an app that never plays anything never opens a sound
-device — and asking for a sound is the first thing that needs one, so that is
-also the right moment to open it.
+Both objects are lazy. An app that draws only shapes builds no asset manager. An
+app that never plays a sound never opens a sound device. The first sound request
+opens it.
 
-`media_root` is read-only and set at construction. There is deliberately no
-writer: changing it after an asset had loaded would leave one cache keyed
-against two roots.
+`media_root` is read-only and fixed at construction. It has no writer: changing
+the root after a load would leave one cache keyed against two roots.
 
-See [Sheets, atlases and maps](assets.md) for what the asset manager does.
+[Sheets, atlases and maps](assets.md) describes the asset manager.
 
 ## The frame loop
 
-`run` drives the loop until something stops it, calling back into your object.
-One rendered frame looks like this:
+`run` drives the loop until something stops it, and calls back into your object.
+One rendered frame runs these steps:
 
 ```
   poll input and window events   →  button_down / button_up / resize
@@ -59,33 +59,30 @@ One rendered frame looks like this:
   update(dt)                     →  zero or more times (see below)
   needs_redraw?                  →  once; false skips the draw
   draw                           →  once, unless skipped
+  frame_end                      →  once, after draw, unless skipped
 ```
 
 ### `update(dt)` runs a *fixed* number of times, not once per frame
 
-This is the most important thing to understand about the loop.
+**The simulation advances in fixed steps.** Each frame adds the real elapsed
+time to an accumulator. The frame then runs every whole step that has come due.
+That can be **zero** steps, when the machine renders faster than the simulation
+needs. It can be **several**, when a slow frame forces the simulation to catch
+up. The loop caps catch-up, so a slow frame slows time down instead of spiralling.
 
-The simulation advances in fixed steps. Real elapsed time accumulates, and each
-frame runs however many whole steps have come due — which may be **zero**
-(the machine is rendering faster than the simulation needs) or **several** (a
-frame took a long time and the simulation is catching up). Catch-up is capped,
-so a very slow frame makes time slow down rather than spiral.
+`dt` is always the same fixed step: **1/60 second**. It is never wall-clock
+frame time. A fixed step makes movement reproducible. It also lets a test call
+`update` directly and simulate any amount of time.
 
-`dt` is always the same fixed step, currently **1/60 second**. It is never
-wall-clock frame time. That is deliberate: it makes movement reproducible, and
-it is why a test can drive `update` directly and simulate any amount of time.
-
-The practical consequence: **do not sample input inside `update`.** A key held
-for one frame would be read once or five times depending on how slow the last
-frame was. Sample it in `frame_begin` instead, or rely on `Input`, which reads
-a snapshot taken once per frame and therefore answers identically for every
-tick of that frame.
+**Do not sample input inside `update`.** A frame may run one tick or five, so a
+key held for one frame would be read a varying number of times. Sample input in
+`frame_begin`, or use `Input`. `Input` reads a snapshot taken once per frame, so
+it answers the same for every tick of that frame.
 
 ### `needs_redraw?`
 
-Return `false` and the draw is skipped for that frame; the simulation still
-advances. Useful when nothing has changed and drawing is expensive. The default
-is `true`.
+Return `false` to skip the draw for that frame. The simulation still advances.
+Use it when nothing changed and drawing costs a lot. The default is `true`.
 
 ```ruby
 def update(_dt)
@@ -100,12 +97,12 @@ def draw
 end
 ```
 
-Because `update` running at all means a step happened, `@dirty = true` inside
-`update` is usually the whole rule you need.
+`update` runs only when a step happened. Setting `@dirty = true` there is usually
+the whole rule.
 
 ## Hooks you can override
 
-Every one has an inherited no-op default, so override only what you use.
+Every hook inherits a default that does nothing. Override only what you use.
 
 | Hook | When |
 |---|---|
@@ -113,20 +110,23 @@ Every one has an inherited no-op default, so override only what you use.
 | `update(dt)` | One fixed simulation tick. |
 | `needs_redraw?` | Before drawing; `false` skips `draw`. Default `true`. |
 | `draw` | Render one frame. |
-| `button_down(id)` | A key was pressed. Auto-repeats are filtered, so a held key fires once. |
+| `frame_end` | After `draw` reaches the GPU, before the buffer swap. Not called when the draw was skipped. |
+| `button_down(id)` | A key was pressed. The loop filters auto-repeats, so a held key fires once. |
 | `button_up(id)` | A key was released. |
 | `resize(width, height)` | The window changed size. |
 | `gamepad_connected(slot)` | A controller arrived in a player slot. |
 | `gamepad_disconnected(slot)` | A controller left a slot. |
 
-`id` is a value from [`RGame::Util::Controls`](input.md) — for example
+`id` is a value from [`RGame::Util::Controls`](input.md), such as
 `Controls::KEY_ESCAPE`.
+
+`frame_end` is the one point where a test can read back the frame it drew.
+Game code rarely needs it.
 
 ### There is no built-in quit key
 
-Closing the window stops the loop, because that really is the platform's
-decision. Quitting on Escape is *your* decision, so the engine does not make it
-for you:
+Closing the window stops the loop, because the platform decides that. Quitting
+on Escape is *your* decision, so the engine leaves it to you:
 
 ```ruby
 def button_down(id)
@@ -143,51 +143,54 @@ end
 | `width`, `height` | Current window size. |
 | `caption`, `caption=` | The window title. |
 | `fullscreen?`, `fullscreen=` | Whether the window covers the screen. |
-| `ticks_ms` | Monotonic milliseconds since startup. For animation phase. |
+| `ticks_ms` | Monotonic milliseconds since startup. For measuring frames, not for drawing. |
 | `fps` | Most recent frames-per-second reading, updated about once a second. |
 
-`close` takes effect promptly — the loop checks between steps, so it will not
-start further work in the current frame.
+`close` takes effect promptly. The loop checks between steps and starts no more
+work in the current frame.
+
+`ticks_ms` is the raw clock. A draw never reads it: animation accumulates its own
+time in `update`.
 
 ### Fullscreen
 
 ```ruby
-App.new(width: 640, height: 480, caption: 'demo', fullscreen: true)  # opens fullscreen
-app.fullscreen = !app.fullscreen?                                    # switches either way
+require 'rgame/core'
+
+app = RGame::Core::App.new(width: 640, height: 480, caption: 'demo', fullscreen: true)  # opens fullscreen
+app.fullscreen = !app.fullscreen?                                                      # switches either way
 ```
 
-**Opening fullscreen is a constructor argument, not a switch afterwards.** Both
-end up fullscreen, but setting it after the window is up shows one windowed
-frame first — the flash a player reads as a broken startup. A game whose
-settings say fullscreen passes the setting to `new`.
+**To open fullscreen, pass `fullscreen: true` to the constructor.** Setting it
+after the window is up also works, but shows one windowed frame first. Players
+read that flash as a broken startup. A game whose settings say fullscreen passes
+the setting to `new`.
 
-`width` and `height` still matter when opening fullscreen: they are the size the
-window takes when it leaves. A game that never offers a way out simply never
-uses them.
+`width` and `height` still matter when the window opens fullscreen. The window
+takes that size when it leaves fullscreen.
 
-It is **desktop** fullscreen — the window covers the screen at the screen's own
-resolution. Nothing asks the display to change mode, so the switch is instant,
-needs no mode list, and leaves other windows alone. What a game gets is a bigger
-view, not a different one.
+rgame uses **desktop** fullscreen: the window covers the screen at the screen's
+own resolution. The display never changes mode. The switch is instant, needs no
+mode list, and leaves other windows alone. The game gets a bigger view, not a
+different one.
 
-**Switching resizes the window**, so [`resize`](#hooks-you-can-override) is
-called with the new size, exactly as it is when a user drags a window edge.
-Anything that lays out against the window learns about the change through that
-one path — which is why a scene should read the `view` it is drawn with rather
-than the width it passed to `new`.
+**Switching resizes the window**, so the loop calls
+[`resize`](#hooks-you-can-override) with the new size. A user dragging a window
+edge triggers the same call. Everything that lays out against the window learns
+of the change through that one path. So a scene reads the `view` it is drawn
+with, not the width it passed to `new`.
 
-A bigger window means a bigger view, and a layout written against fixed numbers
-will not follow it. [`scale_mode:`](game.md#scale_mode--what-width-and-height-mean)
-on `RGame::Game` is the other answer: keep a logical size and scale it onto the
-window instead.
+A layout written against fixed numbers will not follow a bigger view.
+[`scale_mode:`](game.md#scale_mode--what-width-and-height-mean) on `RGame::Game`
+offers the alternative: keep a logical size and scale it onto the window.
 
-`examples/fullscreen` shows both openings, the switch, and every scale mode.
+`examples/fullscreen` shows both ways to open, the switch, and every scale mode.
 
 ## Raw input queries
 
-`App` exposes the input snapshot directly. Most code should use
-[`RGame::Core::Input`](input.md), which takes symbolic action names instead of
-numeric ids, but these are the primitives underneath:
+`App` exposes the input snapshot directly. Most code uses
+[`RGame::Core::Input`](input.md) instead, which takes action names rather than
+numeric ids. These queries are the primitives underneath:
 
 | Method | |
 |---|---|
@@ -197,15 +200,14 @@ numeric ids, but these are the primitives underneath:
 | `gamepad_name(slot)` | Its human-readable name, or `nil`. |
 | `gamepad_count` | How many controllers are connected. |
 
-Note the query is `gamepad_present?`, not `gamepad_connected?` — the latter
-name belongs to the hot-plug *hook* above, and two methods differing only by a
-`?` would be a trap.
+The query is named `gamepad_present?`, not `gamepad_connected?`. The hot-plug
+*hook* above owns that name, and two methods that differ only by a `?` invite
+mistakes.
 
 ## When a hook raises
 
-An exception thrown from any hook comes back out of `run` with its class,
-message and backtrace intact. The loop shuts down cleanly first, so the window
-is not left stranded:
+`run` re-raises any exception from a hook, with its class, message and backtrace
+intact. The loop shuts down cleanly first and closes the window:
 
 ```ruby
 begin
@@ -215,13 +217,12 @@ rescue MyGameError => e
 end
 ```
 
-A **non-local exit** — `throw`, `break` or `return` crossing out of a hook —
-cannot be carried across the loop the same way, and is reported as a
-`RuntimeError` telling you to use `close` instead. Use `close` to stop the
-loop; it is the only supported way out other than closing the window.
+A **non-local exit** cannot cross the loop that way. That covers `throw`,
+`break` or `return` leaving a hook. `run` reports it as a `RuntimeError` that
+tells you to use `close`. Only `close` and closing the window stop the loop.
 
 ## Several windows in one process
 
-Creating more than one `App` works, and they may overlap in lifetime; the
-engine keeps SDL alive until the last one is gone. This mostly matters for test
-suites, which create and discard a window per example.
+A process can create more than one `App`, and their lifetimes may overlap. The
+engine keeps SDL alive until the last one is gone. Test suites rely on this: they
+create and discard a window per example.

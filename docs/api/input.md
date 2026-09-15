@@ -1,44 +1,52 @@
 # Input
 
-Four pieces, in two layers:
+Input has four pieces, in two layers:
 
-- **`RGame::Util::Controls`** — the vocabulary: which number means "the left
-  arrow key", "the A button", "player 2's controller". Plain values, usable
-  without loading any graphics library.
-- **`RGame::Core::Input`** — the raw query: is *this id* active on *this
-  device*.
-- **`RGame::Engine::InputMap`** — what those ids *mean*: one table per player,
-  mapping a game's actions onto physical ids.
-- **`RGame::Engine::ActionMapper`** — polls one player's device through their
-  map once per tick and produces an `Actions` snapshot.
+- **`RGame::Util::Controls`** is the vocabulary. It says which number means "the
+  left arrow key", "the A button" or "player 2's controller". These are plain
+  values, usable without any graphics library.
+- **`RGame::Core::Input`** is the raw query: is *this id* active on *this
+  device*?
+- **`RGame::Engine::InputMap`** says what those ids *mean*. Each player has one
+  table that maps the game's actions onto physical ids.
+- **`RGame::Engine::ActionMapper`** polls one player's device through their map
+  once per tick. It produces an `Actions` snapshot.
 
-Plus **`RGame::Core::Gamepad`**, a readout of which controllers are plugged in,
-for menus.
+**`RGame::Core::Gamepad`** adds a readout of the plugged-in controllers, for
+menus.
 
-There is no mouse support, by design.
+rgame has no mouse support, by design.
 
 ## Which layer do I want?
 
-Almost always the engine layer. A game declares its actions, reads
-`actions.held?(:fire)`, and never names a scancode outside its input map.
-`RGame::Core::Input` is what the mapper polls; you reach for it directly only
-when writing against `RGame::Core` alone, with no scene graph.
+**Use the engine layer.** A game declares its actions, reads
+`actions.held?(:fire)`, and names a scancode only inside its input map. The
+mapper polls `RGame::Core::Input`. Call `Input` directly only when you write
+against `RGame::Core` alone, with no scene graph.
 
 ```ruby
+require 'rgame/game'
+
+Controls = RGame::Util::Controls
+
+class MyRoot < RGame::Engine::Node2D; end
+
 RGame::Game.new(
   root: MyRoot.new,
   input_map: RGame::Engine::InputMap.new(
     fire: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] }
   )
-)
+).start
 ```
 
 ## `RGame::Engine::InputMap`
 
-One entry per action, naming physical ids directly. **This is the single table a
-rebinding screen edits.**
+An `InputMap` holds one entry per action and names physical ids directly. **A
+rebinding screen edits this one table.**
 
 ```ruby
+require 'rgame'
+
 Controls = RGame::Util::Controls
 
 map = RGame::Engine::InputMap.new(
@@ -48,107 +56,118 @@ map = RGame::Engine::InputMap.new(
 )
 ```
 
-Three kinds of source, and one action may combine them:
+An entry uses up to three kinds of source, and may combine them:
 
 | Key | Read with | Meaning |
 |---|---|---|
 | `buttons:` | `held?` / `pressed?` / `released?` | down if **any** listed id is down |
-| `axis:` | `axis` | `[negative_id, positive_id]` — a digital axis from two buttons |
+| `axis:` | `axis` | `[negative_id, positive_id]`, or a list of such pairs — a digital axis from buttons |
 | `stick:` | `axis` | an analog axis id, for a real stick or a trigger |
 
-When an action binds both `axis:` and `stick:`, **the larger deflection wins**.
-That needs no per-device branching: a keyboard reads `0.0` for every axis and a
-stick reads `false` for every key, so whichever device a player is on, the other
-source contributes nothing.
+A list of pairs binds several controls to one axis. The default `move_x` uses
+this for the arrows, WASD and the d-pad:
+
+```ruby
+move_x: { axis: [[Controls::KEY_LEFT, Controls::KEY_RIGHT],
+                 [Controls::PAD_DPAD_LEFT, Controls::PAD_DPAD_RIGHT]],
+          stick: Controls::AXIS_LEFT_X }
+```
+
+When an action binds several axis sources, **the largest deflection wins**. No
+per-device branching is needed. A keyboard reads `0.0` for every stick, and a
+gamepad reads `false` for every key. The source for the other device contributes
+nothing.
 
 ### One table serves every device
 
-Listing a key and a pad button in the same entry is safe, because **a device
-only answers for its own kind of input** — asking a gamepad about a keyboard
-scancode is `false`, never the keyboard's answer. So `fire` can be "Space or A",
-and each player's device picks out the half that applies to it.
+An entry can list a key and a pad button together, because **a device answers
+only for its own kind of input**. A gamepad asked about a keyboard scancode
+answers `false`; it never passes on the keyboard's state. So `fire` can be
+"Space or A", and each player's device uses the half that applies to it.
 
-### Showing a prompt undoes that
+### Prompts need the device's half
 
-One entry lists both ids because reading needs no branch. **Showing** does: a
-prompt saying "press Space or A" tells the player about hardware they are not
-holding.
+Reading an action needs no branch, but **showing** one does. A prompt saying
+"press Space or A" tells players about hardware they are not holding.
 
 ```ruby
 map.button_for(:fire, Controls::KEYBOARD)     # => KEY_SPACE
 map.button_for(:fire, Controls.gamepad(0))    # => PAD_A
 ```
 
-`button_for(action, device)` gives the first id bound to `action` that `device`
-can press, comparing `Controls.pad_button?(id)` against `Controls.gamepad?(device)`
-— which is what the two id spaces being disjoint is *for*. First match, so the
-order an entry lists its ids in is the order a prompt prefers them: `ui_confirm`
-names Return before Space, and a prompt for it says Return.
+`button_for(action, device)` returns the first id bound to `action` that
+`device` can press. It compares `Controls.pad_button?(id)` against
+`Controls.gamepad?(device)`; the two id spaces never overlap. The first match
+wins, so an entry's order is a prompt's preference. `ui_confirm` lists Return
+before Space, so its prompt says Return.
 
-`nil` for an action nobody bound, one with no buttons at all (a stick or a
-digital axis is not a button, and the picture for one is a different picture),
-and one whose entry has nothing for that kind of device. Allocation-free, so a
-HUD may call it per frame rather than caching a string it would have to
-invalidate.
+`button_for` returns `nil` in three cases:
 
-`examples/input_glyphs` is the whole idea running: three prompts, a glyph sheet
-keyed by button id, and a seat that moves between the keyboard and a controller
+- nobody bound the action;
+- the action has no buttons. A stick or digital axis is not a button, and needs
+  a different picture;
+- the entry has nothing for that kind of device.
+
+It allocates nothing, so a HUD may call it every frame instead of caching a
+string.
+
+`examples/input_glyphs` shows the whole idea. It draws three prompts from a glyph
+sheet keyed by button id. A seat moves between the keyboard and a controller
 while you watch.
 
 ### A stick's sign is the device's
 
 `AXIS_LEFT_Y` is positive **downwards**, like screen coordinates. An action that
-wants the opposite ("thrust", "climb") negates at the call site or binds a
-trigger instead — the map stays declarative rather than growing an inversion
-flag every reader would have to check for.
+wants the opposite, such as "thrust" or "climb", negates at the call site or
+binds a trigger. The map stays declarative, with no inversion flag for every
+reader to check.
 
 ### The universal UI set
 
-Every map is merged over a universal set, so these exist whether or not a game
-declares them:
+**Every map merges over a universal UI set**, so these actions exist whether a
+game declares them or not:
 
-`ui_up`, `ui_down`, `ui_left`, `ui_right`, `ui_confirm`, `ui_cancel` — buttons
+- `ui_up`, `ui_down`, `ui_left`, `ui_right`, `ui_confirm`, `ui_cancel` are
+  buttons.
+- `ui_radial_x` and `ui_radial_y` are axes on the left stick, the arrow keys and
+  the d-pad. A menu built with [`Pointing`](ui.md#pointing) reads them.
 
-`ui_radial_x`, `ui_radial_y` — axes, on the left stick, the arrow keys and the
-d-pad, read by a menu built with [`Pointing`](ui.md#pointing)
-
-Keyboard navigation and menus rely on them being there for **every** player. They
-are prefixed so a game is free to use `:up` for something of its own, and a game
-that wants different bindings just declares one:
+Keyboard navigation and menus need these actions for **every** player. The `ui_`
+prefix leaves `:up` free for the game. To change a binding, declare it:
 
 ```ruby
-InputMap.new(ui_confirm: { buttons: [Controls::PAD_X] })
+RGame::Engine::InputMap.new(ui_confirm: { buttons: [Controls::PAD_X] })
 ```
 
-The radial axes share the left stick with `move_x` / `move_y` by default and are
-still separate actions, so a game that walks on the left stick can move its wheel
-to the right one without touching movement.
+By default the radial axes share the left stick with `move_x` and `move_y`. They
+remain separate actions. A game that walks on the left stick can move its wheel
+to the right stick without touching movement.
 
-`ui_cancel` is Escape — which is why `RGame::Game`'s quit key is `F2`. The button
-a player expects to back out of a menu belongs to the menu.
+`ui_cancel` is Escape. That is why `RGame::Game` quits on `F2`: players expect
+Escape to back out of a menu.
 
 ### Defaults and rebinding
 
-`InputMap.default` is the UI set plus eight-way movement (`move_x`, `move_y`) on
-the arrows or the left stick, and `fire`. A game wanting exactly that passes no
-`input_map:` at all.
+`InputMap.default` is the UI set plus eight-way movement and `fire`. `move_x` and
+`move_y` sit on the arrows, WASD, the d-pad and the left stick. A game that wants
+exactly this passes no `input_map:`.
 
-`#merge` returns a copy with some actions replaced, which is how a config screen
-rebinds one without restating the rest:
+`#merge` returns a copy with some actions replaced. A config screen uses it to
+rebind one action without restating the rest:
 
 ```ruby
 map = RGame::Engine::InputMap.default.merge(fire: { buttons: [Controls::KEY_RETURN] })
 ```
 
-A malformed entry raises at construction — an unknown source key, an entry with
-no source, an empty button list, an axis that is not a pair. That is deliberate:
-the alternative is an action that reads as "never pressed" for the rest of the
-program, discovered as a frame nobody can move in.
+**A malformed entry raises at construction.** That covers an unknown source key,
+an entry with no source, an empty button list, and an axis that is not a pair.
+Otherwise the action would read as "never pressed" for the rest of the program.
+Someone would discover it as a frame where nothing moves.
 
 ## `RGame::Engine::ActionMapper`
 
-One per player. It polls that player's device through their map and returns the
-`Actions` snapshot game logic reads.
+Each player has one `ActionMapper`. It polls that player's device through their
+map and returns the `Actions` snapshot game logic reads.
 
 ```ruby
 mapper = RGame::Engine::ActionMapper.new(map, device: Controls.gamepad(0))
@@ -160,43 +179,44 @@ actions.released?(:fire)  # did it come up this tick
 actions.axis(:turn)       # -1.0..1.0
 ```
 
-**The device is what makes two players work.** Every query carries it, so two
-mappers over the *same* map read two different controllers, and each keeps its
-own previous-frame state so their edge queries are independent. Reassign
-`mapper.device` to follow a hot-plug.
+**The device lets two players share one map.** Every query carries the device,
+so two mappers over the *same* map read two different controllers. Each mapper
+keeps its own previous-tick state, so their edge queries stay independent.
+Reassign `mapper.device` to follow a hot-plug.
 
-`dead_zone:` (default `0.15`) ignores a resting stick, which genuinely reports
-small non-zero values. It **rescales** rather than merely cutting off, so a stick
-leaving the dead zone ramps from zero instead of jumping to `0.15`.
+`dead_zone:` (default `0.15`) ignores a resting stick, which reports small
+non-zero values. It **rescales** the range instead of cutting it off, so a stick
+leaving the dead zone ramps up from zero.
 
-`RGame::Game` builds one of these for you and polls it once per tick; a game
-normally sees only the `Actions` handed to `control`.
+`RGame::Game` builds the mappers and polls them once per tick. A game normally
+sees only the `Actions` passed to `control`.
 
 ## Players, seats and joining
 
-`RGame::Engine::Players` is a root-scoped system holding who is playing. Each
-`RGame::Engine::Player` owns a device, an `InputMap`, a camera and a UI root —
-the action *names* are the game's and shared, the buttons behind them are not.
+`RGame::Engine::Players` is a root-scoped system that knows who is playing. Each
+`RGame::Engine::Player` owns a device, an `InputMap`, a camera and a UI root.
+Players share the game's action *names* but not the buttons behind them.
 
 ```ruby
 RGame::Game.new(root: MyRoot.new, players: 2)
 ```
 
-`players:` is how many **seats** the game has, and therefore the most people who
-can play it. Player 0 starts on the keyboard; the rest start empty. An empty
-seat draws no viewport, so a two-seat game with nobody in the second one is an
-ordinary full-screen single-player game.
+`players:` sets how many **seats** the game has, which is the most people who
+can play. Player 0 starts on the keyboard; the other seats start empty. An empty
+seat draws no viewport. A two-seat game with one player looks like an ordinary
+full-screen game.
 
 ### A device is seated when someone uses it
 
-Not when it is plugged in. Plugging a controller in says something about
-hardware; seating a player creates a camera, a viewport and a screen split, and
-that follows a statement of intent — a **`ui_confirm` press** on the device.
+**Plugging a controller in seats nobody.** A plug says something about hardware.
+Seating a player creates a camera, a viewport and a screen split. That needs a
+statement of intent: a **`ui_confirm` press** on the device.
 
-One action rather than "any input", because a stick resting slightly off centre
-must never seat a player. An edge rather than held, so one press does one thing.
-It is read through the map of whoever would receive the device, so rebinding
-`ui_confirm` rebinds "press to join" with it.
+Joining waits for one action, not for any input, so a stick resting off centre
+never seats a player. It reacts to the press edge, not to a held button, so one
+press does one thing. `Players` reads the press through the map of the player who
+would receive the device. Rebinding `ui_confirm` therefore rebinds "press to
+join".
 
 ```ruby
 players = node.system(RGame::Engine::Players)
@@ -212,27 +232,24 @@ players.on_joined { |player| spawn(player) }
 | `:takeover` | becomes the **primary** player's device | there is one seat |
 | `:ignore` | nothing; the game calls `players.seat(device)` itself | — |
 
-`:takeover` is single-player's answer: one person already playing who picks up a
-controller is not a second person arriving. Their keyboard becomes unassigned, so
-a `ui_confirm` press on it takes them back — last device used wins, and it is the
-same rule in both directions. **A `ui_confirm` press, not any key**: W does
-nothing, because a policy that seated on any input would seat a player whose
-stick is resting slightly off centre. A game that wants any key to return to the
-keyboard sets `:ignore` and calls `seat` itself. And if their controller is
-unplugged they fall back to the keyboard rather than the game going dead in their
-hands.
+**`:takeover` serves single-player games.** A solo player who picks up a
+controller is not a second person arriving. Their keyboard becomes unassigned,
+and a `ui_confirm` press on it switches back. The last device used wins, in both
+directions. Only `ui_confirm` switches; W does nothing. To return on any key, set
+`:ignore` and call `seat` yourself. If the controller is unplugged, the player
+falls back to the keyboard, so the game keeps responding.
 
-`accepting_joins = false` refuses both, which is what a cutscene or a mid-round
-lockout wants.
+`accepting_joins = false` refuses both joins and takeovers. Use it during a
+cutscene or a mid-round lockout.
 
-`on_joined` fires with the player who got the device, which is how a scene
-spawns their character without polling for one. `examples/split_screen` is the
-whole of it in one file — a game that opens full-screen on one player, and splits
+`on_joined` fires with the player who received the device. A scene uses it to
+spawn that player's character without polling. `examples/split_screen` shows the
+whole flow in one file. The game opens full-screen for one player and splits
 when a controller presses A.
 
 ## `RGame::Core::Input`
 
-The raw query, and deliberately nothing more.
+`Input` answers the raw query and nothing more.
 
 ```ruby
 input = RGame::Core::Input.new(app)
@@ -242,28 +259,18 @@ input.down?(Controls::PAD_A, device: Controls.gamepad(0))    # player 1's pad
 input.axis(Controls::AXIS_LEFT_X, device: Controls.gamepad(0))
 ```
 
-`down?` and `axis` read a snapshot the engine takes **once per frame**, when it
-pumps events. That is what makes them safe to call from `update`: a frame can run
-several simulation ticks, and every tick sees the same answer. Reading hardware
-directly would make a held key behave differently depending on how slow the
-previous frame was.
+**`down?` and `axis` read a snapshot the engine takes once per frame**, when it
+pumps events. So they are safe to call from `update`. A frame can run several
+simulation ticks, and every tick sees the same answer. Reading the hardware
+directly would make a held key depend on how slow the previous frame was.
 
-Ids are numbers, and they cross into C, so passing anything else raises
-`TypeError`. No dead zone is applied here — this is the hardware's answer.
-
-### It used to hold the binding tables
-
-It took `down?(:fire)` and resolved `:fire` through one of three tables passed to
-its constructor. Those tables are gone. Binding moved up to `InputMap` for two
-reasons: a rebinding screen has to be able to edit the table, and the engine
-layer may not name `RGame::Core` at all; and with a player per device, the table
-is a per-player value rather than a property of the one object that talks to the
-hardware.
+Ids are numbers that cross into C, so anything else raises `TypeError`. `Input`
+applies no dead zone; it returns the hardware's answer.
 
 ### Devices
 
-Device 0 is the keyboard, and it is the default — so single-player code never
-mentions devices at all. Controllers follow, one per player slot:
+**Device 0 is the keyboard, and the default**, so single-player code never names
+a device. Controllers follow, one per player slot:
 
 ```ruby
 Controls::KEYBOARD       # => 0
@@ -272,17 +279,17 @@ Controls.gamepad(1)      # the second
 Controls::MAX_GAMEPADS   # how many slots exist
 ```
 
-A device only answers for its own kind of input. Asking a gamepad about a
-keyboard key is `false`, never the keyboard's answer — otherwise player two's pad
-would echo player one. The keyboard has no axes, so `axis` on it is `0.0`.
+A device answers only for its own kind of input. A gamepad asked about a
+keyboard key answers `false`. Otherwise player two's pad would echo player one's
+keys. The keyboard has no axes, so `axis` on it returns `0.0`.
 
 ## `RGame::Util::Controls`
 
-The id vocabulary. Available from `require 'rgame'` **and** from
-`require 'rgame/core'`, because these are plain integers with nothing behind
-them — a game's configuration screen can name a key without pulling in a window.
+`Controls` is the id vocabulary. Both `require 'rgame'` **and**
+`require 'rgame/core'` load it. The ids are plain integers, so a configuration
+screen can name a key without opening a window.
 
-**Keys** — what a Western keyboard can be relied on to have, 81 of them:
+**Keys**: the 81 keys a Western keyboard reliably has.
 
 | | |
 |---|---|
@@ -296,58 +303,57 @@ them — a game's configuration screen can name a key without pulling in a windo
 | Modifiers | `KEY_LCTRL`, `KEY_LSHIFT`, `KEY_LALT`, `KEY_RCTRL`, `KEY_RSHIFT`, `KEY_RALT` |
 
 **A scancode is a position, not a letter.** `KEY_A` is the key marked A on a
-QWERTY board and Q on AZERTY — which is what you want for `WASD` movement, and
-what a rebinding screen has to explain to the player. The engine only ever
-compares numbers.
+QWERTY board and Q on AZERTY. That suits `WASD` movement. A rebinding screen has
+to explain it to players. The engine only compares numbers.
 
-**Deliberately absent**: the numpad (most laptops have none), the GUI key
-(Windows on a PC, Command on a Mac), the print-screen cluster, and anything
-whose position depends on the layout. Adding one is a `#define` in
-`ext/rgame_core/include/rgame/core.h`, a `_Static_assert` against the SDL
-scancode, and a constant here — and the spec below checks all three agree.
+**Some keys are left out on purpose**: the numpad (most laptops lack one), the
+GUI key (Windows on a PC, Command on a Mac), the print-screen cluster, and any key
+whose position depends on the layout. Adding a key takes three edits: a
+`#define` in `ext/rgame_core/include/rgame/core.h`, a `_Static_assert` against
+the SDL scancode, and a constant here. `spec/rgame/util/controls_spec.rb` checks
+that all three agree.
 
-**Gamepad buttons** — `PAD_A`, `PAD_B`, `PAD_X`, `PAD_Y`, `PAD_BACK`,
+**Gamepad buttons**: `PAD_A`, `PAD_B`, `PAD_X`, `PAD_Y`, `PAD_BACK`,
 `PAD_GUIDE`, `PAD_START`, `PAD_LEFT_STICK`, `PAD_RIGHT_STICK`,
 `PAD_LEFT_SHOULDER`, `PAD_RIGHT_SHOULDER`, `PAD_DPAD_UP`, `PAD_DPAD_DOWN`,
 `PAD_DPAD_LEFT`, `PAD_DPAD_RIGHT`.
 
-Plus the ones only some hardware has, which read as never pressed on a pad
+Some buttons exist only on some hardware. They read as never pressed on a pad
 without them: `PAD_MISC1` (share/capture/microphone), `PAD_PADDLE1` …
 `PAD_PADDLE4` (Xbox Elite), `PAD_TOUCHPAD` (PS4/PS5).
 
-**Axes** — `AXIS_LEFT_X`, `AXIS_LEFT_Y`, `AXIS_RIGHT_X`, `AXIS_RIGHT_Y`,
-`AXIS_TRIGGER_LEFT`, `AXIS_TRIGGER_RIGHT`. Sticks read −1.0 to 1.0 with **y
-positive downwards**; triggers read 0.0 to 1.0. No dead zone is applied — where
-to put one is a game decision, and a resting stick genuinely does report small
-non-zero values.
+**Axes**: `AXIS_LEFT_X`, `AXIS_LEFT_Y`, `AXIS_RIGHT_X`, `AXIS_RIGHT_Y`,
+`AXIS_TRIGGER_LEFT`, `AXIS_TRIGGER_RIGHT`. Sticks read −1.0 to 1.0, with **y
+positive downwards**. Triggers read 0.0 to 1.0. `Controls` applies no dead zone.
+A resting stick reports small non-zero values, and the game decides where to cut
+them off.
 
-**Devices** — `KEYBOARD`, `GAMEPAD_FIRST`, `MAX_GAMEPADS`, and
+**Devices**: `KEYBOARD`, `GAMEPAD_FIRST`, `MAX_GAMEPADS`, and
 `Controls.gamepad(slot)`.
 
-This module is the **vocabulary only**. It carries no binding tables — what an id
-*means* is `RGame::Engine::InputMap`, one per player.
+**This module holds the vocabulary only**, with no binding tables.
+`RGame::Engine::InputMap` says what an id *means*, one map per player.
 
-Buttons and keys share one numbering, partitioned into ranges, so a single
-"is it held" query serves every device. You never need the numbers themselves —
-use the constants.
+Buttons and keys share one numbering, split into ranges. One "is it held" query
+therefore serves every device. Use the constants; you never need the numbers.
 
-**Which side of the partition** is a question a prompt has to ask, so it is
-named rather than rediscovered:
+A prompt has to know **which side of the split** an id is on, so `Controls` names
+the check:
 
 ```ruby
 Controls.gamepad?(device)   # a controller slot, or the keyboard?
 Controls.pad_button?(id)    # a pad button, or a key?
 ```
 
-`BUTTON_GAMEPAD_FIRST` is the boundary, and it is the C engine's own
-(`RGAME_BUTTON_GAMEPAD_FIRST`), checked against the header like every other id
-here. Between them the pair is what
-[`InputMap#button_for`](#showing-a-prompt-undoes-that) is built out of.
+`BUTTON_GAMEPAD_FIRST` marks the boundary. It is the C engine's own
+`RGAME_BUTTON_GAMEPAD_FIRST`, checked against the header like every other id.
+[`InputMap#button_for`](#prompts-need-the-devices-half) is built from these two
+checks.
 
 ## `RGame::Core::Gamepad`
 
-A readout for menus — "Player 2: connect a controller". Reading a *button* goes
-through `Input`; this answers what is plugged in.
+`Gamepad` tells a menu what is plugged in, for screens like "Player 2: connect a
+controller". Button reads go through `Input`.
 
 ```ruby
 pads = RGame::Core::Gamepad.new(app)
@@ -360,29 +366,31 @@ pads.device(0)                            # the id Input wants for that slot
 pads.each_connected { |slot, name| ... }  # lowest slot first
 ```
 
-`device(slot)` is the bridge to `Input`: a menu that has just found a pad can
-drive it without knowing how devices are numbered.
+`device(slot)` connects `Gamepad` to `Input`. A menu that finds a pad can drive
+it without knowing how devices are numbered.
 
-Out-of-range slots answer rather than raising, so a UI loop needs no bounds
-checks.
+An out-of-range slot returns an answer instead of raising, so a UI loop needs no
+bounds checks.
 
 ### Slots are stable across a replug
 
-A controller that falls out and comes back returns to the **same** slot, so
-player 2 stays player 2. The engine remembers which device last occupied each
-slot; a genuinely new controller takes the lowest free one.
+**A controller that drops out and returns gets the same slot back**, so player 2
+stays player 2. The engine remembers which device last used each slot. A new
+controller takes the lowest free slot.
 
 Two identical controllers report the same hardware id, so "the slot that
-remembers this controller" is ambiguous for them. The rule resolves it the way
-a player expects: two matching pads take slots 0 and 1, and whichever is
-unplugged gets its own slot back when it returns.
+remembers this controller" is ambiguous. The engine resolves it the way players
+expect. Two matching pads take slots 0 and 1. Whichever is unplugged gets its own
+slot back when it returns.
 
 ## Reacting to hot-plug
 
-Polling with `Gamepad` answers "what is connected now". The `App` hooks tell you
-when that changes:
+`Gamepad` answers "what is connected now". The `App` hooks report when that
+changes:
 
 ```ruby
+require 'rgame/core'
+
 class MyGame < RGame::Core::App
   def initialize
     super(width: 800, height: 600, caption: 'demo')
@@ -409,5 +417,5 @@ class MyGame < RGame::Core::App
 end
 ```
 
-A controller unplugged mid-press has its buttons and axes cleared, so a button
-held at that moment does not stay stuck down.
+When a controller is unplugged mid-press, the engine clears its buttons and axes.
+A button held at that moment does not stay stuck down.

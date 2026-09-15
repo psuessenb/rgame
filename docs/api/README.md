@@ -1,9 +1,9 @@
 # rgame API guide
 
-Reference documentation for using rgame from Ruby. The engine is written in C
-and exposed as two Ruby extensions, with the scene graph a game is actually
-written in sitting on top of them in pure Ruby; nothing here assumes you will
-read or write any C.
+These pages document how to use rgame from Ruby. The engine is written in C and
+ships as two Ruby extensions. The scene graph sits on top of them in pure Ruby,
+and a game is written against that scene graph. Nothing here asks you to read
+or write C.
 
 | Page | Covers |
 |---|---|
@@ -20,7 +20,7 @@ read or write any C.
 | [Values](values.md) | `RGame::Util::Color`, `RGame::Util::Tensor`, `RGame::Util::Z` |
 | [Examples](examples.md) | What each program under `examples/` demonstrates |
 
-The scene graph — `RGame::Engine`, the layer a game is actually written in:
+The scene graph is `RGame::Engine`, the layer a game is written in:
 
 | Page | Covers |
 |---|---|
@@ -32,17 +32,17 @@ The scene graph — `RGame::Engine`, the layer a game is actually written in:
 | [Toolbox](toolbox.md) | What a game author reaches for directly: pooling, timers, camera, i18n, the audio bus |
 | [Internal building blocks](internals.md) | What components are built from: collision maths, the spatial index, animation playback |
 
-**The engine is a work in progress.** A window opens, the loop runs, input
-works, shapes, images and text can be drawn, sound plays, and a scene graph with
-split-screen players runs on top of it — the games under `test_projects/` are built
-on exactly what is documented here. What is missing is a UI *toolkit*: [UI](ui.md)
-gives each player a region of the screen, focus and activation, and stops there —
-no layout, no scrolling lists, no text entry. Pages here describe what exists
-today and grow as more lands.
+**The engine is a work in progress.** It opens a window, runs the loop, reads
+input, draws shapes, images and text, and plays sound. A scene graph with
+split-screen players runs on top. The games under `test_projects/` use exactly
+what these pages document. The missing piece is a UI *toolkit*. [UI](ui.md)
+gives each player a region of the screen, focus and activation, and stops there.
+It has no layout, no scrolling lists and no text entry. These pages describe
+what exists and grow with the engine.
 
 ## Loading it
 
-Three requires, each a strict superset of the last:
+rgame has three entry points. Each one loads everything the one before it does:
 
 ```ruby
 require 'rgame'       # RGame::Util + RGame::Engine — no graphics libraries at all
@@ -50,23 +50,21 @@ require 'rgame/core'  # adds the window, the GPU and the sound device (SDL2 + Op
 require 'rgame/game'  # all of it, wired together — what a game writes
 ```
 
-A game wants the last one. `RGame::Game` is the entry point; see
+A game requires the last one. Its entry point is `RGame::Game`; see
 [Game](game.md).
 
-The first is **everything that runs without a window**: the value types and the
-whole scene graph, in a process with no SDL and no OpenGL loaded. That is what
-lets game logic and its specs run with no display present, and it is asserted
-rather than assumed — `spec/rgame/no_graphics_spec.rb` reads the process's own
-memory map.
+`require 'rgame'` loads **everything that runs without a window**: the value
+types and the whole scene graph. The process loads no SDL and no OpenGL, so game
+logic and its specs run with no display. `spec/rgame/no_graphics_spec.rb` checks
+this by reading the process's own memory map.
 
-Nothing is forced through those files: `rgame/util`, `rgame/engine` and
-`rgame/core` are separately requirable, which is how the Core spec suite loads
-exactly one layer.
+You can also require `rgame/util`, `rgame/engine` and `rgame/core` on their own.
+The Core spec suite does this to load exactly one layer.
 
-For convenience, `rgame/core` also defines `RGame::Util::Controls` (the input
-id vocabulary), because the input classes need it.
+`rgame/core` also loads `RGame::Util::Controls`, the input id vocabulary,
+because the input classes need it.
 
-Both extensions must be compiled before they can be required:
+Compile both extensions before you require them:
 
 ```
 make ext        # builds both, copies them into lib/rgame/
@@ -74,45 +72,44 @@ make ext        # builds both, copies them into lib/rgame/
 
 ## The three namespaces
 
-Everything lives under `RGame`, split three ways — two of them by what they
-depend on, the third by what it is *for*:
+Everything lives under `RGame`. What a class depends on decides between `Util`
+and `Core`. `Engine` holds what a game is written in.
 
 | | `RGame::Util` | `RGame::Core` | `RGame::Engine` |
 |---|---|---|---|
 | Contains | shareable *values* — no window, no GPU, nothing to release | things owning a window, GPU or OS handle | game concepts: the scene graph a game is written in |
-| Today | `Color`, `Tensor`, `Controls`, `Z` | `App`, `Input`, `Gamepad`, `Image`, `Renderer`, `Recording`, `Font`, `Audio`, `SpriteSheet`, `AssetManager` | `Node2D`, components, systems, signals, `TileMap`, `Player`, `InputMap`, `UI::Menu` |
+| Classes | `Color`, `Tensor`, `Controls`, `Z`, `SolidGrid`, `RouteSearch`, `TileSweep`, `SaveFile` | `App`, `Input`, `Gamepad`, `Image`, `Renderer`, `Recording`, `Font`, `Audio`, `SpriteSheet`, `NineSlice`, `UiAtlas`, `TileMapRenderer`, `AssetManager` | `Node2D`, components, systems, signals, `TileMap`, `Player`, `InputMap`, `UI::Menu` |
 | Loading it costs | nothing | SDL2 + OpenGL in your process | nothing |
 
-The rule for splitting the bottom two: **a value goes in `Util`; only a
-handle-owner goes in `Core`.** A colour is a value. A window is not.
+**A value goes in `Util`; only a handle-owner goes in `Core`.** A colour is a
+value. A window is not.
 
-`RGame::Engine` sits above both, and its rule is what makes the split worth
-having:
+`RGame::Engine` sits above both and follows three rules:
 
-- it may hold `Util` values freely as attributes — a `Color`, a `Tensor`;
-- it may **not name `Core` at all** — no require, no constant, no attribute;
-- it reaches `Core` only through objects handed to it. A node's `on_draw`
-  receives a renderer and calls methods on it by name, never storing it and
-  never asking what class it is.
+- It may hold `Util` values as attributes, such as a `Color` or a `Tensor`.
+- It may **not name `Core` at all**: no require, no constant, no attribute.
+- It reaches `Core` only through objects it receives. A node's `on_draw`
+  receives a renderer and calls its methods by name. The node never stores the
+  renderer and never checks its class.
 
-This is not tidiness. It is what keeps a whole game — its rules, its scenes, its
-collisions — runnable and testable with no window, which the testing section
-below relies on. Two RuboCop cops enforce it in both directions, so a stray
-reference is a failing lint rather than a discovery made later.
+These rules keep a whole game runnable and testable with no window: its rules,
+its scenes, its collisions. The testing section below relies on that. Two
+RuboCop cops enforce the rules in both directions, so a stray reference fails
+the lint.
 
-`RGame::Game` is the single exception, and the only class directly under
-`RGame`: introducing the two halves to each other is exactly what it is for, and
-confining that to one file is what keeps the rule checkable everywhere else.
+`RGame::Game` is the one exception, and the only class directly under `RGame`.
+It exists to connect the two halves. Keeping that in one file lets the cops
+check the rule everywhere else.
 
 ## A complete program
 
-A game is a tree of nodes plus `RGame::Game` to run it.
+A game is a tree of nodes, run by `RGame::Game`.
 
 ```ruby
 require 'rgame/game'
 
 # One game object: a square the player walks around. Pure Engine — it names no
-# graphics class, so it runs just as happily in a spec with no window.
+# graphics class, so it runs unchanged in a spec with no window.
 class Hero < RGame::Engine::Node2D
   SPEED = 200.0
 
@@ -156,26 +153,24 @@ end
 RGame::Game.new(root: Scene.new, width: 800, height: 600, caption: 'My Game').start
 ```
 
-You subclass `Node2D` and override the hooks you care about — `on_control`,
-`on_update`, `on_draw`, and the lifecycle hooks around them. Everything you do
-not override is an inherited no-op, and the phase methods that do the
-bookkeeping (pushing the node's transform, driving components, descending into
-children) are not the ones you override — so there is no `super` to remember and
-no way to break the tree by forgetting one. See [Scene graph](scene_graph.md)
-for the full list, and [Game](game.md) for what `Game` assembles around it: the
+Subclass `Node2D` and override the hooks you need: `on_control`, `on_update`,
+`on_draw`, and the lifecycle hooks around them. A hook you do not override does
+nothing. Separate phase methods do the bookkeeping: they push the node's
+transform, drive components and descend into children. You never override
+those, so there is no `super` to forget. [Scene graph](scene_graph.md) lists
+every hook. [Game](game.md) describes what `Game` builds around the tree: the
 window, the renderer, the asset manager, the sound device, the input mapper and
 the players.
 
-Pass no `input_map:` and you get the default one used above: eight-way `move_x`
-/ `move_y` on the arrows, WASD, the d-pad or the left stick, plus `fire`. See
-[Input](input.md).
+Without an `input_map:`, `Game` uses the default map shown above. It binds
+eight-way `move_x` / `move_y` to the arrows, WASD, the d-pad and the left stick,
+and adds `fire`. See [Input](input.md).
 
 ## Testing a game built on this
 
-The namespace split exists so that game logic can be tested without opening a
-window. `require 'rgame'` gives you `Util` and the whole scene graph with no SDL
-and no OpenGL in the process, and the nodes from the program above run there
-unchanged — drive their phases directly and a simulated hour takes milliseconds:
+`require 'rgame'` loads `Util` and the whole scene graph with no SDL and no
+OpenGL. The nodes from the program above run there unchanged. A spec drives
+their phases directly, so a simulated hour takes milliseconds:
 
 ```ruby
 require 'rgame'
@@ -198,21 +193,20 @@ RSpec.describe Hero do
 end
 ```
 
-Two things make that work:
+Two properties make this work:
 
-- **`update` takes `dt` as an argument rather than reading a clock**, so a test
-  passes whatever timestep it likes. That means tests are not dependent on real time and can simulate game behavior based on time in miliseconds.
-- **A node never holds a renderer.** `on_draw` is given one, so drawing can be
-  checked by passing a recording double and asserting on what the node asked
-  for — see the renderer contract in `spec/support/shared_examples/`. All tests can be run completely headless.
+- **`update` takes `dt` as an argument and reads no clock.** A test passes any
+  timestep it likes, so it can simulate minutes of play in milliseconds.
+- **A node never holds a renderer.** `on_draw` receives one. A spec passes a
+  recording double and asserts on what the node asked it to draw. The renderer
+  contract lives in `spec/support/shared_examples/`. The whole suite runs
+  headless.
 
-`hero.x` is asserted rather than `world_x` because this node has no parent here.
-The world transform accumulates from the parent, and a node with no parent
-resolves to the origin. Put it under a root and `world_x` is what game logic
-reads — though drawing reads neither, see
+The spec asserts `hero.x`, not `world_x`, because this hero has no parent. The
+world transform accumulates from the parent, and a node without one resolves to
+the origin. Under a root, game logic reads `world_x`. Drawing reads neither; see
 [Scene graph](scene_graph.md#drawing-happens-in-local-space).
 
-Keep the parts of your game that decide *what happens* in `RGame::Engine` — the
-layer cannot name `RGame::Core`, so it cannot accidentally acquire a dependency
-on a window. Then the only code that needs one is the thin layer that puts
-pixels on screen.
+Keep the code that decides *what happens* in `RGame::Engine`. That layer cannot
+name `RGame::Core`, so it cannot come to depend on a window. Only the thin layer
+that puts pixels on screen then needs one.

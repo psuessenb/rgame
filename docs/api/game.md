@@ -1,10 +1,9 @@
 # `RGame::Game`
 
-The entry point of a game, and the one class that knows both halves of the
+`Game` is a game's entry point, and the one class that knows both halves of the
 engine.
 
 ```ruby
-$LOAD_PATH.unshift File.expand_path('../lib', __dir__)
 require 'rgame/game'
 
 class HelloScene < RGame::Engine::Node2D
@@ -14,14 +13,15 @@ end
 RGame::Game.new(root: HelloScene.new, caption: 'Hello').start
 ```
 
-A complete game is a root node plus that. `Game` assembles what a running game
-needs around it — the window and its loop, the renderer, the asset manager, the
-sound device, the input mapper, the debug overlay — and drives the root node.
+A root node plus those lines make a complete game. `Game` builds what a running
+game needs and drives the root node. It builds the window and its loop, the
+renderer, the asset manager, the sound device, the input mapper and the debug
+overlay.
 
 ```ruby
 RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
                 media_root: 'media', input_map: nil, device: Controls::KEYBOARD,
-                players: 1, fullscreen: false, scale_mode: :letterbox)
+                players: 1, input: nil, fullscreen: false, scale_mode: :letterbox)
 ```
 
 | Reader | |
@@ -29,14 +29,22 @@ RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
 | `root` | the node tree |
 | `renderer` | what scenes draw through |
 | `players` | who is playing: their devices, bindings and cameras |
+| `viewports` | how the screen is divided between players |
+| `scale_mode`, `scale_mode=` | how the logical size maps onto the window; switchable while the game runs |
 | `assets`, `audio`, `media_root`, `width`, `height`, `fps` | inherited from [App](app.md) |
+
+A node reaches `players` and `viewports` as systems:
+`node.system(RGame::Engine::Players)` and `node.system(RGame::Engine::Viewports)`.
+
+`input:` replaces the input backend. A test harness passes a scripted backend
+here to drive a game without hardware. A game passes nothing.
 
 ### `scale_mode:` — what `width` and `height` mean
 
-They are the **logical size**: the resolution the game is designed in. The whole
-frame is mapped onto whatever the window happens to be, and the view a node
-draws into stays that size forever — so a layout written against fixed numbers
-keeps working at any window size, fullscreen included.
+**`width` and `height` are the logical size**: the resolution the game is
+designed in. `Game` maps the whole frame onto the window, whatever its size. The
+view a node draws into keeps the logical size. A layout written against fixed
+numbers therefore works at any window size, fullscreen included.
 
 | | |
 |---|---|
@@ -45,62 +53,62 @@ keeps working at any window size, fullscreen included.
 | `:stretch` | Fill the window, distorting if the aspect ratios differ. |
 | `:disabled` | No scaling at all: `width` and `height` are the window, and the view is too. |
 
-**`:disabled` is the opt-out, and it changes what the numbers mean.** The view
-becomes the window, so making the window bigger hands every `draw` a bigger
-view. A layout written against `view.width` grows into the space; one written
-against fixed numbers stays in the top-left corner with the new space piled up
-beside it. That is the right answer for something that should use whatever space
-it is given — a tool, an editor, a program that is all HUD — and the wrong one
-for a game with a designed play area. It is also the only mode that pushes no
-clip, translate or scale at all.
+**`:disabled` turns scaling off and changes what the numbers mean.** The view
+becomes the window, so a bigger window hands every `draw` a bigger view. A layout
+written against `view.width` grows into the space. A layout written against fixed
+numbers stays in the top-left corner. Choose `:disabled` for a program that uses
+whatever space it gets: a tool, an editor, a program that is all HUD. Do not
+choose it for a game with a designed play area. It is the only mode that pushes
+no clip, translate or scale.
 
 ```ruby
-RGame::Game.new(root: Root.new, width: 320, height: 180, scale_mode: :integer)
+require 'rgame/game'
+
+class Root < RGame::Engine::Node2D; end
+
+RGame::Game.new(root: Root.new, width: 320, height: 180, scale_mode: :integer).start
 ```
 
-**`:integer` is the pixel-art one.** A whole-number factor makes every source
-pixel exactly the same square on screen; a fractional one gives some of them two
+**Choose `:integer` for pixel art.** A whole-number factor draws every source
+pixel as the same square on screen. A fractional factor gives some pixels two
 screen pixels and some three, and the unevenness crawls whenever anything moves.
-It costs screen, sometimes a lot — a 640x480 design gets only 1x on a 1600x900
-window, because 2x needs 960 rows. `RGame::Engine::Presentation` documents the
-measurements and is where the arithmetic lives; it is pure and specced on its
-own.
+The mode can waste a lot of screen. A 640x480 design gets only 1x on a 1600x900
+window, because 2x needs 960 rows. `RGame::Engine::Presentation` holds the
+arithmetic and documents the measurements. It is pure and has its own specs.
 
-Whatever the mode, a resize refits it and nothing else changes: viewports, split
-screen rects and camera clamps are all computed in logical units already.
+A resize refits the mode and changes nothing else. Viewports, split-screen rects
+and camera clamps already use logical units.
 
-`examples/fullscreen` runs in every mode from an environment variable.
+`examples/fullscreen` runs in every mode, chosen by an environment variable.
 
-`fullscreen:` opens the window fullscreen instead of switching once it is up,
-which is what keeps a fullscreen game from flashing a windowed frame at startup.
-`width` and `height` are then the size it returns to, if the game offers a way
-back at all. See [Fullscreen](app.md#fullscreen) and `examples/fullscreen`.
+`fullscreen:` opens the window fullscreen, so the game shows no windowed frame
+at startup. `width` and `height` then give the size the window returns to, if
+the game offers a way back. See [Fullscreen](app.md#fullscreen) and
+`examples/fullscreen`.
 
-`start` brings the tree live — it hands the game to the root as its `context`,
+`start` brings the tree live. It hands the game to the root as its `context`,
 calls `enter_tree`, and runs the loop until the window closes. `F1` toggles the
 debug overlay and `F2` quits.
 
-**Both development keys are function keys, and `Esc` is deliberately left
-alone.** Escape is the button a player expects to back out of a menu, so it
-belongs to the game rather than to the engine's debug shortcuts — binding it
-here would take it away from every game built on this one.
+**Both development keys are function keys, and `Esc` stays free.** Players expect
+Escape to back out of a menu, so it belongs to the game. A debug shortcut on it
+would take it away from every game built on `Game`.
 
-## Why this class exists at all
+## Why this class exists
 
-`RGame::Engine` holds game concepts and may not name
-`RGame::Core`; `RGame::Core` owns windows, textures and sound devices and may
-not know Engine exists. Two RuboCop cops enforce that. Something still has to
-introduce them, and **this is that something** — keeping the introduction in one
-file is what makes the rule checkable everywhere else.
+`RGame::Engine` holds game concepts and may not name `RGame::Core`.
+`RGame::Core` owns windows, textures and sound devices, and may not know Engine
+exists. Two RuboCop cops enforce this. **`Game` connects the two.** Keeping that
+connection in one file lets the cops check the rule everywhere else.
 
-The tile map is the clearest case: parsing a `.tmx` is Engine's job, drawing one
-is Core's, and neither may call the other. So `Game` installs the loader that
-joins them, and `app.assets.tilemap('map/island.tmx')` works from then on.
+The tile map shows why. Engine parses a `.tmx`; Core draws it; neither may call
+the other. `Game` installs the loader that joins them, so
+`app.assets.tilemap('map/island.tmx')` works.
 
 ## Reaching the game from a node
 
-A node deep in the tree gets at the asset manager through the root's context,
-so nothing has to be threaded through constructors:
+A node anywhere in the tree reaches the asset manager through the root's
+context. No constructor has to pass it along:
 
 ```ruby
 sheet = node.root.context.assets.sheet('player.json')
@@ -108,11 +116,15 @@ sheet = node.root.context.assets.sheet('player.json')
 
 ## Input
 
-`input_map:` names the actions a game has, in terms of physical ids from
+`input_map:` names a game's actions in terms of physical ids from
 [`RGame::Util::Controls`](input.md):
 
 ```ruby
+require 'rgame/game'
+
 Controls = RGame::Util::Controls
+
+class Root < RGame::Engine::Node2D; end
 
 RGame::Game.new(
   root: Root.new,
@@ -121,42 +133,45 @@ RGame::Game.new(
               stick: Controls::AXIS_LEFT_X },
     fire:   { buttons: [Controls::KEY_SPACE, Controls::PAD_A] } # held / pressed / released
   )
-)
+).start
 ```
 
-Pass nothing and you get [`InputMap.default`](input.md): eight-way `move_x` /
-`move_y` on the arrows or the left stick, plus `fire`. Either way the map is
-merged over the universal UI set, so `ui_confirm` and `ui_cancel` work without
-being declared.
+Without it, `Game` uses [`InputMap.default`](input.md). The default binds
+eight-way `move_x` / `move_y` to the arrows, WASD, the d-pad and the left stick,
+and adds `fire`. Every map merges over the universal UI set, so `ui_confirm` and
+`ui_cancel` work without a declaration.
 
-`device:` picks what drives player one — the keyboard by default, or
-`Controls.gamepad(slot)` for a controller.
+`device:` picks the device that drives player one. It defaults to the keyboard;
+pass `Controls.gamepad(slot)` for a controller.
 
-`players:` is how many seats the game has (default 1). Extra seats start empty
-and fill when somebody picks up a controller and presses confirm; an empty seat
-draws no viewport, so a two-seat game played by one person is an ordinary
-full-screen game. See [Players, seats and joining](input.md#players-seats-and-joining).
+`players:` sets how many seats the game has (default 1). Extra seats start
+empty. A seat fills when someone picks up a controller and presses confirm. An
+empty seat draws no viewport, so one person playing a two-seat game sees an
+ordinary full-screen game. See
+[Players, seats and joining](input.md#players-seats-and-joining).
 
-A scene reads the resulting snapshot in `on_control(actions)` — `actions.axis(:move_x)`,
-`actions.pressed?(:fire)` — and never sees a key.
+A scene reads the resulting snapshot in `on_control(actions)`, with calls like
+`actions.axis(:move_x)` and `actions.pressed?(:fire)`. It never sees a key.
 
-**Input is polled once per simulation tick**, not once per rendered frame. That
-matters for edge queries: `pressed?` means "held now, not held at the previous
-poll", so whatever polls decides what a press *is*. A loop that renders faster
-than it simulates would otherwise consume the press between two ticks, and
-menus would stop responding on fast machines only.
+**`Game` polls input once per simulation tick**, not once per rendered frame.
+Edge queries depend on this. `pressed?` means "held now, not held at the previous
+poll", so the poll rate decides what a press *is*. Polling per frame would let a
+fast-rendering loop consume a press between two ticks. Menus would then ignore
+input, but only on fast machines.
 
-Polling per tick costs nothing and loses nothing, because the C layer snapshots
-the keyboard once per frame: several ticks inside one frame read identical
-state, and the edge lands on the first of them. One press, one `pressed?`.
+Polling per tick costs nothing and loses nothing. The C layer snapshots the
+keyboard once per frame, so every tick inside one frame reads identical state.
+The edge lands on the first tick. One press gives one `pressed?`.
 
 ## Subclassing it
 
-`Game` is an [`App`](app.md), so anything an App can override it can too. The
-loop, the fixed timestep and the catch-up cap are the engine's; a subclass adds
-behaviour around the tree rather than replacing the shell.
+`Game` is an [`App`](app.md), so a subclass can override any `App` hook. The
+engine owns the loop, the fixed timestep and the catch-up cap. A subclass adds
+behaviour around the tree; it does not replace the shell.
 
 ```ruby
+require 'rgame/game'
+
 class MyGame < RGame::Game
   def button_down(id)
     super                      # keeps F1 and F2 working

@@ -7,44 +7,44 @@ runs on its own:
 ruby examples/walk/main.rb
 ```
 
-They answer "how do I do *X*", which is the one thing the complete games under
-`test_projects/` are bad at. An example is one concept, in one file, with a
-header comment that explains the concept at length — this page is the index, and
-the file itself is the long version.
+**An example answers "how do I do *X*".** The complete games under
+`test_projects/` answer that poorly. An example shows one concept in one file,
+and its header comment explains the concept at length. This page is the index;
+the file is the long version.
 
-Every example is also acceptance-tested rather than only opened by hand. A
-scripted input track lives at `tools/drive/examples/<name>.rb`, and the harness
-feeds it to the unmodified program and reports what the game asked for:
+Every example has an acceptance test as well. A scripted input track lives at
+`tools/drive/examples/<name>.rb`. The harness feeds that track to the unmodified
+program and reports what the game asked for:
 
 ```
 ruby tools/drive_test_project.rb examples/walk/main.rb --ticks 240
 ```
 
-Assets are committed under `examples/assets/` and are redistributable, so
-everything here runs from a fresh clone. Most examples need no art at all.
+The examples' assets live under `examples/assets/` and are redistributable, so
+every example runs from a fresh clone. Most examples need no art at all.
 
 ## Movement and drawing
 
 ### walk
 
-A player-controlled sprite, and the smallest complete game there is: a plain
-node with three components on it, none of which knows about the others.
+A player-controlled sprite: the smallest complete game. It is a plain node with
+three components, and no component knows about the others.
 
 **Uses:** `Node2D`, `Components::AnimatedSprite`, `Components::CharacterBody`,
 `Components::PlayerController`, `InputMap.default`.
 
 ### sprite
 
-One frame drawn at a node, with no animation behind it — what most things in a
-game are. It passes no position and no angle, because the node's transform is
-already applied.
+One frame drawn at a node, with no animation. Most things in a game look like
+this. The draw passes no position and no angle, because the node's transform
+already applies.
 
 **Uses:** `Components::Sprite`, `Image#subimage`, `renderer.register_image`.
 
 ### velocity
 
-The other way a node moves. A character has an *intent*; a rock has a velocity
-and something integrates it, including its spin.
+The second way a node moves. A character has an *intent*. A rock has a velocity,
+and a component integrates it, spin included.
 
 **Uses:** `Components::Velocity`, `Components::ScreenWrap`, `Components::World`,
 `Components::WorldBounds`.
@@ -53,29 +53,28 @@ and something integrates it, including its spin.
 
 ### scroll_map
 
-A Tiled map larger than the window, scrolled by a player. There is no "pan the
-camera" call: a camera is pointed by a component on a node, so scrolling is
-walking.
+A Tiled map larger than the window, scrolled by a player. No call pans the
+camera. A component on a node points the camera, so scrolling is walking.
 
 **Uses:** the `:tilemap` asset loader, `Components::TileWorld`, `TileMapLayer`,
 `WorldView`, `Camera`, `Components::CameraFollow`.
 
 ### collision
 
-Object-to-object collision: a scene-scoped system pairs up shapes each step and
-tells both sides they overlapped, without knowing what either of them is.
+Object-to-object collision. A scene-scoped system pairs up shapes each step and
+tells both sides they overlapped. It never learns what either object is.
 
 **Uses:** `Components::CollisionWorld`, `Components::CircleCollider`,
 `Components::BoxCollider`, `Components::Velocity`, `Engine::CachedLabel`.
 
 ### collision_tiles
 
-The other collision problem: a character against a grid of solid tiles, sliding
-along a wall held diagonally. East of the start is a spiky ball that stops the hero
-and costs a life, so one feet box is stopped by two indexes at once — the map's grid
-and the broadphase — and `blocked_by: %i[tiles spike]` is the only place the
-difference shows. The life is spent in `on_blocked`, which it has to be: a blocked
-pair ends up touching rather than overlapping, so `on_hit` never fires for it.
+A character against a grid of solid tiles, sliding along a wall while walking
+diagonally. East of the start, a spiky ball stops the hero and costs a life. One
+feet box is thus stopped by two indexes: the map's grid and the broadphase.
+`blocked_by: %i[tiles spike]` is the only place the difference shows. The life is
+spent in `on_blocked`, because a blocked pair ends up touching, not overlapping.
+`on_hit` never fires for it.
 
 **Uses:** `Components::TileWorld`, `Components::CollisionWorld`,
 `Components::FeetCollider`, `Components::CharacterBody` with
@@ -84,39 +83,50 @@ pair ends up touching rather than overlapping, so `on_hit` never fires for it.
 
 ### jump_topdown
 
-A hop in a top-down view, where "up" on the screen is north and a jump therefore
-cannot move the character. The sprite rises along `Hop`'s parabola, while the feet
-box, the shadow and the camera stay on the ground — so hopping at the fence does
-not clear it, because what collides never left the ground. What a hop may cross
-is left to the game, through `airborne?`.
+A hop in a top-down view. "Up" on screen is north, so a jump cannot move the
+character. The sprite rises along `Hop`'s parabola. The feet box, the shadow and
+the camera stay on the ground. A hop at the fence therefore does not clear it,
+because the part that collides never leaves the ground. The game decides what a
+hop may cross, through `airborne?`.
 
 **Uses:** `Components::Hop`, `Node2D#elevation`, `Components::AnimatedSprite`,
 `Components::FeetCollider`, `Components::CharacterBody`, `Components::TileWorld`,
 `Components::CameraFollow`, `InputMap.default.merge`.
 
+### pathfinding
+
+Pick a tile, and the hero works out how to get there. Small dots show the route
+the search found, one per tile. Lines show the route the hero walks. The
+navigator pulls the route tight, keeping each line straight as long as the hero's
+feet box fits.
+
+**Uses:** `Components::Navigator`, `Components::TileWorld#nav_grid`,
+`Components::AnimatedSprite`, `Components::ActionTrigger`,
+`Components::CameraFollow`, `Engine::CachedLabel`.
+
 ## Structure
 
 ### signals
 
-Declaring a signal of your own. A pressure plate announces that it was pressed
-and stops there; the door and the lamp connect to it and appear nowhere in the
-plate.
+Declaring your own signal. A pressure plate announces that it was pressed, and
+does nothing more. The door and the lamp connect to it; the plate never names
+them.
 
 **Uses:** `Signal::DSL`, `Signal.define`, `Components::ActionTrigger`, the
 connect handle.
 
 ### timer
 
-Periodic behaviour that no input drives — a spawn cadence and a one-shot, with
-two cadences on one node.
+Periodic behaviour that no input drives: a spawn cadence and a one-shot, with two
+cadences on one node.
 
 **Uses:** `Components::Timer` (repeating and `repeating: false`, and `as:`),
 `Engine::Timer`.
 
 ### pooling
 
-Spawning a lot of things without building any of them, with the allocation
-count on screen as the argument.
+Spawning many things without building any of them. The allocation count on
+screen makes the case.
 
 **Uses:** `Components::Pool`, `Engine::Pool`, `Components::DespawnOffscreen`,
 `Components::Timer`, `Engine::CachedLabel`.
@@ -125,46 +135,45 @@ count on screen as the argument.
 
 ### game_menu
 
-A menu that opens over a world which keeps running: pausing is a property of a
-node, so only the hero stops while the villagers walk on.
+A menu that opens over a running world. Pausing belongs to a node, so only the
+hero stops while the villagers walk on.
 
 **Uses:** `PlayerLayer`, `UI::PanelMenu`, `UI::PanelButton`, `UI::Menu#open` /
 `#close`, `Node2D#paused`, `renderer.nine_slice`.
 
 ### menu_navigation
 
-More than one screen — title, settings, back — and settings that change
-something real and survive a restart. Shows the difference between pushing a
-scene and replacing one.
+Several screens (title, settings, back) and settings that change something real
+and survive a restart. It contrasts pushing a scene with replacing one.
 
 **Uses:** `Scene::SceneStack`, `UI::OptionButton`, `Util::SaveFile`,
 `RGame::Game`'s fullscreen, scale mode and volume.
 
 ### radial_menu
 
-Choosing by pointing: a quick menu of eight icons on a wheel, focused by the
-direction of the stick or the arrow keys. A stick let go of selects nothing, so
-pressing A at rest never picks what the stick passed over on its way home.
+Choosing by pointing. Eight icons sit on a wheel, focused by the direction of the
+stick or the arrow keys. A released stick selects nothing, so pressing A at rest
+never picks what the stick passed on its way back.
 
 **Uses:** `UI::RadialMenu`, `UI::IconButton` on a disc `UI::ShapeStyle`,
 `ui_radial_x` / `ui_radial_y`, and a UI atlas's `images` (`icons.json`).
 
 ### quick_wheel
 
-The same eight icons on a wheel held open by Tab or the left shoulder button and
-chosen by letting it go. A stick let go of a moment before the button still
-chooses, a stick left at rest chooses nothing, and the world drifts at a quarter
-speed while the wheel is open.
+The same eight icons, on a wheel held open by Tab or the left shoulder button.
+Releasing the button chooses. A stick released a moment before the button still
+chooses; a stick at rest chooses nothing. The world drifts at a quarter speed
+while the wheel is open.
 
 **Uses:** `UI::RadialMenu` with `trigger:`, `UI::Pointing`'s grace window,
 `UI::Menu#on_opened` / `#on_closed`, `InputMap.default.merge`.
 
 ### skill_bar
 
-A farming-sim tool bar: five tools in a row, stepped through with left and right
-and used with Enter, or used directly with the number keys without moving the
-focus. Holding a number uses its tool once, and a tool pressed by its number and
-by Enter together is used once.
+A tool bar with five tools in a row. Left and right step through them and Enter
+uses one. The number keys use a tool directly, without moving the focus. Holding
+a number uses its tool once. Pressing a tool's number and Enter together also
+uses it once.
 
 **Uses:** `UI::Row`, `UI::Stepping` taking its axis from the layout,
 `UI::Button`'s `hotkey:` and `activate_on: :press`, captioned `UI::IconButton`s
@@ -175,16 +184,16 @@ on a disc `UI::ShapeStyle`, `InputMap.default.merge`, and a UI atlas's `images`
 
 ### sound
 
-A sound effect fired by a button, and the seam it travels through: a node may
-not name the audio device, so it emits a fact and a director plays it.
+A sound effect fired by a button, and the path it travels. A node may not name
+the audio device, so it emits a fact and a director plays it.
 
 **Uses:** `Core::Sample`, `Engine::AudioBus`, `Engine::AudioDirector`,
 `Engine::CachedLabel`.
 
 ### music
 
-The other kind of sound: one streamed voice that can be stopped and asked
-whether it is playing, and a start that does not restart it.
+The other kind of sound: one streamed voice. You can stop it and ask whether it
+plays, and starting it again does not restart it.
 
 **Uses:** `Core::Song`, `AudioBus#play_music` / `#stop_music`,
 `Engine::AudioDirector`.
@@ -193,8 +202,8 @@ whether it is playing, and a start that does not restart it.
 
 ### split_screen
 
-Two players in one world, drawn once per viewport through that viewport's
-camera. The world does not know how many times it is drawn.
+Two players in one world. `WorldView` draws the world once per viewport, through
+that viewport's camera. The world never knows how often it is drawn.
 
 **Uses:** `Game.new(players: 2)`, `Engine::Players`, `Engine::WorldView`,
 `Engine::PlayerLayer`, `Engine::Camera`, `Components::CameraFollow`,
@@ -202,9 +211,9 @@ camera. The world does not know how many times it is drawn.
 
 ### input_glyphs
 
-Prompts that match the device in the player's hands, switching between keyboard
-and controller mid-session. Nothing listens for a pad being plugged in — using
-one is what takes the seat.
+Prompts that match the device in the player's hands. They switch between
+keyboard and controller mid-session. Nothing listens for a plugged-in pad; using
+the pad takes the seat.
 
 **Uses:** `Controls.gamepad?`, `InputMap#button_for`, `Engine::Players` with
 `on_unassigned_input` defaulting to `:takeover`, `renderer.sprite`.
@@ -213,8 +222,8 @@ one is what takes the seat.
 
 ### fullscreen
 
-Opening fullscreen and switching while the game runs, plus all four scale modes
-and the layout following each.
+Opening fullscreen, switching while the game runs, and all four scale modes with
+the layout following each.
 
 **Uses:** `RGame::Game.new(fullscreen:)`, `App#fullscreen?` / `#fullscreen=`,
 `RGame::Game#scale_mode=`, the `view` a node is drawn with,
@@ -224,18 +233,18 @@ and the layout following each.
 
 ### save_load
 
-Writing game state to disk and putting it back. The tree is not saved: a scene
-is a recipe and a save file is state, so a singular thing is restored by the
-variable holding it and a flock by array order.
+Writing game state to disk and restoring it. The tree is not saved: a scene is a
+recipe, and a save file is state. The variable holding a singular thing restores
+it, and array order restores a flock.
 
 **Uses:** `Util::SaveFile`, the `examples/walk` composition with a
 `WanderController`.
 
 ### save_load_ids
 
-The case the previous one deliberately does not cover: a collection whose
-members can be lost, and one saved object referring to another. A reference is
-what forces ids, not a changing collection.
+The case `save_load` leaves out: a collection whose members can be lost, and one
+saved object that refers to another. A reference forces ids; a changing
+collection alone does not.
 
 **Uses:** `Components::Identity`, `Util::SaveFile`, a save of records rather
 than positions.

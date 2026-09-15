@@ -1,12 +1,12 @@
 # Sheets, atlases and maps
 
-The classes between a file on disk and a draw call: a sprite sheet sliced into
-frames, a nine-slice panel stretched to any size, a UI atlas, a tile map, and
-the asset manager that loads and caches all of them.
+These classes sit between a file on disk and a draw call. They cover a sprite
+sheet sliced into frames, a nine-slice panel stretched to any size, a UI atlas,
+a tile map, and the asset manager that loads and caches all of them.
 
-They are pure Ruby, but they live in `RGame::Core` because they hold images, and
-an image is a GPU handle. Game logic names them by id and never holds one — see
-[Testing what a scene draws](drawing.md#testing-what-a-scene-draws).
+**They are pure Ruby, but live in `RGame::Core` because they hold images.** An
+image is a GPU handle. Game logic names these assets by id and never holds one;
+see [Testing what a scene draws](drawing.md#testing-what-a-scene-draws).
 
 | Page section | Class |
 |---|---|
@@ -16,25 +16,27 @@ an image is a GPU handle. Game logic names them by id and never holds one — se
 | [UI atlases](#ui-atlases) | `RGame::Core::UiAtlas` |
 | [Tile maps](#tile-maps) | `RGame::Core::TileMapRenderer` |
 
-*This page grows as the rest lands.*
-
 ## The asset manager
 
-The one place file-backed assets are loaded and cached. Every game has one, and
-does not build it — `app.assets` does, rooted at the app's `media_root:`:
+**The asset manager loads and caches every file-backed asset.** Every game has
+one, and none builds it. `app.assets` does, rooted at the app's `media_root:`:
 
 ```ruby
 app.assets.image('space.png')                # => RGame::Core::Image
-app.assets.sound('example 09/boom.ogg')      # => RGame::Core::Sample
-app.assets.song('example 09/theme.ogg')      # => RGame::Core::Song
-app.assets.sheet('example 09/player.json')   # => RGame::Core::SpriteSheet
+app.assets.sound('sounds/boom.ogg')          # => RGame::Core::Sample
+app.assets.song('music/theme.ogg')           # => RGame::Core::Song
+app.assets.sheet('sheets/player.json')       # => RGame::Core::SpriteSheet
 app.assets.ui_atlas('ui/ui_atlas.json')      # => RGame::Core::UiAtlas
 app.assets.read('data/levels.txt')           # => String
 ```
 
-Paths are relative to the media root; an absolute one is used as it stands. Two
-spellings of the same file — `'a/b.png'`, `'a/./b.png'`, the absolute form —
-are one cache entry, not three.
+Paths are relative to the media root; an absolute path is used as given. Every
+accessor returns the same object each time. A file requested twice is read,
+decoded and uploaded once. Several spellings of one file share one cache entry:
+`'a/b.png'`, `'a/./b.png'` and the absolute form.
+
+The manager gives a game one object that knows what is loaded. Setup code no
+longer builds paths by hand or constructs images inline.
 
 ### Adding an asset type
 
@@ -43,21 +45,15 @@ app.assets.add_loader(:level) { |path| MyLevel.parse(File.read(path)) }
 app.assets.level('levels/one.json')          # cached and grouped like any other
 ```
 
-The built-in types go through the same mechanism at construction, so an added
-one is not a second-class citizen. It exists because some types cannot be built
-from inside `RGame::Core` at all — see [Tile maps](#tile-maps).
-
-Every path is **relative to the media root**, and every accessor returns the
-same object each time it is asked — so a file wanted twice is read, decoded and
-uploaded once. That is the point: loading stops being scattered across a game's
-setup, building paths ad hoc and constructing images inline, and becomes one
-object that knows what is loaded.
+The built-in types register through the same method at construction, so an
+added type works exactly like them. `add_loader` exists because `RGame::Core`
+cannot build some types itself; see [Tile maps](#tile-maps).
 
 ### Groups, and what `release` frees
 
-Each cached asset remembers the **set of groups** that asked for it. An
-ungrouped load belongs to a permanent sentinel and survives every `release`; a
-grouped one is reference counted.
+**Each cached asset remembers the set of groups that asked for it.** An
+ungrouped load belongs to a permanent group and survives every `release`. A
+grouped load is reference counted.
 
 ```ruby
 app.assets.image('ui/buttons.png')                       # ungrouped: permanent
@@ -70,49 +66,47 @@ app.assets.release(:level1)   # drops lvl1/* unless another group still holds it
 app.assets.clear              # drops everything, permanent included
 ```
 
-An asset two levels both loaded survives until **both** release it, so two
-scenes can share a texture without either one pulling it out from under the
-other. A cache *hit* under a new group is tagged with it too — the alternative
-silently loses the second group's claim.
+An asset that two levels loaded stays until **both** release it. Two scenes can
+therefore share a texture safely. A cache *hit* under a new group also adds that
+group. Otherwise the second group's claim would be lost without a trace.
 
-Releasing drops this cache's reference. When the GPU texture actually goes is
-the collector's business; `Image.debug_live_textures` is there if you want to
-watch it happen.
+Releasing drops this cache's reference. The garbage collector decides when the
+GPU texture goes. Watch it with `Image.debug_live_textures`.
 
-`release` refuses the permanent sentinel by name, because releasing it would
-drop every ungrouped asset — the opposite of what "permanent" means. Use
-`clear`.
+`release` refuses the permanent group. Releasing it would drop every ungrouped
+asset, the opposite of "permanent". Use `clear` instead.
 
 ### Composites share their parts
 
-A sprite sheet is a descriptor plus an image, and **both are pulled through this
-same cache**. So these hand back one upload between them:
+**A sprite sheet is a descriptor plus an image, and the manager loads both
+through its own cache.** These two calls therefore share one upload:
 
 ```ruby
 sheet = app.assets.sheet('sheets/hero.json')   # names hero.png inside
 image = app.assets.image('sheets/hero.png')    # the same texture, not a second one
 ```
 
-The descriptor's image is resolved *next to the descriptor*, which is what lands
-it on the same cache key a standalone load would use. Release the sheet's group
-and its PNG goes with it.
+The manager resolves the descriptor's image *next to the descriptor*. That gives
+it the same cache key a standalone load would use. Releasing the sheet's group
+releases its PNG too.
 
-**One known gap.** A composite tags its parts with the group that first built
-it. If a *second* group later asks for the same already-cached composite, only
-the composite's own key is re-tagged, not its parts — so releasing the first
-group can drop a PNG the second still expects. Fine for the usual "each level
-owns its assets" pattern, and it would take per-part tracking to close.
+**One known gap remains.** A composite tags its parts with the group that first
+built it. When a *second* group requests the cached composite, only the
+composite's own key gains the new tag, not its parts. Releasing the first group
+can then drop a PNG the second group still expects. The usual pattern, where each
+level owns its assets, is unaffected. Closing the gap would need per-part
+tracking.
 
 ### Failure
 
-A loader's own error comes through unchanged — `Image::LoadError`,
-`Sample::LoadError`, `Errno::ENOENT` — naming the file. A load that failed
-leaves **nothing** behind: no cache entry and no group tag, so a retry is a
-clean retry rather than a half-registered asset that can never be released.
+A loader's own error passes through unchanged and names the file:
+`Image::LoadError`, `Sample::LoadError`, `Errno::ENOENT`. **A failed load leaves
+nothing behind**: no cache entry and no group tag. A retry starts clean, with no
+half-registered asset that can never be released.
 
 ### Testing without files
 
-Every asset type maps to a loader proc, and they are injectable:
+Every asset type maps to a loader proc, and you can inject your own:
 
 ```ruby
 assets = RGame::Core::AssetManager.new(
@@ -121,15 +115,14 @@ assets = RGame::Core::AssetManager.new(
 )
 ```
 
-The defaults name `Image` and `Audio` only *inside* their bodies, never at load
-time. That is deliberate: it means the caching, path resolution and grouping —
-which is all of the logic here — can be specced with no window, no GL context
-and no files at all.
+The default loaders name `Image` and `Audio` only *inside* their bodies, never at
+load time. Specs can therefore cover all the manager's logic with no window, no GL
+context and no files: caching, path resolution and grouping.
 
 ## Sprite sheets
 
-A sheet is one image plus a JSON descriptor, sliced into frames at load time and
-drawn one frame at a time.
+A sheet is one image plus a JSON descriptor. It slices the image into frames at
+load time and draws one frame at a time.
 
 ```ruby
 sheet = RGame::Core::SpriteSheet.load(app, 'media/hero.json')
@@ -159,14 +152,14 @@ sheet.draw(renderer, row, col, x, y, flip_x: false, z: 0)
 }
 ```
 
-`image` is resolved **next to the descriptor**, so a sheet can be moved as a
-pair of files without editing either. `frame_width` and `frame_height` are the
-only required keys; a descriptor missing one raises `ArgumentError` naming it.
+The sheet resolves `image` **next to the descriptor**, so you can move both files
+together without editing either. Only `frame_width` and `frame_height` are
+required. A descriptor missing one raises `ArgumentError` naming the key.
 
 ### A frame can be smaller than its cell
 
-Cells sit on a fixed `cell_width` x `cell_height` grid. What gets *drawn* is a
-`frame_width` x `frame_height` rectangle offset by `origin_x` / `origin_y`
+Cells sit on a fixed `cell_width` x `cell_height` grid. The sheet *draws* a
+`frame_width` x `frame_height` rectangle, offset by `origin_x` / `origin_y`
 inside its cell:
 
 ```
@@ -178,41 +171,39 @@ cell (32x32)          frame (16x24) at origin (8, 4)
 └──────────────┘      └────┴────┴────┘
 ```
 
-That is what lets a sheet whose cells are sized for the widest pose — an attack,
-a swing — still expose a tight, centred box for walking, so a character does not
-appear to change size when its animation changes. Leave the four keys out and
-frame == cell, which is what a simple sheet wants.
+Cells can fit the widest pose, such as an attack swing, while walking frames keep
+a tight, centred box. A character then keeps its apparent size when its animation
+changes. Without the four keys, frame equals cell, which suits a simple sheet.
 
-Only whole cells count: a sheet 70 pixels wide with 16-pixel cells has four
-columns, and the six leftover pixels are ignored rather than becoming a narrow
-fifth.
+Only whole cells count. A 70-pixel sheet with 16-pixel cells has four columns.
+The sheet ignores the six leftover pixels instead of making a narrow fifth column.
 
 ### Facing
 
-`flip_x` mirrors the frame **inside the same rectangle**, so a character
-occupies the same pixels whichever way it faces:
+**`flip_x` mirrors the frame inside the same rectangle**, so a character covers
+the same pixels whichever way it faces:
 
 ```ruby
 sheet.draw(renderer, row, col, x, y, flip_x: moving_left)
 ```
 
-There is no width to add back — see [Mirroring](drawing.md#mirroring) for why.
+You add no width back; [Mirroring](drawing.md#mirroring) explains why.
 
-### Animations are handed back raw
+### Animations come back raw
 
-`#animations` returns the descriptor's table untouched. This class knows nothing
-about time: which frame to show at a given moment is the scene layer's job, and
-it builds its own animation state from that hash. Keeping the raw form here is
-what lets the two sides evolve separately.
+**`#animations` returns the descriptor's table untouched.** The sheet knows
+nothing about time. The scene layer decides which frame to show, and builds its
+own animation state from that hash. The raw form lets each side change on its
+own.
 
-A sheet with no `animations` key gets `{}`, not `nil` — a sheet of static tiles
-is a legitimate sheet, and a caller should not have to branch.
+A sheet without an `animations` key returns `{}`, not `nil`. A sheet of static
+tiles is a valid sheet, and callers should not have to branch.
 
 ### Slicing costs nothing
 
-Every frame is cut once, at construction, as a view onto the single upload. A
-sheet of two hundred frames is two hundred small objects and **one** texture, and
-`#draw` is an array index plus one draw call. Nothing is re-cut per frame.
+The sheet cuts every frame once, at construction, as a view onto the single
+upload. Two hundred frames are two hundred small objects and **one** texture.
+`#draw` is an array index plus one draw call. Nothing is cut again per frame.
 
 ### Loading
 
@@ -222,13 +213,13 @@ RGame::Core::SpriteSheet.new(image, atlas) # from an already-loaded image
 ```
 
 Use `.load` for a game with a sheet or two and no asset manager. The asset
-manager uses the second form, with an image it has already cached, so a sheet's
-PNG is shared with a standalone load of the same file rather than decoded twice.
+manager uses the second form, with an image it already cached. The sheet's PNG is
+then shared with a standalone load of the same file, not decoded twice.
 
 ## Nine-slices
 
-A bordered texture drawn at any size, by cutting it into nine pieces and
-treating each differently.
+A nine-slice draws a bordered texture at any size. It cuts the texture into nine
+pieces and treats each piece differently.
 
 ```ruby
 panel = RGame::Core::NineSlice.new(image, x: 0, y: 0, w: 26, h: 28,
@@ -247,37 +238,36 @@ panel.draw(renderer, x, y, width, height, z: 0, color: nil)
   └──┴────────┴──┘
 ```
 
-One small piece of art fills a button, a dialog or a health bar of any size,
-without the corners smearing.
+One small piece of art fills a button, a dialog or a health bar of any size, and
+the corners never smear.
 
-`(x, y, w, h)` is the source rectangle **inside** the image, so one sheet can
-hold many of them — which is what a [UI atlas](#ui-atlases) does with it.
+`(x, y, w, h)` is the source rectangle **inside** the image, so one sheet can hold
+many nine-slices. A [UI atlas](#ui-atlases) relies on this.
 
 ### Tiled, not stretched
 
-Edges and the centre **repeat**. Stretching a 7-pixel motif would blur exactly
-the detail the art was drawn for; repeating it keeps pixel art crisp at every
-widget size. Each band is clipped to itself, so the last tile in a row is
-cropped cleanly rather than spilling into the corner beside it — and the loops
-always start one more tile rather than stopping short, because a gap at the seam
-is more visible than an overhang that gets cropped.
+**Edges and the centre repeat.** Stretching a 7-pixel motif would blur the detail
+the art was drawn for. Repeating it keeps pixel art crisp at every size. Each
+band clips to itself, so the last tile in a row is cropped cleanly instead of
+spilling into the corner. The loops always start one extra tile, because a gap at
+the seam shows more than a cropped overhang.
 
 ### `border` and `scale`
 
-`border` is either a uniform integer or a hash:
+`border` takes a uniform integer or a hash:
 
 ```ruby
 border: 7
 border: { left: 2, right: 6, top: 4, bottom: 4 }
 ```
 
-`scale` is an **integer pixel scale for the chrome itself**. Source art is
-small — corners are often 7 pixels — so a scale of 2 or 3 gives legible borders
-on a 640x480 screen with no blurring at all, because every source pixel becomes
-a whole square of screen pixels. It scales the pieces *and* the step between
+**`scale` is an integer pixel scale for the border art itself.** Source art is
+small, with corners often 7 pixels wide. A scale of 2 or 3 makes borders legible
+on a 640x480 screen without blur, because each source pixel becomes a whole
+square of screen pixels. `scale` multiplies both the pieces and the step between
 tiles, so the tiling stays seamless.
 
-### Edge cases, and what they do
+### Edge cases
 
 | | |
 |---|---|
@@ -288,15 +278,14 @@ tiles, so the tiling stays seamless.
 
 ### What it costs
 
-The nine pieces are cut once at construction, as views onto the one upload, so
-`#draw` allocates nothing. It issues one call per tile, which is what makes
-`scale` worth having: a panel drawn at 3x is a ninth of the tiles of the same
-panel drawn at 1x.
+The nine-slice cuts its pieces once at construction, as views onto the one
+upload, so `#draw` allocates nothing. It issues one call per tile. That is where
+`scale` pays: a panel at 3x needs a ninth of the tiles of the same panel at 1x.
 
 ## UI atlases
 
-One sheet of UI chrome, cut into named [nine-slices](#nine-slices) and named
-images.
+A UI atlas cuts one sheet of UI art into named [nine-slices](#nine-slices) and
+named images.
 
 ```ruby
 atlas = app.assets.ui_atlas('ui/ui_atlas.json')
@@ -306,8 +295,8 @@ renderer.nine_slice(:button_idle, x, y, width, height)
 renderer.image(:home, cx, cy)
 ```
 
-A button has four states, a panel has one, a scrollbar has three pieces — all
-small, and all cheaper as sub-rectangles of one texture than as a dozen files.
+A button has four states, a panel one, a scrollbar three pieces. All are small,
+and sub-rectangles of one texture cost less than a dozen files.
 
 ### The descriptor
 
@@ -328,24 +317,23 @@ small, and all cheaper as sub-rectangles of one texture than as a dozen files.
 }
 ```
 
-`image` is resolved next to the descriptor. Each `nine_slices` entry is a source
-rectangle plus a `border` — a uniform integer or one value per side — and an
-optional `scale` that overrides the sheet-wide one. A sheet with no `scale` draws
-at 1.
+The atlas resolves `image` next to the descriptor. Each `nine_slices` entry holds
+a source rectangle and a `border`: a uniform integer or one value per side. An
+optional `scale` overrides the sheet-wide one. A sheet without `scale` draws at 1.
 
-Each `images` entry is a rectangle and nothing more, cut from the sheet with
-`Image#subimage`: an icon is drawn whole, so it has no border, and how large to
-draw it is the draw call's `scale:`, so it takes no scale either. `atlas.images`
-is a Hash of name to `Image`. Either section may be missing or `null`, and one
-atlas may carry both.
+Each `images` entry is a bare rectangle, cut from the sheet with
+`Image#subimage`. An icon draws whole, so it needs no border. The draw call's
+`scale:` sets its size, so it needs no scale either. `atlas.images` is a Hash of
+name to `Image`. Either section may be missing or `null`, and one atlas may hold
+both.
 
 ### Element names, not filenames
 
-Both sections are keyed by whatever the descriptor calls each element, and those
-names are what a widget asks for. That is why nine-slices are the one asset the
-renderer resolves **by registration only** — `:button_focus` is not a file and
-never can be. `register_ui_atlas` binds every element of both kinds in one call,
-nine-slices with `register_nine_slice` and images with `register_image`:
+**Both sections are keyed by element name, and widgets ask for those names.** So
+the renderer resolves nine-slices **by registration only**: `:button_focus` is
+not a file and never can be. `register_ui_atlas` binds every element of both
+kinds in one call. It registers nine-slices with `register_nine_slice` and images
+with `register_image`:
 
 ```ruby
 renderer.register_ui_atlas(atlas)                                  # all of them
@@ -355,23 +343,24 @@ renderer.register_image(:home, atlas.images[:home])
 
 ### When an entry is wrong
 
-A descriptor holds a dozen of these, so a broken one — a nine-slice whose border
-does not fit, or an image rectangle off the edge of the sheet — **names itself**:
+**A broken entry names itself.** A descriptor holds a dozen elements. A nine-slice
+whose border does not fit, or an image rectangle past the sheet's edge, raises
+with the element's name:
 
 ```
 ArgumentError: ui atlas element :button_idle: nine-slice borders (40, 40, 40, 40)
                do not fit in a 26x28 rect
 ```
 
-Without the element name the failure is arithmetic from inside `NineSlice`, and
-finding the culprit means bisecting the JSON by hand.
+Without the name, the error would be bare arithmetic from inside `NineSlice`.
+Finding the culprit would mean bisecting the JSON by hand.
 
-Parsing happens once, at load. Nothing here is touched again per frame.
+The atlas parses once, at load, and touches nothing again per frame.
 
 ## Tile maps
 
-Draws a Tiled map: the static layers baked once, the animated tiles drawn each
-frame and culled to the viewport.
+`TileMapRenderer` draws a Tiled map. It bakes the static layers once, and draws
+animated tiles each frame, culled to the viewport.
 
 ```ruby
 tiles = app.assets.tilemap('map/island.tmx')
@@ -381,29 +370,28 @@ renderer.tilemap('map/island.tmx', 0, camera_x, camera_y, view_w, view_h, elapse
 renderer.tilemap('map/island.tmx', 1, camera_x, camera_y, view_w, view_h, elapsed: seconds)
 ```
 
-### One call per layer, because the actors go between them
+### One call per layer, so actors fit between layers
 
-A layer is drawn on its own, in the order the caller asks for — which is what
-lets a scene put its actors between two of them, trunks under and canopies over.
-Which layers those are is a question about the scene, not about the map, so no
-`z` is passed: in a game it is [`TileMapLayer`](components.md#tileworld) mounting
-a node per layer, and the scene tree deciding the rest.
+**Each call draws one layer, in the order the caller chooses.** A scene can put
+its actors between two layers: trunks under, canopies over. Which layers those
+are depends on the scene, not the map, so the call takes no `z`. In a game,
+[`TileMapLayer`](components.md#tileworld) mounts a node per layer, and the scene
+tree orders them.
 
 ### What it costs
 
-Within each layer, every tile that is **not** animated is baked into a
-[recording](drawing.md#recordings-bake-once-replay-cheaply) the first time that
-layer is drawn. Scrolling it afterwards is one call per texture, however many
-thousand tiles went into it. The handful that *are* animated are drawn
-individually, **culled to the viewport** — so a map far larger than the screen
-costs only what is on screen.
+**The renderer bakes each layer's non-animated tiles into a
+[recording](drawing.md#recordings-bake-once-replay-cheaply)** the first time it
+draws that layer. Scrolling the layer then costs one call per texture, however
+many thousand tiles it holds. The few animated tiles draw individually, **culled
+to the viewport**. A map far larger than the screen costs only what is on screen.
 
-Two maps sharing a tileset share one GPU upload, because the tiles come through
-the asset manager rather than being loaded by the map.
+Two maps that share a tileset share one GPU upload, because tiles load through the
+asset manager, not through the map.
 
-### Animation is advanced by you
+### You advance the animation
 
-`elapsed` is seconds, and it is an argument rather than a clock this reads:
+**`elapsed` is seconds, passed as an argument.** The renderer reads no clock:
 
 ```ruby
 def update(dt) = @elapsed += dt
@@ -412,16 +400,15 @@ def draw(renderer)
 end
 ```
 
-Stop accumulating and the water freezes; accumulate slower and it runs slow; a
-spec passes `0.15` and gets the second frame. See
-[the frame loop](app.md#the-frame-loop) for why nothing on a draw path reads a
-clock.
+Stop accumulating and the water freezes. Accumulate slower and it runs slow. A
+spec passes `0.15` and gets the second frame. [The frame loop](app.md#the-frame-loop)
+explains why nothing on a draw path reads a clock.
 
-### It is wired up, not built in
+### Installed, not built in
 
-`RGame::Core` cannot parse a `.tmx` — that is the engine layer's job, and Core
-is not allowed to know the engine layer exists. So the type is *installed*, by
-the one class that may name both:
+**`RGame::Core` cannot parse a `.tmx`.** Parsing belongs to the engine layer, and
+Core may not know that layer exists. `RGame::Game`, the one class that may name
+both, installs the type:
 
 ```ruby
 app.assets.add_loader(:tilemap) do |path|
@@ -432,9 +419,8 @@ app.assets.add_loader(:tilemap) do |path|
 end
 ```
 
-Until that runs, `app.assets` has no `tilemap` accessor and a tilemap draw id
-raises `KeyError` — which is the honest answer, rather than a half-working
-subsystem.
+Before the loader is installed, `app.assets` has no `tilemap` accessor, and a
+tilemap draw id raises `KeyError`. A clear error beats a half-working subsystem.
 
-`TileMapRenderer#map` hands the parsed map back, for the scene's own collision
-and world-bounds queries.
+`TileMapRenderer#map` returns the parsed map, for the scene's own collision and
+world-bounds queries.

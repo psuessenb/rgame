@@ -13,9 +13,9 @@ rgame new tictactoe
 | `rgame version` | Prints the installed engine version |
 | `rgame help` | Prints usage |
 
-`rgame new` refuses a name that would not make a Ruby constant, and refuses a
-directory that already exists and has anything in it. An existing *empty*
-directory is written into.
+`rgame new` refuses a name that cannot become a Ruby constant. It also refuses a
+directory that exists and holds anything. It writes into an existing *empty*
+directory.
 
 ## What `rgame new tictactoe` writes
 
@@ -47,42 +47,41 @@ bundle exec rubocop   # green
 ruby main.rb          # a window saying "Hello from tictactoe!"
 ```
 
-The name is turned into a class name by splitting on underscores and dashes and
-capitalising each part, so `tic_tac_toe` and `tic-tac-toe` both give
-`TicTacToeGame`.
+The generator builds the class name from the project name. It splits on
+underscores and dashes and capitalises each part. `tic_tac_toe` and
+`tic-tac-toe` both give `TicTacToeGame`.
 
-Two versions are recorded, both taken from whatever generated the project rather
-than baked into a template. The `Gemfile` pins the engine loosely
-(`gem 'rgame', '~> 0.2'`), and `.ruby-version` records the exact Ruby that ran
-`rgame new` — the one interpreter the project is actually known to work on. The
-Gemfile points at that file rather than repeating the number:
+The project records two versions, both taken from the running generator rather
+than from a template. The `Gemfile` pins the engine loosely
+(`gem 'rgame', '~> 0.2'`). `.ruby-version` records the exact Ruby that ran
+`rgame new`, the one interpreter the project is known to work on. The Gemfile
+reads that file instead of repeating the number:
 
 ```ruby
 ruby file: '.ruby-version'
 ```
 
-Every version manager reads `.ruby-version`, and so does Bundler, so the two
-cannot drift apart.
+Version managers and Bundler both read `.ruby-version`, so the two cannot drift
+apart.
 
-Bundler treats it as a **hard, exact** requirement: on any other Ruby,
-`bundle install` refuses rather than resolving against it — and `4.0` does not
-match `4.0.5`, it matches only `4.0`. To accept a range instead, state the
-requirement in the `Gemfile` rather than in `.ruby-version`, which has to stay a
-plain version number for version managers to read:
+**Bundler treats that line as an exact requirement.** On any other Ruby,
+`bundle install` refuses to run. `4.0` does not match `4.0.5`; it matches only
+`4.0`. To accept a range, state it in the `Gemfile`. `.ruby-version` must stay a
+plain version number, because version managers read it:
 
 ```ruby
 ruby '~> 4.0'   # instead of `ruby file: '.ruby-version'`
 ```
 
-## Why the layout is shaped like this
+## Why the layout looks like this
 
-The generated tree is not a folder convention — it is the engine's own layering,
-made the path of least resistance in a new project. Three files carry it.
+**The generated tree follows the engine's own layering.** The layout makes the
+right split the easy one in a new project. Three files carry it.
 
-**`game.rb` is the only file that requires `rgame/game`,** and therefore the only
-one that loads SDL and OpenGL. It is the local counterpart of
-[`RGame::Game`](game.md): the class that is allowed to know both halves of the
-engine, because introducing them is what it is for.
+**`game.rb` is the only file that requires `rgame/game`,** so it is the only one
+that loads SDL and OpenGL. It is the project's counterpart of
+[`RGame::Game`](game.md): the one class allowed to know both halves of the
+engine.
 
 ```ruby
 require 'rgame/game'
@@ -103,14 +102,14 @@ class TictactoeGame < RGame::Game
 end
 ```
 
-The bare `**` forwards every keyword through to `RGame::Game`, so everything it
-accepts still works — `players: 2` for split-screen, or `input:` to hand the game
-a scripted input backend and drive it with no hardware attached.
+The bare `**` forwards every keyword to `RGame::Game`, so all its options still
+work. Pass `players: 2` for split-screen. Pass `input:` to drive the game from a
+scripted input backend with no hardware attached.
 
-**`nodes/` requires `rgame`,** the graphics-free half: `RGame::Util` and
-`RGame::Engine`, with no graphics library in the process at all. A node is
-*handed* a renderer at draw time and calls it by name; it never stores one and
-never learns what class answered.
+**`nodes/` requires `rgame`,** the graphics-free half. That loads `RGame::Util`
+and `RGame::Engine`, and no graphics library. A node receives a renderer at draw
+time and calls its methods by name. It never stores the renderer and never
+learns its class.
 
 ```ruby
 require 'rgame'
@@ -124,22 +123,23 @@ class Root < RGame::Engine::Node2D
 end
 ```
 
-Override `on_control(actions)`, `on_update(dt)` and `on_draw(renderer, view)` —
+Override `on_control(actions)`, `on_update(dt)` and `on_draw(renderer, view)`,
 not `control`, `update` or `draw`. The engine does its bookkeeping in the outer
-methods and calls these, so there is no `super` to forget. See
+methods and calls these hooks, so there is no `super` to forget. See
 [Scene graph](scene_graph.md).
 
-**`spec/spec_helper.rb` requires `rgame` too,** which is what makes the generated
-suite headless: no window, no GPU, no clock, and `RGame::Core` an undefined
-constant. A spec that reached for it fails loudly rather than quietly opening a
-window.
+**`spec/spec_helper.rb` also requires `rgame`,** so the generated suite runs
+headless. It has no window, no GPU and no clock, and `RGame::Core` is undefined.
+A spec that names Core fails loudly instead of opening a window.
 
-That is also why the generated example uses a plain spy rather than a verified
-double — the renderer it stands in for lives on the other side of a line the
-suite deliberately does not cross, and the generated `.rubocop.yml` turns
-`RSpec/VerifiedDoubles` off with that reason written down:
+For the same reason, the generated spec uses a plain spy, not a verified double.
+The renderer it replaces lives on the far side of a line the suite does not
+cross. The generated `.rubocop.yml` turns `RSpec/VerifiedDoubles` off and writes
+down that reason:
 
 ```ruby
+require 'spec_helper'
+
 RSpec.describe Root do
   describe '#on_draw' do
     it 'draws its greeting' do
@@ -153,29 +153,29 @@ RSpec.describe Root do
 end
 ```
 
-Put new game logic under `nodes/` and this holds however large the game gets:
-the whole simulation stays testable in milliseconds on a machine with no
-display. Put it in `game.rb` and it stops being.
+Put new game logic under `nodes/`, and the whole simulation stays testable in
+milliseconds with no display, however large the game grows. Logic in `game.rb`
+loses that.
 
 ## The generated RuboCop configuration
 
-A stock config — `rubocop-performance` and `rubocop-rspec`, the `Metrics/*`
-relaxations a game's `update`/`draw` methods need, and short coordinate names
-allowed. The engine's own five custom cops (`Game/DrawInLocalSpace` and
-friends) are **not** part of it: they live in the engine's repository rather than
-in the gem, and two of them police a layer boundary that only exists inside it.
+The generator writes a stock configuration. It loads `rubocop-performance` and
+`rubocop-rspec`, relaxes the `Metrics/*` cops for a game's long `update` and
+`draw` methods, and allows short coordinate names. It does **not** include the
+engine's five custom cops, such as `Game/DrawInLocalSpace`. Those live in the
+engine's repository, not in the gem, and two of them guard a layer boundary that
+exists only inside the engine.
 
 ## Adding to the generator
 
-`rgame new` derives its file list from
-`lib/rgame/cli/templates/`, so a new file in a generated project is a new
-template and nothing else — there is no manifest to update. Templates are ERB,
-and may call `app_name`, `game_class`, `caption` and `rgame_requirement`.
+`rgame new` derives its file list from `lib/rgame/cli/templates/`. A new file in
+a generated project needs a new template and nothing else; there is no manifest.
+Templates are ERB and may call `app_name`, `game_class`, `caption`,
+`ruby_version` and `rgame_requirement`.
 
-One rule: **no template may be named with a leading dot.** The gemspec packages
-`lib/**/*` with `Dir.glob`, which does not match dotfiles, so a template called
-`.gitignore` would silently be missing from the installed gem while working
-perfectly in a checkout. Templates for dotfiles are stored under a plain name
-(`gitignore.tt`) and renamed on the way out through
-`RGame::CLI::NewProject::DOTFILES`. `spec/packaging_spec.rb` fails if one ever
-appears.
+**No template may have a name starting with a dot.** The gemspec packages
+`lib/**/*` with `Dir.glob`, which skips dotfiles. A template called `.gitignore`
+would work in a checkout but be missing from the installed gem. Dotfile
+templates therefore use a plain name (`gitignore.tt`).
+`RGame::CLI::NewProject::DOTFILES` renames them on the way out.
+`spec/packaging_spec.rb` fails if a dotfile template appears.

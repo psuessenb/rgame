@@ -1,17 +1,16 @@
 # Signals
 
-Signals are the engine's typed take on the observer pattern: a tiny object that
-holds a list of listener blocks and `emit`s to them. They are how decoupled parts
-of the engine talk to each other — a `Button` tells a `Menu` it was clicked, a
-`Selector` announces its value changed, gameplay asks the audio layer to play a
-sound — without the emitter knowing who (if anyone) is listening.
+**A signal is the engine's typed observer.** It holds a list of listener blocks
+and `emit`s to them. Decoupled parts of the engine talk through signals. A
+`UI::Button` reports that it was activated. A collider reports a hit. Gameplay
+asks the audio layer to play a sound. The emitter never knows who listens, or
+whether anyone does.
 
-Signals replace the earlier global event bus / `Node#on` observer API. There is no
-central dispatcher and no string/symbol event types to match on: a signal *is* the
-channel, named by the attribute that exposes it, and its arity is fixed when it is
-defined.
+No central dispatcher exists, and no string or symbol event types need matching.
+A signal *is* the channel. The attribute that exposes it names it, and its arity
+is fixed when you define it.
 
-`RGame::Engine::Signal` is pure Ruby — no graphics — and lives in
+`RGame::Engine::Signal` is pure Ruby, with no graphics, in
 `lib/rgame/engine/signal.rb`.
 
 ## The Signal class: `Signal.define`
@@ -19,28 +18,31 @@ defined.
 `Signal.define(*fields)` builds a signal **class**. Each instance is one channel:
 
 ```ruby
-ClickSignal = Signal.define              # carries no payload
+require 'rgame'
+
+Signal = RGame::Engine::Signal
+
+ClickSignal = Signal.define                   # carries no payload
 ChangeSignal = Signal.define(:index, :value)  # carries two values
 
 sig = ChangeSignal.new
 handle = sig.connect { |index, value| puts "#{index} -> #{value}" }
-sig.emit(index: 2, value: :hard)         # prints "2 -> hard"
-sig.disconnect(handle)                   # stops that listener
+sig.emit(index: 2, value: :hard)              # prints "2 -> hard"
+sig.disconnect(handle)                        # stops that listener
 ```
 
-Three instance methods:
+A signal has three instance methods:
 
-- **`connect(&block)`** — registers a listener and returns it as the *handle*. Listeners
-fire in the order they connected.
-- **`emit(...)`** — notifies every listener.
-- **`disconnect(handle)`** — removes the listener returned by `connect`.
+- **`connect(&block)`** registers a listener and returns it as the *handle*.
+  Listeners fire in the order they connected.
+- **`emit(...)`** notifies every listener.
+- **`disconnect(handle)`** removes the listener that `connect` returned.
 
 ### Keyword in, positional out
 
-The field names exist to give `emit` a **self-documenting, mistake-catching
-signature** — you call `emit(index:, value:)`, not `emit(2, :hard)`, so a wrong or
-missing field raises at the call site. But the *listener* block receives the values
-**positionally**:
+**`emit` takes keywords; listeners receive positional values.** The field names
+give `emit` a self-documenting signature. You call `emit(index:, value:)`, not
+`emit(2, :hard)`, so a wrong or missing field raises at the call site:
 
 ```ruby
 ChangeSignal = Signal.define(:index, :value)
@@ -48,29 +50,29 @@ sig.connect { |index, value| ... }   # positional params
 sig.emit(index: 2, value: :hard)     # keyword args -> it.call(2, :hard)
 ```
 
-This is deliberate. Ruby blocks bind positional parameters cleanly but handle
-keyword arguments awkwardly, so the generated `emit` translates `emit(x:, y:)` into
-`it.call(x, y)`.
+Ruby blocks bind positional parameters cleanly but handle keywords awkwardly. The
+generated `emit` therefore translates `emit(x:, y:)` into `it.call(x, y)`.
 
-A single-field signal does not follow this keyword convention, in this case the single parameter is non-keyworded.
+A signal with a single field takes its argument positionally, without a keyword:
 
 ```ruby
 PlaySound = Signal.define(:id)
-sig.connect { @audio.play_sound(it) }
+sig = PlaySound.new
+sig.connect { puts "play #{it}" }
 sig.emit(:boom)
 ```
 
 ### No per-emit allocation
 
-`emit` forwards its arguments straight to each listener — it never collects them
-into an array or hash. Defining the signature with explicit fields (rather than a
-`*splat`) is what makes this allocation-free, which matters because some signals
-fire every frame (the engine's rule: never allocate on the hot path).
+**`emit` allocates nothing.** It passes its arguments straight to each listener,
+never collecting them into an array or hash. The explicit fields make this
+possible; a `*splat` signature would allocate. Some signals fire every frame, and
+the engine never allocates on the hot path.
 
 ## The DSL: declaring a signal slot
 
-Hand-wiring a signal onto a class is repetitive — an ivar to hold the instance, a
-public method to subscribe, and a way to emit:
+Wiring a signal onto a class by hand repeats itself. The class needs an ivar for
+the instance, a public method to subscribe, and a way to emit:
 
 ```ruby
 # Without the DSL:
@@ -80,63 +82,68 @@ def on_clicked(&block) = @on_clicked.connect(&block)
 def activate = @on_clicked.emit
 ```
 
-`RGame::Engine::Signal::DSL` collapses that to one declaration. `extend` it, then declare
-slots with `signal`:
+`RGame::Engine::Signal::DSL` reduces that to one declaration. `extend` it, then
+declare slots with `signal`:
 
 ```ruby
-class Button < Control
+require 'rgame'
+
+class Lever < RGame::Engine::Node2D
   extend RGame::Engine::Signal::DSL
 
-  signal :on_clicked                          # a no-arg signal
-  # signal :on_changed, Signal.define(:index, :value)  # a typed one
+  signal :on_pulled                                                  # a no-arg signal
+  signal :on_changed, RGame::Engine::Signal.define(:index, :value)   # a typed one
 
-  def activate = on_clicked_signal.emit
+  def pull = on_pulled_signal.emit
 end
+
+lever = Lever.new
+lever.on_pulled { puts 'pulled' }
+lever.pull
 ```
 
-`signal :on_clicked` generates two methods:
+`signal :on_pulled` generates two methods:
 
-- **`on_clicked(&block)`** — *public*. Subscribe a listener; returns the handle. This
-  is the API observers use: `button.on_clicked { ... }`.
-- **`on_clicked_signal`** — *private*. The lazily-built `Signal` instance. Emit
-  through it from inside the class: `on_clicked_signal.emit`.
+- **`on_pulled(&block)`** is *public*. It subscribes a listener and returns the
+  handle. Observers call it: `lever.on_pulled { ... }`.
+- **`on_pulled_signal`** is *private*. It returns the `Signal` instance, built on
+  first use. The class emits through it: `on_pulled_signal.emit`.
 
-The signal is created on first use (`@on_clicked ||= type.new`), so the host wires
-**nothing** in `initialize`. Pass a signal class as the second argument for a typed
-slot; omit it for a no-arg signal.
+The reader builds the signal on first use, so the host wires **nothing** in
+`initialize`. Pass a signal class as the second argument for a typed slot. Omit
+it for a signal without a payload.
 
-A note on cost: the generated methods use `define_method`, and emitting goes through
-the private reader rather than a bare ivar — one extra method dispatch per emit
-(single-digit nanoseconds under YJIT, and `emit` itself stays a full-speed `def`).
-Negligible for UI and per-frame signals. For a signal emitted thousands of times per
-frame, hand-write it against a direct ivar instead.
+**The DSL costs one extra method call per emit.** Emitting goes through the
+private reader instead of a bare ivar. `emit` itself stays an ordinary `def`. UI
+and per-frame signals never notice. For a signal emitted thousands of times per
+frame, write it by hand against an ivar.
 
 ## Two shapes of signal
 
-**Per-instance signals (the DSL).** Each object owns its channels. This is the UI
-pattern: every `Button` has its own `on_clicked`, every `Selector` its own
-`on_changed`. The `signal` macro is built for exactly this (it stores the instance
-in an ivar).
+**Per-instance signals use the DSL.** Each object owns its channels. UI works this
+way: every `UI::Button` has its own `on_activated`, and every `UI::OptionButton`
+its own `on_changed`. The `signal` macro stores the instance in an ivar, which
+suits exactly this case.
 
-**A shared signal hub (module-level).** When one global channel serves the whole app,
-expose signals as module state instead. `RGame::Engine::AudioBus` is the example: it holds
-`Signal.define(:id).new` instances at module scope and exposes them through reader
-methods, so gameplay anywhere does `RGame::Engine::AudioBus.on_play_sound.emit(:boom)`
-and the `AudioDirector` connects once. The DSL doesn't apply here (there is no
-per-instance ivar); the hub hand-rolls the readers.
+**A shared hub holds signals at module level.** Use one when a single channel
+serves the whole game. `RGame::Engine::AudioBus` holds its signals at module scope
+and exposes them through readers. Gameplay anywhere calls
+`RGame::Engine::AudioBus.play_sound(:boom)`, and the `AudioDirector` connects
+once to `AudioBus.on_play_sound`. The DSL does not apply, because there is no
+instance; the hub writes its readers by hand.
 
 ## When to reach for a signal
 
 Follow the engine's communication rules (see [Scene graph](scene_graph.md)):
 
-- **Parent → child:** call methods directly. No signal needed; the parent holds the
-  reference.
-- **Child → parent, or sibling → sibling:** the child *exposes* a signal and the
-  parent (or a parent-arranged observer) subscribes. A `Button` exposes `on_clicked`;
-  its `Menu` parent connects in `on_add` and re-exposes a higher-level
-  `on_selected(index, id)` to the scene. Edges stay direct node-to-node.
-- **Cross-cutting app concerns** with no natural owner (audio, later maybe analytics):
-  a module-level hub like `AudioBus`.
+- **Parent → child:** call methods directly. The parent holds the reference, so
+  it needs no signal.
+- **Child → parent, or sibling → sibling:** the child *exposes* a signal, and the
+  parent or an observer the parent arranges subscribes. A `UI::Button` exposes
+  `on_activated`, and the scene that adds it to a menu connects to it. Edges stay
+  direct, node to node.
+- **Concerns that cut across the game** and have no natural owner, such as
+  audio: use a module-level hub like `AudioBus`.
 
-Keep the emitter ignorant of its listeners: a signal with no observers connected
-emits harmlessly to nobody.
+Keep the emitter ignorant of its listeners. A signal with no listeners emits to
+nobody, without error.

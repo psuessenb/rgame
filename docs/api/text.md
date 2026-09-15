@@ -1,5 +1,8 @@
 # Text
 
+**The renderer comes with a font, and `text` draws with it.** Most games need
+nothing more:
+
 ```ruby
 require 'rgame'
 require 'rgame/core'
@@ -14,16 +17,15 @@ class MyGame < RGame::Core::App
     @renderer.text('Score: 1200', 10, 10)
   end
 end
-```
 
-That is the whole of it for most cases — the renderer has a font already, and
-`text` uses it.
+MyGame.new.run
+```
 
 ## Where text goes
 
-`text(string, x, y, …)` puts the **top-left corner** of the line at `(x, y)`,
-the same corner every other drawing method takes. Typography works from the
-baseline; a caller placing a label does not have to.
+`text(string, x, y, …)` puts the **top-left corner** of the line at `(x, y)`.
+Every other drawing method uses the same corner. Typography measures from the
+baseline, but a caller placing a label does not have to.
 
 ```ruby
 renderer.text(string, x, y, z: 10, color: nil, font: nil)
@@ -31,8 +33,8 @@ renderer.text_width(string, font: nil)   # => Float, pixels
 renderer.text_height(font: nil)          # => Integer, the line height
 ```
 
-**A string is one line.** Newlines are not special. Two lines are two calls,
-stepped by `text_height`:
+**A string is one line.** A newline has no special meaning. Draw two lines with
+two calls, stepped by `text_height`:
 
 ```ruby
 lines.each_with_index do |line, i|
@@ -40,15 +42,24 @@ lines.each_with_index do |line, i|
 end
 ```
 
-**`text_width` and `text` agree.** They walk the same code, so a label measured
-and then centred lands where it was measured to:
+**`text_width` and `text` agree.** They run the same code, so a label centred by
+its measured width lands exactly there:
 
 ```ruby
 @renderer.text(label, (width - @renderer.text_width(label)) / 2, 20)
 ```
 
-Unlike the drawing methods, `text_width` and `text_height` work **outside**
-`draw` — measuring touches no GPU, and laying out a menu happens while updating.
+**`text_width` and `text_height` also work outside `draw`**, unlike the drawing
+methods. Measuring touches no GPU, and a menu lays itself out while updating.
+
+A label built from a changing value, like a score, should come from
+`RGame::Engine::CachedLabel`. It rebuilds the string only when the value changes:
+
+```ruby
+@score_label = RGame::Engine::CachedLabel.new { |score| "Score: #{score}" }  # once
+
+renderer.text(@score_label[@score], 10, 10)                                  # every frame
+```
 
 ## Fonts
 
@@ -62,56 +73,55 @@ font.text_width('Hello') # => 38.7
 renderer.text('Hello', 10, 10, font: font)
 ```
 
-A `Font` is **one typeface at one pixel size**. Two sizes are two fonts. Like an
-image, it belongs to the app whose GPU context holds its glyphs, and drawing it
-through another app's renderer raises rather than painting blank boxes.
+A `Font` is **one typeface at one pixel size**. Two sizes need two fonts. A font
+belongs to the app whose GPU context holds its glyphs, like an image. Drawing it
+through another app's renderer raises instead of painting blank boxes.
 
-The renderer builds its own font at 18px on first use. Replace it and every
-unqualified `text` call follows:
+The renderer builds its own 18px font on first use. Replace it, and every `text`
+call without a `font:` follows:
 
 ```ruby
 @renderer.font = RGame::Core::Font.new(self, 24)
 ```
 
-A file that cannot be read or is not a TrueType font raises
+A file that is unreadable or not a TrueType font raises
 `RGame::Core::Font::LoadError`, naming the path.
 
 ### The default font, and what it covers
 
-The engine ships **Liberation Sans** and uses it when no path is given. There is
-no font-*name* lookup and no system font database — a font is a file.
+**The engine ships Liberation Sans and uses it when you pass no path.** It never
+looks a font up by name and never asks a system font database. A font is a file.
 
-That is a deliberate trade. Asking the operating system for a font by *name* —
-"Arial" — gets whatever that machine keeps under that name, or a substitute for
-it, so a UI laid out on the developer's box can overflow on a player's. Shipping
-one means text renders identically everywhere, at the cost of ~400 KB in the
-gem.
+This is a deliberate trade. Asking the operating system for "Arial" gets whatever
+that machine keeps under the name, or a substitute. A UI laid out on the
+developer's machine can then overflow on a player's. A shipped font renders
+identically everywhere, and costs about 400 KB in the gem.
 
 | | |
 |---|---|
 | Covers | English, German, French, Italian, Spanish, Portuguese, Nordic, Polish — in full, including `ß`, `ẞ`, `« »`, curly quotes and `€`. Greek and Cyrillic too. |
 | Does not cover | CJK, Arabic, Hebrew, Devanagari. Pass your own font file for those; no font of this size includes them. |
 
-Text is UTF-8. A malformed byte draws one replacement character and the rest of
-the string survives — a bad byte in a data file costs a visible box, not the
-label.
+Text is UTF-8. A malformed byte draws one replacement character, and the rest of
+the string still draws. A bad byte in a data file costs one visible box, not the
+whole label.
 
 ## What it costs
 
-Glyphs are rasterised the first time they are drawn and kept in a texture atlas
-afterwards, so the cost is bounded by the **characters** a game uses, not by the
-strings it draws. A score that changes every frame is free after the first ten
-digits; a whole Latin character set fits on one 512×512 page, so a line of text
-is one draw call.
+**The engine rasterises each glyph the first time it is drawn**, then keeps it in
+a texture atlas. Cost therefore grows with the **characters** a game uses, not
+with the strings it draws. A score that changes every frame costs no more glyph
+work after the ten digits. A whole Latin character set fits on one 512×512 page,
+so a line of text is one draw call.
 
-A font that is only measured and never drawn allocates no video memory at all.
+A font that is only measured, never drawn, uses no video memory.
 
-Nothing needs freeing — a font's atlas is released when the font is collected,
-in either order relative to its app. `Font.debug_live_pages` reports how many
-atlas pages exist and is there for tests, not for gameplay.
+Nothing needs freeing. The engine releases a font's atlas when the font is
+collected, whether before or after its app. `Font.debug_live_pages` returns how
+many atlas pages exist. It serves tests, not gameplay.
 
 ## What is not here
 
-Markup (`<b>`, colour tags), bold and italic variants, multi-line layout, word
-wrapping, text input, and right-to-left or complex shaping. A string is one line
-of left-to-right glyphs.
+rgame text has no markup (`<b>`, colour tags), no bold or italic variants, no
+multi-line layout and no word wrapping. It has no text input, no right-to-left
+text and no complex shaping. A string is one line of left-to-right glyphs.

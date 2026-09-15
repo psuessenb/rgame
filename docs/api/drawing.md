@@ -1,7 +1,7 @@
 # Drawing
 
-`RGame::Core::Renderer` is what a game draws with. It is created from an app and
-used inside `draw`:
+A game draws with `RGame::Core::Renderer`. Build one from an app and use it
+inside `draw`:
 
 ```ruby
 require 'rgame'
@@ -26,15 +26,15 @@ end
 MyGame.new.run
 ```
 
-Two things about that are worth knowing before anything else.
+Know two rules before anything else.
 
-**Drawing is only legal inside `draw`.** Calling one of these from `update` or
-from a constructor raises. The frame is not open at those times, so the call
-would be silently discarded — and an invisible failure is worse than a loud one.
+**Draw only inside `draw`.** A drawing call from `update` or from a constructor
+raises. The frame is not open then, so the call would vanish without a trace.
+A loud failure beats an invisible one.
 
-**Nothing is drawn immediately.** Calls accumulate, and the frame is sorted and
-sent to the GPU once, after `draw` returns. So the order you make calls in does
-not decide what ends up on top — the scene tree does. See "Draw order" below.
+**The renderer draws nothing immediately.** It collects calls, sorts the frame
+and sends it to the GPU once, after `draw` returns. So call order does not decide
+what ends up on top; the scene tree does. See "Draw order" below.
 
 ## Coordinates, colours and z
 
@@ -45,37 +45,36 @@ not decide what ends up on top — the scene tree does. See "Draw order" below.
 | `z:` | Where this call sits among **this node's own** drawing. −512…511. |
 | `color:` | `nil` (white), `[r, g, b]`, `[r, g, b, a]`, or a `RGame::Util::Color`. |
 
-`z:` is an offset inside the current layer, not a global number. It orders a
-node's panel under its label and its shadow under its sprite, and it can reach
-nothing else — passing anything outside −512…511 raises.
+**`z:` is an offset inside the current layer**, not a global number. It puts a
+node's panel under its label and its shadow under its sprite. It cannot reach
+anything else. A value outside −512…511 raises.
 
-It defaults to `50` for shapes, `10` for text and `0` for images, so a debug box
-or a health bar drawn without a `z:` lands on top of *that node's* sprite. Equal
-z keeps call order, which matters more than it sounds: without it two sprites on
-the same layer would swap places whenever the sort felt like it, and that reads
-as flicker.
+Shapes default to `50`, text to `10` and images to `0`. A debug box or a health
+bar without a `z:` therefore lands on top of *that node's* sprite. Calls with
+equal z keep their call order. Without that rule, two sprites on one layer could
+swap places from frame to frame, and players would see flicker.
 
 ## Draw order
 
-Order is decided in three steps, coarsest first, and only the last of them is a
-number a drawing call passes.
+**The renderer orders a frame in three steps, coarsest first.** A drawing call
+passes a number only for the last step.
 
-1. **The band.** `:world` (the default), `:hud`, `:overlay`, `:debug`.
-   Everything in one band is under everything in the next, whatever either drew.
-2. **The slot.** The scene tree is walked depth-first with siblings in `z`
-   order, and each node takes the next slot in its band as it is reached. So
-   draw order is **tree order**, and a node's subtree is one contiguous run —
-   a subtree is atomic and cannot straddle a sibling.
-3. **The offset.** The `z:` above, inside one node's slot.
+1. **The band**: `:world` (the default), `:hud`, `:overlay` or `:debug`.
+   Everything in one band lies under everything in the next.
+2. **The slot.** The traversal walks the scene tree depth-first, siblings in `z`
+   order. Each node takes the next slot in its band when the walk reaches it.
+   Draw order is therefore **tree order**. A node's subtree forms one unbroken
+   run and cannot straddle a sibling.
+3. **The offset**: the `z:` above, inside one node's slot.
 
-A scene graph arranges all of this for you: `RGame::Engine::Node2D#draw` opens a
-layer per node, so a game writes `z` on nodes and a `band` on the handful that
-mark one. See [scene_graph.md](scene_graph.md), "Draw order".
+A scene graph arranges all of this. `RGame::Engine::Node2D#draw` opens a layer per
+node, so a game sets `z` on nodes and a `band` on the few that start one. See
+[scene_graph.md](scene_graph.md), "Draw order".
 
 ### Opening a layer by hand
 
-Anything drawing outside the scene tree — the debug overlay, a spec, a script —
-opens its own:
+Code that draws outside the scene tree opens its own layer. The debug overlay, a
+spec and a script all do:
 
 ```ruby
 renderer.layered(:hud) do
@@ -84,41 +83,39 @@ renderer.layered(:hud) do
 end
 ```
 
-`layered` takes the next slot in that band, makes it the base every `z:` inside
-is measured from, and restores the previous base afterwards (including when the
-block raises). Nesting *replaces* rather than accumulates — a node's slot is
-decided by where the traversal reached it, not by summing what its ancestors
-picked. Outside any block the base is 0, so a bare script gets exactly the z it
-passes.
+`layered` takes the next slot in that band and measures every `z:` inside the
+block from it. Afterwards it restores the previous base, even when the block
+raises. Nesting *replaces* the base; it does not add to it. A node's slot depends
+on where the traversal reached it, not on its ancestors' picks. Outside any block
+the base is 0, so a bare script gets exactly the z it passes.
 
-`renderer.layer` reports the base currently in effect.
+`renderer.layer` returns the base in effect.
 
-### Why bands exist at all
+### Why bands exist
 
 A frame holds three kinds of content:
 
-- **World** — inside a `WorldView`, drawn once per viewport, under a camera.
-- **A player's own screen space** — their HUD, their menu, drawn once and
-  clipped to their viewport (`PlayerLayer`).
-- **Global screen space** — a cutscene, a results panel, drawn once across the
+- **World**: inside a `WorldView`, drawn once per viewport, under a camera.
+- **A player's own screen space**: their HUD and menu, drawn once and clipped to
+  their viewport (`PlayerLayer`).
+- **Global screen space**: a cutscene or a results panel, drawn once across the
   whole window.
 
-The first is a different *space* from the other two, and the tree enforces that:
-`WorldView` is what draws its subtree once per viewport. The last two share one
-space, and the band is what tells them apart.
+The world is a different *space* from the other two, and the tree enforces that:
+`WorldView` draws its subtree once per viewport. The other two share one space,
+and the band tells them apart.
 
-Two viewports interleaving in the sort is harmless — their commands carry
-different clips and land on different pixels. Order *within* one viewport is
-not, and nothing about drawing a HUD after the world puts it above the world.
-Its band does. Bands are `2**40` apart and a `z:` spans 1024, so no arithmetic
-below can carry one band into the next: containment is arithmetic rather than
-convention. See `RGame::Util::Z`.
+Two viewports may interleave in the sort without harm. Their commands carry
+different clips and land on different pixels. Order *within* one viewport
+matters, and drawing a HUD after the world does not put it on top. Its band
+does. Bands lie `2**40` apart and a `z:` spans 1024, so no offset can carry a
+call into the next band. See `RGame::Util::Z`.
 
 ### Colours and allocation
 
-Passing a `Color` allocates nothing — it is a frozen value, and the same one can
-be shared by every sprite that uses it. Passing an array allocates a colour per
-call, which is fine at setup and wasteful sixty times a second:
+**Passing a `Color` allocates nothing.** A `Color` is a frozen value, so every
+sprite can share the same one. Passing an array allocates a colour on every
+call. That is fine at setup and wasteful sixty times a second:
 
 ```ruby
 RED = RGame::Util::Color.new(224, 64, 64)   # once
@@ -139,20 +136,17 @@ renderer.circle(cx, cy, radius, z: 50, color: nil, segments: 64)
 renderer.debug_box(x, y, width, height, z: 50)
 ```
 
-A **quad's** four points are taken in loop order — top-left, top-right,
-bottom-right, bottom-left for a rectangle. Listing them in Z order gives an
-hourglass.
+A **quad** takes its four points in loop order: top-left, top-right,
+bottom-right, bottom-left for a rectangle. Points in Z order give an hourglass.
 
-A **line** has real thickness because it is drawn as a quad. OpenGL's own line
-width is a suggestion drivers are free to ignore above one pixel, so a line
-worth seeing has to be a shape.
+A **line** has real thickness, because the renderer draws it as a quad. Drivers
+may ignore OpenGL's own line width above one pixel.
 
-A **circle** is a fan of triangles, and the whole fan is one batch — there is no
-cached circle texture to warm up and nothing to configure. `segments:` is there
-for the rare case where 64 is too many or too few.
+A **circle** is a fan of triangles in one batch. It needs no cached texture and
+no configuration. Adjust `segments:` if 64 is too many or too few.
 
-`debug_box` is a translucent red rectangle for visualising a collision box, so a
-scene can ask for one without deciding what colour "debug" is.
+`debug_box` draws a translucent red rectangle to show a collision box. A scene
+can ask for one without choosing a debug colour.
 
 ## Images
 
@@ -162,63 +156,65 @@ renderer.image_at(image, x, y, scale_x: 1, scale_y: 1, z: 0, color: nil)
 renderer.background(image, x = 0, y = 0, z: 0, color: nil)
 ```
 
-Three anchors for three jobs. `image` **centres** on the position given and
-rotates about that centre — the sprite case. `image_at` places the **top-left**
-corner and scales each axis on its own — tiles, nine-slice corners, sheet
-frames. `background` is `image_at` at natural size, named for its usual job.
+Each method anchors the image differently:
+
+- `image` **centres** the image on the position and rotates it about that
+  centre. Use it for sprites.
+- `image_at` places the **top-left** corner and scales each axis separately. Use
+  it for tiles, nine-slice corners and sheet frames.
+- `background` is `image_at` at natural size.
 
 ### Mirroring
 
-A negative scale on `image_at` mirrors the image **inside the same rectangle**.
-It does not move it:
+**A negative scale on `image_at` mirrors the image inside the same rectangle.**
+It does not move the image:
 
 ```ruby
 renderer.image_at(frame, x, y, scale_x: facing_left ? -1 : 1)
 ```
 
-Both calls cover the same pixels; only the picture is reversed. `(x, y)` is the
-top-left corner whatever the sign of the scale, so a mirrored sprite stays put
-and there is nothing to compensate for. Mirroring *about* the anchor instead
-would push the image a width to the left and leave every flipped draw to add
-that width back — one more thing to get right, and to forget.
+Both calls cover the same pixels; only the picture is reversed. `(x, y)` stays
+the top-left corner whatever the scale's sign, so a mirrored sprite stays put.
+Mirroring about the anchor would shift the image one width to the left. Every
+flipped draw would then have to add that width back.
 
 A scale of `0` draws nothing.
 
-`color:` tints: the image's pixels are multiplied by it, so white leaves the
-image alone and a colour with alpha fades it.
+`color:` tints the image by multiplying its pixels. White leaves the image
+unchanged, and a colour with alpha fades it.
 
-See [Images](images.md) for loading files and slicing sprite sheets.
+[Images](images.md) covers loading files and slicing sprite sheets.
 
-**An image can only be drawn by the app that loaded it.** GPU textures belong to
-one window's OpenGL context and are not shared with another, so drawing another
-app's image would sample nothing and paint a plain white rectangle. Rather than
-let that happen quietly, it raises `ArgumentError`. In a one-window game — which
-is nearly all of them — this never comes up.
+**Only the app that loaded an image can draw it.** A GPU texture belongs to one
+window's OpenGL context. Drawing another app's image would sample nothing and
+paint a plain white rectangle, so the renderer raises `ArgumentError` instead. A
+one-window game never meets this.
 
 ## Drawing by id
 
-Game logic names an asset; it does not hold one. That is not a convenience —
-the scene layer may hold `RGame::Util` values but no `RGame::Core` handle at
-all, so a Symbol or a path is the only thing a node *can* carry.
+**Game logic names an asset; it does not hold one.** The scene layer may hold
+`RGame::Util` values but no `RGame::Core` handle. A Symbol or a path is the only
+thing a node *can* carry.
 
-An id is normally a **root-relative path**, resolved through the app's
-[asset manager](assets.md) and then remembered:
+An id is normally a **root-relative path**. The renderer resolves it through the
+app's [asset manager](assets.md) and remembers the result:
 
 ```ruby
-renderer.sprite('example 09/player.json', row, col, x, y, flip_x: false, z: 0)
+renderer.sprite('hero.json', row, col, x, y, flip_x: false, z: 0)
 renderer.image('space.png', cx, cy, angle: 0, scale: 1)
 renderer.background('space.png')
 renderer.tilemap('map/island.tmx', layer, camera_x, camera_y, viewport_w, viewport_h)
+renderer.nine_slice(:panel, x, y, width, height, z: 0, tint: nil)
 ```
 
-Nothing has to be set up for that: `Renderer.new(app)` takes the app's own
-manager, so a path just works. `Renderer.new(app, assets: other)` overrides it.
+Paths need no setup. `Renderer.new(app)` uses the app's own manager.
+`Renderer.new(app, assets: other)` uses a different one.
 
 ### Registering
 
-`register_*` pre-binds an id to an object you chose, and wins over the asset
-manager. It is for the two things a path cannot name: an id that is not a file,
-and an object the game assembled itself.
+`register_*` binds an id to an object you choose, and takes priority over the
+asset manager. Use it for what a path cannot name: an id that is not a file, and
+an object the game built itself.
 
 ```ruby
 renderer.register_image(:space, app.assets.image('space.png'))
@@ -230,10 +226,10 @@ renderer.register_ui_atlas(atlas)   # every element under its own name
 renderer.image(:space, 100, 100)
 ```
 
-**Nine-slices are registration-only.** Their ids name an *element of an atlas*,
-not a file, so there is nothing for a manager to resolve them to.
+**Nine-slices must be registered.** Their ids name an *element of an atlas*, not
+a file, so an asset manager has nothing to resolve.
 
-### What resolution does
+### How the renderer resolves an id
 
 | Given | |
 |---|---|
@@ -243,19 +239,18 @@ not a file, so there is nothing for a manager to resolve them to.
 | A `Symbol` that is not registered | `KeyError`, naming the id and the type |
 | `nil` | `TypeError` |
 
-A Symbol is never offered to the asset manager, because only a String can be a
-path. So a typo'd Symbol says "no sheet registered for `:heor`" rather than
-whatever a loader makes of being handed a Symbol for a filename — and a broken
-*file* still raises its own `LoadError` naming it, which is a different bug
-wanting a different fix.
+The renderer never offers a Symbol to the asset manager, because only a String
+can be a path. A mistyped Symbol therefore raises "no sheet registered for
+`:heor`". A broken *file* raises its own `LoadError` naming the file. The two
+errors point at two different fixes.
 
-Resolution happens once per id and the answer is kept, so per-frame drawing
-neither re-resolves nor allocates a lookup key.
+The renderer resolves each id once and keeps the answer. Per-frame drawing
+neither resolves again nor allocates a lookup key.
 
 ## Transform blocks
 
-Each of these applies to everything drawn inside it, and undoes itself
-afterwards — including when the block raises.
+Each block applies to everything drawn inside it and undoes itself afterwards,
+even when the block raises.
 
 ```ruby
 renderer.translated(dx, dy) { ... }
@@ -265,7 +260,7 @@ renderer.clipped(x, y, width, height) { ... }
 renderer.layered(band) { ... }               # see "Draw order" above
 ```
 
-They nest, and they compose in the order they are opened:
+Blocks nest and compose in the order you open them:
 
 ```ruby
 renderer.translated(-camera.x, -camera.y) do   # world space -> screen space
@@ -275,25 +270,24 @@ renderer.translated(-camera.x, -camera.y) do   # world space -> screen space
 end
 ```
 
-`translated` is how a camera works, and the reason it is a *draw-time* transform
-rather than something baked into positions is that the same world can then be
-drawn twice, under two different offsets — which is what split-screen is.
+**A camera is a `translated` block.** Because the offset applies at draw time,
+the same world can be drawn twice under two different offsets. That is
+split-screen.
 
-`rotated(0, …)`, `translated(0, 0)` and `scaled(1)` are free: they skip the
-transform entirely and just run the block, so unrotated drawing pays nothing.
+`rotated(0, …)`, `translated(0, 0)` and `scaled(1)` cost nothing. They skip the
+transform and run the block, so unrotated drawing pays nothing.
 
-**Inside a scene graph you rarely push either of these yourself.** The examples
-here drive the renderer directly from an `App`, where the coordinates are the
-window's. A `Node2D` is placed by the traversal, which pushes its transform
-before calling `on_draw` — so a node draws at *its own* origin and passing its
-position applies it twice. See
-[Scene graph](scene_graph.md#drawing-happens-in-local-space).
+**Inside a scene graph you rarely open a transform block yourself.** The examples
+on this page drive the renderer from an `App`, in window coordinates. For a
+`Node2D`, the traversal pushes the node's transform before it calls `on_draw`. A
+node therefore draws at *its own* origin, and passing its position would apply it
+twice. See [Scene graph](scene_graph.md#drawing-happens-in-local-space).
 
 ### Clipping and split-screen
 
-A clip **narrows**. Nesting one inside another intersects them, so a child can
-never draw outside the region its parent allowed. Two clipped blocks are a
-split screen:
+**A clip narrows.** A nested clip intersects with its parent, so a child never
+draws outside the region its parent allowed. Two clipped blocks make a split
+screen:
 
 ```ruby
 def draw
@@ -307,17 +301,17 @@ def draw
 end
 ```
 
-**A game does not write that.** It is what
-[`RGame::Engine::WorldView`](scene_graph.md#view-transforms-and-the-camera) does for you,
-once per active player, with the rectangles from the layout and each player's own camera.
-Reach for `clipped` directly for a region of your own — a minimap, a scrolling list — and
-let the world band handle the split.
+**A game does not write that.**
+[`RGame::Engine::WorldView`](scene_graph.md#view-transforms-and-the-camera) does it
+once per active player, with the layout's rectangles and each player's camera.
+Call `clipped` directly for a region of your own, such as a minimap or a
+scrolling list.
 
 ## Recordings: bake once, replay cheaply
 
-A tile layer is a couple of thousand quads that have not changed since the level
-loaded. `record` bakes a block of drawing so that replaying it costs one call
-per texture, however many draws went into it:
+**`record` bakes a block of drawing, and a replay costs one call per texture.** A
+tile layer holds a few thousand quads that stay the same once the level loads, so
+it is the typical case:
 
 ```ruby
 def draw
@@ -329,10 +323,9 @@ def draw
 end
 ```
 
-Nothing is drawn at bake time — the block's output goes into the recording
-instead of into the frame. `record` must be called inside `draw` like everything
-else, which is why the example bakes on the first frame rather than in
-`initialize`.
+Baking draws nothing; the block's output goes into the recording, not the frame.
+`record` must run inside `draw` like every other call. The example therefore
+bakes on the first frame, not in `initialize`.
 
 ```ruby
 baked.draw(x = 0, y = 0, z: 0, color: nil)
@@ -341,46 +334,46 @@ baked.width         # the size of what was baked
 baked.empty?
 ```
 
-**Positions, texture coordinates, colours and any transforms inside the block
-are baked in.** The transform in effect when the recording is *drawn* applies on
-top, so a baked layer scrolls under a camera without being rebuilt, and the same
-recording can be stamped in several places:
+**A recording bakes in positions, texture coordinates, colours and any
+transforms inside the block.** The transform in effect at replay applies on top.
+A baked layer scrolls under a camera without a rebuild, and one recording can be
+stamped in several places:
 
 ```ruby
 5.times { |i| @bush.draw(i * 120, 300) }
 ```
 
-**`color:` tints the replay** — each recorded colour is multiplied by it, so a
-whole baked layer can be faded out at once.
+**`color:` tints the replay.** The renderer multiplies each recorded colour by
+it, so you can fade a whole baked layer at once.
 
-**Clipping cannot be baked.** Clipping happens when pixels are rasterised, so a
-clip rectangle captured in one place would be wrong everywhere else the
-recording is drawn. Pushing a clip inside a `record` block raises; clip the
-replay instead, which is what was meant anyway:
+**A recording cannot contain a clip.** Clipping happens at rasterisation, so a
+clip captured in one place would be wrong everywhere else the recording is drawn.
+Pushing a clip inside a `record` block raises. Clip the replay instead:
 
 ```ruby
 @renderer.clipped(0, 0, 400, 600) { @ground.draw(-@camera.x, -@camera.y) }
 ```
 
-Recordings do not nest, and a block that raises leaves nothing half-recorded
-behind. A recording keeps the images baked into it alive, so a sprite sheet
-dropped after baking does not take its texture with it.
+Recordings do not nest. A block that raises leaves no half-built recording
+behind. A recording keeps its baked images alive, so dropping a sprite sheet
+after baking does not free its texture.
 
 ## Testing what a scene draws
 
-The renderer is an interface, not a class your game should name. Game logic
-receives one and calls methods on it; a headless spec passes a recording fake
-instead and asserts on the calls:
+**Treat the renderer as an interface, not a class your game names.** Game logic
+receives a renderer and calls its methods. A headless spec passes a recording
+fake instead and asserts on the calls. rgame's own suite uses `FakeRenderer`
+from `spec/support/`:
 
 ```ruby
 renderer = FakeRenderer.new
-health_bar.draw(renderer)
+health_bar.on_draw(renderer, nil)
 
 expect(renderer.calls_to(:rect).map(&:args)).to eq([[10, 10, 64, 8]])
 ```
 
-Recordings are faked too, and the fake keeps the two questions apart — what was
-baked, and where it was replayed:
+The fake also records recordings, and keeps two questions apart: what was baked,
+and where it was replayed.
 
 ```ruby
 ground = renderer.record { ... }   # => a FakeRecording
@@ -389,18 +382,13 @@ expect(ground.calls.size).to eq(tiles.size)   # baked once, not per frame
 expect(ground.draws.map(&:args)).to eq([[-camera.x, -camera.y]])
 ```
 
-That runs with no window, no GPU and no clock. The fake and the real renderer
-are both checked against one shared contract (`spec/support/shared_examples/
-a_renderer.rb`), which is what keeps them the same shape: a fake that accepts a
-call the real renderer refuses, or misses one it offers, leaves the test suite
-green and the game not drawing.
+These specs run with no window, no GPU and no clock. One shared contract,
+`spec/support/shared_examples/a_renderer.rb`, checks both the fake and the real
+renderer. A fake that drifted from the real renderer would keep the suite green
+while the game stopped drawing.
 
 ## Text
 
 `renderer.text(string, x, y)` draws a line of text, and `text_width` measures
-one. See [Text](text.md) for fonts, the shipped default and what it covers.
-
-## What is not here yet
-
-Audio and drawing by asset id (`sprite(:hero, row, col, …)`) are still to come.
-Today an image is passed as an object rather than looked up in a registry.
+one. [Text](text.md) covers fonts, the shipped default and the characters it
+covers.

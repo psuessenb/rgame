@@ -1,8 +1,8 @@
 # Images
 
 `RGame::Core::Image` is a picture on the GPU. Loading one decodes a PNG and
-uploads it; everything after that — subimages, tiles, whole sprite sheets — is a
-*view* of that single upload.
+uploads it once. Subimages, tiles and whole sprite sheets are all *views* of that
+single upload.
 
 ```ruby
 require 'rgame/core'
@@ -12,8 +12,8 @@ frame = img.subimage(0, 0, 16, 16)
 walk  = RGame::Core::Image.load_tiles(app, 'hero.png', 16, 16)
 ```
 
-There is nothing to draw them with yet — the renderer is the next piece of the
-engine to land. What works today is loading, slicing and measuring.
+[Drawing](drawing.md) covers putting images on screen. A game usually loads them
+through the [asset manager](assets.md) instead of calling `Image.new` itself.
 
 ## Loading
 
@@ -23,13 +23,12 @@ image.width    # => 64
 image.height   # => 32
 ```
 
-The `app` argument is required and comes first. A texture lives inside one
-OpenGL context, so an image genuinely is an image *of* a window rather than a
-free-floating object — and saying so is what makes two windows work, and what
-lets the image keep its app alive for as long as it needs it.
+**The `app` argument is required and comes first.** A texture lives inside one
+OpenGL context, so an image belongs to a window. Naming the app lets two windows
+work side by side. It also lets the image keep its app alive as long as it needs.
 
-PNG is the only format. A file that cannot be read or decoded raises
-`RGame::Core::Image::LoadError` with the path in the message:
+rgame reads PNG only. A file it cannot read or decode raises
+`RGame::Core::Image::LoadError`, with the path in the message:
 
 ```ruby
 begin
@@ -39,12 +38,11 @@ rescue RGame::Core::Image::LoadError => e
 end
 ```
 
-Greyscale and palette PNGs load fine; they are converted to RGBA on the way in,
-so there is only ever one pixel format in play.
+Greyscale and palette PNGs load too. The loader converts them to RGBA, so the
+engine handles one pixel format.
 
-**Images are always sampled nearest-neighbour.** There is no setting for it.
-The engine exists to draw pixel art, and blurring it on scale-up is never the
-intent.
+**Images always use nearest-neighbour sampling**, with no setting to change it.
+The engine draws pixel art, and pixel art should never blur when scaled up.
 
 ## Slicing: subimages and tiles
 
@@ -58,25 +56,24 @@ sheet.tiles(16, 16)             # => [Image, Image, ...] all eight
 sheet.each_tile(16, 16) { |t| }  # the same, without building the Array
 ```
 
-`Image.load_tiles(app, path, w, h)` is `new` plus `tiles` in one step, and is
-the usual way to open a sprite sheet:
+`Image.load_tiles(app, path, w, h)` combines `new` and `tiles`. It is the usual
+way to open a sprite sheet:
 
 ```ruby
 frames = RGame::Core::Image.load_tiles(app, 'explosion.png', 32, 32)
 ```
 
-Three things are worth knowing about all of these:
+Three rules apply to all of these methods.
 
-**Nothing is decoded or uploaded twice.** A hundred tiles are a hundred small
-Ruby objects over one texture. Slicing a sheet is cheap enough to do at load
-time without thinking about it.
+**Nothing is decoded or uploaded twice.** A hundred tiles are a hundred small Ruby
+objects over one texture. Slice sheets at load time without worrying about cost.
 
-**Tiles come back in reading order** — left to right, then top to bottom — which
-is how sprite-sheet frames are numbered everywhere else.
+**Tiles come back in reading order**: left to right, then top to bottom. Sprite
+sheets number their frames the same way.
 
-**A partial tile at the right or bottom edge is not a tile.** A 70-pixel-wide
-sheet sliced into 16s yields four columns and leaves six pixels of padding
-alone, because half a sprite is never what was meant.
+**A partial tile at the right or bottom edge is not a tile.** Slicing a 70-pixel
+sheet into 16s yields four columns. The six leftover pixels count as padding,
+because half a sprite is never wanted.
 
 ### Coordinates are relative to what you cut from
 
@@ -87,24 +84,23 @@ row  = sheet.subimage(0, 16, 64, 16)   # the bottom row of the sheet
 tile = row.subimage(32, 0, 16, 16)     # 32 pixels into *the row*, not the sheet
 ```
 
-A rectangle that does not fit raises `ArgumentError`, and an out-of-range tile
-index raises `IndexError`, rather than either returning `nil`:
+**Bad coordinates raise; they never return `nil`.** A rectangle that does not fit
+raises `ArgumentError`. An out-of-range tile index raises `IndexError`:
 
 ```ruby
 sheet.subimage(0, 0, 999, 999)   # ArgumentError: does not fit in a 64x32 image
 sheet.tile(16, 16, 99)           # IndexError: 8 tiles of 16x16
 ```
 
-A `nil` here would travel a long way — into an asset table, out of it three
-scenes later — before failing as a `NoMethodError` with nothing left pointing at
-the coordinates that were wrong.
+A `nil` would travel a long way: into an asset table, and out again three scenes
+later. It would finally fail as a `NoMethodError` that no longer points at the
+wrong coordinates.
 
 ## Lifetime
 
-You never free an image. The texture is released when the last view of it is
-garbage-collected, and the order does not matter: dropping the sheet while its
-tiles are still in use keeps the upload alive, and dropping the window first is
-also fine.
+**You never free an image.** The engine releases the texture when the last view
+of it is garbage-collected, in any order. Tiles still in use keep the upload
+alive after the sheet is dropped. Dropping the window first also works.
 
 ```ruby
 sheet  = RGame::Core::Image.new(app, 'tiles.png')
@@ -112,7 +108,7 @@ ground = sheet.tile(16, 16, 0)
 sheet  = nil     # the upload stays — `ground` is still a view of it
 ```
 
-That is worth stating because a leaked GPU texture is invisible while it
-happens: nothing is slower, nothing looks wrong, and video memory fills up over
-an hour of play. `Image.debug_live_textures` reports how many uploads exist, and
-is there for tests to assert against; it is not part of the drawing API.
+A leaked GPU texture shows no symptoms at first. Nothing slows down and nothing
+looks wrong, while video memory fills over an hour of play.
+`Image.debug_live_textures` returns how many uploads exist. Tests assert against
+it; it is not part of the drawing API.

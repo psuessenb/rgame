@@ -1,38 +1,42 @@
 # Scene graph
 
-The engine builds a game out of a tree of nodes — a classic scene graph. A node
-holds state, logic and drawing for one game object; nesting nodes builds up whole
-scenes. Everything is pure Ruby: nodes draw through the renderer interface and
-read input from a per-frame snapshot, never naming a graphics library at all.
+**A game is a tree of nodes.** A node holds the state, logic and drawing of one
+game object, and nested nodes build whole scenes. The tree is pure Ruby. Nodes
+draw through the renderer interface and read input from a per-tick snapshot. They
+never name a graphics library.
 
 ## Node2D
 
-`RGame::Engine::Node2D` (`engine/node2d`) is the basic building block. (The `2D` in the
-name leaves room for a future 3D node; today everything is 2D.) A node carries:
+`RGame::Engine::Node2D` (`engine/node2d`) is the basic building block. A node
+carries:
 
-- a **transform** — relative `x`, `y`, `angle` plus `width`/`height`, and a `z`
-  that orders it among its siblings;
-- **children** — other nodes nested under it (`add_node`);
-- **components** — reusable pieces of behaviour attached to it (`add_component`);
-- a **parent** — the node it hangs off (set automatically when it is added).
+- a **transform**: `x`, `y` and `angle` relative to its parent, plus `width` and
+  `height`, and a `z` that orders it among its siblings;
+- **children**: other nodes nested under it (`add_node`);
+- **components**: reusable pieces of behaviour attached to it (`add_component`);
+- a **parent**: the node it hangs off, set when it is added.
 
-Nodes extend the signal DSL (`RGame::Engine::Signal::DSL`), so any subclass can declare
-and emit signals without opting in. See [Signals](signals.md).
+Nodes extend the signal DSL (`RGame::Engine::Signal::DSL`), so any subclass can
+declare and emit signals. See [Signals](signals.md).
 
 ### Elevation
 
-`node.elevation` is how far above the ground a node's picture is drawn, in pixels,
-for a top-down view. It defaults to 0, and positive is up the screen.
+`node.elevation` lifts a node's picture above the ground, in pixels, for a
+top-down view. It defaults to 0, and positive is up the screen.
 
-It is **not** part of the transform. `y`, `world_y`, colliders, cameras and children
-all ignore it, so a character can leave the ground without its feet box, or the
-camera following it, leaving too. Components that draw the node's picture read
-it — `Components::Sprite` and `Components::AnimatedSprite` draw lifted by it — and
-`Components::Hop` is the one that writes it. A node's own `on_draw` is not lifted,
-which is where the parts that stay on the ground go:
+**Elevation is not part of the transform.** `y`, `world_y`, colliders, cameras and
+children all ignore it. A character can therefore leave the ground while its feet
+box and the camera following it stay put. Components that draw the node's
+picture read it: `Components::Sprite` and `Components::AnimatedSprite` draw
+lifted. `Components::Hop` writes it. A node's own `on_draw` is not lifted, so the
+parts that stay on the ground go there:
 
 ```ruby
+require 'rgame'
+
 class Hero < RGame::Engine::Node2D
+  SHADOW = RGame::Util::Color.rgba(0, 0, 0, 90)
+
   def initialize(**)
     super
     add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
@@ -42,110 +46,111 @@ class Hero < RGame::Engine::Node2D
 
   # A shadow at the feet: drawn in on_draw, so it stays down while the sprite rises.
   def on_draw(renderer, _view)
-    renderer.rect(2, 19, 12, 3, color: RGame::Util::Color.rgba(0, 0, 0, 90))
+    renderer.rect(2, 19, 12, 3, color: SHADOW)
   end
 end
 ```
 
 ### The tick: control → update → draw
 
-A node is driven in three phases, always in this order:
+The engine drives a node in three phases, always in this order:
 
-1. `control(actions)` — read intent, both from the player (the `actions`
-   snapshot) and from AI/scripted controllers.
-2. `update(dt)` — advance game logic and physics over the timestep `dt`.
-3. `draw(renderer, view)` — render the current visual state into `view`, the
-   viewport being drawn.
+1. `control(actions)` reads intent, from the player (the `actions` snapshot) and
+   from AI or scripted controllers.
+2. `update(dt)` advances game logic and physics over the timestep `dt`.
+3. `draw(renderer, view)` renders the current state into `view`, the viewport
+   being drawn.
 
-The first two run once per **simulation tick** and the third once per **rendered
-frame**, which are not the same count: the loop is fixed-timestep, so a slow
-frame runs several ticks before drawing, and a frame in which nothing has
-advanced is skipped entirely. That is why a `draw` must be a pure function of
-state and must never read a clock — see
-[Drawing](drawing.md), and CLAUDE.md's "`draw` renders state".
+**The first two run once per simulation tick; `draw` runs once per rendered
+frame.** The counts differ. The loop uses a fixed timestep, so a slow frame runs
+several ticks before it draws. A frame in which nothing advanced skips the draw.
+A `draw` must therefore depend on state alone and never read a clock. See
+[The frame loop](app.md#the-frame-loop).
 
-Each phase **settles the node itself first — its components, then its own hook —
-and only then descends into the children**. So you override the hook, not the
-phase itself:
+**Each phase settles the node first, then descends into its children.** Settling
+means the node's components run, then its own hook. You override the hook, not
+the phase:
 
 - `on_control(actions)`
 - `on_update(dt)`
 - `on_draw(renderer, view)`
 
-`view` is the viewport this node is being drawn into — its rectangle, and the camera (if
-any) it is seen through. Most nodes ignore it and just draw. Two things need it: laying
-out against the edges of *this* region rather than the whole window
-(`view.x`, `view.width`), and culling (`view.visible?(x, y, w, h)`), which stops being an
-optimisation once the world is drawn once per player. See
-[Viewports](#viewports-and-views).
+`view` is the viewport the node is drawn into: its rectangle and the camera, if
+any. Most nodes ignore it. Two tasks need it. One is laying out against the edges
+of *this* region, not the whole window (`view.x`, `view.width`). The other is
+culling (`view.visible?(x, y, w, h)`), which matters once the world is drawn once
+per player. See [Viewports](#viewports-and-views).
 
-Self-before-subtree is the order the hooks run in, and nothing about a node's
-position depends on it: a world position is computed when it is read, from
-wherever everything is at that moment (see [The two spaces](#the-two-spaces)).
+The hooks run self before subtree, but no position depends on that order. A world
+position is computed when read, from wherever everything is at that moment. See
+[The two spaces](#the-two-spaces).
 
-Because the traversal recurses into children for you, **never re-implement child
-iteration** — add children with `add_node` and let the tree drive them.
+The traversal recurses into children for you. **Never iterate children
+yourself**: add them with `add_node` and let the tree drive them.
 
-**A method of `Node2D` whose name starts with `_` cannot be replaced.** Those are
-the machinery the phases call — `_draw_content`, `_resolve_inherited` and the
-rest — and a subclass method of the same name would quietly take its place for
-that class, so defining one raises `NameError` when the class is loaded, naming
-both. `Component` follows the same rule. A non-public method *without* the
-underscore is a seam meant for overriding with `super`; `draw_children` is the
-one `Node2D` has — see [View transforms and the
-camera](#view-transforms-and-the-camera). The rule is these two classes' only:
-underscored methods of an engine subclass are not guarded.
+**A subclass cannot replace a `Node2D` method whose name starts with `_`.** Those
+methods are the machinery the phases call, such as `_draw_content` and
+`_resolve_inherited`. A subclass method with the same name would take its place
+without warning. So defining one raises `NameError` when the class loads, naming
+both methods. `Component` follows the same rule. A non-public method *without*
+the underscore is a seam, meant to be overridden with `super`. `Node2D` has one:
+`draw_children`; see
+[View transforms and the camera](#view-transforms-and-the-camera). Only these two
+classes guard underscored methods; engine subclasses do not.
 
 ### The two spaces
 
-`x`/`y`/`angle` are **relative to the parent** — the only position a node ever
-sets, and the space it lives in. `rel_x`/`rel_y`/`rel_angle` are the same three
-under their long names.
+**`x`, `y` and `angle` are relative to the parent.** They are the only position a
+node sets, and the space it lives in. `rel_x`, `rel_y` and `rel_angle` are long
+names for the same three.
 
-`world_x`/`world_y`/`world_angle` are the same transform accumulated against the
-whole ancestry: `world_x = parent.world_x + x`, with the parent's rotation
-applied, and a node with no parent pinned to the origin.
+`world_x`, `world_y` and `world_angle` accumulate that transform over the whole
+ancestry. `world_x` is `parent.world_x + x`, with the parent's rotation applied.
+A node with no parent sits at the origin.
 
-`world_x=`/`world_y=` place a node at a world coordinate by working out the local
-position that puts it there, leaving the other coordinate where it is. They are
-a way of *writing `x`/`y`*, not a second position: the node still lives in its
-parent's space, and the write is exact under a rotated ancestor too, where
-moving along one world axis moves the local position along both. A node with no
-parent is pinned to the origin, so on it they change nothing.
+`world_x=` and `world_y=` place a node at a world coordinate. They compute the
+local position that puts it there and leave the other coordinate alone. They
+*write `x` and `y`*; they are not a second position. The node still lives in its
+parent's space. The write stays exact under a rotated ancestor, where moving along
+one world axis changes both local coordinates. On a node without a parent they
+change nothing, because that node sits at the origin.
 
 ```ruby
-container = RGame::Engine::Node2D.new(x: 100, y: 40)
+require 'rgame'
+
+root = RGame::Engine::Node2D.new
+container = root.add_node(RGame::Engine::Node2D.new(x: 100, y: 40))
 child = container.add_node(RGame::Engine::Node2D.new(x: 10, y: 5))
 child.world_x = 250
 child.x       # => 150
 child.world_x # => 250
 ```
 
-**They are computed when read, and cached.** Moving a node marks it and its whole subtree stale; the next read of any of
-them walks up to the nearest node still current and recomputes back down. Two
-things follow, and both are relied on:
+**World coordinates are computed when read, and cached.** Moving a node marks it
+and its whole subtree stale. The next read walks up to the nearest current node
+and recomputes back down. Two properties follow, and the engine relies on both:
 
-- **A world position is never stale.** No phase snapshots one, so there is
-  nothing to go out of date: a node that moved, a node whose *ancestor* moved, a
-  node that was just reparented, and a paused node under a moving ancestor all
-  answer correctly, at any point in any phase.
-- **Nothing is computed for a node nobody asks about.** A frame in which nothing
-  moves costs nothing at all.
+- **A world position is never stale.** No phase takes a snapshot, so nothing goes
+  out of date. Every case answers correctly, at any point in any phase: a node
+  that moved, a node whose *ancestor* moved, a node reparented this tick, and a paused
+  node under a moving ancestor.
+- **The engine computes nothing for a node nobody asks about.** A frame in which
+  nothing moves costs nothing.
 
-The two ways a node moves are therefore the two places that invalidate: writing
-`x`/`y`/`angle`, and being given a new parent (`add_node`/`remove_node`) — the
-same offset from somewhere else is still a move.
+Two things invalidate a world position. One is writing `x`, `y` or `angle`. The
+other is a new parent through `add_node` or `remove_node`: the same offset from
+somewhere else is still a move.
 
-**Which one to use.** Drawing needs neither: see "Drawing happens in local
-space" below. Game logic that reasons about the world — a distance, a collision,
-a camera target — wants `world_x`. Moving a node wants `x`, or `world_x=` when
-where it should go was decided in world space: that is how
-[`ScreenWrap`](components.md#screenwrap) puts a node on the far edge of the world,
-and how a [`Mover`](components.md#mover) writes back a resolved step.
+**Which one to use.** Drawing needs neither; see "Drawing happens in local space"
+below. Game logic that reasons about the world reads `world_x`: a distance, a
+collision, a camera target. To move a node, write `x`. Write `world_x=` when the
+destination was decided in world space.
+[`ScreenWrap`](components.md#screenwrap) uses it to put a node on the far edge of
+the world, and a [`Mover`](components.md#mover) to write back a resolved step.
 
-**No phase resolves the transform**, which is worth knowing when a spec drives
-one phase and asserts on another's answer. What the phases still resolve is the
-*inherited* attributes, which are not coordinates:
+**No phase resolves the transform.** Keep that in mind when a spec drives one
+phase and asserts on another's answer. The phases do resolve the *inherited*
+attributes, which are not coordinates:
 
 | Phase | Resolves | Because it reads |
 |---|---|---|
@@ -153,16 +158,15 @@ one phase and asserts on another's answer. What the phases still resolve is the
 | `update` | nothing | it reads neither |
 | `draw` | `abs_band` | to open the node's own layer |
 
-**`z` is not among them, and there is no `abs_z`.** Depth is decided by where
-the traversal reaches a node, not by summing what its ancestors picked — see
+**`z` is not among them, and there is no `abs_z`.** A node's depth comes from
+where the traversal reaches it, not from a sum of its ancestors' values. See
 "Draw order" below.
 
 ### Drawing happens in local space
 
 **A node's `on_draw` never mentions where the node is.** `Node2D#draw` pushes the
-node's transform onto the renderer before running the node's own drawing and its
-children's, so inside `on_draw` the origin *is* the node, turned the way the node
-is turned:
+node's transform onto the renderer before the node and its children draw. Inside
+`on_draw`, the origin *is* the node, turned the way the node is turned:
 
 ```ruby
 def on_draw(renderer, _view)
@@ -170,25 +174,23 @@ def on_draw(renderer, _view)
 end
 ```
 
-Passing a position there applies it a second time. That is true of both
-spellings — `world_x` doubles the whole ancestry including the camera, `x`
-doubles this node's own offset — and both are silent, showing up only once
-something is nested under a parent that is not at the origin. `Game/DrawInLocalSpace`
-flags them.
+Passing a position there applies it twice. Both spellings go wrong. `world_x`
+doubles the whole ancestry, camera included. `x` doubles the node's own offset.
+Neither raises. The mistake shows only when the node sits under a parent away from
+the origin. The `Game/DrawInLocalSpace` cop flags both.
 
-A **component** drawing for its node is on the same path and draws at `0, 0` too.
-It may still ask the node for a world coordinate by name — `node.world_x` — which
-is what culling against the camera needs, and which is a different object's
-coordinate rather than the node reading its own.
+A **component** drawing for its node runs on the same path and also draws at
+`0, 0`. It may still ask the node for `node.world_x`, for example to cull against
+the camera. That reads another object's coordinate, not its own.
 
-This is what the renderer's transform stack is for, and it is the same mechanism
-that gives a `WorldView` its camera: one `renderer.translated` around a subtree,
-composed with every other.
+The renderer's transform stack makes this work. The same mechanism gives a
+`WorldView` its camera: one `renderer.translated` around a subtree, composed with
+every other.
 
 ### Draw order
 
-A node's `z` says where it sits among its **siblings**, and nowhere else. The
-tree is drawn depth-first with siblings in `z` order, so:
+**A node's `z` orders it among its siblings, and nowhere else.** The traversal
+draws the tree depth-first, with siblings in `z` order:
 
 ```ruby
 sky.add_node(Clouds.new(z: 2))
@@ -196,17 +198,17 @@ sky.add_node(Birds.new(z: 1))
 sky.add_node(People.new(z: 0))
 ```
 
-draws people, then birds, then clouds. Each of them may be built out of as many
-child nodes as it likes: **a subtree is atomic**, so no part of `clouds` can end
-up behind `birds`, and no part of `birds` in front of `clouds`.
+This draws people, then birds, then clouds. Each may consist of any number of
+child nodes. **A subtree is atomic**, so no part of `clouds` can end up behind
+`birds`, and no part of `birds` in front of `clouds`.
 
-Only the comparison matters. `z` is never added to anything and never reaches
-the renderer, so its magnitude means nothing — `1` and `1_000_000` behave
-identically if they are the only two children — and negatives are ordinary.
-Equal `z` keeps the order the nodes were added in.
+Only the comparison matters. The engine never adds `z` to anything and never
+passes it to the renderer, so its magnitude means nothing. `1` and `1_000_000`
+behave the same if they are the only two children, and negatives are ordinary.
+Nodes with equal `z` keep the order they were added in.
 
-A **band** overrules all of it. `band:` is `:world` (the default), `:hud`,
-`:overlay` or `:debug`, and it is inherited down the tree like `input_owner`:
+**A band overrules all of it.** `band:` is `:world` (the default), `:hud`,
+`:overlay` or `:debug`. Children inherit it, like `input_owner`:
 
 ```ruby
 scene.add_node(RGame::Engine::PlayerLayer.new(player: player))  # :hud
@@ -214,107 +216,106 @@ scene.add_node(Cutscene.new(band: :overlay))
 ```
 
 Everything in `:world` draws under everything in `:hud`, whatever either asked
-for, and nothing a node passes as `z:` can cross the gap. `WorldView` declares
-`:world` and `PlayerLayer` declares `:hud`, so most games never name a band at
-all; a node that must escape the band it inherits says so with `band:`, which is
-the one way out and is explicit.
+for. No `z:` a node passes can cross the gap. `WorldView` declares `:world` and
+`PlayerLayer` declares `:hud`, so most games never name a band. A node that must
+leave its inherited band says so with `band:`, the one explicit way out.
 
-The engine turns all of this into the single number the renderer sorts on:
-`Node2D#draw` opens a layer per node, taking the next slot in its band. See
+`Node2D#draw` turns all of this into the single number the renderer sorts on. It
+opens a layer per node, taking the next slot in the node's band. See
 [Drawing](drawing.md#draw-order) and `RGame::Util::Z`.
 
 ### Who a node answers to
 
-`control` is handed an input **source**, not one player's snapshot — a
-[`RGame::Engine::Players`](input.md) registry, or a bare `Actions` when there is
-only ever one answer. Each node asks the source for the actions of whichever
-player owns it, and hands its components and its own `on_control` that plain
-`Actions`.
+**`control` receives an input source, not one player's snapshot.** The source is
+a [`RGame::Engine::Players`](input.md) registry, or a bare `Actions` when only one
+answer exists. Each node asks the source for the actions of the player who owns
+it. It then hands that plain `Actions` to its components and its own
+`on_control`.
 
-Ownership is `input_owner`, and it is **inherited down the tree the way the
-transform accumulates**, resolved onto `abs_input_owner` by `control` — the one
-phase that reads it:
+`input_owner` sets ownership. **Children inherit it, the way the transform
+accumulates.** `control`, the one phase that reads ownership, resolves it onto
+`abs_input_owner`:
 
 ```ruby
 ship.input_owner = game.players[1]   # the ship and everything under it
 ```
 
-A node that names nobody inherits its parent's; a tree that names nobody
-anywhere reads the primary player. That is what keeps single-player free of
-ceremony — no game that has one player ever mentions this.
+A node that names nobody inherits its parent's owner. A tree that names nobody
+anywhere reads the primary player. Single-player games therefore never mention
+ownership.
 
-Because the *source* descends rather than the resolved snapshot, two subtrees in
-one traversal can read two different controllers, while a component still sees
-the `control(actions)` it always did.
+The *source* descends through the tree, not the resolved snapshot. Two subtrees
+in one traversal can thus read two different controllers, while each component
+still receives a plain `control(actions)`.
 
-> It is `input_owner` rather than `player` because `@player` is what a game's own
-> scene usually calls its hero node, and rather than `controller` because a
-> controller already means the component that produces movement intent.
+> The attribute is `input_owner`, not `player`, because a game's scene usually
+> calls its hero node `@player`. It is not `controller` either, because a
+> controller is the component that produces movement intent.
 
 ### View transforms and the camera
 
-A node's transform is its place in its **parent**, and `draw` pushes it onto the
-renderer as the traversal descends. A *view* transform is different in kind: it
-maps the world onto the screen (a camera), it belongs to no node in the tree, and
-it has to wrap a whole subtree's draw — including the drawing the subtree's own
-root does. So a node that owns a view transform overrides **`draw`** and calls
-`super` inside it.
+**A node that owns a view transform overrides `draw` and calls `super` inside
+it.** A node's own transform is its place in its **parent**, and `draw` pushes it
+as the traversal descends. A *view* transform differs. It maps the world onto the
+screen, as a camera does. It belongs to no node in the tree. It must wrap a whole
+subtree's draw, including the subtree root's own drawing.
 
-(`draw_children` is a separate seam, for a node that wants to wrap or skip its
-*children's* draw while still drawing itself normally — `examples/game_menu`'s
-menu closes by not calling `super` from it.)
+`draw_children` is a separate seam. Override it to wrap or skip the *children's*
+draw while the node still draws itself. `examples/game_menu`'s menu closes by not
+calling `super` from it.
 
-`examples/scroll_map` is the smallest thing that has a camera at all: a
-`WorldView`, a map under it, and one node the camera follows.
+`examples/scroll_map` is the smallest program with a camera: a `WorldView`, a map
+under it, and one node the camera follows.
 
 ### Two words that are easy to confuse
 
-**Space** is structural and the tree enforces it: a node is either inside a
-`WorldView` or it is not, and that decides what its coordinates mean and how
-many times it is drawn.
+**Space** is structural, and the tree enforces it. A node is either inside a
+`WorldView` or not. That decides what its coordinates mean and how often it is
+drawn.
 
 **Band** is an ordering partition: `:world`, `:hud`, `:overlay`, `:debug`. It is
-structural too — inherited down the tree, declared by `WorldView` and
-`PlayerLayer` — but it decides *what covers what* rather than what coordinates
-mean. See [Drawing](drawing.md#draw-order).
+structural too. Children inherit it, and `WorldView` and `PlayerLayer` declare
+it. But it decides *what covers what*, not what coordinates mean. See
+[Drawing](drawing.md#draw-order).
 
-They are not the same partition. All screen-space content is one *space* and is
-drawn once; the bands subdivide it by what should cover what.
+The two partitions differ. All screen-space content forms one *space* and draws
+once. Bands subdivide that space by what should cover what.
 
-`RGame::Engine::WorldView` is such a node, and it is where **world space begins**.
-Its children draw in their own local space and never know about a camera; the node
-draws the subtree **once per active viewport**, clipping to that viewport's
-rectangle and translating by its camera, so what a child draws at its own origin
-lands wherever that viewport is looking:
+**`RGame::Engine::WorldView` is where world space begins.** Its children draw in
+their own local space and never know about a camera. The `WorldView` draws its
+subtree **once per active viewport**. Each time, it clips to that viewport's
+rectangle and translates by its camera. A child drawing at its own origin lands
+wherever that viewport looks:
 
 ```ruby
 view = scene.add_node(RGame::Engine::WorldView.new)
 view.add_node(player)     # world coordinates
 ```
 
-Everything *outside* a `WorldView` is screen space and draws once. That one distinction
-is what separates a HUD from the world, and where it goes is the game's choice — nothing
-is imposed above the game's own root.
+Everything *outside* a `WorldView` is screen space and draws once. That one line
+separates a HUD from the world. The game decides where to draw it; the engine
+imposes nothing above the game's root.
 
-A `WorldView` takes no camera. Cameras belong to players
-(`RGame::Engine::Player#camera`), and the node asks
-`node.system(RGame::Engine::Viewports)` which viewports exist, so the same subtree serves
-one player or four with nothing below it changing. A camera owned by a node *inside* the
-world could not do that — it would force the world to know how many times it is drawn.
+**A `WorldView` takes no camera.** Cameras belong to players
+(`RGame::Engine::Player#camera`). The `WorldView` asks
+`node.system(RGame::Engine::Viewports)` which viewports exist. So the same subtree
+serves one player or four, with nothing below it changing. A camera owned by a
+node *inside* the world could not do that. The world would have to know how many
+times it is drawn.
 
-**Only `draw` multiplies.** `control` and `update` still run once per node per tick
-however many players are watching, which is what keeps simulation cost independent of
-player count — and what makes the standing "draw renders state" rule load-bearing rather
-than stylistic: a `draw` with a side effect now runs once per player.
+**Only `draw` multiplies.** `control` and `update` run once per node per tick,
+however many players watch. Simulation cost therefore stays independent of player
+count. It also makes the rule that `draw` only renders state essential: a `draw`
+with a side effect runs once per player.
 
-`examples/split_screen` is the smallest thing that has two viewports at all: one
-`Ground`, two walkers, a badge each, and a second player who arrives mid-session.
+`examples/split_screen` is the smallest program with two viewports: one `Ground`,
+two walkers, a badge each, and a second player who joins mid-session.
 
 ## Viewports and views
 
-`RGame::Engine::Viewports` is a root-scoped system holding how the screen is divided;
-`RGame::Engine::Layout` is the pure arithmetic behind it, and a `RGame::Engine::View` is
-one viewport being drawn.
+`RGame::Engine::Viewports` is a root-scoped system that divides the screen.
+`RGame::Engine::Layout` holds the pure arithmetic behind it. A
+`RGame::Engine::View` is one viewport being drawn.
 
 ```ruby
 viewports = node.system(RGame::Engine::Viewports)
@@ -323,63 +324,63 @@ viewports.screen             # the whole window, no camera — screen space
 viewports.screen_for(player) # that player's own region, no camera — their HUD and menus
 ```
 
-`screen_for` is the same rectangle that player's world view is drawn into, so a
-HUD laid out at (10, 10) lands ten pixels inside the region the world beneath it
-occupies. It is **nil** when they have nowhere to draw: an empty seat has no
-viewport, and while the split is collapsed nobody owns a half of the screen —
-a cutscene is everyone looking at one thing, so something that must stay on
-screen through it belongs in the global overlay band instead.
+**`screen_for` returns the rectangle that player's world view uses.** A HUD laid
+out at (10, 10) lands ten pixels inside the region of the world beneath it. It
+returns **nil** when the player has nowhere to draw. An empty seat has no
+viewport. While the split is collapsed, nobody owns a part of the screen: a
+cutscene is everyone looking at one thing. Content that must stay on screen
+through a cutscene belongs in the global `:overlay` band.
 
 A **`View`** carries `x`, `y`, `width`, `height`, its `camera` (nil in screen
-space) and its `player`, plus two things nodes actually use:
+space) and its `player`. Nodes mostly use two more members:
 
 | | |
 |---|---|
 | `view.visible?(x, y, w, h)` | is this worth drawing at all |
 | `view.offset_x` / `offset_y` | the translate that maps its contents onto the screen |
 
-**Views are reused, not rebuilt.** `Viewports` mutates one per viewport each frame, the
-way `ActionMapper` reuses its `Actions` — building fresh ones would allocate every frame.
-Hold the player or the viewports, never a `View`.
+**`Viewports` reuses its views instead of rebuilding them.** It updates one `View`
+per viewport each frame, the way `ActionMapper` reuses its `Actions`. Building
+fresh views would allocate every frame. Hold the player or the viewports, never a
+`View`.
 
-**`Layout`** answers only "given a count and a window, where does each one go", with no
-state and no anchors: one viewport gets the window, two get a row each, three or four
-share a 2x2 grid. Edges are computed as `(i * total) / count`, so the rects tile exactly
-and no seam is left down the middle of an odd-sized window.
+**`Layout` answers one question**: given a count and a window, where does each
+viewport go? It keeps no state and no anchors. One viewport gets the window, two
+get a row each, and three or four share a 2x2 grid. It computes edges as
+`(i * total) / count`, so the rectangles tile exactly and an odd-sized window has
+no seam.
 
 ### A player's own screen
 
-`RGame::Engine::PlayerLayer` is the node for it: its subtree is drawn **once**,
-clipped to that player's viewport and translated to its corner, in screen space.
+**`RGame::Engine::PlayerLayer` draws its subtree once, inside one player's
+region.** It clips to that player's viewport and translates to its corner, in
+screen space.
 
 ```ruby
 layer = scene.add_node(RGame::Engine::PlayerLayer.new(player: game.players[1]))
 layer.add_node(inventory)
 ```
 
-That is the third kind of content a frame holds. The world is drawn once per
-viewport under a camera (`WorldView`), a global overlay once across the whole
-window (anything else in the tree), and this once per player inside their own
-region.
+A frame holds three kinds of content. `WorldView` draws the world once per
+viewport, under a camera. Any other node draws a global overlay once across the
+window. `PlayerLayer` draws once per player, inside that player's region.
 
-It is also where the `:hud` band comes from: `PlayerLayer` declares it, so
-everything under here draws over everything in the world without any of it
-saying so.
+`PlayerLayer` declares the `:hud` band. Everything under it draws over the world
+without saying so.
 
-**Children are positioned relative to the layer**, so a node at (10, 10) is ten
-pixels inside *that player's* region wherever the layout put it, and the same
-HUD class serves either player unchanged. Lay out against the far edge with the
-view's **size** — `view.width - margin`. `view.x` and `view.y` are where the
-region sits on the window and are the clip's business, not a layout origin;
-adding them would offset a second time.
+**Children position themselves relative to the layer.** A node at (10, 10) sits
+ten pixels inside *that player's* region, wherever the layout put it. The same HUD
+class serves any player unchanged. To lay out against the far edge, use the view's
+**size**: `view.width - margin`. `view.x` and `view.y` place the region on the
+window; they belong to the clip, not the layout. Adding them would offset twice.
 
-**It sets `input_owner`**, and ownership is inherited, so a menu anywhere under
-it reads that player's controller and nobody else's. Two players with a menu
-open at once are independent without either knowing the other exists — see
+**`PlayerLayer` sets `input_owner`**, and children inherit ownership. A menu
+anywhere under it reads that player's controller and nobody else's. Two players
+can each have a menu open, and neither menu knows about the other. See
 [Who a node answers to](#who-a-node-answers-to).
 
-It draws nothing when `screen_for` has no region for that player: an empty seat,
-or anybody while the split is collapsed.
+It draws nothing when `screen_for` has no region for its player: an empty seat,
+or any player while the split is collapsed.
 
 ### Collapsing the split
 
@@ -388,138 +389,138 @@ node.system(RGame::Engine::Viewports).solo!(cutscene_camera)
 node.system(RGame::Engine::Viewports).split!
 ```
 
-`solo!` collapses to one screen-wide view — for a cutscene, or anywhere the world should
-be seen through a single camera. **The camera is required**: promoting one player's would
-silently give everyone else their view, and choosing what is on screen is what a cutscene
-is for. Point an ordinary `Camera` however you like (a `CameraFollow` on a cutscene actor
-works) and hand it over.
+**`solo!` collapses the screen to one view through the camera you pass.** Use it
+for a cutscene, or anywhere the world should be seen through one camera. **The
+camera is required.** Promoting one player's camera would silently give everyone
+that player's view, and choosing what is on screen is a cutscene's whole job.
+Point an ordinary `Camera` however you like, for example with a `CameraFollow` on
+a cutscene actor, and pass it in.
 
-Both are **deferred**, like `queue_free`: they record a request and it takes effect on the
-next tick. This system is reachable from anywhere including a `draw`, and a `draw` runs
-once per view, so applying immediately would tear the frame it was requested in.
+**Both calls are deferred**, like `queue_free`. They record a request that takes
+effect on the next tick. Any code can reach this system, including a `draw`. A
+`draw` runs once per view, so an immediate change would tear the frame that
+requested it.
 
-A full-screen UI — a results screen, a pause panel — usually wants no collapse at all:
-draw it in screen space, outside any `WorldView`, with `band: :overlay` so it covers
-the whole window over whatever the players are seeing, HUDs included.
+A full-screen UI, such as a results screen or a pause panel, usually needs no
+collapse. Draw it in screen space, outside any `WorldView`, with `band: :overlay`.
+It then covers the whole window over the players' views, HUDs included.
 
 ## Components
 
-`RGame::Engine::Component` (`rgame/engine/component`) is a piece of behaviour you attach to a
-node instead of baking it into a subclass. A component knows its owning `node`,
-and like nodes it extends the signal DSL.
+**A `RGame::Engine::Component` (`rgame/engine/component`) is behaviour you attach
+to a node** instead of building it into a subclass. A component knows its owning
+`node`, and extends the signal DSL like a node.
 
-- `add_component(component, as: nil)` attaches one in a **named slot** and back-links
-  it to the node. The slot defaults to the component's class, so by default a node
-  still holds **at most one component per class** — a taken slot raises. Pass a name
-  (`add_component(Timer.new, as: :spawn)`) when a node needs several of one type.
-- `get_component(key)` looks a component up by its slot: a class (matched by ancestry,
-  so a base class finds a subclass instance) or a Symbol name. A class lookup **raises
-  if it is ambiguous** — several components share that type — so name them and look up
-  by name.
-- `remove_component(key)` detaches and unlinks the component in that slot (class or
-  name), returning it (or `nil` if the slot is empty).
+- `add_component(component, as: nil)` attaches a component in a **named slot**
+  and links it to the node. The slot defaults to the component's class, so a node
+  holds **at most one component per class** by default. A taken slot raises. Pass
+  a name when a node needs several of one type:
+  `add_component(Timer.new, as: :spawn)`.
+- `get_component(key)` looks a component up by slot. The key is a class, matched
+  by ancestry so a base class finds a subclass instance, or a Symbol name. A class
+  lookup **raises if it is ambiguous**, when several components share the type.
+  Name them and look them up by name.
+- `remove_component(key)` detaches the component in that slot (class or name) and
+  returns it, or `nil` if the slot is empty.
 
-A component mirrors the node's three phases — `control(actions)`, `update(dt)`,
-`draw(renderer)` — and the node drives its components in each phase, before its
-own hook and before its children. It also has the two tree-lifecycle hooks below
-(`on_attach`/`on_detach`).
+A component mirrors the node's three phases: `control(actions)`, `update(dt)` and
+`draw(renderer, view)`. In each phase the node drives its components before its
+own hook and before its children. Components also have two tree-lifecycle hooks,
+`on_attach` and `on_detach`, described below.
 
 ## Lifecycle: constructing vs. entering the tree
 
-A node has two distinct moments, and conflating them is a classic source of bugs:
+**A node has two distinct moments.** Mixing them up causes bugs that are hard to
+trace.
 
-1. **Construction** (`initialize`) — the node and its components exist, but the node
-   is **not yet in the live tree**. It has no resolved anchors: `root`/`scene` (below)
-   don't point anywhere useful, and shared systems aren't reachable. Build children
-   and attach components here; do **not** look anything up across the tree.
-2. **Entering the tree** — when the node becomes live, the engine runs a depth-first
-   cascade that fires, in order: each component's `on_attach`, then the node's
-   `on_add`, then the same for every child. **This is where anchors and systems are
-   available**, so it's where a component registers with a shared system. Leaving the
-   tree runs the mirror cascade — children first, then `on_remove`, then component
-   `on_detach` to release those registrations.
+1. **Construction** (`initialize`): the node and its components exist, but the
+   node is **not yet in the live tree**. Its anchors are unresolved: `root` and
+   `scene` (below) point nowhere useful, and shared systems are out of reach.
+   Build children and attach components here. Do **not** look anything up across
+   the tree.
+2. **Entering the tree**: when the node goes live, the engine runs a depth-first
+   cascade. It fires each component's `on_attach`, then the node's `on_add`, then
+   the same for every child. **Anchors and systems are available here**, so a
+   component registers with a shared system at this point. Leaving the tree runs
+   the mirror cascade: children first, then `on_remove`, then each component's
+   `on_detach` to release its registrations.
 
-The engine drives this; you never call it. The relevant calls are `enter_tree` /
-`exit_tree` (and `in_tree?`), fired automatically:
+The engine drives this; you never call it. It uses `enter_tree`, `exit_tree` and
+`in_tree?`, fired at these points:
 
-- `add_node` enters the child immediately **iff** the parent is already live;
-  otherwise the child waits and is entered when its ancestor enters. So a node tree
-  assembled in `initialize` (before it's mounted) comes alive all at once when it
-  is. `remove_node` exits the subtree the same way.
-- `add_component` / `remove_component` fire `on_attach` / `on_detach` immediately when
-  the host node is already live (otherwise attach happens during the node's entry).
-- `SceneStack#push` / `pop` enter/exit a scene; the platform enters the root once at
-  boot (`RGame::Game#start`).
+- `add_node` enters the child at once **only if** the parent is already live.
+  Otherwise the child enters when its ancestor does. A tree assembled in
+  `initialize` therefore comes alive all at once when it is mounted. `remove_node`
+  exits the subtree the same way.
+- `add_component` and `remove_component` fire `on_attach` and `on_detach` at once
+  when the host node is live. Otherwise attachment happens when the node enters.
+- `SceneStack#push` and `pop` enter and exit a scene. `RGame::Game#start` enters
+  the root once, at boot.
 
-**The split is load-bearing for the `on_add`/`initialize` divide:** put cross-tree
-lookups (anchors, systems, sibling components) in `on_add` / `on_attach`, never in
-`initialize`. The engine guarantees the anchors are wired before those hooks run, so
-you can't accidentally read them too early.
+**Put cross-tree lookups in `on_add` or `on_attach`, never in `initialize`.** That
+covers anchors, systems and sibling components. The engine wires the anchors
+before those hooks run, so you cannot read them too early.
 
-The mirror of that rule — *attaching* components belongs in `initialize` or a builder,
-and `on_add` only when the component's constructor needs the tree — is
+The mirror rule is that *attaching* components belongs in `initialize` or a
+builder. Use `on_add` only when the component's constructor needs the tree. See
 [Where to add a component](components.md#where-to-add-a-component).
 
 ## Anchors and shared systems
 
-Two back-links let any node reach shared state without it being threaded through
-constructors, both **resolved by walking parents** (never cached, so they can't go
-stale):
+Two back-links let any node reach shared state without constructor arguments.
+**The engine resolves both by walking up the parents**, never caching them, so
+they cannot go stale:
 
-- `root` — the top-most node (a node with no parent is its own root). Home for
-  global, program-lifetime systems.
-- `scene` — the nearest enclosing scene node (marked as a boundary by `SceneStack`).
-  Home for scene-lifetime systems.
+- `root` is the top-most node; a node without a parent is its own root. Global
+  systems that live as long as the program belong there.
+- `scene` is the nearest enclosing scene node, marked as a boundary by
+  `SceneStack`. Systems that live as long as a scene belong there.
 
-A *system* is just a `Component` living on one of those anchor nodes; nodes find one
-with `node.system(SomeSystem)` (scene scope first, then the global root). See
-[Systems & shared resources](systems.md) for the scoping model and worked examples.
+A *system* is a `Component` on one of those anchor nodes. A node finds one with
+`node.system(SomeSystem)`, which checks the scene first and then the root. See
+[Systems & shared resources](systems.md) for the scoping model and worked
+examples.
 
 ## Pausing a subtree
 
 ```ruby
 world_view.paused = true    # the world stops; an overlay above it does not
-walker.paused = true        # or just one node, while its owner is in a menu
+walker.paused = true        # or one node, while its owner is in a menu
 ```
 
-A paused node skips `control` and `update` — and so does everything under it,
-because a subtree is only ever reached through its parent. **It still draws.**
-Pausing is about time, not visibility, which is what lets a frozen world sit
+**A paused node skips `control` and `update`, and so does its whole subtree**,
+because the traversal reaches a subtree only through its parent. **It still
+draws.** Pausing concerns time, not visibility. A frozen world can therefore sit
 under a cutscene that keeps animating.
 
-It is a property of a *node* rather than of the world on purpose. "Pause the
-world" is `world_view.paused = true` with no new concept, and the same flag
-stops one player's character while they browse a menu without touching the
-simulation everyone else is in.
+Pausing belongs to a *node*, not to the world. "Pause the world" is
+`world_view.paused = true`, with no new concept. The same flag stops one player's
+character while they browse a menu, without touching everyone else's simulation.
 
-There is no `abs_paused` to go with `abs_input_owner`: ownership has to be
-resolved because a node needs to know whose input it reads even when its parent
-claims nobody, while a paused node simply never descends.
+No `abs_paused` exists to match `abs_input_owner`. A node needs its resolved owner
+even when its parent names nobody. A paused node, by contrast, never descends.
 
-A paused node under an ancestor that is still moving is drawn where it now is
-rather than where it stopped, and it is culled against where it now is too —
-neither depends on the node having run a phase. Its placement comes from the
-transform the traversal pushes as it descends, and its cull box from
-`world_x`, which computes itself when read. See
-[The two spaces](#the-two-spaces).
+A paused node under a moving ancestor draws where it is now, not where it
+stopped. The engine also culls it against its current position. Neither depends
+on the node running a phase. The traversal pushes the transform as it descends,
+and `world_x` computes itself when read. See [The two spaces](#the-two-spaces).
 
 ## Deferred free
 
-A node that detaches itself or a sibling mid-tick would mutate a parent's `children`
-while that list is being iterated — the classic scene-graph footgun. So removal is
-**deferred**:
+**Removal is deferred.** A node that detached itself or a sibling mid-tick would
+change a parent's `children` while the traversal iterates that list.
 
-- `queue_free` marks a node for removal; `freed?` reports the mark. The node stays in
-  the tree and keeps ticking until the sweep.
-- `sweep_freed` detaches every marked node, depth-first, running the normal leave-tree
-  cascade (`on_remove` / `on_detach`) on each. It runs from a safe point **outside** the
-  tick — the platform loop flushes it once per step, after `update`.
+- `queue_free` marks a node for removal, and `freed?` reports the mark. The node
+  stays in the tree and keeps ticking until the sweep.
+- `sweep_freed` detaches every marked node, depth-first, and runs the normal
+  leave-tree cascade (`on_remove` / `on_detach`) on each. The game loop calls it
+  once per step, after `update`, outside the traversal.
 
-Because it's deferred, any component or hook can call `node.queue_free` from inside
-`update` without corrupting the traversal. Container components that hold nodes off the
-normal child list (e.g. `SceneStack`) override `Component#sweep_freed` to forward the
-sweep into the subtree they own.
+Any component or hook can therefore call `node.queue_free` from inside `update`
+without corrupting the traversal. A component that holds nodes outside the normal
+child list, such as `SceneStack`, overrides `Component#sweep_freed` to pass the
+sweep into the subtree it owns.
 
-`enter_tree` clears the freed flag, so a node detached and later re-added comes back
-alive. This is what lets a pool recycle nodes: a despawned (freed) node is returned to
-its pool, and re-acquiring it and `add_node`-ing it revives it cleanly.
+`enter_tree` clears the freed flag, so a node detached and added again comes back
+alive. Pools rely on this. A despawned node returns to its pool, and acquiring it
+and calling `add_node` revives it cleanly.
