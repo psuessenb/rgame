@@ -393,5 +393,5 @@ while the game stopped drawing.
 ## Text
 
 `renderer.text(string, x, y)` draws a line of text, and `text_width` measures
-one. [Text](text.md) covers fonts, the shipped default and the characters it
+one. Both take a String or an [`Engine::Text`](toolbox.md#text--the-string-a-node-draws). [Text](text.md) covers fonts, the shipped default and the characters it
 covers.

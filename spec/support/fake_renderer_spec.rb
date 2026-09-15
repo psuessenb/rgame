@@ -46,6 +46,15 @@ RSpec.describe FakeRenderer do
       expect(renderer.calls.map(&:name)).to eq(%i[rect circle rect])
     end
 
+    it 'keeps the String a label converted to, not the label' do
+      # What a frame showed: the label may read otherwise by the next one.
+      label = instance_double(String, to_str: 'Score')
+      renderer.text(label, 10, 20)
+
+      expect(renderer.calls_to(:text).first.args).to eq(['Score', 10, 20])
+      expect(renderer.calls_to(:text).first.args.first).to be_an_instance_of(String)
+    end
+
     it 'forgets everything on #clear, so one spec can drive several frames' do
       renderer.rect(0, 0, 1, 1)
 

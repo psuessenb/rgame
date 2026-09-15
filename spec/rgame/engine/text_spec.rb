@@ -244,6 +244,84 @@ RSpec.describe RGame::Engine::Text do
     expect { described_class.new('nowhere').to_s }.to raise_error(i18n::MissingKey)
   end
 
+  describe '#to_str' do
+    it 'returns the identical String to_s does' do
+      title = described_class.new('title')
+      expect(title.to_str).to equal(title.to_s)
+    end
+
+    it 'reads the values the last with was given' do
+      score = described_class.new('hud.score', :score)
+      score.with(score: 7)
+      expect(score.to_str).to eq('Score: 7')
+    end
+
+    it 'raises ArgumentError before the first with, as to_s does' do
+      expect { described_class.new('hud.score', :score).to_str }.to raise_error(ArgumentError, /score:/)
+    end
+
+    it 'lets a Text stand in for a String' do
+      expect(+'Now: ' << described_class.new('title')).to eq('Now: Main Menu')
+    end
+
+    describe 'allocating nothing on an unchanged read' do
+      it 'for a keyed Text' do
+        score = described_class.new('hud.score', :score)
+        score.with(score: 7)
+        expect { score.to_str }.to allocate_nothing.over(200_000)
+      end
+
+      it 'for a literal' do
+        ada = described_class.literal(+'Ada')
+        expect { ada.to_str }.to allocate_nothing.over(200_000)
+      end
+
+      it 'for a computed Text' do
+        lives = described_class.computed(:lives) { |lives:| "Lives: #{lives}" }
+        lives.with(lives: 3)
+        expect { lives.to_str }.to allocate_nothing.over(200_000)
+      end
+    end
+  end
+
+  describe '#==' do
+    let(:play) { described_class.new('play', scope: 'title_menu') }
+
+    it 'equals a String that reads the same, from either side' do
+      drawn = 'Play'
+      expect([play == drawn, drawn == play]).to eq([true, true])
+    end
+
+    it 'differs from a String that reads otherwise, from either side' do
+      drawn = 'Start'
+      expect([play == drawn, drawn == play]).to eq([false, false])
+    end
+
+    it 'follows the language' do
+      title = described_class.new('title')
+      i18n.locale = :de
+      expect(title).to eq('Hauptmenü')
+    end
+
+    it 'compares two Texts by identity, even when they read the same' do
+      expect([play == described_class.new('play', scope: 'title_menu'), play == play]).to eq([false, true]) # rubocop:disable Lint/BinaryOperatorWithIdenticalOperands -- identity is the point
+    end
+
+    it 'lets a spy that recorded a Text match the String' do
+      renderer = instance_spy(FakeRenderer)
+      renderer.text(play, 20, 20)
+      expect(renderer).to have_received(:text).with('Play', 20, 20)
+    end
+
+    it 'matches a case on the String' do
+      matched = case play
+                when 'Start' then :start
+                when 'Play' then :play
+                end
+      expect(matched).to eq(:play)
+    end
+  end
+
   describe '.literal' do
     it 'shows its string through to_s and with' do
       ada = described_class.literal('Ada')

@@ -125,7 +125,7 @@ class Root < RGame::Engine::Node2D
   end
 
   def on_draw(renderer, _view)
-    renderer.text(@greeting.to_s, 20, 20)
+    renderer.text(@greeting, 20, 20)
   end
 end
 ```
@@ -158,6 +158,10 @@ RSpec.describe Root do
   end
 end
 ```
+
+The node passes its `Text` to `text`, so the spy records the `Text`. It still
+matches the String, because a `Text` is `==` to the String it reads. See
+[`Text`](toolbox.md#text--the-string-a-node-draws).
 
 Put new game logic under `nodes/`, and the whole simulation stays testable in
 milliseconds with no display, however large the game grows. Logic in `game.rb`

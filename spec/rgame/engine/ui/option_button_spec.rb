@@ -23,8 +23,8 @@ RSpec.describe RGame::Engine::UI::OptionButton do
     end.new
   end
 
-  def option(**)
-    root.add_node(described_class.new(label: 'volume', width: 240, height: 40,
+  def option(label: 'volume', **)
+    root.add_node(described_class.new(label: label, width: 240, height: 40,
                                       values: [0, 50, 100], **))
         .tap { root.enter_tree }
   end
@@ -153,6 +153,11 @@ RSpec.describe RGame::Engine::UI::OptionButton do
     # `display` turns a value into its caption, and is called for the whole list
     # once in the constructor — a caption built inside `draw` would allocate a
     # String every frame for every row on screen.
+    it 'draws only the value without a label' do
+      option(label: nil, index: 1)
+      expect(texts).to eq(['<', '>', '50'])
+    end
+
     it 'draws captions made by display rather than the values themselves' do
       root.add_node(described_class.new(label: 'volume', width: 240, height: 40,
                                         values: [0, 50], index: 1,

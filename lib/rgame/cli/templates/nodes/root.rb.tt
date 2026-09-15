@@ -19,6 +19,6 @@ class Root < RGame::Engine::Node2D
   end
 
   def on_draw(renderer, _view)
-    renderer.text(@greeting.to_s, 20, 20)
+    renderer.text(@greeting, 20, 20)
   end
 end
