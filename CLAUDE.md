@@ -916,7 +916,9 @@ It boots the test project unmodified (prepending its probes before `load`ing the
 project's own `main.rb`), feeds it a scripted input backend through
 `RGame::Game`'s `input:` keyword, stops on a tick budget, and reports draw calls
 with their first and last arguments, clips pushed with what moved inside each,
-sounds played, scenes entered, and ticks against frames.
+sounds played, scenes entered, and ticks against frames. `--texts` adds every
+distinct string drawn with `text`, which is how two runs are compared string for
+string.
 
 A script holds **one timeline per device**, so a two-player run is written as two
 `on` blocks and both play at once — every track is absolute, starting at tick 0.
