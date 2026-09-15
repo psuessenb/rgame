@@ -363,36 +363,130 @@ the `bottom_anchored` arithmetic, computed from the node's own dimensions.
 
 ## `RGame::Engine::I18n` — localization
 
-**`RGame::Engine::I18n` (`engine/i18n`) provides minimal localization.** It keeps
-per-locale translation tables, loaded from YAML or an inline Hash. `t(key)` looks
-a key up with `%{var}` interpolation, a fallback locale and pluralization. `I18n`
-is a **global module**, so `t` works anywhere without wiring. Its only dependency
-is the standard library's YAML.
+**`RGame::Engine::I18n` (`engine/i18n`) holds the translation tables and the
+current language.** It reads tables in Rails' YAML format and looks keys up with
+`%{var}` interpolation, plural forms and a fallback chain. `I18n` is a global
+module, so `t` works anywhere, including a node's constructor.
 
 ```ruby
-RGame::Engine::I18n.load_file(:en, "locales/en.yml")
-RGame::Engine::I18n.load(:de, menu: { title: "Hauptmenü" })   # nested Hashes allowed
-RGame::Engine::I18n.default = :en        # fallback when the current locale lacks a key
-RGame::Engine::I18n.locale = :de
+require 'rgame'
 
-RGame::Engine::I18n.t("menu.title")               # dotted key, resolved in :de then :en
-RGame::Engine::I18n.t(:greeting, name: "Ada")     # => "Hello, Ada" from %{name}
-RGame::Engine::I18n.t(:apples, count: 3)          # pluralized: { one:, other:, zero? }
+i18n = RGame::Engine::I18n
+i18n.load(<<~YAML, source: 'locales/game.yml')
+  en:
+    menu:
+      title: Main Menu
+      greeting: "Hello, %{name}"
+    apples:
+      zero: No apples
+      one: "%{count} apple"
+      other: "%{count} apples"
+  de:
+    menu:
+      title: Hauptmenü
+    apples:
+      one: "%{count} Apfel"
+      other: "%{count} Äpfel"
+YAML
+
+i18n.locale = 'de_AT'
+i18n.chain                                   # => [:"de-AT", :de, :en]
+i18n.t('menu.title')                         # => "Hauptmenü" — from the de table
+i18n.t('greeting', scope: 'menu', name: 'Ada') # => "Hello, Ada" — de lacks it, en has it
+i18n.t('apples', count: 3)                   # => "3 Äpfel"
+i18n.missing_keys(:de)                       # => ["menu.greeting"]
+i18n.choose(%w[fr-CA de-CH])                 # => :"de-CH" — the de table covers it
 ```
 
-`I18n` symbolizes keys on load, so YAML's string keys and inline Symbol keys look
-the same to `t`. `t` resolves a dotted key in the current locale, then in the
-fallback. As a last resort, it returns the key itself. Pass `count:` to
-pluralize. The key's value is then a `{ one:, other:, optionally zero: }` table,
-and `count` is also available to interpolation as `%{count}`. Pluralization uses
-the one/other rule of English and German.
+### Tables
 
-Both the locale and the fallback start at `:en`. `available` lists the loaded
-locales, and `reset` forgets every table.
+`load(yaml, source:)` parses a String. Its top-level keys are locales, and one
+document may hold several. A second load of a locale merges key by key into what
+is loaded; a key set twice takes the later value. `source:` names the file in
+error messages. `load_hash` does the same for a Hash, with Symbol or String keys.
+`I18n` never opens a file.
 
-**The `generation` counter tells cached UI text when to re-resolve.** It advances
-whenever the locale changes; loading a table does not advance it. Cached text re-runs `t` only when `generation` moves,
-not every frame, so it allocates nothing per frame.
+`load` uses `YAML.safe_load` with aliases allowed. It raises
+`Psych::DisallowedClass` for an object tag and `Psych::SyntaxError` for broken
+YAML. YAML reads an unquoted `on`, `off`, `yes`, `no`, `true`, `false` or `~` as
+a boolean or `nil`. `load` raises `ArgumentError` for such a key or value, naming
+where it is, so quote it. A number becomes its text.
+
+Each load compiles every value once. A String becomes a template with its
+placeholders already found. `%%{` writes a literal `%{`. A key without
+placeholders returns the same frozen String on every call.
+
+`available` lists the locales that have a table, in load order.
+
+### `t`
+
+`t(key, scope: nil, **vars)` looks `key` up, or `"scope.key"` when `scope:` is
+given, and interpolates `vars`. It raises `ArgumentError` when the translation
+uses a variable `vars` does not hold. Variables it does not use are ignored.
+`t` allocates on every call, so keep it off the per-frame path.
+
+### Locales and the fallback chain
+
+`locale=` switches the language, and `default=` sets the last locale every lookup
+falls back to. Both start at `:en`. Both normalize what they are given:
+`de_AT`, `'de-at'` and `:'de-AT'` all become `:'de-AT'`, and `normalize` is
+public. A locale needs no table of its own.
+
+`chain` lists where `t` looks, in order: the locale, each shorter prefix of it,
+then the default. `I18n` rebuilds it on a switch, not on every lookup.
+
+`choose(preferred)` takes the player's locales, most wanted first. It returns the
+first whose own chain meets a table, normalized but not shortened. The default
+does not count as a match, and with no match `choose` returns the default.
+
+### Plurals
+
+A key whose nested keys are all CLDR plural categories (`zero`, `one`, `two`,
+`few`, `many`, `other`), with text values and `other` among them, is a plural.
+Any other nested Hash is a level of keys. `t` needs `count:` for a plural and
+raises `ArgumentError` without it. `count` is also available as `%{count}`.
+
+`t` picks the form by these rules, in order:
+
+1. An explicit `zero` form wins for a count of 0, in every language.
+2. The plural rule sorts the count into a category. The rule belongs to the
+   table that supplied the key, not to the current locale. English text reached
+   through a fallback from `:pl` counts like English.
+3. A category the table leaves out reads `other`.
+
+`I18n::PluralRules::BUILT_IN` holds whole-number rules for en, de, nl, sv, da,
+nb, fi, it, es, pt, fr, ru, uk, pl, cs, ja, zh, ko and ar. A built-in rule puts a
+count that is not an Integer in `other`. A language without a rule counts like
+English. `plural_rule(language) { |count| ... }` adds or replaces a rule; its
+block returns a category Symbol. A rule for a regional locale, such as `'pt-PT'`,
+wins over its language's rule for tables of that locale.
+
+### Missing keys
+
+A key is missing when no locale in the chain has it. `missing=` decides what
+`t` returns then:
+
+| `missing` | `t` on a missing key |
+|---|---|
+| `:key` (the start) | returns the key, with its scope |
+| `:raise` | raises `I18n::MissingKey`, whose `key` and `chain` say where it looked |
+| a callable | calls it with the key and the chain, and returns its result |
+
+Any other value raises `ArgumentError`. `missing_keys(locale)` lists the keys
+the default's table has and the locale's own chain lacks, in the default table's
+order. It skips a key the locale gets from a parent, such as `de-AT` from `de`.
+
+### `generation`
+
+**`generation` is an Integer that moves whenever what a key resolves to may have
+changed.** It moves on every load, on a switch to a different locale or default,
+and on `reset`. A switch to the locale already current leaves it alone. Cached
+text compares `generation` with the value it last saw, and resolves again only
+when it differs.
+
+`reset` forgets every table and added plural rule. It restores `:en` as locale
+and default, and `:key` as the missing policy. rgame's own headless suite calls
+`reset` and sets `missing = :raise` before every example.
 
 ## `AudioBus` — decoupled audio facts
 
