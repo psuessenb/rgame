@@ -1,7 +1,8 @@
 # Precompiled binary gems
 
-**Status: planned, nothing implemented.** Steps 0–3 are detailed. Steps 4–6
-are rough and get re-planned once step 3 has landed.
+**Status: step 0 measured on all three platforms.** Nothing is implemented.
+Steps 0–3 are detailed. Steps 4–6 are rough and get re-planned once step 3 has
+landed.
 
 Rewritten 2026-09-15 from the 2026-08-25 sketch. The sketch compared three
 shapes and deferred the choice. This version takes it, records two decisions
@@ -325,8 +326,7 @@ Record, per platform:
 7. **The `Gem::Platform.local` string** each Ruby 4.0 reports, compared to the
    three names in decision 2.
 
-**Status: Windows leg measured** *(this session, x64-mingw-ucrt)*. macOS and
-Linux are outstanding.
+#### Results: Windows (x64-mingw-ucrt)
 
 | Measured (Windows) | Result |
 |---|---|
@@ -414,6 +414,116 @@ appends only what the first call didn't already add. This is what produced the
 dependency list above with a real, working build and a green `rake spec:core`
 — step 1b should use this shape, not the single-call one.
 
+#### Results: Linux (x86-64)
+
+**Linux measured 2026-09-15** at `fa89336`, on this laptop: Ubuntu 22.04,
+glibc 2.35, Intel Xe graphics, a Wayland session, Ruby 4.0.5 from mise with a
+shared libruby, RubyGems 4.0.19. CMake 4.4.3 came from Kitware's release
+tarball, because the machine had none. Item 4's two container builds ran in
+Docker on the same laptop; see [Linux build environments](#linux-build-environments).
+
+The SDL2 2.32.10 tarball's SHA-256 is
+`5f5993c530f084535c65a6879e9b26ad441169b3e25d789d83287040a9ca5165`, taken on
+first fetch. The build ran exactly the command above and took 24 seconds on 8
+cores.
+
+| Item | Linux |
+|---|---|
+| 1. Dynamic dependencies of `core_ext` | `NEEDED`: libruby.so.4.0, libm, libGL, libc, ld-linux. **No SDL.** `ldd` lists 17 lines, against 61 for the source build |
+| 2. `rake spec:core` | 405 examples, **3 failures**, 2 excluded; the source build runs 407 with 0 failures. All three failures are the virtual gamepad (finding A). With that fixed: **407 examples, 0 failures**. `rake spec`: 2313, 0 failures |
+| 3. Exported symbols | 839 `SDL_*` exported, plus 1394 others — the same 1394 the source build already exports, mostly miniaudio's `ma_*`. `-Wl,--exclude-libs,ALL` hides all 839, and breaks the virtual gamepad (finding A) |
+| 4. glibc floor | **GLIBC_2.29** from the rake-compiler-dock image, 2.34 from this laptop, 2.38 from `ubuntu-latest`; see [Linux build environments](#linux-build-environments) |
+| 4. Display backends in the build | X11, Wayland, libdecor, KMSDRM and udev are all enabled with `*_SHARED=ON`, so they are `dlopen`ed. `SDL_STATIC_PIC` works: the archive has 0 `R_X86_64_32`/`32S` relocations |
+| 5. A real window, no system SDL | 60 frames under each driver, Mesa Intel hardware GL, and no `libSDL2` mapped into the process. Default and `SDL_VIDEODRIVER=x11`: x11, through XWayland. `SDL_VIDEODRIVER=wayland`: wayland, with libdecor. Audio: miniaudio on PulseAudio |
+| 7. `Gem::Platform.local` | `x86_64-linux`. A gem tagged `x86_64-linux-gnu` matches it (`Gem::Platform.match_gem?` is true); `-musl` does not |
+| `pkg-config --static --libs sdl2` | `-L<prefix>/lib -lSDL2 -pthread -lm`. There is no `Libs.private`, because SDL `dlopen`s every system library |
+| Size of `core_ext` | 4.89 MB, 3.09 MB stripped, 1.24 MB gzipped. The source build is 0.90 MB stripped, so SDL adds about 2.2 MB |
+| SDL with `-DSDL_AUDIO=OFF -DSDL_RENDER=OFF` | `libSDL2.a` 4.11 → 3.67 MB, `core_ext` 4.89 → 4.59 MB; 407 examples, 0 failures; the window probe is unchanged |
+
+**Finding A — the virtual gamepad opens a second SDL.**
+`spec_core/support/virtual_gamepad.rb:58` opens `libSDL2-2.0.so.0` by soname.
+Against a static build, that loads the system SDL as a second copy. The virtual
+pad attaches there, and `core_ext`'s SDL never sees it. `button_state_supported?`
+probes the same wrong copy, which is why two examples are excluded rather than
+failing. **Using `Fiddle::Handle::DEFAULT` on Linux, as macOS already does,
+fixes it for both builds:** 407 examples, 0 failures on the static build and on
+the source build. On Windows `Fiddle.dlopen('SDL2.dll')` has the same shape and
+will need the same answer.
+
+This also decides between rules. `DEFAULT` finds SDL only while `core_ext`
+exports its symbols, so hiding them (step 1's rule 2) and the virtual gamepad
+specs cannot both hold. The collision rule 2 guards against has no known
+instance: no other gem in a game's process links SDL2, and `core_ext` already
+exports 1394 miniaudio symbols without trouble. nokogiri's binary exports 2037.
+**The recommendation is to drop rule 2.**
+
+**Finding B — a native build links this machine's libruby.** Built on a Ruby
+with a shared libruby, *both* extensions record `NEEDED libruby.so.4.0` and a
+`RUNPATH` of `/home/paul/.local/share/mise/installs/ruby/4.0.5/lib`. That is
+mkmf's `LIBRUBYARG_SHARED` and `LIBPATH`. A platform gem shipped like this would
+point at a path on the build machine. It would fail to load on a Ruby that has
+no `libruby.so.4.0` by that name. nokogiri's binary has neither entry.
+Relinking with both variables emptied leaves `NEEDED` as libm, libGL and libc.
+Ruby's symbols then resolve from the running process, and both suites still
+pass. This is step 2's to handle, and it is one more argument for
+rake-compiler-dock on Linux, which avoids it.
+
+**Finding C — SDL's audio and 2D renderer are dead weight.** `app.c:103`
+initialises `SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER` only. Audio is
+miniaudio, and drawing is our own GL. Turning both subsystems off saves 0.3 MB,
+6% of `core_ext`, and breaks nothing. It is worth doing in 1a, since it also
+drops SDL's PulseAudio, ALSA and sndio backends. It is not worth more
+investigation.
+
+#### Linux build environments
+
+**Build Linux in the rake-compiler-dock image.** Measured 2026-09-15 at
+`fa89336`. The same SDL2 2.32.10 (audio and renderer off) and both extensions
+were built three ways, and the binaries were loaded into this laptop's Ruby
+4.0.5:
+
+| | This laptop | `ubuntu-latest` | rake-compiler-dock |
+|---|---|---|---|
+| How it was built | `make ext` | `ubuntu:24.04` container with setup-ruby's own `ruby-4.0.5-ubuntu-24.04-x64` tarball at `/opt/hostedtoolcache` | `rake compile:x86_64-linux-gnu` in `1.12.0-mri-x86_64-linux-gnu` |
+| OS, glibc, compiler | Ubuntu 22.04, 2.35, gcc 11 | Ubuntu 24.04.4, 2.39, gcc 13.3, cmake 3.28 | Ubuntu 20.04.6, 2.31, gcc 9.4, cmake 3.16, cross Ruby 4.0.2 |
+| `core_ext` needs | **GLIBC_2.34** | **GLIBC_2.38**: `__isoc23_strtol` and six other `__isoc23_*`, `strlcpy`, `strlcat`, `wcslcpy`, `wcslcat`, `fmod`, `fmodf` | **GLIBC_2.29**: `exp`, `log`, `pow` |
+| libruby and runpath | `NEEDED libruby.so.4.0`, runpath into mise | `NEEDED libruby.so.4.0`, runpath `/opt/hostedtoolcache/Ruby/4.0.5/x64/lib` | **neither** |
+| Other `NEEDED` | libm, libGL, libc, ld-linux | libm, libGL, libc, ld-linux | libdl, libpthread, libm, libGL, libc, ld-linux — pre-2.34 names, which newer glibc keeps as stubs |
+| `core_ext` size | 4.59 MB | 4.80 MB | 2.61 MB, stripped by the cross Ruby's `LDFLAGS` |
+| SDL's libdecor support | on | on | **off**: Ubuntu 20.04 has no `libdecor-0-dev` |
+| Loads on this laptop | yes | **no**: ``version `GLIBC_2.38' not found`` | yes |
+| `rake spec` / `rake spec:core` here | 2313, 0 / 407, 0 | — | 2313, 0 / 407, **1 failure** (finding D) |
+| Window probe, X11 and Wayland | both, 60 frames | — | both, 60 frames, no system SDL mapped |
+
+`ubuntu-latest` is out: its binary does not load on Ubuntu 22.04 or Debian 12.
+The rake-compiler-dock image gives the lowest floor and avoids finding B. It
+runs rake-compiler's own cross tasks, which step 2 uses anyway. A plain
+Ubuntu 20.04 container would give the same glibc, but neither the static-libruby
+cross Ruby nor the tasks.
+
+GLIBC_2.29 admits Ubuntu 20.04+, Debian 11+ and Fedora 30+. The kit that ran
+these builds is not in the repo. Step 1e rebuilds it as a CI job.
+
+**Finding D — `audio_spec.rb:112` fails against the rake-compiler-dock
+binary, and it is not a leak.** "`debug_live_sounds` returns to its baseline"
+expects 0 and gets 1, in 10 of 10 runs; the local build passes 10 of 10. Outside
+RSpec the same binary returns to 0 after 10, 100 and 500 sample and song pairs,
+from the same frame and from 50 frames deeper. So one sound stays reachable only
+from a stale reference on the C stack, which Ruby's conservative GC honours. The
+image compiles with gcc 9.4 against the local gcc 11, and its cross Ruby was
+itself built with `-O1`. Either can change what stays on the stack. Which one it
+is was not measured, because the container's make ran without `V=1`. The spec's
+question is whether sounds leak, so it should assert the count does not *grow*
+across many allocations, rather than that it returns to exactly its baseline
+from one frame. This is a spec fix, for step 1.
+
+**Finding E — no libdecor from the image.** Under native Wayland on GNOME,
+which draws no server-side decorations, a window without libdecor has no title
+bar. SDL2 picks X11 by default, through XWayland, so this is only visible with
+`SDL_VIDEODRIVER=wayland`. The probe window under Wayland opened and ran either
+way. Building libdecor from source in the image is possible. It is not worth
+doing until someone asks for native Wayland.
+
 ### Step 1 — A static SDL2 build path for `core_ext`
 
 **Why here:** everything after it packages this build, so it must be proven
@@ -426,7 +536,7 @@ three platforms, where today each runs a different one.
 # rakelib/sdl2.rake
 SDL2_RELEASE = {
   version: '2.32.10',
-  sha256: '5f5993c530f084535c65a6879e9b26ad441169b3e25d789d83287040a9ca5165' # step 0, Windows leg
+  sha256: '5f5993c530f084535c65a6879e9b26ad441169b3e25d789d83287040a9ca5165'
 }.freeze
 
 SDL2_PREFIX = File.expand_path('build/sdl2', __dir__)
@@ -436,7 +546,8 @@ task sdl2: "#{SDL2_PREFIX}/lib/pkgconfig/sdl2.pc"
 ```
 
 It downloads the release tarball, refuses it on a checksum mismatch, and runs
-the CMake invocation step 0 settled. The prefix sits under `build/`, which is
+the CMake invocation step 0 settled, adding `-DSDL_AUDIO=OFF -DSDL_RENDER=OFF`
+(finding C). The prefix sits under `build/`, which is
 already ignored and already outside the gem.
 
 #### 1b. `extconf.rb` links a static SDL2 when given one
@@ -452,19 +563,31 @@ else
 end
 ```
 
-The link flags come from SDL's own `sdl2.pc` (`Libs.private`), not from a list
-in `extconf.rb`. On macOS that is the framework list Ruby2D keeps by hand. The
-exact `pkg_config` call is step 0's to confirm. On Linux, add
-`-Wl,--exclude-libs,ALL` or the equivalent step 0 found, so SDL's symbols stay
-private to `core_ext`.
+The link flags come from SDL's own `sdl2.pc`, not from a list in
+`extconf.rb`. On macOS that is the framework list Ruby2D keeps by hand. On Linux
+step 0 found the flags are `-lSDL2 -pthread -lm` and nothing more. Because the
+prefix holds only `libSDL2.a`, `-lSDL2` resolves to the archive. The system's
+`libSDL2.so` sits later on the search path. That ordering holds the build up
+without being visible in it, which is why rule 1's linkage check exists.
+SDL's symbols stay exported; see finding A.
 
-#### 1c. The toolchain setup moves into a composite action
+#### 1c. The virtual gamepad finds the SDL already loaded
+
+`spec_core/support/virtual_gamepad.rb` resolves SDL through
+`Fiddle::Handle::DEFAULT` on Linux as well as macOS, and its comment says why
+(finding A). Windows gets the same change once step 0 has measured it there.
+This lands before the CI job, because that job's `rake spec:core` fails without
+it. The same commit rewrites `audio_spec.rb`'s "returns to its baseline"
+example to assert no growth across many allocations, which fails against the
+rake-compiler-dock binary as it stands (finding D).
+
+#### 1d. The toolchain setup moves into a composite action
 
 `.github/actions/toolchain/action.yml` takes the per-OS install, `ridk`, `PATH`
 and Mesa steps out of the test job. The test job calls it unchanged. The new
-job in 1d calls it too, so the Windows `PATH` fix exists once.
+job in 1e calls it too, so the Windows `PATH` fix exists once.
 
-#### 1d. A `static-sdl2` CI job
+#### 1e. A `static-sdl2` CI job
 
 A matrix over the three runners, beside the existing `test` job:
 
@@ -474,12 +597,18 @@ rake sdl2 → make ext with --with-sdl2-static → rake spec:core → ruby tools
 
 `tools/check_linkage.rb` reads the platform's own dependency and export
 listings for both `.so` files, and exits non-zero on a rule below. On Linux the
-job runs wherever step 0 settled.
+job builds SDL2 and the extensions inside the rake-compiler-dock
+`x86_64-linux-gnu` image, through `rake compile:x86_64-linux-gnu`. It then runs
+`rake spec:core` on the plain runner against the binaries it produced, because
+the image has no display. That means the rake-compiler `ExtensionTask` from 2a
+moves forward into this step on Linux.
 
 **Rules the checks pin:**
 
 1. `core_ext`'s dynamic dependencies name no SDL library.
-2. `core_ext` exports no `SDL_` symbol.
+2. ~~`core_ext` exports no `SDL_` symbol.~~ **Dropped after step 0 on Linux.**
+   Hiding SDL's symbols breaks the virtual gamepad specs, and the collision it
+   guarded against has no known instance. See finding A.
 3. `util_ext`'s dynamic dependencies name no SDL and no GL library.
 4. Without `--with-sdl2-static`, `extconf.rb` behaves exactly as before — the
    existing `test` job is the check.
@@ -524,6 +653,12 @@ end
 drives the other, or `make ext` stays the developer's command and rake-compiler
 only runs for gems; the sub-step decides and says which.
 
+A platform-gem build must not link the building Ruby's libruby (finding B). On
+Linux the rake-compiler-dock image already guarantees it: its binary has
+neither entry. setup-ruby's Rubies have a shared libruby too, so whether macOS
+and Windows need `LIBRUBYARG_SHARED` and the rpath emptied is for their step 0
+columns.
+
 #### 2b. The platform gem's specification
 
 rake-compiler's native task derives it from `rgame.gemspec`. On top of that
@@ -555,6 +690,8 @@ spots.
 6. Every file of the source gem outside `ext/` is in it — the packaging spec's
    rules for `lib/`, `examples/`, `docs/api/` and `exe/` hold here too.
 7. `tools/check_linkage.rb` passes on the extensions inside it.
+8. Neither extension names libruby among its dependencies or carries an rpath
+   or runpath (finding B).
 
 **Tests:**
 
@@ -663,5 +800,10 @@ installed on the Linux runner with no SDL2.
 4. **Should the source gem also use the pinned SDL2?** It would make every
    install run the same SDL, but would need CMake and a network fetch during
    `gem install`. The recommendation is no. *Blocks nothing.*
-5. **The Linux build environment** — `ubuntu-latest`, an older Ubuntu
-   container, or rake-compiler-dock's image. *Settled by step 0.*
+5. ~~**The Linux build environment.**~~ **Settled — the rake-compiler-dock
+   `x86_64-linux-gnu` image.** Its binary needs GLIBC_2.29 and links no libruby;
+   `ubuntu-latest`'s needs 2.38 and does not load on Ubuntu 22.04. See
+   [Linux build environments](#linux-build-environments).
+6. **Native Wayland decorations.** The image cannot build SDL with libdecor, so
+   under `SDL_VIDEODRIVER=wayland` on GNOME a window has no title bar (finding
+   E). *Blocks nothing; X11 through XWayland is SDL2's default.*
