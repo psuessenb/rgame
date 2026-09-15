@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
+require 'fileutils'
 require 'json'
+require 'tmpdir'
 
 # Almost all of this runs against injected loaders — the caching, the path
 # resolution and the reference counting are pure bookkeeping, and the loaders
@@ -225,6 +227,57 @@ RSpec.describe RGame::Core::AssetManager do
 
     it 'lists the types it knows' do
       expect(manager.types).to contain_exactly(:image, :read)
+    end
+  end
+
+  describe '#glob' do
+    let(:tree) { Dir.mktmpdir }
+
+    after { FileUtils.remove_entry(tree) }
+
+    def touch(*paths)
+      paths.each do |path|
+        full = File.join(tree, path)
+        FileUtils.mkdir_p(File.dirname(full))
+        File.write(full, '')
+      end
+    end
+
+    it 'lists matching paths relative to the root' do
+      touch('locales/en.yml', 'locales/menus/de.yml', 'locales/notes.txt')
+
+      expect(manager(root: tree).glob('locales/**/*.yml')).to eq(%w[locales/en.yml locales/menus/de.yml])
+    end
+
+    it 'sorts whatever order the file system yields' do
+      allow(Dir).to receive(:glob).and_return(%w[locales/zh.yml locales/de.yml locales/en.yml])
+
+      expect(manager(root: tree).glob('locales/*.yml')).to eq(%w[locales/de.yml locales/en.yml locales/zh.yml])
+    end
+
+    it 'matches nothing in a directory that does not exist' do
+      expect(manager(root: tree).glob('locales/**/*.yml')).to eq([])
+    end
+
+    it 'resolves a relative root against the working directory, as loading does' do
+      touch('media/locales/en.yml')
+
+      Dir.chdir(tree) { expect(manager(root: 'media').glob('locales/*.yml')).to eq(%w[locales/en.yml]) }
+    end
+
+    it 'uses an absolute pattern as it stands' do
+      touch('elsewhere/en.yml')
+      pattern = File.join(tree, 'elsewhere', '*.yml')
+
+      expect(manager(root: '/media').glob(pattern)).to eq([File.join(tree, 'elsewhere', 'en.yml')])
+    end
+
+    it 'loads and caches nothing' do
+      touch('locales/en.yml')
+      assets = manager(root: tree)
+      assets.glob('locales/*.yml')
+
+      expect(assets.size).to be_zero
     end
   end
 
