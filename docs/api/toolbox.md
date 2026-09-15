@@ -77,6 +77,8 @@ form by `count` as [`I18n.t` does](#plurals).
 
 `scope: 'hud'` with key `'title'` resolves `'hud.title'`. `key` returns the key
 without its scope. `scope=` changes the scope, and the next read resolves again.
+A [`UI::Menu`'s `scope:`](ui.md#labels-are-translation-keys) sets the scope of
+the labels its buttons build from keys.
 
 ### When it renders again
 

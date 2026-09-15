@@ -30,11 +30,15 @@ A `Menu` holds buttons to choose from, with one of them focused.
 UI = RGame::Engine::UI
 
 column = UI::Column.new(item_width: 220, item_height: 44)
-menu = layer.add_node(UI::Menu.new(layout: column))
-menu.add(UI::PanelButton.new(label: 'Resume')).on_activated { close }
-menu.add(UI::PanelButton.new(label: 'Save')).on_activated   { save }
-menu.add(UI::PanelButton.new(label: 'Quit', enabled: false))
+menu = layer.add_node(UI::Menu.new(layout: column, scope: 'pause_menu'))
+menu.add(UI::PanelButton.new(label: 'resume')).on_activated { close }
+menu.add(UI::PanelButton.new(label: 'save')).on_activated   { save }
+menu.add(UI::PanelButton.new(label: 'quit', enabled: false))
 ```
+
+Each `label:` is a translation key, and `scope:` puts `pause_menu.` in front of it,
+so the buttons draw `pause_menu.resume`, `pause_menu.save` and `pause_menu.quit`
+from the loaded tables. See [Labels are translation keys](#labels-are-translation-keys).
 
 **The menu holds buttons; it never builds them.** The button decides its own look.
 Any [`UI::Button`](#rgameengineuibutton) subclass goes in through `add`, shipped or
@@ -52,8 +56,8 @@ each:
 ```ruby
 ring = UI::Ring.new(radius: 120, item_width: 96, item_height: 30)
 wheel = layer.add_node(UI::Menu.new(x: 320, y: 240, layout: ring, navigation: UI::Pointing.new))
-wheel.add(UI::PanelButton.new(label: 'Sword')).on_activated { equip(:sword) }
-wheel.add(UI::PanelButton.new(label: 'Bow')).on_activated   { equip(:bow) }
+wheel.add(UI::PanelButton.new(label: 'sword')).on_activated { equip(:sword) }
+wheel.add(UI::PanelButton.new(label: 'bow')).on_activated   { equip(:bow) }
 ```
 
 The menu keeps everything that stays the same across combinations:
@@ -66,6 +70,7 @@ The menu keeps everything that stays the same across combinations:
 | `buttons`, `focused`, `focused_index` | what it holds and what is focused — `nil` when nothing is |
 | `focus(index)` | focus a button directly, or nothing with `nil`; only buttons whose focus changes are told |
 | `layout`, `navigation` | the two parts it was built with |
+| `scope:`, `scope` | a scope for its buttons' label keys, or `nil` — see [Labels are translation keys](#labels-are-translation-keys) |
 | `open?`, `open`, `close` | whether it is shown and takes input — see [Open and closed](#open-and-closed) |
 | `trigger:`, `trigger` | an action that holds the menu open — see [A menu held open by an action](#a-menu-held-open-by-an-action) |
 | `on_opened`, `on_closed` | signals; `on_closed` passes the button a trigger's release activated, or `nil` |
@@ -79,6 +84,58 @@ is focused. A new navigation therefore cannot forget to activate, and every
 combination confirms the same way. Each frame the menu runs its navigation, then
 every hotkey, then confirm. A menu with a trigger handles the trigger's press first
 and its release last.
+
+### Labels are translation keys
+
+**A button's `label:` is a key**, looked up in the tables `RGame::Game` loads. The
+button holds it as an [`Engine::Text`](toolbox.md#text--the-string-a-node-draws)
+and draws `label.to_s`. A switch of `I18n.locale` therefore redraws every label on
+the next frame, with no button rebuilt, and an unchanged label allocates nothing.
+
+```ruby
+require 'rgame'
+
+UI = RGame::Engine::UI
+i18n = RGame::Engine::I18n
+i18n.load_hash(en: { title_menu: { play: 'Play' }, common: { quit: 'Quit' } },
+               de: { title_menu: { play: 'Spielen' }, common: { quit: 'Beenden' } })
+
+menu = UI::Menu.new(layout: UI::Column.new(item_width: 200, item_height: 40), scope: 'title_menu')
+play = menu.add(UI::TextButton.new(label: 'play'))
+quit = menu.add(UI::TextButton.new(label: RGame::Engine::Text.new('quit', scope: 'common')))
+name = menu.add(UI::TextButton.new(label: RGame::Engine::Text.literal('Ada')))
+
+play.label.to_s   # => "Play" — the key title_menu.play
+quit.label.to_s   # => "Quit" — its own scope
+i18n.locale = :de
+play.label.to_s   # => "Spielen"
+name.label.to_s   # => "Ada" — a literal, in every locale
+```
+
+What a button does with `label:`:
+
+| Given | Holds |
+|---|---|
+| a String or Symbol | a `Text` for that key, under the button's `label_scope` |
+| a `Text` | that `Text`, scope and all |
+| `Text.literal(string)` | `string`, never translated — a player's name, a number |
+| `nil` | nothing; `IconButton` then draws no caption |
+
+**A label is drawn without variables.** A `Text` that declares any raises
+`ArgumentError` when it is given, not on the first frame. Text built from a value,
+such as a count, belongs in the node that draws it.
+
+**`scope:` on a menu reaches only keys.** The menu sets each button's
+`label_scope` as the button is added, unless the button already has one. A button
+applies it to a label it built from a key, including one assigned later with
+`label=`. A label given as a `Text` is never re-scoped, so one `Text` shared by two
+menus reads the same in both. The scope reaches the menu's own buttons, not nodes
+deeper in the tree.
+
+With no table loaded, a key shows as itself under the default missing policy, so
+`label: 'Play'` draws the word Play in a game with no locale files. A spec suite
+that sets `I18n.missing = :raise` fails on it instead. See
+[Missing keys](toolbox.md#missing-keys).
 
 ### Layouts: `Column`, `Row` and `Ring`
 
@@ -241,7 +298,7 @@ class PauseMenu < RGame::Engine::Node2D
 
   def on_add
     @menu = add_node(UI::PanelMenu.new(x: 56, y: 56, layout: UI::Column.new(item_width: 180, item_height: 34)))
-    @menu.add(UI::PanelButton.new(label: 'Resume')).on_activated { @menu.close }
+    @menu.add(UI::PanelButton.new(label: 'resume')).on_activated { @menu.close }
     @menu.close
   end
 
@@ -337,8 +394,8 @@ UI = RGame::Engine::UI
 
 column = UI::Column.new(item_width: 180, item_height: 34)
 menu = layer.add_node(UI::PanelMenu.new(x: 56, y: 56, layout: column))
-menu.add(UI::PanelButton.new(label: 'Resume')).on_activated { close }
-menu.add(UI::PanelButton.new(label: 'Quit')).on_activated   { quit }
+menu.add(UI::PanelButton.new(label: 'resume')).on_activated { close }
+menu.add(UI::PanelButton.new(label: 'quit')).on_activated   { quit }
 ```
 
 | | |
@@ -419,7 +476,9 @@ subclass supplies the look in `on_draw`, reading `state`:
 
 | | |
 |---|---|
-| `label`, `enabled`, `enabled?` | optional — an image-only button still has somewhere to keep a name |
+| `label`, `label=` | the `Engine::Text` drawn, or `nil`; set from a key, a `Text` or `nil` — see [Labels are translation keys](#labels-are-translation-keys) |
+| `label_scope`, `label_scope=` | the scope a label given as a key resolves under; a [menu's `scope:`](#labels-are-translation-keys) sets it |
+| `enabled`, `enabled?` | whether it can be activated; `Stepping` and `Pointing` skip a disabled button |
 | `focused?`, `pressed?`, `state` | read by `on_draw` |
 | `activate_on` | `:release` (the default) or `:press`; anything else raises `ArgumentError` |
 | `hotkey` | an action name that presses this button, focused or not, or `nil` — see [Hotkeys](#hotkeys) |
@@ -448,11 +507,11 @@ class EdgeButton < RGame::Engine::UI::Button
   def on_draw(renderer, _view)
     color = COLORS.fetch(state)
     renderer.rect(0, 0, 4, height, color: color) unless state == :idle
-    renderer.text(label, 12, (height - renderer.text_height) / 2, color: color)
+    renderer.text(label.to_s, 12, (height - renderer.text_height) / 2, color: color)
   end
 end
 
-menu.add(EdgeButton.new(label: 'Continue')).on_activated { resume }
+menu.add(EdgeButton.new(label: 'continue')).on_activated { resume }
 ```
 
 A `Button` without `on_draw` draws nothing, which suits an invisible slot.
@@ -516,8 +575,8 @@ input_map = RGame::Engine::InputMap.default.merge(
   skill2: { buttons: [controls::KEY_2] }
 )
 
-bar.add(UI::IconButton.new(image: :torch, label: 'Torch', hotkey: :skill1)).on_activated { light }
-bar.add(UI::IconButton.new(image: :hammer, label: 'Hammer', hotkey: :skill2)).on_activated { build }
+bar.add(UI::IconButton.new(image: :torch, label: 'torch', hotkey: :skill1)).on_activated { light }
+bar.add(UI::IconButton.new(image: :hammer, label: 'hammer', hotkey: :skill2)).on_activated { build }
 ```
 
 | | |
@@ -626,7 +685,7 @@ class Underline
   end
 end
 
-menu.add(RGame::Engine::UI::TextButton.new(label: 'Continue', style: Underline.new))
+menu.add(RGame::Engine::UI::TextButton.new(label: 'continue', style: Underline.new))
 ```
 
 The colours are `Color`s built once. An `[r, g, b]` literal would make the renderer
@@ -642,14 +701,14 @@ art exists:
 ```ruby
 UI = RGame::Engine::UI
 
-menu.add(UI::TextButton.new(label: 'Play')).on_activated { start }
-menu.add(UI::TextButton.new(label: 'Credits', style: UI::ShapeStyle.new(shape: :disc)))
-menu.add(UI::TextButton.new(label: 'Quit', style: nil))
+menu.add(UI::TextButton.new(label: 'play')).on_activated { start }
+menu.add(UI::TextButton.new(label: 'credits', style: UI::ShapeStyle.new(shape: :disc)))
+menu.add(UI::TextButton.new(label: 'quit', style: nil))
 ```
 
 | | |
 |---|---|
-| `label:` | required, because it is drawn |
+| `label:` | required, because it is drawn: a key or a `Text` |
 | `style:` | a [style](#styles); `UI::ShapeStyle::DEFAULT` unless given, `nil` for the label alone |
 | `label_color:`, `disabled_label_color:` | a `Color` or `[r, g, b]`; defaults `TextButton::LABEL_COLOR` and `DISABLED_LABEL_COLOR`; a style's [content colour](#styles) takes precedence in the states it names |
 
@@ -675,7 +734,7 @@ with its own art need not follow the shipped atlas's names:
 ```ruby
 UI = RGame::Engine::UI
 
-menu.add(UI::PanelButton.new(label: 'Load', style: UI::PanelButton::STYLE.with(idle: :my_idle)))
+menu.add(UI::PanelButton.new(label: 'load', style: UI::PanelButton::STYLE.with(idle: :my_idle)))
 ```
 
 ### `RGame::Engine::UI::OptionButton`
@@ -685,15 +744,19 @@ appears only where there is somewhere to go, which is how a player learns they
 reached an end.
 
 ```ruby
-volume = menu.add(RGame::Engine::UI::OptionButton.new(label: 'Volume', values: [0, 25, 50, 75, 100],
-                                                      display: ->(percent) { "#{percent}%" }))
+UI = RGame::Engine::UI
+
+volume = menu.add(UI::OptionButton.new(label: 'volume', values: [0, 25, 50, 75, 100],
+                                       display: ->(percent) { RGame::Engine::Text.literal("#{percent}%") }))
 volume.on_changed { |value| game.audio.volume = value / 100.0 }
+shadows = menu.add(UI::OptionButton.new(label: 'shadows', values: %i[off low high]))
 ```
 
 | | |
 |---|---|
 | `values:`, `index:`, `display:` | construction: the list, the starting position (default 0, clamped into the list), and how a value becomes its caption |
-| `values`, `index`, `value`, `caption` | the list, where it sits, and what is drawn |
+| `values`, `index`, `value` | the list, where it sits, and the value there |
+| `caption` | the `Engine::Text` drawn for the current value, or `nil` for an empty list |
 | `value = something` | select by value; a value the list does not offer is ignored |
 | `adjust(delta)` | move the selection, clamped; the button if it moved, `nil` if not |
 | `on_changed` | emits the new value, and only when it changed |
@@ -707,9 +770,22 @@ magnitude. Wrapping would turn "one louder" at the top of a volume range into
 silence.
 
 **`display` runs once per value, when the row is built.** It turns each value into
-its drawn text, while the values stay whatever the game acts on. Running it at draw
-time would allocate a String every frame for every row on screen; see
+a caption, while the values stay whatever the game acts on. Running it at draw time
+would allocate a String every frame for every row on screen; see
 [Drawing](drawing.md).
+
+**A caption is a key, like the label.** `display` returns a key, which the row makes
+a `Text` of under its `label_scope`, or a `Text`, kept as it is. A caption that
+declares variables raises `ArgumentError` when the row is built. The default,
+`OptionButton::DISPLAY`, reads a Symbol value as its own key and draws any other
+value as a literal of its `to_s`. So `%i[off low high]` looks up `off`, `low` and
+`high`, and `[0, 50, 100]` draws the numbers. In a menu with `scope: 'settings'`,
+the keys become `settings.off` and so on. YAML reads unquoted `on`, `off`, `yes` and
+`no` as booleans, so a table spells those keys in quotes: `'off': Off`.
+
+**The value column is as wide as the widest caption**, and centres the current one.
+The row measures it again when `I18n.generation` moves or its scope changes, so a
+switch to longer captions widens the column. A draw in between measures nothing.
 
 `value=` ignores values the list does not offer so that restoring a setting from a
 file is safe. A save written by another version of the game, or edited by hand,
@@ -727,13 +803,13 @@ game.renderer.register_ui_atlas(game.assets.ui_atlas('icons.json'))
 
 disc = UI::ShapeStyle.new(shape: :disc)
 bar.add(UI::IconButton.new(image: :star, style: disc)).on_activated { favourite }
-bar.add(UI::IconButton.new(image: 'icons/hoe.png', label: 'Hoe', style: disc))
+bar.add(UI::IconButton.new(image: 'icons/hoe.png', label: 'hoe', style: disc))
 ```
 
 | | |
 |---|---|
 | `image:` | an image id — a registered Symbol or a path String — or `nil` |
-| `label:` | optional; a caption along the bottom of the slot |
+| `label:` | optional; a key or a `Text`, drawn as a caption along the bottom of the slot |
 | `style:` | a [style](#styles); none unless given |
 | `tints:` | the `color:` the image is drawn with, per state (default `IconButton::TINTS`) |
 | `scales:` | the image's scale per state (default 1 in every state) |
@@ -820,6 +896,10 @@ added, and engine code has nothing to measure a label with at that point. The
 renderer is the only measuring object a node receives, and it arrives in `draw`.
 `RGame::Core::Font#text_width` works at any time, but it is a Core type the engine
 layer may not hold. Every slot therefore has the size its layout was built with, and
-a longer label needs a wider slot. Sizing buttons to text would require text
-measurement in the engine layer. A layout would also have to re-arrange its menu
-whenever a label changed.
+a longer label needs a wider slot, in the longest language the game ships. Sizing
+buttons to text would require text measurement in the engine layer. A layout would
+also have to re-arrange its menu whenever a label changed, and a switch of language
+changes them all.
+
+**`scope:` does not inherit down the tree.** It is a `Menu` option. A HUD or a
+dialog that is not a menu scopes each of its own `Text`s.
