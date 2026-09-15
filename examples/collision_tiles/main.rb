@@ -19,7 +19,7 @@
 #     resolved against the map *and* the ball, using that shape;
 #   - CharacterBody's `on_blocked` — what stopped a step, as an event;
 #   - Components::CameraFollow — a camera on the feet rather than on the head;
-#   - Engine::CachedLabel — the life count as a string built only when it changes;
+#   - Engine::Text.computed — the life count as a string built only when it changes;
 #   - the `:tilemap` asset loader and TileMapLayer, both from `examples/scroll_map`.
 #
 # ## Two indexes, one list of names
@@ -244,7 +244,7 @@ class Scene < RGame::Engine::Node2D
     @hero = actors.add_node(Hero.new(camera: players.primary.camera, x: START_X, y: START_Y))
     # Built here rather than in on_draw: the interpolation runs once per change of
     # the count, and the frames in between read the string it kept.
-    @lives_label = RGame::Engine::CachedLabel.new { |lives| "Lives: #{lives}" }
+    @lives_label = RGame::Engine::Text.computed(:lives) { |lives:| "Lives: #{lives}" }
   end
 
   # Screen space: outside the WorldView, so it stays put while the map scrolls.
@@ -253,7 +253,7 @@ class Scene < RGame::Engine::Node2D
     renderer.text('Hold down and left against the fence: you slide to its one gap', 12, 34)
     renderer.text('The red box is what collides. The rest of the sprite is a picture', 12, 56)
     renderer.text('Walk east into the spiky ball: it stops you, and it costs a life', 12, 78)
-    renderer.text(@lives_label[@hero.lives], 12, 100)
+    renderer.text(@lives_label.with(lives: @hero.lives), 12, 100)
   end
 end
 

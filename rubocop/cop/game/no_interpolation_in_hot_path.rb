@@ -13,7 +13,7 @@ module RuboCop
       # `String` each time it is evaluated (the `frozen_string_literal` pragma freezes
       # *literals*, not interpolated results). So a `"Score: #{n}"` here is a per-frame
       # allocation. Build the string once — on construction, or when the value changes
-      # (see `Engine::CachedLabel`) — and draw the cached copy.
+      # (see `Engine::Text`) — and draw the cached copy.
       #
       # @example
       #   # bad

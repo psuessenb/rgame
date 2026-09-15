@@ -53,12 +53,13 @@ its measured width lands exactly there:
 methods. Measuring touches no GPU, and a menu lays itself out while updating.
 
 A label built from a changing value, like a score, should come from
-`RGame::Engine::CachedLabel`. It rebuilds the string only when the value changes:
+[`RGame::Engine::Text`](toolbox.md#text--the-string-a-node-draws). It renders
+the string only when a variable or the language changes:
 
 ```ruby
-@score_label = RGame::Engine::CachedLabel.new { |score| "Score: #{score}" }  # once
+@score = RGame::Engine::Text.new('hud.score', :score)   # once
 
-renderer.text(@score_label[@score], 10, 10)                                  # every frame
+renderer.text(@score.with(score: @points), 10, 10)     # every frame
 ```
 
 ## Fonts

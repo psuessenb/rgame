@@ -10,7 +10,7 @@
 #     the count to assert on: it goes through AudioBus, the AudioDirector and
 #     Core::Audio, so a break anywhere in that chain drops it to zero;
 #   - one `circle` and **two** `text` calls per frame — the instructions, and the
-#     play count through an `Engine::CachedLabel`. The second one's first
+#     play count through an `Engine::Text.computed`. The second one's first
 #     argument is the cached string, so the report shows it advancing `plays: 0`
 #     → `plays: 8` across the run while the call count stays flat;
 #   - **one clip and one translate per frame, neither of them this example's.**
