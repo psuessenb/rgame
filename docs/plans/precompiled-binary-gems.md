@@ -1,7 +1,7 @@
 # Precompiled binary gems
 
-**Status: step 0 has landed; nothing is implemented.** Steps 0–4 are detailed.
-Steps 5–7 are rough and get re-planned once step 4 has landed.
+**Status: steps 0 and 1 have landed.** Steps 2–4 are detailed. Steps 5–7 are
+rough and get re-planned once step 4 has landed.
 
 Rewritten 2026-09-15 from the 2026-08-25 sketch. The sketch compared three
 shapes and deferred the choice. This version takes it, records two decisions
@@ -498,6 +498,60 @@ elsewhere, and a list of names that has to match the harness by hand.
 **Verify:** the `test` job is green on all three platforms, with the same
 example and skip counts as before the change. On the Linux laptop, the same
 examples also pass against a static build — the case that fails today.
+
+**Landed.** `RGame::Core::VirtualGamepad` is C: `input/virtual_gamepad.c` makes
+the SDL calls, `ruby/virtual_gamepad_ext.c` binds them, and `core.h` declares
+the handle. Its Ruby surface is the device only — `new`, `set_button`,
+`set_axis`, `button_down?`, `game_controller?`, `attached?`, `detach`, and the
+class methods `pump` and `sdl_error`. `docs/api/input.md` documents it.
+
+Measured on the Linux laptop:
+
+| | Result |
+|---|---|
+| `make test` | 363 checks, 0 failures |
+| `rake spec` | 2313 examples, 0 failures |
+| `rake spec:core`, source build | 410 examples, 0 failures, nothing excluded — the 407 from before plus 3 new |
+| `rake spec:core`, static SDL2 build | 410 examples, 0 failures, nothing excluded, no `libSDL2` mapped. Step 0 measured 405, 3 failures, 2 excluded on the same build |
+| `rake docs:coverage` | 0 of 132 modules and classes undocumented |
+| `drive_test_project.rb examples/radial_menu/main.rb --gamepad --script …/radial_menu_pad.rb --ticks 240 --seed 1 --texts` | byte-identical report before and after |
+
+What the sketch got wrong:
+
+- **`spec_core/support/virtual_gamepad.rb` stayed.** The sketch deleted it and
+  gave the C class the harness's whole surface. But the harness also waits for a
+  press to land and probes, in a child process, whether presses land on this
+  machine — spec machinery the gem has no reason to ship. So the C class is the
+  device, and the support file keeps its public surface and calls the C class
+  instead of Fiddle. The specs did not change at all, not even their `require`.
+- **A third user.** `tools/drive_test_project.rb --gamepad` drives the same
+  harness. Keeping the harness's surface is what left it untouched.
+- **SDL can shut down under a pad.** `app.c` calls `SDL_Quit` when the last App
+  is destroyed, which frees every joystick, so a pad that outlives every App held
+  a dangling pointer. `app/sdl_session.h` numbers each run of SDL. A pad records
+  its run, raises `RuntimeError` once SDL has shut down, and its `detach` does
+  nothing then. Collecting a pad does not unplug it, because a GC-time unplug
+  would raise a hot-plug event at an arbitrary frame. The Fiddle harness never
+  unplugged on collection either.
+- **`@api private` cannot tag a C-defined class.** The coverage spec reads the
+  comment above a definition, and a C class reports its location as
+  `core_ext.so`, line 0. So it is documented instead, the way
+  `Audio.debug_live_sounds` is.
+- **A press is not always readable straight away.** Outside an App's frame loop,
+  a press set and updated read back only after one `pump`, measured. The
+  harness's retry loop stays for that reason.
+- **The device index is looked up, not stored.** SDL renumbers device indices
+  when any device comes or goes, so `detach` and `game_controller?` find the
+  current index from the joystick's instance id. The Fiddle harness kept the
+  index from attach time.
+
+Two documents stated things this made false, and were corrected: CLAUDE.md
+called `gamepad.c` the one place `SDL_GameController` appears, and the
+windows-portability skill held up by-name dlopen of SDL as finding the copy
+already loaded.
+
+Only the source build ran on macOS and Windows, through the pull request's CI.
+The static build on those platforms waits for step 2's CI job.
 
 ### Step 2 — A static SDL2 build path for `core_ext`
 
