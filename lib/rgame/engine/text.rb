@@ -11,8 +11,11 @@ module RGame
     #   renderer.text(@score.with(score: @points), 12, 10)   # every frame: cached, no allocation
     #
     # The names a `Text` is built with become the keywords of its `with`, so a
-    # forgotten or misspelt variable is Ruby's own `ArgumentError`. A `Text` with
-    # no names is read with `to_s`. Reading one whose variables and
+    # forgotten or misspelt variable is Ruby's own `ArgumentError`. `to_s` reads
+    # a `Text` with the values its last `with` was given — so whatever draws it,
+    # a button's label among them, needs no values of its own — and raises
+    # before the first `with`. A `Text` with no names is read with `to_s`
+    # alone. Reading one whose variables and
     # `I18n.generation` are unchanged returns the same frozen String and
     # allocates nothing; otherwise it renders again. A `Text` never subscribes to
     # `I18n`: it compares one Integer, so it holds nothing that could keep it
@@ -82,7 +85,12 @@ module RGame
               end
 
               def to_s
-                raise ArgumentError, "\#{describe} needs #{names.map { "#{it}:" }.join(', ')}; read it with with"
+                return @string if @generation == ::RGame::Engine::I18n.generation
+                unless defined?(@_var_#{names.first})
+                  raise ArgumentError, "\#{describe} needs #{names.map { "#{it}:" }.join(', ')}; call with first"
+                end
+
+                refresh({ #{names.map { "#{it}: @_var_#{it}" }.join(', ')} })
               end
             RUBY
           end

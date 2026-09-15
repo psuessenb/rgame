@@ -100,9 +100,60 @@ RSpec.describe RGame::Engine::Text do
       expect(title.to_s).to eq('Hauptmenü')
     end
 
-    it 'refuses a Text that has names, pointing at with' do
-      expect { described_class.new('hud.score', :score).to_s }
-        .to raise_error(ArgumentError, /"hud.score" needs score:.*with/)
+    describe 'on a Text that has names' do
+      let(:score) { described_class.new('hud.score', :score) }
+
+      it 'refuses before the first with, pointing at with' do
+        expect { score.to_s }.to raise_error(ArgumentError, /"hud.score" needs score:.*with/)
+      end
+
+      it 'is what the last with rendered, the identical String' do
+        shown = score.with(score: 7)
+        expect(score.to_s).to be(shown)
+      end
+
+      it 'follows the last with' do
+        score.with(score: 7)
+        score.with(score: 8)
+        expect(score.to_s).to eq('Score: 8')
+      end
+
+      it 'renders the last values again after a locale switch, with no with in between' do
+        score.with(score: 7)
+        i18n.locale = :de
+        expect(score.to_s).to eq('Punkte: 7')
+      end
+
+      it 'renders the last values again after scope=' do
+        i18n.load_hash(en: { arena: { score: 'Arena: %{score}' } })
+        scoped = described_class.new('score', :score, scope: 'hud')
+        scoped.with(score: 7)
+        scoped.scope = 'arena'
+        expect(scoped.to_s).to eq('Arena: 7')
+      end
+
+      it 'still refuses after a with that raised on a missing keyword' do
+        expect { score.with }.to raise_error(ArgumentError)
+        expect { score.to_s }.to raise_error(ArgumentError, /needs score:/)
+      end
+
+      it 'renders nothing on a read after with, while nothing has changed' do
+        score.with(score: 7)
+        allow(i18n).to receive(:render).and_call_original
+        3.times { score.to_s }
+        expect(i18n).not_to have_received(:render)
+      end
+
+      it 'allocates nothing on an unchanged read' do
+        score.with(score: 7)
+        expect { score.to_s }.to allocate_nothing.over(200_000)
+      end
+
+      it 'reads a computed Text the same way' do
+        lives = described_class.computed(:lives) { |lives:| "Lives: #{lives}" }
+        lives.with(lives: 3)
+        expect(lives.to_s).to eq('Lives: 3')
+      end
     end
   end
 
