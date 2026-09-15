@@ -879,6 +879,9 @@ whenever an exclusion comes out: a rule that used to be stated and is now merely
 true goes silent, and this is the one file whose whole job is saying out loud
 what ships.
 
+Publishing is CI's job, not a local `gem push`; the steps are in the
+[release](.claude/skills/release/SKILL.md) skill.
+
 The version lives in `lib/rgame/version.rb` and nothing else may go in that
 file: the gemspec loads it directly, long before either extension is compiled,
 so a require reaching for `rgame/util_ext` there would break `gem build`.
