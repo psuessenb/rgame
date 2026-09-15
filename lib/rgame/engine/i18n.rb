@@ -2,6 +2,8 @@
 
 require 'yaml'
 require_relative 'i18n/template'
+require_relative 'i18n/plural'
+require_relative 'i18n/plural_rules'
 
 module RGame
   module Engine
@@ -10,7 +12,8 @@ module RGame
     #
     # Tables are read in Rails' YAML format — the top-level key is the locale,
     # nested keys below it — and compiled at load into one flat Hash per locale,
-    # keyed by the dotted key, whose values are pre-parsed `%{var}` templates.
+    # keyed by the dotted key, whose values are pre-parsed `%{var}` templates or,
+    # for a key whose nested keys are CLDR plural categories, a set of them.
     # `generation` moves whenever what a key resolves to may have changed, so
     # cached text compares one Integer instead of looking anything up.
     #
@@ -81,15 +84,29 @@ module RGame
           @default
         end
 
+        # Sets how `language` (or a regional locale, which then wins over its
+        # language) sorts a count into a plural category. The block receives
+        # the count and returns one of `Plural::CATEGORIES`. Replaces a built-in
+        # rule; lasts until `reset`.
+        def plural_rule(language, &rule)
+          raise ArgumentError, 'plural_rule needs a block' unless rule
+
+          @plural_rules[normalize(language)] = rule
+        end
+
         # The locales that have a table, in load order.
         def available = @tables.keys
 
-        # The translation of `key` (or `scope.key`) with `vars` interpolated.
+        # The translation of `key` (or `scope.key`) with `vars` interpolated. A
+        # pluralized key needs `count:`, and picks its form by the plural rule
+        # of the table that supplied it, which is not always the current locale.
         # Allocates on every call: it is for code off the per-frame path.
         def t(key, scope: nil, **vars)
           key = scope ? "#{scope}.#{key}" : key.to_s
           template = lookup(key)
           return key unless template
+
+          template = pluralize(key, template, vars) if template.is_a?(Plural)
 
           missing = template.names.find { |name| !vars.key?(name) }
           raise ArgumentError, "#{key} needs %{#{missing}}" if missing
@@ -107,6 +124,7 @@ module RGame
           @default = :en
           @generation = (@generation || 0) + 1
           @chain = chain_for(@locale)
+          @plural_rules = PluralRules::BUILT_IN.dup
         end
 
         private
@@ -121,6 +139,18 @@ module RGame
         def lineage(locale)
           subtags = locale.name.split('-')
           subtags.size.downto(1).map { |length| subtags.first(length).join('-').to_sym }
+        end
+
+        def pluralize(key, plural, vars)
+          raise ArgumentError, "#{key} is pluralized and needs count:" unless vars.key?(:count)
+
+          count = vars[:count]
+          plural.template_for(count, plural_category(plural.locale, count))
+        end
+
+        def plural_category(locale, count)
+          language = lineage(locale).find { |link| @plural_rules.key?(link) }
+          @plural_rules.fetch(language, PluralRules::DEFAULT).call(count)
         end
 
         def lookup(key)
@@ -139,7 +169,7 @@ module RGame
 
             locale = normalize(locale)
             @sources[locale] = deep_merge(@sources.fetch(locale, {}), stringify(entries, locale.to_s, source))
-            @tables[locale] = compile(@sources[locale])
+            @tables[locale] = compile(@sources[locale], locale)
           end
           @generation += 1
           self
@@ -173,10 +203,13 @@ module RGame
           end
         end
 
-        def compile(entries, prefix = nil, table = {})
+        def compile(entries, locale, prefix = nil, table = {})
           entries.each do |name, value|
             key = prefix ? "#{prefix}.#{name}" : name
-            value.is_a?(Hash) ? compile(value, key, table) : table[key.freeze] = Template.compile(value)
+            if !value.is_a?(Hash) then table[key.freeze] = Template.compile(value)
+            elsif Plural.forms?(value) then table[key.freeze] = Plural.new(locale, value)
+            else compile(value, locale, key, table)
+            end
           end
           prefix ? table : table.freeze
         end
