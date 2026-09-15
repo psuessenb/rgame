@@ -153,9 +153,14 @@ lib/rgame/engine/input/      InputMap, ActionMapper and the Actions snapshot:
                              physical ids in, named actions out.
 lib/rgame/engine/ui/         Menu and its buttons — focus-navigated UI.
 lib/rgame/engine/scene/      SceneStack.
+lib/rgame/engine/i18n.rb     Translation tables and the current language; its
+  i18n/                      compiled templates, plurals and CLDR plural rules
+                             sit beside it.
+lib/rgame/engine/text.rb     Text: a translation key and the String it last
+                             rendered, so a draw reading it allocates nothing.
 lib/rgame/engine/*.rb        The rest of the layer: players and viewports,
                              tile maps, collision, pathfinding, camera,
-                             signals, pooling, i18n, the audio bus.
+                             signals, pooling, the audio bus.
 
 lib/rgame/fonts/             The default font shipped with the engine:
                              Liberation Sans 2.1.5 (SIL OFL 1.1). Data read at
@@ -185,6 +190,8 @@ spec_core/                   RSpec specs for RGame::Core (`rake spec:core`).
 
 examples/                    One runnable file per concept — "how do I do X".
                              Ships in the gem, so an installed copy can be run.
+                             Each keeps its translation table in locales/
+                             beside its main.rb.
   assets/                    The art they draw, CC0 or drawn here, with its
                              provenance in README.md. Nothing from media/: it
                              cannot be redistributed and this directory ships.
@@ -205,8 +212,9 @@ tools/                       Development tools, outside the engine and not
                              measures its loop seam. Prepares examples/assets/
                              music; needs libvorbisenc to run.
 rubocop/cop/game/            The project's own cops, loaded by .rubocop.yml:
-                             the per-frame allocation guards and the two that
-                             police the Core/Engine layer boundary.
+                             the per-frame allocation guards, the two that
+                             police the Core/Engine layer boundary, and the one
+                             that refuses a String literal drawn as text.
 
 docs/                        Documentation.
   api/                       Reference documentation for using rgame from Ruby.

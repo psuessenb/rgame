@@ -113,7 +113,7 @@ the labels its buttons build from keys.
 
 A read renders again when any keyword differs from the last read, by `==`, or
 when `I18n.generation` has moved. The generation moves on every `load`, every
-switch of locale or default, and `reset`. A `Text` compares that one Integer and
+switch of locale or default, every `plural_rule`, and `reset`. A `Text` compares that one Integer and
 never subscribes to `I18n`, so nothing holds on to it.
 
 A `Text` built before any table loads shows the [missing-key](localization.md#missing-keys)

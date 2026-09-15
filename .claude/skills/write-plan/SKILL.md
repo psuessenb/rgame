@@ -243,3 +243,5 @@ live in history rather than the tree:
 | `engine-replacement/` | brief + roadmap, mostly mechanical | `git show 36396e6:docs/plans/engine-replacement/01-roadmap.md` |
 | `local-space-transform.md` | single file: verdict, rejected options, prior art, plan | `git show 03448e4:docs/plans/local-space-transform.md` |
 | `cross-platform-support.md` | single file, findings-led, every finding tagged measured | `git show 549f811:docs/plans/cross-platform-support.md` |
+| `basic-examples.md` | single file, a catalogue rather than a roadmap: one entry per example, each with its landed note | `git show 92e04a5:docs/plans/basic-examples.md` |
+| `i18n/` | brief + current state + prior art + design + roadmap; a step inserted mid-plan, and decisions taken in later question rounds | `git show 92e04a5:docs/plans/i18n/04-roadmap.md` |

@@ -1,6 +1,6 @@
 ---
 name: write-example
-description: How to write an example under examples/ — the file shape, the drive script that acceptance-tests it, the asset licence rule, and the traps that have actually bitten (a top-level proc pinning the window, a save key that also walks the player, paused not gating draw, a nine-slice id that resolves to nothing). Use when adding or changing anything under examples/ or tools/drive/examples/, when picking the next example off docs/plans/basic-examples.md, or when a driven example prints no report.
+description: How to write an example under examples/ — the file shape, the drive script that acceptance-tests it, the asset licence rule, and the traps that have actually bitten (a top-level proc pinning the window, a save key that also walks the player, paused not gating draw, a nine-slice id that resolves to nothing). Use when adding or changing anything under examples/ or tools/drive/examples/, or when a driven example prints no report.
 ---
 
 # Writing an rgame example
@@ -301,6 +301,6 @@ in `lib/rgame/engine/ui/` with its own spec in `spec/`, a section in the matchin
 page has a "What this is not" list — that list trimmed to what is still
 genuinely missing.
 
-Then update `docs/plans/basic-examples.md`: mark the entry done, record what the
-example decided about any open question it was carrying, and write down anything
-learned that the next example would otherwise rediscover.
+Then list it: a `### name` entry in `docs/api/examples.md` (the index spec fails
+without one) and a row in the examples table of `README.md`. Anything learned
+that the next example would otherwise rediscover goes into this skill.

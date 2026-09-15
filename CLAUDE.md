@@ -279,6 +279,17 @@ mouse-driven package could not be ported into. Layout, nesting, scrolling lists
 and text entry are all still open; `docs/api/ui.md` says so under "What this is
 not".
 
+**Text on screen is translated by default.** `RGame::Game` loads every
+`locales/**/*.yml` through the asset manager and picks the player's language
+from the OS; a node draws an `Engine::Text` built from a key, and a UI button's
+`label:` is a key. `rgame new` generates a project that already works this way
+and whose specs fail on a key a language lacks. Every example keeps an `en.yml`
+beside its `main.rb` — `examples/localization` is the one with a second language
+— and a driven run exits 1 on a missing key. `test_projects/` are games, not
+teaching material, and still draw Strings. Text measurement is the gap this
+leaves: a button slot has a fixed width, so a longer translation can overflow
+it. See `docs/api/localization.md`.
+
 When adding a feature, the default is still to build it in C under
 `ext/rgame_core/` and only extend the Ruby wrapper once the C API for it is
 settled — unless it is engine-layer work, which is pure Ruby by definition.
