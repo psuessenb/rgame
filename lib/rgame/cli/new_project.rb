@@ -37,8 +37,6 @@ module RGame
         'rubocop.yml' => '.rubocop.yml'
       }.freeze
 
-      KEEP_DIRS = ['assets'].freeze
-
       NAME_PATTERN = /\A[a-z][a-z0-9_-]*\z/i
 
       def initialize(name, out: $stdout, root: Dir.pwd)
@@ -53,7 +51,6 @@ module RGame
         check_target!
 
         templates.each { |source, destination| write(destination, render(source)) }
-        KEEP_DIRS.each { |dir| write(File.join(dir, '.keep'), '') }
 
         report_next_steps
       end

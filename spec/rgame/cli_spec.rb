@@ -101,10 +101,11 @@ RSpec.describe RGame::CLI do
             Gemfile
             README.md
             Rakefile
-            assets/.keep
+            assets/locales/en.yml
             game.rb
             main.rb
             nodes/root.rb
+            spec/locales_spec.rb
             spec/nodes/root_spec.rb
             spec/spec_helper.rb
           ]
@@ -127,6 +128,14 @@ RSpec.describe RGame::CLI do
 
         expect(game).to include('class TictactoeGame < RGame::Game')
         expect(game).to include("caption: 'Tictactoe'")
+      end
+
+      it 'writes an English table that I18n loads, with the project name in its greeting' do
+        path = File.join(project, 'assets', 'locales', 'en.yml')
+
+        RGame::Engine::I18n.load(File.read(path), source: path)
+
+        expect(RGame::Engine::I18n.t('root.greeting')).to eq('Hello from tictactoe!')
       end
 
       it 'boots the class it generated' do

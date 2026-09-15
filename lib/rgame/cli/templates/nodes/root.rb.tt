@@ -8,10 +8,17 @@ require 'rgame'
 # `on_draw(renderer, view)`. Override those rather than `control`, `update` or
 # `draw`: the engine does its own bookkeeping in the outer methods and calls
 # these, so there is no `super` to forget.
+#
+# Text on screen is a key into assets/locales/, not a String in the code. A
+# `Text` is built once and read every frame: it looks the key up again only when
+# the language changes, so drawing it costs nothing.
 class Root < RGame::Engine::Node2D
-  GREETING = 'Hello from <%= app_name %>!'
+  def initialize
+    super
+    @greeting = RGame::Engine::Text.new('root.greeting')
+  end
 
   def on_draw(renderer, _view)
-    renderer.text(GREETING, 20, 20)
+    renderer.text(@greeting.to_s, 20, 20)
   end
 end

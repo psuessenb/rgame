@@ -1,0 +1,18 @@
+# frozen_string_literal: true
+
+# The translation tables in assets/locales/, checked against each other. A key
+# added to en.yml and forgotten in another language fails here, rather than
+# showing a player English text in the middle of their own language.
+RSpec.describe RGame::Engine::I18n do
+  # Without this, deleting en.yml would leave nothing to compare against, and
+  # the example below would pass for every language.
+  it 'has a table for the default locale' do
+    expect(described_class.available).to include(described_class.default)
+  end
+
+  it 'gives every locale every key the default locale has' do
+    missing = described_class.available.to_h { |locale| [locale, described_class.missing_keys(locale)] }
+
+    expect(missing.reject { |_locale, keys| keys.empty? }).to be_empty
+  end
+end

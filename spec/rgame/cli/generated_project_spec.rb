@@ -66,4 +66,67 @@ RSpec.describe 'a generated project' do # rubocop:disable RSpec/DescribeClass --
     expect(status).to be_success, "rubocop failed:\n#{output}"
     expect(output).to include('no offenses detected')
   end
+
+  # The translation setup the generator promises: specs read the tables in
+  # assets/locales/, fail on a key a language lacks, and fail on a key no table
+  # has. Each example edits the generated project and runs its suite.
+  describe 'its translation tables' do
+    def write(relative, content)
+      File.write(File.join(project, relative), content)
+    end
+
+    def run_suite = run_in_project('rspec')
+
+    # The pair to the example below: a second language is not a failure in
+    # itself, so the failure below is about the key rather than about de.yml.
+    it 'passes with a second locale that has every key' do
+      write('assets/locales/de.yml', "de:\n  root:\n    greeting: Hallo!\n")
+
+      output, status = run_suite
+
+      expect(status).to be_success, "rspec failed:\n#{output}"
+    end
+
+    it 'fails, naming the locale and the key, when a second locale lacks a key' do
+      write('assets/locales/de.yml', "de:\n  root:\n    farewell: Tschüss!\n")
+
+      output, status = run_suite
+
+      expect(status).not_to be_success
+      expect(output).to include('de: ["root.greeting"]')
+    end
+
+    it 'fails, naming the key, when a key the game draws is in no table' do
+      write('assets/locales/en.yml', "en:\n  root:\n    farewell: Bye!\n")
+
+      output, status = run_suite
+
+      expect(status).not_to be_success
+      expect(output).to include('MissingKey').and include('root.greeting')
+    end
+
+    it 'gives every example the project tables in the default locale, whatever the one before did' do
+      write('spec/leak_spec.rb', <<~RUBY)
+        # frozen_string_literal: true
+
+        RSpec.describe RGame::Engine::I18n do
+          it 'loads a table and switches the locale' do
+            described_class.load_hash(de: { root: { greeting: 'Hallo!' } })
+            described_class.locale = :de
+
+            expect(described_class.t('root.greeting')).to eq('Hallo!')
+          end
+
+          it 'starts from the tables on disk, in English' do
+            expect([described_class.locale, described_class.available]).to eq([:en, [:en]])
+          end
+        end
+      RUBY
+
+      output, status = run_in_project('rspec', '--order', 'defined', 'spec/leak_spec.rb')
+
+      expect(status).to be_success, "rspec failed:\n#{output}"
+      expect(output).to include('2 examples, 0 failures')
+    end
+  end
 end
