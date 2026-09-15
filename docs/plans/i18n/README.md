@@ -1,7 +1,7 @@
 # Plan — i18n as the default way to put text on screen
 
-**Status.** Steps 0–5 are implemented. Steps 6–7 are deliberately rough, and
-step 6 is re-planned before it starts.
+**Status.** Steps 0–5 are implemented, and step 6 is planned in detail. Steps
+7–8 are deliberately rough, and each is re-planned before it starts.
 See [04-roadmap.md](04-roadmap.md).
 
 | File | What it holds |
@@ -99,10 +99,12 @@ At `f4617da`, Ruby 4.0.5 without YJIT, 200,000 calls each.
 3. **Every byte a game ships is read through the asset manager, including
    finding the locale files.** See decision 5. Nothing in `Engine` globs or
    reads a directory on the game's behalf.
-4. **The renderer interface does not change.** `renderer.text` keeps taking a
-   String, so the renderer contract, `FakeRenderer` and its refusals stay as
-   they are. See "Rejected: a `to_str` object" in
-   [02-prior-art.md](02-prior-art.md).
+4. ~~**The renderer interface does not change.**~~ **Amended after step 5: the
+   renderer's label arguments accept a `to_str` object, and nothing else
+   changes.** `renderer.text` and `text_width` take a String or anything with
+   `to_str`, so `renderer.text(@title, x, y)` draws a `Text`. `nil`, an Integer
+   and every other object are still refused with `TypeError`, in the real
+   renderer and the fake alike. See decision 13.
 5. **Linux, macOS and Windows stay green.** Language detection is the one piece
    of new C, and the `windows-portability` skill applies to it.
 6. **No runtime gem dependency.** YAML is `psych`, a default gem.
@@ -177,6 +179,21 @@ inside this plan.
     are compiled at load time; `%{var}` as in Rails, with `%%{` escaping a
     literal; one language per process, not per player; right-to-left text and
     non-Latin fonts are out of scope.
+13. **A `Text` is passed to `renderer.text` as it is, through `to_str`.**
+    *Taken after step 5, reversing "A `to_str` object passed straight to
+    `renderer.text`" in [02-prior-art.md](02-prior-art.md).* Step 5's example
+    wrote `renderer.text(@title.to_s, MARGIN, 24)` on three lines in a row, for
+    what is the default case. Requirement 1 asks for i18n to be the easy way, and
+    passing the variable is easier than calling a method on it. The implicit
+    conversion is a real cost, and it was judged smaller than a `.to_s` on every
+    translated line.
+    It is `to_str`, not a `to_s` on anything: the renderer calling `to_s` would
+    silently draw `nil` as `""`, allocate a String per frame for an Integer, and
+    draw any other object as `#<Foo:0x…>`. `to_str` keeps each of those a
+    `TypeError`. Measured at `951ae37`: `String#to_s` costs 14 ns against 3,454
+    ns for one `renderer.text`, so speed never decided it. The rejection's first
+    reason no longer held either: since step 3 a `Text` keeps the values of its
+    last `with`, and `with` is still how a `Text` with variables is drawn.
 
 ## Open questions
 
@@ -203,7 +220,7 @@ inside this plan.
 4. **Should a RuboCop cop flag a String literal passed to `renderer.text` or
    `label:`?** That would make "hardcoded fails loudly" true in this repository.
    Generated projects do not load the house cops, so it reaches only this repo.
-   *Waits on step 6, when no example has a literal left; non-blocking.*
+   *Waits on step 7, when no example has a literal left; non-blocking.*
 5. **Does `SDL_GetPreferredLocales` need `SDL_Init` first, and what does it
    return under Xvfb and on the macOS and Windows runners?** *Resolved in step
    2:* it needs no init, so it is the module function

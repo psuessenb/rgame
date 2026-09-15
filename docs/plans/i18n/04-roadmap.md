@@ -1,12 +1,16 @@
 # Roadmap
 
-**Status.** Steps 0–5 are implemented. **Steps 6–7 are rough**, and step 6 is
-next, to be re-planned before it starts.
+**Status.** Steps 0–5 are implemented. Step 6 is planned in detail and is next.
+**Steps 7–8 are rough**, and each is re-planned before it starts.
+
+Step 6 was inserted after step 5 landed (decision 13). The landed notes of steps
+1–5 were written before that, so "step 6" there means today's step 7, and "step 7"
+means step 8.
 
 ## Dependency shape
 
 ```
-0 I18n tables ─┬─→ 1 Text ────────┬─→ 3 UI keys ──┬─→ 5 example + docs ─→ 6 examples migrate ─→ 7 fold back
+0 I18n tables ─┬─→ 1 Text ────────┬─→ 3 UI keys ──┬─→ 5 example + docs ─→ 6 text takes a Text ─→ 7 examples migrate ─→ 8 fold back
                │                  │               │
                └─→ 2 loading + ───┴─→ 4 rgame new │
                      detection ───────────────────┘
@@ -894,7 +898,124 @@ What the sketch got wrong:
   scope and caching sections are about `Text` rather than tables, and
   `localization.md` links to them.
 
-## Step 6 — every example draws keys *(rough)*
+## Step 6 — `renderer.text` takes a `Text` *(pure + contract)*
+
+**Why here.** Decision 13 was taken after step 5, whose example spelled out the
+cost: `renderer.text(@title.to_s, …)` on every translated line. Step 7 rewrites
+every `text` call in 24 examples, so the calls should be written once, in their
+final shape, rather than written with `.to_s` and changed again. It needs no C:
+the real renderer's binding already calls `StringValue`, which takes a `to_str`
+object.
+
+### What was measured before planning
+
+At `951ae37`, Ruby 4.0.5 without YJIT.
+
+| Measurement | Result |
+|---|---|
+| a `text`-shaped Ruby method, String passed through | 42 ns |
+| the same, calling `.to_s` on a String | 56 ns |
+| the same, `is_a?(String) ? s : s.to_s` | 70 ns, slower than always calling `to_s` |
+| `renderer.text('Localization', 1, 2)` on the real renderer, under Xvfb | 3,454 ns |
+| an Integer through `.to_s` | one new String per call |
+| `renderer.text(x.to_s, …)` where `x` is a `Text` | 7 sites: `OptionButton`, `examples/localization` (3), the generated `root.rb.tt` and `README.md.tt`, plus `docs/api/cli.md` and `ui.md` |
+| `text = @label.to_s` then `text_width(text)` and `text(text)` | 2 sites: `TextButton`, `IconButton`; they centre the label, so they convert once and stay |
+| what the real renderer does with a `to_str` object | `StringValue` in `renderer_ext.c` and `font_ext.c` calls `to_str`; no Ruby-side check |
+| what `FakeRenderer#string` does with one | raises `TypeError`: it accepts only `is_a?(String)` |
+| `'Hello' == obj` where `obj` has only `to_str` | `false`: `String#==` delegates to `obj == 'Hello'`, which is `Object#==` |
+| RSpec spy specs asserting `have_received(:text).with('…')` | 4, including the generated project's `root_spec.rb` |
+
+The last two rows are the trap. A node that passes its `Text` makes a spy record
+the `Text`, and `.with('Hello from tictactoe!', 20, 20)` then fails, because a
+`Text` is not `==` to a String. The generated project's own first spec would
+break. So a `Text` also answers `==` against a String.
+
+### Shape
+
+```ruby
+class RGame::Engine::Text
+  # A Text is drawn where a String is expected: `renderer.text(@title, 12, 10)`.
+  def to_str = to_s
+
+  # Equal to a String with the same contents, so a spy that recorded a Text
+  # matches the String it drew. Against anything else, identity as before.
+  def ==(other) = other.is_a?(String) ? to_s == other : super
+end
+```
+
+```ruby
+# spec/support/fake_renderer.rb
+def string(value)
+  value = value.to_str if !value.is_a?(String) && value.respond_to?(:to_str)
+  raise TypeError, "no implicit conversion of #{value.class} into String" unless value.is_a?(String)
+
+  value
+end
+```
+
+The fake records the String, not the object. A `Text` changes after it is
+drawn, and a recorded call has to say what was on screen at that frame. That is
+an exception to "validate without converting": the conversion *is* what the real
+renderer draws.
+
+`hash` and `eql?` stay as they are, so a `Text` is not a String-keyed Hash key.
+`case text when 'Play'` works through `String#===`.
+
+**Sub-steps:**
+
+- **6a** `Text#to_str` and `Text#==`, on the base class, so `Literal`,
+  `Computed` and every generated `to_s` answer them.
+- **6b** The renderer contract and `FakeRenderer`: a `to_str` object accepted by
+  `text` and `text_width`, and the refusals extended. The contract names no
+  `Engine` class, so its object is an RSpec double of `String` with `to_str`
+  stubbed. If `StringValue` cannot see a double's `to_str`, a class in
+  `spec/support/` with only a `to_str` stands in, and the landed note says why.
+- **6c** Callers and docs drop `.to_s`: `OptionButton`, `examples/localization`,
+  the generated `root.rb.tt` and `README.md.tt`, `docs/api/cli.md`, `ui.md`,
+  `localization.md`, the toolbox's `Text` section, `drawing.md` or `text.md`
+  wherever `Renderer#text`'s first argument is described, and CLAUDE.md's house
+  rule "read it with `with` in `on_draw`, or with `to_s`".
+
+**Rules the tests must pin:**
+
+1. `text.to_str` returns the identical String `text.to_s` does, and an
+   unchanged `to_str` read allocates nothing (`allocate_nothing`), for a keyed,
+   a literal and a computed `Text`.
+2. A `Text` with names before its first `with` raises `ArgumentError` from
+   `to_str`, as from `to_s`. `renderer.text` passes that `ArgumentError`
+   through rather than turning it into a `TypeError`.
+3. `text == 'Play'` and `'Play' == text` are both true when the `Text` reads
+   `Play`, and both false otherwise. Two `Text`s compare by identity.
+4. Both renderers accept a `to_str` object in `text` and `text_width`, and the
+   fake records the String it returned.
+5. Both still raise `TypeError` for `nil`, for an Integer, and for an object whose
+   `to_str` returns something that is not a String.
+6. `text_width(obj)` equals `text_width(obj.to_str)`.
+7. The real renderer draws identical pixels for `text('Score', …)` and
+   `text(obj, …)` whose `to_str` is `'Score'`.
+8. The generated project's `root.rb` passes `@greeting` and its unchanged
+   `root_spec.rb` still passes, spy and all.
+
+**Tests:** `spec/rgame/engine/text_spec.rb` (1–3),
+`spec/support/shared_examples/a_renderer.rb` (4–6), run against the fake by
+`fake_renderer_spec.rb` and against the real one by
+`spec_core/rgame/core/renderer_spec.rb`, which also takes rule 7 in its
+framebuffer section. `spec/rgame/cli/generated_project_spec.rb` covers rule 8
+without change.
+
+**Verify.** `make test`, `rake spec` and `rake spec:core` green, and RuboCop clean
+on every touched file. `examples/localization` drives with `--texts` and
+`--seed 1` to a report identical to step 5's. On the real renderer under a
+headless display, count allocations for 200,000 calls of `text(text_obj, …)`
+against `text(text_obj.to_s, …)`, and record in the landed note that they are
+equal.
+
+**What this step does not deliver:** any other method taking a `to_str` object.
+`Renderer#text` and `#text_width` are the only renderer methods that take a label.
+It does not change `TextButton` and `IconButton`, which convert once in order to
+measure and draw the same String.
+
+## Step 7 — every example draws keys *(rough)*
 
 Mechanical, over the 24 examples. Each migrated example gets a
 `locales/en.yml` beside its `main.rb`, as step 5 settled, and passes
@@ -902,10 +1023,11 @@ Mechanical, over the 24 examples. Each migrated example gets a
 reports with step 5's `--texts`: every example's strings identical before and
 after, because `en.yml` holds exactly the text that was hardcoded. `Text.computed`
 labels from step 1 move to keys where the text is words rather than a number.
+Every call passes its `Text` as it is, per step 6.
 Then decide open question 4 (the cop). Likely split by the examples page's
 sections, one sub-step each.
 
-## Step 7 — fold back and delete the plan
+## Step 8 — fold back and delete the plan
 
 - `docs/api/localization.md` checked against the code by the write-docs audit.
 - CLAUDE.md: the `Text` house rule (from step 1), plus a sentence under "Current

@@ -92,7 +92,10 @@ the parallel-vocabulary smell CLAUDE.md names.
 has to remember. Swapped arguments draw wrong text silently. Keywords into a
 declared signature cost the same zero objects and fail loudly.
 
-### A `to_str` object passed straight to `renderer.text`
+### A `to_str` object passed straight to `renderer.text` — *reversed after step 5*
+
+*Reversed by decision 13 in the [brief](README.md): a `Text` is passed as it is.
+The rejection below is kept as it was written.*
 
 *Attraction:* `renderer.text(@score, x, y)` reads best, and the real renderer's
 `StringValue` already accepts `to_str`.
