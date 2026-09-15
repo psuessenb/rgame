@@ -218,25 +218,30 @@ It keeps the last string and renders again only when a keyword differs or
 `I18n.generation` moves, so a score that changes once costs one render, a
 language switch re-renders on the next read, and the frames between cost
 nothing — measured at zero objects over 200,000 unchanged reads, for zero, one
-and three variables. Text that is formatted rather than translated uses
-`Engine::Text.computed(:score) { |score:| ... }`, whose block runs under the same
-rule; `examples/sound` is the worked example.
+and three variables. Text assembled from several translations, or formatted
+rather than translated, uses `Engine::Text.computed(:status) { |status:| ... }`,
+whose block runs under the same rule; `examples/pathfinding` is the worked
+example, a status line put together from four keys, two of them plurals.
 
 **Reach for it rather than inventing a way round the rule.** Every hand-rolled
 dodge is a reader's puzzle: `examples/sound` drew a row of rectangles to avoid
 formatting a count, and the comment explaining why was longer than the code. The
 cop is a floor, not a suggestion to be creative under.
 
-**Two things it is not for**, and both are already correct as they stand:
+**Two shapes that need no `with` at all:**
 
-- **A constant string chosen by state.** A frozen hash keyed by the state —
-  `STATE = { true => 'fullscreen', false => 'windowed' }.freeze` in
-  `examples/fullscreen`, `STATUS` in `examples/save_load` — selects a string
-  rather than building one. There is nothing to cache, and a `Text.computed`
-  block returning a constant is strictly worse to read.
-- **A value that never changes.** Build it once in `initialize` and keep it in an
-  ivar, the way a `Sheep` in `examples/save_load_ids` keeps `id.to_s`. A cache
-  for something that cannot change is indirection with no payer.
+- **Text chosen by state is a table of `Text`s.** A frozen hash keyed by the
+  state — `STATE = { true => Engine::Text.new('state.fullscreen'), false =>
+  Engine::Text.new('state.windowed') }.freeze` in `examples/fullscreen`, `STATUS`
+  in `examples/save_load` — selects a `Text` rather than building a string. A
+  `Text.computed` block returning one of several constants is strictly worse to
+  read, and a table of Strings is text no translation can reach. A `Text` is
+  safe in a constant; a `Text.computed` made at the top level of a file is not,
+  because its block keeps that file's locals — `game` among them — alive.
+- **A value that never changes and is not words.** Build it once in `initialize`
+  and keep it in an ivar, the way a `Sheep` in `examples/save_load_ids` keeps
+  `id.to_s`. A number has nothing to translate, and a cache for something that
+  cannot change is indirection with no payer.
 
 ## Current phase
 

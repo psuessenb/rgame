@@ -131,7 +131,9 @@ raises it too.
 `Text.literal(string)` shows `string` in every locale and never consults `I18n`.
 `Text.computed(*names) { |**keywords| ... }` shows what its block returns. The
 block runs when a keyword or `I18n.generation` changes, and never on an unchanged
-read. A block that calls `I18n.t` therefore follows the language. Both answer
+read. A block that calls `I18n.t` therefore follows the language:
+`examples/pathfinding` assembles its status line this way from four keys, two of
+them plurals. Both answer
 `with`, `to_s` and `to_str` like any `Text`, and both ignore `scope=`.
 
 ```ruby
@@ -149,11 +151,13 @@ press and none in the frames between. A value that changes *every* frame, such
 as an FPS counter, gains nothing from a cache. `RGame::Engine::DebugOverlay`
 draws its digits one by one from cached single-character strings.
 
-A `Text` does not fit two cases. A **constant string chosen by state**, such as
-`{ true => 'fullscreen', false => 'windowed' }.freeze`, selects a string and
-builds nothing. A value that **never changes** belongs in an ivar built in
-`initialize`. Both allocate nothing already, and a `Text` would add indirection
-for no gain.
+**Text chosen by state is a table of `Text`s**, such as
+`{ true => Text.new('state.fullscreen'), false => Text.new('state.windowed') }.freeze`.
+It selects a `Text` and builds nothing. A `Text` holds no reference to a game, so
+it can live in a constant. A `Text.computed` made at the top level of a file
+cannot: its block keeps that file's local variables alive, a `game` among them. A
+value that **never changes and is not words**, such as an
+id, belongs in an ivar built in `initialize`.
 
 ## `Pool` — reuse, don't allocate
 
