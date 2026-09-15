@@ -151,6 +151,17 @@ ruby ext/rgame_core/example.rb   # opens a window; Esc or close to quit
 `require "rgame/core_ext"` / `require "rgame/util_ext"` find it — mirroring
 how rake-compiler installs a compiled extension into `lib/<gem>/`.
 
+`rgame_core` links the system's SDL2 by default. To link SDL2 statically
+instead, the way a platform gem does, build the pinned release first:
+
+```
+rake sdl2                          # SDL2 as a static library, in build/sdl2
+make ext SDL2_STATIC=build/sdl2    # extconf.rb --with-sdl2-static=<prefix>
+```
+
+This needs CMake, and Ninja on Windows. Switching between the two rebuilds the
+whole extension.
+
 ## Ruby API
 
 ```ruby
