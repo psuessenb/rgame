@@ -34,7 +34,8 @@ module RGame
       MISSING_POLICIES = %i[key raise].freeze
 
       class << self
-        # An Integer that moves on every `load` and every change of locale.
+        # An Integer that moves on every `load`, every change of locale or
+        # default, and every `reset`.
         attr_reader :generation
 
         attr_reader :locale, :default
@@ -128,6 +129,8 @@ module RGame
           raise ArgumentError, 'plural_rule needs a block' unless rule
 
           @plural_rules[normalize(language)] = rule
+          @rule_for.clear
+          self
         end
 
         # The locales that have a table, in load order.
@@ -162,6 +165,7 @@ module RGame
           @generation = (@generation || 0) + 1
           @chain = chain_for(@locale)
           @plural_rules = PluralRules::BUILT_IN.dup
+          @rule_for = {}
           @missing = :key
         end
 
@@ -195,8 +199,11 @@ module RGame
         end
 
         def plural_category(locale, count)
-          language = lineage(locale).find { |link| @plural_rules.key?(link) }
-          @plural_rules.fetch(language, PluralRules::DEFAULT).call(count)
+          rule = @rule_for[locale] ||= begin
+            language = lineage(locale).find { |link| @plural_rules.key?(link) }
+            @plural_rules.fetch(language, PluralRules::DEFAULT)
+          end
+          rule.call(count)
         end
 
         def lookup(key)

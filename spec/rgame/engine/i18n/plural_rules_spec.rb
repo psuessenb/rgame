@@ -92,6 +92,13 @@ RSpec.describe RGame::Engine::I18n::PluralRules do
       expect(i18n.t('apples', count: 1)).to eq('one')
     end
 
+    it 'applies a rule added after a key of its language was already counted' do
+      i18n.load_hash(en: { apples: { one: 'one', other: 'other' } })
+      i18n.t('apples', count: 1)
+      i18n.plural_rule(:en) { :other }
+      expect(i18n.t('apples', count: 1)).to eq('other')
+    end
+
     it 'refuses plural_rule without a block' do
       expect { i18n.plural_rule(:en) }.to raise_error(ArgumentError, /needs a block/)
     end

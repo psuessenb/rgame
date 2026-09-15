@@ -23,6 +23,8 @@ module RGame
 
         def self.million(count) = count.positive? && (count % 1_000_000).zero? ? :many : :other
 
+        private_class_method :whole, :slavic_few?, :million
+
         ONE_OTHER = whole { |n| n == 1 ? :one : :other }
         ONE_MILLION_OTHER = whole { |n| n == 1 ? :one : million(n) }
         ZERO_ONE_MILLION_OTHER = whole { |n| n <= 1 ? :one : million(n) }
