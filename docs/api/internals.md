@@ -33,6 +33,10 @@ A typical frame calls `clear`, inserts every collider of one set, then runs
 `query` around each moving collider. `insert` and `query` both take an AABB
 (`x, y, w, h`).
 
+`remove(item, x, y, w, h)` undoes one `insert`. Pass the box the item was
+inserted at, not where it is now: the hash does not remember where it put
+anything. Removing an item that is not there does nothing.
+
 **`query` may yield an item more than once.** An item spanning several cells sits
 in each of them. Removing repeats is the narrowphase caller's job, which spares the
 hash a per-query visited set and keeps it allocation-free. `CollisionWorld` checks

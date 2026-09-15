@@ -93,6 +93,8 @@ module RGame
       # Nobody in particular means the primary player, which is what makes the
       # single-player path free: no node claims ownership, every node resolves
       # to nil, and every nil resolves to the one player there is.
+      #
+      # @api private
       # hot-path
       def actions_for(player)
         owner = player || primary
@@ -116,6 +118,8 @@ module RGame
 
       # A controller arrived in a slot. Recorded, not seated: this is what makes
       # the slot *scannable*, and someone using it is what seats it.
+      #
+      # @api private
       def device_connected(slot)
         @connected << slot unless @connected.include?(slot)
         self
@@ -127,6 +131,8 @@ module RGame
       #
       # Under `:takeover` there is no second player to become, so the seat falls
       # back to the keyboard rather than the game going dead in someone's hands.
+      #
+      # @api private
       def device_disconnected(slot)
         @connected.delete(slot)
         device = Controls.gamepad(slot)

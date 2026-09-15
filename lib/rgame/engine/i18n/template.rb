@@ -9,6 +9,8 @@ module RGame
       #
       # Internal to `I18n`; a game reaches translations through `I18n.t` or a
       # `Text`, never through a Template.
+      #
+      # @api private
       class Template
         PLACEHOLDER = /%%\{|%\{([A-Za-z_]\w*)\}/
 

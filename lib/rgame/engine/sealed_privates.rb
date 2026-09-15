@@ -28,6 +28,7 @@ module RGame
     module SealedPrivates
       def self.extended(base)
         base.define_singleton_method(:sealed_base) { base }
+        base.singleton_class.send(:private, :sealed_base)
       end
 
       # Every method a subclass may not define: the base's non-public methods

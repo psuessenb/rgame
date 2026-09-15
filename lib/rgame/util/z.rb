@@ -64,6 +64,8 @@ module RGame
       # Raises unless `band` names one. Called where a band is *set* rather than
       # where it is used, so a typo surfaces at assignment with the list in the
       # message instead of as a KeyError from inside a draw.
+      #
+      # @api private
       def self.band!(band)
         return band if band?(band)
 
@@ -83,6 +85,8 @@ module RGame
       # Takes the band's *index* rather than its name because a renderer already
       # has the index in hand (it counts slots per index), and looking the same
       # Symbol up twice per node per frame is work with nothing to show for it.
+      #
+      # @api private
       # hot-path
       def self.slot_base(band_index, slot_index)
         if slot_index >= SLOTS_PER_BAND

@@ -317,7 +317,7 @@ void rgame_init_audio(VALUE mCore) {
     rb_define_class_under(cSong, "LoadError", rb_eStandardError);
     rb_define_alloc_func(cSong, song_alloc);
     rb_define_method(cSong, "initialize", song_initialize, 2);
-    rb_define_method(cSong, "play_looping", song_play, 1);
+    rb_define_private_method(cSong, "play_looping", song_play, 1);
     rb_define_method(cSong, "stop", song_stop, 0);
     rb_define_method(cSong, "playing?", song_playing_p, 0);
     rb_define_method(cSong, "looping?", song_looping_p, 0);

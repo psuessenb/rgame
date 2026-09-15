@@ -37,9 +37,15 @@ that mention it in passing, written when it worked differently. So:
    under `examples/` gets a `### name` entry in `docs/api/examples.md`.
 4. **Trim "What this is not".** When a change fills a gap one of those sections
    names, remove it from the list.
-5. **Run `bundle exec rake docs:coverage`** after a class grows or a plan lands. It
-   lists public classes and methods no page names. Document what a game author
-   calls; a binding's raw primitive behind a documented wrapper can stay out.
+5. **Name every new public class and method on a page, or take it out of the
+   public API.** `spec_core/api_docs/coverage_spec.rb` fails on one no page names;
+   `bundle exec rake docs:coverage` prints the whole list. For each name, decide:
+   - **A game author calls it** → document it.
+   - **Only its own class calls it** → make it private. A C binding behind a Ruby
+     wrapper is registered with `rb_define_private_method`.
+   - **Another engine class calls it**, so Ruby needs it public → put
+     `# @api private` in the comment above it. On a class, the tag covers
+     everything inside.
 
 ## What a page may say
 
@@ -121,14 +127,14 @@ So:
 
 ## What the checks catch, and what they do not
 
-Four checks run without anyone remembering them:
+Five checks run without anyone remembering them:
 
 | Check | Fails when |
 |---|---|
 | `spec/api_docs/examples_spec.rb` (`rake spec`) | a headless example raises or returns something its `# =>` comment does not say; a windowed example does not parse |
 | `spec/api_docs/index_spec.rb` (`rake spec`) | a page is missing from the index, an example is missing from `examples.md` or described but absent, or a link or heading anchor is broken |
 | `spec_core/api_docs/references_spec.rb` (`rake spec:core`) | prose names a class, constant or method that does not exist |
-| `rake docs:coverage` (a report) | never fails; lists public names no page mentions |
+| `spec_core/api_docs/coverage_spec.rb` (`rake spec:core`) | a public class or method is named on no page and not tagged `@api private`; `rake docs:coverage` prints the list |
 
 A word that looks like a constant but is not one (a key name, a file name) goes in
 the `allowed` list in the reference spec, with a comment saying why.
@@ -149,7 +155,7 @@ To check an existing page against the code, go through it top to bottom:
 4. **Check the context**: the entry point each example assumes, what exists without
    setup, and what only the repository has.
 5. **Run the checks**: `bundle exec rspec spec/api_docs`, then
-   `bundle exec rake spec:core` for the references, then `rake docs:coverage`.
+   `bundle exec rake spec:core` for the references and coverage.
 
 ---
 
@@ -165,4 +171,4 @@ Read the page once against this list:
 - Do `# =>` comments read `value — prose`?
 - Does the page pass the checklist in [write-prose](../write-prose/SKILL.md)?
 - Do `docs/api/README.md` and `examples.md` list what is new?
-- Do `bundle exec rspec spec/api_docs` and the reference spec in `rake spec:core` pass?
+- Do `bundle exec rspec spec/api_docs` and the reference and coverage specs in `rake spec:core` pass?

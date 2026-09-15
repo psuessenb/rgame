@@ -344,7 +344,8 @@ camera.resolve(view_width, view_height) # at draw: the offset for *this* viewpor
 camera.x, camera.y                      # the resolved offset
 ```
 
-`center_on` records the target. `resolve` computes the offset, clamped so the
+`center_on` records the target, and `target_x` and `target_y` read it back.
+`resolve` computes the offset, clamped so the
 view never shows past the world's edges. `world_width` and `world_height` are
 optional and writable: a scene sets them when it loads a map. Left `nil`, the
 camera is unbounded and follows its target exactly. With bounds, the target drifts

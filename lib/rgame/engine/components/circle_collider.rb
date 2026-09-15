@@ -60,10 +60,13 @@ module RGame
         def overlap?(other) = other.overlap_circle?(cx, cy, @radius)
 
         # Second half: the two tests another collider dispatches into.
+        #
+        # @api private
         def overlap_circle?(x, y, r)
           Engine::CircleCollider.overlap?(cx, cy, @radius, x, y, r)
         end
 
+        # @api private
         def overlap_box?(x, y, w, h)
           Engine::CollisionBox.overlap_circle?(x, y, w, h, cx, cy, @radius)
         end

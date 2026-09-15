@@ -15,6 +15,7 @@ module RGame
     #   flip_x  – draw mirrored horizontally
     class AnimationSet
       Anim = Struct.new(:row, :first_col, :frames, :frame_secs, :flip_x)
+      private_constant :Anim
 
       def initialize(animations)
         @anims = animations.each_with_object({}) do |(name, a), table|

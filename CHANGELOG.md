@@ -111,6 +111,16 @@ index, not the argument.
   trigger. A navigation may define `update(dt)` and `on_opened`.
   See [docs/api/ui.md](docs/api/ui.md).
 
+- **Engine internals are no longer public.** `Renderer`'s raw `draw_*`, `push_*`,
+  `pop`, `next_layer_slot` and `*_record` methods are private, as are
+  `Recording#draw_at` and `Song#play_looping`. Call `rect`, `translated`,
+  `record`, `Recording#draw` and `Song#play` instead, which apply the z offset
+  and the colour and always pop what they push. `Node2D#sibling_order` and
+  `#children_unsorted!` are gone from the public API, and so are
+  `AnimationSet::Anim` and `UI::Menu::ClosedSignal`. The Tiled parse helpers
+  `TileMap.layer_flag?`, `Tileset.parse_animation` and `Tileset.collision_shape?`
+  are private class methods now.
+
 ### Fixed
 
 - The README's hello-world gave `on_draw` one parameter; it takes two

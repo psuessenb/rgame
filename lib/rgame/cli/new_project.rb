@@ -23,6 +23,8 @@ module RGame
     # Getting a newcomer to that shape by default is most of the point: it is
     # the arrangement that keeps game logic spec-able, and it is not one anybody
     # would arrive at by guessing.
+    #
+    # @api private
     class NewProject
       # Anything the caller did wrong: a bad name, a directory in the way.
       # RGame::CLI turns it into a message and a non-zero status.

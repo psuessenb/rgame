@@ -898,7 +898,8 @@ to crash while learning pointers/SDL/GL).
 - `rake spec:core` — the RSpec suite in `spec_core/`, covering
   `RGame::Core`'s Ruby-visible surface: the App lifecycle, `Input`'s binding
   table, hot-plug, and whether every name `docs/api/` mentions exists
-  (`spec_core/api_docs/`). Requires `make ext-core`, and boots its own Xvfb, so it
+  (`spec_core/api_docs/`), and whether every public name is documented or tagged
+  `@api private`. Requires `make ext-core`, and boots its own Xvfb, so it
   needs no display of its own either. Slower — it opens real windows.
 - `make run` / `ruby ext/rgame_core/example.rb` — manual verification of
   layer 3 from C and from Ruby respectively. Subjective/visual, run by a

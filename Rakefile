@@ -20,7 +20,7 @@ namespace :spec do
 end
 
 namespace :docs do
-  desc 'List public classes and methods docs/api never mentions (a report; needs make ext)'
+  desc 'List public classes and methods docs/api never names and nothing tags @api private (needs make ext)'
   task :coverage do
     ruby 'tools/doc_coverage.rb'
   end

@@ -79,11 +79,6 @@ module RGame
       alias y= rel_y=
       alias angle= rel_angle=
 
-      # Insertion order among siblings, the tie-breaker for equal `z`. Engine
-      # bookkeeping, set by the parent's #add_node the way `parent` is — not for
-      # game code, and meaningless on a node with no parent.
-      attr_accessor :sibling_order
-
       # This node's transform **in world space**, accumulated from its whole
       # ancestry. A node lives in its parent's space and is moved by setting
       # `x`/`y`/`angle`; `world_x=`/`world_y=` below are that same move, worked
@@ -182,7 +177,7 @@ module RGame
       # front of something the node itself was behind. See RGame::Util::Z.
       def z=(value)
         @z = value
-        @parent&.children_unsorted!
+        @parent&._children_unsorted!
       end
 
       # Which band this node and everything under it draws in — `:world` (the
@@ -262,17 +257,11 @@ module RGame
       def add_node(node)
         @children << node
         node.parent = self
-        node.sibling_order = (@child_seq += 1)
+        node._sibling_order = (@child_seq += 1)
         @children_sorted = false
         node.enter_tree if @in_tree
         node
       end
-
-      # A child was added, or one changed its `z`, so the child order is stale.
-      # The sort is deferred to the next traversal rather than done here, so
-      # building a scene of a thousand nodes costs one sort rather than a
-      # thousand. Called by the engine; a game only ever assigns `z`.
-      def children_unsorted! = @children_sorted = false
 
       def remove_node(node)
         node.exit_tree if @in_tree
@@ -496,7 +485,7 @@ module RGame
 
         @children.sort! do |a, b|
           order = a.z <=> b.z
-          order.zero? ? a.sibling_order <=> b.sibling_order : order
+          order.zero? ? a._sibling_order <=> b._sibling_order : order
         end
       end
 
@@ -530,6 +519,10 @@ module RGame
       end
 
       protected
+
+      attr_accessor :_sibling_order
+
+      def _children_unsorted! = @children_sorted = false
 
       # hot-path
       def _soil

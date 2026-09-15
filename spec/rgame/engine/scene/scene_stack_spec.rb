@@ -13,7 +13,7 @@ RSpec.describe RGame::Engine::Scene::SceneStack do
   # boundary wiring, and the per-phase control/update/draw forwarding.
   def scene_double
     instance_double(RGame::Engine::Node2D, enter_tree: nil, exit_tree: nil, :parent= => nil,
-                                           :scene= => nil, :sibling_order= => nil)
+                                           :scene= => nil)
   end
 
   describe '#current' do

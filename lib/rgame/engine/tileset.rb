@@ -40,7 +40,6 @@ module RGame
         )
       end
 
-      # Frames for an animated tile, or nil (compacted away) for a static one.
       def self.parse_animation(tile_el)
         anim = tile_el.elements['animation']
         return unless anim
@@ -50,12 +49,11 @@ module RGame
         end
       end
 
-      # A tile is solid if it carries a Tiled collision shape — an `<objectgroup>`
-      # with at least one object (the per-tile collision editor's output).
       def self.collision_shape?(tile_el)
         group = tile_el.elements['objectgroup']
         !group.nil? && !group.elements['object'].nil?
       end
+      private_class_method :parse_animation, :collision_shape?
 
       def initialize(firstgid:, columns:, tile_width:, tile_height:, image_source:, animations:, solid_ids: Set.new)
         @firstgid = firstgid

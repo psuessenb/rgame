@@ -176,7 +176,7 @@ void rgame_init_recording(VALUE mCore) {
 
     rb_define_alloc_func(cRecording, recording_alloc);
     rb_define_singleton_method(cRecording, "new", recording_s_new, -1);
-    rb_define_method(cRecording, "draw_at", recording_draw_at, 4);
+    rb_define_private_method(cRecording, "draw_at", recording_draw_at, 4);
     rb_define_method(cRecording, "batch_count", recording_batch_count, 0);
     rb_define_method(cRecording, "vertex_count", recording_vertex_count, 0);
     rb_define_method(cRecording, "empty?", recording_empty_p, 0);

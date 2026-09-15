@@ -44,8 +44,9 @@ module RGame
     # what a spec or a bare script gets.
     #
     # The C half of this class (ext/rgame_core/ruby/renderer_ext.c) has the `draw_*`
-    # and `push_*` primitives; everything here is the comfortable surface over
-    # them.
+    # and `push_*` primitives, registered private; everything here is the
+    # surface over them, so a draw cannot skip the z offset or the colour
+    # coercion, and a push cannot go without its pop.
     #
     # ## Colours
     #

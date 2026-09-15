@@ -4,40 +4,21 @@ require_relative '../lib/rgame/game'
 require_relative '../lib/rgame/cli'
 require_relative '../spec/support/api_docs'
 
+# Lists every public class and method docs/api never names, as
+# spec_core/api_docs/coverage_spec.rb asserts. Run it to see the whole list
+# rather than a failing example.
 module DocCoverage
-  IGNORED_METHODS = %w[initialize inspect to_s hash == eql? <=> === to_h members keyword_init?].freeze
-
   module_function
 
-  def docs_text = ApiDocs.pages.map { File.read(it) }.join("\n")
-
-  # A setter counts as mentioned when the docs assign it (`x = 1` or `x=`).
-  def mentioned?(text, name)
-    return text.match?(/(?<![\w@])#{Regexp.escape(name.delete_suffix('='))}\s*=(?!=)/) if name.end_with?('=')
-
-    text.match?(/(?<![\w@])#{Regexp.escape(name)}(?![\w?!=])/)
-  end
-
-  def public_methods_of(mod)
-    instance = mod.is_a?(Class) ? mod.public_instance_methods(false) : []
-    singleton = mod.singleton_methods(false)
-    (instance + singleton).map(&:to_s).uniq.reject { IGNORED_METHODS.include?(it) || it.start_with?('_') }
-  end
-
   def report(out = $stdout)
-    text = docs_text
-    modules = ApiDocs.constant_index(RGame).select { |_, value| value.is_a?(Module) }
-    gaps = modules.filter_map do |path, mod|
-      unmentioned_class = !mentioned?(text, path.split('::').last)
-      methods = public_methods_of(mod).reject { mentioned?(text, it) }.sort
-      [path, unmentioned_class, methods] if unmentioned_class || methods.any?
+    index = ApiDocs.constant_index(RGame)
+    gaps = ApiDocs.undocumented(index)
+    gaps.sort_by { it[:path] }.each do |gap|
+      out.puts("#{gap[:path]}#{' (class never named)' unless gap[:class_named]}")
+      gap[:methods].each { out.puts("  #{it}") }
     end
-
-    gaps.sort_by(&:first).each do |path, unmentioned_class, methods|
-      out.puts("#{path}#{' (class never named)' if unmentioned_class}")
-      methods.each { out.puts("  #{it}") }
-    end
-    out.puts("\n#{gaps.size} of #{modules.size} modules and classes have undocumented names.")
+    modules = index.count { |_, value| value.is_a?(Module) }
+    out.puts("\n#{gaps.size} of #{modules} modules and classes have undocumented names.")
   end
 end
 

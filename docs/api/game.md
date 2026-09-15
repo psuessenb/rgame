@@ -93,6 +93,10 @@ the [`AudioBus`](toolbox.md#audiobus--decoupled-audio-facts). It then calls
 `enter_tree` and runs the loop until the window closes. When the loop ends, it
 unsubscribes the director. `F1` toggles the debug overlay and `F2` quits.
 
+The debug overlay is an `RGame::Engine::DebugOverlay`. It shows frames per
+second, the total objects allocated, and the objects allocated since its last
+frame, in the bottom-right corner. `F1` calls its `toggle`.
+
 Each tick, `Game` polls input, runs `control` and `update` on the tree, and sweeps
 freed nodes. It redraws only when a tick ran or the debug overlay is visible.
 

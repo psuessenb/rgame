@@ -100,6 +100,8 @@ module RGame
       # No `z:`. A layer is drawn by a node of its own, so where it sits is the
       # scene tree's answer; everything this issues belongs to that one node and
       # goes in its slot.
+      #
+      # @api private
       def draw_layer(renderer, index, cull_x, cull_y, cull_width, cull_height, elapsed: 0.0)
         unless index.is_a?(Integer) && index >= 0 && index < @static.size
           raise ArgumentError, "no layer #{index.inspect} in this map (it has #{@static.size})"

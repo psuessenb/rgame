@@ -115,11 +115,9 @@ module RGame
       # by its layout, and that is the whole of its layout story — see
       # docs/api/ui.md, "What this is not".
       class Menu < Node2D
-        ClosedSignal = Signal.define(:button)
-
         signal :on_opened
         # Emits the button a trigger's release activated, or nil.
-        signal :on_closed, ClosedSignal
+        signal :on_closed, Signal.define(:button)
 
         # `trigger` is an action name, or nil. `scope` is a String, or nil.
         attr_reader :buttons, :focused_index, :layout, :navigation, :trigger, :scope

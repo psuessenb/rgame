@@ -10,6 +10,8 @@ module RGame
       # Internal to `I18n`. A nested Hash in a table compiles to a Plural when
       # every key is a category, every value is text, and `other` is among them;
       # any other Hash is a level of nesting.
+      #
+      # @api private
       class Plural
         CATEGORIES = %i[zero one two few many other].freeze
         CATEGORY_NAMES = CATEGORIES.map(&:name).freeze

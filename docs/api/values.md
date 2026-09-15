@@ -144,6 +144,8 @@ field.revision         # => 1 — the second write changed nothing
 - **The size is fixed.** A negative size, or more than `2**31 - 1` cells, raises
   `ArgumentError`. A zero size gives an empty grid. A grid cannot be `dup`ed,
   because a search holds on to the grid it was built over.
+- **`SolidGrid.debug_live_grids`** returns how many grids hold cells. rgame's own
+  suite uses it to check that a grid frees its cells.
 
 ## `RGame::Util::RouteSearch`
 
@@ -168,6 +170,8 @@ search.grid               # => the grid — which the search keeps alive
   stays there. One search is therefore not safe to use from two threads at once.
 - Coordinates follow `SolidGrid`'s rules. A non-Integer raises `TypeError`, and
   for a cell outside the grid `find` and `region` return `nil`.
+- **`RouteSearch.debug_live_searches`** returns how many searches hold buffers,
+  for leak checks in rgame's own suite.
 
 ## `RGame::Util::TileSweep`
 
@@ -205,6 +209,8 @@ sweep.grid                                  # => the grid — which the sweep ke
   windows. A coordinate that is not a number raises `TypeError`. A non-finite
   coordinate raises `FloatDomainError`, except in a resolve that does not move:
   that returns the box where it is.
+- **`TileSweep.debug_live_sweeps`** returns how many sweeps are allocated, for
+  leak checks in rgame's own suite.
 
 ## `RGame::Util::Z`
 
@@ -216,6 +222,7 @@ RGame::Util::Z::BANDS     # => [:world, :hud, :overlay, :debug]
 RGame::Util::Z::DEFAULT   # => :world
 RGame::Util::Z::Z_MIN     # => -512 — the smallest `z:` a drawing call may pass
 RGame::Util::Z::Z_MAX     # =>  511
+RGame::Util::Z.band?(:hud) # => true
 ```
 
 It lives in `Util` for the same reason as [`Controls`](input.md). The scene

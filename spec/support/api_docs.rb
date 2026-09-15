@@ -1,11 +1,12 @@
 # frozen_string_literal: true
 
 # Reads the reference documentation under docs/api/ as data: its code blocks, the
-# names its prose puts in backticks, and its links.
+# names its prose puts in backticks, its links, and the public names it never
+# mentions.
 #
 # It names no RGame class. The specs in spec/api_docs/ use it in the headless
 # process, spec_core/api_docs/ hands it a fully loaded `RGame` in a child process,
-# and tools/doc_coverage.rb uses it for a report. See the write-docs skill for the
+# and tools/doc_coverage.rb prints its coverage gaps. See the write-docs skill for the
 # conventions it checks.
 module ApiDocs
   ROOT = File.expand_path('../..', __dir__)
@@ -191,5 +192,62 @@ module ApiDocs
       end
       ok ? nil : ref
     end
+  end
+
+  IGNORED_METHODS = %w[initialize inspect to_s hash == eql? <=> === to_h members keyword_init?].freeze
+  INTERNAL_TAG = /\A\s*#\s*@api private\b/
+
+  # A public class or method no page names, and why: `{ path:, class_named:, methods: }`
+  # for each module in `index` with a gap.
+  #
+  # Public is not always meant for a game. A method one engine class calls on
+  # another has to be public in Ruby, so a class or method whose comment carries
+  # `@api private` is left out, and so is everything inside such a class.
+  def undocumented(index)
+    text = pages.map { File.read(it) }.join("\n")
+    index.values.grep(Module).uniq.filter_map do |mod|
+      path = mod.name
+      next if internal_constant?(index, path)
+
+      methods = public_methods_of(mod).reject { mentioned?(text, it) || internal_method?(mod, it) }.sort
+      class_named = mentioned?(text, path.split('::').last)
+      { path: path, class_named: class_named, methods: methods } unless class_named && methods.empty?
+    end
+  end
+
+  # A setter counts as mentioned when its reader is: a page says "`vx` and `spin`
+  # are read/write" far more often than it shows an assignment.
+  def mentioned?(text, name)
+    name = name.delete_suffix('=') if name.match?(/\A(?:\w+|\[\])=\z/)
+    text.match?(/(?<![\w@])#{Regexp.escape(name)}(?![\w?!])/)
+  end
+
+  def public_methods_of(mod)
+    instance = mod.is_a?(Class) ? mod.public_instance_methods(false) : []
+    names = (instance + mod.singleton_methods(false)).map(&:to_s).uniq
+    names.reject { IGNORED_METHODS.include?(it) || it.start_with?('_') }
+  end
+
+  # The constant, or any module it is nested in, is tagged internal.
+  def internal_constant?(index, path)
+    segments = path.split('::')
+    (2..segments.size).any? do |length|
+      parent = index[segments.first(length - 1).join('::')]
+      parent.is_a?(Module) && tagged?(parent.const_source_location(segments[length - 1], false))
+    end
+  end
+
+  def internal_method?(mod, name)
+    method = mod.singleton_methods(false).include?(name.to_sym) ? mod.method(name) : mod.instance_method(name)
+    tagged?(method.source_location)
+  end
+
+  # Whether the comment block directly above `file:line` has an `@api private` line.
+  def tagged?(location)
+    file, line = location
+    return false unless file && line&.positive? && File.file?(file)
+
+    lines = File.readlines(file, chomp: true)
+    lines.first(line - 1).reverse.take_while { it.match?(/\A\s*#/) }.any? { it.match?(INTERNAL_TAG) }
   end
 end

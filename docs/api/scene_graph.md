@@ -91,8 +91,8 @@ yourself**: add them with `add_node` and let the tree drive them.
 **A subclass cannot replace a `Node2D` method whose name starts with `_`.** Those
 methods are the machinery the phases call, such as `_draw_content` and
 `_resolve_inherited`. A subclass method with the same name would take its place
-without warning. So defining one raises `NameError` when the class loads, naming
-both methods. `Component` follows the same rule. A non-public method *without*
+without warning. So `RGame::Engine::SealedPrivates` raises `NameError` when the
+class loads, naming both methods. `Component` follows the same rule. A non-public method *without*
 the underscore is a seam, meant to be overridden with `super`. `Node2D` has one:
 `draw_children`; see
 [View transforms and the camera](#view-transforms-and-the-camera). Only these two
@@ -350,6 +350,18 @@ get a row each, and three or four share a 2x2 grid. It computes edges as
 `(i * total) / count`, so the rectangles tile exactly and an odd-sized window has
 no seam.
 
+```ruby
+require 'rgame'
+
+RGame::Engine::Layout.rects(3, 640, 480) # => [[0, 0, 320, 240], [320, 0, 320, 240], [0, 240, 320, 240]]
+```
+
+`Layout.each_rect(count, width, height)` yields `index, x, y, width, height` for
+each viewport and allocates nothing. `rects` returns the same rectangles as an
+Array. The shapes it picks from are public too: `each_row(count, width, height)`,
+`each_column(count, width, height)` and `each_cell(count, cols, rows, width,
+height)`, which fills a grid left to right, top to bottom.
+
 ### A player's own screen
 
 **`RGame::Engine::PlayerLayer` draws its subtree once, inside one player's
@@ -397,7 +409,8 @@ Point an ordinary `Camera` however you like, for example with a `CameraFollow` o
 a cutscene actor, and pass it in.
 
 **Both calls are deferred**, like `queue_free`. They record a request that takes
-effect on the next tick. Any code can reach this system, including a `draw`. A
+effect on the next tick. `solo?` answers for the mode in effect, so it changes on
+that tick too. Any code can reach this system, including a `draw`. A
 `draw` runs once per view, so an immediate change would tear the frame that
 requested it.
 

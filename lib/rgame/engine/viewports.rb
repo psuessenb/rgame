@@ -111,6 +111,8 @@ module RGame
       #
       # Allocation-free once the pool has grown: Layout yields its rects rather
       # than building them, and the Views are mutated in place.
+      #
+      # @api private
       def refresh
         @screen.set(0, 0, @width, @height)
         @solo_camera ? refresh_solo : refresh_split

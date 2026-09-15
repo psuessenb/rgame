@@ -115,6 +115,8 @@ module RGame
 
       # Whether anything is being scaled. `:disabled` means the caller can skip
       # pushing a transform at all rather than pushing an identity one.
+      #
+      # @api private
       def scaled? = @mode != :disabled
 
       # Recomputes for a window of this size. Mutates rather than returning a

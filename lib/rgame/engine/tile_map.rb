@@ -71,7 +71,6 @@ module RGame
         )
       end
 
-      # True if a layer carries a Tiled bool custom property `name` set to "true".
       def self.layer_flag?(layer_el, name)
         props = layer_el.elements['properties']
         return false unless props
@@ -81,6 +80,7 @@ module RGame
         end
         false
       end
+      private_class_method :layer_flag?
 
       def initialize(width:, height:, tile_width:, tile_height:, tileset_source:, firstgid:, layers:, above: [])
         @width = width

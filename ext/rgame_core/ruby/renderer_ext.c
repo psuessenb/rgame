@@ -374,26 +374,26 @@ void rgame_init_renderer(VALUE mCore) {
     rb_define_method(cRenderer, "drawing?", renderer_drawing_p, 0);
     rb_define_method(cRenderer, "app", renderer_app, 0);
 
-    rb_define_method(cRenderer, "draw_rect", renderer_draw_rect, 6);
-    rb_define_method(cRenderer, "draw_quad", renderer_draw_quad, -1);
-    rb_define_method(cRenderer, "draw_triangle", renderer_draw_triangle, -1);
-    rb_define_method(cRenderer, "draw_line", renderer_draw_line, -1);
-    rb_define_method(cRenderer, "draw_circle", renderer_draw_circle, -1);
-    rb_define_method(cRenderer, "draw_image", renderer_draw_image, 5);
-    rb_define_method(cRenderer, "draw_image_scaled", renderer_draw_image_scaled, -1);
-    rb_define_method(cRenderer, "draw_image_rot", renderer_draw_image_rot, -1);
-    rb_define_method(cRenderer, "draw_text", renderer_draw_text, -1);
+    rb_define_private_method(cRenderer, "draw_rect", renderer_draw_rect, 6);
+    rb_define_private_method(cRenderer, "draw_quad", renderer_draw_quad, -1);
+    rb_define_private_method(cRenderer, "draw_triangle", renderer_draw_triangle, -1);
+    rb_define_private_method(cRenderer, "draw_line", renderer_draw_line, -1);
+    rb_define_private_method(cRenderer, "draw_circle", renderer_draw_circle, -1);
+    rb_define_private_method(cRenderer, "draw_image", renderer_draw_image, 5);
+    rb_define_private_method(cRenderer, "draw_image_scaled", renderer_draw_image_scaled, -1);
+    rb_define_private_method(cRenderer, "draw_image_rot", renderer_draw_image_rot, -1);
+    rb_define_private_method(cRenderer, "draw_text", renderer_draw_text, -1);
 
-    rb_define_method(cRenderer, "push_translate", renderer_push_translate, 2);
-    rb_define_method(cRenderer, "push_rotate", renderer_push_rotate, 3);
-    rb_define_method(cRenderer, "push_scale", renderer_push_scale, 2);
-    rb_define_method(cRenderer, "push_clip", renderer_push_clip, 4);
-    rb_define_method(cRenderer, "push_layer", renderer_push_layer, 1);
+    rb_define_private_method(cRenderer, "push_translate", renderer_push_translate, 2);
+    rb_define_private_method(cRenderer, "push_rotate", renderer_push_rotate, 3);
+    rb_define_private_method(cRenderer, "push_scale", renderer_push_scale, 2);
+    rb_define_private_method(cRenderer, "push_clip", renderer_push_clip, 4);
+    rb_define_private_method(cRenderer, "push_layer", renderer_push_layer, 1);
     rb_define_method(cRenderer, "layer", renderer_layer, 0);
-    rb_define_method(cRenderer, "next_layer_slot", renderer_next_layer_slot, 1);
-    rb_define_method(cRenderer, "pop", renderer_pop, 0);
+    rb_define_private_method(cRenderer, "next_layer_slot", renderer_next_layer_slot, 1);
+    rb_define_private_method(cRenderer, "pop", renderer_pop, 0);
 
-    rb_define_method(cRenderer, "begin_record", renderer_begin_record, 0);
-    rb_define_method(cRenderer, "end_record", renderer_end_record, 0);
-    rb_define_method(cRenderer, "cancel_record", renderer_cancel_record, 0);
+    rb_define_private_method(cRenderer, "begin_record", renderer_begin_record, 0);
+    rb_define_private_method(cRenderer, "end_record", renderer_end_record, 0);
+    rb_define_private_method(cRenderer, "cancel_record", renderer_cancel_record, 0);
 }

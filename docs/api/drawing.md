@@ -32,7 +32,8 @@ Know two rules before anything else.
 
 **Draw only inside `draw`**, or a node's `on_draw`. A drawing call from `update`
 or from a constructor raises. The frame is not open then, so the call would vanish without a trace.
-A loud failure beats an invisible one.
+A loud failure beats an invisible one. `renderer.drawing?` returns whether a frame
+is open.
 
 **The renderer draws nothing immediately.** It collects calls, sorts the frame
 and sends it to the GPU once, after `draw` returns. So call order does not decide

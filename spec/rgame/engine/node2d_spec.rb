@@ -987,7 +987,7 @@ RSpec.describe RGame::Engine::Node2D do
 
       mid = SpecRecordingNode.new(events) # logs [:hook, renderer] from on_draw
       mid.x = 10
-      child = instance_double(described_class, :parent= => nil, :sibling_order= => nil)
+      child = described_class.new
       allow(child).to receive(:draw) { events << :child }
       node.add_node(mid)
       mid.add_node(child)
@@ -1000,7 +1000,7 @@ RSpec.describe RGame::Engine::Node2D do
     it 'draws a node own visuals before its children, as it always did' do
       events = []
       mid = SpecRecordingNode.new(events)
-      child = instance_double(described_class, :parent= => nil, :sibling_order= => nil)
+      child = described_class.new
       allow(child).to receive(:draw) { events << :child }
       node.add_node(mid)
       mid.add_node(child)

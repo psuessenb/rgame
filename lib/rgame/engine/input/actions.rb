@@ -53,6 +53,8 @@ module RGame
       # `node.control(actions)` keep working unchanged — a tree with nobody
       # claiming ownership, or a spec that has only one player in mind, passes
       # the snapshot itself where a Players registry would otherwise go.
+      #
+      # @api private
       # hot-path
       def actions_for(_player) = self
 

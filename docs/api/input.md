@@ -64,6 +64,10 @@ An entry uses up to three kinds of source, and may combine them:
 | `axis:` | `axis` | `[negative_id, positive_id]`, or a list of such pairs — a digital axis from buttons |
 | `stick:` | `axis` | an analog axis id, for a real stick or a trigger |
 
+`map[action]` returns an entry as an `InputMap::Binding`: a frozen Struct with
+`buttons`, `pairs` and `stick`. `pairs` is always a list of pairs, even when the
+entry gave one, and a source the entry does not use is `nil`.
+
 A list of pairs binds several controls to one axis. The default `move_x` uses
 this for the arrows, WASD and the d-pad:
 
@@ -210,6 +214,9 @@ can play. Player 0 starts on `Game`'s `device:`, the keyboard by default; the
 other seats start empty. An empty
 seat draws no viewport. A two-seat game with one player looks like an ordinary
 full-screen game.
+
+`player.active?` is `false` while that seat is empty. `players.each_active` yields
+only the seated players, and `players.active_count` counts them.
 
 ### A device is seated when someone uses it
 
