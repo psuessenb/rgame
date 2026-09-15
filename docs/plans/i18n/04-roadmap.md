@@ -1,7 +1,7 @@
 # Roadmap
 
-**Status.** Steps 0–5 are implemented. Step 6 is planned in detail and is next.
-**Steps 7–8 are rough**, and each is re-planned before it starts.
+**Status.** Steps 0–6 are implemented. **Steps 7–8 are rough**, and each is
+re-planned before it starts; step 7 is next.
 
 Step 6 was inserted after step 5 landed (decision 13). The landed notes of steps
 1–5 were written before that, so "step 6" there means today's step 7, and "step 7"
@@ -1014,6 +1014,59 @@ equal.
 `Renderer#text` and `#text_width` are the only renderer methods that take a label.
 It does not change `TextButton` and `IconButton`, which convert once in order to
 measure and draw the same String.
+
+**Landed.** Three commits, one per sub-step:
+
+- **6a** `Text#to_str` and `Text#==` on the base class, with a `#to_str` and a
+  `#==` group in `text_spec.rb`: 13 new examples, including allocation-free
+  `to_str` reads for a keyed, a literal and a computed `Text`, and a verified
+  `instance_spy(FakeRenderer)` matching `with('Play', 20, 20)` after recording a
+  `Text`.
+- **6b** Five contract examples in `a_renderer.rb`: a `to_str` label drawn and
+  measured as its String, an ArgumentError from `to_str` let through, and
+  `TypeError` for an Integer and for a `to_str` returning 42. `FakeRenderer#string`
+  converts, and `fake_renderer_spec.rb` checks the recorded argument is the
+  String. `spec_core` compares every pixel of `text('Score', …)` with a `to_str`
+  label reading `'Score'`. With the fake change stashed, 4 of the new examples fail.
+- **6c** `OptionButton`, `examples/localization` (3 lines), `root.rb.tt` and
+  `README.md.tt` pass the `Text`. `toolbox.md` gains "A `Text` goes where a
+  String goes" with a headless example; `text.md`, `drawing.md`, `ui.md`,
+  `cli.md`, `localization.md`, `Button`'s class comment and CLAUDE.md's house
+  rule follow.
+
+`make test` 363 checks; `rake spec` 2294 examples; `rake spec:core` 406
+examples; all 0 failures. RuboCop is clean on every touched file. Rule 8 holds
+with `generated_project_spec.rb` unchanged: 6 examples, the generated `root_spec`
+passing its String spy against a node that passes `@greeting`.
+
+`examples/localization` driven with `--texts --seed 1`, on this branch and on a
+worktree of `951ae37`: the reports are **byte-identical**, for `localization.rb`
+and for `localization_saved.rb`.
+
+On the real renderer under Xvfb, 200,000 calls in one frame each, GC disabled,
+after a warm-up: `text(title.to_s, 1, 2)` **0 objects**, `text(title, 1, 2)` **0
+objects**, `text('Localization', 1, 2)` **0 objects**. The first measured loop
+in the process reports 2 objects whichever spelling it runs, so that loop is a
+throwaway.
+
+What the sketch got wrong:
+
+- **The drive harness only recorded a String label.** `RendererProbe#note`
+  checked `args.first.is_a?(String)`, so after 6c the first run's `--texts`
+  lost "Localization", "Language" and the hint, and `draw calls` printed
+  `first(Text, 40, 24)`. The probe now reads a `to_str` label into the report
+  before recording it, the same conversion the fake makes. It landed in 6c,
+  since the verify step needs it. Step 7's drive comparisons depend on it.
+- **`OptionButton` with `label: nil` would have raised.** `@label.to_s` drew an
+  empty String for a nil label; passing `@label` hands `text` a nil. It now draws
+  the label only when there is one, and `option_button_spec.rb` pins that it
+  draws just the chevrons and the value.
+- **An RSpec double works as the contract's label.** `StringValue` finds an
+  `instance_double(String, to_str: …)`'s singleton method, so no class in
+  `spec/support/` was needed.
+- **Yoda comparisons need a local.** RuboCop's `Style/YodaCondition` and
+  `RSpec/ExpectActual` refuse `'Play' == play` and `expect('Play')`, so rule 3's
+  examples compare against a local String from both sides.
 
 ## Step 7 — every example draws keys *(rough)*
 
