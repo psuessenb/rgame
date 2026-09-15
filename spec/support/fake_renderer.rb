@@ -116,7 +116,8 @@ class FakeRenderer
   # thing refuses".
   #
   # These validate without converting: the recorded call keeps exactly what the
-  # caller passed, so assertions read as written.
+  # caller passed, so assertions read as written. A label is the one exception;
+  # see #string.
 
   def number(value)
     raise TypeError, "no implicit conversion of #{value.class} into Float" unless value.is_a?(Numeric)
@@ -124,7 +125,12 @@ class FakeRenderer
     value
   end
 
+  # A label converts the way StringValue converts it: through `to_str`, which
+  # is how a node draws its Text as it is. Unlike the other checks this records
+  # the converted String rather than the object, because a Text changes after it
+  # is drawn and a recorded call has to say what that frame showed.
   def string(value)
+    value = value.to_str if !value.is_a?(String) && value.respond_to?(:to_str)
     raise TypeError, "no implicit conversion of #{value.class} into String" unless value.is_a?(String)
 
     value

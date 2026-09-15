@@ -511,6 +511,19 @@ RSpec.describe RGame::Core::Renderer do
       expect((0...frame.width).all? { |x| frame.about?(x, 2, background) }).to be(true)
     end
 
+    it 'draws a label that converts to a String exactly as that String' do
+      pixels = lambda do |frame|
+        (0...frame.width).flat_map { |x| (0...frame.height).map { |y| frame.at(x, y) } }
+      end
+      label = instance_double(String, to_str: 'Score')
+
+      string = with_text { |renderer, font| renderer.text('Score', 20, 10, font: font) }
+      converted = with_text { |renderer, font| renderer.text(label, 20, 10, font: font) }
+
+      expect(inked_columns(converted)).not_to be_nil
+      expect(pixels.call(converted)).to eq(pixels.call(string))
+    end
+
     it 'draws nothing for an empty string' do
       frame = with_text { |renderer, font| renderer.text('', 10, 10, font: font) }
 

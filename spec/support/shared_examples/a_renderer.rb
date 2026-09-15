@@ -419,6 +419,32 @@ RSpec.shared_examples 'a renderer' do
       expect { render { |renderer, _image| renderer.text_width(nil) } }.to raise_error(TypeError)
     end
 
+    it 'refuses a number as a label, rather than printing it' do
+      render do |renderer, _image|
+        expect { renderer.text(42, 0, 0) }.to raise_error(TypeError)
+        expect { renderer.text_width(42) }.to raise_error(TypeError)
+      end
+    end
+
+    it 'refuses a label whose to_str returns something that is not a String' do
+      render do |renderer, _image|
+        label = instance_double(String, to_str: 42)
+        expect { renderer.text(label, 0, 0) }.to raise_error(TypeError)
+        expect { renderer.text_width(label) }.to raise_error(TypeError)
+      end
+    end
+
+    it 'lets what a label\'s to_str raises through, rather than calling it a TypeError' do
+      # A Text with variables raises ArgumentError until its first `with`, and
+      # that message names the call the author forgot.
+      render do |renderer, _image|
+        label = instance_double(String)
+        allow(label).to receive(:to_str).and_raise(ArgumentError, 'needs score:')
+        expect { renderer.text(label, 0, 0) }.to raise_error(ArgumentError, 'needs score:')
+        expect { renderer.text_width(label) }.to raise_error(ArgumentError, 'needs score:')
+      end
+    end
+
     it 'refuses a nil image' do
       # An asset that failed to resolve. Anything non-nil is accepted, because
       # the fake has no way to know what an image is.
@@ -478,6 +504,22 @@ RSpec.shared_examples 'a renderer' do
           renderer.text('hello', 0, 0, z: 5, color: [255, 0, 0], font: font)
         end
       end.not_to raise_error
+    end
+
+    # A label is anything with `to_str`, which is how a node draws its Text as
+    # it is. The contract names no Engine class, so a double stands in.
+    it 'draws a label that converts to a String' do
+      label = instance_double(String, to_str: 'Score')
+      expect { render { |renderer, _image, _font| renderer.text(label, 10, 20) } }
+        .not_to raise_error
+    end
+
+    it 'measures a label that converts to a String as that String' do
+      label = instance_double(String, to_str: 'Score')
+      render do |renderer, _image, font|
+        expect(renderer.text_width(label)).to eq(renderer.text_width('Score'))
+        expect(renderer.text_width(label, font: font)).to eq(renderer.text_width('Score', font: font))
+      end
     end
 
     it 'draws an empty string without complaint' do
