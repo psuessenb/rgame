@@ -179,6 +179,25 @@ grid.region(0, 0)           # => 0 — an Integer label; nil for a solid or off-
   threads at once. A corner-to-corner route across a 60x40 town takes under
   0.1 ms. The slowest of 200 random routes on a 120x90 map takes about 1 ms.
 
+### What routing does not cover
+
+- **Maps that change at runtime, in a tile scene.** A shared `SolidGrid` changes
+  under a `NavGrid` and a `TileBlockers` at once, as above. `TileWorld` keeps its
+  grid private, though, and a
+  [`Navigator`](components.md#navigator) already walking learns nothing of a change.
+- **Replanning around moving actors.** `find` knows only the grid. It cannot treat a
+  cell as blocked for one query, and a `Navigator` held by another actor waits
+  instead of replanning.
+- **Crowds.** Many navigators can share one `TileWorld#nav_grid`. Each `go_to` costs
+  a search plus smoothing, well under a millisecond on a 60x40 map. Nothing
+  coordinates the walkers.
+- **Avoidance.** Nothing steers a walker around another. Of the blocker sources,
+  only `TileBlockers` answers `travel?`.
+- **Flow fields.** A search answers one start and one goal. Nothing computes the
+  distance from every cell to a shared goal.
+- **Weighted terrain.** Every open cell costs the same.
+- **Colliders larger than a tile.** `Navigator#go_to` raises for one.
+
 ## `Timer` — paced periodic events
 
 **`RGame::Engine::Timer` (`rgame/engine/timer`) accumulates time; its owner decides
