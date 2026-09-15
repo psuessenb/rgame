@@ -200,8 +200,9 @@ the ones that *do* fit here — fix the code, not the cop.
 
 `Game/NoInterpolationInHotPath` refuses the obvious `renderer.text("Score:
 #{@score}", ...)`, and the engine owns the answer: **`RGame::Engine::Text`.**
-Build it off the per-frame path; read it with `with` (or `to_s`, for a `Text`
-with no variables) in `on_draw`.
+Build it off the per-frame path; read it with `with` in `on_draw`, or with `to_s`
+for a `Text` with no variables — or one whose values something else gave it
+through `with`, such as a button's label.
 
 ```ruby
 def initialize

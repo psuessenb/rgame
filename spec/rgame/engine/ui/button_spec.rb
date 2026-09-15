@@ -276,6 +276,62 @@ RSpec.describe RGame::Engine::UI::Button do
     expect(described_class.new.label).to be_nil
   end
 
+  describe 'the label' do
+    let(:text) { RGame::Engine::Text }
+
+    it 'is a Text for the key it was given' do
+      expect([button.label.class, button.label.key]).to eq([text, 'Resume'])
+    end
+
+    it 'takes a Symbol as a key' do
+      expect(described_class.new(label: :resume).label.key).to eq('resume')
+    end
+
+    it 'keeps a Text it is given, as it is' do
+      literal = text.literal('Ada')
+      expect(described_class.new(label: literal).label).to be(literal)
+    end
+
+    it 'makes a Text of a key assigned later' do
+      button.label = 'quit'
+      expect(button.label.key).to eq('quit')
+    end
+
+    it 'can be cleared' do
+      button.label = nil
+      expect(button.label).to be_nil
+    end
+
+    describe 'label_scope' do
+      it 'starts nil' do
+        expect(button.label_scope).to be_nil
+      end
+
+      it 'scopes a label given as a key' do
+        button.label_scope = 'pause'
+        expect(button.label.scope).to eq('pause')
+      end
+
+      it 'scopes a key assigned after it' do
+        button.label_scope = 'pause'
+        button.label = 'quit'
+        expect(button.label.scope).to eq('pause')
+      end
+
+      it 'leaves a label given as a Text alone' do
+        own = text.new('quit', scope: 'common')
+        button.label = own
+        button.label_scope = 'pause'
+        expect(own.scope).to eq('common')
+      end
+    end
+
+    it 'takes a Text that declares variables' do
+      score = text.new('hud.score', :score)
+      expect(described_class.new(label: score).label).to be(score)
+    end
+  end
+
   it 'draws nothing of its own' do
     renderer = FakeRenderer.new
     button.draw(renderer, screen_view)

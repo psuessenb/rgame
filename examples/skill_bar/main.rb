@@ -89,7 +89,7 @@ class SkillBar < RGame::Engine::Node2D
     SKILLS.each { |label, image, hotkey| add_skill(label, image, hotkey) }
   end
 
-  def focused_label = @menu.focused&.label
+  def focused_label = @menu.focused&.label&.key
 
   private
 

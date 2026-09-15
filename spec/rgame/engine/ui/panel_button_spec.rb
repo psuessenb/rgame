@@ -10,6 +10,8 @@ RSpec.describe RGame::Engine::UI::PanelButton do
   end
   let(:root) { RGame::Engine::Node2D.new }
 
+  before { RGame::Engine::I18n.load_hash(en: { resume: 'Resume' }) }
+
   # Records whatever it is asked to do, so an element can say it was the one
   # drawn without pretending to be a real nine-slice.
   def recorder
@@ -23,7 +25,7 @@ RSpec.describe RGame::Engine::UI::PanelButton do
   end
 
   def item(**)
-    root.add_node(described_class.new(label: 'Resume', width: 200, height: 40, **))
+    root.add_node(described_class.new(label: 'resume', width: 200, height: 40, **))
         .tap { root.enter_tree }
   end
 
@@ -70,7 +72,7 @@ RSpec.describe RGame::Engine::UI::PanelButton do
     # panel is drawn at (0, 0) and lands at (35, 76) on screen.
     it 'fills its own box, at its own origin' do
       root.add_node(RGame::Engine::Node2D.new(x: 30.0, y: 70.0)).add_node(
-        described_class.new(label: 'Resume', width: 200, height: 40, x: 5.0, y: 6.0)
+        described_class.new(label: 'resume', width: 200, height: 40, x: 5.0, y: 6.0)
       )
       root.enter_tree
       name, call = drew
@@ -105,7 +107,7 @@ RSpec.describe RGame::Engine::UI::PanelButton do
     it 'is in the HUD band under a PlayerLayer' do
       player = RGame::Engine::Player.new(id: 0)
       layer = root.add_node(RGame::Engine::PlayerLayer.new(player: player))
-      button = layer.add_node(described_class.new(label: 'Resume', width: 200, height: 40))
+      button = layer.add_node(described_class.new(label: 'resume', width: 200, height: 40))
       root.enter_tree
       button.draw(renderer, screen_view)
 
@@ -118,7 +120,7 @@ RSpec.describe RGame::Engine::UI::PanelButton do
   it 'takes a style of its own' do
     mine = recorder
     renderer.register_nine_slice(:mine, mine)
-    root.add_node(described_class.new(label: 'Resume', width: 10, height: 10,
+    root.add_node(described_class.new(label: 'resume', width: 10, height: 10,
                                       style: described_class::STYLE.with(idle: :mine)))
     root.enter_tree
     root.draw(renderer, screen_view)

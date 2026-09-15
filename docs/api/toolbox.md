@@ -66,8 +66,15 @@ first frame that reads it. Every `Text` with the same names shares one generated
 `with`, whatever order the names came in. `names` returns them sorted.
 
 A `Text` with no names is read with `to_s`, and `with` with no keywords returns
-the same. `to_s` on a `Text` that has names raises `ArgumentError`, naming the
-keywords `with` needs. A name must be usable as a Ruby local variable:
+the same. On a `Text` that has names, `to_s` reads it with the values its last
+`with` was given, and renders them again after a locale switch. So one node can
+set the values in `update`, and whatever draws the `Text` reads `to_s` without
+knowing them: a [button's label](ui.md#labels-are-translation-keys) works this
+way. Before the first `with`, `to_s` raises `ArgumentError`, naming the keywords
+`with` needs.
+
+The values belong to the `Text`, not to whoever set them. Two nodes sharing one
+`Text` with names show whatever the last `with` gave, so give each node its own. A name must be usable as a Ruby local variable:
 `Text.new('x', :Name)` and `Text.new('x', :end)` raise `ArgumentError`.
 
 A key whose translation is a plural needs `:count` among the names, and picks its
@@ -77,6 +84,8 @@ form by `count` as [`I18n.t` does](#plurals).
 
 `scope: 'hud'` with key `'title'` resolves `'hud.title'`. `key` returns the key
 without its scope. `scope=` changes the scope, and the next read resolves again.
+A [`UI::Menu`'s `scope:`](ui.md#labels-are-translation-keys) sets the scope of
+the labels its buttons build from keys.
 
 ### When it renders again
 

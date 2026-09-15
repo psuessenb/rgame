@@ -74,6 +74,87 @@ RSpec.describe RGame::Engine::UI::Menu do
     end
   end
 
+  describe 'scope' do
+    let(:scoped) { root.add_node(described_class.new(layout: column, scope: 'title_menu')) }
+
+    before do
+      i18n.load_hash(en: { title_menu: { play: 'Play', quit: 'Quit' }, other: { x: 'Other X' }, x: 'Plain X' },
+                     de: { title_menu: { play: 'Spielen' } })
+    end
+
+    def i18n = RGame::Engine::I18n
+    def text = RGame::Engine::Text
+    def labelled(label) = RGame::Engine::UI::TextButton.new(label: label, style: nil)
+
+    def drawn
+      root.enter_tree
+      renderer = FakeRenderer.new
+      root.draw(renderer, screen_view)
+      renderer.calls_to(:text).map { |call| call.args.first }
+    end
+
+    it 'is nil unless given' do
+      expect(menu.scope).to be_nil
+    end
+
+    it 'draws a key under the scope' do
+      scoped.add(labelled('play'))
+      expect(drawn).to eq(['Play'])
+    end
+
+    it 'redraws in a new locale, with the same button' do
+      button = scoped.add(labelled('play'))
+      english = drawn
+      i18n.locale = :de
+      expect([english, drawn, scoped.buttons]).to eq([['Play'], ['Spielen'], [button]])
+    end
+
+    it 'gives each button the scope as it is added' do
+      buttons = %w[play quit].map { |key| scoped.add(labelled(key)) }
+      expect(buttons.map { |button| button.label.scope }).to eq(%w[title_menu title_menu])
+    end
+
+    it 'scopes a key assigned after the button was added' do
+      button = scoped.add(labelled('quit'))
+      button.label = 'play'
+      expect(drawn).to eq(['Play'])
+    end
+
+    it "keeps a Text's own scope" do
+      scoped.add(labelled(text.new('x', scope: 'other')))
+      expect(drawn).to eq(['Other X'])
+    end
+
+    # A Text is the caller's: the menu does not reach into one it was handed,
+    # so a Text shared by two menus reads the same in both.
+    it 'leaves a Text built without a scope unscoped' do
+      scoped.add(labelled(text.new('x')))
+      expect(drawn).to eq(['Plain X'])
+    end
+
+    it 'draws a literal as it is' do
+      scoped.add(labelled(text.literal('Ada')))
+      expect(drawn).to eq(['Ada'])
+    end
+
+    it "keeps a button's own label_scope" do
+      button = labelled('x')
+      button.label_scope = 'other'
+      scoped.add(button)
+      expect(drawn).to eq(['Other X'])
+    end
+
+    it 'leaves a button in a menu with no scope unscoped' do
+      menu.add(labelled('x'))
+      expect(drawn).to eq(['Plain X'])
+    end
+
+    it 'reaches the buttons of a RadialMenu' do
+      wheel = RGame::Engine::UI::RadialMenu.new(radius: 100, button_width: 40, scope: 'title_menu')
+      expect(wheel.add(labelled('play')).label.scope).to eq('title_menu')
+    end
+  end
+
   # A game's own look is a Button subclass with an on_draw, and the menu treats
   # it exactly as it treats a shipped one.
   describe 'a button written by the game' do
@@ -133,8 +214,9 @@ RSpec.describe RGame::Engine::UI::Menu do
           renderer.rect(0, 0, width, height, color: state == :focused ? [255, 255, 255] : [0, 0, 0])
         end
       end
-      menu.add(button('Resume'))
-      menu.add(RGame::Engine::UI::TextButton.new(label: 'Options'))
+      RGame::Engine::I18n.load_hash(en: { resume: 'Resume', options: 'Options' })
+      menu.add(button('resume'))
+      menu.add(RGame::Engine::UI::TextButton.new(label: 'options'))
       menu.add(RGame::Engine::UI::IconButton.new(image: :home))
       menu.add(swatch.new)
       root.enter_tree
@@ -194,30 +276,30 @@ RSpec.describe RGame::Engine::UI::Menu do
     before { build('One', 'Two', 'Three') }
 
     it 'starts on the first item' do
-      expect(menu.focused.label).to eq('One')
+      expect(menu.focused.label.key).to eq('One')
     end
 
     it 'moves down' do
       press(:ui_down)
-      expect(menu.focused.label).to eq('Two')
+      expect(menu.focused.label.key).to eq('Two')
     end
 
     it 'moves up' do
       press(:ui_down)
       press(:ui_up)
-      expect(menu.focused.label).to eq('One')
+      expect(menu.focused.label.key).to eq('One')
     end
 
     # A short vertical list is quicker to use when the ends join, and every
     # console menu does it.
     it 'wraps past the end' do
       3.times { press(:ui_down) }
-      expect(menu.focused.label).to eq('One')
+      expect(menu.focused.label.key).to eq('One')
     end
 
     it 'wraps before the start' do
       press(:ui_up)
-      expect(menu.focused.label).to eq('Three')
+      expect(menu.focused.label.key).to eq('Three')
     end
 
     # Not just `focused` answering: the item has to know, or a menu that has
@@ -452,7 +534,8 @@ RSpec.describe RGame::Engine::UI::Menu do
     end
 
     it 'draws nothing while closed, and draws again once opened' do
-      menu.add(RGame::Engine::UI::TextButton.new(label: 'One', style: nil))
+      RGame::Engine::I18n.load_hash(en: { one: 'One' })
+      menu.add(RGame::Engine::UI::TextButton.new(label: 'one', style: nil))
       root.enter_tree
       menu.close
       closed = draw.size
@@ -523,14 +606,14 @@ RSpec.describe RGame::Engine::UI::Menu do
       menu.add(button('Three'))
       root.enter_tree
       press(:ui_down)
-      expect(menu.focused.label).to eq('Three')
+      expect(menu.focused.label.key).to eq('Three')
     end
 
     it 'does not start on one' do
       menu.add(button('One', enabled: false))
       menu.add(button('Two'))
       root.enter_tree
-      expect(menu.focused.label).to eq('Two')
+      expect(menu.focused.label.key).to eq('Two')
     end
 
     it 'cannot be activated even if focus somehow reaches it' do
@@ -544,7 +627,7 @@ RSpec.describe RGame::Engine::UI::Menu do
       menu.add(button('One', enabled: false))
       root.enter_tree
       press(:ui_down)
-      expect(menu.focused.label).to eq('One')
+      expect(menu.focused.label.key).to eq('One')
     end
   end
 
@@ -687,7 +770,7 @@ RSpec.describe RGame::Engine::UI::Menu do
     it 'confirms the button the game focused' do
       menu.focus(1)
       press(:ui_confirm)
-      expect([menu.focused.label, fired]).to eq(['Two', ['Two']])
+      expect([menu.focused.label.key, fired]).to eq(['Two', ['Two']])
     end
 
     it 'still steps by default when the keyword is left out' do
@@ -811,7 +894,7 @@ RSpec.describe RGame::Engine::UI::Menu do
       players.poll(backend)
       root.control(players)
 
-      expect([one.focused.label, two.focused.label]).to eq(%w[A B])
+      expect([one.focused.label.key, two.focused.label.key]).to eq(%w[A B])
     end
   end
 end

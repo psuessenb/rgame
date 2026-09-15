@@ -9,7 +9,7 @@ module RGame
       #
       #   disc = UI::ShapeStyle.new(shape: :disc)
       #   wheel.add(UI::IconButton.new(image: :home, style: disc)).on_activated { go_home }
-      #   bar.add(UI::IconButton.new(image: :torch, label: 'Torch', style: disc))
+      #   bar.add(UI::IconButton.new(image: :torch, label: 'torch', style: disc))
       #
       # `image:` is an image id — a registered Symbol or a path String — drawn at
       # its natural size, centred in the slot, or centred in the space above the
@@ -83,7 +83,8 @@ module RGame
         end
 
         def draw_caption(renderer, caption_height)
-          renderer.text(@label, (width - renderer.text_width(@label)) / 2, height - caption_height,
+          text = @label.to_s
+          renderer.text(text, (width - renderer.text_width(text)) / 2, height - caption_height,
                         z: 1, color: @enabled ? @label_color : @disabled_label_color)
         end
       end

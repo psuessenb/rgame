@@ -19,6 +19,8 @@ RSpec.describe RGame::Engine::UI::RadialMenu do
 
   def wheel(**) = root.add_node(described_class.new(radius: 150, button_width: 96, button_height: 30, **))
 
+  before { RGame::Engine::I18n.load_hash(en: { x: 'x' }) }
+
   def button = RGame::Engine::UI::TextButton.new(label: 'x', style: nil)
 
   def aim(x, y) = root.control(snapshot.call(x, y))

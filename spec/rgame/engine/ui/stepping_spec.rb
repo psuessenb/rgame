@@ -38,18 +38,18 @@ RSpec.describe RGame::Engine::UI::Stepping do
 
     it 'steps down with ui_down' do
       press(:ui_down)
-      expect(menu.focused.label).to eq('Two')
+      expect(menu.focused.label.key).to eq('Two')
     end
 
     it 'wraps before the start with ui_up' do
       press(:ui_up)
-      expect(menu.focused.label).to eq('Three')
+      expect(menu.focused.label.key).to eq('Three')
     end
 
     it 'hands ui_right to the focused button, and moves no focus' do
       press(:ui_down)
       press(:ui_right)
-      expect([menu.focused.label, menu.focused.value]).to eq(['Two', 2])
+      expect([menu.focused.label.key, menu.focused.value]).to eq(['Two', 2])
     end
   end
 
@@ -58,22 +58,22 @@ RSpec.describe RGame::Engine::UI::Stepping do
 
     it 'steps right with ui_right' do
       press(:ui_right)
-      expect(menu.focused.label).to eq('Two')
+      expect(menu.focused.label.key).to eq('Two')
     end
 
     it 'steps left with ui_left, wrapping before the start' do
       press(:ui_left)
-      expect(menu.focused.label).to eq('Three')
+      expect(menu.focused.label.key).to eq('Three')
     end
 
     it 'wraps past the end' do
       3.times { press(:ui_right) }
-      expect(menu.focused.label).to eq('One')
+      expect(menu.focused.label.key).to eq('One')
     end
 
     it 'moves no focus with ui_down' do
       press(:ui_down)
-      expect(menu.focused.label).to eq('One')
+      expect(menu.focused.label.key).to eq('One')
     end
 
     it 'hands ui_up and ui_down to the focused button' do
@@ -81,7 +81,7 @@ RSpec.describe RGame::Engine::UI::Stepping do
       press(:ui_down)
       press(:ui_down)
       press(:ui_up)
-      expect([menu.focused.label, menu.focused.value]).to eq(['Two', 1])
+      expect([menu.focused.label.key, menu.focused.value]).to eq(['Two', 1])
     end
   end
 
@@ -91,7 +91,7 @@ RSpec.describe RGame::Engine::UI::Stepping do
     it 'follows the layout when none is passed, so a Row steps with left and right' do
       menu = build(layout: row)
       press(:ui_right)
-      expect([menu.navigation.axis, menu.focused.label]).to eq([:horizontal, 'Two'])
+      expect([menu.navigation.axis, menu.focused.label.key]).to eq([:horizontal, 'Two'])
     end
 
     it 'is nil until a menu is built with it, when none is passed' do
@@ -101,7 +101,7 @@ RSpec.describe RGame::Engine::UI::Stepping do
     it 'overrides the layout\'s when passed' do
       menu = build(layout: column, navigation: described_class.new(axis: :horizontal))
       press(:ui_right)
-      expect([menu.navigation.axis, menu.focused.label]).to eq([:horizontal, 'Two'])
+      expect([menu.navigation.axis, menu.focused.label.key]).to eq([:horizontal, 'Two'])
     end
 
     it 'refuses one outside Stack::AXES when the menu is built' do
@@ -133,7 +133,7 @@ RSpec.describe RGame::Engine::UI::Stepping do
       menu = root.add_node(RGame::Engine::UI::Menu.new(layout: row))
       %w[One Two Three].each { |label| menu.add(RGame::Engine::UI::TextButton.new(label: label, enabled: label != 'Two')) }
       menu.navigation.step(1)
-      expect(menu.focused.label).to eq('Three')
+      expect(menu.focused.label.key).to eq('Three')
     end
 
     it 'does nothing when no button can take focus' do

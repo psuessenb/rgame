@@ -1,7 +1,7 @@
 # Plan — i18n as the default way to put text on screen
 
-**Status.** Steps 0–2 are implemented. Step 3 is detailed; steps 4–7 are
-deliberately rough and get re-planned once the steps beneath them have landed.
+**Status.** Steps 0–3 are implemented. Steps 4–7 are deliberately rough and get
+re-planned once the steps beneath them have landed.
 See [04-roadmap.md](04-roadmap.md).
 
 | File | What it holds |
@@ -182,13 +182,17 @@ inside this plan.
 
 1. **Does `scope` inherit down the tree, like player ownership, or stay a `Menu`
    option?** Inheriting would let any subtree (a HUD, a dialog) set a scope once.
-   *Waits on step 3*; a `Menu`-only scope is enough to start and does not block.
+   *Resolved in step 3:* a `Menu` option, not inherited. It reaches only labels
+   and captions a button built from keys; a `Text` handed to a button keeps its
+   own scope. See step 3's landed note.
 2. **How does `OptionButton` name its captions?** A `display:` returning a key
    or a `Text` covers `menu_navigation`'s `'on'`/`'off'` and `"#{percent}%"`.
    What the *default* display is for Symbol values is open. *Decided while
    writing step 3, against `examples/menu_navigation`.* Step 0 found that YAML
    reads unquoted `on`/`off` as booleans and the loader refuses them, so
-   whatever keys this picks must be quoted in the table.
+   whatever keys this picks must be quoted in the table. *Resolved in step 3:*
+   `OptionButton::DISPLAY` reads a Symbol value as its own key and makes any
+   other value a literal of its `to_s`; a String `display` returns is a key.
 3. **Where do the examples' locale files live?** All 24 examples share
    `examples/assets/` as their media root, so a convention-loaded
    `examples/assets/locales/` would load every example's keys into every

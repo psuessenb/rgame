@@ -5,6 +5,8 @@ RSpec.describe RGame::Engine::UI::IconButton do
   let(:renderer) { FakeRenderer.new.tap { |r| r.register_image(:home, home) } }
   let(:root) { RGame::Engine::Node2D.new }
 
+  before { RGame::Engine::I18n.load_hash(en: { home: 'Home' }) }
+
   def button(image: :home, **)
     root.add_node(described_class.new(image: image, width: 64, height: 80, **))
         .tap { root.enter_tree }
@@ -34,13 +36,20 @@ RSpec.describe RGame::Engine::UI::IconButton do
     # FakeRenderer's stand-in metrics: 8 pixels a character, 18 a line.
     describe 'with a caption' do
       it 'centres the image in the space above the caption' do
-        button(label: 'Home')
+        button(label: 'home')
         expect(drawn_image.args).to eq([home, 32.0, 31.0])
       end
 
       it 'centres the caption along the bottom edge, inside the slot' do
-        button(label: 'Home')
+        button(label: 'home')
         expect(draw.last.args).to eq(['Home', 16.0, 62])
+      end
+
+      it 'draws the caption in the current locale' do
+        RGame::Engine::I18n.load_hash(de: { home: 'Zuhause' })
+        button(label: 'home')
+        RGame::Engine::I18n.locale = :de
+        expect(draw.last.args).to eq(['Zuhause', 4.0, 62])
       end
     end
   end
@@ -60,7 +69,7 @@ RSpec.describe RGame::Engine::UI::IconButton do
     end
 
     it 'draws its caption in the disabled colour while disabled' do
-      in_state(:disabled, label: 'Home')
+      in_state(:disabled, label: 'home')
       expect(draw.last.options[:color]).to eq(RGame::Engine::UI::TextButton::DISABLED_LABEL_COLOR)
     end
   end
@@ -68,7 +77,7 @@ RSpec.describe RGame::Engine::UI::IconButton do
   describe 'an image that is not there' do
     # An entry whose art is not in yet still says what it is.
     it 'draws only the caption for image: nil' do
-      button(image: nil, label: 'Home')
+      button(image: nil, label: 'home')
       expect(draw.map(&:name)).to eq(%i[text])
     end
 
@@ -98,7 +107,7 @@ RSpec.describe RGame::Engine::UI::IconButton do
     end
 
     it 'is drawn first, and below the image and caption' do
-      button(label: 'Home', style: RGame::Engine::UI::ShapeStyle.new(shape: :disc)).focused = true
+      button(label: 'home', style: RGame::Engine::UI::ShapeStyle.new(shape: :disc)).focused = true
       calls = draw
       style_calls, content = calls.partition { |call| call.name == :circle }
       expect([calls.first.name, style_calls.map { |c| c.options[:z] }.max < content.map { |c| c.options[:z] }.min])
@@ -119,7 +128,7 @@ RSpec.describe RGame::Engine::UI::IconButton do
       # The caption is under the style rather than on its fill, so what reads
       # on the fill is not what reads under it.
       it "keeps the caption in its own colour, not the style's, while pressed" do
-        in_state(:pressed, style: disc, label: 'Home')
+        in_state(:pressed, style: disc, label: 'home')
         expect(draw.last.options[:color]).to eq(RGame::Engine::UI::TextButton::LABEL_COLOR)
       end
 
@@ -150,13 +159,13 @@ RSpec.describe RGame::Engine::UI::IconButton do
     # FakeRenderer's lines are 18 pixels, so the style gets 80 - 18.
     it 'is handed only the space above a caption' do
       style = instance_double(RGame::Engine::UI::ShapeStyle, draw: nil)
-      in_state(:pressed, style: style, label: 'Home')
+      in_state(:pressed, style: style, label: 'home')
       draw
       expect(style).to have_received(:draw).with(renderer, :pressed, 64, 62)
     end
 
     it 'puts the disc round the picture, with the caption below it' do
-      in_state(:focused, style: RGame::Engine::UI::ShapeStyle.new(shape: :disc), label: 'Home')
+      in_state(:focused, style: RGame::Engine::UI::ShapeStyle.new(shape: :disc), label: 'home')
       calls = draw
       disc = calls.find { |call| call.name == :circle }
       caption = calls.find { |call| call.name == :text }
@@ -173,12 +182,12 @@ RSpec.describe RGame::Engine::UI::IconButton do
     end
 
     it 'draws pressed on a style naming a content colour without allocating' do
-      item = in_state(:pressed, label: 'Home', style: RGame::Engine::UI::ShapeStyle.new(shape: :disc))
+      item = in_state(:pressed, label: 'home', style: RGame::Engine::UI::ShapeStyle.new(shape: :disc))
       expect { item.on_draw(quiet, nil) }.to allocate_nothing
     end
 
     it 'draws captioned without allocating' do
-      item = in_state(:disabled, label: 'Home', tints: described_class::TINTS.merge(idle: [1, 2, 3]))
+      item = in_state(:disabled, label: 'home', tints: described_class::TINTS.merge(idle: [1, 2, 3]))
       expect { item.on_draw(quiet, nil) }.to allocate_nothing
     end
   end

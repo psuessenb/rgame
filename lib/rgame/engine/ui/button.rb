@@ -33,6 +33,29 @@ module RGame
       #
       # A Button with no `on_draw` of its own draws nothing.
       #
+      # ## The label is a translation key
+      #
+      # `label: 'play'` is a key, and the button holds it as an Engine::Text, so
+      # what is drawn follows `I18n.locale` without the button being rebuilt.
+      # Text that must not be translated — a player's name — is passed as one:
+      #
+      #   UI::TextButton.new(label: 'play')                        # the key 'play'
+      #   UI::TextButton.new(label: Engine::Text.literal(name))    # the name, in every language
+      #
+      # A label is drawn with `to_s`, so a `Text` with variables shows the values
+      # its last `with` was given. The node that owns them calls `with` in
+      # `update`, and the label follows:
+      #
+      #   @continue = Engine::Text.new('continue', :saves)
+      #   menu.add(UI::PanelButton.new(label: @continue))
+      #   def on_update(_dt) = @continue.with(saves: @save_count)
+      #
+      # One given no `with` yet raises on the first draw, naming the keywords.
+      #
+      # `label_scope` puts a scope in front of a label given as a key, and
+      # UI::Menu sets it from its own `scope:` as the button is added. A label
+      # given as a `Text` is the caller's, scope and all, and nothing changes it.
+      #
       # ## When a press activates
       #
       # `activate_on:` is `:release` by default: confirm draws the button pressed
@@ -76,7 +99,11 @@ module RGame
         ACTIVATE_ON = %i[release press].freeze
         SOURCES = %i[confirm hotkey].freeze
 
-        attr_accessor :label, :enabled
+        attr_accessor :enabled
+        # The Engine::Text drawn for this button, or nil.
+        attr_reader :label
+        # The scope a label given as a key resolves under, or nil.
+        attr_reader :label_scope
         # `hotkey` is an action name, or nil.
         attr_reader :activate_on, :hotkey
 
@@ -86,13 +113,29 @@ module RGame
             raise ArgumentError, "activate_on: must be :release or :press, not #{activate_on.inspect}"
           end
 
-          @label = label
+          @label_scope = nil
+          self.label = label
           @enabled = enabled
           @activate_on = activate_on
           @hotkey = hotkey
           @focused = false
           @holder = nil
           @feedback = 0.0
+        end
+
+        # Sets the label: a key String or Symbol, which the button makes an
+        # Engine::Text of under `label_scope`; a `Text`, used as it is; or nil.
+        def label=(label)
+          @label = label && text_for(label)
+          @label_from_key = !(label.nil? || label.is_a?(Text))
+        end
+
+        # Sets the scope a label given as a key resolves under — `'title_menu'`
+        # makes the key `'play'` read `'title_menu.play'` — and resolves it again
+        # on the next draw.
+        def label_scope=(scope)
+          @label_scope = scope&.to_s
+          @label.scope = @label_scope if @label_from_key
         end
 
         def enabled? = @enabled
@@ -195,6 +238,10 @@ module RGame
         # Hook: override to react to gaining or losing focus — a sound, the
         # start of an animation. Called only on a change.
         def on_focus_changed(focused); end
+
+        private
+
+        def text_for(shown) = shown.is_a?(Text) ? shown : Text.new(shown, scope: @label_scope)
       end
     end
   end

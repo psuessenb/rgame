@@ -1,7 +1,7 @@
 # Roadmap
 
-**Status.** Steps 0–2 are implemented. **Step 3 is detailed. Steps 4–7 are
-rough** and get re-planned when the step before them lands.
+**Status.** Steps 0–3 are implemented. **Steps 4–7 are rough** and get
+re-planned when the step before them lands; step 4 is next.
 
 ## Dependency shape
 
@@ -430,6 +430,95 @@ with a table loaded through `load_hash`, plus the rules above in
 `quick_wheel` and `skill_bar` drive to reports whose `text` calls match the
 pre-change reports string for string. Only the two migrated examples change
 source.
+
+**Landed.** One commit per sub-step. What shipped:
+
+- **`Button#label` holds an `Engine::Text`.** A String or Symbol is a key the
+  button builds one from, and a `Text` is kept as it is, variables included.
+  `TextButton`, `PanelButton`, `IconButton` and `OptionButton` draw `label.to_s`.
+- **`Text#to_s` on a `Text` with names** returns what its last `with` rendered,
+  and renders those values again after a locale switch or `scope=`. Before the
+  first `with` it raises as before. Added after review, so that a game can build a
+  label with variables and update it from `update`.
+- **`Menu.new(scope:)`** and a new **`Button#label_scope`**. The menu sets
+  `label_scope` as a button is added, unless the button has one. A button applies
+  it to labels and captions it built from keys, including a key assigned later.
+- **`OptionButton`**: `display:` returns a key or a `Text`, and
+  `OptionButton::DISPLAY` is the default. `caption` answers the `Text`. The value
+  column is measured again whenever a caption's String changes, compared by object
+  identity on each draw.
+- **`docs/api/ui.md`**: every `label:` is a key, plus a new section, "Labels are
+  translation keys", with a headless example asserted by `spec/api_docs`. The
+  toolbox's `Text` scope section points to it.
+
+`make test` 363 checks; `rake spec` 2268 examples (was 2215); `rake spec:core`
+400 examples; all 0 failures. `spec/rgame/engine/ui/` holds 440 (was 397), and
+`text_spec.rb` 52 (was 44).
+RuboCop is clean on every touched Ruby file. `rake docs:coverage` reports 39 gaps,
+as before.
+
+Rules 1–5 are pinned in `menu_spec.rb` (1, 3), `text_button_spec.rb` (1, 2) and
+`option_button_spec.rb` (4, 5). Four mutations were each caught: dropping the
+"unless it has one" check in `Menu#add`, re-scoping a `Text` the button was
+handed, and twice never re-measuring the column. The last fails three examples: a
+locale switch, a scope change, and a `with` with new values. Dropping the "before
+the first `with`" guard in `Text#to_s` fails two. Comparing captions with `==`
+instead of `equal?` is an equivalent mutant: it is correct, but compares contents
+instead of one object identity.
+
+Drive reports, 600 ticks, `--seed 1`, for `menu_navigation`, `game_menu`,
+`radial_menu`, `quick_wheel` and `skill_bar`: byte-identical to `main` after 3a,
+after 3c and at the end. The report shows only each call's first and last
+arguments, so "string for string" was checked with a probe prepended to
+`RGame::Core::Renderer#text`, which counted every distinct string drawn. All five
+logs were identical to `main`'s, such as `menu_navigation`'s 19 strings with
+their counts. `test_projects/tiled_world`, whose inventory builds `PanelButton`s,
+drives without error.
+
+What the sketch got wrong:
+
+- **Three examples change source, not two, and `menu_navigation` does not move
+  to a table.** `label` answering a `Text` broke `examples/skill_bar`, which
+  looked its caption up by `menu.focused.label`; it now reads `label.key`.
+  `menu_navigation` changed only its percentage captions, which became literals.
+  A key with no table shows as itself under `:key`, so its English-text keys
+  still draw what they drew. Giving it a real table would answer open question 3,
+  which is step 5's. Moving it to keys like `settings.volume` is therefore step 6.
+- **Open question 1: `scope` stays a `Menu` option.** It does not inherit down the
+  tree.
+- **A `Text` a button is handed is never re-scoped.** The design had the menu set
+  the scope on any label `Text` whose scope was nil. That would mutate a caller's
+  object. One `Text` shared by two scoped menus would then read the first menu's
+  scope in both, depending on build order. Only labels built from keys take the
+  menu's scope. Rule 3 holds as written, and a scopeless `Text` in a scoped menu
+  resolves unscoped.
+- **The scope needed a home on the button: `label_scope`.** A menu sets it once,
+  at `add`. A key assigned with `label=` afterwards, and an `OptionButton`'s
+  captions, both need to find it later.
+- **Open question 2: a Symbol value is its own key, and anything else is a
+  literal.** A String that `display` returns is a key, as the design said. `[0,
+  50, 100]` therefore draws numbers without a table, and `%i[off low high]`
+  translates. `menu_navigation`'s `display` for `true`/`false` returns `'on'` and
+  `'off'`, which are keys. A table must quote them, as step 0 found.
+- **A label with variables is allowed, which changes step 1's `to_s`.** The
+  first version refused one at assignment, because `to_s` raised on a `Text` with
+  names. After review `to_s` returns the last `with`'s rendering instead, so a game
+  owns the values and the button stays unaware of them. That supersedes step 1's
+  bullet "`to_s` on a `Text` with names raises". What it costs: the values belong
+  to the `Text`, so two nodes sharing one show the last `with` either gave. The
+  toolbox and CLAUDE.md say so.
+- **`OptionButton` re-measures by String identity, not by generation.** A caption
+  with variables can change without the generation moving. A `Text` never edits a
+  String in place, so a new String on any caption is the signal. That covers a
+  locale switch and a scope change too, and makes the generation check redundant.
+- **The UI specs needed more than tables.** About 40 examples used a label to
+  identify a button (`menu.focused.label == 'Two'`) and now compare `label.key`.
+  The rest load their drawn labels through `load_hash`, because the suite raises
+  on a missing key.
+- **For step 6:** the "string for string" check needs the `text` probe above,
+  since the drive report does not list every string. It lived in the scratchpad
+  for this step. Step 6 compares 24 examples, so it may be worth adding to
+  `tools/drive_test_project.rb` as an option.
 
 ---
 

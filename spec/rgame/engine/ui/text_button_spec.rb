@@ -7,8 +7,10 @@ RSpec.describe RGame::Engine::UI::TextButton do
   let(:renderer) { FakeRenderer.new }
   let(:root) { RGame::Engine::Node2D.new }
 
-  def button(**)
-    root.add_node(described_class.new(label: 'Play', width: 200, height: 40, **))
+  before { RGame::Engine::I18n.load_hash(en: { play: 'Play' }) }
+
+  def button(label: 'play', **)
+    root.add_node(described_class.new(label: label, width: 200, height: 40, **))
         .tap { root.enter_tree }
   end
 
@@ -55,6 +57,63 @@ RSpec.describe RGame::Engine::UI::TextButton do
     it 'is centred in the slot' do
       button
       expect(draw.last.args).to eq(['Play', 84.0, 11])
+    end
+
+    it 'draws the translation for the current locale' do
+      RGame::Engine::I18n.load_hash(de: { play: 'Spielen' })
+      button
+      english = draw.last.args.first
+      RGame::Engine::I18n.locale = :de
+      expect([english, draw.last.args.first]).to eq(%w[Play Spielen])
+    end
+
+    it 'centres the new translation after a switch' do
+      RGame::Engine::I18n.load_hash(de: { play: 'Spielen' })
+      button
+      draw
+      RGame::Engine::I18n.locale = :de
+      expect(draw.last.args).to eq(['Spielen', 72.0, 11])
+    end
+
+    describe 'with variables' do
+      let(:saves) { RGame::Engine::Text.new('continue', :saves) }
+
+      before { RGame::Engine::I18n.load_hash(en: { continue: 'Continue (%{saves})' }) }
+
+      it 'draws the values its last with was given' do
+        button(label: saves)
+        saves.with(saves: 3)
+        expect(draw.last.args.first).to eq('Continue (3)')
+      end
+
+      it 'follows a later with, and centres the new text' do
+        button(label: saves)
+        saves.with(saves: 3)
+        draw
+        saves.with(saves: 12)
+        expect(draw.last.args).to eq(['Continue (12)', 48.0, 11])
+      end
+
+      it 'raises on a draw before any with, naming the keyword' do
+        button(label: saves)
+        expect { draw }.to raise_error(ArgumentError, /needs saves:/)
+      end
+
+      it 'draws without allocating while the values are unchanged' do
+        item = button(label: saves)
+        saves.with(saves: 3)
+        quiet = QuietRenderer.new
+        item.on_draw(quiet, nil)
+        expect { item.on_draw(quiet, nil) }.to allocate_nothing
+      end
+    end
+
+    it 'draws a literal label in every locale' do
+      button(label: RGame::Engine::Text.literal('Ada'))
+      RGame::Engine::I18n.load_hash(de: { play: 'Spielen' })
+      english = draw.last.args.first
+      RGame::Engine::I18n.locale = :de
+      expect([english, draw.last.args.first]).to eq(%w[Ada Ada])
     end
 
     it 'is drawn above everything the style draws, focused or not' do

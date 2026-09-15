@@ -25,7 +25,7 @@ RSpec.describe RGame::Engine::UI::Menu do
   def poll(*down) = root.control(snapshot.call(*down))
 
   def fired_on(button)
-    [].tap { |log| button.on_activated { log << button.label } }
+    [].tap { |log| button.on_activated { log << button.label.key } }
   end
 
   # The focused first button answers both sources: confirm reaches it by focus,
