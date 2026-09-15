@@ -31,6 +31,18 @@ module RGame
         end
       end
 
+      # Raised under `missing = :raise` when a `Text` declares other variables
+      # than its translation uses: a placeholder the `Text` does not declare, or
+      # a declared name the translation never prints.
+      class VariableMismatch < StandardError
+        attr_reader :key
+
+        def initialize(key, message)
+          @key = key
+          super("#{key}: #{message}")
+        end
+      end
+
       MISSING_POLICIES = %i[key raise].freeze
 
       class << self
@@ -153,6 +165,22 @@ module RGame
           template.render(vars)
         end
 
+        # What a `Text` declaring `names` shows for the dotted `key`, with `vars`
+        # — a Hash holding exactly those names — interpolated. It differs from
+        # `t` in one way: a translation whose placeholders are not the declared
+        # names is a bug in the table or the code, and the missing policy
+        # answers it, raising `VariableMismatch` under `:raise`.
+        def render(key, names, vars)
+          entry = lookup(key)
+          return answer_missing(key) unless entry
+
+          problem = mismatch(entry, names)
+          return answer_mismatch(key, problem) if problem
+
+          entry = pluralize(key, entry, vars) if entry.is_a?(Plural)
+          entry.render(vars)
+        end
+
         # Forgets every table and plural rule added, and restores the starting
         # locale and default, `:en`, and the `:key` missing policy. The
         # generation moves rather than restarting, so text cached before a
@@ -187,6 +215,25 @@ module RGame
           case @missing
           when :key then key
           when :raise then raise MissingKey.new(key, @chain)
+          else @missing.call(key, @chain)
+          end
+        end
+
+        def mismatch(entry, names)
+          undeclared = entry.names.find { |name| !names.include?(name) }
+          if undeclared == :count && entry.is_a?(Plural)
+            'is pluralized, and the Text does not declare :count'
+          elsif undeclared
+            "uses %{#{undeclared}}, which the Text does not declare"
+          elsif (unused = names.find { |name| !entry.names.include?(name) })
+            "never uses :#{unused}, which the Text declares"
+          end
+        end
+
+        def answer_mismatch(key, problem)
+          case @missing
+          when :key then key
+          when :raise then raise VariableMismatch.new(key, problem)
           else @missing.call(key, @chain)
           end
         end
