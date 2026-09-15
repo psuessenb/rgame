@@ -19,7 +19,7 @@
 #     resolved against the map *and* the ball, using that shape;
 #   - CharacterBody's `on_blocked` — what stopped a step, as an event;
 #   - Components::CameraFollow — a camera on the feet rather than on the head;
-#   - Engine::Text.computed — the life count as a string built only when it changes;
+#   - Engine::Text — the life count, a key with a variable, rendered only when it changes;
 #   - the `:tilemap` asset loader and TileMapLayer, both from `examples/scroll_map`.
 #
 # ## Two indexes, one list of names
@@ -121,6 +121,7 @@ require 'rgame/game'
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 MAP   = 'town.tmx'
 SPEED = 80.0 # px/s
@@ -242,17 +243,21 @@ class Scene < RGame::Engine::Node2D
     actors = RGame::Engine::TileMapLayer.mount(view)
     actors.add_node(SpikyBall.new(x: BALL_X, y: BALL_Y))
     @hero = actors.add_node(Hero.new(camera: players.primary.camera, x: START_X, y: START_Y))
-    # Built here rather than in on_draw: the interpolation runs once per change of
-    # the count, and the frames in between read the string it kept.
-    @lives_label = RGame::Engine::Text.computed(:lives) { |lives:| "Lives: #{lives}" }
+    # Built here rather than in on_draw: the text renders once per change of the
+    # count, and the frames in between read the string it kept.
+    @lives_label = RGame::Engine::Text.new('hud.lives', :lives)
+    @help_walk = RGame::Engine::Text.new('help.walk')
+    @help_slide = RGame::Engine::Text.new('help.slide')
+    @help_box = RGame::Engine::Text.new('help.box')
+    @help_ball = RGame::Engine::Text.new('help.ball')
   end
 
   # Screen space: outside the WorldView, so it stays put while the map scrolls.
   def on_draw(renderer, _view)
-    renderer.text('Arrows / WASD / gamepad to walk — trees and the fence are solid', 12, 12)
-    renderer.text('Hold down and left against the fence: you slide to its one gap', 12, 34)
-    renderer.text('The red box is what collides. The rest of the sprite is a picture', 12, 56)
-    renderer.text('Walk east into the spiky ball: it stops you, and it costs a life', 12, 78)
+    renderer.text(@help_walk, 12, 12)
+    renderer.text(@help_slide, 12, 34)
+    renderer.text(@help_box, 12, 56)
+    renderer.text(@help_ball, 12, 78)
     renderer.text(@lives_label.with(lives: @hero.lives), 12, 100)
   end
 end
@@ -262,7 +267,8 @@ game = RGame::Game.new(
   caption: 'Collision tiles',
   width: WIDTH,
   height: HEIGHT,
-  media_root: ASSETS
+  media_root: ASSETS,
+  locales: LOCALES
 )
 
 game.start

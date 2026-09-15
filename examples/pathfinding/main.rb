@@ -17,7 +17,8 @@
 #     pressing a direction;
 #   - Components::ActionTrigger — the cursor's held-key repeat;
 #   - Components::CameraFollow — on the cursor rather than on the hero;
-#   - Engine::Text.computed — the route's size and state, built only when they change;
+#   - Engine::Text.computed — a status line assembled from several translations,
+#     with plurals, and built only when the route or the language changes;
 #   - the TileWorld, FeetCollider and TileMapLayer scene from `examples/collision_tiles`.
 #
 # ## Two drawings of one route
@@ -71,6 +72,7 @@ require 'rgame/game'
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 MAP   = 'town.tmx'
 TILE  = 16
@@ -217,9 +219,6 @@ end
 # The scene: the map and its world, the hero, the route drawn under the hero and
 # the cursor over it — and the one line that connects a confirmed tile to a walk.
 class Scene < RGame::Engine::Node2D
-  # What the status line reads before anything has been asked for.
-  IDLE = 'Move the cursor to a tile and confirm'
-
   def on_add
     map = root.context.assets.tilemap(MAP).map
     players = root.system(RGame::Engine::Players)
@@ -244,11 +243,13 @@ class Scene < RGame::Engine::Node2D
     @arrived = false
     @status = nil
     @status_label = RGame::Engine::Text.computed(:status) { |status:| describe(status) }
+    @help_cursor = RGame::Engine::Text.new('help.cursor')
+    @help_route = RGame::Engine::Text.new('help.route')
   end
 
   def on_draw(renderer, _view)
-    renderer.text('Arrows / d-pad move the cursor; Return / Space / A sends the hero', 12, 12)
-    renderer.text('Dots: the route the search found. Lines: the route the hero walks', 12, 34)
+    renderer.text(@help_cursor, 12, 12)
+    renderer.text(@help_route, 12, 34)
     renderer.text(@status_label.with(status: @status), 12, 56)
   end
 
@@ -267,14 +268,21 @@ class Scene < RGame::Engine::Node2D
     @status = [navigator.cells&.length, navigator.path&.count, @arrived, refused].freeze
   end
 
+  # The status line, in whatever language is current. It is several keys rather
+  # than one, because a count needs its own plural and a refusal can wrap a
+  # route: `computed` is for text put together like this, and its block runs
+  # only when the status or the language changes.
   def describe(status)
-    return IDLE unless status
+    i18n = RGame::Engine::I18n
+    return i18n.t('status.idle') unless status
 
     cells, waypoints, arrived, refused = status
-    route = cells && "#{arrived ? 'arrived' : 'walking'}: #{waypoints} waypoints, #{cells} cells"
+    route = cells && i18n.t(arrived ? 'status.arrived' : 'status.walking',
+                            waypoints: i18n.t('status.waypoints', count: waypoints),
+                            cells: i18n.t('status.cells', count: cells))
     return route unless refused
 
-    route ? "no route there; #{route}" : 'no route there'
+    route ? i18n.t('status.refused_after', route: route) : i18n.t('status.refused')
   end
 end
 
@@ -283,7 +291,8 @@ game = RGame::Game.new(
   caption: 'Pathfinding',
   width: WIDTH,
   height: HEIGHT,
-  media_root: ASSETS
+  media_root: ASSETS,
+  locales: LOCALES
 )
 
 game.start

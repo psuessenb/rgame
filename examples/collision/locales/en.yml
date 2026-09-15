@@ -1,0 +1,8 @@
+# The English table: every string this example draws.
+en:
+  help:
+    walk: Arrows / WASD walk the pale circle — the other two need nobody
+    crate: "Enter a crate: it blinks once and counts you, you stay lit inside"
+    circles: Circle into circle does nothing — same layer, one line ignoring it
+  hud:
+    visits: "visits: %{count}"

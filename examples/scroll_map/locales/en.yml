@@ -1,0 +1,4 @@
+# The English table: every string this example draws.
+en:
+  help:
+    scroll: Arrow keys / WASD / gamepad to scroll

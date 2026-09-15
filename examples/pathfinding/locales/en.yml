@@ -1,0 +1,17 @@
+# The English table: every string this example draws.
+en:
+  help:
+    cursor: Arrows / d-pad move the cursor; Return / Space / A sends the hero
+    route: "Dots: the route the search found. Lines: the route the hero walks"
+  status:
+    idle: Move the cursor to a tile and confirm
+    walking: "walking: %{waypoints}, %{cells}"
+    arrived: "arrived: %{waypoints}, %{cells}"
+    waypoints:
+      one: "%{count} waypoint"
+      other: "%{count} waypoints"
+    cells:
+      one: "%{count} cell"
+      other: "%{count} cells"
+    refused: no route there
+    refused_after: "no route there; %{route}"

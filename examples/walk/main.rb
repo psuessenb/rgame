@@ -35,6 +35,7 @@ require 'rgame/game'
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 SPEED = 90.0 # pixels per second
 
@@ -63,11 +64,12 @@ end
 class Root < RGame::Engine::Node2D
   def initialize
     super
+    @help = RGame::Engine::Text.new('help.walk')
     add_node(build_hero)
   end
 
   def on_draw(renderer, _view)
-    renderer.text('Arrow keys / WASD / gamepad to walk', 12, 12)
+    renderer.text(@help, 12, 12)
   end
 
   private
@@ -90,7 +92,8 @@ game = RGame::Game.new(
   caption: 'Walk',
   width: WIDTH,
   height: HEIGHT,
-  media_root: ASSETS
+  media_root: ASSETS,
+  locales: LOCALES
 )
 
 game.start
