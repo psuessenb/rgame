@@ -206,3 +206,44 @@ B's costs, and the open question in it:
 **Trigger.** The next look at i18n — `examples/localization` in
 `docs/plans/basic-examples.md`, or any other work on `Engine::I18n`. A translated
 label that no longer fits its fixed slot is the symptom it will arrive as.
+
+---
+
+## Pathfinding beyond one hero walking a fixed map
+
+The pathfinding plan built `Util::SolidGrid`, `Util::RouteSearch`, `Util::TileSweep`,
+`Engine::NavGrid` and `Components::Navigator` for one hero on an unchanging map, and
+checked the design against five additions it did not build. What each would start
+from:
+
+- **Maps that change at runtime.** `SolidGrid#set_solid`, `revision`, and region
+  labels that relabel lazily all exist and are tested, and `TileWorld`'s
+  `blockers`, `nav_grid` and `solid?` share one store. Missing: an engine-level API
+  on `TileWorld`, deliberately not a bare reader of the store — a solidity change
+  without the drawn tile is an invisible wall — and a decision about what a walking
+  `Navigator` does when `revision` moves under its route (today it stands at the
+  new wall, `on_blocked` by `:tiles`, with nothing saying why). **Trigger:** a door,
+  a destructible wall, or a bridge a game wants.
+- **Replanning around moving actors.** The search state lives in `RouteSearch`,
+  separate from the grid, so a per-query overlay of blocked cells is a parameter of
+  `find`, not a second grid. **Trigger:** a game whose navigator must go around
+  another character rather than wait (today it waits, by decision).
+- **Crowds.** ~0.19 µs per expanded cell in C on an open map (measured on
+  `beach_large.tmx`), untuned. A struct-of-entries heap and cheaper seen/closed
+  stamps are the first moves. **Trigger:** a profile of many navigators.
+- **Avoidance, and `travel?` on the other blocker sources.** "Clear" means no
+  resolve falls short of the intended landing, so a system travels exactly when
+  every source does: `CollisionSystem#travel?` would be `all?` over its sources.
+  `BoundsBlockers` would answer in closed form (blocked only when the segment ends
+  past an edge it moves toward). `ActorBlockers` is the open design — snapshot
+  semantics over moving actors, its existing-overlap rule, its own sweep versus a
+  closed-form swept box — and needs avoidance as a caller to settle. The shared
+  group `a blocker source answering travel?` is ready for each. **Trigger:**
+  steering that must rejoin a route.
+- **Flow fields.** `rgame_route_neighbours` is the one neighbour-and-corner rule A*
+  uses, public in `route_search.h`; a distance field from a goal is its second
+  caller. **Trigger:** many walkers converging on one target.
+- **Colliders larger than a tile.** Smoothing takes the next cell untested, sound
+  only up to one tile, so `go_to` raises. Needs a search over cells the box fits
+  (clearance per cell) and a smoothing that tests every step. **Trigger:** a large
+  creature that must path.

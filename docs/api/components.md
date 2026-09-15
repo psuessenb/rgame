@@ -770,6 +770,9 @@ navigator.go_to(200.0, 360.0) # => true — the hero sets off; false when there 
   clears but a feet box clips. A `PathFollow` held on a corner does not slide off;
   it would stand there. `travel?` holds for a walker taking steps under a quarter
   tile: 240 px/s at 60 ticks a second on 16 px tiles.
+- **One component, not a search beside a walker.** A navigator *is* a `PathFollow`,
+  so no component hands a route to a sibling. There is no wiring to forget, and the
+  order you add components in does not matter.
 - **Colliders up to one tile only.** Pathfinding for a collider wider or taller than
   a tile is unsupported. Smoothing assumes the box fits the cells the search found.
   `go_to` raises `ArgumentError`, naming the box and the tile size, instead of
@@ -987,6 +990,8 @@ data to another, depends on a sibling's add order, or names a layer it may not n
   `nav_grid` and `solid?` all read that store, never the map. They cannot disagree
   about a cell. A resolve on the per-frame path becomes a byte lookup instead of a
   walk through the map's layers and tileset. Everything past the map's edges is open.
+  `TileWorld` does not hand the store out, so a game cannot change a tile's solidity
+  at runtime.
 - **It does not resolve a step.** Tiles, other actors, the world's edge, or any
   combination may stop a mover, and only the mover knows which. The resolver
   therefore belongs to the mover, and the grid to this system.

@@ -694,7 +694,7 @@ with a wall worth going around, or the search has nothing to show. Note that
 under "Assets".
 
 **Landed.** `examples/pathfinding/main.rb` plus `tools/drive/examples/pathfinding.rb`,
-built over four steps of `docs/plans/pathfinding.md`, which replaced the sketch
+built over four steps of `docs/plans/pathfinding.md` (since folded into `docs/api/` and deleted), which replaced the sketch
 above rather than implementing it:
 
 - **`AStar.find(grid, from, to) #=> Path` did not survive.** A `Path` is in
@@ -1563,7 +1563,7 @@ has already met and the jump example does not have to introduce it.
 21. ~~`examples/radial_menu`~~ — **done**; `UI::RadialMenu`, its own two axes, and
     asset **C** again, because its items are `MenuItem`s.
 22. ~~`examples/pathfinding`~~ — **done**; `NavGrid`, `Navigator` and `Mover`
-    headings, over the four steps of `docs/plans/pathfinding.md`.
+    headings, over the four steps of `docs/plans/pathfinding.md` (deleted; see `git log`).
 
 Both are self-contained and could move earlier if wanted. Pathfinding is last
 only because it is the largest single algorithm; it has no dependency on
