@@ -18,9 +18,9 @@ module RGame
     # `I18n`: it compares one Integer, so it holds nothing that could keep it
     # alive.
     #
-    # `Text.literal` is a string that is never translated, and answers `with` and
-    # `to_s` the same way, so whatever draws a `Text` never asks which kind it
-    # holds.
+    # `Text.literal` is a string that is never translated, and `Text.computed` a
+    # string a block builds. Both answer `with` and `to_s` the same way, so
+    # whatever draws a `Text` never asks which kind it holds.
     class Text
       NAME = /\A[a-z_][A-Za-z0-9_]*\z/
       private_constant :NAME
@@ -30,6 +30,14 @@ module RGame
       class << self
         # A `Text` that shows `string` in every language.
         def literal(string) = Literal.new(string)
+
+        # A `Text` whose string the block builds from the keywords `names`, for
+        # text that is formatted rather than looked up. The block runs when a
+        # keyword or `I18n.generation` changes, never on an unchanged read, so a
+        # block that calls `I18n.t` follows the language too:
+        #
+        #   @clock = Engine::Text.computed(:seconds) { |seconds:| format_clock(seconds) }
+        def computed(*names, &block) = Computed.new(names, block)
 
         # The module that gives a `Text` its `with` for one list of names,
         # generated the first time that list is seen and shared after.
@@ -89,11 +97,8 @@ module RGame
       # `scope: 'title_menu'` with key `'play'` resolves `'title_menu.play'`.
       def initialize(key, *names, scope: nil)
         @key = key.to_s.freeze
-        @names = names.map(&:to_sym).sort.freeze
-        raise ArgumentError, "#{describe} declares a variable twice" if @names.uniq.size != @names.size
-
         self.scope = scope
-        extend(Text.accessors_for(@names))
+        declare(names)
       end
 
       # Changes the scope the key resolves under; the next read resolves again.
@@ -104,6 +109,13 @@ module RGame
       end
 
       private
+
+      def declare(names)
+        @names = names.map(&:to_sym).sort.freeze
+        raise ArgumentError, "#{describe} declares a variable twice" if @names.uniq.size != @names.size
+
+        extend(Text.accessors_for(@names))
+      end
 
       def refresh(vars)
         generation = I18n.generation
@@ -129,6 +141,25 @@ module RGame
 
         # A literal ignores a scope: there is no key to put one in front of.
         def scope=(_scope); end
+      end
+
+      # A `Text` built by a block from its keywords instead of from a key.
+      class Computed < Text
+        def initialize(names, block) # rubocop:disable Lint/MissingSuper -- a computed text has no key to resolve
+          raise ArgumentError, 'Text.computed needs a block' unless block
+
+          @block = block
+          declare(names)
+        end
+
+        # A computed text ignores a scope: there is no key to put one in front of.
+        def scope=(_scope); end
+
+        private
+
+        def render(vars) = @block.call(**vars)
+
+        def describe = 'Text.computed'
       end
     end
   end

@@ -227,4 +227,51 @@ RSpec.describe RGame::Engine::Text do
       expect { ada.to_s }.to allocate_nothing.over(200_000)
     end
   end
+
+  describe '.computed' do
+    it 'shows what the block builds from the keywords' do
+      clock = described_class.computed(:minutes, :seconds) { |minutes:, seconds:| format('%d:%02d', minutes, seconds) }
+      expect(clock.with(minutes: 1, seconds: 5)).to eq('1:05')
+    end
+
+    it 'runs the block once per change, not once per read' do
+      calls = 0
+      lives = described_class.computed(:lives) do |lives:|
+        calls += 1
+        "Lives: #{lives}"
+      end
+      [3, 3, 3, 2, 2].each { lives.with(lives: it) }
+      expect(calls).to eq(2)
+    end
+
+    it 'runs the block again when the generation moves, so I18n.t inside follows the language' do
+      score = described_class.computed(:score) { |score:| i18n.t('hud.score', score: score) }
+      score.with(score: 7)
+      i18n.locale = :de
+      expect(score.with(score: 7)).to eq('Punkte: 7')
+    end
+
+    it 'reads a block with no names through to_s' do
+      title = described_class.computed { i18n.t('title') }
+      expect([title.to_s, title.with]).to eq(['Main Menu', 'Main Menu'])
+    end
+
+    it 'shares the generated with of a Text with the same names' do
+      computed = described_class.computed(:score) { |score:| score.to_s }
+      expect(computed.method(:with).owner).to be(described_class.new('hud.score', :score).method(:with).owner)
+    end
+
+    it 'raises ArgumentError naming a missing keyword' do
+      expect { described_class.computed(:lives) { |lives:| lives.to_s }.with }.to raise_error(ArgumentError, /lives/)
+    end
+
+    it 'requires a block' do
+      expect { described_class.computed(:lives) }.to raise_error(ArgumentError, /needs a block/)
+    end
+
+    it 'allocates nothing on an unchanged read' do
+      lives = described_class.computed(:lives) { |lives:| "Lives: #{lives}" }
+      expect { lives.with(lives: 3) }.to allocate_nothing.over(200_000)
+    end
+  end
 end
