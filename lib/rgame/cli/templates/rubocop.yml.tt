@@ -55,3 +55,7 @@ RSpec/VerifiedDoubles:
 RSpec/SpecFilePathFormat:
   CustomTransform:
     Node2D: node2d
+  # It checks the tables in assets/locales/, and describes I18n only because
+  # that is what it asks, so there is no source file for its path to mirror.
+  Exclude:
+    - spec/locales_spec.rb

@@ -39,7 +39,9 @@ game.rb           the window, its size, its caption — and the ONLY file that
 nodes/            the scene tree: game logic, graphics-free
   root.rb         the root node, drawn every frame
 assets/           images, sounds, maps — RGame::Game's media_root
+  locales/        translation tables, one file per language
 spec/             specs for nodes/, run with no display
+  locales_spec.rb every language has every key en.yml has
 ```
 
 ### Why `game.rb` and `nodes/` are separate
@@ -60,6 +62,27 @@ spy standing in for the renderer, on a machine with no display.
 
 Keep new game logic under `nodes/`. When something there needs to draw, give it
 an `on_draw(renderer, view)` and call the renderer by name.
+
+## Text on screen
+
+Text the game draws lives in `assets/locales/en.yml`, not in the code. A node
+builds an `RGame::Engine::Text` from a key once and draws it every frame:
+
+```ruby
+@greeting = RGame::Engine::Text.new('root.greeting')   # in initialize
+renderer.text(@greeting.to_s, 20, 20)                  # in on_draw
+```
+
+- **To add text,** add a key to `en.yml`.
+- **To add a language,** add a file beside it, such as `de.yml` starting with
+  `de:`, holding the same keys. The game loads every file in `assets/locales/`
+  and picks the player's language from their operating system.
+- **`bundle exec rspec` fails** when a language lacks a key `en.yml` has, and
+  when a spec draws a key no table has. In the game, a missing key shows the
+  English text instead.
+
+`spec/spec_helper.rb` loads the tables from `assets/locales/` itself, since specs
+cannot load `game.rb`. Move that directory and update both.
 
 ## Where to look next
 

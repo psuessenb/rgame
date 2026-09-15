@@ -4,7 +4,7 @@
 # No window is opened, and none is needed — see spec/spec_helper.rb for why.
 RSpec.describe Root do
   describe '#on_draw' do
-    it 'draws its greeting' do
+    it 'draws its greeting from the English table' do
       # A node calls a renderer by name and never asks what class it is, so a
       # plain spy stands in for one. The real RGame::Core::Renderer lives on the
       # other side of a line this suite deliberately does not cross.
@@ -12,7 +12,7 @@ RSpec.describe Root do
 
       described_class.new.on_draw(renderer, nil)
 
-      expect(renderer).to have_received(:text).with(Root::GREETING, 20, 20)
+      expect(renderer).to have_received(:text).with('Hello from <%= app_name %>!', 20, 20)
     end
   end
 end

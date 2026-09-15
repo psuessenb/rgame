@@ -558,6 +558,8 @@ A key is missing when no locale in the chain has it. `missing=` decides what
 Any other value raises `ArgumentError`. `missing_keys(locale)` lists the keys
 the default's table has and the locale's own chain lacks, in the default table's
 order. It skips a key the locale gets from a parent, such as `de-AT` from `de`.
+A project from `rgame new` checks this in its specs, and raises on a missing key
+there. See [The `rgame` command](cli.md#text-comes-from-a-translation-table).
 
 ### `generation`
 

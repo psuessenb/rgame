@@ -1,7 +1,7 @@
 # Roadmap
 
-**Status.** Steps 0–3 are implemented. Steps 4 and 5 are planned in detail;
-step 4 is next. **Steps 6–7 are rough** and get re-planned when step 5 lands.
+**Status.** Steps 0–4 are implemented. Step 5 is planned in detail and is
+next. **Steps 6–7 are rough** and get re-planned when step 5 lands.
 
 ## Dependency shape
 
@@ -674,6 +674,55 @@ in the landed note that `text` draws `"Hello from tictactoe!"`, not
 **What this step does not deliver:** a language switch or a saved language in
 the generated project (the example shows both), and a link to
 `docs/api/localization.md`, which does not exist until step 5.
+
+**Landed.** Two commits, one per sub-step. What shipped:
+
+- **Templates.** `assets/locales/en.yml.tt`, `spec/locales_spec.rb.tt`, and
+  changed `nodes/root.rb.tt`, `spec/nodes/root_spec.rb.tt` and
+  `spec/spec_helper.rb.tt`, all as sketched. `NewProject::KEEP_DIRS` and its
+  `.keep` loop are deleted.
+- **Docs.** The generated README gains `assets/locales/` in its layout and a
+  "Text on screen" section. `docs/api/cli.md` gains "Text comes from a
+  translation table" and its listings follow the templates. The toolbox's
+  missing-keys section links to it.
+
+`make test` 363 checks; `rake spec` 2273 examples (was 2268); `rake spec:core`
+400 examples; all 0 failures. The CLI specs are 25 examples in 2.56 s (were 20 in
+1.45 s): 4 new subprocess runs and one in-process table check. RuboCop is clean on
+every touched Ruby file, and the generated project is clean under its own
+configuration. `rake docs:coverage` reports 39 gaps, as before.
+
+Rules 1–7 are pinned. Three mutations of the spec helper template were each
+caught by exactly the example meant for it: dropping `I18n.reset` (rule 6),
+dropping `missing = :raise` (rule 5), and a greeting in `en.yml` that no longer
+matches the root spec (rules 1–3 fail together).
+
+Driven, as the wiring tier requires. A project generated into the scratchpad,
+30 idle ticks through `tools/drive_test_project.rb --script`:
+
+| Tables | Environment | `text` drew |
+|---|---|---|
+| `en.yml` | default | `"Hello from tictactoe!"` |
+| `en.yml` + a `de.yml` | `LANG=de_DE.UTF-8` | `"Hallo von tictactoe!"` |
+| `en.yml` + a `de.yml` | `LANG=C` | `"Hello from tictactoe!"` |
+
+What the sketch got wrong:
+
+- **The generated RuboCop configuration needed an exclusion.**
+  `RSpec/SpecFilePathFormat` wants `RSpec.describe RGame::Engine::I18n` at
+  `spec/r_game/engine/i18n_spec.rb`. The spec checks data, not a source file, so
+  the generated `.rubocop.yml` excludes `spec/locales_spec.rb` with that reason.
+  Rule 2 forbids an inline disable; a string description would trade the offence
+  for `RSpec/DescribeClass`.
+- **No `.sort` on the glob.** `Dir[]` sorts since Ruby 3.0, and
+  `Lint/RedundantDirGlobSort` refuses it in the generated project.
+- **Rule 6's example runs a spec file of its own**, `spec/leak_spec.rb` written
+  into the project, with `--order defined`. The generated suite's own order is
+  random, so the leak could not be pinned from its existing files.
+- **Docs came in 4b as planned**, but `cli.md` also states the reload cost, and
+  that a missing key in the game falls back to the default's text while a key no
+  table has shows as itself, so the reader knows the specs are stricter than the
+  game.
 
 ## Step 5 — `examples/localization`, and `docs/api/localization.md` *(example + docs)*
 

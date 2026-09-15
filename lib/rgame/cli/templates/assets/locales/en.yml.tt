@@ -1,0 +1,10 @@
+# The English table: every piece of text the game draws, by key. Rails' format,
+# so the top-level key is the locale and everything below it nests.
+#
+# To add a language, add a file beside this one (de.yml, starting `de:`) with
+# the same keys. RGame::Game loads every .yml in this directory and picks the
+# player's language from their operating system; spec/locales_spec.rb fails
+# while a language lacks a key this file has.
+en:
+  root:
+    greeting: "Hello from <%= app_name %>!"

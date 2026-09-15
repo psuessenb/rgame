@@ -15,7 +15,23 @@ $LOAD_PATH.unshift File.expand_path('..', __dir__)
 
 Dir[File.expand_path('../nodes/**/*.rb', __dir__)].each { |file| require file }
 
+# The translation tables, read from disk once. This is the directory RGame::Game
+# loads in the game: `locales` under game.rb's `media_root`. Move one and move
+# the other, or every key a spec draws raises.
+LOCALES = Dir[File.expand_path('../assets/locales/**/*.yml', __dir__)]
+          .to_h { |path| [path, File.read(path)] }.freeze
+
 RSpec.configure do |config|
   config.expect_with(:rspec) { |c| c.syntax = :expect }
   config.disable_monkey_patching!
+
+  # RGame::Engine::I18n is global, so every example starts from the game's own
+  # tables in the default language, whatever the example before it loaded or
+  # switched to. A key no table has raises instead of drawing itself: found by
+  # `rake` rather than by a player.
+  config.before do
+    RGame::Engine::I18n.reset
+    LOCALES.each { |path, yaml| RGame::Engine::I18n.load(yaml, source: path) }
+    RGame::Engine::I18n.missing = :raise
+  end
 end
