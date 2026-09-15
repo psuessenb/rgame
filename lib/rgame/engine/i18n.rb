@@ -1,93 +1,131 @@
 # frozen_string_literal: true
 
 require 'yaml'
+require_relative 'i18n/template'
 
 module RGame
   module Engine
-    # Minimal localization: per-locale translation tables (loaded from YAML or a Hash),
-    # `t(key)` with `%{var}` interpolation and a fallback locale, and a `generation`
-    # counter that ticks whenever the locale changes — so cached UI text knows when to
-    # re-resolve without polling every frame. A global module (like EventDispatcher),
-    # so `t` is reachable anywhere. Pure Ruby; YAML is the only (stdlib) dependency.
+    # Translation tables and the current language, as one global module so a
+    # node can resolve text from its constructor, before it is in any tree.
+    #
+    # Tables are read in Rails' YAML format — the top-level key is the locale,
+    # nested keys below it — and compiled at load into one flat Hash per locale,
+    # keyed by the dotted key, whose values are pre-parsed `%{var}` templates.
+    # `generation` moves whenever what a key resolves to may have changed, so
+    # cached text compares one Integer instead of looking anything up.
+    #
+    # `I18n` parses Strings and never opens a file: finding and reading locale
+    # files is the asset manager's job.
     module I18n
       class << self
+        # An Integer that moves on every `load` and every change of locale.
         attr_reader :generation
 
-        # The locale `t` falls back to when the current locale lacks a key.
-        def default = @fallback
+        attr_reader :locale, :default
 
-        def default=(locale)
-          @fallback = locale.to_sym
+        # Merges a YAML document in Rails' format into the loaded tables. One
+        # document may hold several locales, and a locale loaded twice is merged
+        # key by key rather than replaced. `source` names the file in errors.
+        def load(yaml, source: nil)
+          merge(YAML.safe_load(yaml, aliases: true, filename: source), source || 'translations')
         end
 
-        def reset
-          @locales = {}
-          @current = :en
-          @fallback = :en
-          @generation = 0
-        end
+        # `load` for a Hash already in memory: `load_hash(en: { menu: { title: 'Menu' } })`.
+        def load_hash(hash) = merge(hash, 'translations')
 
-        # Register a locale's translations (nested Hashes allowed). Keys are symbolized
-        # so YAML ("string keys") and inline symbol keys look the same to `t`.
-        def load(locale, translations)
-          @locales[locale.to_sym] = symbolize(translations)
-          self
-        end
-
-        def load_file(locale, path)
-          load(locale, YAML.load_file(path))
-        end
-
-        def locale = @current
-
-        # Switching the locale bumps the generation so observers re-resolve their text.
         def locale=(locale)
           locale = locale.to_sym
-          return if locale == @current
+          return if locale == @locale
 
-          @current = locale
+          @locale = locale
           @generation += 1
         end
 
-        def available = @locales.keys
+        def default=(locale)
+          locale = locale.to_sym
+          return if locale == @default
 
-        # Resolve a dotted key ("menu.title" or :menu_title) in the current locale, then
-        # the fallback locale, then the key itself; interpolate %{var} from `vars`.
-        #
-        # Pass `count:` to pluralize: the key's value is then a table of forms
-        # ({ one:, other:, optionally zero: }), and `count` is also exposed to
-        # interpolation as %{count}. English/German use the one/other rule.
-        def t(key, count: nil, **vars)
-          value = lookup(@current, key) || lookup(@fallback, key)
-          value = pluralize(value, count) if count && value.is_a?(Hash)
-          return key.to_s unless value.is_a?(String)
+          @default = locale
+          @generation += 1
+        end
 
-          vars = vars.merge(count: count) if count
-          vars.empty? ? value : (value % vars)
+        # The locales that have a table, in load order.
+        def available = @tables.keys
+
+        # The translation of `key` (or `scope.key`) with `vars` interpolated.
+        # Allocates on every call: it is for code off the per-frame path.
+        def t(key, scope: nil, **vars)
+          key = scope ? "#{scope}.#{key}" : key.to_s
+          template = @tables.dig(@locale, key) || @tables.dig(@default, key)
+          return key unless template
+
+          missing = template.names.find { |name| !vars.key?(name) }
+          raise ArgumentError, "#{key} needs %{#{missing}}" if missing
+
+          template.render(vars)
+        end
+
+        # Forgets every table and restores the starting locale and default,
+        # `:en`. The generation moves rather than restarting, so text cached
+        # before a reset never mistakes itself for current.
+        def reset
+          @tables = {}
+          @sources = {}
+          @locale = :en
+          @default = :en
+          @generation = (@generation || 0) + 1
         end
 
         private
 
-        def pluralize(forms, count)
-          return forms[:zero] if count.zero? && forms.key?(:zero)
+        def merge(hash, source)
+          raise ArgumentError, "#{source}: expected a Hash of locales" unless hash.is_a?(Hash)
 
-          forms[count == 1 ? :one : :other] || forms[:other]
-        end
+          hash.each do |locale, entries|
+            raise ArgumentError, "#{source}: #{locale} must hold a Hash of keys" unless entries.is_a?(Hash)
 
-        def lookup(locale, key)
-          node = @locales[locale]
-          key.to_s.split('.').each do |segment|
-            return nil unless node.is_a?(Hash)
-
-            node = node[segment.to_sym]
+            locale = locale.to_sym
+            @sources[locale] = deep_merge(@sources.fetch(locale, {}), stringify(entries, locale.to_s, source))
+            @tables[locale] = compile(@sources[locale])
           end
-          node
+          @generation += 1
+          self
         end
 
-        def symbolize(value)
-          return value unless value.is_a?(Hash)
+        def stringify(entries, path, source)
+          entries.to_h do |name, value|
+            name = scalar_name(name, path, source)
+            here = "#{path}.#{name}"
+            [name, value.is_a?(Hash) ? stringify(value, here, source) : scalar_value(value, here, source)]
+          end
+        end
 
-          value.to_h { |k, v| [k.to_sym, symbolize(v)] }
+        def scalar_name(name, path, source)
+          return name.to_s if name.is_a?(String) || name.is_a?(Symbol) || name.is_a?(Integer)
+
+          raise ArgumentError, "#{source}: #{path} has the key #{name.inspect}; " \
+                               'YAML reads yes/no/on/off/true/false/~ unquoted, so quote it'
+        end
+
+        def scalar_value(value, path, source)
+          return value.to_s if value.is_a?(String) || value.is_a?(Numeric)
+
+          raise ArgumentError, "#{source}: #{path} is #{value.inspect}, not text; " \
+                               'quote it if it is meant as a string'
+        end
+
+        def deep_merge(into, from)
+          into.merge(from) do |_name, old, new|
+            old.is_a?(Hash) && new.is_a?(Hash) ? deep_merge(old, new) : new
+          end
+        end
+
+        def compile(entries, prefix = nil, table = {})
+          entries.each do |name, value|
+            key = prefix ? "#{prefix}.#{name}" : name
+            value.is_a?(Hash) ? compile(value, key, table) : table[key.freeze] = Template.compile(value)
+          end
+          prefix ? table : table.freeze
         end
       end
 

@@ -1,73 +1,143 @@
 # frozen_string_literal: true
 
 RSpec.describe RGame::Engine::I18n do
-  # Global module: reset around every example so locales/generation don't leak.
+  before { described_class.reset }
   after { described_class.reset }
 
-  before do
-    described_class.reset
-    described_class.load(:en,
-                         greeting: 'Hello', score: 'Score: %{n}', menu: { title: 'Main Menu' },
-                         lives: { zero: 'No lives', one: '%{count} life', other: '%{count} lives' })
-    described_class.load(:de, greeting: 'Hallo', menu: { title: 'Hauptmenü' })
-    described_class.default = :en
-  end
-
-  describe 't' do
-    it 'looks up a key in the current locale' do
-      described_class.locale = :de
-      expect(described_class.t(:greeting)).to eq('Hallo')
-    end
-
-    it 'resolves dotted keys against nested tables' do
+  describe '.load' do
+    it 'reads Rails format, where one document may hold two locales' do
+      described_class.load(<<~YAML)
+        en:
+          menu:
+            title: Main Menu
+        de:
+          menu:
+            title: Hauptmenü
+      YAML
       described_class.locale = :de
       expect(described_class.t('menu.title')).to eq('Hauptmenü')
     end
 
-    it 'interpolates %{vars}' do
-      expect(described_class.t(:score, n: 42)).to eq('Score: 42')
+    it 'deep-merges a second load into a locale rather than replacing it' do
+      described_class.load("en:\n  menu:\n    title: Main Menu\n")
+      described_class.load("en:\n  menu:\n    quit: Quit\n")
+      expect([described_class.t('menu.title'), described_class.t('menu.quit')]).to eq(['Main Menu', 'Quit'])
     end
 
-    it 'falls back to the default locale when the current one lacks the key' do
-      described_class.locale = :de # :de has no :score
-      expect(described_class.t(:score, n: 7)).to eq('Score: 7')
+    it 'lets a later load overwrite a key an earlier one set' do
+      described_class.load("en:\n  play: Play\n")
+      described_class.load("en:\n  play: Start\n")
+      expect(described_class.t('play')).to eq('Start')
     end
 
-    it 'returns the key itself when no locale has it' do
-      expect(described_class.t(:missing)).to eq('missing')
+    it 'follows YAML aliases' do
+      described_class.load("en:\n  a: &word Play\n  b: *word\n")
+      expect(described_class.t('b')).to eq('Play')
+    end
+
+    it 'refuses an object tag rather than instantiating it' do
+      expect { described_class.load("en:\n  a: !ruby/object:Object {}\n") }.to raise_error(Psych::DisallowedClass)
+    end
+
+    it 'names the source file in a syntax error' do
+      expect { described_class.load("en: [\n", source: 'locales/en.yml') }
+        .to raise_error(Psych::SyntaxError, %r{locales/en\.yml})
+    end
+
+    it 'refuses an unquoted on/off key, which YAML reads as a boolean' do
+      expect { described_class.load("en:\n  on: On\n", source: 'en.yml') }
+        .to raise_error(ArgumentError, /en\.yml: en has the key true.*quote it/)
+    end
+
+    it 'refuses a boolean value, naming its key' do
+      expect { described_class.load("en:\n  toggle:\n    state: off\n") }
+        .to raise_error(ArgumentError, /en\.toggle\.state is false/)
+    end
+
+    it 'refuses a document that is not a Hash of locales' do
+      expect { described_class.load('- en') }.to raise_error(ArgumentError, /expected a Hash of locales/)
+    end
+
+    it 'reads a number as its text' do
+      described_class.load("en:\n  players: 4\n")
+      expect(described_class.t('players')).to eq('4')
     end
   end
 
-  describe 'pluralisation (count:)' do
-    it 'picks the one form and exposes count to interpolation' do
-      expect(described_class.t(:lives, count: 1)).to eq('1 life')
+  describe '.load_hash' do
+    it 'treats Symbol and String keys alike' do
+      described_class.load_hash(en: { menu: { 'title' => 'Main Menu' } })
+      expect(described_class.t('menu.title')).to eq('Main Menu')
     end
 
-    it 'picks the other form for counts above one' do
-      expect(described_class.t(:lives, count: 3)).to eq('3 lives')
-    end
-
-    it 'uses an explicit zero form when present' do
-      expect(described_class.t(:lives, count: 0)).to eq('No lives')
-    end
-
-    it 'pluralizes through the fallback locale' do
-      described_class.locale = :de # :de has no :lives → falls back to :en's forms
-      expect(described_class.t(:lives, count: 2)).to eq('2 lives')
+    it 'returns the module, so loads chain' do
+      expect(described_class.load_hash(en: { a: 'A' })).to be(described_class)
     end
   end
 
-  describe 'locale switching' do
-    it 'bumps the generation only when the locale actually changes' do
-      start = described_class.generation
+  describe '.available' do
+    it 'lists the locales that have a table' do
+      described_class.load_hash(en: { a: 'A' }, de: { a: 'A' })
+      expect(described_class.available).to eq(%i[en de])
+    end
+  end
+
+  describe '.t' do
+    before do
+      described_class.load_hash(en: { greeting: 'Hello, %{name}', menu: { title: 'Main Menu', play: 'Play' } })
+    end
+
+    it 'resolves a dotted key' do
+      expect(described_class.t('menu.title')).to eq('Main Menu')
+    end
+
+    it 'accepts a Symbol key' do
+      expect(described_class.t(:'menu.title')).to eq('Main Menu')
+    end
+
+    it 'prefixes the key with scope:' do
+      expect(described_class.t('play', scope: 'menu')).to eq('Play')
+    end
+
+    it 'interpolates keyword variables' do
+      expect(described_class.t('greeting', name: 'Ada')).to eq('Hello, Ada')
+    end
+
+    it 'raises ArgumentError naming a variable the template needs and was not given' do
+      expect { described_class.t('greeting') }.to raise_error(ArgumentError, /greeting needs %\{name\}/)
+    end
+
+    it 'returns the same frozen String every time for a key without variables' do
+      expect(described_class.t('menu.title')).to be(described_class.t('menu.title')).and be_frozen
+    end
+  end
+
+  describe '.generation' do
+    it 'moves on load' do
+      expect { described_class.load_hash(en: { a: 'A' }) }.to(change(described_class, :generation))
+    end
+
+    it 'moves on a switch to a different locale' do
+      expect { described_class.locale = :de }.to(change(described_class, :generation))
+    end
+
+    it 'does not move on a switch to the locale already current' do
       described_class.locale = :de
-      expect(described_class.generation).to eq(start + 1)
-      described_class.locale = :de # same locale → no bump
-      expect(described_class.generation).to eq(start + 1)
+      expect { described_class.locale = :de }.not_to(change(described_class, :generation))
     end
 
-    it 'reports the available locales' do
-      expect(described_class.available).to contain_exactly(:en, :de)
+    it 'moves on reset rather than starting again' do
+      described_class.load_hash(en: { a: 'A' })
+      expect { described_class.reset }.to(change(described_class, :generation).by_at_least(1))
+    end
+  end
+
+  describe '.reset' do
+    it 'forgets every table and restores :en' do
+      described_class.load_hash(de: { a: 'A' })
+      described_class.locale = :de
+      described_class.reset
+      expect([described_class.available, described_class.locale, described_class.default]).to eq([[], :en, :en])
     end
   end
 end
