@@ -55,6 +55,7 @@ require 'rgame/game'
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 Controls = RGame::Util::Controls
 
 # The part of the scene the wheel slows down. A time scale applied to `dt` on
@@ -103,14 +104,14 @@ class QuickWheel < RGame::Engine::Node2D
 
   # Clockwise from the top. Each image names an entry of icons.json's `images`.
   ICONS = [
-    ['Home', :home],
-    ['Settings', :gear],
-    ['Save', :save],
-    ['Favourite', :star],
-    ['Trophies', :trophy],
-    ['Sound', :audio_on],
-    ['Music', :music_on],
-    ['Locked', :locked]
+    %i[home home],
+    %i[settings gear],
+    %i[save save],
+    %i[favourite star],
+    %i[trophies trophy],
+    %i[sound audio_on],
+    %i[music music_on],
+    %i[locked locked]
   ].freeze
 
   DISC = UI::ShapeStyle.new(shape: :disc)
@@ -121,34 +122,36 @@ class QuickWheel < RGame::Engine::Node2D
     super(**)
     @chosen = nil
     @menu = add_node(UI::RadialMenu.new(radius: RADIUS, button_width: SLOT, trigger: :quick_menu))
-    ICONS.each { |label, image| add_icon(label, image) }
+    ICONS.each { |key, image| add_icon(key, image) }
     @menu.on_opened { world.time_scale = World::SLOWED }
     @menu.on_closed { world.time_scale = 1.0 }
   end
 
   private
 
-  def add_icon(label, image)
+  def add_icon(key, image)
     button = @menu.add(UI::IconButton.new(image: image, style: DISC, enabled: image != :locked))
-    button.on_activated { @chosen = label }
+    button.on_activated { @chosen = key }
   end
 end
 
 # The captions. Added last, so its final line is the last text of every frame —
 # which is what the drive script reads.
 class Caption < RGame::Engine::Node2D
-  STATUS = Hash.new('Chosen: nothing yet').merge(
-    QuickWheel::ICONS.to_h { |label, _| [label, "Chosen: #{label}"] }
-  ).freeze
+  NAMES = QuickWheel::ICONS.to_h { |key, _| [key, RGame::Engine::Text.new(key, scope: 'items')] }.freeze
 
   def initialize(wheel:, **)
     super(**)
     @wheel = wheel
+    @help = RGame::Engine::Text.new('help.wheel')
+    @nothing = RGame::Engine::Text.new('status.nothing')
+    @chosen = RGame::Engine::Text.new('status.chosen', :item)
   end
 
   def on_draw(renderer, _view)
-    renderer.text('Hold Tab (or LB), point with the arrows (or stick), let go to choose', 12, 12)
-    renderer.text(STATUS[@wheel.chosen], 12, HEIGHT - 30)
+    renderer.text(@help, 12, 12)
+    chosen = @wheel.chosen
+    renderer.text(chosen ? @chosen.with(item: NAMES.fetch(chosen).to_s) : @nothing, 12, HEIGHT - 30)
   end
 end
 
@@ -169,6 +172,7 @@ game = RGame::Game.new(
   width: WIDTH,
   height: HEIGHT,
   media_root: ASSETS,
+  locales: LOCALES,
   input_map: RGame::Engine::InputMap.default.merge(
     quick_menu: { buttons: [Controls::KEY_TAB, Controls::PAD_LEFT_SHOULDER] }
   )

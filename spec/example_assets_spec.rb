@@ -129,7 +129,8 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
         # Anchored at the start of a line, so the header's prose cannot be read
         # as the table.
         table = source[/^  ICONS = \[(.+?)\]\.freeze/m, 1]
-        named = table.scan(/:(\w+)\]/).flatten.map(&:to_sym)
+        # Each row is `%i[key image]`: the translation key, then the icon.
+        named = table.scan(/%i\[\w+ (\w+)\]/).flatten.map(&:to_sym)
 
         expect(named.size).to eq(8)
         expect(images.keys).to include(*named)
@@ -158,7 +159,8 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
       # Anchored at the start of a line, so the header's prose cannot be read
       # as the table.
       table = source[/^  SKILLS = \[(.+?)\]\.freeze/m, 1]
-      named = table.scan(/\['[^']+', :(\w+),/).flatten.map(&:to_sym)
+      # Each row is `%i[key image hotkey]`: the image is the second word.
+      named = table.scan(/%i\[\w+ (\w+) \w+\]/).flatten.map(&:to_sym)
 
       expect(named.size).to eq(5)
       expect(images.keys).to include(*named)

@@ -1,0 +1,23 @@
+# The English table: every string this example draws.
+en:
+  title:
+    heading: Menu navigation
+    help: Up and down to move, Enter to choose
+    play: Play
+    settings: Settings
+    quit: Quit
+  settings:
+    heading: Settings — left and right change a value
+    fullscreen: Fullscreen
+    scale: Scale mode
+    volume: Volume
+    back: Back
+    # Quoted: YAML reads a bare on and off as true and false.
+    'on': "on"
+    'off': "off"
+    disabled: disabled
+    stretch: stretch
+    letterbox: letterbox
+    integer: integer
+  play:
+    help: Enter makes a noise — Escape returns to the title
