@@ -1,0 +1,12 @@
+# The German table. It has no `zero:`, because German says "0 Äpfel", and it
+# lacks `hud.hint` on purpose: main.rb's header says what that shows.
+de:
+  title: Lokalisierung
+  hud:
+    apples:
+      one: "%{count} Apfel"
+      other: "%{count} Äpfel"
+    locale: "Aktuelles Gebietsschema: %{locale}"
+  language:
+    title: Sprache
+    system: Systemsprache verwenden

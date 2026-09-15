@@ -229,6 +229,19 @@ the layout following each.
 `RGame::Game#scale_mode=`, the `view` a node is drawn with,
 `InputMap.default.merge`.
 
+## Language
+
+### localization
+
+The same screen in English and German. A `Text` with a `count` picks its plural
+form, and one with a variable shows the current locale. German lacks one key, so
+that line falls back to English. The player's language choice overrides the
+operating system's and is saved.
+
+**Uses:** `Engine::I18n`, `Engine::Text` and `Text.literal`, `UI::Menu`'s
+`scope:`, `RGame::Game.new(locales:)`, `RGame::Core.preferred_locales`,
+`Util::SaveFile`.
+
 ## Persistence
 
 ### save_load
