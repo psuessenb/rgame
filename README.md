@@ -65,7 +65,7 @@ You can learn more about how it works in the [documentation](docs/api/README.md)
 
 ## Examples
 
-`examples/` holds one small program per concept, each a single file you can run with `ruby examples/<name>/main.rb`. [The examples page](docs/api/examples.md) says what each one uses; the file's own header comment is the long version.
+`examples/` holds one small program per concept, each a single file you can run with `ruby examples/<name>/main.rb`. [The examples page](docs/api/examples.md) describes them in more detail. They're also all full of code comments so you have an easier time learning the concepts.
 
 | Example | Shows |
 |---|---|
@@ -91,6 +91,7 @@ You can learn more about how it works in the [documentation](docs/api/README.md)
 | [fullscreen](docs/api/examples.md#fullscreen) | Fullscreen, switched at any time, and the scale modes |
 | [save_load](docs/api/examples.md#save_load) | Writing game state to disk and putting it back |
 | [save_load_ids](docs/api/examples.md#save_load_ids) | A save that has to name things, and why a reference forces ids |
+| [pathfinding](docs/api/examples.md#pathfinding) | Setting a target for an actor and let if find its way there |
 
 ## Requirements
 
