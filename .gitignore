@@ -2,6 +2,8 @@
 /build/
 # rake-compiler's build and staging directory (tools/platform_gem.rake)
 /tmp/
+# SDL2's licence, copied out of build/sdl2 for the platform gem (same rakefile)
+/licenses/
 *.o
 *.a
 *.so
