@@ -214,6 +214,48 @@ as.
 
 ---
 
+## A twin-stick example for `ThrustController` and `Targeting`
+
+**What.** One example, `examples/twin_stick` or similar: a ship that turns and
+thrusts with `Components::ThrustController`, and a turret that aims at the
+nearest enemy through `Components::Targeting`.
+
+**What exists instead.** Every other public engine class has an example. These
+two have specs and sections in `docs/api/components.md`, but no running file:
+`ThrustController` is used only by `test_projects/asteroids`, which does not
+ship, and nothing builds a `Targeting` at all. `examples/save_load_ids` explains
+in its header why it does *not* use `Targeting`. Every example moves things in
+screen axes, so nothing flies, and the two together are most of a twin-stick
+shooter, which is why this is one example rather than two.
+
+**Why not now.** The single-concept examples plan that found the gap is done,
+and neither class has a caller asking for one.
+
+**Trigger.** The next change to either class, which then has no example to check
+it against — or a reader asking how to aim at something. If `Targeting` still
+has no caller when this is picked up, deleting it is the other answer.
+
+---
+
+## `rgame examples`: finding the examples in an installed gem
+
+**What.** An `rgame examples` command that lists the examples shipped in the gem
+with their one-line descriptions, and perhaps copies one into the working
+directory the way `rgame new` scaffolds a project.
+
+**What exists instead.** `examples/` ships inside the installed gem, and the
+README and `docs/api/examples.md` describe each one. But the gem's directory is
+somewhere nobody browses, and `rgame` knows only `new`, `version` and `help`.
+
+**Why not now.** It was deliberately deferred until the examples existed, and
+nobody has yet failed to find them. It is a CLI feature, and `docs/api/cli.md`
+is where its shape would be argued.
+
+**Trigger.** Someone who installed the gem asking where the examples are, or the
+first release announced to people who will not clone the repository.
+
+---
+
 ## A snapshot of the loaded translation tables
 
 **What.** `I18n.snapshot` and `I18n.restore`, so a spec suite puts its tables
