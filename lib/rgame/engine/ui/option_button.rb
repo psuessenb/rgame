@@ -39,9 +39,14 @@ module RGame
       # values themselves are what a game acts on, so they cannot simply be
       # stored as text.
       #
+      # A caption `Text` with variables shows the values its last `with` was
+      # given, as a label does.
+      #
       # The value column is as wide as the widest caption. It is measured again
-      # when `I18n.generation` moves, so a switch to longer captions widens it,
-      # and a draw between switches measures nothing.
+      # whenever any caption's String changes — a locale switch, a new scope, a
+      # `with` with new values — which a draw notices by object identity, so a
+      # switch to longer captions widens it and an unchanged draw measures
+      # nothing.
       class OptionButton < PanelButton
         # Emits the newly selected value, which is the only thing a listener
         # wants; `index` is available on the button for anything that needs it.
@@ -59,8 +64,9 @@ module RGame
           super(label: label, **)
           @values = values.to_a.freeze
           shown = @values.map { |value| display.call(value) }
-          @captions = shown.map { |caption| drawable_text(caption, 'a caption') }.freeze
+          @captions = shown.map { |caption| text_for(caption) }.freeze
           @keyed_captions = @captions.reject.with_index { |_caption, at| shown[at].is_a?(Text) }.freeze
+          @measured = Array.new(@captions.size)
           @index = @values.empty? ? 0 : index.clamp(0, @values.size - 1)
         end
 
@@ -75,7 +81,6 @@ module RGame
         def label_scope=(scope)
           super
           @keyed_captions.each { |caption| caption.scope = label_scope }
-          @measured_generation = nil
         end
 
         # Selects `value` if the list holds it, and says whether it did. A game
@@ -132,12 +137,25 @@ module RGame
         end
 
         def column_width(renderer)
-          generation = I18n.generation
-          return @column_width if @measured_generation == generation
+          return @column_width if captions_measured?
 
-          @column_width = @captions.map { |text| renderer.text_width(text.to_s) }.max
-          @measured_generation = generation
+          @column_width = 0
+          @captions.each_with_index do |caption, at|
+            @measured[at] = caption.to_s
+            width = renderer.text_width(@measured[at])
+            @column_width = width if width > @column_width
+          end
           @column_width
+        end
+
+        def captions_measured?
+          at = 0
+          while at < @captions.size
+            return false unless @captions[at].to_s.equal?(@measured[at])
+
+            at += 1
+          end
+          true
         end
       end
     end

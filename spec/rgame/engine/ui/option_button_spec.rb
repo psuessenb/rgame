@@ -281,9 +281,43 @@ RSpec.describe RGame::Engine::UI::OptionButton do
       expect(item.caption.scope).to eq('settings')
     end
 
-    it 'refuses a caption Text that declares variables, when it is built' do
-      expect { shadows(display: ->(_value) { RGame::Engine::Text.new('hud.score', :score) }) }
-        .to raise_error(ArgumentError, /caption/)
+    describe 'with variables' do
+      before { i18n.load_hash(en: { slot: 'Slot %{n}' }) }
+
+      def slots(captions, **)
+        root.add_node(described_class.new(label: 'shadows', width: 240, height: 40, values: %i[low high],
+                                          display: ->(value) { captions.fetch(value) }, **))
+            .tap { root.enter_tree }
+      end
+
+      let(:captions) { { low: RGame::Engine::Text.new('slot', :n), high: RGame::Engine::Text.new('slot', :n) } }
+
+      it 'draws the values the last with gave' do
+        captions[:low].with(n: 1)
+        captions[:high].with(n: 2)
+        slots(captions, index: 1)
+        expect(texts).to include('Slot 2')
+      end
+
+      # "Slot 1" and "Slot 2" are 48 wide; "Slot 1000" is 72, so the column
+      # grows by 24 with no locale switch at all.
+      it 'measures the column again when a with changes a caption' do
+        captions[:low].with(n: 1)
+        captions[:high].with(n: 2)
+        slots(captions, index: 1)
+        before_with = left_chevron_x
+        captions[:low].with(n: 1000)
+        expect(before_with - left_chevron_x).to eq(24)
+      end
+
+      it 'draws without allocating while no caption changed' do
+        captions[:low].with(n: 1)
+        captions[:high].with(n: 2)
+        item = slots(captions, index: 1)
+        quiet = QuietRenderer.new
+        item.on_draw(quiet, nil)
+        expect { item.on_draw(quiet, nil) }.to allocate_nothing
+      end
     end
 
     it 'draws without allocating after a switch has been drawn once' do

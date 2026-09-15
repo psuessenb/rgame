@@ -121,9 +121,27 @@ What a button does with `label:`:
 | `Text.literal(string)` | `string`, never translated — a player's name, a number |
 | `nil` | nothing; `IconButton` then draws no caption |
 
-**A label is drawn without variables.** A `Text` that declares any raises
-`ArgumentError` when it is given, not on the first frame. Text built from a value,
-such as a count, belongs in the node that draws it.
+**A label with variables shows the values its last `with` was given.** The button
+reads `label.to_s` and never needs the values. The node that owns them sets them in
+`update`, and the label follows on the next draw:
+
+```ruby
+require 'rgame'
+
+RGame::Engine::I18n.load_hash(en: { continue: 'Continue (%{saves} saves)' })
+
+saves = RGame::Engine::Text.new('continue', :saves)
+button = RGame::Engine::UI::PanelButton.new(label: saves)
+
+saves.with(saves: 3)      # in the owner's update, whenever the count may change
+button.label.to_s         # => "Continue (3 saves)"
+saves.with(saves: 4)
+button.label.to_s         # => "Continue (4 saves)"
+```
+
+A `with` whose values are unchanged renders nothing and allocates nothing, so
+calling it every `update` costs nothing. A label given no `with` yet raises
+`ArgumentError` on its first draw, naming the keywords it needs.
 
 **`scope:` on a menu reaches only keys.** The menu sets each button's
 `label_scope` as the button is added, unless the button already has one. A button
@@ -775,8 +793,9 @@ would allocate a String every frame for every row on screen; see
 [Drawing](drawing.md).
 
 **A caption is a key, like the label.** `display` returns a key, which the row makes
-a `Text` of under its `label_scope`, or a `Text`, kept as it is. A caption that
-declares variables raises `ArgumentError` when the row is built. The default,
+a `Text` of under its `label_scope`, or a `Text`, kept as it is. A caption `Text`
+with variables shows the values its last `with` was given, as a label does. The
+default,
 `OptionButton::DISPLAY`, reads a Symbol value as its own key and draws any other
 value as a literal of its `to_s`. So `%i[off low high]` looks up `off`, `low` and
 `high`, and `[0, 50, 100]` draws the numbers. In a menu with `scope: 'settings'`,
@@ -784,8 +803,11 @@ the keys become `settings.off` and so on. YAML reads unquoted `on`, `off`, `yes`
 `no` as booleans, so a table spells those keys in quotes: `'off': Off`.
 
 **The value column is as wide as the widest caption**, and centres the current one.
-The row measures it again when `I18n.generation` moves or its scope changes, so a
-switch to longer captions widens the column. A draw in between measures nothing.
+The row measures it again whenever a caption's String changes: after a locale
+switch, a new scope, or a `with` with new values. A `Text` never edits its String,
+so each draw compares every caption's String with the one last measured, by object
+identity rather than by content. A switch to longer captions widens the column, and
+a draw where nothing changed measures nothing.
 
 `value=` ignores values the list does not offer so that restoring a setting from a
 file is safe. A save written by another version of the game, or edited by hand,

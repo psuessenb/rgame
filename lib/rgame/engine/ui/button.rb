@@ -42,8 +42,15 @@ module RGame
       #   UI::TextButton.new(label: 'play')                        # the key 'play'
       #   UI::TextButton.new(label: Engine::Text.literal(name))    # the name, in every language
       #
-      # A label is drawn with `to_s`, so a `Text` that declares variables is
-      # refused here rather than on the first frame.
+      # A label is drawn with `to_s`, so a `Text` with variables shows the values
+      # its last `with` was given. The node that owns them calls `with` in
+      # `update`, and the label follows:
+      #
+      #   @continue = Engine::Text.new('continue', :saves)
+      #   menu.add(UI::PanelButton.new(label: @continue))
+      #   def on_update(_dt) = @continue.with(saves: @save_count)
+      #
+      # One given no `with` yet raises on the first draw, naming the keywords.
       #
       # `label_scope` puts a scope in front of a label given as a key, and
       # UI::Menu sets it from its own `scope:` as the button is added. A label
@@ -119,7 +126,7 @@ module RGame
         # Sets the label: a key String or Symbol, which the button makes an
         # Engine::Text of under `label_scope`; a `Text`, used as it is; or nil.
         def label=(label)
-          @label = label && drawable_text(label, 'a label')
+          @label = label && text_for(label)
           @label_from_key = !(label.nil? || label.is_a?(Text))
         end
 
@@ -234,12 +241,7 @@ module RGame
 
         private
 
-        def drawable_text(shown, what)
-          text = shown.is_a?(Text) ? shown : Text.new(shown, scope: @label_scope)
-          return text if text.names.empty?
-
-          raise ArgumentError, "#{what} is drawn without variables, and #{text.names.inspect} are declared"
-        end
+        def text_for(shown) = shown.is_a?(Text) ? shown : Text.new(shown, scope: @label_scope)
       end
     end
   end
