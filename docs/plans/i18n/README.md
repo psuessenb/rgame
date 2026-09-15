@@ -1,6 +1,6 @@
 # Plan — i18n as the default way to put text on screen
 
-**Status.** Steps 0–1 are implemented. Steps 2–3 are detailed; steps 4–7 are
+**Status.** Steps 0–2 are implemented. Step 3 is detailed; steps 4–7 are
 deliberately rough and get re-planned once the steps beneath them have landed.
 See [04-roadmap.md](04-roadmap.md).
 
@@ -200,8 +200,10 @@ inside this plan.
    Generated projects do not load the house cops, so it reaches only this repo.
    *Waits on step 6, when no example has a literal left; non-blocking.*
 5. **Does `SDL_GetPreferredLocales` need `SDL_Init` first, and what does it
-   return under Xvfb and on the macOS and Windows runners?** *Measured in step
-   2; it decides whether the call is app-bound.*
+   return under Xvfb and on the macOS and Windows runners?** *Resolved in step
+   2:* it needs no init, so it is the module function
+   `RGame::Core.preferred_locales`. CI returned `[]` on Linux and `["en-US"]` on
+   macOS and Windows. See step 2's landed note.
 
 ## What this does not deliver
 
