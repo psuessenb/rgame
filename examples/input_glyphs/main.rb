@@ -121,7 +121,7 @@ class Prompts < RGame::Engine::Node2D
   ROWS = [[:ui_confirm, 'Confirm'], [:ui_cancel, 'Cancel'], [:fire, 'Wave']].freeze
 
   # A constant string chosen by state rather than a string built from it — there
-  # is nothing here to cache, and a CachedLabel whose block returns a constant is
+  # is nothing here to cache, and a Text.computed whose block returns a constant is
   # strictly worse to read.
   DEVICE_NAME = { false => 'Keyboard', true => 'Controller' }.freeze
 

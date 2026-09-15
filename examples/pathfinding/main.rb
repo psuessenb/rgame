@@ -17,7 +17,7 @@
 #     pressing a direction;
 #   - Components::ActionTrigger — the cursor's held-key repeat;
 #   - Components::CameraFollow — on the cursor rather than on the hero;
-#   - Engine::CachedLabel — the route's size and state, built only when they change;
+#   - Engine::Text.computed — the route's size and state, built only when they change;
 #   - the TileWorld, FeetCollider and TileMapLayer scene from `examples/collision_tiles`.
 #
 # ## Two drawings of one route
@@ -243,13 +243,13 @@ class Scene < RGame::Engine::Node2D
 
     @arrived = false
     @status = nil
-    @status_label = RGame::Engine::CachedLabel.new { |status| describe(status) }
+    @status_label = RGame::Engine::Text.computed(:status) { |status:| describe(status) }
   end
 
   def on_draw(renderer, _view)
     renderer.text('Arrows / d-pad move the cursor; Return / Space / A sends the hero', 12, 12)
     renderer.text('Dots: the route the search found. Lines: the route the hero walks', 12, 34)
-    renderer.text(@status_label[@status], 12, 56)
+    renderer.text(@status_label.with(status: @status), 12, 56)
   end
 
   private

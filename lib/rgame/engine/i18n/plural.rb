@@ -16,6 +16,10 @@ module RGame
 
         attr_reader :locale
 
+        # The variable names any form uses, each once, and `count`, which every
+        # form is chosen by whether it prints it or not.
+        attr_reader :names
+
         def self.forms?(entries)
           entries.key?('other') &&
             entries.all? { |name, value| CATEGORY_NAMES.include?(name) && value.is_a?(String) }
@@ -24,6 +28,7 @@ module RGame
         def initialize(locale, entries)
           @locale = locale
           @forms = entries.to_h { |name, source| [name.to_sym, Template.compile(source)] }.freeze
+          @names = @forms.values.flat_map(&:names).push(:count).uniq.freeze
         end
 
         # The template for `count`, whose category under this table's language

@@ -216,7 +216,7 @@ class Badge < RGame::Engine::Node2D
     @name = name
     @tint = tint
     @waves = 0
-    @label = RGame::Engine::CachedLabel.new { |count| "waves: #{count}" }
+    @label = RGame::Engine::Text.computed(:count) { |count:| "waves: #{count}" }
   end
 
   def on_control(actions)
@@ -227,7 +227,7 @@ class Badge < RGame::Engine::Node2D
     renderer.rect(0, 0, W, H, color: PANEL)
     renderer.rect(0, 0, W, 3, color: @tint)
     renderer.text(@name, 8, 8, color: @tint)
-    renderer.text(@label[@waves], 8, 26, color: INK)
+    renderer.text(@label.with(count: @waves), 8, 26, color: INK)
   end
 end
 

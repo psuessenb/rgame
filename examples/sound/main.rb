@@ -12,7 +12,7 @@
 #   - Engine::AudioBus — where gameplay says *what happened*;
 #   - Engine::AudioDirector — what turns that into playback, subscribed by
 #     RGame::Game;
-#   - Engine::CachedLabel — a count on screen that costs no String per frame.
+#   - Engine::Text.computed — a count on screen that costs no String per frame.
 #
 # ## Why a node does not just call the audio device
 #
@@ -67,7 +67,7 @@ class Scene < RGame::Engine::Node2D
     # Built once, here, and that is the whole trick: the block below is the only
     # place a String is interpolated, and it runs when the count changes rather
     # than when a frame is drawn. See the note above on_draw.
-    @plays_label = RGame::Engine::CachedLabel.new { |plays| "plays: #{plays}" }
+    @plays_label = RGame::Engine::Text.computed(:plays) { |plays:| "plays: #{plays}" }
   end
 
   def on_control(actions)
@@ -94,7 +94,7 @@ class Scene < RGame::Engine::Node2D
   # `"plays: #{@plays}"` written here would build a String on every frame
   # forever, and `Game/NoInterpolationInHotPath` is right to refuse it: a steady
   # 60fps frame that allocates is a GC pause waiting to happen.
-  # `Engine::CachedLabel` holds the last string and rebuilds it only when the
+  # `Engine::Text.computed` holds the last string and rebuilds it only when the
   # value it was made from changes, so pressing the key costs one allocation and
   # the thousand frames between presses cost none.
   #
@@ -104,7 +104,7 @@ class Scene < RGame::Engine::Node2D
   def on_draw(renderer, _view)
     renderer.circle(WIDTH / 2, HEIGHT / 2, MIN_R + (GROW * @flash), color: RING)
     renderer.text('Press Space (or A on a controller) — fast, to hear them overlap', 12, 12)
-    renderer.text(@plays_label[@plays], 12, 44)
+    renderer.text(@plays_label.with(plays: @plays), 12, 44)
   end
 end
 

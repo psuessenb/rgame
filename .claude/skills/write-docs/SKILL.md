@@ -88,7 +88,7 @@ code, not from memory of the design. Three kinds of sentence go wrong most often
 ## Code examples
 
 **Every code example stands on its own and matches the current code.** Examples
-follow the engine's own rules: they build labels with `Engine::CachedLabel`, draw
+follow the engine's own rules: they build labels with `Engine::Text`, draw
 in local space, and never name `RGame::Core` from engine-layer code.
 
 **An example's first line decides how the specs check it:**
@@ -157,7 +157,7 @@ Avoid nominalisation. A verb names the action directly.
 
 | Not | But |
 |---|---|
-| `CachedLabel` performs a rebuild of the string only upon a change of the value. | `CachedLabel` rebuilds the string only when the value changes. |
+| `Text` performs a re-render of the string only upon a change of a variable. | `Text` renders the string again only when a variable changes. |
 | `Timer` is responsible for the accumulation of time. | `Timer` accumulates time. |
 
 ### Prefer the active voice
@@ -177,7 +177,7 @@ a sentence needs one to sound true, give it a number or a reason instead.
 
 | Not | But |
 |---|---|
-| `CachedLabel` is really cheap. | `CachedLabel` allocates nothing while the value stays the same. |
+| `Text` is really cheap. | `Text` allocates nothing while its variables stay the same. |
 
 ### Keep sentences short
 

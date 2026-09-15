@@ -12,7 +12,7 @@
 #   - Engine::Pool — the free list underneath it;
 #   - Components::DespawnOffscreen — retiring a mote that has left the world;
 #   - Components::Timer — the spawn cadence, from `examples/timer`;
-#   - Engine::CachedLabel — a readout that changes once a second, not per frame.
+#   - Engine::Text.computed — a readout that changes once a second, not per frame.
 #
 # ## The number on screen is the whole argument
 #
@@ -178,7 +178,7 @@ end
 
 # Samples the allocation counter once a second and shows the difference.
 #
-# A per-frame readout is the one thing CachedLabel cannot help with — a value
+# A per-frame readout is the one thing a cached Text cannot help with — a value
 # that changes every frame has to be rebuilt every frame. Sampling on a slow
 # timer makes it a value that changes once a second, which is exactly what the
 # cache is for, and it is also the only way the number means anything: a single
@@ -188,7 +188,7 @@ class Meter < RGame::Engine::Node2D
 
   def initialize(**)
     super
-    @label = RGame::Engine::CachedLabel.new { |count| "objects allocated per second: #{count}" }
+    @label = RGame::Engine::Text.computed(:count) { |count:| "objects allocated per second: #{count}" }
     @count = 0
     @last = 0
   end
@@ -198,7 +198,7 @@ class Meter < RGame::Engine::Node2D
     add_component(RGame::Engine::Components::Timer.new(SAMPLE)).on_timeout { sample }
   end
 
-  def on_draw(renderer, _view) = renderer.text(@label[@count], 0, 0, color: INK)
+  def on_draw(renderer, _view) = renderer.text(@label.with(count: @count), 0, 0, color: INK)
 
   private
 

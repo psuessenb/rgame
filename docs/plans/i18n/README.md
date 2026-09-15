@@ -1,6 +1,6 @@
 # Plan — i18n as the default way to put text on screen
 
-**Status.** Step 0 is implemented. Steps 1–3 are detailed; steps 4–7 are
+**Status.** Steps 0–1 are implemented. Steps 2–3 are detailed; steps 4–7 are
 deliberately rough and get re-planned once the steps beneath them have landed.
 See [04-roadmap.md](04-roadmap.md).
 

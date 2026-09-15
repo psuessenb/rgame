@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status.** Step 0 is implemented. **Steps 1–3 are detailed. Steps 4–7 are
+**Status.** Steps 0–1 are implemented. **Steps 2–3 are detailed. Steps 4–7 are
 rough** and get re-planned when the step before them lands.
 
 ## Dependency shape
@@ -200,6 +200,74 @@ before and after 1c are compared.
 **Verify.** `rake spec` green. Every example that had a `CachedLabel` drives to
 a report byte-identical to before the change, with `--seed` where the example is
 seeded. `rake docs:coverage` names no `CachedLabel`.
+
+**Landed.** `Engine::Text` is in `lib/rgame/engine/text.rb`, and `CachedLabel`
+and its spec are deleted. The step took three commits, one per sub-step. Public surface:
+`Text.new(key, *names, scope:)`, `with`, `to_s`, `key`, `names`, `scope`/`scope=`,
+`Text.literal`, `Text.computed`. Two additions to `I18n`: `render(key, names,
+vars)`, the seam a `Text` reads through, and `VariableMismatch`. `Plural` grew
+`names`. The six migrated examples use `Text.computed` with their English
+strings; moving them to keys is still step 6.
+
+`rake spec`: 2214 examples, 0 failures (was 2174; `text_spec.rb` holds 44,
+`cached_label_spec.rb`'s 6 are gone). `rake spec:core`: 376 examples, 0 failures,
+which resolves every name the rewritten pages mention. RuboCop is clean on every
+touched file.
+`rake docs:coverage` names no `CachedLabel` and reports 39 gaps, as before the step.
+
+Measured at the end of the step (Ruby 4.0.5, no YJIT, 200,000 calls):
+
+| Call | Objects | Time |
+|---|---|---|
+| `Text#to_s`, unchanged | **0** | 0.07 µs |
+| `Text#with(score:)`, unchanged | **0** | 0.10 µs |
+| `Text#with(a:, b:, c:)`, unchanged | **0** | 0.12 µs |
+| `Text.computed(:score)#with`, unchanged | **0** | 0.10 µs |
+| `Text#with(score:)`, a new value every call | 5 | 1.81 µs |
+| `Text.computed(:score)#with`, a new value every call | 3 | 0.48 µs |
+
+An unchanged read costs about what comparing an Integer did in the brief
+(0.07 µs). The `extend`ed module measured the same as the singleton-class method
+the design measured.
+
+Drive reports, 900 ticks, `--seed 1`, before and after 1c: `collision`,
+`pathfinding`, `pooling`, `sound` and `split_screen` byte-identical.
+`collision_tiles` first reported 898 frames before and 900 after. Its per-frame
+draw counts were identical. Three more runs of each version gave 900 frames every
+time, so the 898 was frame timing on a busy machine, not the change.
+
+What the sketch got wrong:
+
+- **Six call sites, not seven.** `collision`, `collision_tiles`, `pathfinding`,
+  `pooling`, `sound`, `split_screen`. The seventh "site" was a comment in
+  `examples/input_glyphs`, which now names `Text.computed`.
+- **Rule 2's "a `load` of an unrelated locale that did not move the generation"
+  cannot happen.** Step 0 moves the generation on every load. The spec pins the
+  opposite instead: an unrelated load re-renders an equal but not identical
+  String. That example is what proves the identity assertions can fail.
+- **The mismatch check needs an `I18n` entry point, not the private
+  `answer_missing`.** `I18n.render` resolves, checks the declared names in both
+  directions (a placeholder not declared, a declared name never printed, and a
+  plural without `:count`), and answers a mismatch through the missing policy.
+  Under `:raise` it raises the new `I18n::VariableMismatch` rather than
+  `MissingKey`, because the key is not missing.
+- **`to_s` on a `Text` with names raises `ArgumentError`**, naming the keywords
+  `with` needs. The design listed `to_s` only for a `Text` with no names. A
+  silent `#<RGame::Engine::Text…>` on screen was the alternative.
+- **Names are sorted before the module is looked up**, so `(:name, :level)` and
+  `(:level, :name)` share one. A name that cannot be a Ruby local variable
+  (`:Name`, `:end`) raises `ArgumentError` at construction, because the
+  generated `with` could not declare it.
+- **`literal` and `computed` are private subclasses, `Text::Literal` and
+  `Text::Computed`.** 1c made them, and the generated-module cache, private
+  constants, so `rake docs:coverage` does not ask to document internals. Both ignore `scope=` and report a `nil` scope. **This
+  touches step 3:** `Menu` may set a scope on every button's `Text` whose
+  `scope` is `nil`. For a literal that set is a no-op, not an override.
+- **`Text` is documented in `docs/api/toolbox.md`**, where the `CachedLabel`
+  section was, beside the I18n section. `localization.md` is still step 5's
+  page. `text.md`, `components.md`, `examples.md`, the house rule in CLAUDE.md,
+  the write-docs skill's style examples, the `NoInterpolationInHotPath` cop's
+  comment and `allocate_nothing`'s comment were updated too.
 
 ---
 

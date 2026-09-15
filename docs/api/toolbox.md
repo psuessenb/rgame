@@ -1,7 +1,7 @@
 # Toolbox
 
 This page covers engine classes **a game author uses directly** that belong to no
-other chapter: pooling, localization, audio facts, the camera, collision boxes.
+other chapter: pooling, localization and the text a node draws, audio facts, the camera, collision boxes.
 All are pure Ruby, so they stay testable headless. One section is a recipe, not a
 class: [making a character that collides](#making-a-character-that-collides). No
 single class answers that question.
@@ -24,37 +24,104 @@ does not store a grid. The solidity lives in a
 [`Util::SolidGrid`](values.md#rgameutilsolidgrid), one byte per cell in C. The C
 search must read it, and a `Tensor`'s cells are Ruby objects.
 
-## `CachedLabel` — a display string rebuilt only on change
+## `Text` — the string a node draws
 
-**`RGame::Engine::CachedLabel` (`rgame/engine/cached_label`) rebuilds a label only
-when its source value changes.** A per-frame draw shows the cached copy and
-allocates no `String`. Build the label and its format block off the per-frame
-path, for example in `initialize` or `on_add`. Read it by value in `on_draw`:
+**`RGame::Engine::Text` (`rgame/engine/text`) holds a translation key and keeps
+the rendered String until an input changes.** The inputs are its variables and
+`I18n.generation`. Build a `Text` once, off the per-frame path, and read it in
+`on_draw`. A read with unchanged inputs returns the same frozen String and
+allocates nothing.
 
 ```ruby
-@score_label = RGame::Engine::CachedLabel.new { |score| "Score: #{score}" }  # built once
+require 'rgame'
 
+i18n = RGame::Engine::I18n
+i18n.load_hash(en: { hud: { score: 'Score: %{score}', title: 'Apples' } },
+               de: { hud: { score: 'Punkte: %{score}', title: 'Äpfel' } })
+
+score = RGame::Engine::Text.new('hud.score', :score)   # built once
+title = RGame::Engine::Text.new('title', scope: 'hud')
+
+score.with(score: 7)                            # => "Score: 7"
+score.with(score: 7).equal?(score.with(score: 7)) # => true — nothing changed, nothing rendered
+title.to_s                                      # => "Apples"
+i18n.locale = :de
+score.with(score: 7)                            # => "Punkte: 7" — the switch re-renders
+title.to_s                                      # => "Äpfel"
+```
+
+In a node, the draw reads the `Text` with the current value:
+
+```ruby
 def on_draw(renderer, _view)
-  renderer.text(@score_label[@score], 12, 10)   # cached; rebuilds only when @score changes
+  renderer.text(@score.with(score: @points), 12, 10)
 end
 ```
 
-`@score_label[value]` returns the same `String` object while `value` stays the
-same. The interpolation lives in a block built off the per-frame path, so the
-engine's allocation cops (`rubocop/cop/game/`) do not flag it. A value that
-changes *every* frame, such as an FPS counter, gains nothing from a cache. Draw
-its digits one by one from cached single-character strings, as
-`RGame::Engine::DebugOverlay` does.
+### Variables are keywords
 
-**Use `CachedLabel` instead of working around the cop.** Labels built from
-changing values are common, and each hand-made workaround puzzles the next
-reader. `examples/sound` shows it: a play counter on screen costs one allocation
-per press and none in the frames between.
+`Text.new(key, *names, scope: nil)` gives the `Text` a `with` whose keywords are
+`names`. A missing or unknown keyword raises Ruby's own `ArgumentError`, on the
+first frame that reads it. Every `Text` with the same names shares one generated
+`with`, whatever order the names came in. `names` returns them sorted.
 
-`CachedLabel` does not fit two cases. A **constant string chosen by state**, such
-as `{ true => 'fullscreen', false => 'windowed' }.freeze`, selects a string and
+A `Text` with no names is read with `to_s`, and `with` with no keywords returns
+the same. `to_s` on a `Text` that has names raises `ArgumentError`, naming the
+keywords `with` needs. A name must be usable as a Ruby local variable:
+`Text.new('x', :Name)` and `Text.new('x', :end)` raise `ArgumentError`.
+
+A key whose translation is a plural needs `:count` among the names, and picks its
+form by `count` as [`I18n.t` does](#plurals).
+
+### Scope
+
+`scope: 'hud'` with key `'title'` resolves `'hud.title'`. `key` returns the key
+without its scope. `scope=` changes the scope, and the next read resolves again.
+
+### When it renders again
+
+A read renders again when any keyword differs from the last read, by `==`, or
+when `I18n.generation` has moved. The generation moves on every `load`, every
+switch of locale or default, and `reset`. A `Text` compares that one Integer and
+never subscribes to `I18n`, so nothing holds on to it.
+
+A `Text` built before any table loads shows the [missing-key](#missing-keys)
+answer. After a `load`, its next read shows the translation.
+
+A translation whose placeholders differ from the declared names also goes to the
+missing policy. Under `:key` the `Text` shows its key, and a callable receives
+the key and the chain. Under `:raise` it raises `I18n::VariableMismatch` in
+either direction: for a `%{name}` the `Text` does not declare, and for a
+declared name the translation never prints. A plural whose `Text` lacks `:count`
+raises it too.
+
+### `Text.literal` and `Text.computed`
+
+`Text.literal(string)` shows `string` in every locale and never consults `I18n`.
+`Text.computed(*names) { |**keywords| ... }` shows what its block returns. The
+block runs when a keyword or `I18n.generation` changes, and never on an unchanged
+read. A block that calls `I18n.t` therefore follows the language. Both answer
+`with` and `to_s` like any `Text`, and both ignore `scope=`.
+
+```ruby
+require 'rgame'
+
+lives = RGame::Engine::Text.computed(:lives) { |lives:| "Lives: #{lives}" }
+lives.with(lives: 3)                         # => "Lives: 3"
+RGame::Engine::Text.literal('Ada').to_s      # => "Ada"
+```
+
+**Use a `Text` instead of working around the cop.** `Game/NoInterpolationInHotPath`
+refuses `"Score: #{score}"` in a draw, and a `Text` built in `initialize` is the
+answer. `examples/sound` shows it: a play counter on screen costs one render per
+press and none in the frames between. A value that changes *every* frame, such
+as an FPS counter, gains nothing from a cache. `RGame::Engine::DebugOverlay`
+draws its digits one by one from cached single-character strings.
+
+A `Text` does not fit two cases. A **constant string chosen by state**, such as
+`{ true => 'fullscreen', false => 'windowed' }.freeze`, selects a string and
 builds nothing. A value that **never changes** belongs in an ivar built in
-`initialize`. Both allocate nothing already, and a cache would add indirection
+`initialize`. Both allocate nothing already, and a `Text` would add indirection
 for no gain.
 
 ## `Pool` — reuse, don't allocate
@@ -424,6 +491,11 @@ placeholders returns the same frozen String on every call.
 given, and interpolates `vars`. It raises `ArgumentError` when the translation
 uses a variable `vars` does not hold. Variables it does not use are ignored.
 `t` allocates on every call, so keep it off the per-frame path.
+
+`render(key, names, vars)` is what a `Text` reads through. It resolves `key` like
+`t`, with `vars` holding exactly `names`. A translation whose placeholders are
+not `names` goes to the missing policy, as [`Text`](#when-it-renders-again)
+describes.
 
 ### Locales and the fallback chain
 

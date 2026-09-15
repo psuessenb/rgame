@@ -10,7 +10,7 @@
 #   expect { component.update(dt) }.to allocate_nothing.after_warmup(50)
 #
 # How it works: it calls the block a few times to settle one-time lazy allocations
-# (hash keys filling in, a CachedLabel building once, a texture being cached), then
+# (hash keys filling in, a Text rendering once, a texture being cached), then
 # measures the rise in GC.stat(:total_allocated_objects) — a monotonic allocation count —
 # across many more calls. Two refinements make the count trustworthy at single-object
 # resolution: GC is paused for the window (otherwise a collection triggered mid-measure

@@ -19,11 +19,11 @@ this page for it leads to worse, hand-made answers.
 
 Those helpers live in the [Toolbox](toolbox.md). A game constructs them directly,
 attached to nothing, and that is ordinary use. `examples/sound` emits on `AudioBus`
-and reads a `CachedLabel` within ten lines.
+and reads a `Text` within ten lines.
 
 | Looking for | Reach for | |
 |---|---|---|
-| a label from a value that changes, with no `String` per frame | `CachedLabel` | [→](toolbox.md#cachedlabel--a-display-string-rebuilt-only-on-change) |
+| a label from a value that changes, with no `String` per frame | `Text` | [→](toolbox.md#text--the-string-a-node-draws) |
 | to say *what happened* without naming a sound device | `AudioBus` | [→](toolbox.md#audiobus--decoupled-audio-facts) |
 | a point to follow, clamped to the world | `Camera` | [→](toolbox.md#camera--follow-a-point-clamp-to-the-world) |
 | text in the player's language | `I18n` | [→](toolbox.md#rgameenginei18n--localization) |
@@ -35,7 +35,7 @@ and reads a `CachedLabel` within ten lines.
 for that reason only. A timer must advance every tick, and a pool must reclaim
 freed nodes every tick. `Components::Timer` and `Components::Pool` put that work in
 the traversal, where nothing can forget it. Without per-frame work there is no
-wrapper. A `CachedLabel` is read when something draws it. A component that
+wrapper. A `Text` is read when something draws it. A component that
 overrode no hook would be a component in name only. The one-per-slot rule would
 even make a second label on one node harder.
 

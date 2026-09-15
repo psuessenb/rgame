@@ -15,7 +15,7 @@
 #   - Components::BoxCollider — the rectangular one, and the two mix freely;
 #   - Components::Velocity — from `examples/velocity`, so that things move into
 #     each other without anybody pressing a key;
-#   - Engine::CachedLabel — a crate's counter, which changes only on a contact.
+#   - Engine::Text.computed — a crate's counter, which changes only on a contact.
 #
 # The pale circle stays lit for as long as it is inside a crate, and the crate
 # blinks once and adds one to its counter. Two readings of the same pair of
@@ -204,7 +204,7 @@ class Crate < RGame::Engine::Node2D
     super
     @flash = 0.0
     @touches = 0
-    @label = RGame::Engine::CachedLabel.new { |count| "visits: #{count}" }
+    @label = RGame::Engine::Text.computed(:count) { |count:| "visits: #{count}" }
     # The box is offset to sit around the node's origin, which is where a circle's
     # centre already is — so both shapes here are drawn and collide about the
     # same point. A sprite that wants a small box at its feet moves the offset
@@ -228,7 +228,7 @@ class Crate < RGame::Engine::Node2D
 
   def on_draw(renderer, _view)
     renderer.rect(-width / 2, -height / 2, width, height, color: @flash.positive? ? HIT : BODY)
-    renderer.text(@label[@touches], -width / 2, (-height / 2) - 22, color: INK)
+    renderer.text(@label.with(count: @touches), -width / 2, (-height / 2) - 22, color: INK)
   end
 end
 
