@@ -203,11 +203,66 @@ B's costs, and the open question in it:
   and a changed label re-arranging its menu. With `I18n.generation` bumping on a
   language switch, that is every label at once.
 
-**Trigger.** The i18n plan (`docs/plans/i18n/`) landing. That plan deliberately
-leaves measurement out (its decision 8) and only makes sure nothing caches a
-width across a language switch; this is the plan to start after it. A
-translated label that no longer fits its fixed slot is the symptom it will
-arrive as.
+**Trigger — satisfied, so this is next.** The trigger was the i18n plan landing,
+and it has: every example draws translated text, and a language switch changes
+every label's length at once. That plan deliberately left measurement out and
+only made sure nothing caches a width across a switch.
+`examples/localization` sizes its 280-pixel slots by hand for its longest label,
+194 pixels in German, and its header says a third language might not fit. A
+translated label that overflows its fixed slot is the symptom this will arrive
+as.
+
+---
+
+## A snapshot of the loaded translation tables
+
+**What.** `I18n.snapshot` and `I18n.restore`, so a spec suite puts its tables
+back before each example without parsing them again.
+
+**What exists instead.** The `spec_helper` that `rgame new` generates calls
+`I18n.reset` and loads every table before every example, because `I18n` is
+global and a spec that switches the locale or loads a table would otherwise leak
+into the next one. Measured when it was written (Ruby 4.0.5, no YJIT): 0.03 ms
+for the generated one-key table, 8.1 ms for 1,000 keys — 5.0 ms of YAML parsing
+and 2.9 ms of compiling. Compiled tables are frozen, so a restore could hand the
+same objects back for a constant cost.
+
+**Why not now.** No game's suite is slow because of it. The generated project
+has one key.
+
+**Trigger.** A game whose spec run is measurably slowed by reloading its tables.
+
+---
+
+## A packed asset format
+
+**What.** Read a game's assets out of one or a few pack files instead of loose
+files, for a release on a store such as Steam.
+
+**What exists instead.** Loose files under the media root. Steam does not require
+packs: SteamPipe splits every file into ~1 MB chunks and uploads only the chunks
+that differ, so loose files patch well. Its advice for packs — keep changes
+localized, keep asset order stable, compress per asset, no table of contents of
+absolute offsets — constrains the tool that *writes* a pack. The reader only
+needs every read to go through one seam
+([Steamworks: Uploading to Steam](https://partner.steamgames.com/doc/sdk/uploading)).
+
+Translation tables already do: `AssetManager#glob` lists them and the `:locale`
+loader reads them. What does not:
+
+- `image.c` and `font_atlas.c` `fopen` a path. A pack needs
+  `stbi_load_from_memory` and a font read from a buffer.
+- `audio.c` calls `ma_decoder_init_file` and `ma_sound_init_from_file`. A pack
+  needs miniaudio's VFS (a resource manager with a custom `ma_vfs`), which
+  `vorbis_decoder.c`'s `onInit` entry point already reads through.
+- `AssetManager#resolve` is `File.expand_path`. That is the Ruby seam, and it is
+  already the only one.
+
+**Why not now.** Nothing ships through a store yet, and loose files are what
+SteamPipe patches best.
+
+**Trigger.** A release whose file count or install layout makes loose files a
+problem, or a store that requires a pack.
 
 ---
 

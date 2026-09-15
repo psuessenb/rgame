@@ -302,7 +302,7 @@ There is no long-term roadmap for this project, but I usually have a shape in mi
 * each core concept is showcased by an example, not just in a game where it's hard to find and grasp - IN PROGRESS
 * unify game concepts that were developed in isolation - DONE
 * fix the UI package to at least make it useable - IN PROGRESS
-* fix the I18n package to at least make it useable
+* fix the I18n package to at least make it useable - DONE
 * improve the workflow and make better use of agent capabilities - DONE
 
 ## AI clause
