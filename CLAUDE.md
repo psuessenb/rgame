@@ -919,7 +919,10 @@ project's own `main.rb`), feeds it a scripted input backend through
 with their first and last arguments, clips pushed with what moved inside each,
 sounds played, scenes entered, and ticks against frames. `--texts` adds every
 distinct string drawn with `text`, which is how two runs are compared string for
-string.
+string. A key `I18n` could not answer is drawn as itself, as in the
+game, and listed under "missing or mismatched keys"; a project that loaded
+translation tables then exits 1, so a key left out of an example's `en.yml` fails
+the run rather than showing up on screen as `status.saved`.
 
 A script holds **one timeline per device**, so a two-player run is written as two
 `on` blocks and both play at once — every track is absolute, starting at tick 0.

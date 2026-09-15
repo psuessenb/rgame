@@ -192,7 +192,7 @@ module DriveTestProject
     Call = Struct.new(:calls, :first_args, :last_args, :ranges)
 
     attr_accessor :ticks, :frames
-    attr_reader :draws, :clips, :translates, :sounds, :scenes, :bands, :texts
+    attr_reader :draws, :clips, :translates, :sounds, :scenes, :bands, :texts, :missing_keys
 
     # `texts:` adds a section listing every distinct String drawn with `text`,
     # which the draw-call section cannot show: it keeps only the first and last
@@ -200,6 +200,7 @@ module DriveTestProject
     def initialize(texts: false)
       @show_texts = texts
       @texts = {}
+      @missing_keys = {}
       @ticks = 0
       @frames = 0
       @draws = {}
@@ -246,6 +247,16 @@ module DriveTestProject
       seen[0] += 1
     end
 
+    # A key `I18n` could not answer: missing from every table in the chain, or
+    # translated with other variables than its Text declares. Kept like texts,
+    # with the tick it first appeared on. Returns nil, so the policy that calls
+    # this can answer with the key.
+    def record_missing(key)
+      seen = (@missing_keys[key] ||= [0, @ticks])
+      seen[0] += 1
+      nil
+    end
+
     def record_band(band) = @bands[band] += 1
     def record_sound(kind, id) = @sounds["#{kind} #{id}"] += 1
     def record_scene(action, scene) = @scenes << "#{action} #{scene.class}"
@@ -256,6 +267,7 @@ module DriveTestProject
       out << section('scenes', @scenes)
       out << section('draw calls', @draws.sort_by { |_, c| -c.calls }.map { |name, c| draw_line(name, c) })
       out << section('texts drawn', text_lines) if @show_texts
+      out << section('missing or mismatched keys', missing_lines) unless @missing_keys.empty?
       out << section('layers per band', band_lines)
       out << section('clips pushed', clip_lines)
       out << section('translates pushed', translate_lines)
@@ -267,6 +279,10 @@ module DriveTestProject
 
     def text_lines
       @texts.map { |string, (count, tick)| format('%6d  %s from tick %d', count, string.inspect, tick) }
+    end
+
+    def missing_lines
+      @missing_keys.map { |key, (count, tick)| format('%6d  %s from tick %d', count, key, tick) }
     end
 
     def band_lines
@@ -506,13 +522,23 @@ module DriveTestProject
       else
         install(report, ScriptedInput.new(script), ticks)
       end
+      report_missing_keys(report)
       load File.expand_path(project, ROOT)
 
       out.puts report
       report
     end
 
+    # Whether a run failed on its translations: a key went unanswered in a
+    # project that loaded tables. A project with no tables has made no promise
+    # about its text, so it only gets the report section.
+    def missing_translations?(report) = !report.missing_keys.empty? && !RGame::Engine::I18n.available.empty?
+
     private
+
+    def report_missing_keys(report)
+      RGame::Engine::I18n.missing = ->(key, _chain) { report.record_missing(key) || key }
+    end
 
     def install(report, input, budget, pad: nil)
       RGame::Game.prepend(game_probe(report, input, budget, pad))
@@ -596,7 +622,8 @@ if $PROGRAM_NAME == __FILE__
     abort "No script at #{script_path}. Write one (see tools/drive/**/*.rb) or pass --script."
   end
 
-  DriveTestProject.run(project: project, script_path: script_path,
-                       ticks: options[:ticks], gamepad: options.fetch(:gamepad, false),
-                       texts: options[:texts])
+  report = DriveTestProject.run(project: project, script_path: script_path,
+                                ticks: options[:ticks], gamepad: options.fetch(:gamepad, false),
+                                texts: options[:texts])
+  exit 1 if DriveTestProject.missing_translations?(report)
 end
