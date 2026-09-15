@@ -181,7 +181,7 @@ indistinguishable from having given up.
 
 ### The custom cops are house rules — don't disable them
 
-`rubocop/cop/game/` holds five project-specific cops (plus the shared `HotPath`
+`rubocop/cop/game/` holds six project-specific cops (plus the shared `HotPath`
 and `LayerBoundary` mixins), loaded by `.rubocop.yml`:
 
 | Cop | Enforces |
@@ -191,6 +191,7 @@ and `LayerBoundary` mixins), loaded by `.rubocop.yml`:
 | `Game/DrawInLocalSpace` | a node's draw methods never read its own position — `Node2D#draw` pushes its transform, so both `x` and `world_x` are already applied |
 | `Game/NoCoreInEngineLayer` | no `RGame::Core` reference in `lib/rgame/engine/` or `spec/` — the engine layer must stay headless |
 | `Game/NoEngineInCoreLayer` | the mirror: no `Engine` reference in `lib/rgame/core/` or `spec_core/` — Core must not know Engine exists |
+| `Game/NoLiteralText` | no String literal as the label of `text` or `text_width` in `examples/` or `lib/` — text a player reads comes from a translation table |
 
 These exist because a steady 60fps frame that allocates is a GC pause waiting to
 happen, and the cost is invisible without a guard. Unlike stock cops, these are
