@@ -1,7 +1,7 @@
 # Plan — i18n as the default way to put text on screen
 
-**Status.** Steps 0–6 are implemented. Steps 7–8 are deliberately rough, and
-each is re-planned before it starts.
+**Status.** Steps 0–6 are implemented, and step 7 is planned in detail. Step 8
+is deliberately rough, and is re-planned before it starts.
 See [04-roadmap.md](04-roadmap.md).
 
 | File | What it holds |
@@ -194,6 +194,28 @@ inside this plan.
     ns for one `renderer.text`, so speed never decided it. The rejection's first
     reason no longer held either: since step 3 a `Text` keeps the values of its
     last `with`, and `with` is still how a `Text` with variables is drawn.
+14. **A drive run fails on a missing key, and only a drive run does.** *Taken in
+    step 7's question round.* The harness sets `I18n.missing` to a callable that
+    records the key and returns it, so the run draws what the game draws. It
+    exits 1 when a key was recorded and a table was loaded. Driving every example
+    in CI from `spec_core` was the alternative. It would catch crashes too, but it
+    was not taken. A static spec reading keys out of `main.rb` was rejected: it
+    misses keys built at runtime and scopes set in a method.
+15. **A sentence around a translated name is one key with the name as a
+    variable.** *Taken in step 7's question round.* `"Chosen: %{item}"` plus
+    `items.save: Save`, rather than one key per whole sentence. A translator
+    writes each name once, and a game's HUD needs this shape. It is the wrong
+    shape for a language that inflects the name after the label. The examples
+    only use a label-style "Label: name", where that does not arise.
+16. **Step 7's strings stay identical, except for a plural that changes the
+    English.** *Taken in step 7's question round.* The drive diff is the
+    acceptance, so a wrong key cannot hide behind an intended change. Today
+    the one exception is `pathfinding`'s "1 waypoints". Counters that read
+    "label: N" gain no plural forms, because English shows none.
+17. **`Game/NoLiteralText` flags a String literal passed to `text` or
+    `text_width`** in `examples/` and `lib/`. *Taken in step 7's question round;
+    resolves open question 4.* It catches the form a reader copies. A table of
+    Strings passes it, and that limit is stated rather than chased.
 
 ## Open questions
 
@@ -217,10 +239,11 @@ inside this plan.
    would load every example's keys into every example, and keys namespaced per
    example would hold only while each example remembered its namespace. See step
    5 in [04-roadmap.md](04-roadmap.md); `examples/localization` is built this way.
-4. **Should a RuboCop cop flag a String literal passed to `renderer.text` or
-   `label:`?** That would make "hardcoded fails loudly" true in this repository.
-   Generated projects do not load the house cops, so it reaches only this repo.
-   *Waits on step 7, when no example has a literal left; non-blocking.*
+4. ~~**Should a RuboCop cop flag a String literal passed to `renderer.text` or
+   `label:`?**~~ **Settled in step 7's question round: yes, for `text` and
+   `text_width`, in `examples/` and `lib/`.** `label:` is left out: its literal
+   is a key. See decision 17. Generated projects do not load the house cops,
+   so it reaches only this repository.
 5. **Does `SDL_GetPreferredLocales` need `SDL_Init` first, and what does it
    return under Xvfb and on the macOS and Windows runners?** *Resolved in step
    2:* it needs no init, so it is the module function

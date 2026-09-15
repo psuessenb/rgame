@@ -1,7 +1,7 @@
 # Roadmap
 
-**Status.** Steps 0–6 are implemented. **Steps 7–8 are rough**, and each is
-re-planned before it starts; step 7 is next.
+**Status.** Steps 0–6 are implemented. Step 7 is planned in detail and is next.
+**Step 8 is rough**, and is re-planned before it starts.
 
 Step 6 was inserted after step 5 landed (decision 13). The landed notes of steps
 1–5 were written before that, so "step 6" there means today's step 7, and "step 7"
@@ -1068,17 +1068,278 @@ What the sketch got wrong:
   `RSpec/ExpectActual` refuse `'Play' == play` and `expect('Play')`, so rule 3's
   examples compare against a local String from both sides.
 
-## Step 7 — every example draws keys *(rough)*
+## Step 7 — every example draws keys, and a cop keeps it that way
 
-Mechanical, over the 24 examples. Each migrated example gets a
-`locales/en.yml` beside its `main.rb`, as step 5 settled, and passes
-`locales: File.join(__dir__, 'locales')`. The acceptance test is the drive
-reports with step 5's `--texts`: every example's strings identical before and
-after, because `en.yml` holds exactly the text that was hardcoded. `Text.computed`
-labels from step 1 move to keys where the text is words rather than a number.
-Every call passes its `Text` as it is, per step 6.
-Then decide open question 4 (the cop). Likely split by the examples page's
-sections, one sub-step each.
+**Why here.** Step 6 settled the shape a call takes, `renderer.text(@title, x, y)`,
+so every call is written once, in its final form. Decision 9 is why this is not
+optional: an example is what a reader copies, and today 23 of 24 draw
+hardcoded Strings. The 10 `label:` literals are a sharper case. Since step 3 they
+are keys, and they show correctly only because the game's `missing = :key`
+draws a missing key as itself. The `Resume` button in `game_menu` reads "Resume"
+by accident. This step turns those accidents into tables, makes a missing key
+fail a drive run, and closes open question 4 with a cop.
+
+### What was measured before planning
+
+At `10d4de7`, Ruby 4.0.5 without YJIT.
+
+| Measurement | Result |
+|---|---|
+| examples to migrate | 23; `localization` is done |
+| `renderer.text('literal', …)` calls | 47 |
+| `label: 'literal'` | 10: `game_menu` 3, `menu_navigation` 7 (4 buttons, 3 settings rows); `skill_bar` passes 5 more through `SKILLS` |
+| `Text.computed` | 6: `collision`, `collision_tiles`, `pathfinding`, `pooling`, `sound`, `split_screen` |
+| constant tables selecting a String | `STATE` (`fullscreen`, `jump_topdown`), `STATUS` (`save_load`, `save_load_ids`, `quick_wheel`, `radial_menu`), `MODE` (`pooling`), `MODE_LABEL` (`fullscreen`), `KEYS` (both save examples), `FOCUSED`/`USED` (`skill_bar`), `DEVICE_NAME` and `ROWS` (`input_glyphs`), `NAMES` (`split_screen`), `ICONS` names (`quick_wheel`), `SKILLS` names (`skill_bar`), `IDLE` (`pathfinding`); `music` assigns `@status` from two literals |
+| distinct strings drawn, `--texts --seed 1`, all 24 default scripts | 158 |
+| the same 24 runs a second time | **byte-identical**, `pooling`'s process-wide allocation counts included |
+| one drive run | about 4.4 s |
+| specs that boot or drive an example | **none** |
+| what `I18n` hands a callable policy | `(key, chain)`, with the scope joined into `key`, for a missing key *and* for a variable mismatch |
+| strings inside the engine layer | `DebugOverlay`'s `FPS_LABEL`, `OBJ_LABEL`, `DELTA_LABEL`; `OptionButton`'s chevrons |
+| what the harness does with an I18n miss | nothing: `--texts` shows the key as a string, and the run exits 0 |
+
+`save_load_ids` draws `@label = id.to_s`, a sheep's number. It is a value, not
+words, and stays a String built in `initialize`.
+
+### The conventions every migrated example follows
+
+Written once here so 23 examples do not each invent one.
+
+- **The table** is `examples/<name>/locales/en.yml`, with one comment line saying
+  it is the English table. The example passes
+  `locales: LOCALES` with `LOCALES = File.expand_path('locales', __dir__)`, as
+  `examples/localization` does. English only; `localization` is the example
+  with a second language.
+- **Keys are grouped by what the text is for**, not by class: `help.*` for the
+  instruction lines at the top, `status.*` for text chosen by state, `hud.*` for
+  counters and names drawn in the world, `menu.*` or a menu's own scope for
+  button labels, `items.*` for names a sentence interpolates. Key names say what
+  the line is about (`help.walk`, `status.saved`), never its position
+  (`help.line1`).
+- **A `Text` with no variables is built once and drawn as it is.** In a node,
+  that is an ivar set in `initialize`.
+- **A table that selects text by state holds `Text`s**:
+  `STATE = { true => Text.new('status.airborne'), false => Text.new('status.grounded') }.freeze`.
+  A `Text` is safe in a constant: it holds a key and a cached String, and polls
+  `I18n.generation`, so it pins nothing. **No `Text.computed` in a constant**:
+  its block is a closure, and a closure made at the top level keeps the `game`
+  local alive (write-example's "top-level proc pinning the window" trap).
+- **A sentence around a translated name has one key with the name as a
+  variable** (decision 15): `status.chosen: "Chosen: %{item}"` and
+  `items.save: Save`, drawn as `@chosen.with(item: name.to_s)`. `name.to_s`
+  returns the name's cached String, so an unchanged frame allocates nothing.
+- **A counter is a key with a variable**: `hud.plays: "plays: %{plays}"` for
+  `Text.new('hud.plays', :plays)`. The variable keeps the name the code already
+  uses. A plural is added only where it changes the English (decision 16).
+- **`Text.computed` stays only where the text is assembled from several
+  translations.** That is `pathfinding` alone, and it becomes the worked example
+  for `computed`, replacing `sound`.
+- **The header's "It exercises:" list** names `Engine::Text` instead of
+  `Engine::Text.computed` wherever `computed` went, and `docs/api/examples.md`'s
+  **Uses:** line says the same.
+
+### Shapes
+
+The three that are not a one-for-one swap:
+
+```ruby
+# quick_wheel (radial_menu is the same): the icon list carries keys, the caption composes
+ICONS = [[:home, :home], [:settings, :gear], [:save, :save], [:favourite, :star],
+         [:trophies, :trophy], [:sound, :audio_on], [:music, :music_on], [:locked, :locked]].freeze
+
+class Caption < RGame::Engine::Node2D
+  NAMES = QuickWheel::ICONS.to_h { |key, _| [key, Text.new(key, scope: 'items')] }.freeze
+
+  def initialize(wheel:, **)
+    super(**)
+    @wheel = wheel
+    @help = Text.new('help.wheel')
+    @nothing = Text.new('status.nothing')
+    @chosen = Text.new('status.chosen', :item)
+  end
+
+  def on_draw(renderer, _view)
+    renderer.text(@help, 12, 12)
+    chosen = @wheel.chosen
+    renderer.text(chosen ? @chosen.with(item: NAMES.fetch(chosen).to_s) : @nothing, 12, HEIGHT - 30)
+  end
+end
+```
+
+```ruby
+# skill_bar: the button's own label is the name, so there is no second table
+SKILLS = [[:wand, :wand, :skill1], [:wrench, :wrench, :skill2], [:torch, :torch, :skill3],
+          [:hammer, :hammer, :skill4], [:watering_can, :watering_can, :skill5]].freeze
+# the bar's menu has scope: 'skills'; the caption reads
+renderer.text(@focused.with(skill: @bar.focused.label.to_s), 12, HEIGHT - 52)
+# `used` holds the used button rather than its label String, so "Used: %{skill}" reads the same way
+renderer.text(@bar.used ? @used.with(skill: @bar.used.label.to_s) : @nothing_used, 12, HEIGHT - 30)
+```
+
+```ruby
+# pathfinding: computed, because the sentence is assembled from four translations
+@status_label = Text.computed(:status) { |status:| describe(status) }
+
+def describe(status)
+  return I18n.t('status.idle') unless status
+
+  cells, waypoints, arrived, refused = status
+  route = cells && I18n.t(arrived ? 'status.arrived' : 'status.walking',
+                          waypoints: I18n.t('status.waypoints', count: waypoints),
+                          cells: I18n.t('status.cells', count: cells))
+  return route unless refused
+
+  route ? I18n.t('status.refused_after', route: route) : I18n.t('status.refused')
+end
+```
+
+```yaml
+# examples/pathfinding/locales/en.yml (the status part)
+en:
+  status:
+    idle: Move the cursor to a tile and confirm
+    walking: "walking: %{waypoints}, %{cells}"
+    arrived: "arrived: %{waypoints}, %{cells}"
+    waypoints:
+      one: "%{count} waypoint"
+      other: "%{count} waypoints"
+    cells:
+      one: "%{count} cell"
+      other: "%{count} cells"
+    refused: no route there
+    refused_after: "no route there; %{route}"
+```
+
+`menu_navigation` moves its captions into the menu's scope. `display: ->(on) { on
+? 'on' : 'off' }` returns keys, and the table quotes them (`'on': "on"`), as step
+0 requires. The scale row drops `display: :to_s.to_proc` for the default
+`OptionButton::DISPLAY`, which reads a Symbol value as its own key. Volume keeps
+`Text.literal("#{percent}%")`: a number with a sign, not words.
+
+`split_screen`'s names become `hud.player: "Player %{number}"`. Each banner builds
+`Text.new('hud.player', :number)` and calls `with(number: n)` once in
+`initialize`, then draws it as it is.
+
+### The harness reports missing keys (decision 14)
+
+```ruby
+# tools/drive_test_project.rb, in run, before `load`
+RGame::Engine::I18n.missing = ->(key, _chain) { report.record_missing(key) || key }
+```
+
+- `Report#record_missing(key)` counts each key with the tick it first appeared,
+  as `record_text` does, and returns nil. The callable returns the key, so the
+  run draws exactly what `:key` draws.
+- The report gains a **"missing keys"** section. It is printed only when a key
+  is recorded, so the other 23 reports stay byte-identical to their baselines.
+- **The run exits 1 when a key is recorded and `I18n.available` is not empty.**
+  A project with tables has promised its text is in them. `test_projects/`
+  load no tables, so `tiled_world`'s inventory buttons print the section and
+  still exit 0.
+- `Game.new` sets no missing policy, so setting it before `load` holds. The
+  callable is also called for a variable mismatch, so the section's heading
+  says "missing or mismatched keys".
+
+### The cop (decision 17)
+
+```ruby
+# rubocop/cop/game/no_literal_text.rb
+# A String literal as the first argument of `text` or `text_width`: text a player
+# reads, written where no translation table can reach it.
+class NoLiteralText < RuboCop::Cop::Base
+  MSG = 'Draw an Engine::Text built from a key, not a String literal: ' \
+        'text a player reads belongs in a translation table.'
+  RESTRICT_ON_SEND = %i[text text_width].freeze
+
+  def on_send(node)
+    label = node.first_argument
+    add_offense(label) if label&.type?(:str, :dstr)
+  end
+end
+```
+
+```yaml
+# .rubocop.yml
+Game/NoLiteralText:
+  Include:
+    - 'examples/**/*.rb'
+    - 'lib/**/*.rb'
+```
+
+Any receiver matches, so `renderer.text` and `@renderer.text` are both flagged.
+A constant, an ivar or a method call passes. `lib/` has no literal left after
+step 6: `OptionButton` draws `LEFT_CHEVRON`, and `DebugOverlay` draws its
+constants. `spec/`, `spec_core/`, `test_projects/` and `tools/` are outside
+`Include`, so specs keep writing `renderer.text('Score', 0, 0)`.
+
+**Sub-steps**, split by `docs/api/examples.md`'s sections:
+
+- **7a** The harness: `record_missing`, the section, and the exit status. Its
+  header comment and CLAUDE.md's harness paragraph say what the section is for.
+  Before any example changes, record the baseline: every script under
+  `tools/drive/examples/` (the 24 defaults, `collision_tiles_spike`,
+  `localization_saved`, and the three `_pad` scripts with `--gamepad`), with
+  `--texts --seed 1`, into the scratchpad.
+- **7b** Movement and drawing, and the world: `walk`, `sprite`, `velocity`,
+  `scroll_map`, `collision`, `collision_tiles`, `jump_topdown`, `pathfinding`.
+- **7c** Structure and audio: `signals`, `timer`, `pooling`, `sound`, `music`.
+- **7d** UI: `game_menu`, `menu_navigation`, `radial_menu`, `quick_wheel`,
+  `skill_bar`.
+- **7e** Players, the window and persistence: `split_screen`, `input_glyphs`,
+  `fullscreen`, `save_load`, `save_load_ids`.
+- **7f** The rules that point at the old shapes:
+  - CLAUDE.md's "A label built from a changing value": its worked example moves
+    from `examples/sound` to `examples/pathfinding`. "A constant string chosen
+    by state" becomes a table of `Text`s.
+  - write-example's "No String built per frame" follows.
+  - The toolbox's "Use a `Text` instead of working around the cop" points at
+    `pathfinding`.
+- **7g** `Game/NoLiteralText`, its spec in `spec/rubocop/cop/game/`, the
+  `.rubocop.yml` entry, and a row in CLAUDE.md's table of custom cops. Open
+  question 4 resolved in place.
+
+**Rules the tests must pin:**
+
+1. Every drive script's `--texts --seed 1` report is byte-identical to its 7a
+   baseline. The one allowed difference is `pooling`'s allocation counts, if
+   loading a table changes them; the landed note then records both numbers.
+2. No report has a "missing or mismatched keys" section, and every run exits 0.
+3. `pathfinding`'s `I18n.t('status.waypoints', count: 1)` reads
+   "1 waypoint". No drive run reaches a count of 1, so this is checked by
+   loading the table headless.
+4. The composed captions allocate nothing on unchanged frames: `quick_wheel`,
+   `radial_menu`, `skill_bar` and `split_screen`, each run under a headless
+   display with GC disabled from tick 100 to tick 400, as step 5 measured
+   `localization`.
+5. `Game/NoLiteralText` flags `text('x', …)`, `text("#{x}", …)` and
+   `text_width('x')` on any receiver. It passes a constant, an ivar, a method
+   call, and a `text` call with no arguments.
+6. `bundle exec rubocop examples lib` reports no `Game/NoLiteralText` offense,
+   and removing one example's table key makes its drive run exit 1.
+7. `tiled_world` still exits 0, and prints its inventory labels as missing keys.
+
+**Tests:** `spec/rubocop/cop/game/no_literal_text_spec.rb` (5). The harness has no
+spec of its own. Rules 6 and 7 are checked by running it. Rules 1–4 are
+measurements, recorded in the landed note.
+
+**Verify.**
+- `make test`, `rake spec` and `rake spec:core` green.
+- RuboCop clean on every touched file, and `bundle exec rubocop --only
+  Game/NoLiteralText examples lib` clean.
+- Every drive script diffed against its 7a baseline. The count of identical
+  reports and every difference go in the landed note.
+- `bundle exec rspec spec/api_docs` passes, since `examples.md` changes.
+
+**What this step does not deliver:**
+- **Examples driven in CI.** It was considered in the question round and not
+  taken: a missing key is caught when someone drives an example, not on every
+  push.
+- **A second language for any example but `localization`.**
+- **`DebugOverlay`'s labels.** They are a developer's readout, not text a player
+  reads, and stay English constants.
+- **`test_projects/`**, per decision 9.
+- **A check for a String table.** The cop sees only the literal at the call
+  site. A `STATE = { true => 'In the air' }` passes it.
 
 ## Step 8 — fold back and delete the plan
 
