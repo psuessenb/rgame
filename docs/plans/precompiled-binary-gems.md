@@ -1,7 +1,8 @@
 # Precompiled binary gems
 
-**Status: steps 0–2 have landed.** Steps 3 and 4 are detailed. Steps 5–7 are
-rough and get re-planned once step 4 has landed.
+**Status: steps 0–2 have landed.** Step 3 was re-planned against step 2's code.
+Step 4 is detailed. Steps 5–7 are rough and get re-planned once step 4 has
+landed.
 
 Rewritten 2026-09-15 from the 2026-08-25 sketch. The sketch compared three
 shapes and deferred the choice. This version takes it, records two decisions
@@ -76,6 +77,12 @@ These are settled. Do not re-open them inside this plan.
 6. **Ruby 4.0 only.** `required_ruby_version` is `>= 4.0` and 4.0 is the only
    released ABI that satisfies it. A platform gem declares an upper bound, so a
    Ruby 4.1 user gets the source gem instead of a binary that cannot load.
+7. **The macOS binaries target macOS 11.0, the oldest macOS that runs Ruby 4.0
+   on Apple Silicon.** A platform gem should never rule out a Mac that Ruby
+   itself runs on. Ruby 4.0's `configure.ac` accepts any target from OS X 10.5,
+   and Apple Silicon starts at 11.0. Without a target, the build machine sets the
+   floor: setup-ruby's Ruby is built for 14.0, and `macos-latest` runs 26. Taken
+   in conversation on 2026-09-15, when step 3 was re-planned.
 
 ## What this does not deliver
 
@@ -756,86 +763,148 @@ What the sketch got wrong:
 The image is pinned by digest, `sha256:2f7eabb0…`, like the actions are pinned
 by commit.
 
-### Step 3 — `rake native gem` builds and checks a platform gem
+### Step 3 — `platform_gem` builds and checks a platform gem
 
 **Why here:** the static build from step 2 exists, and a platform gem is that
 build plus packaging. Publishing waits until step 4 has proven the gem on a
 clean machine, so this step produces an artifact and publishes nothing.
 
-#### 3a. rake-compiler builds both extensions
+**Re-planned 2026-09-15**, after step 2 landed. The earlier sketch put
+rake-compiler's tasks in the Rakefile. It left open how a native build and
+`make ext` share `lib/rgame/`, and it expected rake-compiler to name a macOS gem
+correctly. Step 2 moved the tasks out of the Rakefile, and the measurements
+below settle the rest. The macOS deployment target is decision 7.
+
+| Measured | Result |
+|---|---|
+| rake-compiler 1.3.1, native build (read from `extensiontask.rb`) | Writes `required_ruby_version` `>= 4.0, < 4.1.dev` from the building Ruby, as a cross build does. Names the gem after `RUBY_PLATFORM`, installs both binaries into `lib/rgame/`, and stages every file the gemspec lists, `ext/` included |
+| A Darwin version in the platform name | `arm64-darwin-25` does not match a Mac reporting `arm64-darwin-24` (`Gem::Platform#===`); `arm64-darwin` matches both. Step 0's Mac reported `arm64-darwin-25`; setup-ruby's Ruby reports `arm64-darwin23` |
+| `make ext`'s objects left in `ext/`, then a rake-compiler build of `util_ext` | make finds the objects through VPATH, compiles nothing, and the link fails with `cannot find color.o`. rake-compiler only prints a warning first |
+| setup-ruby's macOS Ruby 4.0.5 (`ruby-4.0.5-darwin-arm64.tar.gz`) | `LIBRUBYARG` is `-lruby.4.0`, `DLDFLAGS` holds `-Wl,-undefined,dynamic_lookup`, `RPATHFLAG` is empty. `ruby` and `libruby.4.0.dylib` are built for macOS 14.0, SDK 14.5 |
+| `$LIBRUBYARG` emptied and `$(libdir)` removed from `$DEFLIBPATH`, on this laptop | `util_ext` loses `NEEDED libruby.so.4.0` and its runpath, and still loads |
+| Ruby 4.0.5's `configure.ac` on Darwin | Refuses a deployment target older than OS X 10.5, and sets no newer floor |
+| Apple Silicon's first macOS | 11.0 |
+
+#### 3a. `tools/platform_gem.rake` builds both extensions on all three platforms
+
+`tools/cross_compile.rake` becomes `tools/platform_gem.rake`. It picks this
+machine's platform and defines one task that builds its gem:
 
 ```ruby
-# Rakefile
-require 'rake/extensiontask'
+# tools/platform_gem.rake
+module PlatformGem
+  EXTENSIONS = { 'rgame_util' => 'util_ext', 'rgame_core' => 'core_ext' }.freeze
 
-GEMSPEC = Gem::Specification.load('rgame.gemspec')
+  PLATFORM = case RbConfig::CONFIG['host_os']
+             when /linux/ then 'x86_64-linux-gnu'
+             when /darwin/ then "#{Gem::Platform.local.cpu}-darwin"
+             else Gem::Platform.local.to_s
+             end
+end
 
-{ 'rgame_util' => 'util_ext', 'rgame_core' => 'core_ext' }.each do |dir, name|
-  Rake::ExtensionTask.new(name, GEMSPEC) do |ext|
-    ext.ext_dir = "ext/#{dir}"
-    ext.lib_dir = 'lib/rgame'
-    ext.config_options << "--with-sdl2-static=#{SDL2_PREFIX}" if dir == 'rgame_core'
-  end
+Rake::ExtensionTask.new(name, gemspec) do |ext|
+  ext.ext_dir = "ext/#{dir}"
+  ext.lib_dir = 'lib/rgame'
+  ext.config_options << '--disable-libruby-link'
+  ext.config_options << "--with-sdl2-static=#{SDL2_PREFIX}" if name == 'core_ext'
+  # Linux cross-compiles in the rake-compiler-dock image; macOS and Windows build natively.
 end
 ```
 
-`rake compile` and `make ext` must not fight over `lib/rgame/*.so`. Either one
-drives the other, or `make ext` stays the developer's command and rake-compiler
-only runs for gems; the sub-step decides and says which.
+```
+rake -f tools/platform_gem.rake platform_gem    # pkg/rgame-<version>-<platform>.gem
+```
 
-A platform-gem build must not link the building Ruby's libruby (finding B). On
-Linux the rake-compiler-dock image already guarantees it: its binary has
-neither entry. The macOS bundle lists libruby too (step 0, item 1), so macOS needs `LIBRUBYARG_SHARED` and the rpath emptied, or an
-equivalent. On Windows every extension imports the Ruby DLL
-(`x64-ucrt-ruby400.dll`); that is how RubyInstaller extensions link, and it
-stays.
+- **Linux cross-compiles, macOS and Windows build natively.** A native build
+  names its platform without the Darwin version, so the gem installs on every
+  Apple Silicon Mac. An Intel Mac would get `x86_64-darwin`, which the checker
+  refuses.
+- **`make ext` stays the developer's command.** `platform_gem` refuses to start
+  while `ext/` holds compiled objects, and names `make ext-clean`. That also
+  makes a native build's copy into `lib/rgame/` harmless: `ext-clean` deleted
+  the old binaries, so the next `make ext` builds and copies its own.
+- **`--disable-libruby-link`** empties `$LIBRUBYARG` and removes `$(libdir)`
+  from `$DEFLIBPATH`, in both `extconf.rb` files and after mkmf's checks.
+  Windows ignores it, because a Windows extension must import the Ruby DLL.
+- **macOS targets 11.0.** `rakelib/sdl2_build.rb` holds
+  `MACOS_DEPLOYMENT_TARGET`. `rake sdl2` passes it to CMake on macOS, and the
+  rakefile exports `MACOSX_DEPLOYMENT_TARGET` for the extensions.
+- The Linux job keeps setting `RBENV_VERSION` and `RUBY_CC_VERSION` in `ci.yml`,
+  because both must be set before rake starts.
 
 #### 3b. The platform gem's specification
 
-rake-compiler's native task derives it from `rgame.gemspec`. On top of that
-derivation:
+rake-compiler's `native:<platform>` task derives the specification from the
+gemspec it is given. The rakefile gives it a copy of `rgame.gemspec` with other
+files:
 
-- **Files:** the source gem's files, minus `ext/**`, plus the two compiled
-  extensions and SDL2's `LICENSE.txt` from the release tarball.
-- **`extensions`:** empty.
-- **`required_ruby_version`:** `>= 4.0`, `< 4.1.dev`, derived from the ABI of
-  the Ruby doing the build rather than written out.
+- **Files:** the source gem's files minus `ext/**`, plus
+  `licenses/SDL2/LICENSE.txt`. The licence comes from the checksummed release
+  `rake sdl2` installed, copied straight into the staging directory.
+- **`extensions`:** rake-compiler clears them.
+- **`required_ruby_version`:** rake-compiler writes `>= 4.0, < 4.1.dev`, from
+  `RUBY_CC_VERSION` in the image and from the running Ruby elsewhere.
+- **`required_rubygems_version`:** on Linux rake-compiler adds `>= 3.3.22`, the
+  first RubyGems that tells a `-gnu` gem from a `-musl` one.
 
-#### 3c. `tools/check_platform_gem.rb`, run by the task that builds the gem
+`gem build rgame.gemspec` never loads the rakefile, so the source gem does not
+change (constraint 1).
 
-The `native gem` task calls it on the `.gem` it just wrote, so no one can build
-a platform gem without checking it. It opens the `.gem` archive itself and
-does not ask the specification object. The packaging spec's `.dSYM` example
-explains why: a check that shares the derivation it guards shares its blind
-spots.
+#### 3c. `tools/check_platform_gem.rb`, run by `platform_gem`
+
+`platform_gem` runs the checker on the `.gem` it just wrote and fails when a
+rule breaks, so no one can build a platform gem without checking it. The checker
+opens the `.gem` archive itself rather than asking a specification object. The
+packaging spec's `.dSYM` example explains why: a check that shares the
+derivation it guards shares its blind spots.
 
 **Rules the checker pins:**
 
 1. The platform is one of the three in decision 2.
-2. It contains exactly one `core_ext` and one `util_ext`, with this platform's
-   `DLEXT`.
+2. It contains exactly one `core_ext` and one `util_ext` in `lib/rgame/`, with
+   this platform's extension (`bundle` on macOS, `so` elsewhere).
 3. It contains no `.c`, no `.h`, no `extconf.rb` and no `Makefile`, and
    declares no extensions.
-4. `required_ruby_version` excludes the next Ruby minor.
+4. `required_ruby_version` admits `.ruby-version`'s Ruby and excludes the next
+   minor, prereleases included.
 5. It contains SDL2's licence.
-6. Every file of the source gem outside `ext/` is in it — the packaging spec's
-   rules for `lib/`, `examples/`, `docs/api/` and `exe/` hold here too.
-7. `tools/check_linkage.rb` passes on the extensions inside it.
+6. Its files are exactly the source gem's files outside `ext/`, plus rules 2
+   and 5.
+7. `tools/check_linkage.rb`'s rules hold for the extensions inside it.
 8. On Linux and macOS, neither extension names libruby among its dependencies
    or carries an rpath or runpath (finding B).
+9. Neither extension needs a newer OS than the gem claims: on macOS a minimum
+   version no newer than `MACOS_DEPLOYMENT_TARGET`, and on Linux no symbol
+   version newer than `GLIBC_2.29`.
+
+`CheckLinkage::Listing` gains the runpaths and the minimum OS version. They come
+from the tools step 2 already runs per platform, plus `otool -l` and `objdump
+-T`, so rules 8 and 9 reuse its readers.
+
+#### 3d. A `build-gem` job
+
+`static-sdl2` becomes `build-gem`, and runs `platform_gem` where it ran
+`rake sdl2` and `make ext`: inside the image on Linux, on the runner elsewhere.
+Every leg then unpacks the gem's two binaries into `lib/rgame/` and runs
+`rake spec:core` against them, so the Core suite tests the files that ship. The
+job uploads the gem as an artifact. A `source-gem` job on Linux builds
+`rgame.gemspec` and uploads that.
 
 **Tests:**
 
-- The `static-sdl2` job becomes `build-gem`: it runs `rake native gem`, and
-  uploads the platform gem as an artifact. A second job on Linux uploads the
-  source gem.
-- The checker run on the **source** gem fails rules 1, 2 and 3, proving it can
-  fail.
+- `spec/tools/check_platform_gem_spec.rb`: the checker, run on the source gem
+  built into a temporary directory, reports rules 1, 2, 3 and 5 broken. This
+  proves it can fail, and it runs in `rake spec`.
+- `build-gem`, all three platforms: `platform_gem` passes, and `rake spec:core`
+  reports step 2's example and skip counts.
+- On this laptop, `platform_gem` with `make ext`'s objects in `ext/` stops before
+  it compiles anything.
 - `rake spec`, unchanged: `spec/packaging_spec.rb` still passes against
   `rgame.gemspec`, which is constraint 1.
 
-**Verify:** a push produces four artifacts — three platform gems and the source
-gem — and each platform gem passed the checker in the job that built it.
+**Verify:** a push produces four artifacts, three platform gems and the source
+gem. Each platform gem passed the checker in the job that built it, and its
+binaries passed `rake spec:core` there.
 
 ### Step 4 — A clean-machine smoke test
 
