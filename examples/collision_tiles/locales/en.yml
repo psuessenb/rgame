@@ -1,0 +1,9 @@
+# The English table: every string this example draws.
+en:
+  help:
+    walk: Arrows / WASD / gamepad to walk — trees and the fence are solid
+    slide: "Hold down and left against the fence: you slide to its one gap"
+    box: The red box is what collides. The rest of the sprite is a picture
+    ball: "Walk east into the spiky ball: it stops you, and it costs a life"
+  hud:
+    lives: "Lives: %{lives}"

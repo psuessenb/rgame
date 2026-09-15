@@ -1,0 +1,10 @@
+# The English table: every string this example draws.
+en:
+  state:
+    fullscreen: fullscreen — F returns to a window
+    windowed: windowed — F goes fullscreen
+  modes:
+    disabled: "left/right — scale_mode :disabled, the view is the window"
+    stretch: "left/right — scale_mode :stretch, fills and distorts"
+    letterbox: "left/right — scale_mode :letterbox, uniform with bars"
+    integer: "left/right — scale_mode :integer, whole-number scale only"

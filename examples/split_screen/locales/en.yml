@@ -1,0 +1,9 @@
+# The English table: every string this example draws.
+en:
+  help:
+    keys: "Player one: arrows or WASD. Space waves"
+    join: Press A on a controller to join player two
+  hud:
+    # The number is given once, when the badge is built, and the Text keeps it.
+    player: "Player %{number}"
+    waves: "waves: %{count}"

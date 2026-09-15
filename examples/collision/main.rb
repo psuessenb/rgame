@@ -15,7 +15,8 @@
 #   - Components::BoxCollider — the rectangular one, and the two mix freely;
 #   - Components::Velocity — from `examples/velocity`, so that things move into
 #     each other without anybody pressing a key;
-#   - Engine::Text.computed — a crate's counter, which changes only on a contact.
+#   - Engine::Text — a crate's counter, a key with a variable, rendered again
+#     only on a contact.
 #
 # The pale circle stays lit for as long as it is inside a crate, and the crate
 # blinks once and adds one to its counter. Two readings of the same pair of
@@ -118,6 +119,7 @@ require 'rgame/game'
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 # The broadphase cell, and the grid drawn on the backdrop. Everything bucketed
 # here is 32 to 96 pixels across, so the cell is one of those.
@@ -204,7 +206,7 @@ class Crate < RGame::Engine::Node2D
     super
     @flash = 0.0
     @touches = 0
-    @label = RGame::Engine::Text.computed(:count) { |count:| "visits: #{count}" }
+    @label = RGame::Engine::Text.new('hud.visits', :count)
     # The box is offset to sit around the node's origin, which is where a circle's
     # centre already is — so both shapes here are drawn and collide about the
     # same point. A sprite that wants a small box at its feet moves the offset
@@ -256,6 +258,9 @@ class Scene < RGame::Engine::Node2D
   # any child's collider attaches and goes looking for them.
   def initialize
     super
+    @help_walk = RGame::Engine::Text.new('help.walk')
+    @help_crate = RGame::Engine::Text.new('help.crate')
+    @help_circles = RGame::Engine::Text.new('help.circles')
     add_component(RGame::Engine::Components::World.new(width: WIDTH, height: HEIGHT))
     add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
   end
@@ -272,9 +277,9 @@ class Scene < RGame::Engine::Node2D
     renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
     draw_cells(renderer, view)
 
-    renderer.text('Arrows / WASD walk the pale circle — the other two need nobody', 12, 12)
-    renderer.text('Enter a crate: it blinks once and counts you, you stay lit inside', 12, 34)
-    renderer.text('Circle into circle does nothing — same layer, one line ignoring it', 12, 56)
+    renderer.text(@help_walk, 12, 12)
+    renderer.text(@help_crate, 12, 34)
+    renderer.text(@help_circles, 12, 56)
   end
 
   private
@@ -304,7 +309,8 @@ game = RGame::Game.new(
   caption: 'Collision',
   width: WIDTH,
   height: HEIGHT,
-  media_root: ASSETS
+  media_root: ASSETS,
+  locales: LOCALES
 )
 
 game.start

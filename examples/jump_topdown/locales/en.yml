@@ -1,0 +1,9 @@
+# The English table: every string this example draws.
+en:
+  help:
+    walk: Arrows / WASD / gamepad to walk, Space / A to hop
+    box: The red box stays on the ground. So does everything it collides with
+    fence: "Walk south into the fence and hop: the picture clears it, the feet do not"
+  status:
+    airborne: In the air
+    grounded: On the ground

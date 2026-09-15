@@ -1,0 +1,14 @@
+# The English table: every string this example draws.
+en:
+  help:
+    seat: Press A on a controller to hand it the seat
+    back: Enter or Space on the keyboard takes it back
+  devices:
+    keyboard: Keyboard
+    controller: Controller
+  # What this game calls each action. The button shown beside it changes with
+  # the device; the word does not.
+  actions:
+    ui_confirm: Confirm
+    ui_cancel: Cancel
+    fire: Wave

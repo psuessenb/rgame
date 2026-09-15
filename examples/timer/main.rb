@@ -83,6 +83,7 @@ require 'rgame/game'
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 # 4.2 frames at a fixed sixtieth of a second, chosen so that rounding it up to a
 # whole frame is a mistake with a visible size.
@@ -195,6 +196,11 @@ class Fuse < RGame::Engine::Node2D
   BANNER_W = 260
   BANNER_H = 30
 
+  def initialize(**)
+    super
+    @label = RGame::Engine::Text.new('fuse.banner')
+  end
+
   def on_add
     add_component(RGame::Engine::Components::Timer.new(FUSE, repeating: false))
       .on_timeout { queue_free }
@@ -202,7 +208,7 @@ class Fuse < RGame::Engine::Node2D
 
   def on_draw(renderer, _view)
     renderer.rect(0, 0, BANNER_W, BANNER_H, color: BANNER)
-    renderer.text('one-shot — this removes itself', 10, 8, z: 1, color: INK)
+    renderer.text(@label, 10, 8, z: 1, color: INK)
   end
 end
 
@@ -210,6 +216,16 @@ class Scene < RGame::Engine::Node2D
   BACKDROP = RGame::Util::Color.new(28, 32, 42)
   FUSE_X = 60
   FUSE_Y = 370
+
+  def initialize
+    super
+    @help = RGame::Engine::Text.new('help.beat')
+    @true_caption = RGame::Engine::Text.new('captions.timer')
+    @naive_caption = RGame::Engine::Text.new('captions.naive')
+    @mark_caption = RGame::Engine::Text.new('captions.mark')
+    @blink_caption = RGame::Engine::Text.new('captions.blink')
+    @fuse_caption = RGame::Engine::Text.new('captions.fuse')
+  end
 
   def on_add
     @truth = add_node(TrueRunner.new(x: TRACK_X, y: 150))
@@ -236,14 +252,12 @@ class Scene < RGame::Engine::Node2D
   def on_draw(renderer, view)
     renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
 
-    renderer.text('Both bars beat every 0.07s. One of them is right', 12, 12)
-    renderer.text('Components::Timer — the remainder carries forward', TRACK_X, 126)
-    renderer.text('@elapsed = 0.0 — the overshoot is thrown away', TRACK_X, 244)
-    renderer.text('the white mark is where this bar was when the other finished',
-                  TRACK_X, 264)
-    renderer.text('The square blinks on a second, slower timer on the same node',
-                  TRACK_X, 296)
-    renderer.text('Space sets off a one-shot', TRACK_X, 336)
+    renderer.text(@help, 12, 12)
+    renderer.text(@true_caption, TRACK_X, 126)
+    renderer.text(@naive_caption, TRACK_X, 244)
+    renderer.text(@mark_caption, TRACK_X, 264)
+    renderer.text(@blink_caption, TRACK_X, 296)
+    renderer.text(@fuse_caption, TRACK_X, 336)
   end
 end
 
@@ -252,7 +266,8 @@ game = RGame::Game.new(
   caption: 'Timer',
   width: WIDTH,
   height: HEIGHT,
-  media_root: ASSETS
+  media_root: ASSETS,
+  locales: LOCALES
 )
 
 game.start

@@ -1,0 +1,7 @@
+# The English table: every string this example draws.
+en:
+  status:
+    pooled: pooled — Space builds a fresh mote instead
+    fresh: fresh objects — Space goes back to the pool
+  hud:
+    allocated: "objects allocated per second: %{count}"

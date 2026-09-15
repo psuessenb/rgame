@@ -90,6 +90,7 @@ Controls = RGame::Util::Controls
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 # A plate that announces presses. It has no idea anything is listening, and
 # nothing below it in this file is named anywhere inside it.
@@ -230,6 +231,13 @@ end
 class Scene < RGame::Engine::Node2D
   BACKDROP = RGame::Util::Color.new(30, 34, 44)
 
+  def initialize
+    super
+    @help_plate = RGame::Engine::Text.new('help.plate')
+    @help_unnamed = RGame::Engine::Text.new('help.unnamed')
+    @help_cooldowns = RGame::Engine::Text.new('help.cooldowns')
+  end
+
   def on_add
     plate = add_node(Plate.new(x: 60, y: 150))
     # Both are handed the plate and connect themselves. The plate is handed
@@ -242,9 +250,9 @@ class Scene < RGame::Engine::Node2D
   def on_draw(renderer, view)
     renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
 
-    renderer.text('Enter stands on the plate — the door and the lamp both answer', 12, 12)
-    renderer.text('Neither of them is named anywhere inside the plate', 12, 34)
-    renderer.text('Hold Space and hold E: one ActionTrigger, two cooldowns', 12, 290)
+    renderer.text(@help_plate, 12, 12)
+    renderer.text(@help_unnamed, 12, 34)
+    renderer.text(@help_cooldowns, 12, 290)
   end
 end
 
@@ -254,6 +262,7 @@ game = RGame::Game.new(
   width: WIDTH,
   height: HEIGHT,
   media_root: ASSETS,
+  locales: LOCALES,
   # `stand_on_plate` rather than reading `ui_confirm` directly, and the reason is
   # the trap that costs an afternoon: **a key already in the default map keeps
   # doing its old job too.** `ui_confirm` is Enter *and* Space, and Space is

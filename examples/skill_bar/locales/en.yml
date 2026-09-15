@@ -1,0 +1,14 @@
+# The English table: every string this example draws.
+en:
+  help:
+    bar: Left and right move, Enter (or A) uses — or press 1 to 5
+  status:
+    focused: "Focused: %{skill}"
+    used: "Used: %{skill}"
+    nothing_used: "Used: nothing yet"
+  skills:
+    wand: Wand
+    wrench: Wrench
+    torch: Torch
+    hammer: Hammer
+    watering_can: Watering can

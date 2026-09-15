@@ -108,6 +108,7 @@ Controls = RGame::Util::Controls
 WIDTH  = 512
 HEIGHT = 320
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 # Set in the environment so one file can demonstrate both openings without being
 # edited. A real game reads this from its settings file — see the plan's
@@ -133,17 +134,12 @@ class Scene < RGame::Engine::Node2D
   # behind the modes that actually exist.
   MODES = RGame::Engine::Presentation::MODES
 
-  # One frozen string per state rather than one built per frame: a label made
-  # with interpolation in a draw method allocates a String every frame, which is
-  # what Game/NoInterpolationInHotPath refuses.
-  STATE = { true => 'fullscreen — F returns to a window',
-            false => 'windowed — F goes fullscreen' }.freeze
-  MODE_LABEL = {
-    disabled: 'left/right — scale_mode :disabled, the view is the window',
-    stretch: 'left/right — scale_mode :stretch, fills and distorts',
-    letterbox: 'left/right — scale_mode :letterbox, uniform with bars',
-    integer: 'left/right — scale_mode :integer, whole-number scale only'
-  }.freeze
+  # One Text per state rather than a string built per frame: a label made with
+  # interpolation in a draw method allocates a String every frame, which is what
+  # Game/NoInterpolationInHotPath refuses. Each mode's line is keyed by the mode.
+  STATE = { true => RGame::Engine::Text.new('state.fullscreen'),
+            false => RGame::Engine::Text.new('state.windowed') }.freeze
+  MODE_LABEL = MODES.to_h { |mode| [mode, RGame::Engine::Text.new(mode, scope: 'modes')] }.freeze
 
   def initialize(**)
     super
@@ -207,6 +203,7 @@ game = RGame::Game.new(
   width: WIDTH,
   height: HEIGHT,
   media_root: ASSETS,
+  locales: LOCALES,
   fullscreen: START_FULLSCREEN,
   scale_mode: SCALE_MODE,
   # :fullscreen is this game's own action; everything else comes from the

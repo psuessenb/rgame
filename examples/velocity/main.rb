@@ -72,6 +72,7 @@ require 'rgame/game'
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 # The world is the window minus a band along the bottom for the text. It is
 # shorter by more than the wrap margin, so a shape leaving through the bottom edge
@@ -157,6 +158,9 @@ class Scene < RGame::Engine::Node2D
   # would resolve their bounds before this existed.
   def initialize
     super
+    @help_walk = RGame::Engine::Text.new('help.walk')
+    @help_wrap = RGame::Engine::Text.new('help.wrap')
+    @help_spin = RGame::Engine::Text.new('help.spin')
     add_component(RGame::Engine::Components::World.new(width: WORLD_W, height: WORLD_H))
   end
 
@@ -174,9 +178,9 @@ class Scene < RGame::Engine::Node2D
     renderer.rect(0, 0, WORLD_W, WORLD_H, color: FLOOR)
     renderer.rect(0, WORLD_H - THICK, WORLD_W, THICK, color: EDGE)
 
-    renderer.text('Arrows / WASD walk the pale circle — the rectangles need nobody', 12, TEXT_Y)
-    renderer.text('They wrap at the edge of the world, which stops above this text', 12, TEXT_Y + 22)
-    renderer.text('Two of them spin: one component adding to angle, no shape the wiser', 12, TEXT_Y + 44)
+    renderer.text(@help_walk, 12, TEXT_Y)
+    renderer.text(@help_wrap, 12, TEXT_Y + 22)
+    renderer.text(@help_spin, 12, TEXT_Y + 44)
   end
 end
 
@@ -185,7 +189,8 @@ game = RGame::Game.new(
   caption: 'Velocity',
   width: WIDTH,
   height: HEIGHT,
-  media_root: ASSETS
+  media_root: ASSETS,
+  locales: LOCALES
 )
 
 game.start

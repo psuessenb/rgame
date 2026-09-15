@@ -1,0 +1,16 @@
+# The English table: every string this example draws.
+en:
+  help:
+    point: Point the stick (or arrow keys) at an icon, then press A (or Enter)
+  status:
+    nothing: "Chosen: nothing yet"
+    chosen: "Chosen: %{item}"
+  items:
+    home: Home
+    settings: Settings
+    save: Save
+    favourite: Favourite
+    trophies: Trophies
+    sound: Sound
+    music: Music
+    locked: Locked

@@ -1,0 +1,11 @@
+# The English table: every string this example draws.
+en:
+  help:
+    walk: Arrows walk the dog
+    keys: F5 saves   F9 loads   Delete discards the save
+  status:
+    saved: saved — quit and run again, or press F9
+    loaded: loaded
+    deleted: save deleted
+    fresh: no save yet — walk the dog, then press F5
+    restored: loaded the save from last time

@@ -57,6 +57,7 @@ require 'rgame/game'
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 MAP   = 'town.tmx'
 SPEED = 80.0 # px/s
@@ -129,7 +130,15 @@ end
 
 # The scene from `examples/collision_tiles`, less the spiky ball.
 class Scene < RGame::Engine::Node2D
-  STATE = { true => 'In the air', false => 'On the ground' }.freeze
+  STATE = { true => RGame::Engine::Text.new('status.airborne'),
+            false => RGame::Engine::Text.new('status.grounded') }.freeze
+
+  def initialize
+    super
+    @help_walk = RGame::Engine::Text.new('help.walk')
+    @help_box = RGame::Engine::Text.new('help.box')
+    @help_fence = RGame::Engine::Text.new('help.fence')
+  end
 
   def on_add
     map = root.context.assets.tilemap(MAP).map
@@ -145,9 +154,9 @@ class Scene < RGame::Engine::Node2D
   end
 
   def on_draw(renderer, _view)
-    renderer.text('Arrows / WASD / gamepad to walk, Space / A to hop', 12, 12)
-    renderer.text('The red box stays on the ground. So does everything it collides with', 12, 34)
-    renderer.text('Walk south into the fence and hop: the picture clears it, the feet do not', 12, 56)
+    renderer.text(@help_walk, 12, 12)
+    renderer.text(@help_box, 12, 34)
+    renderer.text(@help_fence, 12, 56)
     renderer.text(STATE[@hero.hop.airborne?], 12, 78)
   end
 end
@@ -158,6 +167,7 @@ game = RGame::Game.new(
   width: WIDTH,
   height: HEIGHT,
   media_root: ASSETS,
+  locales: LOCALES,
   # :jump is this game's own action. Space is also in the default map as :fire and
   # :ui_confirm, which nothing in this scene reads.
   input_map: RGame::Engine::InputMap.default.merge(

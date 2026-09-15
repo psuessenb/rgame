@@ -58,6 +58,7 @@ require 'rgame/game'
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 SHEET = 'hero.png'
 # The grid examples/assets/hero.json describes, which is what makes cell (0, 0)
@@ -132,6 +133,14 @@ class Scene < RGame::Engine::Node2D
   SHEET_X = 24
   SHEET_Y = 60
 
+  def initialize
+    super
+    @help = RGame::Engine::Text.new('help.keys')
+    @whole = RGame::Engine::Text.new('captions.whole')
+    @frame = RGame::Engine::Text.new('captions.frame')
+    @above = RGame::Engine::Text.new('captions.above')
+  end
+
   def on_add
     add_node(Turntable.new(x: WIDTH / 2, y: 230))
     add_node(Layered.new(x: WIDTH / 2, y: 400))
@@ -146,12 +155,10 @@ class Scene < RGame::Engine::Node2D
     # cell of it.
     renderer.image_at(SHEET, SHEET_X, SHEET_Y)
 
-    renderer.text('Left / right turn it — up / down resize it', 12, 12)
-    renderer.text('hero.png whole: a String id is a path', SHEET_X, SHEET_Y - 18)
-    renderer.text('one registered frame — the node holds the angle and the scale',
-                  SHEET_X, 170)
-    renderer.text('the sprite asks for a z above the panel its own node draws',
-                  SHEET_X, 330)
+    renderer.text(@help, 12, 12)
+    renderer.text(@whole, SHEET_X, SHEET_Y - 18)
+    renderer.text(@frame, SHEET_X, 170)
+    renderer.text(@above, SHEET_X, 330)
   end
 end
 
@@ -160,7 +167,8 @@ game = RGame::Game.new(
   caption: 'Sprite',
   width: WIDTH,
   height: HEIGHT,
-  media_root: ASSETS
+  media_root: ASSETS,
+  locales: LOCALES
 )
 
 # The other id space. A Symbol is a name this game chose, so nothing can resolve

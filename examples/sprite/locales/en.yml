@@ -1,0 +1,8 @@
+# The English table: every string this example draws.
+en:
+  help:
+    keys: Left / right turn it — up / down resize it
+  captions:
+    whole: "hero.png whole: a String id is a path"
+    frame: one registered frame — the node holds the angle and the scale
+    above: the sprite asks for a z above the panel its own node draws

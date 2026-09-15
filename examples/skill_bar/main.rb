@@ -58,6 +58,7 @@ require 'rgame/game'
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 Controls = RGame::Util::Controls
 
 # The bar, and what was last used from it.
@@ -70,11 +71,11 @@ class SkillBar < RGame::Engine::Node2D
   # Left to right, with the action that uses each without moving focus. Each
   # image names an entry of skills.json's `images`.
   SKILLS = [
-    ['Wand', :wand, :skill1],
-    ['Wrench', :wrench, :skill2],
-    ['Torch', :torch, :skill3],
-    ['Hammer', :hammer, :skill4],
-    ['Watering can', :watering_can, :skill5]
+    %i[wand wand skill1],
+    %i[wrench wrench skill2],
+    %i[torch torch skill3],
+    %i[hammer hammer skill4],
+    %i[watering_can watering_can skill5]
   ].freeze
 
   DISC = UI::ShapeStyle.new(shape: :disc)
@@ -85,41 +86,45 @@ class SkillBar < RGame::Engine::Node2D
   def initialize(**)
     super
     @used = nil
-    @menu = add_node(UI::Menu.new(layout: UI::Row.new(item_width: SLOT_WIDTH, item_height: SLOT_HEIGHT)))
-    SKILLS.each { |label, image, hotkey| add_skill(label, image, hotkey) }
+    @menu = add_node(UI::Menu.new(layout: UI::Row.new(item_width: SLOT_WIDTH, item_height: SLOT_HEIGHT),
+                                  scope: 'skills'))
+    SKILLS.each { |key, image, hotkey| add_skill(key, image, hotkey) }
   end
 
-  def focused_label = @menu.focused&.label&.key
+  # The name of the focused tool, as its button draws it.
+  def focused_name = @menu.focused.label
 
   private
 
-  def add_skill(label, image, hotkey)
-    button = UI::IconButton.new(image: image, label: label, hotkey: hotkey, activate_on: :press, style: DISC)
+  def add_skill(key, image, hotkey)
+    button = UI::IconButton.new(image: image, label: key, hotkey: hotkey, activate_on: :press, style: DISC)
     @menu.add(button).on_activated do
-      @used = label
+      @used = button.label
       RGame::Engine::AudioBus.play_sound(CLICK)
     end
   end
 end
 
 # The captions. Added after the bar, so its last line is the last text of every
-# frame — which is what the drive script reads. Each is chosen from a table
-# built once, so drawing one allocates nothing.
+# frame — which is what the drive script reads. Each sentence is one key with the
+# tool's name as a variable, and the name is the button's own label, so a
+# translator writes each name once and drawing an unchanged caption allocates
+# nothing.
 class Caption < RGame::Engine::Node2D
-  FOCUSED = SkillBar::SKILLS.to_h { |label, _, _| [label, "Focused: #{label}"] }.freeze
-  USED = Hash.new('Used: nothing yet').merge(
-    SkillBar::SKILLS.to_h { |label, _, _| [label, "Used: #{label}"] }
-  ).freeze
-
   def initialize(bar:, **)
     super(**)
     @bar = bar
+    @help = RGame::Engine::Text.new('help.bar')
+    @focused = RGame::Engine::Text.new('status.focused', :skill)
+    @used = RGame::Engine::Text.new('status.used', :skill)
+    @nothing_used = RGame::Engine::Text.new('status.nothing_used')
   end
 
   def on_draw(renderer, _view)
-    renderer.text('Left and right move, Enter (or A) uses — or press 1 to 5', 12, 12)
-    renderer.text(FOCUSED.fetch(@bar.focused_label), 12, HEIGHT - 52)
-    renderer.text(USED[@bar.used], 12, HEIGHT - 30)
+    renderer.text(@help, 12, 12)
+    renderer.text(@focused.with(skill: @bar.focused_name.to_s), 12, HEIGHT - 52)
+    used = @bar.used
+    renderer.text(used ? @used.with(skill: used.to_s) : @nothing_used, 12, HEIGHT - 30)
   end
 end
 
@@ -137,6 +142,7 @@ game = RGame::Game.new(
   width: WIDTH,
   height: HEIGHT,
   media_root: ASSETS,
+  locales: LOCALES,
   input_map: RGame::Engine::InputMap.default.merge(
     skill1: { buttons: [Controls::KEY_1] },
     skill2: { buttons: [Controls::KEY_2] },

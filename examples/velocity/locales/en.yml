@@ -1,0 +1,6 @@
+# The English table: every string this example draws.
+en:
+  help:
+    walk: Arrows / WASD walk the pale circle — the rectangles need nobody
+    wrap: They wrap at the edge of the world, which stops above this text
+    spin: "Two of them spin: one component adding to angle, no shape the wiser"

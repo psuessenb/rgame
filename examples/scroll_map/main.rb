@@ -35,6 +35,7 @@ require 'rgame/game'
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 MAP   = 'town.tmx'
 SPEED = 220.0 # px/s — a camera pans faster than a character walks
@@ -79,6 +80,11 @@ end
 
 # The scene: mount the map, mount the world, put the rig in it.
 class Scene < RGame::Engine::Node2D
+  def initialize
+    super
+    @help = RGame::Engine::Text.new('help.scroll')
+  end
+
   def on_add
     # `.tilemap` is a loader RGame::Game installs, because building one needs
     # both layers at once: Engine::TileMap reads the .tmx, and the renderer that
@@ -107,7 +113,7 @@ class Scene < RGame::Engine::Node2D
   def on_draw(renderer, _view)
     # Outside the WorldView, so this is screen space: it stays put while the
     # world scrolls under it.
-    renderer.text('Arrow keys / WASD / gamepad to scroll', 12, 12)
+    renderer.text(@help, 12, 12)
   end
 
   private
@@ -127,7 +133,8 @@ game = RGame::Game.new(
   caption: 'Scroll map',
   width: WIDTH,
   height: HEIGHT,
-  media_root: ASSETS
+  media_root: ASSETS,
+  locales: LOCALES
 )
 
 game.start

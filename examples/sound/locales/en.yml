@@ -1,0 +1,6 @@
+# The English table: every string this example draws.
+en:
+  help:
+    press: Press Space (or A on a controller) — fast, to hear them overlap
+  hud:
+    plays: "plays: %{plays}"

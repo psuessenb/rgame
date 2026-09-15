@@ -77,6 +77,7 @@ require 'rgame/game'
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 # The wheel and what it chooses. The wheel itself — backdrop, dead zone, pointer
 # and buttons — is a UI::RadialMenu; the chosen icon is a node added after it,
@@ -90,14 +91,14 @@ class QuickMenu < RGame::Engine::Node2D
 
   # Clockwise from the top. Each image names an entry of icons.json's `images`.
   ICONS = [
-    ['Home', :home],
-    ['Settings', :gear],
-    ['Save', :save],
-    ['Favourite', :star],
-    ['Trophies', :trophy],
-    ['Sound', :audio_on],
-    ['Music', :music_on],
-    ['Locked', :locked]
+    %i[home home],
+    %i[settings gear],
+    %i[save save],
+    %i[favourite star],
+    %i[trophies trophy],
+    %i[sound audio_on],
+    %i[music music_on],
+    %i[locked locked]
   ].freeze
 
   DISC = UI::ShapeStyle.new(shape: :disc)
@@ -109,16 +110,16 @@ class QuickMenu < RGame::Engine::Node2D
     @chosen = nil
     @chosen_image = nil
     @menu = add_node(UI::RadialMenu.new(radius: RADIUS, button_width: SLOT))
-    ICONS.each { |label, image| add_icon(label, image) }
+    ICONS.each { |key, image| add_icon(key, image) }
     add_node(ChosenIcon.new(menu: self))
   end
 
   private
 
-  def add_icon(label, image)
+  def add_icon(key, image)
     button = @menu.add(UI::IconButton.new(image: image, style: DISC, enabled: image != :locked))
     button.on_activated do
-      @chosen = label
+      @chosen = key
       @chosen_image = image
     end
   end
@@ -142,18 +143,20 @@ end
 # The captions. Added after the wheel, so it draws last and its final line is
 # the last text of every frame — which is what the drive script reads.
 class Caption < RGame::Engine::Node2D
-  STATUS = Hash.new('Chosen: nothing yet').merge(
-    QuickMenu::ICONS.to_h { |label, _| [label, "Chosen: #{label}"] }
-  ).freeze
+  NAMES = QuickMenu::ICONS.to_h { |key, _| [key, RGame::Engine::Text.new(key, scope: 'items')] }.freeze
 
   def initialize(menu:, **)
     super(**)
     @menu = menu
+    @help = RGame::Engine::Text.new('help.point')
+    @nothing = RGame::Engine::Text.new('status.nothing')
+    @chosen = RGame::Engine::Text.new('status.chosen', :item)
   end
 
   def on_draw(renderer, _view)
-    renderer.text('Point the stick (or arrow keys) at an icon, then press A (or Enter)', 12, 12)
-    renderer.text(STATUS[@menu.chosen], 12, HEIGHT - 30)
+    renderer.text(@help, 12, 12)
+    chosen = @menu.chosen
+    renderer.text(chosen ? @chosen.with(item: NAMES.fetch(chosen).to_s) : @nothing, 12, HEIGHT - 30)
   end
 end
 
@@ -169,7 +172,8 @@ game = RGame::Game.new(
   caption: 'Radial menu',
   width: WIDTH,
   height: HEIGHT,
-  media_root: ASSETS
+  media_root: ASSETS,
+  locales: LOCALES
 )
 
 # An image id that is a Symbol is a name rather than a path, so the icons are

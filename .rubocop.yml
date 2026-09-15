@@ -8,6 +8,7 @@ require:
   - ./rubocop/cop/game/no_engine_in_core_layer.rb
   - ./rubocop/cop/game/no_needless_allocation.rb
   - ./rubocop/cop/game/draw_in_local_space.rb
+  - ./rubocop/cop/game/no_literal_text.rb
 
 AllCops:
   NewCops: enable
@@ -53,6 +54,14 @@ Game/NoEngineInCoreLayer:
   Include:
     - 'lib/rgame/core/**/*.rb'
     - 'spec_core/**/*.rb'
+
+# Text a player reads comes from a translation table. The examples are what a
+# reader copies and lib/ is the engine, so the rule holds there; specs draw
+# literals on purpose, and test projects are games that are not migrated.
+Game/NoLiteralText:
+  Include:
+    - 'examples/**/*.rb'
+    - 'lib/**/*.rb'
 
 # tools/drive/ holds input scripts for the test-project driver: Ruby syntax, but
 # data rather than source. Each is read and `instance_eval`'d by

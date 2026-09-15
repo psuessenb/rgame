@@ -104,6 +104,7 @@ require 'rgame/game'
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 # Bigger than the window on both axes, so a camera has somewhere to go and the
 # two halves can be looking at genuinely different places.
@@ -211,12 +212,13 @@ class Badge < RGame::Engine::Node2D
   W = 108
   H = 46
 
-  def initialize(name:, tint:, **)
+  def initialize(number:, tint:, **)
     super(**)
-    @name = name
+    @name = RGame::Engine::Text.new('hud.player', :number)
+    @name.with(number: number)
     @tint = tint
     @waves = 0
-    @label = RGame::Engine::Text.computed(:count) { |count:| "waves: #{count}" }
+    @label = RGame::Engine::Text.new('hud.waves', :count)
   end
 
   def on_control(actions)
@@ -234,9 +236,11 @@ end
 class Scene < RGame::Engine::Node2D
   MARGIN = 16
 
-  # Built once each, because a name that cannot change is not a label to
-  # rebuild — the same reason `examples/save_load_ids` keeps its `id.to_s`.
-  NAMES = ['Player 1', 'Player 2'].freeze
+  def initialize
+    super
+    @help_keys = RGame::Engine::Text.new('help.keys')
+    @help_join = RGame::Engine::Text.new('help.join')
+  end
 
   def on_add
     @players = root.system(RGame::Engine::Players)
@@ -260,8 +264,8 @@ class Scene < RGame::Engine::Node2D
   # A plain child of the scene, so this is the global overlay: once across the
   # whole window, wherever the split is.
   def on_draw(renderer, view)
-    renderer.text('Player one: arrows or WASD. Space waves', MARGIN, view.height - 52)
-    renderer.text('Press A on a controller to join player two', MARGIN, view.height - 30)
+    renderer.text(@help_keys, MARGIN, view.height - 52)
+    renderer.text(@help_join, MARGIN, view.height - 30)
   end
 
   private
@@ -280,7 +284,7 @@ class Scene < RGame::Engine::Node2D
     @view.add_node(walker)
 
     layer = add_node(RGame::Engine::PlayerLayer.new(player: player))
-    layer.add_node(Badge.new(name: NAMES[player.id], tint: TINTS[player.id],
+    layer.add_node(Badge.new(number: player.id + 1, tint: TINTS[player.id],
                              x: MARGIN, y: MARGIN))
   end
 end
@@ -291,6 +295,7 @@ game = RGame::Game.new(
   width: WIDTH,
   height: HEIGHT,
   media_root: ASSETS,
+  locales: LOCALES,
   # Two seats. The second stays empty until somebody picks up a controller and
   # presses confirm, and until then this is an ordinary one-player game.
   players: 2

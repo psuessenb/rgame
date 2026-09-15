@@ -1,0 +1,8 @@
+# The English table: every string this example draws.
+en:
+  help:
+    walk: Walk with the arrow keys — Escape opens the menu
+  menu:
+    resume: Resume
+    save: Save game
+    quit: Quit

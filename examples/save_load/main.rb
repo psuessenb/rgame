@@ -65,6 +65,7 @@ Controls = RGame::Util::Controls
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 DOG_SPEED   = 150.0
 SHEEP_SPEED = 40.0
@@ -81,19 +82,17 @@ class Pasture < RGame::Engine::Node2D
   DOG_R = 11
   SHEEP_R = 9
 
-  KEYS = 'F5 saves   F9 loads   Delete discards the save'
-
-  STATUS = {
-    saved: 'saved — quit and run again, or press F9',
-    loaded: 'loaded',
-    deleted: 'save deleted',
-    fresh: 'no save yet — walk the dog, then press F5',
-    restored: 'loaded the save from last time'
-  }.freeze
+  STATUS = { saved: RGame::Engine::Text.new('status.saved'),
+             loaded: RGame::Engine::Text.new('status.loaded'),
+             deleted: RGame::Engine::Text.new('status.deleted'),
+             fresh: RGame::Engine::Text.new('status.fresh'),
+             restored: RGame::Engine::Text.new('status.restored') }.freeze
 
   def initialize(save:, **)
     super(**)
     @save = save
+    @help = RGame::Engine::Text.new('help.walk')
+    @keys = RGame::Engine::Text.new('help.keys')
     @rng = Random.new(ENV.fetch('RGAME_SEED', DEFAULT_SEED).to_i)
     @flock = []
     @status = :fresh
@@ -128,8 +127,8 @@ class Pasture < RGame::Engine::Node2D
     @flock.each { |sheep| renderer.circle(sheep.x, sheep.y, SHEEP_R, color: SHEEP) }
     renderer.circle(@dog.x, @dog.y, DOG_R, color: DOG)
 
-    renderer.text('Arrows walk the dog', 12, 12)
-    renderer.text(KEYS, 12, 34)
+    renderer.text(@help, 12, 12)
+    renderer.text(@keys, 12, 34)
     renderer.text(STATUS.fetch(@status), 12, 56)
   end
 
@@ -188,6 +187,7 @@ game = RGame::Game.new(
   width: WIDTH,
   height: HEIGHT,
   media_root: ASSETS,
+  locales: LOCALES,
   # F5 and F9 rather than S and L, and the reason is worth knowing: **a key
   # already in the default map keeps doing its default job too.** `move_y` is
   # bound to W and S, so an action added on S saves *and* walks the dog

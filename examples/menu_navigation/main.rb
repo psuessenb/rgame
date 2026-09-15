@@ -75,6 +75,7 @@ UI = RGame::Engine::UI
 WIDTH  = 512
 HEIGHT = 320
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 BLIP = 'blip.ogg'
 
@@ -102,13 +103,13 @@ class Settings
   # then never released, which shows up not as a leak but as a crash on the way
   # out. Inside a class body there is no such scope to capture.
   ROWS = {
-    fullscreen: { label: 'Fullscreen', default: false,
+    fullscreen: { label: 'fullscreen', default: false,
                   values: [false, true].freeze,
                   display: ->(on) { on ? 'on' : 'off' } },
-    scale: { label: 'Scale mode', default: :letterbox,
+    scale: { label: 'scale', default: :letterbox,
              values: RGame::Engine::Presentation::MODES,
-             display: :to_s.to_proc },
-    volume: { label: 'Volume', default: 75,
+             display: RGame::Engine::UI::OptionButton::DISPLAY },
+    volume: { label: 'volume', default: 75,
               values: [0, 25, 50, 75, 100].freeze,
               display: ->(percent) { RGame::Engine::Text.literal("#{percent}%") } }
   }.freeze
@@ -200,17 +201,23 @@ class TitleScene < RGame::Engine::Node2D
   ITEM_WIDTH = 240
   ITEM_HEIGHT = 34
 
+  def initialize(**)
+    super
+    @heading = RGame::Engine::Text.new('title.heading')
+    @help = RGame::Engine::Text.new('title.help')
+  end
+
   def on_add
-    menu = add_node(UI::Menu.new(x: MENU_X, y: MENU_Y,
+    menu = add_node(UI::Menu.new(x: MENU_X, y: MENU_Y, scope: 'title',
                                  layout: UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT)))
-    menu.add(UI::PanelButton.new(label: 'Play')).on_activated { root.swap(:play) }
-    menu.add(UI::PanelButton.new(label: 'Settings')).on_activated { root.show(:settings) }
-    menu.add(UI::PanelButton.new(label: 'Quit')).on_activated { root.context.close }
+    menu.add(UI::PanelButton.new(label: 'play')).on_activated { root.swap(:play) }
+    menu.add(UI::PanelButton.new(label: 'settings')).on_activated { root.show(:settings) }
+    menu.add(UI::PanelButton.new(label: 'quit')).on_activated { root.context.close }
   end
 
   def on_draw(renderer, _view)
-    renderer.text('Menu navigation', MENU_X, 44)
-    renderer.text('Up and down to move, Enter to choose', MENU_X, 68)
+    renderer.text(@heading, MENU_X, 44)
+    renderer.text(@help, MENU_X, 68)
   end
 end
 
@@ -230,13 +237,14 @@ class SettingsScene < RGame::Engine::Node2D
   def initialize(settings:, **)
     super(**)
     @settings = settings
+    @heading = RGame::Engine::Text.new('settings.heading')
   end
 
   def on_add
-    @menu = add_node(UI::Menu.new(x: PANEL_X + PADDING, y: PANEL_Y + PADDING + 30,
+    @menu = add_node(UI::Menu.new(x: PANEL_X + PADDING, y: PANEL_Y + PADDING + 30, scope: 'settings',
                                   layout: UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT)))
     Settings::ROWS.each { |key, row| option(key, row) }
-    @menu.add(UI::PanelButton.new(label: 'Back')).on_activated { root.back }
+    @menu.add(UI::PanelButton.new(label: 'back')).on_activated { root.back }
   end
 
   # Escape does what Back does, because that is what every player will try
@@ -248,8 +256,7 @@ class SettingsScene < RGame::Engine::Node2D
 
   def on_draw(renderer, _view)
     renderer.nine_slice(:panel, PANEL_X, PANEL_Y, PANEL_WIDTH, PANEL_HEIGHT)
-    renderer.text('Settings — left and right change a value', PANEL_X + PADDING,
-                  PANEL_Y + PADDING, z: 1)
+    renderer.text(@heading, PANEL_X + PADDING, PANEL_Y + PADDING, z: 1)
   end
 
   private
@@ -294,6 +301,7 @@ class PlayScene < RGame::Engine::Node2D
   def initialize(**)
     super
     @phase = 0.0
+    @help = RGame::Engine::Text.new('play.help')
   end
 
   def on_control(actions)
@@ -318,7 +326,7 @@ class PlayScene < RGame::Engine::Node2D
     renderer.circle(MARGIN + (travelled * (right - MARGIN)), view.height / 2,
                     RADIUS, color: DISC)
 
-    renderer.text('Enter makes a noise — Escape returns to the title', MARGIN, 16)
+    renderer.text(@help, MARGIN, 16)
   end
 end
 
@@ -341,6 +349,7 @@ game = RGame::Game.new(
   width: WIDTH,
   height: HEIGHT,
   media_root: ASSETS,
+  locales: LOCALES,
   fullscreen: settings[:fullscreen],
   scale_mode: settings[:scale]
 )

@@ -155,10 +155,21 @@ fullscreen switch with nothing listening for the change.
 **No clock on a draw path, ever.** Cosmetic animation accumulates its own
 elapsed seconds in `update(dt)` and hands the number to the renderer.
 
+**Text a player reads comes from a table.** Every example has
+`locales/en.yml` beside its `main.rb` and passes
+`locales: File.expand_path('locales', __dir__)` to `Game.new`; group keys by
+what the text is for (`help.*`, `status.*`, `hud.*`), and name them after what a
+line says, never its position. Build an `Engine::Text` in `initialize` and pass
+it to `renderer.text` as it is; `Game/NoLiteralText` refuses a String literal
+there. A table of text chosen by state holds `Text`s, and a sentence around a
+name is one key with the name as a variable (`"Chosen: %{item}"`). Drive the
+example afterwards: a key missing from the table shows under "missing or
+mismatched keys" and fails the run.
+
 **No String built per frame.** `renderer.text("#{n} plays", ...)` allocates every
-frame; `Game/NoInterpolationInHotPath` refuses it and is right. Build one frozen
-string per state in a constant hash, or count in rectangles. `to_s` on an id is
-the same bug without the interpolation — build the label in `initialize`.
+frame; `Game/NoInterpolationInHotPath` refuses it and is right. Use a key with a
+variable, `Engine::Text.new('hud.plays', :plays)`, read with `with`. `to_s` on an
+id is the same bug without the interpolation — build the label in `initialize`.
 
 **`[n, MAX].min` allocates nothing** despite the array literal: the VM compiles
 it to a single `opt_newarray_send`. Measured at 0 objects over 200,000 calls.

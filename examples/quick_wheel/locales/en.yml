@@ -1,0 +1,16 @@
+# The English table: every string this example draws.
+en:
+  help:
+    wheel: Hold Tab (or LB), point with the arrows (or stick), let go to choose
+  status:
+    nothing: "Chosen: nothing yet"
+    chosen: "Chosen: %{item}"
+  items:
+    home: Home
+    settings: Settings
+    save: Save
+    favourite: Favourite
+    trophies: Trophies
+    sound: Sound
+    music: Music
+    locked: Locked

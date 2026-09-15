@@ -65,7 +65,7 @@ Object-to-object collision. A scene-scoped system pairs up shapes each step and
 tells both sides they overlapped. It never learns what either object is.
 
 **Uses:** `Components::CollisionWorld`, `Components::CircleCollider`,
-`Components::BoxCollider`, `Components::Velocity`, `Engine::Text.computed`.
+`Components::BoxCollider`, `Components::Velocity`, `Engine::Text`.
 
 ### collision_tiles
 
@@ -79,7 +79,7 @@ spent in `on_blocked`, because a blocked pair ends up touching, not overlapping.
 **Uses:** `Components::TileWorld`, `Components::CollisionWorld`,
 `Components::FeetCollider`, `Components::CharacterBody` with
 `blocked_by: %i[tiles spike]` and `on_blocked`, `Components::CameraFollow`,
-`Engine::Text.computed`.
+`Engine::Text`.
 
 ### jump_topdown
 
@@ -102,7 +102,7 @@ feet box fits.
 
 **Uses:** `Components::Navigator`, `Components::TileWorld#nav_grid`,
 `Components::AnimatedSprite`, `Components::ActionTrigger`,
-`Components::CameraFollow`, `Engine::Text.computed`.
+`Components::CameraFollow`, `Engine::Text.computed` over `I18n.t` with plurals.
 
 ## Structure
 
@@ -129,7 +129,7 @@ Spawning many things without building any of them. The allocation count on
 screen makes the case.
 
 **Uses:** `Components::Pool`, `Engine::Pool`, `Components::DespawnOffscreen`,
-`Components::Timer`, `Engine::Text.computed`.
+`Components::Timer`, `Engine::Text`.
 
 ## UI
 
@@ -188,7 +188,7 @@ A sound effect fired by a button, and the path it travels. A node may not name
 the audio device, so it emits a fact and a director plays it.
 
 **Uses:** `Core::Sample`, `Engine::AudioBus`, `Engine::AudioDirector`,
-`Engine::Text.computed`.
+`Engine::Text`.
 
 ### music
 

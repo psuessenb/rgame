@@ -94,6 +94,7 @@ Identity = RGame::Engine::Components::Identity
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 DOG_SPEED   = 150.0
 SHEEP_SPEED = 35.0
@@ -145,19 +146,17 @@ class Pasture < RGame::Engine::Node2D
   TETHER = RGame::Util::Color.new(250, 240, 180)
   DOG_R  = 11
 
-  KEYS = 'F5 saves   F9 loads   Delete discards the save'
-
-  STATUS = {
-    fresh: 'no save yet — shear a few, add one, then press F5',
-    restored: 'loaded the save from last time',
-    saved: 'saved — quit, run again, then press N for a fresh id',
-    loaded: 'loaded',
-    deleted: 'save deleted'
-  }.freeze
+  STATUS = { fresh: RGame::Engine::Text.new('status.fresh'),
+             restored: RGame::Engine::Text.new('status.restored'),
+             saved: RGame::Engine::Text.new('status.saved'),
+             loaded: RGame::Engine::Text.new('status.loaded'),
+             deleted: RGame::Engine::Text.new('status.deleted') }.freeze
 
   def initialize(save:, **)
     super(**)
     @save = save
+    @help = RGame::Engine::Text.new('help.keys')
+    @save_keys = RGame::Engine::Text.new('help.save')
     @rng = Random.new(ENV.fetch('RGAME_SEED', DEFAULT_SEED).to_i)
     @flock = []
     @next_id = 1
@@ -192,8 +191,8 @@ class Pasture < RGame::Engine::Node2D
     renderer.line(@dog.x, @dog.y, @target.x, @target.y, color: TETHER) if @target
     renderer.circle(@dog.x, @dog.y, DOG_R, color: DOG)
 
-    renderer.text('Arrows walk   Tab targets   Space shears   N adds a sheep', 12, 12)
-    renderer.text(KEYS, 12, 34)
+    renderer.text(@help, 12, 12)
+    renderer.text(@save_keys, 12, 34)
     renderer.text(STATUS.fetch(@status), 12, 56)
   end
 
@@ -301,6 +300,7 @@ game = RGame::Game.new(
   width: WIDTH,
   height: HEIGHT,
   media_root: ASSETS,
+  locales: LOCALES,
   # F5 and F9 rather than S and L: **a key already in the default map keeps
   # doing its default job too.** `move_y` is bound to W and S, so a save action
   # on S would save *and* walk the dog downwards — two actions may read one key,

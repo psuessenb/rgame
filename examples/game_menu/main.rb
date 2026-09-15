@@ -41,6 +41,7 @@ require 'rgame/game'
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 SHEET       = 'hero.json'
 HERO_SPEED  = 90.0
@@ -81,12 +82,13 @@ class GameMenu < RGame::Engine::Node2D
     column = RGame::Engine::UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT, spacing: SPACING)
     # The panel reaches PADDING beyond the buttons, so placing the menu PADDING
     # in puts the panel's corner at this node's origin.
-    @menu = add_node(RGame::Engine::UI::PanelMenu.new(x: PADDING, y: PADDING, padding: PADDING, layout: column))
-    @menu.add(RGame::Engine::UI::PanelButton.new(label: 'Resume')).on_activated { close }
+    @menu = add_node(RGame::Engine::UI::PanelMenu.new(x: PADDING, y: PADDING, padding: PADDING, layout: column,
+                                                      scope: 'menu'))
+    @menu.add(RGame::Engine::UI::PanelButton.new(label: 'resume')).on_activated { close }
     # Disabled, so the example shows that state of the art — and because saving
     # is `examples/save_load`'s subject rather than this one's.
-    @menu.add(RGame::Engine::UI::PanelButton.new(label: 'Save game', enabled: false))
-    @menu.add(RGame::Engine::UI::PanelButton.new(label: 'Quit')).on_activated { root.context.close }
+    @menu.add(RGame::Engine::UI::PanelButton.new(label: 'save', enabled: false))
+    @menu.add(RGame::Engine::UI::PanelButton.new(label: 'quit')).on_activated { root.context.close }
     @menu.close # built once, shown when Escape asks for it
   end
 
@@ -117,6 +119,7 @@ class Scene < RGame::Engine::Node2D
   def initialize
     super
     @rng = Random.new(ENV.fetch('RGAME_SEED', DEFAULT_SEED).to_i)
+    @help = RGame::Engine::Text.new('help.walk')
   end
 
   def on_add
@@ -135,7 +138,7 @@ class Scene < RGame::Engine::Node2D
   end
 
   def on_draw(renderer, _view)
-    renderer.text('Walk with the arrow keys — Escape opens the menu', 12, 12)
+    renderer.text(@help, 12, 12)
   end
 
   private
@@ -154,7 +157,8 @@ game = RGame::Game.new(
   caption: 'Game menu',
   width: WIDTH,
   height: HEIGHT,
-  media_root: ASSETS
+  media_root: ASSETS,
+  locales: LOCALES
 )
 
 # The one thing that has to be registered by hand: a nine-slice id names an
