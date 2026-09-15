@@ -325,6 +325,43 @@ Record, per platform:
 7. **The `Gem::Platform.local` string** each Ruby 4.0 reports, compared to the
    three names in decision 2.
 
+**Status: Windows leg measured** *(this session, x64-mingw-ucrt)*. macOS and
+Linux are outstanding.
+
+| Measured (Windows) | Result |
+|---|---|
+| Toolchain | MSYS2 UCRT64: gcc 16.2.0, cmake 4.4.2, ninja 1.13, mingw32-make 4.4.1. `ci.yml`'s current `pacman --sync` line has none of cmake/ninja/make — only `SDL2`, `check`, `pkgconf`, `gcc`, `gdb` — so step 1's job has to add at least `cmake` and one make tool. |
+| SDL2 2.32.10 source tarball sha256 | `5f5993c530f084535c65a6879e9b26ad441169b3e25d789d83287040a9ca5165`, for step 1a's `SDL2_RELEASE`. |
+| The CMake generator (item 6) | With `ninja.exe` on `PATH`, CMake **defaults to Ninja with no `-G` flag** — it is not the "Unix Makefiles" default the sketch worried about, because `sh.exe` on `PATH` only rules that one out. `-G "MinGW Makefiles"` with `mingw32-make` also configures and builds cleanly despite `sh.exe` being present — the classic "sh.exe found, mingw32-make will not work" refusal did not trigger on this CMake version. Recommend pinning `-G Ninja` explicitly rather than relying on autodetection, and adding `mingw-w64-ucrt-x86_64-ninja` alongside `mingw-w64-ucrt-x86_64-cmake` to the toolchain action. |
+| `sdl2.pc`'s `Libs` / `Libs.private` split | A pure-static build (`SDL_SHARED=OFF`) puts **everything** into `Libs` — `Libs.private` comes back empty, because there is no shared alternative for it to hold back. A plain `pkg_config('sdl2')` (no `'static'` argument) already returns the exact same full link line as `pkg_config('sdl2', 'static')` would. This differs from Linux, where a distro keeps shared and static side by side and the split matters; step 1b's `with_config('sdl2-static')` branch does not need the `'static'` pkg-config argument on Windows, only a `PKG_CONFIG_PATH` pointed at the static prefix. |
+| `core_ext`'s dynamic dependencies, static SDL2 (item 1) | `ADVAPI32`, `GDI32`, `IMM32`, `KERNEL32`, nine `api-ms-win-crt-*` forwarders, `ole32`, `OLEAUT32`, `OPENGL32`, `SETUPAPI`, `SHELL32`, `USER32`, `VERSION`, `WINMM`, and `x64-ucrt-ruby400.dll`. **No SDL library.** The dynamic build's own list is just `KERNEL32`, the same `api-ms-win-crt-*` set, `OPENGL32`, `SDL2.dll` and the ruby DLL — the extra names appear because they were previously satisfied *through* `SDL2.dll`'s own import table and now have to be satisfied directly. Every one of them ships with Windows itself. |
+| `core_ext.so` size | 849 KB dynamic → 3.14 MB static, same source tree. |
+| SDL symbols exported (item 3) | None, in either build. The PE export table has exactly one entry (the extension's `Init_core_ext`) whether SDL is static or dynamic — mkmf generates a `.def` file per platform (`core_ext-x64-mingw-ucrt.def`) that names only the init function, so nothing exports by default the way it does on Linux. Rule 2 of step 1's linkage check is free on Windows; no `-fvisibility`-equivalent flag is needed. |
+| `rake spec:core`, static vs dynamic (item 2) | Dynamic (rebuilt fresh, matching the current source tree): **398 examples, 1 failure** — a pre-existing `docs/api` reference-checker failure unrelated to SDL2. Static: **396 examples, 4 failures** — the same doc failure plus 3 gamepad/hot-plug failures. Each build's result reproduced identically twice; not flaky. See the finding below — the 3 extra failures are a test-harness gap, not an engine regression. |
+| `Gem::Platform.local` (item 7) | `x64-mingw-ucrt` — matches decision 2's name exactly. |
+
+**Finding: the virtual-gamepad harness assumes a shared SDL2 and fails silently
+without one.** `spec_core/support/virtual_gamepad.rb` reaches the engine's own
+SDL by `Fiddle.dlopen`ing a hardcoded library name — `'SDL2.dll'` on Windows,
+`'libSDL2-2.0.so.0'` on Linux — on the stated assumption that this resolves to
+the exact copy `core_ext.so` linked, so driving it drives the engine's own SDL
+state. A statically-linked `core_ext.so` has no `SDL2.dll` to resolve to at
+all, but on this machine `Fiddle.dlopen('SDL2.dll')` **still succeeds**: this
+Ruby is a RubyInstaller build, and RubyInstaller Rubies keep their own MSYS2
+devkit reachable through Ruby's built-in DLL-directory mechanism independent of
+`PATH` — confirmed with `GetModuleFileNameW`, which named
+`C:\msys64\ucrt64\bin\SDL2.dll` even from a shell with no `msys64` anywhere on
+`PATH`. The harness ends up attaching its virtual pad to a second, unrelated
+SDL2 instance that the statically-linked engine never sees, so hot-plug
+callbacks never fire — not a crash, not a load error a developer would notice,
+just a quietly wrong `expected 1, got 0`. macOS's branch
+(`Fiddle::Handle::DEFAULT`, which searches images already loaded into the
+process rather than a named file) has no such gap, because it needs no shared
+library to exist. Generalizing Windows and Linux to the same
+already-loaded-image lookup — rather than a hardcoded filename — is real work
+for whichever of steps 1–3 first runs `spec:core` against a static build in CI;
+it is a fix to the test harness, not to the engine.
+
 **Verify:** this plan's step 0 section holds a table with one column per
 platform and a row per item above, and step 1's link flags and step 2's Linux
 build environment are rewritten to match it.
@@ -341,7 +378,7 @@ three platforms, where today each runs a different one.
 # rakelib/sdl2.rake
 SDL2_RELEASE = {
   version: '2.32.10',
-  sha256: '…' # recorded when the tarball is first fetched
+  sha256: '5f5993c530f084535c65a6879e9b26ad441169b3e25d789d83287040a9ca5165' # step 0, Windows leg
 }.freeze
 
 SDL2_PREFIX = File.expand_path('build/sdl2', __dir__)
