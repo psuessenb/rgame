@@ -1133,6 +1133,15 @@ in the run's `exclude` line.
   quotes, RuboCop (+ `-performance`, `-rspec`) via the `Gemfile`. Configured in
   `.rubocop.yml`, which also loads the project's own cops from
   `lib/rgame/rubocop/` — see the RuboCop section above.
-- No runtime Ruby dependencies at all. The `Gemfile` holds development gems
-  (RSpec, RuboCop) and the two stdlib gems the Core specs need to call C
-  directly (`fiddle`, `base64`); the gem itself depends on nothing.
+- One runtime gem dependency, and no more: `rexml`, declared in
+  `rgame.gemspec`. The Tiled loaders parse XML with it, and Ruby ships it as a
+  *bundled* gem rather than a default one, so Bundler hides it from a project
+  that does not declare it. 0.2.0 and 0.3.0 left it out, and `require "rgame"`
+  failed in every Bundler project. Everything else `lib/` requires is a default
+  gem or plain stdlib, and `spec/packaging_spec.rb` fails on a require that is
+  neither nor declared. Reach for a core method before a second dependency —
+  `tile_map.rb` decodes Base64 with `unpack1('m')` for exactly this reason — and
+  treat adding one as a deliberate decision, not a drive-by change. The
+  `Gemfile` holds development gems (RSpec, RuboCop) and the two bundled gems
+  the Core specs need to call C directly (`fiddle`, `base64`), never a gem
+  `lib/` needs: the checkout would load it while an installed gem could not.

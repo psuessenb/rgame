@@ -2,6 +2,7 @@ PATH
   remote: .
   specs:
     rgame (0.3.0)
+      rexml (~> 3.4)
 
 GEM
   remote: https://rubygems.org/
@@ -73,7 +74,6 @@ DEPENDENCIES
   base64
   fiddle
   rake
-  rexml
   rgame!
   rspec
   rubocop

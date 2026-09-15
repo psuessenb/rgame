@@ -8,7 +8,6 @@ gemspec
 gem 'base64'
 gem 'fiddle'
 gem 'rake', require: false
-gem 'rexml'
 gem 'rubocop', require: false
 gem 'rubocop-performance', require: false
 gem 'rubocop-rspec', require: false

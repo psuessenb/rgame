@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'rexml/document'
-require 'base64'
 require 'zlib'
 
 require_relative '../util'
@@ -52,7 +51,7 @@ module RGame
         layers = []
         above = []
         root.each_element('layer') do |layer_el|
-          raw = Base64.decode64(layer_el.elements['data'].text.strip)
+          raw = layer_el.elements['data'].text.strip.unpack1('m')
           gids = Zlib::Inflate.inflate(raw).unpack('V*')
           gids.map! { |g| g & FLIP_MASK }
           layers << gids

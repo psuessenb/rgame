@@ -12,6 +12,12 @@ index, not the argument.
 
 ## [Unreleased]
 
+### Fixed
+
+- `require "rgame"` failed under Bundler with `cannot load such file --
+  rexml/document`. The gem now declares `rexml` as a dependency, which Ruby 4.0
+  no longer loads without one.
+
 ## [0.3.0] - 2026-09-15
 
 ### Added
