@@ -1,0 +1,13 @@
+# The English table, and the default: a key German lacks shows this text.
+en:
+  title: Localization
+  hud:
+    apples:
+      zero: No apples
+      one: "%{count} apple"
+      other: "%{count} apples"
+    locale: "Current locale: %{locale}"
+    hint: Left and right change the count
+  language:
+    title: Language
+    system: Use the system language

@@ -222,7 +222,7 @@ OS names one. The list is `[]` when the OS names none, as on Linux under
 It returns what SDL reports, unfiltered. On Linux SDL reads `LANG`, then
 `LANGUAGE`, and ignores `LC_ALL`, so a locale can appear twice. macOS and Windows
 ask the OS. Picking the language a game shows is
-[`I18n.choose`](toolbox.md#locales-and-the-fallback-chain), and `RGame::Game`
+[`I18n.choose`](localization.md#locales-and-the-fallback-chain), and `RGame::Game`
 makes that choice at startup.
 
 ## When a hook raises

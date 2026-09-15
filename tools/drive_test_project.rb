@@ -192,9 +192,14 @@ module DriveTestProject
     Call = Struct.new(:calls, :first_args, :last_args, :ranges)
 
     attr_accessor :ticks, :frames
-    attr_reader :draws, :clips, :translates, :sounds, :scenes, :bands
+    attr_reader :draws, :clips, :translates, :sounds, :scenes, :bands, :texts
 
-    def initialize
+    # `texts:` adds a section listing every distinct String drawn with `text`,
+    # which the draw-call section cannot show: it keeps only the first and last
+    # arguments of each method.
+    def initialize(texts: false)
+      @show_texts = texts
+      @texts = {}
       @ticks = 0
       @frames = 0
       @draws = {}
@@ -233,6 +238,14 @@ module DriveTestProject
       @per_clip[@clip][key] += 1 if @clip
     end
 
+    # Keyed by the String's contents, so a label rebuilt into an equal String
+    # counts as the same text. Kept in first-drawn order, with the tick it first
+    # appeared on, so a report shows what changed and when.
+    def record_text(string)
+      seen = (@texts[string] ||= [0, @ticks])
+      seen[0] += 1
+    end
+
     def record_band(band) = @bands[band] += 1
     def record_sound(kind, id) = @sounds["#{kind} #{id}"] += 1
     def record_scene(action, scene) = @scenes << "#{action} #{scene.class}"
@@ -242,6 +255,7 @@ module DriveTestProject
       out << section('ticks / frames', ["#{@ticks} ticks, #{@frames} frames"])
       out << section('scenes', @scenes)
       out << section('draw calls', @draws.sort_by { |_, c| -c.calls }.map { |name, c| draw_line(name, c) })
+      out << section('texts drawn', text_lines) if @show_texts
       out << section('layers per band', band_lines)
       out << section('clips pushed', clip_lines)
       out << section('translates pushed', translate_lines)
@@ -250,6 +264,10 @@ module DriveTestProject
     end
 
     private
+
+    def text_lines
+      @texts.map { |string, (count, tick)| format('%6d  %s from tick %d', count, string.inspect, tick) }
+    end
 
     def band_lines
       RGame::Util::Z::BANDS.filter_map do |band|
@@ -373,6 +391,7 @@ module DriveTestProject
     def note(name, args)
       return if NOT_DRAWING.include?(name) || name.to_s.start_with?('register_')
 
+      @report.record_text(args.first) if name == :text && args.first.is_a?(String)
       @report.record_draw(name, args)
     end
   end
@@ -469,13 +488,13 @@ module DriveTestProject
   end
 
   class << self
-    def run(project:, script_path:, ticks:, gamepad: false, out: $stdout)
+    def run(project:, script_path:, ticks:, gamepad: false, texts: false, out: $stdout)
       HeadlessDisplay.start
       $LOAD_PATH.unshift(File.join(ROOT, 'lib')) unless $LOAD_PATH.include?(File.join(ROOT, 'lib'))
       require 'rgame/game'
 
       script = Script.load(script_path)
-      report = Report.new
+      report = Report.new(texts: texts)
       if gamepad
         require_relative '../spec_core/support/virtual_gamepad'
         install(report, nil, ticks, pad: ScriptedGamepad.new(script))
@@ -552,13 +571,14 @@ module DriveTestProject
 end
 
 if $PROGRAM_NAME == __FILE__
-  options = { ticks: 240, script: nil, gamepad: false, seed: nil }
+  options = { ticks: 240, script: nil, gamepad: false, seed: nil, texts: false }
   parser = OptionParser.new do |o|
     o.banner = 'Usage: ruby tools/drive_test_project.rb PROJECT_MAIN [options]'
     o.on('--ticks N', Integer, 'Stop after N simulation ticks (default 240)') { options[:ticks] = it }
     o.on('--script PATH', 'Input script (default: tools/drive/<project path>.rb)') { options[:script] = it }
     o.on('--gamepad', 'Drive a synthetic SDL controller instead of the input backend') { options[:gamepad] = true }
     o.on('--seed N', Integer, 'Seed the project RNG, so two runs can be compared') { options[:seed] = it }
+    o.on('--texts', 'List every distinct string drawn with text, with its count') { options[:texts] = true }
   end
   parser.parse!
 
@@ -572,5 +592,6 @@ if $PROGRAM_NAME == __FILE__
   end
 
   DriveTestProject.run(project: project, script_path: script_path,
-                       ticks: options[:ticks], gamepad: options.fetch(:gamepad, false))
+                       ticks: options[:ticks], gamepad: options.fetch(:gamepad, false),
+                       texts: options[:texts])
 end

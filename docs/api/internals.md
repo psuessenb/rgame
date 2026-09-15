@@ -13,7 +13,7 @@ This page documents them because they hold the core algorithms, and component
 specs drive them directly.
 
 [Toolbox](toolbox.md) covers the helpers a game *does* use directly: pools,
-localization, the camera, collision boxes.
+the camera, collision boxes. [Localization](localization.md) covers `I18n`.
 
 ## `SpatialHash` — uniform-grid broadphase
 

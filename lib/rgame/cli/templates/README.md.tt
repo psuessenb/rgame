@@ -84,6 +84,9 @@ renderer.text(@greeting.to_s, 20, 20)                  # in on_draw
 `spec/spec_helper.rb` loads the tables from `assets/locales/` itself, since specs
 cannot load `game.rb`. Move that directory and update both.
 
+The [localization guide](https://github.com/psuessenb/rgame/blob/main/docs/api/localization.md)
+covers plurals, variables and the fallback between languages.
+
 ## Where to look next
 
 The [rgame API guide](https://github.com/psuessenb/rgame/blob/main/docs/api/README.md)

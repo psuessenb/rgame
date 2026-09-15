@@ -1165,7 +1165,28 @@ What the sketch did not know:
 
 ---
 
-### 23. `examples/localization` — the same screen in two languages
+### 23. `examples/localization` — the same screen in two languages — **done**
+
+**Landed** as step 5 of `docs/plans/i18n/`, whose roadmap has the full note.
+`examples/localization/main.rb`, its `locales/en.yml` and `locales/de.yml`, and
+two drive scripts: `localization.rb` walks the switch, and
+`localization_saved.rb` is run after it against the same `RGAME_SAVE_DIR`.
+What it decided about the questions below:
+
+- **A label keyed on a value and the locale needs no new engine work.**
+  `Engine::Text#with(count:)` is that label, from step 1 of the i18n plan.
+- **The tables sit beside `main.rb`** and load through `Game.new(locales:)`,
+  not `I18n.load_file`, which no longer exists. A table in `examples/assets/`
+  would load into every example.
+- **The fallback is visible:** German lacks `hud.hint`, and the report shows its
+  English string on every frame in both languages.
+- **The slots did not need text measurement.** A 280-pixel button fits both
+  languages' longest label, 194 pixels. The header says a third language might not.
+- **The language names are `Text.literal`,** and the menu's `scope:` reaches only
+  the one button built from a key.
+- **The drive harness grew `--texts`**, because the draw-call section keeps only
+  first and last arguments and cannot show a switch.
+
 
 **Planned in `docs/plans/i18n/`**, whose step 5 writes this example after the
 system under it is rebuilt. That plan supersedes the sketch below where they
@@ -1576,8 +1597,8 @@ anything in phases C, D or E.
 
 **Phase G — localization.**
 
-23. `examples/localization` (`Engine::I18n` with `CachedLabel` and `UI::Menu`; no
-    assets)
+23. ~~`examples/localization`~~ — **done**; `Engine::I18n`, `Engine::Text` and
+    `UI::Menu`'s `scope:`, over step 5 of `docs/plans/i18n/`
 
 Last by decision rather than by dependency: it was added once the component
 sweep (a plan since folded back and deleted; `git log` has it) found `I18n` had no caller
