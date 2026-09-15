@@ -212,6 +212,104 @@ jobs:
             ruby -e "require 'rspec/core'; exit RSpec::Core::Runner.run(['--pattern', 'spec_core/**/*_spec.rb', '--options', '.rspec-core'])" \
             || true
 
+  # The platform gems' build: SDL2 from the pinned release, linked statically
+  # into core_ext, on each of the three platforms. It runs `rake spec:core`
+  # against that build, then tools/check_linkage.rb, which fails if core_ext
+  # still depends on or exports SDL, or util_ext depends on a graphics library.
+  #
+  # The runner gets no system SDL2, so a build that still needed one could not
+  # quietly load it.
+  #
+  # Linux builds inside rake-compiler-dock's x86_64-linux-gnu image rather than
+  # on the runner. Its cross Ruby links no libruby, and its Ubuntu 20.04 glibc
+  # gives a binary that needs GLIBC_2.29, where one built on ubuntu-latest needs
+  # 2.38 and does not load on Ubuntu 22.04. The image has no display, so the
+  # specs run on the runner against what the image built. The image is pinned by
+  # digest, for the same reason the actions are pinned by commit.
+  static-sdl2:
+    name: static-sdl2 ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-latest
+          - name: macos
+            os: macos-latest
+          - name: windows
+            os: windows-latest
+
+    env:
+      RCD_IMAGE: ghcr.io/rake-compiler/rake-compiler-dock-image:1.12.0-mri-x86_64-linux-gnu@sha256:2f7eabb005362054f71343bce19534a9c6f9d1ed085c66d773bb8fb67935703c
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      # Runs as root inside the image, which is what apt-get needs, and hands
+      # the files it wrote back to the runner's user on the way out.
+      #
+      # SDL needs the X11 and Wayland headers at build time even though it
+      # dlopens both at runtime. The image's RUBY_CC_VERSION lists every cross
+      # Ruby it carries; the build takes the one matching .ruby-version's minor,
+      # since more than one would give each its own lib/ subdirectory.
+      - name: Build SDL2 and both extensions in the rake-compiler-dock image (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          docker run --rm --volume "$PWD:/rgame" --workdir /rgame \
+            --env HOST_UID="$(id -u)" --env HOST_GID="$(id -g)" \
+            "$RCD_IMAGE" bash -c '
+              set -euo pipefail
+              trap "chown -R \"$HOST_UID:$HOST_GID\" /rgame" EXIT
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                libx11-dev libxext-dev libxcursor-dev libxi-dev libxrandr-dev \
+                libxss-dev libxinerama-dev libxfixes-dev libxkbcommon-dev \
+                libwayland-dev wayland-protocols libegl-dev libgl-dev libgles-dev \
+                libdrm-dev libgbm-dev libdbus-1-dev libudev-dev
+              ln -sfn /usr/local/rake-compiler /root/.rake-compiler
+              minor=$(sed -E "s/^ruby[ -]//; s/\.[0-9]+[[:space:]]*$//" .ruby-version)
+              RUBY_CC_VERSION=$(tr : "\n" <<<"$RUBY_CC_VERSION" | grep -m1 "^$minor\.")
+              export RUBY_CC_VERSION
+              echo "cross-compiling for Ruby $RUBY_CC_VERSION"
+              rake -f tools/cross_compile.rake sdl2 compile:x86_64-linux-gnu
+            '
+
+      - name: Toolchain
+        uses: ./.github/actions/toolchain
+        with:
+          system-sdl2: 'false'
+          cmake: ${{ runner.os != 'Linux' }}
+
+      - name: Put the image's extensions in lib/rgame (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          cp tmp/x86_64-linux-gnu/stage/lib/rgame/core_ext.so tmp/x86_64-linux-gnu/stage/lib/rgame/util_ext.so lib/rgame/
+          for so in lib/rgame/*.so; do
+            echo "$so needs $(objdump -T "$so" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)"
+          done
+
+      - name: Build SDL2 (macOS, Windows)
+        if: runner.os != 'Linux'
+        shell: bash
+        run: bundle exec rake sdl2
+
+      - name: Build both extensions against it (macOS, Windows)
+        if: runner.os != 'Linux'
+        shell: bash
+        run: make ext SDL2_STATIC=build/sdl2
+
+      - name: Linkage
+        shell: bash
+        run: ruby tools/check_linkage.rb
+
+      - name: Core specs (real windows)
+        shell: bash
+        run: bundle exec rake spec:core
+
   # Publish to RubyGems when lib/rgame/version.rb names a version that is not
   # on RubyGems yet.
   #
