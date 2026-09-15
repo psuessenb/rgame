@@ -39,7 +39,7 @@ module RGame
 
       KEEP_DIRS = ['assets'].freeze
 
-      NAME_PATTERN = /\A[a-z0-9][a-z0-9_-]*\z/i
+      NAME_PATTERN = /\A[a-z][a-z0-9_-]*\z/i
 
       def initialize(name, out: $stdout, root: Dir.pwd)
         @name = name
@@ -113,7 +113,7 @@ module RGame
         return if @name.is_a?(String) && @name.match?(NAME_PATTERN)
 
         raise Error, "#{@name.inspect} is not a valid project name — use letters, digits, " \
-                     'underscores and dashes, starting with a letter or a digit'
+                     'underscores and dashes, starting with a letter'
       end
 
       def check_target!

@@ -183,6 +183,22 @@ RSpec.describe RGame::CLI do
         expect(err.string).to include('not a valid project name')
       end
 
+      # The class name is the project name camelized, so a name that starts with
+      # a digit would write `class 2048Game`, which does not parse.
+      it 'refuses a name that starts with a digit' do
+        expect { RGame::CLI::NewProject.new('2048', root: tmp) }
+          .to raise_error(RGame::CLI::NewProject::Error, /not a valid project name/)
+
+        expect(Dir.children(tmp)).to be_empty
+      end
+
+      it 'accepts digits after the first letter, and writes a class that parses' do
+        game = File.join(generate('game_2048'), 'game.rb')
+
+        expect(File.read(game)).to include('class Game2048Game < RGame::Game')
+        expect { RubyVM::AbstractSyntaxTree.parse_file(game) }.not_to raise_error
+      end
+
       it 'refuses a directory that already has something in it' do
         FileUtils.mkdir_p(File.join(tmp, 'taken'))
         File.write(File.join(tmp, 'taken', 'notes.txt'), 'mine')

@@ -14,7 +14,7 @@ rgame new tictactoe
 | `rgame help` | Prints usage |
 
 `rgame new` accepts a name made of letters, digits, underscores and dashes,
-starting with a letter or a digit, and refuses anything else. It also refuses a
+starting with a letter, and refuses anything else. It also refuses a
 path that exists and is not a directory, and a directory that holds anything. It
 writes into an existing *empty* directory.
 
