@@ -61,7 +61,7 @@ For a branch that is not part of a plan, the first section has nothing to
 restate: use **What this is for** instead, and keep the other three.
 
 Write prose and bullets, not a file-by-file inventory. The diff already lists
-the files.
+the files. Both follow the style rules in [write-prose](../write-prose/SKILL.md).
 
 ## No attribution
 

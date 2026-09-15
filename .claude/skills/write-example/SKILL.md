@@ -54,6 +54,9 @@ Four rules for the header:
   [write-docs](../write-docs/SKILL.md)): no "used to", no "now", no "still".
   Written for someone who has only the current code.
 
+The header and every explaining comment in the file follow the style rules in
+[write-prose](../write-prose/SKILL.md).
+
 The end of the file is the wiring: `RGame::Game.new(...)`, any registration, and
 `game.start`.
 

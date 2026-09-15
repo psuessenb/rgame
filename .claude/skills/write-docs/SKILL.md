@@ -1,6 +1,6 @@
 ---
 name: write-docs
-description: How to write reference documentation under docs/api and keep it matching the code — what a page may say (the current code, nothing else), searching every page when code changes, claims backed by a line of code, example conventions the doc specs check, auditing a page, and the prose style rules (verbs over nouns, active voice, short sentences, no filler, no officialese, front-loaded paragraphs, they/their). Use whenever creating or editing a page in docs/api/, when a code change needs its documentation updated, when a doc spec fails, when auditing documentation against the code, or when folding a finished plan back into the documentation.
+description: How to write reference documentation under docs/api and keep it matching the code — what a page may say (the current code, nothing else), searching every page when code changes, claims backed by a line of code, example conventions the doc specs check, and auditing a page. Prose style is write-prose. Use whenever creating or editing a page in docs/api/, when a code change needs its documentation updated, when a doc spec fails, when auditing documentation against the code, or when folding a finished plan back into the documentation.
 ---
 
 # Writing documentation
@@ -15,6 +15,10 @@ setup and orientation, not reference material.
 
 Plans under `docs/plans/` follow different rules. See
 [write-plan](../write-plan/SKILL.md).
+
+Every sentence on a page follows the style rules in
+[write-prose](../write-prose/SKILL.md). This skill covers what a page may say;
+that one covers how it says it.
 
 ---
 
@@ -149,93 +153,6 @@ To check an existing page against the code, go through it top to bottom:
 
 ---
 
-## Style rules
-
-### Use verbs, not nouns
-
-Avoid nominalisation. A verb names the action directly.
-
-| Not | But |
-|---|---|
-| `Text` performs a re-render of the string only upon a change of a variable. | `Text` renders the string again only when a variable changes. |
-| `Timer` is responsible for the accumulation of time. | `Timer` accumulates time. |
-
-### Prefer the active voice
-
-Name who does what. The passive voice hides the actor, and in an engine the actor
-is the point.
-
-| Not | But |
-|---|---|
-| The transform is pushed before `on_draw` is called. | `Node2D#draw` pushes the transform, then calls `on_draw`. |
-| Mistakes were made. | We made mistakes. |
-
-### Cut weak adjectives and adverbs
-
-Delete "very", "really", "basically", "simply", "just", "quite", "actually". If
-a sentence needs one to sound true, give it a number or a reason instead.
-
-| Not | But |
-|---|---|
-| `Text` is really cheap. | `Text` allocates nothing while its variables stay the same. |
-
-### Keep sentences short
-
-Aim for 15 to 20 words at most. Avoid nested sentences. Split "which" and "who"
-clauses into sentences of their own.
-
-| Not | But |
-|---|---|
-| The camera, which follows a target that the player controls, clamps to the world bounds, which the tile map provides. | The camera follows a target. It clamps to the world bounds the tile map provides. |
-
-### Avoid jargon and buzzwords
-
-Delete "synergy", "leverage", "going forward", "robust", "seamless". Write "use",
-not "utilize".
-
-### Be clear and concise
-
-Get to the point in the first sentence. Do not announce what a section is about
-to say; say it.
-
-| Not | But |
-|---|---|
-| In this section we will take a look at how timers work. | A `Timer` accumulates time. Its owner decides what each interval means. |
-
-### Avoid officialese
-
-| Not | But |
-|---|---|
-| in order to | to |
-| subsequent to | after |
-| prior to | before |
-| in the event that | if |
-| with regard to | about |
-| a number of | some, or the number |
-| is able to | can |
-
-### Front-load paragraphs
-
-Put the result, the rule or the answer first. The reasons follow. A reader who
-stops after one sentence should still leave with the thing they came for.
-
-| Not | But |
-|---|---|
-| Because depth testing and blending cannot be combined, and UI is often translucent, the renderer sorts on the CPU. | The renderer sorts draws by z on the CPU. Depth testing cannot be combined with alpha blending, and UI is often translucent. |
-
-### Use gender-neutral language
-
-Write "they/their" for a player, a user or a game author. Do not write "he or
-she" or "s/he". Plural forms often read better still: "players", not "a player".
-
-### Avoid redundancy
-
-Say each thing once. Do not repeat a heading in the first sentence below it. Do
-not restate a code example in prose line by line. Do not end a section by
-summarising what it just said.
-
----
-
 ## Before you finish
 
 Read the page once against this list:
@@ -246,9 +163,6 @@ Read the page once against this list:
 - Does every option, mode or policy say what each value does on every path?
 - Does each example say its context, and start with `require 'rgame'` if it can?
 - Do `# =>` comments read `value — prose`?
-- Does each paragraph open with its point?
-- Does any sentence run past 20 words, or nest a "which" clause?
-- Can you replace a noun with a verb, or a passive with an active?
-- Did you delete every "very", "really", "basically", "in order to"?
+- Does the page pass the checklist in [write-prose](../write-prose/SKILL.md)?
 - Do `docs/api/README.md` and `examples.md` list what is new?
 - Do `bundle exec rspec spec/api_docs` and the reference spec in `rake spec:core` pass?

@@ -20,6 +20,9 @@ true moves into the real documentation, and the plan is deleted; git history
 keeps it. A plan that outlives its refactor is a stale description of code that
 no longer exists, so a roadmap schedules its own removal as its last step.
 
+A plan's latitude is in what it may say, not in how it says it. Its prose follows
+[write-prose](../write-prose/SKILL.md), as the reference documentation's does.
+
 ## One file, or a folder
 
 | Shape | Use when | Layout |
