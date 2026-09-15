@@ -2,10 +2,12 @@
 
 require 'rake/extensiontask'
 require_relative '../rakelib/sdl2_build'
+require_relative 'check_platform_gem'
 
 # The platform gem's build, for the platform of the machine it runs on. Both
 # extensions compile with rake-compiler, core_ext links the static SDL2
-# `rake sdl2` builds, and the gem lands in pkg/:
+# `rake sdl2` builds, and the gem lands in pkg/ once tools/check_platform_gem.rb
+# has passed it:
 #
 #   rake -f tools/platform_gem.rake platform_gem
 #
@@ -104,5 +106,11 @@ task :platform_gem do
   Rake::Task[:cross].invoke if PlatformGem.cross_compiled?
   Rake::Task[native].invoke
   Rake::Task['gem'].invoke
-  puts "Built #{PlatformGem.gem_path(gemspec)}"
+
+  gem = PlatformGem.gem_path(gemspec)
+  unless CheckPlatformGem.broken_rules(gem).empty?
+    rm gem
+    abort "Deleted #{gem}, which breaks the rules above."
+  end
+  puts "Built and checked #{gem}"
 end

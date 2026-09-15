@@ -15,11 +15,15 @@ require 'rbconfig'
 #
 # The paths default to the extensions in lib/rgame/. A build against the
 # system's SDL2 fails rule 1, which is how to see the check fail.
+#
+# Each listing also holds the runpaths and the oldest OS the binary loads on:
+# the newest glibc symbol version on Linux, the build minimum on macOS.
+# tools/check_platform_gem.rb holds a platform gem to both.
 module CheckLinkage
   SDL = /sdl/i
   GL = /\A(libGL\b|OpenGL|opengl32)|OpenGL\.framework/i
 
-  Listing = Data.define(:dependencies, :exports)
+  Listing = Data.define(:dependencies, :exports, :runpaths, :minimum_os)
 
   module_function
 
@@ -52,6 +56,8 @@ module CheckLinkage
     out.puts("== #{path}")
     listing.dependencies.each { out.puts("  needs #{it}") }
     out.puts("  exports #{listing.exports.size} symbols, #{sdl_exports(listing).size} of them SDL_")
+    listing.runpaths.each { out.puts("  runpath #{it}") }
+    out.puts("  needs #{listing.minimum_os} or newer") if listing.minimum_os
   end
 
   def sdl_exports(listing) = listing.exports.grep(/\A_?SDL_/)
@@ -66,17 +72,25 @@ module CheckLinkage
     end
   end
 
+  # The minimum OS is the newest glibc symbol version any import needs.
   def linux(path)
-    dependencies = capture('readelf', '-d', path).scan(/\(NEEDED\)\s+Shared library: \[([^\]]+)\]/).flatten
+    dynamic = capture('readelf', '-d', path)
+    dependencies = dynamic.scan(/\(NEEDED\)\s+Shared library: \[([^\]]+)\]/).flatten
+    runpaths = dynamic.scan(/\((?:RUNPATH|RPATH)\)\s+Library r(?:un)?path: \[([^\]]+)\]/).flatten
     exports = capture('nm', '-D', '--defined-only', path).lines.map { it.split.last }
-    Listing.new(dependencies:, exports:)
+    glibc = capture('objdump', '-T', path).scan(/GLIBC_([\d.]+)/).flatten.max_by { Gem::Version.new(it) }
+    Listing.new(dependencies:, exports:, runpaths:, minimum_os: glibc && "GLIBC_#{glibc}")
   end
 
-  # The first line of `otool -L` names the file itself.
+  # The first line of `otool -L` names the file itself. `otool -l` lists the
+  # load commands, which hold each LC_RPATH and the LC_BUILD_VERSION minimum.
   def macos(path)
     dependencies = capture('otool', '-L', path).lines.drop(1).map { it.strip.split(' (').first }
     exports = capture('nm', '-gU', path).lines.map { it.split.last }
-    Listing.new(dependencies:, exports:)
+    commands = capture('otool', '-l', path)
+    runpaths = commands.scan(/cmd LC_RPATH\n.*?\n\s*path (\S+)/).flatten
+    minos = commands[/^\s*minos (\S+)/, 1]
+    Listing.new(dependencies:, exports:, runpaths:, minimum_os: minos && "macOS #{minos}")
   end
 
   # objdump's private headers hold both the import directory ("DLL Name:") and
@@ -87,7 +101,7 @@ module CheckLinkage
     dependencies = headers.scan(/DLL Name: (\S+)/).flatten
     table = headers[%r{\[Ordinal/Name Pointer\] Table[^\n]*\n(.*?)(?:\n\s*\n|\z)}m, 1].to_s
     exports = table.lines.filter_map { it[/\[\s*\d+\].*?(\S+)\s*\z/, 1] }
-    Listing.new(dependencies:, exports:)
+    Listing.new(dependencies:, exports:, runpaths: [], minimum_os: nil)
   end
 
   def capture(*command)
