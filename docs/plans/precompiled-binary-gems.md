@@ -1,8 +1,7 @@
 # Precompiled binary gems
 
-**Status: steps 0–2 have landed.** Step 3 was re-planned against step 2's code.
-Step 4 is detailed. Steps 5–7 are rough and get re-planned once step 4 has
-landed.
+**Status: steps 0–3 have landed.** Step 4 is detailed. Steps 5–7 are rough and
+get re-planned once step 4 has landed.
 
 Rewritten 2026-09-15 from the 2026-08-25 sketch. The sketch compared three
 shapes and deferred the choice. This version takes it, records two decisions
@@ -905,6 +904,52 @@ job uploads the gem as an artifact. A `source-gem` job on Linux builds
 **Verify:** a push produces four artifacts, three platform gems and the source
 gem. Each platform gem passed the checker in the job that built it, and its
 binaries passed `rake spec:core` there.
+
+**Landed.** `rake -f tools/platform_gem.rake platform_gem` builds and checks
+`pkg/rgame-<version>-<platform>.gem` on all three platforms, and deletes a gem
+that fails `tools/check_platform_gem.rb`. The `build-gem` job runs it, tests the
+binaries unpacked from the gem with `rake spec:core`, and uploads the gem; the
+`source-gem` job uploads the source gem. `ext/README.md` documents the command.
+
+Measured in the pull request's CI:
+
+| | `.gem` | `core_ext` needs | Oldest OS | `rake spec:core` |
+|---|---|---|---|---|
+| `x86_64-linux-gnu` | 1.72 MB | libdl, libpthread, libm, libGL, libc, ld-linux | GLIBC_2.29 | 410, 0 failures, nothing excluded |
+| `arm64-darwin` | 1.56 MB | 15 frameworks, libSystem, libobjc; no libruby | macOS 11.0, both binaries | 399, 0 failures, the `test` job's 3 tags |
+| `x64-mingw-ucrt` | 1.87 MB | Windows DLLs and `x64-ucrt-ruby400.dll` | — | 401, 0 failures, the `test` job's 2 tags |
+| source gem | 1.63 MB | — | — | — |
+
+No binary exports an `SDL_` symbol or carries a runpath. The counts match step
+2's `static-sdl2` job. The `test` job is unchanged.
+
+On the Linux laptop: `make test` 363 checks, 0 failures. `rake spec` 2315
+examples, 0 failures, one more than step 2: the checker failing the source gem,
+on rules 1 to 6. `rake spec:core` 410, 0 failures, against the source build,
+whose `core_ext` still has 6 `NEEDED` entries. `platform_gem` refuses a
+checkout holding 47 `make ext` objects before it compiles anything. Run with
+rake-compiler's cross config pointed at a copy of the laptop's own Ruby, the
+task built a gem that installs with nothing compiled and loads from the
+installed directory, with no libruby linked despite that Ruby's shared libruby.
+The checker then failed it on rule 9 alone, for GLIBC_2.34.
+
+What the re-planned sketch got wrong:
+
+- **The licence is not staged directly.** `Gem::PackageTask` makes every file
+  of the gem a prerequisite at its path in the checkout. So `platform_gem`
+  copies SDL2's licence to `licenses/SDL2/LICENSE.txt`, which `.gitignore`
+  ignores and the source gem's globs do not reach.
+- **Clearing `extensions` is the rakefile's job.** `Gem::Specification#files`
+  adds the extensions back into the file list, so the first gem held both
+  `extconf.rb` files. The gemspec copy clears them.
+- **The Linux build needs rake-compiler's `cross` task, and an empty `native`
+  task for it.** Without `cross`, the gem depended on `lib/rgame/*.so`, whose
+  file tasks built both extensions a second time for the host. `cross` rewires
+  them, but edits the `native` task, and the image sets
+  `RAKE_EXTENSION_TASK_NO_NATIVE`, so none exists there. The first CI run failed
+  on it. The local cross harness had not set the variable.
+- **The source gem fails six rules, not four.** Its `>= 4.0` admits Ruby 4.1
+  (rule 4), and its file list includes `ext/` (rule 6).
 
 ### Step 4 — A clean-machine smoke test
 
