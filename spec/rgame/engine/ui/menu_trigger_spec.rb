@@ -44,7 +44,7 @@ RSpec.describe RGame::Engine::UI::Menu do
       button = menu.add(RGame::Engine::UI::Button.new(label: label, **))
       button.on_activated { chosen << label }
     end
-    menu.on_closed { |button| closed_with << button&.label }
+    menu.on_closed { |button| closed_with << button&.label&.key }
     root.enter_tree
     tick
     menu
@@ -72,7 +72,7 @@ RSpec.describe RGame::Engine::UI::Menu do
 
     it 'reads the stick on the frame it opens' do
       tick(:quick, stick: [1.0, 0.0])
-      expect(menu.focused&.label).to eq('E')
+      expect(menu.focused&.label&.key).to eq('E')
     end
 
     it 'raises when opened by hand, naming the trigger' do
@@ -211,7 +211,8 @@ RSpec.describe RGame::Engine::UI::Menu do
     end
 
     before do
-      menu.add(RGame::Engine::UI::TextButton.new(label: 'N'))
+      RGame::Engine::I18n.load_hash(en: { north: 'N' })
+      menu.add(RGame::Engine::UI::TextButton.new(label: 'north'))
       root.enter_tree
       tick
     end

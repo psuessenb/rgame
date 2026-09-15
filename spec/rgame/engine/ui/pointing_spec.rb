@@ -37,7 +37,7 @@ RSpec.describe RGame::Engine::UI::Pointing do
 
   def poll(x, y, confirm: false) = root.control(snapshot.call(x, y, confirm))
 
-  def label = menu.focused&.label
+  def label = menu.focused&.label&.key
 
   it 'starts with nothing focused' do
     build('N', 'E')
@@ -131,7 +131,7 @@ RSpec.describe RGame::Engine::UI::Pointing do
 
     before do
       build('N', 'E', 'S', 'W').buttons.each do |button|
-        button.on_activated { chosen << button.label }
+        button.on_activated { chosen << button.label.key }
       end
     end
 

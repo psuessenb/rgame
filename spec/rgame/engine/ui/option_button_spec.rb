@@ -8,6 +8,8 @@ RSpec.describe RGame::Engine::UI::OptionButton do
   end
   let(:root) { RGame::Engine::Node2D.new }
 
+  before { RGame::Engine::I18n.load_hash(en: { volume: 'Volume', none: 'None' }) }
+
   # The same stand-in panel_button_spec uses: FakeRenderer hands a nine-slice draw
   # straight to the registered element, so an element can say it was the one
   # drawn without pretending to be a real nine-slice.
@@ -22,7 +24,7 @@ RSpec.describe RGame::Engine::UI::OptionButton do
   end
 
   def option(**)
-    root.add_node(described_class.new(label: 'Volume', width: 240, height: 40,
+    root.add_node(described_class.new(label: 'volume', width: 240, height: 40,
                                       values: [0, 50, 100], **))
         .tap { root.enter_tree }
   end
@@ -49,7 +51,7 @@ RSpec.describe RGame::Engine::UI::OptionButton do
     end
 
     it 'is empty-safe' do
-      item = root.add_node(described_class.new(label: 'None', width: 10, height: 10, values: []))
+      item = root.add_node(described_class.new(label: 'none', width: 10, height: 10, values: []))
       root.enter_tree
       expect([item.value, item.adjust(1)]).to eq([nil, nil])
     end
@@ -152,7 +154,7 @@ RSpec.describe RGame::Engine::UI::OptionButton do
     # once in the constructor — a caption built inside `draw` would allocate a
     # String every frame for every row on screen.
     it 'draws captions made by display rather than the values themselves' do
-      root.add_node(described_class.new(label: 'Volume', width: 240, height: 40,
+      root.add_node(described_class.new(label: 'volume', width: 240, height: 40,
                                         values: [0, 50], index: 1,
                                         display: ->(v) { "#{v}%" }))
       root.enter_tree

@@ -6,11 +6,11 @@ module RGame
       # A UI::TextButton on a nine-slice: the shipped atlas's button, one element
       # per state, with a dark label.
       #
-      #   resume = menu.add(UI::PanelButton.new(label: 'Resume'))
+      #   resume = menu.add(UI::PanelButton.new(label: 'resume'))
       #   resume.on_activated { cutscene.close }
       #
-      #   menu.add(UI::PanelButton.new(label: 'Save game', enabled: false))
-      #   menu.add(UI::PanelButton.new(label: 'Load', style: UI::PanelButton::STYLE.with(idle: :mine)))
+      #   menu.add(UI::PanelButton.new(label: 'save_game', enabled: false))
+      #   menu.add(UI::PanelButton.new(label: 'load', style: UI::PanelButton::STYLE.with(idle: :mine)))
       #
       # `STYLE` names the element drawn for each state — which is why the shipped
       # atlas has one for each of the four. It differs from a TextButton only in

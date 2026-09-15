@@ -20,6 +20,8 @@ RSpec.describe RGame::Engine::UI::PanelMenu do
     end.new
   end
 
+  before { RGame::Engine::I18n.load_hash(en: { button0: 'Button 0', button1: 'Button 1', another: 'Another', one: 'One' }) }
+
   def button(label) = RGame::Engine::UI::PanelButton.new(label: label)
 
   def draw
@@ -32,23 +34,23 @@ RSpec.describe RGame::Engine::UI::PanelMenu do
   def panels = draw.select { |id, *| id == :panel }
 
   it 'draws one panel enclosing its bounds, padding beyond them on every side' do
-    2.times { |index| menu.add(button("Button #{index}")) }
+    2.times { |index| menu.add(button("button#{index}")) }
     expect(panels).to eq([[:panel, -12, -12, 224, 114]])
   end
 
   it 'grows the panel when a button is added' do
-    2.times { |index| menu.add(button("Button #{index}")) }
-    expect { menu.add(button('Another')) }.to change { panels.last.last }.from(114).to(164)
+    2.times { |index| menu.add(button("button#{index}")) }
+    expect { menu.add(button('another')) }.to change { panels.last.last }.from(114).to(164)
   end
 
   it 'draws the panel before its buttons, so they sit on top of it' do
-    menu.add(button('One'))
+    menu.add(button('one'))
     expect(draw.map(&:first)).to eq(%i[panel button_focus])
   end
 
   it 'draws whichever nine-slice it was built with' do
     other = root.add_node(described_class.new(layout: column, panel: :button_disabled))
-    other.add(button('One'))
+    other.add(button('one'))
     expect(draw.map(&:first)).to eq(%i[button_disabled button_focus])
   end
 
@@ -57,7 +59,7 @@ RSpec.describe RGame::Engine::UI::PanelMenu do
   end
 
   it 'allocates nothing drawing its panel' do
-    menu.add(button('One'))
+    menu.add(button('one'))
     quiet = Class.new { def nine_slice(_id, _x, _y, _width, _height) = nil }.new
     expect { menu.on_draw(quiet, nil) }.to allocate_nothing
   end

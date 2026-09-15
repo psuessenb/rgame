@@ -276,6 +276,44 @@ RSpec.describe RGame::Engine::UI::Button do
     expect(described_class.new.label).to be_nil
   end
 
+  describe 'the label' do
+    let(:text) { RGame::Engine::Text }
+
+    it 'is a Text for the key it was given' do
+      expect([button.label.class, button.label.key]).to eq([text, 'Resume'])
+    end
+
+    it 'takes a Symbol as a key' do
+      expect(described_class.new(label: :resume).label.key).to eq('resume')
+    end
+
+    it 'keeps a Text it is given, as it is' do
+      literal = text.literal('Ada')
+      expect(described_class.new(label: literal).label).to be(literal)
+    end
+
+    it 'makes a Text of a key assigned later' do
+      button.label = 'quit'
+      expect(button.label.key).to eq('quit')
+    end
+
+    it 'can be cleared' do
+      button.label = nil
+      expect(button.label).to be_nil
+    end
+
+    # A label is drawn with to_s, which a Text with variables refuses; that
+    # would otherwise surface on the first frame, in some other file.
+    it 'refuses a Text that declares variables, when it is built' do
+      expect { described_class.new(label: text.new('hud.score', :score)) }
+        .to raise_error(ArgumentError, /\[:score\]/)
+    end
+
+    it 'refuses a computed Text that declares variables' do
+      expect { button.label = text.computed(:n) { |n:| n.to_s } }.to raise_error(ArgumentError)
+    end
+  end
+
   it 'draws nothing of its own' do
     renderer = FakeRenderer.new
     button.draw(renderer, screen_view)

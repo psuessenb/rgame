@@ -85,7 +85,7 @@ module RGame
         def draw_foreground(renderer)
           y = label_y(renderer)
           color = current_label_color
-          renderer.text(@label, PADDING, y, z: 1, color: color)
+          renderer.text(@label.to_s, PADDING, y, z: 1, color: color)
           draw_value(renderer, y, color)
         end
 

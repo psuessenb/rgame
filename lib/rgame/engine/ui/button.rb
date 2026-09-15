@@ -33,6 +33,18 @@ module RGame
       #
       # A Button with no `on_draw` of its own draws nothing.
       #
+      # ## The label is a translation key
+      #
+      # `label: 'play'` is a key, and the button holds it as an Engine::Text, so
+      # what is drawn follows `I18n.locale` without the button being rebuilt.
+      # Text that must not be translated — a player's name — is passed as one:
+      #
+      #   UI::TextButton.new(label: 'play')                        # the key 'play'
+      #   UI::TextButton.new(label: Engine::Text.literal(name))    # the name, in every language
+      #
+      # A label is drawn with `to_s`, so a `Text` that declares variables is
+      # refused here rather than on the first frame.
+      #
       # ## When a press activates
       #
       # `activate_on:` is `:release` by default: confirm draws the button pressed
@@ -76,7 +88,9 @@ module RGame
         ACTIVATE_ON = %i[release press].freeze
         SOURCES = %i[confirm hotkey].freeze
 
-        attr_accessor :label, :enabled
+        attr_accessor :enabled
+        # The Engine::Text drawn for this button, or nil.
+        attr_reader :label
         # `hotkey` is an action name, or nil.
         attr_reader :activate_on, :hotkey
 
@@ -86,13 +100,22 @@ module RGame
             raise ArgumentError, "activate_on: must be :release or :press, not #{activate_on.inspect}"
           end
 
-          @label = label
+          self.label = label
           @enabled = enabled
           @activate_on = activate_on
           @hotkey = hotkey
           @focused = false
           @holder = nil
           @feedback = 0.0
+        end
+
+        # Sets the label: a key String or Symbol, which the button makes an
+        # Engine::Text of; a `Text`, used as it is; or nil.
+        def label=(label)
+          @label = label.nil? || label.is_a?(Text) ? label : Text.new(label)
+          return if @label.nil? || @label.names.empty?
+
+          raise ArgumentError, "a label is drawn without variables, and #{@label.names.inspect} are declared"
         end
 
         def enabled? = @enabled

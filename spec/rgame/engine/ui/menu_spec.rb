@@ -133,8 +133,9 @@ RSpec.describe RGame::Engine::UI::Menu do
           renderer.rect(0, 0, width, height, color: state == :focused ? [255, 255, 255] : [0, 0, 0])
         end
       end
-      menu.add(button('Resume'))
-      menu.add(RGame::Engine::UI::TextButton.new(label: 'Options'))
+      RGame::Engine::I18n.load_hash(en: { resume: 'Resume', options: 'Options' })
+      menu.add(button('resume'))
+      menu.add(RGame::Engine::UI::TextButton.new(label: 'options'))
       menu.add(RGame::Engine::UI::IconButton.new(image: :home))
       menu.add(swatch.new)
       root.enter_tree
@@ -194,30 +195,30 @@ RSpec.describe RGame::Engine::UI::Menu do
     before { build('One', 'Two', 'Three') }
 
     it 'starts on the first item' do
-      expect(menu.focused.label).to eq('One')
+      expect(menu.focused.label.key).to eq('One')
     end
 
     it 'moves down' do
       press(:ui_down)
-      expect(menu.focused.label).to eq('Two')
+      expect(menu.focused.label.key).to eq('Two')
     end
 
     it 'moves up' do
       press(:ui_down)
       press(:ui_up)
-      expect(menu.focused.label).to eq('One')
+      expect(menu.focused.label.key).to eq('One')
     end
 
     # A short vertical list is quicker to use when the ends join, and every
     # console menu does it.
     it 'wraps past the end' do
       3.times { press(:ui_down) }
-      expect(menu.focused.label).to eq('One')
+      expect(menu.focused.label.key).to eq('One')
     end
 
     it 'wraps before the start' do
       press(:ui_up)
-      expect(menu.focused.label).to eq('Three')
+      expect(menu.focused.label.key).to eq('Three')
     end
 
     # Not just `focused` answering: the item has to know, or a menu that has
@@ -452,7 +453,8 @@ RSpec.describe RGame::Engine::UI::Menu do
     end
 
     it 'draws nothing while closed, and draws again once opened' do
-      menu.add(RGame::Engine::UI::TextButton.new(label: 'One', style: nil))
+      RGame::Engine::I18n.load_hash(en: { one: 'One' })
+      menu.add(RGame::Engine::UI::TextButton.new(label: 'one', style: nil))
       root.enter_tree
       menu.close
       closed = draw.size
@@ -523,14 +525,14 @@ RSpec.describe RGame::Engine::UI::Menu do
       menu.add(button('Three'))
       root.enter_tree
       press(:ui_down)
-      expect(menu.focused.label).to eq('Three')
+      expect(menu.focused.label.key).to eq('Three')
     end
 
     it 'does not start on one' do
       menu.add(button('One', enabled: false))
       menu.add(button('Two'))
       root.enter_tree
-      expect(menu.focused.label).to eq('Two')
+      expect(menu.focused.label.key).to eq('Two')
     end
 
     it 'cannot be activated even if focus somehow reaches it' do
@@ -544,7 +546,7 @@ RSpec.describe RGame::Engine::UI::Menu do
       menu.add(button('One', enabled: false))
       root.enter_tree
       press(:ui_down)
-      expect(menu.focused.label).to eq('One')
+      expect(menu.focused.label.key).to eq('One')
     end
   end
 
@@ -687,7 +689,7 @@ RSpec.describe RGame::Engine::UI::Menu do
     it 'confirms the button the game focused' do
       menu.focus(1)
       press(:ui_confirm)
-      expect([menu.focused.label, fired]).to eq(['Two', ['Two']])
+      expect([menu.focused.label.key, fired]).to eq(['Two', ['Two']])
     end
 
     it 'still steps by default when the keyword is left out' do
@@ -811,7 +813,7 @@ RSpec.describe RGame::Engine::UI::Menu do
       players.poll(backend)
       root.control(players)
 
-      expect([one.focused.label, two.focused.label]).to eq(%w[A B])
+      expect([one.focused.label.key, two.focused.label.key]).to eq(%w[A B])
     end
   end
 end

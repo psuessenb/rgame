@@ -7,8 +7,10 @@ RSpec.describe RGame::Engine::UI::TextButton do
   let(:renderer) { FakeRenderer.new }
   let(:root) { RGame::Engine::Node2D.new }
 
-  def button(**)
-    root.add_node(described_class.new(label: 'Play', width: 200, height: 40, **))
+  before { RGame::Engine::I18n.load_hash(en: { play: 'Play' }) }
+
+  def button(label: 'play', **)
+    root.add_node(described_class.new(label: label, width: 200, height: 40, **))
         .tap { root.enter_tree }
   end
 
@@ -55,6 +57,30 @@ RSpec.describe RGame::Engine::UI::TextButton do
     it 'is centred in the slot' do
       button
       expect(draw.last.args).to eq(['Play', 84.0, 11])
+    end
+
+    it 'draws the translation for the current locale' do
+      RGame::Engine::I18n.load_hash(de: { play: 'Spielen' })
+      button
+      english = draw.last.args.first
+      RGame::Engine::I18n.locale = :de
+      expect([english, draw.last.args.first]).to eq(%w[Play Spielen])
+    end
+
+    it 'centres the new translation after a switch' do
+      RGame::Engine::I18n.load_hash(de: { play: 'Spielen' })
+      button
+      draw
+      RGame::Engine::I18n.locale = :de
+      expect(draw.last.args).to eq(['Spielen', 72.0, 11])
+    end
+
+    it 'draws a literal label in every locale' do
+      button(label: RGame::Engine::Text.literal('Ada'))
+      RGame::Engine::I18n.load_hash(de: { play: 'Spielen' })
+      english = draw.last.args.first
+      RGame::Engine::I18n.locale = :de
+      expect([english, draw.last.args.first]).to eq(%w[Ada Ada])
     end
 
     it 'is drawn above everything the style draws, focused or not' do
