@@ -203,9 +203,11 @@ B's costs, and the open question in it:
   and a changed label re-arranging its menu. With `I18n.generation` bumping on a
   language switch, that is every label at once.
 
-**Trigger.** The next look at i18n — `examples/localization` in
-`docs/plans/basic-examples.md`, or any other work on `Engine::I18n`. A translated
-label that no longer fits its fixed slot is the symptom it will arrive as.
+**Trigger.** The i18n plan (`docs/plans/i18n/`) landing. That plan deliberately
+leaves measurement out (its decision 8) and only makes sure nothing caches a
+width across a language switch; this is the plan to start after it. A
+translated label that no longer fits its fixed slot is the symptom it will
+arrive as.
 
 ---
 

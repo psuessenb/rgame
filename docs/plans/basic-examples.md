@@ -1167,6 +1167,11 @@ What the sketch did not know:
 
 ### 23. `examples/localization` — the same screen in two languages
 
+**Planned in `docs/plans/i18n/`**, whose step 5 writes this example after the
+system under it is rebuilt. That plan supersedes the sketch below where they
+disagree. In particular, `CachedLabel` becomes `Engine::Text`, which answers the
+open question about a label keyed on both a value and the locale.
+
 **Shows** a label that follows the language: text resolved from a translation
 table, a value interpolated into it, a count that picks its plural, and a switch
 that changes every label at once — without looking anything up per frame.
