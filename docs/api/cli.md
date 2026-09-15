@@ -179,6 +179,7 @@ language from their operating system. See
 [Game](game.md#translations-and-the-players-language). The node builds an
 [`Engine::Text`](toolbox.md#text--the-string-a-node-draws) once and draws it
 every frame. To add a language, add a file such as `de.yml` with the same keys.
+[Localization](localization.md) covers the format, plurals and the fallback.
 
 **The generated spec helper loads the same tables before every example.** It
 reads the files once, then calls `I18n.reset`, loads each table and sets

@@ -117,7 +117,7 @@ the other. `Game` installs the loader that joins them, so
 **`Game.new` loads every translation table and picks the player's language**, so
 a game writes no i18n setup. It lists every `.yml` under `locales:` with
 `AssetManager#glob`, sorted by path, and loads each through the asset manager's
-`:locale` loader into [`RGame::Engine::I18n`](toolbox.md#rgameenginei18n--localization).
+`:locale` loader into [`RGame::Engine::I18n`](localization.md).
 Two files that define one locale merge in that order, so a key the later file
 sets wins. It then sets `I18n.locale` to
 `I18n.choose(RGame::Core.preferred_locales)`: the first locale the OS prefers

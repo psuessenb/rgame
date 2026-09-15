@@ -153,7 +153,7 @@ deeper in the tree.
 With no table loaded, a key shows as itself under the default missing policy, so
 `label: 'Play'` draws the word Play in a game with no locale files. A spec suite
 that sets `I18n.missing = :raise` fails on it instead. See
-[Missing keys](toolbox.md#missing-keys).
+[Missing keys](localization.md#missing-keys).
 
 ### Layouts: `Column`, `Row` and `Ring`
 

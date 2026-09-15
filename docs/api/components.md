@@ -26,7 +26,7 @@ and reads a `Text` within ten lines.
 | a label from a value that changes, with no `String` per frame | `Text` | [→](toolbox.md#text--the-string-a-node-draws) |
 | to say *what happened* without naming a sound device | `AudioBus` | [→](toolbox.md#audiobus--decoupled-audio-facts) |
 | a point to follow, clamped to the world | `Camera` | [→](toolbox.md#camera--follow-a-point-clamp-to-the-world) |
-| text in the player's language | `I18n` | [→](toolbox.md#rgameenginei18n--localization) |
+| text in the player's language | `I18n` | [→](localization.md) |
 | an ordered route to walk | `Path` | [→](toolbox.md#path--a-walkable-polyline) |
 | the cheapest route between two tiles | `NavGrid`, from `TileWorld#nav_grid` | [→](toolbox.md#navgrid--routes-over-a-tile-grid) |
 | a node that walks itself to a point, around the map | `Components::Navigator` | [→](#navigator) |
