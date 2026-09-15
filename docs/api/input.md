@@ -436,3 +436,41 @@ end
 
 When a controller is unplugged mid-press, the engine clears its buttons and axes.
 A button held at that moment does not stay stuck down.
+
+## `RGame::Core::VirtualGamepad`
+
+**`VirtualGamepad` plugs a synthetic controller into a running `App`, for tests
+that need the gamepad path with no hardware.** SDL fabricates the device inside
+the process. The `App` seats it and calls `gamepad_connected` on its next frame,
+as it would for a real pad, and `Input` reads its buttons and axes. It serves
+tests, not gameplay; rgame's own Core suite drives its gamepad and hot-plug specs
+through it.
+
+```ruby
+pad = RGame::Core::VirtualGamepad.new   # raises RuntimeError unless an App is open
+
+pad.set_button(0, true)                  # button 0, which Input reads as Controls::PAD_A
+pad.set_axis(0, -32_768)                 # axis 0 is Controls::AXIS_LEFT_X, fully left
+pad.button_down?(0)                      # the raw button, before controller mapping
+pad.game_controller?                     # does SDL have a mapping for it?
+pad.attached?                            # is it still a live device?
+pad.detach                               # the App calls gamepad_disconnected
+
+RGame::Core::VirtualGamepad.pump         # apply pad state SDL has not applied yet
+RGame::Core::VirtualGamepad.sdl_error    # what SDL last said
+```
+
+**Buttons and axes take SDL's own numbers.** A button number is a `Controls` pad
+id minus `Controls::BUTTON_GAMEPAD_FIRST`. An axis number is the `Controls` axis
+id itself. `set_axis` takes -32768 to 32767 and raises `RangeError` outside it.
+
+`set_button` and `set_axis` return true when SDL accepts the change. SDL may
+still apply a change later: outside an `App`'s frame loop a press reads back
+only after one `VirtualGamepad.pump`. A test that must see a press land checks
+`button_down?` and pumps until it does.
+
+`detach` does nothing when called a second time. A pad that is never detached
+stays plugged in until the last `App` is destroyed, because collecting the
+object does not unplug it. SDL shuts down with the last `App` and takes every
+virtual pad with it. After that every method except `detach` raises
+`RuntimeError`.

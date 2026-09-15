@@ -11,7 +11,7 @@ or write C.
 | [The `rgame` command](cli.md) | `rgame new NAME` — starting a project, and the layout it gives you |
 | [App](app.md) | `RGame::Core::App` — the window and the frame loop |
 | [Game](game.md) | `RGame::Game` — the entry point that wires both halves together |
-| [Input](input.md) | `RGame::Core::Input`, `RGame::Util::Controls`, `RGame::Core::Gamepad` |
+| [Input](input.md) | `RGame::Core::Input`, `RGame::Util::Controls`, `RGame::Core::Gamepad`, `RGame::Core::VirtualGamepad` |
 | [Drawing](drawing.md) | `RGame::Core::Renderer` — shapes, images, transforms, clipping, recordings |
 | [Images](images.md) | `RGame::Core::Image` — loading PNGs, subimages, tiles |
 | [Text](text.md) | `RGame::Core::Font` and `Renderer#text` |
@@ -82,7 +82,7 @@ and `Core`. `Engine` holds what a game is written in.
 | | `RGame::Util` | `RGame::Core` | `RGame::Engine` |
 |---|---|---|---|
 | Contains | shareable *values* — no window, no GPU, nothing to release | things owning a window, GPU or OS handle | game concepts: the scene graph a game is written in |
-| Classes | `Color`, `Tensor`, `Controls`, `Z`, `SolidGrid`, `RouteSearch`, `TileSweep`, `SaveFile` | `App`, `Input`, `Gamepad`, `Image`, `Renderer`, `Recording`, `Font`, `Audio`, `SpriteSheet`, `NineSlice`, `UiAtlas`, `TileMapRenderer`, `AssetManager` | `Node2D`, components, systems, signals, `TileMap`, `Player`, `InputMap`, `UI::Menu` |
+| Classes | `Color`, `Tensor`, `Controls`, `Z`, `SolidGrid`, `RouteSearch`, `TileSweep`, `SaveFile` | `App`, `Input`, `Gamepad`, `VirtualGamepad`, `Image`, `Renderer`, `Recording`, `Font`, `Audio`, `SpriteSheet`, `NineSlice`, `UiAtlas`, `TileMapRenderer`, `AssetManager` | `Node2D`, components, systems, signals, `TileMap`, `Player`, `InputMap`, `UI::Menu` |
 | Loading it costs | nothing | SDL2 + OpenGL in your process | nothing |
 
 **A value goes in `Util`; only a handle-owner goes in `Core`.** A colour is a

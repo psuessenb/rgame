@@ -549,4 +549,5 @@ void Init_core_ext(void) {
     rgame_init_font(mCore);
     rgame_init_audio(mCore);
     rgame_init_locale(mCore);
+    rgame_init_virtual_gamepad(mCore);
 }

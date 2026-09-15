@@ -21,6 +21,7 @@
 
 #include "rgame/core.h"
 #include "app/app_gl.h"
+#include "app/sdl_session.h"
 #include "graphics/canvas.h"
 #include "text/font_internal.h"
 #include "app/frame_loop.h"
@@ -51,6 +52,13 @@
  * Single-threaded by assumption, like the rest of the engine.
  */
 static int rgame_live_apps = 0;
+
+/* Counts the times SDL has started from no live apps; see sdl_session.h. */
+static unsigned rgame_sdl_sessions = 0;
+
+unsigned rgame_sdl_session(void) {
+    return rgame_live_apps > 0 ? rgame_sdl_sessions : 0;
+}
 
 struct rgame_app {
     SDL_Window *window;
@@ -138,7 +146,9 @@ rgame_app *rgame_app_create(int width, int height, const char *title, int fullsc
 
     SDL_GL_SetSwapInterval(1); /* vsync */
 
-    rgame_live_apps++;
+    if (rgame_live_apps++ == 0) {
+        rgame_sdl_sessions++;
+    }
 
     app->running = 1;
     app->refs = 1;

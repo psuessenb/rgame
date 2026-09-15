@@ -663,10 +663,17 @@ file to a folder already listed needs nothing.
   pixels (`rake spec:core`, `make run`), not by unit tests — the call sequence
   itself is already checked against the recording backend.
 - `ext/rgame_core/input/gamepad.{c,h}` — the controller shim, and the one place
-  `SDL_GameController` appears. Deliberately thin: which player a pad belongs
-  to is `device_slots`, what a button id means is `input`, and both are pure.
-  Its own correctness is checked end-to-end with an SDL *virtual* controller
-  under Xvfb — no hardware needed, see `.claude/skills/verify/`.
+  an app opens an `SDL_GameController`. Deliberately thin: which player a pad
+  belongs to is `device_slots`, what a button id means is `input`, and both are
+  pure. Its own correctness is checked end-to-end with an SDL *virtual*
+  controller under Xvfb — no hardware needed, see `.claude/skills/verify/`.
+- `ext/rgame_core/input/virtual_gamepad.c` — that virtual controller, bound as
+  `RGame::Core::VirtualGamepad`. Test-only, and in the extension on purpose: a
+  spec helper reaching SDL through Fiddle opens a *second* SDL once the
+  extension links SDL statically, so SDL calls a spec needs go through the
+  engine. A pad records which run of SDL it was attached in
+  (`app/sdl_session.h`) and raises rather than touch SDL after the last app has
+  shut it down.
 - `ext/rgame_core/ruby/` + `extconf.rb` — the Ruby glue and the extension's
   entry point; see `ext/README.md`. This is the only C in the extension that
   includes `ruby.h`: everything above it is engine code that knows nothing

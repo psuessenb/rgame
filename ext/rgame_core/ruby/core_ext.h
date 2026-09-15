@@ -28,6 +28,9 @@ void rgame_init_locale(VALUE mCore);
  * share a file when everything else here does not. */
 void rgame_init_audio(VALUE mCore);
 
+/* A synthetic game controller for the Core specs; see virtual_gamepad_ext.c. */
+void rgame_init_virtual_gamepad(VALUE mCore);
+
 /*
  * Wraps a baked recording in a Ruby object. Only Renderer#record calls this:
  * `images` is the Array of Images drawn while recording, which the new object
