@@ -1,6 +1,6 @@
 # Plan — i18n as the default way to put text on screen
 
-**Status.** Planned, nothing implemented. Steps 0–3 are detailed; steps 4–7 are
+**Status.** Step 0 is implemented. Steps 1–3 are detailed; steps 4–7 are
 deliberately rough and get re-planned once the steps beneath them have landed.
 See [04-roadmap.md](04-roadmap.md).
 
@@ -186,7 +186,9 @@ inside this plan.
 2. **How does `OptionButton` name its captions?** A `display:` returning a key
    or a `Text` covers `menu_navigation`'s `'on'`/`'off'` and `"#{percent}%"`.
    What the *default* display is for Symbol values is open. *Decided while
-   writing step 3, against `examples/menu_navigation`.*
+   writing step 3, against `examples/menu_navigation`.* Step 0 found that YAML
+   reads unquoted `on`/`off` as booleans and the loader refuses them, so
+   whatever keys this picks must be quoted in the table.
 3. **Where do the examples' locale files live?** All 24 examples share
    `examples/assets/` as their media root, so a convention-loaded
    `examples/assets/locales/` would load every example's keys into every

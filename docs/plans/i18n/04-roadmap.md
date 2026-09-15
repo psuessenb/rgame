@@ -1,7 +1,7 @@
 # Roadmap
 
-**Status.** Nothing implemented. **Steps 0–3 are detailed. Steps 4–7 are rough**
-and get re-planned when the step before them lands.
+**Status.** Step 0 is implemented. **Steps 1–3 are detailed. Steps 4–7 are
+rough** and get re-planned when the step before them lands.
 
 ## Dependency shape
 
@@ -87,6 +87,72 @@ language), `spec/rgame/engine/i18n/template_spec.rb` (rule 2).
 the landed note: `I18n.t('menu.title')` and a pluralized `t` measured with the
 same bench as the brief, to show where the per-call cost now sits.
 `Text` is what makes the frame path free, so `t` does not have to be.
+
+**Landed.** `Engine::I18n` is rewritten over `I18n::Template`, `I18n::Plural`
+and `I18n::PluralRules` in `lib/rgame/engine/i18n/`, one commit per sub-step,
+plus two more: caching each locale's plural rule, and the docs. Public surface:
+`load(yaml, source:)`, `load_hash`, `available`, `locale`/`locale=`,
+`default`/`default=`, `normalize`, `chain`, `choose`, `generation`,
+`missing`/`missing=`, `MissingKey`, `missing_keys`, `plural_rule`, `t`, `reset`.
+`spec/spec_helper.rb` resets `I18n` and sets `missing = :raise` before every
+example.
+
+`rake spec`: 2174 examples, 0 failures. The three new spec files hold 53
+(`i18n_spec.rb`), 134 (`plural_rules_spec.rb`, one example per language and
+count) and 11 (`template_spec.rb`). RuboCop is clean on every touched file, with
+one inline disable: `Performance/RedundantBlockCall` in `PluralRules.whole`,
+whose `yield` would run after the method has returned. `spec_core/api_docs` is
+green over the rewritten page.
+
+The brief's bench, re-run at the end of the step (Ruby 4.0.5, no YJIT, 200,000
+calls):
+
+| Call | Before | After |
+|---|---|---|
+| `t('menu.title')`, a plain hit | 5 objects, 0.85 µs | **3 objects**, 0.50 µs |
+| `t('greeting', name: 'Ada')` through the fallback | 10 objects, 1.71 µs | **6 objects**, 1.34 µs |
+| `t('apples', count: 3)` | 12 objects, 2.10 µs | **6 objects**, 1.45 µs |
+
+An allocation trace of the plain hit finds nothing allocated inside `I18n`, so
+the 3 objects sit in the call itself (the keyword splat). What a `Text` pays on
+a re-render is therefore the render, not the lookup.
+
+What the sketch got wrong:
+
+- **`load_hash` cannot take `source:`.** `load_hash(en: { ... })` without braces
+  is parsed as keywords as soon as the method has any. It takes one Hash, as the
+  design's signature already said; only `load` names a source.
+- **YAML turns `on`, `off`, `yes`, `no` into booleans.** `on: On` loads as
+  `true => 'On'`, and `yes` overwrote a sibling key in the measurement. The
+  loader refuses a boolean or `nil` key or value by path, and says to quote it,
+  rather than storing `"true"`. **This touches step 3**:
+  `examples/menu_navigation`'s `'on'`/`'off'` captions must be quoted keys
+  (open question 2).
+- **"Every key is a category" is not enough to recognise a plural.**
+  `numbers: { one: One, two: Two }` is plausible nesting. A Hash is a `Plural`
+  only when every key is a category, every value is text, *and* `other` is
+  present. A plural missing `other` therefore reads as nesting, and `t` reports
+  it as a missing key.
+- **A missing variable or `count` in `t` raises `ArgumentError`, whatever the
+  missing policy.** The design put variable mismatches under the policy. That
+  sentence is about a `Text`'s declared names, which step 1 still owns. For `t`,
+  which receives keywords directly, a missing one matches Ruby's own "missing
+  keyword". The policy's handler `answer_missing` is private; step 1 needs to
+  reach it.
+- **The plural rule lookup allocated 14 objects per call**, more than the code
+  it replaced, because the chain of the supplying table was rebuilt each time.
+  It is cached per locale and cleared by `plural_rule` and `reset`.
+- **`reset` moves `generation` rather than zeroing it, and `default=` moves it
+  too.** A `Text` built before a reset must never find its old generation
+  current again.
+- Smaller: `it`, `es`, `fr` and `pt` carry CLDR's `many` for exact millions (a
+  table without `many` reads `other`); `plural_rule` accepts a regional locale
+  (`'pt-PT'`), which wins over its language; `choose` ignores the default when
+  matching, or every language would match `en`.
+
+Documented in `docs/api/toolbox.md`'s I18n section, which this step rewrote
+although the sketch listed no docs until step 5. Its example is headless and
+asserted by `spec/api_docs`.
 
 ---
 
