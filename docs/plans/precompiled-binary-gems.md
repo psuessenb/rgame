@@ -447,15 +447,16 @@ pad attaches there, and `core_ext`'s SDL never sees it. `button_state_supported?
 probes the same wrong copy, which is why two examples are excluded rather than
 failing. **Using `Fiddle::Handle::DEFAULT` on Linux, as macOS already does,
 fixes it for both builds:** 407 examples, 0 failures on the static build and on
-the source build. On Windows `Fiddle.dlopen('SDL2.dll')` has the same shape and
-will need the same answer.
+the source build. ~~On Windows `Fiddle.dlopen('SDL2.dll')` has the same shape
+and will need the same answer.~~ **Superseded by the Windows results:** a
+Windows static build exports no SDL symbol, so `DEFAULT` cannot find one there.
 
-This also decides between rules. `DEFAULT` finds SDL only while `core_ext`
+~~This also decides between rules. `DEFAULT` finds SDL only while `core_ext`
 exports its symbols, so hiding them (step 1's rule 2) and the virtual gamepad
-specs cannot both hold. The collision rule 2 guards against has no known
-instance: no other gem in a game's process links SDL2, and `core_ext` already
-exports 1394 miniaudio symbols without trouble. nokogiri's binary exports 2037.
-**The recommendation is to drop rule 2.**
+specs cannot both hold. The recommendation is to drop rule 2.~~ **Superseded —
+step 1c moves the virtual gamepad into the extension**, which works on all three
+platforms and both builds, and rule 2 stands. See
+[1c](#1c-rgamecorevirtualgamepad-moves-into-the-extension).
 
 **Finding B — a native build links this machine's libruby.** Built on a Ruby
 with a shared libruby, *both* extensions record `NEEDED libruby.so.4.0` and a
@@ -502,7 +503,7 @@ Ubuntu 20.04 container would give the same glibc, but neither the static-libruby
 cross Ruby nor the tasks.
 
 GLIBC_2.29 admits Ubuntu 20.04+, Debian 11+ and Fedora 30+. The kit that ran
-these builds is not in the repo. Step 1e rebuilds it as a CI job.
+these builds is not in the repo. Step 1f rebuilds it as a CI job.
 
 **Finding D — `audio_spec.rb:112` fails against the rake-compiler-dock
 binary, and it is not a leak.** "`debug_live_sounds` returns to its baseline"
@@ -547,8 +548,10 @@ task sdl2: "#{SDL2_PREFIX}/lib/pkgconfig/sdl2.pc"
 
 It downloads the release tarball, refuses it on a checksum mismatch, and runs
 the CMake invocation step 0 settled, adding `-DSDL_AUDIO=OFF -DSDL_RENDER=OFF`
-(finding C). The prefix sits under `build/`, which is
-already ignored and already outside the gem.
+(finding C). On Windows it passes `-G Ninja` rather than relying on CMake's
+autodetection, which picked Ninja there only because `ninja.exe` happened to be
+on `PATH`. The prefix sits under `build/`, which is already ignored and already
+outside the gem.
 
 #### 1b. `extconf.rb` links a static SDL2 when given one
 
@@ -556,38 +559,100 @@ already ignored and already outside the gem.
 static_sdl2 = with_config('sdl2-static') # a prefix built by `rake sdl2`
 
 if static_sdl2
-  ENV['PKG_CONFIG_PATH'] = File.join(static_sdl2, 'lib/pkgconfig')
-  abort "No static SDL2 under #{static_sdl2}. Run: rake sdl2" unless pkg_config('sdl2', 'static')
+  pc_dir = File.join(static_sdl2, 'lib/pkgconfig')
+  abort "No SDL2 under #{static_sdl2}. Run: rake sdl2" unless File.exist?(File.join(pc_dir, 'sdl2.pc'))
+
+  ENV['PKG_CONFIG_LIBDIR'] = pc_dir
+  pkg_config('sdl2') or abort "pkg-config could not read #{pc_dir}/sdl2.pc"
+
+  static_only = Shellwords.shellwords(pkg_config('sdl2', 'libs', 'static').to_s) - Shellwords.shellwords($libs)
+  $libs += " #{static_only.shelljoin}" unless static_only.empty?
 else
   abort 'SDL2 not found (pkg-config --exists sdl2 failed). Install libsdl2-dev.' unless pkg_config('sdl2')
 end
 ```
 
-The link flags come from SDL's own `sdl2.pc`, not from a list in
-`extconf.rb`. On macOS that is the framework list Ruby2D keeps by hand. On Linux
-step 0 found the flags are `-lSDL2 -pthread -lm` and nothing more. Because the
-prefix holds only `libSDL2.a`, `-lSDL2` resolves to the archive. The system's
-`libSDL2.so` sits later on the search path. That ordering holds the build up
-without being visible in it, which is why rule 1's linkage check exists.
-SDL's symbols stay exported; see finding A.
+Each line of the static branch answers something one of the three step 0 runs
+measured. The Linux build ran this exact shape: 5 `NEEDED` entries, no SDL, and
+the source build unchanged at 6.
 
-#### 1c. The virtual gamepad finds the SDL already loaded
+- **`pkg_config` runs twice.** Called with options, mkmf's `pkg_config` returns
+  a string and sets no flags (macOS result, confirmed in `mkmf.rb`). So the
+  first call sets the flags, and the second adds whatever `Libs.private` holds
+  beyond them. On macOS that is the framework list — the one Ruby2D keeps by
+  hand. On Linux and Windows it adds nothing, because a static-only build puts
+  everything in `Libs`.
+- **The second call stays inside the static branch.** Run against a system
+  SDL2, `--static` asks for every library SDL could link. The source build then
+  went from 6 `NEEDED` entries to 25 — X11, PulseAudio, Wayland, libdecor —
+  which breaks constraint 1.
+- **The prefix is checked by file before pkg-config runs.** When pkg-config
+  finds no `sdl2`, mkmf quietly falls back to running `sdl2-config`. With
+  `--with-sdl2-static=/nonexistent`, that found `/usr/bin/sdl2-config` and
+  linked the *system* SDL dynamically, with no error.
+- **`PKG_CONFIG_LIBDIR`, not `PKG_CONFIG_PATH`.** `LIBDIR` replaces the default
+  search path rather than going in front of it, so no system `sdl2.pc` can
+  answer instead.
+- **Not mkmf's own `--with-sdl2-dir`.** It does point pkg-config at the prefix,
+  but it also writes the prefix into the binary's `RUNPATH`, which would put
+  another build-machine path in the gem (finding B, and step 2's rule 8).
 
-`spec_core/support/virtual_gamepad.rb` resolves SDL through
-`Fiddle::Handle::DEFAULT` on Linux as well as macOS, and its comment says why
-(finding A). Windows gets the same change once step 0 has measured it there.
-This lands before the CI job, because that job's `rake spec:core` fails without
-it. The same commit rewrites `audio_spec.rb`'s "returns to its baseline"
-example to assert no growth across many allocations, which fails against the
-rake-compiler-dock binary as it stands (finding D).
+Because the prefix holds only `libSDL2.a`, `-lSDL2` resolves to the archive,
+and the system's `libSDL2.so` is never reached. That ordering is invisible in
+the build output, which is why rule 1's linkage check exists.
 
-#### 1d. The toolchain setup moves into a composite action
+#### 1c. `RGame::Core::VirtualGamepad` moves into the extension
+
+**The spec harness stops reaching SDL through Fiddle.** The three step 0 runs
+show no filename or lookup that finds the engine's own SDL everywhere:
+
+| | Static build | Source build |
+|---|---|---|
+| Linux | `DEFAULT` finds it, because static SDL's symbols are exported (finding A) | `DEFAULT` finds it |
+| Windows | Nothing finds it. Only `Init_core_ext` is exported, and `dlopen('SDL2.dll')` opens RubyInstaller's MSYS2 copy instead (Windows finding) | `SDL2.dll` |
+| macOS | Contradictory; see open question 7 | `DEFAULT` finds it |
+
+So the 13 SDL calls the harness makes go into C, where they can only reach the
+SDL that `core_ext` itself links:
+
+```c
+/* ext/rgame_core/ruby/virtual_gamepad_ext.c
+ *
+ * RGame::Core::VirtualGamepad — a synthetic controller, for specs. Test-only
+ * and named so, like Audio.debug_live_sounds. It lives in the extension because
+ * that is the only place guaranteed to call the SDL the engine runs on, whether
+ * SDL is linked statically or dynamically. */
+void rgame_init_virtual_gamepad(VALUE mCore);
+```
+
+The Ruby surface keeps what the harness offers today — `new`, `press`,
+`release`, `move_axis`, `raw_down?`, `game_controller?`, `attached?`,
+`detach` and `button_state_supported?` — so the gamepad and input specs change
+only their `require`. `spec_core/support/virtual_gamepad.rb` and its Fiddle
+table are deleted. The class is tagged `@api private` for the documentation
+coverage spec.
+
+This costs a test-only class in the shipped gem. Every alternative is
+per-platform: a `.def` file exporting SDL functions on Windows, `DEFAULT`
+elsewhere, and a list of names that has to match the harness by hand.
+
+#### 1d. The audio leak spec asserts no growth
+
+`audio_spec.rb`'s "returns to its baseline" example allocates many sounds and
+asserts the live count does not grow, rather than returning to exactly its
+baseline from one frame. It fails against the rake-compiler-dock binary as it
+stands (finding D).
+
+#### 1e. The toolchain setup moves into a composite action
 
 `.github/actions/toolchain/action.yml` takes the per-OS install, `ridk`, `PATH`
 and Mesa steps out of the test job. The test job calls it unchanged. The new
-job in 1e calls it too, so the Windows `PATH` fix exists once.
+job in 1f calls it too, so the Windows `PATH` fix exists once. It adds what
+building SDL2 needs: `brew install cmake` on macOS, and
+`mingw-w64-ucrt-x86_64-cmake` and `mingw-w64-ucrt-x86_64-ninja` on Windows,
+neither of which `ci.yml` installs today.
 
-#### 1e. A `static-sdl2` CI job
+#### 1f. A `static-sdl2` CI job
 
 A matrix over the three runners, beside the existing `test` job:
 
@@ -606,9 +671,12 @@ moves forward into this step on Linux.
 **Rules the checks pin:**
 
 1. `core_ext`'s dynamic dependencies name no SDL library.
-2. ~~`core_ext` exports no `SDL_` symbol.~~ **Dropped after step 0 on Linux.**
-   Hiding SDL's symbols breaks the virtual gamepad specs, and the collision it
-   guarded against has no known instance. See finding A.
+2. `core_ext` exports no `SDL_` symbol. Windows meets this with no flag, because
+   mkmf's `.def` file exports only `Init_core_ext`. Linux needs
+   `-Wl,--exclude-libs,ALL`, which step 0 measured hiding all 839. macOS waits
+   on open question 7. Finding A had dropped this rule, because hiding the
+   symbols broke the Fiddle harness; 1c removes that harness, so the rule
+   stands again.
 3. `util_ext`'s dynamic dependencies name no SDL and no GL library.
 4. Without `--with-sdl2-static`, `extconf.rb` behaves exactly as before — the
    existing `test` job is the check.
@@ -807,3 +875,14 @@ installed on the Linux runner with no SDL2.
 6. **Native Wayland decorations.** The image cannot build SDL with libdecor, so
    under `SDL_VIDEODRIVER=wayland` on GNOME a window has no title bar (finding
    E). *Blocks nothing; X11 through XWayland is SDL2's default.*
+7. **Does the macOS static bundle export SDL's symbols?** The macOS results
+   report zero from `nm -gU core_ext.bundle | grep SDL_`, and also 396 examples,
+   0 failures with the virtual gamepad resolving SDL through
+   `Fiddle::Handle::DEFAULT`. Both cannot be true.
+   `spec_core/core_spec_helper.rb:66` loads that harness for every run, and
+   `dlsym` finds only exported symbols, so zero exports would error the whole
+   suite. Re-run on the Mac with the static bundle in `lib/rgame/`:
+   `nm -gU lib/rgame/core_ext.bundle | grep -c _SDL_`, and
+   `ruby -Ilib -rfiddle -e 'require "rgame/core"; p Fiddle::Handle::DEFAULT["SDL_JoystickAttachVirtual"]'`.
+   If SDL is exported, rule 2 needs `-Wl,-exported_symbol,_Init_core_ext` on
+   macOS. *Blocks rule 2's macOS flag, not step 1c, which works either way.*
