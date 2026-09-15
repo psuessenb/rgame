@@ -1,7 +1,7 @@
 # Roadmap
 
-**Status.** Steps 0–4 are implemented. Step 5 is planned in detail and is
-next. **Steps 6–7 are rough** and get re-planned when step 5 lands.
+**Status.** Steps 0–5 are implemented. **Steps 6–7 are rough**, and step 6 is
+next, to be re-planned before it starts.
 
 ## Dependency shape
 
@@ -824,6 +824,75 @@ changes. `rake spec` green, including `spec/api_docs` over the new page's
 headless examples; `rake spec:core` green, which resolves every name the page
 mentions. `rake docs:coverage` reports no new gaps. RuboCop clean on the example
 and the harness.
+
+**Landed.** One commit per sub-step. What shipped:
+
+- **`tools/drive_test_project.rb --texts`**: a "texts drawn" section listing each
+  distinct String passed to `text`, with its count and the tick it first
+  appeared on. CLAUDE.md and the verify skill mention it.
+- **`examples/localization`**: `main.rb` with a `Language` class (the save, the
+  OS's preference, `restore`, `pick`, `follow_system`) and a `Screen` node.
+  `locales/en.yml` and `locales/de.yml` sit beside it. Two drive scripts:
+  `localization.rb` and `localization_saved.rb`.
+- **`docs/api/localization.md`**, with the toolbox's I18n section moved into it.
+  Rows and links in `README.md`, `docs/api/README.md`, `examples.md`,
+  `components.md`, `game.md`, `app.md`, `ui.md`, `internals.md` and `cli.md`,
+  a link in the generated README, and `basic-examples.md` #23 marked done.
+
+`make test` 363 checks; `rake spec` 2273 examples; `rake spec:core` 400
+examples; all 0 failures. `spec/api_docs` runs the page's headless example, and
+`spec:core` resolves every name it mentions. `rake docs:coverage` reports 39
+gaps, as before. RuboCop is clean on the example, both scripts and the harness.
+
+The drive runs, 140 ticks, `LANG=en_US.UTF-8`, no save:
+
+| `--texts` shows | Ticks |
+|---|---|
+| "Localization", "3 apples", "Current locale: en-US", "Language", "Use the system language" | from 0 |
+| "2 apples", "1 apple", "No apples" | from 11, 17, 23 |
+| "Lokalisierung", "0 Äpfel", "Aktuelles Gebietsschema: de", "Sprache", "Systemsprache verwenden" | from 42, 80 frames each |
+| "1 Apfel" | from 53 |
+| "Left and right change the count", "English", "Deutsch" | all 140 frames |
+
+Rules 1, 2 and 4 hold: the hint is English in both languages, English has "No
+apples" and German "0 Äpfel", and no string is a key. The run ended with
+`language.json` holding `"de"`. Rule 3: `localization_saved.rb`, 30 idle ticks
+against that directory, drew "Lokalisierung", "3 Äpfel" and "Aktuelles
+Gebietsschema: de" from tick 0, with no English frame. Under `LANG=C` the locale
+line reads "Current locale: en", as the script's header says.
+
+Run directly under a headless display, not under the harness, with GC disabled
+from tick 100 to tick 400: **1 object allocated over 300 ticks**, so nothing per
+frame. The drive run exits 0, so no top-level proc holds the window. The longest
+button label measures 194 pixels ("Systemsprache verwenden") in a 280-pixel slot.
+
+What the sketch got wrong:
+
+- **The YAML sketch's `hud.player: "Picked by %{name}"` had no value to show.**
+  The variable is the current locale instead: `hud.locale`, "Current locale:
+  %{locale}", read with `I18n.locale.name`, which allocates nothing. The first
+  German draft said "Sprache:", which is "Language", and became "Aktuelles
+  Gebietsschema".
+- **Two literal buttons would have left `scope:` with nothing to do.** A literal
+  has no key. The menu has a third button, `label: 'system'`, which reads
+  `language.system` and returns to the OS's language, deleting the save. That
+  needs `RGame::Core.preferred_locales`, so `main.rb` passes it to `Language`
+  rather than a node naming Core.
+- **A saved language goes through `choose`**, as `choose([saved, *preferred])`.
+  A saved locale with no table then gives the OS's pick rather than the default,
+  and an empty or non-String value is ignored. `localization.md` shows the same
+  guard.
+- **Rule 3 needed its own script**, `localization_saved.rb`, because a run
+  cannot restart itself. The `--script` pair follows `collision_tiles_spike.rb`.
+- **The examples page entry and README row landed in 5b, not 5c.**
+  `spec/api_docs/index_spec.rb` fails while an example is missing from
+  `examples.md`, so 5b was not green without them.
+- **The allocation probe is not in the write-example skill.** The skill counts
+  live `App`s at exit. Allocations were counted with `GC.stat` in a scratch script,
+  and the live-App question was answered by the drive run exiting 0.
+- **The toolbox keeps `Text` whole**, with a link to the new page. Its variables,
+  scope and caching sections are about `Text` rather than tables, and
+  `localization.md` links to them.
 
 ## Step 6 — every example draws keys *(rough)*
 

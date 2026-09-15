@@ -1,7 +1,7 @@
 # Plan — i18n as the default way to put text on screen
 
-**Status.** Steps 0–4 are implemented, and step 5 is planned in detail.
-Steps 6–7 are deliberately rough and get re-planned once step 5 has landed.
+**Status.** Steps 0–5 are implemented. Steps 6–7 are deliberately rough, and
+step 6 is re-planned before it starts.
 See [04-roadmap.md](04-roadmap.md).
 
 | File | What it holds |
@@ -199,7 +199,7 @@ inside this plan.
    `examples/assets/` as their media root, so a shared `examples/assets/locales/`
    would load every example's keys into every example, and keys namespaced per
    example would hold only while each example remembered its namespace. See step
-   5 in [04-roadmap.md](04-roadmap.md).
+   5 in [04-roadmap.md](04-roadmap.md); `examples/localization` is built this way.
 4. **Should a RuboCop cop flag a String literal passed to `renderer.text` or
    `label:`?** That would make "hardcoded fails loudly" true in this repository.
    Generated projects do not load the house cops, so it reaches only this repo.
