@@ -1,0 +1,11 @@
+# The English table: every string this example draws.
+en:
+  help:
+    keys: Arrows walk   Tab targets   Space shears   N adds a sheep
+    save: F5 saves   F9 loads   Delete discards the save
+  status:
+    fresh: no save yet — shear a few, add one, then press F5
+    restored: loaded the save from last time
+    saved: saved — quit, run again, then press N for a fresh id
+    loaded: loaded
+    deleted: save deleted

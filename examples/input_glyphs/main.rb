@@ -90,6 +90,7 @@ require 'rgame/game'
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 SPEED = 90.0
 
@@ -118,12 +119,14 @@ class Prompts < RGame::Engine::Node2D
 
   # The action to ask about, and what this game calls it. Both fixed: the label
   # is the game's word for the action, and the button is what changes.
-  ROWS = [[:ui_confirm, 'Confirm'], [:ui_cancel, 'Cancel'], [:fire, 'Wave']].freeze
+  ROWS = { ui_confirm: RGame::Engine::Text.new('actions.ui_confirm'),
+           ui_cancel: RGame::Engine::Text.new('actions.ui_cancel'),
+           fire: RGame::Engine::Text.new('actions.fire') }.freeze
 
-  # A constant string chosen by state rather than a string built from it — there
-  # is nothing here to cache, and a Text.computed whose block returns a constant is
-  # strictly worse to read.
-  DEVICE_NAME = { false => 'Keyboard', true => 'Controller' }.freeze
+  # A text chosen by state rather than built from it: one Text per state, so there
+  # is nothing to render again but a language switch.
+  DEVICE_NAME = { false => RGame::Engine::Text.new('devices.keyboard'),
+                  true => RGame::Engine::Text.new('devices.controller') }.freeze
 
   WIDTH_PX = 300
   ROW_H    = 72
@@ -180,6 +183,12 @@ class Scene < RGame::Engine::Node2D
   # The hero first, so the panel is drawn over them rather than under: a node
   # draws before its later siblings, and the two do overlap once the hero is
   # walked into the corner.
+  def initialize
+    super
+    @help_seat = RGame::Engine::Text.new('help.seat')
+    @help_back = RGame::Engine::Text.new('help.back')
+  end
+
   def on_add
     add_node(Hero.new(x: 470, y: 300))
     add_node(Prompts.new(x: MARGIN, y: MARGIN))
@@ -187,8 +196,8 @@ class Scene < RGame::Engine::Node2D
 
   def on_draw(renderer, view)
     renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
-    renderer.text('Press A on a controller to hand it the seat', MARGIN, view.height - 52)
-    renderer.text('Enter or Space on the keyboard takes it back', MARGIN, view.height - 30)
+    renderer.text(@help_seat, MARGIN, view.height - 52)
+    renderer.text(@help_back, MARGIN, view.height - 30)
   end
 end
 
@@ -197,7 +206,8 @@ game = RGame::Game.new(
   caption: 'Input glyphs',
   width: WIDTH,
   height: HEIGHT,
-  media_root: ASSETS
+  media_root: ASSETS,
+  locales: LOCALES
 )
 
 game.start
