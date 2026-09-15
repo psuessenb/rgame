@@ -1,7 +1,7 @@
 # Roadmap
 
-**Status.** Steps 0–3 are implemented. **Steps 4–7 are rough** and get
-re-planned when the step before them lands; step 4 is next.
+**Status.** Steps 0–3 are implemented. Steps 4 and 5 are planned in detail;
+step 4 is next. **Steps 6–7 are rough** and get re-planned when step 5 lands.
 
 ## Dependency shape
 
@@ -522,48 +522,279 @@ What the sketch got wrong:
 
 ---
 
-## Step 4 — `rgame new` generates a translated project *(rough)*
+## Step 4 — `rgame new` generates a translated project *(CLI templates)*
 
-Templates for `assets/locales/en.yml`, a `Root` drawing a `Text`, a
-`spec_helper.rb` that loads the tables and sets `:raise`, and
-`spec/locales_spec.rb`. The generated README explains the locales directory.
-`spec/rgame/cli/generated_project_spec.rb` already runs the generated suite for
-real, so it becomes the acceptance test, plus one example that deletes a key
-from a second locale and expects the generated suite to fail. The template
-directory rule (no leading dot) is unaffected. `KEEP_DIRS` may no longer need
-`assets`.
+**Why here.** It needs `Text` (step 1) and `Game`'s loading (step 2), and both
+have landed. It is the step that makes requirement 1 true for a *new* user: the
+first file they open draws a key, and the first `rake` they run fails on a key a
+language lacks. Nothing later depends on it, so it lands before the example and
+the docs page, which then link to a generator that already does what they say.
 
-## Step 5 — `examples/localization`, and `docs/api/localization.md` *(rough)*
+### What was measured before re-planning
 
-The example `basic-examples.md` #23 describes, re-planned against steps 0–3
-by the write-example skill. English and German; a `Text` with a variable and one
-with `count`; a `UI::Menu` language switch with `scope:`; a key deliberately
-missing from German to show the fallback; the choice saved with `SaveFile` and
-restored between `Game.new` and `start`. Slots are wide enough for both
-languages, and the file says why (decision 8). The drive script asserts the
-switch through the `text` calls before and after.
+At `78b6387`, Ruby 4.0.5 without YJIT.
 
-Docs: the new page, index rows in `docs/api/README.md`, `components.md`'s
-"text in the player's language" row, the entry in `docs/api/examples.md`, and a
-row in the README's examples table. Answer open question 3 here, because this is
-the first example with locale files.
+| Measurement | Result |
+|---|---|
+| templates under `lib/rgame/cli/templates/` | 12 |
+| `NewProject::KEEP_DIRS` | `['assets']`, its only entry |
+| `cli_spec.rb` + `generated_project_spec.rb` | 20 examples, 1.45 s; the two subprocess examples are most of it |
+| what the generated `Root` draws | the constant `GREETING = 'Hello from <name>!'` |
+| `I18n.reset` then `I18n.load` of a 1-key table | 0.034 ms |
+| the same for 1,000 keys | 8.1 ms: YAML parse 5.0 ms, compile 2.9 ms (`load_hash` of a parsed Hash) |
+| names in the generated project's `game.rb` that say where tables are | 0: `media_root: 'assets'`, and `locales:` left at its default, `'locales'` |
+
+### The generated project, after this step
+
+```
+tictactoe/
+├── assets/
+│   └── locales/
+│       └── en.yml           replaces assets/.keep
+├── nodes/root.rb            draws a Text
+└── spec/
+    ├── spec_helper.rb       loads assets/locales before every example, under :raise
+    ├── locales_spec.rb      every locale has every key the default has
+    └── nodes/root_spec.rb   asserts the English string, so the table is really read
+```
+
+```yaml
+# assets/locales/en.yml.tt
+en:
+  root:
+    greeting: "Hello from <%= app_name %>!"
+```
+
+```ruby
+# nodes/root.rb.tt
+class Root < RGame::Engine::Node2D
+  def initialize
+    super
+    @greeting = RGame::Engine::Text.new('root.greeting')
+  end
+
+  def on_draw(renderer, _view)
+    renderer.text(@greeting.to_s, 20, 20)
+  end
+end
+```
+
+```ruby
+# spec/spec_helper.rb.tt, after the existing requires
+LOCALES = Dir[File.expand_path('../assets/locales/**/*.yml', __dir__)]
+          .sort.to_h { |path| [path, File.read(path)] }.freeze
+
+RSpec.configure do |config|
+  config.before do
+    RGame::Engine::I18n.reset
+    LOCALES.each { |path, yaml| RGame::Engine::I18n.load(yaml, source: path) }
+    RGame::Engine::I18n.missing = :raise
+  end
+end
+```
+
+```ruby
+# spec/locales_spec.rb.tt
+RSpec.describe RGame::Engine::I18n do
+  it 'has a table for the default locale' do
+    expect(described_class.available).to include(described_class.default)
+  end
+
+  it 'gives every locale every key the default locale has' do
+    missing = described_class.available.to_h { [it, described_class.missing_keys(it)] }
+    expect(missing.reject { |_locale, keys| keys.empty? }).to be_empty
+  end
+end
+```
+
+Three choices in that shape, and why:
+
+- **Only `en.yml`.** A second, English-copy `de.yml` would be a translation
+  nobody asked for, and the first thing a user did would be delete it. Adding a
+  language is adding a file, which the generated README says, and the locales
+  spec starts meaning something the moment there are two.
+- **Tables are re-read into `I18n` before every example, not once.** `I18n` is
+  global, so a spec that switches the locale, loads a table or calls `reset`
+  would otherwise change what every later example sees, depending on order. The
+  engine's own `spec_helper` resets for the same reason. The cost is linear in
+  keys: 0.03 ms for the generated table, 8 ms for a thousand. The file contents
+  are read once, so the per-example cost is the parse and compile, not the disk.
+  If a real game's suite finds that slow, `I18n` needs a snapshot, which is open
+  question 6.
+- **One summary example, not one example per locale.** `I18n.available` is empty
+  when the spec file is loaded, because tables load in a `before` hook, so
+  examples cannot be generated per locale. The failure message still names each
+  locale and its keys: `{de: ["root.greeting"]}`.
+
+The spec helper names `assets/locales` a second time; `game.rb` names it only by
+`media_root` plus `Game`'s default. `game.rb` cannot be required from `spec/`,
+because it loads SDL. The generated comment in the spec helper points at the
+dependency, and a moved directory fails loudly: every drawn key raises
+`MissingKey`.
+
+**Sub-steps:**
+
+- **4a** The templates above, `KEEP_DIRS` and its `.keep` loop deleted (no empty
+  directory is left to keep), and the specs below.
+- **4b** Docs: the generated `README.md.tt` (the layout gains `assets/locales/`,
+  and a short section on adding a key, adding a language, and what the locales
+  spec does), `docs/api/cli.md` (the tree, the `root.rb` and spec listings, the
+  `KEEP_DIRS` paragraph, a section on the generated translation setup), and the
+  toolbox's I18n section, which points to `cli.md` for the spec setup.
+
+**Rules the tests must pin:**
+
+1. The generated project holds `assets/locales/en.yml` with the project's name
+   substituted, which parses through `I18n.load`, and no `assets/.keep`.
+2. The generated suite passes and RuboCop is clean. Both examples exist already
+   and must stay green without an inline disable in a generated file.
+3. With a complete `de.yml` added, the suite still passes. That is what keeps
+   rule 4 from passing for the wrong reason, such as a load error.
+4. With a `de.yml` that lacks `root.greeting`, the suite fails, and its output
+   names `de` and `root.greeting`.
+5. With `root.greeting` removed from `en.yml`, the suite fails with `MissingKey`
+   naming `root.greeting`.
+6. A spec that loads a table and switches the locale in one example leaves the
+   next example, run in defined order, with the project's own tables in the
+   default locale.
+7. Nothing under `nodes/` or `spec/` names `RGame::Core`. The existing example
+   covers the two new files without change.
+
+**Tests:** `spec/rgame/cli_spec.rb` (1, and the updated file list), and
+`spec/rgame/cli/generated_project_spec.rb` (2–6), each of 3–6 writing its files
+into the generated project before running its suite.
+
+**Verify.** `rake spec` green, RuboCop clean on every touched file. Then drive a
+generated project, as the wiring tier requires: generate into the scratchpad,
+run `tools/drive_test_project.rb` on its `main.rb` with `--script`, and record
+in the landed note that `text` draws `"Hello from tictactoe!"`, not
+`"root.greeting"`. Then add a German table and drive it again with
+`LANG=de_DE.UTF-8`, and record that it draws the German string.
+
+**What this step does not deliver:** a language switch or a saved language in
+the generated project (the example shows both), and a link to
+`docs/api/localization.md`, which does not exist until step 5.
+
+## Step 5 — `examples/localization`, and `docs/api/localization.md` *(example + docs)*
+
+**Why here.** It needs step 2's loading and step 3's `Menu` scope, and both have
+landed; it does not need step 4, and follows it only so that the page can link
+to a generator that already does what it describes. It is the example
+`basic-examples.md` #23 describes, re-planned against steps 0–3, and it answers
+open question 3, which blocks step 6.
+
+**Open question 3 is settled here: an example's tables live beside its
+`main.rb`.** `examples/localization/locales/{en,de}.yml`, loaded with
+`Game.new(locales: File.join(__dir__, 'locales'))`. `locales:` already accepts
+an absolute path (step 2), so no engine change is needed. The alternative, one
+shared `examples/assets/locales/` with keys namespaced per example, loads every
+example's tables into every example. It works only while each example remembers
+its namespace, and a collision would show one example's text in another with no
+error. A directory per example makes the collision impossible.
+
+### The example's shape
+
+```
+examples/localization/
+├── main.rb
+└── locales/
+    ├── en.yml
+    └── de.yml      lacks one key on purpose
+```
+
+```yaml
+en:
+  hud:
+    apples:
+      zero: No apples
+      one: "%{count} apple"
+      other: "%{count} apples"
+    player: "Picked by %{name}"
+    hint: Left and right change the count   # absent from de.yml
+  language:
+    title: Language
+```
+
+What `main.rb` shows, one point each:
+
+- **A `Text` with `count`**, driven by Left/Right: `No apples`, `1 apple`,
+  `3 apples`; `0 Äpfel`, `1 Apfel`, `3 Äpfel` in German, which has no `zero:`
+  and shows that an explicit `zero:` is per table.
+- **A `Text` with a variable** that is not the count.
+- **A key missing from `de.yml`** that shows the English text in German, and the
+  header says why that is the right failure and that the generated project's
+  locales spec would refuse it.
+- **A `UI::Menu` with `scope: 'language'`** holding one button per available
+  locale. The language names are `Text.literal('English')` and
+  `Text.literal('Deutsch')`: a language is named in its own language, whichever
+  is current, which is exactly what `literal` is for.
+- **The choice saved with `Util::SaveFile`** and restored between `Game.new` and
+  `start`, overriding the OS choice.
+- **Slots wide enough for both languages**, with a sentence saying why: the
+  engine layer cannot measure text yet (decision 8).
+
+Which button class the menu uses follows `examples/menu_navigation`, which uses
+`PanelButton` over `examples/assets/ui.json`. The header lists the keys, and
+nothing reads F1, F2 or a key the default map already uses for movement.
+
+**Sub-steps:**
+
+- **5a** `tools/drive_test_project.rb --texts`: a report section listing every
+  distinct String passed to `text`, with its count, in first-drawn order. Step
+  3's check needed a scratch probe for this. Step 6 compares 24 examples string
+  for string, and this example's drive script asserts a switch, so the probe
+  belongs in the harness.
+- **5b** The example, its two tables, and `tools/drive/examples/localization.rb`.
+- **5c** Docs. A new `docs/api/localization.md`: the YAML format and where files
+  go, `Text` with variables and `count`, plural rules, scope (linking `ui.md`),
+  the missing-key policy, loading and `locales:`, OS detection
+  (`RGame::Core.preferred_locales`, `I18n.choose`), a saved language, and specs
+  (the generated `spec_helper` and `missing_keys`, linking `cli.md`). The
+  toolbox's I18n section moves there. The toolbox keeps its `Text` section, which
+  is about caching, with a link. Also: a row in `docs/api/README.md`,
+  `components.md`'s "text in the player's language" row repointed, an entry in
+  `docs/api/examples.md`, a row in README.md's examples table, the links step 4
+  wrote to the toolbox repointed, and `basic-examples.md` #23 marked done with
+  what the example decided (the write-example skill's finishing step).
+
+**Rules the drive script must show** (its header states them, read off a real
+run):
+
+1. `--texts` lists the English strings before the switch and the German ones
+   after it, and `hud.hint`'s English string in both.
+2. The apple count's strings include the `zero:` form in English and `0 Äpfel` in
+   German.
+3. With `RGAME_SAVE_DIR` left from the first run, a second run of a script that
+   does nothing draws German from the first frame.
+4. No string is the key itself: `--texts` shows no `hud.` or `language.`.
+
+**Verify.** The drive runs above, recorded in the landed note, and a run of the
+example directly (not under the harness) with the allocation probe the
+write-example skill describes, reading zero objects per frame while nothing
+changes. `rake spec` green, including `spec/api_docs` over the new page's
+headless examples; `rake spec:core` green, which resolves every name the page
+mentions. `rake docs:coverage` reports no new gaps. RuboCop clean on the example
+and the harness.
 
 ## Step 6 — every example draws keys *(rough)*
 
-Mechanical, over the 24 examples. The acceptance test is the drive reports:
-every example's `text` calls identical before and after, string for string,
-because `en.yml` holds exactly the text that was hardcoded. Then decide open
-question 4 (the cop). Likely split by the examples page's sections, one
-sub-step each.
+Mechanical, over the 24 examples. Each migrated example gets a
+`locales/en.yml` beside its `main.rb`, as step 5 settled, and passes
+`locales: File.join(__dir__, 'locales')`. The acceptance test is the drive
+reports with step 5's `--texts`: every example's strings identical before and
+after, because `en.yml` holds exactly the text that was hardcoded. `Text.computed`
+labels from step 1 move to keys where the text is words rather than a number.
+Then decide open question 4 (the cop). Likely split by the examples page's
+sections, one sub-step each.
 
 ## Step 7 — fold back and delete the plan
 
 - `docs/api/localization.md` checked against the code by the write-docs audit.
 - CLAUDE.md: the `Text` house rule (from step 1), plus a sentence under "Current
   phase" that text is translated by default.
-- `docs/plans/basic-examples.md`: #23 marked done with its landed note; the
-  engine-work table row "a label keyed on a value *and* the locale" closed;
-  `I18n` removed from "used nowhere at all".
+- `docs/plans/basic-examples.md`: the engine-work table row "a label keyed on a
+  value *and* the locale" closed; `I18n` removed from "used nowhere at all".
+  (#23 is marked done by step 5.)
 - `docs/plans/possible-todos.md`: "Text measurement for the engine layer" stays,
   with its trigger now satisfied, so it is next.
 - README: the 0.3 roadmap line "fix the I18n package" marked DONE.

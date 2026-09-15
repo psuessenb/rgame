@@ -1,7 +1,7 @@
 # Plan — i18n as the default way to put text on screen
 
-**Status.** Steps 0–3 are implemented. Steps 4–7 are deliberately rough and get
-re-planned once the steps beneath them have landed.
+**Status.** Steps 0–3 are implemented, and steps 4 and 5 are planned in detail.
+Steps 6–7 are deliberately rough and get re-planned once step 5 has landed.
 See [04-roadmap.md](04-roadmap.md).
 
 | File | What it holds |
@@ -193,12 +193,13 @@ inside this plan.
    whatever keys this picks must be quoted in the table. *Resolved in step 3:*
    `OptionButton::DISPLAY` reads a Symbol value as its own key and makes any
    other value a literal of its `to_s`; a String `display` returns is a key.
-3. **Where do the examples' locale files live?** All 24 examples share
-   `examples/assets/` as their media root, so a convention-loaded
-   `examples/assets/locales/` would load every example's keys into every
-   example. The options: one file per example with keys namespaced by example,
-   or `locales: File.join(__dir__, 'locales')` beside each `main.rb`. *Waits on
-   step 5; blocks step 6.*
+3. ~~**Where do the examples' locale files live?**~~ **Settled in step 5's
+   plan: beside each `main.rb`**, loaded with
+   `locales: File.join(__dir__, 'locales')`. All 24 examples share
+   `examples/assets/` as their media root, so a shared `examples/assets/locales/`
+   would load every example's keys into every example, and keys namespaced per
+   example would hold only while each example remembered its namespace. See step
+   5 in [04-roadmap.md](04-roadmap.md).
 4. **Should a RuboCop cop flag a String literal passed to `renderer.text` or
    `label:`?** That would make "hardcoded fails loudly" true in this repository.
    Generated projects do not load the house cops, so it reaches only this repo.
@@ -208,6 +209,12 @@ inside this plan.
    2:* it needs no init, so it is the module function
    `RGame::Core.preferred_locales`. CI returned `[]` on Linux and `["en-US"]` on
    macOS and Windows. See step 2's landed note.
+6. **Does `I18n` need a snapshot, so a game's spec suite can restore its tables
+   without re-parsing them?** Step 4's generated `spec_helper` re-loads every
+   table before every example: 0.03 ms for the generated table, 8 ms for 1,000
+   keys. A `snapshot`/`restore` pair would make that constant, since compiled
+   tables are frozen. *Waits on a game whose suite finds the reload slow;
+   non-blocking.*
 
 ## What this does not deliver
 
