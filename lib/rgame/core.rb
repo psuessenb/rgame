@@ -2,6 +2,7 @@
 
 require_relative 'version'
 require_relative 'core/app'
+require_relative 'core/locale'
 require_relative 'core/input'
 require_relative 'core/gamepad'
 require_relative 'core/image'

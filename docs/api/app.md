@@ -205,6 +205,26 @@ The query is named `gamepad_present?`, not `gamepad_connected?`. The hot-plug
 *hook* above owns that name, and two methods that differ only by a `?` invite
 mistakes.
 
+## The player's languages
+
+```ruby
+require 'rgame/core'
+
+RGame::Core.preferred_locales   # => ["de-AT", "en"] — most preferred first
+```
+
+`RGame::Core.preferred_locales` returns the locales the operating system says the
+user prefers, most preferred first. It is a module function: it needs no app and
+no window. Each entry is a language, followed by a hyphen and a country when the
+OS names one. The list is `[]` when the OS names none, as on Linux under
+`LANG=C`. It never holds `nil` or an empty String.
+
+It returns what SDL reports, unfiltered. On Linux SDL reads `LANG`, then
+`LANGUAGE`, and ignores `LC_ALL`, so a locale can appear twice. macOS and Windows
+ask the OS. Picking the language a game shows is
+[`I18n.choose`](toolbox.md#locales-and-the-fallback-chain), and `RGame::Game`
+makes that choice at startup.
+
 ## When a hook raises
 
 `run` re-raises any exception from a hook, with its class, message and backtrace

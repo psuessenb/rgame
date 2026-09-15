@@ -12,7 +12,7 @@ module RGame
     #   app.assets.release(:level1)
     #
     # The built-in types are `image`, `sound`, `song` and `read`, plus the
-    # composites `sheet` and `ui_atlas`. A game or its glue adds more with
+    # composites `sheet` and `ui_atlas`; `glob` lists what is there to load. A game or its glue adds more with
     # {#add_loader}, which is how a tile map gets loaded without Core having to
     # know what one is.
     #
@@ -144,6 +144,17 @@ module RGame
         @owners.clear
         self
       end
+
+      # The paths under the media root that match `pattern`, relative to the
+      # root and sorted, so what a caller loads from the list — and the order it
+      # merges in — is the same on every platform and file system:
+      #
+      #   assets.glob('locales/**/*.yml')   # => ["locales/de.yml", "locales/en.yml"]
+      #
+      # A directory that does not exist matches nothing, so a game without one
+      # gets `[]` rather than an error. An absolute pattern is used as it
+      # stands, and its matches come back absolute. Nothing is loaded or cached.
+      def glob(pattern) = Dir.glob(pattern, base: File.expand_path(@root)).sort
 
       # How many assets are cached. For tests and for a debug overlay; a game
       # has no reason to ask.

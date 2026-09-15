@@ -41,6 +41,19 @@ decoded and uploaded once. Several spellings of one file share one cache entry:
 The manager gives a game one object that knows what is loaded. Setup code builds
 no paths by hand and constructs no images inline.
 
+### Listing what is there
+
+```ruby
+app.assets.glob('locales/**/*.yml')   # => ["locales/de.yml", "locales/en.yml"]
+```
+
+`glob(pattern)` returns the paths under the media root that match `pattern`,
+relative to the root and sorted. The order is therefore the same on every
+platform, whatever order the file system lists them in. A directory that does not
+exist matches nothing and returns `[]`. An absolute pattern is used as given, and
+its matches come back absolute. `glob` loads nothing and caches nothing; hand
+each path to an accessor to load it.
+
 ### Adding an asset type
 
 ```ruby

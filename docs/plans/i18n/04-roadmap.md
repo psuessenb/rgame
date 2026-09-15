@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status.** Steps 0–1 are implemented. **Steps 2–3 are detailed. Steps 4–7 are
+**Status.** Steps 0–2 are implemented. **Step 3 is detailed. Steps 4–7 are
 rough** and get re-planned when the step before them lands.
 
 ## Dependency shape
@@ -322,6 +322,71 @@ size_t rgame_preferred_locales(char *out, size_t capacity);
 green on all three platforms. The landed note records what each runner's
 `preferred_locales` returned. The verify skill's leak check is clean over the
 `SDL_free` path.
+
+**Landed.** One commit per sub-step. What shipped:
+
+- **`AssetManager#glob(pattern)`**: relative to the media root, sorted, `[]` for
+  a missing directory, an absolute pattern as it stands. It loads nothing.
+- **`RGame::Core.preferred_locales`**, a module function.
+  `rgame_preferred_locales` in `core.h` has `snprintf`'s contract. Its joining
+  is the pure `rgame_locale_append` in `app/locale.{c,h}`, and
+  `ruby/locale_ext.c` binds it.
+- **`Game.new(locales: 'locales')`**: a `:locale` loader, every `.yml` under the
+  directory loaded through `glob`, then
+  `I18n.locale = I18n.choose(RGame::Core.preferred_locales)`.
+
+Documented in `assets.md`, `app.md` and `game.md`, with a pointer from the
+toolbox's I18n section.
+
+Local: `make test` 363 checks; `rake spec` 2215 examples; `rake spec:core` 400
+examples; all 0 failures. The new Core examples are 6 in `asset_manager_spec.rb`,
+6 in `core/locale_spec.rb` and 12 in `game_locales_spec.rb`. The whole Check suite
+is clean under ASan + UBSan + bounds-strict. The locale suite is also clean with
+`CK_FORK=no` and a 120-entry `LANGUAGE`, so the `SDL_free` path ran under the
+sanitizer. Removing the terminating NUL fails 5 of 10 locale checks. Drive
+reports of `sound`, `split_screen` and `pathfinding` are byte-identical to
+step 1's.
+
+CI was green on all three platforms. Each runner's `preferred_locales`, and what
+the probe let run:
+
+| Runner | `RGame::Core.preferred_locales` | LANG examples |
+|---|---|---|
+| Linux (Xvfb) | `[]` | all 7 ran; `spec:core` 400 examples |
+| macOS | `["en-US"]` | 7 skipped by `needs_lang_locale`; 389 examples |
+| Windows | `["en-US"]` | 7 skipped by `needs_lang_locale`; 391 examples |
+
+What the sketch got wrong:
+
+- **Open question 5: `SDL_GetPreferredLocales` needs no `SDL_Init`.** Measured
+  on SDL 2.0.20 under Linux, and it held on the macOS and Windows runners, which
+  call it before any window opens. So it is `RGame::Core.preferred_locales`, not
+  `App#preferred_locales`, and rule 7's example is in
+  `spec_core/rgame/core/locale_spec.rb`, not `app_spec.rb`.
+- **Rule 5's `:de` is `:'de-DE'`.** Step 0's `choose` returns the preferred
+  locale unshortened, so the chain is `de-DE, de, en` and the German table shows.
+- **`game_locales_spec.rb` cannot build a `Game` in-process.** `Game` names
+  Engine. `spec_core/` may not, by the cop and because every later example would
+  run with Engine loaded. Each example builds its game in a child process that
+  requires `rgame/game`, as `references_spec.rb` already did. That also keeps a
+  `LANG` from leaking into other examples. `spec_core/support/locale_environment.rb`
+  runs the child.
+- **SDL on Linux reads `LANG`, then `LANGUAGE`, and ignores `LC_ALL`.**
+  `LANG=C` gives no locales. `LANG=POSIX` gives `POSIX`, and SDL's own 128-byte
+  buffer truncates a long `LANGUAGE` into an entry like `f`. `preferred_locales`
+  passes all of that through; `choose` finds no table for the junk. macOS and
+  Windows ignore `LANG`, so the LANG-driven examples sit behind a probe,
+  `LocaleEnvironment.follows_lang?`, rather than a `host_os` check.
+- **Rule 7's buffer test covers the pure function**, which does not depend on
+  what the machine prefers. A smoke test on the real one compares capacity 3
+  with a whole buffer. SDL never fills the binding's 256-byte buffer, so its
+  resize loop was checked by hand, with the buffer shrunk to 4 bytes.
+- **Reading a table needs no encoding flag.** Psych reads its input as UTF-8
+  under `LANG=C` and skips a BOM itself. Both are pinned by examples.
+- **For step 3 and later: `Game` sets `I18n.locale` in `initialize`,
+  overwriting anything set before `Game.new`**, as the design intends. Tables
+  accumulate across two `Game`s in one process, because `I18n` is global and
+  `Game` does not reset it.
 
 ---
 

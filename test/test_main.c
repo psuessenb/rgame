@@ -47,6 +47,7 @@
  * can put it in a runner of its own. */
 static SRunner *create_main_runner(void) {
     SRunner *runner = srunner_create(frame_loop_suite());
+    srunner_add_suite(runner, locale_suite());
     srunner_add_suite(runner, device_slots_suite());
     srunner_add_suite(runner, input_suite());
     srunner_add_suite(runner, color_suite());

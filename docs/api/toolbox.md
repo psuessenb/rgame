@@ -471,7 +471,9 @@ i18n.choose(%w[fr-CA de-CH])                 # => :"de-CH" — the de table cove
 document may hold several. A second load of a locale merges key by key into what
 is loaded; a key set twice takes the later value. `source:` names the file in
 error messages. `load_hash` does the same for a Hash, with Symbol or String keys.
-`I18n` never opens a file.
+`I18n` never opens a file. A game on `RGame::Game` calls neither: `Game.new`
+loads every table under `media_root/locales` and picks the player's language.
+See [Game](game.md#translations-and-the-players-language).
 
 `load` uses `YAML.safe_load` with aliases allowed. It raises
 `Psych::DisallowedClass` for an object tag and `Psych::SyntaxError` for broken

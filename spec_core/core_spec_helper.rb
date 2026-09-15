@@ -64,4 +64,8 @@ RSpec.configure do |config|
   # VirtualGamepad.button_state_supported? for what fails and where. Probed
   # rather than assumed, so these run on every machine that can manage them.
   config.filter_run_excluding(:needs_virtual_pad_state) unless VirtualGamepad.button_state_supported?
+
+  # Specs that set LANG to choose a locale only work where SDL reads LANG. See
+  # LocaleEnvironment for where that is.
+  config.filter_run_excluding(:needs_lang_locale) unless LocaleEnvironment.follows_lang?
 end

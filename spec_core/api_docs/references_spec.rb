@@ -27,7 +27,8 @@ RSpec.describe 'docs/api references' do # rubocop:disable RSpec/DescribeClass --
       'Gemfile',                    # a file name
       'TicTacToeGame',              # the class name `rgame new tic_tac_toe` generates
       'F1', 'F2', 'Esc', 'WASD',    # keys, named as a player sees them
-      'RGAME_BUTTON_GAMEPAD_FIRST'  # a C macro in ext/rgame_core/include/rgame/core.h
+      'RGAME_BUTTON_GAMEPAD_FIRST', # a C macro in ext/rgame_core/include/rgame/core.h
+      'LANG', 'LANGUAGE', 'LC_ALL'  # environment variables SDL reads for the locale
     ]
   end
 

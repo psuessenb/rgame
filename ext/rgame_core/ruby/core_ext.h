@@ -21,6 +21,9 @@ void rgame_init_renderer(VALUE mCore);
 void rgame_init_recording(VALUE mCore);
 void rgame_init_font(VALUE mCore);
 
+/* Not a class: RGame::Core.preferred_locales, a module function. */
+void rgame_init_locale(VALUE mCore);
+
 /* Defines Audio, Sample and Song together — see audio_ext.c for why those three
  * share a file when everything else here does not. */
 void rgame_init_audio(VALUE mCore);
