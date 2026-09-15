@@ -58,6 +58,20 @@ module RGame
       #   wheel = UI::Menu.new(x: 320, y: 240, navigation: UI::Pointing.new,
       #                        layout: UI::Ring.new(radius: 120, item_width: 96, item_height: 30))
       #
+      # ## A scope for its buttons' keys
+      #
+      # `scope:` puts a scope in front of every label given as a key, so the
+      # buttons of a title menu say `label: 'play'` and draw `title_menu.play`:
+      #
+      #   menu = UI::Menu.new(layout: column, scope: 'title_menu')
+      #   menu.add(UI::PanelButton.new(label: 'play'))                                   # title_menu.play
+      #   menu.add(UI::PanelButton.new(label: Engine::Text.new('quit', scope: 'common')))  # common.quit
+      #
+      # The menu sets it as each button is added, on a button whose
+      # `label_scope` is still nil. A label given as an Engine::Text keeps its own
+      # scope, nil included, and so does a literal. The scope reaches the
+      # buttons of this menu and nothing deeper in the tree.
+      #
       # ## Open and closed
       #
       # A closed menu draws nothing — neither its own backdrop nor its buttons —
@@ -107,16 +121,17 @@ module RGame
         # Emits the button a trigger's release activated, or nil.
         signal :on_closed, ClosedSignal
 
-        # `trigger` is an action name, or nil.
-        attr_reader :buttons, :focused_index, :layout, :navigation, :trigger
+        # `trigger` is an action name, or nil. `scope` is a String, or nil.
+        attr_reader :buttons, :focused_index, :layout, :navigation, :trigger, :scope
 
         # The rectangle the layout says encloses every button, relative to the
         # menu — what a subclass draws its backdrop round. Copied on each `add`,
         # so reading them on a draw path costs nothing.
         attr_reader :bounds_x, :bounds_y, :bounds_width, :bounds_height
 
-        def initialize(layout:, navigation: Stepping.new, trigger: nil, **)
+        def initialize(layout:, navigation: Stepping.new, trigger: nil, scope: nil, **)
           super(**)
+          @scope = scope&.to_s&.freeze
           @layout = layout
           @navigation = navigation
           @trigger = trigger
@@ -130,12 +145,14 @@ module RGame
           navigation&.attach(self)
         end
 
-        # Adds a button, re-arranges them all, and returns it, so a caller can
-        # connect to its signal in the same line. Raises TypeError for anything
-        # that is not a UI::Button.
+        # Adds a button, gives it the menu's `scope` unless it has a
+        # `label_scope` already, re-arranges them all, and returns it, so a
+        # caller can connect to its signal in the same line. Raises TypeError for
+        # anything that is not a UI::Button.
         def add(button)
           raise TypeError, "a Menu holds UI::Button instances, not #{button.class}" unless button.is_a?(Button)
 
+          button.label_scope = @scope if @scope && button.label_scope.nil?
           @buttons << button
           @hotkey_seen_up << false
           add_node(button)

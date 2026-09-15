@@ -45,6 +45,10 @@ module RGame
       # A label is drawn with `to_s`, so a `Text` that declares variables is
       # refused here rather than on the first frame.
       #
+      # `label_scope` puts a scope in front of a label given as a key, and
+      # UI::Menu sets it from its own `scope:` as the button is added. A label
+      # given as a `Text` is the caller's, scope and all, and nothing changes it.
+      #
       # ## When a press activates
       #
       # `activate_on:` is `:release` by default: confirm draws the button pressed
@@ -91,6 +95,8 @@ module RGame
         attr_accessor :enabled
         # The Engine::Text drawn for this button, or nil.
         attr_reader :label
+        # The scope a label given as a key resolves under, or nil.
+        attr_reader :label_scope
         # `hotkey` is an action name, or nil.
         attr_reader :activate_on, :hotkey
 
@@ -100,6 +106,7 @@ module RGame
             raise ArgumentError, "activate_on: must be :release or :press, not #{activate_on.inspect}"
           end
 
+          @label_scope = nil
           self.label = label
           @enabled = enabled
           @activate_on = activate_on
@@ -110,12 +117,21 @@ module RGame
         end
 
         # Sets the label: a key String or Symbol, which the button makes an
-        # Engine::Text of; a `Text`, used as it is; or nil.
+        # Engine::Text of under `label_scope`; a `Text`, used as it is; or nil.
         def label=(label)
-          @label = label.nil? || label.is_a?(Text) ? label : Text.new(label)
+          @label_from_key = !(label.nil? || label.is_a?(Text))
+          @label = @label_from_key ? Text.new(label, scope: @label_scope) : label
           return if @label.nil? || @label.names.empty?
 
           raise ArgumentError, "a label is drawn without variables, and #{@label.names.inspect} are declared"
+        end
+
+        # Sets the scope a label given as a key resolves under — `'title_menu'`
+        # makes the key `'play'` read `'title_menu.play'` — and resolves it again
+        # on the next draw.
+        def label_scope=(scope)
+          @label_scope = scope&.to_s
+          @label.scope = @label_scope if @label_from_key
         end
 
         def enabled? = @enabled

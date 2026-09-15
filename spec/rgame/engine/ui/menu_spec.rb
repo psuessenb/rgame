@@ -74,6 +74,87 @@ RSpec.describe RGame::Engine::UI::Menu do
     end
   end
 
+  describe 'scope' do
+    let(:scoped) { root.add_node(described_class.new(layout: column, scope: 'title_menu')) }
+
+    before do
+      i18n.load_hash(en: { title_menu: { play: 'Play', quit: 'Quit' }, other: { x: 'Other X' }, x: 'Plain X' },
+                     de: { title_menu: { play: 'Spielen' } })
+    end
+
+    def i18n = RGame::Engine::I18n
+    def text = RGame::Engine::Text
+    def labelled(label) = RGame::Engine::UI::TextButton.new(label: label, style: nil)
+
+    def drawn
+      root.enter_tree
+      renderer = FakeRenderer.new
+      root.draw(renderer, screen_view)
+      renderer.calls_to(:text).map { |call| call.args.first }
+    end
+
+    it 'is nil unless given' do
+      expect(menu.scope).to be_nil
+    end
+
+    it 'draws a key under the scope' do
+      scoped.add(labelled('play'))
+      expect(drawn).to eq(['Play'])
+    end
+
+    it 'redraws in a new locale, with the same button' do
+      button = scoped.add(labelled('play'))
+      english = drawn
+      i18n.locale = :de
+      expect([english, drawn, scoped.buttons]).to eq([['Play'], ['Spielen'], [button]])
+    end
+
+    it 'gives each button the scope as it is added' do
+      buttons = %w[play quit].map { |key| scoped.add(labelled(key)) }
+      expect(buttons.map { |button| button.label.scope }).to eq(%w[title_menu title_menu])
+    end
+
+    it 'scopes a key assigned after the button was added' do
+      button = scoped.add(labelled('quit'))
+      button.label = 'play'
+      expect(drawn).to eq(['Play'])
+    end
+
+    it "keeps a Text's own scope" do
+      scoped.add(labelled(text.new('x', scope: 'other')))
+      expect(drawn).to eq(['Other X'])
+    end
+
+    # A Text is the caller's: the menu does not reach into one it was handed,
+    # so a Text shared by two menus reads the same in both.
+    it 'leaves a Text built without a scope unscoped' do
+      scoped.add(labelled(text.new('x')))
+      expect(drawn).to eq(['Plain X'])
+    end
+
+    it 'draws a literal as it is' do
+      scoped.add(labelled(text.literal('Ada')))
+      expect(drawn).to eq(['Ada'])
+    end
+
+    it "keeps a button's own label_scope" do
+      button = labelled('x')
+      button.label_scope = 'other'
+      scoped.add(button)
+      expect(drawn).to eq(['Other X'])
+    end
+
+    it 'leaves a button in a menu with no scope unscoped' do
+      menu.add(labelled('x'))
+      expect(drawn).to eq(['Plain X'])
+    end
+
+    it 'reaches the buttons of a RadialMenu' do
+      wheel = RGame::Engine::UI::RadialMenu.new(radius: 100, button_width: 40, scope: 'title_menu')
+      expect(wheel.add(labelled('play')).label.scope).to eq('title_menu')
+    end
+  end
+
   # A game's own look is a Button subclass with an on_draw, and the menu treats
   # it exactly as it treats a shipped one.
   describe 'a button written by the game' do

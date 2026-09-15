@@ -309,6 +309,30 @@ RSpec.describe RGame::Engine::UI::Button do
         .to raise_error(ArgumentError, /\[:score\]/)
     end
 
+    describe 'label_scope' do
+      it 'starts nil' do
+        expect(button.label_scope).to be_nil
+      end
+
+      it 'scopes a label given as a key' do
+        button.label_scope = 'pause'
+        expect(button.label.scope).to eq('pause')
+      end
+
+      it 'scopes a key assigned after it' do
+        button.label_scope = 'pause'
+        button.label = 'quit'
+        expect(button.label.scope).to eq('pause')
+      end
+
+      it 'leaves a label given as a Text alone' do
+        own = text.new('quit', scope: 'common')
+        button.label = own
+        button.label_scope = 'pause'
+        expect(own.scope).to eq('common')
+      end
+    end
+
     it 'refuses a computed Text that declares variables' do
       expect { button.label = text.computed(:n) { |n:| n.to_s } }.to raise_error(ArgumentError)
     end
