@@ -296,14 +296,7 @@ A file-by-file map of the whole repository is in
 
 ## Roadmap
 
-There is no long-term roadmap for this project, but I usually have a shape in mind I want to achive before publishing a new version. For 0.3 that roadmap looks like this:
-
-* a command line tool to setup new projects easily - DONE
-* each core concept is showcased by an example, not just in a game where it's hard to find and grasp - DONE
-* unify game concepts that were developed in isolation - DONE
-* fix the UI package to at least make it useable - DONE
-* fix the I18n package to at least make it useable - DONE
-* improve the workflow and make better use of agent capabilities - DONE
+There is currently no roadmap for the next version.
 
 ## AI clause
 

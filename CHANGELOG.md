@@ -12,6 +12,8 @@ index, not the argument.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-15
+
 ### Added
 
 - **`rgame new NAME`.** The gem installs an `rgame` command, and `rgame new`
@@ -220,6 +222,7 @@ First release, and the first version that runs a game end to end.
 - **`RGame::Game`** — the entry point that wires the two halves together.
 - Examples: `14_asteroids`, `15_tiled_world`, `16_hello_world`.
 
-[Unreleased]: https://github.com/psuessenb/rgame/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/psuessenb/rgame/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/psuessenb/rgame/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/psuessenb/rgame/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/psuessenb/rgame/releases/tag/v0.1.0

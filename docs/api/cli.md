@@ -57,7 +57,7 @@ underscores and dashes and capitalises each part. `tic_tac_toe` and
 
 The project records two versions, both taken from the running generator rather
 than from a template. The `Gemfile` pins the engine loosely
-(`gem 'rgame', '~> 0.2'`). `.ruby-version` records the exact Ruby that ran
+(`gem 'rgame', '~> 0.3'` from rgame 0.3.0). `.ruby-version` records the exact Ruby that ran
 `rgame new`, the one interpreter the project is known to work on. The Gemfile
 reads that file instead of repeating the number:
 
