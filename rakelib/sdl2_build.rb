@@ -11,6 +11,8 @@ SDL2_RELEASE = {
 
 SDL2_PREFIX = File.expand_path('../build/sdl2', __dir__)
 
+MACOS_DEPLOYMENT_TARGET = '11.0'
+
 # The pinned SDL2 release, and how `rake sdl2` fetches, checks and builds it
 # into SDL2_PREFIX: a static, position-independent library for
 # `ext/rgame_core/extconf.rb --with-sdl2-static`.
@@ -22,6 +24,10 @@ SDL2_PREFIX = File.expand_path('../build/sdl2', __dir__)
 #
 # Plain Ruby rather than a .rake file, so every rake file that needs the prefix
 # can require it, whatever order rake loads them in.
+#
+# MACOS_DEPLOYMENT_TARGET is the oldest macOS a platform gem's binaries load on:
+# the oldest that runs Ruby 4.0 on Apple Silicon. SDL2 is built for it, so the
+# static library never raises the floor the extension links against.
 module SDL2Build
   BUILD_DIR = File.expand_path('../build', __dir__)
   NAME = "SDL2-#{SDL2_RELEASE[:version]}".freeze
@@ -58,6 +64,12 @@ module SDL2Build
 
     raise "#{path} has SHA-256 #{actual}, but SDL2_RELEASE pins #{SDL2_RELEASE[:sha256]}. " \
           "Delete it to fetch #{NAME} again, or correct the pin in rakelib/sdl2_build.rb."
+  end
+
+  def cmake_options
+    return CMAKE_OPTIONS unless RbConfig::CONFIG['host_os'].include?('darwin')
+
+    [*CMAKE_OPTIONS, "-DCMAKE_OSX_DEPLOYMENT_TARGET=#{MACOS_DEPLOYMENT_TARGET}"]
   end
 
   # CMake picks Ninja on Windows only when ninja.exe happens to be on PATH, so

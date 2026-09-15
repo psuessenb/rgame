@@ -22,7 +22,7 @@ file "#{SDL2_PREFIX}/lib/pkgconfig/sdl2.pc" => [SDL2Build::TARBALL, __FILE__, "#
   sh(*SDL2Build.unpack_command, chdir: SDL2Build::BUILD_DIR)
 
   sh 'cmake', '-S', File.join(SDL2Build::SOURCE_DIR, SDL2Build::NAME), '-B', SDL2Build::CMAKE_DIR,
-     *SDL2Build.generator, *SDL2Build::CMAKE_OPTIONS, "-DCMAKE_INSTALL_PREFIX=#{SDL2_PREFIX}"
+     *SDL2Build.generator, *SDL2Build.cmake_options, "-DCMAKE_INSTALL_PREFIX=#{SDL2_PREFIX}"
   sh 'cmake', '--build', SDL2Build::CMAKE_DIR, '--parallel'
   sh 'cmake', '--install', SDL2Build::CMAKE_DIR
   touch t.name

@@ -212,13 +212,16 @@ jobs:
             ruby -e "require 'rspec/core'; exit RSpec::Core::Runner.run(['--pattern', 'spec_core/**/*_spec.rb', '--options', '.rspec-core'])" \
             || true
 
-  # The platform gems' build: SDL2 from the pinned release, linked statically
-  # into core_ext, on each of the three platforms. It runs `rake spec:core`
-  # against that build, then tools/check_linkage.rb, which fails if core_ext
-  # still depends on or exports SDL, or util_ext depends on a graphics library.
+  # A platform gem per platform, built by tools/platform_gem.rake. SDL2 comes
+  # from the pinned release, linked statically into core_ext, and the rakefile
+  # runs tools/check_platform_gem.rb on the gem before it counts as built. The
+  # checker fails a gem that ships build inputs, or binaries that depend on SDL
+  # or libruby, or need a newer OS than the gem claims.
   #
-  # The runner gets no system SDL2, so a build that still needed one could not
-  # quietly load it.
+  # `rake spec:core` then runs against the two binaries unpacked from the gem
+  # file, so the Core suite tests what ships. The runner gets no system SDL2,
+  # so a binary that still needed one could not quietly load it. The gem is
+  # uploaded as an artifact, as the source gem is by the job below.
   #
   # Linux builds inside rake-compiler-dock's x86_64-linux-gnu image rather than
   # on the runner. Its cross Ruby links no libruby, and its Ubuntu 20.04 glibc
@@ -226,8 +229,8 @@ jobs:
   # 2.38 and does not load on Ubuntu 22.04. The image has no display, so the
   # specs run on the runner against what the image built. The image is pinned by
   # digest, for the same reason the actions are pinned by commit.
-  static-sdl2:
-    name: static-sdl2 ${{ matrix.name }}
+  build-gem:
+    name: build-gem ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -256,7 +259,7 @@ jobs:
       # since more than one would give each its own lib/ subdirectory. rbenv
       # would read .ruby-version too, whose `ruby 4.0.5` form it cannot parse,
       # so the rake that runs is pinned to the image's own Ruby.
-      - name: Build SDL2 and both extensions in the rake-compiler-dock image (Linux)
+      - name: Build and check the platform gem in the rake-compiler-dock image (Linux)
         if: runner.os == 'Linux'
         shell: bash
         run: |
@@ -278,7 +281,7 @@ jobs:
               RUBY_CC_VERSION=$(tr : "\n" <<<"$RUBY_CC_VERSION" | grep -m1 "^$minor\.")
               export RUBY_CC_VERSION
               echo "cross-compiling for Ruby $RUBY_CC_VERSION"
-              rake -f tools/cross_compile.rake sdl2 compile:x86_64-linux-gnu
+              rake -f tools/platform_gem.rake platform_gem
             '
 
       - name: Toolchain
@@ -287,32 +290,52 @@ jobs:
           system-sdl2: 'false'
           cmake: ${{ runner.os != 'Linux' }}
 
-      - name: Put the image's extensions in lib/rgame (Linux)
-        if: runner.os == 'Linux'
+      - name: Build and check the platform gem (macOS, Windows)
+        if: runner.os != 'Linux'
+        shell: bash
+        run: bundle exec rake -f tools/platform_gem.rake platform_gem
+
+      - name: Put the gem's binaries in lib/rgame
         shell: bash
         run: |
-          cp tmp/x86_64-linux-gnu/stage/lib/rgame/core_ext.so tmp/x86_64-linux-gnu/stage/lib/rgame/util_ext.so lib/rgame/
-          for so in lib/rgame/*.so; do
-            echo "$so needs $(objdump -T "$so" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)"
-          done
-
-      - name: Build SDL2 (macOS, Windows)
-        if: runner.os != 'Linux'
-        shell: bash
-        run: bundle exec rake sdl2
-
-      - name: Build both extensions against it (macOS, Windows)
-        if: runner.os != 'Linux'
-        shell: bash
-        run: make ext SDL2_STATIC=build/sdl2
-
-      - name: Linkage
-        shell: bash
-        run: ruby tools/check_linkage.rb
+          gem unpack pkg/rgame-*.gem --target tmp/unpacked
+          cp tmp/unpacked/rgame-*/lib/rgame/*_ext.* lib/rgame/
 
       - name: Core specs (real windows)
         shell: bash
         run: bundle exec rake spec:core
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gem-${{ matrix.name }}
+          path: pkg/rgame-*.gem
+          if-no-files-found: error
+
+  # The source gem, built the way the release job builds it, so that a push
+  # yields every gem a release would publish.
+  source-gem:
+    name: source-gem
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Read the pinned Ruby version
+        id: ruby
+        run: echo "version=$(sed -E 's/^ruby[ -]//' .ruby-version | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: ${{ steps.ruby.outputs.version }}
+
+      - name: Build the source gem
+        run: gem build rgame.gemspec
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gem-source
+          path: rgame-*.gem
+          if-no-files-found: error
 
   # Publish to RubyGems when lib/rgame/version.rb names a version that is not
   # on RubyGems yet.
