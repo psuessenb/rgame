@@ -253,7 +253,9 @@ jobs:
       # SDL needs the X11 and Wayland headers at build time even though it
       # dlopens both at runtime. The image's RUBY_CC_VERSION lists every cross
       # Ruby it carries; the build takes the one matching .ruby-version's minor,
-      # since more than one would give each its own lib/ subdirectory.
+      # since more than one would give each its own lib/ subdirectory. rbenv
+      # would read .ruby-version too, whose `ruby 4.0.5` form it cannot parse,
+      # so the rake that runs is pinned to the image's own Ruby.
       - name: Build SDL2 and both extensions in the rake-compiler-dock image (Linux)
         if: runner.os == 'Linux'
         shell: bash
@@ -270,6 +272,8 @@ jobs:
                 libwayland-dev wayland-protocols libegl-dev libgl-dev libgles-dev \
                 libdrm-dev libgbm-dev libdbus-1-dev libudev-dev
               ln -sfn /usr/local/rake-compiler /root/.rake-compiler
+              RBENV_VERSION=$(rbenv global)
+              export RBENV_VERSION
               minor=$(sed -E "s/^ruby[ -]//; s/\.[0-9]+[[:space:]]*$//" .ruby-version)
               RUBY_CC_VERSION=$(tr : "\n" <<<"$RUBY_CC_VERSION" | grep -m1 "^$minor\.")
               export RUBY_CC_VERSION
