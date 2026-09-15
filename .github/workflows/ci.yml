@@ -278,7 +278,7 @@ jobs:
               RUBY_CC_VERSION=$(tr : "\n" <<<"$RUBY_CC_VERSION" | grep -m1 "^$minor\.")
               export RUBY_CC_VERSION
               echo "cross-compiling for Ruby $RUBY_CC_VERSION"
-              rake -f tools/cross_compile.rake sdl2 compile:x86_64-linux-gnu
+              rake -f tools/platform_gem.rake platform_gem
             '
 
       - name: Toolchain
