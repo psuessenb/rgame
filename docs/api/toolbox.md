@@ -51,12 +51,32 @@ score.with(score: 7)                            # => "Punkte: 7" — the switch 
 title.to_s                                      # => "Äpfel"
 ```
 
-In a node, the draw reads the `Text` with the current value:
+In a node, the draw reads the `Text` with the current value, or passes a `Text`
+with no names as it is:
 
 ```ruby
 def on_draw(renderer, _view)
   renderer.text(@score.with(score: @points), 12, 10)
+  renderer.text(@title, 12, 30)
 end
+```
+
+**A `Text` goes where a String goes.** It answers `to_str` with the same String
+as `to_s`, so `Renderer#text` and `Renderer#text_width` take one directly. A
+`Text` is also `==` to a String that reads the same, from either side. A spec's
+spy that recorded a `Text` therefore matches `with('Apples', 12, 30)`. Two `Text`s
+compare by identity, and `hash` stays the object's own, so a `Text` is not a
+String-keyed Hash key.
+
+```ruby
+require 'rgame'
+
+RGame::Engine::I18n.load_hash(en: { hud: { title: 'Apples' } })
+title = RGame::Engine::Text.new('hud.title')
+
+title == 'Apples'                               # => true
+'Apples' == title                               # => true
+title.to_str.equal?(title.to_s)                 # => true — the same String, no copy
 ```
 
 ### Variables are keywords
@@ -69,10 +89,11 @@ first frame that reads it. Every `Text` with the same names shares one generated
 A `Text` with no names is read with `to_s`, and `with` with no keywords returns
 the same. On a `Text` that has names, `to_s` reads it with the values its last
 `with` was given, and renders them again after a locale switch. So one node can
-set the values in `update`, and whatever draws the `Text` reads `to_s` without
+set the values in `update`, and whatever draws the `Text` passes it on without
 knowing them: a [button's label](ui.md#labels-are-translation-keys) works this
-way. Before the first `with`, `to_s` raises `ArgumentError`, naming the keywords
-`with` needs.
+way. Before the first `with`, `to_s` and `to_str` raise `ArgumentError`, naming
+the keywords `with` needs, and a renderer handed the `Text` lets that error
+through.
 
 The values belong to the `Text`, not to whoever set them. Two nodes sharing one
 `Text` with names show whatever the last `with` gave, so give each node its own. A name must be usable as a Ruby local variable:
@@ -111,7 +132,7 @@ raises it too.
 `Text.computed(*names) { |**keywords| ... }` shows what its block returns. The
 block runs when a keyword or `I18n.generation` changes, and never on an unchanged
 read. A block that calls `I18n.t` therefore follows the language. Both answer
-`with` and `to_s` like any `Text`, and both ignore `scope=`.
+`with`, `to_s` and `to_str` like any `Text`, and both ignore `scope=`.
 
 ```ruby
 require 'rgame'

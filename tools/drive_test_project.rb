@@ -391,8 +391,13 @@ module DriveTestProject
     def note(name, args)
       return if NOT_DRAWING.include?(name) || name.to_s.start_with?('register_')
 
+      args = [args.first.to_str, *args.drop(1)] if name == :text && label?(args.first)
       @report.record_text(args.first) if name == :text && args.first.is_a?(String)
       @report.record_draw(name, args)
+    end
+
+    def label?(value)
+      !value.is_a?(String) && value.respond_to?(:to_str)
     end
   end
 

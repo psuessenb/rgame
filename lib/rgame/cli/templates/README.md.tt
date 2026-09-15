@@ -70,7 +70,7 @@ builds an `RGame::Engine::Text` from a key once and draws it every frame:
 
 ```ruby
 @greeting = RGame::Engine::Text.new('root.greeting')   # in initialize
-renderer.text(@greeting.to_s, 20, 20)                  # in on_draw
+renderer.text(@greeting, 20, 20)                       # in on_draw
 ```
 
 - **To add text,** add a key to `en.yml`.

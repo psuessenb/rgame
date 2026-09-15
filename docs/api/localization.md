@@ -67,14 +67,18 @@ class Hud < RGame::Engine::Node2D
     super
     @score = RGame::Engine::Text.new('hud.score', :score)
     @apples = RGame::Engine::Text.new('hud.apples', :count)
+    @title = RGame::Engine::Text.new('hud.title')
   end
 
   def on_draw(renderer, _view)
     renderer.text(@score.with(score: @points), 12, 10)
     renderer.text(@apples.with(count: @apples_held), 12, 30)
+    renderer.text(@title, 12, 50)
   end
 end
 ```
+
+A `Text` with no variables goes to `text` as it is, because it answers `to_str`.
 
 A switch of `I18n.locale` renders every `Text` again on its next read. Nothing
 subscribes to the switch. [`Text`](toolbox.md#text--the-string-a-node-draws)

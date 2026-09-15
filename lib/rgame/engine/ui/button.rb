@@ -42,7 +42,7 @@ module RGame
       #   UI::TextButton.new(label: 'play')                        # the key 'play'
       #   UI::TextButton.new(label: Engine::Text.literal(name))    # the name, in every language
       #
-      # A label is drawn with `to_s`, so a `Text` with variables shows the values
+      # A label is drawn as it reads, so a `Text` with variables shows the values
       # its last `with` was given. The node that owns them calls `with` in
       # `update`, and the label follows:
       #

@@ -33,6 +33,11 @@ renderer.text_width(string, font: nil)   # => Float — pixels
 renderer.text_height(font: nil)          # => Integer — the line height
 ```
 
+**`string` is a String or anything with `to_str`**, such as an
+[`Engine::Text`](toolbox.md#text--the-string-a-node-draws), which a node passes
+as it is. `text` and `text_width` raise `TypeError` for `nil`, a number, or a
+`to_str` that returns something other than a String.
+
 **A string is one line.** A newline has no special meaning. Draw two lines with
 two calls, stepped by `text_height`:
 

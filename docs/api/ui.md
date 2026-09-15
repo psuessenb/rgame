@@ -89,7 +89,7 @@ and its release last.
 
 **A button's `label:` is a key**, looked up in the tables `RGame::Game` loads. The
 button holds it as an [`Engine::Text`](toolbox.md#text--the-string-a-node-draws)
-and draws `label.to_s`. A switch of `I18n.locale` therefore redraws every label on
+and passes it to `text` as it is. A switch of `I18n.locale` therefore redraws every label on
 the next frame, with no button rebuilt, and an unchanged label allocates nothing.
 
 ```ruby
@@ -122,7 +122,7 @@ What a button does with `label:`:
 | `nil` | nothing; `IconButton` then draws no caption |
 
 **A label with variables shows the values its last `with` was given.** The button
-reads `label.to_s` and never needs the values. The node that owns them sets them in
+draws the label without knowing the values. The node that owns them sets them in
 `update`, and the label follows on the next draw:
 
 ```ruby
@@ -525,7 +525,7 @@ class EdgeButton < RGame::Engine::UI::Button
   def on_draw(renderer, _view)
     color = COLORS.fetch(state)
     renderer.rect(0, 0, 4, height, color: color) unless state == :idle
-    renderer.text(label.to_s, 12, (height - renderer.text_height) / 2, color: color)
+    renderer.text(label, 12, (height - renderer.text_height) / 2, color: color)
   end
 end
 

@@ -126,11 +126,11 @@ class Screen < RGame::Engine::Node2D
   end
 
   def on_draw(renderer, _view)
-    renderer.text(@title.to_s, MARGIN, 24)
+    renderer.text(@title, MARGIN, 24)
     renderer.text(@apples.with(count: @apples_held), MARGIN, 72)
     renderer.text(@locale.with(locale: I18n.locale.name), MARGIN, 96)
-    renderer.text(@hint.to_s, MARGIN, 120)
-    renderer.text(@heading.to_s, MARGIN, MENU_Y - 30)
+    renderer.text(@hint, MARGIN, 120)
+    renderer.text(@heading, MARGIN, MENU_Y - 30)
   end
 end
 
