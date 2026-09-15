@@ -1,7 +1,7 @@
 # Plan — i18n as the default way to put text on screen
 
-**Status.** Steps 0–6 are implemented, and step 7 is planned in detail. Step 8
-is deliberately rough, and is re-planned before it starts.
+**Status.** Steps 0–7 are implemented. Step 8, the fold-back, is deliberately
+rough, and is re-planned before it starts.
 See [04-roadmap.md](04-roadmap.md).
 
 | File | What it holds |

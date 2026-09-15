@@ -1,7 +1,7 @@
 # Roadmap
 
-**Status.** Steps 0–6 are implemented. Step 7 is planned in detail and is next.
-**Step 8 is rough**, and is re-planned before it starts.
+**Status.** Steps 0–7 are implemented. **Step 8 is rough**, and is re-planned
+before it starts; it is next.
 
 Step 6 was inserted after step 5 landed (decision 13). The landed notes of steps
 1–5 were written before that, so "step 6" there means today's step 7, and "step 7"
@@ -1340,6 +1340,75 @@ measurements, recorded in the landed note.
 - **`test_projects/`**, per decision 9.
 - **A check for a String table.** The cop sees only the literal at the call
   site. A `STATE = { true => 'In the air' }` passes it.
+
+**Landed.** Seven commits, one per sub-step:
+
+- **7a** `Report#record_missing`, a "missing or mismatched keys" section, and
+  exit 1 when a key was recorded and a table was loaded.
+- **7b–7e** 23 examples moved to an `en.yml` beside their `main.rb`: 8, 5, 5 and
+  5 of them. Every example now has a table.
+- **7f** CLAUDE.md, `toolbox.md` and the write-example skill updated.
+- **7g** `Game/NoLiteralText`, 10 spec examples, and a row in CLAUDE.md's cop
+  table.
+
+`make test` 363 checks; `rake spec` 2304 examples; `rake spec:core` 406
+examples; all 0 failures. RuboCop is clean on the 26 changed Ruby files.
+`rubocop --only Game/NoLiteralText examples lib` inspects 140 files and finds
+nothing. A probe file with `renderer.text('x', 1, 2)` under `examples/` is one
+offense. `rake docs:coverage` still reports 39 gaps.
+
+The baseline was taken before 7a, at `298a986`: 29 drive scripts, the three `_pad`
+scripts with `--gamepad`. Two runs of all 29 were byte-identical to each other.
+At the end of the step:
+
+| Rule | Result |
+|---|---|
+| 1, identical reports | **28 of 29** byte-identical. `pooling` differs only in its readout: 42,128 / 116,809 / 173,112 became 42,271 / 116,930 / 173,233 |
+| 2, no missing keys | all 29 runs exit 0, no section printed |
+| 3, the plural | loaded headless: "walking: 1 waypoint, 1 cell", "no route there; walking: 1 waypoint, 1 cell", "arrived: 6 waypoints, 26 cells" |
+| 4, allocations, ticks 100–400, GC off | `quick_wheel`, `radial_menu`, `skill_bar`, `split_screen`, `localization`: **1 object** each, before and after. The setup forced a chosen or used caption at tick 50 |
+| 6, a removed key | `hud.hint` removed from `localization`'s `en.yml`: the section lists it, exit 1 |
+| 7, `tiled_world` | exit 0; "Sea shell", "Driftwood" and "Message in a bottle" listed |
+
+`pooling`'s difference comes from the harness, not the game:
+
+- Run without the harness, the game allocates 1,712 objects over 300 ticks
+  before the change and 1,722 after. That is 10 more, two per once-a-second
+  sample, from rendering the key.
+- The other ~118 per second are the harness's own. `RendererProbe#note` builds
+  an argument Array for every `Text` label it records, and `pooling` now passes
+  two per frame.
+
+What the sketch got wrong:
+
+- **A pre-existing spec read the example sources.**
+  `spec/example_assets_spec.rb` finds the icon and skill names in
+  `quick_wheel`, `radial_menu` and `skill_bar` with a regex over
+  `['Home', :home]`. The new `%i[home home]` rows broke three examples. The fix
+  was folded into 7d so every commit stays green. The inventory's "specs that
+  boot or drive an example: none" was true, but a spec that *reads* one was not
+  counted.
+- **`Game/NoNeedlessAllocation` refuses `%i[…].to_h { … }` in a class body.** It
+  flags a literal receiver anywhere, not only on a per-frame path. The status
+  tables in `save_load`, `save_load_ids` and `input_glyphs` are written out as
+  hashes of `Text`s instead. `MODES.to_h` in `fullscreen` and `ICONS.to_h` in
+  the captions pass, because their receiver is a constant.
+- **The harness paid for itself on its first run.** `menu_navigation`'s
+  `play.help` was left out of the table in 7d. The run printed it under the new
+  section and exited 1 before the diff was even read.
+- **The sketch's closure rule was too broad.** A `Text.computed` is unsafe in a
+  constant only at a file's top level. A class body captures no locals, as the
+  write-example skill already says. The wording in CLAUDE.md and `toolbox.md`
+  says so.
+- **`skill_bar`'s `focused_label` became `focused_name`**, returning the focused
+  button's label `Text`. `@used` holds the used button's label rather than its
+  key. `quick_wheel` and `radial_menu` keep `@chosen` as the icon's key and look
+  its name up in `Caption::NAMES`.
+- **`menu_navigation`'s scale row passes `OptionButton::DISPLAY` explicitly.**
+  Its `ROWS` table requires a `display:` for every row, and the default is what
+  it wants.
+- **`split_screen`'s badge takes `number:`** rather than a name, and calls
+  `with(number:)` once in `initialize`.
 
 ## Step 8 — fold back and delete the plan
 
