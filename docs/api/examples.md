@@ -195,7 +195,7 @@ the audio device, so it emits a fact and a director plays it.
 The other kind of sound: one streamed voice. You can stop it and ask whether it
 plays, and starting it again does not restart it.
 
-**Uses:** `Core::Song`, `AudioBus#play_music` / `#stop_music`,
+**Uses:** `Core::Song`, `AudioBus.play_music` / `.stop_music`,
 `Engine::AudioDirector`.
 
 ## Players and input

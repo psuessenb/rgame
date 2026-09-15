@@ -4,6 +4,11 @@ rgame plays sound through three classes. `Audio` is the sound device. A `Sample`
 is a short sound that can play over itself. A `Song` is a long sound streamed
 from disk.
 
+**A scene in an `RGame::Game` never touches these classes.** It emits on
+[`AudioBus`](toolbox.md#audiobus--decoupled-audio-facts), for example
+`RGame::Engine::AudioBus.play_sound('hit.ogg')`, and the game's director plays it.
+The example below drives the device directly from a plain `App`:
+
 ```ruby
 require 'rgame/core'
 
@@ -147,10 +152,12 @@ process. A single game never notices, but a process running two games does.
 nothing. A scene that repeats the request each time it is entered never restarts
 the music mid-loop.
 
-**`stop_music` stops the song *this device* started**, not whatever is sounding.
-The engine keeps no process-wide "current song", because one song at a time is a
-game's policy. You stop a `Song` you started by hand yourself. `stop_music` with
-nothing playing does nothing.
+**`stop_music` stops the song `play_music` most recently started**, not whatever
+is sounding. The engine keeps no process-wide "current song", because one song at
+a time is a game's policy. **`play_music` with a different track does not stop the
+previous one**, so both play. To switch tracks, call `stop_music` first. You stop
+a `Song` you started by hand yourself. `stop_music` with nothing playing does
+nothing.
 
 ## Loading and failure
 
@@ -165,6 +172,11 @@ RGame::Core::Song.new(audio, path)
 **Prefer `audio.sample` and `audio.song`.** They read in the direction the
 objects depend, and a stand-in device can offer them, while `Sample.new` cannot
 be faked (see [Testing](#testing)).
+
+`audio.sample`, `audio.song` and the two constructors resolve a relative path
+against the working directory, and cache nothing. `app.assets.sound(path)` and
+`app.assets.song(path)` resolve against `media_root` and cache, and a String id
+passed to `play_sound` or `play_music` goes through them.
 
 A file the engine cannot read or decode raises `RGame::Core::Sample::LoadError`
 or `RGame::Core::Song::LoadError`, naming the file. Both inherit from

@@ -37,10 +37,13 @@ before touching SDL.
 **Tier 2a — `rake spec`, in `spec/`.** `RGame::Util` and `RGame::Engine`.
 Must never load SDL: `require "rgame/core"` here would define `RGame::Core`
 for the whole process and destroy the engine layer's headless guarantee. Also
-where C-extension lifetime checks live (see "Leaks", below).
+where C-extension lifetime checks live (see "Leaks", below), and where
+`spec/api_docs/` runs the documentation's examples and checks its links (see
+[write-docs](../write-docs/SKILL.md)).
 
 **Tier 2b — `rake spec:core`, in `spec_core/`.** `RGame::Core`'s Ruby-visible
-surface: the App lifecycle, `Input`'s binding table, gamepad hot-plug. Opens
+surface: the App lifecycle, `Input`'s binding table, gamepad hot-plug, and the
+names `docs/api/` mentions (`spec_core/api_docs/`). Opens
 real windows and boots its own Xvfb. A separate directory and runner precisely
 so tier 2a cannot be contaminated — see CLAUDE.md, "Design out misuse".
 

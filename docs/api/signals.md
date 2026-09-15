@@ -20,10 +20,8 @@ is fixed when you define it.
 ```ruby
 require 'rgame'
 
-Signal = RGame::Engine::Signal
-
-ClickSignal = Signal.define                   # carries no payload
-ChangeSignal = Signal.define(:index, :value)  # carries two values
+ClickSignal = RGame::Engine::Signal.define                   # carries no payload
+ChangeSignal = RGame::Engine::Signal.define(:index, :value)  # carries two values
 
 sig = ChangeSignal.new
 handle = sig.connect { |index, value| puts "#{index} -> #{value}" }

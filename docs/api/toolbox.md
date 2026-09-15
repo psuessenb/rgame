@@ -77,7 +77,7 @@ The factory builds a *blank* object. The caller re-initialises it after
 `examples/pooling` shows this on a node. `reclaim_if` sweeps the active list once
 and moves every object the block marks dead onto the free list. Call it *after*
 iterating with `each`; never change the active list mid-iteration. `active`,
-`size` and `each` expose the live set for update and draw.
+`size`, `empty?` and `each` expose the live set for update and draw.
 
 ## `Path` — a walkable polyline
 
@@ -140,7 +140,7 @@ grid.walkable?(3, 1)        # => true
 grid.find(0, 0, 7, 2)       # => [[0, 0], [1, 0], [2, 0], [3, 0], [4, 1], [4, 2], [5, 2], [6, 2], [7, 2]]
 grid.find(0, 0, 0, 1)       # => nil — the goal is solid
 grid.reachable?(0, 0, 7, 2) # => true
-grid.region(0, 0)           # => 0, an Integer label; nil for a solid or off-grid cell
+grid.region(0, 0)           # => 0 — an Integer label; nil for a solid or off-grid cell
 ```
 
 - **A route is a list of cells, both ends included**, as `[[col, row], ...]`. When
@@ -224,15 +224,20 @@ camera.x, camera.y                      # the resolved offset
 ```
 
 `center_on` records the target. `resolve` computes the offset, clamped so the
-view never shows past the world's edges; near a corner, the target drifts off
-centre. **The viewport size is an argument, not state**, because one camera can be
-drawn through viewports of different sizes. A half-width viewport clamps
+view never shows past the world's edges. `world_width` and `world_height` are
+optional and writable: a scene sets them when it loads a map. Left `nil`, the
+camera is unbounded and follows its target exactly. With bounds, the target drifts
+off centre near a corner.
+
+**The viewport size is an argument, not state**, because one camera can be drawn
+through viewports of different sizes. A half-width viewport clamps
 differently from a full-width one, and the difference shows near a world edge.
 
 **A camera belongs to a player**
 ([`RGame::Engine::Player#camera`](input.md#players-seats-and-joining)), not to a
 scene, because a scene may have any number of viewers. You never call `resolve`
-yourself. `Game` resolves each camera against the viewport it is about to draw. A
+yourself. `Viewports` resolves each view's camera against that view's size before
+the frame is drawn. A
 [`CameraFollow`](components.md#camerafollow) component on the followed node points
 the camera, and a [`WorldView`](scene_graph.md#view-transforms-and-the-camera)
 applies it. See `examples/scroll_map` for one camera and `examples/split_screen`
@@ -363,8 +368,11 @@ pluralize. The key's value is then a `{ one:, other:, optionally zero: }` table,
 and `count` is also available to interpolation as `%{count}`. Pluralization uses
 the one/other rule of English and German.
 
+Both the locale and the fallback start at `:en`. `available` lists the loaded
+locales, and `reset` forgets every table.
+
 **The `generation` counter tells cached UI text when to re-resolve.** It advances
-whenever the locale changes. Cached text re-runs `t` only when `generation` moves,
+whenever the locale changes; loading a table does not advance it. Cached text re-runs `t` only when `generation` moves,
 not every frame, so it allocates nothing per frame.
 
 ## `AudioBus` — decoupled audio facts

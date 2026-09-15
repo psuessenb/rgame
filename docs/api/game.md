@@ -87,8 +87,13 @@ the game offers a way back. See [Fullscreen](app.md#fullscreen) and
 `examples/fullscreen`.
 
 `start` brings the tree live. It hands the game to the root as its `context`,
-calls `enter_tree`, and runs the loop until the window closes. `F1` toggles the
-debug overlay and `F2` quits.
+mounts `Players` and `Viewports` on the root, and subscribes an `AudioDirector` to
+the [`AudioBus`](toolbox.md#audiobus--decoupled-audio-facts). It then calls
+`enter_tree` and runs the loop until the window closes. When the loop ends, it
+unsubscribes the director. `F1` toggles the debug overlay and `F2` quits.
+
+Each tick, `Game` polls input, runs `control` and `update` on the tree, and sweeps
+freed nodes. It redraws only when a tick ran or the debug overlay is visible.
 
 **Both development keys are function keys, and `Esc` stays free.** Players expect
 Escape to back out of a menu, so it belongs to the game. A debug shortcut on it
@@ -98,8 +103,9 @@ would take it away from every game built on `Game`.
 
 `RGame::Engine` holds game concepts and may not name `RGame::Core`.
 `RGame::Core` owns windows, textures and sound devices, and may not know Engine
-exists. Two RuboCop cops enforce this. **`Game` connects the two.** Keeping that
-connection in one file lets the cops check the rule everywhere else.
+exists. **`Game` connects the two.** Keeping that connection in one file lets the
+rule hold everywhere else. Inside rgame's own repository, two RuboCop cops enforce
+it.
 
 The tile map shows why. Engine parses a `.tmx`; Core draws it; neither may call
 the other. `Game` installs the loader that joins them, so
@@ -111,8 +117,10 @@ A node anywhere in the tree reaches the asset manager through the root's
 context. No constructor has to pass it along:
 
 ```ruby
-sheet = node.root.context.assets.sheet('player.json')
+sheet = node.context.assets.sheet('player.json')   # node.context is node.root.context
 ```
+
+A component reaches the same object as `context`.
 
 ## Input
 

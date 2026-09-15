@@ -63,7 +63,7 @@ conversion:**
 Color.coerce(nil)               # => Color::WHITE — an untinted draw
 Color.coerce([255, 128, 0])     # => opaque
 Color.coerce([255, 128, 0, 64]) # => with alpha
-Color.coerce(Color::WHITE)      # => returned unchanged, not copied
+Color.coerce(Color::WHITE)      # => Color::WHITE — the same object, not copied
 ```
 
 Any other type raises `TypeError`. An array of the wrong size raises
@@ -127,7 +127,7 @@ disagree about a wall.
 fence = RGame::Util::SolidGrid.build(8, 3) { |col, row| col == 3 && row < 2 }  # asks once per cell, row by row
 fence.solid?(3, 1)     # => true
 fence.solid?(-1, 0)    # => false — outside the grid is open
-fence.width            # => 8, and #height
+fence.width            # => 8 — and #height
 
 field = RGame::Util::SolidGrid.new(8, 3)                                        # every cell open
 field.set_solid(3, 1, true)
@@ -156,8 +156,8 @@ grid = RGame::Util::SolidGrid.build(8, 3) { |col, row| col == 3 && row < 2 }
 search = RGame::Util::RouteSearch.new(grid)
 
 search.find(0, 0, 7, 0)   # => [[0, 0], [1, 1], [2, 2], [3, 2], [4, 2], [5, 1], [6, 0], [7, 0]]
-search.region(0, 0)       # => 0; nil for a solid cell or one outside the grid
-search.grid               # => the grid, which the search keeps alive
+search.region(0, 0)       # => 0 — nil for a solid cell or one outside the grid
+search.grid               # => the grid — which the search keeps alive
 ```
 
 - **It reads its grid and never writes it.** Any number of searches may share a
@@ -186,7 +186,7 @@ sweep.resolve_x(58.0, 32.0, 12, 6, 14.0)    # => 68.0 — flush against the wall
 sweep.resolve_y(58.0, 32.0, 12, 6, 4.0)     # => 36.0
 sweep.travel?(10.0, 32.0, 12, 6, 50.0, 0)   # => true
 sweep.travel?(10.0, 32.0, 12, 6, 90.0, 0)   # => false
-sweep.grid                                  # => the grid, which the sweep keeps alive
+sweep.grid                                  # => the grid — which the sweep keeps alive
 ```
 
 - **A box is a top-left corner and a size, in pixels.** Results are Floats.
@@ -214,7 +214,7 @@ position in the tree into the single number the renderer sorts by.
 ```ruby
 RGame::Util::Z::BANDS     # => [:world, :hud, :overlay, :debug]
 RGame::Util::Z::DEFAULT   # => :world
-RGame::Util::Z::Z_MIN     # => -512, the smallest `z:` a drawing call may pass
+RGame::Util::Z::Z_MIN     # => -512 — the smallest `z:` a drawing call may pass
 RGame::Util::Z::Z_MAX     # =>  511
 ```
 
@@ -249,6 +249,10 @@ save.read      # => { dog: [120, 80], sheep: [[40, 40], [90, 30]] }
 save.exist?    # => true
 save.delete
 ```
+
+`SaveFile.new(name, game: 'rgame', dir: nil)` places `name` in
+`SaveFile.directory(game)`, or in `dir:` when given. `path` returns the full path.
+`delete` does nothing when the file is already gone.
 
 Keys come back as Symbols, so a game writes and reads one shape. JSON comes from
 the standard library, so `SaveFile` adds no runtime dependency.

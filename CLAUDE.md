@@ -862,13 +862,15 @@ to crash while learning pointers/SDL/GL).
   backends: assert on recorded calls, no display involved). Fast,
   deterministic, expected to pass for every change.
 - `rake spec` — the **headless** RSpec suite in `spec/`, covering
-  `RGame::Util`, `RGame::Engine` and what the gem packages
-  (`spec/packaging_spec.rb`; see "Packaging"). Fast, deterministic, no display,
+  `RGame::Util`, `RGame::Engine`, what the gem packages
+  (`spec/packaging_spec.rb`; see "Packaging"), and whether `docs/api/`'s examples
+  run and its links resolve (`spec/api_docs/`; see the write-docs skill). Fast, deterministic, no display,
   no SDL in the process at all. Requires `make ext-util` first. Expected to pass
   for every change.
 - `rake spec:core` — the RSpec suite in `spec_core/`, covering
   `RGame::Core`'s Ruby-visible surface: the App lifecycle, `Input`'s binding
-  table, hot-plug. Requires `make ext-core`, and boots its own Xvfb, so it
+  table, hot-plug, and whether every name `docs/api/` mentions exists
+  (`spec_core/api_docs/`). Requires `make ext-core`, and boots its own Xvfb, so it
   needs no display of its own either. Slower — it opens real windows.
 - `make run` / `ruby ext/rgame_core/example.rb` — manual verification of
   layer 3 from C and from Ruby respectively. Subjective/visual, run by a

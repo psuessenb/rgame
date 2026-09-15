@@ -179,6 +179,10 @@ actions.released?(:fire)  # did it come up this tick
 actions.axis(:turn)       # -1.0..1.0
 ```
 
+**Asking about an undeclared action raises `KeyError`**, naming the action and
+listing the declared ones. A mistyped name fails on the first tick instead of
+reading as "never pressed".
+
 **The device lets two players share one map.** Every query carries the device,
 so two mappers over the *same* map read two different controllers. Each mapper
 keeps its own previous-tick state, so their edge queries stay independent.
@@ -202,7 +206,8 @@ RGame::Game.new(root: MyRoot.new, players: 2)
 ```
 
 `players:` sets how many **seats** the game has, which is the most people who
-can play. Player 0 starts on the keyboard; the other seats start empty. An empty
+can play. Player 0 starts on `Game`'s `device:`, the keyboard by default; the
+other seats start empty. An empty
 seat draws no viewport. A two-seat game with one player looks like an ordinary
 full-screen game.
 
@@ -235,9 +240,14 @@ players.on_joined { |player| spawn(player) }
 **`:takeover` serves single-player games.** A solo player who picks up a
 controller is not a second person arriving. Their keyboard becomes unassigned,
 and a `ui_confirm` press on it switches back. The last device used wins, in both
-directions. Only `ui_confirm` switches; W does nothing. To return on any key, set
-`:ignore` and call `seat` yourself. If the controller is unplugged, the player
-falls back to the keyboard, so the game keeps responding.
+directions. Only `ui_confirm` switches; W does nothing. To switch on any key, set
+`:ignore` and assign `players.primary.device` yourself. If the controller is
+unplugged, the player falls back to the keyboard, so the game keeps responding.
+
+**Under `:join` and `:ignore`, unplugging a controller empties its seat.** The
+player's device becomes `nil`, so they draw no viewport until a device is seated
+again. `players.seat(device)` fills the first empty seat and returns that player,
+or `nil` when every seat is taken or joins are refused.
 
 `accepting_joins = false` refuses both joins and takeovers. Use it during a
 cutscene or a mid-round lockout.
@@ -361,7 +371,7 @@ pads = RGame::Core::Gamepad.new(app)
 pads.count                                # how many are connected
 pads.max_slots                            # how many slots exist
 pads.connected?(0)                        # is slot 0 filled?
-pads.name(0)                              # => "Xbox Controller", or nil
+pads.name(0)                              # => "Xbox Controller" — or nil
 pads.device(0)                            # the id Input wants for that slot
 pads.each_connected { |slot, name| ... }  # lowest slot first
 ```

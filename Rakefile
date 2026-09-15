@@ -19,6 +19,13 @@ namespace :spec do
   end
 end
 
+namespace :docs do
+  desc 'List public classes and methods docs/api never mentions (a report; needs make ext)'
+  task :coverage do
+    ruby 'tools/doc_coverage.rb'
+  end
+end
+
 desc 'Run the C unit tests (Check)'
 task :test do
   sh 'make test'

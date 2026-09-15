@@ -1,6 +1,6 @@
 ---
 name: write-docs
-description: How to write reference documentation under docs/api — what a page may say (the current code, nothing else), code examples that stand on their own, and the prose style rules (verbs over nouns, active voice, short sentences, no filler, no officialese, front-loaded paragraphs, they/their). Use whenever creating or editing a page in docs/api/, when a code change needs its documentation updated, or when folding a finished plan back into the documentation.
+description: How to write reference documentation under docs/api and keep it matching the code — what a page may say (the current code, nothing else), searching every page when code changes, claims backed by a line of code, example conventions the doc specs check, auditing a page, and the prose style rules (verbs over nouns, active voice, short sentences, no filler, no officialese, front-loaded paragraphs, they/their). Use whenever creating or editing a page in docs/api/, when a code change needs its documentation updated, when a doc spec fails, when auditing documentation against the code, or when folding a finished plan back into the documentation.
 ---
 
 # Writing documentation
@@ -18,14 +18,24 @@ Plans under `docs/plans/` follow different rules. See
 
 ---
 
-## When to write it
+## When code changes
 
-Write documentation together with the code. A change to public behaviour is not
-done until its `docs/api/` page describes it. A new page also gets a row in the
-index table of `docs/api/README.md`.
+**A change to public behaviour is not done until every page that mentions it is
+right.** Stale pages are rarely the page that owns the class. They are other pages
+that mention it in passing, written when it worked differently. So:
 
-Some pages end in a "What this is not" section. When a change fills one of those
-gaps, trim the list so it names only what is still missing.
+1. **Search all of `docs/api/`** for every class, method, option, signal and file
+   name the change adds, renames, removes or changes. Fix every hit, on every page.
+2. **Update the owning page.** A new public method, keyword, signal or reader gets a
+   row or a sentence. A removed one loses it.
+3. **Update the index entries.** A new page gets a row in the tables of
+   `docs/api/README.md`, and its row there says what the page covers. A new example
+   under `examples/` gets a `### name` entry in `docs/api/examples.md`.
+4. **Trim "What this is not".** When a change fills a gap one of those sections
+   names, remove it from the list.
+5. **Run `bundle exec rake docs:coverage`** after a class grows or a plan lands. It
+   lists public classes and methods no page names. Document what a game author
+   calls; a binding's raw primitive behind a documented wrapper can stay out.
 
 ## What a page may say
 
@@ -39,18 +49,103 @@ mentions:
 - other game engines or games. Prior art belongs in plans, where it helps. The
   reference documentation leaves it out.
 
-**Make every code example stand on its own.** A reader must understand it without
-outside context. It must also run against the current code. Before you commit a
-page, check each example against the classes and signatures it names. If a
-snippet can run headless, run it:
+### Every claim has a line of code behind it
 
-```
-ruby -Ilib -e 'require "rgame"; ...'
-```
+**Find the code that makes a sentence true before you write it.** Write from the
+code, not from memory of the design. Three kinds of sentence go wrong most often:
 
-Examples follow the same rules as the engine's code. They build labels with
-`Engine::CachedLabel`, draw in local space, and never name `RGame::Core` from
-engine-layer code.
+- **Absolute claims.** A sentence with "only", "never", "every", "always", "no",
+  "cannot", "without" or "yet" states something about the whole codebase. Search
+  for the counterexample. "The only class directly under `RGame`" was false because
+  `RGame::CLI` exists. If you cannot find the line that makes the claim true, cut
+  the claim.
+- **Options, modes and policies.** Document what **each** value does on **every**
+  path: success, failure, a repeat call, `nil`, and what happens when the
+  surrounding state changes (a device unplugged, a second track started, a seat
+  already taken). Read each branch of the implementing method. A table that
+  describes only the happy path of each row is the typical drift.
+- **Defaults and lifecycles.** Say what exists without setup and what does not. A
+  `Game` builds its renderer, asset manager and tile map loader; a plain `App`
+  builds some of them lazily and never builds the loader. Check the constructor and
+  the first-use path, not the class comment.
+
+### Say which context a page is written for
+
+**The reader writes a game on `RGame::Game`.** Lead with that path:
+
+- **Engine-layer examples are scene code.** A node receives the renderer in
+  `on_draw` and plays sound through `AudioBus`. When a page drives `RGame::Core`
+  from a plain `App` to show the calls, it says so.
+- **Name the entry point.** State whether an example is a `Game` scene, a plain
+  `App`, a spec, or a command in a repository checkout.
+- **Label what exists only in the repository.** `spec/support/`, the RuboCop cops,
+  `make` targets and `tools/` do not ship in the gem. Say "rgame's own suite" or
+  "in a checkout" when a page mentions them.
+- **Paths say what they resolve against.** `app.assets` resolves against
+  `media_root`; `Image.new`, `audio.sample` and `SpriteSheet.load` resolve against
+  the working directory.
+
+## Code examples
+
+**Every code example stands on its own and matches the current code.** Examples
+follow the engine's own rules: they build labels with `Engine::CachedLabel`, draw
+in local space, and never name `RGame::Core` from engine-layer code.
+
+**An example's first line decides how the specs check it:**
+
+| First code line | Kind | Checked by |
+|---|---|---|
+| `require 'rgame'`, and no windowed require below it | complete, headless | run in its own process; every `# =>` comment asserted |
+| `require 'rgame/core'` or `require 'rgame/game'` anywhere | complete, windowed | parsed; a syntax error fails |
+| anything else | fragment | not run; its page's prose names are still resolved |
+
+So:
+
+- **Make an example complete whenever you can.** Start it with `require 'rgame'`,
+  define what it uses, and let it run from the repository root. A complete example
+  is the only kind that proves its output.
+- **Write `# =>` comments as `# => value — prose`.** The value is a Ruby expression
+  or an `inspect` string starting with `#<`. A class name passes for an instance of
+  that class. Everything after ` — ` is prose. A value followed by a comma or colon
+  and prose (`# => 60, in tiles`) does not evaluate and fails.
+- **Opt a complete example out only when it cannot run as it stands**, such as an
+  RSpec file: put `<!-- doc-example: skip — reason -->` on the line before its
+  fence.
+- **Name things in prose with backticks and their real spelling**: `UI::Menu#open`
+  for an instance method, `AudioBus.play_sound` for a module or class method,
+  `Controls::KEY_A` for a constant. The reference spec resolves every such name.
+
+## What the checks catch, and what they do not
+
+Four checks run without anyone remembering them:
+
+| Check | Fails when |
+|---|---|
+| `spec/api_docs/examples_spec.rb` (`rake spec`) | a headless example raises or returns something its `# =>` comment does not say; a windowed example does not parse |
+| `spec/api_docs/index_spec.rb` (`rake spec`) | a page is missing from the index, an example is missing from `examples.md` or described but absent, or a link or heading anchor is broken |
+| `spec_core/api_docs/references_spec.rb` (`rake spec:core`) | prose names a class, constant or method that does not exist |
+| `rake docs:coverage` (a report) | never fails; lists public names no page mentions |
+
+A word that looks like a constant but is not one (a key name, a file name) goes in
+the `allowed` list in the reference spec, with a comment saying why.
+
+**No check catches a sentence that names real things and states the wrong
+behaviour.** "`play_music` switches tracks" names a method that exists and passes
+every spec. Only the claim rules above catch that, so apply them while writing.
+
+## Auditing a page
+
+To check an existing page against the code, go through it top to bottom:
+
+1. **List the class's public API** and compare it with the page: public methods,
+   constructor keywords, signals, constants. Add what a game author would call.
+2. **Find the code for each claim.** For every sentence that states behaviour, open
+   the method that implements it. Read every branch of any option or policy.
+3. **Search for the counterexample** to every absolute claim.
+4. **Check the context**: the entry point each example assumes, what exists without
+   setup, and what only the repository has.
+5. **Run the checks**: `bundle exec rspec spec/api_docs`, then
+   `bundle exec rake spec:core` for the references, then `rake docs:coverage`.
 
 ---
 
@@ -145,10 +240,15 @@ summarising what it just said.
 
 Read the page once against this list:
 
+- Did you search every page for the names your change touched?
 - Does any sentence describe the past, a prompt or another engine?
-- Does every code example run against the current code, without outside context?
+- Does every absolute claim ("only", "never", "every") have a line of code behind it?
+- Does every option, mode or policy say what each value does on every path?
+- Does each example say its context, and start with `require 'rgame'` if it can?
+- Do `# =>` comments read `value — prose`?
 - Does each paragraph open with its point?
 - Does any sentence run past 20 words, or nest a "which" clause?
 - Can you replace a noun with a verb, or a passive with an active?
 - Did you delete every "very", "really", "basically", "in order to"?
-- Does `docs/api/README.md` list the page?
+- Do `docs/api/README.md` and `examples.md` list what is new?
+- Do `bundle exec rspec spec/api_docs` and the reference spec in `rake spec:core` pass?

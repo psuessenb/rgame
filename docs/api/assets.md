@@ -1,12 +1,15 @@
-# Sheets, atlases and maps
+# Assets: sheets, atlases, maps and sounds
 
-These classes sit between a file on disk and a draw call. They cover a sprite
-sheet sliced into frames, a nine-slice panel stretched to any size, a UI atlas,
-a tile map, and the asset manager that loads and caches all of them.
+**The asset manager loads and caches every file a game uses**: images, sound
+samples, songs, sprite sheets, UI atlases, tile maps and plain text. This page
+covers the manager and the Ruby classes it builds from those files: a sprite sheet
+sliced into frames, a nine-slice panel stretched to any size, a UI atlas and a
+tile map. [Images](images.md) and [Audio](audio.md) cover the C-backed `Image`,
+`Sample` and `Song`.
 
-**They are pure Ruby, but live in `RGame::Core` because they hold images.** An
-image is a GPU handle. Game logic names these assets by id and never holds one;
-see [Testing what a scene draws](drawing.md#testing-what-a-scene-draws).
+**These classes are pure Ruby, but live in `RGame::Core` because they hold GPU or
+audio handles.** Game logic names assets by id and never holds one; see
+[Testing what a scene draws](drawing.md#testing-what-a-scene-draws).
 
 | Page section | Class |
 |---|---|
@@ -35,8 +38,8 @@ accessor returns the same object each time. A file requested twice is read,
 decoded and uploaded once. Several spellings of one file share one cache entry:
 `'a/b.png'`, `'a/./b.png'` and the absolute form.
 
-The manager gives a game one object that knows what is loaded. Setup code no
-longer builds paths by hand or constructs images inline.
+The manager gives a game one object that knows what is loaded. Setup code builds
+no paths by hand and constructs no images inline.
 
 ### Adding an asset type
 
@@ -45,8 +48,9 @@ app.assets.add_loader(:level) { |path| MyLevel.parse(File.read(path)) }
 app.assets.level('levels/one.json')          # cached and grouped like any other
 ```
 
-The built-in types register through the same method at construction, so an
-added type works exactly like them. `add_loader` exists because `RGame::Core`
+The built-in leaf types (`image`, `sound`, `song` and `read`) register through the
+same method at construction, so an added type works exactly like them. `sheet` and
+`ui_atlas` are composites built from those; see below. `add_loader` exists because `RGame::Core`
 cannot build some types itself; see [Tile maps](#tile-maps).
 
 ### Groups, and what `release` frees
@@ -125,7 +129,7 @@ A sheet is one image plus a JSON descriptor. It slices the image into frames at
 load time and draws one frame at a time.
 
 ```ruby
-sheet = RGame::Core::SpriteSheet.load(app, 'media/hero.json')
+sheet = app.assets.sheet('hero.json')
 
 sheet.frame_width    # => 16
 sheet.grid           # => [rows, columns]
@@ -208,13 +212,16 @@ upload. Two hundred frames are two hundred small objects and **one** texture.
 ### Loading
 
 ```ruby
-RGame::Core::SpriteSheet.load(app, path)   # standalone
-RGame::Core::SpriteSheet.new(image, atlas) # from an already-loaded image
+app.assets.sheet(path)                     # what a game calls: cached and grouped
+RGame::Core::SpriteSheet.new(image, atlas) # from an already-loaded image and parsed descriptor
+RGame::Core::SpriteSheet.load(app, path)   # reads both files directly, bypassing the cache
 ```
 
-Use `.load` for a game with a sheet or two and no asset manager. The asset
-manager uses the second form, with an image it already cached. The sheet's PNG is
-then shared with a standalone load of the same file, not decoded twice.
+**Load sheets through `app.assets.sheet`.** Every app has an asset manager. It
+builds the sheet with `.new`, from an image it pulls through its own cache, so the
+sheet's PNG is shared with `app.assets.image` of the same file. `.load` reads the
+descriptor and decodes the image itself, outside any cache. A second `.load` of
+the same file decodes and uploads it again. `UiAtlas` has the same three forms.
 
 ## Nine-slices
 
@@ -281,6 +288,10 @@ tiles, so the tiling stays seamless.
 The nine-slice cuts its pieces once at construction, as views onto the one
 upload, so `#draw` allocates nothing. It issues one call per tile. That is where
 `scale` pays: a panel at 3x needs a ninth of the tiles of the same panel at 1x.
+
+Inside a scene, draw a registered nine-slice by id with
+`renderer.nine_slice(id, x, y, width, height, z: 0, tint: nil)`. Its `tint:` is
+`NineSlice#draw`'s `color:`.
 
 ## UI atlases
 
@@ -360,15 +371,24 @@ The atlas parses once, at load, and touches nothing again per frame.
 ## Tile maps
 
 `TileMapRenderer` draws a Tiled map. It bakes the static layers once, and draws
-animated tiles each frame, culled to the viewport.
+animated tiles each frame, culled to a rectangle of the world.
 
 ```ruby
-tiles = app.assets.tilemap('map/island.tmx')
+tiles = app.assets.tilemap('map/island.tmx')   # => RGame::Core::TileMapRenderer
 
-renderer.tilemap('map/island.tmx', 0, camera_x, camera_y, view_w, view_h, elapsed: seconds)
+renderer.tilemap('map/island.tmx', 0, cull_x, cull_y, cull_w, cull_h, elapsed: seconds)
 # ... the scene draws its actors here ...
-renderer.tilemap('map/island.tmx', 1, camera_x, camera_y, view_w, view_h, elapsed: seconds)
+renderer.tilemap('map/island.tmx', 1, cull_x, cull_y, cull_w, cull_h, elapsed: seconds)
 ```
+
+**A game rarely makes these calls.** [`TileMapLayer`](components.md#tileworld)
+mounts one node per layer and draws it.
+
+**Tiles draw in world coordinates.** A tile at column 3 lands at
+`3 * tile_width`. The caller's transform, usually a `WorldView`'s camera, puts it
+on screen. The rectangle is only a **cull rect**: the part of the world worth
+drawing. A camera supplies it but does not move the result, so one map can be
+drawn through several cameras in one frame.
 
 ### One call per layer, so actors fit between layers
 
@@ -394,9 +414,11 @@ asset manager, not through the map.
 **`elapsed` is seconds, passed as an argument.** The renderer reads no clock:
 
 ```ruby
-def update(dt) = @elapsed += dt
-def draw(renderer)
-  renderer.tilemap(@id, @layer, camera.x, camera.y, w, h, elapsed: @elapsed)
+def on_update(dt) = @elapsed += dt
+
+def on_draw(renderer, view)
+  camera = view.camera
+  renderer.tilemap(@id, @layer, camera.x, camera.y, view.width, view.height, elapsed: @elapsed)
 end
 ```
 
@@ -419,8 +441,10 @@ app.assets.add_loader(:tilemap) do |path|
 end
 ```
 
-Before the loader is installed, `app.assets` has no `tilemap` accessor, and a
+Every `RGame::Game` installs this loader when it is built. A plain
+`RGame::Core::App` has none: its `app.assets` has no `tilemap` accessor, and a
 tilemap draw id raises `KeyError`. A clear error beats a half-working subsystem.
 
 `TileMapRenderer#map` returns the parsed map, for the scene's own collision and
-world-bounds queries.
+world-bounds queries. [Tile maps](tile_maps.md) documents `TileMap` and `Tileset`,
+and which Tiled features rgame reads.

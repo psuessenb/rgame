@@ -1,7 +1,9 @@
 # Drawing
 
-A game draws with `RGame::Core::Renderer`. Build one from an app and use it
-inside `draw`:
+Everything on screen goes through `RGame::Core::Renderer`. **In an
+`RGame::Game`, you never build one.** `Game` builds it and passes it to every
+node's `on_draw(renderer, view)`. The examples on this page build one on a plain
+`App` instead, to show the calls without a scene graph:
 
 ```ruby
 require 'rgame'
@@ -28,8 +30,8 @@ MyGame.new.run
 
 Know two rules before anything else.
 
-**Draw only inside `draw`.** A drawing call from `update` or from a constructor
-raises. The frame is not open then, so the call would vanish without a trace.
+**Draw only inside `draw`**, or a node's `on_draw`. A drawing call from `update`
+or from a constructor raises. The frame is not open then, so the call would vanish without a trace.
 A loud failure beats an invisible one.
 
 **The renderer draws nothing immediately.** It collects calls, sorts the frame
@@ -183,7 +185,7 @@ A scale of `0` draws nothing.
 `color:` tints the image by multiplying its pixels. White leaves the image
 unchanged, and a colour with alpha fades it.
 
-[Images](images.md) covers loading files and slicing sprite sheets.
+[Images](images.md) covers loading files and slicing tiles; [Assets](assets.md#sprite-sheets) covers sprite sheets.
 
 **Only the app that loaded an image can draw it.** A GPU texture belongs to one
 window's OpenGL context. Drawing another app's image would sample nothing and
@@ -203,7 +205,7 @@ app's [asset manager](assets.md) and remembers the result:
 renderer.sprite('hero.json', row, col, x, y, flip_x: false, z: 0)
 renderer.image('space.png', cx, cy, angle: 0, scale: 1)
 renderer.background('space.png')
-renderer.tilemap('map/island.tmx', layer, camera_x, camera_y, viewport_w, viewport_h)
+renderer.tilemap('map/island.tmx', layer, cull_x, cull_y, cull_w, cull_h, elapsed: 0.0)  # draws in world coordinates
 renderer.nine_slice(:panel, x, y, width, height, z: 0, tint: nil)
 ```
 
@@ -330,7 +332,8 @@ bakes on the first frame, not in `initialize`.
 ```ruby
 baked.draw(x = 0, y = 0, z: 0, color: nil)
 baked.batch_count   # GL calls one replay costs
-baked.width         # the size of what was baked
+baked.vertex_count  # vertices baked in
+baked.width         # the size of what was baked, with #height
 baked.empty?
 ```
 

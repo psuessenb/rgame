@@ -29,23 +29,23 @@ class MyGame < RGame::Core::App
 end
 
 app = MyGame.new
-app.assets   # => RGame::Core::AssetManager, rooted at media_root
-app.audio    # => RGame::Core::Audio, the sound device
+app.assets   # => RGame::Core::AssetManager — rooted at media_root
+app.audio    # => RGame::Core::Audio — the sound device
 ```
 
 **A game never constructs either of them.** An image belongs to one OpenGL
-context, so whatever loads it must know the app. The asset manager is the only
-class that loads from a path. The app therefore builds it once, and no class has
-to pass the app along to reach an image.
+context, so whatever loads it must know the app. The app builds its asset manager
+once, and scenes load through it by path. No class has to pass the app along to
+reach an image.
 
-Both objects are lazy. An app that draws only shapes builds no asset manager. An
-app that never plays a sound never opens a sound device. The first sound request
-opens it.
+Both objects are built on first use. `RGame::Core::Renderer.new(app)` asks for the
+asset manager, so any app that draws has one. An app that never plays a sound
+never opens a sound device; the first sound request opens it.
 
 `media_root` is read-only and fixed at construction. It has no writer: changing
 the root after a load would leave one cache keyed against two roots.
 
-[Sheets, atlases and maps](assets.md) describes the asset manager.
+[Assets](assets.md) describes the asset manager.
 
 ## The frame loop
 
@@ -188,9 +188,10 @@ offers the alternative: keep a logical size and scale it onto the window.
 
 ## Raw input queries
 
-`App` exposes the input snapshot directly. Most code uses
-[`RGame::Core::Input`](input.md) instead, which takes action names rather than
-numeric ids. These queries are the primitives underneath:
+`App` exposes the input snapshot directly. Code written against Core alone
+usually calls [`RGame::Core::Input`](input.md) instead, whose `down?` and `axis`
+default the device to the keyboard. A game on `RGame::Game` reads actions and
+never calls either. These queries are the primitives underneath:
 
 | Method | |
 |---|---|

@@ -13,9 +13,10 @@ rgame new tictactoe
 | `rgame version` | Prints the installed engine version |
 | `rgame help` | Prints usage |
 
-`rgame new` refuses a name that cannot become a Ruby constant. It also refuses a
-directory that exists and holds anything. It writes into an existing *empty*
-directory.
+`rgame new` accepts a name made of letters, digits, underscores and dashes,
+starting with a letter or a digit, and refuses anything else. It also refuses a
+path that exists and is not a directory, and a directory that holds anything. It
+writes into an existing *empty* directory.
 
 ## What `rgame new tictactoe` writes
 
@@ -128,8 +129,9 @@ not `control`, `update` or `draw`. The engine does its bookkeeping in the outer
 methods and calls these hooks, so there is no `super` to forget. See
 [Scene graph](scene_graph.md).
 
-**`spec/spec_helper.rb` also requires `rgame`,** so the generated suite runs
-headless. It has no window, no GPU and no clock, and `RGame::Core` is undefined.
+**`spec/spec_helper.rb` also requires `rgame`,** and `.rspec` loads it before
+every spec. It requires every file under `nodes/` too. The generated suite
+therefore runs headless. It has no window, no GPU and no clock, and `RGame::Core` is undefined.
 A spec that names Core fails loudly instead of opening a window.
 
 For the same reason, the generated spec uses a plain spy, not a verified double.
@@ -138,8 +140,6 @@ cross. The generated `.rubocop.yml` turns `RSpec/VerifiedDoubles` off and writes
 down that reason:
 
 ```ruby
-require 'spec_helper'
-
 RSpec.describe Root do
   describe '#on_draw' do
     it 'draws its greeting' do
@@ -170,6 +170,8 @@ exists only inside the engine.
 
 `rgame new` derives its file list from `lib/rgame/cli/templates/`. A new file in
 a generated project needs a new template and nothing else; there is no manifest.
+An empty directory has no template. `NewProject::KEEP_DIRS` lists those, and the
+generator writes a `.keep` file into each; `assets/` is the one there is.
 Templates are ERB and may call `app_name`, `game_class`, `caption`,
 `ruby_version` and `rgame_requirement`.
 

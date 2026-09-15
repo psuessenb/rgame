@@ -260,7 +260,7 @@ set = RGame::Engine::AnimationSet.new(
   stand:      { row: 0, col: 1, frames: 1, fps: 1 },
   walk_right: { row: 1, frames: 3, fps: 6 }
 )
-set.frame(:walk_right, 0.4) # => [row, col, flip_x], here [1, 2, false]
+set.frame(:walk_right, 0.4) # => [1, 2, false] — [row, col, flip_x]
 ```
 
 Each animation is `{ row:, col: (start column, default 0), frames:, fps:, flip_x: }`.
@@ -277,7 +277,7 @@ an `AnimationSet`**: the current animation name and its elapsed time.
 animator = RGame::Engine::Animator.new(set, initial: :stand)
 animator.play(:walk_right) # switch (a no-op if already playing, so a walk keeps cycling)
 animator.update(dt)        # advance elapsed time
-animator.frame             # => [row, col, flip_x] for the current animation now
+animator.frame             # => [row, col, flip_x] — for the current animation now
 ```
 
 `play` resets elapsed time only when the animation changes. Calling it

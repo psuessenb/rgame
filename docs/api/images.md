@@ -12,8 +12,12 @@ frame = img.subimage(0, 0, 16, 16)
 walk  = RGame::Core::Image.load_tiles(app, 'hero.png', 16, 16)
 ```
 
-[Drawing](drawing.md) covers putting images on screen. A game usually loads them
-through the [asset manager](assets.md) instead of calling `Image.new` itself.
+[Drawing](drawing.md) covers putting images on screen.
+
+**A game loads images through the [asset manager](assets.md)**, with
+`app.assets.image(path)`. The manager resolves the path against `media_root` and
+caches the image. `Image.new` and `Image.load_tiles` bypass that cache, and resolve a
+relative path against the working directory.
 
 ## Loading
 

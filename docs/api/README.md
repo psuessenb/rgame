@@ -13,11 +13,11 @@ or write C.
 | [Game](game.md) | `RGame::Game` — the entry point that wires both halves together |
 | [Input](input.md) | `RGame::Core::Input`, `RGame::Util::Controls`, `RGame::Core::Gamepad` |
 | [Drawing](drawing.md) | `RGame::Core::Renderer` — shapes, images, transforms, clipping, recordings |
-| [Images](images.md) | `RGame::Core::Image` — loading PNGs, subimages, sprite sheets |
+| [Images](images.md) | `RGame::Core::Image` — loading PNGs, subimages, tiles |
 | [Text](text.md) | `RGame::Core::Font` and `Renderer#text` |
 | [Audio](audio.md) | `RGame::Core::Audio`, `Sample`, `Song` — samples and streamed music |
-| [Sheets, atlases and maps](assets.md) | `RGame::Core::SpriteSheet` and the rest of the asset layer |
-| [Values](values.md) | `RGame::Util::Color`, `RGame::Util::Tensor`, `RGame::Util::Z` |
+| [Assets](assets.md) | `RGame::Core::AssetManager`, `SpriteSheet`, `NineSlice`, `UiAtlas`, `TileMapRenderer` |
+| [Values](values.md) | `RGame::Util::Color`, `Tensor`, `SolidGrid`, `RouteSearch`, `TileSweep`, `Z`, `SaveFile` |
 | [Examples](examples.md) | What each program under `examples/` demonstrates |
 
 The scene graph is `RGame::Engine`, the layer a game is written in:
@@ -27,17 +27,19 @@ The scene graph is `RGame::Engine`, the layer a game is written in:
 | [Scene graph](scene_graph.md) | `Node2D`, the tree, the lifecycle, transforms and the camera |
 | [Components](components.md) | Reusable behaviour attached to a node |
 | [Systems](systems.md) | Services a subtree shares — collision worlds, tile worlds |
+| [Tile maps](tile_maps.md) | `TileMap` and `Tileset` — a Tiled map as data: loading, cells, solidity, animated tiles |
 | [UI](ui.md) | `PlayerLayer` and `UI::Menu` — a player's own screen, and a list or wheel navigated by focus |
 | [Signals](signals.md) | The typed observer pattern nodes talk through |
-| [Toolbox](toolbox.md) | What a game author reaches for directly: pooling, timers, camera, i18n, the audio bus |
+| [Toolbox](toolbox.md) | What a game author reaches for directly: cached labels, pooling, paths and routes, timers, the camera, collision boxes, i18n, the audio bus |
 | [Internal building blocks](internals.md) | What components are built from: collision maths, the spatial index, animation playback |
 
 **The engine is a work in progress.** It opens a window, runs the loop, reads
 input, draws shapes, images and text, and plays sound. A scene graph with
 split-screen players runs on top. The games under `test_projects/` use exactly
 what these pages document. The missing piece is a UI *toolkit*. [UI](ui.md)
-gives each player a region of the screen, focus and activation, and stops there.
-It has no layout, no scrolling lists and no text entry. These pages describe
+gives each player a region of the screen, menus with focus and activation, and a
+column, row or ring of equal-sized buttons. It has no general layout, no scrolling
+lists and no text entry. These pages describe
 what exists and grow with the engine.
 
 ## Loading it
@@ -64,7 +66,8 @@ The Core spec suite does this to load exactly one layer.
 `rgame/core` also loads `RGame::Util::Controls`, the input id vocabulary,
 because the input classes need it.
 
-Compile both extensions before you require them:
+`gem install rgame` compiles both extensions. In a checkout of the repository,
+compile them before you require anything:
 
 ```
 make ext        # builds both, copies them into lib/rgame/
@@ -93,13 +96,13 @@ value. A window is not.
   renderer and never checks its class.
 
 These rules keep a whole game runnable and testable with no window: its rules,
-its scenes, its collisions. The testing section below relies on that. Two
-RuboCop cops enforce the rules in both directions, so a stray reference fails
-the lint.
+its scenes, its collisions. The testing section below relies on that. Inside
+rgame's own repository, two RuboCop cops enforce the rules in both directions, so
+a stray reference fails the lint.
 
-`RGame::Game` is the one exception, and the only class directly under `RGame`.
-It exists to connect the two halves. Keeping that in one file lets the cops
-check the rule everywhere else.
+`RGame::Game` is the one exception: the only class that names both `Engine` and
+`Core`. It exists to connect the two halves. Keeping that in one file lets the
+rule hold everywhere else.
 
 ## A complete program
 
@@ -172,6 +175,7 @@ and adds `fire`. See [Input](input.md).
 OpenGL. The nodes from the program above run there unchanged. A spec drives
 their phases directly, so a simulated hour takes milliseconds:
 
+<!-- doc-example: skip — an RSpec file for the Hero above, run by rspec -->
 ```ruby
 require 'rgame'
 
@@ -198,9 +202,9 @@ Two properties make this work:
 - **`update` takes `dt` as an argument and reads no clock.** A test passes any
   timestep it likes, so it can simulate minutes of play in milliseconds.
 - **A node never holds a renderer.** `on_draw` receives one. A spec passes a
-  recording double and asserts on what the node asked it to draw. The renderer
-  contract lives in `spec/support/shared_examples/`. The whole suite runs
-  headless.
+  recording double and asserts on what the node asked it to draw. rgame's own
+  suite checks its fake renderer against the real one with a shared contract in
+  `spec/support/shared_examples/`. The whole suite runs headless.
 
 The spec asserts `hero.x`, not `world_x`, because this hero has no parent. The
 world transform accumulates from the parent, and a node without one resolves to

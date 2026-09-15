@@ -542,7 +542,7 @@ its node is in the air. A game whose chasm tiles should be passable mid-hop read
 
 ```ruby
 hop = add_component(RGame::Engine::Components::Hop.new(peak: 18, duration: 0.5))
-hop.airborne? # => false, until the :jump action is pressed
+hop.airborne? # => false — until the :jump action is pressed
 ```
 
 `examples/jump_topdown` draws the shadow and the feet box that stay on the ground
@@ -738,7 +738,7 @@ hero.add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height
 navigator = hero.add_component(RGame::Engine::Components::Navigator.new(speed: 80, blocked_by: [:tiles]))
 actors.add_node(hero)
 
-navigator.go_to(200.0, 360.0) # => true, and the hero sets off; false when there is no route
+navigator.go_to(200.0, 360.0) # => true — the hero sets off; false when there is no route
 ```
 
 - **Construct:** `Navigator.new(speed:, blocked_by: [])`. It takes no `path:` and
@@ -746,7 +746,8 @@ navigator.go_to(200.0, 360.0) # => true, and the hero sets off; false when there
   navigator that should stay off solid tiles while walking declares `:tiles`, like
   any mover.
 - **Lifecycle:** `on_attach` raises when the scene has no `TileWorld` to plan over.
-  It also looks up the node's `BoxCollider`, if any.
+  It also looks up the node's `BoxCollider`, if any. Calling `go_to` before the
+  node is in the tree raises too.
 - **`go_to(world_x, world_y)`** plans from where the node stands and starts walking
   at once, from exactly there. A navigator halfway along one route turns onto the
   next without a jump. It returns `true`, or `false` when no route exists: the
@@ -817,7 +818,7 @@ to that signal.
   enters it. It is `0, 0` while idle, after finishing, and along a zero-length
   segment.
 - **Signal:** `on_finished` fires once, without payload, at the path's end:
-  `follow.on_finished { node.queue_free }`.
+  `follow.on_finished { node.queue_free }`. `finished?` reports the same state.
 - **Phase:** `update(dt)` advances `speed * dt`, crosses as many segments as one step
   spans, and interpolates the node's position. It allocates nothing. With nothing
   declared, it places the node on that point.
@@ -862,6 +863,8 @@ membership.
   detaches any still attached. Despawning is thus `node.queue_free` from anywhere;
   the pool recycles the node with no game-side wiring. It allocates nothing in steady
   state.
+- **State:** `size` counts the live pooled nodes, and `empty?` is true once all are
+  reclaimed. A scene reads it to tell when a wave is cleared.
 
 ### `ScreenWrap`
 
@@ -942,7 +945,7 @@ node, and a thrust axis accelerates it along its heading.
 ### `TileWorld`
 
 **The scene-scoped tile system** (see [Systems](systems.md)). It holds the parsed
-`RGame::Engine::TileMap` and answers what an actor needs from it: where the solid
+[`RGame::Engine::TileMap`](tile_maps.md) and answers what an actor needs from it: where the solid
 tiles are, and how big the world is. Find it with `node.system(TileWorld)`. It
 includes `WorldBounds` (see [`World`](#world)), so `ScreenWrap` and
 `DespawnOffscreen` work in a tile scene with no arguments.

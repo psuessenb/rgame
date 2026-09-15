@@ -692,6 +692,7 @@ volume.on_changed { |value| game.audio.volume = value / 100.0 }
 
 | | |
 |---|---|
+| `values:`, `index:`, `display:` | construction: the list, the starting position (default 0, clamped into the list), and how a value becomes its caption |
 | `values`, `index`, `value`, `caption` | the list, where it sits, and what is drawn |
 | `value = something` | select by value; a value the list does not offer is ignored |
 | `adjust(delta)` | move the selection, clamped; the button if it moved, `nil` if not |
@@ -775,7 +776,7 @@ game.renderer.register_ui_atlas(game.assets.ui_atlas('ui/ui_atlas.json'))
 ```
 
 The repository's `media/ui/ui_atlas.json` holds `panel` and the four button elements
-above. See [Sheets, atlases and maps](assets.md).
+above. See [Assets](assets.md).
 
 The same call registers **images**. An atlas descriptor with an `images` section,
 rectangles cut whole from the sheet, puts each one in the renderer's image registry
