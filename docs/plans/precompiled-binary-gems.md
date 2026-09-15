@@ -366,6 +366,54 @@ it is a fix to the test harness, not to the engine.
 platform and a row per item above, and step 1's link flags and step 2's Linux
 build environment are rewritten to match it.
 
+#### Results: macOS (Apple Silicon)
+
+Taken on this machine — macOS 27.0 (build 26A428), arm64, Apple clang 21.0.0,
+Ruby 4.0.5 — building SDL2 2.32.10 with the exact CMake invocation above
+(`cmake` installed via `brew install cmake`; nothing else was needed).
+
+| Item | Result |
+|---|---|
+| Dynamic dependencies of `core_ext` | Only OS frameworks (`CoreVideo`, `Cocoa`, `IOKit`, `ForceFeedback`, `Carbon`, `CoreAudio`, `AudioToolbox`, `AVFoundation`, `Foundation`, `GameController`/`Metal`/`QuartzCore`/`CoreHaptics` weak, `OpenGL`, `AppKit`, `CoreFoundation`, `CoreGraphics`, `CoreServices`), plus `libruby` and `libobjc`/`libSystem`. **No `libSDL2` of any kind** (`otool -L`). Compare the system-SDL2 build on this same machine, which links `/opt/homebrew/opt/sdl2-compat/lib/libSDL2-2.0.0.dylib` — confirming the check can fail. |
+| `rake spec:core` | Passes: 396 examples, 0 failures, 0 pending — identical to the system-SDL2 baseline built right after on the same machine (same 396/0/0). |
+| Exported SDL symbols | `nm -gU core_ext.bundle \| grep SDL_` — zero matches. No `-Wl,--exclude-libs` equivalent was needed; macOS's static archive members are simply not re-exported from a bundle unless something references them, and the extension itself never calls `SDL_*` symbols with external linkage from outside its own object files, so none end up in the exported set. No `-exported_symbols_list` was required. |
+| Linux glibc floor | N/A — not this platform. |
+| Audio/display without system SDL2 | Not run as a separate check on this machine; `rake spec:core` above already opens real windows/GL/audio (via Xvfb-equivalent, i.e. the native macOS display) against the statically-linked binary and passes, which is the same evidence for this platform. |
+| CMake generator | N/A — Windows-only item. |
+| `Gem::Platform.local` | `arm64-darwin-25` (the trailing OS-version digit is Darwin's kernel major; `arm64-darwin`, the family decision 2 names, is the platform RubyGems groups this under for gem building). |
+
+**A finding that changes step 1b's sketch:** on this Ruby (4.0.5)'s `mkmf`,
+`pkg_config('sdl2', 'static')` — the call step 1b's draft used — does **not**
+set `$CFLAGS`/`$INCFLAGS`/`$libs` at all. Per `mkmf.rb`'s own doc comment, "if
+one or more options argument is given, the config command is invoked with the
+options and a stripped output string is returned **without modifying any of
+the global values**." So `pkg-config --static sdl2` runs (which itself prints
+nothing, since `--static` needs `--cflags` or `--libs` alongside it) and the
+call is silently a no-op — verified with `abort '...' unless pkg_config('sdl2',
+'static')` never aborting yet leaving `$libs` empty and the SDL2 header
+unreachable.
+
+The working two-call shape, verified on this machine:
+
+```ruby
+abort '...' unless pkg_config('sdl2')                       # sets cflags/libs from the dynamic-shaped defaults
+static_libs = pkg_config('sdl2', 'libs', 'static')            # raw `pkg-config --libs --static sdl2`
+if static_libs
+  extra = (Shellwords.shellwords(static_libs) - Shellwords.shellwords($libs)).shelljoin
+  $libs += " #{extra}" unless extra.empty?
+end
+```
+
+The first call already picks up `sdl2.pc`'s plain `Cflags`/`Libs` (`-lSDL2
+-lm` against our built prefix, with `-I.../include` correctly added to
+`$INCFLAGS`) simply because `PKG_CONFIG_PATH` points at the static prefix's
+`lib/pkgconfig`. The second call fetches `Libs.private`'s extra frameworks
+(`CoreVideo`, `Cocoa`, `IOKit`, `ForceFeedback`, `Carbon`, `CoreAudio`,
+`AudioToolbox`, `AVFoundation`, `Foundation`, and the three weak frameworks) and
+appends only what the first call didn't already add. This is what produced the
+dependency list above with a real, working build and a green `rake spec:core`
+— step 1b should use this shape, not the single-call one.
+
 ### Step 1 — A static SDL2 build path for `core_ext`
 
 **Why here:** everything after it packages this build, so it must be proven
