@@ -45,6 +45,12 @@ RSpec.describe RGame::Engine::Path do
       expect(path.distance_to(-30.0, 0.0)).to eq(30.0) # before the start, nearest is (0, 0)
     end
 
+    it 'measures the same from Integer waypoints and an Integer point' do
+      integer_path = described_class.new([[0, 0], [100, 0], [100, 100]])
+
+      expect(integer_path.distance_to(50, 10)).to eq(10.0)
+    end
+
     it 'takes the minimum across all segments' do
       # Near the shared corner (100, 0): closest point is the corner itself.
       expect(path.distance_to(110.0, -10.0)).to be_within(1e-9).of(Math.hypot(10.0, 10.0))

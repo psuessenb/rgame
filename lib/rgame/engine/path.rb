@@ -50,7 +50,7 @@ module RGame
       def segment_distance(px, py, ax, ay, bx, by)
         abx = bx - ax
         aby = by - ay
-        len2 = (abx * abx) + (aby * aby)
+        len2 = ((abx * abx) + (aby * aby)).to_f
         t = len2.zero? ? 0.0 : (((px - ax) * abx) + ((py - ay) * aby)) / len2
         t = 0.0 if t < 0.0
         t = 1.0 if t > 1.0
