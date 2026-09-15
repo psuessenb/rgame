@@ -67,6 +67,32 @@ RSpec.describe 'a generated project' do # rubocop:disable RSpec/DescribeClass --
     expect(output).to include('no offenses detected')
   end
 
+  # The Game/ cops reach a generated project through the gem, not through this
+  # repository's config. So this runs each against a node that breaks it, from
+  # the generated .rubocop.yml alone.
+  it "runs rgame's own cops on its nodes" do
+    File.write(File.join(project, 'nodes', 'score.rb'), <<~RUBY)
+      # frozen_string_literal: true
+
+      require 'rgame/game'
+
+      class Score < RGame::Engine::Node2D
+        def on_draw(renderer, _view)
+          renderer.text("Score: \#{@points}", x, 0)
+          @size = [4, 4]
+          RGame::Core::Image
+        end
+      end
+    RUBY
+
+    output, status = run_in_project('rubocop', 'nodes/score.rb')
+
+    expect(status).not_to be_success
+    expect(output).to include('Game/NoInterpolationInHotPath', 'Game/NoLiteralText', 'Game/DrawInLocalSpace',
+                              'Game/NoNeedlessAllocation', 'Game/NoCoreInEngineLayer')
+    expect(output).to include('must not require rgame/game')
+  end
+
   # The translation setup the generator promises: specs read the tables in
   # assets/locales/, fail on a key a language lacks, and fail on a key no table
   # has. Each example edits the generated project and runs its suite.

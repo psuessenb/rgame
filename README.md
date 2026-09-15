@@ -228,7 +228,7 @@ rake spec            # headless specs: RGame::Util, the engine layer, packaging
 rake spec:core       # RGame::Core specs; opens real windows, boots its own Xvfb
 rake                 # everything: make test, rake spec, rake spec:core
 bundle exec rubocop  # lint; configured in .rubocop.yml, which also loads the
-                     # project's own cops from rubocop/cop/game/.
+                     # project's own cops from lib/rgame/rubocop/.
 ```
 
 The two Ruby suites are two directories and two processes on purpose. `spec/`

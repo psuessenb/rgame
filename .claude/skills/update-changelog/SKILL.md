@@ -21,9 +21,10 @@ through its `packaged` globs: `lib/`, `ext/`, `exe/`, `examples/`, `docs/api/`,
 | Listed | Not listed |
 |---|---|
 | a new, changed or removed public class, method, keyword or default | Claude skills, `CLAUDE.md` |
-| a behaviour change a game can observe | CI, the Makefile, RuboCop config and custom cops |
+| a behaviour change a game can observe | CI, the Makefile, the repository's own `.rubocop.yml` |
 | a new C-backed capability (fullscreen, locales) | specs, `spec_core/`, the Check suite |
 | a new example under `examples/` | `tools/`, drive scripts, `test_projects/` |
+| a new, changed or removed `Game/` cop — games lint with them | |
 | a bug fix to something already released | plans under `docs/plans/` |
 | a documentation error a user would have followed | rewording or restyling a page |
 

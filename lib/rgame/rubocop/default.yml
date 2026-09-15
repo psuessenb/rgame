@@ -1,0 +1,39 @@
+# The Game/ cops' defaults, for any project that loads the plugin. Each cop's
+# class comment, under cop/game/, says what it catches and why.
+#
+# Specs are test code: their draw stubs and fixture arrays are not a per-frame
+# path the game ships, so the two allocation guards skip them. The draw-space
+# and translation rules still apply there, because a spec that draws in the
+# wrong place describes a game that does too.
+#
+# The two layer cops are off by default. Each needs to be told which files form
+# a layer, and that is a fact about a project's layout rather than about rgame.
+# A project from `rgame new` enables NoCoreInEngineLayer for its nodes/ and spec/.
+
+Game/DrawInLocalSpace:
+  Description: A node's draw methods must not read its own position, which is already applied.
+  Enabled: true
+
+Game/NoInterpolationInHotPath:
+  Description: No string interpolation in a per-frame method.
+  Enabled: true
+  Exclude:
+    - '**/spec/**/*'
+
+Game/NoNeedlessAllocation:
+  Description: No throwaway Array or Range literal on a per-frame path.
+  Enabled: true
+  Exclude:
+    - '**/spec/**/*'
+
+Game/NoLiteralText:
+  Description: Draw text from a translation key, not a String literal.
+  Enabled: true
+
+Game/NoCoreInEngineLayer:
+  Description: Headless code must not name or require RGame::Core.
+  Enabled: false
+
+Game/NoEngineInCoreLayer:
+  Description: RGame::Core must not name or require the engine layer.
+  Enabled: false

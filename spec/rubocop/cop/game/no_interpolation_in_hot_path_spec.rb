@@ -2,7 +2,7 @@
 
 require 'rubocop'
 require 'rubocop/rspec/support'
-require_relative '../../../../rubocop/cop/game/no_interpolation_in_hot_path'
+require_relative '../../../../lib/rgame/rubocop/cop/game/no_interpolation_in_hot_path'
 
 RSpec.describe RuboCop::Cop::Game::NoInterpolationInHotPath, :config do
   it 'flags string interpolation in draw (a per-frame allocation)' do

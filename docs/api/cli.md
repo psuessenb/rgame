@@ -203,14 +203,44 @@ default locale's text, and a key no table has shows as itself.
 
 ## The generated RuboCop configuration
 
-The generator writes a stock configuration. It loads `rubocop-performance` and
-`rubocop-rspec`, relaxes the `Metrics/*` cops for a game's long `update` and
-`draw` methods, and allows short coordinate names. It does **not** include the
-engine's five custom cops, such as `Game/DrawInLocalSpace`. Those live in the
-engine's repository, not in the gem, and two of them guard a layer boundary that
-exists only inside the engine. `RSpec/SpecFilePathFormat` skips
+The generator loads `rubocop-performance`, `rubocop-rspec` and rgame's own cops,
+relaxes the `Metrics/*` cops for a game's long `update` and `draw` methods, and
+allows short coordinate names. `RSpec/SpecFilePathFormat` skips
 `spec/locales_spec.rb`, which describes `I18n` but checks the tables rather than a
 source file.
+
+**The gem ships its cops as a RuboCop plugin.** The generated `.rubocop.yml`
+loads it by path and class:
+
+```yaml
+plugins:
+  - rgame/rubocop:
+      plugin_class_name: RuboCop::Game::Plugin
+```
+
+The plain form, `- rgame`, would make RuboCop require the whole engine just to
+lint. An existing project gets the cops by adding those three lines.
+
+| Cop | Refuses | Where |
+|---|---|---|
+| `Game/NoInterpolationInHotPath` | string interpolation in a per-frame method | everywhere but `spec/` |
+| `Game/NoNeedlessAllocation` | a throwaway Array or Range literal on a per-frame path | everywhere but `spec/` |
+| `Game/DrawInLocalSpace` | a node's draw method reading its own `x`, `y` or `world_x` | everywhere |
+| `Game/NoLiteralText` | a String literal passed to `text` or `text_width` | everywhere |
+| `Game/NoCoreInEngineLayer` | naming `RGame::Core`, or requiring `rgame/core` or `rgame/game` | `nodes/` and `spec/` |
+
+A per-frame method is `update`, `control`, `draw`, `on_update`, `on_control` or
+`on_draw`, or any method with a `# hot-path` comment on the line above its
+`def`. For a label that changes, the answer to the first cop is an
+[`Engine::Text`](toolbox.md#text--the-string-a-node-draws).
+
+`Game/NoCoreInEngineLayer` guards the headless line the layout above draws. A
+spec that names `RGame::Core` already fails when it runs, but the cop also
+catches a branch no spec reaches. A bare `Core` counts only inside
+`module RGame`, so a game's own `Core` module passes.
+
+`Game/NoEngineInCoreLayer` ships too, switched off. It guards the engine's own
+repository, and a game has no layer for it to guard.
 
 ## Adding to the generator
 

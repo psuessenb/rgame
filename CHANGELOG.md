@@ -18,6 +18,10 @@ index, not the argument.
   generates a project: a game class, a root node, an English translation table,
   and a spec suite and RuboCop config that pass. Only `game.rb` loads SDL, so the
   generated specs run without a display. See [docs/api/cli.md](docs/api/cli.md).
+- **RuboCop cops for games.** The gem ships rgame's `Game/` cops as a RuboCop
+  plugin, and `rgame new` enables them. They catch per-frame allocations, a node
+  drawn at its own position twice, literal text and Core named from headless
+  code. See [docs/api/cli.md](docs/api/cli.md#the-generated-rubocop-configuration).
 - **Translation by default.** `RGame::Game` loads every `locales/**/*.yml` and
   picks the player's language from `RGame::Core.preferred_locales`. A node draws
   an `Engine::Text` built from a key, and a UI button's `label:` is a key. See

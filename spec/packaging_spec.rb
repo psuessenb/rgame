@@ -109,6 +109,15 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
       expect(files).to include('lib/rgame/engine.rb', 'lib/rgame/engine/node2d.rb')
     end
 
+    it 'packages the RuboCop plugin and its cops' do
+      # The cops were held out of the gem while they lived in a top-level
+      # rubocop/ directory. A generated project's .rubocop.yml now loads them
+      # from the installed gem, so a missing cop is a RuboCop crash on the
+      # first lint of someone else's project.
+      expect(files).to include('lib/rgame/rubocop.rb', 'lib/rgame/rubocop/default.yml')
+      expect(sources('lib/rgame/rubocop/cop/game/*.rb') - files).to be_empty
+    end
+
     it 'declares lib/ as the load path' do
       # Not `eq(['lib'])`: for a spec with extensions, RubyGems prepends the
       # directory the compiled objects are installed into, so the list has an
@@ -212,7 +221,7 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
     end
 
     it 'excludes the test suites and the standalone binary sources' do
-      expect(files.grep(%r{\A(spec|spec_core|test|src|rubocop)/})).to be_empty
+      expect(files.grep(%r{\A(spec|spec_core|test|src)/})).to be_empty
     end
 
     it 'excludes plans, which describe work rather than the shipped code' do

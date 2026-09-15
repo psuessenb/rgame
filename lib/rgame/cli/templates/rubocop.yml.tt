@@ -1,6 +1,11 @@
+# rgame's own cops come with the gem. They catch what a game gets wrong without
+# noticing: a String built every frame, a node drawn at its own position twice,
+# text a translation cannot reach. Each explains itself in its message.
 plugins:
   - rubocop-performance
   - rubocop-rspec
+  - rgame/rubocop:
+      plugin_class_name: RuboCop::Game::Plugin
 
 AllCops:
   NewCops: enable
@@ -32,6 +37,15 @@ Naming/MethodParameterName:
 # (row * cols + col, x + w / 2); requiring parentheses everywhere is just noise.
 Lint/AmbiguousOperatorPrecedence:
   Enabled: false
+
+# nodes/ and spec/ run with no window, and only game.rb loads one. This keeps it
+# so: naming RGame::Core, or requiring rgame/core or rgame/game, fails the lint
+# rather than the spec run on a machine without a display.
+Game/NoCoreInEngineLayer:
+  Enabled: true
+  Include:
+    - 'nodes/**/*.rb'
+    - 'spec/**/*.rb'
 
 Style/Documentation:
   Enabled: false

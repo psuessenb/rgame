@@ -2,7 +2,7 @@
 
 require 'rubocop'
 require 'rubocop/rspec/support'
-require_relative '../../../../rubocop/cop/game/no_literal_text'
+require_relative '../../../../lib/rgame/rubocop/cop/game/no_literal_text'
 
 RSpec.describe RuboCop::Cop::Game::NoLiteralText, :config do
   describe 'a literal label' do

@@ -165,6 +165,14 @@ lib/rgame/engine/*.rb        The rest of the layer: players and viewports,
 lib/rgame/fonts/             The default font shipped with the engine:
                              Liberation Sans 2.1.5 (SIL OFL 1.1). Data read at
                              runtime, so it lives here rather than in ext/.
+lib/rgame/rubocop.rb         The Game/ cops as a RuboCop plugin. Loaded only by
+                             RuboCop — this repository's .rubocop.yml and every
+                             project `rgame new` writes — never by a game.
+lib/rgame/rubocop/cop/game/  The cops: the per-frame allocation guards, the two
+                             that police the Core/Engine layer boundary, the one
+                             for draw space, and the one that refuses a String
+                             literal drawn as text. default.yml beside them
+                             holds their defaults.
 lib/rgame/*.so               Build artifacts, copied here by `make ext`.
 
 src/main.c                   Standalone executable entry point — the C
@@ -211,10 +219,6 @@ tools/                       Development tools, outside the engine and not
   shrink_ogg.c               Downmixes and re-encodes an .ogg smaller, and
                              measures its loop seam. Prepares examples/assets/
                              music; needs libvorbisenc to run.
-rubocop/cop/game/            The project's own cops, loaded by .rubocop.yml:
-                             the per-frame allocation guards, the two that
-                             police the Core/Engine layer boundary, and the one
-                             that refuses a String literal drawn as text.
 
 docs/                        Documentation.
   api/                       Reference documentation for using rgame from Ruby.

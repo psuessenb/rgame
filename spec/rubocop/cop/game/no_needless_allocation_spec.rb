@@ -2,7 +2,7 @@
 
 require 'rubocop'
 require 'rubocop/rspec/support'
-require_relative '../../../../rubocop/cop/game/no_needless_allocation'
+require_relative '../../../../lib/rgame/rubocop/cop/game/no_needless_allocation'
 
 RSpec.describe RuboCop::Cop::Game::NoNeedlessAllocation, :config do
   def receiver_msg(kind:, method:)

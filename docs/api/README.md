@@ -97,9 +97,10 @@ value. A window is not.
   renderer and never checks its class.
 
 These rules keep a whole game runnable and testable with no window: its rules,
-its scenes, its collisions. The testing section below relies on that. Inside
-rgame's own repository, two RuboCop cops enforce the rules in both directions, so
-a stray reference fails the lint.
+its scenes, its collisions. The testing section below relies on that. RuboCop
+cops enforce the rules in both directions inside rgame's own repository, and a
+project from `rgame new` runs the first of them over its `nodes/` and `spec/`.
+See [the generated RuboCop configuration](cli.md#the-generated-rubocop-configuration).
 
 `RGame::Game` is the one exception: the only class that names both `Engine` and
 `Core`. It exists to connect the two halves. Keeping that in one file lets the

@@ -2,7 +2,7 @@
 
 require 'rubocop'
 require 'rubocop/rspec/support'
-require_relative '../../../../rubocop/cop/game/no_engine_in_core_layer'
+require_relative '../../../../lib/rgame/rubocop/cop/game/no_engine_in_core_layer'
 
 RSpec.describe RuboCop::Cop::Game::NoEngineInCoreLayer, :config do
   it 'registers an offense for naming an Engine class' do

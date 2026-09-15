@@ -18,6 +18,14 @@ module RuboCop
       # code a test run actually executes, though — this cop covers the
       # branches it doesn't reach.
       #
+      # A game has the same line: its nodes and specs run headless, and only its
+      # glue class loads the window. So `require 'rgame/game'` is refused too,
+      # since it loads everything `rgame/core` does.
+      #
+      # The short spelling `Core::Image` is flagged only inside `module RGame`,
+      # the one place it resolves to `RGame::Core`. Anywhere else it names the
+      # project's own `Core`.
+      #
       # `RGame::Util` is fine anywhere: those are shareable value types with no
       # OS handle behind them, which is exactly why they live in Util.
       #
@@ -28,7 +36,9 @@ module RuboCop
       #   end
       #
       #   # bad — the same thing, resolved through the enclosing RGame
-      #   Core::Image.new(app, path)
+      #   module RGame
+      #     Core::Image.new(app, path)
+      #   end
       #
       #   # bad — a require pulls SDL into the process
       #   require 'rgame/core'
@@ -43,13 +53,14 @@ module RuboCop
       class NoCoreInEngineLayer < RuboCop::Cop::Base
         include LayerBoundary
 
-        MSG = 'The engine layer must not name `RGame::Core`; receive the object ' \
+        MSG = 'Headless code must not name `RGame::Core`; receive the object ' \
               'and call it by method name instead.'
-        MSG_REQUIRE = 'The engine layer must not require `%{path}` — that loads ' \
+        MSG_REQUIRE = 'Headless code must not require `%{path}` — that loads ' \
                       'SDL/OpenGL and breaks headless specs.'
 
-        PREFIXES = [%w[RGame Core], %w[Core]].freeze
-        RESTRICTED_REQUIRE = %r{\Argame/core(/|\z)|\Argame/core_ext\z}
+        QUALIFIED = [%w[RGame Core]].freeze
+        WITHIN_RGAME = [%w[RGame Core], %w[Core]].freeze
+        RESTRICTED_REQUIRE = %r{\Argame/(core|game)(/|\z)|\Argame/core_ext\z}
 
         # `require "rgame/core"` and friends.
         # @!method core_require(node)
@@ -69,7 +80,19 @@ module RuboCop
         # offence per written reference rather than one per path segment, is in
         # LayerBoundary — shared with this cop's mirror.
         def on_const(node)
-          add_offense(node) if opens_namespace?(node, PREFIXES)
+          add_offense(node) if opens_namespace?(node, prefixes_for(node))
+        end
+
+        private
+
+        def prefixes_for(node)
+          within_rgame?(node) ? WITHIN_RGAME : QUALIFIED
+        end
+
+        def within_rgame?(node)
+          node.each_ancestor(:module, :class).any? do |scope|
+            const_path(scope.identifier).first == 'RGame'
+          end
         end
       end
     end

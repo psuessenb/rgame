@@ -2,7 +2,7 @@
 
 require 'rubocop'
 require 'rubocop/rspec/support'
-require_relative '../../../../rubocop/cop/game/draw_in_local_space'
+require_relative '../../../../lib/rgame/rubocop/cop/game/draw_in_local_space'
 
 RSpec.describe RuboCop::Cop::Game::DrawInLocalSpace, :config do
   # Build the exact message the cop emits, so the expectations track the constant

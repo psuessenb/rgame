@@ -1,20 +1,17 @@
+# The Game/ cops ship in the gem, and this repository loads them the way a game
+# does, so a broken plugin fails the lint here first. `bundle exec` puts lib/ on
+# the load path through the Gemfile's `gemspec`.
 plugins:
   - rubocop-rspec
   - rubocop-performance
-
-require:
-  - ./rubocop/cop/game/no_interpolation_in_hot_path.rb
-  - ./rubocop/cop/game/no_core_in_engine_layer.rb
-  - ./rubocop/cop/game/no_engine_in_core_layer.rb
-  - ./rubocop/cop/game/no_needless_allocation.rb
-  - ./rubocop/cop/game/draw_in_local_space.rb
-  - ./rubocop/cop/game/no_literal_text.rb
+  - rgame/rubocop:
+      plugin_class_name: RuboCop::Game::Plugin
 
 AllCops:
   NewCops: enable
   TargetRubyVersion: 4.0
 
-# Per-frame allocation guards (the project's own cops, see rubocop/cop/game/).
+# Per-frame allocation guards (the project's own cops, see lib/rgame/rubocop/cop/game/).
 #
 # - NoInterpolationInHotPath: no string interpolation in per-frame methods.
 # - NoNeedlessAllocation: no needless Array/Range literals (receiver literals anywhere,
@@ -40,6 +37,7 @@ Game/NoNeedlessAllocation:
 # test-project driver), so the cop is scoped to where the rule applies rather
 # than excluded from where it doesn't.
 Game/NoCoreInEngineLayer:
+  Enabled: true
   Include:
     - 'lib/rgame/engine/**/*.rb'
     - 'spec/**/*.rb'
@@ -51,6 +49,7 @@ Game/NoCoreInEngineLayer:
 # loading Engine into a Core spec works fine. Only the glue class directly under
 # RGame may name both layers, and it is not in either list.
 Game/NoEngineInCoreLayer:
+  Enabled: true
   Include:
     - 'lib/rgame/core/**/*.rb'
     - 'spec_core/**/*.rb'
