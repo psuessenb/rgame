@@ -112,6 +112,93 @@ RSpec.describe RGame::Engine::I18n do
     end
   end
 
+  describe '.normalize' do
+    it 'reads de_AT, de-at and :"de-AT" as one locale' do
+      expect(['de_AT', 'de-at', :'de-AT'].map { |id| described_class.normalize(id) }).to eq([:'de-AT'] * 3)
+    end
+
+    it 'lowercases a bare language' do
+      expect(described_class.normalize('DE')).to eq(:de)
+    end
+
+    it 'capitalizes a script and uppercases a region' do
+      expect(described_class.normalize('zh_hant_tw')).to eq(:'zh-Hant-TW')
+    end
+
+    it 'refuses an empty identifier' do
+      expect { described_class.normalize('') }.to raise_error(ArgumentError, /not a locale/)
+    end
+  end
+
+  describe '.chain' do
+    it 'is the locale, each shorter prefix, then the default' do
+      described_class.locale = 'de_AT'
+      expect(described_class.chain).to eq(%i[de-AT de en])
+    end
+
+    it 'lists the default once when the locale is the default' do
+      expect(described_class.chain).to eq(%i[en])
+    end
+
+    it 'follows a change of default' do
+      described_class.locale = :de
+      described_class.default = :fr
+      expect(described_class.chain).to eq(%i[de fr])
+    end
+  end
+
+  describe 'resolving through the chain' do
+    before do
+      described_class.load_hash(en: { play: 'Play', quit: 'Quit' }, de: { play: 'Spielen' }, 'de-AT': { quit: 'Aus' })
+    end
+
+    it 'takes a key from the locale itself first' do
+      described_class.locale = :'de-AT'
+      expect(described_class.t('quit')).to eq('Aus')
+    end
+
+    it 'takes a key the locale lacks from its language' do
+      described_class.locale = :'de-AT'
+      expect(described_class.t('play')).to eq('Spielen')
+    end
+
+    it 'falls back to the default last' do
+      described_class.locale = :de
+      expect(described_class.t('quit')).to eq('Quit')
+    end
+
+    it 'resolves a locale with no table of its own through its chain' do
+      described_class.locale = :'de-CH'
+      expect(described_class.t('play')).to eq('Spielen')
+    end
+
+    it 'files a table under its normalized locale' do
+      described_class.load_hash(pt_br: { play: 'Jogar' })
+      expect(described_class.available).to include(:'pt-BR')
+    end
+  end
+
+  describe '.choose' do
+    before { described_class.load_hash(en: { a: 'A' }, de: { a: 'A' }) }
+
+    it 'returns the first preferred locale whose own chain meets a table, unshortened' do
+      expect(described_class.choose(%w[fr-CA de-AT en])).to eq(:'de-AT')
+    end
+
+    it 'does not count the default as a match for a language without a table' do
+      expect(described_class.choose(%w[fr-CA de])).to eq(:de)
+    end
+
+    it 'returns the default when nothing matches' do
+      described_class.default = :de
+      expect(described_class.choose(%w[fr ja])).to eq(:de)
+    end
+
+    it 'returns the default for an empty list' do
+      expect(described_class.choose([])).to eq(:en)
+    end
+  end
+
   describe '.generation' do
     it 'moves on load' do
       expect { described_class.load_hash(en: { a: 'A' }) }.to(change(described_class, :generation))

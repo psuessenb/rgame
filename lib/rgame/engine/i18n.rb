@@ -23,6 +23,11 @@ module RGame
 
         attr_reader :locale, :default
 
+        # The locales a key is looked up in, in order: the current locale, each
+        # shorter prefix of it, then the default — `[:'de-AT', :de, :en]`.
+        # Rebuilt when the locale or the default changes, not per lookup.
+        attr_reader :chain
+
         # Merges a YAML document in Rails' format into the loaded tables. One
         # document may hold several locales, and a locale loaded twice is merged
         # key by key rather than replaced. `source` names the file in errors.
@@ -33,20 +38,47 @@ module RGame
         # `load` for a Hash already in memory: `load_hash(en: { menu: { title: 'Menu' } })`.
         def load_hash(hash) = merge(hash, 'translations')
 
+        # Switches the language. `de_AT`, `'de-at'` and `:'de-AT'` name the same
+        # locale. A locale with no table of its own is allowed and resolves
+        # through its chain, so `:'de-CH'` reads the `de` table.
         def locale=(locale)
-          locale = locale.to_sym
+          locale = normalize(locale)
           return if locale == @locale
 
           @locale = locale
-          @generation += 1
+          relink
         end
 
+        # The last link of every chain, and the locale `choose` falls back to.
         def default=(locale)
-          locale = locale.to_sym
+          locale = normalize(locale)
           return if locale == @default
 
           @default = locale
-          @generation += 1
+          relink
+        end
+
+        # The canonical Symbol for a locale identifier: the language lowercase,
+        # a region uppercase, a script capitalized, joined by hyphens —
+        # `normalize('zh_hant_tw') # => :'zh-Hant-TW'`.
+        def normalize(locale)
+          language, *subtags = locale.to_s.split(/[-_]/)
+          raise ArgumentError, "not a locale: #{locale.inspect}" if language.nil? || language.empty?
+
+          subtags.map! { |subtag| subtag.length == 4 ? subtag.capitalize : subtag.upcase }
+          subtags.unshift(language.downcase).join('-').to_sym
+        end
+
+        # The first of `preferred` — the player's languages, most wanted first —
+        # that has a table for itself or a shorter prefix of itself, normalized
+        # but not shortened: `choose(['fr-CA', 'de-AT'])` with a `de` table is
+        # `:'de-AT'`. The default when none has.
+        def choose(preferred)
+          preferred.each do |candidate|
+            locale = normalize(candidate)
+            return locale if lineage(locale).any? { |link| @tables.key?(link) }
+          end
+          @default
         end
 
         # The locales that have a table, in load order.
@@ -56,7 +88,7 @@ module RGame
         # Allocates on every call: it is for code off the per-frame path.
         def t(key, scope: nil, **vars)
           key = scope ? "#{scope}.#{key}" : key.to_s
-          template = @tables.dig(@locale, key) || @tables.dig(@default, key)
+          template = lookup(key)
           return key unless template
 
           missing = template.names.find { |name| !vars.key?(name) }
@@ -74,9 +106,30 @@ module RGame
           @locale = :en
           @default = :en
           @generation = (@generation || 0) + 1
+          @chain = chain_for(@locale)
         end
 
         private
+
+        def relink
+          @chain = chain_for(@locale)
+          @generation += 1
+        end
+
+        def chain_for(locale) = (lineage(locale) << @default).uniq.freeze
+
+        def lineage(locale)
+          subtags = locale.name.split('-')
+          subtags.size.downto(1).map { |length| subtags.first(length).join('-').to_sym }
+        end
+
+        def lookup(key)
+          @chain.each do |link|
+            entry = @tables[link]&.[](key)
+            return entry if entry
+          end
+          nil
+        end
 
         def merge(hash, source)
           raise ArgumentError, "#{source}: expected a Hash of locales" unless hash.is_a?(Hash)
@@ -84,7 +137,7 @@ module RGame
           hash.each do |locale, entries|
             raise ArgumentError, "#{source}: #{locale} must hold a Hash of keys" unless entries.is_a?(Hash)
 
-            locale = locale.to_sym
+            locale = normalize(locale)
             @sources[locale] = deep_merge(@sources.fetch(locale, {}), stringify(entries, locale.to_s, source))
             @tables[locale] = compile(@sources[locale])
           end
