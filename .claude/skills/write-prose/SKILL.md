@@ -15,7 +15,7 @@ this repository that someone other than its author reads:
 | pull request bodies | [create-pull-request](../create-pull-request/SKILL.md) |
 | an example's header comment | [write-example](../write-example/SKILL.md) |
 | top-level comments on classes, modules and C files | CLAUDE.md, "Code comments, documentation and code style" |
-| `CHANGELOG.md` | its own header: what changed for someone using the engine |
+| `CHANGELOG.md` | [update-changelog](../update-changelog/SKILL.md) |
 | `README.md` | setup and orientation for someone arriving at the project |
 
 The page in the second column says what to write. This one says how to write it.

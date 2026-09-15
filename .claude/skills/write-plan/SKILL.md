@@ -196,6 +196,11 @@ the roadmap; it is real work rather than a tidy-up, and a plan that does not
 schedule its own removal does not get removed.
 [implement-step](../implement-step/SKILL.md) covers how to carry it out.
 
+That step also checks `CHANGELOG.md` against everything the plan shipped, and
+updates it where an earlier step did not. The rules are in
+[update-changelog](../update-changelog/SKILL.md). Write this into the step's
+**Verify**, so it cannot be skipped.
+
 ## Before writing
 
 - **Read the code first.** Every strong section in these plans came from

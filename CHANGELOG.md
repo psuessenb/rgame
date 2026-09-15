@@ -14,119 +14,130 @@ index, not the argument.
 
 ### Added
 
-- **`rgame new NAME`** — the gem now installs an `rgame` command that scaffolds
-  a project: a game class, a root node, a passing spec suite, a RuboCop config
-  that is green, a Gemfile, a Rakefile and a README. The layout it writes is the
-  engine's own layering — `game.rb` is the only file that loads SDL, so `nodes/`
-  and `spec/` stay graphics-free and the generated suite runs with no display.
-  It also writes a `.ruby-version` holding the Ruby that ran the command, with
-  the Gemfile pointing at that file rather than repeating the number.
-  Also `rgame version` and `rgame help`. See [docs/api/cli.md](docs/api/cli.md).
-
-- **BoxColliders for rectangular shaped collision bodies.** Adding a second shape of colliders, which can be used with the already existing `CollisionWorld`. Also extended both `CollisionWorld` and the underlying `SpatialHash` with some utility methods for grid-based collisions. 
-
-- **A UI atlas can name images.** A descriptor's `images` section cuts whole
-  rectangles from the sheet, `UiAtlas#images` holds them, and
-  `Renderer#register_ui_atlas` registers each under its name — so a strip of
-  icons reaches `UI::IconButton.new(image: :home)` in one call.
+- **`rgame new NAME`.** The gem installs an `rgame` command, and `rgame new`
+  generates a project: a game class, a root node, an English translation table,
+  and a spec suite and RuboCop config that pass. Only `game.rb` loads SDL, so the
+  generated specs run without a display. See [docs/api/cli.md](docs/api/cli.md).
+- **Translation by default.** `RGame::Game` loads every `locales/**/*.yml` and
+  picks the player's language from `RGame::Core.preferred_locales`. A node draws
+  an `Engine::Text` built from a key, and a UI button's `label:` is a key. See
+  [docs/api/localization.md](docs/api/localization.md).
+- **Fullscreen and scaling.** `Game.new` takes `fullscreen:` and `scale_mode:`,
+  and both can change while the game runs. `scale_mode:` maps the logical size
+  onto the window, and defaults to `:letterbox`. See
+  [docs/api/game.md](docs/api/game.md).
+- **Saving.** `Util::SaveFile` reads and writes a game's state in the player's
+  save directory. `Components::Identity` gives a node a stable id to save it
+  under. See [docs/api/values.md](docs/api/values.md).
+- **Box colliders.** `Components::BoxCollider` is a rectangle in the same
+  `CollisionWorld` as `CircleCollider`. `FeetCollider` derives its box from the
+  node's size, so a top-down character collides at its feet. See
+  [docs/api/components.md](docs/api/components.md).
+- **Movers that something can stop.** `CharacterBody`, `Velocity` and
+  `PathFollow` share the base `Components::Mover`. Its `blocked_by:` lists what
+  stops a step: solid tiles, the world's edge or collider layers. `on_blocked` and
+  `on_unblocked` report the blocker and the axis. See
+  [docs/api/components.md](docs/api/components.md).
+- **Pathfinding.** `Engine::NavGrid` finds routes over a tile grid, and
+  `TileWorld#nav_grid` hands one out. `Components::Navigator#go_to` walks a node
+  there. The search runs in C, in `Util::SolidGrid`, `Util::RouteSearch` and
+  `Util::TileSweep`. See [docs/api/toolbox.md](docs/api/toolbox.md).
+- **`Components::World`** gives a scene its bounds without a tile map.
+  `ScreenWrap` and `DespawnOffscreen` read the bounds from it or from
+  `TileWorld`. See [docs/api/components.md](docs/api/components.md).
+- **`Components::Hop`** lifts a character's picture off the ground through the
+  new `Node2D#elevation`. Colliders and cameras ignore the lift. See
+  [docs/api/components.md](docs/api/components.md).
+- **New buttons and styles.** `UI::Button` is the base for a button with its
+  own look. `TextButton`, `PanelButton`, `OptionButton` and `IconButton` draw
+  their background from a `NineSliceStyle` or a `ShapeStyle`. A `hotkey:` presses
+  a button without focusing it. See [docs/api/ui.md](docs/api/ui.md).
+- **Menu layouts and navigations.** `UI::Menu` takes a `layout:` (`Column`,
+  `Row` or `Ring`) and a `navigation:` (`Stepping`, `Pointing` or `nil`).
+  `UI::RadialMenu` focuses whatever the stick points at. `UI::PanelMenu` draws a
+  panel that grows with its buttons. See [docs/api/ui.md](docs/api/ui.md).
+- **Menus open and close.** A menu answers `open?`, `open` and `close`, and
+  emits `on_opened` and `on_closed`. A closed menu draws nothing and takes no
+  input. `trigger:` names an action that holds a menu open while it is down. See
+  [docs/api/ui.md](docs/api/ui.md).
+- **A UI atlas can name images.** A descriptor's `images` section cuts
+  rectangles from the sheet, and `Renderer#register_ui_atlas` registers each by
+  name. `UI::IconButton.new(image: :home)` then draws one.
+- **Input prompts.** `InputMap#button_for(action, device)` returns the bound
+  button that device can press. `Controls.gamepad?` and `Controls.pad_button?`
+  tell the two kinds of id apart. See [docs/api/input.md](docs/api/input.md).
+- **Sounds by path.** `audio.play_sound` and `play_music` accept a path and
+  load it through the asset manager on first use. `RGame::Game` subscribes an
+  `AudioDirector`, so `AudioBus` sounds play without setup. See
+  [docs/api/audio.md](docs/api/audio.md).
+- **24 examples, one concept each.** Each is a single `main.rb` that runs on its
+  own, from `walk` and `sprite` to `pathfinding` and `localization`. See
+  [docs/api/examples.md](docs/api/examples.md).
+- `AssetManager#glob` lists the files under the media root that match a pattern.
+- `Util::Color` gains named colours, from `RED` to `DARK_GRAY`.
 
 ### Changed
 
-- **`Node2D`'s internal methods start with `_`, and a subclass may not redefine
-  them.** A subclass of `Node2D` or `Component` defining a method named like
-  one of the base class's underscored private or protected methods now raises
-  `NameError` where the class is defined; before, it silently replaced engine
-  machinery for that class. `Node2D#draw_children` keeps its name and stays
-  overridable. See [docs/api/scene_graph.md](docs/api/scene_graph.md).
+- **A subclass may not redefine `Node2D`'s or `Component`'s internal methods.**
+  Their private and protected machinery now starts with `_`. A subclass that
+  defines one of those names raises `NameError` where the class is defined.
+  Before, it silently switched that machinery off. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md).
+- **Nodes draw in local space.** `Node2D#draw` pushes the node's transform
+  before it calls `on_draw`, so a node draws at its own origin:
+  `renderer.rect(0, 0, width, height)`. Drop `abs_x`/`abs_y` from draw calls, or
+  the position applies twice. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md).
+- **`abs_x`, `abs_y` and `abs_angle` are now `world_x`, `world_y` and
+  `world_angle`.** A node computes them when read, so they are never a tick
+  stale. `world_x=` and `world_y=` place a node in world space. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md).
+- **`UI::Menu` is handed its buttons.** `Menu#add(button)` replaces `add_item`,
+  `items` is now `buttons`, and `MenuItem` is now `UI::PanelButton`. The item
+  size moves to `layout: UI::Column.new(...)`. Confirm activates a button when
+  released. See [docs/api/ui.md](docs/api/ui.md).
+- **`CharacterBody` takes its shape from a sibling collider.**
+  `CharacterBody.new(speed:, blocked_by:)` replaces `feet_width:` and
+  `feet_height:`. A body with no `blocked_by:` moves freely, and `TileWorld#move`
+  is gone. See [docs/api/components.md](docs/api/components.md).
+- **Contacts are edges.** `on_hit` fires once when two colliders start to
+  overlap, and the new `on_separated` fires once when they part. Before,
+  `on_hit` fired on every step of an overlap.
+- **`I18n` reads YAML tables keyed by locale.** A key falls back from `de-AT`
+  to `de` to the default. Plurals follow CLDR rules, and `I18n.missing` decides
+  what a missing key shows. `load_file` is gone. See
+  [docs/api/localization.md](docs/api/localization.md).
+- **`ScreenWrap` and `DespawnOffscreen` work in world space**, so a node under an
+  offset parent wraps at the world's edge. Their `width:` and `height:` are now
+  optional. A node with two responses to the edge raises when the second
+  attaches.
+- **A component raises when its sibling is missing.** `PlayerController`,
+  `WanderController` and `AnimatedSprite` name what they need when they attach.
+  A node with two movers raises too.
+- **`AnimatedSprite` follows any mover**, and faces along the larger axis of
+  its heading.
+- **Engine internals are private.** `Renderer`'s raw `draw_*`, `push_*`, `pop`
+  and `*_record` methods, `Recording#draw_at` and `Song#play_looping` are
+  private. Call `rect`, `translated`, `record`, `Recording#draw` and `Song#play`
+  instead. The Tiled parse helpers are private too.
 
-- **Drawing happens in local space.** `Node2D#draw` pushes the node's transform
-  onto the renderer before running `on_draw` and descending into children, so a
-  node draws at its own origin: `renderer.rect(0, 0, width, height)`. Passing a
-  position applies it a second time, so an `on_draw` that drew at
-  `abs_x`/`abs_y` now drops the coordinates. Components do the same — `Sprite`
-  and `AnimatedSprite` pass neither a position nor an angle — while culling
-  stays in world coordinates and asks the node for one by name
-  (`node.world_x`).
-  See [docs/api/scene_graph.md](docs/api/scene_graph.md).
-- **`abs_x`/`abs_y`/`abs_angle` are now `world_x`/`world_y`/`world_angle`, and
-  are computed when read and cached** instead of being resolved by every phase.
-  Moving a node — or reparenting it — marks its subtree stale, and the next read
-  recomputes only what it needs. A world position is therefore never stale: a
-  node whose ancestor moved, a node just reparented, and a paused node under a
-  moving ancestor all answer correctly at any point in any phase, where the
-  resolved value used to lag a tick behind. A frame in which nothing moves
-  computes nothing at all.
-  The parent-relative transform is `rel_x`/`rel_y`/`rel_angle`, which keep
-  `x`/`y`/`angle` as their short names, and the ivar behind it is `@rel_x` —
-  `@x` no longer exists. `abs_band` and `abs_input_owner` keep their names:
-  those are inherited from an ancestor rather than expressed in a space.
-- **`UI::Menu` is built from a layout and a navigation.** `Menu.new` takes
-  `layout:` — `UI::Column.new(item_width:, item_height:, spacing:)` for the
-  vertical list it used to be — and `navigation:`, defaulting to `UI::Stepping`,
-  which is the up/down focus it always had. `UI::Ring` and `UI::Pointing` make
-  the same class a radial menu that focuses whatever a stick points at, reading
-  the new universal actions `ui_radial_x` / `ui_radial_y`. A subclass of
-  `UI::Navigation` is a third way to move focus. `Menu#focus_by` is now
-  `Stepping#step`, and `Menu#focused` can be `nil`.
-  **A menu is handed its buttons**: `Menu#add(button)` replaces `add_item`,
-  `add_option` and `style:`, and `items` is now `buttons`. `UI::Button` is the
-  base a game subclasses for a look of its own; `MenuItem` is now
-  `UI::PanelButton` and `OptionItem` `UI::OptionButton`. **Confirm activates on
-  release** by default, and a button built with `activate_on: :press` activates
-  on the way down and stays drawn pressed for `Button::PRESS_FEEDBACK`. A menu
-  acts only on a press it saw start, so a submenu opened by a press no longer
-  activates from that same press. A layout answers `bounds(buttons)` and a menu
-  exposes it as `bounds_x`/`bounds_y`/`bounds_width`/`bounds_height`;
-  `UI::PanelMenu` draws a nine-slice round them, so a panel grows with its menu.
-  **A button draws its background from a style**: `UI::NineSliceStyle` (an atlas
-  element per state) or `UI::ShapeStyle` (a rect or disc per state, no art
-  needed), or any object answering `draw(renderer, state, width, height)`.
-  `UI::TextButton` is a label on a style, and draws with nothing registered;
-  `PanelButton` is now a `TextButton` whose `PanelButton::STYLE` is a
-  `NineSliceStyle` — read its names with `STYLE.elements` and vary it with
-  `STYLE.with(...)` — and its label colours are `label_color:` and
-  `disabled_label_color:`. `UI::IconButton` draws an image tinted and scaled by
-  state, with an optional caption. A style may answer `content_color(state)`, and
-  the buttons draw their label or icon in it: `ShapeStyle`'s `content:` defaults
-  to dark while pressed, so a pressed label or icon reads on the gold fill. Drawing a `PanelButton` or `OptionButton` no
-  longer allocates. `UI::RadialMenu` is a `Menu` that builds its own `Ring` and
-  `Pointing` and draws the wheel's backdrop, dead zone and pointer.
-  **`UI::Row`** lines buttons up side by side; it and `Column` are one `UI::Stack`,
-  and every layout answers `axis`. **`Stepping` steps along the layout's axis**,
-  so a `Row` moves with left and right, and `Stepping.new(axis:)` overrides it;
-  stepping focus no longer allocates. **`navigation: nil`** builds a menu that
-  never moves focus by itself. **`Button hotkey:`** names an action that presses
-  the button whether or not it is focused, activating on the press and leaving
-  focus where it was; `press`, `release` and `cancel_press` take the source,
-  `:confirm` or `:hotkey`, so neither can end the other's hold, and
-  `activate_with_feedback` is the instant press on its own. A captioned
-  `IconButton` draws its style only above the caption, which keeps its own
-  colours rather than the style's content colour.
-  **A menu is open or closed**: `open?`, `open` and `close`, with `on_opened` and
-  `on_closed` signals; a closed menu draws nothing and takes no input.
-  **`Menu trigger:`** names an action that holds a menu open — the quick wheel
-  opened by a shoulder button and chosen by letting go — activating the focused
-  button on its release. **`Pointing grace:`** keeps focus for a moment after the
-  stick comes home, `Pointing::GRACE` (0.15 s) by default on a menu with a
-  trigger. A navigation may define `update(dt)` and `on_opened`.
-  See [docs/api/ui.md](docs/api/ui.md).
+### Removed
 
-- **Engine internals are no longer public.** `Renderer`'s raw `draw_*`, `push_*`,
-  `pop`, `next_layer_slot` and `*_record` methods are private, as are
-  `Recording#draw_at` and `Song#play_looping`. Call `rect`, `translated`,
-  `record`, `Recording#draw` and `Song#play` instead, which apply the z offset
-  and the colour and always pop what they push. `Node2D#sibling_order` and
-  `#children_unsorted!` are gone from the public API, and so are
-  `AnimationSet::Anim` and `UI::Menu::ClosedSignal`. The Tiled parse helpers
-  `TileMap.layer_flag?`, `Tileset.parse_animation` and `Tileset.collision_shape?`
-  are private class methods now.
+- `Engine::CachedLabel`. Use `Engine::Text`.
+- `Engine::Body`, `Engine::Actor`, `Engine::Matrix`, `Engine::Resettable` and
+  `Engine::PlayerController`. None had a caller in the engine.
+  `Components::PlayerController` stays.
+- `Engine::TileCollision`, which is now `Engine::TileBlockers`.
+- The examples `14_asteroids`, `15_tiled_world` and `16_hello_world`. They are
+  whole games rather than examples of one concept, and no longer ship.
 
 ### Fixed
 
 - The README's hello-world gave `on_draw` one parameter; it takes two
   (`renderer, view`).
-- A newly built `UI::Menu` reported its first item as focused without telling
-  the item, so it drew with no highlight until the first press.
+- A new `UI::Menu` drew its first item without a highlight until the first
+  press.
+- `Path#distance_to` returned wrong distances for Integer coordinates.
 
 ## [0.2.0] - 2026-08-26
 
