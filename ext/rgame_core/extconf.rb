@@ -15,7 +15,21 @@ $INCFLAGS << ' -I$(srcdir)/include'
 
 $INCFLAGS << ' -I$(srcdir)/../rgame_util'
 
-abort 'SDL2 not found (pkg-config --exists sdl2 failed). Install libsdl2-dev.' unless pkg_config('sdl2')
+static_sdl2 = with_config('sdl2-static')
+
+if static_sdl2
+  static_sdl2 = File.expand_path(static_sdl2)
+  pc_dir = File.join(static_sdl2, 'lib', 'pkgconfig')
+  abort "No SDL2 under #{static_sdl2}. Run: rake sdl2" unless File.exist?(File.join(pc_dir, 'sdl2.pc'))
+
+  ENV['PKG_CONFIG_LIBDIR'] = pc_dir
+  abort "pkg-config could not read #{pc_dir}/sdl2.pc" unless pkg_config('sdl2')
+
+  static_only = Shellwords.shellwords(pkg_config('sdl2', 'libs', 'static').to_s) - Shellwords.shellwords($libs)
+  $libs += " #{static_only.shelljoin}" unless static_only.empty?
+else
+  abort 'SDL2 not found (pkg-config --exists sdl2 failed). Install libsdl2-dev.' unless pkg_config('sdl2')
+end
 
 abort 'SDL2 OpenGL header not found (SDL2/SDL_opengl.h). Install libsdl2-dev.' unless have_header('SDL2/SDL_opengl.h')
 
@@ -43,6 +57,13 @@ $libs = append_library($libs, 'pthread') if have_library('pthread')
 $libs = append_library($libs, 'dl') if have_library('dl')
 
 $CFLAGS << ' -std=gnu17 -Wall -Wextra'
+
+if static_sdl2
+  case RbConfig::CONFIG['host_os']
+  when /linux/ then $LDFLAGS << ' -Wl,--exclude-libs,ALL'
+  when /darwin/ then $LDFLAGS << ' -Wl,-exported_symbol,_Init_core_ext'
+  end
+end
 
 create_makefile('rgame/core_ext')
 

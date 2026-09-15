@@ -1,5 +1,7 @@
 # Build output
 /build/
+# rake-compiler's build and staging directory (tools/cross_compile.rake)
+/tmp/
 *.o
 *.a
 *.so

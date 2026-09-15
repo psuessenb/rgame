@@ -109,15 +109,23 @@ RSpec.describe RGame::Core::Audio do
   end
 
   describe '.debug_live_sounds' do
-    it 'returns to its baseline once sounds are collected' do
-      baseline = live_sounds
-
-      10.times do
-        audio.sample(AudioFixture::OGG)
-        audio.song(AudioFixture::OGG)
+    it 'does not grow as sounds are made and dropped' do
+      # Not "returns to exactly its baseline": Ruby's GC scans the C stack
+      # conservatively, so a stale pointer left there can keep one dropped sound
+      # alive, and whether one is left depends on the compiler. A leak grows with
+      # every sound made; a stale reference does not.
+      make_sounds = lambda do |count|
+        count.times do
+          audio.sample(AudioFixture::OGG)
+          audio.song(AudioFixture::OGG)
+        end
       end
+      make_sounds.call(10)
+      settled = live_sounds
 
-      expect(live_sounds).to eq(baseline)
+      make_sounds.call(50)
+
+      expect(live_sounds).to be <= settled
     end
   end
 

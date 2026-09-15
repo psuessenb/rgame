@@ -1,6 +1,6 @@
 # Precompiled binary gems
 
-**Status: steps 0 and 1 have landed.** Steps 2–4 are detailed. Steps 5–7 are
+**Status: steps 0–2 have landed.** Steps 3 and 4 are detailed. Steps 5–7 are
 rough and get re-planned once step 4 has landed.
 
 Rewritten 2026-09-15 from the 2026-08-25 sketch. The sketch compared three
@@ -687,6 +687,75 @@ moves forward into this step on Linux.
 **Verify:** the `static-sdl2` job is green on all three platforms and the
 `test` job is unchanged in what it runs.
 
+**Landed.** `rake sdl2` builds the pinned release into `build/sdl2`. `extconf.rb
+--with-sdl2-static=<prefix>` links it, and `make ext SDL2_STATIC=build/sdl2`
+passes the option through. The `static-sdl2` job builds against it on all three
+platforms, runs `rake spec:core` on a runner with no system SDL2, and runs
+`tools/check_linkage.rb`. `ext/README.md` documents the two commands.
+
+Measured in the pull request's CI, against the `test` job in the same run and
+on `main`:
+
+| | `test`, `main` | `test`, this branch | `static-sdl2` |
+|---|---|---|---|
+| Linux | 410, 0 failures, nothing excluded | the same | 410, 0 failures, nothing excluded |
+| macOS | 399, 0 failures, 3 tags excluded | the same | 399, 0 failures, the same 3 tags |
+| Windows | 401, 0 failures, 2 tags excluded | the same | 401, 0 failures, the same 2 tags |
+
+`rake spec` went from 2313 to 2314 examples, the one new example being the
+checksum refusal. On the Linux laptop: `make test` 363 checks, 0 failures;
+`rake spec:core` 410, 0 failures against both builds; `rake docs:coverage` 0 of
+132 undocumented.
+
+What `tools/check_linkage.rb` reported:
+
+| | `core_ext` needs | `SDL_` exports | `util_ext` needs |
+|---|---|---|---|
+| Linux, from the image | libdl, libpthread, libm, libGL, libc, ld-linux; **GLIBC_2.29** | 0 of 1407 | libpthread, libm, libc |
+| macOS | 18 frameworks and libraries, no SDL; libruby from the runner's toolcache (finding B) | 0 of 1 | libruby, libSystem |
+| Windows | 23 DLLs, each part of Windows or the Ruby DLL, no SDL | 0 of 1 | the Ruby DLL, KERNEL32 and CRT forwarders |
+
+The check fails, as rule 1 requires, against this laptop's source build
+(`libSDL2-2.0.so.0`), against step 0's image binary built without
+`--exclude-libs` (839 `SDL_` exports), and with its two arguments swapped
+(`util_ext` given a `libGL.so.1`). `rake sdl2` refuses a tarball with one byte
+appended before anything unpacks it, and a spec pins the refusal. Finding D's spec
+passes against the image's binary.
+
+What the sketch got wrong:
+
+- **macOS exports SDL.** Open question 7 is settled: the first CI run reported
+  837 `SDL_` symbols in the static bundle. The static branch now links with
+  `-Wl,-exported_symbol,_Init_core_ext` on macOS, and both platforms' flags go
+  in *after* mkmf's checks. Added before them, every test program mkmf links
+  lacks `Init_core_ext` and fails, so `have_framework('OpenGL')` reported the
+  framework missing.
+- **The rake-compiler tasks are not in the Rakefile.** Defining an
+  `ExtensionTask` there makes rake-compiler warn about the objects `make ext`
+  leaves in `ext/` on every `rake` run, `rake spec` included. The image also has
+  no bundle, so the Rakefile's RSpec tasks cannot load there. They live in
+  `tools/cross_compile.rake`, run as `rake -f tools/cross_compile.rake sdl2
+  compile:x86_64-linux-gnu`. A cross build stages its binaries under `tmp/` and
+  never writes `lib/rgame/`, so it does not collide with `make ext`. Step 3a
+  still has to decide how a *native* `rake compile` and `make ext` share
+  `lib/rgame/`.
+- **The pin lives in `rakelib/sdl2_build.rb`, not `sdl2.rake`.** Rake loads
+  `rakelib/*.rake` in name order, and the cross-compile rakefile needs
+  `SDL2_PREFIX`. A plain Ruby file both can require removes the ordering.
+- **rbenv in the image read `.ruby-version`.** Written as `ruby 4.0.5`, it is a
+  form rbenv cannot parse, and rake refused to start. The job sets
+  `RBENV_VERSION` to the image's global Ruby, and takes `RUBY_CC_VERSION` from
+  the image's own list by `.ruby-version`'s minor.
+- **Switching SDLs has to rebuild the extension.** The system SDL2 and the
+  pinned one have different headers, so `make ext` records the configure option
+  in `build/ext-core.config` and cleans the extension when it changes.
+- **`make clean` deletes `build/sdl2`.** It removes all of `build/`. The next
+  static build then aborts with "Run: rake sdl2", which is loud, but costs a
+  download and a 30-second build.
+
+The image is pinned by digest, `sha256:2f7eabb0…`, like the actions are pinned
+by commit.
+
 ### Step 3 — `rake native gem` builds and checks a platform gem
 
 **Why here:** the static build from step 2 exists, and a platform gem is that
@@ -869,15 +938,8 @@ installed on the Linux runner with no SDL2.
 6. **Native Wayland decorations.** The image cannot build SDL with libdecor, so
    under `SDL_VIDEODRIVER=wayland` on GNOME a window has no title bar (finding
    E). *Blocks nothing; X11 through XWayland is SDL2's default.*
-7. **Does the macOS static bundle export SDL's symbols?** The macOS results
-   report zero from `nm -gU core_ext.bundle | grep SDL_`, and also 396 examples,
-   0 failures with the virtual gamepad resolving SDL through
-   `Fiddle::Handle::DEFAULT`. Both cannot be true.
-   `spec_core/core_spec_helper.rb:66` loads that harness for every run, and
-   `dlsym` finds only exported symbols, so zero exports would error the whole
-   suite. Re-run on the Mac with the static bundle in `lib/rgame/`:
-   `nm -gU lib/rgame/core_ext.bundle | grep -c _SDL_`, and
-   `ruby -Ilib -rfiddle -e 'require "rgame/core"; p Fiddle::Handle::DEFAULT["SDL_JoystickAttachVirtual"]'`.
-   If SDL is exported, rule 2 needs `-Wl,-exported_symbol,_Init_core_ext` on
-   macOS. *Blocks rule 2's macOS flag in step 2, not step 1, which works either
-   way.*
+7. ~~**Does the macOS static bundle export SDL's symbols?**~~ **Settled — yes,
+   837 of them**, measured by `tools/check_linkage.rb` in step 2's CI job. The
+   step 0 count of zero was wrong. The static branch now links with
+   `-Wl,-exported_symbol,_Init_core_ext` on macOS, which leaves one exported
+   symbol.

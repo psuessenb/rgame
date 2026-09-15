@@ -175,7 +175,7 @@ EXT_UTIL_SO := $(EXT_UTIL_DIR)/util_ext.$(DLEXT)
 LIB_CORE_SO := lib/rgame/core_ext.$(DLEXT)
 LIB_UTIL_SO := lib/rgame/util_ext.$(DLEXT)
 
-.PHONY: all run test clean ext ext-core ext-util ext-clean
+.PHONY: all run test clean ext ext-core ext-util ext-clean FORCE
 
 all: $(MAIN_BIN)
 
@@ -340,6 +340,19 @@ test: $(TEST_BIN)
 # Needs `ruby` on PATH (installed via mise — see README).
 ext: ext-util ext-core
 
+# `make ext SDL2_STATIC=build/sdl2` links the static SDL2 `rake sdl2` builds
+# instead of the system's. The path is made absolute by Ruby rather than by
+# make, because MSYS2's make spells an absolute path in a form Windows' Ruby
+# cannot read.
+EXT_CORE_CONFIG := $(if $(SDL2_STATIC),--with-sdl2-static=$(shell ruby -e 'print File.expand_path(ARGV[0])' '$(SDL2_STATIC)'))
+
+# Switching between the system SDL2 and a static one has to rebuild the whole
+# extension: the two have different headers, and the objects already built
+# would otherwise be linked against the other SDL. The stamp records which
+# build the objects are, and is rewritten only when that changes, so an
+# unchanged build stays incremental.
+EXT_CORE_CONFIG_STAMP := $(BUILD_DIR)/ext-core.config
+
 # core extension: the SDL/GL engine. Note it depends on the same app.c /
 # frame_loop.c that the standalone binary above builds — one copy of the source,
 # two build systems.
@@ -354,8 +367,16 @@ $(EXT_CORE_SO): $(EXT_CORE_SOURCES) $(EXT_CORE_DIR)/Makefile
 # Regenerate when a source is *added*, not just when extconf.rb changes: mkmf
 # bakes the object list in at generation time, so a new .c would otherwise be
 # silently left out and surface as an undefined symbol at require time.
-$(EXT_CORE_DIR)/Makefile: $(EXT_CORE_DIR)/extconf.rb $(EXT_CORE_SOURCES)
-	cd $(EXT_CORE_DIR) && ruby extconf.rb
+$(EXT_CORE_DIR)/Makefile: $(EXT_CORE_DIR)/extconf.rb $(EXT_CORE_SOURCES) $(EXT_CORE_CONFIG_STAMP)
+	cd $(EXT_CORE_DIR) && ruby extconf.rb $(EXT_CORE_CONFIG)
+
+$(EXT_CORE_CONFIG_STAMP): FORCE | $(BUILD_DIR)
+	@if [ ! -f $@ ] || [ "$$(cat $@)" != "$(EXT_CORE_CONFIG)" ]; then \
+	  if [ -f $(EXT_CORE_DIR)/Makefile ]; then $(MAKE) -C $(EXT_CORE_DIR) clean; fi; \
+	  echo "$(EXT_CORE_CONFIG)" > $@; \
+	fi
+
+FORCE:
 
 # util extension: pure data, no graphics libraries linked in.
 ext-util: $(LIB_UTIL_SO)
