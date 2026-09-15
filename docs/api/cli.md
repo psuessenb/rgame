@@ -30,10 +30,13 @@ tictactoe/
 ├── main.rb           boots the game and nothing else
 ├── game.rb           class TictactoeGame < RGame::Game
 ├── assets/           the game's media_root
+│   └── locales/
+│       └── en.yml    the English translation table
 ├── nodes/
 │   └── root.rb       class Root < RGame::Engine::Node2D
 └── spec/
     ├── spec_helper.rb
+    ├── locales_spec.rb
     └── nodes/
         └── root_spec.rb
 ```
@@ -116,10 +119,13 @@ learns its class.
 require 'rgame'
 
 class Root < RGame::Engine::Node2D
-  GREETING = 'Hello from tictactoe!'
+  def initialize
+    super
+    @greeting = RGame::Engine::Text.new('root.greeting')
+  end
 
   def on_draw(renderer, _view)
-    renderer.text(GREETING, 20, 20)
+    renderer.text(@greeting.to_s, 20, 20)
   end
 end
 ```
@@ -142,12 +148,12 @@ down that reason:
 ```ruby
 RSpec.describe Root do
   describe '#on_draw' do
-    it 'draws its greeting' do
+    it 'draws its greeting from the English table' do
       renderer = spy('renderer')
 
       described_class.new.on_draw(renderer, nil)
 
-      expect(renderer).to have_received(:text).with(Root::GREETING, 20, 20)
+      expect(renderer).to have_received(:text).with('Hello from tictactoe!', 20, 20)
     end
   end
 end
@@ -157,6 +163,39 @@ Put new game logic under `nodes/`, and the whole simulation stays testable in
 milliseconds with no display, however large the game grows. Logic in `game.rb`
 loses that.
 
+## Text comes from a translation table
+
+**The generated root node draws a key, not a String.** `assets/locales/en.yml`
+holds the text, in Rails' format:
+
+```yaml
+en:
+  root:
+    greeting: "Hello from tictactoe!"
+```
+
+`RGame::Game` loads every `.yml` under `assets/locales/` and picks the player's
+language from their operating system. See
+[Game](game.md#translations-and-the-players-language). The node builds an
+[`Engine::Text`](toolbox.md#text--the-string-a-node-draws) once and draws it
+every frame. To add a language, add a file such as `de.yml` with the same keys.
+
+**The generated spec helper loads the same tables before every example.** It
+reads the files once, then calls `I18n.reset`, loads each table and sets
+`I18n.missing = :raise`. Every example therefore starts in the default locale
+with the game's own tables, whatever the example before it loaded. A spec that
+draws a key no table has fails with `I18n::MissingKey`.
+
+The spec helper names `assets/locales` itself, because `spec/` cannot load
+`game.rb`. Move the directory in one place and every spec that draws a key
+fails. Reloading costs about 8 µs per key per example.
+
+**`spec/locales_spec.rb` fails while a language lacks a key.** It checks that
+the default locale has a table, and that `I18n.missing_keys` is empty for every
+loaded locale. Its failure names each locale and its missing keys, such as
+`{de: ["root.greeting"]}`. In the game itself, a missing key falls back to the
+default locale's text, and a key no table has shows as itself.
+
 ## The generated RuboCop configuration
 
 The generator writes a stock configuration. It loads `rubocop-performance` and
@@ -164,14 +203,16 @@ The generator writes a stock configuration. It loads `rubocop-performance` and
 `draw` methods, and allows short coordinate names. It does **not** include the
 engine's five custom cops, such as `Game/DrawInLocalSpace`. Those live in the
 engine's repository, not in the gem, and two of them guard a layer boundary that
-exists only inside the engine.
+exists only inside the engine. `RSpec/SpecFilePathFormat` skips
+`spec/locales_spec.rb`, which describes `I18n` but checks the tables rather than a
+source file.
 
 ## Adding to the generator
 
 `rgame new` derives its file list from `lib/rgame/cli/templates/`. A new file in
 a generated project needs a new template and nothing else; there is no manifest.
-An empty directory has no template. `NewProject::KEEP_DIRS` lists those, and the
-generator writes a `.keep` file into each; `assets/` is the one there is.
+The generator writes only files, so it creates a directory only by writing a
+template into it.
 Templates are ERB and may call `app_name`, `game_class`, `caption`,
 `ruby_version` and `rgame_requirement`.
 
