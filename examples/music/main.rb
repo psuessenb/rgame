@@ -53,6 +53,7 @@ require 'rgame/game'
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 LOOP_SECONDS = 24.05 # the length of music.ogg; see examples/assets/README.md
 
@@ -68,7 +69,10 @@ class Scene < RGame::Engine::Node2D
     super
     @playing = false
     @elapsed = 0.0
-    @status = 'stopped — press Enter'
+    @help = RGame::Engine::Text.new('help.keys')
+    @stopped = RGame::Engine::Text.new('status.stopped')
+    @started = RGame::Engine::Text.new('status.playing')
+    @status = @stopped
   end
 
   def on_control(actions)
@@ -83,7 +87,7 @@ class Scene < RGame::Engine::Node2D
   end
 
   def on_draw(renderer, _view)
-    renderer.text('Enter / A starts, Escape / B stops', 12, 12)
+    renderer.text(@help, 12, 12)
     renderer.text(@status, 12, 34)
 
     # Where the playhead sits inside one pass of the loop. It wraps at
@@ -107,14 +111,14 @@ class Scene < RGame::Engine::Node2D
     return if @playing
 
     @playing = true
-    @status = 'playing — press Enter again; listen for whether it restarts'
+    @status = @started
   end
 
   def stop
     RGame::Engine::AudioBus.stop_music
     @playing = false
     @elapsed = 0.0
-    @status = 'stopped — press Enter'
+    @status = @stopped
   end
 end
 
@@ -123,7 +127,8 @@ game = RGame::Game.new(
   caption: 'Music',
   width: WIDTH,
   height: HEIGHT,
-  media_root: ASSETS
+  media_root: ASSETS,
+  locales: LOCALES
 )
 
 game.start

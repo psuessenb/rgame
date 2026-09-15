@@ -1,0 +1,6 @@
+# The English table: every string this example draws.
+en:
+  help:
+    plate: Enter stands on the plate — the door and the lamp both answer
+    unnamed: Neither of them is named anywhere inside the plate
+    cooldowns: "Hold Space and hold E: one ActionTrigger, two cooldowns"

@@ -1,0 +1,7 @@
+# The English table: every string this example draws.
+en:
+  help:
+    keys: Enter / A starts, Escape / B stops
+  status:
+    stopped: stopped — press Enter
+    playing: playing — press Enter again; listen for whether it restarts

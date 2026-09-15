@@ -12,7 +12,7 @@
 #   - Engine::Pool — the free list underneath it;
 #   - Components::DespawnOffscreen — retiring a mote that has left the world;
 #   - Components::Timer — the spawn cadence, from `examples/timer`;
-#   - Engine::Text.computed — a readout that changes once a second, not per frame.
+#   - Engine::Text — a readout with a variable that changes once a second, not per frame.
 #
 # ## The number on screen is the whole argument
 #
@@ -89,6 +89,7 @@ require 'rgame/game'
 WIDTH  = 640
 HEIGHT = 480
 ASSETS = File.expand_path('../assets', __dir__)
+LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 SPAWN_EVERY = 0.05 # seconds
 PER_BURST   = 4
@@ -188,7 +189,7 @@ class Meter < RGame::Engine::Node2D
 
   def initialize(**)
     super
-    @label = RGame::Engine::Text.computed(:count) { |count:| "objects allocated per second: #{count}" }
+    @label = RGame::Engine::Text.new('hud.allocated', :count)
     @count = 0
     @last = 0
   end
@@ -217,8 +218,8 @@ class Scene < RGame::Engine::Node2D
   BAR_H = 14
   BAR_SCALE = 2.4 # pixels per live mote
 
-  MODE = { true => 'pooled — Space builds a fresh mote instead',
-           false => 'fresh objects — Space goes back to the pool' }.freeze
+  MODE = { true => RGame::Engine::Text.new('status.pooled'),
+           false => RGame::Engine::Text.new('status.fresh') }.freeze
 
   def initialize
     super
@@ -251,7 +252,8 @@ game = RGame::Game.new(
   caption: 'Pooling',
   width: WIDTH,
   height: HEIGHT,
-  media_root: ASSETS
+  media_root: ASSETS,
+  locales: LOCALES
 )
 
 game.start

@@ -1,0 +1,12 @@
+# The English table: every string this example draws.
+en:
+  help:
+    beat: Both bars beat every 0.07s. One of them is right
+  captions:
+    timer: Components::Timer — the remainder carries forward
+    naive: "@elapsed = 0.0 — the overshoot is thrown away"
+    mark: the white mark is where this bar was when the other finished
+    blink: The square blinks on a second, slower timer on the same node
+    fuse: Space sets off a one-shot
+  fuse:
+    banner: one-shot — this removes itself

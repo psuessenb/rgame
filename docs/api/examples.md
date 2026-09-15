@@ -129,7 +129,7 @@ Spawning many things without building any of them. The allocation count on
 screen makes the case.
 
 **Uses:** `Components::Pool`, `Engine::Pool`, `Components::DespawnOffscreen`,
-`Components::Timer`, `Engine::Text.computed`.
+`Components::Timer`, `Engine::Text`.
 
 ## UI
 
@@ -188,7 +188,7 @@ A sound effect fired by a button, and the path it travels. A node may not name
 the audio device, so it emits a fact and a director plays it.
 
 **Uses:** `Core::Sample`, `Engine::AudioBus`, `Engine::AudioDirector`,
-`Engine::Text.computed`.
+`Engine::Text`.
 
 ### music
 
