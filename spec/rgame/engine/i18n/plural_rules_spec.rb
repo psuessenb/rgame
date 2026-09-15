@@ -45,9 +45,6 @@ RSpec.describe RGame::Engine::I18n::PluralRules do
   describe 'through I18n.t' do
     let(:i18n) { RGame::Engine::I18n }
 
-    before { i18n.reset }
-    after { i18n.reset }
-
     it 'picks the form by the current language' do
       i18n.load_hash(ru: { apples: { one: '%{count} яблоко', few: '%{count} яблока', many: '%{count} яблок',
                                      other: '%{count} яблока' } })

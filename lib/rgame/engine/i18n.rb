@@ -20,6 +20,19 @@ module RGame
     # `I18n` parses Strings and never opens a file: finding and reading locale
     # files is the asset manager's job.
     module I18n
+      # Raised for a key no link of the chain has, under `missing = :raise`.
+      class MissingKey < StandardError
+        attr_reader :key, :chain
+
+        def initialize(key, chain)
+          @key = key
+          @chain = chain
+          super("no translation for #{key.inspect} in #{chain.join(', ')}")
+        end
+      end
+
+      MISSING_POLICIES = %i[key raise].freeze
+
       class << self
         # An Integer that moves on every `load` and every change of locale.
         attr_reader :generation
@@ -30,6 +43,11 @@ module RGame
         # shorter prefix of it, then the default — `[:'de-AT', :de, :en]`.
         # Rebuilt when the locale or the default changes, not per lookup.
         attr_reader :chain
+
+        # What a key no link of the chain has resolves to: `:key` (the start)
+        # shows the key itself, `:raise` raises `MissingKey`, and a callable is
+        # called with the key and the chain and its return value is shown.
+        attr_reader :missing
 
         # Merges a YAML document in Rails' format into the loaded tables. One
         # document may hold several locales, and a locale loaded twice is merged
@@ -84,6 +102,24 @@ module RGame
           @default
         end
 
+        def missing=(policy)
+          unless MISSING_POLICIES.include?(policy) || policy.respond_to?(:call)
+            raise ArgumentError, "missing must be :key, :raise or a callable, not #{policy.inspect}"
+          end
+
+          @missing = policy
+        end
+
+        # The keys the default locale has that no table in `locale`'s own chain
+        # does, in the default table's order. A key `locale` gets from a parent
+        # (`de-AT` from `de`) is not missing; one it would get only from the
+        # default is.
+        def missing_keys(locale)
+          links = lineage(normalize(locale))
+          defaults = @tables.fetch(@default, {}).keys
+          defaults.reject { |key| links.any? { |link| @tables[link]&.key?(key) } }
+        end
+
         # Sets how `language` (or a regional locale, which then wins over its
         # language) sorts a count into a plural category. The block receives
         # the count and returns one of `Plural::CATEGORIES`. Replaces a built-in
@@ -104,7 +140,7 @@ module RGame
         def t(key, scope: nil, **vars)
           key = scope ? "#{scope}.#{key}" : key.to_s
           template = lookup(key)
-          return key unless template
+          return answer_missing(key) unless template
 
           template = pluralize(key, template, vars) if template.is_a?(Plural)
 
@@ -114,9 +150,10 @@ module RGame
           template.render(vars)
         end
 
-        # Forgets every table and restores the starting locale and default,
-        # `:en`. The generation moves rather than restarting, so text cached
-        # before a reset never mistakes itself for current.
+        # Forgets every table and plural rule added, and restores the starting
+        # locale and default, `:en`, and the `:key` missing policy. The
+        # generation moves rather than restarting, so text cached before a
+        # reset never mistakes itself for current.
         def reset
           @tables = {}
           @sources = {}
@@ -125,6 +162,7 @@ module RGame
           @generation = (@generation || 0) + 1
           @chain = chain_for(@locale)
           @plural_rules = PluralRules::BUILT_IN.dup
+          @missing = :key
         end
 
         private
@@ -139,6 +177,14 @@ module RGame
         def lineage(locale)
           subtags = locale.name.split('-')
           subtags.size.downto(1).map { |length| subtags.first(length).join('-').to_sym }
+        end
+
+        def answer_missing(key)
+          case @missing
+          when :key then key
+          when :raise then raise MissingKey.new(key, @chain)
+          else @missing.call(key, @chain)
+          end
         end
 
         def pluralize(key, plural, vars)

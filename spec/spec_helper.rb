@@ -15,4 +15,11 @@ Dir[File.join(__dir__, 'support', '**', '*.rb')].grep_v(/_spec\.rb\z/).each { |f
 RSpec.configure do |config|
   config.expect_with(:rspec) { |c| c.syntax = :expect }
   config.disable_monkey_patching!
+
+  # I18n is global, so every example starts from empty tables, and a key a spec
+  # draws without loading fails the example instead of drawing itself.
+  config.before do
+    RGame::Engine::I18n.reset
+    RGame::Engine::I18n.missing = :raise
+  end
 end

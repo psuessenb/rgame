@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
 RSpec.describe RGame::Engine::I18n do
-  before { described_class.reset }
-  after { described_class.reset }
-
   describe '.load' do
     it 'reads Rails format, where one document may hold two locales' do
       described_class.load(<<~YAML)
@@ -225,6 +222,89 @@ RSpec.describe RGame::Engine::I18n do
       described_class.locale = :de
       described_class.reset
       expect([described_class.available, described_class.locale, described_class.default]).to eq([[], :en, :en])
+    end
+
+    it 'restores the :key missing policy' do
+      described_class.reset
+      expect(described_class.missing).to eq(:key)
+    end
+  end
+
+  describe 'a missing key' do
+    before do
+      described_class.load_hash(en: { play: 'Play' })
+      described_class.locale = :'de-AT'
+    end
+
+    it 'raises MissingKey under the policy this suite sets for every example' do
+      expect { described_class.t('quit') }.to raise_error(described_class::MissingKey)
+    end
+
+    describe 'missing = :key' do
+      before { described_class.missing = :key }
+
+      it 'shows the key' do
+        expect(described_class.t('quit')).to eq('quit')
+      end
+
+      it 'shows the scoped key' do
+        expect(described_class.t('quit', scope: 'menu')).to eq('menu.quit')
+      end
+    end
+
+    describe 'missing = :raise' do
+      it 'names the key and the chain it looked in' do
+        expect { described_class.t('quit') }
+          .to raise_error(described_class::MissingKey, 'no translation for "quit" in de-AT, de, en')
+      end
+
+      it 'carries the key and the chain' do
+        expect { described_class.t('quit') }.to raise_error(described_class::MissingKey) { |error|
+          expect([error.key, error.chain]).to eq(['quit', %i[de-AT de en]])
+        }
+      end
+    end
+
+    describe 'missing = a callable' do
+      it 'shows what it returns for the key and chain' do
+        described_class.missing = ->(key, chain) { "[#{key} @ #{chain.first}]" }
+        expect(described_class.t('quit')).to eq('[quit @ de-AT]')
+      end
+    end
+
+    it 'refuses a policy that is none of those' do
+      expect { described_class.missing = :silent }.to raise_error(ArgumentError, /:key, :raise or a callable/)
+    end
+
+    it 'is not missing when only the default has it' do
+      expect(described_class.t('play')).to eq('Play')
+    end
+  end
+
+  describe '.missing_keys' do
+    before do
+      described_class.load_hash(
+        en: { play: 'Play', quit: 'Quit', menu: { title: 'Menu', back: 'Back' },
+              apples: { one: 'apple', other: 'apples' } },
+        de: { play: 'Spielen', menu: { title: 'Menü' }, apples: { one: 'Apfel', other: 'Äpfel' } },
+        'de-AT': { quit: 'Aus' }
+      )
+    end
+
+    it 'lists the keys the default has and the locale lacks, in the default table order' do
+      expect(described_class.missing_keys(:de)).to eq(%w[quit menu.back])
+    end
+
+    it 'does not list a key the locale gets from a parent' do
+      expect(described_class.missing_keys('de_AT')).to eq(%w[menu.back])
+    end
+
+    it 'lists every key for a locale with no table in its chain' do
+      expect(described_class.missing_keys(:fr)).to eq(%w[play quit menu.title menu.back apples])
+    end
+
+    it 'lists nothing for the default itself' do
+      expect(described_class.missing_keys(:en)).to be_empty
     end
   end
 end
