@@ -156,7 +156,7 @@ RSpec.describe RGame::Engine::UI::OptionButton do
     it 'draws captions made by display rather than the values themselves' do
       root.add_node(described_class.new(label: 'volume', width: 240, height: 40,
                                         values: [0, 50], index: 1,
-                                        display: ->(v) { "#{v}%" }))
+                                        display: ->(v) { RGame::Engine::Text.literal("#{v}%") }))
       root.enter_tree
       expect(texts).to include('50%')
     end
@@ -191,6 +191,108 @@ RSpec.describe RGame::Engine::UI::OptionButton do
       root.draw(renderer, screen_view)
       drawn = slices.select { |_id, slice| slice.received.any? }.keys
       expect(drawn).to eq([described_class::STYLE.elements.fetch(:disabled)])
+    end
+  end
+
+  describe 'captions' do
+    let(:i18n) { RGame::Engine::I18n }
+
+    before do
+      i18n.load_hash(en: { shadows: 'Shadows', low: 'Lo', high: 'Hi', settings: { low: 'Low', high: 'High' } },
+                     de: { low: 'Niedrig', high: 'Hoch' })
+    end
+
+    def shadows(**)
+      root.add_node(described_class.new(label: 'shadows', width: 240, height: 40, values: %i[low high], **))
+          .tap { root.enter_tree }
+    end
+
+    def left_chevron_x
+      renderer.clear
+      root.draw(renderer, screen_view)
+      renderer.calls_to(:text).find { |call| call.args.first == '<' }&.args&.[](1)
+    end
+
+    it 'reads a Symbol value as its own key by default' do
+      shadows(index: 1)
+      expect(texts).to include('Hi')
+    end
+
+    it 'draws any other value as it is by default, in every locale' do
+      option(index: 1)
+      i18n.locale = :de
+      expect(texts).to include('50')
+    end
+
+    it 'reads a String display returns as a key' do
+      shadows(display: ->(value) { value == :low ? 'high' : 'low' })
+      expect(texts).to include('Hi')
+    end
+
+    it 'is the Text drawn for the current value' do
+      expect(shadows(index: 1).caption.key).to eq('high')
+    end
+
+    it 'redraws the caption in a new locale' do
+      shadows(index: 1)
+      i18n.locale = :de
+      expect(texts).to include('Hoch')
+    end
+
+    # FakeRenderer measures 8 pixels a character: "Lo" and "Hi" are 16 wide,
+    # "Niedrig" 56, so the value column grows by 40 and the left chevron moves
+    # that far left.
+    it 'measures the value column again after a switch to longer captions' do
+      shadows(index: 1)
+      english = left_chevron_x
+      i18n.locale = :de
+      expect(english - left_chevron_x).to eq(40)
+    end
+
+    it 'narrows the value column again after a switch back' do
+      shadows(index: 1)
+      english = left_chevron_x
+      i18n.locale = :de
+      left_chevron_x
+      i18n.locale = :en
+      expect(left_chevron_x).to eq(english)
+    end
+
+    it "takes the menu's scope for captions display gave as keys" do
+      column = RGame::Engine::UI::Column.new(item_width: 240, item_height: 40)
+      menu = root.add_node(RGame::Engine::UI::Menu.new(layout: column, scope: 'settings'))
+      i18n.load_hash(en: { settings: { shadows: 'Shadows' } })
+      menu.add(described_class.new(label: 'shadows', values: %i[low high], index: 1))
+      root.enter_tree
+      expect(texts).to include('Shadows', 'High')
+    end
+
+    it 'measures the column again when the scope changes' do
+      i18n.load_hash(en: { settings: { shadows: 'Shadows' } })
+      item = shadows(index: 1)
+      short = left_chevron_x
+      item.label_scope = 'settings'
+      expect(short - left_chevron_x).to eq(16)
+    end
+
+    it 'keeps a Text display gave as it is under a scope' do
+      item = shadows(display: ->(value) { RGame::Engine::Text.new(value, scope: 'settings') })
+      item.label_scope = 'elsewhere'
+      expect(item.caption.scope).to eq('settings')
+    end
+
+    it 'refuses a caption Text that declares variables, when it is built' do
+      expect { shadows(display: ->(_value) { RGame::Engine::Text.new('hud.score', :score) }) }
+        .to raise_error(ArgumentError, /caption/)
+    end
+
+    it 'draws without allocating after a switch has been drawn once' do
+      item = shadows(index: 1)
+      quiet = QuietRenderer.new
+      item.on_draw(quiet, nil)
+      i18n.locale = :de
+      item.on_draw(quiet, nil)
+      expect { item.on_draw(quiet, nil) }.to allocate_nothing
     end
   end
 

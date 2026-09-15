@@ -6,7 +6,7 @@ module RGame
       # A menu row whose value is chosen from a list, moved with `ui_left` and
       # `ui_right`.
       #
-      #   quality = menu.add(UI::OptionButton.new(label: 'Shadows', values: %i[off low high]))
+      #   quality = menu.add(UI::OptionButton.new(label: 'shadows', values: %i[off low high]))
       #   quality.on_changed { |value| settings.shadows = value }
       #
       # It draws `Label        < value >`, and the chevrons appear only where
@@ -22,13 +22,26 @@ module RGame
       # the range into silence. Every settings screen a player has used clamps,
       # so this does too.
       #
-      # ## The captions are built once, not per frame
+      # ## A caption is a key, unless it is a Text
       #
-      # `display` turns a value into the text drawn for it, and it is called for
-      # the whole list in the constructor. Doing it in `on_draw` instead would
-      # allocate a String every frame for every row on screen, which is what
-      # `Game/NoInterpolationInHotPath` refuses — and the values themselves are
-      # what a game acts on, so they cannot simply be stored as text.
+      # `display` turns a value into what is drawn for it: a key, which the
+      # button makes an Engine::Text of under its `label_scope` just as it does
+      # the label, or a `Text`, used as it is. The default makes a Symbol value
+      # its own key and anything else a literal, so `%i[off low high]` reads
+      # the keys `off`, `low` and `high`, and `[0, 50, 100]` draws the numbers:
+      #
+      #   UI::OptionButton.new(label: 'volume', values: [0, 50, 100],
+      #                        display: ->(percent) { Engine::Text.literal("#{percent}%") })
+      #
+      # `display` is called for the whole list in the constructor. Doing it in
+      # `on_draw` instead would allocate a String every frame for every row on
+      # screen, which is what `Game/NoInterpolationInHotPath` refuses — and the
+      # values themselves are what a game acts on, so they cannot simply be
+      # stored as text.
+      #
+      # The value column is as wide as the widest caption. It is measured again
+      # when `I18n.generation` moves, so a switch to longer captions widens it,
+      # and a draw between switches measures nothing.
       class OptionButton < PanelButton
         # Emits the newly selected value, which is the only thing a listener
         # wants; `index` is available on the button for anything that needs it.
@@ -40,17 +53,30 @@ module RGame
         PADDING = 12
         GAP = 8
 
-        def initialize(label:, values:, index: 0, display: :to_s.to_proc, **)
+        DISPLAY = ->(value) { value.is_a?(Symbol) ? value : Text.literal(value.to_s) }
+
+        def initialize(label:, values:, index: 0, display: DISPLAY, **)
           super(label: label, **)
           @values = values.to_a.freeze
-          @captions = @values.map { |value| display.call(value).to_s.freeze }.freeze
+          shown = @values.map { |value| display.call(value) }
+          @captions = shown.map { |caption| drawable_text(caption, 'a caption') }.freeze
+          @keyed_captions = @captions.reject.with_index { |_caption, at| shown[at].is_a?(Text) }.freeze
           @index = @values.empty? ? 0 : index.clamp(0, @values.size - 1)
         end
 
         attr_reader :values, :index
 
         def value = @values[@index]
+
+        # The Engine::Text drawn for the current value, or nil for an empty list.
         def caption = @captions[@index]
+
+        # Scopes the captions `display` gave as keys along with the label.
+        def label_scope=(scope)
+          super
+          @keyed_captions.each { |caption| caption.scope = label_scope }
+          @measured_generation = nil
+        end
 
         # Selects `value` if the list holds it, and says whether it did. A game
         # restoring a saved setting does not have to know where in the list it
@@ -100,13 +126,18 @@ module RGame
           renderer.text(LEFT_CHEVRON, left, y, z: 1, color: color) if @index.positive?
           renderer.text(RIGHT_CHEVRON, right, y, z: 1, color: color) if @index < @values.size - 1
 
-          text = caption
+          text = caption.to_s
           centred = left + chevron + GAP + ((column - renderer.text_width(text)) / 2)
           renderer.text(text, centred, y, z: 1, color: color)
         end
 
         def column_width(renderer)
-          @column_width ||= @captions.map { |text| renderer.text_width(text) }.max
+          generation = I18n.generation
+          return @column_width if @measured_generation == generation
+
+          @column_width = @captions.map { |text| renderer.text_width(text.to_s) }.max
+          @measured_generation = generation
+          @column_width
         end
       end
     end

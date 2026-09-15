@@ -89,10 +89,11 @@ class Settings
   # its rows from this and `load` validates the file against it, so a row can
   # never offer a value the file would reject, or the other way round.
   #
-  # The captions are made by `display` once per value, when a row is built,
-  # rather than inside a draw method — see UI::OptionButton, and
-  # Game/NoInterpolationInHotPath for why a label built while drawing is a bug
-  # rather than a style.
+  # A label and what `display` returns are translation keys; a percentage is a
+  # number rather than a word, so it is a literal. The captions are made once
+  # per value, when a row is built, rather than inside a draw method — see
+  # UI::OptionButton, and Game/NoInterpolationInHotPath for why a label built
+  # while drawing is a bug rather than a style.
   #
   # **These live in a class rather than at the top of the file, and a proc is
   # why.** A block written at the top level of a script captures that script's
@@ -109,7 +110,7 @@ class Settings
              display: :to_s.to_proc },
     volume: { label: 'Volume', default: 75,
               values: [0, 25, 50, 75, 100].freeze,
-              display: ->(percent) { "#{percent}%" } }
+              display: ->(percent) { RGame::Engine::Text.literal("#{percent}%") } }
   }.freeze
 
   def initialize(save)

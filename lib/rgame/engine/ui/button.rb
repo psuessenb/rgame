@@ -119,11 +119,8 @@ module RGame
         # Sets the label: a key String or Symbol, which the button makes an
         # Engine::Text of under `label_scope`; a `Text`, used as it is; or nil.
         def label=(label)
+          @label = label && drawable_text(label, 'a label')
           @label_from_key = !(label.nil? || label.is_a?(Text))
-          @label = @label_from_key ? Text.new(label, scope: @label_scope) : label
-          return if @label.nil? || @label.names.empty?
-
-          raise ArgumentError, "a label is drawn without variables, and #{@label.names.inspect} are declared"
         end
 
         # Sets the scope a label given as a key resolves under — `'title_menu'`
@@ -234,6 +231,15 @@ module RGame
         # Hook: override to react to gaining or losing focus — a sound, the
         # start of an animation. Called only on a change.
         def on_focus_changed(focused); end
+
+        private
+
+        def drawable_text(shown, what)
+          text = shown.is_a?(Text) ? shown : Text.new(shown, scope: @label_scope)
+          return text if text.names.empty?
+
+          raise ArgumentError, "#{what} is drawn without variables, and #{text.names.inspect} are declared"
+        end
       end
     end
   end
