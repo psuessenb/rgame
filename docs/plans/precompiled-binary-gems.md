@@ -550,8 +550,13 @@ called `gamepad.c` the one place `SDL_GameController` appears, and the
 windows-portability skill held up by-name dlopen of SDL as finding the copy
 already loaded.
 
-Only the source build ran on macOS and Windows, through the pull request's CI.
-The static build on those platforms waits for step 2's CI job.
+The acceptance criterion, from the pull request's CI against the last run on
+`main`: every platform's Core suite gained exactly the three new examples, and
+no exclusion changed. Linux went from 407 to 410, macOS from 396 to 399, and
+Windows from 398 to 401, all with 0 failures. Windows does not exclude
+`needs_virtual_pad_state`, so its pad-press examples now pass through the C
+class. Those runs are the source build; the static build on macOS and Windows
+waits for step 2's CI job.
 
 ### Step 2 — A static SDL2 build path for `core_ext`
 
