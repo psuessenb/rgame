@@ -21,6 +21,9 @@ module RGame
     # `I18n`: it compares one Integer, so it holds nothing that could keep it
     # alive.
     #
+    # A `Text` answers `to_str`, so a renderer takes one where it takes a String,
+    # and it is `==` to the String it reads.
+    #
     # `Text.literal` is a string that is never translated, and `Text.computed` a
     # string a block builds. Both answer `with` and `to_s` the same way, so
     # whatever draws a `Text` never asks which kind it holds.
@@ -120,6 +123,16 @@ module RGame
         @path = (@scope ? "#{@scope}.#{@key}" : @key).freeze
         @generation = nil
       end
+
+      # The same String as `to_s`, so a `Text` goes wherever a String is
+      # expected: `renderer.text(@title, 12, 10)`. Before the first `with`, a
+      # `Text` with names raises `ArgumentError` here too.
+      def to_str = to_s
+
+      # Equal to a String that reads the same, from either side, so a spy that
+      # recorded a `Text` matches the String it drew. Against anything else,
+      # including another `Text`, it compares by identity.
+      def ==(other) = other.is_a?(String) ? to_s == other : super
 
       private
 
