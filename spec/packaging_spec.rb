@@ -125,6 +125,19 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
       expect(gemspec.require_paths).to include('lib')
     end
 
+    it 'declares every gem lib/ requires that Ruby does not load unaided' do
+      # A default gem loads anywhere. A bundled gem such as rexml loads outside
+      # Bundler, and in this checkout because the Gemfile names it, but not in a
+      # game's bundle unless the gemspec declares it. 0.2.0 and 0.3.0 shipped
+      # without rexml, and `require "rgame"` failed in every Bundler project.
+      #
+      # So a library counts as available when its file sits in Ruby's own
+      # library directories, where default gems and plain stdlib live, and
+      # otherwise only when the gemspec names its gem. lib/rgame/rubocop* is
+      # left out: RuboCop loads it, and brings lint_roller along.
+      expect(undeclared_requires).to be_empty
+    end
+
     it 'ships a version matching lib/rgame/version.rb' do
       expect(gemspec.version.to_s).to eq(RGame::VERSION)
     end
@@ -267,6 +280,24 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
       File.chmod(0o755, file.path)
       File.executable?(file.path)
     end
+  end
+
+  def undeclared_requires
+    stdlib = RbConfig::CONFIG.values_at('rubylibdir', 'rubyarchdir')
+    declared = gemspec.runtime_dependencies.map(&:name)
+
+    library_requires.reject do |feature|
+      stdlib.any? { |dir| Dir.glob("#{dir}/#{feature}.{rb,so,bundle,dll}").any? } ||
+        declared.include?(feature.split('/').first)
+    end
+  end
+
+  def library_requires
+    sources('lib/**/*.rb')
+      .grep_v(%r{\Alib/rgame/rubocop})
+      .flat_map { |path| File.read(File.join(root, path)).scan(/^\s*require '([^']+)'/).flatten }
+      .reject { |feature| feature.start_with?('rgame/') }
+      .uniq
   end
 
   # `validate` reports through Gem.ui rather than raising for warnings, and the

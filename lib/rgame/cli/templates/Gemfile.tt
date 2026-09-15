@@ -8,10 +8,10 @@ source 'https://rubygems.org'
 # replace this line with something like `ruby '~> <%= ruby_version.split('.').first(2).join('.') %>'`.
 ruby file: '.ruby-version'
 
-# The engine. It has no runtime dependencies of its own — SDL2 and OpenGL are
-# system libraries rather than gems — but installing it compiles two C
-# extensions, so a C compiler, `make`, `pkg-config` and the SDL2/OpenGL
-# development headers have to be present. See the rgame README.
+# The engine. Its one gem dependency is rexml, which Bundler installs with it.
+# SDL2 and OpenGL are system libraries rather than gems, and installing rgame
+# compiles two C extensions, so a C compiler, `make`, `pkg-config` and the
+# SDL2/OpenGL development headers have to be present. See the rgame README.
 gem 'rgame', '<%= rgame_requirement %>'
 
 group :development, :test do

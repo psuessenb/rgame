@@ -125,7 +125,7 @@ fixture and needs `libvorbisenc` to run.
   (Debian/Ubuntu). These are what `extconf.rb` compiles against.
 - **Bundler**, then `bundle install` for the dev/test gems (RSpec, RuboCop).
 
-Nothing else — the engine has no runtime Ruby dependencies, and the `Gemfile` holds only development gems.
+Nothing else. The engine's one runtime gem is `rexml`, which Bundler installs with it, and the `Gemfile` holds only development gems.
 
 All three platforms below are built and tested on every push by
 [CI](.github/workflows/ci.yml) - with that people have usually at home, so Apple Silicon and not Apple Intel, etc.
