@@ -296,7 +296,9 @@ A file-by-file map of the whole repository is in
 
 ## Roadmap
 
-There is currently no roadmap for the next version.
+There is no real roadmap for this project, but I usually have some ideas what I want to include in the next release. For the next version, this is:
+
+- ship the gem with precompiled binary gems - IN PROGRESS
 
 ## AI clause
 
