@@ -129,7 +129,8 @@ text.
 `Psych::DisallowedClass` for an object tag and `Psych::SyntaxError` for broken
 YAML. YAML reads an unquoted `on`, `off`, `yes`, `no`, `true`, `false` or `~` as
 a boolean or `nil`. `load` raises `ArgumentError` for such a key or value, naming
-where it is, so quote it. A number becomes its text.
+where it is, so quote it. A number value becomes its text, and so does a
+whole-number key. Any other key, such as `1.5`, raises `ArgumentError` too.
 
 Each load compiles every value once. A String becomes a template with its
 placeholders already found. `%%{` writes a literal `%{`. A key without
@@ -263,7 +264,7 @@ files.
 
 **`generation` is an Integer that moves whenever what a key resolves to may have
 changed.** It moves on every load, on a switch to a different locale or default,
-and on `reset`. A switch to the locale already current leaves it alone. Cached
+on every `plural_rule`, and on `reset`. A switch to the locale already current leaves it alone. Cached
 text compares `generation` with the value it last saw, and resolves again only
 when it differs.
 

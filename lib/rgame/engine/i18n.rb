@@ -47,7 +47,7 @@ module RGame
 
       class << self
         # An Integer that moves on every `load`, every change of locale or
-        # default, and every `reset`.
+        # default, every `plural_rule`, and every `reset`.
         attr_reader :generation
 
         attr_reader :locale, :default
@@ -142,6 +142,7 @@ module RGame
 
           @plural_rules[normalize(language)] = rule
           @rule_for.clear
+          @generation += 1
           self
         end
 

@@ -210,6 +210,14 @@ RSpec.describe RGame::Engine::I18n do
       expect { described_class.locale = :de }.not_to(change(described_class, :generation))
     end
 
+    it 'moves on a change of default' do
+      expect { described_class.default = :de }.to(change(described_class, :generation))
+    end
+
+    it 'moves on plural_rule, which changes the form a count reads' do
+      expect { described_class.plural_rule(:en) { :other } }.to(change(described_class, :generation))
+    end
+
     it 'moves on reset rather than starting again' do
       described_class.load_hash(en: { a: 'A' })
       expect { described_class.reset }.to(change(described_class, :generation).by_at_least(1))
