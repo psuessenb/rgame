@@ -21,7 +21,8 @@ overlay.
 ```ruby
 RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
                 media_root: 'media', input_map: nil, device: Controls::KEYBOARD,
-                players: 1, input: nil, fullscreen: false, scale_mode: :letterbox)
+                players: 1, input: nil, fullscreen: false, scale_mode: :letterbox,
+                locales: 'locales')
 ```
 
 | Reader | |
@@ -110,6 +111,31 @@ it.
 The tile map shows why. Engine parses a `.tmx`; Core draws it; neither may call
 the other. `Game` installs the loader that joins them, so
 `app.assets.tilemap('map/island.tmx')` works.
+
+## Translations and the player's language
+
+**`Game.new` loads every translation table and picks the player's language**, so
+a game writes no i18n setup. It lists every `.yml` under `locales:` with
+`AssetManager#glob`, sorted by path, and loads each through the asset manager's
+`:locale` loader into [`RGame::Engine::I18n`](toolbox.md#rgameenginei18n--localization).
+Two files that define one locale merge in that order, so a key the later file
+sets wins. It then sets `I18n.locale` to
+`I18n.choose(RGame::Core.preferred_locales)`: the first locale the OS prefers
+that a table covers, unshortened, or the default.
+
+`locales:` is relative to `media_root` unless it is absolute. A directory that
+does not exist loads nothing, and every key then shows as itself.
+
+```ruby
+game = MyGame.new(root: Root.new, media_root: 'media')   # loads media/locales/**/*.yml
+RGame::Engine::I18n.locale = saved_language if saved_language
+game.start
+```
+
+A language the player chose and the game saved belongs between `new` and
+`start`, as above: `new` has already chosen from the OS by then. Loading the same
+file again through `assets.locale(path)` returns the cached result and parses
+nothing.
 
 ## Reaching the game from a node
 

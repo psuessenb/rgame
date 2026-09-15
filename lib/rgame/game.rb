@@ -81,9 +81,17 @@ module RGame
     # program, an editor. It hands the window straight through as the view, and
     # skips the clip, translate and scale that every other mode pushes. See
     # RGame::Engine::Presentation.
+    #
+    # `locales:` is the directory the translation tables are in, relative to
+    # `media_root` unless absolute. Every `.yml` under it is loaded through the
+    # asset manager here, in sorted order, and the language is chosen from the
+    # player's OS preferences — so a game writes no i18n setup, and a language
+    # the player saved is set after `new` and before `start`. A directory that
+    # does not exist loads nothing, and every key shows as itself.
     def initialize(root:, width: WIDTH, height: HEIGHT, caption: 'RGame',
                    media_root: 'media', input_map: nil, device: Controls::KEYBOARD,
-                   players: 1, input: nil, fullscreen: false, scale_mode: :letterbox)
+                   players: 1, input: nil, fullscreen: false, scale_mode: :letterbox,
+                   locales: 'locales')
       super(width: width, height: height, caption: caption, media_root: media_root,
             fullscreen: fullscreen)
 
@@ -105,6 +113,7 @@ module RGame
       @dirty = true
 
       install_asset_loaders
+      load_locales(locales)
     end
 
     # The player registry, also reachable from any node as
@@ -240,7 +249,16 @@ module RGame
       end
     end
 
+    def load_locales(directory)
+      assets.glob(File.join(directory, '**', '*.yml')).each { |path| assets.locale(path) }
+      RGame::Engine::I18n.locale = RGame::Engine::I18n.choose(RGame::Core.preferred_locales)
+    end
+
     def install_asset_loaders
+      assets.add_loader(:locale) do |path|
+        RGame::Engine::I18n.load(File.read(path), source: path)
+      end
+
       game = self
       assets.add_loader(:tilemap) do |path|
         map, image_path = RGame::Engine::TileMap.load(path)
