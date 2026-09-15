@@ -335,6 +335,68 @@ const char *rgame_app_gamepad_name(const rgame_app *app, int slot);
 /* How many controllers are currently connected. */
 int rgame_app_gamepad_count(const rgame_app *app);
 
+/*
+ * A synthetic game controller, for tests that need the real gamepad path with
+ * no hardware. SDL fabricates it in-process: it reports itself as a game
+ * controller and raises genuine device-added and device-removed events, so an
+ * app seats it and fires its hot-plug callbacks exactly as it would a real pad.
+ *
+ * It lives here rather than in a test helper because only engine code is
+ * guaranteed to call the SDL the engine runs on, whether SDL is linked
+ * statically or dynamically.
+ *
+ * SDL must be running, which means some app must be alive. When the last app is
+ * destroyed SDL shuts down and takes every virtual pad with it; a pad attached
+ * before that is then stale, and every call below except detach and free
+ * reports it rather than touching SDL.
+ */
+typedef struct rgame_virtual_gamepad rgame_virtual_gamepad;
+
+/* Plugs in a new virtual pad. Returns NULL when no app is alive or SDL refuses;
+ * rgame_virtual_gamepad_error says why. */
+rgame_virtual_gamepad *rgame_virtual_gamepad_attach(void);
+
+/* Whether SDL has shut down since this pad was attached. */
+int rgame_virtual_gamepad_stale(const rgame_virtual_gamepad *pad);
+
+/*
+ * Sets an SDL controller button (SDL_CONTROLLER_BUTTON_*) up or down, or an
+ * axis (SDL_CONTROLLER_AXIS_*) to a value in -32768..32767. Returns 0 on
+ * success and -1 when SDL refuses. Each runs SDL's joystick update, but SDL
+ * may still defer the change: outside an app's frame loop a press read back
+ * only after one rgame_virtual_gamepad_pump.
+ */
+int rgame_virtual_gamepad_set_button(rgame_virtual_gamepad *pad, int button, int down);
+int rgame_virtual_gamepad_set_axis(rgame_virtual_gamepad *pad, int axis, int value);
+
+/*
+ * The raw joystick button as SDL last applied it — before any controller
+ * mapping. Differs from what an app reads only if the mapping is wrong.
+ */
+int rgame_virtual_gamepad_button_down(const rgame_virtual_gamepad *pad, int button);
+
+/* Whether SDL treats the pad as a game controller, i.e. has a mapping for it.
+ * An app seats only pads for which this is 1. */
+int rgame_virtual_gamepad_is_game_controller(const rgame_virtual_gamepad *pad);
+
+/* Whether the pad is still a live, attached device. */
+int rgame_virtual_gamepad_attached(const rgame_virtual_gamepad *pad);
+
+/* Runs SDL's event pump and applies pending joystick state — for waiting on a
+ * change SDL has accepted and not yet applied. */
+void rgame_virtual_gamepad_pump(void);
+
+/* Unplugs the pad, as far as SDL and every app are concerned. Safe to call
+ * twice, and on a stale pad, where it does nothing. */
+void rgame_virtual_gamepad_detach(rgame_virtual_gamepad *pad);
+
+/* Frees the handle without touching SDL. A pad freed while still attached stays
+ * plugged in until SDL shuts down. NULL-safe. */
+void rgame_virtual_gamepad_free(rgame_virtual_gamepad *pad);
+
+/* Why the last attach failed, or SDL's own last error. Never NULL. */
+const char *rgame_virtual_gamepad_error(void);
+
 /* Monotonic milliseconds since startup. For time-based animation phase, etc. */
 unsigned int rgame_app_ticks_ms(const rgame_app *app);
 

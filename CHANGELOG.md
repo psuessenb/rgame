@@ -12,6 +12,13 @@ index, not the argument.
 
 ## [Unreleased]
 
+### Added
+
+- **A virtual gamepad for tests.** `RGame::Core::VirtualGamepad.new` plugs a
+  synthetic controller into a running `App`, which seats it and reads it like a
+  real pad; `set_button`, `set_axis` and `detach` drive it. See
+  [docs/api/input.md](docs/api/input.md#rgamecorevirtualgamepad).
+
 ## [0.3.1] - 2026-09-15
 
 ### Fixed

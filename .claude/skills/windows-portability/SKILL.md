@@ -244,11 +244,18 @@ optional to handle if the code is meant to run on more than one.
 | SDL2 | `libSDL2-2.0.so.0` | `libSDL2-2.0.0.dylib` | `SDL2.dll` |
 
 Branch on `RbConfig::CONFIG['host_os']` from Ruby (see
-`spec_core/support/rendered_frame.rb`, `virtual_gamepad.rb` for the pattern)
-or the usual `#ifdef _WIN32`/`__APPLE__` from C. A dlopen must also find the
-copy the process *already loaded* (SDL's own), not a second one — by-name
-dlopen does that on all three platforms, but it's worth asserting rather than
-assuming when adding a new one.
+`spec_core/support/rendered_frame.rb` for the pattern) or the usual
+`#ifdef _WIN32`/`__APPLE__` from C.
+
+**Never reach SDL by name from Ruby.** A by-name dlopen finds the copy of SDL
+the extension loaded only while the extension links SDL as a shared library of
+that name. Against a `core_ext` with SDL linked in statically, it opens a second,
+unrelated SDL: the system one on Linux, and on Windows RubyInstaller's MSYS2
+`SDL2.dll`, which Ruby's own DLL-directory mechanism reaches even with no `msys64`
+on `PATH`. Calls then succeed against state the engine never sees. The spec
+harness's virtual gamepad hit exactly this, and is why it now lives in the
+extension as `RGame::Core::VirtualGamepad` (`input/virtual_gamepad.c`). SDL
+functionality a spec needs goes into the extension the same way.
 
 ## How to actually catch these before they land
 
