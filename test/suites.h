@@ -11,6 +11,7 @@
  */
 
 Suite *frame_loop_suite(void);
+Suite *locale_suite(void);
 Suite *device_slots_suite(void);
 Suite *input_suite(void);
 Suite *color_suite(void);

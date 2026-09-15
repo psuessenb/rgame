@@ -342,6 +342,18 @@ unsigned int rgame_app_ticks_ms(const rgame_app *app);
 double rgame_app_fps(const rgame_app *app);
 
 /*
+ * The user's preferred locales, most preferred first, written into `out` as
+ * "de-AT,en": a language, a hyphen and a country when the OS names one, and
+ * no trailing comma. Needs no app.
+ *
+ * Returns the length of the whole list, not counting the NUL, like snprintf:
+ * a result >= `capacity` means `out` holds a truncated prefix, and a buffer of
+ * result + 1 bytes fits it. `out` is always NUL-terminated when `capacity` is
+ * non-zero. Returns 0, with `out` empty, when the OS reports none.
+ */
+size_t rgame_preferred_locales(char *out, size_t capacity);
+
+/*
  * ---------------------------------------------------------------------------
  * Images
  * ---------------------------------------------------------------------------
