@@ -599,9 +599,23 @@ file to a folder already listed needs nothing.
   rather than in build flags, so the standalone binary and the gem cannot end up
   supporting different formats. The default font is *not* here: it is runtime
   data and lives in `lib/rgame/fonts/`. See `ext/rgame_core/vendor/README.md`.
-- `tools/` — development tools, outside the engine and not built by `make`.
-  `make_ogg_fixture.c` generates the audio suite's `.ogg` and needs
-  `libvorbisenc` to *run*; the engine links no vorbis library at all.
+- `tools/` — development tools, outside the engine, not built by `make` and
+  outside the gem's packaged glob, so nothing here ships. `make_ogg_fixture.c`
+  generates the audio suite's `.ogg` and needs `libvorbisenc` to *run*; the
+  engine links no vorbis library at all. `drive_test_project.rb` is the harness
+  the testing section describes. The rest are the packaging tools:
+  `platform_gem.rake` builds a platform gem, `check_platform_gem.rb` checks one
+  against nine rules, `check_installed_gem.rb` checks what an install left on a
+  machine that did not build it, `check_linkage.rb` reads what a binary depends
+  on, and `release_gems.rb` decides which gems of a version a release pushes.
+  See "Packaging".
+- `rakelib/` — rake tasks loaded automatically by the `Rakefile`, currently the
+  pinned SDL2 build (`sdl2.rake`, `sdl2_build.rb`) that a static `core_ext` and
+  every platform gem link against. Rake loads `rakelib/*.rake` by convention, so
+  nothing in the `Rakefile` names them. `tools/platform_gem.rake` is deliberately
+  *not* here, and is passed with `-f` instead: rake-compiler would warn about
+  `make ext`'s object files on every rake invocation, and the Linux build image
+  has no bundle to load the `Rakefile`'s RSpec tasks from.
 - `ext/rgame_core/graphics/primitives.{c,h}` — the shapes a game asks for
   (rect, thick line, circle, sprite) in terms of the two the canvas knows.
   Pure; covered by `test/test_primitives.c`. A rotated sprite goes through the
@@ -771,8 +785,10 @@ file to a folder already listed needs nothing.
   there are two such amendments in it already.
 
 - `rgame.gemspec` — packages both halves as one gem: both `extconf.rb` files in
-  `spec.extensions`, so `gem install` compiles each and drops its `.so` into
-  `lib/rgame/` exactly where `make ext` puts it. See "Packaging" below.
+  `spec.extensions`, so a source install compiles each and drops its `.so` into
+  `lib/rgame/` exactly where `make ext` puts it. It describes the source gem
+  only; the three platform gems are built from it by `tools/platform_gem.rake`.
+  See "Packaging" below.
 
 When adding new engine features, put the implementation in
 `ext/rgame_core/app/app.c` and extend
@@ -856,6 +872,42 @@ listed in README.md.
 `spec.extensions`, so `gem install` compiles each one and lands its `.so` in
 `lib/rgame/` — the same place `make ext` puts it, which is why nothing about
 the load path changes between a checkout and an installed gem.
+
+### A version is four gems
+
+**RubyGems holds a source gem and three platform gems for each version.** The
+source gem is the one the gemspec describes, and it compiles on install. A
+platform gem carries `core_ext` and `util_ext` already built, ships no `.c`, no
+`extconf.rb` and no `spec.extensions`, and therefore compiles nothing —
+`arm64-darwin`, `x86_64-linux-gnu` and `x64-mingw-ucrt`, which is Apple Silicon
+macOS, x86-64 Linux and 64-bit Windows. RubyGems picks by platform and Ruby
+version, so every other machine gets the source gem and the behaviour it always
+had.
+
+**SDL2 is linked statically into `core_ext`, from a pinned upstream release
+fetched and checksummed at build time.** It is not vendored into `ext/`, and it
+is not bundled beside the extension as a shared library — a static link needs no
+loader configuration on any of the three platforms. `rakelib/sdl2.rake` builds
+it; `ext/README.md` has the commands, including how to build the static path in
+a checkout.
+
+A platform gem is bounded to one Ruby ABI, so Ruby 4.1 will fall back to the
+source gem rather than load a binary it cannot. The macOS binaries target macOS
+11.0 and the Linux ones glibc 2.29, both chosen as the oldest that runs Ruby 4.0
+on that platform: a platform gem must never rule out a machine Ruby itself runs
+on.
+
+Three things hold this up without anyone remembering them. `tools/platform_gem.rake`
+builds a platform gem and runs `tools/check_platform_gem.rb` on every one it
+builds, which opens the `.gem` archive and checks nine rules — the platform, the
+two binaries and their extensions, that no source or `extconf.rb` is present,
+the Ruby bound, SDL2's licence, the file list against the source gem's, the
+linkage, and that neither binary needs a newer OS than the gem claims. CI's
+`smoke` job then installs the gem on a runner with **no SDL2 and no compiler**
+and plays the examples out of it through `tools/check_installed_gem.rb`, because
+a gem that builds is not yet a gem that runs somewhere else. And the `test` job
+still builds from source against a system SDL2 on all three platforms, so the
+source path stays covered rather than becoming the untested fallback.
 
 **`spec.files` is a glob over whole directories, never a list.** Anything the
 installed gem compiles from or reads at runtime — a new `.c`, a font, any data
