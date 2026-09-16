@@ -14,6 +14,10 @@ index, not the argument.
 
 ### Added
 
+- **`gem install rgame` needs no compiler and no SDL2 on a common desktop.**
+  Apple Silicon Macs, x86-64 Linux and 64-bit Windows get a gem whose two
+  extensions are already built, with SDL2 linked into them. Every other machine,
+  and every Ruby but 4.0, installs the source gem and compiles it as before.
 - **A virtual gamepad for tests.** `RGame::Core::VirtualGamepad.new` plugs a
   synthetic controller into a running `App`, which seats it and reads it like a
   real pad; `set_button`, `set_axis` and `detach` drive it. See

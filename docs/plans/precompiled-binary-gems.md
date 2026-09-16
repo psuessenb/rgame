@@ -1,7 +1,9 @@
 # Precompiled binary gems
 
-**Status: steps 0–4 have landed.** Steps 5–7 are rough and get re-planned before
-they are built. Step 5 is next: nothing is published yet.
+**Status: steps 0–5 have landed.** Step 6 was re-planned on 2026-09-16 and is
+ready to build; step 7 is still rough. Nothing is published yet: step 5 built
+the release job, and running it for real is a decision taken with the
+[release](../../.claude/skills/release/SKILL.md) skill after step 7.
 
 Rewritten 2026-09-15 from the 2026-08-25 sketch. The sketch compared three
 shapes and deferred the choice. This version takes it, records two decisions
@@ -1075,27 +1077,242 @@ What the sketch got wrong:
   drew one `image` per frame on all three — so "it drew" is assertable and "it
   drew 2520 rects" is not.
 
-### Step 5 — The release job publishes every gem *(rough)*
+### Step 5 — The release job publishes every gem
 
-- The job stops building and collects the four artifacts.
-- "Is this version published?" becomes a set difference over
-  `(version, platform)`, so a release that failed halfway picks up the missing
-  gems on the next push.
-- Platform gems push before the source gem. A user on a covered platform should
-  never see the version as source-only.
-- Tag and GitHub release happen once, after the last push.
-- `needs:` gains `smoke`.
-- Worth considering: publish a prerelease first, to see Bundler and RubyGems
-  resolve the platforms for real (open question 1).
-- `CHANGELOG.md` gets its entry here, because this is the step whose release
-  users see.
+**Why here:** step 4 proved the gems work where they land, so publishing is what
+is left. It is also the first step whose mistake reaches users and cannot be
+taken back. RubyGems never releases a version number again.
 
-### Step 6 — Install documentation *(rough)*
+**Re-planned 2026-09-16**, after step 4 landed. The earlier sketch made the job
+a set difference over `(version, platform)` pairs, "so a release that failed
+halfway picks up the missing gems on the next push". Measured against this
+repository, that rule fires on the *next* push and publishes the wrong thing
+(finding F). This version keeps the set difference and adds the guard that makes
+it safe.
 
-- `README.md`'s install section: on the three platforms, Ruby 4.0 and
-  `gem install rgame` are enough. Everywhere else the requirements list stays.
-- The release skill: what the job now publishes, and how to read a partial
-  release.
+| Measured | Result |
+|---|---|
+| `https://rubygems.org/api/v1/versions/rgame.json` | Four entries — 0.1.0, 0.2.0, 0.3.0, 0.3.1 — every one `"platform": "ruby"`. Each carries `number`, `platform`, `prerelease`, `sha` and `metadata` |
+| The same endpoint for nokogiri 1.19.4 | Eleven entries, one per platform, spelled as decision 2 spells them: `x86_64-linux-gnu`, `arm64-darwin`, `x64-mingw-ucrt`, and `ruby` for the source gem |
+| `v0.3.1` against `main` | The tag names `78f462e`; `main` is `cbd0b21`, six commits and 541 changed lines of shipped code later |
+| `concurrency` in `ci.yml` | `cancel-in-progress: true` for every ref, `main` included |
+| Artifacts one push produces today | `gem-linux`, `gem-macos`, `gem-windows`, `gem-source` |
+| `actions/download-artifact` v7 | Takes `pattern` and `merge-multiple`, so one step collects all four into one directory |
+| `spec/tools/` | Four specs over `tools/`. `check_platform_gem_spec.rb` set the pattern: the rules live in a module under `tools/`, and CI calls it |
+
+**Finding F — the set difference alone publishes a lie.** rgame 0.3.1 is on
+RubyGems as a source gem, and its three platform gems are missing. The next push
+to `main` would therefore find three missing pairs and publish them — built from
+`cbd0b21`, six commits and 541 lines of shipped code past the `v0.3.1` tag.
+Users on Linux would then run different code from users on every other platform,
+under one version number. So the job needs a second question beside "what is
+missing": **whose release is this?** The `vX.Y.Z` tag answers it, once the job
+creates the tag *before* the first push rather than after.
+
+**Finding G — `cancel-in-progress` can cancel a release halfway.** Today the
+release job makes one `gem push`, so a cancellation either publishes or does
+not. Four pushes give it a window to land in. A push to `main` while a release
+runs cancels that run, and the concurrency group covers `main` like every other
+ref.
+
+#### 5a. `tools/release_gems.rb` decides what to publish
+
+One module, and one question: given the version, what RubyGems already has, the
+tag, and the gems this run built, what should the job push?
+
+```ruby
+# tools/release_gems.rb
+module ReleaseGems
+  Plan = Data.define(:publish, :reason) # publish: [Gem paths, in push order]
+
+  def plan(version:, published:, tag_sha:, head_sha:, gems:)
+end
+```
+
+- **`gems`** is what the run downloaded, read with `Gem::Package`. Each file
+  names its own version and platform, so nothing spells the platform list a
+  second time (constraint 3).
+- **The expected set is checked, not assumed.** The platforms among `gems` must
+  be exactly `CheckPlatformGem::PLATFORMS` plus `ruby`, and every gem must carry
+  `version`. A `build-gem` leg deleted from the matrix fails the release rather
+  than shrinking it quietly (constraint 8).
+- **Push order is the three platform gems, then the source gem.** RubyGems
+  indexes each push on its own, so a source-only window exists either way. This
+  keeps it to seconds rather than to a whole release.
+- **The tag decides who may finish a partial release**, per finding F:
+
+| RubyGems has | Tag | Outcome |
+|---|---|---|
+| nothing of this version | absent | publish all four |
+| nothing of this version | another commit | publish nothing: the tag was left by a release that published nothing. Delete it or bump the version |
+| some of this version | this commit | publish the missing ones |
+| some of this version | another commit, or absent | publish nothing: that release belongs to another commit. Re-run its run, or bump the version |
+| all four | either | publish nothing |
+
+Refusing is a no-op with a message, not a failure. A version released before
+platform gems existed is missing three of them forever, and every push to `main`
+would otherwise fail on it.
+
+**Tests** — `spec/tools/release_gems_spec.rb`, which runs in `rake spec`:
+
+- a version absent from RubyGems yields four gems, platform gems first;
+- a version whose Linux gem is published, at this commit, yields the other three;
+- the same, at another commit, yields nothing and says why;
+- a tag at another commit with nothing published yields nothing;
+- a fully published version yields nothing;
+- a missing platform among the gem files fails, naming the platform;
+- a gem whose version differs from `version.rb` fails;
+- **against live RubyGems data for 0.3.1**, with `v0.3.1` at `78f462e` and HEAD
+  elsewhere, the plan publishes nothing. The fixture is the real payload,
+  recorded in the spec.
+
+#### 5b. The `release` job publishes what the run built
+
+```yaml
+release:
+  needs: [test, build-gem, source-gem, smoke]
+```
+
+- **It builds nothing.** `actions/download-artifact` with `pattern: gem-*` and
+  `merge-multiple: true` collects the four gems `build-gem` and `source-gem`
+  uploaded. The source gem stops being built twice per push.
+- **`tools/release_gems.rb` replaces the "is this version published?" step**,
+  and writes the push list to `$GITHUB_OUTPUT`. The steps below it keep their
+  `if:`.
+- **The changelog gate stays where it is**, before the first push.
+- **The tag moves in front of the pushes** (finding F). `gh release create`
+  stays at the end, so a run that dies mid-publish leaves a tag and no release —
+  which is what the next run reads to know the release is finishable.
+- **`main` stops cancelling itself** (finding G):
+  `cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}`.
+
+**Rules the job pins:**
+
+1. Every gem it pushes came from this run's artifacts, and was checked by the
+   job that built it.
+2. It pushes nothing for a version another commit released.
+3. It pushes the platform gems before the source gem.
+4. It tags before the first push and releases after the last.
+5. A version already complete on RubyGems produces no push and no failure.
+
+#### 5c. `CHANGELOG.md` names the binaries
+
+The entry users care about, under `Added`, per
+[update-changelog](../../.claude/skills/update-changelog/SKILL.md):
+`gem install rgame` needs no compiler and no SDL2 on Apple Silicon macOS,
+x86-64 Linux and x64 Windows, and every other machine keeps the source gem.
+
+**Verify:** merging this step is itself the test. The push to `main` runs the
+release job against live RubyGems, and it must print that rgame 0.3.1 belongs to
+`78f462e` while HEAD is elsewhere, push nothing, and stay green. `rake spec`
+carries `spec/tools/release_gems_spec.rb`, whose cases cover the branches one
+run cannot reach.
+
+**What this step does not prove:** that RubyGems and Bundler hand the right gem
+to the right machine. Only a published version shows that, and the first release
+is a decision of its own, taken with the
+[release](../../.claude/skills/release/SKILL.md) skill rather than inside this
+plan. Open question 1 waits on it.
+
+**Landed.** `tools/release_gems.rb` decides what a release pushes, and the
+`release` job pushes it. The job builds nothing: it downloads the four gems
+`build-gem` and `source-gem` uploaded, asks the tool which of them RubyGems
+lacks, tags, pushes the platform gems and then the source gem, and creates the
+GitHub release last. `needs:` is `[test, build-gem, source-gem, smoke]`, and
+`main` no longer cancels its own runs.
+
+On the Linux laptop: `make test` 363 checks, 0 failures; `rake spec` 2329
+examples, 0 failures — 14 more than step 4, which is
+`spec/tools/release_gems_spec.rb`; `rake spec:core` 410, 0 failures, unchanged.
+
+**Measured against live RubyGems**, by running the job's own shell with four
+stub gems in a directory:
+
+| Directory | Tool says | `count` |
+|---|---|---|
+| four gems at 0.3.1 | `rgame 0.3.1 is missing 3 of its 4 gems, but v0.3.1 names 78f462e and HEAD is beb1563. That release belongs to another commit — bump the version to release this one.` | 0 |
+| four gems at 0.4.0, no tag | `rgame 0.4.0 is not on RubyGems — pushing arm64-darwin, x86_64-linux-gnu, x64-mingw-ucrt, ruby.` | 4 |
+| the same, minus the Windows gem | `FAIL rule 2: no gem for x64-mingw-ucrt`, exit 1 | — |
+
+The second row is the whole publishing path short of `gem push`, and its list
+ends with the source gem. Finding F is therefore falsified on the repository it
+was found in: the sketch's rule would have published row one.
+
+What the re-planned sketch got wrong:
+
+- **An absent tag is permission only while nothing is published.** The sketch's
+  truth table gave "some published, tag absent" the same answer as "nothing
+  published, tag absent", and the first implementation read the two as one
+  condition. The spec case written from the table failed against it. A partial
+  release no tag claims is the one case with no evidence at all, so it refuses.
+- **A shallow checkout has no tags.** `actions/checkout` fetches none by
+  default, so every `git rev-parse refs/tags/*` in this job has always returned
+  nothing. The existing tag step therefore never took its "already exists"
+  branch, and would have tried to create a tag the remote already had. The
+  release job now checks out with `fetch-depth: 0`.
+- **The GitHub release step has to tolerate a release that exists.** A run
+  finishing an earlier one finds the tag already pushed, and `gh release create`
+  fails on a release it already made. It asks first.
+- **The push list goes to a file, not to `$GITHUB_OUTPUT`.** Interpolating a
+  multi-line list of paths into a later step's shell is a quoting hazard for no
+  gain. Only a count becomes an output, and the paths stay in `push_list.txt`.
+- **`Plan#publish` is `Plan#push`.** `publish` read as a question rather than as
+  the list it holds.
+
+**Not yet proven, and it cannot be from a branch:** the `release` job only runs
+on a push to `main`, so no pull request run exercises it. The proof arrives on
+merge, as a green `release` job printing row one of the table above and pushing
+nothing.
+
+### Step 6 — Install documentation
+
+**Why here:** the gems exist and the job publishes them, so every page that
+tells a reader to install a compiler is now wrong for most readers. Documenting
+it before publishing would have been wrong for all of them.
+
+**Re-planned 2026-09-16.** The earlier sketch was two bullets, and treated the
+README as one section to edit. Reading it shows a structural problem instead:
+`README.md` has one requirements list serving two readers who now need opposite
+answers.
+
+| Measured | Result |
+|---|---|
+| `README.md` claims the gem is source-only | Lines 41 and 99, and the roadmap entry at line 301 |
+| `README.md`'s Requirements section | Lines 97–199: a compiler, pkg-config, SDL2 and Check, then per-platform setup for Debian, macOS and Windows. Check, Xvfb and gdb appear in it, and none of the three matters to someone installing the gem |
+| `docs/api/README.md` | Line 70: "`gem install rgame` compiles both extensions" |
+| `ext/README.md` | Already documents `platform_gem` and `check_installed_gem.rb`, from steps 3 and 4 |
+| Links into the requirements anchor | One, `README.md:41`. `spec/api_docs/index_spec.rb` checks only `docs/api/`, so the root README's headings are free to move |
+
+#### 6a. `README.md` splits installing from building
+
+Two readers, two sections. Someone installing rgame on a covered platform needs
+Ruby 4.0 and one command. Someone building it from source — an unsupported
+platform, or a contributor — needs the list that is there today.
+
+- **Getting started** says `gem install rgame` needs nothing else on the three
+  platforms, and links the source path for everywhere else.
+- **Requirements** becomes what building from source needs, and says who it is
+  for in its first sentence.
+- The **Packaging** section gains the two kinds of gem, and the roadmap entry
+  loses `IN PROGRESS`.
+
+#### 6b. `docs/api/README.md` states what an install does
+
+It ships in the gem, so its reader has already installed rgame. One paragraph:
+on the three platforms nothing compiled, everywhere else both extensions did,
+and a checkout still compiles with `make ext`.
+
+#### 6c. The release skill covers a release of four gems
+
+[release](../../.claude/skills/release/SKILL.md) tells a release to watch one
+`gem push`. It gains what the job publishes, the tag moving in front of the
+pushes, how to read a partial release from the job's own message, and two rows
+in its failure table: a tag left by a release that published nothing, and a
+release that belongs to another commit.
+
+**Verify:** `rake spec` stays green, `spec/api_docs` included, and no page tells
+a reader on a covered platform to install a compiler. `bundle exec rake
+spec:core` covers the reference and coverage specs over `docs/api/`.
 
 ### Step 7 — Fold the plan back and delete it *(rough)*
 
@@ -1115,7 +1332,8 @@ What the sketch got wrong:
 1. **Bundler lockfiles across platforms.** A game's `Gemfile.lock` written on
    Linux lists only Linux under `PLATFORMS`. Recent Bundler adds the running
    platform on `bundle install`, but whether that picks the platform gem or the
-   source gem on a teammate's Mac is untested. *Waits on step 5; blocks
+   source gem on a teammate's Mac is untested. *Waits on the first published
+   version, which step 5 makes possible but does not itself produce; blocks
    nothing.*
 2. **Ruby 4.1** is due in December 2026. The platform gems' upper bound makes a
    4.1 user fall back to the source gem, which works. Adding 4.1 binaries means
