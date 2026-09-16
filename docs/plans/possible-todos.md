@@ -349,6 +349,41 @@ from:
 
 ---
 
+## Precompiled gems beyond three platforms and one Ruby
+
+The precompiled binary gems plan shipped `arm64-darwin`, `x86_64-linux-gnu` and
+`x64-mingw-ucrt` for Ruby 4.0, and left five questions open that it did not need
+to answer. Every other machine and every other Ruby installs the source gem and
+compiles, which works, so none of these blocks anything.
+
+- **Bundler lockfiles across platforms.** A game's `Gemfile.lock` written on
+  Linux lists only Linux under `PLATFORMS`. Recent Bundler adds the running
+  platform on `bundle install`, but whether that picks the platform gem or the
+  source gem on a teammate's Mac has never been tried. **Trigger:** the first
+  published version with platform gems — it can be checked the day one exists,
+  and until then there is nothing to check against.
+- **Ruby 4.1**, due December 2026. A platform gem is bounded to one ABI, so a
+  4.1 user falls back to the source gem and compiles. Covering 4.1 means either
+  one gem per ABI or one gem holding a directory per ABI with a loader that
+  picks. **Trigger:** Ruby 4.1 existing, plus someone who wants binaries on it.
+- **More platforms.** Intel Macs, ARM Linux, musl Linux and Windows on ARM each
+  add a `build-gem` leg and a `smoke` leg. The machinery takes a new platform by
+  adding it to `CheckPlatformGem::PLATFORMS` and the CI matrix; nothing else
+  knows the list. **Trigger:** someone asking for one.
+- **Whether the source gem should use the pinned SDL2 too.** It would make every
+  install run the same SDL version, but it would need CMake and a network fetch
+  during `gem install`, which is a lot to ask of the path taken when everything
+  else failed. The recommendation is no. **Trigger:** a source install that
+  breaks on a system SDL2 old or odd enough to be worth the cost.
+- **Native Wayland decorations.** The Linux build image cannot build SDL with
+  libdecor, so under `SDL_VIDEODRIVER=wayland` on GNOME — which draws no
+  server-side decorations — a window has no title bar. SDL2 picks X11 through
+  XWayland by default, so nothing hits this without asking for it. Building
+  libdecor from source in the image is possible. **Trigger:** someone wanting
+  native Wayland.
+
+---
+
 ## CI runs the whole matrix twice for every step
 
 **What.** Stop a merge to `main` re-running what the pull request just ran.
