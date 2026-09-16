@@ -969,6 +969,13 @@ A script holds **one timeline per device**, so a two-player run is written as tw
 `--gamepad` swaps the scripted backend for a synthetic SDL controller, which
 exercises the real device path instead of standing in front of it.
 
+Every run names the `core_ext` and `util_ext` it loaded, at the top of its
+report. Ordinarily those are the checkout's, because the harness puts `lib/`
+first on the load path. **`--installed` leaves the load path alone**, so `rgame`
+resolves to whatever is installed — which is how CI's `smoke` job plays the
+examples out of a platform gem on a runner that did not build it. Reading that
+first section is what tells the two runs apart; the draw counts do not.
+
 Two things it had to be, both learned the hard way: it **counts rather than
 eyeballs**, and it **lives in the repo** — the harness this replaces did not, so
 it was a caller no project-wide rename could reach, and it broke after every

@@ -337,6 +337,125 @@ jobs:
           path: rgame-*.gem
           if-no-files-found: error
 
+  # Does a platform gem work on a machine that did not build it?
+  #
+  # build-gem checks what is *in* the gem. This installs it on a fresh runner
+  # with no SDL2, no bundle and none of the build tools the toolchain action
+  # normally puts down, and then plays two of the examples the gem itself
+  # ships. Between them they cover what a user's first hour touches: the two
+  # binaries, the shipped font, an image loaded through the asset manager, and
+  # the `rgame` command.
+  #
+  # The runner still gets a display and an OpenGL implementation — Xvfb and Mesa
+  # on Linux, Mesa beside ruby.exe on Windows. Every desktop has both; a runner
+  # does not, and that is a property of CI rather than of the gem.
+  #
+  # What it cannot prove is the glibc floor, since the runner's glibc is newer
+  # than the image's. tools/check_platform_gem.rb's rule 9 is what holds that.
+  smoke:
+    name: smoke ${{ matrix.name }}
+    needs: build-gem
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-latest
+          - name: macos
+            os: macos-latest
+          - name: windows
+            os: windows-latest
+
+    steps:
+      # The harness, the input scripts and the checker are repository files, not
+      # gem files. Only `rgame` itself comes from the artifact.
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Toolchain
+        uses: ./.github/actions/toolchain
+        with:
+          system-sdl2: 'false'
+          build-tools: 'false'
+
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: gem-${{ matrix.name }}
+          path: pkg
+
+      # The gem claims to need no SDL2. A runner that had one anyway would let a
+      # gem that still depended on it pass, so the claim is only worth as much
+      # as this step.
+      - name: Refuse a runner that has an SDL2
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=''
+          case "${{ runner.os }}" in
+            Linux)
+              found=$(ldconfig -p | grep -i sdl || true) ;;
+            macOS)
+              found=$(brew list --formula | grep -iE '^sdl' || true)
+              found="$found$(find /opt/homebrew/lib /usr/local/lib /usr/lib -maxdepth 1 -iname 'libSDL*' 2>/dev/null || true)" ;;
+            Windows)
+              # The directories Windows' loader searches for a DLL an extension
+              # imports: the calling executable's own, System32, and the MSYS2
+              # environments RubyInstaller adds.
+              ruby_bin=$(dirname "$(command -v ruby)")
+              found=$(find "$ruby_bin" /c/Windows/System32 /c/msys64/ucrt64/bin /c/msys64/mingw64/bin \
+                        -maxdepth 1 -iname 'SDL*.dll' 2>/dev/null || true) ;;
+          esac
+          if [ -n "$found" ]; then
+            echo "This runner has an SDL2, so the smoke test would prove nothing:" >&2
+            echo "$found" >&2
+            exit 1
+          fi
+          echo "No SDL2 on this runner."
+
+      - name: Install the platform gem
+        shell: bash
+        run: gem install --local pkg/rgame-*.gem
+
+      - name: Check what the install left
+        shell: bash
+        run: ruby tools/check_installed_gem.rb
+
+      # Two examples, for two different halves of what ships. `collision` is
+      # engine code drawing shapes and text, so it exercises both binaries and
+      # the font under lib/rgame/fonts/. `sprite` loads a PNG through the asset
+      # manager, so it exercises the image decoder and the data files under
+      # examples/assets/ — which resolve against the *installed* directory, a
+      # path nothing in a checkout ever takes.
+      #
+      # The script comes from the checkout, since the harness's default lookup
+      # only knows projects inside it. `--installed` is what makes this a test
+      # of the gem rather than of the checkout beside it, and the report's first
+      # section says which it was.
+      - name: Drive the installed gem's examples
+        shell: bash
+        run: |
+          set -euo pipefail
+          gem_dir=$(ruby -e 'require "rubygems"; print Gem::Specification.find_by_name("rgame").gem_dir')
+          echo "driving examples from $gem_dir"
+          for example in collision sprite; do
+            ruby tools/drive_test_project.rb --installed \
+              --script "tools/drive/examples/$example.rb" \
+              "$gem_dir/examples/$example/main.rb" --ticks 120 | tee "$example.txt"
+            grep -qF "$gem_dir" "$example.txt" || {
+              echo "$example did not load rgame from $gem_dir" >&2
+              exit 1
+            }
+          done
+
+      - name: Generate a project with the installed rgame
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          rgame new smoketest
+          test -f smoketest/game.rb
+
   # Publish to RubyGems when lib/rgame/version.rb names a version that is not
   # on RubyGems yet.
   #

@@ -1,7 +1,7 @@
 # Precompiled binary gems
 
-**Status: steps 0–3 have landed.** Step 4 is detailed. Steps 5–7 are rough and
-get re-planned once step 4 has landed.
+**Status: steps 0–4 have landed.** Steps 5–7 are rough and get re-planned before
+they are built. Step 5 is next: nothing is published yet.
 
 Rewritten 2026-09-15 from the 2026-08-25 sketch. The sketch compared three
 shapes and deferred the choice. This version takes it, records two decisions
@@ -993,6 +993,87 @@ that is a property of CI, not of the gem.
 **Verify:** `smoke` is green on all three platforms, and a deliberately broken
 gem fails it — for example, one built with step 2b's static branch removed,
 installed on the Linux runner with no SDL2.
+
+**Landed.** `smoke` installs the gem `build-gem` uploaded on a fresh runner with
+no SDL2, no bundle and none of the build tools, runs
+`tools/check_installed_gem.rb` on the installation, and drives two of the
+examples the gem itself ships. The drive harness gained `--installed`, which
+leaves the load path alone, and every report now names the `core_ext` and
+`util_ext` it loaded. CLAUDE.md and `ext/README.md` document both.
+
+Measured in the pull request's CI, which was green on all ten jobs at the first
+attempt. Each leg installed the gem its own `build-gem` had uploaded:
+
+| | `smoke` | Installed as | `collision` | `sprite` |
+|---|---|---|---|---|
+| Linux | 30 s | `rgame-0.3.1-x86_64-linux-gnu` | 120 ticks, 115 frames | 120 ticks, 119 frames |
+| macOS | 23 s | `rgame-0.3.1-arm64-darwin` | 120 ticks, 104 frames | 120 ticks, 114 frames |
+| Windows | 62 s | `rgame-0.3.1-x64-mingw-ucrt` | 120 ticks, 116 frames | 120 ticks, 116 frames |
+
+Every leg reported "No SDL2 on this runner", installed with nothing compiled,
+passed all five of `check_installed_gem.rb`'s rules, loaded both binaries out of
+the installed directory, and generated a project with `rgame new`. `sprite`
+issued one `image` call per frame, so the PNG under `examples/assets/` resolved
+against the installed gem.
+
+On the Linux laptop: `make test` 363 checks, 0 failures; `rake spec` 2315
+examples, 0 failures; `rake spec:core` 410, 0 failures — all three unchanged
+from step 3.
+
+**The acceptance criterion's second half was falsified locally**, without the CI
+run the sketch expected it to need. `bwrap` masks `libSDL2-2.0.so.0` over a
+bind mount in an unprivileged user namespace, which hides it from the loader
+with no root. Against a gem built from `make ext`, whose `core_ext` still names
+`libSDL2-2.0.so.0`, the driven example dies at `require` with
+``libSDL2-2.0.so.0: file too short`` and the run exits 1. Against one built from
+`make ext SDL2_STATIC=build/sdl2` the identical command runs 120 frames, with
+the same draw counts as a run from the checkout. Two smaller falsifications:
+`check_installed_gem.rb` fails the *installed source gem* on rules 1, 2 and 3,
+and the same drive command without `--installed` reports the checkout's
+binaries, which is the assertion the job would then fail on.
+
+What the sketch got wrong:
+
+- **An example puts the load path right itself.** All 24 files under
+  `examples/*/main.rb` start by unshifting their own `../../lib`, which inside
+  an installed gem is that gem's `lib`. So `--installed` matters for the
+  harness's own `require "rgame/game"`, which runs first; the example then
+  confirms the same answer. It also means these examples cannot be made to run
+  against a different rgame than the one they sit in.
+- **The harness has no default script for an installed example.**
+  `default_script_for` refuses a project outside the checkout, by design —
+  mirroring the path is what stops two trees of projects sharing a script. The
+  gem's examples are outside it, so the job passes `--script` explicitly.
+- **The smoke job does run the toolchain action.** The sketch had it skip the
+  action entirely, but the runner still needs Ruby, a display and an OpenGL
+  implementation, and on Windows Mesa beside `ruby.exe`. The action grew a
+  `build-tools` input instead: with it false it installs none of the compilers,
+  pkg-config, Check, the OpenGL headers, the bundle or the UCRT64 `PATH` entry —
+  everything that could prop the result up — and keeps what running needs. A
+  runner always has *a* compiler, so "no compiler step" is what the checker
+  asserts about the install rather than something the machine can be made to
+  lack.
+- **`gem_make.out` is not under the installed gem.** RubyGems writes it to
+  `extensions/<platform>/<api>/<full_name>/`, a sibling of the gem directory, so
+  the check reads `Gem::Specification#extension_dir` rather than globbing the
+  gem.
+- **The assertions became a file, and there are two examples, not one.**
+  `tools/check_installed_gem.rb` is one implementation for three platforms and
+  can be run by hand, which a block of shell in the workflow is not. `sprite`
+  joins `collision` because `collision` reads no data file, and an asset path
+  that resolves against an installed directory is a failure mode no run from a
+  checkout takes. Sub-step 4b is therefore two commits.
+- **A run that draws nothing now fails.** Rule 3 asked the job to read a draw
+  count out of the report. The harness exits non-zero on a run that reached no
+  frame instead, so every caller gets it rather than the one that remembered to
+  grep.
+- **A draw count is not comparable across these runs, and rule 3 was right not
+  to ask for one.** 120 ticks gave 115, 104 and 116 frames on the three runners,
+  against 120 under this laptop's Xvfb. `needs_redraw?` and the catch-up loop
+  drop draws when a frame runs long, which a real window on a runner with
+  software OpenGL does. The counts within one run stay proportional — `sprite`
+  drew one `image` per frame on all three — so "it drew" is assertable and "it
+  drew 2520 rects" is not.
 
 ### Step 5 — The release job publishes every gem *(rough)*
 

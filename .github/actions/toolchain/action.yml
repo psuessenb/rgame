@@ -6,6 +6,11 @@
 # half is a sequence where the order is load-bearing, and a second copy would
 # drift from the first. Call it after actions/checkout, which is what makes a
 # local action readable at all.
+#
+# What is left after `build-tools: 'false'` is what *running* a game needs: a
+# display and an OpenGL implementation, and nothing else. That is the shape the
+# smoke job wants, and keeping it an input rather than a second action is what
+# stops the two drifting.
 name: rgame toolchain
 description: System packages, Ruby and OpenGL for building and testing rgame
 
@@ -16,6 +21,12 @@ inputs:
   cmake:
     description: Install CMake, and Ninja on Windows, which `rake sdl2` needs.
     default: 'false'
+  build-tools:
+    description: >
+      Install what compiling rgame needs — the C toolchain, pkg-config, Check,
+      the OpenGL headers and the bundle. A job that only runs an already-built
+      gem leaves it out, so what it proves does not rest on the build machine.
+    default: 'true'
 
 runs:
   using: composite
@@ -32,6 +43,11 @@ runs:
     # libxtst6 is the XTEST runtime that spec_core/support/x_keys.rb dlopens
     # for synthetic keystrokes. It is a plain runtime library, not a -dev
     # package, because Fiddle opens it by soname rather than linking it.
+    #
+    # libgl1 is listed beside the driver package rather than left to
+    # libgl1-mesa-dev to pull in, because without the build tools nothing else
+    # asks for it — and a compiled extension needs libGL.so.1 at load time
+    # whether or not anything on the machine could compile one.
     - name: Install system dependencies (Linux)
       if: runner.os == 'Linux'
       shell: bash
@@ -40,10 +56,9 @@ runs:
         sudo apt-get install -y --no-install-recommends \
           ${{ inputs.system-sdl2 == 'true' && 'libsdl2-dev' || '' }} \
           ${{ inputs.cmake == 'true' && 'cmake' || '' }} \
-          libgl1-mesa-dev libgl1-mesa-dri \
-          check pkg-config \
-          xvfb x11-utils libxtst6 \
-          gdb
+          ${{ inputs.build-tools == 'true' && 'libgl1-mesa-dev check pkg-config gdb' || '' }} \
+          libgl1 libgl1-mesa-dri \
+          xvfb x11-utils libxtst6
 
     # `brew install sdl2` installs the **sdl2-compat** formula — SDL2's API
     # reimplemented on top of SDL3 — so on macOS the code behind an SDL2 call
@@ -56,12 +71,17 @@ runs:
     # records what was actually installed, which is the first thing worth
     # knowing when a graphics or input failure appears on one run and not
     # another.
+    #
+    # A run-only job installs nothing at all here: macOS ships its own window
+    # server and OpenGL, so the step is skipped rather than run with an empty
+    # package list, which `brew install` would refuse.
     - name: Install system dependencies (macOS)
-      if: runner.os == 'macOS'
+      if: runner.os == 'macOS' && (inputs.build-tools == 'true' || inputs.system-sdl2 == 'true' || inputs.cmake == 'true')
       shell: bash
       run: |
         brew update
-        brew install check pkg-config \
+        brew install \
+          ${{ inputs.build-tools == 'true' && 'check pkg-config' || '' }} \
           ${{ inputs.system-sdl2 == 'true' && 'sdl2' || '' }} \
           ${{ inputs.cmake == 'true' && 'cmake' || '' }}
         brew list --versions sdl2-compat sdl3 check cmake || true
@@ -75,10 +95,12 @@ runs:
       shell: bash
       run: echo "version=$(sed -E 's/^ruby[ -]//' .ruby-version | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
 
+    # The bundle holds development gems only, so a job that runs an installed
+    # gem rather than building one has nothing in it to install.
     - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
       with:
         ruby-version: ${{ steps.ruby.outputs.version }}
-        bundler-cache: true
+        bundler-cache: ${{ inputs.build-tools == 'true' }}
 
     # RubyInstaller ships MSYS2; `ridk exec` runs a command inside its mingw
     # environment, where pacman and the native toolchain live.
@@ -94,7 +116,7 @@ runs:
     # assumption that does not hold by default here. `--needed` makes an
     # already-installed package a no-op, so listing them costs nothing.
     - name: Install system dependencies (Windows)
-      if: runner.os == 'Windows'
+      if: runner.os == 'Windows' && inputs.build-tools == 'true'
       shell: pwsh
       run: |
         $packages = @(
@@ -126,8 +148,13 @@ runs:
     # `cygpath -w` converts the MSYS path to the Windows form GITHUB_PATH
     # wants. The Makefile's `CC` needs no setting here: it forces `gcc`
     # itself, for the same reason this step exists.
+    #
+    # A run-only job skips this with the packages above. A built extension
+    # imports nothing from ucrt64 — step 0 measured its imports as Windows' own
+    # DLLs and the Ruby DLL — so putting that toolchain on PATH to run one would
+    # only hide a dependency on it.
     - name: Put the UCRT64 toolchain first on PATH (Windows)
-      if: runner.os == 'Windows'
+      if: runner.os == 'Windows' && inputs.build-tools == 'true'
       shell: pwsh
       run: |
         $bin = (ridk exec cygpath -w /ucrt64/bin | Select-Object -Last 1).Trim()

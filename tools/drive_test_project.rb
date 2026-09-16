@@ -191,7 +191,7 @@ module DriveTestProject
   class Report
     Call = Struct.new(:calls, :first_args, :last_args, :ranges)
 
-    attr_accessor :ticks, :frames
+    attr_accessor :ticks, :frames, :loaded_from
     attr_reader :draws, :clips, :translates, :sounds, :scenes, :bands, :texts, :missing_keys
 
     # `texts:` adds a section listing every distinct String drawn with `text`,
@@ -263,6 +263,7 @@ module DriveTestProject
 
     def to_s
       out = +"\n"
+      out << section('rgame loaded from', Array(@loaded_from))
       out << section('ticks / frames', ["#{@ticks} ticks, #{@frames} frames"])
       out << section('scenes', @scenes)
       out << section('draw calls', @draws.sort_by { |_, c| -c.calls }.map { |name, c| draw_line(name, c) })
@@ -509,13 +510,24 @@ module DriveTestProject
   end
 
   class << self
-    def run(project:, script_path:, ticks:, gamepad: false, texts: false, out: $stdout)
+    # Drives one project and returns what it did.
+    #
+    # `installed:` leaves the load path alone, so `rgame` resolves to whatever
+    # RubyGems has installed rather than to this checkout. That is what lets the
+    # same harness prove a built gem works on a machine that did not build it —
+    # and because the difference is invisible in a report full of draw counts,
+    # every run says which `core_ext` and `util_ext` it loaded and from where.
+    # An example under `examples/` puts its own directory's `lib` on the path
+    # too, so driving the copy inside an installed gem loads that gem either way.
+    def run(project:, script_path:, ticks:, gamepad: false, texts: false, installed: false, out: $stdout)
       HeadlessDisplay.start
-      $LOAD_PATH.unshift(File.join(ROOT, 'lib')) unless $LOAD_PATH.include?(File.join(ROOT, 'lib'))
+      checkout_lib = File.join(ROOT, 'lib')
+      $LOAD_PATH.unshift(checkout_lib) unless installed || $LOAD_PATH.include?(checkout_lib)
       require 'rgame/game'
 
       script = Script.load(script_path)
       report = Report.new(texts: texts)
+      report.loaded_from = loaded_binaries
       if gamepad
         require_relative '../spec_core/support/virtual_gamepad'
         install(report, nil, ticks, pad: ScriptedGamepad.new(script))
@@ -534,7 +546,14 @@ module DriveTestProject
     # about its text, so it only gets the report section.
     def missing_translations?(report) = !report.missing_keys.empty? && !RGame::Engine::I18n.available.empty?
 
+    # Whether the run never drew. A project that reached no frame did not run at
+    # all, whatever the rest of the report says, so it fails rather than
+    # reporting a page of zeroes somebody has to notice.
+    def drew_nothing?(report) = report.frames.zero?
+
     private
+
+    def loaded_binaries = $LOADED_FEATURES.grep(%r{rgame/(?:core|util)_ext\.})
 
     def report_missing_keys(report)
       RGame::Engine::I18n.missing = ->(key, _chain) { report.record_missing(key) || key }
@@ -602,7 +621,7 @@ module DriveTestProject
 end
 
 if $PROGRAM_NAME == __FILE__
-  options = { ticks: 240, script: nil, gamepad: false, seed: nil, texts: false }
+  options = { ticks: 240, script: nil, gamepad: false, seed: nil, texts: false, installed: false }
   parser = OptionParser.new do |o|
     o.banner = 'Usage: ruby tools/drive_test_project.rb PROJECT_MAIN [options]'
     o.on('--ticks N', Integer, 'Stop after N simulation ticks (default 240)') { options[:ticks] = it }
@@ -610,6 +629,7 @@ if $PROGRAM_NAME == __FILE__
     o.on('--gamepad', 'Drive a synthetic SDL controller instead of the input backend') { options[:gamepad] = true }
     o.on('--seed N', Integer, 'Seed the project RNG, so two runs can be compared') { options[:seed] = it }
     o.on('--texts', 'List every distinct string drawn with text, with its count') { options[:texts] = true }
+    o.on('--installed', 'Load rgame as installed, instead of from this checkout') { options[:installed] = true }
   end
   parser.parse!
 
@@ -624,6 +644,8 @@ if $PROGRAM_NAME == __FILE__
 
   report = DriveTestProject.run(project: project, script_path: script_path,
                                 ticks: options[:ticks], gamepad: options.fetch(:gamepad, false),
-                                texts: options[:texts])
+                                texts: options[:texts], installed: options[:installed])
+
+  abort "#{project} drew nothing in #{options[:ticks]} ticks." if DriveTestProject.drew_nothing?(report)
   exit 1 if DriveTestProject.missing_translations?(report)
 end
