@@ -12,6 +12,8 @@ index, not the argument.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-16
+
 ### Added
 
 - **`gem install rgame` needs no compiler and no SDL2 on a common desktop.**
@@ -241,7 +243,8 @@ First release, and the first version that runs a game end to end.
 - **`RGame::Game`** — the entry point that wires the two halves together.
 - Examples: `14_asteroids`, `15_tiled_world`, `16_hello_world`.
 
-[Unreleased]: https://github.com/psuessenb/rgame/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/psuessenb/rgame/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/psuessenb/rgame/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/psuessenb/rgame/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/psuessenb/rgame/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/psuessenb/rgame/compare/v0.1.0...v0.2.0
