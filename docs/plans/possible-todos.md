@@ -346,3 +346,53 @@ from:
   only up to one tile, so `go_to` raises. Needs a search over cells the box fits
   (clearance per cell) and a smoothing that tests every step. **Trigger:** a large
   creature that must path.
+
+---
+
+## CI runs the whole matrix twice for every step
+
+**What.** Stop a merge to `main` re-running what the pull request just ran.
+
+**What exists instead.** `.github/workflows/ci.yml` triggers on `pull_request`
+and on a push to `main`, and every roadmap step is a branch, a pull request and
+then a merge — so the same commit is verified twice. Measured on the step 5
+merge: the squash of #60 produced tree `580b4e8`, byte-identical to the branch
+head the pull request run had already checked, so all ten non-`release` jobs
+re-verified an identical tree. That identity holds only while a branch is
+current; when `main` has moved underneath one, the merge produces a tree nothing
+has tested, which is the case the second run would genuinely be for.
+
+`release` is the only job on `main` whose output is new, and it declines on
+nearly every push — four published versions across twenty `main` runs.
+
+**Why not now.** It costs nothing measurable. The repository is public and the
+runners are standard, so every job reports a `billable.duration_ms` of `0`. The
+six-minute critical path — `build-gem windows` at 5m, then `smoke windows` at 1m
+— is waited on only for the pull request, because the `main` run happens after
+the merge when nobody is watching it. Trimming `main` would save neither money
+nor attention, and would amend release machinery that has only just landed.
+
+**What it would take.** Four shapes were weighed:
+
+- **Release on a tag.** `on: push: tags: ['v*']` runs the full matrix and
+  publishes; a merge to `main` runs nothing. It fits how releasing actually
+  happens here — a deliberate act, not a side effect of merging — and it would
+  let the job stop manufacturing the tag it now creates just before the first
+  `gem push`, since the tag would be the trigger and `tools/release_gems.rb`
+  would verify HEAD against it rather than supply the evidence itself. The cost
+  is that a merge which breaks `main` waits for the next pull request or the
+  next release to surface it, which is safe only while branches are current and
+  one step is in flight at a time — precisely what
+  [implement-step](../../.claude/skills/implement-step/SKILL.md) stops
+  guaranteeing when step N+1 branches off step N's branch.
+- **Trim the pull request run** to Linux and keep all three platforms on `main`.
+  The only shape that shortens the wait, and it gives up the one thing no local
+  run provides: macOS and Windows before the merge rather than after it.
+- **Gate `main` on a version bump**, skipping the matrix unless
+  `lib/rgame/version.rb` changed in that push. That is `release_gems.rb`'s own
+  question asked in seconds, ahead of six minutes of building rather than after.
+- **Leave it**, which is what was chosen.
+
+**Trigger.** The pull request wait growing long enough to be felt, or these runs
+starting to be billed — which is what making the repository private would do,
+since the free minutes are a property of it being public.

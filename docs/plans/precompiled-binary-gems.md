@@ -1259,10 +1259,23 @@ What the re-planned sketch got wrong:
 - **`Plan#publish` is `Plan#push`.** `publish` read as a question rather than as
   the list it holds.
 
-**Not yet proven, and it cannot be from a branch:** the `release` job only runs
-on a push to `main`, so no pull request run exercises it. The proof arrives on
-merge, as a green `release` job printing row one of the table above and pushing
-nothing.
+**Proven on merge.** No pull request run can exercise the `release` job, because
+it only runs on a push to `main`. The proof is run 35069066263, the push of
+`66177e6`: the job finished green and published nothing. It printed row one of
+the table above, with `66177e6` as HEAD, and five steps then skipped on
+`count=0` — the release notes, the credentials, the tag, the pushes and the
+GitHub release. RubyGems still holds `0.1.0`, `0.2.0`, `0.3.0` and `0.3.1`, all
+`ruby`; the tags still stop at `v0.3.1`; the release list is unchanged.
+
+Three things that no branch run could show came with it. The four artifacts
+arrived in one directory as four distinct platforms at one version, so rules 1
+and 2 passed against real `build-gem` and `source-gem` output rather than stubs
+— which is `needs:`, `pattern: gem-*` and `merge-multiple` working, none of
+them previously executed. `v0.3.1 names 78f462e` printed a real SHA, so the tag
+was in the checkout and `fetch-depth: 0` fixed what it was added for. And the
+run is finding F falsified where it was found: this exact push is the one the
+sketch's set-difference rule would have turned into three platform gems
+published under 0.3.1, built from code that version never contained.
 
 ### Step 6 — Install documentation
 
