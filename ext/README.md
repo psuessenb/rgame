@@ -162,6 +162,17 @@ make ext SDL2_STATIC=build/sdl2    # extconf.rb --with-sdl2-static=<prefix>
 This needs CMake, and Ninja on Windows. Switching between the two rebuilds the
 whole extension.
 
+A platform gem ships both extensions precompiled, with that SDL2 linked in. It
+builds from a checkout with no `make ext` objects in `ext/`:
+
+```
+make ext-clean
+rake -f tools/platform_gem.rake platform_gem   # pkg/rgame-<version>-<platform>.gem
+```
+
+On Linux it runs inside the rake-compiler-dock image, as CI does, so that the
+binaries load on older glibc versions.
+
 ## Ruby API
 
 ```ruby
