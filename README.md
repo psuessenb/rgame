@@ -38,7 +38,13 @@ ruby main.rb          # the game itself
 
 What it writes is small — a game class, a root node, a spec and the usual configuration — but it is laid out the way the engine wants to be used: one file loads SDL, everything else stays graphics-free and therefore testable with no display. [The `rgame` command](docs/api/cli.md) explains the layout and why it matters.
 
-`gem install` compiles two C extensions, so the [requirements](#requirements) below have to be in place first. That's the one big hurdle at the moment: This gem ships source-only, so you have to compile a lot of C _on your machine_ to get this running.
+**On a common desktop that first line needs nothing else** — no compiler, no SDL2, no header files. `gem install rgame` fetches a gem whose two C extensions are already built, with SDL2 linked into them:
+
+- macOS 11 or later on Apple Silicon
+- x86-64 Linux with glibc 2.29 or later
+- 64-bit Windows, on a RubyInstaller Ruby
+
+All three need Ruby 4.0. Anywhere else — an Intel Mac, a Raspberry Pi, Ruby 4.1 — `gem install` falls back to the gem that ships the C and compiles it on your machine. That one needs [a compiler and SDL2](#building-from-source).
 
 ## Hello world
 
@@ -94,9 +100,11 @@ You can learn more about how it works in the [documentation](docs/api/README.md)
 | [localization](docs/api/examples.md#localization) | The same screen in two languages, switched and remembered |
 | [pathfinding](docs/api/examples.md#pathfinding) | Setting a target for an actor and let if find its way there |
 
-## Requirements
+## Building from source
 
-At the moment this gem ships only source-code and no precompiled binaries, which unfortunately means you need to compile a bunch of C code on your locale machine. This _also_ means you need to install some system libaries and have header files present.
+**This section is for two readers: anyone on a platform the binary gems miss, and anyone working on rgame itself.** Installing on one of the three platforms above needs none of it.
+
+Compiling the C engine needs a compiler and the system libraries it links against. A source install of the gem needs the compiler, `pkg-config`, SDL2 and OpenGL from the list below. The rest is for running rgame's own suites.
 
 ### C engine
 
@@ -259,23 +267,35 @@ ruby ext/rgame_core/example.rb
 Both extensions and the Ruby layer ship as one gem, built from `rgame.gemspec` and published at [rubygems.org/gems/rgame](https://rubygems.org/gems/rgame):
 
 ```
-gem install rgame               # from RubyGems; compiles both extensions here
+gem install rgame               # from RubyGems; compiles nothing on a covered platform
 ```
 
-Or from a checkout, which is the same gem built locally:
+Or from a checkout, which builds the source gem locally:
 
 ```
 rake build                      # package into pkg/rgame-<version>.gem
 gem install pkg/rgame-*.gem     # compiles both extensions on this machine
 ```
 
-`gem install` runs each `extconf.rb` and installs the resulting `.so` into the
-gem's own `lib/rgame/`, which is the same layout `make ext` produces in a
-checkout — so `require "rgame"` and `require "rgame/core"` behave identically
-either way, including the guarantee that the first of those loads no graphics
-libraries. The system dependencies are the same ones the C engine needs
-(SDL2, OpenGL, pkg-config, a compiler); `extconf.rb` aborts with the package to
-install if one is missing, rather than failing later at the link step.
+**RubyGems holds two kinds of gem for each version.** The source gem carries the
+C and compiles on install. Three platform gems carry `core_ext` and `util_ext`
+already built, with SDL2 linked statically into `core_ext`; they ship no `.c`,
+no `extconf.rb` and declare no extensions, so they compile nothing. `gem
+install` picks by platform and Ruby version on its own.
+
+CI builds and publishes all four. `tools/platform_gem.rake` builds a platform
+gem, `tools/check_platform_gem.rb` checks it against nine rules before it may be
+published, and the `smoke` job installs it on a runner with no SDL2 and plays
+the examples out of it.
+
+Installing the source gem runs each `extconf.rb` and installs the resulting
+`.so` into the gem's own `lib/rgame/`, which is the same layout `make ext`
+produces in a checkout — so `require "rgame"` and `require "rgame/core"` behave
+identically whichever gem you got, including the guarantee that the first of
+those loads no graphics libraries. Its system dependencies are the ones the C
+engine needs (SDL2, OpenGL, pkg-config, a compiler); `extconf.rb` aborts with
+the package to install if one is missing, rather than failing later at the link
+step.
 
 What ships is a glob over `lib/`, `ext/` and `docs/api/`, not a hand-written
 list: a new C source or a runtime asset dropped into either tree is packaged
@@ -298,7 +318,7 @@ A file-by-file map of the whole repository is in
 
 There is no real roadmap for this project, but I usually have some ideas what I want to include in the next release. For the next version, this is:
 
-- ship the gem with precompiled binary gems - IN PROGRESS
+- ship the gem with precompiled binary gems - DONE
 
 ## AI clause
 
