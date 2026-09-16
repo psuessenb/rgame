@@ -173,6 +173,15 @@ rake -f tools/platform_gem.rake platform_gem   # pkg/rgame-<version>-<platform>.
 On Linux it runs inside the rake-compiler-dock image, as CI does, so that the
 binaries load on older glibc versions.
 
+What the gem does once installed is a different question, and the answer only
+counts on a machine that did not build it — no SDL2, no compiler, no checkout on
+the load path:
+
+```
+gem install --local pkg/rgame-<version>-<platform>.gem
+ruby tools/check_installed_gem.rb    # nothing compiled, and require finds the gem
+```
+
 ## Ruby API
 
 ```ruby
