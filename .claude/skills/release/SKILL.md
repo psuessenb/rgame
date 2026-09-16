@@ -87,6 +87,12 @@ merge**. The release commit may go through a pull request (see
 [create-pull-request](../create-pull-request/SKILL.md)) or straight onto main.
 CI publishes nothing from a branch.
 
+A branch run still builds all four gems and plays two examples out of each
+platform gem on a runner with no SDL2 and no compiler. So **read `build-gem` and
+`smoke` before merging**: a binary that needs a library the user does not have,
+or an OS newer than the gem claims, fails there. Only the `release` job itself
+waits for main.
+
 ## 5. Check the release
 
 Watch the run on main:
