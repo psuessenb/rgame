@@ -2,9 +2,7 @@
 
 RGame is a small 2D game engine for Ruby, written in Ruby and C. It's build on top of SDL2, OpenGL and miniaudio. It's built with testability and performance in mind, and aims to be an engine where you can write your whole game code in Ruby, test it as usual with RSpec (or Minitest, or another test framework) and still have acceptable performance.
 
-While still a work in progress, RGame aims to be more than a SDL/OpenGL
-binding - it ships with high level features like a scene graph, sprites,
-collision systems, debugging tools and an UI toolkit. You can check out the examples to get a feel for its capabilities.
+While still a work in progress, RGame aims to be more than a SDL/OpenGL binding - it ships with high level features like a scene graph, sprites, collision systems, debugging tools and an UI toolkit. At the moment it's geared towards top-down 2D games with non-pixel-art graphics style. You can check out the examples to get a feel for its capabilities.
 
 ## Why does this exist and should you use it?
 
@@ -12,13 +10,13 @@ RGame is the product of both my lazyness and me looking for something that did n
 
 RGame puts a lot of emphazis on testing and being testable: It separates the layers that talk to SDL2/OpenGL from the high level engine concepts, so the whole game logic is testable headless.
 
-It also tries to marry the beauty of Ruby with the hard performance requirements of games: Hot paths have no per-frame allocation, because garbadge collection is what really slows down Ruby interpreation, and math-heavy use-cases are backed by C code instead of Ruby classes.
+It also tries to marry the beauty of Ruby with the hard performance requirements of games: Math-heavy use-cases are backed by C code instead of Ruby classes, and the engine codes allocates nothing on a per-frame basis to trigger as little garbadge collection runs as possible.
 
-Should you use it, though? If you're looking for something mature, free, and more battle-tested take a look at Godot instead. If you're looking for something mature and battle-tested _in Ruby land_, take a look at dragonruby instead (it's not free, but it's probably worth the price).
+Should you _use_ it, though? If you're looking for something mature, free, and more battle-tested: Take a look at [Godot](https://godotengine.org/) instead. If you're looking for something mature and battle-tested _in Ruby land_, take a look at [dragonruby](https://dragonruby.org/) instead (it's not free, but it's probably worth the price).
 
-If you're just starting with game development and planning on making the next big indie hit, might as well pick this one as the engine for the game you never finish!
+If you're just starting with game development and planning on making the next big indie hit - might as well pick this one as the engine for the game you never finish!
 
-In all seriousness, though: This is a hobby project of mine, and while it might develop into something actually useful, at the time of writing it's a playground. If you search for something I searched and found nothing - try RGame! If you want to learn how to write games or just need a small prototype, and you really like Ruby - try RGame! If all you know is Rails, but you want to make a game that doesn't run in a browser and don't care about shipping it - try RGame!
+In all seriousness, though: This is a hobby project of mine, and while it might develop into something actually useful, at the time of writing it's a playground. If you search for something I searched and found nothing - **try RGame**! If you want to learn how to write games or just need a small prototype, and you really like Ruby - **try RGame**! If all you know is Rails, but you want to make a game that doesn't run in a browser and don't care about shipping it - **try RGame!**
 
 I would be really happy if someone else actually uses it, but at this point I can't really recommend it for anything else than small projects and/or learning the ropes of game development.
 
@@ -71,7 +69,7 @@ You can learn more about how it works in the [documentation](docs/api/README.md)
 
 ## Examples
 
-`examples/` holds one small program per concept, each a single file you can run with `ruby examples/<name>/main.rb`. [The examples page](docs/api/examples.md) describes them in more detail. They're also all full of code comments so you have an easier time learning the concepts.
+`examples/` holds one small program per concept, each a single file you can run with `ruby examples/<name>/main.rb`. [The examples page](docs/api/examples.md) describes them in more detail. They're also full of code comments so you have an easier time learning the concepts.
 
 | Example | Shows |
 |---|---|
@@ -316,7 +314,19 @@ A file-by-file map of the whole repository is in
 
 ## Roadmap
 
-There is currently no roadmap for the next version.
+There is no real roadmap for this project, but there are a few features on my mind which I want to include in the next release(s):
+
+- support more of Tiled's features. Orthogonal maps will stay the only one supported for a while, though.
+- allow better input-to-action-mapping for complexer inputs like long presses or button combinations
+- a better scene manager that means less boilerplate in each game with scene transitions. With it an example for teleports/room-transitions
+- allow toggeling the debug layer and connect it better to systems like collision (show collision boxes on toggle)
+- a dialogue system and better text representation
+- an examples (and if needed, new components) for pushing and pulling objects in the game world
+- an example (and if needed, new components) for inventory and equipment screens
+- an example (and if needed, new components) for collectable and interactable nodes like coins and treasure chests
+- audio transitions - fades, pauses, etc.
+- visual effects like lightning, sparkles, fade-to-black
+- better engine support for cutscenes
 
 ## AI clause
 
