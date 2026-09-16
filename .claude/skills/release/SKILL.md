@@ -1,16 +1,29 @@
 ---
 name: release
-description: How to release a new version of the rgame gem — a release is a version bump merged to main, and CI publishes, tags and creates the GitHub release; never gem push, rake release or a hand-made tag. Covers choosing the version, the changelog section CI requires, the README roadmap, Gemfile.lock, and checking the published gem afterwards. Use whenever asked to release, publish or ship the gem, bump the version, cut a new version, or when a release job fails.
+description: How to release a new version of the rgame gem — a release is a version bump merged to main, and CI tags, publishes four gems (three platform gems and the source gem) and creates the GitHub release; never gem push, rake release or a hand-made tag. Covers choosing the version, the changelog section CI requires, the README roadmap, Gemfile.lock, checking the published gems afterwards, and finishing a release that got only some of them up. Use whenever asked to release, publish or ship the gem, bump the version, cut a new version, or when a release job fails.
 ---
 
 # Releasing the gem
 
 **A release is a commit that bumps `RGame::VERSION` and reaches `main`.** The
 `release` job in [.github/workflows/ci.yml](../../../.github/workflows/ci.yml)
-does the rest. On every push to main it asks RubyGems whether the version in
-[lib/rgame/version.rb](../../../lib/rgame/version.rb) exists. If not, it waits
-for all three platforms to pass, then builds and pushes the gem, tags `vX.Y.Z`
-and creates the GitHub release. The comments on that job explain each choice.
+does the rest.
+
+**A version is four gems, not one.** `build-gem` and `source-gem` upload them —
+one each for `arm64-darwin`, `x86_64-linux-gnu` and `x64-mingw-ucrt`, plus the
+source gem — and the release job builds nothing itself. It downloads all four.
+
+On every push to main it asks RubyGems which gems of the version in
+[lib/rgame/version.rb](../../../lib/rgame/version.rb) are missing. If any are,
+and this commit may release them, it tags `vX.Y.Z`, pushes the three platform
+gems, pushes the source gem last, and creates the GitHub release. The comments
+on that job explain each choice.
+
+**Two questions decide a release, not one.** The first is what is missing. The
+second is whose release it is, and the tag answers it: a version already partly
+published belongs to the commit `vX.Y.Z` names, and no other commit may finish
+it. That is why the tag goes in before the first `gem push` rather than after —
+once a gem is up, the tag is the only record of which commit put it there.
 
 ## Never publish by hand
 
@@ -18,8 +31,10 @@ and creates the GitHub release. The comments on that job explain each choice.
   `rubygems_mfa_required`, so a local push asks for a one-time password. It
   also skips the gate that holds the release until CI passes on Linux, macOS
   and Windows.
-- **No hand-made tag.** CI tags after a successful push, so a tag never names a
-  version RubyGems lacks.
+- **No hand-made tag.** The job tags itself, just before the first push, and
+  then reads that tag to decide who owns the release. A tag you made by hand
+  either names the wrong commit or tells the job that a release nobody has made
+  is already claimed.
 - **Do not rename `ci.yml`.** RubyGems trusts that workflow filename for
   trusted publishing. A rename breaks publishing until someone updates the
   trusted publisher on rubygems.org.
@@ -81,28 +96,73 @@ gh run list --branch main --limit 1
 gh run watch <run-id>
 ```
 
-The `release` job should print `rgame X.Y.Z is not on RubyGems — releasing.`
+The `release` job should print the four platforms it is about to push, source
+gem last:
+
+```
+rgame X.Y.Z is not on RubyGems — pushing arm64-darwin, x86_64-linux-gnu, x64-mingw-ucrt, ruby.
+```
+
 Once it passes, confirm all three results:
 
 ```
-gem search -r '^rgame$'                 # lists X.Y.Z
+curl -s https://rubygems.org/api/v1/versions/rgame.json |
+  ruby -rjson -e 'JSON.parse($stdin.read).select { _1["number"] == "X.Y.Z" }.each { puts _1["platform"] }'
 gh release view vX.Y.Z                  # body matches the changelog section
 cd "$(mktemp -d)" && gem install rgame -v X.Y.Z && ruby -e 'require "rgame"; puts RGame::VERSION'
 ```
 
-Run the last line outside the checkout. It is the only check that the published
-gem compiles both extensions without the repository's files around it.
+**The first must list four platforms.** `gem search -r '^rgame$'` prints one
+line for the version whatever it holds, so it cannot tell you a platform gem is
+missing.
 
-## When the release job fails
+Run the last line outside the checkout. On a covered platform it installs
+without a compiler, which is the whole point; on any other it compiles the
+source gem, which is the check that the published source still builds with none
+of the repository's files around it.
 
-**Fix the cause and push again. Do not bump the version.** The job asks
-RubyGems what exists on every push, so the next push to main picks up the
-release where it stopped.
+## When the release job fails before it publishes
+
+**Fix the cause and push again. Do not bump the version.** The job asks RubyGems
+what exists on every push, so the next push to main picks the release up where
+it stopped. This holds while nothing has been published: with no gem of the
+version up, the job lets any commit release it.
 
 | Failure | Cause |
 |---|---|
 | `CHANGELOG.md has no section for X.Y.Z` | The heading is missing or spelled differently from `version.rb`. |
 | `RubyGems answered NNN — refusing to guess` | RubyGems was unreachable. Re-run the job. |
+| `FAIL rule 2: no gem for <platform>` | One of the four gems never arrived. The release refuses a short set rather than publishing three quarters of a version. |
 | fails at setup, before any step | A `uses:` pin does not resolve. See the comment on the credentials step. |
 | `gem push` rejected | The trusted publisher on rubygems.org no longer matches the repository or the workflow filename. |
-| tagged, but `gh release create` failed | The gem is published. Create the release by hand with the changelog section as its body. |
+| tagged, but `gh release create` failed | The gems are published. Create the release by hand with the changelog section as its body. |
+
+## Finishing a partial release
+
+A release is four pushes, so the third can fail with two already up. The version
+is then partly on RubyGems and `vX.Y.Z` names the commit that put it there.
+
+**Re-run the failed run. Do not push a new commit.** Only the commit the tag
+names may finish a release, and a new commit on main moves HEAD away from that
+tag — the job would refuse. A re-run keeps the same commit, so the job finds
+what is missing and pushes only that:
+
+```
+rgame X.Y.Z is missing 1 of its 4 gems, and vX.Y.Z names this commit — pushing ruby.
+```
+
+If the failure needs a code change rather than a retry, **bump the version.**
+The tag cannot follow the fix onto a new commit, and RubyGems never takes a
+published gem back, so the partly-released version stays as it is and the fix
+ships as the next one.
+
+Two refusals say the job decided a release was not this commit's:
+
+| Message | What it means |
+|---|---|
+| `... but vX.Y.Z names <sha> and HEAD is <sha>. That release belongs to another commit` | The version is partly published and this is not the commit that started it. Bump the version. |
+| `vX.Y.Z names <sha>, and no gem of rgame X.Y.Z is on RubyGems` | A tag exists that no gem followed — a run that tagged, then failed every push. Delete the tag to release this commit, or bump the version. |
+
+Neither fails the run. A version released before platform gems existed is
+missing three of them for good, so refusing is a quiet no-op rather than a red
+`main`.

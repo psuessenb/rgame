@@ -67,8 +67,14 @@ The Core spec suite does this to load exactly one layer.
 `rgame/core` also loads `RGame::Util::Controls`, the input id vocabulary,
 because the input classes need it.
 
-`gem install rgame` compiles both extensions. In a checkout of the repository,
-compile them before you require anything:
+**Your install either compiled both extensions or arrived with them built.** On
+Apple Silicon macOS, x86-64 Linux and 64-bit Windows, `gem install rgame` fetches
+a gem that already holds `core_ext` and `util_ext`, with SDL2 inside `core_ext`,
+and compiles nothing. Every other machine gets the gem that ships the C and
+builds both on install, against a system SDL2. Either way the two land in the
+same place and the three requires above behave the same.
+
+In a checkout of the repository, compile them before you require anything:
 
 ```
 make ext        # builds both, copies them into lib/rgame/

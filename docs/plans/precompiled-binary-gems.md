@@ -1,8 +1,8 @@
 # Precompiled binary gems
 
-**Status: steps 0–5 have landed.** Step 6 was re-planned on 2026-09-16 and is
-ready to build; step 7 is still rough. Nothing is published yet: step 5 built
-the release job, and running it for real is a decision taken with the
+**Status: steps 0–6 have landed.** Step 7 is still rough. Nothing is published
+yet: step 5 built the release job and proved it refuses correctly on `main`, and
+running it for real is a decision taken with the
 [release](../../.claude/skills/release/SKILL.md) skill after step 7.
 
 Rewritten 2026-09-15 from the 2026-08-25 sketch. The sketch compared three
@@ -1326,6 +1326,43 @@ release that belongs to another commit.
 **Verify:** `rake spec` stays green, `spec/api_docs` included, and no page tells
 a reader on a covered platform to install a compiler. `bundle exec rake
 spec:core` covers the reference and coverage specs over `docs/api/`.
+
+**Landed.** `README.md` splits the two readers: Getting started names the three
+covered platforms and the one Ruby they need, and Requirements is now Building
+from source, which says in its first sentence that it is for an uncovered
+platform or for working on rgame. Packaging gained the two kinds of gem and the
+task, checker and smoke job behind them, and the roadmap entry reads DONE, which
+is what [release](../../.claude/skills/release/SKILL.md) deletes at the next
+release. `docs/api/README.md` names both outcomes of an install and says the
+entry points behave the same either way.
+
+`make test` 363 checks, `rake spec` 2329 examples, `rake spec:core` 410, all 0
+failures — every number identical to step 5, which is what a documentation step
+should produce. The sweep the Verify asks for: every `gem install rgame` in a
+shipped page now either states the covered platforms or makes no claim about
+compiling, and `docs/api/cli.md` and `examples/assets/README.md` needed nothing.
+CLAUDE.md still says the gem compiles on install, and stays that way — it is
+step 7's.
+
+What the re-planned sketch got wrong:
+
+- **6c was a correction, not an addition.** The sketch had the release skill
+  *gain* four things, all additive. One of them was a wrong instruction rather
+  than a missing one: "Fix the cause and push again. Do not bump the version."
+  stops being true the moment any gem of the version is up, because step 5 made
+  the tag decide who may finish a release. A new commit on `main` moves HEAD off
+  the tag and the job refuses. The recovery is to re-run the same run, or to
+  bump the version when the failure needs a code change, and that needed its own
+  section rather than two rows in a table.
+- **A skill is found by its frontmatter description**, which claimed CI
+  "publishes, tags" in that order and spoke of one gem. An agent reaching for
+  the skill reads that line first, so it changed too.
+- **`gem search` cannot verify this release.** It prints one line per version
+  whatever platforms are behind it, so the check for four gems reads the
+  versions API instead. The sketch's "checking the published gem afterwards" had
+  assumed the existing check still worked.
+- **The anchor rename was free, as measured.** One link pointed at
+  `#requirements` and it was in the paragraph being rewritten anyway.
 
 ### Step 7 — Fold the plan back and delete it *(rough)*
 
