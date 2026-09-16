@@ -36,7 +36,7 @@ bundle exec rspec     # the game logic, headless — no window needed
 ruby main.rb          # the game itself
 ```
 
-What it writes is small — a game class, a root node, a spec and the usual configuration — but it is laid out the way the engine wants to be used: one file loads SDL, everything else stays graphics-free and therefore testable with no display. [The `rgame` command](docs/api/cli.md) explains the layout and why it matters.
+It's just a small skeleton — a game class, a root node, a spec and the usual configuration — but it is laid out the way the engine wants to be used: one file loads SDL, everything else stays graphics-free and therefore testable with no display. [The `rgame` command](docs/api/cli.md) explains the layout and the reasoning. This is also sets you up with a Rubocop configuration already geared towards RGame and game development in general.
 
 **On a common desktop that first line needs nothing else** — no compiler, no SDL2, no header files. `gem install rgame` fetches a gem whose two C extensions are already built, with SDL2 linked into them:
 
@@ -102,7 +102,7 @@ You can learn more about how it works in the [documentation](docs/api/README.md)
 
 ## Building from source
 
-**This section is for two readers: anyone on a platform the binary gems miss, and anyone working on rgame itself.** Installing on one of the three platforms above needs none of it.
+**This section is for two readers: anyone on a platform the binary gems miss, and anyone working on RGame itself.** Installing on one of the three platforms above needs none of it.
 
 Compiling the C engine needs a compiler and the system libraries it links against. A source install of the gem needs the compiler, `pkg-config`, SDL2 and OpenGL from the list below. The rest is for running rgame's own suites.
 
