@@ -1,8 +1,9 @@
 # Precompiled binary gems
 
-**Status: steps 0–4 have landed.** Steps 5 and 6 were re-planned on 2026-09-16
-and are ready to build; step 7 is still rough. Step 5 is next: nothing is
-published yet.
+**Status: steps 0–5 have landed.** Step 6 was re-planned on 2026-09-16 and is
+ready to build; step 7 is still rough. Nothing is published yet: step 5 built
+the release job, and running it for real is a decision taken with the
+[release](../../.claude/skills/release/SKILL.md) skill after step 7.
 
 Rewritten 2026-09-15 from the 2026-08-25 sketch. The sketch compared three
 shapes and deferred the choice. This version takes it, records two decisions
@@ -1212,6 +1213,56 @@ to the right machine. Only a published version shows that, and the first release
 is a decision of its own, taken with the
 [release](../../.claude/skills/release/SKILL.md) skill rather than inside this
 plan. Open question 1 waits on it.
+
+**Landed.** `tools/release_gems.rb` decides what a release pushes, and the
+`release` job pushes it. The job builds nothing: it downloads the four gems
+`build-gem` and `source-gem` uploaded, asks the tool which of them RubyGems
+lacks, tags, pushes the platform gems and then the source gem, and creates the
+GitHub release last. `needs:` is `[test, build-gem, source-gem, smoke]`, and
+`main` no longer cancels its own runs.
+
+On the Linux laptop: `make test` 363 checks, 0 failures; `rake spec` 2329
+examples, 0 failures — 14 more than step 4, which is
+`spec/tools/release_gems_spec.rb`; `rake spec:core` 410, 0 failures, unchanged.
+
+**Measured against live RubyGems**, by running the job's own shell with four
+stub gems in a directory:
+
+| Directory | Tool says | `count` |
+|---|---|---|
+| four gems at 0.3.1 | `rgame 0.3.1 is missing 3 of its 4 gems, but v0.3.1 names 78f462e and HEAD is beb1563. That release belongs to another commit — bump the version to release this one.` | 0 |
+| four gems at 0.4.0, no tag | `rgame 0.4.0 is not on RubyGems — pushing arm64-darwin, x86_64-linux-gnu, x64-mingw-ucrt, ruby.` | 4 |
+| the same, minus the Windows gem | `FAIL rule 2: no gem for x64-mingw-ucrt`, exit 1 | — |
+
+The second row is the whole publishing path short of `gem push`, and its list
+ends with the source gem. Finding F is therefore falsified on the repository it
+was found in: the sketch's rule would have published row one.
+
+What the re-planned sketch got wrong:
+
+- **An absent tag is permission only while nothing is published.** The sketch's
+  truth table gave "some published, tag absent" the same answer as "nothing
+  published, tag absent", and the first implementation read the two as one
+  condition. The spec case written from the table failed against it. A partial
+  release no tag claims is the one case with no evidence at all, so it refuses.
+- **A shallow checkout has no tags.** `actions/checkout` fetches none by
+  default, so every `git rev-parse refs/tags/*` in this job has always returned
+  nothing. The existing tag step therefore never took its "already exists"
+  branch, and would have tried to create a tag the remote already had. The
+  release job now checks out with `fetch-depth: 0`.
+- **The GitHub release step has to tolerate a release that exists.** A run
+  finishing an earlier one finds the tag already pushed, and `gh release create`
+  fails on a release it already made. It asks first.
+- **The push list goes to a file, not to `$GITHUB_OUTPUT`.** Interpolating a
+  multi-line list of paths into a later step's shell is a quoting hazard for no
+  gain. Only a count becomes an output, and the paths stay in `push_list.txt`.
+- **`Plan#publish` is `Plan#push`.** `publish` read as a question rather than as
+  the list it holds.
+
+**Not yet proven, and it cannot be from a branch:** the `release` job only runs
+on a push to `main`, so no pull request run exercises it. The proof arrives on
+merge, as a green `release` job printing row one of the table above and pushing
+nothing.
 
 ### Step 6 — Install documentation
 
