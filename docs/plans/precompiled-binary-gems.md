@@ -1364,17 +1364,59 @@ What the re-planned sketch got wrong:
 - **The anchor rename was free, as measured.** One link pointed at
   `#requirements` and it was in the paragraph being rewritten anyway.
 
-### Step 7 — Fold the plan back and delete it *(rough)*
+### Step 7 — Fold the plan back and delete it
 
-- CLAUDE.md's "Packaging" section: the two kinds of gem, why SDL2 is static,
-  the checker and the smoke test, and that the source gem remains tested by the
-  `test` job.
-- The "binary gems" rows in CLAUDE.md's structure list, if the new `tools/` and
-  `rakelib/` files earn one.
-- Delete this file.
+**Why here:** everything this plan describes exists, and for some of it this
+file is the last place it is written down. A plan kept past its work becomes a
+description of code that has moved on, and the reader cannot tell which half is
+which.
 
-**Verify:** `CHANGELOG.md` names everything steps 1–6 shipped, per
-[update-changelog](../../.claude/skills/update-changelog/SKILL.md), and
+**Re-planned 2026-09-16.** The sketch assumed the fold-back was mostly CLAUDE.md
+prose. Reading what steps 2 to 6 already wrote shows the opposite: `ext/README.md`
+and the [release](../../.claude/skills/release/SKILL.md) skill absorbed the build
+and publish halves as they landed, so what is left in this file and nowhere else
+is **the open questions**, not the design.
+
+| Measured | Result |
+|---|---|
+| CLAUDE.md's Packaging section | Lines 853–892. Says `gem install` compiles each extension, and never mentions a platform gem |
+| CLAUDE.md's gemspec bullet | Line 774 makes the same claim in one sentence |
+| CLAUDE.md's `tools/` bullet | Line 602 names one file, `make_ogg_fixture.c`. Four Ruby files and a rakefile have joined it since |
+| `rakelib/` in CLAUDE.md | Zero mentions, and it holds the SDL2 build |
+| `ext/README.md` | Already covers `rake sdl2`, `SDL2_STATIC=`, `platform_gem` and `check_installed_gem.rb`, landed by steps 2 to 4 |
+| `CHANGELOG.md` | Already complete. `git diff v0.3.1..HEAD -- lib ext exe examples docs/api README.md` touches only VirtualGamepad and the static build path, and the Unreleased section has an entry for each |
+| Open questions still open | 1, 2, 3, 4 and 6 — five, none blocking, and finding E is a sixth thing in the same position |
+
+#### 7a. CLAUDE.md learns there are two kinds of gem
+
+The Packaging section is written as though one gem exists and `gem install`
+compiles it. It gains what RubyGems holds for a version, that a platform gem
+compiles nothing, why SDL2 is linked statically from a pinned release, and the
+checker and smoke test that hold a platform gem up. The gemspec bullet loses
+the same claim. The structure list gains `rakelib/`, and its `tools/` bullet
+grows past its one C file.
+
+`spec/packaging_spec.rb`'s exclusion of `docs/plans/` is what lets this step
+delete the file without touching the gemspec.
+
+#### 7b. The open questions move to `possible-todos.md`
+
+Five open questions and finding E outlive the plan. They go to
+[possible-todos.md](possible-todos.md) as one entry with a bullet each, the shape
+that file already uses for pathfinding — five separate headings for five small
+things would bury the file's larger entries. Each keeps the trigger the plan
+recorded, and settled questions 5 and 7 go nowhere: they are settled, and the
+design they settled is in `ext/README.md`.
+
+#### 7c. Delete the plan
+
+**This step's landed note cannot survive its own commit**, so the pull request
+body is the record. That is the one place the usual loop does not close.
+
+**Verify:** `rake spec` stays green, `spec/packaging_spec.rb` included.
+`CHANGELOG.md` names everything steps 1–6 shipped, per
+[update-changelog](../../.claude/skills/update-changelog/SKILL.md). Nothing
+outside `docs/plans/` links to this file, and
 `docs/plans/precompiled-binary-gems.md` no longer exists.
 
 ## Open questions
