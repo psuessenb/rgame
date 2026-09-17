@@ -1,6 +1,6 @@
 ---
 name: write-plan
-description: How to write a plan under docs/plans — research and measurement first, a verdict up front, then a roadmap whose steps are sized to one branch and one pull request each, with later steps left deliberately rough. Use when asked to plan a feature, a refactor, a port or a rework, when starting a new docs/plans document or folder, or when re-planning the next phase of an existing one.
+description: How to write a plan under docs/plans — research and measurement first, a verdict up front, classes shaped by what a game asks rather than by the format or library behind them, then a roadmap whose steps are sized to one branch and one pull request each, with later steps left deliberately rough. Use when asked to plan a feature, a refactor, a port or a rework, when starting a new docs/plans document or folder, or when re-planning the next phase of an existing one.
 ---
 
 # Writing a plan
@@ -63,6 +63,11 @@ kills a step outright — a sweep that sounded like the expensive part of a rewo
 turned out to be eleven definitions across eight files, a morning's work, and
 only counting showed that.
 
+**Measure what the design adds, not only what exists today.** A proposal's own
+cost is the number most often assumed rather than taken. The Tiled plan's
+transform added 2.8 ms to a 250×250×6 map against 15.1 ms the load already spent,
+and that is what settled whether to cache its result.
+
 Tag any finding you actually verified, so a reader can tell measurement from
 expectation:
 
@@ -88,6 +93,74 @@ Two research sections earn their place nearly every time:
 - **What was considered and rejected.** The alternative with its real
   attractions stated, then the specific reason it fails. A rejected option
   without a reason gets proposed again in three weeks.
+
+## Optimise for the game, not for the source
+
+**What the engine reads must not decide the shape of what a game calls.** A file
+format, a library, a protocol or someone else's schema has a shape, and that
+shape solves its own problem — storage, compatibility, or history. An engine
+class answers a different question: what a game asks for, on a frame budget.
+
+So a plan that adds support for anything external owes three parts, not two:
+
+| | |
+|---|---|
+| **A faithful reading** | Keeps the source's names, units and coordinates. Checkable against the source's own reference. |
+| **A transform** | Absorbs every convention the source has that the game does not want. Runs once, at load. |
+| **A view shaped by its use** | Only what a game asks, named the way a game asks it. |
+
+Two parts is the trap, and it is not visible from inside. The split gets written,
+both halves are coherent, and the source's vocabulary walks straight through the
+second one into the game. So apply the test to every name on the class a game
+will call:
+
+> **Does this name exist because the source exists?** If it does, the transform
+> should have absorbed it.
+
+### What legitimately crosses
+
+Not everything in the source belongs to the source. Two things cross untouched:
+
+- **What an author wrote for the game to read.** Custom properties a designer
+  attached in an editor are already in the game's world. Translating them would
+  be translation for its own sake.
+- **Names two people share.** A layer called `canopy` is what a designer sees
+  and what a programmer types. Replacing it with an index helps nobody.
+
+The rule is about shape, not about contact. Reusing the library is fine. Letting
+it pick your class's attributes is not.
+
+### Three smells
+
+1. **Two types whose attribute lists match row for row**, one inside and one
+   outside. That is CLAUDE.md's parallel-vocabulary smell, pointed at a
+   boundary rather than at two subsystems.
+2. **A unit, an origin or an encoding that only makes sense in the source** —
+   milliseconds where the engine speaks seconds, a bitfield, a coordinate
+   measured from a different corner.
+3. **A doc comment that has to explain the format to explain the method.** If
+   the method cannot be described without it, the format is in the interface.
+
+A fourth belongs to CLAUDE.md's "Design out misuse" and is the same failure seen
+from the caller: **a conversion every caller must remember**. If the transform
+does not do it, each caller does, and the ones that forget produce a plausible
+picture rather than an error.
+
+### The worked example
+
+rgame's Tiled plan was split correctly on the first pass — a faithful parse and a
+runtime `TileMap` — and still let six of Tiled's words through to the game, `gid`
+and milliseconds among them. The tell was smell 1: the runtime tileset class's
+attributes matched the parsed tileset's, row for row.
+
+**Absorbing all six made the layer below smaller, not larger.** The renderer's
+signature stopped needing to change, solidity became an array read, the runtime
+tileset class disappeared, and the shared contract lost more methods than it
+gained. Expect that. A transform mostly collects work that was already being
+done, in more places, later.
+
+Hold it with a grep: the parse namespace may be named in its own directory and in
+the transform, nowhere else.
 
 ## The verdict goes up front
 
@@ -241,7 +314,7 @@ recorded gets asked again.
 
 ## Worked examples, recoverable from git
 
-Every earlier plan was folded back and deleted as intended, so the exemplars
+Every earlier plan was folded back and deleted as intended, so most exemplars
 live in history rather than the tree:
 
 | Plan | Shape | Recover with |
@@ -253,3 +326,4 @@ live in history rather than the tree:
 | `cross-platform-support.md` | single file, findings-led, every finding tagged measured | `git show 549f811:docs/plans/cross-platform-support.md` |
 | `basic-examples.md` | single file, a catalogue rather than a roadmap: one entry per example, each with its landed note | `git show 92e04a5:docs/plans/basic-examples.md` |
 | `i18n/` | brief + current state + prior art + design + roadmap; a step inserted mid-plan, and decisions taken in later question rounds | `git show 92e04a5:docs/plans/i18n/04-roadmap.md` |
+| `tiled-format/` | brief + current state + prior art + design + roadmap; still live at the time of writing. The design is the worked example for [optimising for the game](#optimise-for-the-game-not-for-the-source) | `git show 7efe148:docs/plans/tiled-format/03-design.md` |

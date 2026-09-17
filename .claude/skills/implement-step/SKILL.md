@@ -110,6 +110,13 @@ understood before the step existed.
   plan's open questions, resolved in place, not just into the commit message.
 - **A discovery that invalidates a later step** is worth stopping for. Say so in
   the pull request, and mark that later step as needing a re-plan.
+- **"Just one field from the parser" is the design failing, not a shortcut.**
+  When a step needs something a transform was supposed to absorb, the gap is in
+  the transform and that is where the fix goes. Reaching past it — holding the
+  source-shaped object, passing a raw id through, converting at the call site —
+  puts the format back into the interface the plan took it out of, one field at a
+  time. See
+  [write-plan](../write-plan/SKILL.md#optimise-for-the-game-not-for-the-source).
 
 ## Finishing the plan
 
