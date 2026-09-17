@@ -11,7 +11,7 @@ they're non-trivial and the name doesn't already tell the whole story.
 
 Comments inside methods or on private methods get automatically deleted on commit - write them freely, but don't rely on them. Write code that speaks and reads cleanly without those comments.
 
-Documentation rules live in the [write-docs](.claude/skills/write-docs/SKILL.md) skill; plans follow [write-plan](.claude/skills/write-plan/SKILL.md).
+Documentation rules live in the [write-docs](.claude/skills/write-docs/SKILL.md) skill; plans follow [write-plan](.claude/skills/write-plan/SKILL.md), and the skills themselves follow [write-skill](.claude/skills/write-skill/SKILL.md).
 
 Prose someone else reads follows the style rules in
 [write-prose](.claude/skills/write-prose/SKILL.md). That covers the top-level
