@@ -70,7 +70,7 @@ class FakeAssets
   # too rather than quietly resolving. And an unregistered path is a file that
   # is not on disk, which is `Errno::ENOENT` from the loader — not nil, which
   # would surface much later as a NoMethodError inside whatever was handed it.
-  # See CLAUDE.md, "A fake must refuse what the real thing refuses".
+  # See "A fake must refuse what the real thing refuses".
   def fetch(type, path)
     raise TypeError, "no implicit conversion of #{path.class} into String" unless path.is_a?(String)
 

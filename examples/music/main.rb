@@ -39,8 +39,8 @@
 # ## The bar is state, not a clock
 #
 # Nothing on a draw path reads a clock — `draw` is not called on a schedule and
-# a wall clock cannot be paused or reproduced (CLAUDE.md, "`draw` renders
-# state"). So the seconds below are accumulated from `dt` in `update`. It is a
+# a wall clock cannot be paused or reproduced (see "`draw` renders state").
+# So the seconds below are accumulated from `dt` in `update`. It is a
 # rough playhead, not a reading off the song: it says how long ago this scene
 # *asked* for music, which is close enough to watch the 24s loop point go past
 # and listen for whether the wrap clicks. `tools/shrink_ogg.c` measures the seam

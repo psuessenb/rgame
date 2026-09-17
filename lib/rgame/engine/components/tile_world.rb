@@ -28,9 +28,9 @@ module RGame
       # thing actors ask about collision and bounds — and a system that also
       # drew was always the odd part of it.
       #
-      # It owns the map's **animation clock**. Nothing below reads a wall clock —
-      # see CLAUDE.md, "`draw` renders state; time enters through `update`" — so the
-      # elapsed seconds animated tiles run on are accumulated here and handed down at
+      # It owns the map's **animation clock**. Nothing below reads a wall clock;
+      # see "`draw` renders state; time enters through `update`".
+      # The elapsed seconds animated tiles run on are accumulated here and handed down at
       # draw time. Stop calling `update` and the water freezes, which is what pausing
       # should look like.
       class TileWorld < Engine::Component

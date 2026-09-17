@@ -125,8 +125,8 @@ module RGame
       # drawn through several cameras in a frame.
       #
       # `elapsed` is the seconds its animated tiles have been running for, and
-      # is an argument rather than a clock read on purpose — see CLAUDE.md,
-      # "`draw` renders state; time enters through `update`". A scene
+      # is an argument rather than a clock read on purpose.
+      # See "`draw` renders state; time enters through `update`". A scene
       # accumulates it in `update`, which is what makes pausing work.
       def tilemap(id, layer, cull_x, cull_y, cull_width, cull_height, elapsed: 0.0)
         lookup(:tilemap, id)

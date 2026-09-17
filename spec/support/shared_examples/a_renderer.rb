@@ -402,8 +402,8 @@ RSpec.shared_examples 'a renderer' do
   # Every example here was a real difference between the fake and the live
   # renderer, found by calling the same bad input on both. They are in the
   # contract rather than in either spec because that is the only place that
-  # keeps them from drifting apart again — see CLAUDE.md, "A fake must refuse
-  # what the real thing refuses".
+  # keeps them from drifting apart again.
+  # See "A fake must refuse what the real thing refuses".
   describe 'arguments it refuses' do
     it 'refuses a coordinate that is not a number' do
       expect { render { |renderer, _image| renderer.rect(nil, 0, 1, 1) } }.to raise_error(TypeError)

@@ -13,7 +13,7 @@
 # straight to the C layer, where `NUM2INT` raises `TypeError` for anything that
 # is not a number — so a Symbol id (which is what the binding map used to hold,
 # before physical ids replaced it) fails here rather than quietly reading false
-# forever. See CLAUDE.md, "A fake must refuse what the real thing refuses".
+# forever. See "A fake must refuse what the real thing refuses".
 class FakeInputBackend
   KEYBOARD = RGame::Util::Controls::KEYBOARD
 

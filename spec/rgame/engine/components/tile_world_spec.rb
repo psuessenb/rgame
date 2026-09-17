@@ -15,9 +15,10 @@ RSpec.describe RGame::Engine::Components::TileWorld do
   # inside the world band, so that it is drawn once per viewport like the rest
   # of the world. What is left here is what actors ask about.
   describe 'the animation clock' do
-    # Nothing below this reads a wall clock — see CLAUDE.md, "`draw` renders
-    # state; time enters through `update`" — so the elapsed seconds animated
-    # tiles run on have to come from somewhere. Here, out of `update`.
+    # Nothing below this reads a wall clock; see
+    # "`draw` renders state; time enters through `update`".
+    # So the elapsed seconds animated tiles run on have to come from somewhere.
+    # Here, out of `update`.
     it 'starts at zero' do
       expect(world.elapsed).to eq(0.0)
     end

@@ -80,7 +80,7 @@ module RGame
       # It exists because some asset types cannot be built from inside
       # `RGame::Core` at all. A tile map is the case that forced it: parsing a
       # `.tmx` belongs to the engine layer, and Core may not name that layer
-      # (see CLAUDE.md, "The rule points both ways"). So the glue installs the
+      # (see "The rule points both ways"). So the glue installs the
       # loader, and Core never learns what a tile map is.
       #
       # Defining the accessor rather than routing everything through a generic

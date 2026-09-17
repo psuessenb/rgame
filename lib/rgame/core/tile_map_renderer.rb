@@ -58,13 +58,13 @@ module RGame
     #
     # And `elapsed` is an argument rather than a clock read, so animation is
     # something the caller advances. Pausing is "stop accumulating"; a spec
-    # picks the frame it wants. See CLAUDE.md, "`draw` renders state; time
-    # enters through `update`".
+    # picks the frame it wants.
+    # See "`draw` renders state; time enters through `update`".
     #
     # ## What it needs of a map
     #
     # It never names the map's class — the tile map lives a layer *above* this
-    # one and Core may not reach up (CLAUDE.md, "The rule points both ways").
+    # one and Core may not reach up (see "The rule points both ways").
     # What it calls is the 'a tile map' contract in
     # `spec/support/shared_examples/`: `layer_count`, `width`, `height`,
     # `tile_width`, `tile_height`, `gid`, and a `tileset` answering `local_id`,

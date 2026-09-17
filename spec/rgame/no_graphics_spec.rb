@@ -23,7 +23,7 @@
 # example in the run — RSpec loads one root into one process, which is the very
 # property this file protects. So the obvious way to test it is the wrong one.
 #
-# See CLAUDE.md, "The Core / Util split".
+# See "The Core / Util split".
 RSpec.describe 'require "rgame"' do # rubocop:disable RSpec/DescribeClass -- the subject is what one require loads
   # The libraries the Core extension links. Matching `libGL.` with the dot on
   # purpose: `libGLdispatch` and `libGLX` get pulled in by unrelated things on

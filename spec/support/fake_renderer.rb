@@ -112,8 +112,8 @@ class FakeRenderer
   # an Image unwrap, every one of which raises TypeError on the wrong kind of
   # object. A fake that accepted them would let `renderer.text(nil, x, y)` — a
   # label that was never set, an i18n lookup that missed — pass a headless spec
-  # and then raise in the game. See CLAUDE.md, "A fake must refuse what the real
-  # thing refuses".
+  # and then raise in the game.
+  # See "A fake must refuse what the real thing refuses".
   #
   # These validate without converting: the recorded call keeps exactly what the
   # caller passed, so assertions read as written. A label is the one exception;

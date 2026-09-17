@@ -13,8 +13,9 @@ module RGame
     #   save.read.fetch(:dog, nil)    # => nil when there is no save yet
     #
     # It holds no open handle — it opens, reads or writes, and closes — which is
-    # why this is `Util` rather than `Core` (see CLAUDE.md, "Value objects go in
-    # Util"). JSON comes from the standard library, so nothing here adds a
+    # why this is `Util` rather than `Core`; see "Value objects go in Util;
+    # only handle-owners go in Core". JSON comes from the standard library, so
+    # nothing here adds a
     # runtime dependency.
     #
     # ## Reading never raises

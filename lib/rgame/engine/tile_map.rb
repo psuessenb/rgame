@@ -16,7 +16,7 @@ module RGame
     # .tsx it names, and working out where the tileset image sits relative to
     # that. Both belong here. What does *not* is the image: a texture is a GPU
     # handle, and the renderer that owns one lives a layer below and may not name
-    # this class (see CLAUDE.md, "The rule points both ways"). So `load` hands
+    # this class (see "The rule points both ways"). So `load` hands
     # back a path and stops there.
     class TileMap
       FLIP_MASK = 0x1FFFFFFF

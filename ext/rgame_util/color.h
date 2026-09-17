@@ -10,8 +10,8 @@
  * it lives in the graphics-free half of the project even though the renderer is
  * its main consumer — the engine layer may hold Util values as attributes but
  * may not name RGame::Core at all, so a colour in Core would be out of reach of
- * the scene nodes that want to store one. See CLAUDE.md, "Value objects go in
- * Util; only handle-owners go in Core".
+ * the scene nodes that want to store one.
+ * See "Value objects go in Util; only handle-owners go in Core".
  *
  * The packed form is 0xRRGGBBAA, which is how a human writes a colour and how
  * `Color#packed` reads back.

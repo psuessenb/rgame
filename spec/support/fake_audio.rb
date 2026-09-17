@@ -124,8 +124,8 @@ class FakeAudio
   # The type check is not incidental. The real device's volume crosses into C
   # through NUM2DBL, which raises TypeError on anything that is not a number;
   # without this, `audio.volume = @config[:volume]` with a missing key would
-  # pass a headless spec and raise in the game. See CLAUDE.md, "A fake must
-  # refuse what the real thing refuses".
+  # pass a headless spec and raise in the game.
+  # See "A fake must refuse what the real thing refuses".
   def self.clamp(value)
     raise TypeError, "no implicit conversion of #{value.class} into Float" unless value.is_a?(Numeric)
 

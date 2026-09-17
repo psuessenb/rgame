@@ -5,8 +5,9 @@
 # against one.
 #
 # Most of the *behaviour* is not here. It is in the 'an audio server' contract
-# in spec/, which FakeAudio is run against too — see CLAUDE.md, "Fakes must be
-# checked against the same contract as the real thing". What is left here is
+# in spec/, which FakeAudio is run against too.
+# See "Fakes must be checked against the same contract as the real thing".
+# What is left here is
 # what only the real one has: loading files, the errors a bad one raises, and
 # not leaking.
 #

@@ -8,7 +8,7 @@
  * Its only job is to hand the RGame::Util module to each class's init
  * function. Nothing here links SDL or OpenGL, and nothing ever should: the
  * whole point of this extension is that `require "rgame"` costs no graphics
- * libraries. See CLAUDE.md, "The Core / Util split".
+ * libraries. See "The Core / Util split".
  */
 
 #include "util_ext.h"

@@ -3,8 +3,8 @@
 # The tile-map interface, stated once and run against every implementation.
 #
 # `RGame::Core::TileMapRenderer` draws a map it is handed and never names its
-# class — it cannot, because a tile map belongs to the layer *above* Core (see
-# CLAUDE.md, "The rule points both ways"). That makes this method list a real
+# class — it cannot, because a tile map belongs to the layer *above* Core
+# (see "The rule points both ways"). That makes this method list a real
 # interface with more than one implementation: the parsed `RGame::Engine::TileMap` a
 # game loads from a `.tmx`, and the stub a spec builds by hand.
 #

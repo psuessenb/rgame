@@ -45,8 +45,9 @@ RSpec.describe RGame::Core::Input do
 
     # The ids cross into C through NUM2INT, so anything that is not a number
     # fails loudly here. spec/support/fake_input_backend.rb refuses the same
-    # thing with the same class — see CLAUDE.md, "A fake must refuse what the
-    # real thing refuses". A Symbol is the case that matters: it is what the
+    # thing with the same class.
+    # See "A fake must refuse what the real thing refuses".
+    # A Symbol is the case that matters: it is what the
     # binding tables used to hold, so code written against the old shape breaks
     # rather than reading false forever.
     it 'refuses an id that is not a number' do

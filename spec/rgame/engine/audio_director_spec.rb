@@ -7,8 +7,8 @@ RSpec.describe RGame::Engine::AudioDirector do
   # of the director's own imagining. That matters here more than usual: the
   # director's entire job is to call an audio server by method name, so a
   # stand-in that accepted calls the real device would refuse would leave this
-  # spec green and the game silent. See CLAUDE.md, "Fakes must be checked
-  # against the same contract as the real thing".
+  # spec green and the game silent.
+  # See "Fakes must be checked against the same contract as the real thing".
   let(:audio) { FakeAudio.new }
 
   before do

@@ -40,7 +40,8 @@ module HeadlessDisplay
 
     # Whether synthetic keyboard input is available. XTEST is an X11 extension,
     # so keyboard-driven specs skip themselves on other platforms rather than
-    # fail — see CLAUDE.md's "Platform support".
+    # fail. `VirtualGamepad.button_state_supported?` is the same shape: a
+    # capability probed at runtime rather than a platform check.
     def can_inject_keys? = x11?
 
     def x11? = RUBY_PLATFORM.include?('linux')

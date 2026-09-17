@@ -49,7 +49,7 @@ Window, timer, main loop, input.
   `App#ticks_ms`, and **not** for driving animation: nothing on a draw path reads
   a clock, because `draw` may be skipped or run once per five updates. Animation
   phase is accumulated from `dt` in `update` and passed in as a number — see
-  CLAUDE.md, "`draw` renders state; time enters through `update`".
+  [`draw` renders state; time enters through `update`](../CLAUDE.md#draw-renders-state-time-enters-through-update).
 - Frame-rate readout (FPS), for a debug overlay. Not gameplay-critical.
 
 **Required (planned, not yet implemented — design in from the start):**

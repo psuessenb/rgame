@@ -57,7 +57,7 @@ module RGame
       # window, so it stays in the corner of whatever region it is given. It
       # takes `fps` rather than reading it, for the same reason nothing here
       # reads a clock: the number is measured by the shell that owns the loop
-      # and handed down. See CLAUDE.md, "`draw` renders state".
+      # and handed down. See "`draw` renders state".
       # Its own `:debug` band, which is the last one, so this lands over every
       # other thing in the frame however the scene is arranged. Not a node, so
       # it opens its own layer rather than being given one by the traversal.

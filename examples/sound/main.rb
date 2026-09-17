@@ -84,7 +84,7 @@ class Scene < RGame::Engine::Node2D
   end
 
   # The flash is state, advanced by dt — not a clock read at draw time. That is
-  # the standing rule (CLAUDE.md, "`draw` renders state"), and it is why pausing
+  # the standing rule (see "`draw` renders state"), and it is why pausing
   # this node would freeze the ring mid-fade instead of letting it run on.
   def on_update(dt)
     @flash -= dt * FADE
@@ -102,7 +102,7 @@ class Scene < RGame::Engine::Node2D
   #
   # **Reach for it rather than inventing a way round the rule.** A label built
   # from something that changes is common enough that the engine owns the
-  # answer — see CLAUDE.md, "A label built from a changing value".
+  # answer — see "A label built from a changing value".
   def on_draw(renderer, _view)
     renderer.circle(WIDTH / 2, HEIGHT / 2, MIN_R + (GROW * @flash), color: RING)
     renderer.text(@help, 12, 12)

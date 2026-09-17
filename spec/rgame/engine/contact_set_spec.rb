@@ -119,7 +119,7 @@ RSpec.describe RGame::Engine::ContactSet do
   end
 
   # This runs once per collider per frame, plus once per contact, so it sits squarely
-  # on the per-frame path (CLAUDE.md: never allocate there). The arrays are swapped and
+  # on the per-frame path, which allocates nothing. The arrays are swapped and
   # cleared rather than rebuilt, and Array#clear keeps the capacity it grew to, so a
   # steady contact costs nothing at all once the first few steps have sized them.
   it 'allocates nothing per step while a contact lasts' do

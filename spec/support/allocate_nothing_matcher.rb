@@ -2,8 +2,7 @@
 
 # `allocate_nothing` — a block matcher for the engine's load-bearing rule that the
 # per-frame path (a Node's / Component's update, control, draw, and the helpers they
-# call) allocates nothing in steady state. See CLAUDE.md "never allocate on the
-# per-frame path".
+# call) allocates nothing in steady state.
 #
 #   expect { node.update(dt) }.to allocate_nothing
 #   expect { node.draw(renderer) }.to allocate_nothing.over(2_000)

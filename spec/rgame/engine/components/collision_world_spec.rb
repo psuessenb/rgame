@@ -113,8 +113,8 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
     end
 
     # Every collider's broadphase runs per frame, so a box's bucketing and narrowphase
-    # must be as allocation-free as a circle's (CLAUDE.md: never allocate on the
-    # per-frame path). The colliders share a hash cell without touching, so the pair
+    # must be as allocation-free as a circle's. The colliders share a hash cell
+    # without touching, so the pair
     # reaches the narrowphase and is rejected there — a *hit* would allocate in this
     # spec's own on_hit listener, which appends an Array, and measure nothing about
     # the world.

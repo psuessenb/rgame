@@ -4,8 +4,8 @@
 #
 # This is the suite that is *allowed* to load SDL and OpenGL. Its counterpart,
 # spec/, must never do so — which is why the two live in separate directories
-# with separate runners rather than sharing a root and an exclude rule. See
-# CLAUDE.md, "Why the Ruby specs are two suites, in two directories".
+# with separate runners rather than sharing a root and an exclude rule.
+# See "Why the Ruby specs are two suites, in two directories".
 #
 # This suite exists because the layer it covers is ours. The library that used
 # to occupy this position came with its own tests; writing the window, the
@@ -29,8 +29,8 @@ Dir[File.join(__dir__, 'support', '**', '*.rb')].each { |f| require f }
 
 # The contracts live in spec/, and are deliberately shared: the fakes there and
 # the real implementations here are both run against them, so a fake cannot
-# drift into describing something that no longer exists. See CLAUDE.md, "Fakes
-# must be checked against the same contract as the real thing". Only the shared
+# drift into describing something that no longer exists.
+# See "Fakes must be checked against the same contract as the real thing". Only the shared
 # examples cross the line — no spec/ *_spec.rb is loaded here, and nothing in
 # spec/ ever loads Core.
 require_relative '../spec/support/shared_examples/a_renderer'
