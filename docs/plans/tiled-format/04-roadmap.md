@@ -52,7 +52,8 @@ bundle exec rspec spec/rgame/no_graphics_spec.rb
 | 1 | Every Tiled custom property becomes readable; `above` stops being a special case ([F9](01-current-state.md#f9)) |
 | 2 | Margin, spacing, embedded tilesets, tile class — a downloaded sheet stops rendering wrong ([F5](01-current-state.md#f5)) |
 | 3 | CSV, XML, gzip, plain base64, chunks, multiple tilesets — four silent-wrong-output bugs become supported input or loud errors ([F1](01-current-state.md#f1)–[F4](01-current-state.md#f4)) |
-| 5 | Flipped tiles draw flipped; hidden layers stop drawing |
+| 4 | A gid from a second tileset stops resolving through the first ([F2](01-current-state.md#f2)); every tile’s class and properties become readable |
+| 5 | Flipped tiles draw flipped; a sheet with spacing stops rendering smeared ([F5](01-current-state.md#f5)); hidden layers stop drawing |
 
 Steps 1–3 are useful on their own even if 4 and 5 never land, because until then
 nothing consumes them and nothing breaks.
@@ -286,8 +287,9 @@ end
     `Object` come out with their class, position, shape and properties; nothing
     in the tree builds a node from one
     ([decision 11](README.md#decisions-already-taken)). A tile object keeps the
-    coordinates the file states, bottom-left origin and all — converting them is
-    the caller's job, and there is no caller yet.
+    coordinates the file states, bottom-left origin and all. Converting them is
+    the transform's job, in [step 4](#step-4--tilemap-and-the-transform), so that
+    no caller ever does it.
 
 ### Tests
 
@@ -304,48 +306,79 @@ produces — again as a temporary example, deleted in step 4.
 
 ---
 
-## Step 4 — `TileMap` and `Engine::Tileset` rebuilt on the parser
+## Step 4 — `TileMap` and the transform
 
-The breaking step. It is one branch because
-[F10](01-current-state.md#f10)'s sweep crosses `spec/` and `spec_core/`, and a
-contract that lands in two commits is a red suite in between.
+The breaking step, and the one where Tiled's world becomes the game's. It is one
+branch because [F10](01-current-state.md#f10)'s sweep crosses `spec/` and
+`spec_core/`, and a contract that lands in two commits is a red suite in between.
 
 ### Shape
 
-The full `TileMap` and `Engine::Tileset` sketches are in
-[03-design.md](03-design.md#the-runtime-view). What changes for callers:
+The full sketch is in [03-design.md](03-design.md#the-runtime-view). What changes
+for callers:
 
 | Was | Becomes |
 |---|---|
-| `map.tileset` | `map.tilesets`, `map.tileset_for(gid)` |
-| `TileMap.load` → `[map, image_path]` | → `[map, image_paths]` |
-| `map.above_layer?(i)` | `map.layer(i).properties['above']` |
-| `map.gid(l, c, r)` carries no flags | unchanged, and `map.flip(l, c, r)` is new |
-| — | `map.layer(i)`, `map.layer_index(name)`, `map.objects`, `map.image_layers` |
+| `map.gid(l, c, r)` | `map.tile(l, c, r)` — an rgame tile id, 0 for empty |
+| `map.tileset`, and `Engine::Tileset` | gone — `map.solid?`, `map.tile_class`, `map.tile_properties` |
+| `map.tileset.frame_local_id(local, ms)` | `map.frame_tile(tile, elapsed)`, in seconds |
+| `map.above_layer?(i)` | `map.layer(i).above?` |
+| `TileMap.load` → `[map, image_path]` | gone — the glue reads `Tiled::Map` and calls `from_tiled` |
+| `TileMap.parse(tmx_string)` | gone — `Tiled::Map.parse` then `TileMap.from_tiled` |
+| — | `map.orientation`, `map.tile_table`, `map.layer`, `map.layer_index`, `map.objects`, `map.image_layers` |
+
+### Sub-steps
+
+- **4a** — `TileMap.from_tiled` and the runtime view rebuilt on it, with its own
+  specs. Nothing outside `lib/rgame/engine/` moves.
+- **4b** — the `a tile map` contract rewritten, `StubTileMap` rebuilt against it,
+  and the `map.tileset` sweep across `lib/`, `spec/` and `spec_core/`.
 
 ### The rules the tests pin
 
-1. `gid` never returns a value carrying a flag, and `flip` returns 0..7.
-2. A map with no flipped tile allocates no flip plane, and `flip` still answers
-   0 everywhere.
-3. `tileset_for` picks the last tileset whose `firstgid` does not exceed the gid,
-   and `nil` for gid 0.
-4. Layers flatten depth first, groups contributing no index of their own.
-5. `layer_index` takes a name or a `'Group/child'` path, and raises naming the
-   available layers when it misses.
-6. A hidden layer still counts for `solid_tile?`.
-7. `solid_tile?` and `solid_at?` answer exactly as they do today for
-   `town.tmx` — this is the invariant, asserted directly.
-8. `TileMap.parse` still takes a String and touches no files.
+1. **Tile ids are dense and start at 1**, with 0 the empty cell, and
+   `tile_count` reports how many the map's tilesets hold together.
+2. **A gid from the second tileset resolves to the second tileset.** This is
+   [F2](01-current-state.md#f2) asserted directly: `tile_table[id]` names the
+   tileset and the local id, and the two never cross.
+3. **`orientation` returns one of eight frozen values, never bits.** A map with
+   no flipped tile allocates no plane and answers the identity everywhere.
+4. **Layers flatten depth first**, groups contributing no index of their own,
+   opacity multiplied down the tree and visibility conjoined.
+5. **`layer_index` takes a name or a `'Group/child'` path**, and raises naming
+   the available layers when it misses.
+6. **`layer.above?` is read once from the property**, and a layer without it is
+   false.
+7. **A hidden layer still counts for `solid_tile?`.**
+8. **`solid_tile?` and `solid_at?` answer exactly as they do today for
+   `town.tmx`** — this is the invariant, asserted directly.
+9. **`frame_tile` takes seconds.** Frame durations convert from Tiled's
+   milliseconds once, at load, and the same animation resolves to the same tile
+   as `Tileset#frame_local_id` does today.
+10. **An object comes out in the game's coordinates**: a tile object's `(x, y)`
+    is its top-left, the origin shift is applied to it and to every polygon
+    point, and its `gid` has become a `tile`. See
+    [the objects section](03-design.md#objects-one-record-in-the-games-coordinates).
+11. **A fixed map and its Infinite twin build the same `TileMap`** — same tiles,
+    same orientations, same object coordinates. This is what proves the shift
+    happens in one place.
+12. **A built map is plain data.** `initialize` takes flat Arrays, not a
+    `Tensor`, and no `Tiled::*` object is reachable from a built map
+    ([decision 13](README.md#decisions-already-taken)).
 
 ### Tests
 
-Rewrite `spec/rgame/engine/tile_map_spec.rb` and
-`spec/rgame/engine/tileset_spec.rb`. Rewrite
-`spec/support/shared_examples/a_tile_map.rb` and grow `StubTileMap` to match, in
-the same commit ([constraint 6](README.md#hard-constraints)) — and
+Rewrite `spec/rgame/engine/tile_map_spec.rb`; delete
+`spec/rgame/engine/tileset_spec.rb` with the class. Rewrite
+`spec/support/shared_examples/a_tile_map.rb` and rebuild `StubTileMap` against
+it, in the same commit ([constraint 6](README.md#hard-constraints)) — and
 `spec_core/rgame/core/tile_map_renderer_spec.rb`, which hosts the same contract
-from the other side.
+from the other side. Both come out **shorter**: the contract loses `tileset`,
+`local_id`, `firstgid` and `gid` and gains `tile`, `orientation`, `solid?` and
+`frame_tile`.
+
+Rule 12 is an example, not a comment: walk a built map's instance variables and
+assert nothing under them is a `Tiled::*`.
 
 ### Verify
 
@@ -355,28 +388,42 @@ bundle exec rspec spec/rgame/no_graphics_spec.rb
 ```
 
 and the invariant's driven runs, byte-identical to their output before the
-branch. `RGame::Engine::Tiled` is the only thing that parses XML, asserted by
-grepping `lib/rgame/engine/` for `REXML` and finding it in one directory.
+branch.
+
+Two greps, both of which must find exactly one directory:
+
+```
+grep -rl REXML lib/rgame/engine/          # only lib/rgame/engine/tiled/
+grep -rln 'Tiled::' lib/rgame/            # only tiled/, and the transform file
+```
+
+The second is [decision 12](README.md#decisions-already-taken)'s guard. It is
+what stops the parse types leaking back out once someone needs "just one field"
+from them.
 
 ---
 
 ## Step 5 — the renderer, and slicing a real sheet
 
-Everything that turns the parsed map into pixels, in one branch because the
-renderer's tile lookup, the image slicing and the flip draw are one change seen
-from three sides.
+Everything that turns the parsed map into pixels, in one branch because the image
+slicing and the oriented draw are one change seen from two sides.
+
+**Smaller than it looks**, because the tile table absorbed the part that would
+have touched the renderer's interface: `TileMapRenderer.new(map, tiles)` keeps
+taking one flat Array, indexed by tile id with `nil` at 0.
 
 ### Shape
 
 ```ruby
-# Core
-RGame::Core::TileMapRenderer.new(map, images)   # images: one Array per tileset
+# Core — signature unchanged
+RGame::Core::TileMapRenderer.new(map, tiles)
 RGame::Core::Image#tiles(w, h, margin: 0, spacing: 0, count: nil, columns: nil)
 
-# Glue, in RGame::Game's :tilemap loader
-map, image_paths = RGame::Engine::TileMap.load(path)
-images = map.tilesets.zip(image_paths).map { |tileset, paths| slice(tileset, paths) }
-RGame::Core::TileMapRenderer.new(map, images)
+# Glue, in RGame::Game's :tilemap loader — the only place that names both layers
+tiled = RGame::Engine::Tiled::Map.load(path)
+map   = RGame::Engine::TileMap.from_tiled(tiled)
+tiles = build_tiles(tiled, map.tile_table)   # slice each tileset, lay it out by tile id
+RGame::Core::TileMapRenderer.new(map, tiles)
 ```
 
 ### The rules the tests pin
@@ -385,15 +432,15 @@ RGame::Core::TileMapRenderer.new(map, images)
    through the same C path.
 2. `tiles` with margin and spacing cuts each tile from
    `margin + col * (w + spacing)`, and `count:` bounds the result.
-3. A tile's image resolves through its **own** tileset — a gid from the second
-   tileset never indexes the first.
-4. A flipped tile bakes to the orientation Tiled shows, for all eight
-   combinations. **This is the table to get right**, and it is pinned against the
-   authored map in step 8 as well as against a fixture here.
+3. **A collection-of-images tileset produces the same flat Array as a sheet**,
+   so the renderer cannot tell them apart. This is the rule that says the glue
+   absorbed the difference rather than passing it down.
+4. An oriented tile bakes to what Tiled shows, for all eight values. **This is
+   the table to get right**, and it is pinned against the authored map in step 8
+   as well as against a fixture here.
 5. A hidden layer bakes nothing and draws nothing.
 6. A layer with opacity `o` replays tinted with alpha `o`, and its animated tiles
    draw with the same colour.
-7. A collection-of-images tileset draws the same as a sheet with the same tiles.
 
 ### Tests
 
@@ -404,8 +451,8 @@ guard that a sub-image cannot fall outside the sheet —
 `spec_core/support/stub_image.rb` already refuses exactly what `Image#subimage`
 refuses, and must keep doing so.
 
-Flip orientation is checked by reading pixels back, not by counting calls: a
-rotation the wrong way issues exactly the same number of draws.
+Orientation is checked by reading pixels back, not by counting calls: a rotation
+the wrong way issues exactly the same number of draws.
 
 ### Verify
 
@@ -434,9 +481,12 @@ name once it returns an assortment.
 ## Step 7 — nodes on a map *(rough)*
 
 The tile↔world seam on `TileWorld`, absorbing the four copies in
-[F8](01-current-state.md#f8); `MapObject` and the `MapObjects` registry; and
+[F8](01-current-state.md#f8); the `MapObjects` registry; and
 `Components::OccupiesCell`. See
 [the design](03-design.md#nodes-on-a-map).
+
+`MapObject` itself is not here — step 4 builds it, because `map.objects` already
+hands it out. What this step adds is the thing that turns one into a node.
 
 The seam is the part to re-plan carefully: `Util::TileSweep` does the same
 arithmetic in C and stays there, so the step has to say what "one seam" means
@@ -479,8 +529,10 @@ Move what is still true into the real documentation and remove
   gains the changed `:tilemap` loader.
 - **`examples/assets/README.md`** carries a source and licence entry for every
   image the new map uses.
-- **`CHANGELOG.md`** gets the breaking change stated plainly — `map.tileset`
-  became `map.tilesets`, `TileMap.load` returns paths — per
+- **`CHANGELOG.md`** gets the breaking change stated plainly — a cell holds a
+  tile id rather than a gid, `map.tileset` and `Engine::Tileset` are gone, and
+  `TileMap.load` and `TileMap.parse` gave way to `Tiled::Map` plus
+  `TileMap.from_tiled` — per
   [update-changelog](../../../.claude/skills/update-changelog/SKILL.md).
 - **`docs/plans/possible-todos.md`**: the "maps that change at runtime" entry
   loses the part `OccupiesCell` answered and keeps the `Navigator` question,

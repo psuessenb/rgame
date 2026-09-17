@@ -32,6 +32,16 @@ about how a game uses it, and a `TileMap` built from it that keeps answering the
 questions actors ask. The parser grows a class per element. The runtime view
 stays the size it is.
 
+**The split only pays if the vocabulary stops at it.** The runtime view is built
+for the game, not as a second presentation of the file, so the transform between
+the halves absorbs every awkwardness the format has: the global id space becomes
+[one tile table](03-design.md#tiles-one-table-and-no-gid-below-the-transform),
+three flip bits become
+[an orientation](03-design.md#orientation-eight-of-them-decoded-once), a tile
+object measured from its bottom-left corner becomes
+[one record in the game's coordinates](03-design.md#objects-one-record-in-the-games-coordinates).
+A `TileMap` that still said `gid` would have moved the parse, not the problem.
+
 Two findings make the rest cheaper than it looks.
 [A recording bakes the transforms inside it](01-current-state.md#f6), so drawing
 flipped and rotated tiles costs nothing per frame — only at bake time. And
@@ -56,6 +66,36 @@ Taken at `b988500`, on this checkout.
 | Layer data encodings read | **1** of 6 |
 | Layer kinds read | **1** of 4 |
 | Test projects that could verify this | 0 — `test_projects/tiled_world` reads `media/`, which is gitignored |
+
+## What was measured while designing the transform
+
+Taken at `2a9e8e7`, on this checkout. These answer the second question: once the
+split is settled, what does the transform cost? Every row *(measured)*.
+
+`TileMap` already walks every cell writing into a `Util::Tensor`, so the tile
+table adds an array lookup to a loop that runs today rather than adding a pass:
+
+| Map | Tensor fill today | + tile table | Added |
+|---|---|---|---|
+| `town.tmx`, 60×40×2 = 4.8k cells | 0.20 ms | 0.24 ms | **+0.04 ms** |
+| 250×250×6 = 375k cells | 15.1 ms | 17.9 ms | **+2.8 ms** |
+| 500×500×8 = 2M cells | 80.2 ms | 96.3 ms | **+16 ms** |
+
+The orientation plane costs four times what the table does — 17.9 ms to 29.5 ms
+on the 375k map — and only on maps that use it. Decoding a whole 250×250×6 map
+costs about 35 ms all in, once, on a scene load.
+
+Two more numbers that decide what to optimise if it ever matters:
+
+| | |
+|---|---|
+| `TileMap.parse('town.tmx')` today | 0.59 ms, of which REXML is 0.12 ms |
+| Per-cell `Tensor#[]=` vs. one flat `Array#map`, 375k cells | 18.7 ms vs. 8.0 ms |
+
+The second row is the finding. The load cost is dominated by per-cell Ruby-to-C
+crossings, not by parsing and not by the transform, and `Tensor` exposes no bulk
+fill — `initialize`, `[]`, `[]=`, `width`, `height`, `depth`, and nothing else
+([tensor.c:180-185](../../../ext/rgame_util/tensor.c#L180-L185)).
 
 ## Hard constraints
 
@@ -106,9 +146,10 @@ re-litigation inside it.
    class and properties, and their geometry is discarded. `SolidGrid` stays a
    byte per cell, which is what makes collision and A* fast.
 8. **The parse/runtime split above.**
-9. **The public API breaks, and the CHANGELOG says so.** `map.tilesets` replaces
-   `map.tileset`; the renderer takes images per tileset; the shared contract is
-   rewritten. rgame is 0.3.1 and every consumer is in this repo.
+9. **The public API breaks, and the CHANGELOG says so.** A cell holds a tile id
+   rather than a gid; `map.tileset` and `Engine::Tileset` go; `TileMap.load` and
+   `TileMap.parse` give way to `Tiled::Map` plus `TileMap.from_tiled`; the shared
+   contract is rewritten. rgame is 0.4.0 and every consumer is in this repo.
 10. **The acceptance map is authored in Tiled by the user.** The roadmap hands
     out requirements early, at
     [step 0](04-roadmap.md#step-0--the-requirements-for-the-acceptance-map), and
@@ -124,6 +165,20 @@ re-litigation inside it.
     record type is real and something produces it, so the later feature is
     wiring rather than design — a registry with no producer is exactly the
     untested-composition smell CLAUDE.md warns about.
+12. **The runtime view speaks none of Tiled's vocabulary.** A cell holds an
+    rgame tile id, not a gid; an orientation, not three flip bits; `layer.above?`,
+    not a property lookup; a `MapObject` in the game's coordinates, not a
+    `Tiled::Object` in the file's. `Engine::Tileset` dissolves, because nothing
+    a game asks at runtime is per-tileset. The guard is a grep:
+    `RGame::Engine::Tiled` may be named inside `lib/rgame/engine/tiled/` and in
+    the one transform file, nowhere else. See
+    [what the runtime view may not say](03-design.md#what-the-runtime-view-may-not-say).
+13. **A built map is plain data, produced by one thing.** `from_tiled` is the
+    only transform, `initialize` takes flat Arrays rather than a `Tensor`,
+    nothing reachable from a built map is a `Tiled::*` object, and `source`
+    records what it was built from. All four are needed anyway; together they
+    leave a cache of built maps possible later without one being built now. See
+    [open question 4](#open-questions).
 
 ## What this plan does not deliver
 
@@ -139,6 +194,11 @@ re-litigation inside it.
 - **World files (`.world`).** Stitching several maps is a separate feature.
 - **Per-layer parallax, offset and tint.** See decision 5.
 - **Text objects.** Parsed as a shape and otherwise ignored.
+- **A cache of built maps across process runs.** Within one run a map is
+  transformed once, because `AssetManager` caches it. Across runs is open question
+  4, and nothing measures as slow enough to open it.
+- **A bulk `Util::Tensor` fill.** The measurements say it is the first thing to
+  reach for if loading ever hurts. Nothing here needs it.
 
 ## Open questions
 
@@ -150,10 +210,21 @@ re-litigation inside it.
    too, and a class method on `TileMapLayer` that returns an assortment no
    longer describes itself. `MapLayers.mount` is the alternative. **Waits on
    step 6**, where the mixed set first exists.
-3. **Does the flip plane need a byte-per-cell store?** `Util::Tensor` holds a
-   `VALUE` per cell, so a second plane costs 8 bytes per cell per layer.
-   Nothing measured says that hurts. **Waits on** a map big enough to measure.
-   See [the rejected packing](03-design.md#rejected-packing-the-flip-bits-into-the-gid).
+3. **Does the orientation plane need a byte-per-cell store?** `Util::Tensor`
+   holds a `VALUE` per cell, so a second plane costs 8 bytes per cell per layer.
+   It is also the most expensive part of the transform where a map uses it —
+   11.6 ms of the 29.5 ms a 250×250×6 map spends *(measured)*. A map with no
+   flipped tile allocates none of it. **Waits on** a map big enough for either
+   number to matter. See
+   [the rejected packing](03-design.md#rejected-packing-the-flip-bits-into-the-tile-id).
+4. **Should built maps be cached across process runs?** Not now. Within one run
+   the cache already exists — `AssetManager#fetch` is `@cache[key] ||= yield`, so
+   a map is transformed once per process. Across runs would need a format, a
+   location and a rule for what invalidates it, and a 250×250×6 map transforms in
+   about 35 ms on a scene load *(measured)*. The cheaper move comes first and is
+   not a cache: a bulk fill in C for `Util::Tensor`, which halves the dominant
+   cost. **Blocks nothing**, and
+   [decision 13](#decisions-already-taken) is what keeps it answerable later.
 
 ## Reading order
 

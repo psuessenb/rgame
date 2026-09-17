@@ -30,9 +30,9 @@ by swapping the renderer, which is the seam
 
 One thing to leave. libGDX allocates a `Cell` object per non-empty tile. rgame
 holds a dense `Util::Tensor` of integers, which is why a 60×40×2 map costs
-4800 slots rather than 4800 objects. Keep that, and the flip has to live
+4800 slots rather than 4800 objects. Keep that, and the orientation has to live
 somewhere other than an object — see
-[the design](03-design.md#where-the-flip-lives).
+[the design](03-design.md#orientation-eight-of-them-decoded-once).
 
 ## SuperTiled2Unity — the object-to-node mapping, done at import
 
