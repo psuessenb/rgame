@@ -1,6 +1,6 @@
 ---
 name: verify
-description: How to verify rgame changes — the four test tiers (Check/C, RSpec/Ruby, headless live window with synthetic keyboard input, manual), and how to prove new C code does not leak. Use when writing or reviewing engine code, adding a C class or Ruby extension, testing input handling, checking for memory leaks, or deciding what kind of test a change needs.
+description: How to verify rgame changes — the four test tiers (Check/C, RSpec/Ruby, headless live window with synthetic keyboard input, manual), how to prove new C code does not leak, the shared contracts that keep a fake from drifting from the real thing, and what the suites skip per platform. Use when writing or reviewing engine code, adding a C class or Ruby extension, testing input handling, checking for memory leaks, or deciding what kind of test a change needs.
 ---
 
 # Verifying rgame
@@ -45,7 +45,8 @@ where C-extension lifetime checks live (see "Leaks", below), and where
 surface: the App lifecycle, `Input`'s binding table, gamepad hot-plug, and the
 names `docs/api/` mentions (`spec_core/api_docs/`). Opens
 real windows and boots its own Xvfb. A separate directory and runner precisely
-so tier 2a cannot be contaminated — see CLAUDE.md, "Design out misuse".
+so tier 2a cannot be contaminated — see
+[Design out misuse](../../../CLAUDE.md#design-out-misuse-the-right-thing-must-be-the-easy-thing).
 
 Reusable support lives in `spec_core/support/`: `HeadlessDisplay` (Xvfb),
 `XKeys` (XTEST keystrokes) and `VirtualGamepad` (a synthetic SDL controller).
@@ -384,6 +385,131 @@ mode of each is *silence*, which is why they are recorded here.
   parallel tests must differ.
 - **Test both input paths.** Discrete events (`button_down`) and held-key
   polling (`down?`) are different code paths and break independently.
+
+---
+
+## Fakes must be checked against the same contract as the real thing
+
+The engine layer only ever calls a renderer (or audio server, or input
+backend) by method name, so every such interface has at least two
+implementations: the real `RGame::Core` one and the recording fake that
+headless specs substitute. If the fake drifts from the real one, `rake spec`
+stays green while the game no longer runs — the classic failure of this
+pattern, and the one thing the split cannot catch by itself.
+
+So each of those interfaces gets a **shared example group** in
+`spec/support/`, and both implementations are run against it: the fake from
+`spec/`, the real one from `spec_core/`. A method added to the real renderer
+is not done until the shared contract and the fake have it too.
+
+There are three of these today, all built the same way:
+
+| | Renderer | Audio | Tile map |
+|---|---|---|---|
+| Contract | `spec/support/shared_examples/a_renderer.rb` | `spec/support/shared_examples/an_audio_server.rb` | `spec/support/shared_examples/a_tile_map.rb` |
+| Stand-in | `spec/support/fake_renderer.rb`, run against it by `fake_renderer_spec.rb` | `spec/support/fake_audio.rb`, run against it by `fake_audio_spec.rb` | `spec/support/stub_tile_map.rb`, run against it by `stub_tile_map_spec.rb` |
+| Real | `RGame::Core::Renderer`, run against it by `spec_core/rgame/core/renderer_spec.rb` | `RGame::Core::Audio`, run against it by `spec_core/rgame/core/audio_spec.rb` | `RGame::Engine::TileMap`, run against it by `spec/rgame/engine/tile_map_spec.rb` |
+| Host hook | `render { \|renderer, image, font\| ... }` | `with_audio { \|audio, sound_path\| ... }` | `tile_map { \|map\| ... }` |
+
+The tile map is the one that points *up* rather than down: `Core::TileMapRenderer`
+draws a map it may not name, so the contract is what stops the stand-in drifting
+from the parsed article. Both of its implementations are headless, so unlike the
+other two it runs entirely in `spec/`.
+
+`spec_core/core_spec_helper.rb` requires the contracts across the directory
+boundary, and the stand-ins built against them. That is the *only* thing that
+crosses: no `spec/` example file is
+loaded there, and nothing in `spec/` ever names Core.
+
+A contract states the method list and its argument shapes; it cannot state
+pixels or samples, because the fake produces neither. That is why
+`renderer_spec.rb` also reads the framebuffer back, and why the audio output
+tier is `test/test_audio.c` reading an offline device — the two halves together
+are the guarantee.
+
+The audio contract also shows what a contract must *leave out*: whether a sound
+has finished. Playback runs against a clock in both implementations, so
+"is it still playing a moment later" has no stable answer, and only the
+transitions a caller controls are stated.
+
+## A fake must refuse what the real thing refuses
+
+The rule above is about methods that exist. This one is about the calls that
+must **fail**, and it is the half that is easy to miss — a fake is written by
+listing what a caller does, and a caller does not ordinarily pass `nil`.
+
+> **A fake that only ever says yes tests nothing about the paths that exist
+> because the real one says no.**
+
+The failure is specific and nasty: a guard is written in the real code *because*
+the real thing raises, a spec is written against the fake, the spec passes
+whether or not the guard is there, and the mutation that deletes the guard
+survives. That is exactly how it was found — a `NineSlice` guard against
+zero-size sub-images looked untested because `StubImage#subimage` accepted what
+`Image#subimage` rejects.
+
+So, whenever a fake is written or a real method grows a `raise`:
+
+1. **Compare them by running them.** Call the same bad input on both and diff
+   the exception classes. Reading the code finds the refusals you remembered to
+   write; running it finds the ones you did not. Doing this over the renderer
+   and audio surfaces turned up **ten** differences, one of which was a
+   *segfault* in the real code (`renderer.text(nil, …)` reached `RSTRING_PTR`
+   without a type check).
+2. **Put the refusal in the contract, not just in the fake.** A patched fake
+   drifts again; a contract example runs against both. `spec/support/shared_examples/`
+   has an "arguments it refuses" section for exactly this.
+3. **Match on argument-shape refusals; document the rest.** A fake can check
+   that a coordinate is a number and a label is a String — the real ones cross
+   into C through `NUM2DBL` and `StringValue`, which raise `TypeError`. It
+   cannot check that a file exists or that an image belongs to this app. Where
+   it cannot, say so at the code and name the tier that does cover it. Two
+   worked examples: `FakeRenderer#image_arg` refuses only `nil`, because a fake
+   never looks at an image; `FakeRecording` documents that it does not refuse
+   `.new` the way the real `Recording` does, because no scene ever calls it.
+4. **Validate without converting.** The real binding converts (`NUM2DBL`); the
+   fake should check and then record what the caller actually passed, so
+   assertions read as written. Where a coercion is pure Ruby — colours go
+   through `RGame::Util::Color.coerce` — the fake calls *the same function*,
+   which is better than matching its behaviour.
+
+`spec_core/support/stub_image.rb` is the smallest example of all of this: it
+refuses exactly what `RGame::Core::Image#subimage` refuses, with the same
+message, and says in its own comment why that matters.
+
+---
+
+## Platform support
+
+**Linux, macOS and Windows are all supported and all gated by CI**
+(`.github/workflows/ci.yml`), which runs every tier on each of them. A change
+that breaks one is a red run, not a discovery someone makes later.
+
+Three things about the test suites differ per platform, and each is a
+*capability probed at runtime* rather than a platform check. That distinction
+is deliberate: a probe keeps the examples running on every machine that can
+manage them — including a developer's — instead of switching them off for a
+whole platform because one environment cannot.
+
+- **The display.** `HeadlessDisplay` starts Xvfb on Linux and uses the native
+  window server everywhere else, because macOS and Windows always have one and
+  have no Xvfb equivalent.
+- **Synthetic keyboard input** needs X11's XTEST, so
+  `HeadlessDisplay.can_inject_keys?` gates it and the keyboard-driven Core
+  specs skip themselves elsewhere. The macOS equivalent would be Quartz
+  `CGEvent`, which needs an accessibility permission no CI runner can grant;
+  Windows' would be `SendInput`.
+- **Virtual gamepad button state.** Attaching a synthetic pad works anywhere
+  SDL does — it is an SDL feature, not an OS one — but *reading a pressed
+  button back* does not. On GitHub's macOS runners SDL reports success at every
+  step and the state never appears; see
+  `VirtualGamepad.button_state_supported?`, which probes it and skips the two
+  examples that need it. Hot-plug specs, which only attach and detach, run
+  everywhere.
+
+**Read the skip count, not just the colour.** A green `rake spec:core` on macOS
+or Windows covers strictly less than a green one on Linux, and how much less is
+in the run's `exclude` line.
 
 ---
 

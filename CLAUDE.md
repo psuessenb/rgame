@@ -93,22 +93,13 @@ The middle pile is what this section is for, and the test that fills it is not
 "do these share code" but **"do these two answer the same question about
 different things?"**
 
-### The worked example, and what it cost
+Tile collision and body collision were built independently and each was correct,
+and they answered the same question about different things: *what is in the way*.
+Unifying them afterwards took six steps and touched every collision file in the
+project. The [write-plan](.claude/skills/write-plan/SKILL.md) skill has that case
+in full, and the five checks a sweep of existing code runs.
 
-Tile collision and body collision were built independently, and each was
-correct. `TileCharacterBody` resolved a step against a grid; `BoxCollider`
-reported overlapping pairs out of a spatial hash. Different indexes, different
-questions, no shared code — and on that reading, two systems is right.
-
-They answered the same question about different things: *what is in the way*.
-Seen that way the duplication is obvious and it was expensive. The shape had two
-owners, so a character wanting both built one box privately and handed it to the
-other component in an `on_add` hook written for no other purpose — and forgetting
-that hook was **silent**, which is precisely the failure "Design out misuse"
-above exists to refuse. Unifying it afterwards took six steps and touched every
-collision file in the project.
-
-### Two smells, and the reason nobody smelled them
+### Two smells, and why nobody smelled them
 
 - **Parallel vocabularies.** Two subsystems whose types line up one-for-one —
   a shape each, a resolver each, a "what stopped me" each — are usually one
@@ -130,24 +121,6 @@ So when a new subsystem sits next to an existing one, the acceptance test is not
 "does mine pass" but **"what does a caller using both of us look like, and does
 anything exercise it?"** If the answer is that nothing does, that is the test to
 write first, and it is the cheapest moment this design will ever be questioned.
-
-### Checking something that already exists
-
-The same question works as a review of existing code, and the first time it was
-applied to the whole engine layer it found a second instance: `Velocity`,
-`PathFollow` and `CharacterBody` all answered *where does this node go this step*,
-and only the last could be stopped by anything. They became three subclasses of
-`Components::Mover`, which owns what happens after a step is computed. For each
-class, the checks that sweep ran were:
-
-- Does it duplicate state the node owns? (`Engine::Body` kept its own `x`/`y`.)
-- Does it need a hand-written hook to hand its data to another component?
-- Does it behave differently depending on a sibling's add order?
-- Does it name a layer it may not name?
-- Is it a node pretending to be a component, or the reverse?
-
-These are interface-depth checks. A misfit inside a method body that presents a
-clean interface gets past them.
 
 ## Spec style
 
@@ -238,8 +211,7 @@ example, a status line put together from four keys, two of them plurals.
 
 **Reach for it rather than inventing a way round the rule.** Every hand-rolled
 dodge is a reader's puzzle: `examples/sound` drew a row of rectangles to avoid
-formatting a count, and the comment explaining why was longer than the code. The
-cop is a floor, not a suggestion to be creative under.
+formatting a count, and the comment explaining why was longer than the code.
 
 **Two shapes that need no `with` at all:**
 
@@ -256,55 +228,36 @@ cop is a floor, not a suggestion to be creative under.
   `id.to_s`. A number has nothing to translate, and a cache for something that
   cannot change is indirection with no payer.
 
-## Current phase
+## What exists
 
-Both halves exist. The C engine — window, fixed-timestep loop, input, images, a
-z-sorted batching renderer, text, and audio — is wrapped by
-`ext/rgame_core/ruby/`, and there's a Ruby half under `lib/` backed by a
-second, graphics-free extension in `ext/rgame_util/`.
-`rgame.gemspec` packages both, so the project installs as a gem as well as
-running from a checkout, and it is published on RubyGems (`gem install rgame`).
+The C engine — window, fixed-timestep loop, input, images, a z-sorted batching
+renderer, text and audio — is wrapped by `ext/rgame_core/ruby/`, and the Ruby
+half under `lib/` is backed by a second, graphics-free extension. The gem
+packages both and is published on RubyGems.
 
-**Gosu is gone.** `lib/platform/` is deleted and nothing in the project depends
-on it in any form. `RGame::Game` (`lib/rgame/game.rb`) is the entry point a game
-is written against, and the games under `test_projects/` run on it.
-
-**All three layers are now where they belong.** The scene graph is
-`RGame::Engine` under `lib/rgame/engine/`, no bare top-level constant is left,
-and the whole layer ships in the gem. `require "rgame"` means "everything that
-runs without a window".
-
-**Split-screen is built, and the input layer with it.** A game has *seats*
-(`Game.new(players: 2)`); a `RGame::Engine::Player` owns a device, a binding
+**Split-screen, and the input layer with it.** A game has *seats*
+(`Game.new(players: 2)`); an `RGame::Engine::Player` owns a device, a binding
 table, a camera and a region of the screen; the shared world is updated once and
 drawn once per viewport by a `WorldView`; and which player a node answers to is
-inherited down the tree like its transform. A device is seated when somebody
-uses it rather than when it is plugged in. `examples/split_screen` seats a second
-player mid-session, and `examples/game_menu` opens a menu on one node while the
-world around it keeps walking. See `docs/api/scene_graph.md`, `input.md` and
-`ui.md`.
+inherited down the tree like its transform. A device is seated when somebody uses
+it, not when it is plugged in. See `docs/api/scene_graph.md`, `input.md`, `ui.md`.
 
-**The UI package is a beginning, not a toolkit.** `PlayerLayer` and
-`UI::Menu` cover a region per player, focus, and activation — which is what
-keyboard-and-controller navigation needs at minimum, and what the deleted
-mouse-driven package could not be ported into. Layout, nesting, scrolling lists
-and text entry are all still open; `docs/api/ui.md` says so under "What this is
-not".
+**The UI package is a beginning, not a toolkit.** `PlayerLayer` and `UI::Menu`
+cover a region per player, focus and activation — the minimum for
+keyboard-and-controller navigation. Layout, nesting, scrolling lists and text
+entry are all still open, and `docs/api/ui.md` says so under "What this is not".
 
 **Text on screen is translated by default.** `RGame::Game` loads every
-`locales/**/*.yml` through the asset manager and picks the player's language
-from the OS; a node draws an `Engine::Text` built from a key, and a UI button's
-`label:` is a key. `rgame new` generates a project that already works this way
-and whose specs fail on a key a language lacks. Every example keeps an `en.yml`
-beside its `main.rb` — `examples/localization` is the one with a second language
-— and a driven run exits 1 on a missing key. `test_projects/` are games, not
-teaching material, and still draw Strings. Text measurement is the gap this
-leaves: a button slot has a fixed width, so a longer translation can overflow
-it. See `docs/api/localization.md`.
+`locales/**/*.yml` and picks the player's language from the OS; a node draws an
+`Engine::Text` built from a key, and a UI button's `label:` is a key. Every
+example keeps an `en.yml` beside its `main.rb`, and a driven run exits 1 on a
+missing key. `test_projects/` are games rather than teaching material and still
+draw Strings. Text measurement is the gap: a button slot has a fixed width, so a
+longer translation can overflow it. See `docs/api/localization.md`.
 
-When adding a feature, the default is still to build it in C under
-`ext/rgame_core/` and only extend the Ruby wrapper once the C API for it is
-settled — unless it is engine-layer work, which is pure Ruby by definition.
+**Build a new feature in C** under `ext/rgame_core/`, and extend the Ruby wrapper
+once the C API is settled — unless it is engine-layer work, which is pure Ruby by
+definition.
 
 ## The Core / Util split
 
@@ -504,336 +457,157 @@ shell that measures frames. It is not for drawing.
 
 ## Structure and why it looks like this
 
-**All engine C lives in `ext/rgame_core/`**, not a top-level `src/`. This is
-because the project is headed for a single gem containing both the C and the
-Ruby half: `gem install` runs each `extconf.rb`, and an extension can
-only build sources within its own directory. Keeping the C there means one
-copy of the code feeds both the standalone binary and the gem.
+**All engine C lives in `ext/rgame_core/`**, not a top-level `src/`. `gem install`
+runs each `extconf.rb`, and an extension can only build sources within its own
+directory, so keeping the C there means one copy feeds both the standalone binary
+and the gem.
 
-Inside it, sources are grouped by subsystem — `app/`, `graphics/`, `text/`,
-`input/`, `audio/` — plus `ruby/` for the Ruby-facing glue and `vendor/` for
-third-party code. **A new engine source goes in the folder for its subsystem**,
-and includes name the folder they come from: `graphics/canvas.c` says
-`#include "graphics/clip.h"`, so a dependency that crosses a subsystem boundary
-is visible in the source rather than hidden in an include path.
+Inside it, sources are grouped by subsystem, and includes name the folder they
+come from: `graphics/canvas.c` says `#include "graphics/clip.h"`, so a dependency
+crossing a subsystem boundary is visible in the source rather than hidden in an
+include path. **A new engine source goes in the folder for its subsystem.**
+
+| | |
+|---|---|
+| `app/` | the SDL window, the GL context and the main loop |
+| `graphics/` | transform and clip stacks, draw queue, textures, primitives, recordings, the GL backend |
+| `text/` | font, glyph atlas and cache, the atlas pages |
+| `input/` | the input snapshot, the button-id space, gamepads and their player slots |
+| `audio/` | the sound device and the Ogg decoder, over miniaudio — no SDL, no GL |
+| `ruby/` | the Ruby glue; the only C here that includes `ruby.h` |
+| `vendor/` | third-party sources |
+| `include/rgame/core.h` | the only public API |
+
+**Every file's own top comment says what it is and why it is shaped that way** —
+that is this file's first rule, and those comments are the reference. What
+follows is only what a file cannot tell you about itself.
+
+### Where a new file goes, and what the build needs
 
 mkmf compiles every `.c` in an extension's own directory and nothing deeper, so
-`extconf.rb` lists these folders in `SOURCE_DIRS`, feeding `$srcs` (what to
-compile) and `$VPATH` (where make looks for a source named by basename). Two
-things follow. Objects are named after the source's *basename*, so basenames
-must be unique across the whole tree — mkmf aborts with `source files
-duplication` rather than clobbering one with another, so that rule holds itself
-up. And a **new folder** has to be added to `SOURCE_DIRS`; forgetting fails
-loudly, as an undefined symbol the first time something calls into it. Adding a
-file to a folder already listed needs nothing.
+`extconf.rb` lists these folders in `SOURCE_DIRS`, feeding `$srcs` and `$VPATH`.
+Two things follow. Objects are named after the source's *basename*, so
+**basenames must be unique across the whole tree** — mkmf aborts with `source
+files duplication` rather than clobbering one, so that rule holds itself up. And
+a **new folder** must be added to `SOURCE_DIRS`; forgetting fails loudly, as an
+undefined symbol. Adding a file to a listed folder needs nothing.
 
-- `ext/rgame_core/include/rgame/core.h` — the *only* public API. Opaque
-  `rgame_app` handle, plain C types only (no SDL/GL types in the signature).
-  This is what the Ruby extension calls — keeping SDL/GL details out of the
-  header means `ext/rgame_core/ruby/core_ext.c` can `#include` it without
-  also pulling in `SDL.h` conflicts or exposing internals. It sits under its own
-  `include/` subdirectory, which is on the include path but not in
-  `SOURCE_DIRS` — a header directory, never a source one.
-- `ext/rgame_core/app/app.c` — the actual engine (SDL window/GL context setup;
-  owns the main loop and drives caller-supplied `update`/`draw` callbacks).
-  Compiled with `-fPIC` so the resulting `.a` can be linked into a shared
-  object (`.so`) without recompiling.
-- `ext/rgame_core/app/frame_loop.{c,h}` — pure-logic helpers (no SDL/GL, no I/O)
-  factored out of `core.c` specifically so they're unit-testable without a
-  display/GL context (currently the fixed-timestep accumulator + FPS
-  counter). `test/` links against these directly. When adding engine logic,
-  prefer putting the parts that don't touch SDL/GL here so they stay
-  testable — see `test/test_frame_loop.c` for the pattern.
-- `ext/rgame_core/input/device_slots.{c,h}` — the same shape, for controllers: a
-  pure player-slot table that keeps a player on one slot across a
-  disconnect/reconnect. No SDL, covered by `test/test_device_slots.c`.
-- `ext/rgame_core/input/input.{c,h}` — the input snapshot and the flat button-id
-  space, again pure: `app.c` copies SDL's keyboard state into it once per
-  frame, and every query reads that copy. Covered by `test/test_input.c`.
-- `ext/rgame_core/graphics/transform.{c,h}` — the 2D affine transform stack that
-  rotation, scale and the camera all run through. Pure; covered by
-  `test/test_transform.c`, which asserts on coordinates rather than matrix
-  entries because a matrix assertion passes just as happily with the rotation
-  going the wrong way.
-- `ext/rgame_core/graphics/clip.{c,h}` — rectangles and the intersecting clip
-  stack, in screen space. Pure; covered by `test/test_clip.c`. A push always
-  *narrows*, so a child can never draw outside the region its parent allowed,
-  and "empty" is a canonical value because the draw queue uses it to drop
-  commands.
-- `ext/rgame_core/graphics/canvas.{c,h}` — composes the transform stack, the
-  clip stack and the draw queue, and is the seam the drawing API is written
-  against. Pure; covered by `test/test_canvas.c`, including the split-screen
-  shape end to end. It transforms vertices on the way *in*, which is what lets
-  the queue reorder them freely afterwards.
-- `ext/rgame_core/graphics/backend.{c,h}` — the layer-2 seam where arithmetic
-  stops and real GL calls begin: a function-pointer table, plus
-  `rgame_draw_submit`, which walks a prepared frame and issues a scissor only
-  when the clip actually changes. `test/support/recording_backend.{c,h}` is the
-  fake that stands in for GL, and is what makes "the right calls in the right
-  order" checkable with no display — a state-change optimisation is invisible
-  to a pixel test.
-- `ext/rgame_core/graphics/draw_queue.{c,h}` — z-ordering and batching, and the
-  reason the depth buffer is not used: depth testing and alpha blending are
-  mutually exclusive, so translucent UI over gameplay needs a CPU sort. Pure;
-  covered by `test/test_draw_queue.c`. Its buffers are reset rather than freed
-  each frame, and a test asserts capacities do not grow on a second identical
-  frame — a renderer that allocates per frame is a stutter nothing else would
-  notice.
-- `ext/rgame_core/graphics/texture.{c,h}` — what part of an uploaded image a
-  sprite covers, and who owns the upload: a refcounted sheet plus cheap views
-  into it, so slicing a sprite sheet costs no second decode. Pure — including
-  the refcount, because "free the GPU texture exactly when the last sprite
-  using it goes" is bookkeeping that needs no GPU to get wrong. Covered by
-  `test/test_texture.c`; `rgame_texture_live_sheets` is the counter that makes
-  a leaked texture visible from a spec.
-- `ext/rgame_core/graphics/image.c` — layer 3 for images: read the file,
-  `stbi_load`, `glTexImage2D`, `GL_NEAREST`. Kept dumb on purpose; the
-  interesting parts are in `texture.c` above. Covered end to end by
-  `spec_core/rgame/core/image_spec.rb`.
-- `ext/rgame_core/vendor/` — the vendored PNG decoder, TrueType rasteriser,
-  Ogg Vorbis decoder and audio device library, and beside each the single
-  translation unit (`<name>_impl.c`) that instantiates it and picks its
-  features. **The only files in the project compiled without `-Wall -Wextra`**,
-  and the `_impl.c` suffix is what selects that, from one list in both
-  `extconf.rb` and the root `Makefile`. Feature macros live in the `_impl.c`
-  rather than in build flags, so the standalone binary and the gem cannot end up
-  supporting different formats. The default font is *not* here: it is runtime
-  data and lives in `lib/rgame/fonts/`. See `ext/rgame_core/vendor/README.md`.
-- `tools/` — development tools, outside the engine, not built by `make` and
-  outside the gem's packaged glob, so nothing here ships. `make_ogg_fixture.c`
-  generates the audio suite's `.ogg` and needs `libvorbisenc` to *run*; the
-  engine links no vorbis library at all. `drive_test_project.rb` is the harness
-  the testing section describes. The rest are the packaging tools:
-  `platform_gem.rake` builds a platform gem, `check_platform_gem.rb` checks one
-  against nine rules, `check_installed_gem.rb` checks what an install left on a
-  machine that did not build it, `check_linkage.rb` reads what a binary depends
-  on, and `release_gems.rb` decides which gems of a version a release pushes.
-  See "Packaging".
-- `rakelib/` — rake tasks loaded automatically by the `Rakefile`, currently the
-  pinned SDL2 build (`sdl2.rake`, `sdl2_build.rb`) that a static `core_ext` and
-  every platform gem link against. Rake loads `rakelib/*.rake` by convention, so
-  nothing in the `Rakefile` names them. `tools/platform_gem.rake` is deliberately
-  *not* here, and is passed with `-f` instead: rake-compiler would warn about
-  `make ext`'s object files on every rake invocation, and the Linux build image
-  has no bundle to load the `Rakefile`'s RSpec tasks from.
-- `ext/rgame_core/graphics/primitives.{c,h}` — the shapes a game asks for
-  (rect, thick line, circle, sprite) in terms of the two the canvas knows.
-  Pure; covered by `test/test_primitives.c`. A rotated sprite goes through the
-  canvas's own transform stack rather than its own sin/cos, so which way a
-  positive angle turns is decided in exactly one place.
-- `ext/rgame_core/text/atlas.{c,h}` — where the next glyph goes on a texture page:
-  a shelf packer, pure, covered by `test/test_atlas.c`. The one-pixel gutter
-  between glyphs is reserved *inside* `place` rather than by each caller,
-  because a caller that has to remember eventually does not and the result
-  looks like a rendering bug rather than a packing one.
-- `ext/rgame_core/text/glyph_cache.{c,h}` — which glyphs have already been
-  rasterised and where they went: an open-addressed table keyed by codepoint,
-  pure, covered by `test/test_glyph_cache.c`. Nothing is ever evicted, which is
-  the point — caching per *glyph* rather than per string bounds the whole thing
-  by the character set the game draws, so there is no policy to get wrong and
-  no tombstones to skip.
-- `ext/rgame_core/text/font.{c,h}` — a typeface at one pixel size: glyph metrics,
-  rasterisation and UTF-8, over `stb_truetype`. Pure — no atlas, no GL — and
-  covered by `test/test_font.c` against the font the engine *ships*, so the
-  assertions are real advances rather than fixtures. Measuring a string and
-  drawing it share one `rgame_text_cursor`: two loops that both "sum the
-  advances" drift, and every centred label in the game drifts with them.
-- `ext/rgame_core/audio/audio.c` — the sound device and the two kinds of sound.
-  Touches neither SDL nor GL: miniaudio talks to ALSA/PulseAudio/CoreAudio
-  directly, so a sound belongs to an `rgame_audio` rather than to an app, and
-  none of the window-lifetime rules apply. A `sample` is decoded and gets a
-  fresh voice per play; a `song` is streamed and has one voice that can be
-  stopped and asked about — two types so that `playing?` cannot be asked of a
-  fire-and-forget effect. Layer 3, but properly tested (`test/test_audio.c`),
-  because miniaudio falls back to a **null device** when no sound system opens:
-  the same tests run against PulseAudio on a desktop and against silence in CI.
-- `ext/rgame_core/audio/vorbis_decoder.{c,h}` — a miniaudio decoding backend over
-  stb_vorbis, because miniaudio reads wav/mp3/flac but **not** Ogg Vorbis, and
-  its own reference vorbis backend uses system libvorbis. It needs *both*
-  entry points: `onInitFile` for `ma_decoder`, and `onInit` for `ma_engine`,
-  which reads through miniaudio's VFS. Covered by
-  `test/test_vorbis_decoder.c` against a committed `.ogg`, malformed inputs
-  included — it is the only part of the audio stack parsing untrusted bytes.
-- `ext/rgame_core/text/font_atlas.c` — the impure quarter of text: it composes
-  `font` + `atlas` + `glyph_cache`, owns the atlas pages as `GL_ALPHA` textures,
-  and is the only file in the text stack that calls `gl*`. Layer 3, kept thin;
-  covered end to end by `spec_core/rgame/core/font_spec.rb`.
-- `lib/rgame/fonts/` — the default font (Liberation Sans, SIL OFL 1.1), shipped
-  rather than looked up in a system font database. It is runtime data, so it
-  lives where a gem installs data rather than in `ext/`. Shipping it is also
-  what lets `test/test_font.c` assert real advances instead of fixtures.
-  `ext/rgame_core/vendor/README.md` says why a shipped font beats a system
-  font-name lookup — no per-platform font database, and text that renders
-  identically everywhere.
-- `ext/rgame_core/graphics/recording.{c,h}` — a block of drawing baked once and
-  replayed as one call per texture, which is what makes a tile map affordable.
-  Pure; covered by `test/test_recording.c`. It stores no clip on purpose:
-  clipping happens at rasterisation, so a rect captured in one place is wrong
-  everywhere else the recording is drawn, and pushing one inside a bake is
-  refused rather than silently dropped.
-- `ext/rgame_core/graphics/gl_backend.{c,h}` — layer 3 for drawing: the real
-  `glOrtho`/`glDrawArrays`/`glScissor` calls behind `backend.h`'s table, and
-  the only file on the draw path that calls `gl*`. Verified by looking at
-  pixels (`rake spec:core`, `make run`), not by unit tests — the call sequence
-  itself is already checked against the recording backend.
-- `ext/rgame_core/input/gamepad.{c,h}` — the controller shim, and the one place
-  an app opens an `SDL_GameController`. Deliberately thin: which player a pad
-  belongs to is `device_slots`, what a button id means is `input`, and both are
-  pure. Its own correctness is checked end-to-end with an SDL *virtual*
-  controller under Xvfb — no hardware needed, see `.claude/skills/verify/`.
-- `ext/rgame_core/input/virtual_gamepad.c` — that virtual controller, bound as
-  `RGame::Core::VirtualGamepad`. Test-only, and in the extension on purpose: a
-  spec helper reaching SDL through Fiddle opens a *second* SDL once the
-  extension links SDL statically, so SDL calls a spec needs go through the
-  engine. A pad records which run of SDL it was attached in
-  (`app/sdl_session.h`) and raises rather than touch SDL after the last app has
-  shut it down.
-- `ext/rgame_core/ruby/` + `extconf.rb` — the Ruby glue and the extension's
-  entry point; see `ext/README.md`. This is the only C in the extension that
-  includes `ruby.h`: everything above it is engine code that knows nothing
-  about Ruby. `core_ext.c` holds `RGame::Core::App`, and every *other*
-  Ruby-visible class gets its own file with one init function declared in
-  `core_ext.h` (`image_ext.c` is the first), the
-  same shape as `ext/rgame_util/util_ext.h` — so adding a class means adding a
-  file rather than growing an unrelated one. `audio_ext.c` is the one deliberate
-  exception: `Audio`, `Sample` and `Song` share a wrapping shape and are read
-  together, so splitting them would triplicate TypedData boilerplate to separate
-  ninety lines. `lib/rgame/core/audio.rb` mirrors that, so the two halves stay
-  parallel.
-- `src/main.c` — thin standalone entry point; only talks to `core.h`'s API,
-  never touches SDL/GL directly. This is intentionally what the Ruby
-  extension also does, just driven from Ruby instead of a C `main()`. It
-  stays *outside* `ext/` so mkmf doesn't compile its `main()` into the
-  extension.
-- `ext/rgame_util/` — the graphics-free extension (`RGame::Util`). Its
-  `extconf.rb` has no `pkg_config` and no `-lGL`, which is what enforces the
-  split above. `util_ext.c` is the entry point and does nothing but hand the
-  module to each class's init, so adding a class means adding a file rather
-  than editing an unrelated one. `Tensor`, `Color`, `SolidGrid`, `RouteSearch`
-  and `TileSweep` live here, and so does any future pure-data/pure-logic code
-  Ruby needs to call. Note `color.{c,h}`, `solid_grid.{c,h}`,
-  `route_search.{c,h}` and `tile_sweep.{c,h}` are pure and have no `ruby.h`, so
-  the Check suite covers
-  them directly — the same layer-1 split the engine side uses; the `*_ext.c`
-  beside each is only the binding.
-- Both extensions build to a `.so` that `make ext` copies into `lib/rgame/`
-  (`core_ext.so`, `util_ext.so`) — the path where `require
-  "rgame/core_ext"` / `require "rgame/util_ext"` find them, mirroring how
-  rake-compiler installs a compiled ext into `lib/<gem>/`. Naming both under
-  `rgame/` in `create_makefile` also leaves the bare name `rgame` to
-  `lib/rgame.rb`; don't take it for an extension.
-- `lib/` — the pure-Ruby half. `lib/rgame.rb` → `lib/rgame/util.rb` →
-  `lib/rgame/util/tensor.rb`, and separately `lib/rgame/core.rb` → one file per
-  class under `lib/rgame/core/`.
+`include/` is on the include path but not in `SOURCE_DIRS` — a header directory,
+never a source one. `core.h` takes plain C types only, no SDL or GL types in a
+signature, which is what lets `ruby/core_ext.c` include it without pulling in
+`SDL.h` conflicts.
 
-  Two kinds of file live there, and the difference is worth knowing. Most are
-  the Ruby side of a **C-backed class** — a `require` of the compiled extension
-  plus a comment saying what the class is and what moved to C, and the obvious
-  place to add a Ruby convenience later (`app.rb`, `image.rb`, `audio.rb`).
-  The rest are **whole classes in Ruby** (`sprite_sheet.rb`, `nine_slice.rb`,
-  `ui_atlas.rb`, `tile_map_renderer.rb`, `asset_manager.rb`). What makes those
-  `Core` is not that C is behind them — nothing is — but that they *hold
-  handles*: an image is a GPU texture, so anything owning one belongs on this
-  side of the line. Keep one class per file either way.
-- `lib/rgame/game.rb` — `RGame::Game`, the only class directly under `RGame`,
-  and by construction the only one allowed to name both layers. See "The rule
-  points both ways".
-- `lib/rgame/engine/` — the scene graph: nodes, components, signals, sprites,
-  tile maps, pathfinding. Pure Ruby, no graphics library, and the layer a game
-  is actually written against. `lib/rgame/engine.rb` requires the lot and is
-  separately requirable.
-- `exe/rgame` + `lib/rgame/cli.rb` + `lib/rgame/cli/` — the `rgame` command, and
-  the project generator behind `rgame new NAME`. Declared in the gemspec via
-  `spec.bindir`/`spec.executables`, so `gem install rgame` puts it on PATH.
+A pure module's Check test mirrors its name: `graphics/clip.c` is covered by
+`test/test_clip.c`. Layer 3 is the exception and is verified by looking at
+pixels — `graphics/gl_backend.c`, `graphics/image.c` and `text/font_atlas.c` are
+the only files on the draw path that call `gl*`.
 
-  Two rules hold it up. **It requires only stdlib and `rgame/version`** — never
-  `rgame`, `rgame/core` or `rgame/game` — so scaffolding works before either
-  extension is built, and so the CLI can be specced from `spec/`, where
-  `RGame::Core` is undefined and a stray require fails loudly.
+### The files whose placement is a decision
 
-  And **no file under `lib/rgame/cli/templates/` may be named with a leading
-  dot.** `Dir.glob('lib/**/*')` is how the gemspec derives `spec.files`, and it
-  does not match dotfiles, so a template called `.gitignore` would be absent
-  from the installed gem while working perfectly in the checkout — the same
-  shape of invisible-until-it-is-someone-else's-machine failure as a `.c` left
-  out of the list. Dotfile templates are stored under plain names
-  (`gitignore.tt`) and renamed on the way out through `NewProject::DOTFILES`.
-  `spec/packaging_spec.rb` asserts it, *without* going through `Dir.glob`, for
-  the reason its `.dSYM` example gives: a guard that shares the blind spot it is
-  guarding is not a guard.
+- **`vendor/`** — beside each vendored library sits the single translation unit
+  (`<name>_impl.c`) that instantiates it. **The only files compiled without
+  `-Wall -Wextra`**, and the `_impl.c` suffix is what selects that, from one list
+  in both `extconf.rb` and the root `Makefile`. Feature macros live in the
+  `_impl.c` rather than in build flags, so the binary and the gem cannot end up
+  supporting different formats.
+- **`lib/rgame/fonts/`** — the default font (Liberation Sans, SIL OFL 1.1) is
+  runtime data, so it lives where a gem installs data rather than in `ext/`.
+- **`input/virtual_gamepad.c`** — test-only, and in the extension on purpose: a
+  spec helper reaching SDL through Fiddle opens a *second* SDL once the extension
+  links SDL statically.
+- **`src/main.c`** — stays outside `ext/` so mkmf does not compile its `main()`
+  into the extension. It and `ext/rgame_core/example.rb` are parallel drivers of
+  the same API, and an API change generally needs both.
+- **`tools/`** and **`rakelib/`** — neither ships. `tools/platform_gem.rake` is
+  deliberately *not* in `rakelib/`, which rake would load on every invocation:
+  rake-compiler would warn about `make ext`'s object files every time, and the
+  Linux build image has no bundle to load the `Rakefile`'s RSpec tasks from.
 
-  What the generator writes is the layering above, made the default in a new
-  project: `game.rb` is the one file that requires `rgame/game`, `nodes/` and
-  `spec/` require `rgame`, and so a generated suite is headless from the first
-  commit. `spec/rgame/cli/generated_project_spec.rb` generates a project and
-  runs its RSpec and RuboCop for real — the promise is worth nothing described.
-  See `docs/api/cli.md`.
-- `lib/rgame/boot.rb` — enables YJIT if this Ruby has it. Not engine code, which
-  is why it sits directly under `rgame/`; `RGame::Game` requires it, so it is
-  the entry point's decision rather than a line every game remembers. Note
-  **this Ruby has no YJIT**, so locally the file is a verified no-op — the guard
-  holds rather than raising, but nobody here has measured the speedup.
-- `spec/` — RSpec specs for the Ruby half (`bundle exec rspec`). Note
-  `spec/spec_helper.rb` requires only `lib/rgame`, deliberately: a Core file
-  reached from here would pull SDL into the process and the suite would stop
-  meaning what it says. Preserve that property.
-- `docs/c_engine_feature_specs.md` — the feature spec this engine was built out
-  to satisfy, derived from an inventory of what the Ruby layer actually needed.
-  Nearly all of it is implemented; what remains useful is its scope list and its
-  "worth deciding deliberately" section. Consult it when adding a subsystem
-  rather than guessing scope, and amend it when a decision contradicts it —
-  there are two such amendments in it already.
+### One class, one file, on both sides
 
-- `rgame.gemspec` — packages both halves as one gem: both `extconf.rb` files in
-  `spec.extensions`, so a source install compiles each and drops its `.so` into
-  `lib/rgame/` exactly where `make ext` puts it. It describes the source gem
-  only; the three platform gems are built from it by `tools/platform_gem.rake`.
-  See "Packaging" below.
+`ruby/core_ext.c` holds `RGame::Core::App`; every other Ruby-visible class gets
+its own file with one init function declared in `core_ext.h`, the same shape as
+`ext/rgame_util/util_ext.h`. So adding a class means adding a file rather than
+growing an unrelated one. `audio_ext.c` is the one deliberate exception —
+`Audio`, `Sample` and `Song` share a wrapping shape, and splitting them would
+triplicate TypedData boilerplate to separate ninety lines.
 
-When adding new engine features, put the implementation in
-`ext/rgame_core/app/app.c` and extend
-`ext/rgame_core/include/rgame/core.h`'s public API rather than adding
-logic to `main.c` — that's what keeps the Ruby wrapper thin. `src/main.c` and
-`ext/rgame_core/example.rb` are parallel drivers of the same API; when the
-API changes, they generally both need the change.
+`ext/rgame_util/`'s `extconf.rb` has no `pkg_config` and no `-lGL`, which is what
+enforces the Core/Util split. Its pure files (`color`, `solid_grid`,
+`route_search`, `tile_sweep`) have no `ruby.h`, so the Check suite covers them
+directly; the `*_ext.c` beside each is only the binding.
+
+Both extensions build to a `.so` that `make ext` copies into `lib/rgame/`, where
+`require "rgame/core_ext"` finds it. Naming both under `rgame/` also leaves the
+bare name `rgame` to `lib/rgame.rb`; don't take it for an extension.
+
+### `lib/`
+
+Two kinds of file live there. Most are the Ruby side of a **C-backed class** — a
+require of the extension plus a comment saying what moved to C, and the obvious
+place to add a Ruby convenience later. The rest are **whole classes in Ruby**
+(`sprite_sheet.rb`, `nine_slice.rb`, `ui_atlas.rb`, `tile_map_renderer.rb`,
+`asset_manager.rb`). What makes those `Core` is not that C is behind them —
+nothing is — but that they **hold handles**: an image is a GPU texture, so
+anything owning one belongs on this side of the line.
+
+- `lib/rgame/game.rb` — the only class directly under `RGame`, and by
+  construction the only one allowed to name both layers.
+- `lib/rgame/engine/` — the scene graph, and the layer a game is written against.
+- `lib/rgame/boot.rb` — enables YJIT if this Ruby has it. **This Ruby has no
+  YJIT**, so locally it is a verified no-op.
+- `lib/rgame/version.rb` — the version and nothing else. The gemspec loads it
+  before either extension is compiled.
+- `spec/spec_helper.rb` requires only `lib/rgame`. A Core file reached from there
+  would pull SDL into the process and the suite would stop meaning what it says.
+
+### `exe/rgame` and the project generator
+
+Two rules hold up the CLI. **It requires only stdlib and `rgame/version`** —
+never `rgame`, `rgame/core` or `rgame/game` — so scaffolding works before either
+extension is built, and the CLI can be specced from `spec/`, where a stray
+require fails loudly.
+
+And **no file under `lib/rgame/cli/templates/` may be named with a leading dot.**
+`Dir.glob('lib/**/*')` derives `spec.files` and does not match dotfiles, so a
+template called `.gitignore` would be absent from the installed gem while working
+perfectly in the checkout. Dotfile templates are stored under plain names
+(`gitignore.tt`) and renamed on the way out through `NewProject::DOTFILES`.
+`spec/packaging_spec.rb` asserts it *without* going through `Dir.glob`: a guard
+that shares the blind spot it is guarding is not a guard.
+
+`spec/rgame/cli/generated_project_spec.rb` generates a project and runs its RSpec
+and RuboCop for real — the promise is worth nothing described.
+
+### Adding an engine feature
+
+Put the implementation in `ext/rgame_core/app/app.c` and extend `core.h`'s public
+API rather than adding logic to `main.c`; that is what keeps the Ruby wrapper
+thin. `docs/c_engine_feature_specs.md` holds the scope list this engine was built
+against — consult it when adding a subsystem rather than guessing, and amend it
+when a decision contradicts it.
 
 ## Abstraction & testability strategy
 
-`docs/c_engine_feature_specs.md` is a lot of surface area. This is the
-standing rule for building all of it, not just advice for one feature —
-every new subsystem should be split into three deliberately separate
-layers:
+**Split every new subsystem into three deliberately separate layers.** This is
+the standing rule, not advice for one feature.
 
-1. **Pure logic** — math/state transforms with no SDL, no GL, no I/O:
-   transform-stack composition, clip-rect intersection, z-sort/batching,
-   tile-grid slicing, glyph atlas packing, the fixed-timestep accumulator's
-   catch-up/skip decisions, etc. This is most of what's actually hard to get
-   right in a 2D engine, and none of it needs a window to test. Give it its
-   own small module (`ext/rgame_core/<area>/<name>.c` + header) and Check
-   tests, the same way `ext/rgame_core/app/frame_loop.{c,h}` and
-   `device_slots.{c,h}` are covered by `test/test_frame_loop.c` and
-   `test/test_device_slots.c` today. Each test file exposes a Check `Suite`
-   declared in `test/suites.h`; `test/test_main.c` runs them all as one binary,
-   so a new module adds a file and two lines rather than another `main()`. If the logic is also useful from Ruby on its
-   own, `ext/rgame_util/` is where it belongs instead — same reasoning, one
-   level up.
-2. **Fake/recording backend** — once a subsystem's logic drives real SDL/GL/
-   audio calls, put a small function-pointer table ("backend" struct)
-   between the pure logic and the real implementation, so tests can link a
-   fake backend that just records calls (e.g. `draw_textured_quad(x, y,
-   ...)` appended to an array) instead of hitting SDL/GL. This is what makes
-   it possible to verify "the right primitive calls happened in the right
-   order" — for a human or an agent — with no display involved at all. Add
-   this seam *when* a subsystem starts producing real SDL/GL calls, not
-   speculatively ahead of that.
-3. **Thin real shim** — the actual `SDL_*`/`gl*`/audio-device calls. Keep
-   these as dumb as possible: take already-computed values from layer 1 and
-   issue the corresponding call. Being this thin means there's little logic
-   left in it to get wrong, which is what justifies not unit-testing it
-   directly — see the verification tiers below.
+1. **Pure logic** — state and arithmetic with no SDL, no GL, no I/O. This is most
+   of what is hard to get right in a 2D engine, and none of it needs a window to
+   test. Give it its own module (`ext/rgame_core/<area>/<name>.c` plus a header)
+   and Check tests. Each test file exposes a Check `Suite` declared in
+   `test/suites.h`, and `test/test_main.c` runs them as one binary, so a new
+   module adds a file and two lines rather than another `main()`. Logic also
+   useful from Ruby on its own belongs in `ext/rgame_util/` instead.
+2. **Fake/recording backend** — a function-pointer table between the pure logic
+   and the real calls, so a test can link a fake that records what it was asked
+   to draw. That is what makes "the right calls in the right order" checkable
+   with no display. Add the seam *when* a subsystem starts producing real SDL or
+   GL calls, not ahead of it.
+3. **Thin real shim** — the actual `SDL_*` and `gl*` calls, taking already-computed
+   values from layer 1. Being this thin is what justifies not unit-testing it.
 
-Default order when implementing a spec item: write layer 1 and its Check
-tests first, before touching SDL/GL at all.
+**Write layer 1 and its Check tests before touching SDL or GL at all.**
 
 ## Build
 
@@ -862,9 +636,10 @@ rake spec         # headless: RGame::Util + RGame::Engine, no SDL in the process
 rake spec:core    # RGame::Core; opens real windows, boots its own Xvfb
 rake build        # package the gem into pkg/ (from bundler/gem_tasks)
 rake              # make test, then both suites
-``` Ruby is
-4.0.5, pinned in `.ruby-version` and installed via mise. Requirements are
-listed in README.md.
+```
+
+Ruby is 4.0.5, pinned in `.ruby-version` and installed via mise. Requirements
+are listed in README.md.
 
 ## Packaging
 
@@ -873,41 +648,11 @@ listed in README.md.
 `lib/rgame/` — the same place `make ext` puts it, which is why nothing about
 the load path changes between a checkout and an installed gem.
 
-### A version is four gems
+### What ships, and what must never be listed by hand
 
-**RubyGems holds a source gem and three platform gems for each version.** The
-source gem is the one the gemspec describes, and it compiles on install. A
-platform gem carries `core_ext` and `util_ext` already built, ships no `.c`, no
-`extconf.rb` and no `spec.extensions`, and therefore compiles nothing —
-`arm64-darwin`, `x86_64-linux-gnu` and `x64-mingw-ucrt`, which is Apple Silicon
-macOS, x86-64 Linux and 64-bit Windows. RubyGems picks by platform and Ruby
-version, so every other machine gets the source gem and the behaviour it always
-had.
-
-**SDL2 is linked statically into `core_ext`, from a pinned upstream release
-fetched and checksummed at build time.** It is not vendored into `ext/`, and it
-is not bundled beside the extension as a shared library — a static link needs no
-loader configuration on any of the three platforms. `rakelib/sdl2.rake` builds
-it; `ext/README.md` has the commands, including how to build the static path in
-a checkout.
-
-A platform gem is bounded to one Ruby ABI, so Ruby 4.1 will fall back to the
-source gem rather than load a binary it cannot. The macOS binaries target macOS
-11.0 and the Linux ones glibc 2.29, both chosen as the oldest that runs Ruby 4.0
-on that platform: a platform gem must never rule out a machine Ruby itself runs
-on.
-
-Three things hold this up without anyone remembering them. `tools/platform_gem.rake`
-builds a platform gem and runs `tools/check_platform_gem.rb` on every one it
-builds, which opens the `.gem` archive and checks nine rules — the platform, the
-two binaries and their extensions, that no source or `extconf.rb` is present,
-the Ruby bound, SDL2's licence, the file list against the source gem's, the
-linkage, and that neither binary needs a newer OS than the gem claims. CI's
-`smoke` job then installs the gem on a runner with **no SDL2 and no compiler**
-and plays the examples out of it through `tools/check_installed_gem.rb`, because
-a gem that builds is not yet a gem that runs somewhere else. And the `test` job
-still builds from source against a system SDL2 on all three platforms, so the
-source path stays covered rather than becoming the untested fallback.
+A version is four gems — a source gem plus three platform gems carrying the
+extensions already built. How they are built, checked and published is in the
+[release](.claude/skills/release/SKILL.md) skill.
 
 **`spec.files` is a glob over whole directories, never a list.** Anything the
 installed gem compiles from or reads at runtime — a new `.c`, a font, any data
@@ -930,13 +675,10 @@ One exclusion is deliberate and it is asserted: **build artifacts**
 (`lib/rgame/*.so` and friends) — that is *this* machine's binary, and shipping
 it would shadow the one `gem install` compiles.
 
-The engine layer used to be a second exclusion, held back while it was still a
-bare top-level `Engine::` that a gem has no business putting into someone's
-process. It ships now, and the exclusion was **replaced by an example asserting
-that it does** rather than simply deleted. That swap is the pattern to follow
-whenever an exclusion comes out: a rule that used to be stated and is now merely
-true goes silent, and this is the one file whose whole job is saying out loud
-what ships.
+**When an exclusion comes out, replace it with an example asserting the thing
+ships** rather than deleting it. A rule that used to be stated and is now merely
+true goes silent, and this is the one file whose job is saying out loud what
+ships.
 
 Publishing is CI's job, not a local `gem push`; the steps are in the
 [release](.claude/skills/release/SKILL.md) skill.
@@ -947,97 +689,65 @@ so a require reaching for `rgame/util_ext` there would break `gem build`.
 
 ## Testing
 
-Uses [Check](https://libcheck.github.io/check/), a C xUnit-style framework
-(each test runs in its own forked process, so a segfault only fails that
-test rather than aborting the whole suite — relevant given how easy it is
-to crash while learning pointers/SDL/GL).
+C tests use [Check](https://libcheck.github.io/check/), which forks each test, so
+a segfault fails that test rather than aborting the suite.
 
-**Verification tiers**, matching the layers above:
+**Verification tiers**, matching the layers above. Pick the cheapest one that can
+answer the question.
 
-- `make test` — Check suite covering layer 1 (pure logic) and layer 2 (fake
-  backends: assert on recorded calls, no display involved). Fast,
-  deterministic, expected to pass for every change.
-- `rake spec` — the **headless** RSpec suite in `spec/`, covering
-  `RGame::Util`, `RGame::Engine`, what the gem packages
-  (`spec/packaging_spec.rb`; see "Packaging"), and whether `docs/api/`'s examples
-  run and its links resolve (`spec/api_docs/`; see the write-docs skill). Fast, deterministic, no display,
-  no SDL in the process at all. Requires `make ext-util` first. Expected to pass
-  for every change.
-- `rake spec:core` — the RSpec suite in `spec_core/`, covering
-  `RGame::Core`'s Ruby-visible surface: the App lifecycle, `Input`'s binding
-  table, hot-plug, and whether every name `docs/api/` mentions exists
-  (`spec_core/api_docs/`), and whether every public name is documented or tagged
-  `@api private`. Requires `make ext-core`, and boots its own Xvfb, so it
-  needs no display of its own either. Slower — it opens real windows.
-- `make run` / `ruby ext/rgame_core/example.rb` — manual verification of
-  layer 3 from C and from Ruby respectively. Subjective/visual, run by a
-  human, not automated.
+| Tier | Covers | Needs |
+|---|---|---|
+| `make test` | layers 1 and 2 — pure logic, and fake backends asserting on recorded calls | nothing |
+| `rake spec` | `RGame::Util`, `RGame::Engine`, what the gem packages, and whether `docs/api/`'s examples run and its links resolve | `make ext-util`; **no SDL in the process at all** |
+| `rake spec:core` | `RGame::Core`'s Ruby-visible surface, the names `docs/api/` mentions, and whether every public name is documented or tagged `@api private` | `make ext-core`; opens real windows, boots its own Xvfb |
+| `make run`, `ruby ext/rgame_core/example.rb` | layer 3, by eye | a human |
 
-`rake` with no argument runs everything: `make test`, `rake spec`,
-`rake spec:core`.
+The first three are expected to pass for every change. The
+[verify](.claude/skills/verify/SKILL.md) skill has the rest: the live-window
+tier, leak checking, and mutation testing.
 
 ### The test projects are the acceptance test for wiring — but only if they are *driven*
 
 Anything that changes how the layers are wired together — `RGame::Game`, the
 asset loaders, input polling, the renderer's id registries — is verified by
-running the games under `test_projects/`, because that is the only tier where all
+running the games under `test_projects/` and `examples/`, the only tier where all
 three layers are present at once.
 
-**Booting one is not enough.** Drive it: swap in a scripted input backend, bound
-the tick count, and report what the game actually asked for — draws issued,
-sounds played, scene transitions taken. The difference is not theoretical. A
-polling bug that consumed every input edge before a tick could read it left a
-game whose menu did not respond to anything, and a plain boot of it reported
-"90 ticks, 90 frames" and looked perfectly healthy.
-
-That harness is `tools/drive_test_project.rb`, and it takes a per-project input
-script from `tools/drive/`:
+**Booting one is not enough.** A polling bug that consumed every input edge
+before a tick could read it left a game whose menu answered nothing, and a plain
+boot of it reported "90 ticks, 90 frames" and looked healthy. Drive it instead:
 
 ```
 ruby tools/drive_test_project.rb examples/collision_tiles/main.rb --ticks 240
 ```
 
+`tools/drive_test_project.rb` boots the project unmodified, feeds it a scripted
+input backend through `RGame::Game`'s `input:` keyword, stops on a tick budget,
+and reports draw calls, clips, sounds, scenes entered and ticks against frames.
+A script holds **one timeline per device**, so a two-player run is two `on`
+blocks playing at once, every track absolute from tick 0.
+
 **A script's path mirrors its project's**, so the line above reads
 `tools/drive/examples/collision_tiles.rb`. Deriving it from the directory's
-*basename* instead would make two trees of projects collide silently — a game
-driven by another game's inputs reports something confusing rather than failing
-— so the mirror is what makes the collision impossible. `--script` overrides it,
-which is how one project has several scripts (`collision_tiles.rb` and
-`collision_tiles_spike.rb`).
+basename would let two trees of projects collide silently, a game driven by
+another game's inputs reporting something confusing rather than failing.
+`--script` overrides it, which is how one project has several.
 
-It boots the test project unmodified (prepending its probes before `load`ing the
-project's own `main.rb`), feeds it a scripted input backend through
-`RGame::Game`'s `input:` keyword, stops on a tick budget, and reports draw calls
-with their first and last arguments, clips pushed with what moved inside each,
-sounds played, scenes entered, and ticks against frames. `--texts` adds every
-distinct string drawn with `text`, which is how two runs are compared string for
-string. A key `I18n` could not answer is drawn as itself, as in the
-game, and listed under "missing or mismatched keys"; a project that loaded
-translation tables then exits 1, so a key left out of an example's `en.yml` fails
-the run rather than showing up on screen as `status.saved`.
+Four flags change what a run proves:
 
-A script holds **one timeline per device**, so a two-player run is written as two
-`on` blocks and both play at once — every track is absolute, starting at tick 0.
-`--gamepad` swaps the scripted backend for a synthetic SDL controller, which
-exercises the real device path instead of standing in front of it.
+| | |
+|---|---|
+| `--seed N` | seeds the project's own RNG through `RGAME_SEED`, so two runs are byte-identical. **Exact draw counts are comparable only with it**; otherwise assert on structure — scenes entered, sounds fired, clip and translate counts |
+| `--texts` | every distinct string drawn with `text`, which is how two runs are compared string for string |
+| `--gamepad` | a synthetic SDL controller instead of the scripted backend, exercising the real device path |
+| `--installed` | leaves the load path alone, so `rgame` resolves to whatever is installed — how CI's `smoke` job plays the examples out of a platform gem |
 
-Every run names the `core_ext` and `util_ext` it loaded, at the top of its
-report. Ordinarily those are the checkout's, because the harness puts `lib/`
-first on the load path. **`--installed` leaves the load path alone**, so `rgame`
-resolves to whatever is installed — which is how CI's `smoke` job plays the
-examples out of a platform gem on a runner that did not build it. Reading that
-first section is what tells the two runs apart; the draw counts do not.
-
-Two things it had to be, both learned the hard way: it **counts rather than
-eyeballs**, and it **lives in the repo** — the harness this replaces did not, so
-it was a caller no project-wide rename could reach, and it broke after every
-sweep. `tools/` is outside the gem's packaged glob, so it ships nothing.
-
-Assert on structure — scenes entered, sounds fired, clip and translate counts.
-Exact draw counts are comparable **only with `--seed N`**, which seeds the
-test project's own RNG (through `RGAME_SEED`) so that two runs produce byte-identical
-output. Without it a project that seeds itself from the system varies run to
-run, which is what a game being played should do.
+A key `I18n` could not answer is drawn as itself and listed under "missing or
+mismatched keys", and a project that loaded translation tables then exits 1 — so
+a key left out of an example's `en.yml` fails the run rather than reaching the
+screen. Every run names the `core_ext` and `util_ext` it loaded, at the top of
+its report; that is what tells an `--installed` run from a checkout one, because
+the draw counts do not.
 
 ### Why the Ruby specs are two suites, in two directories
 
@@ -1064,126 +774,25 @@ So:
 to sit in this position came with its own tests; writing the window, the
 renderer and the sound device ourselves made testing them our job too.
 
-### Fakes must be checked against the same contract as the real thing
+### Fakes, contracts and what the suites skip
 
-The engine layer only ever calls a renderer (or audio server, or input
-backend) by method name, so every such interface has at least two
-implementations: the real `RGame::Core` one and the recording fake that
-headless specs substitute. If the fake drifts from the real one, `rake spec`
-stays green while the game no longer runs — the classic failure of this
-pattern, and the one thing the split cannot catch by itself.
+The engine layer calls a renderer, an audio server and a tile map only by method
+name, so each of those interfaces has a real implementation and a recording fake.
+Two rules follow, and both fail silently when broken:
 
-So each of those interfaces gets a **shared example group** in
-`spec/support/`, and both implementations are run against it: the fake from
-`spec/`, the real one from `spec_core/`. A method added to the real renderer
-is not done until the shared contract and the fake have it too.
-
-There are three of these today, all built the same way:
-
-| | Renderer | Audio | Tile map |
-|---|---|---|---|
-| Contract | `spec/support/shared_examples/a_renderer.rb` | `spec/support/shared_examples/an_audio_server.rb` | `spec/support/shared_examples/a_tile_map.rb` |
-| Stand-in | `spec/support/fake_renderer.rb`, run against it by `fake_renderer_spec.rb` | `spec/support/fake_audio.rb`, run against it by `fake_audio_spec.rb` | `spec/support/stub_tile_map.rb`, run against it by `stub_tile_map_spec.rb` |
-| Real | `RGame::Core::Renderer`, run against it by `spec_core/rgame/core/renderer_spec.rb` | `RGame::Core::Audio`, run against it by `spec_core/rgame/core/audio_spec.rb` | `RGame::Engine::TileMap`, run against it by `spec/rgame/engine/tile_map_spec.rb` |
-| Host hook | `render { \|renderer, image, font\| ... }` | `with_audio { \|audio, sound_path\| ... }` | `tile_map { \|map\| ... }` |
-
-The tile map is the one that points *up* rather than down: `Core::TileMapRenderer`
-draws a map it may not name, so the contract is what stops the stand-in drifting
-from the parsed article. Both of its implementations are headless, so unlike the
-other two it runs entirely in `spec/`.
-
-`spec_core/core_spec_helper.rb` requires the contracts across the directory
-boundary, and the stand-ins built against them. That is the *only* thing that
-crosses: no `spec/` example file is
-loaded there, and nothing in `spec/` ever names Core.
-
-A contract states the method list and its argument shapes; it cannot state
-pixels or samples, because the fake produces neither. That is why
-`renderer_spec.rb` also reads the framebuffer back, and why the audio output
-tier is `test/test_audio.c` reading an offline device — the two halves together
-are the guarantee.
-
-The audio contract also shows what a contract must *leave out*: whether a sound
-has finished. Playback runs against a clock in both implementations, so
-"is it still playing a moment later" has no stable answer, and only the
-transitions a caller controls are stated.
-
-### A fake must refuse what the real thing refuses
-
-The rule above is about methods that exist. This one is about the calls that
-must **fail**, and it is the half that is easy to miss — a fake is written by
-listing what a caller does, and a caller does not ordinarily pass `nil`.
-
-> **A fake that only ever says yes tests nothing about the paths that exist
-> because the real one says no.**
-
-The failure is specific and nasty: a guard is written in the real code *because*
-the real thing raises, a spec is written against the fake, the spec passes
-whether or not the guard is there, and the mutation that deletes the guard
-survives. That is exactly how it was found — a `NineSlice` guard against
-zero-size sub-images looked untested because `StubImage#subimage` accepted what
-`Image#subimage` rejects.
-
-So, whenever a fake is written or a real method grows a `raise`:
-
-1. **Compare them by running them.** Call the same bad input on both and diff
-   the exception classes. Reading the code finds the refusals you remembered to
-   write; running it finds the ones you did not. Doing this over the renderer
-   and audio surfaces turned up **ten** differences, one of which was a
-   *segfault* in the real code (`renderer.text(nil, …)` reached `RSTRING_PTR`
-   without a type check).
-2. **Put the refusal in the contract, not just in the fake.** A patched fake
-   drifts again; a contract example runs against both. `spec/support/shared_examples/`
-   has an "arguments it refuses" section for exactly this.
-3. **Match on argument-shape refusals; document the rest.** A fake can check
-   that a coordinate is a number and a label is a String — the real ones cross
-   into C through `NUM2DBL` and `StringValue`, which raise `TypeError`. It
-   cannot check that a file exists or that an image belongs to this app. Where
-   it cannot, say so at the code and name the tier that does cover it. Two
-   worked examples: `FakeRenderer#image_arg` refuses only `nil`, because a fake
-   never looks at an image; `FakeRecording` documents that it does not refuse
-   `.new` the way the real `Recording` does, because no scene ever calls it.
-4. **Validate without converting.** The real binding converts (`NUM2DBL`); the
-   fake should check and then record what the caller actually passed, so
-   assertions read as written. Where a coercion is pure Ruby — colours go
-   through `RGame::Util::Color.coerce` — the fake calls *the same function*,
-   which is better than matching its behaviour.
-
-`spec_core/support/stub_image.rb` is the smallest example of all of this: it
-refuses exactly what `RGame::Core::Image#subimage` refuses, with the same
-message, and says in its own comment why that matters.
-
-### Platform support
-
-**Linux, macOS and Windows are all supported and all gated by CI**
-(`.github/workflows/ci.yml`), which runs every tier on each of them. A change
-that breaks one is a red run, not a discovery someone makes later.
-
-Three things about the test suites differ per platform, and each is a
-*capability probed at runtime* rather than a platform check. That distinction
-is deliberate: a probe keeps the examples running on every machine that can
-manage them — including a developer's — instead of switching them off for a
-whole platform because one environment cannot.
-
-- **The display.** `HeadlessDisplay` starts Xvfb on Linux and uses the native
-  window server everywhere else, because macOS and Windows always have one and
-  have no Xvfb equivalent.
-- **Synthetic keyboard input** needs X11's XTEST, so
-  `HeadlessDisplay.can_inject_keys?` gates it and the keyboard-driven Core
-  specs skip themselves elsewhere. The macOS equivalent would be Quartz
-  `CGEvent`, which needs an accessibility permission no CI runner can grant;
-  Windows' would be `SendInput`.
-- **Virtual gamepad button state.** Attaching a synthetic pad works anywhere
-  SDL does — it is an SDL feature, not an OS one — but *reading a pressed
-  button back* does not. On GitHub's macOS runners SDL reports success at every
-  step and the state never appears; see
-  `VirtualGamepad.button_state_supported?`, which probes it and skips the two
-  examples that need it. Hot-plug specs, which only attach and detach, run
-  everywhere.
+- **A method added to the real thing is not done until the shared example group
+  in `spec/support/shared_examples/` and the stand-in beside it have it too**, in
+  the same commit. Otherwise `rake spec` stays green while the game no longer
+  runs.
+- **A fake must refuse what the real thing refuses.** A fake that only ever says
+  yes leaves every guard written against the real refusal untested.
 
 **Read the skip count, not just the colour.** A green `rake spec:core` on macOS
-or Windows covers strictly less than a green one on Linux, and how much less is
-in the run's `exclude` line.
+or Windows covers strictly less than a green one on Linux.
+
+The [verify](.claude/skills/verify/SKILL.md) skill has the rest: the three
+contracts and their host hooks, the four rules for writing a refusal, and which
+capability each platform probes at runtime.
 
 ## Conventions
 

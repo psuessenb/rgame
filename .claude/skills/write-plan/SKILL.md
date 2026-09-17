@@ -79,8 +79,9 @@ expectation:
 One inventory earns its place every time, and it is the one a plan is most
 likely to skip: **what already in this codebase resembles the thing being
 planned.** Not what it can reuse — that answers itself — but what does a similar
-enough job that one shape should cover both. See CLAUDE.md, "Before building:
-find the thing it resembles", for why and for the worked example; what a plan
+enough job that one shape should cover both. See
+[Before building: find the thing it resembles](../../../CLAUDE.md#before-building-find-the-thing-it-resembles)
+for why; what a plan
 owes is the three piles, in writing, with the "genuinely new" one justified
 rather than assumed. A plan that cannot name what its subject resembles has
 usually not looked.
@@ -93,6 +94,39 @@ Two research sections earn their place nearly every time:
 - **What was considered and rejected.** The alternative with its real
   attractions stated, then the specific reason it fails. A rejected option
   without a reason gets proposed again in three weeks.
+
+### Generalisation: the worked example, and what it cost
+
+Tile collision and body collision were built independently, and each was
+correct. `TileCharacterBody` resolved a step against a grid; `BoxCollider`
+reported overlapping pairs out of a spatial hash. Different indexes, different
+questions, no shared code — and on that reading, two systems is right.
+
+They answered the same question about different things: *what is in the way*.
+Seen that way the duplication is obvious and it was expensive. The shape had two
+owners, so a character wanting both built one box privately and handed it to the
+other component in an `on_add` hook written for no other purpose — and forgetting
+that hook was **silent** — precisely the failure
+[Design out misuse](../../../CLAUDE.md#design-out-misuse-the-right-thing-must-be-the-easy-thing)
+exists to refuse. Unifying it afterwards took six steps and touched every
+collision file in the project.
+
+### The same question, as a review of existing code
+
+Applied to the whole engine layer the first time, it found a second instance: `Velocity`,
+`PathFollow` and `CharacterBody` all answered *where does this node go this step*,
+and only the last could be stopped by anything. They became three subclasses of
+`Components::Mover`, which owns what happens after a step is computed. For each
+class, the checks that sweep ran were:
+
+- Does it duplicate state the node owns? (`Engine::Body` kept its own `x`/`y`.)
+- Does it need a hand-written hook to hand its data to another component?
+- Does it behave differently depending on a sibling's add order?
+- Does it name a layer it may not name?
+- Is it a node pretending to be a component, or the reverse?
+
+These are interface-depth checks. A misfit inside a method body that presents a
+clean interface gets past them.
 
 ## Optimise for the game, not for the source
 
@@ -141,12 +175,13 @@ it pick your class's attributes is not.
 3. **A doc comment that has to explain the format to explain the method.** If
    the method cannot be described without it, the format is in the interface.
 
-A fourth belongs to CLAUDE.md's "Design out misuse" and is the same failure seen
+A fourth belongs to [Design out misuse](../../../CLAUDE.md#design-out-misuse-the-right-thing-must-be-the-easy-thing)
+and is the same failure seen
 from the caller: **a conversion every caller must remember**. If the transform
 does not do it, each caller does, and the ones that forget produce a plausible
 picture rather than an error.
 
-### The worked example
+### The worked example: the Tiled parser
 
 rgame's Tiled plan was split correctly on the first pass — a faithful parse and a
 runtime `TileMap` — and still let six of Tiled's words through to the game, `gid`

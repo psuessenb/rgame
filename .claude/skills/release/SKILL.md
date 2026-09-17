@@ -25,6 +25,38 @@ published belongs to the commit `vX.Y.Z` names, and no other commit may finish
 it. That is why the tag goes in before the first `gem push` rather than after —
 once a gem is up, the tag is the only record of which commit put it there.
 
+## What the four gems are
+
+The source gem is the one `rgame.gemspec` describes, and it compiles on install.
+**A platform gem carries `core_ext` and `util_ext` already built**, ships no `.c`,
+no `extconf.rb` and no `spec.extensions`, and therefore compiles nothing.
+RubyGems picks by platform and Ruby version, so every other machine gets the
+source gem and the behaviour it always had.
+
+**SDL2 is linked statically into `core_ext`, from a pinned upstream release
+fetched and checksummed at build time.** It is not vendored into `ext/`, and it
+is not bundled beside the extension as a shared library — a static link needs no
+loader configuration on any of the three platforms. `rakelib/sdl2.rake` builds
+it; `ext/README.md` has the commands, including how to build the static path in a
+checkout.
+
+A platform gem is bounded to one Ruby ABI, so Ruby 4.1 falls back to the source
+gem rather than load a binary it cannot. The macOS binaries target macOS 11.0 and
+the Linux ones glibc 2.29, both the oldest that runs Ruby 4.0 there: **a platform
+gem must never rule out a machine Ruby itself runs on.**
+
+Three things hold this up without anyone remembering them.
+`tools/platform_gem.rake` runs `tools/check_platform_gem.rb` on every gem it
+builds, which opens the `.gem` archive and checks nine rules — the platform, the
+two binaries and their extensions, that no source or `extconf.rb` is present, the
+Ruby bound, SDL2's licence, the file list against the source gem's, the linkage,
+and that neither binary needs a newer OS than the gem claims. CI's `smoke` job
+then installs the gem on a runner with **no SDL2 and no compiler** and plays the
+examples out of it through `tools/check_installed_gem.rb`, because a gem that
+builds is not yet a gem that runs somewhere else. And the `test` job still builds
+from source against a system SDL2 on all three platforms, so the source path
+stays covered rather than becoming the untested fallback.
+
 ## Never publish by hand
 
 - **No `gem push` and no `rake release`.** The gemspec sets
