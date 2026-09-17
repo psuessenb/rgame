@@ -83,10 +83,8 @@ git push -u origin <branch>
 gh pr create --title "<title>" --body-file <path>
 ```
 
-Write the body to a file first — in the scratchpad, not the repository — and
-pass it with `--body-file`. Building the body inside the `gh` invocation means shell
-quoting eats the markdown, and a heredoc leaves nothing to re-read if the call
-fails.
+The file goes in the scratchpad, not the repository. A heredoc survives the shell
+too, but leaves nothing to re-read when the call fails.
 
 `--base` is not needed while `main` is the default branch. Report the URL `gh`
 prints; that is what the user opens.

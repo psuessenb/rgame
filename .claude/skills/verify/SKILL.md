@@ -132,16 +132,6 @@ Input goes in through **XTEST** (`scripts/xkeys.rb`, via Ruby's stdlib
 rgame's own SDL window; both the discrete-event path (`button_down`/`up`) and
 the held-key polling path work; `Escape` shuts the engine down cleanly.
 
-### Why XTEST and not xdotool
-
-XTEST injects at the X server's input layer, so events are indistinguishable
-from real keypresses — that part is measured, it works. The rest of this
-paragraph is *reasoning, not measurement* (xdotool is not installed here):
-`xdotool key --window <id>` uses `XSendEvent`, whose events carry
-`send_event=True`, which SDL is documented to ignore, so it should silently do
-nothing; plain `xdotool key` is XTEST and should work. Either way `fiddle`
-gives us XTEST with no package to install, so the question stays academic.
-
 ### Gamepads: use an SDL virtual controller
 
 XTEST cannot synthesise controller input, but SDL can fabricate a whole
@@ -165,15 +155,13 @@ action per frame, so each change is visible to the next frame's snapshot.
 
 Still needs Xvfb, not `SDL_VIDEODRIVER=dummy` — the app creates a GL context.
 
-The same works from **Ruby**, via `fiddle` against the libSDL2 the extension
-already loaded (so it drives the engine's own SDL state) — that is how the
-`RGame::Core::Input` binding table is checked against a real pad:
-
-```ruby
-SDL = Fiddle.dlopen('libSDL2-2.0.so.0')
-attach = Fiddle::Function.new(SDL['SDL_JoystickAttachVirtual'],
-                              [Fiddle::TYPE_INT] * 4, Fiddle::TYPE_INT)
-```
+**From Ruby, go through the extension, not through `fiddle`.** Those calls are
+bound as `RGame::Core::VirtualGamepad`, and `spec_core/support/virtual_gamepad.rb`
+wraps it — that is how the `RGame::Core::Input` binding table is checked against a
+real pad. A Fiddle helper has to find SDL by library name or exported symbol, and
+once SDL is linked into the extension statically neither finds the right copy:
+the extension exports no SDL symbol on Windows, and `SDL2.dll` there names
+RubyInstaller's MSYS2 copy instead. It would drive a second SDL, not the engine's.
 
 ### The app must report what it saw
 

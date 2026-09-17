@@ -130,7 +130,7 @@ So:
 
 ## What the checks catch, and what they do not
 
-Five checks run without anyone remembering them:
+Four checks run without anyone remembering them:
 
 | Check | Fails when |
 |---|---|
@@ -159,19 +159,3 @@ To check an existing page against the code, go through it top to bottom:
    setup, and what only the repository has.
 5. **Run the checks**: `bundle exec rspec spec/api_docs`, then
    `bundle exec rake spec:core` for the references and coverage.
-
----
-
-## Before you finish
-
-Read the page once against this list:
-
-- Did you search every page for the names your change touched?
-- Does any sentence describe the past, a prompt or another engine?
-- Does every absolute claim ("only", "never", "every") have a line of code behind it?
-- Does every option, mode or policy say what each value does on every path?
-- Does each example say its context, and start with `require 'rgame'` if it can?
-- Do `# =>` comments read `value — prose`?
-- Does the page pass the checklist in [write-prose](../write-prose/SKILL.md)?
-- Do `docs/api/README.md` and `examples.md` list what is new?
-- Do `bundle exec rspec spec/api_docs` and the reference and coverage specs in `rake spec:core` pass?
