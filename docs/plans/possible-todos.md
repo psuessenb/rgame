@@ -38,7 +38,8 @@ is GL 1.1 — checked, all 24 of them — which is exactly what "no GL loader" h
 bought so far. Windows' `opengl32.dll` exports only GL 1.1, so `glGenFramebuffers`
 and friends must be fetched through `SDL_GL_GetProcAddress`. A naive
 implementation compiles, links and runs perfectly on Linux and fails on Windows,
-which is the failure class the `windows-portability` skill exists for.
+which is the failure class the `write-c-code` skill's portability section
+exists for.
 
 **What it would take.**
 

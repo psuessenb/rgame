@@ -457,89 +457,18 @@ shell that measures frames. It is not for drawing.
 
 ## Structure and why it looks like this
 
-**All engine C lives in `ext/rgame_core/`**, not a top-level `src/`. `gem install`
-runs each `extconf.rb`, and an extension can only build sources within its own
-directory, so keeping the C there means one copy feeds both the standalone binary
-and the gem.
-
-Inside it, sources are grouped by subsystem, and includes name the folder they
-come from: `graphics/canvas.c` says `#include "graphics/clip.h"`, so a dependency
-crossing a subsystem boundary is visible in the source rather than hidden in an
-include path. **A new engine source goes in the folder for its subsystem.**
-
-| | |
-|---|---|
-| `app/` | the SDL window, the GL context and the main loop |
-| `graphics/` | transform and clip stacks, draw queue, textures, primitives, recordings, the GL backend |
-| `text/` | font, glyph atlas and cache, the atlas pages |
-| `input/` | the input snapshot, the button-id space, gamepads and their player slots |
-| `audio/` | the sound device and the Ogg decoder, over miniaudio — no SDL, no GL |
-| `ruby/` | the Ruby glue; the only C here that includes `ruby.h` |
-| `vendor/` | third-party sources |
-| `include/rgame/core.h` | the only public API |
-
 **Every file's own top comment says what it is and why it is shaped that way** —
-that is this file's first rule, and those comments are the reference. What
-follows is only what a file cannot tell you about itself.
+that is this file's first rule, and those comments are the reference.
 
-### Where a new file goes, and what the build needs
+**All engine C lives in `ext/rgame_core/`**, not a top-level `src/`, grouped by
+subsystem. Where a new source or Ruby-visible class goes, what `extconf.rb` needs
+from it, the three layers every subsystem is split into, and the C conventions
+are all in [write-c-code](.claude/skills/write-c-code/SKILL.md).
 
-mkmf compiles every `.c` in an extension's own directory and nothing deeper, so
-`extconf.rb` lists these folders in `SOURCE_DIRS`, feeding `$srcs` and `$VPATH`.
-Two things follow. Objects are named after the source's *basename*, so
-**basenames must be unique across the whole tree** — mkmf aborts with `source
-files duplication` rather than clobbering one, so that rule holds itself up. And
-a **new folder** must be added to `SOURCE_DIRS`; forgetting fails loudly, as an
-undefined symbol. Adding a file to a listed folder needs nothing.
-
-`include/` is on the include path but not in `SOURCE_DIRS` — a header directory,
-never a source one. `core.h` takes plain C types only, no SDL or GL types in a
-signature, which is what lets `ruby/core_ext.c` include it without pulling in
-`SDL.h` conflicts.
-
-A pure module's Check test mirrors its name: `graphics/clip.c` is covered by
-`test/test_clip.c`. Layer 3 is the exception and is verified by looking at
-pixels — `graphics/gl_backend.c`, `graphics/image.c` and `text/font_atlas.c` are
-the only files on the draw path that call `gl*`.
-
-### The files whose placement is a decision
-
-- **`vendor/`** — beside each vendored library sits the single translation unit
-  (`<name>_impl.c`) that instantiates it. **The only files compiled without
-  `-Wall -Wextra`**, and the `_impl.c` suffix is what selects that, from one list
-  in both `extconf.rb` and the root `Makefile`. Feature macros live in the
-  `_impl.c` rather than in build flags, so the binary and the gem cannot end up
-  supporting different formats.
-- **`lib/rgame/fonts/`** — the default font (Liberation Sans, SIL OFL 1.1) is
-  runtime data, so it lives where a gem installs data rather than in `ext/`.
-- **`input/virtual_gamepad.c`** — test-only, and in the extension on purpose: a
-  spec helper reaching SDL through Fiddle opens a *second* SDL once the extension
-  links SDL statically.
-- **`src/main.c`** — stays outside `ext/` so mkmf does not compile its `main()`
-  into the extension. It and `ext/rgame_core/example.rb` are parallel drivers of
-  the same API, and an API change generally needs both.
-- **`tools/`** and **`rakelib/`** — neither ships. `tools/platform_gem.rake` is
-  deliberately *not* in `rakelib/`, which rake would load on every invocation:
-  rake-compiler would warn about `make ext`'s object files every time, and the
-  Linux build image has no bundle to load the `Rakefile`'s RSpec tasks from.
-
-### One class, one file, on both sides
-
-`ruby/core_ext.c` holds `RGame::Core::App`; every other Ruby-visible class gets
-its own file with one init function declared in `core_ext.h`, the same shape as
-`ext/rgame_util/util_ext.h`. So adding a class means adding a file rather than
-growing an unrelated one. `audio_ext.c` is the one deliberate exception —
-`Audio`, `Sample` and `Song` share a wrapping shape, and splitting them would
-triplicate TypedData boilerplate to separate ninety lines.
-
-`ext/rgame_util/`'s `extconf.rb` has no `pkg_config` and no `-lGL`, which is what
-enforces the Core/Util split. Its pure files (`color`, `solid_grid`,
-`route_search`, `tile_sweep`) have no `ruby.h`, so the Check suite covers them
-directly; the `*_ext.c` beside each is only the binding.
-
-Both extensions build to a `.so` that `make ext` copies into `lib/rgame/`, where
-`require "rgame/core_ext"` finds it. Naming both under `rgame/` also leaves the
-bare name `rgame` to `lib/rgame.rb`; don't take it for an extension.
+**`tools/` and `rakelib/` don't ship.** `tools/platform_gem.rake` is deliberately
+*not* in `rakelib/`, which rake would load on every invocation: rake-compiler
+would warn about `make ext`'s object files every time, and the Linux build image
+has no bundle to load the `Rakefile`'s RSpec tasks from.
 
 ### `lib/`
 
@@ -578,36 +507,6 @@ that shares the blind spot it is guarding is not a guard.
 
 `spec/rgame/cli/generated_project_spec.rb` generates a project and runs its RSpec
 and RuboCop for real — the promise is worth nothing described.
-
-### Adding an engine feature
-
-Put the implementation in `ext/rgame_core/app/app.c` and extend `core.h`'s public
-API rather than adding logic to `main.c`; that is what keeps the Ruby wrapper
-thin. `docs/c_engine_feature_specs.md` holds the scope list this engine was built
-against — consult it when adding a subsystem rather than guessing, and amend it
-when a decision contradicts it.
-
-## Abstraction & testability strategy
-
-**Split every new subsystem into three deliberately separate layers.** This is
-the standing rule, not advice for one feature.
-
-1. **Pure logic** — state and arithmetic with no SDL, no GL, no I/O. This is most
-   of what is hard to get right in a 2D engine, and none of it needs a window to
-   test. Give it its own module (`ext/rgame_core/<area>/<name>.c` plus a header)
-   and Check tests. Each test file exposes a Check `Suite` declared in
-   `test/suites.h`, and `test/test_main.c` runs them as one binary, so a new
-   module adds a file and two lines rather than another `main()`. Logic also
-   useful from Ruby on its own belongs in `ext/rgame_util/` instead.
-2. **Fake/recording backend** — a function-pointer table between the pure logic
-   and the real calls, so a test can link a fake that records what it was asked
-   to draw. That is what makes "the right calls in the right order" checkable
-   with no display. Add the seam *when* a subsystem starts producing real SDL or
-   GL calls, not ahead of it.
-3. **Thin real shim** — the actual `SDL_*` and `gl*` calls, taking already-computed
-   values from layer 1. Being this thin is what justifies not unit-testing it.
-
-**Write layer 1 and its Check tests before touching SDL or GL at all.**
 
 ## Build
 
@@ -796,14 +695,8 @@ capability each platform probes at runtime.
 
 ## Conventions
 
-- C17, `-Wall -Wextra`, keep it warning-clean. The extensions compile with
-  `-std=gnu17` instead — Ruby's headers lean on GNU extensions, and gnu17 is a
-  superset, so the same sources still satisfy C17.
-- No OpenGL loader (GLAD/GLEW) yet — using legacy/compatibility-profile GL
-  calls (`glBegin`/`glEnd`) since that's what's available without extra
-  dependencies. If/when the project moves to core-profile modern GL, a
-  loader will need to be added — flag that as a deliberate decision, not a
-  drive-by change.
+- C is C17, `-Wall -Wextra` and warning-clean, on legacy-profile GL with no
+  loader — see [write-c-code](.claude/skills/write-c-code/SKILL.md).
 - Ruby: `# frozen_string_literal: true` at the top of every file, single
   quotes, RuboCop (+ `-performance`, `-rspec`) via the `Gemfile`. Configured in
   `.rubocop.yml`, which also loads the project's own cops from

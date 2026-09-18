@@ -211,8 +211,8 @@ to install, and no valgrind needed.
 
 **On Windows, `gcc`'s `ucrt64` toolchain has no sanitizer runtime at all** —
 this recipe needs MSYS2's separate `clang64` environment there instead. See
-`.claude/skills/windows-portability/SKILL.md`'s "How to actually catch these
-before they land" for the exact packages and command.
+[write-c-code](../write-c-code/SKILL.md)'s "How to actually catch these before
+they land" for the exact packages and command.
 
 **Verified:** a deliberate `malloc` with no `free` in a Check test is caught,
 reported with a full stack, and **fails the run** (exit 1). Under Check's

@@ -98,7 +98,7 @@ of the three platforms are only ever exercised there.
 Report the CI result, read with `gh pr checks` from the branch. If it fails on
 a platform you cannot reproduce locally,
 read the log and say what broke rather than guessing at a fix — and see
-[windows-portability](../windows-portability/SKILL.md), which catalogues the
-failures that only appear off Linux.
+[write-c-code](../write-c-code/SKILL.md), whose "traps Linux and macOS cannot
+surface" catalogues the failures that only appear off Linux.
 
 Merging is the user's decision. Do not merge a pull request unless asked.
