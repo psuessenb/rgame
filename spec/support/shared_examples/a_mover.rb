@@ -38,7 +38,7 @@ RSpec.shared_examples 'a mover' do
   let(:wall) { RGame::Engine::Components::BoxCollider.new(width: 16, height: 400, layer: :wall) }
 
   # A method rather than a let, which would put the wall-only groups one memoized helper over
-  # RuboCop's limit for a collider they never read.
+  # RuboCop's limit for a collider they never read. Exempted in spec/spec_style_spec.rb.
   def floor = @floor ||= RGame::Engine::Components::BoxCollider.new(width: 200, height: 16, layer: :floor)
 
   def mount_collision_world

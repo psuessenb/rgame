@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+# rubocop:disable RSpec/MultipleMemoizedHelpers -- drawing a layer needs map, world, camera, renderer, scene, mount
 RSpec.describe RGame::Engine::TileMapLayer do
   # Three layers, the last one flagged `above` — the shape both committed maps
   # have, and the one .mount reads to decide where the actors go.
@@ -14,12 +15,11 @@ RSpec.describe RGame::Engine::TileMapLayer do
   # The layers belong inside a WorldView, whose scene carries the TileWorld
   # system they read their map and clock from.
   let(:scene) { RGame::Engine::Node2D.new.tap { |node| node.add_component(world) } }
+  let(:mount) { described_class.mount(scene).tap { scene.enter_tree } }
 
   before { allow(renderer).to receive(:layered).and_yield }
 
   def view(width: 320, height: 240) = screen_view(width: width, height: height, camera: camera)
-
-  def mount = @mount ||= described_class.mount(scene).tap { scene.enter_tree }
 
   # Driven from the scene, the way the traversal does: a node resolves its
   # origin from its parent's, so the parent has to have been resolved first.
@@ -146,3 +146,4 @@ RSpec.describe RGame::Engine::TileMapLayer do
       .to raise_error(/must be inside a WorldView/)
   end
 end
+# rubocop:enable RSpec/MultipleMemoizedHelpers

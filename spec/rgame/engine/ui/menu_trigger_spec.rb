@@ -4,6 +4,7 @@
 # it is held, and choosing the focused button when it comes up. Driven here with
 # a wheel of four buttons, because pointing and letting go is the gesture the
 # trigger exists for; the rules hold for any navigation.
+# rubocop:disable RSpec/MultipleMemoizedHelpers -- a trigger needs menu, navigation, snapshot and two collectors
 RSpec.describe RGame::Engine::UI::Menu do
   let(:root) { RGame::Engine::Node2D.new }
   let(:navigation) { RGame::Engine::UI::Pointing.new }
@@ -29,8 +30,8 @@ RSpec.describe RGame::Engine::UI::Menu do
   end
 
   # Labels of the buttons activated, and of what each on_closed said, in order.
-  def chosen = (@chosen ||= [])
-  def closed_with = (@closed_with ||= [])
+  let(:chosen) { [] }
+  let(:closed_with) { [] }
 
   # One tick at 60 Hz: control, then update. `stick` is [x, y].
   def tick(*down, stick: [0.0, 0.0])
@@ -275,3 +276,4 @@ RSpec.describe RGame::Engine::UI::Menu do
     end.to allocate_nothing.over(3_000).after_warmup(60)
   end
 end
+# rubocop:enable RSpec/MultipleMemoizedHelpers

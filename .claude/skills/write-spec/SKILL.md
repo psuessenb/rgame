@@ -27,8 +27,15 @@ Nested `describe` is free — no line limit is enabled, so nest wherever it read
 better.
 
 - **A value shared by more than one example is a `let`.** Not
-  `def thing = @thing ||= ...`, which is `let` written by hand;
-  `RSpec/InstanceVariable` misses it because the ivar hides inside a `def`.
+  `def thing = @thing ||= ...`, which is `let` written by hand.
+  `spec/spec_style_spec.rb` fails on it, because no cop does: `@x ||= y` parses
+  to `or-asgn` and `RSpec/InstanceVariable` searches for `ivar` nodes.
+- **When a `let` puts a group over `RSpec/MultipleMemoizedHelpers`, disable the
+  cop there and say why.** Do not turn the `let` back into a method to get under
+  the limit — that is how the memoized helpers got written in the first place.
+  The cop counts helpers inherited from enclosing groups, so one more `let` at a
+  file's top level can put every group in that file over at once; the disable
+  then belongs around the whole file, not around twenty groups.
 - **A helper that takes arguments stays a method.** `let` cannot be
   parameterized, so this suite's factories — `tile_world(solid:)`, `npc_at(x, y)`
   — are the correct shape and not a `let` waiting to happen.

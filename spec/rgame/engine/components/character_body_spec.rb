@@ -187,6 +187,7 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
   # too, and these pin what that means from underneath an ancestor that is not at the
   # origin — the case nothing in the repository builds today, and the one that would
   # otherwise resolve a step against a map shifted by however far the ancestor sits.
+  # rubocop:disable RSpec/MultipleMemoizedHelpers -- a world-space step needs four collaborators beyond root and node
   describe 'the adapter is in world space' do
     let(:container) { RGame::Engine::Node2D.new(x: 100.0, y: 50.0) }
     let(:collider)  { RGame::Engine::Components::BoxCollider.new(width: 16, height: 16) }
@@ -195,8 +196,8 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     # A resolver of this spec's own rather than the body's: what these are about is which
     # numbers reach the tile arithmetic, so the tiles have to be real too. One solid
     # column at x 128..144.
-    def resolver
-      @resolver ||= RGame::Engine::CollisionSystem.new(
+    let(:resolver) do
+      RGame::Engine::CollisionSystem.new(
         blockers: RGame::Engine::TileBlockers.new(
           grid: RGame::Util::SolidGrid.build(64, 64) { |col, _row| col == 8 }, tile_width: 16, tile_height: 16
         )
@@ -255,6 +256,7 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
       expect { resolver.move(body, 1.0, 1.0) }.to allocate_nothing
     end
   end
+  # rubocop:enable RSpec/MultipleMemoizedHelpers
 
   # A layer name means the scene's CollisionWorld: the body is stopped flush by any box
   # collider wearing that layer, the way a solid tile stops it. These mount a real
@@ -357,6 +359,7 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     end
   end
 
+  # rubocop:disable RSpec/MultipleMemoizedHelpers -- both blockers need a tile world, a collision world, hero and npcs
   describe 'blocked_by: %i[tiles npc]' do
     # Walls at columns and rows 5 and 8 — so x 80..96 and 128..144, and the same in y —
     # with the hero in the free square between them.
@@ -364,9 +367,7 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     let(:body) { described_class.new(speed: 20.0, blocked_by: %i[tiles npc]) }
     let(:hero) { RGame::Engine::Node2D.new(x: 100.0, y: 100.0) }
 
-    def collision_world
-      @collision_world ||= root.add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 64))
-    end
+    let(:collision_world) { root.add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 64)) }
 
     def npc_at(x, y, width: 10, height: 10)
       npc = RGame::Engine::Node2D.new(x: x, y: y)
@@ -433,6 +434,7 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
       expect { body.update(1.0) }.to allocate_nothing
     end
   end
+  # rubocop:enable RSpec/MultipleMemoizedHelpers
 
   # The edge of the world, declared like anything else. A body that does not name it walks
   # out of the world, which is the point: nothing holds an actor anywhere it did not ask
@@ -556,8 +558,8 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
   # The axis readers underneath these live on the resolver, and collision_system_spec
   # pins them: #blocked_x / #blocked_y is what a body that wants the answer without
   # connecting a signal reads.
-  # rubocop:disable RSpec/MultipleMemoizedHelpers -- two of the seven are the recording sinks the
   # signals write into rather than setup an example has to be read against.
+  # rubocop:disable RSpec/MultipleMemoizedHelpers -- the callbacks need both worlds, a body, hero, npcs and logs
   describe 'on_blocked and on_unblocked' do
     # Walls in column 8 and row 8 — x 128..144 and y 128..144 — with the hero's 10x10 box
     # at (110, 110), 8px clear of both, and a 10px step. So one push reaches a wall, a
@@ -573,9 +575,7 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     let(:blocked) { [] }
     let(:unblocked) { [] }
 
-    def collision_world
-      @collision_world ||= root.add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 64))
-    end
+    let(:collision_world) { root.add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 64)) }
 
     def npc_at(x, y)
       npc = RGame::Engine::Node2D.new(x: x, y: y)
@@ -731,7 +731,6 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
       end.to allocate_nothing
     end
   end
-
   # rubocop:enable RSpec/MultipleMemoizedHelpers
 
   # A body that cannot be blocked the way it was told to says so at attach, rather than

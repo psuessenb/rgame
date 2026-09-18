@@ -97,9 +97,10 @@ RSpec.describe RGame::Engine::WorldView do
   # The invariant the whole design rests on: the simulation is shared, only the
   # drawing multiplies. An NPC that moved twice as fast with two players
   # watching would be the classic way to get this wrong.
+  # rubocop:disable RSpec/MultipleMemoizedHelpers -- one shared world, its viewports, and the node counting ticks
   describe 'the simulation is not multiplied' do
-    def counter
-      @counter ||= Class.new(RGame::Engine::Node2D) do
+    let(:counter) do
+      Class.new(RGame::Engine::Node2D) do
         attr_reader :updates, :controls, :draws
 
         def initialize
@@ -133,4 +134,5 @@ RSpec.describe RGame::Engine::WorldView do
       expect(counter.draws).to eq(2)
     end
   end
+  # rubocop:enable RSpec/MultipleMemoizedHelpers
 end

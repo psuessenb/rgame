@@ -27,7 +27,7 @@ RSpec.describe RGame::Core::App do
       super.tap { |window| windows << window }
     end
 
-    def windows = @windows ||= []
+    let(:windows) { [] }
 
     after { windows.each { |window| window.fullscreen = false } }
 

@@ -20,7 +20,7 @@ RSpec.describe RGame::Core::Renderer do
       end
     end
 
-    def white_png = @white_png ||= PngFixture.write(4, 4) { [255, 255, 255, 255] }
+    let(:white_png) { PngFixture.write(4, 4) { [255, 255, 255, 255] } }
 
     it_behaves_like 'a renderer'
   end
@@ -28,7 +28,7 @@ RSpec.describe RGame::Core::Renderer do
   # What the shared contract cannot state, because a fake has no asset manager
   # to resolve anything through.
   describe 'resolving an id through the asset manager' do
-    def png = @png ||= File.basename(PngFixture.write(4, 4) { [255, 255, 255, 255] })
+    let(:png) { File.basename(PngFixture.write(4, 4) { [255, 255, 255, 255] }) }
 
     def in_a_frame
       RenderedFrame.capture(width: 16, height: 16) do |renderer, app|
