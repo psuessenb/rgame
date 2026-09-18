@@ -11,7 +11,7 @@ they're non-trivial and the name doesn't already tell the whole story.
 
 Comments inside methods or on private methods get automatically deleted on commit - write them freely, but don't rely on them. Write code that speaks and reads cleanly without those comments.
 
-Documentation rules live in the [write-docs](.claude/skills/write-docs/SKILL.md) skill; plans follow [write-plan](.claude/skills/write-plan/SKILL.md), and the skills themselves follow [write-skill](.claude/skills/write-skill/SKILL.md).
+Documentation rules live in the [write-docs](.claude/skills/write-docs/SKILL.md) skill; specs follow [write-spec](.claude/skills/write-spec/SKILL.md), plans [write-plan](.claude/skills/write-plan/SKILL.md), and the skills themselves [write-skill](.claude/skills/write-skill/SKILL.md).
 
 Prose someone else reads follows the style rules in
 [write-prose](.claude/skills/write-prose/SKILL.md). That covers the top-level
@@ -121,14 +121,6 @@ So when a new subsystem sits next to an existing one, the acceptance test is not
 "does mine pass" but **"what does a caller using both of us look like, and does
 anything exercise it?"** If the answer is that nothing does, that is the test to
 write first, and it is the cheapest moment this design will ever be questioned.
-
-## Spec style
-
-Use `spec/rgame/engine/node2d_spec.rb` as a reference if needed.
-
- - Use RSpec's mocking mechanisms instead of creating structures with `Struct`, `Data`, etc.
- - Use verified doubles (enforced by RuboCop)
- - Specs have no line limit enabled, so use nested `describe` freely where it makes sense to increase readability
 
 ## RuboCop
 
@@ -673,25 +665,15 @@ So:
 to sit in this position came with its own tests; writing the window, the
 renderer and the sound device ourselves made testing them our job too.
 
-### Fakes, contracts and what the suites skip
+### Fakes and what the suites skip
 
 The engine layer calls a renderer, an audio server and a tile map only by method
-name, so each of those interfaces has a real implementation and a recording fake.
-Two rules follow, and both fail silently when broken:
-
-- **A method added to the real thing is not done until the shared example group
-  in `spec/support/shared_examples/` and the stand-in beside it have it too**, in
-  the same commit. Otherwise `rake spec` stays green while the game no longer
-  runs.
-- **A fake must refuse what the real thing refuses.** A fake that only ever says
-  yes leaves every guard written against the real refusal untested.
-
-**Read the skip count, not just the colour.** A green `rake spec:core` on macOS
-or Windows covers strictly less than a green one on Linux.
-
-The [verify](.claude/skills/verify/SKILL.md) skill has the rest: the three
-contracts and their host hooks, the four rules for writing a refusal, and which
-capability each platform probes at runtime.
+name, so each has a real implementation and a recording fake that must not drift
+from it. **Read the skip count, not just the colour** — a green `rake spec:core`
+on macOS or Windows covers strictly less than a green one on Linux. The
+[verify](.claude/skills/verify/SKILL.md) skill has the three contracts, the four
+rules for writing a refusal, and which capability each platform probes at
+runtime.
 
 ## Conventions
 

@@ -50,6 +50,8 @@ so tier 2a cannot be contaminated — see
 
 Reusable support lives in `spec_core/support/`: `HeadlessDisplay` (Xvfb),
 `XKeys` (XTEST keystrokes) and `VirtualGamepad` (a synthetic SDL controller).
+How the spec itself is written — doubles, `let` and `context` — is
+[write-spec](../write-spec/SKILL.md).
 
 **Tier 3 — live window.** "Did a real SDL window open, take real input, and
 render without a GL error." Use it for the layer-3 shim only. Do not use it for
