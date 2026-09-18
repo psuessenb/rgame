@@ -23,6 +23,9 @@ Apply this to each line, not to the skill as a whole:
 - **A second example of the same shape.** The first one landed or it did not.
 - **Anything the skill already said**, in another section or another wording.
 - **Anything CLAUDE.md or another skill says.** Link to it instead.
+- **A rule a cop, a spec or a build failure could enforce.** Write that instead
+  and cut the rule — see [Design out
+  misuse](../../../CLAUDE.md#design-out-misuse-the-right-thing-must-be-the-easy-thing).
 - **Prose that enumerates cases.** That is a table.
 - **Rationale nobody disputes.** Justify a rule that looks wrong, not one that
   looks obvious.
