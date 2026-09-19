@@ -108,6 +108,43 @@ static VALUE typeface_text_width(VALUE self, VALUE string) {
     return DBL2NUM(width);
 }
 
+/*
+ * #wrap(string, max_width) — lines the string breaks into at `max_width`,
+ * one String per line.
+ *
+ * Breaks at the last space that still fits, takes that space for the break,
+ * and hands back a whole word rather than cutting one — the same contract
+ * `rgame_typeface_fit` pins and this file's sibling tests it. A string that
+ * fits returns one line; an empty string returns none.
+ */
+static VALUE typeface_wrap(VALUE self, VALUE string, VALUE max_width) {
+    const rgame_typeface *typeface = typeface_unwrap(self);
+    StringValue(string);
+    double width = NUM2DBL(max_width);
+
+    const char *text = RSTRING_PTR(string);
+    size_t length = (size_t)RSTRING_LEN(string);
+    RB_GC_GUARD(string);
+
+    VALUE lines = rb_ary_new();
+    size_t offset = 0;
+    while (offset < length) {
+        size_t fit_length = 0;
+        float fit_width = 0.0f;
+        rgame_typeface_fit(typeface, text + offset, length - offset, (float)width,
+                           &fit_length, &fit_width);
+        (void)fit_width; /* rule 6 is pinned where fit is built and tested */
+        rb_ary_push(lines, rb_str_subseq(string, (long)offset, (long)fit_length));
+
+        offset += fit_length;
+        if (offset < length && text[offset] == ' ') {
+            offset += 1; /* the break replaced this space */
+        }
+    }
+
+    return lines;
+}
+
 static VALUE typeface_inspect(VALUE self) {
     rgame_typeface_ref *ref;
     TypedData_Get_Struct(self, rgame_typeface_ref, &typeface_data_type, ref);
@@ -129,5 +166,6 @@ void rgame_init_typeface(VALUE mUtil) {
     rb_define_method(cTypeface, "initialize", typeface_initialize, 3);
     rb_define_method(cTypeface, "height", typeface_height, 0);
     rb_define_method(cTypeface, "text_width", typeface_text_width, 1);
+    rb_define_method(cTypeface, "wrap", typeface_wrap, 2);
     rb_define_method(cTypeface, "inspect", typeface_inspect, 0);
 }

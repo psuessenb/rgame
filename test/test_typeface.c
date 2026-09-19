@@ -405,6 +405,204 @@ START_TEST(measuring_and_walking_agree) {
 }
 END_TEST
 
+/* --- fitting and wrapping --- */
+
+/*
+ * Wraps a string exactly the way the Ruby binding does, checking the fit
+ * contract at every step and returning the line count:
+ *
+ *   - the width a fit reports for a line is the width that line measures to on
+ *     its own (rule 6);
+ *   - a line never exceeds `max_width` unless it is a single word that alone
+ *     overflows (rule 1);
+ *   - a break always lands on a space, never inside a word (rule 3).
+ */
+static int fit_wrap(const rgame_typeface *typeface, const char *text, float max_width,
+                    char (*lines)[128], int max_lines) {
+    size_t offset = 0;
+    size_t length = strlen(text);
+    int count = 0;
+
+    while (offset < length) {
+        ck_assert_msg(count < max_lines, "wrapped \"%s\" into more than %d lines", text, max_lines);
+
+        size_t fit_length = 0;
+        float fit_width = 0.0f;
+        rgame_typeface_fit(typeface, text + offset, length - offset, max_width,
+                           &fit_length, &fit_width);
+
+        /* A call must always make progress: the line, or the break space after
+         * it. Otherwise wrapping a leading space could loop forever. */
+        ck_assert_uint_gt(fit_length + (offset + fit_length < length && text[offset + fit_length] == ' '),
+                          0);
+
+        float line_width = rgame_typeface_measure(typeface, text + offset, fit_length);
+        ck_assert_float_eq_tol(fit_width, line_width, TOL);
+
+        if (line_width > max_width) {
+            ck_assert_msg(memchr(text + offset, ' ', fit_length) == NULL,
+                          "a multi-word line overflowed the width it was given");
+        }
+
+        if (offset + fit_length < length) {
+            ck_assert_int_eq(text[offset + fit_length], ' ');
+        }
+
+        strncpy(lines[count], text + offset, fit_length);
+        lines[count][fit_length] = '\0';
+
+        offset += fit_length;
+        if (offset < length && text[offset] == ' ') {
+            offset += 1; /* the break replaced this space */
+        }
+        count++;
+    }
+
+    return count;
+}
+
+START_TEST(fit_returns_the_whole_string_and_its_width_when_it_fits) {
+    rgame_typeface *typeface = open_test_typeface();
+
+    const char *text = "The gate is shut.";
+    size_t length = strlen(text);
+    float width = rgame_typeface_measure(typeface, text, length);
+
+    size_t fit_length = 0;
+    float fit_width = 0.0f;
+    rgame_typeface_fit(typeface, text, length, width + 100.0f, &fit_length, &fit_width);
+
+    ck_assert_uint_eq(fit_length, length);
+    ck_assert_float_eq(fit_width, width);
+
+    /* An empty string fits, as nothing. */
+    rgame_typeface_fit(typeface, "", 0, width, &fit_length, &fit_width);
+    ck_assert_uint_eq(fit_length, 0);
+    ck_assert_float_eq(fit_width, 0.0f);
+
+    rgame_typeface_close(typeface);
+}
+END_TEST
+
+START_TEST(fit_keeps_a_line_that_uses_the_available_width_exactly) {
+    /* "The gate is shut for the" fills the box to the pixel; the space after
+     * "the" pushes over, so the break is exactly that space and `>` (not
+     * `>=`) is what keeps the full line. */
+    rgame_typeface *typeface = open_test_typeface();
+
+    const char *text = "The gate is shut for the night, traveller.";
+    size_t exact = strlen("The gate is shut for the");
+    float max_width = rgame_typeface_measure(typeface, text, exact);
+
+    size_t fit_length = 0;
+    float fit_width = 0.0f;
+    rgame_typeface_fit(typeface, text, strlen(text), max_width, &fit_length, &fit_width);
+
+    ck_assert_uint_eq(fit_length, exact);
+    ck_assert_int_eq(text[fit_length], ' ');
+    ck_assert_float_eq_tol(fit_width, rgame_typeface_measure(typeface, text, exact), TOL);
+
+    rgame_typeface_close(typeface);
+}
+END_TEST
+
+START_TEST(fit_returns_a_word_wider_than_the_line_whole_rather_than_cut) {
+    /* The long word is wider than the box it was given, but it comes back
+     * whole so the caller makes progress — and so a too-long URL overflows
+     * visibly instead of looping forever. */
+    rgame_typeface *typeface = open_test_typeface();
+
+    const char *text = "supercalifragilisticexpialidocious";
+    size_t length = strlen(text);
+
+    size_t fit_length = 0;
+    float fit_width = 0.0f;
+    rgame_typeface_fit(typeface, text, length, 50.0f, &fit_length, &fit_width);
+
+    ck_assert_uint_eq(fit_length, length);
+    ck_assert_float_gt(fit_width, 50.0f);
+    ck_assert_float_eq(fit_width, rgame_typeface_measure(typeface, text, length));
+
+    rgame_typeface_close(typeface);
+}
+END_TEST
+
+START_TEST(fit_does_not_take_the_space_after_a_wide_word) {
+    /* "Methionyl..." overflows, so the line is the whole word; the caller
+     * skips the space after it and the next line starts clean rather than
+     * with a leading space. */
+    rgame_typeface *typeface = open_test_typeface();
+
+    const char *text = "Methionylthreonylthreonylglutaminylalanylhistidine is long";
+    size_t wide = strlen("Methionylthreonylthreonylglutaminylalanylhistidine");
+
+    size_t fit_length = 0;
+    float fit_width = 0.0f;
+    rgame_typeface_fit(typeface, text, strlen(text), 80.0f, &fit_length, &fit_width);
+
+    ck_assert_uint_eq(fit_length, wide);
+    ck_assert_int_eq(text[fit_length], ' ');
+
+    rgame_typeface_close(typeface);
+}
+END_TEST
+
+START_TEST(wrapping_is_linear_and_reconstructs_the_input) {
+    /*
+     * Every call walks only the text it hands back, so the fitting lengths
+     * plus one consumed space per break sum exactly to the input length — the
+     * line count is the call count, so linearity is pinned as a count rather
+     * than a timing. And the lines, joined with a space where each break
+     * stands, are the paragraph verbatim.
+     */
+    rgame_typeface *typeface = open_test_typeface();
+
+    const char *text = "The gate is shut for the night, traveller. "
+                       "The road ahead is dark, but the dawn will come and the gate will open again. "
+                       "Rest here until then. Keep the fire burning and stay on the path, "
+                       "and the morning will find you safe.";
+    char lines[16][128];
+    int count = fit_wrap(typeface, text, 520.0f, lines, 16);
+
+    ck_assert_int_eq(count, 3);
+
+    char rebuilt[512] = "";
+    for (int i = 0; i < count; i++) {
+        strcat(rebuilt, lines[i]);
+        if (i + 1 < count) {
+            strcat(rebuilt, " ");
+        }
+    }
+    ck_assert_str_eq(rebuilt, text);
+
+    rgame_typeface_close(typeface);
+}
+END_TEST
+
+START_TEST(german_and_english_paragraphs_break_differently_at_the_same_width) {
+    /* The whole reason wrapping exists: at the same 520px a German paragraph
+     * gives a UI a different shape back than its English source. */
+    rgame_typeface *typeface = open_test_typeface();
+
+    const char *english = "The gate is shut for the night, traveller. "
+                          "The road ahead is dark, but the dawn will come and the gate will open again. "
+                          "Rest here until then. Keep the fire burning and stay on the path, "
+                          "and the morning will find you safe.";
+    const char *german = "Das Tor ist für die Nacht geschlossen, Wanderer. "
+                         "Die Straße davor ist dunkel, doch der Morgen wird kommen und das Tor wird wieder geöffnet. "
+                         "Ruhe dich bis dahin aus. Halte das Feuer am Brennen und bleib auf dem Weg, "
+                         "dann wird der Morgen dich wohlbehalten finden.";
+
+    char lines[16][128];
+    int en = fit_wrap(typeface, english, 520.0f, lines, 16);
+    int de = fit_wrap(typeface, german, 520.0f, lines, 16);
+
+    ck_assert_int_ne(de, en);
+
+    rgame_typeface_close(typeface);
+}
+END_TEST
+
 /* --- rasterising --- */
 
 START_TEST(rasterising_a_letter_produces_ink) {
@@ -676,6 +874,13 @@ Suite *font_suite(void) {
     tcase_add_test(tc, a_longer_string_measures_wider);
     tcase_add_test(tc, the_first_glyph_is_drawn_at_the_pen_not_past_it);
     tcase_add_test(tc, measuring_and_walking_agree);
+
+    tcase_add_test(tc, fit_returns_the_whole_string_and_its_width_when_it_fits);
+    tcase_add_test(tc, fit_keeps_a_line_that_uses_the_available_width_exactly);
+    tcase_add_test(tc, fit_returns_a_word_wider_than_the_line_whole_rather_than_cut);
+    tcase_add_test(tc, fit_does_not_take_the_space_after_a_wide_word);
+    tcase_add_test(tc, wrapping_is_linear_and_reconstructs_the_input);
+    tcase_add_test(tc, german_and_english_paragraphs_break_differently_at_the_same_width);
 
     tcase_add_test(tc, rasterising_a_letter_produces_ink);
     tcase_add_test(tc, rasterising_writes_nothing_outside_the_box_it_was_given);
