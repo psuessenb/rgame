@@ -3,11 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "text/font.h"
+#include "typeface.h"
 #include "suites.h"
 
 /*
- * Layer-1 tests for font.c, run against the font the engine ships.
+ * Layer-1 tests for typeface.c, run against the font the engine ships.
  *
  * That is worth a note: these are not fixture-driven or approximate. Because
  * `lib/rgame/fonts/LiberationSans-Regular.ttf` is part of the project, the

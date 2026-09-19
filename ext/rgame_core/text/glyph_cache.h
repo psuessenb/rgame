@@ -2,7 +2,7 @@
 #define RGAME_GLYPH_CACHE_H
 
 #include "graphics/clip.h"
-#include "text/glyph_metrics.h"
+#include "glyph_metrics.h"
 
 /*
  * What has already been rasterised, and where it went. Pure — no font, no

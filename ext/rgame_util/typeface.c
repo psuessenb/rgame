@@ -1,8 +1,8 @@
 /*
- * font.c — metrics and rasterisation over stb_truetype. See font.h.
+ * typeface.c — metrics and rasterisation over stb_truetype. See typeface.h.
  */
 
-#include "text/font.h"
+#include "typeface.h"
 
 #include <stdlib.h>
 #include <string.h>

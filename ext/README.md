@@ -40,7 +40,6 @@ ext/rgame_core/
   text/
     atlas.c/.h          # pure glyph-atlas shelf packing (unit-tested)
     glyph_cache.c/.h    # pure codepoint -> glyph table (unit-tested)
-    font.c/.h           # pure typeface: metrics, kerning, UTF-8 (unit-tested)
     font_atlas.c        # glyph atlas pages on the GPU: the impure quarter
     font_internal.h     # what the draw path needs from inside a font
   input/
@@ -60,7 +59,7 @@ ext/rgame_core/
     renderer_ext.c      # RGame::Core::Renderer — the drawing primitives
     recording_ext.c     # RGame::Core::Recording — baked, replayable draws
   vendor/               # third-party sources + licences (stb_image,
-                        #   stb_truetype, stb_vorbis, miniaudio)
+                        #   stb_vorbis, miniaudio)
     *_impl.c            # one per vendored library, built with warnings off
 
 ext/rgame_util/
@@ -69,6 +68,10 @@ ext/rgame_util/
   tensor.c              # RGame::Util::Tensor — flat-array 3D grid
   color.c/.h            # pure RGBA packing, no ruby.h (unit-tested)
   color_ext.c           # RGame::Util::Color — the Ruby binding
+  typeface.c/.h         # pure typeface: metrics, kerning, UTF-8 (unit-tested);
+                        #   rgame_core compiles its own copy for the atlas
+  glyph_metrics.h       # what a face says about one glyph
+  vendor/               # stb_truetype, compiled into both extensions
 ```
 
 ## Why the engine lives here and not in `src/`
