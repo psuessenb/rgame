@@ -63,6 +63,11 @@ restate: use **What this is for** instead, and keep the other three.
 Write prose and bullets, not a file-by-file inventory. The diff already lists
 the files. Both follow the style rules in [write-prose](../write-prose/SKILL.md).
 
+Do not wrap lines to a fixed width. A pull request body renders reflowed while a
+commit message sits in `git log` at the terminal width, so the wrap that is right
+for one is decoration for the other. Let each line run to the end of its
+sentence.
+
 ## No attribution
 
 No `Co-Authored-By`, no `Assisted-By`, no "Generated with" line, no session
