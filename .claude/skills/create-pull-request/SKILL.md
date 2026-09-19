@@ -27,9 +27,11 @@ Implement step 3 — View, Layout and the draw signature sweep
 
 ## The body
 
-Four sections, in this order. It is longer than a typical pull request body
-because it is doing a second job: everything here is what gets folded back into
-the plan as the step's landed note.
+Write it with [write-prose](../write-prose/SKILL.md) loaded before the first
+sentence; its style rules apply to every sentence and bullet. Four sections, in
+this order. It is longer than a typical pull request body because it is doing a
+second job: everything here is what gets folded back into the plan as the
+step's landed note.
 
 ```markdown
 ## What the plan said
