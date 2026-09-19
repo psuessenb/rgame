@@ -16,7 +16,11 @@ ifeq ($(origin CC),default)
 CC := gcc
 endif
 
-CFLAGS ?= -std=c17 -Wall -Wextra -g -fPIC
+# -ffp-contract=off matches both extensions, so the Check suite tests the C
+# as the gems compile it: a fused multiply-add rounds differently, which moves
+# a text width or picks a different equally cheap route. See
+# ext/rgame_util/typeface.h.
+CFLAGS ?= -std=c17 -Wall -Wextra -g -fPIC -ffp-contract=off
 
 # -MMD -MP makes the compiler emit a build/<name>.d listing every header the
 # object actually included, and the -include below feeds those back to make.

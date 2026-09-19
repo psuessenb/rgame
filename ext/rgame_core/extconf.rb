@@ -6,11 +6,7 @@ SOURCE_DIRS = %w[app graphics text input audio ruby].freeze
 
 SHARED_UTIL_SOURCES = %w[typeface.c].freeze
 
-SHARED_UTIL_FLAGS = if RbConfig::CONFIG['host_os'].match?(/mingw|mswin|cygwin/)
-                      '-ffp-contract=off'
-                    else
-                      '-ffp-contract=off -fvisibility=hidden'
-                    end
+SHARED_UTIL_VISIBILITY = RbConfig::CONFIG['host_os'].match?(/mingw|mswin|cygwin/) ? '' : '-fvisibility=hidden'
 
 VENDORED = {
   'stb_image' => 'vendor/stb_image.h',
@@ -76,6 +72,8 @@ $libs = append_library($libs, 'dl') if have_library('dl')
 
 $CFLAGS << ' -std=gnu17 -Wall -Wextra'
 
+$CFLAGS << ' -ffp-contract=off'
+
 if static_sdl2
   case RbConfig::CONFIG['host_os']
   when /linux/ then $LDFLAGS << ' -Wl,--exclude-libs,ALL'
@@ -93,7 +91,7 @@ create_makefile('rgame/core_ext')
 File.open('Makefile', 'a') do |makefile|
   VENDORED.each do |name, source|
     impl = "$(srcdir)/#{vendored_impl(name, source)}"
-    flags = source.start_with?('../rgame_util/') ? SHARED_UTIL_FLAGS : ''
+    flags = source.start_with?('../rgame_util/') ? SHARED_UTIL_VISIBILITY : ''
     makefile.puts <<~MAKE
 
       #{name}_impl.#{$OBJEXT}: #{impl} $(srcdir)/#{source}
@@ -107,7 +105,7 @@ File.open('Makefile', 'a') do |makefile|
 
       #{File.basename(source, '.c')}.#{$OBJEXT}: $(srcdir)/../rgame_util/#{source}
       \t$(ECHO) compiling $(<)
-      \t$(Q) $(CC) $(INCFLAGS) $(CPPFLAGS) $(CFLAGS) #{SHARED_UTIL_FLAGS} $(COUTFLAG)$@ -c $(srcdir)/../rgame_util/#{source}
+      \t$(Q) $(CC) $(INCFLAGS) $(CPPFLAGS) $(CFLAGS) #{SHARED_UTIL_VISIBILITY} $(COUTFLAG)$@ -c $(srcdir)/../rgame_util/#{source}
     MAKE
   end
 

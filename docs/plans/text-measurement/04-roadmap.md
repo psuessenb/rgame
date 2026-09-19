@@ -219,9 +219,14 @@ What the sketch got wrong:
   `-ffp-contract=off` and Core did not. Forcing contraction on in Core's copy
   (`-mfma -ffp-contract=fast`) moved `'Systemsprache verwenden'` at 18 px from
   `194.33392333984375` to `194.3339080810547`, and the agreement spec failed.
-  That check is what showed the spec has teeth. Core's rule for the shared files
-  now passes `-ffp-contract=off` as well, which matters on the arm64 macOS
-  runner, where compilers contract by default.
+  That check is what showed the spec has teeth. Util had the flag since
+  pathfinding, whose A* breaks ties between equally cheap routes by comparing
+  sums. Core never needed it for drawing. Core now builds everything with
+  `-ffp-contract=off`, and so does the root `Makefile`, so the Check suite tests
+  the C as the gems compile it. This matters on the arm64 macOS runner, where
+  compilers contract by default. A flag set only on the shared files was tried
+  first. It would have left the flag stated twice, and needed remembering for
+  the next shared file.
 - **`VPATH` finds targets, not just sources.** Adding `../rgame_util` to Core's
   `VPATH` made make find Util's own `typeface.o`, judge it up to date, and then
   link a `typeface.o` that did not exist in Core's directory. Core names the
