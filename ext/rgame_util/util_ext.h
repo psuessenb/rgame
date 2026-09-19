@@ -15,6 +15,7 @@ void rgame_init_color(VALUE mUtil);
 void rgame_init_solid_grid(VALUE mUtil);
 void rgame_init_route_search(VALUE mUtil);
 void rgame_init_tile_sweep(VALUE mUtil);
+void rgame_init_typeface(VALUE mUtil);
 
 /*
  * The two things a RouteSearch needs from the SolidGrid binding: the grid

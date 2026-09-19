@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'rgame/core_ext'
+require_relative '../util/typeface'
 
 module RGame
   module Core
@@ -34,7 +35,7 @@ module RGame
     # Scripts outside the shipped font's coverage — CJK, Arabic, Hebrew — need
     # their own file. No font of this size covers them.
     class Font
-      DEFAULT_PATH = File.expand_path('../fonts/LiberationSans-Regular.ttf', __dir__)
+      DEFAULT_PATH = RGame::Util::Typeface::DEFAULT_PATH
 
       # `path:` is a keyword for callers but positional for the C initialize,
       # which has no business knowing where a gem installs its data.
