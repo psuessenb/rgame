@@ -1,7 +1,7 @@
 /*
  * font_atlas.c — the one file in the text stack that touches GL.
  *
- * Everything interesting about text is elsewhere and pure: font.c knows what
+ * Everything interesting about text is elsewhere and pure: typeface.c knows what
  * glyphs measure and look like, atlas.c knows where the next one goes on a
  * page, glyph_cache.c knows which have been done already. This composes the
  * three, owns the GL textures behind the pages, and reads the font file. That
@@ -31,7 +31,7 @@
 
 #include "app/app_gl.h"
 #include "text/atlas.h"
-#include "text/font.h"
+#include "typeface.h"
 #include "text/font_internal.h"
 #include "text/glyph_cache.h"
 

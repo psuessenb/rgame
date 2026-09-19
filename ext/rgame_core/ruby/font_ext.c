@@ -6,8 +6,9 @@
  *   font.height        # => 18
  *   font.text_width('Score: 1200')
  *
- * The atlas, the cache and the metrics are in font_atlas.c, font.c, atlas.c and
- * glyph_cache.c — three of those four are pure and Check-tested. This file is
+ * The atlas, the cache and the metrics are in font_atlas.c, atlas.c,
+ * glyph_cache.c and ext/rgame_util/typeface.c — three of those four are pure
+ * and Check-tested. This file is
  * the wrapper: argument checking, turning a NULL return into an exception that
  * says why, and keeping the app reachable for as long as the font is.
  *

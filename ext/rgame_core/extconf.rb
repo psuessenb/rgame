@@ -4,8 +4,22 @@ require 'mkmf'
 
 SOURCE_DIRS = %w[app graphics text input audio ruby].freeze
 
+SHARED_UTIL_SOURCES = %w[typeface.c].freeze
+
+SHARED_UTIL_VISIBILITY = RbConfig::CONFIG['host_os'].match?(/mingw|mswin|cygwin/) ? '' : '-fvisibility=hidden'
+
+VENDORED = {
+  'stb_image' => 'vendor/stb_image.h',
+  'stb_truetype' => '../rgame_util/vendor/stb_truetype.h',
+  'stb_vorbis' => 'vendor/stb_vorbis.c',
+  'miniaudio' => 'vendor/miniaudio.h'
+}.freeze
+
+def vendored_impl(name, source) = "#{File.dirname(source)}/#{name}_impl.c"
+
 $srcs = SOURCE_DIRS.flat_map { |dir| Dir.glob("#{$srcdir}/#{dir}/*.c") } +
-        Dir.glob("#{$srcdir}/vendor/*_impl.c")
+        VENDORED.map { |name, source| "#{$srcdir}/#{vendored_impl(name, source)}" } +
+        SHARED_UTIL_SOURCES.map { |source| "#{$srcdir}/../rgame_util/#{source}" }
 
 (SOURCE_DIRS + %w[vendor]).each { |dir| $VPATH << "$(srcdir)/#{dir}" }
 
@@ -58,6 +72,8 @@ $libs = append_library($libs, 'dl') if have_library('dl')
 
 $CFLAGS << ' -std=gnu17 -Wall -Wextra'
 
+$CFLAGS << ' -ffp-contract=off'
+
 if static_sdl2
   case RbConfig::CONFIG['host_os']
   when /linux/ then $LDFLAGS << ' -Wl,--exclude-libs,ALL'
@@ -72,25 +88,30 @@ end
 
 create_makefile('rgame/core_ext')
 
-VENDORED = {
-  'stb_image' => 'stb_image.h',
-  'stb_truetype' => 'stb_truetype.h',
-  'stb_vorbis' => 'stb_vorbis.c',
-  'miniaudio' => 'miniaudio.h'
-}.freeze
-
 File.open('Makefile', 'a') do |makefile|
   VENDORED.each do |name, source|
+    impl = "$(srcdir)/#{vendored_impl(name, source)}"
+    flags = source.start_with?('../rgame_util/') ? SHARED_UTIL_VISIBILITY : ''
     makefile.puts <<~MAKE
 
-      #{name}_impl.#{$OBJEXT}: $(srcdir)/vendor/#{name}_impl.c $(srcdir)/vendor/#{source}
+      #{name}_impl.#{$OBJEXT}: #{impl} $(srcdir)/#{source}
       \t$(ECHO) compiling vendored #{name} with warnings off
-      \t$(Q) $(CC) $(INCFLAGS) $(CPPFLAGS) $(CFLAGS) -w $(COUTFLAG)$@ -c $(srcdir)/vendor/#{name}_impl.c
+      \t$(Q) $(CC) $(INCFLAGS) $(CPPFLAGS) $(CFLAGS) #{flags} -w $(COUTFLAG)$@ -c #{impl}
     MAKE
   end
 
-  headers = SOURCE_DIRS.flat_map { |dir| Dir.glob("#{$srcdir}/#{dir}/*.h") }
-                       .map { |path| "$(srcdir)/#{path.delete_prefix("#{$srcdir}/")}" }
+  SHARED_UTIL_SOURCES.each do |source|
+    makefile.puts <<~MAKE
+
+      #{File.basename(source, '.c')}.#{$OBJEXT}: $(srcdir)/../rgame_util/#{source}
+      \t$(ECHO) compiling $(<)
+      \t$(Q) $(CC) $(INCFLAGS) $(CPPFLAGS) $(CFLAGS) #{SHARED_UTIL_VISIBILITY} $(COUTFLAG)$@ -c $(srcdir)/../rgame_util/#{source}
+    MAKE
+  end
+
+  headers = (SOURCE_DIRS.flat_map { |dir| Dir.glob("#{$srcdir}/#{dir}/*.h") } +
+             Dir.glob("#{$srcdir}/../rgame_util/*.h"))
+            .map { |path| "$(srcdir)/#{path.delete_prefix("#{$srcdir}/")}" }
 
   makefile.puts "\n$(OBJS): #{headers.join(' ')}"
 end

@@ -243,7 +243,7 @@ static VALUE renderer_draw_image_rot(int argc, VALUE *argv, VALUE self) {
  * #draw_text(font, string, x, y, z, rgba)
  *
  * The string's bytes go to C as they are: no `each_char`, no codepoints array,
- * nothing allocated per call. Walking UTF-8 is what font.c is for.
+ * nothing allocated per call. Walking UTF-8 is what typeface.c is for.
  */
 static VALUE renderer_draw_text(int argc, VALUE *argv, VALUE self) {
     rb_check_arity(argc, 6, 6);

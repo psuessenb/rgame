@@ -3,7 +3,7 @@
 RSpec.describe RGame::Core::Font do
   # Loading a font needs a GL context for its atlas pages, which is what this
   # suite is for. The metrics underneath — advances, kerning, UTF-8 — are pure C
-  # and are covered without a display by test/test_font.c, against this same
+  # and are covered without a display by test/test_typeface.c, against this same
   # shipped file.
   let(:app) { RGame::Core::App.new(width: 200, height: 100, caption: 'font spec') }
 
@@ -90,6 +90,22 @@ RSpec.describe RGame::Core::Font do
       large = described_class.new(app, 36)
 
       expect(large.text_width('Hello')).to be > small.text_width('Hello')
+    end
+  end
+
+  describe 'agreement with RGame::Util::Typeface' do
+    # The two extensions each compile their own copy of the typeface C. That is
+    # safe only while both copies measure every string identically, and this is
+    # the one place both are loaded at once to say so.
+    let(:strings) { ['', 'Hello', 'AV', 'Systemsprache verwenden', 'Straße über Größe', "a\xFFb".b, '€ « » ẞ'] }
+
+    [12, 18, 36].each do |size|
+      it "measures every string to the same Float at #{size}px" do
+        font = described_class.new(app, size)
+        typeface = RGame::Util::Typeface.new(described_class::DEFAULT_PATH, size)
+
+        expect(strings.map { font.text_width(it) }).to eq(strings.map { typeface.text_width(it) })
+      end
     end
   end
 

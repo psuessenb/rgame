@@ -1,7 +1,7 @@
 #ifndef RGAME_FONT_INTERNAL_H
 #define RGAME_FONT_INTERNAL_H
 
-#include "text/font.h"
+#include "typeface.h"
 #include "text/glyph_cache.h"
 #include "rgame/core.h"
 

@@ -27,4 +27,5 @@ void Init_util_ext(void) {
     rgame_init_solid_grid(mUtil);
     rgame_init_route_search(mUtil);
     rgame_init_tile_sweep(mUtil);
+    rgame_init_typeface(mUtil);
 }

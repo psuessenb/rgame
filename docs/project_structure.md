@@ -54,15 +54,11 @@ ext/rgame_core/              RGame::Core — the SDL/GL half. The sources are
   text/                      Glyphs, from a .ttf to a texture page.
     atlas.h/.c               Pure: shelf packing for the glyph atlas — where
                              the next glyph goes on a texture page.
-    glyph_metrics.h          Pure: what a face says about one glyph — its
-                             size, advance and bearings, and no position.
     glyph_cache.h/.c         Pure: codepoint -> rasterised glyph, open
                              addressed, never evicted.
-    font.h/.c                Pure: a typeface at one size — glyph metrics,
-                             kerning, rasterisation and UTF-8, over
-                             stb_truetype. No atlas, no GL.
-    font_atlas.c             Composes font + atlas + glyph cache and owns the
-                             GL pages — the only text file that calls gl*.
+    font_atlas.c             Composes a typeface (ext/rgame_util/typeface.c),
+                             the atlas and the glyph cache, and owns the GL
+                             pages — the only text file that calls gl*.
     font_internal.h          What the draw path needs from inside a font.
   input/                     Keyboard and controllers.
     input.h/.c               Pure input snapshot + the flat button-id space
@@ -90,8 +86,8 @@ ext/rgame_core/              RGame::Core — the SDL/GL half. The sources are
     font_ext.c               RGame::Core::Font — the Ruby binding.
     recording_ext.c          RGame::Core::Recording — baked, replayable draws.
   vendor/                    Third-party sources + their licences.
-    <name>_impl.c            One per vendored library (stb_image, stb_truetype,
-                             stb_vorbis, miniaudio): instantiates it and picks
+    <name>_impl.c            One per vendored library (stb_image, stb_vorbis,
+                             miniaudio; stb_truetype is Util's): instantiates it and picks
                              its features. The only files built without
                              -Wall -Wextra; the suffix is what selects that.
   extconf.rb                 mkmf script; pkg_config("sdl2"), -lGL. It lists
@@ -106,6 +102,13 @@ ext/rgame_util/              RGame::Util — the graphics-free half, so pure-dat
   tensor.c                   RGame::Util::Tensor — flat-array 3D grid.
   color.c/.h                 Pure RGBA packing, no Ruby — Check-tested.
   color_ext.c                RGame::Util::Color — the Ruby binding over it.
+  typeface.h/.c              Pure: a typeface at one size — glyph metrics,
+                             kerning, rasterisation and UTF-8, over
+                             stb_truetype. No atlas, no GL. rgame_core
+                             compiles its own copy for the glyph atlas.
+  glyph_metrics.h            Pure: what a face says about one glyph — its
+                             size, advance and bearings, and no position.
+  vendor/                    stb_truetype, compiled into both extensions.
   extconf.rb                 mkmf script; no pkg_config, no -lGL.
 
 lib/rgame.rb                 `require "rgame"` — RGame::Util + RGame::Engine,

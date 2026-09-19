@@ -65,7 +65,7 @@ module RGame
       CIRCLE_SEGMENTS = 64
 
       TEXT_Z = 10
-      FONT_SIZE = 18
+      FONT_SIZE = RGame::Util::Typeface::DEFAULT_SIZE
 
       DEBUG_BOX_COLOR = Color.new(255, 40, 40, 120)
 

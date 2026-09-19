@@ -114,11 +114,11 @@ Compiling the C engine needs a compiler and the system libraries it links agains
 - [Check](https://libcheck.github.io/check/) (`check` pkg-config package) — C unit test framework, only needed for `make test`
 
 PNG decoding, text and audio need no system libraries: `stb_image.h`,
-`stb_truetype.h`, `stb_vorbis.c` and `miniaudio.h` are vendored in
-`ext/rgame_core/vendor/` (public domain / MIT), and the default font ships in
-`lib/rgame/fonts/` (SIL OFL 1.1). miniaudio finds ALSA or PulseAudio at runtime,
-so there is nothing to install for sound either. See the README in
-`ext/rgame_core/vendor/` for all of it.
+`stb_vorbis.c` and `miniaudio.h` are vendored in `ext/rgame_core/vendor/`, and
+`stb_truetype.h` in `ext/rgame_util/vendor/` (all public domain / MIT). The
+default font ships in `lib/rgame/fonts/` (SIL OFL 1.1). miniaudio finds ALSA or
+PulseAudio at runtime, so there is nothing to install for sound either. The
+README in each `vendor/` directory covers the details.
 
 `tools/` holds development tools that are not part of the engine and are not
 built by `make` — currently one, which generates the audio suite's `.ogg`

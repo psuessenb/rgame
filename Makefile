@@ -16,7 +16,11 @@ ifeq ($(origin CC),default)
 CC := gcc
 endif
 
-CFLAGS ?= -std=c17 -Wall -Wextra -g -fPIC
+# -ffp-contract=off matches both extensions, so the Check suite tests the C
+# as the gems compile it: a fused multiply-add rounds differently, which moves
+# a text width or picks a different equally cheap route. See
+# ext/rgame_util/typeface.h.
+CFLAGS ?= -std=c17 -Wall -Wextra -g -fPIC -ffp-contract=off
 
 # -MMD -MP makes the compiler emit a build/<name>.d listing every header the
 # object actually included, and the -include below feeds those back to make.
@@ -41,8 +45,11 @@ INCLUDES := -I$(EXT_CORE_DIR) -I$(EXT_CORE_DIR)/include -I$(EXT_UTIL_DIR)
 # Every engine source and header, for the extension build below, which shells
 # out to a Makefile that tracks its own prerequisites. `*/` covers exactly the
 # subsystem directories: nothing is compiled from the top level any more.
-EXT_CORE_SOURCES := $(wildcard $(EXT_CORE_DIR)/*/*.c $(EXT_CORE_DIR)/*/*.h)
-EXT_UTIL_SOURCES := $(wildcard $(EXT_UTIL_DIR)/*.c $(EXT_UTIL_DIR)/*.h)
+# Core also compiles Util's typeface and its vendored rasteriser; see
+# ext/rgame_core/extconf.rb.
+EXT_CORE_SOURCES := $(wildcard $(EXT_CORE_DIR)/*/*.c $(EXT_CORE_DIR)/*/*.h) \
+                    $(wildcard $(EXT_UTIL_DIR)/typeface.* $(EXT_UTIL_DIR)/glyph_metrics.h $(EXT_UTIL_DIR)/vendor/*)
+EXT_UTIL_SOURCES := $(wildcard $(EXT_UTIL_DIR)/*.c $(EXT_UTIL_DIR)/*.h $(EXT_UTIL_DIR)/vendor/*)
 
 SDL_CFLAGS := $(shell pkg-config --cflags sdl2)
 SDL_LIBS := $(shell pkg-config --libs sdl2)
@@ -101,7 +108,6 @@ GL_BACKEND_OBJ := $(BUILD_DIR)/gl_backend.o
 RECORDING_OBJ := $(BUILD_DIR)/recording.o
 ATLAS_OBJ := $(BUILD_DIR)/atlas.o
 GLYPH_CACHE_OBJ := $(BUILD_DIR)/glyph_cache.o
-FONT_OBJ := $(BUILD_DIR)/font.o
 FONT_ATLAS_OBJ := $(BUILD_DIR)/font_atlas.o
 VORBIS_DECODER_OBJ := $(BUILD_DIR)/vorbis_decoder.o
 AUDIO_OBJ := $(BUILD_DIR)/audio.o
@@ -109,19 +115,25 @@ IMAGE_OBJ := $(BUILD_DIR)/image.o
 # Every vendored library gets one implementation TU named <name>_impl.c; the
 # pattern rule below builds all of them the same way. The `_impl.c` suffix is
 # *reserved* for vendored code — it is what turns the warning flags off.
-VENDOR_OBJS := $(BUILD_DIR)/stb_image_impl.o $(BUILD_DIR)/stb_truetype_impl.o \
-               $(BUILD_DIR)/stb_vorbis_impl.o $(BUILD_DIR)/miniaudio_impl.o
+VENDOR_OBJS := $(BUILD_DIR)/stb_image_impl.o $(BUILD_DIR)/stb_vorbis_impl.o \
+               $(BUILD_DIR)/miniaudio_impl.o
 
 # Vendored sources, as one prerequisite list. Deliberately coarse: touching any
 # of them rebuilds all the vendored objects, which costs seconds on a change
 # that happens about once a year and removes a per-library rule to get wrong.
 VENDOR_SOURCES := $(wildcard $(EXT_CORE_DIR)/vendor/*.h $(EXT_CORE_DIR)/vendor/*.c)
+UTIL_VENDOR_SOURCES := $(wildcard $(EXT_UTIL_DIR)/vendor/*.h $(EXT_UTIL_DIR)/vendor/*.c)
 BACKEND_OBJ := $(BUILD_DIR)/backend.o
 # Util is a separate extension, but its pure modules are Check-tested too.
 COLOR_OBJ := $(BUILD_DIR)/color.o
 SOLID_GRID_OBJ := $(BUILD_DIR)/solid_grid.o
 ROUTE_SEARCH_OBJ := $(BUILD_DIR)/route_search.o
 TILE_SWEEP_OBJ := $(BUILD_DIR)/tile_sweep.o
+# The typeface is Util's, but Core's font atlas is built on it, so the engine
+# library links it too — the same arrangement as the two extensions, which each
+# compile their own copy. See ext/rgame_util/typeface.h.
+TYPEFACE_OBJ := $(BUILD_DIR)/typeface.o
+UTIL_VENDOR_OBJS := $(BUILD_DIR)/stb_truetype_impl.o
 UTIL_OBJS := $(COLOR_OBJ) $(SOLID_GRID_OBJ) $(ROUTE_SEARCH_OBJ) $(TILE_SWEEP_OBJ)
 GAMEPAD_OBJ := $(BUILD_DIR)/gamepad.o
 VIRTUAL_GAMEPAD_OBJ := $(BUILD_DIR)/virtual_gamepad.o
@@ -153,7 +165,7 @@ TEST_OBJS := $(BUILD_DIR)/test_main.o \
              $(BUILD_DIR)/test_recording.o \
              $(BUILD_DIR)/test_atlas.o \
              $(BUILD_DIR)/test_glyph_cache.o \
-             $(BUILD_DIR)/test_font.o \
+             $(BUILD_DIR)/test_typeface.o \
              $(BUILD_DIR)/test_vorbis_decoder.o \
              $(BUILD_DIR)/test_audio.o \
              $(BUILD_DIR)/recording_backend.o
@@ -248,16 +260,11 @@ $(ATLAS_OBJ): $(EXT_CORE_DIR)/text/atlas.c $(EXT_CORE_DIR)/text/atlas.h \
 	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 $(GLYPH_CACHE_OBJ): $(EXT_CORE_DIR)/text/glyph_cache.c $(EXT_CORE_DIR)/text/glyph_cache.h \
-                    $(EXT_CORE_DIR)/text/glyph_metrics.h $(EXT_CORE_DIR)/graphics/clip.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
-
-# Needs the extension directory on the include path for "vendor/stb_truetype.h".
-$(FONT_OBJ): $(EXT_CORE_DIR)/text/font.c $(EXT_CORE_DIR)/text/font.h \
-             $(EXT_CORE_DIR)/text/glyph_metrics.h $(EXT_CORE_DIR)/vendor/stb_truetype.h | $(BUILD_DIR)
+                    $(EXT_UTIL_DIR)/glyph_metrics.h $(EXT_CORE_DIR)/graphics/clip.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 $(FONT_ATLAS_OBJ): $(EXT_CORE_DIR)/text/font_atlas.c $(EXT_CORE_DIR)/text/font_internal.h \
-                   $(EXT_CORE_DIR)/text/font.h $(EXT_CORE_DIR)/text/atlas.h \
+                   $(EXT_UTIL_DIR)/typeface.h $(EXT_CORE_DIR)/text/atlas.h \
                    $(EXT_CORE_DIR)/text/glyph_cache.h $(EXT_CORE_DIR)/app/app_gl.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) $(SDL_CFLAGS) -c $< -o $@
 
@@ -290,10 +297,14 @@ $(IMAGE_OBJ): $(EXT_CORE_DIR)/graphics/image.c $(EXT_CORE_DIR)/graphics/texture.
 $(BUILD_DIR)/%_impl.o: $(EXT_CORE_DIR)/vendor/%_impl.c $(VENDOR_SOURCES) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(DEPFLAGS) -w -I$(EXT_CORE_DIR) -c $< -o $@
 
+$(BUILD_DIR)/%_impl.o: $(EXT_UTIL_DIR)/vendor/%_impl.c $(UTIL_VENDOR_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(DEPFLAGS) -w -c $< -o $@
+
 $(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(LOCALE_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ) $(GAMEPAD_OBJ) $(VIRTUAL_GAMEPAD_OBJ) \
              $(TRANSFORM_OBJ) $(CLIP_OBJ) $(DRAW_QUEUE_OBJ) \
              $(CANVAS_OBJ) $(BACKEND_OBJ) $(TEXTURE_OBJ) $(PRIMITIVES_OBJ) \
-             $(RECORDING_OBJ) $(ATLAS_OBJ) $(GLYPH_CACHE_OBJ) $(FONT_OBJ) $(FONT_ATLAS_OBJ) $(VORBIS_DECODER_OBJ) $(AUDIO_OBJ) $(GL_BACKEND_OBJ) $(IMAGE_OBJ) $(VENDOR_OBJS)
+             $(RECORDING_OBJ) $(ATLAS_OBJ) $(GLYPH_CACHE_OBJ) $(FONT_ATLAS_OBJ) $(VORBIS_DECODER_OBJ) $(AUDIO_OBJ) $(GL_BACKEND_OBJ) $(IMAGE_OBJ) $(VENDOR_OBJS) \
+             $(TYPEFACE_OBJ) $(UTIL_VENDOR_OBJS)
 	ar rcs $@ $^
 
 $(MAIN_OBJ): src/main.c $(EXT_CORE_DIR)/include/rgame/core.h | $(BUILD_DIR)
@@ -310,6 +321,10 @@ $(SOLID_GRID_OBJ): $(EXT_UTIL_DIR)/solid_grid.c $(EXT_UTIL_DIR)/solid_grid.h | $
 
 $(ROUTE_SEARCH_OBJ): $(EXT_UTIL_DIR)/route_search.c $(EXT_UTIL_DIR)/route_search.h \
                      $(EXT_UTIL_DIR)/solid_grid.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+$(TYPEFACE_OBJ): $(EXT_UTIL_DIR)/typeface.c $(EXT_UTIL_DIR)/typeface.h \
+                 $(EXT_UTIL_DIR)/glyph_metrics.h $(UTIL_VENDOR_SOURCES) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 $(TILE_SWEEP_OBJ): $(EXT_UTIL_DIR)/tile_sweep.c $(EXT_UTIL_DIR)/tile_sweep.h \
@@ -387,7 +402,7 @@ $(LIB_UTIL_SO): $(EXT_UTIL_SO)
 $(EXT_UTIL_SO): $(EXT_UTIL_SOURCES) $(EXT_UTIL_DIR)/Makefile
 	$(MAKE) -C $(EXT_UTIL_DIR)
 
-$(EXT_UTIL_DIR)/Makefile: $(EXT_UTIL_DIR)/extconf.rb $(wildcard $(EXT_UTIL_DIR)/*.c)
+$(EXT_UTIL_DIR)/Makefile: $(EXT_UTIL_DIR)/extconf.rb $(wildcard $(EXT_UTIL_DIR)/*.c $(EXT_UTIL_DIR)/vendor/*.c)
 	cd $(EXT_UTIL_DIR) && ruby extconf.rb
 
 ext-clean:

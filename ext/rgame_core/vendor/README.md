@@ -21,19 +21,12 @@ Only PNG decoding is enabled (`STBI_ONLY_PNG`); the other formats are compiled
 out, which keeps the object small and shrinks the parsing surface exposed to
 whatever files a game happens to load.
 
-## `stb_truetype.h` — v1.26
+## `stb_truetype.h`
 
-Single-header TrueType rasteriser from the same author and under the same
-dual licence. It turns the shipped `.ttf` into the coverage bitmaps that fill
-the glyph atlas.
-
-Same reasoning as above, with more force: the alternative is FreeType, which is
-a real system dependency, and Gosu — which this engine replaces — vendors this
-very header for this very job.
-
-No feature macros are set. The defaults are what a glyph atlas wants, and
-`STBTT_STATIC` is deliberately *not* defined so that `font.c` can call into it
-from another translation unit.
+The TrueType rasteriser lives in
+[`ext/rgame_util/vendor/`](../../rgame_util/vendor/README.md), because the
+headless `RGame::Util::Typeface` measures with it. This extension compiles its
+own copy from there for the glyph atlas.
 
 ## `miniaudio.h` — v0.11.25
 
@@ -100,14 +93,14 @@ appends an explicit rule per entry (mkmf Makefiles have to work with whatever
 `make` the platform has, and pattern rules are a GNU extension).
 
 Adding another library is therefore: drop the source here, add `<name>_impl.c`,
-and add the name to those two lists.
+and add the name to those two lists. `stb_truetype` is on both lists as well,
+with its source in `ext/rgame_util/vendor/`.
 
 ### Updating them
 
 ```
 V=ext/rgame_core/vendor
 curl -sSL -o $V/stb_image.h    https://raw.githubusercontent.com/nothings/stb/master/stb_image.h
-curl -sSL -o $V/stb_truetype.h https://raw.githubusercontent.com/nothings/stb/master/stb_truetype.h
 curl -sSL -o $V/stb_vorbis.c   https://raw.githubusercontent.com/nothings/stb/master/stb_vorbis.c
 curl -sSL -o $V/miniaudio.h    https://raw.githubusercontent.com/mackron/miniaudio/master/miniaudio.h
 ```

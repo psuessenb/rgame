@@ -1,9 +1,9 @@
-#ifndef RGAME_FONT_H
-#define RGAME_FONT_H
+#ifndef RGAME_TYPEFACE_H
+#define RGAME_TYPEFACE_H
 
 #include <stddef.h>
 
-#include "text/glyph_metrics.h"
+#include "glyph_metrics.h"
 
 /*
  * A typeface at one pixel size: what each glyph measures, and what it looks
@@ -11,13 +11,33 @@
  * file I/O.
  *
  * This is the layer that can be tested exactly, and it is testable *because*
- * the engine ships its own font: `test/test_font.c` opens
+ * the engine ships its own font: `test/test_typeface.c` opens
  * `lib/rgame/fonts/LiberationSans-Regular.ttf` and asserts on real advances and
  * real ink. Nothing here needs a fixture, a mock, or a display.
  *
  * "Typeface" rather than "font" because the public `rgame_font` (core.h) is the
  * composed thing — this plus an atlas, a glyph cache and GL textures. This is
  * only the part that knows what letters are shaped like.
+ *
+ * ---------------------------------------------------------------------------
+ * Compiled into both extensions
+ * ---------------------------------------------------------------------------
+ *
+ * This file and stb_truetype live in Util, and **both** extensions compile
+ * them: `RGame::Util::Typeface` measures with the util copy, and the core copy
+ * sits under `RGame::Core::Font`'s atlas. Nothing crosses the `.so` boundary in
+ * C, for the reason color.h gives: each opens its own face from the same font
+ * file. The same source over the same bytes cannot measure differently, and
+ * `spec_core/rgame/core/font_spec.rb` checks that it does not.
+ *
+ * Both extensions build with -ffp-contract=off, so the two copies compile
+ * alike. A contracted multiply-add rounds differently: forcing it on for
+ * Core's copy moved the German string's width at 18px in its last bits.
+ *
+ * Core also compiles its copy with hidden visibility (see
+ * ext/rgame_core/extconf.rb). Ruby loads extensions with RTLD_GLOBAL, so an
+ * exported copy would let one extension's calls bind to the other's, and the
+ * spec above would compare a copy with itself.
  *
  * ---------------------------------------------------------------------------
  * One walk, used by measuring and by drawing
@@ -135,4 +155,4 @@ int rgame_utf8_next(const char *text, size_t length, size_t *offset, int *codepo
 /* What a malformed byte decodes to: U+FFFD REPLACEMENT CHARACTER. */
 #define RGAME_UTF8_REPLACEMENT 0xFFFD
 
-#endif /* RGAME_FONT_H */
+#endif /* RGAME_TYPEFACE_H */

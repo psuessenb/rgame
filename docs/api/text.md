@@ -93,6 +93,38 @@ call without a `font:` follows:
 A file that is unreadable or not a TrueType font raises
 `RGame::Core::Font::LoadError`, naming the path.
 
+### Measuring without a window
+
+**`RGame::Util::Typeface` measures text with no window, no GPU and no graphics
+library.** It loads with `require 'rgame'`, so game logic and headless specs can
+lay text out with it:
+
+```ruby
+require 'rgame'
+
+face = RGame::Util::Typeface.default(18)   # the shipped font, opened once per size
+face.height                                # => 18
+face.text_width('')                        # => 0.0
+face.text_width('AV') < face.text_width('A') + face.text_width('V') # => true — kerned
+```
+
+`Typeface#height` and `Typeface#text_width` are spelled as a `Font` spells them,
+and return the same numbers. A `Font` and a `Typeface` built from the same file at
+the same size measure every string to the same `Float`, because both run the same
+C over the same bytes.
+
+`Typeface.default` takes the size and defaults it to
+`RGame::Util::Typeface::DEFAULT_SIZE`, which is 18. The renderer's own font uses
+that size too. For any other file, pass its path:
+
+```ruby
+face = RGame::Util::Typeface.new('assets/pixel.ttf', 16)
+```
+
+A path resolves against the working directory. A file that is unreadable or not
+a TrueType font raises `RGame::Util::Typeface::LoadError`, naming the path. A
+size below 1 raises `ArgumentError`.
+
 ### The default font, and what it covers
 
 **The engine ships Liberation Sans and uses it when you pass no path.** It never

@@ -212,6 +212,12 @@ sweep.grid                                  # => the grid — which the sweep ke
 - **`TileSweep.debug_live_sweeps`** returns how many sweeps are allocated, for
   leak checks in rgame's own suite.
 
+## `RGame::Util::Typeface`
+
+A typeface at one pixel size, for measuring text without a window. It holds its
+font data in memory and no handle, so a node may keep one. Two typefaces compare
+by identity. See [Measuring without a window](text.md#measuring-without-a-window).
+
 ## `RGame::Util::Z`
 
 `Z` is the vocabulary of draw order. It names the bands, and turns a band plus a
