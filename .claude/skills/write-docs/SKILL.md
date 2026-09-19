@@ -16,9 +16,9 @@ setup and orientation, not reference material.
 Plans under `docs/plans/` follow different rules. See
 [write-plan](../write-plan/SKILL.md).
 
-Every sentence on a page follows the style rules in
-[write-prose](../write-prose/SKILL.md). This skill covers what a page may say;
-that one covers how it says it.
+Load [write-prose](../write-prose/SKILL.md) before writing a page. Its style
+rules decide how every sentence reads; this skill decides only what a page may
+say.
 
 ---
 

@@ -13,8 +13,7 @@ Comments inside methods or on private methods get automatically deleted on commi
 
 Documentation rules live in the [write-docs](.claude/skills/write-docs/SKILL.md) skill; specs follow [write-spec](.claude/skills/write-spec/SKILL.md), plans [write-plan](.claude/skills/write-plan/SKILL.md), and the skills themselves [write-skill](.claude/skills/write-skill/SKILL.md).
 
-Prose someone else reads follows the style rules in
-[write-prose](.claude/skills/write-prose/SKILL.md). That covers the top-level
+Prose someone else reads is written with [write-prose](.claude/skills/write-prose/SKILL.md) loaded — load the skill before the first sentence, not from memory. That covers the top-level
 comments on modules, classes and C files, and the explaining comments on public
 methods. It also covers `CHANGELOG.md` and `README.md`, which have no skill of
 their own, and everything the skills above produce.
