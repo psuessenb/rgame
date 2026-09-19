@@ -113,6 +113,26 @@ and return the same numbers. A `Font` and a `Typeface` built from the same file 
 the same size measure every string to the same `Float`, because both run the same
 C over the same bytes.
 
+**`Typeface#wrap` breaks a string into lines at a width** — the shape a
+translated paragraph will be built on, and the same walk measuring uses, so a
+line it returns measures exactly what fit said it does:
+
+```ruby
+require 'rgame'
+
+face = RGame::Util::Typeface.default(18)   # the shipped font, opened once per size
+face.wrap('The gate is shut for the night, traveller.', 180)
+# => ['The gate is shut for the', 'night, traveller.']
+
+face.wrap('Version 1.0', 400)              # a string that fits is one line
+# => ['Version 1.0']
+```
+
+`wrap(string, max_width)` breaks at the last space that fits and takes that
+space for the break, so joining the lines with a space reproduces the string. A
+word wider than the whole line comes back whole rather than cut, so a long URL
+overflows visibly instead of looping. An empty string returns no lines.
+
 `Typeface.default` takes the size and defaults it to
 `RGame::Util::Typeface::DEFAULT_SIZE`, which is 18. The renderer's own font uses
 that size too. For any other file, pass its path:
