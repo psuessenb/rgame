@@ -2,8 +2,8 @@
 #
 # Each platform fails in ways that are invisible on the others: a header search
 # path, a DLEXT, a dlopen soname, a buffer-swap semantic that only differs on a
-# real GPU. Running all three on every push is what keeps those from being
-# discovered by a user instead.
+# real GPU. Running all three on every pull request and every push to main is
+# what keeps those from being discovered by a user instead.
 #
 # The tiers run in the order CLAUDE.md lists them, cheapest and most
 # deterministic first, so a failure lands on the smallest thing that could have
@@ -40,12 +40,35 @@
 #
 # Note also that an unresolvable `uses:` fails the job at *setup*, before any
 # step runs, so an `if:` on the step does not protect against a bad ref.
+#
+# ## What runs when
+#
+# A pull request runs `test` only: the tiers above, on all three platforms.
+# `build-gem`, `source-gem` and `smoke` run on main, where every merge lands
+# anyway; running them on the branch as well built each merged change's gems
+# twice and threw the first set away. `release` `needs:` all three, so a gem
+# that fails to build or to play on main blocks the publish rather than
+# shipping. `smoke` needs no `if:` of its own: it skips when `build-gem` does.
+#
+# `workflow_dispatch` is the way to see the gems before merging: run the
+# workflow by hand on the branch (`gh workflow run CI --ref <branch>`) and it
+# builds and smokes everything except the release.
+#
+# A change confined to plans or to the agent skills runs nothing at all. None
+# of it ships in the gem and no spec reads it, so there is nothing to verify.
 name: CI
 
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/plans/**'
+      - '.claude/**'
   pull_request:
+    paths-ignore:
+      - 'docs/plans/**'
+      - '.claude/**'
+  workflow_dispatch:
 
 # A second push to the same branch makes the first run's answer worthless — on
 # every branch but `main`. A run there can be publishing, and a release is four
@@ -235,6 +258,7 @@ jobs:
   # digest, for the same reason the actions are pinned by commit.
   build-gem:
     name: build-gem ${{ matrix.name }}
+    if: github.event_name != 'pull_request'
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -315,10 +339,11 @@ jobs:
           path: pkg/rgame-*.gem
           if-no-files-found: error
 
-  # The source gem, built the way the release job builds it, so that a push
-  # yields every gem a release would publish.
+  # The source gem, built the way the release job builds it, so that a run
+  # that builds gems yields every gem a release would publish.
   source-gem:
     name: source-gem
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
 
     steps:
