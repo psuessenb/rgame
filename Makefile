@@ -248,12 +248,12 @@ $(ATLAS_OBJ): $(EXT_CORE_DIR)/text/atlas.c $(EXT_CORE_DIR)/text/atlas.h \
 	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 $(GLYPH_CACHE_OBJ): $(EXT_CORE_DIR)/text/glyph_cache.c $(EXT_CORE_DIR)/text/glyph_cache.h \
-                    $(EXT_CORE_DIR)/graphics/clip.h | $(BUILD_DIR)
+                    $(EXT_CORE_DIR)/text/glyph_metrics.h $(EXT_CORE_DIR)/graphics/clip.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 # Needs the extension directory on the include path for "vendor/stb_truetype.h".
 $(FONT_OBJ): $(EXT_CORE_DIR)/text/font.c $(EXT_CORE_DIR)/text/font.h \
-             $(EXT_CORE_DIR)/text/glyph_cache.h $(EXT_CORE_DIR)/vendor/stb_truetype.h | $(BUILD_DIR)
+             $(EXT_CORE_DIR)/text/glyph_metrics.h $(EXT_CORE_DIR)/vendor/stb_truetype.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
 $(FONT_ATLAS_OBJ): $(EXT_CORE_DIR)/text/font_atlas.c $(EXT_CORE_DIR)/text/font_internal.h \

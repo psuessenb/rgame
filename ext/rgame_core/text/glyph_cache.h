@@ -2,6 +2,7 @@
 #define RGAME_GLYPH_CACHE_H
 
 #include "graphics/clip.h"
+#include "text/glyph_metrics.h"
 
 /*
  * What has already been rasterised, and where it went. Pure — no font, no
@@ -38,21 +39,13 @@
  * corrupting the table.
  */
 
-/* One cached glyph: where its pixels are, and how to place them. */
+/* One cached glyph: what the face says about it, and where its pixels went. */
 typedef struct {
-    int codepoint;
+    rgame_glyph_metrics metrics;
     int page; /* which atlas page holds it */
     /* Where on that page, in pixels. Empty for a glyph with no ink, such as a
      * space — which is still cached, because its advance is worth keeping. */
     rgame_rect rect;
-
-    /* How far the pen moves after drawing it, in pixels at the font's size. */
-    float advance;
-    /* Where the pixels sit relative to the pen: x from the pen position, y from
-     * the *top of the line box* rather than the baseline, because that is the
-     * corner a caller passes to `text`. Converting once, here, keeps the
-     * baseline out of every drawing calculation downstream. */
-    float bearing_x, bearing_y;
 } rgame_glyph;
 
 typedef struct {

@@ -68,7 +68,7 @@ static rgame_glyph *probe(rgame_glyph *entries, unsigned int capacity, int codep
 
     for (;;) {
         rgame_glyph *entry = &entries[slot];
-        if (entry->codepoint == 0 || entry->codepoint == codepoint) {
+        if (entry->metrics.codepoint == 0 || entry->metrics.codepoint == codepoint) {
             return entry;
         }
         slot = (slot + 1) & (capacity - 1);
@@ -87,8 +87,8 @@ static int grow(rgame_glyph_cache *cache) {
     }
 
     for (unsigned int i = 0; i < cache->capacity; i++) {
-        if (cache->entries[i].codepoint != 0) {
-            *probe(entries, capacity, cache->entries[i].codepoint) = cache->entries[i];
+        if (cache->entries[i].metrics.codepoint != 0) {
+            *probe(entries, capacity, cache->entries[i].metrics.codepoint) = cache->entries[i];
         }
     }
 
@@ -104,7 +104,7 @@ int rgame_glyph_cache_find(const rgame_glyph_cache *cache, int codepoint, rgame_
     }
 
     const rgame_glyph *entry = probe(cache->entries, cache->capacity, codepoint);
-    if (entry->codepoint != codepoint) {
+    if (entry->metrics.codepoint != codepoint) {
         return 0;
     }
 
@@ -113,7 +113,7 @@ int rgame_glyph_cache_find(const rgame_glyph_cache *cache, int codepoint, rgame_
 }
 
 int rgame_glyph_cache_insert(rgame_glyph_cache *cache, const rgame_glyph *glyph) {
-    if (!cache || !glyph || glyph->codepoint == 0) {
+    if (!cache || !glyph || glyph->metrics.codepoint == 0) {
         return 0; /* 0 is the empty marker; storing it would hide the entry */
     }
 
@@ -127,10 +127,10 @@ int rgame_glyph_cache_insert(rgame_glyph_cache *cache, const rgame_glyph *glyph)
         }
     }
 
-    rgame_glyph *entry = probe(cache->entries, cache->capacity, glyph->codepoint);
+    rgame_glyph *entry = probe(cache->entries, cache->capacity, glyph->metrics.codepoint);
     /* An existing entry is overwritten in place, so the count only moves when
      * the codepoint is genuinely new. */
-    if (entry->codepoint == 0) {
+    if (entry->metrics.codepoint == 0) {
         cache->count++;
     }
     *entry = *glyph;

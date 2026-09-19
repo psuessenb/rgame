@@ -4,35 +4,41 @@
 #include "suites.h"
 
 /*
- * Layer-1 tests for glyph_cache.c. No font and no GL — a cached glyph is a
- * codepoint, a rectangle and three numbers, and everything worth checking is
- * about whether the table hands the right one back.
+ * Layer-1 tests for glyph_cache.c. No font and no GL — a cached glyph is its
+ * metrics, a page and a rectangle, and everything worth checking is about
+ * whether the table hands the right one back.
  */
 
 /* A glyph whose every field is derived from its codepoint, so a round-trip that
  * loses or swaps a field is visible rather than plausible. */
 static rgame_glyph glyph_for(int codepoint) {
     rgame_glyph glyph = {
-        .codepoint = codepoint,
+        .metrics = {
+            .codepoint = codepoint,
+            .width = codepoint + 4,
+            .height = codepoint + 5,
+            .advance = (float)codepoint * 0.5f,
+            .bearing_x = (float)codepoint * 0.25f,
+            .bearing_y = (float)codepoint * -0.125f,
+        },
         .page = codepoint % 3,
         .rect = rgame_rect_make(codepoint, codepoint + 1, codepoint + 2, codepoint + 3),
-        .advance = (float)codepoint * 0.5f,
-        .bearing_x = (float)codepoint * 0.25f,
-        .bearing_y = (float)codepoint * -0.125f,
     };
     return glyph;
 }
 
 static void ck_glyph_eq(rgame_glyph got, rgame_glyph want) {
-    ck_assert_int_eq(got.codepoint, want.codepoint);
+    ck_assert_int_eq(got.metrics.codepoint, want.metrics.codepoint);
+    ck_assert_int_eq(got.metrics.width, want.metrics.width);
+    ck_assert_int_eq(got.metrics.height, want.metrics.height);
     ck_assert_int_eq(got.page, want.page);
     ck_assert_int_eq(got.rect.x, want.rect.x);
     ck_assert_int_eq(got.rect.y, want.rect.y);
     ck_assert_int_eq(got.rect.w, want.rect.w);
     ck_assert_int_eq(got.rect.h, want.rect.h);
-    ck_assert_float_eq(got.advance, want.advance);
-    ck_assert_float_eq(got.bearing_x, want.bearing_x);
-    ck_assert_float_eq(got.bearing_y, want.bearing_y);
+    ck_assert_float_eq(got.metrics.advance, want.metrics.advance);
+    ck_assert_float_eq(got.metrics.bearing_x, want.metrics.bearing_x);
+    ck_assert_float_eq(got.metrics.bearing_y, want.metrics.bearing_y);
 }
 
 /* --- an empty cache --- */
@@ -48,7 +54,7 @@ START_TEST(a_fresh_cache_holds_nothing_and_has_allocated_nothing) {
     rgame_glyph out = glyph_for(999);
     ck_assert_int_eq(rgame_glyph_cache_find(&cache, 'a', &out), 0);
     /* A miss leaves the caller's glyph alone rather than half-filling it. */
-    ck_assert_int_eq(out.codepoint, 999);
+    ck_assert_int_eq(out.metrics.codepoint, 999);
 
     rgame_glyph_cache_destroy(&cache);
 }
@@ -93,13 +99,13 @@ START_TEST(a_glyph_with_no_ink_is_cached_too) {
     rgame_glyph_cache cache;
     rgame_glyph_cache_init(&cache);
 
-    rgame_glyph space = { .codepoint = ' ', .rect = rgame_rect_make(0, 0, 0, 0),
-                          .advance = 4.5f };
+    rgame_glyph space = { .metrics = { .codepoint = ' ', .advance = 4.5f },
+                          .rect = rgame_rect_make(0, 0, 0, 0) };
     rgame_glyph_cache_insert(&cache, &space);
 
     rgame_glyph out;
     ck_assert_int_eq(rgame_glyph_cache_find(&cache, ' ', &out), 1);
-    ck_assert_float_eq(out.advance, 4.5f);
+    ck_assert_float_eq(out.metrics.advance, 4.5f);
     ck_assert_int_eq(out.rect.w, 0);
 
     rgame_glyph_cache_destroy(&cache);

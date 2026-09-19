@@ -54,6 +54,8 @@ ext/rgame_core/              RGame::Core — the SDL/GL half. The sources are
   text/                      Glyphs, from a .ttf to a texture page.
     atlas.h/.c               Pure: shelf packing for the glyph atlas — where
                              the next glyph goes on a texture page.
+    glyph_metrics.h          Pure: what a face says about one glyph — its
+                             size, advance and bearings, and no position.
     glyph_cache.h/.c         Pure: codepoint -> rasterised glyph, open
                              addressed, never evicted.
     font.h/.c                Pure: a typeface at one size — glyph metrics,

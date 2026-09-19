@@ -60,7 +60,7 @@ static rgame_typeface *open_test_typeface(void) {
 }
 
 static float advance_of(const rgame_typeface *typeface, int codepoint) {
-    rgame_glyph glyph;
+    rgame_glyph_metrics glyph;
     ck_assert_int_eq(rgame_typeface_glyph(typeface, codepoint, &glyph), 1);
     return glyph.advance;
 }
@@ -161,7 +161,7 @@ START_TEST(a_glyph_can_sit_left_or_right_of_the_pen) {
      * pen and quietly close up the spacing. */
     rgame_typeface *typeface = open_test_typeface();
 
-    rgame_glyph inset, overhang;
+    rgame_glyph_metrics inset, overhang;
     rgame_typeface_glyph(typeface, 'i', &inset);
     rgame_typeface_glyph(typeface, 'j', &overhang);
 
@@ -175,17 +175,14 @@ END_TEST
 START_TEST(a_glyph_reports_the_size_of_its_ink) {
     rgame_typeface *typeface = open_test_typeface();
 
-    rgame_glyph glyph;
+    rgame_glyph_metrics glyph;
     rgame_typeface_glyph(typeface, 'A', &glyph);
 
     ck_assert_int_eq(glyph.codepoint, 'A');
-    ck_assert_int_gt(glyph.rect.w, 0);
-    ck_assert_int_gt(glyph.rect.h, 0);
+    ck_assert_int_gt(glyph.width, 0);
+    ck_assert_int_gt(glyph.height, 0);
     /* A capital at 18px cannot be taller than the line box. */
-    ck_assert_int_le(glyph.rect.h, TEST_PIXEL_HEIGHT + 1);
-    /* Position is the atlas's business, so it comes back at the origin. */
-    ck_assert_int_eq(glyph.rect.x, 0);
-    ck_assert_int_eq(glyph.rect.y, 0);
+    ck_assert_int_le(glyph.height, TEST_PIXEL_HEIGHT + 1);
 
     rgame_typeface_close(typeface);
 }
@@ -194,12 +191,12 @@ END_TEST
 START_TEST(a_space_advances_but_has_no_ink) {
     rgame_typeface *typeface = open_test_typeface();
 
-    rgame_glyph glyph;
+    rgame_glyph_metrics glyph;
     rgame_typeface_glyph(typeface, ' ', &glyph);
 
     ck_assert_float_gt(glyph.advance, 0.0f);
-    ck_assert_int_eq(glyph.rect.w, 0);
-    ck_assert_int_eq(glyph.rect.h, 0);
+    ck_assert_int_eq(glyph.width, 0);
+    ck_assert_int_eq(glyph.height, 0);
 
     rgame_typeface_close(typeface);
 }
@@ -212,7 +209,7 @@ START_TEST(a_capital_sits_below_the_top_of_the_line_box) {
      * negative and every glyph would draw above the line. */
     rgame_typeface *typeface = open_test_typeface();
 
-    rgame_glyph glyph;
+    rgame_glyph_metrics glyph;
     rgame_typeface_glyph(typeface, 'A', &glyph);
 
     ck_assert_float_ge(glyph.bearing_y, 0.0f);
@@ -225,10 +222,10 @@ END_TEST
 START_TEST(a_descender_reaches_below_the_baseline) {
     rgame_typeface *typeface = open_test_typeface();
 
-    rgame_glyph tail;
+    rgame_glyph_metrics tail;
     rgame_typeface_glyph(typeface, 'g', &tail);
 
-    float bottom = tail.bearing_y + (float)tail.rect.h;
+    float bottom = tail.bearing_y + (float)tail.height;
     ck_assert_float_gt(bottom, rgame_typeface_ascent(typeface));
 
     rgame_typeface_close(typeface);
@@ -241,9 +238,11 @@ START_TEST(a_codepoint_the_font_lacks_still_has_an_advance) {
      * quietly close up. */
     rgame_typeface *typeface = open_test_typeface();
 
-    rgame_glyph glyph;
+    rgame_glyph_metrics glyph;
     ck_assert_int_eq(rgame_typeface_glyph(typeface, 0x4E2D /* a CJK ideograph */, &glyph), 1);
     ck_assert_float_gt(glyph.advance, 0.0f);
+    ck_assert_int_gt(glyph.width, 0);
+    ck_assert_int_gt(glyph.height, 0);
 
     rgame_typeface_close(typeface);
 }
@@ -260,9 +259,9 @@ START_TEST(the_accented_letters_the_shipped_font_promises_are_really_there) {
                                0x201C /* curly quote */ };
 
     for (unsigned i = 0; i < sizeof(codepoints) / sizeof(*codepoints); i++) {
-        rgame_glyph glyph;
+        rgame_glyph_metrics glyph;
         rgame_typeface_glyph(typeface, codepoints[i], &glyph);
-        ck_assert_msg(glyph.rect.w > 0 && glyph.rect.h > 0,
+        ck_assert_msg(glyph.width > 0 && glyph.height > 0,
                       "U+%04X rasterises to nothing in the shipped font", codepoints[i]);
     }
 
@@ -411,11 +410,11 @@ END_TEST
 START_TEST(rasterising_a_letter_produces_ink) {
     rgame_typeface *typeface = open_test_typeface();
 
-    rgame_glyph glyph;
+    rgame_glyph_metrics glyph;
     rgame_typeface_glyph(typeface, 'A', &glyph);
 
     unsigned char bitmap[64 * 64] = { 0 };
-    rgame_typeface_render(typeface, 'A', bitmap, 64, glyph.rect.w, glyph.rect.h);
+    rgame_typeface_render(typeface, 'A', bitmap, 64, glyph.width, glyph.height);
 
     int ink = 0;
     for (int i = 0; i < 64 * 64; i++) {
@@ -438,7 +437,7 @@ START_TEST(rasterising_writes_nothing_outside_the_box_it_was_given) {
      */
     rgame_typeface *typeface = open_test_typeface();
 
-    rgame_glyph glyph;
+    rgame_glyph_metrics glyph;
     rgame_typeface_glyph(typeface, 'W', &glyph);
 
     const int stride = 64;
@@ -447,12 +446,12 @@ START_TEST(rasterising_writes_nothing_outside_the_box_it_was_given) {
     memset(page, 0xCD, sizeof(page));
 
     rgame_typeface_render(typeface, 'W', &page[(origin_y * stride) + origin_x], stride,
-                          glyph.rect.w, glyph.rect.h);
+                          glyph.width, glyph.height);
 
     for (int y = 0; y < 64; y++) {
         for (int x = 0; x < 64; x++) {
-            int inside = x >= origin_x && x < origin_x + glyph.rect.w && y >= origin_y &&
-                         y < origin_y + glyph.rect.h;
+            int inside = x >= origin_x && x < origin_x + glyph.width && y >= origin_y &&
+                         y < origin_y + glyph.height;
             if (!inside) {
                 ck_assert_msg(page[(y * stride) + x] == 0xCD,
                               "wrote outside the glyph box at %d,%d", x, y);
@@ -470,11 +469,11 @@ START_TEST(rasterising_a_space_leaves_the_buffer_alone) {
     unsigned char bitmap[16 * 16];
     memset(bitmap, 0xCD, sizeof(bitmap));
 
-    rgame_glyph glyph;
+    rgame_glyph_metrics glyph;
     rgame_typeface_glyph(typeface, ' ', &glyph);
     /* A zero-sized box: the call has to cope, because a space is a glyph like
      * any other as far as the drawing loop is concerned. */
-    rgame_typeface_render(typeface, ' ', bitmap, 16, glyph.rect.w, glyph.rect.h);
+    rgame_typeface_render(typeface, ' ', bitmap, 16, glyph.width, glyph.height);
 
     for (unsigned i = 0; i < sizeof(bitmap); i++) {
         ck_assert_uint_eq(bitmap[i], 0xCD);

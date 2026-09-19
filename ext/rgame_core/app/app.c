@@ -735,7 +735,7 @@ int rgame_app_draw_text(rgame_app *app, rgame_font *font, const char *text, size
          * pen, y from the top of the line box. A space has no rect and
          * rgame_prim_glyph draws nothing for it. */
         rgame_prim_glyph(canvas, texture, glyph.rect, page_width, page_height,
-                         x + pen_x + glyph.bearing_x, y + glyph.bearing_y, color, z);
+                         x + pen_x + glyph.metrics.bearing_x, y + glyph.metrics.bearing_y, color, z);
     }
 
     return 1;

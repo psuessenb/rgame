@@ -332,17 +332,20 @@ int rgame_font_glyph(rgame_font *font, int codepoint, rgame_glyph *out, unsigned
         return 1;
     }
 
-    rgame_glyph glyph;
-    if (!rgame_typeface_glyph(font->typeface, codepoint, &glyph)) {
+    rgame_glyph glyph = { .page = 0, .rect = rgame_rect_make(0, 0, 0, 0) };
+    if (!rgame_typeface_glyph(font->typeface, codepoint, &glyph.metrics)) {
         return 0;
     }
+
+    int width = glyph.metrics.width;
+    int height = glyph.metrics.height;
 
     /*
      * A glyph with no ink — a space — is cached with an empty rectangle and
      * never touches a page or the GPU. Its advance is the whole reason it is
      * cached at all.
      */
-    if (glyph.rect.w > 0 && glyph.rect.h > 0) {
+    if (width > 0 && height > 0) {
         rgame_gl_context_save saved;
         if (!rgame_app_gl_make_current(font->app, &saved)) {
             rgame_app_gl_restore(&saved);
@@ -350,16 +353,15 @@ int rgame_font_glyph(rgame_font *font, int codepoint, rgame_glyph *out, unsigned
         }
 
         rgame_rect placed;
-        int page = place_on_a_page(font, glyph.rect.w, glyph.rect.h, &placed);
-        size_t pixels = (size_t)glyph.rect.w * (size_t)glyph.rect.h;
+        int page = place_on_a_page(font, width, height, &placed);
+        size_t pixels = (size_t)width * (size_t)height;
 
         if (page < 0 || !ensure_scratch(font, pixels)) {
             rgame_app_gl_restore(&saved);
             return 0;
         }
 
-        rgame_typeface_render(font->typeface, codepoint, font->scratch, glyph.rect.w,
-                              glyph.rect.w, glyph.rect.h);
+        rgame_typeface_render(font->typeface, codepoint, font->scratch, width, width, height);
 
         glBindTexture(GL_TEXTURE_2D, font->pages[page].texture);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);

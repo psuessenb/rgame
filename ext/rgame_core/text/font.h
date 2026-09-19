@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-#include "text/glyph_cache.h"
+#include "text/glyph_metrics.h"
 
 /*
  * A typeface at one pixel size: what each glyph measures, and what it looks
@@ -66,15 +66,14 @@ float rgame_typeface_ascent(const rgame_typeface *typeface);
 
 /*
  * Metrics for one glyph: its advance, its bearings, and the *size* of the
- * bitmap it would rasterise to, written into `out->rect` as `w` and `h` with
- * `x` and `y` left at zero — where on a page it goes is the atlas's decision,
- * not this module's.
+ * bitmap it would rasterise to. Where on a page it goes is the atlas's
+ * decision, not this module's, so there is no position to report.
  *
  * Returns 1 always for a face that is open; a codepoint the font has no glyph
  * for still yields the `.notdef` box, which is deliberately something visible
  * rather than a zero-width nothing that swallows characters silently.
  */
-int rgame_typeface_glyph(const rgame_typeface *typeface, int codepoint, rgame_glyph *out);
+int rgame_typeface_glyph(const rgame_typeface *typeface, int codepoint, rgame_glyph_metrics *out);
 
 /*
  * Rasterises a glyph into a caller-provided 8-bit coverage buffer — 0 is

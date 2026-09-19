@@ -73,7 +73,7 @@ float rgame_typeface_ascent(const rgame_typeface *typeface) {
     return typeface ? typeface->ascent : 0.0f;
 }
 
-int rgame_typeface_glyph(const rgame_typeface *typeface, int codepoint, rgame_glyph *out) {
+int rgame_typeface_glyph(const rgame_typeface *typeface, int codepoint, rgame_glyph_metrics *out) {
     if (!typeface || !out) {
         return 0;
     }
@@ -88,9 +88,8 @@ int rgame_typeface_glyph(const rgame_typeface *typeface, int codepoint, rgame_gl
                                 &x0, &y0, &x1, &y1);
 
     out->codepoint = codepoint;
-    out->page = 0;
-    /* Size only. Where it lands on a page is the atlas's decision. */
-    out->rect = rgame_rect_make(0, 0, x1 - x0, y1 - y0);
+    out->width = x1 - x0;
+    out->height = y1 - y0;
     out->advance = (float)advance * typeface->scale;
     out->bearing_x = (float)x0;
     /* Baseline-relative to top-of-line-box, converted once and never again. */
@@ -254,7 +253,7 @@ int rgame_text_cursor_next(rgame_text_cursor *cursor, const rgame_typeface *type
         *pen_x = cursor->pen_x;
     }
 
-    rgame_glyph glyph;
+    rgame_glyph_metrics glyph;
     rgame_typeface_glyph(typeface, next, &glyph);
     cursor->pen_x += glyph.advance;
     cursor->previous = next;
