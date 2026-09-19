@@ -74,11 +74,14 @@ RSpec.describe 'rgame.gemspec' do # rubocop:disable RSpec/DescribeClass -- the s
       expect(sources('ext/*/vendor/**/*') - files).to be_empty
     end
 
-    it "packages rgame_util's colour header, which the core extension compiles against" do
-      # ext/rgame_core/extconf.rb adds -I$(srcdir)/../rgame_util for this file.
+    it 'packages the rgame_util files the core extension compiles' do
+      # ext/rgame_core/extconf.rb reaches into ../rgame_util for the colour
+      # header, and compiles its own copy of the typeface and stb_truetype.
       # Both extensions are unpacked as siblings, so the relative path holds —
-      # but only if the header of the *other* extension is in the gem.
-      expect(files).to include('ext/rgame_util/color.h')
+      # but only if the files of the *other* extension are in the gem.
+      expect(files).to include('ext/rgame_util/color.h', 'ext/rgame_util/typeface.c', 'ext/rgame_util/typeface.h',
+                               'ext/rgame_util/glyph_metrics.h', 'ext/rgame_util/vendor/stb_truetype.h',
+                               'ext/rgame_util/vendor/stb_truetype_impl.c', 'ext/rgame_util/vendor/README.md')
     end
   end
 

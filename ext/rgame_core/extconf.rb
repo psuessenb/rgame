@@ -6,6 +6,12 @@ SOURCE_DIRS = %w[app graphics text input audio ruby].freeze
 
 SHARED_UTIL_SOURCES = %w[typeface.c].freeze
 
+SHARED_UTIL_FLAGS = if RbConfig::CONFIG['host_os'].match?(/mingw|mswin|cygwin/)
+                      '-ffp-contract=off'
+                    else
+                      '-ffp-contract=off -fvisibility=hidden'
+                    end
+
 VENDORED = {
   'stb_image' => 'vendor/stb_image.h',
   'stb_truetype' => '../rgame_util/vendor/stb_truetype.h',
@@ -87,11 +93,12 @@ create_makefile('rgame/core_ext')
 File.open('Makefile', 'a') do |makefile|
   VENDORED.each do |name, source|
     impl = "$(srcdir)/#{vendored_impl(name, source)}"
+    flags = source.start_with?('../rgame_util/') ? SHARED_UTIL_FLAGS : ''
     makefile.puts <<~MAKE
 
       #{name}_impl.#{$OBJEXT}: #{impl} $(srcdir)/#{source}
       \t$(ECHO) compiling vendored #{name} with warnings off
-      \t$(Q) $(CC) $(INCFLAGS) $(CPPFLAGS) $(CFLAGS) -w $(COUTFLAG)$@ -c #{impl}
+      \t$(Q) $(CC) $(INCFLAGS) $(CPPFLAGS) $(CFLAGS) #{flags} -w $(COUTFLAG)$@ -c #{impl}
     MAKE
   end
 
@@ -100,7 +107,7 @@ File.open('Makefile', 'a') do |makefile|
 
       #{File.basename(source, '.c')}.#{$OBJEXT}: $(srcdir)/../rgame_util/#{source}
       \t$(ECHO) compiling $(<)
-      \t$(Q) $(CC) $(INCFLAGS) $(CPPFLAGS) $(CFLAGS) $(COUTFLAG)$@ -c $(srcdir)/../rgame_util/#{source}
+      \t$(Q) $(CC) $(INCFLAGS) $(CPPFLAGS) $(CFLAGS) #{SHARED_UTIL_FLAGS} $(COUTFLAG)$@ -c $(srcdir)/../rgame_util/#{source}
     MAKE
   end
 

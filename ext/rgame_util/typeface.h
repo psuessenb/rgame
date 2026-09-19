@@ -30,6 +30,13 @@
  * file. The same source over the same bytes cannot measure differently, and
  * `spec_core/rgame/core/font_spec.rb` checks that it does not.
  *
+ * Core compiles its copy with hidden visibility and without floating-point
+ * contraction, the flag Util builds with (see ext/rgame_core/extconf.rb).
+ * Ruby loads extensions with RTLD_GLOBAL, so an exported copy would let one
+ * extension's calls bind to the other's, and the spec above would compare a
+ * copy with itself. A contracted multiply-add rounds differently: forcing it on
+ * for Core's copy moved the German string's width at 18px in its last bits.
+ *
  * ---------------------------------------------------------------------------
  * One walk, used by measuring and by drawing
  * ---------------------------------------------------------------------------

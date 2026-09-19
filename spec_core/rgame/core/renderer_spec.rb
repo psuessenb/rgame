@@ -481,7 +481,7 @@ RSpec.describe RGame::Core::Renderer do
   end
 
   describe 'text' do
-    # The pure half — advances, kerning, UTF-8 — is test/test_font.c. What needs
+    # The pure half — advances, kerning, UTF-8 — is test/test_typeface.c. What needs
     # a window is whether those numbers turn into ink in the right place.
     # Wide enough that a long sample string fits with room to spare: text that
     # runs off the edge is clipped, and the ink measurements below would then be
