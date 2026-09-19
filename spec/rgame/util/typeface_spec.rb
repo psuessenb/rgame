@@ -77,6 +77,63 @@ RSpec.describe RGame::Util::Typeface do
     end
   end
 
+  describe '#wrap' do
+    # At 180px the first line fits "…for the" and the space after it caps the
+    # line, so the break lands exactly there and the rest starts clean.
+    let(:string) { 'The gate is shut for the night, traveller.' }
+
+    it 'breaks a paragraph at the last space that fits' do
+      expect(face.wrap(string, 180)).to eq(['The gate is shut for the', 'night, traveller.'])
+    end
+
+    it 'returns one line for a string that fits' do
+      expect(face.wrap(string, 520)).to eq([string])
+    end
+
+    it 'returns no lines for an empty string' do
+      expect(face.wrap('', 180)).to eq([])
+    end
+
+    it 'measures no returned line wider than the box' do
+      expect(face.wrap(string, 180).map { face.text_width(it) }).to all(be <= 180.0)
+    end
+
+    it 'hands back a word wider than the line whole rather than cut' do
+      expect(face.wrap('supercalifragilisticexpialidocious', 50))
+        .to eq(['supercalifragilisticexpialidocious'])
+    end
+
+    it 'reconstructs the input when the lines are joined with one space per break' do
+      expect(face.wrap(string, 180).join(' ')).to eq(string)
+    end
+
+    it 'refers nothing across calls: it wraps the string each time' do
+      expect(face.wrap(string, 90)).not_to eq(face.wrap(string, 180))
+    end
+
+    it 'breaks a German paragraph into more lines than its English source at 520px' do
+      english = 'The gate is shut for the night, traveller. ' \
+                'The road ahead is dark, but the dawn will come and the gate will open again. ' \
+                'Rest here until then. Keep the fire burning and stay on the path, ' \
+                'and the morning will find you safe.'
+      german = 'Das Tor ist für die Nacht geschlossen, Wanderer. ' \
+               'Die Straße davor ist dunkel, doch der Morgen wird kommen und das Tor wird wieder geöffnet. ' \
+               'Ruhe dich bis dahin aus. Halte das Feuer am Brennen und bleib auf dem Weg, ' \
+               'dann wird der Morgen dich wohlbehalten finden.'
+
+      expect(face.wrap(english, 520).size).to eq(3)
+      expect(face.wrap(german, 520).size).to eq(4)
+    end
+
+    it 'refuses a string that is not a String' do
+      expect { face.wrap(42, 180) }.to raise_error(TypeError)
+    end
+
+    it 'refuses a width that is not a number' do
+      expect { face.wrap(string, 'wide') }.to raise_error(TypeError)
+    end
+  end
+
   describe '#inspect' do
     it 'shows the size' do
       expect(face.inspect).to eq('#<RGame::Util::Typeface 18px>')
