@@ -1,6 +1,7 @@
 # Roadmap
 
-**Steps 0–3 are detailed. Steps 4–6 are deliberately rough** and get re-planned
+**Step 0 is implemented. Steps 1–3 are detailed. Steps 4–6 are deliberately
+rough** and get re-planned
 once the layer beneath them exists — see the note at the end.
 
 ```
@@ -82,6 +83,42 @@ cc -O2 -std=gnu17 -Iext/rgame_core -c ext/rgame_core/text/font.c -o /tmp/font.o
 ```
 
 Plus `make test`, `rake spec`, `rake spec:core`.
+
+**Landed.** `ext/rgame_core/text/glyph_metrics.h` defines the struct as
+sketched, and `rgame_typeface_glyph` fills one. `rgame_glyph` is now `metrics`,
+`page` and `rect`, and the cache keys on `metrics.codepoint`. `font_atlas.c`
+places a rectangle of the metrics' size and `app.c` reads the bearings through
+`glyph.metrics`. `font.h` includes `glyph_metrics.h` in place of
+`glyph_cache.h`, so nothing in the typeface's includes reaches
+`graphics/clip.h` any more.
+
+`make test` 363 checks, `rake spec` 2330 examples, `rake spec:core` 410, all 0
+failures. A driven `examples/localization` at `--seed 1` ran 240 ticks and 240
+frames with 1920 `text` calls and no missing keys. The acceptance check,
+measured: before the change, `font.o` had one undefined engine symbol,
+`rgame_rect_make`, and linking it with only the stb object failed on it. After
+it, `nm -u` lists only libc and `stbtt_*`, and `font.o`, `stb_truetype_impl.o`
+and an empty `main` link with `-lm`.
+
+What the sketch got wrong:
+
+- **The Verify command proved nothing.** `cc -c font.c` compiled before the
+  change too. A missing definition is a link error, not a compile error. The
+  real check is the link, or `nm -u font.o` showing no `rgame_` symbol. Step 1
+  should verify the move the same way.
+- **`font_internal.h` got `rgame_glyph` through `font.h`.** Once `font.h` stopped
+  including `glyph_cache.h`, both `font_internal.h` and `app.c` lost the type.
+  `font_internal.h` now includes `glyph_cache.h` itself, since it names
+  `rgame_glyph` in `rgame_font_glyph`.
+- **Rule 1 is now enforced by the type**, so it has no test of its own. The old
+  test asserted that `rect.x` and `rect.y` came back as zero. `rgame_glyph_metrics`
+  has no position, so those two assertions were deleted rather than retargeted.
+- **Rule 3 was only half pinned.** The `.notdef` test checked the advance and not
+  the box, so it now also asserts a non-zero width and height.
+- `test/test_glyph_cache.c`'s round-trip glyph now sets `width` and `height`
+  apart from the rectangle's size. A cache that dropped either field would
+  otherwise have passed.
+- `docs/project_structure.md` lists the new header.
 
 ---
 

@@ -1,7 +1,7 @@
 # Text measurement, wrapping and a label
 
-**Status.** Steps 0–3 are detailed; 4–6 are deliberately rough and get re-planned
-once the layer beneath them exists. Nothing is implemented yet.
+**Status.** Step 0 is implemented. Steps 1–3 are detailed; 4–6 are deliberately
+rough and get re-planned once the layer beneath them exists.
 
 Read in order:
 
