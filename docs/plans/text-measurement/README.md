@@ -1,7 +1,7 @@
 # Text measurement, wrapping and a label
 
-**Status.** Step 0 is implemented. Steps 1–3 are detailed; 4–6 are deliberately
-rough and get re-planned once the layer beneath them exists.
+**Status.** Steps 0–1 are implemented. Steps 2–3 are detailed; 4–6 are
+deliberately rough and get re-planned once the layer beneath them exists.
 
 Read in order:
 
@@ -112,6 +112,9 @@ Each says what it waits on. None blocks step 0.
    default and Core reads it, or the number is duplicated with a spec that
    compares them, the way `Util::Controls` is checked against the C header.
    Blocks step 1's `Typeface.default`.
+   **Resolved in step 1: Util owns it.** `Util::Typeface::DEFAULT_SIZE` is 18,
+   and `Core::Renderer::FONT_SIZE` reads it. Core may name Util, so there was
+   nothing to duplicate and no spec needed to compare two copies.
 4. **Does `Util::Typeface` need an ascent or a descent on the Ruby side?**
    The C has both. Nothing asks yet; a caller aligning two faces on one line
    would. Leave out until something asks.

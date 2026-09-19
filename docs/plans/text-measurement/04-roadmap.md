@@ -1,6 +1,6 @@
 # Roadmap
 
-**Step 0 is implemented. Steps 1–3 are detailed. Steps 4–6 are deliberately
+**Steps 0–1 are implemented. Steps 2–3 are detailed. Steps 4–6 are deliberately
 rough** and get re-planned
 once the layer beneath them exists — see the note at the end.
 
@@ -181,6 +181,71 @@ count on `rake spec:core` unchanged from the previous run.
 `Renderer::FONT_SIZE` is 18, and Util may not name Core. Either Util owns the
 number and Core reads it, or both declare it and a spec compares them — the
 `Util::Controls` arrangement.
+
+**Landed.** `ext/rgame_util/` now holds `typeface.{c,h}`, `glyph_metrics.h` and
+`vendor/stb_truetype{.h,_impl.c}` with a README for them, and both extensions
+compile them. `RGame::Util::Typeface` has `new(path, pixel_height)`,
+`default(pixel_height = DEFAULT_SIZE)` memoised per size, `#height`,
+`#text_width`, `#inspect` and `Typeface::LoadError`. Open question 3 went to
+Util: `Typeface::DEFAULT_SIZE` is 18, and `Core::Renderer::FONT_SIZE` reads it.
+`Core::Font::DEFAULT_PATH` reads `Typeface::DEFAULT_PATH` the same way, so the
+shipped font's path is also stated once.
+
+On a clean build, `make test` 363 checks, `rake spec` 2347 examples,
+`rake spec:core` 413, all 0 failures, and `make` builds the standalone binary.
+Neither suite reports pending examples, before or after. The measured
+acceptance evidence:
+
+- `ruby -Ilib -e 'require "rgame"; RGame::Util::Typeface.default(18).text_width("x")'`
+  answers `8.055944442749023` with no `libSDL2` or `libGL` mapped.
+- `'Systemsprache verwenden'` at 18 px is `194.33392333984375`, as the plan
+  predicted.
+- A gem built with `rake build` and installed into a scratch gem home compiles
+  both extensions from source. There `Core::Font` and `Util::Typeface` return
+  the same `194.33392333984375`.
+- The installed `core_ext.so` exports none of the 67 `rgame_typeface_*` and
+  `stbtt_*` symbols.
+
+What the sketch got wrong:
+
+- **"Nothing crosses the `.so` boundary in C" was false as built.** Ruby loads
+  extensions with `RTLD_GLOBAL`, and both `.so` files exported the shared
+  functions. `LD_DEBUG=bindings` showed Core's `rgame_typeface_open` and
+  `rgame_typeface_measure` binding to **Util's** copy. So rule 3's spec compared
+  a copy with itself on Linux. Core now compiles its copy with
+  `-fvisibility=hidden` (not on Windows, where only `Init_core_ext` is exported
+  anyway), and binds to it at link time.
+- **The two copies were not compiled alike.** Util builds with
+  `-ffp-contract=off` and Core did not. Forcing contraction on in Core's copy
+  (`-mfma -ffp-contract=fast`) moved `'Systemsprache verwenden'` at 18 px from
+  `194.33392333984375` to `194.3339080810547`, and the agreement spec failed.
+  That check is what showed the spec has teeth. Core's rule for the shared files
+  now passes `-ffp-contract=off` as well, which matters on the arm64 macOS
+  runner, where compilers contract by default.
+- **`VPATH` finds targets, not just sources.** Adding `../rgame_util` to Core's
+  `VPATH` made make find Util's own `typeface.o`, judge it up to date, and then
+  link a `typeface.o` that did not exist in Core's directory. Core names the
+  shared sources with explicit rules instead. The same trap waits for any future
+  source shared across the two extensions.
+- **A flag change in `extconf.rb` rebuilds nothing.** mkmf's objects do not
+  depend on the Makefile, and the root `make ext` does not descend when the
+  `.so` is newer than every source. Changing the flags needed the two objects
+  deleted by hand. A checkout built before this step also needs `make clean`:
+  `build/stb_truetype_impl.d` still names the old source path.
+- **`#bytes` did not ship.** Nothing calls it until step 3, so it stays out of
+  a public API it would have had to document. Step 3 adds it, or whatever
+  `Core::Font.new(app, typeface)` turns out to need.
+- **`docs/api` could not wait for step 6.** `spec_core/api_docs/coverage_spec.rb`
+  fails on an undocumented public class. So `docs/api/text.md` gained "Measuring
+  without a window" and `docs/api/values.md` a `Typeface` section here. Step 6
+  extends them rather than writing them.
+- `test/test_font.c` became `test/test_typeface.c` in 1a, not 1c, because the
+  Makefile had to name it for 1a to build. The packaging spec's `color.h`
+  example grew to name every Util file Core compiles.
+- A driven `examples/localization` run (240 ticks, 240 frames, 1920 `text`
+  calls) first drew `"Lokalisierung"` where step 0's drew `"Localization"`.
+  That is the example's saved language pick, not this step: its drive script
+  picks German, and the next run loads it.
 
 ---
 
