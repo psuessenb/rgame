@@ -113,9 +113,9 @@ and return the same numbers. A `Font` and a `Typeface` built from the same file 
 the same size measure every string to the same `Float`, because both run the same
 C over the same bytes.
 
-**`Typeface#wrap` breaks a string into lines at a width** — the shape a
-translated paragraph will be built on, and the same walk measuring uses, so a
-line it returns measures exactly what fit said it does:
+**`Typeface#wrap` breaks a string into lines at a width.** The break comes from
+the same walk `text_width` measures with, so every returned line measures no
+wider than the width given:
 
 ```ruby
 require 'rgame'
