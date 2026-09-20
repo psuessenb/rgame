@@ -218,12 +218,6 @@ A typeface at one pixel size, for measuring text without a window. It holds its
 font data in memory and no handle, so a node may keep one. Two typefaces compare
 by identity. See [Measuring without a window](text.md#measuring-without-a-window).
 
-```ruby
-face = RGame::Util::Typeface.default(18)
-face.height      # => 18
-face.wrap('The gate is shut for the night.', 140)   # => ['The gate is shut for', 'the night.']
-```
-
 ## `RGame::Util::Z`
 
 `Z` is the vocabulary of draw order. It names the bands, and turns a band plus a
