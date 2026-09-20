@@ -1,6 +1,6 @@
 # Roadmap
 
-**Steps 0–2 are implemented. Step 3 is detailed. Steps 4–6 are deliberately
+**Steps 0–1 are implemented. Steps 2–3 are detailed. Steps 4–6 are deliberately
 rough** and get re-planned
 once the layer beneath them exists — see the note at the end.
 
@@ -292,46 +292,6 @@ width, showing the two break differently, which is the whole reason this exists.
 **Verify.** `make test` and `rake spec`. A German paragraph and its English
 source, wrapped to 520 px, produce different line counts — asserted, not
 observed.
-
-**Landed.** `rgame_typeface_fit` lives in `ext/rgame_util/typeface.{c,h}` with
-the shape above, and `Typeface#wrap(string, max_width)` hands back one String
-per line, sliced with `rb_str_subseq` in `typeface_ext.c`. The break space is
-not part of the fitting length: the binding advances past one space after each
-line, so joining the lines with a space reproduces the input. `Game/NoLiteralText`
-now names `wrap` too, so `tf.wrap('some prose', 300)` is flagged as prose a
-player reads.
-
-On a clean build, `make test` 369 checks, `rake spec` 2359 examples,
-`rake spec:core` 413, all 0 failures. The measured acceptance evidence:
-
-- `'The gate is shut for the night, traveller.'` at 18 px is `322.39` px, and
-  wraps to the design's two lines at **180** px, not 520 — the example's 520
-  was illustrative. `face.wrap(string, 180)` → `['The gate is shut for the',
-  'night, traveller.']`.
-- The Verify's German paragraph and its English source, wrapped to 520 px:
-  **3 lines against 4**, asserted in both `test/test_typeface.c` and
-  `spec/rgame/util/typeface_spec.rb`.
-- A fit of exactly the available width is kept — `>` rather than `>=` decides
-  the overflow — and a single word wider than the line comes back whole. Both
-  are Check tests.
-
-What the sketch got wrong:
-
-- **A one-sentence German/English pair wraps to the same count at 520.** The
-  first choice ("The gate is shut for the night, traveller." / "Das Tor ist
-  für die Nacht geschlossen, Wanderer.") gave 2 lines in both languages. The
-  shipped pair is three sentences and the exact-fit at 520 was confirmed by
-  measurement before being pinned. Anything shorter than a paragraph will not
-  demonstrate the divergence.
-- **The design's 520px example width was a fiction at size 18.** The example
-  line breaks only around 180 px, so a spec copying the design verbatim
-  would assert a two-line result for a string that fits on one.
-- **The cop change came with the method, not with the paragraph.** The design
-  said NoLiteralText "gains wrap only", and since `wrap` ships here, so does
-  its cop entry — nothing about it is deferred to step 4.
-
-`docs/api/text.md` gains the wrap shape in "Measuring without a window" (as a
-running doc-example), and `docs/api/values.md`'s Typeface entry shows it too.
 
 ---
 
