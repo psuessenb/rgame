@@ -5,8 +5,7 @@
 # saves it. Run it with --texts; the draw-call section alone cannot show a
 # switch:
 #
-#   RGAME_SAVE_DIR=/tmp/localization ruby tools/drive_test_project.rb \
-#     examples/localization/main.rb --ticks 140 --texts
+#   ruby tools/drive_test_project.rb examples/localization/main.rb --ticks 140 --texts
 #
 # What the report should show under "texts drawn", read off a run with
 # LANG=en_US.UTF-8 and no save:
@@ -27,8 +26,10 @@
 #   - no string that is a key: nothing starting with `hud.`, `language.` or
 #     `title`.
 #
-# It leaves `language.json` holding "de" in RGAME_SAVE_DIR. Run
-# tools/drive/examples/localization_saved.rb against the same directory next.
+# It leaves `language.json` holding "de" in the save directory, which the
+# harness removes after the run. To see the save read back, set
+# `RGAME_SAVE_DIR` for this run and for tools/drive/examples/localization_saved.rb
+# after it.
 
 idle 10
 

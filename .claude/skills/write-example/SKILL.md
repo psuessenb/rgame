@@ -244,10 +244,11 @@ assertion, and it is the part to get right:
   Exact draw counts are comparable only with `--seed N`.
 - **Never activate Quit.** It closes the game, the run ends before its tick
   budget, and the report looks like a crash. Say so in the header.
-- **Set `RGAME_SAVE_DIR`** for anything that saves, so a run neither writes into
-  the home directory of whoever runs it nor reads a file an earlier run left —
-  which would change what the script does. Do not override `XDG_DATA_HOME`
-  instead: that breaks mise's Ruby.
+- **The harness gives each run a fresh `RGAME_SAVE_DIR`** and removes it
+  afterwards, so a run neither writes into the home directory of whoever runs it
+  nor reads a file an earlier run left. Set it yourself only to keep a save
+  across two runs, as `tools/drive/examples/localization_saved.rb` does. Do not
+  override `XDG_DATA_HOME` instead: that breaks mise's Ruby.
 - **Seed the example's own RNG** from `ENV.fetch('RGAME_SEED', DEFAULT_SEED)`, so
   a run with nothing saved is reproducible and `--seed N` can override it.
 - **Leave the window windowed.** There is no window manager on Xvfb, so a

@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
+require 'fileutils'
 require 'optparse'
+require 'tmpdir'
 
 require_relative '../spec_core/support/headless_display'
 
@@ -191,7 +193,7 @@ module DriveTestProject
   class Report
     Call = Struct.new(:calls, :first_args, :last_args, :ranges)
 
-    attr_accessor :ticks, :frames, :loaded_from
+    attr_accessor :ticks, :frames, :loaded_from, :saves
     attr_reader :draws, :clips, :translates, :sounds, :scenes, :bands, :texts, :missing_keys
 
     # `texts:` adds a section listing every distinct String drawn with `text`,
@@ -264,6 +266,7 @@ module DriveTestProject
     def to_s
       out = +"\n"
       out << section('rgame loaded from', Array(@loaded_from))
+      out << section('saves', [@saves])
       out << section('ticks / frames', ["#{@ticks} ticks, #{@frames} frames"])
       out << section('scenes', @scenes)
       out << section('draw calls', @draws.sort_by { |_, c| -c.calls }.map { |name, c| draw_line(name, c) })
@@ -519,7 +522,22 @@ module DriveTestProject
     # every run says which `core_ext` and `util_ext` it loaded and from where.
     # An example under `examples/` puts its own directory's `lib` on the path
     # too, so driving the copy inside an installed gem loads that gem either way.
+    #
+    # Every example that saves passes `RGAME_SAVE_DIR` to `Util::SaveFile` as
+    # its `dir:`, and saves into the player's real data directory when it is
+    # unset. So a run given none gets a fresh directory, removed afterwards:
+    # nothing an earlier run saved can change what this one does. Pass one to keep a save across two runs. The
+    # report names a directory only when it was passed, so two runs' reports
+    # stay comparable byte for byte.
     def run(project:, script_path:, ticks:, gamepad: false, texts: false, installed: false, out: $stdout)
+      fresh = ENV['RGAME_SAVE_DIR'].nil?
+      ENV['RGAME_SAVE_DIR'] = Dir.mktmpdir('rgame-drive-') if fresh
+      drive(project, script_path, ticks, gamepad, texts, installed, out, fresh)
+    ensure
+      FileUtils.remove_entry(ENV.delete('RGAME_SAVE_DIR')) if fresh && ENV['RGAME_SAVE_DIR']
+    end
+
+    def drive(project, script_path, ticks, gamepad, texts, installed, out, fresh)
       HeadlessDisplay.start
       checkout_lib = File.join(ROOT, 'lib')
       $LOAD_PATH.unshift(checkout_lib) unless installed || $LOAD_PATH.include?(checkout_lib)
@@ -528,6 +546,7 @@ module DriveTestProject
       script = Script.load(script_path)
       report = Report.new(texts: texts)
       report.loaded_from = loaded_binaries
+      report.saves = fresh ? 'a fresh directory, removed after the run' : ENV.fetch('RGAME_SAVE_DIR')
       if gamepad
         require_relative '../spec_core/support/virtual_gamepad'
         install(report, nil, ticks, pad: ScriptedGamepad.new(script))

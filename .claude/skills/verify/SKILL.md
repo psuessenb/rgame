@@ -90,9 +90,10 @@ Three more things a comparison needs, each of which has produced a false result:
   one. Measured: a Core extension left over from an older build was copied, and every
   report crashed at boot with `unknown keyword: :fullscreen`. Run `make ext` immediately
   before copying.
-- **A fresh `RGAME_SAVE_DIR` for every run.** `save_load`, `save_load_ids` and
-  `menu_navigation` otherwise write to the real data directory, and each run reads
-  what the previous one saved. The harness does not set it for you.
+- **The harness gives every run a fresh `RGAME_SAVE_DIR`**, so a run of
+  `save_load`, `save_load_ids`, `menu_navigation` or `localization` never reads
+  what the previous one saved. Setting it yourself keeps saves across runs, which
+  a comparison should not.
 
 **Read a baseline before trusting it.** Capturing it twice catches a flaky run, not a
 broken one: the crashed baselines above were byte-identical to each other, so "the

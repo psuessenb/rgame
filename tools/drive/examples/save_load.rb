@@ -31,11 +31,10 @@
 # next one to find — which would otherwise make this script's own output depend
 # on whether it had been run before.
 #
-# Set `RGAME_SAVE_DIR` to somewhere disposable when driving this, so the run
-# does not write into the home directory of whoever is running it:
+# The harness gives the run a fresh save directory, so it does not write into
+# the home directory of whoever is running it:
 #
-#   RGAME_SAVE_DIR=/tmp/saves ruby tools/drive_test_project.rb \
-#     examples/save_load/main.rb --ticks 200
+#   ruby tools/drive_test_project.rb examples/save_load/main.rb --ticks 200
 
 idle 10
 hold controls::KEY_RIGHT, 30

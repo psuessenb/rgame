@@ -109,25 +109,6 @@ has measured.
 
 ---
 
-## The drive harness owns the save directory
-
-**What.** `tools/drive_test_project.rb` gives every run a fresh temporary
-`RGAME_SAVE_DIR` unless one is passed.
-
-**What exists instead.** The drive scripts for `save_load`, `save_load_ids` and
-`menu_navigation` say in a comment to set it, and the verify skill says so for
-comparisons. Without it a run writes into the real data directory and the next
-run reads that file, so two runs of unchanged code report differently.
-
-**Why not now.** Found in the middle of the component-architecture sweep, which
-had no reason to touch the harness.
-
-**Trigger.** The next driven comparison across examples — or the first time a
-report differs for this reason, whichever is sooner. It is a remembered rule, the
-kind "Design out misuse" in CLAUDE.md says to remove.
-
----
-
 ## Edge margins derived from the node's size
 
 **What.** `ScreenWrap` and `DespawnOffscreen` derive their `margin` from how big
