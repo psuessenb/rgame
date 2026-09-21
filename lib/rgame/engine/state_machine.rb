@@ -22,7 +22,16 @@ module RGame
     # another on.
     #
     # A condition or effect written as a block is called with the machine, which
-    # reaches `context`, `facts` and `visits` from one argument.
+    # reaches `context`, `facts` and `visits` from one argument. One written as a
+    # Symbol is sent to the context, and the machine checks at construction that
+    # the context answers every one, so a misspelt predicate fails when the
+    # machine is built rather than when a player reaches that branch.
+    #
+    # `to_h` is where the machine has got to, as `Util::SaveFile#write` takes it,
+    # and `from:` puts a new machine back there:
+    #
+    #   save.write(hammer: quest.to_h)
+    #   quest = Engine::StateMachine.new(HAMMER, context: hero, from: save.read[:hammer])
     class StateMachine
       extend Signal::DSL
 
@@ -36,14 +45,24 @@ module RGame
       # Enters the graph's start state, counts it visited once and runs its
       # `enter:` effect. `context` is the game's object conditions ask; `facts`
       # the shared store they read.
-      def initialize(graph, context: nil, facts: nil)
+      #
+      # With `from:`, a Hash `to_h` returned, the machine resumes there instead,
+      # running no effect. State names may be Strings, as JSON returns them, and
+      # a nil state resumes the machine ended. `from: nil` starts fresh. Raises `ArgumentError` for a saved state the
+      # graph lacks, and `NoMethodError` listing every Symbol in the graph the
+      # context does not answer.
+      def initialize(graph, context: nil, facts: nil, from: nil)
         @graph = graph
         @context = context
         @facts = facts
         @busy = false
-        @visits = {}
-        @state = nil
-        guarded { arrive(graph.start) }
+        check_symbols
+        if from
+          resume(from)
+        else
+          @visits = {}
+          guarded { arrive(graph.start) }
+        end
       end
 
       # The frozen Array of transitions out of the current state; an empty one
@@ -85,6 +104,9 @@ module RGame
       # transitions and fires nothing.
       def ended? = @state.nil?
 
+      # Where the machine has got to: the state, nil once ended, and the visits.
+      def to_h = { state: @state, visits: @visits.dup }
+
       private
 
       def move(transition)
@@ -105,10 +127,28 @@ module RGame
           (transition.forbids.nil? || !ask(transition.forbids))
       end
 
-      def ask(condition) = condition.call(self)
+      def ask(condition) = condition.is_a?(Symbol) ? @context.public_send(condition) : condition.call(self)
 
       def run(effect)
         ask(effect) unless effect.nil?
+      end
+
+      def resume(saved)
+        state = saved.fetch(:state) { raise ArgumentError, "from: has no :state, got #{saved.inspect}" }
+        @state = state&.to_sym
+        unless @state.nil? || @graph.state?(@state)
+          raise ArgumentError, "from: names #{state.inspect}, which is no state"
+        end
+
+        @visits = saved.fetch(:visits, {}).to_h { |name, count| [name.to_sym, Integer(count)] }
+      end
+
+      def check_symbols
+        missing = @graph.each_symbol.reject { @context&.respond_to?(it) }
+        return if missing.empty?
+
+        who = @context.nil? ? 'a machine with no context' : @context.class
+        raise NoMethodError.new("#{who} does not answer #{missing.map(&:inspect).join(', ')}", missing.first)
       end
 
       def guarded

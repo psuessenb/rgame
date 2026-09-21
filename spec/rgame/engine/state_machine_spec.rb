@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'tmpdir'
+
 RSpec.describe RGame::Engine::StateMachine do
   def build(start: :a, &) = RGame::Engine::StateGraph.build(start:, &)
 
@@ -179,6 +181,128 @@ RSpec.describe RGame::Engine::StateMachine do
         machine.visits(:a)
         machine.visits(:never)
       end.to allocate_nothing
+    end
+  end
+
+  describe 'a Symbol condition or effect' do
+    let(:graph) do
+      build do
+        state :a, enter: :greet do
+          go to: :b, if: :rich?, then: :pay
+        end
+        state :b
+      end
+    end
+
+    let(:hero) do
+      Struct.new(:gold, :greeted) do
+        def rich? = gold >= 50
+        def pay = self.gold -= 50
+        def greet = self.greeted = true
+      end.new(80, false)
+    end
+
+    it 'is sent to the context' do
+      machine = described_class.new(graph, context: hero)
+      expect(machine.available?(machine.transitions.first)).to be true
+      machine.take(machine.transitions.first)
+      expect([hero.gold, hero.greeted, machine.state]).to eq([30, true, :b])
+    end
+
+    it 'raises at construction, naming every Symbol the context does not answer' do
+      expect { described_class.new(graph, context: Object.new) }
+        .to raise_error(NoMethodError, /:greet, :rich\?, :pay/)
+    end
+
+    it 'raises the same way with no context' do
+      expect { described_class.new(graph) }.to raise_error(NoMethodError, /no context/)
+    end
+  end
+
+  describe 'saving' do
+    let(:graph) do
+      build do
+        state :a, enter: ->(m) { m.context << :entered_a } do
+          on :go, to: :b, then: ->(m) { m.context << :effect }
+        end
+        state :b, enter: ->(m) { m.context << :entered_b } do
+          on :quit
+        end
+      end
+    end
+
+    let(:trail) { [] }
+
+    it 'reports the state and the visits' do
+      machine = described_class.new(graph, context: trail)
+      machine.fire(:go)
+      expect(machine.to_h).to eq(state: :b, visits: { a: 1, b: 1 })
+    end
+
+    it 'reports a nil state once ended, and resumes ended from it' do
+      machine = described_class.new(graph, context: trail)
+      machine.fire(:go)
+      machine.fire(:quit)
+      expect(described_class.new(graph, context: trail, from: machine.to_h)).to be_ended
+    end
+
+    it 'resumes from a SaveFile round trip, running no effect and emitting nothing' do
+      machine = described_class.new(graph, context: trail)
+      machine.fire(:go)
+      saved = Dir.mktmpdir do |dir|
+        save = RGame::Util::SaveFile.new('slot.json', dir:)
+        save.write(quest: machine.to_h)
+        save.read[:quest]
+      end
+      trail.clear
+      resumed = described_class.new(graph, context: trail, from: saved)
+      expect([resumed.state, resumed.visits(:a), resumed.visits(:b), trail]).to eq([:b, 1, 1, []])
+    end
+
+    it 'starts fresh from nil' do
+      expect(described_class.new(graph, context: trail, from: nil).to_h).to eq(state: :a, visits: { a: 1 })
+    end
+
+    it 'raises for a saved state the graph does not have' do
+      expect { described_class.new(graph, context: trail, from: { state: 'gone', visits: {} }) }
+        .to raise_error(ArgumentError, /"gone"/)
+    end
+  end
+
+  describe 'a quest' do
+    let(:hammer) do
+      build(start: :not_started) do
+        state(:not_started) { on :accepted, to: :searching }
+        state(:searching) { on :hammer_found, to: :found }
+        state(:found) { on :returned, to: :done, then: :pay_reward }
+        state :done
+      end
+    end
+
+    let(:hero) do
+      Class.new do
+        attr_reader :gold
+
+        def initialize = @gold = 0
+        def pay_reward = @gold += 100
+      end.new
+    end
+
+    it 'runs through its stages, saves at :found and resumes there' do
+      quest = described_class.new(hammer, context: hero)
+      stages = [quest.state]
+      %i[accepted returned hammer_found].each do |event|
+        quest.fire(event)
+        stages << quest.state
+      end
+      saved = Dir.mktmpdir do |dir|
+        save = RGame::Util::SaveFile.new('slot.json', dir:)
+        save.write(hammer: quest.to_h)
+        save.read[:hammer]
+      end
+      resumed = described_class.new(hammer, context: hero, from: saved)
+      resumed.fire(:returned)
+      expect([stages, resumed.state, hero.gold]).to eq([%i[not_started searching searching found], :done, 100])
     end
   end
 end

@@ -71,6 +71,11 @@ index, not the argument.
   [docs/api/tile_maps.md](docs/api/tile_maps.md#building-nodes-from-objects).
 - **`Image#tiles` cuts a sheet with gaps.** It takes `margin:`, `spacing:`,
   `columns:` and `count:`. See [docs/api/images.md](docs/api/images.md).
+- **A quest can be a state machine.** `RGame::Engine::StateGraph.build`
+  declares states and transitions with conditions and effects, and
+  `RGame::Engine::StateMachine` runs one: it takes transitions, counts visits,
+  saves with `to_h` and resumes with `from:`. See
+  [docs/api/dialogue.md](docs/api/dialogue.md#state-machines).
 
 ### Changed
 
