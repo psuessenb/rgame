@@ -1,6 +1,6 @@
 # Roadmap
 
-**Step 0 is implemented.** Steps 1–5 are detailed. Steps 6–9 are deliberately
+**Steps 0–1 are implemented.** Steps 2–5 are detailed. Steps 6–9 are deliberately
 rough and get re-planned once the step beneath each exists.
 
 ## Dependency shape
@@ -194,6 +194,39 @@ subdirectory.
 `bundle exec rspec spec/rgame/engine/tiled/properties_spec.rb` is green, and
 `bundle exec rubocop lib/rgame/engine/tiled/properties.rb` is clean. Nothing
 else in the tree references it yet.
+
+**Landed.** `RGame::Engine::Tiled::Properties` in
+`lib/rgame/engine/tiled/properties.rb`, with the sketched interface plus
+`Enumerable`, `==` and `hash`, and `Tiled::FormatError` for every refusal.
+`require "rgame"` loads it; nothing else in `lib/` calls it yet. The spec has 29
+examples, one per type and one per rule. `rake spec` ran 2453 examples and
+`rake spec:core` 427, both with no failures. The invariant held: `example_assets_spec`
+and `no_graphics_spec` stayed green, and the `pathfinding` and `scroll_map` drives
+reported byte for byte what they reported on `main`.
+
+What the sketch got wrong:
+
+- **`base_path:` became `source_path:`**, the file that named the element
+  rather than its directory. Steps 2 and 3 already sketch `source_path:` for
+  `Tileset.parse` and `Map.parse`, and one name across all three means a caller
+  passes along the path it holds.
+- **Rule 9 was too narrow.** An unknown type is not the only value the parser
+  cannot read. An `int` or `float` that does not parse, a `bool` other than
+  `true` or `false`, and a malformed colour also raise `FormatError`. The
+  message names the property, the value and, when it knows it, the file.
+- **Two types have an empty form.** Tiled writes `value=""` for a colour it
+  has none for, and that reads as `nil`. An empty `file` value stays `''` rather
+  than resolving to the directory of the file that named it.
+- **A new public name fails the docs coverage spec.** `spec_core/api_docs/coverage_spec.rb`
+  requires every public class to appear in `docs/api/` or carry `@api private`.
+  Documenting a class nothing hands to a game would describe unreachable API,
+  so the `Tiled` module carries `@api private` for now. Step 9 removes the tag
+  when `docs/api/tile_maps.md` documents `Properties`, and says so in its list.
+- **A class property's `propertytype` is dropped.** It names the custom class,
+  and nothing asks for it yet. Adding it later means `Properties` gains a
+  `class_name`, which no caller has to change for.
+- **[Open question 6](README.md#open-questions) is settled:** the parser reads
+  what the file states, and the gap is documented rather than closed.
 
 ---
 
@@ -556,7 +589,8 @@ Move what is still true into the real documentation and remove
 
 - **`docs/api/tile_maps.md`** is largely rewritten: the "What rgame reads from
   Tiled" table becomes the supported set, and the new surface — properties,
-  multiple tilesets, flips, layers, objects — gets sections. Follow
+  multiple tilesets, flips, layers, objects — gets sections. `Properties` gets
+  one, and the `@api private` tag on `RGame::Engine::Tiled` comes off with it. Follow
   [write-docs](../../../.claude/skills/write-docs/SKILL.md).
 - **`docs/api/components.md`** gains `OccupiesCell` and the `TileWorld`
   additions; **`docs/api/scene_graph.md`** gains the slots; **`docs/api/assets.md`**
