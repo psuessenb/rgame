@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'rexml/document'
 require_relative 'tile'
 
 module RGame
@@ -44,14 +43,7 @@ module RGame
         # which every path in it resolves against; without one, paths stay as
         # written.
         def self.parse(tsx_string, source_path: nil)
-          root = REXML::Document.new(tsx_string).root
-          unless root&.name == 'tileset'
-            where = source_path ? "#{source_path} " : ''
-            raise FormatError, "#{where}is not a Tiled tileset: its root element is not <tileset>"
-          end
-          from_element(root, source_path: source_path)
-        rescue REXML::ParseException => e
-          raise FormatError, "#{source_path || 'the tileset'} is not well-formed XML: #{e.message.lines.first}"
+          from_element(Tiled.root(tsx_string, 'tileset', source_path), source_path: source_path)
         end
 
         # Parses a `<tileset>` REXML element: a `.tsx`'s root, or a tileset
