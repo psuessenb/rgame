@@ -54,7 +54,9 @@ index, not the argument.
 - **A tile map draws what Tiled shows.** Turned and flipped tiles draw turned,
   hidden layers draw nothing, and a layer fades by its opacity. Tilesets with a
   margin or spacing, collections of images, and tiles larger than a cell all
-  draw. See [docs/api/tile_maps.md](docs/api/tile_maps.md#how-the-map-is-drawn).
+  draw, a tileset's drawing offset moves its tiles, and an image layer draws its
+  image, repeated if Tiled says so. `TileMap#tile_offset`
+  answers it. See [docs/api/tile_maps.md](docs/api/tile_maps.md#how-the-map-is-drawn).
 - **`Image#tiles` cuts a sheet with gaps.** It takes `margin:`, `spacing:`,
   `columns:` and `count:`. See [docs/api/images.md](docs/api/images.md).
 
@@ -68,8 +70,14 @@ index, not the argument.
   `map.gid(layer, col, row)` becomes `map.tile(layer, col, row)`, and
   `map.above_layer?(index)` becomes `map.layer(index).above?`. An `above`
   property that is not a bool now raises.
-- **`TileMapRenderer.new(map, tiles)` takes images indexed by tile id**, with
-  nothing at 0, rather than one tileset sliced by local id.
+- **`TileMapRenderer.new(map, tiles, layer_images: [])` takes images indexed by
+  tile id**, with nothing at 0, rather than one tileset sliced by local id, and
+  the image of each image layer.
+- **`TileMapLayer.mount` returns slots, and takes `gaps:` rather than
+  `under:`.** Write `mount(world)[:actors]` for the node it used to return, and
+  `gaps: { actors: index }` for `under: index`. A gap may also be named by a
+  layer's name or path, several gaps may be declared, and an object layer gets
+  no node. See [docs/api/components.md](docs/api/components.md#tileworld).
 
 - **`Game/NoLiteralText` also checks `text_lines`.** A String literal as the
   first argument of `text_lines` is an offense, as it is for `text` and

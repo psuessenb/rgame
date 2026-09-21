@@ -4,14 +4,14 @@ module RGame
   module Engine
     # One layer of the scene's tile map, drawn in world space, once per viewport.
     #
-    #   world  = scene.add_node(WorldView.new)
-    #   actors = TileMapLayer.mount(world)
-    #   actors.add_node(player)
+    #   world = scene.add_node(WorldView.new)
+    #   slots = TileMapLayer.mount(world)
+    #   slots[:actors].add_node(player)
     #
-    # A node per layer, and the layers Tiled lists are the layers you get. The
-    # scene tree is then what says what covers what: everything mounted before
-    # the actors draws under them, everything after draws over them, and the
-    # gap `mount` leaves is where the actors go.
+    # A node per layer that draws, and the layers Tiled lists are the layers you
+    # get. The scene tree is then what says what covers what: everything mounted
+    # before a gap draws under what the scene puts in it, everything after draws
+    # over it, and each gap `mount` leaves is a node the scene hangs things on.
     #
     # It belongs **inside a WorldView**, which is the whole point of it existing
     # separately from Components::TileWorld. The map is world content: it
@@ -35,25 +35,65 @@ module RGame
     # stops being something to remember on every layer — it is read once, by
     # `mount`, to decide where the gap goes.
     class TileMapLayer < Node2D
-      # Mounts one node per layer of the scene's map under `parent`, and returns
-      # an empty node sitting in the gap between them — what the scene hangs its
-      # actors on. Nothing here picks a z by hand, and neither does the caller.
-      #
-      # `under` names the first layer that should cover the actors, as a layer
-      # index. It defaults to the first layer the map flags `above` in Tiled, so
-      # a map that already marks its canopies needs nothing said; a map that
-      # marks none puts the actors on top of everything.
-      #
-      # `parent` must be inside a WorldView, like the nodes themselves.
-      def self.mount(parent, under: nil)
-        world = parent.system(Components::TileWorld)
-        gap = under || world.first_above_layer
-
-        world.layer_count.times do |index|
-          parent.add_node(new(layer: index, z: index < gap ? index : index + 1))
+      # The gaps `mount` left between the layers, by the names the scene gave
+      # them. Each is an empty node for the scene to add to.
+      class Slots
+        def initialize(gaps)
+          @gaps = gaps.freeze
+          freeze
         end
-        parent.add_node(Node2D.new(z: gap))
+
+        # The node in the gap called `name`. Raises `KeyError` naming the gaps
+        # there are when there is none of that name.
+        def [](name)
+          @gaps.fetch(name) do
+            raise KeyError.new("no gap #{name.inspect} was mounted (the gaps are #{names.map(&:inspect).join(', ')})",
+                               receiver: self, key: name)
+          end
+        end
+
+        # The gaps' names, in the order the scene declared them.
+        def names = @gaps.keys
       end
+
+      # Mounts one node per layer of the scene's map under `parent`, leaves an
+      # empty node in each gap `gaps` names, and returns them as `Slots`.
+      # Nothing here picks a z by hand, and neither does the caller.
+      #
+      # Each gap's value names the layer that covers it: an index, or a name or
+      # `'Group/layer'` path as `TileMap#layer_index` takes them. `nil` means
+      # the first layer marked `above` in Tiled, and `layer_count` means over
+      # every layer. With no `gaps:`, the one gap is `:actors`, under the first
+      # layer marked `above`, so a map that already marks its canopies needs
+      # nothing said. Gaps under the same layer draw in the order declared.
+      #
+      # An object layer gets no node, since it has nothing to draw. `parent`
+      # must be inside a WorldView, like the nodes themselves.
+      def self.mount(parent, gaps: { actors: nil })
+        world = parent.system(Components::TileWorld)
+        under = gaps.transform_values { covering_layer(world, it) }
+        z = -1
+        nodes = {}
+
+        (world.layer_count + 1).times do |index|
+          under.each { |name, layer| nodes[name] = parent.add_node(Node2D.new(z: z += 1)) if layer == index }
+          next if index == world.layer_count || world.layer(index).kind == :object
+
+          parent.add_node(new(layer: index, z: z += 1))
+        end
+        Slots.new(gaps.keys.to_h { [it, nodes.fetch(it)] })
+      end
+
+      def self.covering_layer(world, layer)
+        case layer
+        when nil then world.first_above_layer
+        when String then world.layer_index(layer)
+        when 0..world.layer_count then layer
+        else raise ArgumentError, "a gap goes under a layer index from 0 to #{world.layer_count}, a layer's " \
+                                  "name or path, or nil for the first layer marked above; got #{layer.inspect}"
+        end
+      end
+      private_class_method :covering_layer
 
       def initialize(layer:, **)
         super(**)

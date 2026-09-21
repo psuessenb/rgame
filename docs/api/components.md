@@ -731,7 +731,7 @@ point. It smooths the route into as few straight segments as the node's collider
 travel, and walks it.
 
 ```ruby
-# `actors` is the node TileMapLayer.mount returned, in a scene with a TileWorld mounted.
+# `actors` is the :actors slot TileMapLayer.mount returned, in a scene with a TileWorld mounted.
 hero = RGame::Engine::Node2D.new(x: 40, y: 40)
 hero.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
 hero.add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height: 6))
@@ -982,8 +982,9 @@ data to another, depends on a sibling's add order, or names a layer it may not n
   - `tile_width` and `tile_height` turn a world position into a cell.
   - `solid?(col, row)`, `world_width` and `world_height`.
   - `tilemap_id` and `elapsed`, which the layers read.
-  - `layer_count` and `first_above_layer`, which `TileMapLayer.mount` reads to
-    decide where actors go.
+  - `layer_count`, `layer(index)`, `layer_index(name_or_path)` and
+    `first_above_layer`, which `TileMapLayer.mount` reads to decide where its gaps
+    go. The first three answer as [`TileMap`](tile_maps.md#layers) does.
 - **Solidity is read from the map once.** On the first request, `TileWorld` reads
   the map's `solid_tile?` once per cell into one
   [`Util::SolidGrid`](values.md#rgameutilsolidgrid). From then on, `blockers`,
@@ -1002,15 +1003,29 @@ data to another, depends on a sibling's add order, or names a layer it may not n
   this system.
 
 ```ruby
-world  = scene.add_node(RGame::Engine::WorldView.new)
-actors = RGame::Engine::TileMapLayer.mount(world)   # a node per Tiled layer
-actors.add_node(player)                             # in the gap between them
+world = scene.add_node(RGame::Engine::WorldView.new)
+slots = RGame::Engine::TileMapLayer.mount(world)   # a node per Tiled layer
+slots[:actors].add_node(player)                    # in the gap between them
 ```
 
-**`mount` returns the node the actors go in.** That node sits below the first layer
-Tiled flags `above`, so trunks draw under the walker and canopies over it.
-`mount(world, under: index)` overrides the position for a map arranged differently.
-Nothing here picks a `z`.
+**`mount` returns a `TileMapLayer::Slots`: the gaps it left between the layers.**
+Each gap is an empty node to add to. With no `gaps:` there is one, `:actors`,
+below the first layer Tiled flags `above`, so trunks draw under the walker and
+canopies over it. `slots[name]` raises `KeyError` naming the gaps for a name that
+was not mounted, and `slots.names` lists them in the order declared.
+
+**`gaps:` names the gaps and the layer that covers each:**
+
+```ruby
+slots = RGame::Engine::TileMapLayer.mount(world, gaps: { actors: nil, boats: 'Water/bridge' })
+slots[:boats].add_node(ferry)   # under the bridge, over the water
+```
+
+A gap's value is a layer index, a layer's name or `'Group/layer'` path, `nil` for
+the first layer flagged `above`, or `layer_count` for over every layer. A name the
+map lacks raises `KeyError` listing its layers, when `mount` runs. Gaps under the
+same layer draw in the order declared. An object layer gets no node, since it has
+nothing to draw. Nothing here picks a `z`.
 
 ### `Timer`
 

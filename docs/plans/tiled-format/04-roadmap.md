@@ -1,7 +1,7 @@
 # Roadmap
 
-**Steps 0–5 are implemented. Steps 6 and 7 are re-planned in detail** against
-the code step 5 left. Step 8 is still rough: it waits on the authored map.
+**Steps 0–6 are implemented, and step 7 is planned in detail.** Step 8 is
+still rough: it waits on the authored map.
 
 ## Dependency shape
 
@@ -931,6 +931,54 @@ landed note says so.
 - **The slots are not keyed to object layers.** Which gap an object layer's
   objects belong in is the open item in
   [the object layer section](03-design.md#the-object-layer-parsed-not-wired).
+
+**Landed.** Three commits, one per sub-step. `TileMap#tile_offset` answers a
+tileset's drawing offset, and `TileMapRenderer` moves every baked and animated
+tile by it before turning the tile. `TileMapRenderer.new` takes `layer_images:`
+and draws an image layer every frame, repeated and culled. The loader in
+`RGame::Game` loads each layer's image through the asset manager.
+`TileMapLayer.mount` takes `gaps:` and returns `TileMapLayer::Slots`. The four
+examples and `test_projects/tiled_world` changed by `[:actors]`.
+
+`rake spec` ran 2631 examples and `rake spec:core` 474, both with no failures,
+and `rake docs:coverage` reports nothing undocumented. The `scroll_map`,
+`collision_tiles` and `jump_topdown` drives, and `pathfinding` with `--texts`,
+240 ticks each, report what `main` reports, byte for byte. `town.tmx` drawn
+through the renderer on this branch and on `main` gives the same 614,400
+pixels. Dropping the offset's `y`, the leftward start of a repeat, or either
+cull test of an image copy each fails the renderer spec. The cull tests only
+failed it after two examples were added for them.
+
+What the sketch got wrong:
+
+- **The contract grew by `layer_index` and layer names.** `mount` resolves a
+  gap's name through `TileWorld`, which asks the map, and the spec that mounts
+  one uses `StubTileMap`. So the stub needed `layer_index`, and the contract
+  checks it against `TileMap` so the two cannot drift. `TileWorld` forwards
+  `layer` and `layer_index`, which the sketch did not list.
+- **`StubTileMap` takes `object_layers:` and `names:`** as well as the
+  `tile_offsets:` and `image_layers:` the sketch named. A non-tile layer's
+  entry in `layers` is `nil`.
+- **The external-tileset case of `tile_offset` has no example of its own.**
+  The transform reads the offset from the same `Tiled::Tileset` either way,
+  and `tileset_spec.rb` covers reading `<tileoffset>`. R2 in step 8 is the
+  Tiled-written check.
+- **`test_projects/tiled_world` could be run after all.** Its map is
+  gitignored ([F11](01-current-state.md#f11)), but present on the machine the
+  step was built on. It is the only map at hand with an object layer, so its
+  six drive scripts are the driven evidence for rule 16. Each script's
+  report matches `main`'s except for one thing: one `tilemap` call fewer per
+  frame per view, because the `Objects` layer, index 3, no longer gets a node.
+  The single-view run makes 717 calls against 956 over 239 frames. Sprites,
+  texts, translates, clips and scenes are identical.
+- **The sub-steps did not each sweep separately.** 6c's commit also carries
+  two renderer examples for 6b's culling, added when a mutation survived.
+
+Documented in `docs/api/tile_maps.md` (the drawing offset, image layers and
+`tile_offset`), `docs/api/components.md` (slots, `gaps:`, and `TileWorld`'s new
+forwards) and `docs/api/assets.md` (`layer_images`). The CHANGELOG extends the
+"draws what Tiled shows" entry under Added, and states the `mount` change under
+Changed.
 
 ---
 

@@ -261,7 +261,14 @@ module RGame
       assets.add_loader(:tilemap) do |path|
         tiled = RGame::Engine::Tiled::Map.load(path)
         map = RGame::Engine::TileMap.from_tiled(tiled)
-        RGame::Core::TileMapRenderer.new(map, tile_images(tiled, map))
+        RGame::Core::TileMapRenderer.new(map, tile_images(tiled, map), layer_images: layer_images(map))
+      end
+    end
+
+    def layer_images(map)
+      Array.new(map.layer_count) do |index|
+        layer = map.layer(index)
+        assets.image(layer.image) if layer.kind == :image && layer.image
       end
     end
 

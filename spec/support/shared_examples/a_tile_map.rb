@@ -20,8 +20,10 @@
 # A map of one exact shape, because a contract can only assert what it knows is
 # in there:
 #
-#   2 x 2 tiles, 16 px each, two layers, layer 1 flagged "above",
-#   hidden, and at half opacity
+#   2 x 2 tiles, 16 px each, three layers named ground, canopy and sky,
+#   layer 1 flagged "above",
+#   hidden, and at half opacity, and layer 2 an image layer at (8, 4),
+#   repeated along x but not along y
 #
 #   layer 0 (below):  tile 1  tile 2      layer 1 (above):  0       0
 #                     0       tile 3                        tile 4  0
@@ -29,6 +31,7 @@
 #   tile 2 in layer 0 is turned a quarter clockwise
 #   tile 3 is solid
 #   tile 1 is animated: two frames, tiles 1 then 2, 0.1 s each
+#   tile 4 draws 2 px right of its cell and 4 px up; the others at no offset
 #
 # Building that from a `.tmx` and building it by hand are very different jobs,
 # which is the point — the contract says the shape and each host says how.
@@ -49,7 +52,7 @@ RSpec.shared_examples 'a tile map' do
     end
 
     it 'reports how many layers it has' do
-      tile_map { |map| expect(map.layer_count).to eq(2) }
+      tile_map { |map| expect(map.layer_count).to eq(3) }
     end
   end
 
@@ -66,6 +69,29 @@ RSpec.shared_examples 'a tile map' do
 
     it 'says how opaque each layer is' do
       tile_map { |map| expect([map.layer(0).opacity, map.layer(1).opacity]).to eq([1.0, 0.5]) }
+    end
+
+    it 'finds a layer by its name' do
+      tile_map { |map| expect(map.layer_index('canopy')).to eq(1) }
+    end
+
+    it 'raises for a name no layer has, listing the layers' do
+      tile_map { |map| expect { map.layer_index('roof') }.to raise_error(KeyError, /ground, canopy, sky/) }
+    end
+
+    it 'says what kind each layer is' do
+      tile_map { |map| expect(Array.new(3) { map.layer(it).kind }).to eq(%i[tile tile image]) }
+    end
+
+    it 'says where an image layer draws, and along which axes it repeats' do
+      tile_map do |map|
+        sky = map.layer(2)
+        expect([sky.offset_x, sky.offset_y, sky.repeat_x?, sky.repeat_y?]).to eq([8, 4, true, false])
+      end
+    end
+
+    it 'holds no tile in an image layer' do
+      tile_map { |map| expect(map.tile(2, 0, 0)).to be_zero }
     end
   end
 
@@ -117,6 +143,10 @@ RSpec.shared_examples 'a tile map' do
 
     it 'leaves a tile that is not animated alone' do
       tile_map { |map| expect(map.frame_tile(2, 0.15)).to eq(2) }
+    end
+
+    it 'says how far a tile draws from its cell' do
+      tile_map { |map| expect([map.tile_offset(4), map.tile_offset(1)]).to eq([[2, -4], [0, 0]]) }
     end
   end
 end

@@ -100,12 +100,15 @@ element:
 | Layer opacity | the layer and its animated tiles fade by the layer's opacity, groups included |
 | Tile sheets | cut with their margin and spacing |
 | Collections of images | one image per tile, each at its own size |
+| Drawing offset | every tile of the tileset moves by it, with `y` down |
+| Image layers | the image at the layer's offset, repeated along x, y or both as far as the view reaches |
 
 **A tile stands on its cell's bottom-left corner.** A tile taller than the map's
 cells, such as a tree two cells high, reaches up into the cell above. A turned
-tile that is not square keeps that corner too.
+tile that is not square keeps that corner too. A tileset's drawing offset then
+moves the tile, and the tile turns about its moved centre.
 
-Per-layer offset, parallax, tint and a tileset's tile offset are not read.
+Per-layer offset, parallax and tint are not read.
 
 ## `RGame::Engine::TileMap`
 
@@ -163,6 +166,7 @@ map.tile_class(tile)         # the class set in Tiled, or nil
 map.tile_properties(tile)    # its custom properties
 map.animated_tiles           # the tiles that animate
 map.frame_tile(tile, 0.25)   # the tile showing 0.25 s into its animation
+map.tile_offset(tile)        # => [0, -4] — where it draws, relative to its cell
 ```
 
 **A tile is solid when it has a collision shape in Tiled.** Open the tileset in
@@ -174,6 +178,10 @@ collision and changing which tiles block needs no code.
 The animation loops, and a tile that does not animate answers itself. The time is
 an argument, not a clock read, so pausing is "stop accumulating". Animate a tile in
 Tiled's tile animation editor.
+
+**`tile_offset(tile)` is its tileset's Drawing Offset** from Tiled's tileset
+properties, as a frozen `[x, y]` in pixels with `y` down. A tile whose tileset
+has none answers `[0, 0]`.
 
 ### Solidity
 
@@ -226,11 +234,14 @@ bare name matches layers in two groups.
 roofs: add a custom **bool** property named `above` and tick it. A layer without
 the property draws below, and an `above` property of any other type raises.
 `TileWorld#first_above_layer` returns the first flagged layer, and
-[`TileMapLayer.mount`](components.md#tileworld) leaves the actors' gap below it.
+[`TileMapLayer.mount`](components.md#tileworld) leaves the actors' gap below it,
+unless the scene names another layer with `gaps:`.
 
 `map.image_layers` lists the image layers, each a `TileMap::ImageLayer`: a
 `Layer` that adds `image` (the image's path, or `nil`), `offset_x` and `offset_y`
-in the map's pixels, and `repeat_x?` and `repeat_y?`.
+in the map's pixels, and `repeat_x?` and `repeat_y?`. The asset loader loads each
+layer's image, and the layer draws in its place among the others. Set the image
+and the repeat in the layer's properties in Tiled.
 
 ### Objects
 

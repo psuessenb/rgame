@@ -238,9 +238,9 @@ class Scene < RGame::Engine::Node2D
     add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 32))
 
     view = add_node(RGame::Engine::WorldView.new)
-    # The node handed back is the gap between the ground layers and anything
+    # The :actors slot is the gap between the ground layers and anything
     # Tiled flags `above` — where things that walk around belong.
-    actors = RGame::Engine::TileMapLayer.mount(view)
+    actors = RGame::Engine::TileMapLayer.mount(view)[:actors]
     actors.add_node(SpikyBall.new(x: BALL_X, y: BALL_Y))
     @hero = actors.add_node(Hero.new(camera: players.primary.camera, x: START_X, y: START_Y))
     # Built here rather than in on_draw: the text renders once per change of the

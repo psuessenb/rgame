@@ -19,23 +19,34 @@ RSpec.describe 'RGame::Game tile map loader' do # rubocop:disable RSpec/Describe
     FileUtils.cp(PngFixture.write(width, height) { [255, 255, 255, 255] }, File.join(media, name))
   end
 
-  def tmx(tilesets)
+  def tmx(tilesets, layers = '')
     File.write(File.join(media, 'map.tmx'), <<~TMX)
       <map orientation="orthogonal" width="2" height="1" tilewidth="16" tileheight="16">
         #{tilesets}
         <layer name="ground" width="2" height="1"><data encoding="csv">1,2</data></layer>
+        #{layers}
       </map>
     TMX
   end
 
-  def loaded_tiles
+  def sheet
+    png('sheet.png', 32, 16)
+    <<~XML
+      <tileset firstgid="1" name="sheet" tilewidth="16" tileheight="16" tilecount="2" columns="2">
+        <image source="sheet.png" width="32" height="16"/></tileset>
+    XML
+  end
+
+  # What the loader handed TileMapRenderer, as `[class, width, height]` per
+  # entry: the tile images, or with `of: :@layer_images`, the layer images.
+  def loaded_tiles(of: :@tiles)
     script = <<~RUBY
       require 'rgame/game'
       require 'json'
 
       game = RGame::Game.new(root: RGame::Engine::Node2D.new, width: 64, height: 48,
                              caption: 'tile map loader spec', media_root: #{media.inspect})
-      tiles = game.assets.tilemap('map.tmx').instance_variable_get(:@tiles)
+      tiles = game.assets.tilemap('map.tmx').instance_variable_get(#{of.inspect})
       game.close
       puts JSON.generate(tiles.map { it && [it.class.name, it.width, it.height] })
     RUBY
@@ -69,5 +80,18 @@ RSpec.describe 'RGame::Game tile map loader' do # rubocop:disable RSpec/Describe
     XML
 
     expect(loaded_tiles).to eq([nil, ['RGame::Core::Image', 16, 32], ['RGame::Core::Image', 16, 16]])
+  end
+
+  it 'loads the image of each image layer, and nothing for the other layers' do
+    png('sky.png', 48, 24)
+    tmx(sheet, '<imagelayer name="sky"><image source="sky.png"/></imagelayer><imagelayer name="none"/>')
+
+    expect(loaded_tiles(of: :@layer_images)).to eq([nil, ['RGame::Core::Image', 48, 24], nil])
+  end
+
+  it 'fails loading a map whose image layer names a missing file, naming it' do
+    tmx(sheet, '<imagelayer name="sky"><image source="gone.png"/></imagelayer>')
+
+    expect { loaded_tiles }.to raise_error(RuntimeError, /could not read \S*gone\.png \(RGame::Core::Image::LoadError\)/)
   end
 end

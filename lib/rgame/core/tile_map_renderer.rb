@@ -5,7 +5,7 @@ module RGame
     # Draws a tile map: the static layers baked once, the animated tiles drawn
     # per frame, both culled to a rectangle of the world.
     #
-    #   tiles = RGame::Core::TileMapRenderer.new(map, tile_images)
+    #   tiles = RGame::Core::TileMapRenderer.new(map, tile_images, layer_images: images)
     #
     #   map.layer_count.times do |layer|
     #     tiles.draw_layer(renderer, layer, cull_x, cull_y, cull_w, cull_h,
@@ -50,13 +50,21 @@ module RGame
     # more recordings, not more vertices: the partition changed, the contents
     # did not.
     #
+    # ## Image layers are drawn every frame
+    #
+    # An image layer draws its one image at its offset, and again every image's
+    # width or height along each axis it repeats on, as far as the cull rect
+    # reaches in both directions. Only the copies that meet the cull rect are
+    # drawn, and nothing is baked: a repeated layer has no edge to bake up to.
+    #
     # ## What Tiled shows
     #
     # A hidden layer draws nothing and is never baked. A translucent one
     # replays tinted by its opacity, and its animated tiles draw with the same
     # tint. A turned tile is baked inside a rotation about its own centre,
     # mirrored within its rectangle first when it is flipped. Every tile stands
-    # on its cell's bottom-left corner, as Tiled draws one taller than the grid.
+    # on its cell's bottom-left corner, as Tiled draws one taller than the grid,
+    # moved by its tileset's drawing offset, which does not turn with it.
     #
     # ## It loads nothing and holds no clock
     #
@@ -74,18 +82,26 @@ module RGame
     # It never names the map's class — the tile map lives a layer *above* this
     # one and Core may not reach up (see "The rule points both ways").
     # What it calls is the 'a tile map' contract in
-    # `spec/support/shared_examples/`: `layer_count`, `layer(i).visible?` and
-    # `opacity`, `width`, `height`, `tile_width`, `tile_height`, `tile`,
-    # `orientation`, `animated_tiles` and `frame_tile`.
+    # `spec/support/shared_examples/`: `layer_count`, `layer(i).visible?`,
+    # `opacity` and `kind`, an image layer's `offset_x`, `offset_y`, `repeat_x?`
+    # and `repeat_y?`, `width`, `height`, `tile_width`, `tile_height`, `tile`,
+    # `orientation`, `tile_offset`, `animated_tiles` and `frame_tile`.
     class TileMapRenderer
       # The map this was built from. A scene reads it for collision and world
       # bounds, which are its business rather than this class's.
       attr_reader :map
 
       # `tiles` is an Array of tile images indexed by the map's tile ids, with
-      # nothing at 0, the empty cell.
-      def initialize(map, tiles)
+      # nothing at 0, the empty cell. `layer_images` is indexed by layer: the
+      # image of each image layer, and `nil` for every other layer and for an
+      # image layer that shows none.
+      def initialize(map, tiles, layer_images: [])
         @map = map
+        @image_layers = Array.new(map.layer_count) do |index|
+          layer = map.layer(index)
+          layer if layer.kind == :image
+        end
+        @layer_images = layer_images
         @animates = map.animated_tiles.to_set
         @tiles = tiles
         @animated = collect_animated_tiles
@@ -119,6 +135,9 @@ module RGame
 
         return unless @shown[index]
 
+        image_layer = @image_layers[index]
+        return draw_image_layer(renderer, image_layer, index, cull_x, cull_y, cull_width, cull_height) if image_layer
+
         @static[index] ||= bake(renderer, index)
         @static[index].draw(color: @tints[index])
         draw_animated(renderer, @animated[index], @tints[index], cull_x, cull_y,
@@ -126,6 +145,31 @@ module RGame
       end
 
       private
+
+      def draw_image_layer(renderer, layer, index, cull_x, cull_y, cull_width, cull_height)
+        image = @layer_images[index] or return
+
+        tint = @tints[index]
+        x = first_copy(layer.offset_x, image.width, layer.repeat_x?, cull_x)
+        while x < cull_x + cull_width
+          y = first_copy(layer.offset_y, image.height, layer.repeat_y?, cull_y)
+          while y < cull_y + cull_height
+            renderer.image_at(image, x, y, color: tint) if x + image.width > cull_x && y + image.height > cull_y
+            break unless layer.repeat_y?
+
+            y += image.height
+          end
+          break unless layer.repeat_x?
+
+          x += image.width
+        end
+      end
+
+      def first_copy(offset, size, repeats, cull)
+        return offset unless repeats
+
+        offset + ((cull - offset).fdiv(size).floor * size)
+      end
 
       def collect_animated_tiles
         found = Array.new(@map.layer_count) { [] }
@@ -156,7 +200,7 @@ module RGame
             next unless layer == index
             next if @animates.include?(tile)
 
-            draw_tile(renderer, @tiles[tile], col, row, @map.orientation(layer, col, row), nil)
+            draw_tile(renderer, tile, col, row, @map.orientation(layer, col, row), nil)
           end
         end
       end
@@ -173,13 +217,15 @@ module RGame
         tiles.each do |col, row, tile, orientation|
           next if col < col_start || col >= col_end || row < row_start || row >= row_end
 
-          draw_tile(renderer, @tiles[@map.frame_tile(tile, elapsed)], col, row, orientation, tint)
+          draw_tile(renderer, @map.frame_tile(tile, elapsed), col, row, orientation, tint)
         end
       end
 
-      def draw_tile(renderer, image, col, row, orientation, tint)
-        x = col * @map.tile_width
-        y = ((row + 1) * @map.tile_height) - image.height
+      def draw_tile(renderer, tile, col, row, orientation, tint)
+        image = @tiles[tile]
+        offset_x, offset_y = @map.tile_offset(tile)
+        x = (col * @map.tile_width) + offset_x
+        y = ((row + 1) * @map.tile_height) - image.height + offset_y
         return renderer.image_at(image, x, y, color: tint) if orientation.identity?
 
         turns = orientation.quarter_turns

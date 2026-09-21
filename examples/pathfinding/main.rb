@@ -227,7 +227,7 @@ class Scene < RGame::Engine::Node2D
                   ))
 
     view = add_node(RGame::Engine::WorldView.new)
-    actors = RGame::Engine::TileMapLayer.mount(view)
+    actors = RGame::Engine::TileMapLayer.mount(view)[:actors]
     @hero = Hero.new(x: ((START_COL + 0.5) * TILE) - FEET_CENTRE_X,
                      y: ((START_ROW + 0.5) * TILE) - FEET_CENTRE_Y)
     actors.add_node(Route.new(hero: @hero))
