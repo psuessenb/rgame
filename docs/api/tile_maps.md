@@ -266,7 +266,7 @@ props.empty?
 | `int`, `object` | `Integer`; an object property is the object's id |
 | `float` | `Float` |
 | `bool` | `true` or `false` |
-| `color` | `Util::Color`, or `nil` when Tiled has no colour to write |
+| `color` | `RGame::Util::Color`, or `nil` when Tiled has no colour to write |
 | `file` | `String`, resolved against the file that states it |
 | `class` | a nested `Properties` |
 
