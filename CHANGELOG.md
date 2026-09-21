@@ -19,6 +19,11 @@ index, not the argument.
   `RGame::Core::Font` for the same file and size. `Typeface#text_lines` breaks
   a string into lines that fit a width, and at each newline. See
   [docs/api/text.md](docs/api/text.md#measuring-without-a-window).
+- **A translated text breaks into lines that fit a width.**
+  `RGame::Engine::Paragraph` takes a key or an `Engine::Text` and a width. It
+  breaks the text again when a variable, the language or the width changes, and
+  an unchanged read allocates nothing. See
+  [docs/api/text.md](docs/api/text.md#a-paragraph-that-follows-the-language).
 
 ## [0.4.0] - 2026-09-16
 

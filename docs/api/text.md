@@ -155,6 +155,63 @@ hyphenates and never breaks inside a word.
 what `text_width` reports for it. It builds new Strings on every call, so call
 it once when the text or the width changes, not in `draw`.
 
+### A paragraph that follows the language
+
+**`RGame::Engine::Paragraph` breaks a translated text into lines that fit a
+width, and keeps them.** It takes a translation key or an
+[`Engine::Text`](toolbox.md#text--the-string-a-node-draws), and a width in
+pixels:
+
+```ruby
+require 'rgame'
+
+RGame::Engine::I18n.load_hash(
+  en: { gate: { notice: 'The gate is shut for the night, traveller.',
+                greeting: 'Well met, %{name}. The gate is shut for the night.' } },
+  de: { gate: { notice: 'Das Tor ist für die Nacht geschlossen, Wanderer.',
+                greeting: 'Sei gegrüßt, %{name}. Das Tor ist für die Nacht geschlossen.' } }
+)
+
+notice = RGame::Engine::Paragraph.new('gate.notice', width: 180)
+notice.lines # => ["The gate is shut for the", "night, traveller."]
+
+greeting = RGame::Engine::Paragraph.new(RGame::Engine::Text.new('gate.greeting', :name), width: 300)
+greeting.with(name: 'Ada').lines # => ["Well met, Ada. The gate is shut for the", "night."]
+
+RGame::Engine::I18n.locale = :de
+notice.lines   # => ["Das Tor ist für die Nacht", "geschlossen, Wanderer."]
+greeting.lines # => ["Sei gegrüßt, Ada. Das Tor ist für die", "Nacht geschlossen."]
+```
+
+`Paragraph#lines` returns a frozen Array of frozen Strings, broken with
+[`text_lines`](#breaking-text-into-lines). It breaks the text again only when the
+String its `Text` returns is a different object, or when the width changed. A
+`Text` returns the same String until a variable or the language changes, so a
+paragraph follows both with no call of its own. An unchanged read returns the
+same Array and allocates nothing, so a node may read `lines` in `on_draw`:
+
+```ruby
+def on_draw(renderer, _view)
+  @notice.lines.each_with_index do |line, i|
+    renderer.text(line, 0, i * renderer.text_height)
+  end
+end
+```
+
+| | |
+|---|---|
+| `Paragraph.new(text, width:, typeface:)` | `text` is a key, as a String or Symbol, or an `Engine::Text`. Anything else raises `TypeError`, so prose a player reads cannot arrive as a String no translation reaches. `typeface:` defaults to `Util::Typeface.default`, the face of the renderer's default font. |
+| `Paragraph#with(**values)` | gives the `Text` its variables, as `Text#with` does, and returns the paragraph |
+| `Paragraph#width=` | changes the width; the next read breaks the text again. The same width breaks nothing. |
+| `Paragraph#width`, `Paragraph#typeface` | what the lines are fitted to |
+
+A width of zero or less raises `ArgumentError`, and one that is not a number
+raises `TypeError`, both at construction and in `width=`. A `Text` with
+variables raises `ArgumentError` from `lines` until its first `with`.
+
+A paragraph holds a typeface, never a renderer. It draws nothing, so it lays text
+out in `update` or in a headless spec as well as in `on_draw`.
+
 ### The default font, and what it covers
 
 **The engine ships Liberation Sans and uses it when you pass no path.** It never
