@@ -1,7 +1,7 @@
 # Roadmap
 
-**Steps 0–2 are implemented. Steps 3–4 are detailed. Steps 5–6 are deliberately
-rough** and get re-planned
+**Steps 0–2 and 4 are implemented. Step 3 is detailed. Steps 5–6 are
+deliberately rough** and get re-planned
 once the layer beneath them exists — see the note at the end.
 
 ```
@@ -547,6 +547,56 @@ those are `UI::Label`'s, in step 5. No `typeface=`. Nothing swaps a paragraph's
 face yet, and a setter is one more identity check if step 5 wants one. No `"\r"`
 handling. YAML turns the line breaks in a file into `"\n"`, so a `"\r"` only
 reaches `text_lines` if an author types one into a quoted string.
+
+**Landed.** Step 4 landed before step 3, as the plan allowed. 4a is
+`rgame_typeface_fit` stopping at `"\n"` and `Typeface#text_lines` stepping past
+it. 4b is `Engine::Paragraph` in `lib/rgame/engine/paragraph.rb`, keyed on the
+identity of the String its `Text` returns and on the width, as sketched. 4c adds
+`lines_per_page:`, `page`, `page_count` and a `lines_per_page` reader. Each is one
+commit. `docs/api/text.md` documents all three under "Breaking text into lines"
+and "A paragraph that follows the language", and `CHANGELOG.md` has an entry.
+
+`make test` 378 checks, `rake spec` 2398 examples, `rake spec:core` 413, all 0
+failures. A clean rebuild of both extensions and the standalone binary gives no
+warnings. The measured acceptance evidence:
+
+- The story paragraph at 520 px answers **3 lines under `en` and 4 after
+  `I18n.locale = :de`**, with no call on the paragraph between.
+  `spec/rgame/engine/paragraph_spec.rb` asserts it.
+- `lines`, `with` given the same values, and `page` with `page_count` each
+  allocate **0 objects over 200,000 reads**.
+- `text_lines` runs **once** for three unchanged reads, **not at all** after
+  `width = 180.0` on a paragraph at 180, and **twice** for two reads each of
+  two names.
+- Three mutations were run against the spec. `with(**)` in place of `with(...)`
+  fails the allocation example. Dropping the width from the cache check fails
+  "breaks again at a new width". Removing the refresh from `page` fails four
+  examples.
+
+What the sketch got wrong or left open:
+
+- **Identity is a cost, not a behaviour.** Comparing the Strings with `==`
+  instead of `equal?` survives every example, because both give the same lines.
+  `equal?` stays: it compares one pointer, and `==` compares every byte of an
+  unchanged text on every read.
+- **The trailing-newline rule lives in `text_lines`, not in the fit.** The fit
+  sees one line at a time and cannot tell the last newline from the others. The
+  loop in `typeface_ext.c` stops after a newline that ends the string, and the
+  Check helper `wrap_counting_lines` mirrors it.
+- **A newline wins over the overflow test.** A line that fits exactly and is
+  followed by `"\n"` would overflow on the newline's own advance. The fit checks
+  for the newline first, so that line ends at the newline and not at the space
+  before its last word. A Check test pins it.
+- **`lines.join(' ')` no longer gives back every string.** It still does for
+  a string without newlines. `text.md` now says each break takes the space or
+  newline it replaced.
+- **`page` counts from 0.** The sketch's `page(1) # => the lines of page 1`
+  did not say. Ruby's indices count from 0, and `docs/api/text.md` says so.
+- **Two refusals the plan did not list.** A width that is not a number and a
+  `lines_per_page` that is not an Integer raise `TypeError`, next to the
+  planned `ArgumentError`s.
+- **The `docs/api/README.md` row for Text** now names `Util::Typeface` and
+  `Engine::Paragraph`. Step 2 had left `Typeface` out of it.
 
 ## Step 5 — `UI::Label` and an example *(rough)*
 

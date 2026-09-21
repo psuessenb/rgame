@@ -17,8 +17,14 @@ index, not the argument.
 - **Text can be measured without a window.** `RGame::Util::Typeface` loads with
   `require 'rgame'`, needs no graphics library, and gives the same width as
   `RGame::Core::Font` for the same file and size. `Typeface#text_lines` breaks
-  a string into lines that fit a width. See
+  a string into lines that fit a width, and at each newline. See
   [docs/api/text.md](docs/api/text.md#measuring-without-a-window).
+- **A translated text breaks into lines that fit a width.**
+  `RGame::Engine::Paragraph` takes a key or an `Engine::Text` and a width. It
+  breaks the text again when a variable, the language or the width changes, and
+  an unchanged read allocates nothing. `lines_per_page:` groups the lines into
+  pages for a dialogue box. See
+  [docs/api/text.md](docs/api/text.md#a-paragraph-that-follows-the-language).
 
 ## [0.4.0] - 2026-09-16
 

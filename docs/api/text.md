@@ -38,8 +38,9 @@ renderer.text_height(font: nil)          # => Integer — the line height
 as it is. `text` and `text_width` raise `TypeError` for `nil`, a number, or a
 `to_str` that returns something other than a String.
 
-**A string is one line.** A newline has no special meaning. Draw two lines with
-two calls, stepped by `text_height`:
+**A string is one line.** `text` draws a newline as a glyph, not as a line
+break. Break the string with [`text_lines`](#breaking-text-into-lines), then draw
+each line with its own call, stepped by `text_height`:
 
 ```ruby
 lines.each_with_index do |line, i|
@@ -128,7 +129,8 @@ size below 1 raises `ArgumentError`.
 ### Breaking text into lines
 
 **`Typeface#text_lines(string, max_width)` returns the lines a string breaks
-into, one String per line.** It breaks at the last space that fits. Every line
+into, one String per line.** It breaks at the last space that fits, and at every
+newline. Every line
 measures no wider than `max_width`, with one exception: a word wider than the
 whole line comes back whole rather than cut.
 
@@ -139,17 +141,102 @@ face = RGame::Util::Typeface.default(18)
 face.text_lines('The gate is shut for the night, traveller.', 180) # => ["The gate is shut for the", "night, traveller."]
 face.text_lines('The gate is shut.', 180)                          # => ["The gate is shut."]
 face.text_lines('Systemsprache verwenden', 50)                     # => ["Systemsprache", "verwenden"]
+face.text_lines("The gate is shut.\nCome back at dawn.\n", 520)    # => ["The gate is shut.", "Come back at dawn."]
 face.text_lines('', 180)                                           # => []
 ```
 
-Each break takes the space it replaced, so `lines.join(' ')` gives back the
-string. Two spaces in a row, or a trailing space that does not fit, therefore
-produce an empty line. `text_lines` breaks at spaces only: it never hyphenates,
-and it treats a newline as a character like any other.
+Each break takes the space or newline it replaced, so no line holds either.
+Two spaces in a row, or a trailing space that does not fit, produce an empty
+line, and so do two newlines in a row. One newline at the very end adds no
+line: a YAML `|` block ends every string with one. `text_lines` never
+hyphenates and never breaks inside a word.
 
 `text_lines` runs the same C walk as `text_width`, so a line it returns measures
 what `text_width` reports for it. It builds new Strings on every call, so call
 it once when the text or the width changes, not in `draw`.
+
+### A paragraph that follows the language
+
+**`RGame::Engine::Paragraph` breaks a translated text into lines that fit a
+width, and keeps them.** It takes a translation key or an
+[`Engine::Text`](toolbox.md#text--the-string-a-node-draws), and a width in
+pixels:
+
+```ruby
+require 'rgame'
+
+RGame::Engine::I18n.load_hash(
+  en: { gate: { notice: 'The gate is shut for the night, traveller.',
+                greeting: 'Well met, %{name}. The gate is shut for the night.' } },
+  de: { gate: { notice: 'Das Tor ist für die Nacht geschlossen, Wanderer.',
+                greeting: 'Sei gegrüßt, %{name}. Das Tor ist für die Nacht geschlossen.' } }
+)
+
+notice = RGame::Engine::Paragraph.new('gate.notice', width: 180)
+notice.lines # => ["The gate is shut for the", "night, traveller."]
+
+greeting = RGame::Engine::Paragraph.new(RGame::Engine::Text.new('gate.greeting', :name), width: 300)
+greeting.with(name: 'Ada').lines # => ["Well met, Ada. The gate is shut for the", "night."]
+
+RGame::Engine::I18n.locale = :de
+notice.lines   # => ["Das Tor ist für die Nacht", "geschlossen, Wanderer."]
+greeting.lines # => ["Sei gegrüßt, Ada. Das Tor ist für die", "Nacht geschlossen."]
+```
+
+`Paragraph#lines` returns a frozen Array of frozen Strings, broken with
+[`text_lines`](#breaking-text-into-lines). It breaks the text again only when the
+String its `Text` returns is a different object, or when the width changed. A
+`Text` returns the same String until a variable or the language changes, so a
+paragraph follows both with no call of its own. An unchanged read returns the
+same Array and allocates nothing, so a node may read `lines` in `on_draw`:
+
+```ruby
+def on_draw(renderer, _view)
+  @notice.lines.each_with_index do |line, i|
+    renderer.text(line, 0, i * renderer.text_height)
+  end
+end
+```
+
+| | |
+|---|---|
+| `Paragraph.new(text, width:, typeface:)` | `text` is a key, as a String or Symbol, or an `Engine::Text`. Anything else raises `TypeError`, so prose a player reads cannot arrive as a String no translation reaches. `typeface:` defaults to `Util::Typeface.default`, the face of the renderer's default font. |
+| `Paragraph#with(**values)` | gives the `Text` its variables, as `Text#with` does, and returns the paragraph |
+| `Paragraph#width=` | changes the width; the next read breaks the text again. The same width breaks nothing. |
+| `Paragraph#width`, `Paragraph#typeface` | what the lines are fitted to |
+| `Paragraph#page_count`, `Paragraph#page(index)`, `Paragraph#lines_per_page` | pages, below |
+
+A width of zero or less raises `ArgumentError`, and one that is not a number
+raises `TypeError`, both at construction and in `width=`. A `Text` with
+variables raises `ArgumentError` from `lines` until its first `with`.
+
+**`lines_per_page:` groups the lines into pages**, for a dialogue box that
+shows a few lines at a time. `Paragraph#page` counts from 0:
+
+```ruby
+require 'rgame'
+
+RGame::Engine::I18n.load_hash(
+  en: { gate: { story: 'The gate is shut for the night, traveller. The road ahead is dark, ' \
+                       'but the dawn will come and the gate will open again. Rest here until then.' } }
+)
+
+story = RGame::Engine::Paragraph.new('gate.story', width: 300, lines_per_page: 2)
+story.page_count # => 2
+story.page(0)    # => ["The gate is shut for the night, traveller.", "The road ahead is dark, but the dawn will"]
+story.page(1)    # => ["come and the gate will open again. Rest", "here until then."]
+story.page(5)    # => ["come and the gate will open again. Rest", "here until then."] — the last page
+```
+
+An index past either end answers the nearest page. A language switch can shorten
+the text while a game shows its last page, and the box then shows the new last
+page rather than raising or going blank. `page_count` is at least 1, so an empty
+text is one empty page. Without `lines_per_page:` the whole text is one page.
+Each page is a frozen Array, and an unchanged read of `page` or `page_count`
+allocates nothing. A `lines_per_page` below 1 raises `ArgumentError`.
+
+A paragraph holds a typeface, never a renderer. It draws nothing, so it lays text
+out in `update` or in a headless spec as well as in `on_draw`.
 
 ### The default font, and what it covers
 

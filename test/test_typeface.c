@@ -410,8 +410,9 @@ END_TEST
 
 /*
  * Wraps `text` to `max_width` the way the Ruby binding does: one fit per line,
- * then past the space that ended it. Checks the fit contract at every line and
- * returns how many lines it took.
+ * then past the space or newline that ended it, and no line for a newline at
+ * the very end. Checks the fit contract at every line and returns how many
+ * lines it took.
  */
 static int wrap_counting_lines(const rgame_typeface *typeface, const char *text, float max_width) {
     size_t length = strlen(text);
@@ -428,6 +429,7 @@ static int wrap_counting_lines(const rgame_typeface *typeface, const char *text,
         consumed += fit_length;
 
         ck_assert_float_eq(fit_width, rgame_typeface_measure(typeface, text + offset, fit_length));
+        ck_assert_ptr_null(memchr(text + offset, '\n', fit_length));
         if (fit_width > max_width) {
             ck_assert_ptr_null(memchr(text + offset, ' ', fit_length));
         }
@@ -435,9 +437,13 @@ static int wrap_counting_lines(const rgame_typeface *typeface, const char *text,
         if (offset + fit_length == length) {
             break;
         }
-        ck_assert_int_eq(text[offset + fit_length], ' ');
+        char ended_by = text[offset + fit_length];
+        ck_assert(ended_by == ' ' || ended_by == '\n');
         offset += fit_length + 1;
         consumed += 1;
+        if (offset == length && ended_by == '\n') {
+            break;
+        }
     }
 
     ck_assert_uint_eq(consumed, length);
@@ -608,6 +614,81 @@ START_TEST(german_breaks_into_more_lines_than_its_english_source) {
 
     ck_assert_int_eq(wrap_counting_lines(typeface, english_paragraph, 520.0f), 3);
     ck_assert_int_eq(wrap_counting_lines(typeface, german_paragraph, 520.0f), 4);
+
+    rgame_typeface_close(typeface);
+}
+END_TEST
+
+START_TEST(a_newline_ends_a_line_that_would_fit) {
+    rgame_typeface *typeface = open_test_typeface();
+    const char *text = "The gate\nis shut";
+
+    size_t fit_length = 0;
+    float fit_width = 0.0f;
+    rgame_typeface_fit(typeface, text, strlen(text), 520.0f, &fit_length, &fit_width);
+
+    ck_assert_uint_eq(fit_length, 8);
+    ck_assert_int_eq(text[fit_length], '\n');
+    ck_assert_float_eq(fit_width, rgame_typeface_measure(typeface, "The gate", 8));
+
+    rgame_typeface_close(typeface);
+}
+END_TEST
+
+START_TEST(a_newline_directly_after_an_exact_fit_ends_the_line_there) {
+    /* The newline's own advance would overflow. It still ends the line, rather
+     * than sending the line back to the space before "gate". */
+    rgame_typeface *typeface = open_test_typeface();
+    const char *text = "The gate\nis";
+    float exact = rgame_typeface_measure(typeface, "The gate", 8);
+
+    size_t fit_length = 0;
+    float fit_width = 0.0f;
+    rgame_typeface_fit(typeface, text, strlen(text), exact, &fit_length, &fit_width);
+
+    ck_assert_uint_eq(fit_length, 8);
+    ck_assert_float_eq(fit_width, exact);
+
+    rgame_typeface_close(typeface);
+}
+END_TEST
+
+START_TEST(two_newlines_in_a_row_leave_an_empty_line) {
+    rgame_typeface *typeface = open_test_typeface();
+
+    size_t fit_length = 99;
+    float fit_width = 99.0f;
+    rgame_typeface_fit(typeface, "\nb", 2, 520.0f, &fit_length, &fit_width);
+    ck_assert_uint_eq(fit_length, 0);
+    ck_assert_float_eq(fit_width, 0.0f);
+
+    ck_assert_int_eq(wrap_counting_lines(typeface, "a\n\nb", 520.0f), 3);
+
+    rgame_typeface_close(typeface);
+}
+END_TEST
+
+START_TEST(a_newline_at_the_very_end_adds_no_line) {
+    rgame_typeface *typeface = open_test_typeface();
+
+    ck_assert_int_eq(wrap_counting_lines(typeface, "The gate is shut.\n", 520.0f), 1);
+    ck_assert_int_eq(wrap_counting_lines(typeface, "The gate is shut.\n\n", 520.0f), 2);
+    ck_assert_int_eq(wrap_counting_lines(typeface, "\n", 520.0f), 1);
+
+    rgame_typeface_close(typeface);
+}
+END_TEST
+
+START_TEST(a_word_too_wide_for_the_line_still_ends_at_a_newline) {
+    rgame_typeface *typeface = open_test_typeface();
+    const char *text = "supercalifragilistic\nis long";
+
+    size_t fit_length = 0;
+    float fit_width = 0.0f;
+    rgame_typeface_fit(typeface, text, strlen(text), 20.0f, &fit_length, &fit_width);
+
+    ck_assert_uint_eq(fit_length, strlen("supercalifragilistic"));
+    ck_assert_int_eq(text[fit_length], '\n');
 
     rgame_typeface_close(typeface);
 }
@@ -895,6 +976,11 @@ Suite *font_suite(void) {
     tcase_add_test(tc, fitting_without_a_face_fits_nothing);
     tcase_add_test(tc, wrapping_takes_one_fit_per_line_and_walks_each_line_once);
     tcase_add_test(tc, german_breaks_into_more_lines_than_its_english_source);
+    tcase_add_test(tc, a_newline_ends_a_line_that_would_fit);
+    tcase_add_test(tc, a_newline_directly_after_an_exact_fit_ends_the_line_there);
+    tcase_add_test(tc, two_newlines_in_a_row_leave_an_empty_line);
+    tcase_add_test(tc, a_newline_at_the_very_end_adds_no_line);
+    tcase_add_test(tc, a_word_too_wide_for_the_line_still_ends_at_a_newline);
 
     tcase_add_test(tc, rasterising_a_letter_produces_ink);
     tcase_add_test(tc, rasterising_writes_nothing_outside_the_box_it_was_given);
