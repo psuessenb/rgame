@@ -1,7 +1,7 @@
 # Text measurement, wrapping and a label
 
-**Status.** Steps 0–4 are implemented. Step 5 is detailed. Step 6 is
-deliberately rough and gets re-planned once step 5 has landed.
+**Status.** Steps 0–5 are implemented. Step 6 is deliberately rough and gets
+re-planned before it is implemented.
 
 Read in order:
 
