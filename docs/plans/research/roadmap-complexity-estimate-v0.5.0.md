@@ -42,8 +42,11 @@ the file that needs two of them.
 
 ### Text measurement gates two items, and the write-up already exists
 
+*(Landed after this estimate: the pure typeface moved to `RGame::Util`, and
+`Engine::Paragraph` and `UI::Label` break and draw translated text. What is still
+open is under "Text layout past a label" in [possible-todos.md](../possible-todos.md).)*
 [possible-todos.md, "Text measurement for the engine layer"](../possible-todos.md)
-records the problem and marks its trigger satisfied. Item 4 cannot wrap a line
+recorded the problem and marked its trigger satisfied. Item 4 cannot wrap a line
 without it. Item 6 cannot size a slot to an item name.
 
 That entry weighs two options: hand the engine a measuring object, or move the
