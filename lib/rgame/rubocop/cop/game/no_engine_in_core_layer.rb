@@ -29,9 +29,9 @@ module RuboCop
       # when the mistake gets made.
       #
       # @example
-      #   # bad — Core parsing a file format Engine owns
+      #   # bad — Core building a map Engine owns
       #   def self.load(app, path)
-      #     map = Engine::TileMap.parse(File.read(path))
+      #     map = Engine::TileMap.from_tiled(read(path))
       #     new(app, map)
       #   end
       #

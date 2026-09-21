@@ -3,8 +3,8 @@
 # A tile map built by hand, for specs that draw one without parsing a `.tmx`.
 #
 #   map = StubTileMap.new(
-#     layers: [[1, 2, 0, 3], [0, 0, 4, 0]], above: [false, true],
-#     tileset: StubTileset.new(animations: { 0 => [[0, 100], [1, 100]] })
+#     layers: [[1, 2, 0, 3], [0, 0, 4, 0]], above: [false, true], solid: [3],
+#     animations: { 1 => [[1, 0.1], [2, 0.1]] }, orientations: { [0, 1, 0] => [1, false] }
 #   )
 #
 # `RGame::Core::TileMapRenderer` calls a map by method name and never asks its
@@ -12,58 +12,73 @@
 # rather than assumed: it is run against the same 'a tile map' contract as
 # `RGame::Engine::TileMap` (see stub_tile_map_spec.rb).
 #
-# Layers are flat gid Arrays in reading order, `width * height` long, so a spec
-# can see the map it is describing.
+# Layers are flat tile-id Arrays in reading order, `width * height` long, so a
+# spec can see the map it is describing. `animations` is
+# `{ tile => [[tile, seconds], ...] }`, and `orientations` is
+# `{ [layer, col, row] => [quarter_turns, mirrored] }` for the turned cells.
+#
+# It names no Engine class, because the Core suite loads it too.
 class StubTileMap
-  attr_reader :width, :height, :tile_width, :tile_height, :tileset
+  # One layer, as far as a reader of the map asks about it.
+  Layer = Data.define(:above) do
+    def above? = above
+  end
 
-  def initialize(layers:, tileset:, width: 2, height: 2, tile_width: 16, tile_height: 16,
-                 above: [])
-    @layers = layers
-    @tileset = tileset
+  # How a cell is turned, answering what `TileMap::Orientation` answers.
+  Orientation = Data.define(:quarter_turns, :mirrored) do
+    def mirrored? = mirrored
+    def identity? = quarter_turns.zero? && !mirrored
+  end
+
+  IDENTITY = Orientation.new(quarter_turns: 0, mirrored: false)
+
+  attr_reader :width, :height, :tile_width, :tile_height
+
+  def initialize(layers:, width: 2, height: 2, tile_width: 16, tile_height: 16,
+                 above: [], solid: [], animations: {}, orientations: {})
+    @cells = layers
+    @layers = Array.new(layers.length) { Layer.new(above: above.fetch(it, false)) }
     @width = width
     @height = height
     @tile_width = tile_width
     @tile_height = tile_height
-    @above = above
+    @solid = solid
+    @animations = animations
+    @orientations = orientations.transform_values { |turns, mirrored| Orientation.new(turns, mirrored) }
   end
 
   def layer_count = @layers.length
-  def above_layer?(index) = @above.fetch(index, false)
-  def gid(layer, col, row) = @layers[layer][(row * @width) + col]
+  def layer(index) = @layers.fetch(index)
 
-  def pixel_width = @width * @tile_width
-  def pixel_height = @height * @tile_height
-end
+  def tile(layer, col, row)
+    cells = @cells.fetch(layer)
+    return 0 unless col >= 0 && row >= 0 && col < @width && row < @height
 
-# The tileset half of the same stand-in.
-#
-# `animations` is `{ local_id => [[tile_id, duration_ms], ...] }` — the shape
-# `RGame::Engine::Tileset` parses out of a `.tsx`, spelled as plain Arrays so a spec
-# reads as data rather than as constructor calls.
-class StubTileset
-  attr_reader :firstgid, :animations
-
-  def initialize(firstgid: 1, animations: {})
-    @firstgid = firstgid
-    @animations = animations
+    cells[(row * @width) + col]
   end
 
-  def local_id(gid) = gid - @firstgid
+  def orientation(layer, col, row) = @orientations.fetch([layer, col, row], IDENTITY)
 
-  # The frame showing at `ms`, cycling. Mirrors RGame::Engine::Tileset's own
-  # arithmetic rather than approximating it: a stand-in that rounded differently
-  # would send the renderer's spec chasing a frame the game never shows.
-  def frame_local_id(local, ms)
-    frames = @animations[local]
-    return local unless frames
+  def solid?(tile) = @solid.include?(tile)
 
-    remaining = ms % frames.sum { |_tile_id, duration| duration }
-    frames.each do |tile_id, duration|
-      return tile_id if remaining < duration
+  def animated_tiles = @animations.keys
 
-      remaining -= duration
+  # The frame showing after `elapsed` seconds, looping. Mirrors
+  # RGame::Engine::TileMap's own arithmetic, each frame ending where the
+  # durations before it add up to: a stand-in that rounded differently would
+  # send the renderer's spec chasing a frame the game never shows.
+  def frame_tile(tile, elapsed)
+    frames = @animations[tile] or return tile
+
+    ends = 0.0
+    into = elapsed % frames.sum { |_tile, seconds| seconds }
+    frames.each do |shown, seconds|
+      ends += seconds
+      return shown if into < ends
     end
     frames.last.first
   end
+
+  def pixel_width = @width * @tile_width
+  def pixel_height = @height * @tile_height
 end

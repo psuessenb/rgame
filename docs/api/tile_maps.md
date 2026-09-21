@@ -89,11 +89,11 @@ element:
 | Custom properties | on the map, layers, tiles and objects, with Tiled's types |
 | Object templates | an object placed from a `.tx` gets the template's values, and its own win |
 
-Three things are read and then not drawn yet. `TileMapRenderer` draws every tile
-unturned, draws a hidden layer, and draws every layer at full opacity. The asset
-loader raises for a tileset with a margin or spacing, and for a collection of
-images, because it cannot slice either yet. Per-layer offset, parallax and tint
-are not read.
+Some of what is read is not drawn. `TileMapRenderer` draws every tile unturned,
+draws a hidden layer, and draws every layer at full opacity. The asset loader
+raises for a tileset with a margin or spacing, and for a collection of images,
+because it slices only a sheet of tiles packed edge to edge. Per-layer offset,
+parallax and tint are not read.
 
 ## `RGame::Engine::TileMap`
 
@@ -158,7 +158,7 @@ Tiled's collision editor and draw any shape on the tile. The shape itself is
 ignored: rgame treats a solid tile as a solid square, so the map carries its
 collision and changing which tiles block needs no code.
 
-**`frame_tile(tile, elapsed)` takes seconds**, like every duration in the engine.
+**`frame_tile(tile, elapsed)` takes seconds**, like `dt`.
 The animation loops, and a tile that does not animate answers itself. The time is
 an argument, not a clock read, so pausing is "stop accumulating". Animate a tile in
 Tiled's tile animation editor.

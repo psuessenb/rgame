@@ -30,6 +30,20 @@ RSpec.describe RGame::Engine::TileMap do
 
   def bool_property(name, value) = %(<properties><property name="#{name}" type="bool" value="#{value}"/></properties>)
 
+  # The other side of the contract RGame::Core::TileMapRenderer draws against:
+  # the shape it prescribes, written as Tiled would write it. Local tile 0 is
+  # animated through locals 0 and 1, local 2 has a collision shape, and gid 2
+  # carries the flags Tiled sets for a quarter turn clockwise.
+  def tile_map
+    frames = '<frame tileid="0" duration="100"/><frame tileid="1" duration="100"/>'
+    tiles = %(<tile id="0"><animation>#{frames}</animation></tile><tile id="2">#{solid_shape}</tile>)
+    yield build(layer([1, 0xA0000002, 0, 3]) +
+                layer([0, 0, 4, 0], name: 'canopy', properties: bool_property('above', true)),
+                tilesets: [sheet(tiles: tiles)])
+  end
+
+  it_behaves_like 'a tile map'
+
   describe 'tile ids' do
     let(:map) { build(layer([1, 4, 10, 12]), tilesets: [sheet, sheet(firstgid: 10, name: 'water', count: 3)]) }
 
