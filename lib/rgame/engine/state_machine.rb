@@ -32,6 +32,9 @@ module RGame
     #
     #   save.write(hammer: quest.to_h)
     #   quest = Engine::StateMachine.new(HAMMER, context: hero, from: save.read[:hammer])
+    #
+    # A game's quests normally take a `name:` instead, and `Components::Facts`
+    # saves and restores every named machine with its flags.
     class StateMachine
       extend Signal::DSL
 
@@ -40,7 +43,7 @@ module RGame
       NOTHING = [].freeze
       private_constant :NOTHING
 
-      attr_reader :graph, :context, :facts, :state
+      attr_reader :graph, :context, :facts, :state, :name
 
       # Enters the graph's start state, counts it visited once and runs its
       # `enter:` effect. `context` is the game's object conditions ask; `facts`
@@ -48,20 +51,29 @@ module RGame
       #
       # With `from:`, a Hash `to_h` returned, the machine resumes there instead,
       # running no effect. State names may be Strings, as JSON returns them, and
-      # a nil state resumes the machine ended. `from: nil` starts fresh. Raises `ArgumentError` for a saved state the
-      # graph lacks, and `NoMethodError` listing every Symbol in the graph the
-      # context does not answer.
-      def initialize(graph, context: nil, facts: nil, from: nil)
+      # a nil state resumes the machine ended. `from: nil` starts fresh.
+      #
+      # With `name:`, a Symbol, the machine registers with `facts`, which then
+      # saves and restores it. It resumes from the entry the facts hold for that
+      # name, or starts fresh with none, so `name:` takes the place of `from:`.
+      #
+      # Raises `ArgumentError` for a saved state the graph lacks, for `name:`
+      # without `facts:` or with `from:`, and for a name a machine that has not
+      # ended already holds. Raises `NoMethodError` listing every Symbol in the
+      # graph the context does not answer.
+      def initialize(graph, context: nil, facts: nil, from: nil, name: nil)
         @graph = graph
         @context = context
         @facts = facts
+        @name = name
         @busy = false
+        @watchers = []
+        check_name(from)
         check_symbols
-        if from
-          resume(from)
+        if name
+          facts.register(self) { begin_at(it) }
         else
-          @visits = {}
-          guarded { arrive(graph.start) }
+          begin_at(from)
         end
       end
 
@@ -107,6 +119,55 @@ module RGame
       # Where the machine has got to: the state, nil once ended, and the visits.
       def to_h = { state: @state, visits: @visits.dup }
 
+      # Calls the block with the state now, then after every transition and
+      # every restore of the facts this machine is named in. Returns a handle
+      # for `unwatch`.
+      def watch(&block)
+        @watchers << block
+        yield @state
+        block
+      end
+
+      # Stops calling the block `watch` returned.
+      def unwatch(handle)
+        @watchers.delete(handle)
+        nil
+      end
+
+      # The state and visits a saved Hash names, checked against the graph; the
+      # start state visited once for nil. `Facts#restore` checks every machine
+      # with this before it changes any.
+      #
+      # @api private
+      def parse_saved(saved)
+        check_idle
+        return [@graph.start, { @graph.start => 1 }] if saved.nil?
+        raise ArgumentError, "a saved machine is a Hash, got #{saved.class}" unless saved.is_a?(Hash)
+
+        state = saved.fetch(:state) { raise ArgumentError, "a saved machine has no :state, got #{saved.inspect}" }
+        unless state.nil? || @graph.state?(state.to_sym)
+          raise ArgumentError, "a saved machine names #{state.inspect}, which is no state"
+        end
+
+        [state&.to_sym, saved.fetch(:visits, {}).to_h { |name, count| [name.to_sym, Integer(count)] }]
+      end
+
+      # Puts the machine where `parse_saved` said, running no effect and
+      # telling no one.
+      #
+      # @api private
+      def place(parsed)
+        @state, @visits = parsed
+        self
+      end
+
+      # Calls every `watch` block with the state, as after a restore.
+      #
+      # @api private
+      def notify_watchers
+        @watchers.each { it.call(@state) }
+      end
+
       private
 
       def move(transition)
@@ -114,6 +175,7 @@ module RGame
         from = @state
         transition.to ? arrive(transition.to) : @state = nil
         on_changed_signal.emit(from:, to: @state, transition:)
+        notify_watchers
       end
 
       def arrive(name)
@@ -133,14 +195,22 @@ module RGame
         ask(effect) unless effect.nil?
       end
 
-      def resume(saved)
-        state = saved.fetch(:state) { raise ArgumentError, "from: has no :state, got #{saved.inspect}" }
-        @state = state&.to_sym
-        unless @state.nil? || @graph.state?(@state)
-          raise ArgumentError, "from: names #{state.inspect}, which is no state"
+      def begin_at(saved)
+        if saved
+          place(parse_saved(saved))
+        else
+          @visits = {}
+          guarded { arrive(@graph.start) }
         end
+      end
 
-        @visits = saved.fetch(:visits, {}).to_h { |name, count| [name.to_sym, Integer(count)] }
+      def check_name(from)
+        return if @name.nil?
+        raise TypeError, "a machine's name is a Symbol, got #{@name.inspect} (#{@name.class})" unless @name in Symbol
+        raise ArgumentError, "the machine #{@name.inspect} registers with its facts, so it needs facts:" unless @facts
+        return unless from
+
+        raise ArgumentError, "the machine #{@name.inspect} resumes from its facts, so it takes no from:"
       end
 
       def check_symbols

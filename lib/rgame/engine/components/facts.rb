@@ -23,6 +23,12 @@ module RGame
       # `TypeError`. A Symbol value is refused because JSON brings it back a
       # String, and a comparison against it would fail after every load.
       #
+      # A `StateMachine` built with a `name:` registers here, so `to_h` saves
+      # every flag and every named quest and conversation, and `restore` puts
+      # them all back. A game adds a quest by building it, never by adding a
+      # line to its save. Order does not matter: a machine built after
+      # `restore` resumes from its entry.
+      #
       # Two ways to listen, for two jobs. `on_changed` reports a change made in
       # play, so a listener may act on it, and a restore never fires it. `watch`
       # keeps something in step with one fact: it hears the value at once, then
@@ -37,6 +43,7 @@ module RGame
           super
           @values = {}
           @entries = {}
+          @machines = {}
           @watchers = {}
         end
 
@@ -80,24 +87,52 @@ module RGame
           nil
         end
 
-        # Every fact and every saved machine, frozen, in the shape
-        # `Util::SaveFile#write` takes.
-        def to_h = { values: @values.dup.freeze, machines: @entries.dup.freeze }.freeze
+        # Every fact and every named machine, frozen, in the shape
+        # `Util::SaveFile#write` takes. A machine a restore brought back but no
+        # live machine has claimed is saved as it was.
+        def to_h
+          machines = @entries.merge(@machines.transform_values(&:to_h))
+          { values: @values.dup.freeze, machines: machines.freeze }.freeze
+        end
 
-        # Replaces every fact with those in `saved`, which is what `to_h` returned
-        # or `Util::SaveFile#read` read back; nil clears everything. Checks every
-        # value first, so a value `[]=` would refuse raises and changes nothing.
-        # Emits no `on_changed`, and calls the watchers of each key whose value
-        # differs.
+        # Replaces every fact and every named machine with those in `saved`,
+        # which is what `to_h` returned or `Util::SaveFile#read` read back; nil
+        # clears everything. A live machine with no entry goes back to its start
+        # state, and an entry no machine claims is kept for one built later.
+        #
+        # Checks everything first, so a value `[]=` would refuse, or an entry
+        # naming a state its machine's graph lacks, raises and changes nothing.
+        # Runs no effect and emits no `on_changed`. Calls the watchers of each key
+        # whose value differs, then every named machine's, once all are restored.
         def restore(saved)
           values, entries = _parse(saved)
+          placed = @machines.to_h { |name, machine| [machine, machine.parse_saved(entries[name])] }
           previous = @values
           @values = values
           @entries = entries
+          placed.each { |machine, parsed| machine.place(parsed) }
           (previous.keys | values.keys).each do |key|
             _notify(key) unless previous[key].eql?(values[key])
           end
+          placed.each_key(&:notify_watchers)
           self
+        end
+
+        # Adopts a machine built with a `name:`, yielding the entry it resumes
+        # from: the saved one, or the ended machine it replaces. Raises for a
+        # name a machine that has not ended holds.
+        #
+        # @api private
+        def register(machine)
+          name = machine.name
+          current = @machines[name]
+          if current && !current.ended?
+            raise ArgumentError, "a machine named #{name.inspect} is already running; " \
+                                 'a second may take the name once the first has ended'
+          end
+
+          yield current ? current.to_h : @entries[name]
+          @machines[name] = machine
         end
 
         private
