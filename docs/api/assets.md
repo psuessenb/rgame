@@ -384,7 +384,8 @@ The atlas parses once, at load, and touches nothing again per frame.
 ## Tile maps
 
 `TileMapRenderer` draws a Tiled map. It bakes the static layers once, and draws
-animated tiles each frame, culled to a rectangle of the world.
+animated tiles each frame, culled to a rectangle of the world. An image layer
+draws each frame too, as many copies of its image as meet that rectangle.
 
 ```ruby
 tiles = app.assets.tilemap('map/island.tmx')   # => RGame::Core::TileMapRenderer
@@ -449,7 +450,7 @@ both, installs the type:
 app.assets.add_loader(:tilemap) do |path|
   tiled = RGame::Engine::Tiled::Map.load(path)
   map = RGame::Engine::TileMap.from_tiled(tiled)
-  RGame::Core::TileMapRenderer.new(map, tile_images(tiled, map))
+  RGame::Core::TileMapRenderer.new(map, tile_images(tiled, map), layer_images: layer_images(map))
 end
 ```
 
@@ -457,6 +458,10 @@ end
 them out by tile id as `map.tile_table` says. A sheet is cut with its margin and
 spacing. A collection of images loads one file per tile. The renderer receives
 the same flat Array either way.
+
+`layer_images` loads the image of each image layer, indexed by layer, with `nil`
+for every other layer. A file that is missing raises `Image::LoadError` naming
+it, when the map loads rather than when the layer first draws.
 
 Every `RGame::Game` installs this loader when it is built. A plain
 `RGame::Core::App` has none: its `app.assets` has no `tilemap` accessor, and a

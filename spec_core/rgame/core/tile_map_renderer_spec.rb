@@ -261,6 +261,77 @@ RSpec.describe RGame::Core::TileMapRenderer do
     end
   end
 
+  describe 'an image layer' do
+    let(:sky) { StubImage.new(32, 16) }
+
+    # A 10x10 map of 16px cells whose only layer is an image layer.
+    def draw_sky(cull: [0, 0, 100, 40], images: [sky], visible: true, opacity: 1.0, **placement)
+      map = StubTileMap.new(width: 10, height: 10, layers: [nil], visible: [visible], opacity: [opacity],
+                            image_layers: { 0 => placement })
+      described_class.new(map, tiles, layer_images: images).draw_layer(renderer, 0, *cull)
+      renderer.calls_to(:image_at).map { it.args[1..] }
+    end
+
+    it 'draws its image once, at its offset' do
+      expect(draw_sky(offset_x: 8, offset_y: 4)).to eq([[8, 4]])
+    end
+
+    it 'draws every frame rather than baking' do
+      draw_sky(offset_x: 8, offset_y: 4)
+
+      expect(renderer.calls_to(:recording_draw)).to be_empty
+    end
+
+    it 'repeats along x across the cull rect, starting left of its offset' do
+      expect(draw_sky(offset_x: 8, offset_y: 4, repeat_x: true)).to eq([[-24, 4], [8, 4], [40, 4], [72, 4]])
+    end
+
+    it 'repeats along y across the cull rect' do
+      expect(draw_sky(offset_x: 8, offset_y: 4, repeat_y: true)).to eq([[8, -12], [8, 4], [8, 20], [8, 36]])
+    end
+
+    it 'tiles the cull rect when it repeats along both' do
+      expect(draw_sky(cull: [0, 0, 64, 32], repeat_x: true, repeat_y: true))
+        .to eq([[0, 0], [0, 16], [32, 0], [32, 16]])
+    end
+
+    # However wide the map, a view draws the copies it meets.
+    it 'draws only the copies that meet the cull rect' do
+      expect(draw_sky(cull: [1000, 0, 40, 16], repeat_x: true)).to eq([[992, 0], [1024, 0]])
+    end
+
+    it 'draws nothing when the one copy is outside the cull rect' do
+      expect(draw_sky(cull: [200, 200, 40, 40], offset_x: 8)).to be_empty
+    end
+
+    it 'draws nothing when hidden' do
+      draw_sky(visible: false)
+
+      expect(renderer.calls).to be_empty
+    end
+
+    it 'fades by its opacity' do
+      draw_sky(opacity: 0.5)
+
+      expect(renderer.calls_to(:image_at).first.options[:color]).to eq(RGame::Util::Color.new(255, 255, 255, 128))
+    end
+
+    it 'draws nothing when it shows no image' do
+      expect(draw_sky(images: [])).to be_empty
+    end
+
+    it 'repeats onto the pixels it names, through a real window' do
+      map = StubTileMap.new(width: 1, height: 1, layers: [nil], image_layers: { 0 => { offset_x: 2, repeat_x: true } })
+      frame = RenderedFrame.capture(width: 16, height: 8) do |renderer, app|
+        image = RGame::Core::Image.new(app, PngFixture.write(4, 4) { [255, 0, 0, 255] })
+        described_class.new(map, [], layer_images: [image]).draw_layer(renderer, 0, 0, 0, 16, 8)
+      end
+
+      expect([frame.about?(0, 1, [255, 0, 0, 255]), frame.about?(13, 2, [255, 0, 0, 255]),
+              frame.about?(1, 5, [26, 26, 38, 255])]).to eq([true, true, true])
+    end
+  end
+
   describe 'turned tiles' do
     def baked_calls_for(orientation, image: tiles[1])
       map = StubTileMap.new(layers: [[1, 0, 0, 0]], orientations: { [0, 0, 0] => orientation })

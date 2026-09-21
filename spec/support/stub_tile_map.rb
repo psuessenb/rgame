@@ -19,13 +19,17 @@
 # `{ tile => [[tile, seconds], ...] }`, and `orientations` is
 # `{ [layer, col, row] => [quarter_turns, mirrored] }` for the turned cells.
 # `tile_offsets` is `{ tile => [x, y] }` for the tiles drawn off their cell.
+# `image_layers` is `{ layer => { offset_x:, offset_y:, repeat_x:, repeat_y: } }`,
+# every key optional, and such a layer's entry in `layers` is `nil`.
 #
 # It names no Engine class, because the Core suite loads it too.
 class StubTileMap
   # One layer, as far as a reader of the map asks about it.
-  Layer = Data.define(:above, :visible, :opacity) do
+  Layer = Data.define(:kind, :above, :visible, :opacity, :offset_x, :offset_y, :repeat_x, :repeat_y) do
     def above? = above
     def visible? = visible
+    def repeat_x? = repeat_x
+    def repeat_y? = repeat_y
   end
 
   # How a cell is turned, answering what `TileMap::Orientation` answers.
@@ -41,11 +45,13 @@ class StubTileMap
 
   def initialize(layers:, width: 2, height: 2, tile_width: 16, tile_height: 16,
                  above: [], visible: [], opacity: [], solid: [], animations: {}, orientations: {},
-                 tile_offsets: {})
+                 tile_offsets: {}, image_layers: {})
     @cells = layers
     @layers = Array.new(layers.length) do |index|
-      Layer.new(above: above.fetch(index, false), visible: visible.fetch(index, true),
-                opacity: opacity.fetch(index, 1.0))
+      image = image_layers[index]
+      Layer.new(kind: image ? :image : :tile, above: above.fetch(index, false),
+                visible: visible.fetch(index, true), opacity: opacity.fetch(index, 1.0),
+                **placement(image || {}))
     end
     @width = width
     @height = height
@@ -62,7 +68,7 @@ class StubTileMap
 
   def tile(layer, col, row)
     cells = @cells.fetch(layer)
-    return 0 unless col >= 0 && row >= 0 && col < @width && row < @height
+    return 0 unless cells && col >= 0 && row >= 0 && col < @width && row < @height
 
     cells[(row * @width) + col]
   end
@@ -93,4 +99,11 @@ class StubTileMap
 
   def pixel_width = @width * @tile_width
   def pixel_height = @height * @tile_height
+
+  private
+
+  def placement(image)
+    { offset_x: image.fetch(:offset_x, 0), offset_y: image.fetch(:offset_y, 0),
+      repeat_x: image.fetch(:repeat_x, false), repeat_y: image.fetch(:repeat_y, false) }
+  end
 end

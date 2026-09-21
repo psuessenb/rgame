@@ -101,6 +101,7 @@ element:
 | Tile sheets | cut with their margin and spacing |
 | Collections of images | one image per tile, each at its own size |
 | Drawing offset | every tile of the tileset moves by it, with `y` down |
+| Image layers | the image at the layer's offset, repeated along x, y or both as far as the view reaches |
 
 **A tile stands on its cell's bottom-left corner.** A tile taller than the map's
 cells, such as a tree two cells high, reaches up into the cell above. A turned
@@ -237,7 +238,9 @@ the property draws below, and an `above` property of any other type raises.
 
 `map.image_layers` lists the image layers, each a `TileMap::ImageLayer`: a
 `Layer` that adds `image` (the image's path, or `nil`), `offset_x` and `offset_y`
-in the map's pixels, and `repeat_x?` and `repeat_y?`.
+in the map's pixels, and `repeat_x?` and `repeat_y?`. The asset loader loads each
+layer's image, and the layer draws in its place among the others. Set the image
+and the repeat in the layer's properties in Tiled.
 
 ### Objects
 

@@ -20,8 +20,9 @@
 # A map of one exact shape, because a contract can only assert what it knows is
 # in there:
 #
-#   2 x 2 tiles, 16 px each, two layers, layer 1 flagged "above",
-#   hidden, and at half opacity
+#   2 x 2 tiles, 16 px each, three layers, layer 1 flagged "above",
+#   hidden, and at half opacity, and layer 2 an image layer at (8, 4),
+#   repeated along x but not along y
 #
 #   layer 0 (below):  tile 1  tile 2      layer 1 (above):  0       0
 #                     0       tile 3                        tile 4  0
@@ -50,7 +51,7 @@ RSpec.shared_examples 'a tile map' do
     end
 
     it 'reports how many layers it has' do
-      tile_map { |map| expect(map.layer_count).to eq(2) }
+      tile_map { |map| expect(map.layer_count).to eq(3) }
     end
   end
 
@@ -67,6 +68,21 @@ RSpec.shared_examples 'a tile map' do
 
     it 'says how opaque each layer is' do
       tile_map { |map| expect([map.layer(0).opacity, map.layer(1).opacity]).to eq([1.0, 0.5]) }
+    end
+
+    it 'says what kind each layer is' do
+      tile_map { |map| expect(Array.new(3) { map.layer(it).kind }).to eq(%i[tile tile image]) }
+    end
+
+    it 'says where an image layer draws, and along which axes it repeats' do
+      tile_map do |map|
+        sky = map.layer(2)
+        expect([sky.offset_x, sky.offset_y, sky.repeat_x?, sky.repeat_y?]).to eq([8, 4, true, false])
+      end
+    end
+
+    it 'holds no tile in an image layer' do
+      tile_map { |map| expect(map.tile(2, 0, 0)).to be_zero }
     end
   end
 

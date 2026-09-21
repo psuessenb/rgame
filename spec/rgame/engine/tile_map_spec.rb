@@ -35,13 +35,14 @@ RSpec.describe RGame::Engine::TileMap do
   # animated through locals 0 and 1, local 2 has a collision shape, gid 2
   # carries the flags Tiled sets for a quarter turn clockwise, and the canopy is
   # hidden at half opacity. Tile 4 is the only tile of a second tileset, which
-  # has a drawing offset.
+  # has a drawing offset. The sky is an image layer, repeated along x.
   def tile_map
     frames = '<frame tileid="0" duration="100"/><frame tileid="1" duration="100"/>'
     tiles = %(<tile id="0"><animation>#{frames}</animation></tile><tile id="2">#{solid_shape}</tile>)
-    yield build(layer([1, 0xA0000002, 0, 3]) +
-                layer([0, 0, 4, 0], name: 'canopy', attributes: 'visible="0" opacity="0.5"',
-                                    properties: bool_property('above', true)),
+    canopy = layer([0, 0, 4, 0], name: 'canopy', attributes: 'visible="0" opacity="0.5"',
+                                 properties: bool_property('above', true))
+    sky = '<imagelayer name="sky" offsetx="8" offsety="4" repeatx="1"><image source="sky.png"/></imagelayer>'
+    yield build("#{layer([1, 0xA0000002, 0, 3])}#{canopy}#{sky}",
                 tilesets: [sheet(count: 3, tiles: tiles),
                            sheet(firstgid: 4, name: 'props', count: 1, tiles: '<tileoffset x="2" y="-4"/>')])
   end
