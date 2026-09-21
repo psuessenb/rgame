@@ -979,7 +979,11 @@ data to another, depends on a sibling's add order, or names a layer it may not n
   - `nav_grid` returns the same solidity as an
     [`Engine::NavGrid`](toolbox.md#navgrid--routes-over-a-tile-grid), for planning a
     route instead of resolving a step. It is built on first request and reused.
-  - `tile_width` and `tile_height` turn a world position into a cell.
+  - `tile_width` and `tile_height`, the size of one cell in pixels.
+  - `cell_x(col)`, `cell_y(row)`, `col_at(world_x)` and `row_at(world_y)` convert
+    between cells and world pixels, as [`TileMap`](tile_maps.md#cells-and-pixels)
+    does. `cell_centre_x(col)` and `cell_centre_y(row)` answer the middle of a
+    cell, which is where a [`Navigator`](#navigator) steers to.
   - `solid?(col, row)`, `world_width` and `world_height`.
   - `tilemap_id` and `elapsed`, which the layers read.
   - `layer_count`, `layer(index)`, `layer_index(name_or_path)` and

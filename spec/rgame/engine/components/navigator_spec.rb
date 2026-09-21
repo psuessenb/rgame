@@ -4,7 +4,7 @@ RSpec.describe RGame::Engine::Components::Navigator do
   # Maps are drawn as rows of text, '#' solid and anything else open, over 16 px tiles, and
   # mounted on the scene as a real TileWorld: what a navigator plans over is the world's
   # NavGrid, and what it smooths against is the world's TileBlockers, so both are the real
-  # classes. Only the parsed map underneath is a double.
+  # classes, and so is the map underneath, built from the rows by WalledTileMap.
   def tile = 16
 
   # A town-shaped fence: full width, one gap three tiles wide, a few trees either side.
@@ -60,13 +60,7 @@ RSpec.describe RGame::Engine::Components::Navigator do
   def dt = 1.0 / 60
 
   def mount(rows)
-    map = instance_double(RGame::Engine::TileMap, width: rows.first.length, height: rows.length,
-                                                  tile_width: tile, tile_height: tile,
-                                                  pixel_width: rows.first.length * tile,
-                                                  pixel_height: rows.length * tile)
-    allow(map).to receive(:solid_tile?) do |col, row|
-      row.between?(0, rows.length - 1) && col.between?(0, rows.first.length - 1) && rows[row][col] == '#'
-    end
+    map = WalledTileMap.build(rows, tile: tile)
     scene.add_component(RGame::Engine::Components::TileWorld.new(map: map, tilemap_id: :level))
   end
 

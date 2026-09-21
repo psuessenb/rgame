@@ -14,7 +14,7 @@ module RGame
     #
     # ## It draws in world coordinates
     #
-    # A tile at column 3 is drawn at `3 * tile_width`, and getting it onto the
+    # A tile at column 3 is drawn at `map.cell_x(3)`, and getting it onto the
     # screen is the caller's transform — the same deal every other drawable
     # gets. The rectangle passed in is therefore a **cull rect** and nothing
     # else: which part of the world is worth drawing.
@@ -84,8 +84,9 @@ module RGame
     # What it calls is the 'a tile map' contract in
     # `spec/support/shared_examples/`: `layer_count`, `layer(i).visible?`,
     # `opacity` and `kind`, an image layer's `offset_x`, `offset_y`, `repeat_x?`
-    # and `repeat_y?`, `width`, `height`, `tile_width`, `tile_height`, `tile`,
-    # `orientation`, `tile_offset`, `animated_tiles` and `frame_tile`.
+    # and `repeat_y?`, `width`, `height`, `cell_x`, `cell_y`, `col_at`,
+    # `row_at`, `tile`, `orientation`, `tile_offset`, `animated_tiles` and
+    # `frame_tile`.
     class TileMapRenderer
       # The map this was built from. A scene reads it for collision and world
       # bounds, which are its business rather than this class's.
@@ -206,16 +207,13 @@ module RGame
       end
 
       def draw_animated(renderer, tiles, tint, cull_x, cull_y, cull_width, cull_height, elapsed)
-        tile_width = @map.tile_width
-        tile_height = @map.tile_height
-
-        col_start = cull_x.fdiv(tile_width).floor
-        row_start = cull_y.fdiv(tile_height).floor
-        col_end = (cull_x + cull_width).fdiv(tile_width).ceil
-        row_end = (cull_y + cull_height).fdiv(tile_height).ceil
+        col_first = @map.col_at(cull_x)
+        row_first = @map.row_at(cull_y)
+        far_x = cull_x + cull_width
+        far_y = cull_y + cull_height
 
         tiles.each do |col, row, tile, orientation|
-          next if col < col_start || col >= col_end || row < row_start || row >= row_end
+          next if col < col_first || row < row_first || @map.cell_x(col) >= far_x || @map.cell_y(row) >= far_y
 
           draw_tile(renderer, @map.frame_tile(tile, elapsed), col, row, orientation, tint)
         end
@@ -224,8 +222,8 @@ module RGame
       def draw_tile(renderer, tile, col, row, orientation, tint)
         image = @tiles[tile]
         offset_x, offset_y = @map.tile_offset(tile)
-        x = (col * @map.tile_width) + offset_x
-        y = ((row + 1) * @map.tile_height) - image.height + offset_y
+        x = @map.cell_x(col) + offset_x
+        y = @map.cell_y(row + 1) - image.height + offset_y
         return renderer.image_at(image, x, y, color: tint) if orientation.identity?
 
         turns = orientation.quarter_turns

@@ -112,6 +112,11 @@ class StubTileMap
   def pixel_width = @width * @tile_width
   def pixel_height = @height * @tile_height
 
+  def cell_x(col) = col * @tile_width
+  def cell_y(row) = row * @tile_height
+  def col_at(world_x) = (world_x / @tile_width).floor
+  def row_at(world_y) = (world_y / @tile_height).floor
+
   private
 
   def placement(image)

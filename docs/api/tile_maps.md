@@ -183,6 +183,20 @@ Tiled's tile animation editor.
 properties, as a frozen `[x, y]` in pixels with `y` down. A tile whose tileset
 has none answers `[0, 0]`.
 
+### Cells and pixels
+
+```ruby
+map.cell_x(12)       # => 192 — column 12's left edge, in world pixels, on 16 px tiles
+map.cell_y(7)        # => 112 — row 7's top edge
+map.col_at(200.5)    # => 12 — the column holding that x
+map.row_at(-0.5)     # => -1 — floored, so left of or above the map is negative
+```
+
+**These four are the only conversions between cells and pixels.** The renderer,
+`solid_at?` and [`TileWorld`](components.md#tileworld) all call them. They answer for
+any cell, inside the map or not: `cell_x(map.width)` is the map's right edge. A point
+on a cell's left or top edge is in that cell.
+
 ### Solidity
 
 ```ruby
@@ -192,8 +206,8 @@ map.solid_at?(200.5, 116.0)     # the same, from a world position in pixels
 
 **A cell is solid when any layer holds a solid tile there**, a hidden layer
 included: hiding a layer in Tiled changes how it draws, not what blocks.
-`solid_at?(world_x, world_y)` divides by the tile size and asks `solid_tile?` for
-that cell. **Outside the map is not solid.** Keep actors inside with
+`solid_at?(world_x, world_y)` asks `solid_tile?` about the cell holding that
+point. **Outside the map is not solid.** Keep actors inside with
 `blocked_by: [:bounds]` on their mover.
 
 Actors do not call these per step. [`TileWorld`](components.md#tileworld) reads
@@ -306,8 +320,9 @@ A `Properties` is frozen and compares by its contents. "No properties" is
 names `TileMap`. rgame's own suite states that contract in
 `spec/support/shared_examples/a_tile_map.rb`. It checks both `TileMap` and the
 spec stand-in `StubTileMap` against it. The contract covers `layer_count`,
-`layer`, `width`, `height`, `tile_width`, `tile_height`, `tile`, `orientation`,
-`solid?`, `animated_tiles` and `frame_tile`.
+`layer`, `layer_index`, `width`, `height`, `tile_width`, `tile_height`, `cell_x`,
+`cell_y`, `col_at`, `row_at`, `tile`, `orientation`, `solid?`, `tile_offset`,
+`animated_tiles` and `frame_tile`.
 
 A spec that needs a map but no files parses a `.tmx` String with its tilesets
 embedded, as [above](#loading-a-map).

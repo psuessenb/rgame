@@ -60,10 +60,23 @@ module RGame
         def world_width = @map.pixel_width
         def world_height = @map.pixel_height
 
-        # The size of one cell, in pixels — what turns a world position into the cell
-        # #nav_grid plans over.
+        # The size of one cell, in pixels.
         def tile_width = @map.tile_width
         def tile_height = @map.tile_height
+
+        # A cell's left and top edges in world pixels, and the cell holding a world
+        # position, as TileMap#cell_x, #cell_y, #col_at and #row_at answer them. The
+        # cells are the ones #nav_grid plans over and #solid? answers for.
+        def cell_x(col) = @map.cell_x(col)
+        def cell_y(row) = @map.cell_y(row)
+        def col_at(world_x) = @map.col_at(world_x)
+        def row_at(world_y) = @map.row_at(world_y)
+
+        # The middle of a cell in world pixels: where a Navigator steers to, and where
+        # a thing standing on the cell stands. Two methods rather than one pair, so
+        # reading one allocates nothing.
+        def cell_centre_x(col) = (@map.cell_x(col) + @map.cell_x(col + 1)) / 2.0
+        def cell_centre_y(row) = (@map.cell_y(row) + @map.cell_y(row + 1)) / 2.0
 
         def layer_count = @map.layer_count
 

@@ -61,6 +61,19 @@ RSpec.describe RGame::Engine::Components::TileWorld do
     end
   end
 
+  describe 'cells and pixels' do
+    # Not square, so a forward that crossed x and y would show.
+    let(:map) { StubTileMap.new(layers: [[1, 2, 0, 3]], tile_width: 16, tile_height: 8) }
+
+    it "answers a cell's edges and the cell holding a point, as the map does" do
+      expect([world.cell_x(3), world.cell_y(3), world.col_at(40), world.row_at(40)]).to eq([48, 24, 2, 5])
+    end
+
+    it "puts a cell's centre halfway across it" do
+      expect([world.cell_centre_x(3), world.cell_centre_y(3), world.cell_centre_x(-1)]).to eq([56.0, 28.0, -8.0])
+    end
+  end
+
   # It no longer resolves a step. What it owns is the grid as a blocker source, and the
   # actor that wants to be stopped by it borrows this and resolves for itself — see
   # Components::CharacterBody, which builds its own Engine::CollisionSystem.

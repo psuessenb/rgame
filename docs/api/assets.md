@@ -399,7 +399,7 @@ renderer.tilemap('map/island.tmx', 1, cull_x, cull_y, cull_w, cull_h, elapsed: s
 mounts one node per layer and draws it.
 
 **Tiles draw in world coordinates.** A tile at column 3 lands at
-`3 * tile_width`. The caller's transform, usually a `WorldView`'s camera, puts it
+`map.cell_x(3)`. The caller's transform, usually a `WorldView`'s camera, puts it
 on screen. The rectangle is only a **cull rect**: the part of the world worth
 drawing. A camera supplies it but does not move the result, so one map can be
 drawn through several cameras in one frame.
