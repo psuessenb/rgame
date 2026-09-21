@@ -27,6 +27,13 @@ RSpec.describe RuboCop::Cop::Game::NoLiteralText, :config do
       RUBY
     end
 
+    it 'flags a String literal wrapped into lines with wrap' do
+      expect_offense(<<~RUBY, msg: described_class::MSG)
+        lines = typeface.wrap('The gate is shut.', 300)
+                              ^^^^^^^^^^^^^^^^^^^ %{msg}
+      RUBY
+    end
+
     it 'flags it on any receiver, outside a draw method as well' do
       expect_offense(<<~RUBY, msg: described_class::MSG)
         def draw

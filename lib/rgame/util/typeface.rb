@@ -11,6 +11,7 @@ module RGame
     #   face = RGame::Util::Typeface.default(18)
     #   face.height                    # => 18
     #   face.text_width('Score: 1200') # => 86.88...
+    #   face.wrap(paragraph, 180)      # => ['The gate is shut for the', 'night, traveller.']
     #
     #   RGame::Util::Typeface.new('assets/pixel.ttf', 16)
     #
@@ -18,6 +19,9 @@ module RGame
     # size, to the last fraction of a pixel. Both extensions compile the same C over the
     # same bytes, and a spec compares the two string for string. So layout can happen in
     # `update`, or in a headless spec, and still be what reaches the screen.
+    #
+    # `wrap` breaks at spaces only, with the same walk, so every line it returns
+    # measures what `text_width` says it does.
     #
     # Kerning is applied, and malformed UTF-8 costs one replacement glyph rather than the
     # rest of the string.

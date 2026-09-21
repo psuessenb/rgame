@@ -108,6 +108,45 @@ static VALUE typeface_text_width(VALUE self, VALUE string) {
     return DBL2NUM(width);
 }
 
+/*
+ * #wrap(string, max_width) — the lines the string breaks into at `max_width`
+ * pixels, one String per line.
+ *
+ * Lines break at spaces, and each break takes the space it replaced, so the
+ * lines joined with one space give back the string. Every line measures no
+ * wider than `max_width`, except a single word wider than the whole line,
+ * which comes back whole. An empty string has no lines.
+ */
+static VALUE typeface_wrap(VALUE self, VALUE string, VALUE max_width) {
+    const rgame_typeface *typeface = typeface_unwrap(self);
+    StringValue(string);
+    float width = (float)NUM2DBL(max_width);
+
+    VALUE lines = rb_ary_new();
+    long length = RSTRING_LEN(string);
+    if (length == 0) {
+        return lines;
+    }
+
+    long offset = 0;
+    for (;;) {
+        size_t fit_length = 0;
+        float fit_width = 0.0f;
+        rgame_typeface_fit(typeface, RSTRING_PTR(string) + offset, (size_t)(length - offset),
+                           width, &fit_length, &fit_width);
+        rb_ary_push(lines, rb_str_subseq(string, offset, (long)fit_length));
+
+        offset += (long)fit_length;
+        if (offset == length) {
+            break;
+        }
+        offset += 1;
+    }
+
+    RB_GC_GUARD(string);
+    return lines;
+}
+
 static VALUE typeface_inspect(VALUE self) {
     rgame_typeface_ref *ref;
     TypedData_Get_Struct(self, rgame_typeface_ref, &typeface_data_type, ref);
@@ -129,5 +168,6 @@ void rgame_init_typeface(VALUE mUtil) {
     rb_define_method(cTypeface, "initialize", typeface_initialize, 3);
     rb_define_method(cTypeface, "height", typeface_height, 0);
     rb_define_method(cTypeface, "text_width", typeface_text_width, 1);
+    rb_define_method(cTypeface, "wrap", typeface_wrap, 2);
     rb_define_method(cTypeface, "inspect", typeface_inspect, 0);
 }
