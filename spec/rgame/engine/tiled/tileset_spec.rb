@@ -108,7 +108,7 @@ RSpec.describe RGame::Engine::Tiled::Tileset do
     it 'has an empty class and EMPTY properties when it states neither' do
       tile = parse(%(#{sheet}<tile id="2"/>)).tile(2)
 
-      expect([tile.class_name, tile.properties]).to eq(['', RGame::Engine::Tiled::Properties::EMPTY])
+      expect([tile.class_name, tile.properties]).to eq(['', RGame::Engine::Properties::EMPTY])
     end
 
     it 'reads its properties, with file properties resolved against the tileset' do
@@ -230,30 +230,5 @@ RSpec.describe RGame::Engine::Tiled::Tileset do
     tileset = parse(%(#{sheet}<tile id="2"/>))
 
     expect([tileset, tileset.tiles, tileset.tile(2)]).to all(be_frozen)
-  end
-
-  # Temporary: deleted in step 4 with Engine::Tileset. Until then it pins that
-  # the new parse reads the shipped tileset as the old one does.
-  describe 'examples/assets/tileset.tsx, against Engine::Tileset' do
-    let(:path) { File.expand_path('../../../../examples/assets/tileset.tsx', __dir__) }
-    let(:tileset) { described_class.load(path) }
-    let(:old) { RGame::Engine::Tileset.parse(File.read(path), firstgid: 1) }
-
-    it 'reads the same geometry, and the image beside the .tsx' do
-      expect([tileset.columns, tileset.tile_width, tileset.tile_height, tileset.image.source])
-        .to eq([old.columns, old.tile_width, old.tile_height, File.join(File.dirname(path), old.image_source)])
-    end
-
-    it 'counts 132 tiles' do
-      expect(tileset.tile_count).to eq(132)
-    end
-
-    it 'finds the same animated tiles' do
-      expect(tileset.tiles.values.select(&:animated?).map(&:id)).to match_array(old.animated_ids)
-    end
-
-    it 'finds the same solid tiles' do
-      expect(tileset.tiles.values.reject { it.collision_shapes.empty? }.map(&:id)).to match_array(old.solid_ids.to_a)
-    end
   end
 end

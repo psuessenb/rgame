@@ -447,17 +447,21 @@ both, installs the type:
 
 ```ruby
 app.assets.add_loader(:tilemap) do |path|
-  map, image_path = RGame::Engine::TileMap.load(path)
-  tiles = app.assets.image(image_path).tiles(map.tileset.tile_width,
-                                             map.tileset.tile_height)
-  RGame::Core::TileMapRenderer.new(map, tiles)
+  tiled = RGame::Engine::Tiled::Map.load(path)
+  map = RGame::Engine::TileMap.from_tiled(tiled)
+  RGame::Core::TileMapRenderer.new(map, tile_images(tiled, map))
 end
 ```
+
+`tile_images` loads each tileset's sheet through the asset manager, slices it,
+and lays the slices out by tile id as `map.tile_table` says. It raises for a
+tileset it cannot slice: a collection of images, or a sheet with a margin or
+spacing.
 
 Every `RGame::Game` installs this loader when it is built. A plain
 `RGame::Core::App` has none: its `app.assets` has no `tilemap` accessor, and a
 tilemap draw id raises `KeyError`. A clear error beats a half-working subsystem.
 
 `TileMapRenderer#map` returns the parsed map, for the scene's own collision and
-world-bounds queries. [Tile maps](tile_maps.md) documents `TileMap` and `Tileset`,
-and which Tiled features rgame reads.
+world-bounds queries. [Tile maps](tile_maps.md) documents `TileMap`, and which
+Tiled features rgame reads.

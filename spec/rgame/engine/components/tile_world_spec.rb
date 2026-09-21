@@ -3,7 +3,7 @@
 RSpec.describe RGame::Engine::Components::TileWorld do
   subject(:world) { described_class.new(map: map, tilemap_id: :level, cameras: [camera]) }
 
-  let(:map) { StubTileMap.new(layers: [[1, 2, 0, 3]], tileset: StubTileset.new) }
+  let(:map) { StubTileMap.new(layers: [[1, 2, 0, 3]]) }
 
   # A verified double: the component writes the map's bounds into every camera
   # it is given, and a double catches either setter being renamed.

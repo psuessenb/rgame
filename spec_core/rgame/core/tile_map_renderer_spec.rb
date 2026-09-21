@@ -11,45 +11,42 @@
 RSpec.describe RGame::Core::TileMapRenderer do
   let(:renderer) { FakeRenderer.new }
 
-  # Tile images identifiable by index, so a drawn tile says which one it was.
+  # Tile images identifiable by tile id, so a drawn tile says which one it was.
   let(:tiles) { Array.new(8) { |index| StubImage.new(16, 16, region: [index, 0, 16, 16]) } }
-
-  def tileset(animations: {}) = StubTileset.new(firstgid: 1, animations: animations)
 
   # 2x2, two layers. Layer 0 has three tiles, layer 1 has one.
   def two_layer_map(animations: {})
-    StubTileMap.new(layers: [[1, 2, 0, 3], [0, 0, 4, 0]], above: [false, true],
-                    tileset: tileset(animations: animations))
+    StubTileMap.new(layers: [[1, 2, 0, 3], [0, 0, 4, 0]], above: [false, true], animations: animations)
   end
 
-  # The local ids baked into the recording the last draw replayed.
+  # The tile ids baked into the recording the last draw replayed.
   def baked_ids
     recording = renderer.calls_to(:recording_draw).last.args.first
     recording.calls_to(:image_at).map { |call| call.args.first.region.first }
   end
 
-  # The local ids drawn straight into the frame, outside any recording.
+  # The tile ids drawn straight into the frame, outside any recording.
   def drawn_ids = renderer.calls_to(:image_at).map { |call| call.args.first.region.first }
 
   describe 'one layer at a time' do
     it 'bakes only that layer' do
       described_class.new(two_layer_map, tiles).draw_layer(renderer, 0, 0, 0, 64, 64)
 
-      # Layer 0's gids 1, 2 and 3 are local 0, 1 and 2. Layer 1's gid 4 belongs
-      # to another node and must not appear.
-      expect(baked_ids).to contain_exactly(0, 1, 2)
+      # Layer 0 holds tiles 1, 2 and 3. Layer 1's tile 4 belongs to another
+      # node and must not appear.
+      expect(baked_ids).to contain_exactly(1, 2, 3)
     end
 
     it 'bakes the next layer on its own too' do
       described_class.new(two_layer_map, tiles).draw_layer(renderer, 1, 0, 0, 64, 64)
 
-      expect(baked_ids).to eq([3])
+      expect(baked_ids).to eq([4])
     end
 
     it 'draws an empty layer as an empty recording rather than refusing' do
       # A spacer layer in Tiled is ordinary, and every layer index has to keep
       # meaning the same thing — skipping one would shift all the rest.
-      map = StubTileMap.new(layers: [[0, 0, 0, 0]], tileset: tileset)
+      map = StubTileMap.new(layers: [[0, 0, 0, 0]])
       described_class.new(map, tiles).draw_layer(renderer, 0, 0, 0, 64, 64)
 
       expect(baked_ids).to be_empty
@@ -62,8 +59,8 @@ RSpec.describe RGame::Core::TileMapRenderer do
     end
 
     it 'skips empty tiles' do
-      # gid 0 is "nothing here". Drawing it would put tile 255 — or whatever
-      # local_id(0) works out to — across every hole in the map.
+      # Tile 0 is "nothing here". Drawing it would put whatever sits at index 0
+      # of the images across every hole in the map.
       described_class.new(two_layer_map, tiles).draw_layer(renderer, 0, 0, 0, 64, 64)
 
       expect(baked_ids.length).to eq(3)
@@ -123,14 +120,14 @@ RSpec.describe RGame::Core::TileMapRenderer do
   end
 
   describe 'animated tiles' do
-    let(:animations) { { 0 => [[0, 100], [1, 100]] } }
+    let(:animations) { { 1 => [[1, 0.1], [2, 0.1]] } }
 
     it 'leaves them out of the bake' do
       described_class.new(two_layer_map(animations: animations), tiles)
                      .draw_layer(renderer, 0, 0, 0, 64, 64)
 
-      # Local 0 is animated; 1 and 2 are not.
-      expect(baked_ids).to contain_exactly(1, 2)
+      # Tile 1 is animated; 2 and 3 are not.
+      expect(baked_ids).to contain_exactly(2, 3)
     end
 
     it 'draws them into the frame instead, at their world position' do
@@ -141,15 +138,15 @@ RSpec.describe RGame::Core::TileMapRenderer do
     end
 
     it 'follows elapsed rather than a clock' do
-      # Two 100 ms frames. Elapsed is in seconds, and a spec picks the frame it
-      # wants instead of stubbing time.
+      # Two 0.1 s frames. A spec picks the frame it wants instead of stubbing
+      # time.
       map = described_class.new(two_layer_map(animations: animations), tiles)
 
       map.draw_layer(renderer, 0, 0, 0, 64, 64, elapsed: 0.0)
       map.draw_layer(renderer, 0, 0, 0, 64, 64, elapsed: 0.15)
       map.draw_layer(renderer, 0, 0, 0, 64, 64, elapsed: 0.25)
 
-      expect(drawn_ids).to eq([0, 1, 0])
+      expect(drawn_ids).to eq([1, 2, 1])
     end
 
     it 'stands still when elapsed does not move' do
@@ -158,7 +155,7 @@ RSpec.describe RGame::Core::TileMapRenderer do
       map = described_class.new(two_layer_map(animations: animations), tiles)
       3.times { map.draw_layer(renderer, 0, 0, 0, 64, 64, elapsed: 0.15) }
 
-      expect(drawn_ids).to eq([1, 1, 1])
+      expect(drawn_ids).to eq([2, 2, 2])
     end
 
     it 'draws them in world coordinates, like the baked layer' do
@@ -170,8 +167,7 @@ RSpec.describe RGame::Core::TileMapRenderer do
     end
 
     it 'draws them at the layer base, like the baked tiles beside them' do
-      map = StubTileMap.new(layers: [[0, 0, 0, 0], [1, 0, 0, 0]],
-                            tileset: tileset(animations: animations))
+      map = StubTileMap.new(layers: [[0, 0, 0, 0], [1, 0, 0, 0]], animations: animations)
       described_class.new(map, tiles).draw_layer(renderer, 1, 0, 0, 64, 64)
 
       expect(renderer.calls_to(:image_at).first.options[:z]).to be_zero
@@ -182,8 +178,7 @@ RSpec.describe RGame::Core::TileMapRenderer do
     # 10x10 of 16px tiles, every one animated so every one is drawn
     # individually and therefore visible to these assertions.
     def wide_map
-      StubTileMap.new(width: 10, height: 10, layers: [Array.new(100, 1)],
-                      tileset: tileset(animations: { 0 => [[0, 100]] }))
+      StubTileMap.new(width: 10, height: 10, layers: [Array.new(100, 1)], animations: { 1 => [[1, 0.1]] })
     end
 
     # The [col, row] of each animated tile drawn, recovered from its position.
@@ -225,14 +220,13 @@ RSpec.describe RGame::Core::TileMapRenderer do
     # A 2x2 map of 16px tiles, every tile solid white, drawn with no animation
     # so the whole thing goes through the baked recording.
     def white_map
-      StubTileMap.new(width: 2, height: 2, layers: [[1, 1, 1, 1]],
-                      tileset: StubTileset.new(firstgid: 1))
+      StubTileMap.new(width: 2, height: 2, layers: [[1, 1, 1, 1]])
     end
 
     def draw_map_at(dx, dy)
       RenderedFrame.capture(width: 64, height: 64) do |renderer, app|
         image = RGame::Core::Image.new(app, PngFixture.write(16, 16) { [255, 255, 255, 255] })
-        map = described_class.new(white_map, Array.new(4) { image })
+        map = described_class.new(white_map, [nil, image])
         renderer.translated(dx, dy) { map.draw_layer(renderer, 0, 0, 0, 64, 64) }
       end
     end
@@ -254,7 +248,7 @@ RSpec.describe RGame::Core::TileMapRenderer do
     it 'replays one bake under two transforms in a single frame' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, app|
         image = RGame::Core::Image.new(app, PngFixture.write(16, 16) { [255, 255, 255, 255] })
-        map = described_class.new(white_map, Array.new(4) { image })
+        map = described_class.new(white_map, [nil, image])
         renderer.clipped(0, 0, 64, 32) do
           renderer.translated(0, 0) { map.draw_layer(renderer, 0, 0, 0, 64, 64) }
         end

@@ -8,12 +8,14 @@ module RGame
     # unit and coordinate the file states. `TileMap` turns it into what a game
     # reads at runtime, and nothing else names it.
     #
-    # @api private — until the runtime view hands its parts to a game, nothing
-    # outside the engine can reach one.
+    # @api private — a game reads a file with `Tiled::Map.load` and hands the
+    # result straight to `TileMap.from_tiled`; nothing else here is for a game.
     module Tiled
       # A file Tiled wrote that rgame refuses to read, or cannot. The message
       # names the element and, where it is known, the file.
       class FormatError < StandardError; end
+
+      PARSER_VERSION = 1
 
       GID_MASK = 0x0FFFFFFF
 

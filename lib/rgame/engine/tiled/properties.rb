@@ -2,16 +2,13 @@
 
 require_relative '../tiled'
 require_relative 'attributes'
+require_relative '../properties'
 
 module RGame
   module Engine
     module Tiled
-      # The custom properties Tiled attaches to a map, layer, tileset, tile or
-      # object, cast to Ruby types when the file is parsed.
-      #
-      #   props['above']         # => true, a boolean rather than the String "true"
-      #   props.fetch('damage')  # => 10, or KeyError naming the property
-      #   props.fetch('speed', 1.0)
+      # Reads a `<properties>` element into an `Engine::Properties`, casting
+      # each value by the type Tiled gives it.
       #
       # | Tiled type | Ruby |
       # |---|---|
@@ -22,7 +19,7 @@ module RGame
       # | `color` | `Util::Color`, or `nil` when Tiled has no colour to write |
       # | `file` | `String`, resolved relative to the file that named it |
       # | `object` | `Integer` — an object id, left unresolved |
-      # | `class` | `Properties`, nested |
+      # | `class` | `Engine::Properties`, nested |
       #
       # Casting at parse time is what lets a caller use a value without
       # checking what it is: a `bool` read as a String would be truthy when it
@@ -30,24 +27,18 @@ module RGame
       #
       # A class member left at its default value is absent. Tiled writes only
       # the members that differ, and keeps the defaults in the project file,
-      # which rgame does not read — so a game reads such a member with
-      # `fetch(name, default)`.
-      #
-      # A `Properties` is frozen, and a missing `<properties>` element parses to
-      # `EMPTY`, never `nil`.
-      class Properties
-        include Enumerable
-
+      # which rgame does not read.
+      module Properties
         # Builds the bag from a `<properties>` REXML element, or from `nil`.
         # `source_path` is the file the element came from; a `file` property
         # resolves against its directory, and stays as written without one.
         def self.parse(element, source_path: nil)
-          return EMPTY unless element
+          return Engine::Properties::EMPTY unless element
 
           values = element.get_elements('property').to_h do |property|
             [property.attributes['name'], cast(property, source_path)]
           end
-          new(values)
+          Engine::Properties.new(values)
         end
 
         def self.cast(property, source_path)
@@ -91,37 +82,6 @@ module RGame
           raise FormatError, "property '#{property.attributes['name']}'#{where} (#{value.inspect}) #{problem}"
         end
         private_class_method :cast, :number, :bool, :color, :refuse
-
-        def initialize(values)
-          @values = values.dup.freeze
-          freeze
-        end
-
-        EMPTY = new({})
-
-        def [](name) = @values[name]
-
-        # The value of `name`, or `default` when there is none. With no default,
-        # a missing property raises `KeyError` naming it.
-        def fetch(name, *default)
-          @values.fetch(name, *default)
-        rescue KeyError
-          names = @values.empty? ? 'none' : @values.keys.join(', ')
-          raise KeyError.new("no custom property '#{name}' (has: #{names})", receiver: self, key: name)
-        end
-
-        def key?(name) = @values.key?(name)
-
-        def each(&) = @values.each(&)
-
-        def to_h = @values
-
-        def empty? = @values.empty?
-
-        def ==(other) = other.is_a?(Properties) && to_h == other.to_h
-        alias eql? ==
-
-        def hash = @values.hash
       end
     end
   end

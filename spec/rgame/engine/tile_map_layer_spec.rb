@@ -6,7 +6,7 @@ RSpec.describe RGame::Engine::TileMapLayer do
   # have, and the one .mount reads to decide where the actors go.
   let(:map) do
     StubTileMap.new(layers: [[1, 2, 0, 3], [0, 0, 0, 0], [4, 0, 0, 0]],
-                    above: [false, false, true], tileset: StubTileset.new)
+                    above: [false, false, true])
   end
   let(:world) { RGame::Engine::Components::TileWorld.new(map: map, tilemap_id: :level) }
   let(:camera) { RGame::Engine::Camera.new.center_on(500, 400) }
@@ -76,11 +76,14 @@ RSpec.describe RGame::Engine::TileMapLayer do
       expect(order).to eq([0, 1, :actors, 2])
     end
 
-    it 'puts the actors on top when the map flags no layer above' do
-      allow(map).to receive(:above_layer?).and_return(false)
-      actors = mount
+    context 'when the map flags no layer above' do
+      let(:map) { StubTileMap.new(layers: [[1, 2, 0, 3], [0, 0, 0, 0], [4, 0, 0, 0]]) }
 
-      expect(scene.children.grep(described_class).map(&:z)).to all(be < actors.z)
+      it 'puts the actors on top' do
+        actors = mount
+
+        expect(scene.children.grep(described_class).map(&:z)).to all(be < actors.z)
+      end
     end
 
     it 'takes an explicit layer to slip under, for a map that wants a different gap' do

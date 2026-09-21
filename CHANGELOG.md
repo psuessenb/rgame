@@ -41,15 +41,45 @@ index, not the argument.
   `UI::Label`, turned by Enter and by a timer. Its tables hold the story as one
   line, and German takes a page more than English. See
   [docs/api/examples.md](docs/api/examples.md#intro).
+- **A Tiled map can use what Tiled writes.** A map may have several tilesets,
+  embedded or in `.tsx` files, any layer encoding but zstd, group, image and
+  object layers, an infinite size, and objects placed from templates. A map
+  rgame cannot read raises `RGame::Engine::Tiled::FormatError` naming the file.
+  See [docs/api/tile_maps.md](docs/api/tile_maps.md#what-rgame-reads-from-tiled).
+- **A tile map says what its tiles, layers and objects are.** `TileMap` answers
+  `orientation`, `tile_class`, `tile_properties`, `layer`, `layer_index`,
+  `image_layers` and `objects`, which are `RGame::Engine::MapObject`s in the
+  game's coordinates. Custom properties are `RGame::Engine::Properties`. See
+  [docs/api/tile_maps.md](docs/api/tile_maps.md).
 
 ### Changed
+
+- **A tile map is built from a parsed file.** `TileMap.load` and
+  `TileMap.parse` are gone. Write
+  `TileMap.from_tiled(RGame::Engine::Tiled::Map.load(path))`, or
+  `Tiled::Map.parse(string)` for a map held in a String.
+- **A cell holds a tile id, not a gid.** Ids start at 1 across every tileset.
+  `map.gid(layer, col, row)` becomes `map.tile(layer, col, row)`, and
+  `map.above_layer?(index)` becomes `map.layer(index).above?`. An `above`
+  property that is not a bool now raises.
+- **`TileMapRenderer.new(map, tiles)` takes images indexed by tile id**, with
+  nothing at 0, rather than one tileset sliced by local id.
 
 - **`Game/NoLiteralText` also checks `text_lines`.** A String literal as the
   first argument of `text_lines` is an offense, as it is for `text` and
   `text_width`.
 
+### Removed
+
+- **`RGame::Engine::Tileset` and `TileMap#tileset`.** A map answers per tile:
+  `solid?(tile)`, `animated_tiles` and `frame_tile(tile, elapsed)`, which takes
+  seconds. `solid_ids` has no replacement; a tile is solid when it has a
+  collision shape in Tiled.
+
 ### Fixed
 
+- **A tile from a map's second tileset draws from that tileset.** Every gid was
+  resolved through the first tileset.
 - **A one-shot timer can re-arm itself.** `Components::Timer#reset` called from
   the timer's own `on_timeout` handler was undone as the handler returned, so a
   `repeating: false` timer never fired again. It now fires one interval later.

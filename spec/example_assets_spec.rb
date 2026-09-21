@@ -243,7 +243,9 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
   end
 
   describe 'town.tmx' do
-    subject(:map) { RGame::Engine::TileMap.load(File.join(assets, 'town.tmx')).first }
+    subject(:map) do
+      RGame::Engine::TileMap.from_tiled(RGame::Engine::Tiled::Map.load(File.join(assets, 'town.tmx')))
+    end
 
     let(:fence_row) { 20 }
     let(:gap) { 12..14 }

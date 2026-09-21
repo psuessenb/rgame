@@ -44,9 +44,9 @@
 # ## What is solid is decided in Tiled, not in code
 #
 # A tile is solid because it carries a collision shape in the tileset — an
-# `<objectgroup>` on that tile in `tileset.tsx` — and `Engine::Tileset` reads
-# that. Nothing in this file lists tile ids, and adding a solid tile to the map
-# means drawing it in Tiled.
+# `<objectgroup>` on that tile in `tileset.tsx` — and `Engine::TileMap#solid?`
+# reads that. Nothing in this file lists tile ids, and adding a solid tile to the
+# map means drawing it in Tiled.
 #
 # ## A feet box, not the sprite's box
 #

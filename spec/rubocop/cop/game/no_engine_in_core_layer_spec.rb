@@ -8,7 +8,7 @@ RSpec.describe RuboCop::Cop::Game::NoEngineInCoreLayer, :config do
   it 'registers an offense for naming an Engine class' do
     expect_offense(<<~RUBY)
       def self.load(app, path)
-        Engine::TileMap.parse(File.read(path))
+        Engine::TileMap.from_tiled(tiled)
         ^^^^^^^^^^^^^^^ RGame::Core must not name `Engine`; take the object and call it by method name, and let the glue layer wire the two together.
       end
     RUBY
@@ -19,7 +19,7 @@ RSpec.describe RuboCop::Cop::Game::NoEngineInCoreLayer, :config do
     # `RGame::Engine::` afterwards — and the interim is exactly when a Core
     # class would reach for it.
     expect_offense(<<~RUBY)
-      RGame::Engine::Tileset.parse(text, firstgid: 1)
+      RGame::Engine::TileMap.from_tiled(tiled)
       ^^^^^^^^^^^^^^^^^^^^^^ RGame::Core must not name `RGame::Engine`; take the object and call it by method name, and let the glue layer wire the two together.
     RUBY
   end

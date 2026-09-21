@@ -14,13 +14,13 @@ module RGame
       # builds its own Engine::CollisionSystem out of the sources its `blocked_by` names.
       # A mover may be blocked by tiles, by other actors, or by both, and only the mover
       # knows which, so the resolver is the mover's and the grid is this system's. The tile
-      # solidity itself is whatever the map's tileset reports (baked per-tile in Tiled).
+      # solidity itself is whatever the map reports (baked per-tile in Tiled).
       # The same solidity, viewed as a graph for planning routes, is #nav_grid.
       #
       # **Solidity is read from the map once**, into one Util::SolidGrid, the first time
       # anything asks — and #blockers, #nav_grid and #solid? all read that store, never the
       # map. So they cannot disagree about a cell, and a resolve costs a byte lookup rather
-      # than a walk through the map's layers and tileset.
+      # than a walk through the map's layers.
       #
       # **It does not draw.** Drawing the map is RGame::Engine::TileMapLayer, one
       # node per Tiled layer, mounted inside the WorldView so the map is drawn
@@ -73,7 +73,7 @@ module RGame
         # than per frame: which layers cover the actors is a fact about the
         # scene's arrangement, and the arrangement is made once.
         def first_above_layer
-          layer_count.times.find { |index| @map.above_layer?(index) } || layer_count
+          layer_count.times.find { |index| @map.layer(index).above? } || layer_count
         end
 
         # Clamp a camera to this map's edges. Called for each camera the scene

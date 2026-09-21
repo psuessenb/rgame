@@ -258,13 +258,25 @@ module RGame
         RGame::Engine::I18n.load(File.read(path), source: path)
       end
 
-      game = self
       assets.add_loader(:tilemap) do |path|
-        map, image_path = RGame::Engine::TileMap.load(path)
-        tiles = game.assets.image(image_path)
-                    .tiles(map.tileset.tile_width, map.tileset.tile_height)
-        RGame::Core::TileMapRenderer.new(map, tiles)
+        tiled = RGame::Engine::Tiled::Map.load(path)
+        map = RGame::Engine::TileMap.from_tiled(tiled)
+        RGame::Core::TileMapRenderer.new(map, tile_images(tiled, map))
       end
+    end
+
+    def tile_images(tiled, map)
+      sheets = tiled.tilesets.map { sliced(it.tileset) }
+      map.tile_table.map { it && sheets[it.tileset][it.local_id] }
+    end
+
+    def sliced(tileset)
+      if tileset.collection? || tileset.margin.nonzero? || tileset.spacing.nonzero?
+        raise RGame::Engine::Tiled::FormatError,
+              "tileset '#{tileset.name}' is a collection of images or has a margin or spacing, " \
+              'and rgame slices only a sheet of tiles packed edge to edge'
+      end
+      assets.image(tileset.image.source).tiles(tileset.tile_width, tileset.tile_height)
     end
   end
 end

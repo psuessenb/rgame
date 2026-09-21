@@ -961,7 +961,7 @@ rest of world space. `TileWorld` stays the thing actors ask.
 
 | Piece | Kind | Because |
 |---|---|---|
-| `TileMap`, `Tileset` | values | parsed data with no handle; the gid rows are a `Util::Tensor` |
+| `TileMap` | values | parsed data with no handle; the tile rows are a `Util::Tensor` |
 | `TileWorld` | component, mounted as a system | it is a scene-scoped answer — solid tiles, world size — that actors look up |
 | `TileMapLayer` | node | it draws in world space, and draw order is tree order |
 

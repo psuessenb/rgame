@@ -12,11 +12,11 @@ RSpec.describe RGame::Engine::Tiled::Properties do
 
   describe 'a missing <properties> element' do
     it 'parses to EMPTY rather than nil' do
-      expect(described_class.parse(nil)).to be(described_class::EMPTY)
+      expect(described_class.parse(nil)).to be(RGame::Engine::Properties::EMPTY)
     end
 
     it 'is empty and frozen' do
-      expect(described_class::EMPTY).to be_empty.and be_frozen
+      expect(RGame::Engine::Properties::EMPTY).to be_empty.and be_frozen
     end
   end
 
@@ -110,7 +110,7 @@ RSpec.describe RGame::Engine::Tiled::Properties do
     end
 
     it 'reads a class with every member at its default as EMPTY' do
-      expect(value('<property name="p" type="class" propertytype="Enemy"/>')).to be(described_class::EMPTY)
+      expect(value('<property name="p" type="class" propertytype="Enemy"/>')).to be(RGame::Engine::Properties::EMPTY)
     end
   end
 

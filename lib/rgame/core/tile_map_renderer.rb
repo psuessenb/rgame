@@ -5,7 +5,7 @@ module RGame
     # Draws a tile map: the static layers baked once, the animated tiles drawn
     # per frame, both culled to a rectangle of the world.
     #
-    #   tiles = RGame::Core::TileMapRenderer.new(map, tileset_images)
+    #   tiles = RGame::Core::TileMapRenderer.new(map, tile_images)
     #
     #   map.layer_count.times do |layer|
     #     tiles.draw_layer(renderer, layer, cull_x, cull_y, cull_w, cull_h,
@@ -32,10 +32,10 @@ module RGame
     # tree trunks below, canopies above — which is the whole reason this does
     # not simply draw the map in one go.
     #
-    # It is also why nothing here consults the map's `above_layer?` flag any
-    # more: which layers cover the actors is a question about where the actors
-    # are in the scene, and Tiled already answers "in what order do the layers
-    # go" by listing them. `RGame::Engine::TileMapLayer` mounts one node per
+    # It is also why nothing here asks a layer whether it is `above?`: which
+    # layers cover the actors is a question about where the actors are in the
+    # scene, and Tiled already answers "in what order do the layers go" by
+    # listing them. `RGame::Engine::TileMapLayer` mounts one node per
     # layer and the tree does the rest.
     #
     # ## What is baked and what is not
@@ -67,18 +67,17 @@ module RGame
     # one and Core may not reach up (see "The rule points both ways").
     # What it calls is the 'a tile map' contract in
     # `spec/support/shared_examples/`: `layer_count`, `width`, `height`,
-    # `tile_width`, `tile_height`, `gid`, and a `tileset` answering `local_id`,
-    # `animations` and `frame_local_id`.
+    # `tile_width`, `tile_height`, `tile`, `animated_tiles` and `frame_tile`.
     class TileMapRenderer
       # The map this was built from. A scene reads it for collision and world
       # bounds, which are its business rather than this class's.
       attr_reader :map
 
-      # `tiles` is the tileset image sliced into an Array indexed by local tile
-      # id — what `Image#tiles` returns.
+      # `tiles` is an Array of tile images indexed by the map's tile ids, with
+      # nothing at 0, the empty cell.
       def initialize(map, tiles)
         @map = map
-        @tileset = map.tileset
+        @animates = map.animated_tiles.to_set
         @tiles = tiles
         @animated = collect_animated_tiles
         @static = Array.new(map.layer_count)
@@ -117,10 +116,10 @@ module RGame
 
       def collect_animated_tiles
         found = Array.new(@map.layer_count) { [] }
-        each_tile do |layer, col, row, local|
-          next unless @tileset.animations.key?(local)
+        each_tile do |layer, col, row, tile|
+          next unless @animates.include?(tile)
 
-          found[layer] << [col, row, local]
+          found[layer] << [col, row, tile]
         end
         found
       end
@@ -129,10 +128,10 @@ module RGame
         @map.layer_count.times do |layer|
           @map.height.times do |row|
             @map.width.times do |col|
-              gid = @map.gid(layer, col, row)
-              next if gid.zero?
+              tile = @map.tile(layer, col, row)
+              next if tile.zero?
 
-              yield(layer, col, row, @tileset.local_id(gid))
+              yield(layer, col, row, tile)
             end
           end
         end
@@ -140,11 +139,11 @@ module RGame
 
       def bake(renderer, index)
         renderer.record do
-          each_tile do |layer, col, row, local|
+          each_tile do |layer, col, row, tile|
             next unless layer == index
-            next if @tileset.animations.key?(local)
+            next if @animates.include?(tile)
 
-            renderer.image_at(@tiles[local], col * @map.tile_width, row * @map.tile_height)
+            renderer.image_at(@tiles[tile], col * @map.tile_width, row * @map.tile_height)
           end
         end
       end
@@ -153,17 +152,15 @@ module RGame
         tile_width = @map.tile_width
         tile_height = @map.tile_height
 
-        ms = (elapsed * 1000.0).to_i
-
         col_start = cull_x.fdiv(tile_width).floor
         row_start = cull_y.fdiv(tile_height).floor
         col_end = (cull_x + cull_width).fdiv(tile_width).ceil
         row_end = (cull_y + cull_height).fdiv(tile_height).ceil
 
-        tiles.each do |col, row, local|
+        tiles.each do |col, row, tile|
           next if col < col_start || col >= col_end || row < row_start || row >= row_end
 
-          renderer.image_at(@tiles[@tileset.frame_local_id(local, ms)],
+          renderer.image_at(@tiles[@map.frame_tile(tile, elapsed)],
                             col * tile_width, row * tile_height)
         end
       end

@@ -23,12 +23,13 @@ module RGame
       #
       # `render_order` is `:right_down`, `:right_up`, `:left_down` or
       # `:left_up`, and `background_color` a `Util::Color`, or `nil` when the
-      # map states none.
+      # map states none. `source_path` is the file the map was read from, or
+      # `nil` for one parsed from a string without it.
       class Map
         attr_reader :orientation, :render_order, :width, :height,
                     :tile_width, :tile_height, :background_color,
                     :class_name, :properties, :tilesets, :layers,
-                    :origin_col, :origin_row
+                    :origin_col, :origin_row, :source_path
 
         # Reads the `.tmx` at `tmx_path`, with every tileset and template it
         # names.
@@ -43,7 +44,7 @@ module RGame
 
         def initialize(orientation:, render_order:, width:, height:, tile_width:, tile_height:,
                        background_color:, class_name:, properties:, tilesets:, layers:,
-                       infinite:, origin_col:, origin_row:)
+                       infinite:, origin_col:, origin_row:, source_path: nil)
           @orientation = orientation
           @render_order = render_order
           @width = width
@@ -58,6 +59,7 @@ module RGame
           @infinite = infinite
           @origin_col = origin_col
           @origin_row = origin_row
+          @source_path = source_path
           freeze
         end
 
@@ -91,7 +93,8 @@ module RGame
                     class_name: @root.attributes['class'].to_s,
                     properties: Properties.parse(@root.elements['properties'], source_path: @source_path),
                     tilesets: tilesets, layers: layers(@root, Inherited.new(visible: true, opacity: 1.0)),
-                    infinite: @infinite, origin_col: @origin_col, origin_row: @origin_row)
+                    infinite: @infinite, origin_col: @origin_col, origin_row: @origin_row,
+                    source_path: @source_path)
           end
 
           private

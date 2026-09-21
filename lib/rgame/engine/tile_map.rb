@@ -1,128 +1,224 @@
 # frozen_string_literal: true
 
-require 'rexml/document'
-require 'zlib'
-
 require_relative '../util'
-require_relative 'tileset'
+require_relative 'properties'
+require_relative 'map_object'
 
 module RGame
   module Engine
-    # An orthogonal tile map parsed from a Tiled .tmx. Holds the per-layer gid
-    # arrays and geometry, and answers collision queries via its Tileset.
+    # A map made in Tiled, as a game reads it: a grid of tiles per layer, what
+    # each tile is, and the map's objects. Pure data, with no image and no file.
     #
-    # `parse` takes a *string*, so the parsing itself needs no filesystem at all;
-    # `load` adds the file plumbing on top — reading the .tmx, following it to the
-    # .tsx it names, and working out where the tileset image sits relative to
-    # that. Both belong here. What does *not* is the image: a texture is a GPU
-    # handle, and the renderer that owns one lives a layer below and may not name
-    # this class (see "The rule points both ways"). So `load` hands
-    # back a path and stops there.
+    #   map = RGame::Engine::TileMap.from_tiled(parsed)
+    #   map.tile(0, 12, 7)     # => the tile in layer 0 at column 12, row 7
+    #   map.solid_tile?(12, 7) # => whether any layer blocks that cell
+    #
+    # **A cell holds a tile id.** Ids are dense and start at 1, across every
+    # tileset the map uses, so every fact about a tile is one Array read; 0 is
+    # the empty cell. `tile_table` says which tileset and which tile in it an
+    # id came from, which is what the glue slices the images against.
+    #
+    # **Layers are flat.** Tiled's groups contribute no index of their own:
+    # their layers follow one another depth first, in Tiled's order, with the
+    # groups' opacity and visibility folded in. `layer_index` finds a layer by
+    # its name or its `'Group/layer'` path, which survive a group added above.
+    #
+    # **Everything here is in the game's terms.** Cell `(0, 0)` is the map's
+    # top-left, an animation frame lasts seconds, and an object's `(x, y)` is
+    # its top-left corner. `from_tiled`, the only thing that builds one, does
+    # every conversion from the file's terms, so no caller does.
+    #
+    # `initialize` takes plain Arrays and builds the grids itself, so a built
+    # map holds nothing but Ruby values and the `Util::Tensor`s made from
+    # them.
     class TileMap
-      FLIP_MASK = 0x1FFFFFFF
+      # How a tile in a cell is turned: `quarter_turns` clockwise, 0 to 3, and
+      # then, if `mirrored?`, flipped across its vertical axis. The eight values
+      # are `ALL`, and every unturned cell answers `IDENTITY`.
+      Orientation = Data.define(:quarter_turns, :mirrored) do
+        def mirrored? = mirrored
+
+        # True for a tile drawn as its sheet shows it.
+        def identity? = quarter_turns.zero? && !mirrored
+      end
+
+      class Orientation
+        ALL = Array.new(8) { new(quarter_turns: it % 4, mirrored: it >= 4) }.freeze
+        IDENTITY = ALL.first
+      end
+
+      # Where a tile id came from: the index of its tileset, in the order the
+      # map lists them by first gid, and the tile's index in that tileset.
+      TileSource = Data.define(:tileset, :local_id)
+
+      # What a map was built from: the file it was read from, or `nil`, and
+      # the version of the parse that read it.
+      Source = Data.define(:path, :parser_version)
+
+      # One layer of the flat list. `path` is the names of the groups around
+      # it and its own, outermost first. `kind` is `:tile`, `:image` or
+      # `:object`. `visible?` and `opacity` already include every group around
+      # the layer.
+      class Layer
+        attr_reader :index, :name, :path, :kind, :class_name, :opacity, :properties
+
+        def initialize(index:, path:, kind:, class_name:, visible:, opacity:, above:, properties:)
+          @index = index
+          @path = path.dup.freeze
+          @name = @path.last
+          @kind = kind
+          @class_name = class_name
+          @visible = visible
+          @opacity = opacity
+          @above = above
+          @properties = properties
+          freeze
+        end
+
+        def visible? = @visible
+
+        # Whether the layer covers the actors: a canopy or a roof. Set in Tiled
+        # with a bool property named `above`.
+        def above? = @above
+      end
+
+      # A layer that shows one image, placed at `(offset_x, offset_y)` in the
+      # map's pixels and repeated along each axis the designer asked. `image`
+      # is the image's path, or `nil` for a layer that names none.
+      class ImageLayer < Layer
+        attr_reader :image, :offset_x, :offset_y
+
+        def initialize(image:, offset_x:, offset_y:, repeat_x:, repeat_y:, **)
+          @image = image
+          @offset_x = offset_x
+          @offset_y = offset_y
+          @repeat_x = repeat_x
+          @repeat_y = repeat_y
+          super(kind: :image, **)
+        end
+
+        def repeat_x? = @repeat_x
+
+        def repeat_y? = @repeat_y
+      end
 
       attr_reader :width, :height, :tile_width, :tile_height,
-                  :pixel_width, :pixel_height, :tileset_source, :firstgid
-      attr_accessor :tileset
+                  :pixel_width, :pixel_height, :tile_table,
+                  :image_layers, :objects, :properties, :source
 
-      # Reads a .tmx and everything it points at, returning `[map, image_path]`.
+      # A map from already-built data. `layers` is the flat list of `Layer`s.
+      # `cells` has one entry per layer: a flat Array of `width * height` tile
+      # ids in reading order, or `nil` for a layer that is not a tile layer.
+      # `orientations` is `nil` for a map with no turned tile, or the same
+      # shape as `cells` holding indexes into `Orientation::ALL`.
       #
-      # Two values rather than one because they are two kinds of thing: the map is
-      # the grid, and the path is where its pixels happen to live. Keeping the
-      # second off the map means a stand-in map in a spec has one less method to
-      # answer, and the renderer's protocol stays "things about the grid".
-      #
-      # Every path is resolved relative to the file that named it — the .tsx
-      # relative to the .tmx, the image relative to the .tsx — which is what Tiled
-      # itself writes and what lets a map be moved as a set.
-      def self.load(tmx_path)
-        map = parse(File.read(tmx_path))
-
-        tsx_path = File.join(File.dirname(tmx_path), map.tileset_source)
-        map.tileset = Tileset.parse(File.read(tsx_path), firstgid: map.firstgid)
-
-        [map, File.join(File.dirname(tsx_path), map.tileset.image_source)]
-      end
-
-      def self.parse(tmx_string)
-        root = REXML::Document.new(tmx_string).root
-        tileset_el = root.elements['tileset']
-
-        layers = []
-        above = []
-        root.each_element('layer') do |layer_el|
-          raw = layer_el.elements['data'].text.strip.unpack1('m')
-          gids = Zlib::Inflate.inflate(raw).unpack('V*')
-          gids.map! { |g| g & FLIP_MASK }
-          layers << gids
-          above << layer_flag?(layer_el, 'above')
-        end
-
-        new(
-          width: root.attributes['width'].to_i,
-          height: root.attributes['height'].to_i,
-          tile_width: root.attributes['tilewidth'].to_i,
-          tile_height: root.attributes['tileheight'].to_i,
-          tileset_source: tileset_el.attributes['source'],
-          firstgid: tileset_el.attributes['firstgid'].to_i,
-          layers: layers,
-          above: above
-        )
-      end
-
-      def self.layer_flag?(layer_el, name)
-        props = layer_el.elements['properties']
-        return false unless props
-
-        props.each_element('property') do |property|
-          return property.attributes['value'] == 'true' if property.attributes['name'] == name
-        end
-        false
-      end
-      private_class_method :layer_flag?
-
-      def initialize(width:, height:, tile_width:, tile_height:, tileset_source:, firstgid:, layers:, above: [])
+      # `tile_table` starts with `nil` for id 0. `solid`, `tile_classes`,
+      # `tile_properties` and `frames` are indexed by tile id alike, and a
+      # tile's `frames` are `[[tile, until], ...]`, or `nil` when it does not
+      # animate: each frame shows until `until` seconds into the loop, so the
+      # last frame's `until` is the loop's length.
+      def initialize(width:, height:, tile_width:, tile_height:, layers:, cells:, tile_table:,
+                     solid:, tile_classes:, tile_properties:, frames:, orientations: nil,
+                     objects: [], properties: Properties::EMPTY, source: Source.new(path: nil, parser_version: 0))
         @width = width
         @height = height
         @tile_width = tile_width
         @tile_height = tile_height
         @pixel_width = width * tile_width
         @pixel_height = height * tile_height
-        @tileset_source = tileset_source
-        @firstgid = firstgid
-        @above = above
-        @tileset = nil
-        @tiles = build_tiles(layers)
+        @layers = layers.dup.freeze
+        @image_layers = @layers.grep(ImageLayer).freeze
+        @tile_table = tile_table.dup.freeze
+        @solid = solid.dup.freeze
+        @tile_classes = tile_classes.dup.freeze
+        @tile_properties = tile_properties.dup.freeze
+        @frames = frames.map { it&.map { |pair| pair.dup.freeze }&.freeze }.freeze
+        @animated_tiles = @frames.each_index.select { @frames[it] }.freeze
+        @objects = objects.dup.freeze
+        @properties = properties
+        @source = source
+        @plane_of = plane_indexes(cells)
+        @tiles = grid(cells)
+        @orientations = orientations && grid(orientations)
       end
 
-      def layer_count
-        @tiles.depth
-      end
+      # How many layers the flat list holds, of every kind.
+      def layer_count = @layers.size
 
-      # Whether a layer is drawn *above* the actors (a tree canopy, roof, etc.) rather
-      # than beneath them. Marked in Tiled with a bool layer property `above`; layers
-      # without it default to below. Purely a rendering distinction (collision still
-      # considers every layer).
-      def above_layer?(index)
-        @above[index] || false
+      # The `Layer` at `index`. Raises `IndexError` for one the map lacks.
+      def layer(index) = @layers.fetch(index)
+
+      # The index of the layer named `name_or_path`: a layer's name, or the
+      # names of the groups around it and its own joined with `/`. Raises
+      # `KeyError` naming the map's layers when none matches, and when a bare
+      # name matches layers in two groups.
+      def layer_index(name_or_path)
+        found = @layers.select { it.path.join('/') == name_or_path }
+        found = @layers.select { it.name == name_or_path } if found.empty?
+        return found.first.index if found.size == 1
+
+        paths = (found.empty? ? @layers : found).map { it.path.join('/') }.join(', ')
+        problem = found.empty? ? "no layer '#{name_or_path}'" : "'#{name_or_path}' names #{found.size} layers"
+        raise KeyError.new("#{problem} in this map (#{found.empty? ? 'has' : 'give the path'}: #{paths})",
+                           receiver: self, key: name_or_path)
       end
 
       def in_bounds?(col, row)
         col >= 0 && row >= 0 && col < @width && row < @height
       end
 
-      def gid(layer_index, col, row)
-        return 0 unless in_bounds?(col, row)
+      # The tile id at `(col, row)` of `layer`, or 0 when the cell is empty,
+      # outside the map, or in a layer that holds no tiles.
+      def tile(layer, col, row)
+        plane = @plane_of.fetch(layer)
+        return 0 unless plane && in_bounds?(col, row)
 
-        @tiles[col, row, layer_index]
+        @tiles[col, row, plane]
       end
 
-      # Solid if any layer has a solid tile at (col, row). Out of bounds is not solid
-      # — the camera/bounds clamp keeps the player inside the map.
+      # How the tile at `(col, row)` of `layer` is turned. `IDENTITY` for every
+      # cell of a map with no turned tile, and for a cell with no tile.
+      def orientation(layer, col, row)
+        plane = @plane_of.fetch(layer)
+        return Orientation::IDENTITY unless @orientations && plane && in_bounds?(col, row)
+
+        Orientation::ALL[@orientations[col, row, plane]]
+      end
+
+      # How many tiles the map's tilesets hold together; ids run 1 to this.
+      def tile_count = @tile_table.size - 1
+
+      # Whether `tile` blocks movement: it has a collision shape in Tiled.
+      # Tile 0, the empty cell, never does.
+      def solid?(tile) = @solid.fetch(tile)
+
+      # The class the designer gave `tile` in Tiled, or `nil`.
+      def tile_class(tile) = @tile_classes.fetch(tile)
+
+      # The custom properties of `tile`, `Properties::EMPTY` when it has none.
+      def tile_properties(tile) = @tile_properties.fetch(tile)
+
+      # The tiles that animate.
+      attr_reader :animated_tiles
+
+      # The tile showing for `tile` after `elapsed` seconds of its animation,
+      # which loops. A tile that does not animate answers itself.
+      def frame_tile(tile, elapsed)
+        frames = @frames[tile] or return tile
+
+        into = elapsed % frames.last.last
+        frames.each { |shown, ends| return shown if into < ends }
+        frames.last.first
+      end
+
+      # Solid if any layer has a solid tile at (col, row). Out of bounds is not
+      # solid — the camera/bounds clamp keeps the player inside the map.
+      # Hidden layers count: `visible` is how a layer draws, not whether it
+      # blocks.
       def solid_tile?(col, row)
         return false unless in_bounds?(col, row)
 
-        @tiles.depth.times { |layer| return true if @tileset.solid?(@tiles[col, row, layer]) }
+        @tiles.depth.times { |plane| return true if @solid[@tiles[col, row, plane]] }
         false
       end
 
@@ -132,16 +228,24 @@ module RGame
 
       private
 
-      def build_tiles(layers)
-        tiles = Util::Tensor.new(@width, @height, layers.length, initial: 0)
-        layers.each_with_index do |gids, layer|
+      def plane_indexes(cells)
+        planes = 0
+        cells.map { it && (planes += 1) - 1 }.freeze
+      end
+
+      def grid(planes)
+        present = planes.compact
+        grid = Util::Tensor.new(@width, @height, present.size, initial: 0)
+        present.each_with_index do |values, plane|
           @height.times do |row|
             base = row * @width
-            @width.times { |col| tiles[col, row, layer] = gids[base + col] }
+            @width.times { |col| grid[col, row, plane] = values[base + col] }
           end
         end
-        tiles
+        grid
       end
     end
   end
 end
+
+require_relative 'tile_map/from_tiled'
