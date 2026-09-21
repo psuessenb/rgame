@@ -216,7 +216,9 @@ sweep.grid                                  # => the grid — which the sweep ke
 
 A typeface at one pixel size, for measuring text without a window. It holds its
 font data in memory and no handle, so a node may keep one. Two typefaces compare
-by identity. See [Measuring without a window](text.md#measuring-without-a-window).
+by identity. `text_width` measures a string and `text_lines` breaks one into lines.
+See [Measuring without a window](text.md#measuring-without-a-window) and
+[Breaking text into lines](text.md#breaking-text-into-lines).
 
 ## `RGame::Util::Z`
 

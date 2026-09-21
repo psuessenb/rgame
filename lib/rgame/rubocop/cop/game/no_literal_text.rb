@@ -3,8 +3,8 @@
 module RuboCop
   module Cop
     module Game
-      # Flag a String literal drawn or measured as a label: the first argument of
-      # `text` or `text_width`, on any receiver.
+      # Flag a String literal drawn, measured or wrapped as a label: the first
+      # argument of `text`, `text_width` or `text_lines`, on any receiver.
       #
       # Text a player reads belongs in a translation table, where `RGame::Game`
       # loads it and a language switch reaches it. A literal at the call site is
@@ -20,6 +20,7 @@ module RuboCop
       #   # bad
       #   renderer.text('Press Space to jump', 12, 12)
       #   renderer.text("Lives: #{lives}", 12, 34)
+      #   typeface.text_lines('The gate is shut for the night.', 300)
       #
       #   # good
       #   @help = Engine::Text.new('help.jump')   # in initialize
@@ -28,7 +29,7 @@ module RuboCop
         MSG = 'Draw an Engine::Text built from a key, not a String literal: ' \
               'text a player reads belongs in a translation table.'
 
-        RESTRICT_ON_SEND = %i[text text_width].freeze
+        RESTRICT_ON_SEND = %i[text text_width text_lines].freeze
 
         def on_send(node)
           label = node.first_argument

@@ -77,6 +77,61 @@ RSpec.describe RGame::Util::Typeface do
     end
   end
 
+  describe '#text_lines' do
+    let(:sentence) { 'The gate is shut for the night, traveller.' }
+
+    it 'breaks at the last space that fits' do
+      expect(face.text_lines(sentence, 180)).to eq(['The gate is shut for the', 'night, traveller.'])
+    end
+
+    it 'returns one line for a string that fits' do
+      expect(face.text_lines(sentence, face.text_width(sentence))).to eq([sentence])
+    end
+
+    it 'returns no lines for an empty string' do
+      expect(face.text_lines('', 180)).to eq([])
+    end
+
+    it 'measures no line wider than the width it was given' do
+      expect(face.text_lines(sentence, 100).map { face.text_width(it) }).to all(be <= 100)
+    end
+
+    it 'hands back a word wider than the line whole, rather than cutting it' do
+      expect(face.text_lines('Systemsprache verwenden', 50)).to eq(%w[Systemsprache verwenden])
+    end
+
+    it 'gives back the string when the lines are joined with the spaces they replaced' do
+      ['a  b', 'gate ', ' gate', sentence].each do |string|
+        expect(face.text_lines(string, 30).join(' ')).to eq(string)
+      end
+    end
+
+    it 'keeps each line in the encoding of the string it came from' do
+      expect(face.text_lines('Tür für Tür', 30).map(&:encoding)).to all(eq(Encoding::UTF_8))
+    end
+
+    it 'breaks a German paragraph into more lines than its English source' do
+      english = 'The gate is shut for the night, traveller. ' \
+                'The road ahead is dark, but the dawn will come and the gate will open again. ' \
+                'Rest here until then. Keep the fire burning and stay on the path, ' \
+                'and the morning will find you safe.'
+      german = 'Das Tor ist für die Nacht geschlossen, Wanderer. ' \
+               'Die Straße davor ist dunkel, doch der Morgen wird kommen und das Tor wird wieder geöffnet. ' \
+               'Ruhe dich bis dahin aus. Halte das Feuer am Brennen und bleib auf dem Weg, ' \
+               'dann wird der Morgen dich wohlbehalten finden.'
+
+      expect([face.text_lines(english, 520).size, face.text_lines(german, 520).size]).to eq([3, 4])
+    end
+
+    it 'refuses something that is not a String' do
+      expect { face.text_lines(42, 180) }.to raise_error(TypeError)
+    end
+
+    it 'refuses a width that is not a number' do
+      expect { face.text_lines(sentence, 'wide') }.to raise_error(TypeError)
+    end
+  end
+
   describe '#inspect' do
     it 'shows the size' do
       expect(face.inspect).to eq('#<RGame::Util::Typeface 18px>')

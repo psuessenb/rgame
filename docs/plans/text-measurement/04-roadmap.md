@@ -1,6 +1,6 @@
 # Roadmap
 
-**Steps 0–1 are implemented. Steps 2–3 are detailed. Steps 4–6 are deliberately
+**Steps 0–2 are implemented. Step 3 is detailed. Steps 4–6 are deliberately
 rough** and get re-planned
 once the layer beneath them exists — see the note at the end.
 
@@ -292,6 +292,57 @@ width, showing the two break differently, which is the whole reason this exists.
 **Verify.** `make test` and `rake spec`. A German paragraph and its English
 source, wrapped to 520 px, produce different line counts — asserted, not
 observed.
+
+**Landed.** `rgame_typeface_fit` sits in `ext/rgame_util/typeface.{c,h}` with
+the sketched signature. It walks `rgame_text_cursor`, records each space as a
+break, and stops at the first glyph that overflows once it has a break. The line
+excludes the break space, and `text[*fit_length]` is that space.
+`Typeface#text_lines(string, max_width)` calls the fit once per line, slices
+each line with `rb_str_subseq` and steps past the space. `Game/NoLiteralText`
+now names `text_lines` too, and `docs/api/text.md` has a "Breaking text into lines" section
+whose example the doc specs run.
+
+`make test` 373 checks, `rake spec` 2359 examples, `rake spec:core` 413, all 0
+failures. Both extensions and the standalone binary build without warnings. The
+measured acceptance evidence:
+
+- The German paragraph wraps to **4 lines** at 520 px, its English source to
+  **3**. `test/test_typeface.c` and `spec/rgame/util/typeface_spec.rb` both
+  assert it.
+- A sweep of widths from 60 to 600 px over the English paragraph checks the fit
+  at every line. Each line measures what the fit reported, as `==` on the
+  Float. Each line is no wider than the width, unless it holds no space. One fit
+  runs per line.
+- Flipping the overflow test from `>` to `>=` fails exactly one check,
+  `a_line_of_exactly_the_available_width_fits`.
+
+What the sketch got wrong:
+
+- **The design's example width does not break its example.** `'The gate is shut
+  for the night, traveller.'` measures 274.05 px at 18 px, so it fits on one
+  line at 520. It breaks into the design's two lines at 180. The spec and
+  `text.md` use 180.
+- **Rule 4 cannot hold as written.** The break space is not part of any line,
+  so the fitting lengths sum to the input length minus one byte per break. The
+  Check sweep pins that sum and one call per line. Each call also re-walks the
+  word that overflowed, so the work is linear plus one word per line.
+- **Rule 2 decides the edge cases, and they produce empty lines.** Two spaces
+  in a row, or a trailing space that does not fit, give an empty line. Without
+  it, `lines.join(' ')` would lose a byte. The spec asserts the join for
+  `'a  b'`, `'gate '` and `' gate'`.
+- **A space that overflows is not an overflow.** A line exactly as wide as the
+  width, followed by a space, ends before that space. A Check test pins it.
+- **The plan says nothing about newlines.** `text_lines` treats `"\n"` as a glyph,
+  and `text.md` says so. That is a question for `Paragraph`, now open question
+  5 in the README.
+- **The method is `text_lines`, not `wrap`.** `wrap` is a common name, and
+  the cop flags a literal first argument on any receiver. ActiveSupport's
+  `Array.wrap('x')` would have been an offense. `text_lines` joins `text` and
+  `text_width` as one family, so the cop's list names only this engine's text
+  calls. Steps 4 and 5 should read `wrap` in their sketches as `text_lines`.
+- **One sentence per language does not show the difference.** The Verify
+  paragraph needs three sentences before German takes more lines than English
+  at 520 px.
 
 ---
 

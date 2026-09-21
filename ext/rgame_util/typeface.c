@@ -278,3 +278,40 @@ float rgame_typeface_measure(const rgame_typeface *typeface, const char *text, s
 
     return cursor.pen_x;
 }
+
+void rgame_typeface_fit(const rgame_typeface *typeface, const char *text, size_t length,
+                        float max_width, size_t *fit_length, float *fit_width) {
+    *fit_length = 0;
+    *fit_width = 0.0f;
+    if (!typeface || !text) {
+        return;
+    }
+
+    rgame_text_cursor cursor;
+    rgame_text_cursor_init(&cursor, text, length);
+
+    int have_break = 0;
+    size_t break_offset = 0;
+    float break_width = 0.0f;
+    size_t glyph_offset = 0;
+    float width_before_glyph = 0.0f;
+
+    int codepoint = 0;
+    while (rgame_text_cursor_next(&cursor, typeface, &codepoint, NULL)) {
+        if (codepoint == ' ') {
+            have_break = 1;
+            break_offset = glyph_offset;
+            break_width = width_before_glyph;
+        }
+        if (have_break && cursor.pen_x > max_width) {
+            *fit_length = break_offset;
+            *fit_width = break_width;
+            return;
+        }
+        glyph_offset = cursor.offset;
+        width_before_glyph = cursor.pen_x;
+    }
+
+    *fit_length = cursor.offset;
+    *fit_width = cursor.pen_x;
+}
