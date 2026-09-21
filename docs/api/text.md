@@ -204,10 +204,36 @@ end
 | `Paragraph#with(**values)` | gives the `Text` its variables, as `Text#with` does, and returns the paragraph |
 | `Paragraph#width=` | changes the width; the next read breaks the text again. The same width breaks nothing. |
 | `Paragraph#width`, `Paragraph#typeface` | what the lines are fitted to |
+| `Paragraph#page_count`, `Paragraph#page(index)`, `Paragraph#lines_per_page` | pages, below |
 
 A width of zero or less raises `ArgumentError`, and one that is not a number
 raises `TypeError`, both at construction and in `width=`. A `Text` with
 variables raises `ArgumentError` from `lines` until its first `with`.
+
+**`lines_per_page:` groups the lines into pages**, for a dialogue box that
+shows a few lines at a time. `Paragraph#page` counts from 0:
+
+```ruby
+require 'rgame'
+
+RGame::Engine::I18n.load_hash(
+  en: { gate: { story: 'The gate is shut for the night, traveller. The road ahead is dark, ' \
+                       'but the dawn will come and the gate will open again. Rest here until then.' } }
+)
+
+story = RGame::Engine::Paragraph.new('gate.story', width: 300, lines_per_page: 2)
+story.page_count # => 2
+story.page(0)    # => ["The gate is shut for the night, traveller.", "The road ahead is dark, but the dawn will"]
+story.page(1)    # => ["come and the gate will open again. Rest", "here until then."]
+story.page(5)    # => ["come and the gate will open again. Rest", "here until then."] — the last page
+```
+
+An index past either end answers the nearest page. A language switch can shorten
+the text while a game shows its last page, and the box then shows the new last
+page rather than raising or going blank. `page_count` is at least 1, so an empty
+text is one empty page. Without `lines_per_page:` the whole text is one page.
+Each page is a frozen Array, and an unchanged read of `page` or `page_count`
+allocates nothing. A `lines_per_page` below 1 raises `ArgumentError`.
 
 A paragraph holds a typeface, never a renderer. It draws nothing, so it lays text
 out in `update` or in a headless spec as well as in `on_draw`.

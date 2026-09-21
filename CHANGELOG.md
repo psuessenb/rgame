@@ -22,7 +22,8 @@ index, not the argument.
 - **A translated text breaks into lines that fit a width.**
   `RGame::Engine::Paragraph` takes a key or an `Engine::Text` and a width. It
   breaks the text again when a variable, the language or the width changes, and
-  an unchanged read allocates nothing. See
+  an unchanged read allocates nothing. `lines_per_page:` groups the lines into
+  pages for a dialogue box. See
   [docs/api/text.md](docs/api/text.md#a-paragraph-that-follows-the-language).
 
 ## [0.4.0] - 2026-09-16

@@ -113,6 +113,55 @@ RSpec.describe RGame::Engine::Paragraph do
     end
   end
 
+  describe 'pages' do
+    let(:story) { described_class.new('story', width: 300, lines_per_page: 4) }
+
+    it 'groups the lines into pages of lines_per_page' do
+      expect(story.lines.size).to eq(6)
+      expect([story.page_count, story.page(0), story.page(1)])
+        .to eq([2, story.lines.first(4), story.lines.last(2)])
+    end
+
+    it 'is one page without lines_per_page' do
+      whole = described_class.new('story', width: 300)
+      expect([whole.page_count, whole.page(0)]).to eq([1, whole.lines])
+    end
+
+    it 'is one empty page for an empty text' do
+      i18n.load_hash(en: { blank: '' })
+      blank = described_class.new('blank', width: 300, lines_per_page: 3)
+      expect([blank.page_count, blank.page(0)]).to eq([1, []])
+    end
+
+    it 'answers the nearest page for an index past either end' do
+      expect([story.page(9), story.page(-1)]).to eq([story.page(1), story.page(0)])
+    end
+
+    it 'clamps to the pages there are after a language switch shortens the text' do
+      i18n.load_hash(de: { story: 'Das Tor ist zu.' })
+      last = story.page(1)
+      i18n.locale = :de
+      expect([last.size, story.page(1)]).to eq([2, ['Das Tor ist zu.']])
+    end
+
+    it 'returns the same frozen page on every unchanged read' do
+      expect(story.page(1)).to be(story.page(1)).and be_frozen
+    end
+
+    it 'allocates nothing in page and page_count on an unchanged read' do
+      expect { story.page(1) && story.page_count }.to allocate_nothing.over(200_000)
+    end
+
+    it 'refuses lines_per_page below 1' do
+      expect { described_class.new('story', width: 300, lines_per_page: 0) }
+        .to raise_error(ArgumentError, /at least 1 line/)
+    end
+
+    it 'refuses a lines_per_page that is not an Integer' do
+      expect { described_class.new('story', width: 300, lines_per_page: 2.5) }.to raise_error(TypeError)
+    end
+  end
+
   describe '.new' do
     it 'takes a key as a Symbol' do
       expect(described_class.new(:notice, width: 520).lines).to eq(['The gate is shut for the night, traveller.'])

@@ -12,6 +12,13 @@ module RGame
     #
     #   @speech.with(name: @hero_name).lines   # => a frozen Array of frozen Strings
     #
+    # With `lines_per_page:` it also groups the lines into pages, for a dialogue
+    # box that shows a few lines at a time:
+    #
+    #   @speech = Engine::Paragraph.new('npc.story', width: 520, lines_per_page: 3)
+    #   @speech.page_count   # => 2
+    #   @speech.page(0)      # => the first three lines
+    #
     # It breaks the text with `Util::Typeface#text_lines`, at spaces and at
     # newlines, and keeps the result. A read breaks again only when the String its
     # `Text` returns is a different object, or when the width changed. A `Text`
@@ -28,12 +35,18 @@ module RGame
 
       attr_reader :typeface
 
+      # How many lines a page holds, or nil when the whole text is one page.
+      attr_reader :lines_per_page
+
       # `text` is a translation key, as a String or Symbol, or an `Engine::Text`.
       # Any other object raises `TypeError`, so player-visible prose cannot
       # arrive as a String that no translation reaches.
-      def initialize(text, width:, typeface: Util::Typeface.default)
+      #
+      # `lines_per_page:` below 1 raises `ArgumentError`.
+      def initialize(text, width:, typeface: Util::Typeface.default, lines_per_page: nil)
         @text = text_for(text)
         @typeface = typeface
+        @lines_per_page = check_lines_per_page(lines_per_page)
         self.width = width
       end
 
@@ -62,6 +75,21 @@ module RGame
         break_lines(source)
       end
 
+      # How many pages the lines fill: 1 for an empty text, and 1 without
+      # `lines_per_page:`.
+      def page_count
+        lines
+        @pages.size
+      end
+
+      # The lines of page `index`, counted from 0, as a frozen Array. An index
+      # past either end answers the nearest page, because a language switch can
+      # shorten a paragraph while a game shows its last page.
+      def page(index)
+        lines
+        @pages[index.clamp(0, @pages.size - 1)]
+      end
+
       private
 
       def text_for(text)
@@ -74,9 +102,24 @@ module RGame
 
       def break_lines(source)
         @lines = @typeface.text_lines(source, @width).each(&:freeze).freeze
+        @pages = paginate(@lines)
         @source = source
         @broken_at = @width
         @lines
+      end
+
+      def paginate(lines)
+        return [lines].freeze unless @lines_per_page && lines.size > @lines_per_page
+
+        lines.each_slice(@lines_per_page).map(&:freeze).freeze
+      end
+
+      def check_lines_per_page(count)
+        return nil if count.nil?
+        raise TypeError, "lines_per_page must be an Integer, got #{count.inspect}" unless count.is_a?(Integer)
+        raise ArgumentError, "a page needs at least 1 line, got #{count}" if count < 1
+
+        count
       end
     end
   end
