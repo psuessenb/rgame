@@ -20,9 +20,9 @@
 # `intro.story` in locales/en.yml is a single long line, with no line break an
 # author placed. The label breaks it where the words stop fitting 440 pixels
 # at 24 pixels a line, and groups the lines three to a page. Run it in German
-# (`LANG=de_DE.UTF-8`) and the same story takes ten lines and a fourth page,
-# because German words are longer. Neither table says where a line ends, and
-# neither has to.
+# (`LANG=de_DE.UTF-8`, or the commented-out line at the end of this file) and
+# the same story takes ten lines and a fourth page, because German words are
+# longer. Neither table says where a line ends, and neither has to.
 #
 # ## The label turns no pages itself
 #
@@ -94,5 +94,10 @@ game = RGame::Game.new(
   height: HEIGHT,
   locales: LOCALES
 )
+
+# The language follows the operating system. Un-comment the next line to see the
+# intro in German whatever the system is set to; it must come after Game.new,
+# which picks the language as it loads the tables.
+# RGame::Engine::I18n.locale = :de
 
 game.start
