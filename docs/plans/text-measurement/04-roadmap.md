@@ -1,6 +1,6 @@
 # Roadmap
 
-**Steps 0–2 are implemented. Step 3 is detailed. Steps 4–6 are deliberately
+**Steps 0–2 are implemented. Steps 3–4 are detailed. Steps 5–6 are deliberately
 rough** and get re-planned
 once the layer beneath them exists — see the note at the end.
 
@@ -394,14 +394,159 @@ ruby tools/drive_test_project.rb examples/localization/main.rb --ticks 240 --see
 
 ---
 
-## Step 4 — `Engine::Paragraph` *(rough)*
+## Step 4 — `Engine::Paragraph`
 
-Pure Ruby in the engine layer, holding a `Util::Typeface`. `Engine::Text`'s
-cache with one more key. Lines, pages, `page_count`, and an allocation example
-proving an unchanged read allocates nothing — modelled on `Text`'s.
+**Why now.** It is the layer `UI::Label` draws from, and the first place a
+translated text meets a width. It needs only step 2, so it does not wait on step
+3: `Paragraph` holds a `Util::Typeface` and never a renderer. Steps 3 and 4 can
+land in either order.
 
-Re-plan once step 2 has shipped a real `wrap`, and settle open question 1 (does
-a width ever change after construction) with `UI::Label` in view.
+### What was measured before planning
+
+Taken at `4f0c438`, Ruby 4.0.5.
+
+| | |
+|---|---|
+| `Typeface#text_lines` on the 264-byte German paragraph at 520 px | 49 µs and 5 objects per call: 4 lines and the Array |
+| `Text#with(name:)`, unchanged | 0 objects per call |
+| a wrapper's `def with(...) = @text.with(...)`, unchanged | 0 objects per call |
+| a wrapper's `def with(**) = @text.with(**)`, unchanged | 1 object per call, a Hash |
+| `Text#to_s.equal?(previous)`, unchanged | 0 objects per call |
+| YAML `key: \|` and `key: >` block scalars | end the String with `"\n"`; only `\|-` and `>-` do not |
+
+At 49 µs a paragraph costs 0.3 % of a 16.7 ms frame, so time alone would not
+justify a cache. The 5 objects per paragraph per frame do: that is the
+allocation `Game/NoNeedlessAllocation` exists to keep off a draw path.
+
+### What it resembles
+
+- **Reuse.** `Text` already returns the *identical* frozen String until a
+  variable or `I18n.generation` changes. `UI::OptionButton` relies on that
+  contract to cache its column width (`option_button.rb:154`,
+  `caption.to_s.equal?(@measured[at])`). `Paragraph` keys its cache the same
+  way, so it compares no variables and reads no generation of its own.
+  `Typeface#text_lines` does the breaking, and `allocate_nothing` is the
+  allocation matcher `Text`'s specs use.
+- **Extend.** The C fit gains the newline break (4a). `Paragraph` could do it
+  in Ruby, but then `text_lines` would still measure `"\n"` as a glyph.
+- **Reuse the rule, not the code.** `UI::Button#label=` takes a key or a
+  `Text` (`button.rb:244`). `Paragraph.new` takes the same two forms. The
+  button's one line also applies its `label_scope`, which a paragraph has no
+  reason to carry, so nothing is extracted.
+- **Genuinely new.** Grouping lines into pages. Nothing in the engine does it.
+
+This corrects the design's cache. [03-design.md](03-design.md#layer-3--rgameengineparagraph)
+has `Paragraph` compare the variables, the width, the typeface and
+`I18n.generation`. The variables and the generation are `Text`'s to compare.
+A second comparison of them would be a second cache that can disagree with the
+first.
+
+**Sub-steps, one commit each.**
+
+- **4a — a newline ends a line.** `rgame_typeface_fit` stops at `"\n"` as well
+  as at a space that overflows, and `Typeface#text_lines` steps past it.
+  `docs/api/text.md` stops saying a newline is "a character like any other".
+- **4b — `Engine::Paragraph`**, with `lines`, `with`, `width=` and `typeface`,
+  and a section in `docs/api/text.md`. The coverage spec fails on an
+  undocumented public class, so the docs cannot wait for step 6.
+- **4c — pages.** `lines_per_page:`, `page` and `page_count`.
+
+**Shape.**
+
+```c
+/* 4a: the line also ends at a newline, which belongs to no line.
+ * text[*fit_length] is then '\n' rather than ' '. */
+void rgame_typeface_fit(const rgame_typeface *typeface, const char *text, size_t length,
+                        float max_width, size_t *fit_length, float *fit_width);
+```
+
+```ruby
+@greeting = Engine::Text.new('npc.greeting', :name)
+@speech   = Engine::Paragraph.new(@greeting, width: 520, lines_per_page: 3)
+@notice   = Engine::Paragraph.new('gate.notice', width: 300)   # a key, no variables
+
+@speech.with(name: @hero_name)   # => self
+@speech.lines                    # => a frozen Array of frozen Strings
+@speech.page_count               # => 2
+@speech.page(1)                  # => the lines of page 1
+@speech.width = 260              # re-breaks on the next read
+@speech.typeface                 # => Util::Typeface.default, unless typeface: was given
+```
+
+Every read goes through one check, and returns the cached Array when nothing
+moved:
+
+```ruby
+def lines
+  source = @text.to_s
+  return @lines if source.equal?(@source) && @width == @broken_at
+
+  break_lines(source)
+end
+```
+
+`with` forwards with `(...)`, not `(**)`: measured above, the second allocates a
+Hash on every call.
+
+**Rules the tests must pin.**
+
+4a:
+
+1. A `"\n"` ends the line wherever it falls, even when the rest of the text
+   would fit.
+2. The newline belongs to no line, and `text[*fit_length]` is it.
+3. `"a\n\nb"` is three lines, the middle one empty.
+4. **One `"\n"` at the very end adds no empty line.** YAML's `|` and `>` end
+   every String with one, so otherwise every paragraph written as a block
+   scalar would gain a blank last line and could spill onto an extra page.
+5. A word too wide for the line still ends at a newline, not at the next space.
+
+4b:
+
+1. **An unchanged read allocates nothing**: `lines`, and `with` given the same
+   values, over 200,000 reads each, like `Text`'s.
+2. **It breaks again exactly when the text's String or the width changes.**
+   Pinned as a count of `text_lines` calls: once for any number of unchanged
+   reads, and not at all for `width=` given the width it already has.
+3. **A language switch re-breaks with no call on the paragraph.** Loading or
+   switching moves `I18n.generation`, `Text` renders again, and the new String
+   fails the identity check.
+4. The first argument is a key (String or Symbol) or a `Text`. Anything else
+   raises `TypeError`. There is no way to pass player-visible prose as a String.
+5. A width of zero or less raises `ArgumentError`, at construction and in
+   `width=`.
+6. `lines` is frozen and so is each line. The same Array comes back until
+   something moves.
+
+4c:
+
+1. Without `lines_per_page:` a paragraph is one page.
+2. **`page_count` is at least 1**, so an empty text is one empty page. A
+   dialogue box that advances "until the last page" needs no guard.
+3. **`page(n)` clamps to the pages there are.** A language switch can shorten a
+   paragraph while a game shows its last page. Raising there would crash a
+   dialogue mid-scene, and returning nothing would blank it.
+4. `page(n)` returns the same frozen Array on every unchanged read, and
+   allocates nothing.
+5. A `lines_per_page` below 1 raises `ArgumentError`.
+
+**Tests.** `test/test_typeface.c`: a newline in a line that fits, directly
+after an exact fit, two in a row, one at the end, and after a word too wide for
+the line. `spec/rgame/util/typeface_spec.rb`: the same through `text_lines`,
+and a string read from a YAML `|` block. `spec/rgame/engine/paragraph_spec.rb`:
+every rule above, with `en` and `de` tables loaded through `I18n.load_hash`, and
+the allocation examples.
+
+**Verify.** `make test` and `rake spec`, plus `rake spec:core` for the doc
+coverage. The acceptance test is a spec: a `Paragraph` built from one key, at
+520 px, answers 3 lines under `en`, and 4 after `I18n.locale = :de`, with no
+call on the paragraph in between.
+
+**What this does not deliver.** No drawing, no alignment and no line height:
+those are `UI::Label`'s, in step 5. No `typeface=`. Nothing swaps a paragraph's
+face yet, and a setter is one more identity check if step 5 wants one. No `"\r"`
+handling. YAML turns the line breaks in a file into `"\n"`, so a `"\r"` only
+reaches `text_lines` if an author types one into a quoted string.
 
 ## Step 5 — `UI::Label` and an example *(rough)*
 
@@ -432,10 +577,11 @@ green, and no file under `docs/plans/text-measurement/` remains.
 
 ---
 
-## Why 4–6 are left rough
+## Why 5–6 are left rough
 
 Per [write-plan](../../../.claude/skills/write-plan/SKILL.md): a re-planned step
-routinely overturns something an earlier step recorded as fact. Two candidates
-are visible already — whether `Paragraph` should cache per width or freeze it,
-and whether `UI::Label`'s line loop belongs on the renderer. Both are answerable
-with the layer beneath in hand and guesswork before that.
+routinely overturns something an earlier step recorded as fact. Re-planning step
+4 did exactly that. The design had `Paragraph` compare its own variables. The
+code already had `Text` returning the identical String, and `OptionButton`
+keyed a cache on it. Step 5's open candidate is whether `UI::Label`'s line loop
+belongs on the renderer, and that needs `Paragraph` in hand.
