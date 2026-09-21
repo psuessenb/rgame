@@ -22,8 +22,9 @@ class QuietRenderer
   def text(_string, _x, _y, z: 10, color: nil) = coerce(z, color)
   def image(_image, _cx, _cy, scale: 1, z: 0, color: nil) = coerce(z + scale, color)
 
-  def text_width(string) = string.length * 8.0
-  def text_height = 18
+  def typeface = RGame::Util::Typeface.default
+  def text_width(string, font: nil) = (font || typeface).text_width(string)
+  def text_height(font: nil) = (font || typeface).height
 
   private
 

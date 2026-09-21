@@ -386,6 +386,11 @@ expect(ground.calls.size).to eq(tiles.size)   # baked once, not per frame
 expect(ground.draws.map(&:args)).to eq([[-camera.x, -camera.y]])
 ```
 
+**The fake measures text with the real font.** Its `text_width` and
+`text_height` come from `RGame::Util::Typeface.default`, the face the real
+renderer draws with unless told otherwise. So a spec can assert the exact
+position of a centred label.
+
 These specs run with no window, no GPU and no clock. One shared contract,
 `spec/support/shared_examples/a_renderer.rb`, checks both the fake and the real
 renderer. A fake that drifted from the real renderer would keep the suite green

@@ -589,6 +589,21 @@ RSpec.describe RGame::Core::Renderer do
       expect(left).to be >= 60
     end
 
+    # The acceptance test for step 3 of the text-measurement plan, and the
+    # window half of spec/rgame/engine/measured_text_spec.rb: measured with a
+    # typeface, centred by that measurement, drawn with the same typeface.
+    it 'keeps the ink of a string centred by its typeface inside the measured box' do
+      face = RGame::Util::Typeface.default(24)
+      width = face.text_width('Hamburgefonstiv')
+      left = (256 - width) / 2
+      frame = with_text { |renderer, _font| renderer.text('Hamburgefonstiv', left, 10, font: face) }
+
+      ink_left, ink_right = inked_columns(frame)
+      expect(ink_left).to be >= left.floor
+      expect(ink_right).to be <= (left + width).ceil
+      expect(ink_right - ink_left).to be > width * 0.9
+    end
+
     it 'answers the typeface of its default font' do
       expect(described_class.new(app).typeface).to be(RGame::Util::Typeface.default)
     end

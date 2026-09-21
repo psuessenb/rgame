@@ -212,6 +212,13 @@ RSpec.describe RGame::Engine::UI::OptionButton do
           .tap { root.enter_tree }
     end
 
+    # How much wider the widest of `after` measures than the widest of `before`,
+    # in the shipped typeface FakeRenderer measures with.
+    def growth(before, after)
+      face = RGame::Util::Typeface.default
+      after.map { face.text_width(it) }.max - before.map { face.text_width(it) }.max
+    end
+
     def left_chevron_x
       renderer.clear
       root.draw(renderer, screen_view)
@@ -244,14 +251,12 @@ RSpec.describe RGame::Engine::UI::OptionButton do
       expect(texts).to include('Hoch')
     end
 
-    # FakeRenderer measures 8 pixels a character: "Lo" and "Hi" are 16 wide,
-    # "Niedrig" 56, so the value column grows by 40 and the left chevron moves
-    # that far left.
+    # The left chevron moves left by as much as the widest caption grew.
     it 'measures the value column again after a switch to longer captions' do
       shadows(index: 1)
       english = left_chevron_x
       i18n.locale = :de
-      expect(english - left_chevron_x).to eq(40)
+      expect(english - left_chevron_x).to be_within(1e-9).of(growth(%w[Lo Hi], %w[Niedrig Hoch]))
     end
 
     it 'narrows the value column again after a switch back' do
@@ -277,7 +282,7 @@ RSpec.describe RGame::Engine::UI::OptionButton do
       item = shadows(index: 1)
       short = left_chevron_x
       item.label_scope = 'settings'
-      expect(short - left_chevron_x).to eq(16)
+      expect(short - left_chevron_x).to be_within(1e-9).of(growth(%w[Lo Hi], %w[Low High]))
     end
 
     it 'keeps a Text display gave as it is under a scope' do
@@ -304,15 +309,15 @@ RSpec.describe RGame::Engine::UI::OptionButton do
         expect(texts).to include('Slot 2')
       end
 
-      # "Slot 1" and "Slot 2" are 48 wide; "Slot 1000" is 72, so the column
-      # grows by 24 with no locale switch at all.
+      # The column grows with no locale switch at all.
       it 'measures the column again when a with changes a caption' do
         captions[:low].with(n: 1)
         captions[:high].with(n: 2)
         slots(captions, index: 1)
         before_with = left_chevron_x
         captions[:low].with(n: 1000)
-        expect(before_with - left_chevron_x).to eq(24)
+        expect(before_with - left_chevron_x)
+          .to be_within(1e-9).of(growth(['Slot 1', 'Slot 2'], ['Slot 1000', 'Slot 2']))
       end
 
       it 'draws without allocating while no caption changed' do
