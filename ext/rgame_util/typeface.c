@@ -298,6 +298,11 @@ void rgame_typeface_fit(const rgame_typeface *typeface, const char *text, size_t
 
     int codepoint = 0;
     while (rgame_text_cursor_next(&cursor, typeface, &codepoint, NULL)) {
+        if (codepoint == '\n') {
+            *fit_length = glyph_offset;
+            *fit_width = width_before_glyph;
+            return;
+        }
         if (codepoint == ' ') {
             have_break = 1;
             break_offset = glyph_offset;

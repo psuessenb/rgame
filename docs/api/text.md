@@ -38,8 +38,9 @@ renderer.text_height(font: nil)          # => Integer — the line height
 as it is. `text` and `text_width` raise `TypeError` for `nil`, a number, or a
 `to_str` that returns something other than a String.
 
-**A string is one line.** A newline has no special meaning. Draw two lines with
-two calls, stepped by `text_height`:
+**A string is one line.** `text` draws a newline as a glyph, not as a line
+break. Break the string with [`text_lines`](#breaking-text-into-lines), then draw
+each line with its own call, stepped by `text_height`:
 
 ```ruby
 lines.each_with_index do |line, i|
@@ -128,7 +129,8 @@ size below 1 raises `ArgumentError`.
 ### Breaking text into lines
 
 **`Typeface#text_lines(string, max_width)` returns the lines a string breaks
-into, one String per line.** It breaks at the last space that fits. Every line
+into, one String per line.** It breaks at the last space that fits, and at every
+newline. Every line
 measures no wider than `max_width`, with one exception: a word wider than the
 whole line comes back whole rather than cut.
 
@@ -139,13 +141,15 @@ face = RGame::Util::Typeface.default(18)
 face.text_lines('The gate is shut for the night, traveller.', 180) # => ["The gate is shut for the", "night, traveller."]
 face.text_lines('The gate is shut.', 180)                          # => ["The gate is shut."]
 face.text_lines('Systemsprache verwenden', 50)                     # => ["Systemsprache", "verwenden"]
+face.text_lines("The gate is shut.\nCome back at dawn.\n", 520)    # => ["The gate is shut.", "Come back at dawn."]
 face.text_lines('', 180)                                           # => []
 ```
 
-Each break takes the space it replaced, so `lines.join(' ')` gives back the
-string. Two spaces in a row, or a trailing space that does not fit, therefore
-produce an empty line. `text_lines` breaks at spaces only: it never hyphenates,
-and it treats a newline as a character like any other.
+Each break takes the space or newline it replaced, so no line holds either.
+Two spaces in a row, or a trailing space that does not fit, produce an empty
+line, and so do two newlines in a row. One newline at the very end adds no
+line: a YAML `|` block ends every string with one. `text_lines` never
+hyphenates and never breaks inside a word.
 
 `text_lines` runs the same C walk as `text_width`, so a line it returns measures
 what `text_width` reports for it. It builds new Strings on every call, so call

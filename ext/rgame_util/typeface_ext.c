@@ -112,10 +112,13 @@ static VALUE typeface_text_width(VALUE self, VALUE string) {
  * #text_lines(string, max_width) — the lines the string breaks into at `max_width`
  * pixels, one String per line.
  *
- * Lines break at spaces, and each break takes the space it replaced, so the
- * lines joined with one space give back the string. Every line measures no
- * wider than `max_width`, except a single word wider than the whole line,
- * which comes back whole. An empty string has no lines.
+ * Lines break at a space that would overflow and at every newline. Each break
+ * takes the space or newline it replaced, so no line holds either one. Every
+ * line measures no wider than `max_width`, except a single word wider than
+ * the whole line, which comes back whole.
+ *
+ * An empty string has no lines, and one newline at the very end adds none: a
+ * YAML `|` block ends every string with one.
  */
 static VALUE typeface_text_lines(VALUE self, VALUE string, VALUE max_width) {
     const rgame_typeface *typeface = typeface_unwrap(self);
@@ -141,6 +144,9 @@ static VALUE typeface_text_lines(VALUE self, VALUE string, VALUE max_width) {
             break;
         }
         offset += 1;
+        if (offset == length && RSTRING_PTR(string)[offset - 1] == '\n') {
+            break;
+        }
     }
 
     RB_GC_GUARD(string);

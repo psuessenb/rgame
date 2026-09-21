@@ -144,12 +144,14 @@ float rgame_typeface_measure(const rgame_typeface *typeface, const char *text, s
  * How much of `text` fits on one line `max_width` pixels wide. Writes the
  * line's length in bytes and the width it measures to.
  *
- * The line ends before the last space that fits. That space is not part of the
- * line, and `text[*fit_length]` is it, so the next line starts one byte later.
- * A line ends only at the end of `text` or at a space.
+ * The line ends before the last space that fits, or at the first newline,
+ * whichever comes first. That space or newline is not part of the line, and
+ * `text[*fit_length]` is it, so the next line starts one byte later. A line
+ * ends only at the end of `text`, at a space or at a newline.
  *
- * A word wider than `max_width` comes back whole rather than cut. A caller
- * always makes progress, and a long URL overflows where a player can see it.
+ * A word wider than `max_width` comes back whole rather than cut, up to the
+ * next space or newline. A caller always makes progress, and a long URL
+ * overflows where a player can see it.
  *
  * This is the cursor above, stopped at the break. `*fit_width` is therefore
  * exactly what `rgame_typeface_measure` reports for the line on its own.

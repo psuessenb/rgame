@@ -123,6 +123,38 @@ RSpec.describe RGame::Util::Typeface do
       expect([face.text_lines(english, 520).size, face.text_lines(german, 520).size]).to eq([3, 4])
     end
 
+    describe 'with newlines' do
+      it 'ends a line at a newline, even when the rest would fit' do
+        expect(face.text_lines("The gate\nis shut", 520)).to eq(['The gate', 'is shut'])
+      end
+
+      it 'ends the line at a newline straight after an exact fit' do
+        expect(face.text_lines("The gate\nis", face.text_width('The gate'))).to eq(['The gate', 'is'])
+      end
+
+      it 'leaves an empty line between two newlines' do
+        expect(face.text_lines("a\n\nb", 520)).to eq(['a', '', 'b'])
+      end
+
+      it 'adds no line for one newline at the very end' do
+        expect(face.text_lines("The gate is shut.\n", 520)).to eq(['The gate is shut.'])
+      end
+
+      it 'adds one empty line for two newlines at the end' do
+        expect(face.text_lines("The gate is shut.\n\n", 520)).to eq(['The gate is shut.', ''])
+      end
+
+      it 'ends a word too wide for the line at the newline after it' do
+        expect(face.text_lines("Systemsprache\nverwenden", 50)).to eq(%w[Systemsprache verwenden])
+      end
+
+      it 'reads a YAML | block as the lines it was written in, with no blank line after' do
+        string = YAML.safe_load("notice: |\n  The gate is shut.\n  Come back at dawn.\n")['notice']
+
+        expect(face.text_lines(string, 520)).to eq(['The gate is shut.', 'Come back at dawn.'])
+      end
+    end
+
     it 'refuses something that is not a String' do
       expect { face.text_lines(42, 180) }.to raise_error(TypeError)
     end
