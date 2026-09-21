@@ -54,16 +54,15 @@ module RGame
           @timer.update(dt)
           while @timer.ready?
             @timer.consume
+            @done = !@repeating
             on_timeout_signal.emit
-            unless @repeating
-              @done = true
-              break
-            end
+            break unless @repeating
           end
         end
 
         # Back to a fresh timer: drop accumulated time and re-arm a spent one-shot (e.g.
-        # after retuning the interval, or when a pooled node is reused). Returns self.
+        # after retuning the interval, or when a pooled node is reused). A one-shot's own
+        # `on_timeout` handler may call it to fire again one interval later. Returns self.
         def reset
           @timer.reset
           @done = false

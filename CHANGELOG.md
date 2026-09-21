@@ -38,6 +38,12 @@ index, not the argument.
   the page with `page=`. See
   [docs/api/ui.md](docs/api/ui.md#rgameengineuilabel).
 
+### Fixed
+
+- **A one-shot timer can re-arm itself.** `Components::Timer#reset` called from
+  the timer's own `on_timeout` handler was undone as the handler returned, so a
+  `repeating: false` timer never fired again. It now fires one interval later.
+
 ## [0.4.0] - 2026-09-16
 
 ### Added
