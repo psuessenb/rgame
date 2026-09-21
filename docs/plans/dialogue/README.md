@@ -1,6 +1,6 @@
 # Dialogue, and the state machine beneath it
 
-**Status: step 0 is implemented.** Steps 0–3 of
+**Status: steps 0–1 are implemented.** Steps 0–3 of
 [the roadmap](04-roadmap.md) are detailed. Steps 4–7 are deliberately rough and
 get re-planned once the layer beneath them exists.
 
@@ -144,9 +144,19 @@ re-litigation inside the plan.
    mounting it is one line. Since the facts became what a game saves, the case
    for mounting is stronger: a scene built before a load and one built after
    should find the same store. Waits on step 1's landing. Blocks nothing.
+   *Step 1 landed recommending yes* — see its landed note in
+   [the roadmap](04-roadmap.md). Waits on that decision.
 4. **How a shared conversation takes input.** When every player sees one
    conversation, does one player answer, or whoever presses first? Waits on
    step 5. Blocks nothing before it.
+
+5. **Should a watch end when the node that made it leaves the tree?** A node
+   that watches a fact in `on_add` must unwatch in `on_remove`, as with every
+   signal the engine has. Forgetting is loud for a watch that moves a named
+   machine, and silent for one that only sets a node's own state. Tying a
+   connection to a node's lifetime would fix every signal, not only these, so
+   it is a question for the engine rather than this plan. Found in step 1.
+   Blocks nothing.
 
 ## What this does not deliver
 
