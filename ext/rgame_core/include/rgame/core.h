@@ -608,10 +608,21 @@ void rgame_app_pop(rgame_app *app);
 typedef struct rgame_font rgame_font;
 
 /*
- * Loads a TrueType font at `pixel_height`. Returns NULL on failure, writing a
- * reason into `err` (which may be NULL). There is no font-*name* lookup and no
- * system font database: a caller names a file. The engine ships one — see
- * lib/rgame/fonts/ — and the Ruby binding defaults to it.
+ * Opens a font at `pixel_height` from the bytes of a TrueType file. Returns
+ * NULL on failure, writing a reason into `err` (which may be NULL). The bytes
+ * are copied, so the caller may free them straight away.
+ *
+ * This is what `RGame::Core::Font` uses: it takes the bytes a
+ * `RGame::Util::Typeface` was opened from, so the font draws with the face the
+ * game measured with.
+ */
+rgame_font *rgame_font_open(rgame_app *app, const unsigned char *ttf, size_t length,
+                            int pixel_height, char *err, size_t err_size);
+
+/*
+ * `rgame_font_open` on the contents of the file at `path`, naming the path in
+ * `err` on failure. There is no font-*name* lookup and no system font database:
+ * a caller names a file. The engine ships one — see lib/rgame/fonts/.
  */
 rgame_font *rgame_font_load(rgame_app *app, const char *path, int pixel_height, char *err,
                             size_t err_size);

@@ -14,6 +14,7 @@ struct rgame_typeface {
     /* Our own copy: stb keeps pointers into this for the life of the face, and
      * a borrowed buffer would be a lifetime rule callers have to remember. */
     unsigned char *ttf;
+    size_t ttf_length;
 
     int pixel_height;
     float scale;  /* font units -> pixels at that height */
@@ -36,6 +37,7 @@ rgame_typeface *rgame_typeface_open(const unsigned char *ttf, size_t length, int
         return NULL;
     }
     memcpy(typeface->ttf, ttf, length);
+    typeface->ttf_length = length;
 
     /* Index 0 of a font collection. A .ttc with several faces in it is a thing
      * that exists; picking anything but the first would need a way to say
@@ -63,6 +65,11 @@ void rgame_typeface_close(rgame_typeface *typeface) {
     }
     free(typeface->ttf);
     free(typeface);
+}
+
+const unsigned char *rgame_typeface_data(const rgame_typeface *typeface, size_t *length) {
+    *length = typeface ? typeface->ttf_length : 0;
+    return typeface ? typeface->ttf : NULL;
 }
 
 int rgame_typeface_height(const rgame_typeface *typeface) {

@@ -153,6 +153,14 @@ static VALUE typeface_text_lines(VALUE self, VALUE string, VALUE max_width) {
     return lines;
 }
 
+/* #font_data — the font file this face was opened from, as a new binary String.
+ * Private; lib/rgame/util/typeface.rb exposes it as #bytes. */
+static VALUE typeface_font_data(VALUE self) {
+    size_t length = 0;
+    const unsigned char *data = rgame_typeface_data(typeface_unwrap(self), &length);
+    return rb_str_new((const char *)data, (long)length);
+}
+
 static VALUE typeface_inspect(VALUE self) {
     rgame_typeface_ref *ref;
     TypedData_Get_Struct(self, rgame_typeface_ref, &typeface_data_type, ref);
@@ -175,5 +183,6 @@ void rgame_init_typeface(VALUE mUtil) {
     rb_define_method(cTypeface, "height", typeface_height, 0);
     rb_define_method(cTypeface, "text_width", typeface_text_width, 1);
     rb_define_method(cTypeface, "text_lines", typeface_text_lines, 2);
+    rb_define_private_method(cTypeface, "font_data", typeface_font_data, 0);
     rb_define_method(cTypeface, "inspect", typeface_inspect, 0);
 }

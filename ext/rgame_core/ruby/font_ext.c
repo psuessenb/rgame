@@ -1,8 +1,8 @@
 /*
  * font_ext.c — the Ruby binding for RGame::Core::Font.
  *
- *   font = RGame::Core::Font.new(app, 18)                        # the shipped font
- *   font = RGame::Core::Font.new(app, 18, path: 'assets/x.ttf')
+ *   font = RGame::Core::Font.new(app, RGame::Util::Typeface.default(18))
+ *   font.typeface      # => that typeface
  *   font.height        # => 18
  *   font.text_width('Score: 1200')
  *
@@ -12,8 +12,11 @@
  * the wrapper: argument checking, turning a NULL return into an exception that
  * says why, and keeping the app reachable for as long as the font is.
  *
- * The default path is *not* here. It is a packaging question — where a gem
- * installs its data — so lib/rgame/core/font.rb owns it and passes a path down.
+ * A font is always built from a RGame::Util::Typeface. It asks the typeface for
+ * its bytes through Ruby and opens its own face from them: the two extensions
+ * share no C object, and the same bytes measure the same. The forms that take a
+ * size and a path are sugar in lib/rgame/core/font.rb, which builds the
+ * typeface first and owns the default path.
  *
  * The C layer has no opinion about where fonts live and there is **no
  * font-name lookup at all**: a font is a file. Asking the operating system for
@@ -32,11 +35,13 @@
 typedef struct {
     rgame_font *font;
     VALUE app_object; /* marked: the atlas pages live in this window's context */
+    VALUE typeface;   /* marked: what #typeface answers */
 } rgame_font_ref;
 
 static void font_ref_mark(void *ptr) {
     rgame_font_ref *ref = ptr;
     rb_gc_mark(ref->app_object);
+    rb_gc_mark(ref->typeface);
 }
 
 static void font_ref_free(void *ptr) {
@@ -80,28 +85,47 @@ static VALUE font_alloc(VALUE klass) {
     VALUE object = TypedData_Make_Struct(klass, rgame_font_ref, &font_data_type, ref);
     ref->font = NULL;
     ref->app_object = Qnil;
+    ref->typeface = Qnil;
     return object;
 }
 
-/* Font.new(app, pixel_height, path) — the path is supplied by the Ruby half,
- * which defaults it to the shipped font. */
-static VALUE font_initialize(VALUE self, VALUE app, VALUE pixel_height, VALUE path) {
+/* Font.new(app, typeface) — opens a face from the typeface's own bytes, at its
+ * size. */
+static VALUE font_initialize(VALUE self, VALUE app, VALUE typeface) {
     rgame_font_ref *ref;
     TypedData_Get_Struct(self, rgame_font_ref, &font_data_type, ref);
+    if (ref->font) {
+        rb_raise(rb_eRuntimeError, "font is already initialized");
+    }
 
     rgame_app *engine_app = rgame_app_unwrap(app); /* raises TypeError otherwise */
-    const char *path_str = StringValueCStr(path);
-    int height = NUM2INT(pixel_height);
+    VALUE typeface_class = rb_path2class("RGame::Util::Typeface");
+    if (!rb_obj_is_kind_of(typeface, typeface_class)) {
+        rb_raise(rb_eTypeError, "a font is built from a %" PRIsVALUE ", got %" PRIsVALUE,
+                 typeface_class, rb_inspect(typeface));
+    }
+
+    VALUE bytes = rb_funcall(typeface, rb_intern("bytes"), 0);
+    StringValue(bytes);
+    int height = NUM2INT(rb_funcall(typeface, rb_intern("height"), 0));
 
     char error[256] = {0};
-    rgame_font *font = rgame_font_load(engine_app, path_str, height, error, sizeof(error));
+    rgame_font *font = rgame_font_open(engine_app, (const unsigned char *)RSTRING_PTR(bytes),
+                                       (size_t)RSTRING_LEN(bytes), height, error, sizeof(error));
+    RB_GC_GUARD(bytes);
     if (!font) {
         rb_raise(rb_const_get(cFont, rb_intern("LoadError")), "%s", error);
     }
 
     ref->font = font;
     ref->app_object = app;
+    ref->typeface = typeface;
     return self;
+}
+
+/* The RGame::Util::Typeface this font was built from. */
+static VALUE font_typeface(VALUE self) {
+    return font_unwrap(self)->typeface;
 }
 
 /* The size it was loaded at, and the amount to step by for a second line. */
@@ -161,7 +185,8 @@ void rgame_init_font(VALUE mCore) {
     rb_define_class_under(cFont, "LoadError", rb_eStandardError);
 
     rb_define_alloc_func(cFont, font_alloc);
-    rb_define_method(cFont, "initialize", font_initialize, 3);
+    rb_define_method(cFont, "initialize", font_initialize, 2);
+    rb_define_method(cFont, "typeface", font_typeface, 0);
     rb_define_method(cFont, "height", font_height, 0);
     rb_define_method(cFont, "text_width", font_text_width, 1);
     rb_define_method(cFont, "inspect", font_inspect, 0);

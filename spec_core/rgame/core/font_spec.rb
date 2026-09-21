@@ -41,6 +41,43 @@ RSpec.describe RGame::Core::Font do
     it 'refuses anything that is not an App' do
       expect { described_class.new(Object.new, 18) }.to raise_error(TypeError)
     end
+
+    it 'refuses something that is neither a typeface nor a size' do
+      expect { described_class.new(app, 'large') }.to raise_error(TypeError)
+    end
+  end
+
+  describe 'built from a typeface' do
+    let(:typeface) { RGame::Util::Typeface.new(described_class::DEFAULT_PATH, 14) }
+
+    it 'takes a typeface and answers it' do
+      font = described_class.new(app, typeface)
+
+      expect([font.typeface, font.height]).to eq([typeface, 14])
+    end
+
+    it 'measures a size exactly as the typeface for that size' do
+      strings = ['Hello', 'AV', 'Systemsprache verwenden', 'Straße über Größe']
+      by_size = described_class.new(app, 18)
+      by_typeface = described_class.new(app, RGame::Util::Typeface.default(18))
+
+      expect(strings.map { by_size.text_width(it) }).to eq(strings.map { by_typeface.text_width(it) })
+    end
+
+    it 'builds a size on the shared default typeface' do
+      expect(described_class.new(app, 18).typeface).to be(RGame::Util::Typeface.default(18))
+    end
+
+    it 'builds a size and a path on a typeface for that file' do
+      font = described_class.new(app, 12, path: described_class::DEFAULT_PATH)
+
+      expect([font.typeface.class, font.typeface.height]).to eq([RGame::Util::Typeface, 12])
+    end
+
+    it 'refuses a path beside a typeface, which names its own file' do
+      expect { described_class.new(app, typeface, path: described_class::DEFAULT_PATH) }
+        .to raise_error(ArgumentError, /already names its file/)
+    end
   end
 
   describe 'the shipped default' do

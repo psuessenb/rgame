@@ -71,18 +71,26 @@ renderer.text(@score.with(score: @points), 10, 10)     # every frame
 ## Fonts
 
 ```ruby
-font = RGame::Core::Font.new(app, 18)                          # the shipped font
-font = RGame::Core::Font.new(app, 18, path: 'assets/pixel.ttf')
+face = RGame::Util::Typeface.default(18)
+font = RGame::Core::Font.new(app, face)                         # draws what `face` measures
+font = RGame::Core::Font.new(app, 18)                           # on Typeface.default(18)
+font = RGame::Core::Font.new(app, 18, path: 'assets/pixel.ttf') # on Typeface.new('assets/pixel.ttf', 18)
 
+font.typeface            # => the typeface it was built from
 font.height              # => 18
 font.text_width('Hello') # => 38.7
 
 renderer.text('Hello', 10, 10, font: font)
 ```
 
-A `Font` is **one typeface at one pixel size**. Two sizes need two fonts. A font
-belongs to the app whose GPU context holds its glyphs, like an image. Drawing it
-through another app's renderer raises instead of painting blank boxes.
+A `Font` is **one typeface at one pixel size, with the glyphs to draw it**. It is
+always built from a [`RGame::Util::Typeface`](#measuring-without-a-window), and
+`Font#typeface` returns that typeface. A size builds the typeface first. Two
+sizes need two fonts.
+
+A font belongs to the app whose GPU context holds its glyphs, like an image.
+Drawing it through another app's renderer raises instead of painting blank
+boxes.
 
 The renderer builds its own 18px font on first use. Replace it, and every `text`
 call without a `font:` follows:
@@ -92,7 +100,9 @@ call without a `font:` follows:
 ```
 
 A file that is unreadable or not a TrueType font raises
-`RGame::Core::Font::LoadError`, naming the path.
+`RGame::Core::Font::LoadError`, naming the path, and so does a size below 1.
+`path:` beside a typeface raises `ArgumentError`, because the typeface already
+names its file.
 
 ### Measuring without a window
 
@@ -110,9 +120,9 @@ face.text_width('AV') < face.text_width('A') + face.text_width('V') # => true â€
 ```
 
 `Typeface#height` and `Typeface#text_width` are spelled as a `Font` spells them,
-and return the same numbers. A `Font` and a `Typeface` built from the same file at
-the same size measure every string to the same `Float`, because both run the same
-C over the same bytes.
+and return the same numbers. A `Font` opens its glyphs from its typeface's own
+bytes, so it measures every string to the same `Float` as `Font#typeface`. A game
+can lay out with the typeface in `update` and draw with the font.
 
 `Typeface.default` takes the size and defaults it to
 `RGame::Util::Typeface::DEFAULT_SIZE`, which is 18. The renderer's own font uses

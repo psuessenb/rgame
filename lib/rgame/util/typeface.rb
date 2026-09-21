@@ -46,6 +46,12 @@ module RGame
         @default ||= {}
         @default[pixel_height] ||= new(DEFAULT_PATH, pixel_height)
       end
+
+      # @api private
+      # The font file this typeface was opened from, as a new binary String.
+      # `RGame::Core::Font` opens its own face from it, so it draws what this
+      # measures.
+      def bytes = font_data
     end
   end
 end
