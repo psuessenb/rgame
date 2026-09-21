@@ -230,12 +230,14 @@ re-litigation inside it.
    chunk is simpler and pads the map; by cell is tighter and costs a scan.
    The acceptance map is built so both agree ([R16](map-requirements.md#r16)).
    **Waits on step 3.**
-6. **What does the parser do about a class member left at its default?** Tiled
-   writes only the members that differ from the class's defaults, and the
-   defaults live in the `.tiled-project` file, which nothing reads. So a member
-   the designer never changed is absent from `Properties`, and `fetch` raises.
-   Reading the project file is one answer; documenting the gap is another.
-   **Waits on step 1.**
+6. ~~**What does the parser do about a class member left at its default?**~~
+   **Settled in step 1 — it reads what the file states, and documents the gap.**
+   Tiled writes only the members that differ from the class's defaults, and
+   keeps the defaults in the `.tiled-project` file, which nothing reads. So a
+   member the designer never changed is absent from `Properties`, `fetch` with
+   no default raises naming it, and a game reads it with `fetch(name, default)`.
+   The class comment on `Tiled::Properties` says so. Reading the project file
+   stays possible later and changes no caller.
 
 ## Reading order
 
