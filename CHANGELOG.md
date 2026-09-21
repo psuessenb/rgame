@@ -65,6 +65,10 @@ index, not the argument.
   one cell of the scene's `TileWorld` solid while its node is in the tree, for
   collision and route planning alike. See
   [docs/api/components.md](docs/api/components.md#occupiescell).
+- **A map's objects become nodes.** `RGame::Engine::MapObjects` takes a block
+  per Tiled class and builds a node from each object of that class.
+  `spawn_into` adds them under a parent. See
+  [docs/api/tile_maps.md](docs/api/tile_maps.md#building-nodes-from-objects).
 - **`Image#tiles` cuts a sheet with gaps.** It takes `margin:`, `spacing:`,
   `columns:` and `count:`. See [docs/api/images.md](docs/api/images.md).
 

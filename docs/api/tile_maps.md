@@ -12,6 +12,7 @@ A game rarely builds one itself. The pieces that use it are:
 | [`TileWorld`](components.md#tileworld) | answer solidity and world-size questions for actors |
 | [`TileMapLayer`](components.md#tileworld) | draw one layer per node |
 | [`TileMapRenderer`](assets.md#tile-maps) | bake and draw the tiles |
+| [`MapObjects`](#building-nodes-from-objects) | build a node from each of its objects |
 | `RGame::Game`'s `:tilemap` asset loader | read a `.tmx`, build the map and slice its tileset images |
 
 Read on when a scene queries the map itself, or when you author maps for rgame.
@@ -280,8 +281,33 @@ cells report the same corner.
 | `visible?` | false when the designer hid it |
 | `properties` | its custom properties |
 
-**No node is built from an object.** The map reads them; placing something for
-each is the game's code.
+### Building nodes from objects
+
+**`RGame::Engine::MapObjects` builds a node from each object whose class has a
+block.** The class is the Class field Tiled shows in an object's properties.
+
+```ruby
+# In a scene's on_add, with `map` loaded and `slots` from TileMapLayer.mount.
+objects = RGame::Engine::MapObjects.new
+objects.define('chest') { |o| Chest.new(x: o.x, y: o.y, contents: o.properties.fetch('contents')) }
+objects.define('trap')  { |o| Trap.new(x: o.x, y: o.y) }
+
+objects.spawn_into(slots[:actors], map.objects) # => the chests and traps it added
+```
+
+- **`define(class_name) { |object| ... }`** registers the block for one class and
+  returns the registry. It raises `ArgumentError` for a class defined twice, a
+  name that is not a String, or a missing block.
+- **`build(object)`** returns what the block for `object.class_name` returns, or
+  `nil` when no block was defined for that class. A map may carry objects a scene
+  has no use for.
+- **`spawn_into(parent, objects)`** builds each object in the order given, adds
+  every node that comes back under `parent`, and returns those nodes. A hidden
+  object is built too, so the block can read `visible?` itself.
+- **The block places the node.** An object's `(x, y)` is its top-left corner, and
+  where a node's origin sits is up to its class. The registry moves nothing.
+- **Nothing spawns a map's objects unless the scene asks.** The scene calls
+  `spawn_into` and chooses the parent.
 
 ## `RGame::Engine::Properties`
 
