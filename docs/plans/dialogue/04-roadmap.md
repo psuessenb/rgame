@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: nothing implemented.** Steps 0–3 are detailed. Steps 4–7 are rough on
+**Status: step 0 is implemented.** Steps 0–3 are detailed. Steps 4–7 are rough on
 purpose and get re-planned when the step before them lands.
 
 Each step is one branch and one pull request; each lettered sub-step is one
@@ -153,6 +153,41 @@ saved state raising; `transitions` and `visits` allocating nothing
 graph, driven through all four stages in a spec, saved, and resumed at
 `:found`. `docs/api/dialogue.md` exists with a "State machines" section whose
 examples the doc specs run.
+
+**Landed.** `Engine::StateGraph` in `lib/rgame/engine/state_graph.rb` and
+`Engine::StateMachine` in `lib/rgame/engine/state_machine.rb`, as three commits,
+one per sub-step. `docs/api/dialogue.md` has the "State machines" section, with
+four headless examples the doc specs run and assert, and a row in the index.
+`CHANGELOG.md` has one entry under Added.
+
+`rake spec` ran 2716 examples, 0 failures, in 21.3 s; the two new files hold
+46 of them. `rake spec:core` ran 474, 0 failures, and `rake docs:coverage`
+reported 0 of 167 classes with undocumented names. `make test` ran 380 checks,
+0 failures. The HAMMER quest runs through all four stages in
+`state_machine_spec.rb`, saves through a `SaveFile` at `:found`, and resumes
+there to finish and pay the reward.
+
+What the sketch got wrong or left out:
+
+- **The graph needs a reader for a state.** The sketch listed `transitions`
+  but nothing returned a state's `enter:` or `data:`, which the machine runs
+  and step 2's beats carry. `StateGraph#state(name)` returns a frozen
+  `StateGraph::State` with `name`, `enter`, `data` and `transitions`.
+- **State names, events and `to:` must be Symbols**, and anything else raises
+  at build. `from:` turns a saved String back into a Symbol, so a state named
+  by a String could never be resumed. The same rule step 1 applies to fact
+  keys.
+- **A `state` inside another state's block raises** too, a fifth build error
+  the sketch did not list.
+- **A saved nil state resumes the machine ended.** `to_h` of an ended machine
+  has `state: nil`, and step 2's named dialogue that ended (rule 11) needs to
+  read that back.
+- **Re-entry raises `RuntimeError`**, the class the sketch left open. A
+  listener that raises after the move leaves the machine moved: the state
+  change is not rolled back. Nothing needs a rollback yet.
+- **The missing-Symbol error names the context's class**, not its `inspect`,
+  which for a game's hero would print every instance variable.
+- **`facts:` is only kept.** Nothing reads it until step 1 builds the store.
 
 ---
 

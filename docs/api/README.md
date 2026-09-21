@@ -30,6 +30,7 @@ The scene graph is `RGame::Engine`, the layer a game is written in:
 | [Tile maps](tile_maps.md) | `TileMap` — a Tiled map as data: loading, cells, tiles, solidity, layers, objects and the nodes built from them, custom properties |
 | [UI](ui.md) | `PlayerLayer`, `UI::Menu` and `UI::Label` — a player's own screen, a list or wheel navigated by focus, and a translated paragraph drawn a page at a time |
 | [Signals](signals.md) | The typed observer pattern nodes talk through |
+| [Dialogue and state machines](dialogue.md) | `StateGraph` and `StateMachine` — states, transitions with conditions and effects, visit counts, saving and resuming |
 | [Toolbox](toolbox.md) | What a game author reaches for directly: the text a node draws, pooling, paths and routes, timers, the camera, collision boxes, the audio bus |
 | [Localization](localization.md) | `I18n` and translation tables — where they go, plurals, the fallback chain, the player's language, missing keys in specs |
 | [Internal building blocks](internals.md) | What components are built from: collision maths, the spatial index, animation playback |
