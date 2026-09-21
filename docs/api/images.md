@@ -79,6 +79,19 @@ sheets number their frames the same way.
 sheet into 16s yields four columns. The six leftover pixels count as padding,
 because half a sprite is never wanted.
 
+**`tiles` also cuts a sheet with gaps**, as a Tiled tileset describes one:
+
+```ruby
+sheet.tiles(16, 16, margin: 1, spacing: 2)            # 1 px border, 2 px between tiles
+sheet.tiles(16, 16, count: 5)                         # only the first five
+sheet.tiles(16, 16, margin: 1, spacing: 2, columns: 3)
+```
+
+`margin` is the border around the whole sheet and `spacing` the gap between two
+tiles. `columns` sets how many tiles a row holds, and defaults to as many as fit.
+`count` stops the Array early. A tile that would reach outside the sheet raises
+`ArgumentError`, or `IndexError` for a packed sheet.
+
 ### Coordinates are relative to what you cut from
 
 `subimage` on a subimage composes, and cannot escape its parent:

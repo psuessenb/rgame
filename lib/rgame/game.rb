@@ -271,12 +271,11 @@ module RGame
     end
 
     def sliced(tileset)
-      if tileset.collection? || tileset.margin.nonzero? || tileset.spacing.nonzero?
-        raise RGame::Engine::Tiled::FormatError,
-              "tileset '#{tileset.name}' is a collection of images or has a margin or spacing, " \
-              'and rgame slices only a sheet of tiles packed edge to edge'
-      end
-      assets.image(tileset.image.source).tiles(tileset.tile_width, tileset.tile_height)
+      return tileset.tiles.transform_values { assets.image(it.image.source) } if tileset.collection?
+
+      assets.image(tileset.image.source).tiles(tileset.tile_width, tileset.tile_height,
+                                               margin: tileset.margin, spacing: tileset.spacing,
+                                               count: tileset.tile_count, columns: tileset.columns)
     end
   end
 end

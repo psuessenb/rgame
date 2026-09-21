@@ -34,11 +34,23 @@ module RGame
         new(app, path).tiles(tile_width, tile_height)
       end
 
-      # This image sliced into whole tiles, as an Array. `load_tiles` is the
-      # same thing starting from a path.
-      def tiles(tile_width, tile_height)
-        Array.new(tile_count(tile_width, tile_height)) do |index|
-          tile(tile_width, tile_height, index)
+      # This image sliced into whole tiles, as an Array in reading order.
+      # `load_tiles` is the same thing starting from a path.
+      #
+      # `margin` is the border around the sheet and `spacing` the gap between
+      # tiles, both in pixels, as a Tiled tileset states them. `columns` is how
+      # many tiles a row holds, counted from the width when not given, and
+      # `count` how many tiles to cut, every whole one when not given. A tile
+      # that would reach outside the image raises.
+      def tiles(tile_width, tile_height, margin: 0, spacing: 0, count: nil, columns: nil)
+        packed = margin.zero? && spacing.zero? && (columns.nil? || columns == width / tile_width)
+        return Array.new(count || tile_count(tile_width, tile_height)) { tile(tile_width, tile_height, it) } if packed
+
+        columns ||= (width - (2 * margin) + spacing) / (tile_width + spacing)
+        count ||= columns * ((height - (2 * margin) + spacing) / (tile_height + spacing))
+        Array.new(count) do |index|
+          subimage(margin + ((index % columns) * (tile_width + spacing)),
+                   margin + ((index / columns) * (tile_height + spacing)), tile_width, tile_height)
         end
       end
 

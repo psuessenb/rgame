@@ -50,6 +50,14 @@ module RGame
     # more recordings, not more vertices: the partition changed, the contents
     # did not.
     #
+    # ## What Tiled shows
+    #
+    # A hidden layer draws nothing and is never baked. A translucent one
+    # replays tinted by its opacity, and its animated tiles draw with the same
+    # tint. A turned tile is baked inside a rotation about its own centre,
+    # mirrored within its rectangle first when it is flipped. Every tile stands
+    # on its cell's bottom-left corner, as Tiled draws one taller than the grid.
+    #
     # ## It loads nothing and holds no clock
     #
     # The tiles arrive already sliced, so two maps sharing a tileset share one
@@ -66,8 +74,9 @@ module RGame
     # It never names the map's class — the tile map lives a layer *above* this
     # one and Core may not reach up (see "The rule points both ways").
     # What it calls is the 'a tile map' contract in
-    # `spec/support/shared_examples/`: `layer_count`, `width`, `height`,
-    # `tile_width`, `tile_height`, `tile`, `animated_tiles` and `frame_tile`.
+    # `spec/support/shared_examples/`: `layer_count`, `layer(i).visible?` and
+    # `opacity`, `width`, `height`, `tile_width`, `tile_height`, `tile`,
+    # `orientation`, `animated_tiles` and `frame_tile`.
     class TileMapRenderer
       # The map this was built from. A scene reads it for collision and world
       # bounds, which are its business rather than this class's.
@@ -81,6 +90,8 @@ module RGame
         @tiles = tiles
         @animated = collect_animated_tiles
         @static = Array.new(map.layer_count)
+        @shown = Array.new(map.layer_count) { map.layer(it).visible? }
+        @tints = Array.new(map.layer_count) { tint(map.layer(it).opacity) }
       end
 
       def layer_count = @map.layer_count
@@ -106,9 +117,11 @@ module RGame
           raise ArgumentError, "no layer #{index.inspect} in this map (it has #{@static.size})"
         end
 
+        return unless @shown[index]
+
         @static[index] ||= bake(renderer, index)
-        @static[index].draw
-        draw_animated(renderer, @animated[index], cull_x, cull_y,
+        @static[index].draw(color: @tints[index])
+        draw_animated(renderer, @animated[index], @tints[index], cull_x, cull_y,
                       cull_width, cull_height, elapsed)
       end
 
@@ -119,7 +132,7 @@ module RGame
         each_tile do |layer, col, row, tile|
           next unless @animates.include?(tile)
 
-          found[layer] << [col, row, tile]
+          found[layer] << [col, row, tile, @map.orientation(layer, col, row)]
         end
         found
       end
@@ -143,12 +156,12 @@ module RGame
             next unless layer == index
             next if @animates.include?(tile)
 
-            renderer.image_at(@tiles[tile], col * @map.tile_width, row * @map.tile_height)
+            draw_tile(renderer, @tiles[tile], col, row, @map.orientation(layer, col, row), nil)
           end
         end
       end
 
-      def draw_animated(renderer, tiles, cull_x, cull_y, cull_width, cull_height, elapsed)
+      def draw_animated(renderer, tiles, tint, cull_x, cull_y, cull_width, cull_height, elapsed)
         tile_width = @map.tile_width
         tile_height = @map.tile_height
 
@@ -157,13 +170,27 @@ module RGame
         col_end = (cull_x + cull_width).fdiv(tile_width).ceil
         row_end = (cull_y + cull_height).fdiv(tile_height).ceil
 
-        tiles.each do |col, row, tile|
+        tiles.each do |col, row, tile, orientation|
           next if col < col_start || col >= col_end || row < row_start || row >= row_end
 
-          renderer.image_at(@tiles[@map.frame_tile(tile, elapsed)],
-                            col * tile_width, row * tile_height)
+          draw_tile(renderer, @tiles[@map.frame_tile(tile, elapsed)], col, row, orientation, tint)
         end
       end
+
+      def draw_tile(renderer, image, col, row, orientation, tint)
+        x = col * @map.tile_width
+        y = ((row + 1) * @map.tile_height) - image.height
+        return renderer.image_at(image, x, y, color: tint) if orientation.identity?
+
+        turns = orientation.quarter_turns
+        shift = turns.odd? ? (image.height - image.width) / 2.0 : 0
+        angle = orientation.mirrored? ? -90 * turns : 90 * turns
+        renderer.rotated(angle, x + shift + (image.width / 2.0), y + shift + (image.height / 2.0)) do
+          renderer.image_at(image, x + shift, y + shift, scale_x: orientation.mirrored? ? -1 : 1, color: tint)
+        end
+      end
+
+      def tint(opacity) = (RGame::Util::Color.new(255, 255, 255, (opacity * 255).round) if opacity < 1)
     end
   end
 end
