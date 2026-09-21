@@ -202,7 +202,10 @@ else in the tree references it yet.
 examples, one per type and one per rule. `rake spec` ran 2453 examples and
 `rake spec:core` 427, both with no failures. The invariant held: `example_assets_spec`
 and `no_graphics_spec` stayed green, and the `pathfinding` and `scroll_map` drives
-reported byte for byte what they reported on `main`.
+reported byte for byte what they reported on `main`. CI's first Windows run
+failed one example: `/srv/tiles.png` has no drive letter, so Windows does not
+call it absolute. The spec now builds its path with `File.expand_path`, and
+steps 2 and 3 need the same care in every path they assert.
 
 What the sketch got wrong:
 
