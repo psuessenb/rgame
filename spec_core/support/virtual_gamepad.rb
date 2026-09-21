@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative 'child_ruby'
+
 # A synthetic SDL game controller, for specs that need to exercise the real
 # gamepad path without hardware.
 #
@@ -87,7 +89,7 @@ class VirtualGamepad
     def button_state_supported?
       return @button_state_supported unless @button_state_supported.nil?
 
-      @button_state_supported = probe_button_state
+      @button_state_supported = button_state_probe_passes?
     end
 
     private
@@ -107,8 +109,7 @@ class VirtualGamepad
     #
     # A subprocess rather than a fork, because Windows has no usable fork and
     # this has to answer the same way everywhere.
-    def probe_button_state
-      lib = File.expand_path('../../lib', __dir__)
+    def button_state_probe_passes?
       script = <<~RUBY
         require 'rgame/core'
         require #{File.expand_path(__FILE__).inspect}
@@ -124,7 +125,8 @@ class VirtualGamepad
       # Any non-zero exit — a false answer, a crash, a missing library — counts
       # as unsupported: if the harness cannot get a press to read back here, the
       # examples needing one cannot pass either.
-      system(RbConfig.ruby, '-I', lib, '-e', script, out: File::NULL, err: File::NULL) || false
+      # A probe that hangs raises instead, because a skip would hide the hang.
+      ChildRuby.capture(script)[2].success?
     end
   end
 

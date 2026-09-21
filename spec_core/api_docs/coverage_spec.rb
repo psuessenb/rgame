@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'json'
-require 'open3'
 require_relative '../../spec/support/api_docs'
 
 # Every public class and method is named somewhere in docs/api/, or tagged
@@ -27,8 +26,7 @@ RSpec.describe 'docs/api coverage' do # rubocop:disable RSpec/DescribeClass -- t
   end
 
   it 'leaves no public name undocumented and untagged' do
-    output, errors, status = Open3.capture3('ruby', '-I', File.join(ApiDocs::ROOT, 'lib'), '-e', check,
-                                            chdir: ApiDocs::ROOT)
+    output, errors, status = ChildRuby.capture(check, chdir: ApiDocs::ROOT)
 
     expect(status).to be_success, errors
     expect(JSON.parse(output.lines.last)).to be_empty

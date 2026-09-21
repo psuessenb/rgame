@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'json'
-require 'open3'
 require_relative '../../spec/support/api_docs'
 
 # Every class, constant and method that docs/api/ names in prose exists.
@@ -46,8 +45,7 @@ RSpec.describe 'docs/api references' do # rubocop:disable RSpec/DescribeClass --
   end
 
   it 'names nothing that does not exist' do
-    output, errors, status = Open3.capture3('ruby', '-I', File.join(ApiDocs::ROOT, 'lib'), '-e', check,
-                                            JSON.generate(allowed), chdir: ApiDocs::ROOT)
+    output, errors, status = ChildRuby.capture(check, JSON.generate(allowed), chdir: ApiDocs::ROOT)
 
     expect(status).to be_success, errors
     expect(JSON.parse(output.lines.last)).to be_empty
