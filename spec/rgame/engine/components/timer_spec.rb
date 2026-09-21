@@ -91,6 +91,26 @@ RSpec.describe RGame::Engine::Components::Timer do
       end
       expect(fires).to eq(2)
     end
+
+    it 'is re-armed by a reset in its own on_timeout handler' do
+      fires = 0
+      timer.on_timeout do
+        fires += 1
+        timer.reset
+      end
+      5.times { timer.update(1.0) }
+      expect(fires).to eq(5)
+    end
+
+    it 'fires once per reset, even when the step that re-arms it is long' do
+      fires = 0
+      timer.on_timeout do
+        fires += 1
+        timer.reset
+      end
+      timer.update(3.0)
+      expect(fires).to eq(1)
+    end
   end
 
   describe 'on_attach reset (recycling)' do

@@ -96,6 +96,7 @@ You can learn more about how it works in the [documentation](docs/api/README.md)
 | [save_load](docs/api/examples.md#save_load) | Writing game state to disk and putting it back |
 | [save_load_ids](docs/api/examples.md#save_load_ids) | A save that has to name things, and why a reference forces ids |
 | [localization](docs/api/examples.md#localization) | The same screen in two languages, switched and remembered |
+| [intro](docs/api/examples.md#intro) | A story broken into lines and pages that differ per language |
 | [pathfinding](docs/api/examples.md#pathfinding) | Setting a target for an actor and let if find its way there |
 
 ## Building from source

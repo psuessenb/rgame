@@ -19,7 +19,7 @@ class QuietRenderer
   def circle(_cx, _cy, _radius, z: 50, color: nil) = coerce(z, color)
   def line(_x1, _y1, _x2, _y2, thickness: 1.0, z: 50, color: nil) = coerce(z + thickness, color)
   def nine_slice(_id, _x, _y, _width, _height, z: 0, tint: nil) = coerce(z, tint)
-  def text(_string, _x, _y, z: 10, color: nil) = coerce(z, color)
+  def text(_string, _x, _y, z: 10, color: nil, font: nil) = coerce(z, color, font)
   def image(_image, _cx, _cy, scale: 1, z: 0, color: nil) = coerce(z + scale, color)
 
   def typeface = RGame::Util::Typeface.default
@@ -28,5 +28,5 @@ class QuietRenderer
 
   private
 
-  def coerce(_z, color) = RGame::Util::Color.coerce(color)
+  def coerce(_z, color, _font = nil) = RGame::Util::Color.coerce(color)
 end

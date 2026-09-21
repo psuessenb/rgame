@@ -1,7 +1,7 @@
 # UI
 
-This page covers menus navigated by keyboard or controller, and the region of the
-screen where one player's UI lives.
+This page covers menus navigated by keyboard or controller, the region of the
+screen where one player's UI lives, and a label that draws a translated paragraph.
 
 **The UI has no pointer.** `RGame::Core::Input` has no mouse, and the id range a
 mouse would use stays empty. Nothing hovers. A mouse-driven control reacts to the
@@ -904,6 +904,54 @@ The examples build up in steps:
 - `examples/quick_wheel` holds the same wheel open with Tab or a shoulder button.
 - `examples/skill_bar` is a `Row` of captioned `IconButton`s, stepped with left and
   right and each fired by a hotkey.
+
+## `RGame::Engine::UI::Label`
+
+**A label draws a translated text as lines that fit its width, one page at a
+time.** It is a node, with no focus and no activation:
+
+```ruby
+@intro = add_node(RGame::Engine::UI::Label.new(
+  text: 'intro.story', x: 100, y: 150, width: 440,
+  typeface: RGame::Util::Typeface.default(24), lines_per_page: 3, align: :center
+))
+```
+
+`text:` is a translation key or an [`Engine::Text`](toolbox.md#text--the-string-a-node-draws),
+as a button's `label:` is. `width:` is required and must be positive. The label
+holds an [`Engine::Paragraph`](text.md#a-paragraph-that-follows-the-language),
+so it breaks the text again when a variable, the language or the width changes.
+Nothing has to call it. An unchanged draw allocates nothing.
+
+It draws the lines of the current page from its top-left corner. Each line sits
+`typeface.height` below the one before, drawn with `font: typeface`. The
+typeface that broke the lines draws them, so a line never overflows the width it
+was measured against.
+
+| Keyword or method | |
+|---|---|
+| `typeface:` | the face it measures and draws with; `Util::Typeface.default` by default |
+| `lines_per_page:` | how many lines a page holds; without it the whole text is one page |
+| `align:` | `:left` (the default), `:center` or `:right`, each line against the width; anything else raises `ArgumentError` |
+| `color:` | the text colour; `UI::Label::COLOR` by default, the colour a `TextButton` draws its label in |
+| `with(...)` | gives the text its variables, and returns the label |
+| `width=` | sets the width the text breaks at and aligns against; zero or less raises `ArgumentError` |
+| `page`, `page=` | the page drawn, from 0 |
+| `page_count` | how many pages the text fills, at least 1 |
+| `last_page?` | whether the page drawn is the last |
+
+**A label reads no input. Its owner turns the page.** `page=` clamps to the
+pages there are, so `page += 1` on the last page stays there. A language switch
+can change how many pages there are. When it leaves fewer than the page set,
+`page` reads as the last one.
+
+```ruby
+def on_control(actions)
+  @intro.page += 1 if actions.pressed?(:ui_confirm)
+end
+```
+
+`examples/intro` turns the pages on Enter and on a one-shot timer.
 
 ## What this is not
 

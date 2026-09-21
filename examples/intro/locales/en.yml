@@ -1,0 +1,7 @@
+# The English table, and the default: a key German lacks shows this text.
+# `intro.story` is one line on purpose. The label decides where it breaks.
+en:
+  intro:
+    story: Long ago, before the roads had names, a lantern keeper lived at the edge of the world. Every night the keeper climbed the tower and lit the flame, so that travellers lost in the dark could find their way home. Nobody remembered who had lit it first, and nobody thought to ask. This is the story of the night the flame went out.
+  hint:
+    next: Enter turns the page

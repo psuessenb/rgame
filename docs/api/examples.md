@@ -242,6 +242,16 @@ operating system's and is saved.
 `scope:`, `RGame::Game.new(locales:)`, `RGame::Core.preferred_locales`,
 `Util::SaveFile`.
 
+### intro
+
+A story on a black screen, three centred lines at a time. The translation table
+holds it as one line, and the label breaks it to fit 440 pixels. In German it
+takes ten lines and a fourth page, where English takes eight and three. Enter
+turns the page, and so does a one-shot timer every six seconds.
+
+**Uses:** `UI::Label`, `Engine::Paragraph`, `Util::Typeface`,
+`Components::Timer` (`repeating: false`, re-armed with `reset`).
+
 ## Persistence
 
 ### save_load

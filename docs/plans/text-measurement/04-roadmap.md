@@ -1,7 +1,7 @@
 # Roadmap
 
-**Steps 0–4 are implemented. Step 5 is detailed. Step 6 is deliberately rough**
-and gets re-planned once step 5 has landed — see the note at the end.
+**Steps 0–5 are implemented. Step 6 is deliberately rough** and gets re-planned
+before it is implemented — see the note at the end.
 
 ```
 0 glyph metrics split (C, pure)
@@ -819,6 +819,54 @@ seconds after the one before. No key shows under "missing or mismatched keys".
 **What this does not deliver.** No panel behind a label, and no vertical
 alignment: the example places the block with its own arithmetic. No reveal or
 fade, which belong to the dialogue plan. No change to any button.
+
+**Landed.** 5a is `UI::Label` in `lib/rgame/engine/ui/label.rb`, with the
+sketched shape, a section in `docs/api/ui.md` and a `CHANGELOG.md` entry.
+`QuietRenderer#text` takes `font:`. 5b is `examples/intro`, with `en.yml` and
+`de.yml` holding the story as one line each, a drive script, an entry in
+`docs/api/examples.md` and a row in `README.md`. Between the two is a commit
+the plan did not have: a fix to `Components::Timer`, below.
+
+`make test` 380 checks, `rake spec` 2424 examples, `rake spec:core` 427, all 0
+failures. The measured acceptance evidence:
+
+- **The spec:** the intro story at 440 px and 24 px draws **3 pages under `en`
+  and 4 after `I18n.locale = :de`**, with no call on the label between.
+  `spec/rgame/engine/ui/label_spec.rb` asserts it.
+- **An unchanged draw** of a centred page allocates **0 objects over 200,000
+  draws** against `QuietRenderer`.
+- **The driven runs**, 1200 ticks each with `--texts`. English draws **8
+  distinct story lines** and German **10**, with no missing keys. Enter at tick
+  120 turns the first page on tick 121. The timer turns each later page 360 or
+  361 ticks after the one before. The hint shows until the last page: 481
+  frames in English, 842 in German. These runs are also the node drawing text
+  in a real window that step 3's note left to this step.
+- **Mutations.** `each_with_index` in place of the `while` loop fails the
+  allocation example. `page=` without its clamp fails "keeps the page it
+  stopped on when a switch adds pages".
+
+What the sketch got wrong:
+
+- **A one-shot timer could not re-arm itself.** The sketch had Enter call
+  `reset` on a repeating timer, and the timer stop on the last page. Stopping a
+  repeating timer means removing it from inside its own signal, while the node
+  is looping over its components. A one-shot the root re-arms after each turn
+  stops by itself. But `Components::Timer` marked a one-shot done *after*
+  emitting `on_timeout`, so a `reset` in the handler was undone and the timer
+  fired once. It now marks it done before emitting. The fix is its own commit,
+  with two examples in `spec/rgame/engine/components/timer_spec.rb` and a
+  "Fixed" entry in `CHANGELOG.md`.
+- **Rule 4 needed an example the sketch did not name.** Without the clamp in
+  `page=`, every listed example still passed, because `page` reads clamped. The
+  case that tells them apart is a page set past the end in English, then a
+  switch to German's extra page. Unclamped, the label jumps to a page the
+  player never turned to.
+- **The one-tick difference in the timer's turns is not drift.** Enter re-arms
+  the timer during `control`, before that tick's update adds its step. The
+  timer re-arms itself during `update`, after it. The drive script's header
+  says so, so a reader does not take 361 for a bug.
+- `docs/api/ui.md` mentions `examples/intro` from 5b, not 5a, so no commit
+  names an example that does not exist yet.
 
 ## Step 6 — fold back, and delete this plan
 
