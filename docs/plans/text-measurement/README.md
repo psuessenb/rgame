@@ -1,6 +1,6 @@
 # Text measurement, wrapping and a label
 
-**Status.** Steps 0–1 are implemented. Steps 2–3 are detailed; 4–6 are
+**Status.** Steps 0–2 are implemented. Step 3 is detailed; 4–6 are
 deliberately rough and get re-planned once the layer beneath them exists.
 
 Read in order:
@@ -118,3 +118,8 @@ Each says what it waits on. None blocks step 0.
 4. **Does `Util::Typeface` need an ascent or a descent on the Ruby side?**
    The C has both. Nothing asks yet; a caller aligning two faces on one line
    would. Leave out until something asks.
+5. **Does a paragraph break at a newline in its text?** `Typeface#wrap`
+   breaks at spaces only and measures a `"\n"` as a glyph. A translation table
+   can hold a hard break, and a dialogue line might want one. Settle in step 4:
+   either `Paragraph` splits on `"\n"` before wrapping, or the fit learns a
+   second kind of break.
