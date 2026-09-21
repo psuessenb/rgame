@@ -77,8 +77,10 @@ RSpec.describe RGame::Engine::Tiled::Properties do
     end
 
     it 'keeps an absolute path' do
-      expect(value('<property name="p" type="file" value="/srv/tiles.png"/>', source_path: 'maps/level.tmx'))
-        .to eq('/srv/tiles.png')
+      absolute = File.expand_path('/srv/tiles.png')
+
+      expect(value(%(<property name="p" type="file" value="#{absolute}"/>), source_path: 'maps/level.tmx'))
+        .to eq(absolute)
     end
   end
 
