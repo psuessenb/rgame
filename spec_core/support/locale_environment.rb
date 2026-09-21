@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require 'json'
-require 'open3'
+require_relative 'child_ruby'
 
 # Runs Ruby in a child process with a chosen locale environment, and answers
 # whether this platform's SDL reads that environment at all.
@@ -15,8 +15,6 @@ require 'open3'
 # `VirtualGamepad.button_state_supported?` gates pad presses, rather than on
 # `host_os`: they run wherever it works.
 module LocaleEnvironment
-  LIB = File.expand_path('../../lib', __dir__)
-
   # Every variable SDL or the C library might consult, cleared unless given.
   CLEARED = { 'LANG' => nil, 'LANGUAGE' => nil, 'LC_ALL' => nil, 'LC_MESSAGES' => nil }.freeze
 
@@ -24,8 +22,7 @@ module LocaleEnvironment
     # Runs `script` with `env` over a cleared locale environment and returns
     # what it printed, parsed as JSON. Raises with the child's output if it fails.
     def run(script, env: {}, chdir: Dir.pwd)
-      output, errors, status = Open3.capture3(CLEARED.merge(env), RbConfig.ruby, '-I', LIB, '-e', script,
-                                              chdir: chdir)
+      output, errors, status = ChildRuby.capture(script, env: CLEARED.merge(env), chdir: chdir)
       raise "child failed (#{status}):\n#{output}#{errors}" unless status.success?
 
       JSON.parse(output.lines.last)

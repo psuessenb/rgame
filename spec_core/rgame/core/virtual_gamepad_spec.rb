@@ -1,16 +1,13 @@
 # frozen_string_literal: true
 
 require 'json'
-require 'open3'
 
 RSpec.describe RGame::Core::VirtualGamepad do
   # What a pad does around SDL's lifetime. Both cases need a process in which no
   # App is alive, and the suite's own Apps are collected whenever GC decides, so
   # these run in a child process and report back as JSON.
   def in_a_fresh_process(body)
-    lib = File.expand_path('../../../lib', __dir__)
-    script = "require 'rgame/core'\nrequire 'json'\n#{body}"
-    output, errors, status = Open3.capture3(RbConfig.ruby, '-I', lib, '-e', script)
+    output, errors, status = ChildRuby.capture("require 'rgame/core'\nrequire 'json'\n#{body}")
     expect(status).to be_success, errors
     JSON.parse(output.lines.last)
   end
