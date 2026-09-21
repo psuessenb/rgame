@@ -302,7 +302,10 @@ many atlas pages exist. It serves tests, not gameplay.
 
 ## What is not here
 
-rgame text has no markup (`<b>`, colour tags), no bold or italic variants and no
-multi-line drawing. `Typeface#text_lines` breaks a string into lines, and the
-caller draws each one. It has no text input, no right-to-left text and no complex
-shaping. A string is one line of left-to-right glyphs.
+rgame text has no markup (`<b>`, colour tags) and no bold or italic variants.
+`Renderer#text` draws one line. Several lines come from
+[`UI::Label`](ui.md#rgameengineuilabel), which draws a page of a paragraph, or from a
+loop over `Typeface#text_lines`. Lines break at spaces and newlines only, so a
+script written without spaces does not break. There is no text input, no
+right-to-left text and no complex shaping. `Typeface` answers a line height, not an
+ascent or a descent.

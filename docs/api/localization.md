@@ -274,8 +274,10 @@ and default, and `:key` as the missing policy. rgame's own headless suite calls
 
 ## What this is not
 
-- **Text is not measured in the engine layer.** A button slot has a fixed width,
-  so choose one wide enough for the longest translation.
+- **Buttons are not sized to their text.** A button slot has a fixed width, so
+  choose one wide enough for the longest translation. A paragraph that breaks
+  into lines per language is a [`UI::Label`](ui.md#rgameengineuilabel), built on
+  [`Engine::Paragraph`](text.md#a-paragraph-that-follows-the-language).
 - **One language per process.** Split-screen players cannot read different
   languages.
 - **No right-to-left text or shaping.** The shipped font covers Latin, Greek and

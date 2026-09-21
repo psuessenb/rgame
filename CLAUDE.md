@@ -243,8 +243,10 @@ entry are all still open, and `docs/api/ui.md` says so under "What this is not".
 `Engine::Text` built from a key, and a UI button's `label:` is a key. Every
 example keeps an `en.yml` beside its `main.rb`, and a driven run exits 1 on a
 missing key. `test_projects/` are games rather than teaching material and still
-draw Strings. Text measurement is the gap: a button slot has a fixed width, so a
-longer translation can overflow it. See `docs/api/localization.md`.
+draw Strings. Engine code measures text with `Util::Typeface`, headless, and
+`UI::Label` draws a translated paragraph a page at a time, broken to its width in
+every language. Button slots keep a fixed width by choice, so a longer translation
+can still overflow one. See `docs/api/text.md` and `docs/api/localization.md`.
 
 **Build a new feature in C** under `ext/rgame_core/`, and extend the Ruby wrapper
 once the C API is settled — unless it is engine-layer work, which is pure Ruby by

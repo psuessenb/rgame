@@ -961,15 +961,14 @@ nesting, no scrolling lists, and no general layout model. It has no text entry a
 continuous control. `OptionButton` covers a setting with a handful of values; a
 free-moving slider needs a control that does not exist.
 
-**Buttons are not sized to their text.** A layout places buttons when they are
-added, and engine code has nothing to measure a label with at that point. The
-renderer is the only measuring object a node receives, and it arrives in `draw`.
-`RGame::Core::Font#text_width` works at any time, but it is a Core type the engine
-layer may not hold. Every slot therefore has the size its layout was built with, and
-a longer label needs a wider slot, in the longest language the game ships. Sizing
-buttons to text would require text measurement in the engine layer. A layout would
-also have to re-arrange its menu whenever a label changed, and a switch of language
-changes them all.
+**Buttons are not sized to their text.** Every slot has the size its layout was
+built with, so a longer label needs a wider slot, in the longest language the game
+ships. A game's menus are laid out by hand rather than generated, and a menu that
+re-arranged itself whenever a language switch changed every label would move the
+button the player has focused. Engine code can measure a label: `RGame::Util::Typeface#text_width`
+works anywhere, with no window. See [Measuring without a window](text.md#measuring-without-a-window).
+Text longer than a slot belongs in a [`UI::Label`](#rgameengineuilabel), which
+breaks it to its width.
 
 **`scope:` does not inherit down the tree.** It is a `Menu` option. A HUD or a
 dialog that is not a menu scopes each of its own `Text`s.
