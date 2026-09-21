@@ -32,13 +32,15 @@ RSpec.describe RGame::Engine::TileMap do
 
   # The other side of the contract RGame::Core::TileMapRenderer draws against:
   # the shape it prescribes, written as Tiled would write it. Local tile 0 is
-  # animated through locals 0 and 1, local 2 has a collision shape, and gid 2
-  # carries the flags Tiled sets for a quarter turn clockwise.
+  # animated through locals 0 and 1, local 2 has a collision shape, gid 2
+  # carries the flags Tiled sets for a quarter turn clockwise, and the canopy is
+  # hidden at half opacity.
   def tile_map
     frames = '<frame tileid="0" duration="100"/><frame tileid="1" duration="100"/>'
     tiles = %(<tile id="0"><animation>#{frames}</animation></tile><tile id="2">#{solid_shape}</tile>)
     yield build(layer([1, 0xA0000002, 0, 3]) +
-                layer([0, 0, 4, 0], name: 'canopy', properties: bool_property('above', true)),
+                layer([0, 0, 4, 0], name: 'canopy', attributes: 'visible="0" opacity="0.5"',
+                                    properties: bool_property('above', true)),
                 tilesets: [sheet(tiles: tiles)])
   end
 
@@ -106,6 +108,19 @@ RSpec.describe RGame::Engine::TileMap do
 
         expect([orientation.quarter_turns, orientation.mirrored?]).to eq([turns, mirrored])
       end
+    end
+
+    # spec/fixtures/orientations.tmx was painted in Tiled, one F in each of the
+    # eight ways its stamp can turn one, between two empty cells. The table
+    # above was written from Tiled's documentation; this is Tiled's own output.
+    # Core's tile_map_renderer_spec.rb draws these eight values and checks the
+    # pixels against what Tiled showed.
+    it 'reads the eight turns Tiled painted into spec/fixtures/orientations.tmx' do
+      map = described_class.from_tiled(tiled::Map.load('spec/fixtures/orientations.tmx'))
+      read = (1..8).map { map.orientation(0, it, 0) }.map { [it.quarter_turns, it.mirrored?] }
+
+      expect(read).to eq([[0, false], [0, true], [2, true], [2, false],
+                          [3, false], [3, true], [1, true], [1, false]])
     end
 
     it 'answers one of the eight frozen values, never a new one' do

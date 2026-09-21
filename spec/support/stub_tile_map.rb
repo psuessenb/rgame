@@ -3,7 +3,8 @@
 # A tile map built by hand, for specs that draw one without parsing a `.tmx`.
 #
 #   map = StubTileMap.new(
-#     layers: [[1, 2, 0, 3], [0, 0, 4, 0]], above: [false, true], solid: [3],
+#     layers: [[1, 2, 0, 3], [0, 0, 4, 0]], above: [false, true], visible: [true, false],
+#     opacity: [1.0, 0.5], solid: [3],
 #     animations: { 1 => [[1, 0.1], [2, 0.1]] }, orientations: { [0, 1, 0] => [1, false] }
 #   )
 #
@@ -13,15 +14,17 @@
 # `RGame::Engine::TileMap` (see stub_tile_map_spec.rb).
 #
 # Layers are flat tile-id Arrays in reading order, `width * height` long, so a
-# spec can see the map it is describing. `animations` is
+# spec can see the map it is describing. `above`, `visible` and `opacity` are
+# per layer, defaulting to below, shown and opaque. `animations` is
 # `{ tile => [[tile, seconds], ...] }`, and `orientations` is
 # `{ [layer, col, row] => [quarter_turns, mirrored] }` for the turned cells.
 #
 # It names no Engine class, because the Core suite loads it too.
 class StubTileMap
   # One layer, as far as a reader of the map asks about it.
-  Layer = Data.define(:above) do
+  Layer = Data.define(:above, :visible, :opacity) do
     def above? = above
+    def visible? = visible
   end
 
   # How a cell is turned, answering what `TileMap::Orientation` answers.
@@ -35,9 +38,12 @@ class StubTileMap
   attr_reader :width, :height, :tile_width, :tile_height
 
   def initialize(layers:, width: 2, height: 2, tile_width: 16, tile_height: 16,
-                 above: [], solid: [], animations: {}, orientations: {})
+                 above: [], visible: [], opacity: [], solid: [], animations: {}, orientations: {})
     @cells = layers
-    @layers = Array.new(layers.length) { Layer.new(above: above.fetch(it, false)) }
+    @layers = Array.new(layers.length) do |index|
+      Layer.new(above: above.fetch(index, false), visible: visible.fetch(index, true),
+                opacity: opacity.fetch(index, 1.0))
+    end
     @width = width
     @height = height
     @tile_width = tile_width

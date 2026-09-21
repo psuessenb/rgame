@@ -25,6 +25,9 @@ RSpec.describe RGame::Core::TileMapRenderer do
     recording.calls_to(:image_at).map { |call| call.args.first.region.first }
   end
 
+  # Every call baked into the recording the last draw replayed.
+  def baked_calls = renderer.calls_to(:recording_draw).last.args.first.calls
+
   # The tile ids drawn straight into the frame, outside any recording.
   def drawn_ids = renderer.calls_to(:image_at).map { |call| call.args.first.region.first }
 
@@ -171,6 +174,133 @@ RSpec.describe RGame::Core::TileMapRenderer do
       described_class.new(map, tiles).draw_layer(renderer, 1, 0, 0, 64, 64)
 
       expect(renderer.calls_to(:image_at).first.options[:z]).to be_zero
+    end
+  end
+
+  describe 'hidden and translucent layers' do
+    def map_with(visible: [true, true], opacity: [1.0, 1.0])
+      StubTileMap.new(layers: [[1, 2, 0, 3], [0, 0, 4, 0]], visible: visible, opacity: opacity,
+                      animations: { 1 => [[1, 0.1], [2, 0.1]] })
+    end
+
+    it 'bakes nothing and draws nothing for a hidden layer' do
+      described_class.new(map_with(visible: [false, true]), tiles).draw_layer(renderer, 0, 0, 0, 64, 64)
+
+      expect(renderer.calls).to be_empty
+    end
+
+    it 'replays an opaque layer untinted' do
+      described_class.new(map_with, tiles).draw_layer(renderer, 0, 0, 0, 64, 64)
+
+      expect(renderer.calls_to(:recording_draw).last.options[:color]).to be_nil
+    end
+
+    it 'replays a layer at its opacity' do
+      described_class.new(map_with(opacity: [0.5, 1.0]), tiles).draw_layer(renderer, 0, 0, 0, 64, 64)
+
+      expect(renderer.calls_to(:recording_draw).last.options[:color]).to eq(RGame::Util::Color.new(255, 255, 255, 128))
+    end
+
+    it 'draws the layer\'s animated tiles at the same opacity' do
+      described_class.new(map_with(opacity: [0.5, 1.0]), tiles).draw_layer(renderer, 0, 0, 0, 64, 64)
+
+      expect(renderer.calls_to(:image_at).map { it.options[:color] })
+        .to eq([RGame::Util::Color.new(255, 255, 255, 128)])
+    end
+  end
+
+  describe 'a tile of another size than the cell' do
+    # Tiled stands a tile on its cell's bottom-left corner, so a tree two cells
+    # tall reaches up into the cell above rather than down into the one below.
+    it 'stands on the bottom of its cell' do
+      tall = [nil, StubImage.new(16, 32)]
+      described_class.new(StubTileMap.new(layers: [[1, 0, 0, 0]]), tall).draw_layer(renderer, 0, 0, 0, 64, 64)
+
+      expect(baked_calls.map { it.args[1..] }).to eq([[0, -16]])
+    end
+  end
+
+  describe 'turned tiles' do
+    def baked_calls_for(orientation, image: tiles[1])
+      map = StubTileMap.new(layers: [[1, 0, 0, 0]], orientations: { [0, 0, 0] => orientation })
+      described_class.new(map, [nil, image]).draw_layer(renderer, 0, 0, 0, 64, 64)
+      baked_calls
+    end
+
+    it 'draws a tile that is not turned with no transform' do
+      expect(baked_calls_for([0, false]).map(&:name)).to eq([:image_at])
+    end
+
+    it 'turns a tile about its own centre' do
+      expect(baked_calls_for([1, false]).first.args).to eq([90, 8.0, 8.0])
+    end
+
+    it 'mirrors a tile inside its own cell' do
+      expect(baked_calls_for([0, true]).last.options[:scale_x]).to eq(-1)
+    end
+
+    it 'keeps a turned tile that is not square standing on its cell' do
+      # A 16x32 tile turned a quarter is 32 wide and 16 tall, and Tiled keeps
+      # its bottom-left corner on the cell's: the centre moves by half the
+      # difference of the sides on both axes.
+      rotate, draw = baked_calls_for([1, false], image: StubImage.new(16, 32))
+
+      expect([rotate.args, draw.args[1..]]).to eq([[90, 16.0, 8.0], [8.0, -8.0]])
+    end
+  end
+
+  # spec/fixtures/orientations.tmx, painted in Tiled: an F in each of the eight
+  # ways Tiled's stamp turns a tile, in columns 1 to 8. What rgame read from it
+  # is pinned in spec/rgame/engine/tile_map_spec.rb; this draws the same eight
+  # values and checks every pixel.
+  #
+  # The expected picture is not rgame's arithmetic. It is Tiled's own rule for
+  # its flip flags, applied to the F: across the diagonal first, then
+  # horizontally, then vertically. The renderer gets there a different way —
+  # quarter turns, then a mirror — so a turn the wrong way fails here.
+  describe 'turned tiles, through a real window' do
+    # [horizontal, vertical, diagonal] as Tiled flagged each column, and the
+    # orientation rgame reads from those flags.
+    def painted
+      [
+        [[false, false, false], [0, false]], [[true, false, false], [0, true]],
+        [[false, true, false], [2, true]], [[true, true, false], [2, false]],
+        [[false, true, true], [3, false]], [[true, true, true], [3, true]],
+        [[false, false, true], [1, true]], [[true, false, true], [1, false]]
+      ]
+    end
+
+    def f_path = File.expand_path('../../../spec/fixtures/f.png', __dir__)
+
+    # Whether each pixel of the F is dark, as rows of booleans.
+    def f_pixels
+      frame = RenderedFrame.capture(width: 10, height: 10) do |renderer, app|
+        renderer.image_at(RGame::Core::Image.new(app, f_path), 0, 0)
+      end
+      Array.new(10) { |y| Array.new(10) { |x| frame.at(x, y)[0] < 128 } }
+    end
+
+    def tiled_shows(pixels, (horizontal, vertical, diagonal))
+      pixels = pixels.transpose if diagonal
+      pixels = pixels.map(&:reverse) if horizontal
+      pixels = pixels.reverse if vertical
+      pixels
+    end
+
+    def rgame_draws(column)
+      orientations = painted.each_with_index.to_h { |(_flags, orientation), index| [[0, index, 0], orientation] }
+      map = StubTileMap.new(width: 8, height: 1, tile_width: 10, tile_height: 10,
+                            layers: [Array.new(8, 1)], orientations: orientations)
+      frame = RenderedFrame.capture(width: 80, height: 10) do |renderer, app|
+        described_class.new(map, [nil, RGame::Core::Image.new(app, f_path)]).draw_layer(renderer, 0, 0, 0, 80, 10)
+      end
+      Array.new(10) { |y| Array.new(10) { |x| frame.at((column * 10) + x, y)[0] < 128 } }
+    end
+
+    8.times do |column|
+      it "draws column #{column + 1} as Tiled shows it" do
+        expect(rgame_draws(column)).to eq(tiled_shows(f_pixels, painted[column][0]))
+      end
     end
   end
 

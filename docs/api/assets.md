@@ -453,10 +453,10 @@ app.assets.add_loader(:tilemap) do |path|
 end
 ```
 
-`tile_images` loads each tileset's sheet through the asset manager, slices it,
-and lays the slices out by tile id as `map.tile_table` says. It raises for a
-tileset it cannot slice: a collection of images, or a sheet with a margin or
-spacing.
+`tile_images` loads each tileset's images through the asset manager and lays
+them out by tile id as `map.tile_table` says. A sheet is cut with its margin and
+spacing. A collection of images loads one file per tile. The renderer receives
+the same flat Array either way.
 
 Every `RGame::Game` installs this loader when it is built. A plain
 `RGame::Core::App` has none: its `app.assets` has no `tilemap` accessor, and a

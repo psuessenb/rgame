@@ -89,11 +89,23 @@ element:
 | Custom properties | on the map, layers, tiles and objects, with Tiled's types |
 | Object templates | an object placed from a `.tx` gets the template's values, and its own win |
 
-Some of what is read is not drawn. `TileMapRenderer` draws every tile unturned,
-draws a hidden layer, and draws every layer at full opacity. The asset loader
-raises for a tileset with a margin or spacing, and for a collection of images,
-because it slices only a sheet of tiles packed edge to edge. Per-layer offset,
-parallax and tint are not read.
+### How the map is drawn
+
+`TileMapRenderer` draws what Tiled shows for the parts below:
+
+| | Drawn |
+|---|---|
+| Turned tiles | in all eight orientations, about the tile's centre |
+| Hidden layers | not at all |
+| Layer opacity | the layer and its animated tiles fade by the layer's opacity, groups included |
+| Tile sheets | cut with their margin and spacing |
+| Collections of images | one image per tile, each at its own size |
+
+**A tile stands on its cell's bottom-left corner.** A tile taller than the map's
+cells, such as a tree two cells high, reaches up into the cell above. A turned
+tile that is not square keeps that corner too.
+
+Per-layer offset, parallax, tint and a tileset's tile offset are not read.
 
 ## `RGame::Engine::TileMap`
 

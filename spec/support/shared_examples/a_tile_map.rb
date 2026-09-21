@@ -20,7 +20,8 @@
 # A map of one exact shape, because a contract can only assert what it knows is
 # in there:
 #
-#   2 x 2 tiles, 16 px each, two layers, layer 1 flagged "above"
+#   2 x 2 tiles, 16 px each, two layers, layer 1 flagged "above",
+#   hidden, and at half opacity
 #
 #   layer 0 (below):  tile 1  tile 2      layer 1 (above):  0       0
 #                     0       tile 3                        tile 4  0
@@ -57,6 +58,14 @@ RSpec.shared_examples 'a tile map' do
       # A map that got this backwards would put every tree canopy behind every
       # character.
       tile_map { |map| expect([map.layer(0).above?, map.layer(1).above?]).to eq([false, true]) }
+    end
+
+    it 'says which layers are shown' do
+      tile_map { |map| expect([map.layer(0).visible?, map.layer(1).visible?]).to eq([true, false]) }
+    end
+
+    it 'says how opaque each layer is' do
+      tile_map { |map| expect([map.layer(0).opacity, map.layer(1).opacity]).to eq([1.0, 0.5]) }
     end
   end
 

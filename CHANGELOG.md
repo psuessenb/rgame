@@ -51,6 +51,12 @@ index, not the argument.
   `image_layers` and `objects`, which are `RGame::Engine::MapObject`s in the
   game's coordinates. Custom properties are `RGame::Engine::Properties`. See
   [docs/api/tile_maps.md](docs/api/tile_maps.md).
+- **A tile map draws what Tiled shows.** Turned and flipped tiles draw turned,
+  hidden layers draw nothing, and a layer fades by its opacity. Tilesets with a
+  margin or spacing, collections of images, and tiles larger than a cell all
+  draw. See [docs/api/tile_maps.md](docs/api/tile_maps.md#how-the-map-is-drawn).
+- **`Image#tiles` cuts a sheet with gaps.** It takes `margin:`, `spacing:`,
+  `columns:` and `count:`. See [docs/api/images.md](docs/api/images.md).
 
 ### Changed
 

@@ -113,6 +113,63 @@ RSpec.describe RGame::Core::Image do
     it 'yields them without building an Array from #each_tile' do
       expect(sheet.each_tile(2, 2).to_a.size).to eq(6)
     end
+
+    it 'stops #tiles at count:' do
+      expect(sheet.tiles(2, 2, count: 4).size).to eq(4)
+    end
+
+    it 'refuses a count: the sheet does not hold' do
+      expect { sheet.tiles(2, 2, count: 7) }.to raise_error(IndexError, /6 tiles of 2x2/)
+    end
+  end
+
+  # A sheet cut with a margin and spacing, read back through a real frame: the
+  # size of a tile says nothing about which pixels it was cut from.
+  describe 'tiles with a margin and spacing' do
+    # Three columns and two rows of 2x2 tiles, with a 1 px margin and 1 px of
+    # spacing. Tile n is filled with the grey value 40 * (n + 1), and every
+    # pixel of margin and spacing is red, so a tile cut one pixel off shows it.
+    def sheet_path
+      PngFixture.write(10, 7) do |x, y|
+        col, x_in = (x - 1).divmod(3)
+        row, y_in = (y - 1).divmod(3)
+        next [255, 0, 0, 255] if x.zero? || y.zero? || x_in == 2 || y_in == 2 || col > 2 || row > 1
+
+        grey = 40 * ((row * 3) + col + 1)
+        [grey, grey, grey, 255]
+      end
+    end
+
+    # Each tile drawn at (4 * index, 0) at twice its size, and every pixel of
+    # each read back.
+    def drawn_tiles(**)
+      frame = RenderedFrame.capture(width: 32, height: 8) do |renderer, app|
+        described_class.new(app, sheet_path).tiles(2, 2, **).each_with_index do |tile, index|
+          renderer.image_at(tile, index * 4, 0, scale_x: 2, scale_y: 2)
+        end
+      end
+      Array.new(6) { |index| Array.new(16) { frame.at((index * 4) + (it % 4), it / 4)[0] }.uniq }
+    end
+
+    it 'cuts every tile from inside its margin and spacing' do
+      expect(drawn_tiles(margin: 1, spacing: 1)).to eq([[40], [80], [120], [160], [200], [240]])
+    end
+
+    it 'counts the columns and rows that fit when neither is given' do
+      expect(described_class.new(app, sheet_path).tiles(2, 2, margin: 1, spacing: 1).size).to eq(6)
+    end
+
+    it 'lays the tiles out by columns: when given' do
+      # Two columns rather than the three that fit, so tile 2 is the first of
+      # the second row.
+      expect(drawn_tiles(margin: 1, spacing: 1, columns: 2, count: 4).first(4))
+        .to eq([[40], [80], [160], [200]])
+    end
+
+    it 'refuses a tile that would reach outside the sheet' do
+      expect { described_class.new(app, sheet_path).tiles(2, 2, margin: 1, spacing: 1, count: 9) }
+        .to raise_error(ArgumentError, /does not fit in a 10x7 image/)
+    end
   end
 
   describe '.load_tiles' do

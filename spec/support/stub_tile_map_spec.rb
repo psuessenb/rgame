@@ -6,7 +6,8 @@ RSpec.describe StubTileMap do
   # reach the same place — see spec/rgame/engine/tile_map_spec.rb.
   def tile_map
     yield described_class.new(
-      layers: [[1, 2, 0, 3], [0, 0, 4, 0]], above: [false, true], solid: [3],
+      layers: [[1, 2, 0, 3], [0, 0, 4, 0]], above: [false, true], visible: [true, false],
+      opacity: [1.0, 0.5], solid: [3],
       animations: { 1 => [[1, 0.1], [2, 0.1]] }, orientations: { [0, 1, 0] => [1, false] }
     )
   end
