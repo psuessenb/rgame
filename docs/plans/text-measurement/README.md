@@ -99,10 +99,14 @@ this plan.**
 
 Each says what it waits on. None blocks step 0.
 
-1. **Does a `Paragraph`'s width ever change after construction?** A resizing
-   box would want it; nothing in the requirement does. Settle when `UI::Label`
-   is built (step 5) — if the answer is no, the width is frozen and the cache
-   loses an input.
+1. ~~**Does a `Paragraph`'s width ever change after construction?**~~
+   **Settled before step 4: yes, and the cache keys on it.** A player's
+   region changes size when a second player joins, when the split collapses
+   and when the window resizes (`Engine::Viewports`). `PlayerLayer` tells HUD
+   code to lay out against `view.width - margin`, so a label sized to a
+   region narrows when the screen splits. `Paragraph#width=` sets it, and a
+   changed width re-breaks the lines on the next read. Moved from step 5 to
+   step 4, because the answer decides `Paragraph`'s cache.
 2. **Should the renderer gain a multi-line draw call?** `UI::Label` will step by
    the line height in a loop. If a second caller wants the same loop, it belongs
    on the renderer, and then `FakeRenderer` and the `a_renderer` contract follow.
@@ -118,8 +122,9 @@ Each says what it waits on. None blocks step 0.
 4. **Does `Util::Typeface` need an ascent or a descent on the Ruby side?**
    The C has both. Nothing asks yet; a caller aligning two faces on one line
    would. Leave out until something asks.
-5. **Does a paragraph break at a newline in its text?**
-   `Typeface#text_lines` breaks at spaces only and measures a `"\n"` as a glyph. A translation table
-   can hold a hard break, and a dialogue line might want one. Settle in step 4:
-   either `Paragraph` splits on `"\n"` before wrapping, or the fit learns a
-   second kind of break.
+5. ~~**Does a paragraph break at a newline in its text?**~~
+   **Settled by the user before step 4: yes.** A `"\n"` ends the line, so an
+   author can break a text by hand. The break lives in the C fit rather than in
+   `Paragraph`. Otherwise `Typeface#text_lines` would still measure a newline
+   as a glyph, and a game calling it directly would draw a `.notdef` box in the
+   middle of a line. Step 4a builds it.
