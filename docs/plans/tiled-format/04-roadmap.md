@@ -1,6 +1,6 @@
 # Roadmap
 
-**Steps 0–3 are implemented.** Steps 4 and 5 are detailed. Steps 6–9 are deliberately
+**Steps 0–4 are implemented.** Step 5 is detailed. Steps 6–9 are deliberately
 rough and get re-planned once the step beneath each exists.
 
 ## Dependency shape
@@ -560,6 +560,66 @@ grep -rln 'Tiled::' lib/rgame/            # only tiled/, and the transform file
 The second is [decision 12](README.md#decisions-already-taken)'s guard. It is
 what stops the parse types leaking back out once someone needs "just one field"
 from them.
+
+**Landed.** 4a and 4b are one commit each. `TileMap.from_tiled` lives in
+`lib/rgame/engine/tile_map/from_tiled.rb` and is the only file outside
+`tiled/` that turns parse types into runtime ones. `TileMap` holds
+`Orientation`, `TileSource`, `Source`, `Layer` and `ImageLayer`, and
+`Engine::MapObject` and `Engine::Properties` sit beside it. `Engine::Tileset`,
+its spec, `TileMap.load` and `TileMap.parse` are gone, and so are the
+temporary blocks steps 2 and 3 left in the Tiled specs. `tile_map_spec.rb` has
+67 examples, one `describe` per rule, and hosts the contract from a `.tmx`
+string with an embedded tileset. `rake spec` ran 2604 examples and
+`rake spec:core` 430, both with no failures, and `rake docs:coverage` reports
+nothing undocumented. The `pathfinding` and `scroll_map` drives, and
+`collision_tiles` and `jump_topdown` beside them, report byte for byte what
+they reported before the branch. Rule 8 is asserted against
+`spec/fixtures/town_solidity.txt`, the solid grid the old parser wrote, cell
+for cell. The `REXML` grep finds only `tiled/` and `tiled.rb`.
+
+What the sketch got wrong:
+
+- **`Properties` had to leave the `Tiled` namespace.** Rule 12 forbids any
+  `Tiled::*` object reachable from a built map, and decision 13 has the tile
+  table holding `Properties`. Both hold because the value class is now
+  `Engine::Properties`. `Tiled::Properties` is a module that parses into it.
+- **The `Tiled::` grep finds three files, not two.** The glue in `game.rb`
+  names `Tiled::Map`, as step 5's own sketch does. The guard's allowance is
+  `tiled/`, the transform and the glue.
+- **Seconds needed care at the boundaries.** Subtracting Float durations one
+  by one moved a frame boundary by a rounding error. `TileMap` keeps each frame
+  as the second it ends at, summed in whole milliseconds. It shows the same
+  frame as the old arithmetic on every tick of a minute at 60 Hz. At an exact
+  boundary such as 0.5 s the two can differ, because the old code truncated to
+  whole milliseconds first.
+- **Every layer kind takes an index.** `layer_count` counts tile, image and
+  object layers, and `tile` answers 0 in a layer with no tiles. The `Tensor`
+  holds planes for tile layers only. `TileMapLayer.mount` therefore mounts a
+  node for an object or image layer too, which draws an empty recording. Step
+  6 inherits that.
+- **`MapObject` gained three fields.** `layer` is the index the object sits
+  in, `orientation` carries a tile object's flips, since a dense tile id
+  cannot, and `visible` is kept. Rule 10's rotation is settled: `(x, y)` is the
+  top-left for every shape and `rotation` turns about it. `points` are absolute
+  and not rotated.
+- **`source` has two attributes, not three**: `path` and `parser_version`.
+  `Tiled::Map` gained `source_path`, and `Tiled::PARSER_VERSION` starts at 1.
+- **The glue refuses what it cannot slice.** A collection of images, or a
+  sheet with a margin or spacing, raises `FormatError` in the loader rather
+  than slicing wrong. The renderer draws every tile unturned, hidden layers
+  included, at full opacity. Step 5 lifts all of it.
+- **An `above` property that is not a bool raises.** The old reader took the
+  String `"true"` too.
+- **Two things went without replacement.** `Tileset#solid_ids=` let a game
+  change solidity in code, and nothing replaces it. `TileMapLayer.mount` still
+  takes `under:` as an index only, although `layer_index` now makes a name
+  cheap.
+- **The contract did not come out shorter.** It lost the tileset, `local_id`
+  and `gid` and gained `tile`, `orientation`, `solid?`, `animated_tiles`,
+  `frame_tile` and `layer(i).above?`: 13 examples, where there were 11.
+
+Documented in `docs/api/tile_maps.md`, rewritten, and `docs/api/assets.md`. The
+CHANGELOG lists the breaking changes under Changed and Removed.
 
 ---
 

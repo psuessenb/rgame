@@ -1,8 +1,8 @@
 # Supporting Tiled's format
 
-**Status: step 0 is implemented** — [the map requirements](map-requirements.md).
-Steps 1–5 of [the roadmap](04-roadmap.md) are detailed. Steps 6–9 are deliberately rough and
-get re-planned once the layer beneath them exists.
+**Status: steps 0–4 of [the roadmap](04-roadmap.md) are implemented.** Step 5 is
+detailed. Steps 6–9 are deliberately rough and get re-planned once the layer
+beneath them exists.
 
 ## Goal
 
@@ -225,11 +225,12 @@ re-litigation inside it.
    not a cache: a bulk fill in C for `Util::Tensor`, which halves the dominant
    cost. **Blocks nothing**, and
    [decision 13](#decisions-already-taken) is what keeps it answerable later.
-5. **Does an infinite map bound by chunk or by non-empty cell?** Tiled stores
-   16×16 chunks, and a chunk can be partly empty, so the two boxes differ. By
-   chunk is simpler and pads the map; by cell is tighter and costs a scan.
-   The acceptance map is built so both agree ([R16](map-requirements.md#r16)).
-   **Waits on step 3.**
+5. ~~**Does an infinite map bound by chunk or by non-empty cell?**~~
+   **Settled in step 3 — by chunk.** The box is bounded by whole chunks that
+   hold a tile, across every layer. Tiled stores 16×16 chunks, and a chunk can
+   be partly empty, so the two boxes differ. By chunk is simpler and pads the
+   map; by cell is tighter and costs a scan. The acceptance map is built so
+   both agree ([R16](map-requirements.md#r16)).
 6. ~~**What does the parser do about a class member left at its default?**~~
    **Settled in step 1 — it reads what the file states, and documents the gap.**
    Tiled writes only the members that differ from the class's defaults, and
