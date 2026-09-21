@@ -31,6 +31,12 @@ index, not the argument.
   default. `RGame::Core::Font.new(app, typeface)` builds a font on a typeface,
   and `Font#typeface` returns it; `Font.new(app, 18)` and `path:` still work.
   See [docs/api/text.md](docs/api/text.md#drawing-with-a-typeface).
+- **A label draws a translated paragraph a page at a time.**
+  `RGame::Engine::UI::Label` breaks its text at its width, aligns each line
+  left, centred or right, and draws `lines_per_page:` lines at once. It follows
+  a variable or a language switch with no call of its own, and its owner turns
+  the page with `page=`. See
+  [docs/api/ui.md](docs/api/ui.md#rgameengineuilabel).
 
 ## [0.4.0] - 2026-09-16
 
