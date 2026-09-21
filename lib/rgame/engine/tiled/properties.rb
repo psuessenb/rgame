@@ -1,20 +1,12 @@
 # frozen_string_literal: true
 
 require_relative '../../util'
+require_relative '../tiled'
+require_relative 'attributes'
 
 module RGame
   module Engine
-    # The faithful parse of a Tiled file: one class per element, keeping every
-    # unit and coordinate the file states. `TileMap` turns it into what a game
-    # reads at runtime, and nothing else names it.
-    #
-    # @api private — until the runtime view hands its parts to a game, nothing
-    # outside the engine can reach one.
     module Tiled
-      # A file Tiled wrote that rgame refuses to read, or cannot. The message
-      # names the element and, where it is known, the file.
-      class FormatError < StandardError; end
-
       # The custom properties Tiled attaches to a map, layer, tileset, tile or
       # object, cast to Ruby types when the file is parsed.
       #
@@ -70,7 +62,7 @@ module RGame
           when 'float' then number(property, source_path) { Float(value) }
           when 'bool' then bool(property, source_path)
           when 'color' then color(property, source_path)
-          when 'file' then resolve(value.to_s, source_path)
+          when 'file' then Attributes.path(value.to_s, source_path)
           when 'class' then parse(property.elements['properties'], source_path: source_path)
           else refuse(property, source_path, "has type '#{property.attributes['type']}', which rgame does not read")
           end
@@ -99,18 +91,12 @@ module RGame
           Util::Color.new(red.hex, green.hex, blue.hex, alpha ? alpha.hex : 255)
         end
 
-        def self.resolve(path, source_path)
-          return path if path.empty? || source_path.nil? || File.absolute_path?(path)
-
-          File.join(File.dirname(source_path), path)
-        end
-
         def self.refuse(property, source_path, problem)
           where = source_path ? " in #{source_path}" : ''
           value = property.attributes['value']
           raise FormatError, "property '#{property.attributes['name']}'#{where} (#{value.inspect}) #{problem}"
         end
-        private_class_method :cast, :number, :bool, :color, :resolve, :refuse
+        private_class_method :cast, :number, :bool, :color, :refuse
 
         def initialize(values)
           @values = values.dup.freeze

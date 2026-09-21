@@ -1,6 +1,6 @@
 # Roadmap
 
-**Steps 0–1 are implemented.** Steps 2–5 are detailed. Steps 6–9 are deliberately
+**Steps 0–2 are implemented.** Steps 3–5 are detailed. Steps 6–9 are deliberately
 rough and get re-planned once the step beneath each exists.
 
 ## Dependency shape
@@ -294,6 +294,51 @@ The new specs are green. `examples/assets/tileset.tsx` parses through the new
 class to the same tile count, the same animated ids and the same solid ids as
 `Engine::Tileset.parse` produces today — asserted as a temporary example in the
 spec, deleted in step 4 when the old class goes.
+
+**Landed.** `Tiled::Tileset`, `Tiled::Tile`, `Tiled::Frame` and `Tiled::Object`
+live in `lib/rgame/engine/tiled/`, with the sketched interface. `Tileset::Image`,
+`Tile`, `Frame` and `Object` are `Data` records. `tileset_spec.rb` has 39
+examples and `object_spec.rb` 11. `rake spec` ran 2503 examples and
+`rake spec:core` 430, both with no failures. The invariant held: the
+`pathfinding` and `scroll_map` drives reported byte for byte what they report on
+`main`. The temporary example reads `examples/assets/tileset.tsx` to the same
+columns, tile size and image, the same animated ids and the same solid ids as
+`Engine::Tileset`, and counts 132 tiles.
+
+What the sketch got wrong:
+
+- **Collision shapes are objects, so `Tiled::Object` landed here.** Rule 5 needs
+  a type for them, and it is the one step 3 sketches for object layers. Step 3
+  reuses `Tiled::Object.parse` and adds template resolution to it. It does not
+  write a second object parser.
+- **An embedded tileset needs a parse that takes an element.**
+  `Tileset.from_element(element, source_path:)` reads a `<tileset>` wherever it
+  sits. `parse` calls it on a `.tsx`'s root, and step 3 calls it on an embedded
+  tileset with the map as `source_path`.
+- **Rule 1 had no answer for a missing `columns` or `tilecount`.** Both are
+  counted from the image, margin and spacing included, when the file leaves
+  them out. A collection counts its tiles and has 0 columns. A sheet whose image
+  states no size to count from raises.
+- **Reading numbers and paths is shared.** `Tiled::Attributes` reads integers,
+  floats and relative paths, and raises `FormatError` naming the element, the
+  attribute and the file. `Properties` now resolves `file` values through it,
+  and step 3 should use it for every attribute it reads.
+- **The `Tiled` module and `FormatError` moved to `lib/rgame/engine/tiled.rb`.**
+  The docs coverage spec reads `@api private` from the first file that opens a
+  module. Once several files opened `Tiled`, that first file depended on require
+  order. Every file under `tiled/` requires `../tiled`, so the tagged file always
+  comes first.
+- **More refusals than the sketch named.** A root other than `<tileset>`, XML
+  that is not well-formed, a missing tile size, an unreadable number, an image
+  embedded as data, a frame with no `tileid` or `duration`, and polygon points
+  that are not pairs all raise `FormatError`.
+- **`TiledFixture` grew one emitter, not one per feature.** `write_tileset`
+  writes a `.tsx` for the `load` examples. Every other example parses inline XML,
+  which shows the attribute under test in the example itself.
+- **Ignored for now:** a tile's sub-rectangle in an image collection (Tiled 1.9's
+  `x`, `y`, `width`, `height` on `<tile>`), `probability`, `objectalignment`,
+  `<grid>`, `<wangsets>` and `<transformations>`. Only the sub-rectangle changes
+  what a tile draws, and the acceptance map does not ask for it.
 
 ---
 
