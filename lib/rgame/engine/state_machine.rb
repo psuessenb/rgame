@@ -57,16 +57,21 @@ module RGame
       # saves and restores it. It resumes from the entry the facts hold for that
       # name, or starts fresh with none, so `name:` takes the place of `from:`.
       #
-      # Raises `ArgumentError` for a saved state the graph lacks, for `name:`
-      # without `facts:` or with `from:`, and for a name a machine that has not
-      # ended already holds. Raises `NoMethodError` listing every Symbol in the
-      # graph the context does not answer.
+      # A second machine under the same name takes over from the first, where
+      # the first had got to, and the first raises if it is moved again. So a
+      # scene built twice is fine, and two machines both driving one quest are
+      # caught.
+      #
+      # Raises `ArgumentError` for a saved state the graph lacks, and for
+      # `name:` without `facts:` or with `from:`. Raises `NoMethodError` listing
+      # every Symbol in the graph the context does not answer.
       def initialize(graph, context: nil, facts: nil, from: nil, name: nil)
         @graph = graph
         @context = context
         @facts = facts
         @name = name
         @busy = false
+        @retired = false
         @watchers = []
         check_name(from)
         check_symbols
@@ -161,6 +166,15 @@ module RGame
         self
       end
 
+      # Marks the machine as replaced by a newer one under its name, so moving
+      # it raises.
+      #
+      # @api private
+      def retire
+        @retired = true
+        self
+      end
+
       # Calls every `watch` block with the state, as after a restore.
       #
       # @api private
@@ -229,6 +243,7 @@ module RGame
       end
 
       def check_idle
+        raise "the machine #{@name.inspect} was replaced by a newer one under the same name; move that one" if @retired
         return unless @busy
 
         raise 'a machine cannot take a transition from inside its own effect or listener'

@@ -27,7 +27,9 @@ module RGame
       # every flag and every named quest and conversation, and `restore` puts
       # them all back. A game adds a quest by building it, never by adding a
       # line to its save. Order does not matter: a machine built after
-      # `restore` resumes from its entry.
+      # `restore` resumes from its entry. Neither does building one again: a
+      # scene entered a second time builds its quest anew, and the new machine
+      # takes over where the old one was.
       #
       # Two ways to listen, for two jobs. `on_changed` reports a change made in
       # play, so a listener may act on it, and a restore never fires it. `watch`
@@ -119,20 +121,15 @@ module RGame
         end
 
         # Adopts a machine built with a `name:`, yielding the entry it resumes
-        # from: the saved one, or the ended machine it replaces. Raises for a
-        # name a machine that has not ended holds.
+        # from: that of the machine it replaces, or the saved one. The machine
+        # replaced is retired and refuses to move from then on.
         #
         # @api private
         def register(machine)
-          name = machine.name
-          current = @machines[name]
-          if current && !current.ended?
-            raise ArgumentError, "a machine named #{name.inspect} is already running; " \
-                                 'a second may take the name once the first has ended'
-          end
-
-          yield current ? current.to_h : @entries[name]
-          @machines[name] = machine
+          current = @machines[machine.name]
+          yield current ? current.to_h : @entries[machine.name]
+          current&.retire
+          @machines[machine.name] = machine
         end
 
         private

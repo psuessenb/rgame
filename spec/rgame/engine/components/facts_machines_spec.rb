@@ -41,17 +41,18 @@ RSpec.describe RGame::Engine::Components::Facts do
       expect { machine('quest') }.to raise_error(TypeError, /"quest" \(String\)/)
     end
 
-    it 'refuses a second live machine under one name' do
-      machine
-      expect { machine }.to raise_error(ArgumentError, /:quest is already running/)
-    end
-
-    it 'lets a second machine take the name once the first has ended, resuming where it ended' do
+    it 'takes over from a machine already under its name, where it had got to' do
       first = machine
       first.fire(:go)
-      first.fire(:quit)
       second = machine
-      expect([second.ended?, facts.to_h[:machines][:quest]]).to eq([true, { state: nil, visits: { a: 1, b: 1 } }])
+      second.fire(:quit)
+      expect([second.visits(:b), facts.to_h[:machines][:quest]]).to eq([1, { state: nil, visits: { a: 1, b: 1 } }])
+    end
+
+    it 'retires the machine it replaced, which then refuses to move' do
+      first = machine
+      machine
+      expect { first.fire(:go) }.to raise_error(RuntimeError, /:quest was replaced by a newer one/)
     end
 
     it 'starts fresh with no entry, and appears in to_h' do
