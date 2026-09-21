@@ -1,7 +1,6 @@
 # Roadmap
 
-**Steps 0–5 are implemented. Step 6 is deliberately rough** and gets re-planned
-before it is implemented — see the note at the end.
+**Steps 0–5 are implemented. Step 6 is detailed.**
 
 ```
 0 glyph metrics split (C, pure)
@@ -870,28 +869,97 @@ What the sketch got wrong:
 
 ## Step 6 — fold back, and delete this plan
 
-- `docs/api/text.md` — measuring outside `draw`, `Util::Typeface`, wrapping.
-- `docs/api/values.md` — `Typeface` as a Util value.
-- `docs/api/ui.md` — `UI::Label`, and "What this is not" rewritten: buttons are
-  still not sized to their text, and that is now a choice rather than a limit.
-- `docs/api/localization.md` — a translated paragraph wraps per language.
-- `docs/plans/possible-todos.md` — the "Text measurement" entry comes out.
-- `CHANGELOG.md` — checked against everything this plan shipped, per
+**Why now.** Steps 0–5 have shipped, so the plan describes code that exists and
+will start drifting from it. What is still true moves into the reference
+documentation, what is still open moves to `docs/plans/possible-todos.md`, and
+the folder goes. The fold-back is also where
+[learn-from-mistakes](../../../.claude/skills/learn-from-mistakes/SKILL.md) reads
+every step's "What proved wrong" as a whole.
+
+### What was measured before planning
+
+Taken at `492e79a`. A search outside `docs/plans/text-measurement/` for the
+plan's name and for claims that text cannot be measured found these:
+
+| Where | What it says, and why it is wrong now |
+|---|---|
+| `CLAUDE.md`, "What exists" | "Text measurement is the gap". `Util::Typeface`, `Paragraph` and `UI::Label` exist |
+| `docs/api/ui.md`, "What this is not" | buttons are not sized to their text *because engine code has nothing to measure with*. The first half is a decision now, and the reason is false |
+| `docs/api/localization.md`, "What this is not" | "Text is not measured in the engine layer" |
+| `docs/api/text.md`, "What is not here" | "no multi-line drawing … the caller draws each one". `UI::Label` draws them |
+| `examples/localization/main.rb`, header | "The engine layer cannot measure text yet" |
+| four specs | name "the text-measurement plan" or "step N" of it: `paragraph_spec.rb`, `measured_text_spec.rb`, `label_spec.rb`, `spec_core/.../renderer_spec.rb` |
+| `docs/plans/possible-todos.md` | the "Text measurement for the engine layer" entry, whose work this plan did |
+| `docs/plans/research/roadmap-complexity-estimate-v0.5.0.md` | "Text measurement gates two items", pointing at that entry |
+
+`docs/api/values.md` already has a `Typeface` section, and `docs/api/text.md`
+already covers measuring, breaking, `Paragraph` and drawing with a typeface.
+Both only need checking.
+
+**The lessons, collected from every step's "What proved wrong".** Run through
+learn-from-mistakes, one survives the first filter and it is a guard, not a
+skill line:
+
+- **A driven run reads what the last run saved.** In step 1 the
+  `examples/localization` report drew German because an earlier run had saved
+  that choice. In step 3 comparing two runs meant moving the saved file aside
+  by hand. `docs/plans/possible-todos.md` already has the fix, "The drive
+  harness owns the save directory", and its trigger is "the first time a report
+  differs for this reason". It has now happened twice.
+- The rest are covered or were one-offs. Numbers in a sketch that were never
+  measured (steps 2 and 4) are what write-plan's "numbers, not adjectives"
+  already says. Specs that survived a mutation (steps 4 and 5) are the verify
+  skill's mutation testing. A C method that cannot carry `@api private` is
+  what write-docs' "a C binding behind a Ruby wrapper" rule already avoids. The
+  timer that could not re-arm itself was fixed in code, with a spec.
+
+**What moves to `possible-todos.md`.** A new entry, "Text layout past a label",
+holds what the plan left open, each with its trigger:
+
+- **Ascent and descent on `Typeface`** (open question 4). Trigger: a caller
+  aligning two faces on one line.
+- **Breaking between characters**, for scripts without spaces. Trigger: a font
+  shipped or loaded that covers one.
+- **A panel behind a label, and vertical alignment** (dropped from step 5).
+  Trigger: the dialogue box.
+
+Content-sized buttons are not a todo. The user decided buttons keep their fixed
+sizes, and `docs/api/ui.md` states it.
+
+**Sub-steps, one commit each.**
+
+- **6a — the drive harness owns the save directory.**
+  `tools/drive_test_project.rb` sets `RGAME_SAVE_DIR` to a fresh temporary
+  directory unless the caller set one, deletes it afterwards, and names it at
+  the top of the report. The write-example and verify skills stop telling the
+  reader to set it, and say when to pass one: to keep a save across two runs,
+  as `localization_saved.rb` does. The drive script headers that say to set it
+  say that instead. The possible-todos entry comes out.
+- **6b — the reference documentation.** Every row of the table above except the
+  two plan files: `CLAUDE.md`, `ui.md`, `localization.md`, `text.md`, the
+  `examples/localization` header, and the four spec comments, which say what
+  they assert without naming the plan.
+- **6c — the open work.** The "Text measurement" entry comes out of
+  `possible-todos.md`, and "Text layout past a label" goes in. The research
+  estimate says measurement has landed. `CHANGELOG.md` is checked against
+  everything steps 0–5 shipped, per
   [update-changelog](../../../.claude/skills/update-changelog/SKILL.md).
-- `docs/plans/text-measurement/` — deleted. Git history keeps it.
+- **6d — delete `docs/plans/text-measurement/`.**
 
-**Verify.** `rake spec` covers whether `docs/api/`'s examples run and its links
-resolve; `rake spec:core` covers whether every public name is documented. Both
-green, and no file under `docs/plans/text-measurement/` remains.
+**Rules the tests must pin.**
 
----
+1. A driven run with no `RGAME_SAVE_DIR` saves into a directory that did not
+   exist before the run and does not exist after it.
+2. A run given `RGAME_SAVE_DIR` uses it and leaves it in place.
 
-## Why 6 is left rough
+**Tests.** The harness has no spec of its own, so both rules are checked by
+driving `examples/localization` twice with nothing set: both reports draw
+English from tick 0, and `~/.local/share/rgame-examples/` is untouched. Then
+twice with one directory passed, as `localization_saved.rb` expects: the second
+run starts in German.
 
-Per [write-plan](../../../.claude/skills/write-plan/SKILL.md): a re-planned step
-routinely overturns something an earlier step recorded as fact. Re-planning step
-4 did exactly that. The design had `Paragraph` compare its own variables. The
-code already had `Text` returning the identical String, and `OptionButton`
-keyed a cache on it. Re-planning step 5 dropped the design's `style:` and made
-`width:` required. Step 6 is a list of pages to fold back into, and which pages
-need what depends on what step 5 ships.
+**Verify.** `rake spec` for `docs/api/`'s examples and links, `rake spec:core`
+for the doc coverage and the names the pages mention, both green. A search for
+`text-measurement` outside git history finds nothing, and no file under
+`docs/plans/text-measurement/` remains. `CHANGELOG.md` has an entry for every
+public name steps 0–5 added.

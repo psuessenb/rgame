@@ -1,7 +1,6 @@
 # Text measurement, wrapping and a label
 
-**Status.** Steps 0–5 are implemented. Step 6 is deliberately rough and gets
-re-planned before it is implemented.
+**Status.** Steps 0–5 are implemented. Step 6, the fold-back, is detailed.
 
 Read in order:
 
