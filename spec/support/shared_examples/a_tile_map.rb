@@ -56,6 +56,30 @@ RSpec.shared_examples 'a tile map' do
     end
   end
 
+  describe 'cells and pixels' do
+    it "puts a cell's top-left corner at its column and row times the tile size" do
+      tile_map { |map| expect([map.cell_x(1), map.cell_y(2), map.cell_x(-1)]).to eq([16, 32, -16]) }
+    end
+
+    it 'finds the cell holding a point, counting its left and top edges in' do
+      tile_map { |map| expect([map.col_at(16), map.col_at(31.9), map.row_at(0), map.row_at(15.9)]).to eq([1, 1, 0, 0]) }
+    end
+
+    it 'floors a point left of or above the map into a negative cell' do
+      # Truncating would put -0.5 in column 0, and a box straddling the left
+      # edge would be tested against the wrong column.
+      tile_map { |map| expect([map.col_at(-0.5), map.row_at(-16), map.row_at(-16.5)]).to eq([-1, -1, -2]) }
+    end
+
+    it 'agrees with itself: a point lies between its cell and the next' do
+      tile_map do |map|
+        points = (-40..40).step(0.25)
+        expect(points.reject { map.cell_x(map.col_at(it)) <= it && it < map.cell_x(map.col_at(it) + 1) }).to be_empty
+        expect(points.reject { map.cell_y(map.row_at(it)) <= it && it < map.cell_y(map.row_at(it) + 1) }).to be_empty
+      end
+    end
+  end
+
   describe 'layers' do
     it 'says which layers draw above the actors' do
       # A map that got this backwards would put every tree canopy behind every

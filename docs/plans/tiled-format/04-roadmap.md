@@ -1,7 +1,7 @@
 # Roadmap
 
-**Steps 0–6 are implemented, and step 7 is planned in detail.** Step 8 is
-still rough: it waits on the authored map.
+**Steps 0–7 are implemented.** Step 8 is still rough: it waits on the
+authored map.
 
 ## Dependency shape
 
@@ -1133,6 +1133,61 @@ changes, so its identical run is what shows 7a moved no arithmetic.
 - **Nothing spawns a map's objects on its own.** A game writes the
   `spawn_into` line, as
   [decision 11](README.md#decisions-already-taken) says.
+
+**Landed.** Three commits, one per sub-step. `TileMap` answers `cell_x`,
+`cell_y`, `col_at` and `row_at`, and they are in the tile map contract and
+`StubTileMap`. `TileWorld` forwards them and adds `cell_centre_x` and
+`cell_centre_y`. `TileMapRenderer`, `TileMap#solid_at?`, `Navigator` and
+`examples/pathfinding` call them, and `TILE` is gone from the example.
+`Components::OccupiesCell` counts its cell through `TileWorld#occupy` and
+`#vacate`, both `@api private`. `RGame::Engine::MapObjects` answers `define`,
+`build` and `spawn_into`.
+
+`rake spec` ran 2666 examples and `rake spec:core` 474, both with no failures,
+and `rake docs:coverage` reports nothing undocumented. The step's grep finds six
+lines, all in `tile_map.rb`: the two pixel sizes and the four seam methods. The
+`scroll_map`, `collision_tiles` and `jump_topdown` drives, 240 ticks each,
+report what `main` reports, byte for byte. `town.tmx` drawn through the
+renderer gives the same 614,400 pixels on this branch and on `main`. Flooring
+with `to_i` in `col_at`, an inclusive far cull edge, a flag in place of the
+occupant count, a `vacate` that ignores the map's own solid cell, a second
+`define` that replaces the first, and a `spawn_into` that skips hidden objects
+each fail a spec. The composition test found nothing wrong. The body stops at
+the crate at x 68 and reports `:tiles`. The navigator, planning after two crates
+arrive, goes round them through row 2 and arrives without being stopped.
+
+What the sketch got wrong:
+
+- **The animated-tile cull kept its exclusive far edge.** Rule 4 allowed one
+  more column or row, because `col_at` floors where the renderer's `ceil` did
+  not. Comparing each tile's `cell_x(col)` with the cull rect's far edge needs no
+  division and changes nothing. The three culling examples that pinned the
+  exclusive edge pass unchanged.
+- **`navigator_spec.rb` did not pass unchanged.** Its map was an
+  `instance_double` of `TileMap`, which answers only the methods it is stubbed
+  with, so the forwarded seam raised. `spec/support/walled_tile_map.rb` now
+  builds a real `TileMap` from rows of text, and `occupies_cell_spec.rb` uses it
+  too. No expectation changed.
+- **The `pathfinding` drive differs in one line.** The route dots draw at the
+  same coordinates, but as Floats (`390.0` against `390`), because
+  `cell_centre_x` answers a Float. Every other line matches `main`. `Cursor` and
+  `Route` take the world in their constructors now, and the cursor places itself
+  in `initialize` rather than in `on_add`.
+- **`cell_centre_x` is the mean of two `cell_x` calls**, not `cell_x` plus half
+  a tile, so `TileWorld` does no arithmetic on the tile size either.
+- **Three raises the sketch did not list.** `TileWorld#vacate` raises for a
+  cell nothing occupies. `MapObjects#define` raises for a name that is not a
+  String, which no Tiled class would ever match, and for a missing block.
+- **A spec's `registry` name is taken.** RuboCop's spec support defines
+  `registry` for every example group in the full run, and it overrode
+  `subject(:registry)`. The spec passed alone and failed in `rake spec`. Its
+  subject is `factory`.
+
+Documented in `docs/api/tile_maps.md` ("Cells and pixels", "Building nodes from
+objects", and the contract's method list), `docs/api/components.md` (the seam on
+`TileWorld`, `OccupiesCell`, and what a `Navigator` does when a cell turns solid
+under its route) and `docs/api/assets.md`. The CHANGELOG has three entries
+under Added.
 
 ---
 

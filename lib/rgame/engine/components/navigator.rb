@@ -79,7 +79,8 @@ module RGame
 
           measure_anchor
           refuse_a_box_larger_than_a_tile
-          cells = @world.nav_grid.find(*cell_at(@anchor_x, @anchor_y), *cell_at(world_x, world_y))
+          cells = @world.nav_grid.find(@world.col_at(@anchor_x), @world.row_at(@anchor_y),
+                                       @world.col_at(world_x), @world.row_at(world_y))
           return false unless cells
 
           @cells = cells
@@ -106,10 +107,8 @@ module RGame
                                "#{@world.tile_height} tiles. Pathfinding for a larger collider is not supported."
         end
 
-        def cell_at(x, y) = [(x / @world.tile_width).floor, (y / @world.tile_height).floor]
-
-        def centre_x(cell) = (cell[0] + 0.5) * @world.tile_width
-        def centre_y(cell) = (cell[1] + 0.5) * @world.tile_height
+        def centre_x(cell) = @world.cell_centre_x(cell[0])
+        def centre_y(cell) = @world.cell_centre_y(cell[1])
 
         def corners(cells)
           corners = [[@anchor_x, @anchor_y]]

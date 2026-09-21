@@ -12,6 +12,7 @@ A game rarely builds one itself. The pieces that use it are:
 | [`TileWorld`](components.md#tileworld) | answer solidity and world-size questions for actors |
 | [`TileMapLayer`](components.md#tileworld) | draw one layer per node |
 | [`TileMapRenderer`](assets.md#tile-maps) | bake and draw the tiles |
+| [`MapObjects`](#building-nodes-from-objects) | build a node from each of its objects |
 | `RGame::Game`'s `:tilemap` asset loader | read a `.tmx`, build the map and slice its tileset images |
 
 Read on when a scene queries the map itself, or when you author maps for rgame.
@@ -183,6 +184,20 @@ Tiled's tile animation editor.
 properties, as a frozen `[x, y]` in pixels with `y` down. A tile whose tileset
 has none answers `[0, 0]`.
 
+### Cells and pixels
+
+```ruby
+map.cell_x(12)       # => 192 — column 12's left edge, in world pixels, on 16 px tiles
+map.cell_y(7)        # => 112 — row 7's top edge
+map.col_at(200.5)    # => 12 — the column holding that x
+map.row_at(-0.5)     # => -1 — floored, so left of or above the map is negative
+```
+
+**These four are the only conversions between cells and pixels.** The renderer,
+`solid_at?` and [`TileWorld`](components.md#tileworld) all call them. They answer for
+any cell, inside the map or not: `cell_x(map.width)` is the map's right edge. A point
+on a cell's left or top edge is in that cell.
+
 ### Solidity
 
 ```ruby
@@ -192,8 +207,8 @@ map.solid_at?(200.5, 116.0)     # the same, from a world position in pixels
 
 **A cell is solid when any layer holds a solid tile there**, a hidden layer
 included: hiding a layer in Tiled changes how it draws, not what blocks.
-`solid_at?(world_x, world_y)` divides by the tile size and asks `solid_tile?` for
-that cell. **Outside the map is not solid.** Keep actors inside with
+`solid_at?(world_x, world_y)` asks `solid_tile?` about the cell holding that
+point. **Outside the map is not solid.** Keep actors inside with
 `blocked_by: [:bounds]` on their mover.
 
 Actors do not call these per step. [`TileWorld`](components.md#tileworld) reads
@@ -266,8 +281,33 @@ cells report the same corner.
 | `visible?` | false when the designer hid it |
 | `properties` | its custom properties |
 
-**No node is built from an object.** The map reads them; placing something for
-each is the game's code.
+### Building nodes from objects
+
+**`RGame::Engine::MapObjects` builds a node from each object whose class has a
+block.** The class is the Class field Tiled shows in an object's properties.
+
+```ruby
+# In a scene's on_add, with `map` loaded and `slots` from TileMapLayer.mount.
+objects = RGame::Engine::MapObjects.new
+objects.define('chest') { |o| Chest.new(x: o.x, y: o.y, contents: o.properties.fetch('contents')) }
+objects.define('trap')  { |o| Trap.new(x: o.x, y: o.y) }
+
+objects.spawn_into(slots[:actors], map.objects) # => the chests and traps it added
+```
+
+- **`define(class_name) { |object| ... }`** registers the block for one class and
+  returns the registry. It raises `ArgumentError` for a class defined twice, a
+  name that is not a String, or a missing block.
+- **`build(object)`** returns what the block for `object.class_name` returns, or
+  `nil` when no block was defined for that class. A map may carry objects a scene
+  has no use for.
+- **`spawn_into(parent, objects)`** builds each object in the order given, adds
+  every node that comes back under `parent`, and returns those nodes. A hidden
+  object is built too, so the block can read `visible?` itself.
+- **The block places the node.** An object's `(x, y)` is its top-left corner, and
+  where a node's origin sits is up to its class. The registry moves nothing.
+- **Nothing spawns a map's objects unless the scene asks.** The scene calls
+  `spawn_into` and chooses the parent.
 
 ## `RGame::Engine::Properties`
 
@@ -306,8 +346,9 @@ A `Properties` is frozen and compares by its contents. "No properties" is
 names `TileMap`. rgame's own suite states that contract in
 `spec/support/shared_examples/a_tile_map.rb`. It checks both `TileMap` and the
 spec stand-in `StubTileMap` against it. The contract covers `layer_count`,
-`layer`, `width`, `height`, `tile_width`, `tile_height`, `tile`, `orientation`,
-`solid?`, `animated_tiles` and `frame_tile`.
+`layer`, `layer_index`, `width`, `height`, `tile_width`, `tile_height`, `cell_x`,
+`cell_y`, `col_at`, `row_at`, `tile`, `orientation`, `solid?`, `tile_offset`,
+`animated_tiles` and `frame_tile`.
 
 A spec that needs a map but no files parses a `.tmx` String with its tilesets
 embedded, as [above](#loading-a-map).

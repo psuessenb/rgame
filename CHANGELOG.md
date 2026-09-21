@@ -57,6 +57,18 @@ index, not the argument.
   draw, a tileset's drawing offset moves its tiles, and an image layer draws its
   image, repeated if Tiled says so. `TileMap#tile_offset`
   answers it. See [docs/api/tile_maps.md](docs/api/tile_maps.md#how-the-map-is-drawn).
+- **A tile map converts between cells and pixels.** `TileMap` and
+  `Components::TileWorld` answer `cell_x`, `cell_y`, `col_at` and `row_at`, and
+  `TileWorld` answers `cell_centre_x` and `cell_centre_y`. See
+  [docs/api/tile_maps.md](docs/api/tile_maps.md#cells-and-pixels).
+- **A thing on a tile map can block its cell.** `Components::OccupiesCell` makes
+  one cell of the scene's `TileWorld` solid while its node is in the tree, for
+  collision and route planning alike. See
+  [docs/api/components.md](docs/api/components.md#occupiescell).
+- **A map's objects become nodes.** `RGame::Engine::MapObjects` takes a block
+  per Tiled class and builds a node from each object of that class.
+  `spawn_into` adds them under a parent. See
+  [docs/api/tile_maps.md](docs/api/tile_maps.md#building-nodes-from-objects).
 - **`Image#tiles` cuts a sheet with gaps.** It takes `margin:`, `spacing:`,
   `columns:` and `count:`. See [docs/api/images.md](docs/api/images.md).
 

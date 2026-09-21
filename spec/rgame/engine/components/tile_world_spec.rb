@@ -61,6 +61,19 @@ RSpec.describe RGame::Engine::Components::TileWorld do
     end
   end
 
+  describe 'cells and pixels' do
+    # Not square, so a forward that crossed x and y would show.
+    let(:map) { StubTileMap.new(layers: [[1, 2, 0, 3]], tile_width: 16, tile_height: 8) }
+
+    it "answers a cell's edges and the cell holding a point, as the map does" do
+      expect([world.cell_x(3), world.cell_y(3), world.col_at(40), world.row_at(40)]).to eq([48, 24, 2, 5])
+    end
+
+    it "puts a cell's centre halfway across it" do
+      expect([world.cell_centre_x(3), world.cell_centre_y(3), world.cell_centre_x(-1)]).to eq([56.0, 28.0, -8.0])
+    end
+  end
+
   # It no longer resolves a step. What it owns is the grid as a blocker source, and the
   # actor that wants to be stopped by it borrows this and resolves for itself — see
   # Components::CharacterBody, which builds its own Engine::CollisionSystem.
@@ -122,6 +135,33 @@ RSpec.describe RGame::Engine::Components::TileWorld do
 
     it 'routes round the map’s solid tiles' do
       expect(world.nav_grid.find(0, 0, 4, 0)).to include([2, 3])
+    end
+  end
+
+  # What Components::OccupiesCell calls; occupies_cell_spec.rb covers it through the tree.
+  describe 'occupying a cell' do
+    let(:world) { described_class.new(map: WalledTileMap.build(['..', '.#']), tilemap_id: :level) }
+
+    it 'keeps a cell solid until as many vacate as occupied' do
+      2.times { world.occupy(0, 0) }
+      world.vacate(0, 0)
+      held = world.solid?(0, 0)
+      world.vacate(0, 0)
+      expect([held, world.solid?(0, 0)]).to eq([true, false])
+    end
+
+    it 'leaves a cell the map made solid solid' do
+      world.occupy(1, 1)
+      world.vacate(1, 1)
+      expect(world.solid?(1, 1)).to be(true)
+    end
+
+    it 'raises for a cell nothing occupies' do
+      expect { world.vacate(0, 0) }.to raise_error(ArgumentError, /nothing occupies cell \(0, 0\)/)
+    end
+
+    it 'raises for a cell outside the map, naming its size' do
+      expect { world.occupy(0, -1) }.to raise_error(ArgumentError, /\(0, -1\) is outside the map, which is 2x2/)
     end
   end
 

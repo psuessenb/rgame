@@ -13,6 +13,8 @@
 #     smoothed against the hero's own feet box, and walked;
 #   - Components::TileWorld#nav_grid — the search grid, built from the same
 #     solidity the collision uses, and asked whether a tile can be stood on;
+#   - Components::TileWorld#cell_x and #cell_centre_x — every tile's position
+#     and size asked of the world, so nothing here knows a tile is 16 pixels;
 #   - Components::AnimatedSprite — facing the way the route goes, with nobody
 #     pressing a direction;
 #   - Components::ActionTrigger — the cursor's held-key repeat;
@@ -75,7 +77,6 @@ ASSETS = File.expand_path('../assets', __dir__)
 LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 MAP   = 'town.tmx'
-TILE  = 16
 SPEED = 90.0 # px/s
 
 FEET_WIDTH  = 12
@@ -115,7 +116,8 @@ end
 
 # A tile outline, moved a tile at a time. It knows which tile it is on and whether
 # that tile can be stood on; what confirming *means* is the scene's business, so it
-# only reports the tile's centre.
+# only reports the tile's centre. Every size and position it draws at comes from the
+# world, which is what knows how big a tile is.
 class Cursor < RGame::Engine::Node2D
   WALKABLE = RGame::Util::Color.rgba(120, 230, 120, 255)
   SOLID = RGame::Util::Color.rgba(240, 90, 90, 255)
@@ -123,10 +125,13 @@ class Cursor < RGame::Engine::Node2D
 
   signal :on_confirmed, RGame::Engine::Signal.define(:world_x, :world_y)
 
-  def initialize(col:, row:, camera:)
-    super(x: col * TILE, y: row * TILE)
+  def initialize(col:, row:, world:, camera:)
+    super()
+    @world = world
     @col = col
     @row = row
+    @width = world.tile_width
+    @height = world.tile_height
     # ActionTrigger fires on the tick a direction goes down and again every
     # CURSOR_REPEAT while it stays down — which is a key repeat, per action.
     repeat = add_component(RGame::Engine::Components::ActionTrigger.new(
@@ -134,26 +139,22 @@ class Cursor < RGame::Engine::Node2D
                            ))
     repeat.on_triggered { |action| step(*STEPS.fetch(action)) }
     add_component(RGame::Engine::Components::CameraFollow.new(
-                    camera: camera, offset_x: TILE / 2, offset_y: TILE / 2
+                    camera: camera, offset_x: @width / 2, offset_y: @height / 2
                   ))
-  end
-
-  def on_add
-    @world = system(RGame::Engine::Components::TileWorld)
     step(0, 0)
   end
 
   def on_control(actions)
     return unless actions.pressed?(:ui_confirm)
 
-    on_confirmed_signal.emit(world_x: (@col + 0.5) * TILE, world_y: (@row + 0.5) * TILE)
+    on_confirmed_signal.emit(world_x: @world.cell_centre_x(@col), world_y: @world.cell_centre_y(@row))
   end
 
   def on_draw(renderer, _view)
-    renderer.line(0, 0, TILE, 0, thickness: 2.0, color: @color)
-    renderer.line(TILE, 0, TILE, TILE, thickness: 2.0, color: @color)
-    renderer.line(TILE, TILE, 0, TILE, thickness: 2.0, color: @color)
-    renderer.line(0, TILE, 0, 0, thickness: 2.0, color: @color)
+    renderer.line(0, 0, @width, 0, thickness: 2.0, color: @color)
+    renderer.line(@width, 0, @width, @height, thickness: 2.0, color: @color)
+    renderer.line(@width, @height, 0, @height, thickness: 2.0, color: @color)
+    renderer.line(0, @height, 0, 0, thickness: 2.0, color: @color)
   end
 
   private
@@ -162,8 +163,8 @@ class Cursor < RGame::Engine::Node2D
     grid = @world.nav_grid
     @col = (@col + dcol).clamp(0, grid.width - 1)
     @row = (@row + drow).clamp(0, grid.height - 1)
-    self.x = @col * TILE
-    self.y = @row * TILE
+    self.x = @world.cell_x(@col)
+    self.y = @world.cell_y(@row)
     @color = grid.walkable?(@col, @row) ? WALKABLE : SOLID
   end
 end
@@ -178,10 +179,12 @@ class Route < RGame::Engine::Node2D
   DOT = RGame::Util::Color.rgba(255, 255, 255, 200)
   LINE = RGame::Util::Color.rgba(255, 220, 60, 255)
   DOT_SIZE = 4
+  HALF_DOT = DOT_SIZE / 2
 
-  def initialize(hero:)
+  def initialize(hero:, world:)
     super()
     @hero = hero
+    @world = world
   end
 
   def on_draw(renderer, _view)
@@ -193,11 +196,11 @@ class Route < RGame::Engine::Node2D
   private
 
   def draw_cells(renderer, cells)
-    offset = (TILE - DOT_SIZE) / 2
     index = 0
     while index < cells.length
       col, row = cells[index]
-      renderer.rect((col * TILE) + offset, (row * TILE) + offset, DOT_SIZE, DOT_SIZE, color: DOT)
+      renderer.rect(@world.cell_centre_x(col) - HALF_DOT, @world.cell_centre_y(row) - HALF_DOT,
+                    DOT_SIZE, DOT_SIZE, color: DOT)
       index += 1
     end
   end
@@ -222,17 +225,20 @@ class Scene < RGame::Engine::Node2D
   def on_add
     map = root.context.assets.tilemap(MAP).map
     players = root.system(RGame::Engine::Players)
-    add_component(RGame::Engine::Components::TileWorld.new(
-                    map: map, tilemap_id: MAP, cameras: players.map(&:camera)
-                  ))
+    world = add_component(RGame::Engine::Components::TileWorld.new(
+                            map: map, tilemap_id: MAP, cameras: players.map(&:camera)
+                          ))
 
     view = add_node(RGame::Engine::WorldView.new)
     actors = RGame::Engine::TileMapLayer.mount(view)[:actors]
-    @hero = Hero.new(x: ((START_COL + 0.5) * TILE) - FEET_CENTRE_X,
-                     y: ((START_ROW + 0.5) * TILE) - FEET_CENTRE_Y)
-    actors.add_node(Route.new(hero: @hero))
+    # The hero's origin is its sprite's top-left, and what stands on the start tile
+    # is its feet, so the feet's centre goes on the tile's.
+    @hero = Hero.new(x: world.cell_centre_x(START_COL) - FEET_CENTRE_X,
+                     y: world.cell_centre_y(START_ROW) - FEET_CENTRE_Y)
+    actors.add_node(Route.new(hero: @hero, world: world))
     actors.add_node(@hero)
-    cursor = actors.add_node(Cursor.new(col: START_COL, row: START_ROW, camera: players.primary.camera))
+    cursor = actors.add_node(Cursor.new(col: START_COL, row: START_ROW, world: world,
+                                        camera: players.primary.camera))
 
     cursor.on_confirmed { |world_x, world_y| send_hero(world_x, world_y) }
     @hero.navigator.on_finished do

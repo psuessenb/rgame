@@ -1,6 +1,6 @@
 # Supporting Tiled's format
 
-**Status: steps 0–6 of [the roadmap](04-roadmap.md) are implemented, and step 7 is planned in detail.** Step 8 is still rough and waits on the authored map.
+**Status: steps 0–7 of [the roadmap](04-roadmap.md) are implemented.** Step 8 is still rough and waits on the authored map.
 
 ## Goal
 

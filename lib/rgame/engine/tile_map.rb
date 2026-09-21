@@ -12,6 +12,7 @@ module RGame
     #   map = RGame::Engine::TileMap.from_tiled(parsed)
     #   map.tile(0, 12, 7)     # => the tile in layer 0 at column 12, row 7
     #   map.solid_tile?(12, 7) # => whether any layer blocks that cell
+    #   map.cell_x(12)         # => 192, the column's left edge in pixels
     #
     # **A cell holds a tile id.** Ids are dense and start at 1, across every
     # tileset the map uses, so every fact about a tile is one Array read; 0 is
@@ -27,6 +28,11 @@ module RGame
     # top-left, an animation frame lasts seconds, and an object's `(x, y)` is
     # its top-left corner. `from_tiled`, the only thing that builds one, does
     # every conversion from the file's terms, so no caller does.
+    #
+    # **Cells and pixels convert here.** `cell_x`, `cell_y`, `col_at` and
+    # `row_at` are the only arithmetic on the tile size. The renderer and
+    # `Components::TileWorld` call them, so a grid that stops being uniform
+    # changes in one class.
     #
     # `initialize` takes plain Arrays and builds the grids itself, so a built
     # map holds nothing but Ruby values and the `Util::Tensor`s made from
@@ -232,9 +238,22 @@ module RGame
         false
       end
 
-      def solid_at?(world_x, world_y)
-        solid_tile?((world_x / @tile_width).floor, (world_y / @tile_height).floor)
-      end
+      def solid_at?(world_x, world_y) = solid_tile?(col_at(world_x), row_at(world_y))
+
+      # The left edge of column `col`, in world pixels. Any column, inside the
+      # map or not: `cell_x(width)` is the map's right edge.
+      def cell_x(col) = col * @tile_width
+
+      # The top edge of row `row`, in world pixels.
+      def cell_y(row) = row * @tile_height
+
+      # The column holding `world_x`, floored, so a point left of the map is in
+      # a negative column rather than column 0. A point on a cell's left edge is
+      # in that cell.
+      def col_at(world_x) = (world_x / @tile_width).floor
+
+      # The row holding `world_y`, floored like `col_at`.
+      def row_at(world_y) = (world_y / @tile_height).floor
 
       private
 

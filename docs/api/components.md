@@ -781,7 +781,9 @@ navigator.go_to(200.0, 360.0) # => true — the hero sets off; false when there 
 - **It waits; it does not replan.** It plans against the map and knows only the
   map. A navigator declaring other collider layers waits behind anything standing on
   its route, as a `PathFollow` does, and resumes when the way clears. To go around
-  instead, call `go_to` again.
+  instead, call `go_to` again. A route also keeps to the cells that were solid when
+  `go_to` ran. A cell an [`OccupiesCell`](#occupiescell) makes solid later stops a
+  navigator declaring `:tiles` there, until `go_to` is called again.
 - **Cost.** Planning runs when `go_to` is called, never per frame, and allocates. It
   takes about 0.2 ms for a 65-tile route across a 60x40 map. A 117-tile route across
   120x90 takes 1.3 ms, 1 ms of it in the search. The walk itself is `PathFollow`'s,
@@ -791,6 +793,37 @@ navigator.go_to(200.0, 360.0) # => true — the hero sets off; false when there 
 - **Example:** in `examples/pathfinding`, a tile cursor picks the target. The scene
   draws `cells` as a dot per tile and `path` as lines. It adds the feet box's centre
   back to each waypoint so the lines sit on the dots.
+
+### `OccupiesCell`
+
+**Makes one cell of the scene's [`TileWorld`](#tileworld) solid while its node is in
+the tree**, for a crate, a closed door or a statue.
+
+```ruby
+# `actors` is the :actors slot TileMapLayer.mount returned, and `world` the scene's TileWorld.
+crate = Crate.new(x: world.cell_x(12), y: world.cell_y(7))
+crate.add_component(RGame::Engine::Components::OccupiesCell.new(col: 12, row: 7))
+actors.add_node(crate)
+world.solid?(12, 7) # => true
+```
+
+- **Construct:** `OccupiesCell.new(col:, row:)`. `col` and `row` read it back.
+- **Lifecycle:** the cell turns solid when the node enters the tree, or when the
+  component is added to a node already in it. It turns back when the node leaves the
+  tree or the component is removed. `on_attach` raises when the scene has no
+  `TileWorld`, and raises `ArgumentError` naming the cell and the map's size for a
+  cell outside the map.
+- **One store.** The cell is solid in the store `TileWorld#blockers`, `#nav_grid`
+  and `#solid?` all read. A [`Mover`](#mover) declaring `:tiles` stops at it, and
+  reports it as `:tiles` with no node. A route [`Navigator#go_to`](#navigator) plans
+  after it arrives goes around it.
+- **Counted.** Two occupants of one cell keep it solid until both have left. A cell
+  the map made solid stays solid when its occupant leaves.
+- **It does not place the node.** Where a node draws depends on where its origin
+  is, which only its class knows. Place it with `TileWorld#cell_x` and
+  `#cell_centre_x`, as the example above does.
+- **The cell is fixed.** Something that moves from cell to cell is a body with a
+  collider. A mover that names the collider's layer in `blocked_by` stops against it.
 
 ### `PathFollow`
 
@@ -979,7 +1012,11 @@ data to another, depends on a sibling's add order, or names a layer it may not n
   - `nav_grid` returns the same solidity as an
     [`Engine::NavGrid`](toolbox.md#navgrid--routes-over-a-tile-grid), for planning a
     route instead of resolving a step. It is built on first request and reused.
-  - `tile_width` and `tile_height` turn a world position into a cell.
+  - `tile_width` and `tile_height`, the size of one cell in pixels.
+  - `cell_x(col)`, `cell_y(row)`, `col_at(world_x)` and `row_at(world_y)` convert
+    between cells and world pixels, as [`TileMap`](tile_maps.md#cells-and-pixels)
+    does. `cell_centre_x(col)` and `cell_centre_y(row)` answer the middle of a
+    cell, which is where a [`Navigator`](#navigator) steers to.
   - `solid?(col, row)`, `world_width` and `world_height`.
   - `tilemap_id` and `elapsed`, which the layers read.
   - `layer_count`, `layer(index)`, `layer_index(name_or_path)` and
@@ -991,8 +1028,8 @@ data to another, depends on a sibling's add order, or names a layer it may not n
   `nav_grid` and `solid?` all read that store, never the map. They cannot disagree
   about a cell. A resolve on the per-frame path becomes a byte lookup instead of a
   walk through the map's layers and tileset. Everything past the map's edges is open.
-  `TileWorld` does not hand the store out, so a game cannot change a tile's solidity
-  at runtime.
+  `TileWorld` does not hand the store out. A game changes a cell's solidity at
+  runtime only through [`OccupiesCell`](#occupiescell).
 - **It does not resolve a step.** Tiles, other actors, the world's edge, or any
   combination may stop a mover, and only the mover knows which. The resolver
   therefore belongs to the mover, and the grid to this system.
