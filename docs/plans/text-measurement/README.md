@@ -1,7 +1,7 @@
 # Text measurement, wrapping and a label
 
-**Status.** Steps 0–4 are implemented. Steps 5–6 are deliberately rough and
-get re-planned once the layer beneath them exists.
+**Status.** Steps 0–4 are implemented. Step 5 is detailed. Step 6 is
+deliberately rough and gets re-planned once step 5 has landed.
 
 Read in order:
 
@@ -107,10 +107,13 @@ Each says what it waits on. None blocks step 0.
    region narrows when the screen splits. `Paragraph#width=` sets it, and a
    changed width re-breaks the lines on the next read. Moved from step 5 to
    step 4, because the answer decides `Paragraph`'s cache.
-2. **Should the renderer gain a multi-line draw call?** `UI::Label` will step by
-   the line height in a loop. If a second caller wants the same loop, it belongs
-   on the renderer, and then `FakeRenderer` and the `a_renderer` contract follow.
-   Decide after step 5, with a real caller in hand.
+2. ~~**Should the renderer gain a multi-line draw call?**~~ **Settled while
+   planning step 5: no.** `UI::Label` is the only caller, and its loop is five
+   lines. `DebugOverlay#draw` steps rows too, but each row is a right-aligned
+   label beside a number drawn digit by digit, which an Array of lines does
+   not fit. A renderer method would also need both fakes and the `a_renderer`
+   contract to follow it. See
+   [step 5](04-roadmap.md#step-5--uilabel-and-an-intro-example).
 3. **Where does the default typeface's size come from?** `Renderer::FONT_SIZE`
    is 18 and lives in Core, which Util may not name. Either Util carries its own
    default and Core reads it, or the number is duplicated with a spec that
