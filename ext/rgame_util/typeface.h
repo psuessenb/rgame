@@ -141,6 +141,23 @@ int rgame_text_cursor_next(rgame_text_cursor *cursor, const rgame_typeface *type
 float rgame_typeface_measure(const rgame_typeface *typeface, const char *text, size_t length);
 
 /*
+ * How much of `text` fits on one line `max_width` pixels wide. Writes the
+ * line's length in bytes and the width it measures to.
+ *
+ * The line ends before the last space that fits. That space is not part of the
+ * line, and `text[*fit_length]` is it, so the next line starts one byte later.
+ * A line ends only at the end of `text` or at a space.
+ *
+ * A word wider than `max_width` comes back whole rather than cut. A caller
+ * always makes progress, and a long URL overflows where a player can see it.
+ *
+ * This is the cursor above, stopped at the break. `*fit_width` is therefore
+ * exactly what `rgame_typeface_measure` reports for the line on its own.
+ */
+void rgame_typeface_fit(const rgame_typeface *typeface, const char *text, size_t length,
+                        float max_width, size_t *fit_length, float *fit_width);
+
+/*
  * Decodes one UTF-8 codepoint starting at `*offset` and advances it. Returns 1
  * on success and 0 at the end of the string.
  *
