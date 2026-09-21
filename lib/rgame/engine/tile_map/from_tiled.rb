@@ -16,7 +16,8 @@ module RGame
     #   summed in whole milliseconds so that no rounding moves a boundary;
     # - a tile object's bottom-left corner becomes its top-left, and every
     #   position moves by the infinite-map origin so that cell `(0, 0)` is the
-    #   map's top-left.
+    #   map's top-left;
+    # - a tileset's drawing offset becomes each of its tiles' `tile_offset`.
     class TileMap
       # Builds a map from a `Tiled::Map`. The only way one is built.
       def self.from_tiled(tiled_map) = FromTiled.new(tiled_map).map
@@ -52,9 +53,10 @@ module RGame
 
         def tile_table
           table = { tile_table: [nil], solid: [false], tile_classes: [nil],
-                    tile_properties: [Properties::EMPTY], frames: [nil] }
+                    tile_properties: [Properties::EMPTY], frames: [nil], tile_offsets: [NO_OFFSET] }
           @tiled.tilesets.each_with_index do |ref, index|
-            local_ids(ref.tileset).each { add_tile(table, ref, index, it) }
+            offset = offset_of(ref.tileset)
+            local_ids(ref.tileset).each { add_tile(table, ref, index, it, offset) }
           end
           @tiled.tilesets.each { |ref| animate(table[:frames], ref) }
           table
@@ -62,7 +64,13 @@ module RGame
 
         def local_ids(tileset) = tileset.collection? ? tileset.tiles.keys.sort : (0...tileset.tile_count)
 
-        def add_tile(table, ref, index, local_id)
+        def offset_of(tileset)
+          return NO_OFFSET if tileset.offset_x.zero? && tileset.offset_y.zero?
+
+          [tileset.offset_x, tileset.offset_y].freeze
+        end
+
+        def add_tile(table, ref, index, local_id, offset)
           tile = ref.tileset.tile(local_id)
           @gids[ref.firstgid + local_id] = table[:tile_table].size
           table[:tile_table] << TileSource.new(tileset: index, local_id: local_id)
@@ -70,6 +78,7 @@ module RGame
           table[:tile_classes] << (tile.class_name unless tile.nil? || tile.class_name.empty?)
           table[:tile_properties] << (tile ? tile.properties : Properties::EMPTY)
           table[:frames] << nil
+          table[:tile_offsets] << offset
         end
 
         def animate(frames, ref)

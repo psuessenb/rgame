@@ -100,12 +100,14 @@ element:
 | Layer opacity | the layer and its animated tiles fade by the layer's opacity, groups included |
 | Tile sheets | cut with their margin and spacing |
 | Collections of images | one image per tile, each at its own size |
+| Drawing offset | every tile of the tileset moves by it, with `y` down |
 
 **A tile stands on its cell's bottom-left corner.** A tile taller than the map's
 cells, such as a tree two cells high, reaches up into the cell above. A turned
-tile that is not square keeps that corner too.
+tile that is not square keeps that corner too. A tileset's drawing offset then
+moves the tile, and the tile turns about its moved centre.
 
-Per-layer offset, parallax, tint and a tileset's tile offset are not read.
+Per-layer offset, parallax and tint are not read.
 
 ## `RGame::Engine::TileMap`
 
@@ -163,6 +165,7 @@ map.tile_class(tile)         # the class set in Tiled, or nil
 map.tile_properties(tile)    # its custom properties
 map.animated_tiles           # the tiles that animate
 map.frame_tile(tile, 0.25)   # the tile showing 0.25 s into its animation
+map.tile_offset(tile)        # => [0, -4] — where it draws, relative to its cell
 ```
 
 **A tile is solid when it has a collision shape in Tiled.** Open the tileset in
@@ -174,6 +177,10 @@ collision and changing which tiles block needs no code.
 The animation loops, and a tile that does not animate answers itself. The time is
 an argument, not a clock read, so pausing is "stop accumulating". Animate a tile in
 Tiled's tile animation editor.
+
+**`tile_offset(tile)` is its tileset's Drawing Offset** from Tiled's tileset
+properties, as a frozen `[x, y]` in pixels with `y` down. A tile whose tileset
+has none answers `[0, 0]`.
 
 ### Solidity
 

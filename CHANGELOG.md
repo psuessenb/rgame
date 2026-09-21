@@ -54,7 +54,8 @@ index, not the argument.
 - **A tile map draws what Tiled shows.** Turned and flipped tiles draw turned,
   hidden layers draw nothing, and a layer fades by its opacity. Tilesets with a
   margin or spacing, collections of images, and tiles larger than a cell all
-  draw. See [docs/api/tile_maps.md](docs/api/tile_maps.md#how-the-map-is-drawn).
+  draw, and a tileset's drawing offset moves its tiles. `TileMap#tile_offset`
+  answers it. See [docs/api/tile_maps.md](docs/api/tile_maps.md#how-the-map-is-drawn).
 - **`Image#tiles` cuts a sheet with gaps.** It takes `margin:`, `spacing:`,
   `columns:` and `count:`. See [docs/api/images.md](docs/api/images.md).
 

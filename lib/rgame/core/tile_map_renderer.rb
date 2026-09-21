@@ -56,7 +56,8 @@ module RGame
     # replays tinted by its opacity, and its animated tiles draw with the same
     # tint. A turned tile is baked inside a rotation about its own centre,
     # mirrored within its rectangle first when it is flipped. Every tile stands
-    # on its cell's bottom-left corner, as Tiled draws one taller than the grid.
+    # on its cell's bottom-left corner, as Tiled draws one taller than the grid,
+    # moved by its tileset's drawing offset, which does not turn with it.
     #
     # ## It loads nothing and holds no clock
     #
@@ -76,7 +77,7 @@ module RGame
     # What it calls is the 'a tile map' contract in
     # `spec/support/shared_examples/`: `layer_count`, `layer(i).visible?` and
     # `opacity`, `width`, `height`, `tile_width`, `tile_height`, `tile`,
-    # `orientation`, `animated_tiles` and `frame_tile`.
+    # `orientation`, `tile_offset`, `animated_tiles` and `frame_tile`.
     class TileMapRenderer
       # The map this was built from. A scene reads it for collision and world
       # bounds, which are its business rather than this class's.
@@ -156,7 +157,7 @@ module RGame
             next unless layer == index
             next if @animates.include?(tile)
 
-            draw_tile(renderer, @tiles[tile], col, row, @map.orientation(layer, col, row), nil)
+            draw_tile(renderer, tile, col, row, @map.orientation(layer, col, row), nil)
           end
         end
       end
@@ -173,13 +174,15 @@ module RGame
         tiles.each do |col, row, tile, orientation|
           next if col < col_start || col >= col_end || row < row_start || row >= row_end
 
-          draw_tile(renderer, @tiles[@map.frame_tile(tile, elapsed)], col, row, orientation, tint)
+          draw_tile(renderer, @map.frame_tile(tile, elapsed), col, row, orientation, tint)
         end
       end
 
-      def draw_tile(renderer, image, col, row, orientation, tint)
-        x = col * @map.tile_width
-        y = ((row + 1) * @map.tile_height) - image.height
+      def draw_tile(renderer, tile, col, row, orientation, tint)
+        image = @tiles[tile]
+        offset_x, offset_y = @map.tile_offset(tile)
+        x = (col * @map.tile_width) + offset_x
+        y = ((row + 1) * @map.tile_height) - image.height + offset_y
         return renderer.image_at(image, x, y, color: tint) if orientation.identity?
 
         turns = orientation.quarter_turns

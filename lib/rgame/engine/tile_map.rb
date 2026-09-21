@@ -47,6 +47,9 @@ module RGame
         IDENTITY = ALL.first
       end
 
+      NO_OFFSET = [0, 0].freeze
+      private_constant :NO_OFFSET
+
       # Where a tile id came from: the index of its tileset, in the order the
       # map lists them by first gid, and the tile's index in that tileset.
       TileSource = Data.define(:tileset, :local_id)
@@ -113,12 +116,13 @@ module RGame
       # shape as `cells` holding indexes into `Orientation::ALL`.
       #
       # `tile_table` starts with `nil` for id 0. `solid`, `tile_classes`,
-      # `tile_properties` and `frames` are indexed by tile id alike, and a
+      # `tile_properties` and `frames` are indexed by tile id alike, and so is
+      # `tile_offsets`, which may be `nil` for a map drawn at no offset. A
       # tile's `frames` are `[[tile, until], ...]`, or `nil` when it does not
       # animate: each frame shows until `until` seconds into the loop, so the
       # last frame's `until` is the loop's length.
       def initialize(width:, height:, tile_width:, tile_height:, layers:, cells:, tile_table:,
-                     solid:, tile_classes:, tile_properties:, frames:, orientations: nil,
+                     solid:, tile_classes:, tile_properties:, frames:, tile_offsets: nil, orientations: nil,
                      objects: [], properties: Properties::EMPTY, source: Source.new(path: nil, parser_version: 0))
         @width = width
         @height = height
@@ -132,6 +136,7 @@ module RGame
         @solid = solid.dup.freeze
         @tile_classes = tile_classes.dup.freeze
         @tile_properties = tile_properties.dup.freeze
+        @tile_offsets = (tile_offsets || Array.new(@tile_table.size, NO_OFFSET)).map(&:freeze).freeze
         @frames = frames.map { it&.map { |pair| pair.dup.freeze }&.freeze }.freeze
         @animated_tiles = @frames.each_index.select { @frames[it] }.freeze
         @objects = objects.dup.freeze
@@ -197,6 +202,11 @@ module RGame
 
       # The custom properties of `tile`, `Properties::EMPTY` when it has none.
       def tile_properties(tile) = @tile_properties.fetch(tile)
+
+      # How far `tile` draws from its cell, as a frozen `[x, y]` in pixels with
+      # `y` down: the drawing offset the designer gave its tileset in Tiled.
+      # Every tile of a tileset with none answers the same `[0, 0]`.
+      def tile_offset(tile) = @tile_offsets.fetch(tile)
 
       # The tiles that animate.
       attr_reader :animated_tiles

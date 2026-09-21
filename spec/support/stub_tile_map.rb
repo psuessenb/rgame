@@ -4,7 +4,7 @@
 #
 #   map = StubTileMap.new(
 #     layers: [[1, 2, 0, 3], [0, 0, 4, 0]], above: [false, true], visible: [true, false],
-#     opacity: [1.0, 0.5], solid: [3],
+#     opacity: [1.0, 0.5], solid: [3], tile_offsets: { 4 => [2, -4] },
 #     animations: { 1 => [[1, 0.1], [2, 0.1]] }, orientations: { [0, 1, 0] => [1, false] }
 #   )
 #
@@ -18,6 +18,7 @@
 # per layer, defaulting to below, shown and opaque. `animations` is
 # `{ tile => [[tile, seconds], ...] }`, and `orientations` is
 # `{ [layer, col, row] => [quarter_turns, mirrored] }` for the turned cells.
+# `tile_offsets` is `{ tile => [x, y] }` for the tiles drawn off their cell.
 #
 # It names no Engine class, because the Core suite loads it too.
 class StubTileMap
@@ -34,11 +35,13 @@ class StubTileMap
   end
 
   IDENTITY = Orientation.new(quarter_turns: 0, mirrored: false)
+  NO_OFFSET = [0, 0].freeze
 
   attr_reader :width, :height, :tile_width, :tile_height
 
   def initialize(layers:, width: 2, height: 2, tile_width: 16, tile_height: 16,
-                 above: [], visible: [], opacity: [], solid: [], animations: {}, orientations: {})
+                 above: [], visible: [], opacity: [], solid: [], animations: {}, orientations: {},
+                 tile_offsets: {})
     @cells = layers
     @layers = Array.new(layers.length) do |index|
       Layer.new(above: above.fetch(index, false), visible: visible.fetch(index, true),
@@ -50,6 +53,7 @@ class StubTileMap
     @tile_height = tile_height
     @solid = solid
     @animations = animations
+    @tile_offsets = tile_offsets
     @orientations = orientations.transform_values { |turns, mirrored| Orientation.new(turns, mirrored) }
   end
 
@@ -68,6 +72,8 @@ class StubTileMap
   def solid?(tile) = @solid.include?(tile)
 
   def animated_tiles = @animations.keys
+
+  def tile_offset(tile) = @tile_offsets.fetch(tile, NO_OFFSET)
 
   # The frame showing after `elapsed` seconds, looping. Mirrors
   # RGame::Engine::TileMap's own arithmetic, each frame ending where the

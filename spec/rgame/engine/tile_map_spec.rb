@@ -34,14 +34,16 @@ RSpec.describe RGame::Engine::TileMap do
   # the shape it prescribes, written as Tiled would write it. Local tile 0 is
   # animated through locals 0 and 1, local 2 has a collision shape, gid 2
   # carries the flags Tiled sets for a quarter turn clockwise, and the canopy is
-  # hidden at half opacity.
+  # hidden at half opacity. Tile 4 is the only tile of a second tileset, which
+  # has a drawing offset.
   def tile_map
     frames = '<frame tileid="0" duration="100"/><frame tileid="1" duration="100"/>'
     tiles = %(<tile id="0"><animation>#{frames}</animation></tile><tile id="2">#{solid_shape}</tile>)
     yield build(layer([1, 0xA0000002, 0, 3]) +
                 layer([0, 0, 4, 0], name: 'canopy', attributes: 'visible="0" opacity="0.5"',
                                     properties: bool_property('above', true)),
-                tilesets: [sheet(tiles: tiles)])
+                tilesets: [sheet(count: 3, tiles: tiles),
+                           sheet(firstgid: 4, name: 'props', count: 1, tiles: '<tileoffset x="2" y="-4"/>')])
   end
 
   it_behaves_like 'a tile map'
@@ -244,6 +246,26 @@ RSpec.describe RGame::Engine::TileMap do
 
     it 'keeps its properties, EMPTY when it has none' do
       expect([map.tile_properties(1), map.tile_properties(2)['gold']]).to eq([RGame::Engine::Properties::EMPTY, 5])
+    end
+  end
+
+  describe '#tile_offset' do
+    let(:map) do
+      build(layer([1, 5, 0, 0]),
+            tilesets: [sheet, sheet(firstgid: 5, name: 'props', count: 2, tiles: '<tileoffset x="3" y="-6"/>')])
+    end
+
+    it "is its tileset's drawing offset" do
+      expect([map.tile_offset(5), map.tile_offset(6)]).to eq([[3, -6], [3, -6]])
+    end
+
+    it 'is [0, 0] for a tile of a tileset with none, and for the empty cell' do
+      expect([map.tile_offset(1), map.tile_offset(0)]).to eq([[0, 0], [0, 0]])
+    end
+
+    # A map with no offset anywhere holds one pair, not one per tile.
+    it 'is the same frozen pair for every tile drawn at no offset' do
+      expect(map.tile_offset(1)).to be_frozen.and(equal(map.tile_offset(4)))
     end
   end
 

@@ -29,6 +29,7 @@
 #   tile 2 in layer 0 is turned a quarter clockwise
 #   tile 3 is solid
 #   tile 1 is animated: two frames, tiles 1 then 2, 0.1 s each
+#   tile 4 draws 2 px right of its cell and 4 px up; the others at no offset
 #
 # Building that from a `.tmx` and building it by hand are very different jobs,
 # which is the point — the contract says the shape and each host says how.
@@ -117,6 +118,10 @@ RSpec.shared_examples 'a tile map' do
 
     it 'leaves a tile that is not animated alone' do
       tile_map { |map| expect(map.frame_tile(2, 0.15)).to eq(2) }
+    end
+
+    it 'says how far a tile draws from its cell' do
+      tile_map { |map| expect([map.tile_offset(4), map.tile_offset(1)]).to eq([[2, -4], [0, 0]]) }
     end
   end
 end

@@ -220,6 +220,47 @@ RSpec.describe RGame::Core::TileMapRenderer do
     end
   end
 
+  # A tileset's drawing offset in Tiled: every tile of it moves by the same
+  # pixels, with y down.
+  describe 'a drawing offset' do
+    def map_with(orientations: {}, animations: {})
+      StubTileMap.new(layers: [[1, 0, 0, 0]], tile_offsets: { 1 => [2, -4], 2 => [5, 6] },
+                      orientations: orientations, animations: animations)
+    end
+
+    it 'moves a baked tile' do
+      described_class.new(map_with, tiles).draw_layer(renderer, 0, 0, 0, 64, 64)
+
+      expect(baked_calls.map { it.args[1..] }).to eq([[2, -4]])
+    end
+
+    it 'turns a tile about its moved centre, and does not turn with it' do
+      described_class.new(map_with(orientations: { [0, 0, 0] => [1, false] }), tiles)
+                     .draw_layer(renderer, 0, 0, 0, 64, 64)
+
+      expect(baked_calls.first.args).to eq([90, 10.0, 4.0])
+    end
+
+    it 'moves an animated tile by the offset of the frame it shows' do
+      described_class.new(map_with(animations: { 1 => [[1, 0.1], [2, 0.1]] }), tiles)
+                     .draw_layer(renderer, 0, 0, 0, 64, 64, elapsed: 0.15)
+
+      expect(renderer.calls_to(:image_at).map { it.args[1..] }).to eq([[5, 6]])
+    end
+
+    it 'lands on the pixels it names, through a real window' do
+      map = StubTileMap.new(layers: [[1, 0, 0, 0]], tile_offsets: { 1 => [4, 2] })
+      frame = RenderedFrame.capture(width: 32, height: 32) do |renderer, app|
+        image = RGame::Core::Image.new(app, PngFixture.write(16, 16) { [255, 255, 255, 255] })
+        described_class.new(map, [nil, image]).draw_layer(renderer, 0, 0, 0, 32, 32)
+      end
+
+      expect([frame.about?(2, 1, [26, 26, 38, 255]), frame.about?(5, 3, [255, 255, 255, 255]),
+              frame.about?(19, 17, [255, 255, 255, 255]), frame.about?(21, 17, [26, 26, 38, 255])])
+        .to eq([true, true, true, true])
+    end
+  end
+
   describe 'turned tiles' do
     def baked_calls_for(orientation, image: tiles[1])
       map = StubTileMap.new(layers: [[1, 0, 0, 0]], orientations: { [0, 0, 0] => orientation })
