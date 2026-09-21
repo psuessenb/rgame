@@ -74,6 +74,14 @@ rgame_typeface *rgame_typeface_open(const unsigned char *ttf, size_t length, int
 void rgame_typeface_close(rgame_typeface *typeface);
 
 /*
+ * The font file the face was opened from: its own copy, byte for byte, and the
+ * length through `length`. A second face opened from these bytes measures
+ * exactly as this one does, which is how `RGame::Core::Font` gets the face it
+ * draws with. NULL and a length of 0 for a NULL face.
+ */
+const unsigned char *rgame_typeface_data(const rgame_typeface *typeface, size_t *length);
+
+/*
  * The size the face was opened at, which is also the line height a caller
  * should step by for a second line. stb scales a font so that ascent minus
  * descent is exactly the requested pixel height, so this is the em box, not an

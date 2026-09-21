@@ -25,6 +25,12 @@ index, not the argument.
   an unchanged read allocates nothing. `lines_per_page:` groups the lines into
   pages for a dialogue box. See
   [docs/api/text.md](docs/api/text.md#a-paragraph-that-follows-the-language).
+- **A node draws with the typeface it measured with.** `Renderer#text` takes a
+  `RGame::Util::Typeface` as `font:` and draws it through a font the renderer
+  builds once and keeps. `Renderer#typeface` returns the typeface `text` uses by
+  default. `RGame::Core::Font.new(app, typeface)` builds a font on a typeface,
+  and `Font#typeface` returns it; `Font.new(app, 18)` and `path:` still work.
+  See [docs/api/text.md](docs/api/text.md#drawing-with-a-typeface).
 
 ## [0.4.0] - 2026-09-16
 

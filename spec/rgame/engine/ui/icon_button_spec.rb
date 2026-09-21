@@ -33,8 +33,10 @@ RSpec.describe RGame::Engine::UI::IconButton do
       expect(drawn_image.args).to eq([home, 32.0, 40.0])
     end
 
-    # FakeRenderer's stand-in metrics: 8 pixels a character, 18 a line.
+    # FakeRenderer measures with the shipped typeface, 18 pixels a line.
     describe 'with a caption' do
+      def centred(text) = (64 - RGame::Util::Typeface.default.text_width(text)) / 2
+
       it 'centres the image in the space above the caption' do
         button(label: 'home')
         expect(drawn_image.args).to eq([home, 32.0, 31.0])
@@ -42,14 +44,14 @@ RSpec.describe RGame::Engine::UI::IconButton do
 
       it 'centres the caption along the bottom edge, inside the slot' do
         button(label: 'home')
-        expect(draw.last.args).to eq(['Home', 16.0, 62])
+        expect(draw.last.args).to eq(['Home', centred('Home'), 62])
       end
 
       it 'draws the caption in the current locale' do
         RGame::Engine::I18n.load_hash(de: { home: 'Zuhause' })
         button(label: 'home')
         RGame::Engine::I18n.locale = :de
-        expect(draw.last.args).to eq(['Zuhause', 4.0, 62])
+        expect(draw.last.args).to eq(['Zuhause', centred('Zuhause'), 62])
       end
     end
   end

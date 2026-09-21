@@ -283,18 +283,28 @@ module RGame
 
       attr_writer :font
 
+      # The RGame::Util::Typeface of #font: what an unqualified #text call
+      # measures and draws with. A node that lays text out in `update` measures
+      # with this, or with any typeface it passes as `font:`.
+      def typeface = font.typeface
+
       # One line of text, with its top-left corner at (x, y) — the same corner
       # every other drawing method takes, rather than the baseline typography
       # would use.
       #
+      # `font:` is a RGame::Core::Font or a RGame::Util::Typeface. A typeface
+      # draws through a font this renderer builds on first use and keeps, one
+      # per typeface, so the engine layer can name the face it measured with.
+      #
       # Newlines are not special. A caller wanting two lines draws two, stepping
       # by #text_height.
       def text(string, x, y, z: TEXT_Z, color: nil, font: nil)
-        draw_text(font || self.font, string, x, y, Z.offset(z), packed(color))
+        draw_text(font_for(font), string, x, y, Z.offset(z), packed(color))
       end
 
       # What #text would occupy, for centring and layout. Unlike the drawing
       # methods this works outside `draw`, because measuring touches no GL.
+      # Given a typeface as `font:`, it is that typeface's own `text_width`.
       def text_width(string, font: nil) = (font || self.font).text_width(string)
 
       # The line height: what to step y by for a second line.
@@ -334,6 +344,14 @@ module RGame
       def packed(color) = Color.coerce(color).packed
 
       def resolve_image(image) = image.is_a?(Image) ? image : lookup(:image, image)
+
+      def font_for(font)
+        return self.font if font.nil?
+        return font unless font.is_a?(RGame::Util::Typeface)
+
+        fonts = registry(:font)
+        fonts[font] || (fonts[font] = font.equal?(typeface) ? self.font : Font.new(app, font))
+      end
 
       def registry(type) = (@registries ||= {})[type] ||= {}
 

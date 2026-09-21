@@ -53,10 +53,12 @@ RSpec.describe RGame::Engine::UI::TextButton do
   end
 
   describe 'the label' do
-    # FakeRenderer's stand-in metrics: 8 pixels a character, 18 a line.
+    # FakeRenderer measures with the shipped typeface, 18 pixels a line.
+    def centred(text) = (200 - RGame::Util::Typeface.default.text_width(text)) / 2
+
     it 'is centred in the slot' do
       button
-      expect(draw.last.args).to eq(['Play', 84.0, 11])
+      expect(draw.last.args).to eq(['Play', centred('Play'), 11])
     end
 
     it 'draws the translation for the current locale' do
@@ -72,7 +74,7 @@ RSpec.describe RGame::Engine::UI::TextButton do
       button
       draw
       RGame::Engine::I18n.locale = :de
-      expect(draw.last.args).to eq(['Spielen', 72.0, 11])
+      expect(draw.last.args).to eq(['Spielen', centred('Spielen'), 11])
     end
 
     describe 'with variables' do
@@ -91,7 +93,7 @@ RSpec.describe RGame::Engine::UI::TextButton do
         saves.with(saves: 3)
         draw
         saves.with(saves: 12)
-        expect(draw.last.args).to eq(['Continue (12)', 48.0, 11])
+        expect(draw.last.args).to eq(['Continue (12)', centred('Continue (12)'), 11])
       end
 
       it 'raises on a draw before any with, naming the keyword' do

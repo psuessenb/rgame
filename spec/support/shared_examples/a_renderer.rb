@@ -559,6 +559,28 @@ RSpec.shared_examples 'a renderer' do
       end
     end
 
+    it 'answers the typeface it measures with when a call names no font' do
+      render do |renderer, _image, _font|
+        expect(renderer.typeface).to be_a(RGame::Util::Typeface)
+        expect(renderer.text_width('Hamburgefonstiv')).to eq(renderer.typeface.text_width('Hamburgefonstiv'))
+        expect(renderer.text_height).to eq(renderer.typeface.height)
+      end
+    end
+
+    it 'measures with a typeface exactly as the typeface does' do
+      face = RGame::Util::Typeface.default(24)
+      render do |renderer, _image, _font|
+        expect(renderer.text_width('Systemsprache verwenden', font: face))
+          .to eq(face.text_width('Systemsprache verwenden'))
+        expect(renderer.text_height(font: face)).to eq(24)
+      end
+    end
+
+    it 'draws text in a typeface' do
+      face = RGame::Util::Typeface.default(24)
+      expect { render { |renderer, _image, _font| renderer.text('hello', 0, 0, font: face) } }.not_to raise_error
+    end
+
     it 'measures in a given font' do
       render do |renderer, _image, font|
         expect(renderer.text_width('hello', font: font)).to be_positive

@@ -27,6 +27,12 @@ RSpec.describe RGame::Util::Typeface do
     end
   end
 
+  describe '#bytes' do
+    it 'answers the font file it was opened from' do
+      expect(face.bytes).to eq(File.binread(described_class::DEFAULT_PATH))
+    end
+  end
+
   describe '.default' do
     it 'is the shipped font' do
       expect(face.text_width('Hello')).to eq(described_class.new(described_class::DEFAULT_PATH, 18).text_width('Hello'))

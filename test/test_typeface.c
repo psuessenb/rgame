@@ -120,6 +120,34 @@ START_TEST(the_caller_may_free_its_buffer_immediately) {
 }
 END_TEST
 
+START_TEST(a_face_hands_back_the_bytes_it_was_opened_from) {
+    rgame_typeface *typeface = open_test_typeface();
+
+    size_t length = 0;
+    const unsigned char *data = rgame_typeface_data(typeface, &length);
+    ck_assert_uint_eq(length, font_length);
+    ck_assert_ptr_ne(data, font_bytes);
+    ck_assert_int_eq(memcmp(data, font_bytes, font_length), 0);
+
+    /* A second face from those bytes measures to the same Float. */
+    rgame_typeface *again = rgame_typeface_open(data, length, TEST_PIXEL_HEIGHT);
+    ck_assert_ptr_nonnull(again);
+    const char *text = "Systemsprache verwenden";
+    ck_assert_float_eq(rgame_typeface_measure(again, text, strlen(text)),
+                       rgame_typeface_measure(typeface, text, strlen(text)));
+
+    rgame_typeface_close(again);
+    rgame_typeface_close(typeface);
+}
+END_TEST
+
+START_TEST(a_null_face_has_no_bytes) {
+    size_t length = 99;
+    ck_assert_ptr_null(rgame_typeface_data(NULL, &length));
+    ck_assert_uint_eq(length, 0);
+}
+END_TEST
+
 /* --- glyph metrics --- */
 
 START_TEST(a_narrow_letter_advances_less_than_a_wide_one) {
@@ -945,6 +973,8 @@ Suite *font_suite(void) {
     tcase_add_test(tc, the_baseline_sits_inside_the_line_box);
     tcase_add_test(tc, garbage_is_not_a_font);
     tcase_add_test(tc, the_caller_may_free_its_buffer_immediately);
+    tcase_add_test(tc, a_face_hands_back_the_bytes_it_was_opened_from);
+    tcase_add_test(tc, a_null_face_has_no_bytes);
 
     tcase_add_test(tc, a_narrow_letter_advances_less_than_a_wide_one);
     tcase_add_test(tc, advances_are_in_pixels_not_font_units);

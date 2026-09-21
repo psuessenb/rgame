@@ -215,26 +215,16 @@ class FakeRenderer
              z: z_arg(z), color: color_arg(color), font: font)
   end
 
-  # Stand-in metrics. They are not the real font's — a fake has no glyphs — but
-  # they are *ordered* the way real ones are: zero for an empty string and
-  # growing with its length. A scene that centres a label works out a different
-  # number here than in the game, and that is inherent; what it must not do is
-  # divide by zero or lay text out backwards.
-  # `font:` is accepted and ignored — the interface has it, and a fake has no
-  # font to distinguish. A spec that cares which font a scene asked for reads it
-  # off the recorded #text call instead.
-  CHARACTER_WIDTH = 8.0
-  LINE_HEIGHT = 18
+  # Real metrics: the shipped typeface at the renderer's size, measured by the
+  # same C the live renderer's font runs. So a scene that centres a label
+  # computes here the number it computes in the game, and a spec can assert the
+  # position. `font:` is a Typeface to measure with instead; a spec that cares
+  # which font a scene drew with reads it off the recorded #text call.
+  def typeface = RGame::Util::Typeface.default
 
-  def text_width(string, font: nil)
-    _ = font
-    string(string).length * CHARACTER_WIDTH
-  end
+  def text_width(string, font: nil) = (font || typeface).text_width(string(string))
 
-  def text_height(font: nil)
-    _ = font
-    LINE_HEIGHT
-  end
+  def text_height(font: nil) = (font || typeface).height
 
   # --- recording ----------------------------------------------------------
 

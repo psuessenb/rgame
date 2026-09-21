@@ -4,8 +4,9 @@
  * Everything interesting about text is elsewhere and pure: typeface.c knows what
  * glyphs measure and look like, atlas.c knows where the next one goes on a
  * page, glyph_cache.c knows which have been done already. This composes the
- * three, owns the GL textures behind the pages, and reads the font file. That
- * is layer 3 in CLAUDE.md's abstraction strategy, and it is kept this thin
+ * three and owns the GL textures behind the pages. It opens a font from
+ * bytes, which is how `RGame::Core::Font` shares a `RGame::Util::Typeface`'s
+ * face, and from a file path for the standalone binary. That is layer 3 in CLAUDE.md's abstraction strategy, and it is kept this thin
  * precisely so "we don't unit-test it directly" is honest rather than a gap —
  * `spec_core/rgame/core/font_spec.rb` and the renderer's pixel checks exercise
  * it end to end against a real GL context.
@@ -180,6 +181,39 @@ static unsigned char *read_whole_file(const char *path, long *out_size) {
     return bytes;
 }
 
+rgame_font *rgame_font_open(rgame_app *app, const unsigned char *ttf, size_t length,
+                            int pixel_height, char *err, size_t err_size) {
+    if (!app || !ttf) {
+        set_error(err, err_size, "%s", "no app or font data given");
+        return NULL;
+    }
+    if (pixel_height <= 0) {
+        set_error(err, err_size, "%s", "a font size must be positive");
+        return NULL;
+    }
+
+    rgame_font *font = calloc(1, sizeof(rgame_font));
+    if (!font) {
+        set_error(err, err_size, "%s", "out of memory");
+        return NULL;
+    }
+
+    font->typeface = rgame_typeface_open(ttf, length, pixel_height);
+    if (!font->typeface) {
+        free(font);
+        set_error(err, err_size, "%s", "the data is not a TrueType font");
+        return NULL;
+    }
+
+    rgame_glyph_cache_init(&font->cache);
+    rgame_app_gl_retain(app);
+    font->app = app;
+
+    /* No page yet. A font that is only ever measured — a layout pass that never
+     * draws — costs no video memory at all. */
+    return font;
+}
+
 rgame_font *rgame_font_load(rgame_app *app, const char *path, int pixel_height, char *err,
                             size_t err_size) {
     if (!app || !path) {
@@ -198,28 +232,12 @@ rgame_font *rgame_font_load(rgame_app *app, const char *path, int pixel_height, 
         return NULL;
     }
 
-    rgame_font *font = calloc(1, sizeof(rgame_font));
-    if (!font) {
-        free(bytes);
-        set_error(err, err_size, "%s", "out of memory");
-        return NULL;
-    }
-
     /* The face copies what it needs, so the file buffer goes straight back. */
-    font->typeface = rgame_typeface_open(bytes, (size_t)size, pixel_height);
+    rgame_font *font = rgame_font_open(app, bytes, (size_t)size, pixel_height, NULL, 0);
     free(bytes);
-    if (!font->typeface) {
-        free(font);
+    if (!font) {
         set_error(err, err_size, "could not read %s as a TrueType font", path);
-        return NULL;
     }
-
-    rgame_glyph_cache_init(&font->cache);
-    rgame_app_gl_retain(app);
-    font->app = app;
-
-    /* No page yet. A font that is only ever measured — a layout pass that never
-     * draws — costs no video memory at all. */
     return font;
 }
 

@@ -1,7 +1,6 @@
 # Roadmap
 
-**Steps 0–2 and 4 are implemented. Step 3 is detailed. Steps 5–6 are
-deliberately rough** and get re-planned
+**Steps 0–4 are implemented. Steps 5–6 are deliberately rough** and get re-planned
 once the layer beneath them exists — see the note at the end.
 
 ```
@@ -391,6 +390,70 @@ before and after, with `--seed` and `--texts`, showing identical strings:
 ```
 ruby tools/drive_test_project.rb examples/localization/main.rb --ticks 240 --seed 1 --texts
 ```
+
+**Landed.** Step 3 landed after step 4, as the plan allowed. 3a builds
+`Core::Font` on a typeface: `Font.new(app, typeface)` opens its own face from
+the typeface's bytes through the new `rgame_font_open`, and `Font#typeface`
+answers it. `Font.new(app, 18)` and `Font.new(app, 18, path:)` are sugar that
+build the typeface first. 3b adds `Renderer#typeface`, and `font:` on `text`
+takes a typeface, which resolves to one `Font` per typeface per renderer. 3c
+makes `FakeRenderer` and `QuietRenderer` measure with `Typeface.default`, and
+adds three examples to the `a_renderer` contract. Each is one commit.
+`docs/api/text.md` has "Drawing with a typeface" and a rewritten "Fonts",
+`docs/api/drawing.md` says the fake measures with the real font, and
+`CHANGELOG.md` has an entry.
+
+On a clean build, `make test` 380 checks, `rake spec` 2404 examples,
+`rake spec:core` 427, all 0 failures, no warnings, and `rake docs:coverage`
+finds no undocumented name. The measured acceptance evidence:
+
+- **Rule 5, in a window:** `'Hamburgefonstiv'` at 24 px, centred in 256 px by
+  its typeface's width and drawn with that typeface, puts all its ink inside
+  the measured box. `spec_core/rgame/core/renderer_spec.rb` asserts it.
+- **Rule 5, headless:** a `Node2D` measures a title in `on_update` and draws it
+  in `on_draw` with the same typeface. Against the fake it lands centred to
+  within 1e-9 px. `spec/rgame/engine/measured_text_spec.rb` asserts it.
+- **Rule 4:** two `text` calls with one new typeface add **1** atlas page. A
+  call with the renderer's own typeface adds **0**, because it resolves to the
+  renderer's font.
+- **The driven run:** `examples/localization` at `--seed 1` for 240 ticks gives
+  a **byte-identical report** on `main` and on this branch: 1920 `text` calls,
+  every string, and the first and last positions.
+- **Mutations.** Building a new `Font` on every call fails the two registry
+  examples. Putting back the fake's 8 px per character fails the contract
+  example "answers the typeface it measures with".
+
+What the sketch got wrong:
+
+- **`rgame_font_load` stays.** The standalone binary in `src/main.c` opens its
+  font by path. So the new function is `rgame_font_open`, from bytes, and
+  `rgame_font_load` reads the file and calls it.
+- **`Typeface#bytes` is a Ruby method over a private C one.** Step 1 left it
+  out. It is public so `Core::Font` can call it, and tagged `@api private`.
+  A method defined in C has no source location, so the coverage spec cannot
+  see a tag on it. The C side is `rgame_typeface_data`, and the face now keeps
+  its file's length.
+- **Only `text` needs the registry.** A typeface answers `text_width` and
+  `height` itself, so `text_width` and `text_height` pass it straight through.
+  Rule 3 holds because the renderer calls the typeface's own method.
+- **Two edges the plan did not list.** A size below 1 through the sugar still
+  raises `Font::LoadError`, as before. The sugar checks it first, because
+  `Typeface.new` raises `ArgumentError` for it. `path:` beside a typeface
+  raises `ArgumentError`, since the typeface already names its file.
+- **The window half of rule 5 cannot be a node.** `spec_core/` may not name
+  `Engine`. So the window draws the centring directly with a typeface, and the
+  node runs against the fake. A node drawing text in a real window is still
+  exercised only by driven examples. Step 5's driven example is where that
+  gets asserted.
+- **Eight UI specs asserted the invented widths.** They were in
+  `text_button_spec.rb`, `icon_button_spec.rb` and `option_button_spec.rb`, and
+  now derive each position from the typeface. `debug_overlay_spec.rb` passed
+  untouched, as the plan predicted.
+- **The driven run carries state between runs.** The example keeps the
+  player's language in `~/.local/share/rgame-examples/language.json`. Both runs
+  started with it removed, and it was put back afterwards. Overriding `HOME` to
+  avoid it does not work: mise then installs a second Ruby, and the extensions
+  refuse to load.
 
 ---
 
