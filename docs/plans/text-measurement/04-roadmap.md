@@ -1,7 +1,7 @@
 # Roadmap
 
-**Steps 0–4 are implemented. Steps 5–6 are deliberately rough** and get re-planned
-once the layer beneath them exists — see the note at the end.
+**Steps 0–4 are implemented. Step 5 is detailed. Step 6 is deliberately rough**
+and gets re-planned once step 5 has landed — see the note at the end.
 
 ```
 0 glyph metrics split (C, pure)
@@ -661,16 +661,164 @@ What the sketch got wrong or left open:
 - **The `docs/api/README.md` row for Text** now names `Util::Typeface` and
   `Engine::Paragraph`. Step 2 had left `Typeface` out of it.
 
-## Step 5 — `UI::Label` and an example *(rough)*
+## Step 5 — `UI::Label` and an intro example
 
-The node, and the first example in the project to draw more than one line.
-Likely `examples/localization` grown a paragraph, since it already ships two
-languages and already says in its header that this is what it cannot do — that
-header comment comes out here. A driven run with `--texts` is the acceptance
-test.
+**Why now.** Steps 3 and 4 give a node everything it needs to lay out a
+paragraph: `Paragraph` breaks and pages the text, and a renderer draws the
+typeface the paragraph measured with. Nothing yet puts the two together, and no
+example draws more than one line from a translation. This step is the caller
+CLAUDE.md asks for: a node that uses `Paragraph` and the renderer together,
+driven in a real window.
 
-Re-plan once `Paragraph` exists, and settle open question 2 (does the renderer
-want a multi-line draw call) with a real caller in hand.
+### What was measured before planning
+
+Taken at `031fcf0`, Ruby 4.0.5, with the default typeface at 24 px.
+
+| | |
+|---|---|
+| a 327-byte English intro, one line in the table, at 440 px | 8 lines, 3 pages of 3 |
+| its 403-byte German translation at 440 px | 10 lines, 4 pages of 3 |
+| the same two at 520 px | 7 and 8 lines, 3 pages each |
+| `text_lines` on the German text at 520 px | 88 µs per call |
+| a draw of one page, centred, looping with `while` | 0 objects per draw over 200,000 |
+| the same with `each_with_index` | 1 object per draw |
+| a draw of 3 centred lines, each measured every frame | 15 µs |
+| callers that step `y` by a line height today | 1, `DebugOverlay#draw` |
+
+At 440 px the German intro needs a page more than the English one, which is
+what the example should show. Measuring each line on every draw costs 15 µs, or
+0.09 % of a frame, so `Label` measures in `on_draw` and caches no offsets.
+
+### What it resembles
+
+- **Reuse.** `Paragraph` does the breaking, the paging, `with` and `width=`.
+  `Util::Typeface` measures each line for alignment. The renderer draws a
+  typeface passed as `font:` (step 3). `Components::Timer` turns the example's
+  pages, and `reset` restarts it when the player turns one by hand.
+- **Considered, and not generalised.** `UI::TextButton` centres a label in a
+  slot, and `centred_x` does the arithmetic `align: :center` does. A
+  `TextButton` could draw through a `Label`, but its label is one line
+  centred vertically in a slot, and nothing asks for a button whose label
+  breaks. The two share one line of arithmetic, not a question.
+- **`DebugOverlay`'s rows are not a second caller for open question 2.** It
+  right-aligns a label beside a number it draws itself, digit by digit, and
+  steps three fixed rows. A renderer call that draws an Array of lines would
+  not fit it.
+- **Genuinely new.** A node that draws one page of a paragraph.
+
+### Where this departs from the design
+
+[03-design.md](03-design.md#layer-4--rgameengineuilabel) sketched `Label` before
+`Paragraph` existed. Three things change:
+
+- **No `style:`.** The intro draws on a black screen, and nothing else asks for
+  a panel behind a label yet. A style takes a button state, which a label does
+  not have. The dialogue plan adds one when its box needs it.
+- **`width:` is required.** `Paragraph` needs a positive width, and a label
+  without one is one line, which `renderer.text` already draws. The 76
+  hand-rolled `renderer.text` calls in `examples/` stay as they are.
+- **Open question 2 is settled: no multi-line draw call.** `Label` is the only
+  caller, and its loop is five lines. A renderer method would also need
+  `FakeRenderer`, `QuietRenderer` and the `a_renderer` contract to follow it.
+
+**Sub-steps, one commit each.**
+
+- **5a — `UI::Label`**, with its spec and a section in `docs/api/ui.md`.
+  `QuietRenderer#text` gains `font:`, which `Label` passes and the allocation
+  spec needs. `CHANGELOG.md` gets an entry.
+- **5b — `examples/intro`.** One long line of intro text in `locales/en.yml`
+  and `locales/de.yml`, shown a page at a time. A drive script, an entry in
+  `docs/api/examples.md` and a row in `README.md`.
+
+**Shape.**
+
+```ruby
+@intro = UI::Label.new(text: 'intro.story', x: 100, y: 150, width: 440,
+                       typeface: Util::Typeface.default(24), lines_per_page: 3,
+                       align: :center, color: UI::Label::COLOR)
+
+@intro.with(name: @hero)   # => self, for a Text with variables
+@intro.page                # => 0
+@intro.page += 1           # clamps to the last page
+@intro.page_count          # => 3
+@intro.last_page?          # => false
+@intro.width = 400         # re-breaks on the next draw
+```
+
+`text:` is a key or an `Engine::Text`, as `Paragraph` takes it. `typeface:`
+defaults to `Util::Typeface.default`, `lines_per_page:` to one page, `align:` to
+`:left`, and `color:` to the label colour `UI::TextButton` uses. `Label` reads
+no input. Its owner turns the page.
+
+`on_draw` draws the current page from the label's top-left corner:
+
+```ruby
+def on_draw(renderer, _view)
+  lines = @paragraph.page(@page)
+  index = 0
+  while index < lines.size
+    line = lines[index]
+    renderer.text(line, line_x(line), index * @typeface.height, font: @typeface, color: @color)
+    index += 1
+  end
+end
+```
+
+`while`, not `each_with_index`: measured above, the second allocates on every
+draw.
+
+**Rules the tests must pin.**
+
+1. **It draws the lines of the current page**, one `text` call each, from its
+   top-left corner. Each line sits one `typeface.height` below the last and is
+   drawn with `font: typeface`.
+2. **`align:` places each line against the width.** `:left` at 0, `:center` at
+   `(width - line_width) / 2`, `:right` at `width - line_width`. Any other value
+   raises `ArgumentError` at construction.
+3. **A language switch redraws with no call on the label.** The acceptance
+   test: one key at 440 px and 24 px draws 3 pages under `en` and 4 after
+   `I18n.locale = :de`.
+4. **`page=` clamps to the pages there are**, so `page += 1` on the last page
+   stays there. `page` reads clamped too, after a switch that shortens the
+   text. `page_count` is at least 1, and `last_page?` is true on it.
+5. **`width=` sets the node's width and the paragraph's**, and the next draw
+   breaks again. A width of zero or less raises `ArgumentError`, as
+   `Paragraph`'s does.
+6. **`with` forwards to the text and returns the label.**
+7. **An unchanged draw allocates nothing**, over 200,000 draws against
+   `QuietRenderer`, with `align: :center`.
+8. `text:` that is neither a key nor a `Text` raises `TypeError`, as
+   `Paragraph` does.
+
+**Tests.** `spec/rgame/engine/ui/label_spec.rb`: every rule above against
+`FakeRenderer`, with `en` and `de` tables loaded through `I18n.load_hash`, and
+the allocation example against `QuietRenderer`.
+
+**The example.** `examples/intro/main.rb` shows a black screen and the intro,
+three lines at a time, centred. **Enter** (`ui_confirm`) turns the page. A
+`Components::Timer` also turns it every 6 seconds, and Enter resets that timer,
+so a page turned by hand gets its full time. On the last page the timer stops
+and the hint at the bottom goes away. The header says what it does not solve:
+no typewriter reveal, no fade, and nothing after the last page.
+
+`tools/drive/examples/intro.rb` presses Enter once, then lets the timer turn the
+remaining pages. Its header states what the report shows, read off a real run.
+
+**Verify.** `rake spec`, and `rake spec:core` for the doc coverage. Then two
+driven runs with `--texts`:
+
+```
+LANG=en_US.UTF-8 ruby tools/drive_test_project.rb examples/intro/main.rb --ticks 1200 --texts
+LANG=de_DE.UTF-8 ruby tools/drive_test_project.rb examples/intro/main.rb --ticks 1200 --texts
+```
+
+The English run draws 8 distinct lines of the story and the German run 10. The
+second page appears at the tick Enter was pressed, and each later page 6
+seconds after the one before. No key shows under "missing or mismatched keys".
+
+**What this does not deliver.** No panel behind a label, and no vertical
+alignment: the example places the block with its own arithmetic. No reveal or
+fade, which belong to the dialogue plan. No change to any button.
 
 ## Step 6 — fold back, and delete this plan
 
@@ -690,11 +838,12 @@ green, and no file under `docs/plans/text-measurement/` remains.
 
 ---
 
-## Why 5–6 are left rough
+## Why 6 is left rough
 
 Per [write-plan](../../../.claude/skills/write-plan/SKILL.md): a re-planned step
 routinely overturns something an earlier step recorded as fact. Re-planning step
 4 did exactly that. The design had `Paragraph` compare its own variables. The
 code already had `Text` returning the identical String, and `OptionButton`
-keyed a cache on it. Step 5's open candidate is whether `UI::Label`'s line loop
-belongs on the renderer, and that needs `Paragraph` in hand.
+keyed a cache on it. Re-planning step 5 dropped the design's `style:` and made
+`width:` required. Step 6 is a list of pages to fold back into, and which pages
+need what depends on what step 5 ships.
