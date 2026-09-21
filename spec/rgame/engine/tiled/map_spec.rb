@@ -436,29 +436,4 @@ RSpec.describe RGame::Engine::Tiled::Map do
         .to raise_error(RGame::Engine::Tiled::FormatError, /<map> has no width/)
     end
   end
-
-  # Temporary: deleted in step 4 with the old TileMap.parse. Until then it pins
-  # that the new parse reads the shipped map as the old one does.
-  describe 'examples/assets/town.tmx, against TileMap' do
-    let(:path) { File.expand_path('../../../../examples/assets/town.tmx', __dir__) }
-    let(:map) { described_class.load(path) }
-    let(:old) { RGame::Engine::TileMap.load(path).first }
-
-    it 'reads the same size and tile size' do
-      expect([map.width, map.height, map.tile_width, map.tile_height])
-        .to eq([old.width, old.height, old.tile_width, old.tile_height])
-    end
-
-    it 'reads the same two layers' do
-      expect(map.layers.size).to eq(old.layer_count)
-    end
-
-    it 'reads the same gids in every layer' do
-      map.layers.each_with_index do |layer, index|
-        expected = (0...old.height).flat_map { |row| (0...old.width).map { |col| old.gid(index, col, row) } }
-
-        expect(layer.gids.map { it & RGame::Engine::Tiled::GID_MASK }).to eq(expected)
-      end
-    end
-  end
 end

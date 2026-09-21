@@ -42,7 +42,7 @@ module RGame
 
           object = Object.parse(merged, source_path: source_path)
           own = Properties.parse(instance.elements['properties'], source_path: source_path)
-          object.with(properties: own.empty? ? @properties : Properties.new(@properties.to_h.merge(own.to_h)))
+          object.with(properties: own.empty? ? @properties : Engine::Properties.new(@properties.to_h.merge(own.to_h)))
         end
 
         private
