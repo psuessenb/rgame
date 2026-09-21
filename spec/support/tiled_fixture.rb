@@ -49,6 +49,19 @@ module TiledFixture
     tmx_path
   end
 
+  # A .tsx holding `body` inside a `<tileset>` root with `attributes`, written
+  # as a real file so `Tiled::Tileset.load` resolves against where it sits.
+  def write_tileset(body = '', attributes: 'tilewidth="16" tileheight="16"', subdirectory: nil)
+    path = File.join(make(subdirectory), "tiles_#{next_id}.tsx")
+    File.write(path, <<~TSX)
+      <?xml version="1.0" encoding="UTF-8"?>
+      <tileset #{attributes}>
+      #{body}
+      </tileset>
+    TSX
+    path
+  end
+
   def make(*parts)
     directory = File.join(root, *parts.compact)
     FileUtils.mkdir_p(directory)
