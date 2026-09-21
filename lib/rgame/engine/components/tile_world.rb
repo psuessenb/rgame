@@ -15,12 +15,14 @@ module RGame
       # A mover may be blocked by tiles, by other actors, or by both, and only the mover
       # knows which, so the resolver is the mover's and the grid is this system's. The tile
       # solidity itself is whatever the map reports (baked per-tile in Tiled).
-      # The same solidity, viewed as a graph for planning routes, is #nav_grid.
+      # The same solidity, viewed as a graph for planning routes, is #nav_grid. A thing
+      # standing on the map adds to it through Components::OccupiesCell.
       #
       # **Solidity is read from the map once**, into one Util::SolidGrid, the first time
       # anything asks — and #blockers, #nav_grid and #solid? all read that store, never the
       # map. So they cannot disagree about a cell, and a resolve costs a byte lookup rather
-      # than a walk through the map's layers.
+      # than a walk through the map's layers. An occupied cell is solid in that store too,
+      # with a count per cell of what occupies it.
       #
       # **It does not draw.** Drawing the map is RGame::Engine::TileMapLayer, one
       # node per Tiled layer, mounted inside the WorldView so the map is drawn
@@ -112,12 +114,45 @@ module RGame
           @nav_grid ||= Engine::NavGrid.new(grid: solid_grid)
         end
 
+        # A cell that something on the map now blocks, as OccupiesCell reports it. The
+        # cell stays solid until every occupant has vacated it, and a cell the map made
+        # solid stays solid after. Raises ArgumentError for a cell outside the map.
+        #
+        # @api private
+        def occupy(col, row)
+          index = occupancy_index(col, row)
+          occupants[index] += 1
+          solid_grid.set_solid(col, row, true)
+        end
+
+        # One occupant of the cell has left it.
+        #
+        # @api private
+        def vacate(col, row)
+          index = occupancy_index(col, row)
+          raise ArgumentError, "nothing occupies cell (#{col}, #{row})" if occupants[index].zero?
+
+          occupants[index] -= 1
+          solid_grid.set_solid(col, row, @map.solid_tile?(col, row)) if occupants[index].zero?
+        end
+
         # Advances the tile animations. Seconds, like every other duration here.
         def update(dt)
           @elapsed += dt
         end
 
         private
+
+        def occupants = @occupants ||= Array.new(@map.width * @map.height, 0)
+
+        def occupancy_index(col, row)
+          unless @map.in_bounds?(col, row)
+            raise ArgumentError, "cell (#{col}, #{row}) is outside the map, which is " \
+                                 "#{@map.width}x#{@map.height} cells"
+          end
+
+          (row * @map.width) + col
+        end
 
         def solid_grid
           @solid_grid ||= Util::SolidGrid.build(@map.width, @map.height) { |col, row| @map.solid_tile?(col, row) }

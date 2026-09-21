@@ -138,6 +138,33 @@ RSpec.describe RGame::Engine::Components::TileWorld do
     end
   end
 
+  # What Components::OccupiesCell calls; occupies_cell_spec.rb covers it through the tree.
+  describe 'occupying a cell' do
+    let(:world) { described_class.new(map: WalledTileMap.build(['..', '.#']), tilemap_id: :level) }
+
+    it 'keeps a cell solid until as many vacate as occupied' do
+      2.times { world.occupy(0, 0) }
+      world.vacate(0, 0)
+      held = world.solid?(0, 0)
+      world.vacate(0, 0)
+      expect([held, world.solid?(0, 0)]).to eq([true, false])
+    end
+
+    it 'leaves a cell the map made solid solid' do
+      world.occupy(1, 1)
+      world.vacate(1, 1)
+      expect(world.solid?(1, 1)).to be(true)
+    end
+
+    it 'raises for a cell nothing occupies' do
+      expect { world.vacate(0, 0) }.to raise_error(ArgumentError, /nothing occupies cell \(0, 0\)/)
+    end
+
+    it 'raises for a cell outside the map, naming its size' do
+      expect { world.occupy(0, -1) }.to raise_error(ArgumentError, /\(0, -1\) is outside the map, which is 2x2/)
+    end
+  end
+
   # #blockers, #nav_grid and #solid? are three views of one store, read from the map once.
   describe 'one store of solidity' do
     let(:solid_map) do
