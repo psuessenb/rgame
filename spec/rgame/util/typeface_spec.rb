@@ -77,37 +77,37 @@ RSpec.describe RGame::Util::Typeface do
     end
   end
 
-  describe '#wrap' do
+  describe '#text_lines' do
     let(:sentence) { 'The gate is shut for the night, traveller.' }
 
     it 'breaks at the last space that fits' do
-      expect(face.wrap(sentence, 180)).to eq(['The gate is shut for the', 'night, traveller.'])
+      expect(face.text_lines(sentence, 180)).to eq(['The gate is shut for the', 'night, traveller.'])
     end
 
     it 'returns one line for a string that fits' do
-      expect(face.wrap(sentence, face.text_width(sentence))).to eq([sentence])
+      expect(face.text_lines(sentence, face.text_width(sentence))).to eq([sentence])
     end
 
     it 'returns no lines for an empty string' do
-      expect(face.wrap('', 180)).to eq([])
+      expect(face.text_lines('', 180)).to eq([])
     end
 
     it 'measures no line wider than the width it was given' do
-      expect(face.wrap(sentence, 100).map { face.text_width(it) }).to all(be <= 100)
+      expect(face.text_lines(sentence, 100).map { face.text_width(it) }).to all(be <= 100)
     end
 
     it 'hands back a word wider than the line whole, rather than cutting it' do
-      expect(face.wrap('Systemsprache verwenden', 50)).to eq(%w[Systemsprache verwenden])
+      expect(face.text_lines('Systemsprache verwenden', 50)).to eq(%w[Systemsprache verwenden])
     end
 
     it 'gives back the string when the lines are joined with the spaces they replaced' do
       ['a  b', 'gate ', ' gate', sentence].each do |string|
-        expect(face.wrap(string, 30).join(' ')).to eq(string)
+        expect(face.text_lines(string, 30).join(' ')).to eq(string)
       end
     end
 
     it 'keeps each line in the encoding of the string it came from' do
-      expect(face.wrap('Tür für Tür', 30).map(&:encoding)).to all(eq(Encoding::UTF_8))
+      expect(face.text_lines('Tür für Tür', 30).map(&:encoding)).to all(eq(Encoding::UTF_8))
     end
 
     it 'breaks a German paragraph into more lines than its English source' do
@@ -120,15 +120,15 @@ RSpec.describe RGame::Util::Typeface do
                'Ruhe dich bis dahin aus. Halte das Feuer am Brennen und bleib auf dem Weg, ' \
                'dann wird der Morgen dich wohlbehalten finden.'
 
-      expect([face.wrap(english, 520).size, face.wrap(german, 520).size]).to eq([3, 4])
+      expect([face.text_lines(english, 520).size, face.text_lines(german, 520).size]).to eq([3, 4])
     end
 
     it 'refuses something that is not a String' do
-      expect { face.wrap(42, 180) }.to raise_error(TypeError)
+      expect { face.text_lines(42, 180) }.to raise_error(TypeError)
     end
 
     it 'refuses a width that is not a number' do
-      expect { face.wrap(sentence, 'wide') }.to raise_error(TypeError)
+      expect { face.text_lines(sentence, 'wide') }.to raise_error(TypeError)
     end
   end
 

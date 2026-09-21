@@ -297,9 +297,9 @@ observed.
 the sketched signature. It walks `rgame_text_cursor`, records each space as a
 break, and stops at the first glyph that overflows once it has a break. The line
 excludes the break space, and `text[*fit_length]` is that space.
-`Typeface#wrap(string, max_width)` calls the fit once per line, slices each line
-with `rb_str_subseq` and steps past the space. `Game/NoLiteralText` now names
-`wrap` too, and `docs/api/text.md` has a "Breaking text into lines" section
+`Typeface#text_lines(string, max_width)` calls the fit once per line, slices
+each line with `rb_str_subseq` and steps past the space. `Game/NoLiteralText`
+now names `text_lines` too, and `docs/api/text.md` has a "Breaking text into lines" section
 whose example the doc specs run.
 
 `make test` 373 checks, `rake spec` 2359 examples, `rake spec:core` 413, all 0
@@ -332,9 +332,14 @@ What the sketch got wrong:
   `'a  b'`, `'gate '` and `' gate'`.
 - **A space that overflows is not an overflow.** A line exactly as wide as the
   width, followed by a space, ends before that space. A Check test pins it.
-- **The plan says nothing about newlines.** `wrap` treats `"\n"` as a glyph,
+- **The plan says nothing about newlines.** `text_lines` treats `"\n"` as a glyph,
   and `text.md` says so. That is a question for `Paragraph`, now open question
   5 in the README.
+- **The method is `text_lines`, not `wrap`.** `wrap` is a common name, and
+  the cop flags a literal first argument on any receiver. ActiveSupport's
+  `Array.wrap('x')` would have been an offense. `text_lines` joins `text` and
+  `text_width` as one family, so the cop's list names only this engine's text
+  calls. Steps 4 and 5 should read `wrap` in their sketches as `text_lines`.
 - **One sentence per language does not show the difference.** The Verify
   paragraph needs three sentences before German takes more lines than English
   at 520 px.

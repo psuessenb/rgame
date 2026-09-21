@@ -27,10 +27,10 @@ RSpec.describe RuboCop::Cop::Game::NoLiteralText, :config do
       RUBY
     end
 
-    it 'flags a String literal wrapped into lines with wrap' do
+    it 'flags a String literal broken into lines with text_lines' do
       expect_offense(<<~RUBY, msg: described_class::MSG)
-        lines = typeface.wrap('The gate is shut.', 300)
-                              ^^^^^^^^^^^^^^^^^^^ %{msg}
+        lines = typeface.text_lines('The gate is shut.', 300)
+                                    ^^^^^^^^^^^^^^^^^^^ %{msg}
       RUBY
     end
 

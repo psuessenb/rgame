@@ -118,8 +118,8 @@ Each says what it waits on. None blocks step 0.
 4. **Does `Util::Typeface` need an ascent or a descent on the Ruby side?**
    The C has both. Nothing asks yet; a caller aligning two faces on one line
    would. Leave out until something asks.
-5. **Does a paragraph break at a newline in its text?** `Typeface#wrap`
-   breaks at spaces only and measures a `"\n"` as a glyph. A translation table
+5. **Does a paragraph break at a newline in its text?**
+   `Typeface#text_lines` breaks at spaces only and measures a `"\n"` as a glyph. A translation table
    can hold a hard break, and a dialogue line might want one. Settle in step 4:
    either `Paragraph` splits on `"\n"` before wrapping, or the fit learns a
    second kind of break.

@@ -167,7 +167,7 @@ that each one still fires there.
 | `Game/DrawInLocalSpace` | a node's draw methods never read its own position — `Node2D#draw` pushes its transform, so both `x` and `world_x` are already applied |
 | `Game/NoCoreInEngineLayer` | no `RGame::Core` reference, and no require of `rgame/core` or `rgame/game`, in `lib/rgame/engine/` or `spec/` — the engine layer must stay headless |
 | `Game/NoEngineInCoreLayer` | the mirror: no `Engine` reference in `lib/rgame/core/` or `spec_core/` — Core must not know Engine exists |
-| `Game/NoLiteralText` | no String literal as the label of `text`, `text_width` or `wrap` in `examples/` or `lib/` — text a player reads comes from a translation table |
+| `Game/NoLiteralText` | no String literal as the label of `text`, `text_width` or `text_lines` in `examples/` or `lib/` — text a player reads comes from a translation table |
 
 These exist because a steady 60fps frame that allocates is a GC pause waiting to
 happen, and the cost is invisible without a guard. Unlike stock cops, these are

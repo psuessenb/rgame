@@ -226,7 +226,7 @@ lint. An existing project gets the cops by adding those three lines.
 | `Game/NoInterpolationInHotPath` | string interpolation in a per-frame method | everywhere but `spec/` |
 | `Game/NoNeedlessAllocation` | a throwaway Array or Range literal on a per-frame path | everywhere but `spec/` |
 | `Game/DrawInLocalSpace` | a node's draw method reading its own `x`, `y` or `world_x` | everywhere |
-| `Game/NoLiteralText` | a String literal passed to `text`, `text_width` or `wrap` | everywhere |
+| `Game/NoLiteralText` | a String literal passed to `text`, `text_width` or `text_lines` | everywhere |
 | `Game/NoCoreInEngineLayer` | naming `RGame::Core`, or requiring `rgame/core` or `rgame/game` | `nodes/` and `spec/` |
 
 A per-frame method is `update`, `control`, `draw`, `on_update`, `on_control` or

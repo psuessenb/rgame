@@ -109,7 +109,7 @@ static VALUE typeface_text_width(VALUE self, VALUE string) {
 }
 
 /*
- * #wrap(string, max_width) — the lines the string breaks into at `max_width`
+ * #text_lines(string, max_width) — the lines the string breaks into at `max_width`
  * pixels, one String per line.
  *
  * Lines break at spaces, and each break takes the space it replaced, so the
@@ -117,7 +117,7 @@ static VALUE typeface_text_width(VALUE self, VALUE string) {
  * wider than `max_width`, except a single word wider than the whole line,
  * which comes back whole. An empty string has no lines.
  */
-static VALUE typeface_wrap(VALUE self, VALUE string, VALUE max_width) {
+static VALUE typeface_text_lines(VALUE self, VALUE string, VALUE max_width) {
     const rgame_typeface *typeface = typeface_unwrap(self);
     StringValue(string);
     float width = (float)NUM2DBL(max_width);
@@ -168,6 +168,6 @@ void rgame_init_typeface(VALUE mUtil) {
     rb_define_method(cTypeface, "initialize", typeface_initialize, 3);
     rb_define_method(cTypeface, "height", typeface_height, 0);
     rb_define_method(cTypeface, "text_width", typeface_text_width, 1);
-    rb_define_method(cTypeface, "wrap", typeface_wrap, 2);
+    rb_define_method(cTypeface, "text_lines", typeface_text_lines, 2);
     rb_define_method(cTypeface, "inspect", typeface_inspect, 0);
 }

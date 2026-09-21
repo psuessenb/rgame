@@ -127,8 +127,8 @@ size below 1 raises `ArgumentError`.
 
 ### Breaking text into lines
 
-**`Typeface#wrap(string, max_width)` returns the lines a string breaks into,
-one String per line.** It breaks at the last space that fits. Every line
+**`Typeface#text_lines(string, max_width)` returns the lines a string breaks
+into, one String per line.** It breaks at the last space that fits. Every line
 measures no wider than `max_width`, with one exception: a word wider than the
 whole line comes back whole rather than cut.
 
@@ -136,20 +136,20 @@ whole line comes back whole rather than cut.
 require 'rgame'
 
 face = RGame::Util::Typeface.default(18)
-face.wrap('The gate is shut for the night, traveller.', 180) # => ["The gate is shut for the", "night, traveller."]
-face.wrap('The gate is shut.', 180)                         # => ["The gate is shut."]
-face.wrap('Systemsprache verwenden', 50)                    # => ["Systemsprache", "verwenden"]
-face.wrap('', 180)                                          # => []
+face.text_lines('The gate is shut for the night, traveller.', 180) # => ["The gate is shut for the", "night, traveller."]
+face.text_lines('The gate is shut.', 180)                          # => ["The gate is shut."]
+face.text_lines('Systemsprache verwenden', 50)                     # => ["Systemsprache", "verwenden"]
+face.text_lines('', 180)                                           # => []
 ```
 
 Each break takes the space it replaced, so `lines.join(' ')` gives back the
 string. Two spaces in a row, or a trailing space that does not fit, therefore
-produce an empty line. `wrap` breaks at spaces only: it never hyphenates, and
-it treats a newline as a character like any other.
+produce an empty line. `text_lines` breaks at spaces only: it never hyphenates,
+and it treats a newline as a character like any other.
 
-`wrap` runs the same C walk as `text_width`, so a line it returns measures what
-`text_width` reports for it. It builds new Strings on every call, so wrap once
-when the text or the width changes, not in `draw`.
+`text_lines` runs the same C walk as `text_width`, so a line it returns measures
+what `text_width` reports for it. It builds new Strings on every call, so call
+it once when the text or the width changes, not in `draw`.
 
 ### The default font, and what it covers
 
@@ -187,6 +187,6 @@ many atlas pages exist. It serves tests, not gameplay.
 ## What is not here
 
 rgame text has no markup (`<b>`, colour tags), no bold or italic variants and no
-multi-line drawing. `Typeface#wrap` breaks a string into lines, and the caller
-draws each one. It has no text input, no right-to-left text and no complex
+multi-line drawing. `Typeface#text_lines` breaks a string into lines, and the
+caller draws each one. It has no text input, no right-to-left text and no complex
 shaping. A string is one line of left-to-right glyphs.
