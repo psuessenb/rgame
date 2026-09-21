@@ -1,7 +1,7 @@
 # Supporting Tiled's format
 
-**Status: planned, nothing implemented.** Steps 0–5 of
-[the roadmap](04-roadmap.md) are detailed. Steps 6–9 are deliberately rough and
+**Status: step 0 is implemented** — [the map requirements](map-requirements.md).
+Steps 1–5 of [the roadmap](04-roadmap.md) are detailed. Steps 6–9 are deliberately rough and
 get re-planned once the layer beneath them exists.
 
 ## Goal
@@ -225,6 +225,17 @@ re-litigation inside it.
    not a cache: a bulk fill in C for `Util::Tensor`, which halves the dominant
    cost. **Blocks nothing**, and
    [decision 13](#decisions-already-taken) is what keeps it answerable later.
+5. **Does an infinite map bound by chunk or by non-empty cell?** Tiled stores
+   16×16 chunks, and a chunk can be partly empty, so the two boxes differ. By
+   chunk is simpler and pads the map; by cell is tighter and costs a scan.
+   The acceptance map is built so both agree ([R16](map-requirements.md#r16)).
+   **Waits on step 3.**
+6. **What does the parser do about a class member left at its default?** Tiled
+   writes only the members that differ from the class's defaults, and the
+   defaults live in the `.tiled-project` file, which nothing reads. So a member
+   the designer never changed is absent from `Properties`, and `fetch` raises.
+   Reading the project file is one answer; documenting the gap is another.
+   **Waits on step 1.**
 
 ## Reading order
 
@@ -234,3 +245,4 @@ re-litigation inside it.
 | [02-prior-art.md](02-prior-art.md) | how libGDX, Godot, Unity, Bevy and Phaser answer the same question |
 | [03-design.md](03-design.md) | the proposed design, and what was rejected |
 | [04-roadmap.md](04-roadmap.md) | the implementation order |
+| [map-requirements.md](map-requirements.md) | what the acceptance map authored in Tiled must contain, and how step 8 checks it |
