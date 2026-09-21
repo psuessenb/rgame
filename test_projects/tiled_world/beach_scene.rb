@@ -5,7 +5,7 @@
 # them to the screen). It resolves everything it needs from the game's asset manager
 # (node.root.context.assets) by relative path — nothing is passed into its constructor.
 #
-# Actors live in the node TileMapLayer.mount hands back, which sits between the
+# Actors live in the :actors slot TileMapLayer.mount hands back, which sits between the
 # map's ground layers and the layers Tiled flags `above` — so palm canopies
 # render in front of a walker and trunks behind. No z is picked anywhere here.
 #
@@ -41,7 +41,7 @@ class BeachScene < RGame::Engine::Node2D
     add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: ACTOR_CELL))
 
     @view = add_node(RGame::Engine::WorldView.new)
-    @actors = RGame::Engine::TileMapLayer.mount(@view)
+    @actors = RGame::Engine::TileMapLayer.mount(@view)[:actors]
 
     @players.each_active { |player| spawn_walker(player) }
     @players.on_joined { |player| spawn_walker(player) }

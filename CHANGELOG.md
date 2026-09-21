@@ -70,8 +70,14 @@ index, not the argument.
   `map.gid(layer, col, row)` becomes `map.tile(layer, col, row)`, and
   `map.above_layer?(index)` becomes `map.layer(index).above?`. An `above`
   property that is not a bool now raises.
-- **`TileMapRenderer.new(map, tiles)` takes images indexed by tile id**, with
-  nothing at 0, rather than one tileset sliced by local id.
+- **`TileMapRenderer.new(map, tiles, layer_images: [])` takes images indexed by
+  tile id**, with nothing at 0, rather than one tileset sliced by local id, and
+  the image of each image layer.
+- **`TileMapLayer.mount` returns slots, and takes `gaps:` rather than
+  `under:`.** Write `mount(world)[:actors]` for the node it used to return, and
+  `gaps: { actors: index }` for `under: index`. A gap may also be named by a
+  layer's name or path, several gaps may be declared, and an object layer gets
+  no node. See [docs/api/components.md](docs/api/components.md#tileworld).
 
 - **`Game/NoLiteralText` also checks `text_lines`.** A String literal as the
   first argument of `text_lines` is an offense, as it is for `text` and

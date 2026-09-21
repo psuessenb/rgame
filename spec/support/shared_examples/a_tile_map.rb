@@ -20,7 +20,8 @@
 # A map of one exact shape, because a contract can only assert what it knows is
 # in there:
 #
-#   2 x 2 tiles, 16 px each, three layers, layer 1 flagged "above",
+#   2 x 2 tiles, 16 px each, three layers named ground, canopy and sky,
+#   layer 1 flagged "above",
 #   hidden, and at half opacity, and layer 2 an image layer at (8, 4),
 #   repeated along x but not along y
 #
@@ -68,6 +69,14 @@ RSpec.shared_examples 'a tile map' do
 
     it 'says how opaque each layer is' do
       tile_map { |map| expect([map.layer(0).opacity, map.layer(1).opacity]).to eq([1.0, 0.5]) }
+    end
+
+    it 'finds a layer by its name' do
+      tile_map { |map| expect(map.layer_index('canopy')).to eq(1) }
+    end
+
+    it 'raises for a name no layer has, listing the layers' do
+      tile_map { |map| expect { map.layer_index('roof') }.to raise_error(KeyError, /ground, canopy, sky/) }
     end
 
     it 'says what kind each layer is' do

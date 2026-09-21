@@ -67,6 +67,12 @@ module RGame
 
         def layer_count = @map.layer_count
 
+        # The map's layer at `index`, and the index of the layer a name or
+        # `'Group/layer'` path names, as `TileMap#layer` and `#layer_index`
+        # answer them.
+        def layer(index) = @map.layer(index)
+        def layer_index(name_or_path) = @map.layer_index(name_or_path)
+
         # The first layer Tiled flags `above`, or the layer count if none is —
         # which is where TileMapLayer.mount leaves the gap for the actors, so a
         # map with no flag puts them over everything. Read once at mount rather

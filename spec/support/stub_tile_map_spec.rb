@@ -9,7 +9,7 @@ RSpec.describe StubTileMap do
       layers: [[1, 2, 0, 3], [0, 0, 4, 0], nil], above: [false, true], visible: [true, false],
       opacity: [1.0, 0.5], solid: [3], tile_offsets: { 4 => [2, -4] },
       animations: { 1 => [[1, 0.1], [2, 0.1]] }, orientations: { [0, 1, 0] => [1, false] },
-      image_layers: { 2 => { offset_x: 8, offset_y: 4, repeat_x: true } }
+      image_layers: { 2 => { offset_x: 8, offset_y: 4, repeat_x: true } }, names: %w[ground canopy sky]
     )
   end
 

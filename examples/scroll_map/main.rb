@@ -11,7 +11,8 @@
 #   - the `:tilemap` asset loader — a .tmx becomes a parsed map plus a renderer;
 #   - Components::TileWorld — the scene-scoped system that owns the map and the
 #     world's size;
-#   - TileMapLayer.mount — one node per Tiled layer, drawn as world content;
+#   - TileMapLayer.mount — one node per Tiled layer, drawn as world content,
+#     and a slot for the actors between them;
 #   - WorldView — where world space begins, and where the camera is applied;
 #   - Camera — clamped to the world, so the view never shows past the edge;
 #   - Components::CameraFollow — what points a camera at something.
@@ -102,11 +103,11 @@ class Scene < RGame::Engine::Node2D
     # World space begins here. Everything under it is drawn in world
     # coordinates, once per viewport, through that viewport's camera.
     view = add_node(RGame::Engine::WorldView.new)
-    # One node per Tiled layer. The node handed back is the gap between the
+    # One node per Tiled layer. The :actors slot is the gap between the
     # ground layers and any layer Tiled flags `above`, which is where things
     # that walk around go — the rig included, so a canopy layer would pass over
     # it without this file choosing a single z.
-    actors = RGame::Engine::TileMapLayer.mount(view)
+    actors = RGame::Engine::TileMapLayer.mount(view)[:actors]
     actors.add_node(build_rig(map, players.primary.camera))
   end
 

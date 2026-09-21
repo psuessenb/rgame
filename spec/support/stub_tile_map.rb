@@ -20,12 +20,14 @@
 # `{ [layer, col, row] => [quarter_turns, mirrored] }` for the turned cells.
 # `tile_offsets` is `{ tile => [x, y] }` for the tiles drawn off their cell.
 # `image_layers` is `{ layer => { offset_x:, offset_y:, repeat_x:, repeat_y: } }`,
-# every key optional, and such a layer's entry in `layers` is `nil`.
+# every key optional, and such a layer's entry in `layers` is `nil`, as is an
+# object layer's, whose index `object_layers` lists. `names` are the layers'
+# names, `layer0`, `layer1` and so on when not given.
 #
 # It names no Engine class, because the Core suite loads it too.
 class StubTileMap
   # One layer, as far as a reader of the map asks about it.
-  Layer = Data.define(:kind, :above, :visible, :opacity, :offset_x, :offset_y, :repeat_x, :repeat_y) do
+  Layer = Data.define(:name, :kind, :above, :visible, :opacity, :offset_x, :offset_y, :repeat_x, :repeat_y) do
     def above? = above
     def visible? = visible
     def repeat_x? = repeat_x
@@ -45,11 +47,15 @@ class StubTileMap
 
   def initialize(layers:, width: 2, height: 2, tile_width: 16, tile_height: 16,
                  above: [], visible: [], opacity: [], solid: [], animations: {}, orientations: {},
-                 tile_offsets: {}, image_layers: {})
+                 tile_offsets: {}, image_layers: {}, object_layers: [], names: [])
     @cells = layers
     @layers = Array.new(layers.length) do |index|
       image = image_layers[index]
-      Layer.new(kind: image ? :image : :tile, above: above.fetch(index, false),
+      kind = if image then :image
+             elsif object_layers.include?(index) then :object
+             else :tile
+             end
+      Layer.new(name: names.fetch(index, "layer#{index}"), kind: kind, above: above.fetch(index, false),
                 visible: visible.fetch(index, true), opacity: opacity.fetch(index, 1.0),
                 **placement(image || {}))
     end
@@ -65,6 +71,12 @@ class StubTileMap
 
   def layer_count = @layers.length
   def layer(index) = @layers.fetch(index)
+
+  def layer_index(name)
+    @layers.index { it.name == name } or
+      raise KeyError.new("no layer '#{name}' in this map (has: #{@layers.map(&:name).join(', ')})",
+                         receiver: self, key: name)
+  end
 
   def tile(layer, col, row)
     cells = @cells.fetch(layer)

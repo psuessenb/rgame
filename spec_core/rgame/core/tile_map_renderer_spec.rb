@@ -304,6 +304,14 @@ RSpec.describe RGame::Core::TileMapRenderer do
       expect(draw_sky(cull: [200, 200, 40, 40], offset_x: 8)).to be_empty
     end
 
+    it 'draws nothing when the one copy ends left of the cull rect, in the same rows' do
+      expect(draw_sky(cull: [100, 0, 40, 40], offset_x: 8)).to be_empty
+    end
+
+    it 'draws nothing when the one copy ends above the cull rect, in the same columns' do
+      expect(draw_sky(cull: [0, 100, 40, 40], offset_y: 4)).to be_empty
+    end
+
     it 'draws nothing when hidden' do
       draw_sky(visible: false)
 

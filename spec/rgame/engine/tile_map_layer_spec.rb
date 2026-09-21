@@ -36,6 +36,21 @@ RSpec.describe RGame::Engine::TileMapLayer do
     calls
   end
 
+  # The layer indices and marks reached, in draw order, with a node in each
+  # gap `marks` names drawing its mark.
+  def drawn_with(marks)
+    scene.enter_tree
+    order = []
+    allow(renderer).to receive(:tilemap) { |_id, layer, *| order << layer }
+    marks.each do |gap, mark|
+      marker = RGame::Engine::Node2D.new
+      marker.define_singleton_method(:on_draw) { |*| order << mark }
+      gap.add_node(marker)
+    end
+    scene.draw(renderer, view)
+    order
+  end
+
   describe '.mount' do
     it 'mounts one node per layer of the map' do
       mount
@@ -47,16 +62,17 @@ RSpec.describe RGame::Engine::TileMapLayer do
       expect(drawn_layers).to eq([0, 1, 2])
     end
 
-    it 'returns a node for the actors, in the gap' do
-      actors = mount
+    it 'returns the gaps as slots, with one for the actors' do
+      actors = mount[:actors]
 
+      expect(mount.names).to eq([:actors])
       expect(actors).to be_a(RGame::Engine::Node2D)
       expect(actors).not_to be_a(described_class)
       expect(scene.children).to include(actors)
     end
 
     it "puts the actors' node under the first layer flagged above" do
-      actors = mount
+      actors = mount[:actors]
       layers = scene.children.grep(described_class)
 
       # Layers 0 and 1 sort before the actors; the flagged layer 2 sorts after.
@@ -64,34 +80,67 @@ RSpec.describe RGame::Engine::TileMapLayer do
     end
 
     it 'draws the actors between the layers they belong between' do
-      actors = mount
-      order = []
-      allow(renderer).to receive(:tilemap) { |_id, layer, *| order << layer }
-      actors.add_node(RGame::Engine::Node2D.new.tap do |node|
-        node.define_singleton_method(:on_draw) { |*| order << :actors }
-      end)
-
-      scene.draw(renderer, view)
-
-      expect(order).to eq([0, 1, :actors, 2])
+      expect(drawn_with(mount[:actors] => :actors)).to eq([0, 1, :actors, 2])
     end
 
     context 'when the map flags no layer above' do
       let(:map) { StubTileMap.new(layers: [[1, 2, 0, 3], [0, 0, 0, 0], [4, 0, 0, 0]]) }
 
       it 'puts the actors on top' do
-        actors = mount
+        actors = mount[:actors]
 
         expect(scene.children.grep(described_class).map(&:z)).to all(be < actors.z)
       end
     end
 
-    it 'takes an explicit layer to slip under, for a map that wants a different gap' do
-      actors = described_class.mount(scene, under: 1)
+    it 'puts a gap under the layer an index names' do
+      slots = described_class.mount(scene, gaps: { actors: 1 })
 
-      layers = scene.children.grep(described_class)
-      expect(layers[0].z).to be < actors.z
-      expect(layers[1].z).to be > actors.z
+      expect(drawn_with(slots[:actors] => :actors)).to eq([0, :actors, 1, 2])
+    end
+
+    it 'puts a gap under the layer a name names' do
+      slots = described_class.mount(scene, gaps: { boats: 'layer1' })
+
+      expect(drawn_with(slots[:boats] => :boats)).to eq([0, :boats, 1, 2])
+    end
+
+    it 'puts a gap over every layer at layer_count' do
+      slots = described_class.mount(scene, gaps: { sky: 3 })
+
+      expect(drawn_with(slots[:sky] => :sky)).to eq([0, 1, 2, :sky])
+    end
+
+    it 'draws two gaps under one layer in the order they were declared' do
+      slots = described_class.mount(scene, gaps: { shadows: nil, actors: nil, boats: 1 })
+
+      expect(slots.names).to eq(%i[shadows actors boats])
+      expect(drawn_with(slots[:shadows] => :shadows, slots[:actors] => :actors, slots[:boats] => :boats))
+        .to eq([0, :boats, 1, :shadows, :actors, 2])
+    end
+
+    it 'raises at mount for a layer name the map lacks, listing its layers' do
+      expect { described_class.mount(scene, gaps: { actors: 'canopy' }) }
+        .to raise_error(KeyError, /no layer 'canopy'.*layer0, layer1, layer2/)
+    end
+
+    it 'raises for a layer index past the last' do
+      expect { described_class.mount(scene, gaps: { actors: 4 }) }
+        .to raise_error(ArgumentError, /from 0 to 3.*got 4/)
+    end
+
+    it 'raises naming the gaps for a slot that was not mounted' do
+      expect { mount[:actorz] }.to raise_error(KeyError, /no gap :actorz was mounted \(the gaps are :actors\)/)
+    end
+
+    context 'when a layer is an object layer' do
+      let(:map) do
+        StubTileMap.new(layers: [[1, 2, 0, 3], nil, [4, 0, 0, 0]], object_layers: [1], above: [false, false, true])
+      end
+
+      it 'mounts no node for it, and draws the others' do
+        expect(drawn_with(mount[:actors] => :actors)).to eq([0, :actors, 2])
+      end
     end
   end
 
