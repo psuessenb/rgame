@@ -3,8 +3,8 @@
 Four pieces, each usable without the next:
 
 ```
-Engine::StateGraph ──run by──→ Engine::StateMachine ──reads──→ Components::Facts
-        ↑                              ↑                          (and the context)
+Engine::StateGraph ──run by──→ Engine::StateMachine ──reads, registers with──→ Components::Facts
+        ↑                              ↑                                        (and the context)
 Dialogue::Script (builds one) ──run by──→ Engine::Dialogue
                                                ↑ reads, calls
                                         UI::DialogueBox ──holds──→ UI::Label (with a reveal)
@@ -12,9 +12,9 @@ Dialogue::Script (builds one) ──run by──→ Engine::Dialogue
 ```
 
 A graph is a **recipe**; a machine is **where one run of it has got to**. That
-split is the save story: the recipe lives in code, and a save holds the machine's
-state, its visit counts and the facts. It is the same split `examples/save_load`
-makes between a scene and its save file.
+split is the save story: the recipe lives in code, and a save holds the facts,
+which hold where each named machine has got to. It is the same split
+`examples/save_load` makes between a scene and its save file.
 
 ## The state graph and the machine *(pure)*
 
@@ -142,6 +142,11 @@ to migrate. This mirrors `SaveFile`'s own rule that writing raises: a failure
 with no safe answer is reported, not swallowed. `from: nil` — no save yet —
 starts fresh, so `save.read[:hammer]` needs no branch.
 
+`to_h` and `from:` are the machine's own half of saving, and a machine outside
+any facts store uses them directly. A game's quests and conversations normally
+take a `name:` instead, and the facts save them
+([Saving the world](#saving-the-world)).
+
 ## The facts *(a component, pure)*
 
 ```ruby
@@ -150,9 +155,8 @@ root.add_component(Engine::Components::Facts.new)
 facts = node.system(Engine::Components::Facts)
 facts[:met_smith] = true
 facts[:wolves] = facts.fetch(:wolves, 0) + 1
-facts.to_h                 # => { met_smith: true, wolves: 1 }
-facts.restore(save.read.fetch(:facts, {}))
-facts.on_changed { |key, value| ... }
+facts.on_changed { |key, value| ... }   # a change made in play
+facts.watch(:bridge_down) { |value| ... } # now, and whenever the value differs — a restore included
 ```
 
 A system on the root, found with `node.system` like `Players`, so every node
@@ -163,6 +167,53 @@ reaches the same store and none is handed it through a constructor.
 `TypeError` on assignment. A Symbol value is refused because JSON brings it
 back a String, and a condition comparing against `:open` would then fail after
 every load — a bug no spec written without a save round trip would catch.
+
+**`on_changed` reports events; `watch` keeps a mirror.** A listener on
+`on_changed` may act — "the tenth wolf spawns the boss" — so a restore must not
+fire it, or loading a save with ten wolves would spawn a second boss. A gate
+that opens when the bridge is down is the other kind: it mirrors a fact into the
+scene, and must hear about a restore, or it stays shut after loading. `watch`
+calls its block once when connected, then whenever the key's value differs,
+restores included. Each use gets the method that does the right thing for it,
+so no listener has to know that restores exist.
+
+### Saving the world
+
+```ruby
+quest = Engine::StateMachine.new(HAMMER, context: hero, facts: facts, name: :hammer)
+
+save.write(world: facts.to_h, gold: hero.gold)
+facts.to_h   # => { values: { met_smith: true, wolves: 1 },
+             #      machines: { hammer: { state: :searching, visits: { not_started: 1, searching: 1 } } } }
+
+facts.restore(save.read[:world])   # nil — no save yet — clears everything
+```
+
+**A machine built with a `name:` registers with its facts, and the facts save
+it.** A game adds a quest by building it; it never adds a line to a save
+method. Listing each machine by hand was the first draft, and a machine left
+off that list reset silently on the next load.
+
+**Order does not matter.** A machine built after `restore` finds its entry and
+resumes from it, as `from:` would. A machine built before is put back where the
+entry says, running no effect and emitting no `on_changed`, and its `watch`
+blocks hear the new state. A live machine with no entry goes back to its start
+state, again running nothing. An entry no live machine claims is kept and
+written back by `to_h`, so a quest the player has not met this session survives
+the next save.
+
+**`restore` checks everything before it changes anything.** A bad value, or a
+live machine's entry naming a state its graph lacks, raises and leaves the
+facts and every machine as they were. Half a load is worse than none.
+
+**Settings are not facts.** Volume, key bindings and language belong to the
+player, not to a save slot. They stay in a `Util::SaveFile` of their own, which
+the facts never touch. `SaveFile` stays generic, and the facts know nothing of
+files.
+
+Ink saves this way: `story.state.ToJson()` writes variables and visit counts
+as one object
+([Saving and loading](https://github.com/inkle/ink/blob/master/Documentation/RunningYourInk.md#saving-and-loading)).
 
 ## The dialogue *(pure)*
 
@@ -220,6 +271,12 @@ talk.on_ended { ... }
 talk.transcript           # => every beat shown and every response picked, in order
 talk.to_h                 # and Dialogue.new(SMITH, ..., from: h) resumes one
 ```
+
+A dialogue takes `name:` as a machine does, with one difference. A named
+dialogue whose saved conversation has ended starts again at its first beat,
+keeping its visits, so `once: true` holds across every talk with the smith. One
+saved mid-conversation resumes there. An unnamed dialogue starts with no
+visits, so its `once:` lasts one conversation.
 
 `Dialogue` holds a `StateMachine` and forwards to it. It adds the words, the
 transcript, and the rule that a beat either waits for a response or continues —

@@ -178,8 +178,9 @@ module RGame
         def fetch(key, ...)
         def key?(key)
         def delete(key)
-        def to_h                # => a frozen copy
-        def restore(hash)       # replaces every fact; emits nothing
+        def watch(key, &)       # calls now, then on every differing value; returns the handle
+        def to_h                # => { values:, machines: }, frozen
+        def restore(hash)       # replaces every fact and machine entry; nil clears
       end
     end
   end
@@ -195,18 +196,49 @@ Rules:
    refused with a message saying why: it would come back from a save a String.
 3. Assigning the value a key already holds emits nothing.
 4. `restore` accepts what `SaveFile#read` returns and checks every value by
-   rule 2.
-5. No non-public method without a `_`, or `sealed_privates_spec.rb` lists it as
+   rule 2. It emits no `on_changed`, and calls `watch` blocks for each key
+   whose value differs. `restore(nil)` clears everything.
+5. `watch` calls its block with the current value when connected, including
+   nil for a key never set.
+6. No non-public method without a `_`, or `sealed_privates_spec.rb` lists it as
    a seam. There is no reason for one to be a seam.
 
-### 1b. A quest across two machines
+### 1b. Machines by name
+
+A game saves the facts, and the facts save every machine that has a name —
+[the design](03-design.md#saving-the-world) has why.
+
+```ruby
+StateMachine.new(graph, context: nil, facts: nil, from: nil, name: nil)
+
+class StateMachine
+  def name
+  def watch(&)          # calls now with the state, then on every change, restores included
+end
+```
+
+Rules:
+
+1. `name:` without `facts:`, or with `from:`, raises `ArgumentError`.
+2. A second live machine under a name raises, unless the first has ended.
+3. A named machine built after `restore` resumes from its entry, by the rules
+   `from:` already has. With no entry it starts fresh.
+4. `restore` puts each live named machine where its entry says, or at its start
+   state with no entry. It runs no effect and emits no `on_changed`; `watch`
+   blocks hear the new state.
+5. An entry no live machine claims survives `restore` and `to_h` unchanged.
+6. `restore` validates every value and every claimed entry first, and on a
+   failure changes nothing.
+
+### 1c. A quest across two machines
 
 No new class: a spec where a hammer quest and a second machine — a gate that
 opens when the facts say the bridge is down — share one `Facts` mounted on a
-root, and each moves on because of the other. This is the first caller using
-both the machine and the store. If it reads badly, step 0 changes here.
+root, and each moves on because of the other. The gate follows the fact with
+`watch`. This is the first caller using both the machine and the store. If it
+reads badly, step 0 changes here.
 
-### 1c. The record of what was left out
+### 1d. The record of what was left out
 
 `docs/plans/possible-todos.md` gains "State machines for per-frame behaviour",
 with decision 6's trigger: the second hand-rolled state machine in NPC or
@@ -218,10 +250,15 @@ if the plan stops.
 `spec/rgame/engine/components/facts_spec.rb`: each accepted value type; each
 refused one, with the Symbol message; String keys refused; `on_changed` once per
 real change; `to_h` frozen and a copy; `restore` from a `SaveFile` round trip;
-found with `node.system` from a descendant.
+`restore` firing no `on_changed` and each differing `watch`; a failed `restore`
+changing nothing; found with `node.system` from a descendant.
+
+`spec/rgame/engine/components/facts_machines_spec.rb`: each rule of 1b, with
+machines built both before and after `restore`.
 
 `spec/rgame/engine/state_machine_quest_spec.rb`: the two-machine quest, through
-to the end, saved and resumed together.
+to the end, saved as one `facts.to_h` and resumed. The gate is open after the
+load without the spec opening it.
 
 ### Verify
 
@@ -279,7 +316,7 @@ class Dialogue
   signal :on_beat, Signal.define(:beat)
   signal :on_ended
 
-  def initialize(script, context: nil, facts: nil, from: nil)
+  def initialize(script, context: nil, facts: nil, from: nil, name: nil)
   attr_reader :script
 
   def speaker            # => the speaker Symbol, or nil once ended
@@ -306,6 +343,10 @@ Rules:
    the next beat within one `respond` or `continue`, and a state with no line
    and no available transition raises, naming it: the conversation would hang.
 10. The context's Symbols are checked at construction, as the machine's are.
+11. `name:` follows step 1b's rules, except that a saved conversation that has
+    ended starts again at the first beat and keeps its visits. So `once:`
+    holds across every conversation with a named dialogue, and within one
+    conversation with an unnamed one.
 
 ### Tests
 
@@ -314,7 +355,8 @@ Rules:
 `spec/rgame/engine/dialogue_spec.rb`: greeting to goodbye; a response hidden by
 a condition still listed with `available?` false; `once:` dropping a question
 after its answer; going back to an earlier beat; `vars:` reaching the line; each
-misuse of rule 7; a lineless branch; resuming mid-conversation from a save.
+misuse of rule 7; a lineless branch; resuming mid-conversation from a save;
+a named dialogue talked to twice keeping a `once:` question hidden.
 
 `spec/rgame/engine/dialogue_quest_spec.rb`: the smith script from the design,
 with the hammer quest from step 1 on the context and a `Facts` on the root. A
@@ -411,8 +453,9 @@ One village, per [write-example](../../../.claude/skills/write-example/SKILL.md)
 hero who walks, a smith with the script from the design, a hammer to find, and
 gold to bribe with. One conversation starts on confirm next to the smith
 (`CollisionWorld#nearest`), and a sign starts one by walking into it
-(`BoxCollider#on_hit`), answering the question the request asked. F5 saves the
-quest, the dialogue's facts and the hero's gold; loading resumes all three. A
+(`BoxCollider#on_hit`), answering the question the request asked. F5 saves
+`facts.to_h` and the hero's gold; loading resumes the quest, the smith's visits
+and the gold. A
 drive script plays the quest through, with `--texts` showing the unavailable
 bribe become available.
 

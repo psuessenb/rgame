@@ -40,7 +40,11 @@ same machinery.
 
 Beside them sits **`Components::Facts`**, a small store for flags that belong to
 no object — "met the smith", "the bridge is down". Conditions read it, effects
-write it, and it saves as one Hash.
+write it. **It is also what a game saves**: a machine built with a `name:`
+registers with it, so `facts.to_h` holds every flag and every named quest and
+conversation, and `restore` puts them all back in any order. A game's save is
+that one entry plus its own objects. Settings stay in a `Util::SaveFile` of
+their own.
 
 **The engine ships its own machine rather than pointing at a gem.** The popular
 gems declare states on a *class*, which fits one lifecycle per model and does not
@@ -104,8 +108,12 @@ re-litigation inside the plan.
    block. See [03-design.md](03-design.md#a-file-format-later-costs-nothing-now).
 3. **Conditions read a context the game hands in, plus the shared facts.** The
    bribe reads `hero.gold` from the hero; the game does not copy its gold into a
-   store. A save holds each machine's state and visits, and the facts; the game
-   saves its own objects as it does today.
+   store. The game saves its own objects as it does today.
+   *Revised after the first draft:* the facts hold every named machine's state
+   and visits, so the machines are one entry in a save rather than one line
+   each. Listing each machine by hand was a rule a game had to remember, and
+   forgetting one reset a quest silently. See
+   [03-design.md](03-design.md#saving-the-world).
 4. **"Going back" is a cycle in the graph, not an undo.** A response may lead to
    an earlier beat. Visit counts let a condition hide a question already asked.
 5. **The shipped box reveals text a character at a time**, and confirm skips the
@@ -132,8 +140,10 @@ re-litigation inside the plan.
    required keyword, so every game decides. Waits on step 5. Blocks nothing
    before it.
 3. **Does `RGame::Game` mount a `Facts` on the root by itself?** It would design
-   out forgetting to. But a game that never talks pays for nothing either way,
-   and mounting it is one line. Waits on step 1's landing. Blocks nothing.
+   out forgetting to. A game that never talks pays for nothing either way, and
+   mounting it is one line. Since the facts became what a game saves, the case
+   for mounting is stronger: a scene built before a load and one built after
+   should find the same store. Waits on step 1's landing. Blocks nothing.
 4. **How a shared conversation takes input.** When every player sees one
    conversation, does one player answer, or whoever presses first? Waits on
    step 5. Blocks nothing before it.

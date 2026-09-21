@@ -115,8 +115,8 @@ a conversation started with confirm. The example in step 6 shows both.
 - `PlayerLayer` — whose conversation it is, and where on screen.
 - `Signal::DSL` — `on_changed` on a machine, `on_beat` and `on_ended` on a
   dialogue.
-- `Util::SaveFile` — a machine's `to_h` and the facts' `to_h` go into it as they
-  are.
+- `Util::SaveFile` — the facts' `to_h` goes into it as it is, carrying every
+  named machine with it. A game's settings go into a second file.
 - The accumulate-in-`update`, index-in-`draw` shape of `Animator` and `Timer` —
   the reveal.
 
