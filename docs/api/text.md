@@ -104,6 +104,25 @@ A file that is unreadable or not a TrueType font raises
 `path:` beside a typeface raises `ArgumentError`, because the typeface already
 names its file.
 
+### Drawing with a typeface
+
+**`font:` takes a `Font` or a `RGame::Util::Typeface`.** A node can hold a
+typeface, measure with it in `update`, and hand the same typeface to `text`. It
+never names a Core class:
+
+```ruby
+@face = RGame::Util::Typeface.default(24)       # in initialize
+@x = (width - @face.text_width(@title)) / 2     # in update
+
+def on_draw(renderer, _view) = renderer.text(@title, @x, 10, font: @face)
+```
+
+The renderer builds a `Font` for a typeface the first time it draws one, and
+keeps it, so each typeface costs one font per renderer. Given the typeface of
+the renderer's own font, it draws with that font. `Renderer#typeface` returns
+that typeface: the one `text` uses when a call names no font. `text_width` and
+`text_height` given a typeface return the typeface's own numbers.
+
 ### Measuring without a window
 
 **`RGame::Util::Typeface` measures text with no window, no GPU and no graphics

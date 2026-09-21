@@ -589,6 +589,56 @@ RSpec.describe RGame::Core::Renderer do
       expect(left).to be >= 60
     end
 
+    it 'answers the typeface of its default font' do
+      expect(described_class.new(app).typeface).to be(RGame::Util::Typeface.default)
+    end
+
+    it 'draws with a typeface exactly as with a font built from it' do
+      pixels = lambda do |frame|
+        (0...frame.width).flat_map { |x| (0...frame.height).map { |y| frame.at(x, y) } }
+      end
+      face = RGame::Util::Typeface.default(24)
+
+      by_font = with_text { |renderer, font| renderer.text('Score', 20, 10, font: font) }
+      by_typeface = with_text { |renderer, _font| renderer.text('Score', 20, 10, font: face) }
+
+      expect(inked_columns(by_typeface)).not_to be_nil
+      expect(pixels.call(by_typeface)).to eq(pixels.call(by_font))
+    end
+
+    it 'builds one font per typeface, not one per call' do
+      face = RGame::Util::Typeface.new(RGame::Core::Font::DEFAULT_PATH, 20)
+      added = nil
+
+      RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        GC.disable
+        before = RGame::Core::Font.debug_live_pages
+        renderer.text('a', 0, 0, font: face)
+        renderer.text('b', 0, 20, font: face)
+        added = RGame::Core::Font.debug_live_pages - before
+      ensure
+        GC.enable
+      end
+
+      expect(added).to eq(1)
+    end
+
+    it 'draws its default typeface with its default font' do
+      added = nil
+
+      RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        renderer.text('a', 0, 0)
+        GC.disable
+        before = RGame::Core::Font.debug_live_pages
+        renderer.text('b', 0, 20, font: renderer.typeface)
+        added = RGame::Core::Font.debug_live_pages - before
+      ensure
+        GC.enable
+      end
+
+      expect(added).to eq(0)
+    end
+
     it 'is clipped like everything else' do
       frame = with_text do |renderer, font|
         renderer.clipped(0, 0, 40, 64) { renderer.text('Hi there', 0, 10, font: font) }
