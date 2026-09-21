@@ -1,7 +1,7 @@
 # Roadmap
 
-**Steps 0–5 are detailed. Steps 6–9 are deliberately rough** and get re-planned
-once the step beneath each exists. Nothing is implemented.
+**Step 0 is implemented.** Steps 1–5 are detailed. Steps 6–9 are deliberately
+rough and get re-planned once the step beneath each exists.
 
 ## Dependency shape
 
@@ -104,6 +104,39 @@ licence entry for each — see its own opening paragraph for why.
 
 The document exists, names every requirement with its Tiled menu path, and says
 what step 8 will report when one is missed. Nothing to run.
+
+**Landed.** [`map-requirements.md`](map-requirements.md) states 19
+requirements, each with what to do in Tiled, why the code needs it, and the
+message step 8 prints when it is missing. It also fixes the files to hand over,
+their directory (`examples/assets/tiled_tour/`), and the order to build them in,
+because three of them are Save As copies of the first. No code; nothing to run.
+
+What the sketch got wrong:
+
+- **An Infinite twin only matches if the chunks line up.** Tiled stores an
+  infinite map in 16×16 chunks, so a bounding box taken over chunks is
+  chunk-aligned. A 60×40 map, or an offset of a few tiles, flattens to a larger
+  grid than its fixed twin, and step 4's rule 11 fails on the map rather than
+  the code. The map is therefore 64×48 (R17), shifted by exactly 16 tiles (R16),
+  with the ground filled edge to edge. Whether step 3 bounds by chunk or by
+  non-empty cell is now [open question 5](README.md#open-questions).
+- **Tiled has no key for a lone diagonal flip.** A quarter turn sets the
+  diagonal and horizontal bits together. R5 asks for the eight orientations as
+  turns and mirrors, which covers all eight bit combinations. Step 8's sketch
+  suggested "Shift+X", which is not a Tiled shortcut; corrected in place.
+- **Class members at their default value are not in the `.tmx`.** Tiled writes
+  only the members that differ, and the defaults live in the project file. R13
+  asks for every member set, and the project file ships with the map. What the
+  parser does about defaults is [open question 6](README.md#open-questions).
+- **Three requirements were missing.** R18, an object from a template, because
+  step 3's rule 9 resolves templates and nothing Tiled-written exercised it.
+  R19, Tiled's own exported picture of the map: step 5's rule 4 pins the
+  orientation table against "what Tiled shows", and this is the only file that
+  says what that is. And a polyline and a text object in R15, both in the
+  design's object record.
+- **The embedded tileset carries a drawing offset (R2)**, the `<tileoffset>`
+  [decision 6](README.md#decisions-already-taken) adds. Step 5 has no rule for
+  drawing it, and needs one when it is re-read before starting.
 
 ---
 
@@ -499,8 +532,9 @@ when one of the four occupants is a different language.
 Two halves.
 
 **Checked.** A `describe` block in `spec/example_assets_spec.rb`, one example per
-requirement from step 0, each failing with what to change in Tiled — "R5: no
-diagonally flipped tile found; flip one with Shift+X in the stamp brush". That
+requirement from step 0, each failing with what to change in Tiled — "R5: layer
+`orientations` is missing flip-bit combinations [3, 6]; paint the row again from
+the table". That
 file is already the precedent: its `town.tmx` block asserts the fence has exactly
 one gap and says in a comment which mistake it caught.
 
