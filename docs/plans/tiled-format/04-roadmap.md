@@ -1,6 +1,6 @@
 # Roadmap
 
-**Steps 0–4 are implemented.** Step 5 is detailed. Steps 6–9 are deliberately
+**Steps 0–5 are implemented.** Steps 6–9 are deliberately
 rough and get re-planned once the step beneath each exists.
 
 ## Dependency shape
@@ -683,6 +683,53 @@ ruby tools/drive_test_project.rb examples/scroll_map/main.rb --ticks 240
 ```
 
 and the frame `town.tmx` draws is unchanged.
+
+**Landed.** One commit. `Image#tiles` takes `margin:`, `spacing:`, `count:` and
+`columns:`, and a packed sheet still goes through the C `tile` path. The glue
+cuts a sheet with its margin and spacing and loads a collection one file per
+tile, into the same flat Array. `TileMapRenderer` skips a hidden layer, tints a
+layer and its animated tiles by its opacity, and draws a turned tile inside
+`Renderer#rotated`, mirrored with `image_at(scale_x: -1)`. `rake spec` ran 2609
+examples and `rake spec:core` 455, both with no failures, and
+`rake docs:coverage` reports nothing undocumented. The `scroll_map`,
+`pathfinding`, `collision_tiles` and `jump_topdown` drives report what `main`
+reports, byte for byte. `town.tmx` drawn through the renderer and drawn tile by
+tile the old way differ in 0 of 960×640 pixels.
+
+Rule 4 is pinned against Tiled's own output ahead of step 8.
+`spec/fixtures/orientations.tmx` was painted in Tiled 1.12: an F from
+`f.png` in each of the eight orientations. `tile_map_spec.rb` pins what the parse reads from
+it. `tile_map_renderer_spec.rb` draws those eight values and compares every
+pixel with Tiled's flag rule applied to the F. The rule is diagonal flip
+first, then horizontal, then vertical, which is not the arithmetic the
+renderer uses. Turning mirrored tiles the wrong way fails two of the eight.
+
+What the sketch got wrong:
+
+- **No renderer primitive was needed.** `rotated` and a negative `scale_x`
+  already draw all eight orientations, so no C changed and the renderer
+  contract did not grow. A mirrored tile turns the other way. `Orientation`
+  turns first and mirrors second, but a transform wrapped around
+  `image_at(scale_x: -1)` mirrors first.
+- **Tiles stand on the bottom-left of their cell.** The sketch said nothing about a
+  tile of another size than the grid, which a collection makes ordinary. Tiled
+  anchors such a tile at the cell's bottom-left, and so does the renderer now.
+  A turned tile that is not square keeps that corner. The anchor is Tiled's
+  documented behaviour, but no Tiled export has checked it; the fixture's
+  tiles are square.
+- **The tile map contract grew** by `layer(i).visible?` and `opacity`. Its
+  canopy layer is now hidden at half opacity, and `StubTileMap` takes
+  `visible:` and `opacity:`.
+- **`StubImage` did not change.** It lives in `spec/support/`, not
+  `spec_core/support/`, and the glue slices real images only. The glue is
+  specced in `spec_core/rgame/game_tilemap_spec.rb` through a child process,
+  like the locales.
+- **A tileset's tile offset is still not applied.** `Tiled::Tileset` reads
+  `offset_x` and `offset_y`, and nothing draws with them.
+
+Documented in `docs/api/tile_maps.md` (a new "How the map is drawn" section),
+`docs/api/images.md` and `docs/api/assets.md`. The CHANGELOG adds two entries under
+Added.
 
 ---
 

@@ -1,7 +1,6 @@
 # Supporting Tiled's format
 
-**Status: steps 0–4 of [the roadmap](04-roadmap.md) are implemented.** Step 5 is
-detailed. Steps 6–9 are deliberately rough and get re-planned once the layer
+**Status: steps 0–5 of [the roadmap](04-roadmap.md) are implemented.** Steps 6–9 are deliberately rough and get re-planned once the layer
 beneath them exists.
 
 ## Goal
