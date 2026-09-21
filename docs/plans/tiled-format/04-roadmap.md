@@ -1,6 +1,6 @@
 # Roadmap
 
-**Steps 0–2 are implemented.** Steps 3–5 are detailed. Steps 6–9 are deliberately
+**Steps 0–3 are implemented.** Steps 4 and 5 are detailed. Steps 6–9 are deliberately
 rough and get re-planned once the step beneath each exists.
 
 ## Dependency shape
@@ -417,6 +417,52 @@ five encodings asserted against five hand-written Arrays would drift.
 New specs green, and `examples/assets/town.tmx` reads through `Tiled::Map.load`
 to the same two layers, the same 60×40 size and the same gids the current parser
 produces — again as a temporary example, deleted in step 4.
+
+**Landed.** `Tiled::Map`, `TilesetRef`, `Layer` and its four subclasses,
+`LayerData` and `Template` live in `lib/rgame/engine/tiled/`. `map_spec.rb` has
+70 examples, one `describe` per rule, and the five encodings share one expected
+grid. `rake spec` ran 2573 examples and `rake spec:core` 430, both with no
+failures. The invariant held: the `pathfinding` and `scroll_map` drives
+reported byte for byte what they report on `main`. The temporary example reads
+`examples/assets/town.tmx` to the same 60×40 size, the same two layers and the
+same gids as `TileMap.load`, once the flip bits are masked off.
+
+What the sketch got wrong:
+
+- **`parse` reads files.** The design had `Map.parse` touch no files and `load`
+  follow the references. But a map string names its tilesets and templates by
+  path, so `parse` follows them relative to `source_path`, the way `Tileset`
+  resolves its image. A map parsed without a `source_path` that names an
+  external tileset or template raises, and says to load the map from its file.
+- **Rule 7 needs both values.** Each layer keeps its own `visible?` and
+  `opacity`, as the file states them. `effective_visible?` and
+  `effective_opacity` fold in every group around it. Step 4 flattens the tree
+  and should read the effective pair.
+- **An infinite map's size is the box.** `Map#width` and `height`, and every
+  `TileLayer`'s, are the box around the non-empty chunks. The `width` and
+  `height` Tiled writes on an infinite map are the editor's view and are
+  ignored. The origin lives on `Map` only, not on each `TileLayer` as
+  `03-design.md` sketched, since rule 6 makes it the same for every layer. The
+  box is bounded by whole chunks, not by the tiles inside them.
+- **A tile template needed its gid moved.** A `.tx` numbers its gid from its
+  own `<tileset firstgid>`. `Template#apply` shifts it to where that `.tsx`
+  sits in the map, and raises when the map does not name that tileset.
+  Properties merge by name, and each `file` value resolves against the file
+  that states it, so a template's sound path points beside the `.tx`.
+- **Shared pieces moved up.** `Tiled.root` reads a root element and refuses a
+  wrong one or broken XML, for maps, tilesets and templates alike. `Tiled.gid`,
+  `GID_MASK` and `FLIP_BITS` hold the gid layout, and `Object` clears bit 29
+  with them too. `Attributes.color` reads the map's `backgroundcolor`, and
+  `Properties` casts a `color` property through the same code.
+- **More refusals.** A layer holding a different number of tiles than its size,
+  CSV that is not numbers, data that does not decompress, an encoding or
+  compression Tiled does not write, a missing `.tsx` or `.tx`, and a map with
+  no size all raise `FormatError`.
+- **Ignored for now:** `offsetx`, `offsety`, `parallaxx`, `parallaxy` and
+  `tintcolor` on tile, object and group layers
+  ([decision 5](README.md#decisions-already-taken)); an object layer's
+  `color`; and the map's `nextlayerid`, `nextobjectid` and `parallaxorigin`.
+  An image layer keeps its offset, which the design asks for.
 
 ---
 

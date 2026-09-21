@@ -5,14 +5,18 @@ require_relative 'properties'
 module RGame
   module Engine
     module Tiled
+      SHAPES = 'ellipse | point | polygon | polyline | text'
+      private_constant :SHAPES
+
       # One `<object>`, as the file states it: a tile's collision shape, or an
       # entry in a map's object layer.
       #
       # Coordinates are in pixels, as Floats, and mean what Tiled means by them.
       # A tile object's `(x, y)` is its bottom-left corner, `rotation` is in
       # degrees clockwise about `(x, y)`, and `points` are relative to `(x, y)`.
-      # `gid` keeps its flip bits. Converting any of it is the transform's job,
-      # so that the parse can be checked against Tiled's own reference.
+      # `gid` keeps its flip bits and loses only bit 29, as `Tiled.gid` says.
+      # Converting any of it is the transform's job, so that the parse can be
+      # checked against Tiled's own reference.
       #
       # `shape` is `:rectangle`, `:ellipse`, `:point`, `:polygon`, `:polyline`
       # or `:text`, and `points` is empty unless it is a polygon or polyline.
@@ -28,14 +32,14 @@ module RGame
               class_name: (element.attributes['type'] || element.attributes['class']).to_s,
               x: read['x'], y: read['y'], width: read['width'], height: read['height'],
               rotation: read['rotation'],
-              gid: Attributes.integer(element, 'gid', source_path),
+              gid: Attributes.integer(element, 'gid', source_path)&.then { Tiled.gid(it) },
               visible: element.attributes['visible'] != '0',
               shape: shape, points: points,
               properties: Properties.parse(element.elements['properties'], source_path: source_path))
         end
 
         def self.shape_of(element, source_path)
-          child = element.elements['ellipse | point | polygon | polyline | text']
+          child = element.elements[SHAPES]
           child ? [child.name.to_sym, points(child, source_path)] : [:rectangle, [].freeze]
         end
 

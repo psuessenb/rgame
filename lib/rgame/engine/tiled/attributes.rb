@@ -1,15 +1,19 @@
 # frozen_string_literal: true
 
+require_relative '../../util'
 require_relative '../tiled'
 
 module RGame
   module Engine
     module Tiled
       # Reads the attributes every Tiled element shares a form for: whole
-      # numbers, decimals and paths. A value that does not read raises a
+      # numbers, decimals, colours and paths. A value that does not read raises a
       # `FormatError` naming the element, the attribute and the file, so each
       # parser states what it reads and none repeats how.
       module Attributes
+        COLOR = /\A#(\h{2})?(\h{2})(\h{2})(\h{2})\z/
+        private_constant :COLOR
+
         module_function
 
         # The attribute as an Integer, or `default` when the element has none.
@@ -35,6 +39,22 @@ module RGame
           Float(value)
         rescue ArgumentError
           refuse(element, name, source_path, 'is not a number')
+        end
+
+        # The attribute as a `Util::Color`, or `nil` when the element has none.
+        def color(element, name, source_path)
+          value = element.attributes[name]
+          return nil if value.nil? || value.empty?
+
+          to_color(value) or refuse(element, name, source_path, 'is not a #AARRGGBB or #RRGGBB colour')
+        end
+
+        # `text`, in Tiled's `#AARRGGBB` or `#RRGGBB`, as a `Util::Color`, or
+        # `nil` when it is in neither form.
+        def to_color(text)
+          match = COLOR.match(text) or return nil
+          alpha, red, green, blue = match.captures
+          Util::Color.new(red.hex, green.hex, blue.hex, alpha ? alpha.hex : 255)
         end
 
         # `path` as the file at `source_path` means it: relative to that file's

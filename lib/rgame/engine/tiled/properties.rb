@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require_relative '../../util'
 require_relative '../tiled'
 require_relative 'attributes'
 
@@ -38,9 +37,6 @@ module RGame
       # `EMPTY`, never `nil`.
       class Properties
         include Enumerable
-
-        COLOR = /\A#(\h{2})?(\h{2})(\h{2})(\h{2})\z/
-        private_constant :COLOR
 
         # Builds the bag from a `<properties>` REXML element, or from `nil`.
         # `source_path` is the file the element came from; a `file` property
@@ -86,9 +82,7 @@ module RGame
           value = property.attributes['value'].to_s
           return nil if value.empty?
 
-          match = COLOR.match(value) or refuse(property, source_path, 'is not a #AARRGGBB or #RRGGBB colour')
-          alpha, red, green, blue = match.captures
-          Util::Color.new(red.hex, green.hex, blue.hex, alpha ? alpha.hex : 255)
+          Attributes.to_color(value) or refuse(property, source_path, 'is not a #AARRGGBB or #RRGGBB colour')
         end
 
         def self.refuse(property, source_path, problem)
