@@ -139,13 +139,13 @@ re-litigation inside the plan.
    expectations; `:disable` shows what they could have had. Or make it a
    required keyword, so every game decides. Waits on step 5. Blocks nothing
    before it.
-3. **Does `RGame::Game` mount a `Facts` on the root by itself?** It would design
-   out forgetting to. A game that never talks pays for nothing either way, and
-   mounting it is one line. Since the facts became what a game saves, the case
-   for mounting is stronger: a scene built before a load and one built after
-   should find the same store. Waits on step 1's landing. Blocks nothing.
-   *Step 1 landed recommending yes* — see its landed note in
-   [the roadmap](04-roadmap.md). Waits on that decision.
+3. ~~**Does `RGame::Game` mount a `Facts` on the root by itself?**~~ **Settled
+   in step 1 — yes.** `Game` mounts one beside `Players` and `Viewports`, and
+   `game.facts` returns it. The counter-question was whether a game ever wants
+   more than one store. The one case found is a second lifetime: a roguelike's
+   unlocks beside its current run. That case still wants the root store, and
+   mounts its second on the run's scene, where `node.system` finds it first.
+   See step 1's landed note in [the roadmap](04-roadmap.md).
 4. **How a shared conversation takes input.** When every player sees one
    conversation, does one player answer, or whoever presses first? Waits on
    step 5. Blocks nothing before it.

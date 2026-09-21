@@ -243,7 +243,9 @@ See [Saving the world](#saving-the-world).
 
 **`Components::Facts` holds the flags that belong to no object**: "met the
 smith", "the bridge is down", "wolves killed". It is a system on the root, so
-every node reaches the same store with `node.system`:
+every node reaches the same store with `node.system`. `RGame::Game` mounts one
+when it starts, and `game.facts` returns it. Outside a `Game`, as in a spec,
+mount it yourself:
 
 ```ruby
 require 'rgame'
@@ -385,6 +387,13 @@ class Gate < RGame::Engine::Node2D
   def on_remove = @facts.unwatch(@bridge)
 end
 ```
+
+**A second store is for a second lifetime.** A roguelike keeps unlocks that
+outlast every run beside flags that reset with each one. Mount a second `Facts`
+on the run's scene node. `node.system` looks at the scene before the root, so
+the run's nodes and quests find the run's store, and the game saves both
+entries. Code inside the run reaches the root store with
+`node.root.get_component(RGame::Engine::Components::Facts)`.
 
 **Settings are not facts.** Volume, key bindings and language belong to the
 player, not to a save slot. Keep them in a `Util::SaveFile` of their own.

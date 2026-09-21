@@ -78,7 +78,7 @@ index, not the argument.
   [docs/api/dialogue.md](docs/api/dialogue.md#state-machines).
 - **A game saves its flags and quests as one entry.**
   `RGame::Engine::Components::Facts` is a root system for flags that belong to
-  no object, with `on_changed` for changes in play and `watch` to keep something
+  no object, which `RGame::Game` mounts as `game.facts`, with `on_changed` for changes in play and `watch` to keep something
   in step. A `StateMachine` built with `name:` registers with it, so
   `facts.to_h` saves every named quest too and `facts.restore` puts all of them
   back. See [docs/api/dialogue.md](docs/api/dialogue.md#facts).

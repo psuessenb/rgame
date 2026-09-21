@@ -304,8 +304,9 @@ landed note.
 
 **Landed.** `Components::Facts` in `lib/rgame/engine/components/facts.rb`, and
 `name:`, `watch` and `unwatch` on `Engine::StateMachine`, as four commits, one
-per sub-step. `docs/api/dialogue.md` has a "Facts" section with two headless
-examples the doc specs run, and the index row names it. `CHANGELOG.md` has one
+per sub-step. A fifth has `Game` mount the store. `docs/api/dialogue.md` has a
+"Facts" section with two headless examples the doc specs run, and the index row
+names it. `CHANGELOG.md` has one
 more entry under Added. `docs/plans/possible-todos.md` has "State machines for
 per-frame behaviour".
 
@@ -349,13 +350,17 @@ What the sketch got wrong or left out:
   `Engine::Text`. One of them needs another word before step 2 is written out;
   `speaker_name` for the dialogue's reads well.
 
-Open question 3, whether `Game` mounts `Facts`: **recommended yes, not done
-here.** The spec mounted it with one line. A game that forgets gets
-`ArgumentError` ("needs facts:") on the first named machine, so the failure is
-loud. But a root store that every save goes through is something the engine
-should provide, not something a game must remember. The change touches `Game`
-and `docs/api/systems.md`'s "The two systems `Game` mounts", so it waits for a
-decision.
+Open question 3, whether `Game` mounts `Facts`: **yes, in a fifth commit.**
+The spec mounted it with one line, and forgetting fails loudly on the first
+named machine. But a store every save goes through is the engine's job. The
+question that settled it was whether a game ever wants two stores. The only
+case found is two lifetimes, such as a roguelike's unlocks beside its current
+run. That case still wants the root store and mounts a second on the run's
+scene, where `node.system` finds it first; `docs/api/dialogue.md` says so.
+`Game#facts` returns the store, which exists from `Game.new`, so a game can
+restore a save before `start`. A driven scratch game built a named machine in
+`on_add` through `node.system` and found `game.facts`. `docs/api/systems.md`
+now lists three systems `Game` mounts.
 
 ---
 
