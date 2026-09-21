@@ -371,3 +371,26 @@ nor attention, and would amend release machinery that has only just landed.
 **Trigger.** The pull request wait growing long enough to be felt, or these runs
 starting to be billed — which is what making the repository private would do,
 since the free minutes are a property of it being public.
+
+---
+
+## State machines for per-frame behaviour
+
+**What.** A state machine that decides every frame rather than a few times a
+minute: an enemy that patrols, chases and flees, or a sprite whose animation
+follows idle, run and jump. Each state would get an update hook, and a
+transition would fire from a test run every tick rather than from an event.
+
+**What exists instead.** `Engine::StateMachine` runs decision graphs: a quest's
+stages and a conversation's beats. State moves when a player chooses or an event
+arrives, and nothing in it runs per frame. Its conditions run on every
+`available?` call, and its transitions list is built for a menu of choices, not
+for a loop that must allocate nothing. The dialogue plan kept per-frame
+behaviour out on purpose (its decision 6).
+
+**Why not now.** No NPC or animation in this repository hand-rolls a state
+machine, so nothing says what shape the per-frame one should take, or whether
+it should share a graph with the decision one at all.
+
+**Trigger.** The second hand-rolled state machine in NPC or animation code — a
+`case @state` in an `update` written for the second time.
