@@ -22,13 +22,11 @@
 #     per frame with it — the presentation transform, exactly as in
 #     `tools/drive/examples/fullscreen.rb`.
 #
-# Set `RGAME_SAVE_DIR` to somewhere disposable, so the run neither writes into
-# the home directory of whoever is running it nor reads settings left by an
-# earlier one — the example loads its file before the first frame, so a stale
-# one would change what this script does:
+# The harness gives the run a fresh save directory. That matters here: the
+# example loads its settings file before the first frame, so one left by an
+# earlier run would change what this script does.
 #
-#   RGAME_SAVE_DIR=/tmp/settings ruby tools/drive_test_project.rb \
-#     examples/menu_navigation/main.rb --ticks 320
+#   ruby tools/drive_test_project.rb examples/menu_navigation/main.rb --ticks 320
 
 idle 15
 

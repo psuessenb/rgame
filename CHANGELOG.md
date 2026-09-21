@@ -37,6 +37,16 @@ index, not the argument.
   a variable or a language switch with no call of its own, and its owner turns
   the page with `page=`. See
   [docs/api/ui.md](docs/api/ui.md#rgameengineuilabel).
+- **An intro example.** `examples/intro` tells a story a page at a time through a
+  `UI::Label`, turned by Enter and by a timer. Its tables hold the story as one
+  line, and German takes a page more than English. See
+  [docs/api/examples.md](docs/api/examples.md#intro).
+
+### Changed
+
+- **`Game/NoLiteralText` also checks `text_lines`.** A String literal as the
+  first argument of `text_lines` is an offense, as it is for `text` and
+  `text_width`.
 
 ### Fixed
 

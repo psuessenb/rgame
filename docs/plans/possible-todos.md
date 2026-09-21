@@ -109,25 +109,6 @@ has measured.
 
 ---
 
-## The drive harness owns the save directory
-
-**What.** `tools/drive_test_project.rb` gives every run a fresh temporary
-`RGAME_SAVE_DIR` unless one is passed.
-
-**What exists instead.** The drive scripts for `save_load`, `save_load_ids` and
-`menu_navigation` say in a comment to set it, and the verify skill says so for
-comparisons. Without it a run writes into the real data directory and the next
-run reads that file, so two runs of unchanged code report differently.
-
-**Why not now.** Found in the middle of the component-architecture sweep, which
-had no reason to touch the harness.
-
-**Trigger.** The next driven comparison across examples — or the first time a
-report differs for this reason, whichever is sooner. It is a remembered rule, the
-kind "Design out misuse" in CLAUDE.md says to remove.
-
----
-
 ## Edge margins derived from the node's size
 
 **What.** `ScreenWrap` and `DespawnOffscreen` derive their `margin` from how big
@@ -146,72 +127,30 @@ that needs a node's footprint and has to pick a convention.
 
 ---
 
-## Text measurement for the engine layer
+## Text layout past a label
 
-**What.** Let engine-layer code — a button, a layout — measure how wide a string
-will be drawn, outside `draw`, so a menu can size its buttons to their labels.
+**What.** Three things `Util::Typeface`, `Engine::Paragraph` and `UI::Label`
+were built without, each with its own trigger:
 
-**What exists instead.** Measuring already works anywhere *in Core*:
-`RGame::Core::Font#text_width` is documented as usable outside `draw`, and
-`rgame_font_measure` touches no GL — it walks `rgame_typeface` in
-`ext/rgame_core/text/font.c` (281 lines over the vendored `stb_truetype`, no GL,
-no file I/O), the same walk drawing uses, so a measured width and a drawn one
-cannot drift. The engine layer cannot reach any of it: it may not hold a `Core`
-type, a `Core::Font` needs an `app` because it also owns the glyph atlas, and the
-renderer — the one measuring object engine code is handed — only arrives inside
-`draw`. So `UI::Menu` layouts give every button the same slot
-(`docs/api/ui.md`, "What this is not", records this).
+- **Ascent and descent on `Typeface`.** The C face has both
+  (`rgame_typeface_ascent`), and Ruby sees only `height`.
+- **Breaking between characters.** `rgame_typeface_fit` breaks at spaces and
+  newlines only, so a script written without spaces never breaks.
+- **A panel behind a label, and vertical alignment.** `UI::Label` draws text
+  from its top-left corner and nothing behind it. The design had a `style:`
+  like `UI::TextButton`'s, but a style draws per button state, which a label
+  does not have.
 
-It is standard elsewhere for measurement to be independent of painting: Godot's
-`Font.get_string_size`, TextMeshPro's `GetPreferredValues`, Unreal's
-`FSlateFontMeasure` service. (From memory; not re-checked against their sources
-when this was written.)
+**What exists instead.** A caller steps lines by `height` and aligns them
+horizontally. `examples/intro` places its block of text with its own arithmetic
+and draws its own backdrop.
 
-**Why not now.** Nothing needs it yet. A fixed slot fits every current menu, and
-the UI package was deliberately built without it. It becomes needed
-the moment labels change length at runtime — which is what switching language
-does.
+**Why not now.** Nothing asks for any of them. The shipped font covers no
+script written without spaces, and nothing aligns two faces on one line.
 
-**What it would take.** Two options were weighed.
-
-| | A: hand the engine a measurer | B: move the pure typeface to Util |
-|---|---|---|
-| Shape | `RGame::Game` exposes a measuring method; nodes call it by name through `context`, as they already call `root.context.close` | `RGame::Util::Typeface` (font bytes → metrics); `Core::Font` becomes a typeface plus an atlas |
-| C work | none | yes, in both extensions |
-| When a button can measure | once its menu is in the tree | any time, including its constructor |
-| Headless specs | a fake measurer with invented widths, needing a shared contract | the real shipped font, real widths, no fake |
-| CLAUDE.md | allowed — a duck-typed call on a handed object | exactly "a subsystem with a pure part and an SDL part is split across the two extensions"; a parsed typeface holds no OS handle, so it is a value |
-
-**B is the one to build**; A is only a stopgap, and its invented widths are the
-fake-drifts-from-real failure the testing section of CLAUDE.md exists to prevent.
-B's costs, and the open question in it:
-
-- **An extension only compiles sources in its own directory.** `font.c`,
-  `stb_truetype.h` (5,079 lines) with its `_impl.c`, and the glyph struct it
-  uses would move to `ext/rgame_util/`. `glyph_cache.h`, which defines that
-  struct, includes `graphics/clip.h`, so the struct may need its own header
-  first.
-- **Core's atlas needs the typeface, across two `.so` files.** Either both
-  extensions compile a copy — which breaks "one copy of the code" — or
-  `Core::Font` takes a `Util::Typeface` object and reads its C struct through a
-  deliberately stable accessor. **This is the real design question**, and
-  nothing in the project crosses the extension boundary in C today.
-- **The renderer must draw with the face that was measured.**
-  `renderer.text(label, x, y, font: typeface)` would resolve a `Typeface` to an
-  atlas-backed font through a registry, the way image ids resolve now — and
-  `FakeRenderer`, the `a_renderer` contract and their refusals all follow.
-- **Layouts then need content sizes**: a button answering its preferred size,
-  and a changed label re-arranging its menu. With `I18n.generation` bumping on a
-  language switch, that is every label at once.
-
-**Trigger — satisfied, so this is next.** The trigger was the i18n plan landing,
-and it has: every example draws translated text, and a language switch changes
-every label's length at once. That plan deliberately left measurement out and
-only made sure nothing caches a width across a switch.
-`examples/localization` sizes its 280-pixel slots by hand for its longest label,
-194 pixels in German, and its header says a third language might not fit. A
-translated label that overflows its fixed slot is the symptom this will arrive
-as.
+**Trigger.** Ascent and descent: a caller aligning two faces on one line.
+Breaking between characters: a font shipped or loaded that covers such a script.
+The panel and vertical alignment: the dialogue box, whose design they belong to.
 
 ---
 

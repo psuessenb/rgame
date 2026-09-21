@@ -75,7 +75,8 @@ RSpec.describe RGame::Engine::UI::Label do
   describe 'pages' do
     let(:story) { label(text: 'story', width: 440, lines_per_page: 3) }
 
-    # The acceptance test for step 5 of the text-measurement plan.
+    # The reason a label exists: the same key fills a different number of
+    # pages per language, and nothing tells the label the language changed.
     it 'fills a page more in German, with no call on the label' do
       english = story.page_count
       i18n.locale = :de

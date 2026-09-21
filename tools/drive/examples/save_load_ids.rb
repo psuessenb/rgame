@@ -3,11 +3,10 @@
 # Shears two sheep out of the middle of the flock, adds a new one, points the
 # dog at it, saves, then wanders off and loads it back.
 #
-# Set `RGAME_SAVE_DIR` when driving this, so the run does not write into the
-# home directory of whoever is running it:
+# The harness gives the run a fresh save directory, so it does not write into
+# the home directory of whoever is running it:
 #
-#   RGAME_SAVE_DIR=/tmp/saves ruby tools/drive_test_project.rb \
-#     examples/save_load_ids/main.rb --ticks 200
+#   ruby tools/drive_test_project.rb examples/save_load_ids/main.rb --ticks 200
 #
 # What the report should show:
 #
@@ -26,9 +25,9 @@
 #
 # **What a single run cannot show is the point of the example.** Whether the dog
 # is still watching the *same numbered* sheep after a load is a fact about two
-# processes, and this harness runs one. Run it twice against the same
-# `RGAME_SAVE_DIR` and read the second run's status line, or check the ids in
-# the JSON by hand.
+# processes, and this harness runs one. Run it twice with the same
+# `RGAME_SAVE_DIR` set, which keeps the save between the runs, and read the
+# second run's status line, or check the ids in the JSON by hand.
 
 idle 15
 press controls::KEY_TAB   # target sheep 2

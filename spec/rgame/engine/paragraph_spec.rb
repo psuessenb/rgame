@@ -46,7 +46,8 @@ RSpec.describe RGame::Engine::Paragraph do
       expect { greeting.lines }.to raise_error(ArgumentError, /call with first/)
     end
 
-    # The acceptance test for step 4 of the text-measurement plan.
+    # The reason a paragraph exists: a translation breaks differently per
+    # language, and nothing tells the paragraph the language changed.
     it 'breaks again after a language switch, with no call on the paragraph' do
       story = described_class.new('story', width: 520)
       english = story.lines.size

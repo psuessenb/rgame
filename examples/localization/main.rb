@@ -49,9 +49,10 @@
 #
 # ## What this does not solve
 #
-# The engine layer cannot measure text yet, so the buttons are a fixed width,
-# chosen wide enough for the longer label in either language: "Use the system
-# language". A third language with longer words would need a wider slot.
+# Buttons are not sized to their text, so these are a fixed width, chosen wide
+# enough for the longer label in either language: "Use the system language". A
+# third language with longer words would need a wider slot. A paragraph that
+# breaks per language is examples/intro's subject.
 
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'

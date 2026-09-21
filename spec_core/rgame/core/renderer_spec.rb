@@ -589,9 +589,9 @@ RSpec.describe RGame::Core::Renderer do
       expect(left).to be >= 60
     end
 
-    # The acceptance test for step 3 of the text-measurement plan, and the
-    # window half of spec/rgame/engine/measured_text_spec.rb: measured with a
-    # typeface, centred by that measurement, drawn with the same typeface.
+    # The window half of spec/rgame/engine/measured_text_spec.rb: measured
+    # with a typeface, centred by that measurement, drawn with the same
+    # typeface. The ink is what says measuring and drawing agree.
     it 'keeps the ink of a string centred by its typeface inside the measured box' do
       face = RGame::Util::Typeface.default(24)
       width = face.text_width('Hamburgefonstiv')

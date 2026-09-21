@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-# The caller the text-measurement plan was written for: a node that measures a
-# string with a typeface while updating, then draws it with the same typeface.
+# Engine code measuring text for layout and handing the same typeface to the
+# renderer: a node measures a string while updating, then draws it with it.
 # spec_core/rgame/core/renderer_spec.rb draws the same thing in a real window
 # and checks the ink stays inside the measured box.
 RSpec.describe 'a node that lays out text with a typeface' do # rubocop:disable RSpec/DescribeClass -- the subject is two layers used together
