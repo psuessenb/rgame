@@ -951,6 +951,8 @@ def on_control(actions)
 end
 ```
 
+`examples/intro` turns the pages on Enter and on a one-shot timer.
+
 ## What this is not
 
 **This is a menu, not a widget library.** Every button in a menu has the same size,
