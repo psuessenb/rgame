@@ -16,7 +16,8 @@ index, not the argument.
 
 - **Text can be measured without a window.** `RGame::Util::Typeface` loads with
   `require 'rgame'`, needs no graphics library, and gives the same width as
-  `RGame::Core::Font` for the same file and size. See
+  `RGame::Core::Font` for the same file and size. `Typeface#wrap` breaks a
+  string into lines that fit a width. See
   [docs/api/text.md](docs/api/text.md#measuring-without-a-window).
 
 ## [0.4.0] - 2026-09-16
