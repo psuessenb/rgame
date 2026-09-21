@@ -963,8 +963,14 @@ What the sketch got wrong:
   The transform reads the offset from the same `Tiled::Tileset` either way,
   and `tileset_spec.rb` covers reading `<tileoffset>`. R2 in step 8 is the
   Tiled-written check.
-- **`test_projects/tiled_world` was edited without being run.** Its map is
-  gitignored ([F11](01-current-state.md#f11)).
+- **`test_projects/tiled_world` could be run after all.** Its map is
+  gitignored ([F11](01-current-state.md#f11)), but present on the machine the
+  step was built on. It is the only map at hand with an object layer, so its
+  six drive scripts are the driven evidence for rule 16. Each script's
+  report matches `main`'s except for one thing: one `tilemap` call fewer per
+  frame per view, because the `Objects` layer, index 3, no longer gets a node.
+  The single-view run makes 717 calls against 956 over 239 frames. Sprites,
+  texts, translates, clips and scenes are identical.
 - **The sub-steps did not each sweep separately.** 6c's commit also carries
   two renderer examples for 6b's culling, added when a mutation survived.
 
