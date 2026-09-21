@@ -557,6 +557,10 @@ Three pieces, from smallest to largest. The record they pass around is
 
 ### 1. Tile coordinates, on `TileWorld`
 
+*Re-planned: the four conversions go on `TileMap`, which `TileWorld` forwards,
+and `place` is dropped. See
+[step 7](04-roadmap.md#step-7--nodes-on-a-map).*
+
 ```ruby
 world.cell_x(col)               # the cell's left edge, in world pixels
 world.cell_y(row)
@@ -573,6 +577,10 @@ friends, and `Util::TileSweep`'s C arithmetic, which stays in C but stops being
 a fifth independent answer.
 
 ### 2. A slot per gap, not one gap
+
+*Re-planned: a gap's value names the layer that covers it, as `under:` did,
+and `under:` goes. See
+[step 6](04-roadmap.md#step-6--the-rest-of-what-tiled-shows-and-a-slot-per-gap).*
 
 ```ruby
 slots = TileMapLayer.mount(world, gaps: { actors: nil, bridge: 'river' })

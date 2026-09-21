@@ -237,8 +237,9 @@ opacity below 1.**
 
 - **In Tiled:** **Layer › New › Image Layer**, then pick the file with **Image**
   in the Properties panel. Set **Offset** on one; tick **Repeat X** on the other.
-- **Why:** an image layer becomes its own node in
-  [step 6](04-roadmap.md#step-6--image-layers-and-a-slot-per-gap-rough). The
+- **Why:** `TileMapRenderer` draws an image layer from
+  [step 6](04-roadmap.md#step-6--the-rest-of-what-tiled-shows-and-a-slot-per-gap)
+  on, at its offset and repeated. The
   offset is also one of the coordinates the Infinite twin must shift
   ([R16](#r16)).
 - **Step 8 reports:** "R10: no image layer with an offset" or "R10: no image

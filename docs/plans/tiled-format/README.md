@@ -1,7 +1,6 @@
 # Supporting Tiled's format
 
-**Status: steps 0–5 of [the roadmap](04-roadmap.md) are implemented.** Steps 6–9 are deliberately rough and get re-planned once the layer
-beneath them exists.
+**Status: steps 0–5 of [the roadmap](04-roadmap.md) are implemented, and steps 6 and 7 are planned in detail.** Step 8 is still rough and waits on the authored map.
 
 ## Goal
 
@@ -205,10 +204,12 @@ re-litigation inside it.
    and no further.** See [decision 11](#decisions-already-taken). It lands in
    [step 3](04-roadmap.md#step-3--enginetiledmap-and-the-layer-tree-pure), not
    step 2 as this question first said.
-2. **Does `TileMapLayer.mount` keep its name?** It will mount image-layer nodes
-   too, and a class method on `TileMapLayer` that returns an assortment no
-   longer describes itself. `MapLayers.mount` is the alternative. **Waits on
-   step 6**, where the mixed set first exists.
+2. ~~**Does `TileMapLayer.mount` keep its name?**~~ **Settled in the step 6
+   re-plan — it keeps it.** The question assumed `mount` would hand out image
+   layer nodes beside tile layer nodes. The re-plan draws an image layer through
+   `TileMapRenderer`, so `mount` still mounts only `TileMapLayer`s and the name
+   still says what it does. What changes is its return value: slots, not one
+   node. See [step 6](04-roadmap.md#step-6--the-rest-of-what-tiled-shows-and-a-slot-per-gap).
 3. **Does the orientation plane need a byte-per-cell store?** `Util::Tensor`
    holds a `VALUE` per cell, so a second plane costs 8 bytes per cell per layer.
    It is also the most expensive part of the transform where a map uses it —
@@ -238,6 +239,15 @@ re-litigation inside it.
    no default raises naming it, and a game reads it with `fetch(name, default)`.
    The class comment on `Tiled::Properties` says so. Reading the project file
    stays possible later and changes no caller.
+
+7. **Should a game be able to change which tile *types* are solid?**
+   `Tileset#solid_ids=` did that until step 4 removed it, and nothing replaced
+   it. `Components::OccupiesCell` in step 7 covers a thing that blocks one cell.
+   It does not cover "all water is now walkable". The design keeps a bare
+   `set_solid` off `TileWorld`, because a solid cell with nothing drawn on it is
+   an invisible wall. A per-type switch would redraw nothing either, but the
+   designer drew the tile, so the wall would not be invisible. **Waits on** a
+   game that wants it.
 
 ## Reading order
 
