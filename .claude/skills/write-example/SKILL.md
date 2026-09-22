@@ -252,6 +252,12 @@ assertion, and it is the part to get right:
   override `XDG_DATA_HOME` instead: that breaks mise's Ruby.
 - **Seed the example's own RNG** from `ENV.fetch('RGAME_SEED', DEFAULT_SEED)`, so
   a run with nothing saved is reproducible and `--seed N` can override it.
+- **Time a dialogue box's presses from a trace, not from the text.** A Down
+  pressed while a line still types does nothing: the box shows only its ▼
+  marker until the responses appear, and the next Enter picks the first one.
+  A `warn` in `on_beat_entered` with a tick counter, in a copy of `main.rb`
+  beside the original and run with `--script`, lists which beat began when.
+  Delete the copy afterwards.
 - **Leave the window windowed.** There is no window manager on Xvfb, so a
   fullscreen window left behind at the end of a run stays mapped and holding the
   display, and the *next* window's loop never receives the events that drive it —

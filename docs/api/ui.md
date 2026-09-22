@@ -1024,6 +1024,10 @@ layer.add_node(UI::DialogueBox.new(dialogue: talk, unavailable: :disable, width:
 It is one way to draw a conversation. A game that draws its own drives the
 `Dialogue` itself, and nothing in `Dialogue` depends on the box.
 
+[`examples/dialogue`](examples.md#dialogue) shows the box with nothing else on
+screen. [`examples/quests_and_dialogue`](examples.md#quests_and_dialogue) adds a
+portrait and the log.
+
 **Confirm does the next thing:**
 
 1. On a page still typing, it shows the rest of the page.

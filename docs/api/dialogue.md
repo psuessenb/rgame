@@ -415,6 +415,11 @@ it decides where the conversation goes that the machine does not.
 A dialogue draws nothing. [`UI::DialogueBox`](ui.md#rgameengineuidialoguebox)
 shows one on screen, and a game with its own box drives the dialogue itself.
 
+Two examples show a conversation running. [`dialogue`](examples.md#dialogue)
+holds one on a black screen and nothing else.
+[`quests_and_dialogue`](examples.md#quests_and_dialogue) is a village where
+talking to the smith moves a quest on, and one facts entry saves both.
+
 ### Writing a script
 
 `Dialogue::Script.build(start:, scope:)` runs its block against a
