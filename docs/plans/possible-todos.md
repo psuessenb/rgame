@@ -394,3 +394,21 @@ it should share a graph with the decision one at all.
 
 **Trigger.** The second hand-rolled state machine in NPC or animation code — a
 `case @state` in an `update` written for the second time.
+
+---
+
+## Two loose ends from the naming plan
+
+The plan that named signals, hooks and the engine's machinery left two things
+it chose not to change.
+
+- **`on_hit` passes the tense rule only weakly.** It fires when two colliders
+  start to touch, and its partner is `on_separated`. "Hit" suggests one thing
+  striking another, and reads the same in both tenses. **Trigger:** any
+  change to the collision API, which would carry a rename with it.
+- **The plain `system` lookup still returns nil where a system is required.**
+  `Node2D#system!` raises with the class and where it looked, but
+  `PlayerLayer` calls `system(Viewports).screen_for`, and seven examples call
+  `system(RGame::Engine::Players)` and use the result at once. Outside a
+  `Game` each fails as a `NoMethodError` on nil. **Trigger:** someone hitting
+  that `NoMethodError`, or the next change to one of those callers.
