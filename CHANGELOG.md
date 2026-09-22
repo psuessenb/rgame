@@ -144,8 +144,27 @@ index, not the argument.
   `loop: true` starts it again at the end. `RGame::Engine::Components::Tween`
   runs one on a node's tick and emits `on_finished` once; `stop` holds it until
   `start`. See [docs/api/toolbox.md](docs/api/toolbox.md#tween--a-value-that-moves-over-time).
+- **An action can be a hold, a tap or a chord.** In an `RGame::Engine::InputMap`
+  entry, `hold: 0.6` presses once the buttons have been down that long, `tap:
+  0.3` presses on a release that came sooner, and `all:` is a chord that presses
+  when its last id arrives. One button can back a tap and a hold, and a held
+  chord silences the plain actions on its buttons. See
+  [docs/api/input.md](docs/api/input.md#a-hold-a-tap-and-a-chord).
+- **An action says how long it has been held.** `Actions#held_for(name)` is the
+  seconds its buttons have been down, `0.0` at rest, and it survives the tick of
+  the release. `Players#everyone` folds it as the longest of the active players'.
+  See [docs/api/input.md](docs/api/input.md#rgameengineactionmapper).
+- **An input example.** `examples/input_holds` opens a chest on a tap of one
+  button, searches it on a hold of the same one, and swaps stance on a chord.
+  See [docs/api/examples.md](docs/api/examples.md#input_holds).
 
 ### Changed
+
+- **Polling input takes the timestep.** `Players#poll`, `Player#poll` and
+  `ActionMapper#poll` take `(backend, dt)`, in seconds, which is what a hold and
+  a tap are measured against. `RGame::Game` passes its fixed step; a game driving
+  a mapper itself passes the step it updates with. See
+  [docs/api/input.md](docs/api/input.md#rgameengineactionmapper).
 
 - **A node plays sound through the `AudioOut` system.** `RGame::Game` mounts
   `RGame::Engine::AudioOut` on the root, holding the sound device. Write

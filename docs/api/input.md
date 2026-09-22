@@ -56,17 +56,26 @@ map = RGame::Engine::InputMap.new(
 )
 ```
 
-An entry uses up to three kinds of source, and may combine them:
+An entry names up to four kinds of source, and may combine them:
 
 | Key | Read with | Meaning |
 |---|---|---|
 | `buttons:` | `held?` / `pressed?` / `released?` | down if **any** listed id is down |
 | `axis:` | `axis` | `[negative_id, positive_id]`, or a list of such pairs — a digital axis from buttons |
 | `stick:` | `axis` | an analog axis id, for a real stick or a trigger |
+| `all:` | `held?` / `pressed?` / `released?` | a chord: down while **every** id of it is down |
+
+Two more keys say *when* the buttons count as pressed, in seconds:
+
+| Key | Means |
+|---|---|
+| `hold:` | the action presses once its buttons have been down that long |
+| `tap:` | the action presses on a release that came within that long |
 
 `map[action]` returns an entry as an `InputMap::Binding`: a frozen Struct with
-`buttons`, `pairs` and `stick`. `pairs` is always a list of pairs, even when the
-entry gave one, and a source the entry does not use is `nil`.
+`buttons`, `pairs`, `stick`, `all`, `hold`, `tap` and `silences`. `pairs` is
+always a list of pairs and `all` a list of chords, even when the entry gave one
+of each, and a source the entry does not use is `nil`.
 
 A list of pairs binds several controls to one axis. The default `move_x` uses
 this for the arrows, WASD and the d-pad:
@@ -81,6 +90,56 @@ When an action binds several axis sources, **the largest deflection wins**. No
 per-device branching is needed. A keyboard reads `0.0` for every stick, and a
 gamepad reads `false` for every key. The source for the other device contributes
 nothing.
+
+### A hold, a tap and a chord
+
+**A long press is declared, not counted by the caller.** One button backs two
+actions, and the map says which of them a press was:
+
+```ruby
+map = RGame::Engine::InputMap.new(
+  open:   { buttons: [Controls::KEY_E, Controls::PAD_A], tap: 0.3 },
+  search: { buttons: [Controls::KEY_E, Controls::PAD_A], hold: 0.6 }
+)
+```
+
+E tapped opens the chest; E held searches it. A press answers exactly one of the
+two: holding past `tap:` means the release presses nothing, so a search never
+opens the chest on the way out.
+
+A game reads the same three queries as for a plain button, because
+`ActionMapper` decides what "down" means per action before writing the level a
+snapshot carries:
+
+| Declared | `held?` is true |
+|---|---|
+| `buttons:` alone | while its buttons are down |
+| `hold: 0.6` | from 0.6 s after they went down until they come up |
+| `tap: 0.3` | for one tick, on a release that came inside 0.3 s |
+
+So a hold presses once per press, however long it lasts, and a tap is a one-tick
+pulse whose `released?` follows on the next tick.
+
+**A chord is buttons held together.** `all:` presses when the last of its ids
+arrives and reads held while every one of them is down:
+
+```ruby
+swap: { all: [[Controls::KEY_Q, Controls::KEY_E],
+              [Controls::PAD_LEFT_SHOULDER, Controls::PAD_RIGHT_SHOULDER]] }
+```
+
+A chord is held on one device, so an entry takes a chord per device, as `axis:`
+takes a pair per device. The action is held while any one of them is complete.
+
+**While a chord is held, the plain actions on its buttons read as not held.** So
+the shoulder button that blocks stops blocking through the swap, and no action
+has to check for the chord itself. Which actions a chord covers is worked out
+from the map at construction and is on its binding as `silences`. A chord's
+`pressed?` and the silenced action's `released?` land on the same tick, and the
+plain action presses again when the chord breaks with its own button still down.
+
+`held_for` keeps counting through all of this, because it answers for the
+buttons rather than for the level.
 
 ### One table serves every device
 
@@ -164,7 +223,10 @@ map = RGame::Engine::InputMap.default.merge(fire: { buttons: [Controls::KEY_RETU
 ```
 
 **A malformed entry raises at construction.** That covers an unknown source key,
-an entry with no source, an empty button list, and an axis that is not a pair.
+an entry with no source, an empty button list, an axis that is not a pair, a
+chord of fewer than two ids, an action declaring both `hold:` and `tap:`, a
+threshold with no buttons or chord to measure, and a threshold that is not a
+positive number.
 Otherwise the action would read as "never pressed" for the rest of the program.
 Someone would discover it as a frame where nothing moves.
 
@@ -175,13 +237,24 @@ map and returns the `Actions` snapshot game logic reads.
 
 ```ruby
 mapper = RGame::Engine::ActionMapper.new(map, device: Controls.gamepad(0))
-actions = mapper.poll(input)
+actions = mapper.poll(input, dt)
 
 actions.held?(:fire)      # is it down now
 actions.pressed?(:fire)   # did it go down this tick
 actions.released?(:fire)  # did it come up this tick
 actions.axis(:turn)       # -1.0..1.0
+actions.held_for(:fire)   # seconds its buttons have been down
 ```
+
+**`poll` takes the timestep** in seconds, because an action can be declared as a
+hold or a tap and those are answers about time. The mapper is the one place that
+sees every action once a tick, so it counts, and nothing else has to.
+
+`held_for` is `0.0` at rest and survives the tick of the release, so
+`released?(:door) && held_for(:door) > 1.0` is the length of the press that just
+ended. The tick after that it is `0.0` again. It counts the action's buttons, so
+a hold that has not reached its threshold and a chorded action that is silenced
+both still report the press.
 
 **Asking about an undeclared action raises `KeyError`**, naming the action and
 listing the declared ones. A mistyped name fails on the first tick instead of
@@ -282,6 +355,7 @@ player's:
   player already holds the action is no press, so one press still does one
   thing.
 - `axis` is the active players' value of largest magnitude.
+- `held_for` is the longest any active player has held it.
 
 ```ruby
 require 'rgame'
