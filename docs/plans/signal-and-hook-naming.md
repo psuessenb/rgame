@@ -777,6 +777,122 @@ before it lands.
    it. It is the largest step:
    about 280 `on_` definitions and about 27 component work hooks, plus their
    calls and docs.
+
+   *Detailed at `b76e61e`, against the code below.*
+
+   | Measured at `b76e61e` | |
+   |---|---|
+   | Lines naming a `Node2D` or `Component` hook, or one of the three UI hooks | 512, in 138 files: `lib/` 104, `examples/` 153, `test_projects/` 34, `spec/` 102, `docs/api/` 107, the rest in `tools/`, skills, CLAUDE.md, README.md and `spec_core/` |
+   | `Component` subclasses overriding a work hook | 18 files, all in `lib/`: 25 definitions of `update`, `control`, `draw` and `sweep_freed` |
+   | Spec lines calling a component's work hook directly | 147, in 25 files, found by tracing `rake spec`: `update` 124, `control` 13, `draw` 8, `sweep_freed` 2 |
+   | Callers of a hook outside its own object | `Node2D` calls a component's four hooks; 21 spec lines and the generated project's spec call `on_draw` |
+   | `Component#sweep_freed` | a hook too: `SceneStack` overrides it, and nothing else does |
+   | Engine `Node2D` subclasses overriding `update` or `draw` with `super` | 5: `Button`, `DialogueBox`, `Menu`, `PlayerLayer`, `WorldView` |
+   | `_` methods in `lib/`, `examples/` and `test_projects/` | 0 since step 3; one in `sealed_privates_spec.rb` (`_helper`) |
+   | Classes extending `Signal::DSL` | 5: `Node2D`, `Component`, `Dialogue`, `Players`, `StateMachine` |
+   | `rake spec` | 2948 examples, 0 failures |
+
+   **Hooks stay public.** `Node2D` calls a component's hooks from outside it,
+   and specs call `_draw` to check what a node draws, the generated project's
+   among them. The `_` says who calls a hook in a game, not what Ruby allows.
+
+   **`Component#sweep_freed` becomes `_sweep_freed`.** Decision 5's table
+   misses it, but it fits its rule: `Node2D#sweep_freed` is the step, and a
+   container component overrides the hook to forward it. `Button#update` and
+   the other four engine overrides of `update` and `draw` stay. They extend
+   the machinery with `super`, which is what a seam is, and nothing a game
+   calls changes.
+
+   **Both guards are built.** They catch different mistakes, and neither
+   covers the other's:
+
+   ```ruby
+   # Signal::DSL, for every class extending it
+   def method_added(name)
+     super
+     declarer = ancestors.find { it.signal_methods.include?(name) }   # connect and emit reader
+     raise NameError, "Lever#on_activated would replace what signal :activated generated in UI::Button ..." if declarer
+   end
+
+   # Engine::Hooks, extended onto Node2D and Component beside SealedPrivates
+   module Hooks
+     def hook(*names) = ...        # declares a new hook: hook :_gain_focus, before its def
+     def method_added(name)
+       super
+       # raises NameError when a subclass defines a _ method that no ancestor
+       # defines and this class did not declare, listing the hooks it has
+     end
+   end
+   ```
+
+   - **The signal guard** raises when a subclass defines a method `signal`
+     generated: the connect method or the emit reader. The `Lever` in "Both
+     mix-ups are silent" then fails where it is written. `signal` registers
+     its names after defining them, so its own definitions pass, and
+     declaring the same signal again in a subclass raises too.
+   - **The hook guard** raises on `_updte`, on a Godot `_process`, and on
+     `_attach` in a node, which is a component's hook. A class that adds a
+     hook of its own declares it first, as `Button` does for `_gain_focus`.
+     It costs a game one thing: a node or component cannot name a helper
+     with a leading `_`, which decision 3 gives to hooks anyway.
+
+   Two guards were considered and not built:
+
+   - **An old `on_` hook name in a subclass.** A `def on_draw` after the
+     rename is never called. But `on_` is also a fair name for a game's own
+     handler, `def on_player_hit`, and a node that draws nothing shows the
+     mistake on the first frame. With no users, there is no old code to
+     migrate.
+   - **`def update` in a component.** It would never be called, but a card
+     game's `Deck` component can have a `draw`. The same first-frame symptom
+     applies.
+
+   Rules the specs pin:
+
+   1. `Node2D` calls `_control`, `_update`, `_draw`, `_enter_tree` and
+      `_exit_tree`; `Component` has `_attach`, `_detach`, `_control`,
+      `_update`, `_draw` and `_sweep_freed`, and no `update`, `control` or
+      `draw`.
+   2. `Button#focused=` calls `_gain_focus` or `_lose_focus`, only on a
+      change. `DialogueBox` calls `_draw_portrait`.
+   3. A `Menu` calls its navigation's `control`, `opened` and
+      `buttons_changed`.
+   4. A subclass defining a signal's connect method or emit reader raises
+      `NameError` naming the signal and where it was declared, however the
+      method is made. The declaring class itself does not raise.
+   5. A `Node2D` or `Component` subclass defining a `_` method no ancestor has
+      raises `NameError` listing the hooks. Overriding an ancestor's hook,
+      and one declared with `hook`, do not. `hook` refuses a name without
+      the `_`.
+
+   - **4a. Overriding a signal's methods raises.** `Signal::DSL` and its
+     spec, and the rule in `signals.md`. Independent of the renames, so it
+     lands first.
+   - **4b. `Node2D`'s hooks take `_`.** One commit, because renaming a base
+     hook silences every override at once: the five hooks, every override
+     and caller, the two cops' method lists and the cop specs, the
+     generated project's templates, `tools/bench_node_draw.rb`, `docs/api/`,
+     the skills and CLAUDE.md.
+   - **4c. `Component`'s hooks take `_`.** The six hooks, the 18 files that
+     override them, the 147 spec calls, and the docs.
+   - **4d. The UI hooks.** `_gain_focus` and `_lose_focus` for
+     `on_focus_changed`, `_draw_portrait`, and `Navigation`'s `control`,
+     `opened` and `buttons_changed`, with `Stepping`, `Pointing` and `ui.md`.
+   - **4e. A misspelled hook raises.** `Engine::Hooks`, its spec, `hook`
+     declarations in `Button` and `DialogueBox`, the `_helper` example in
+     `sealed_privates_spec.rb`, `scene_graph.md`, `components.md` and the
+     CLAUDE.md section.
+
+   Each commit that changes a public name adds its `CHANGELOG.md` entry.
+
+   **Verify.** `grep -rnwE 'on_(draw|update|control|add|remove|attach|detach|focus_changed|draw_portrait|buttons_changed)'`
+   finds nothing outside `docs/plans/` and `CHANGELOG.md`. No `Component`
+   subclass defines `update`, `control`, `draw` or `sweep_freed`. Every
+   project under `examples/` and `test_projects/`, driven with its default
+   script and `--seed 1 --texts`, reports the same as before the step, apart
+   from timings. Every hook is renamed, so every project is driven: a hook
+   nobody calls any more shows up there as a missing draw or a scene that
+   never changes.
 5. **Fold back and delete this plan.** Decision 6: `write-ruby-code` with the
    naming rules and whatever else moves from CLAUDE.md, the line in
    `write-plan`, and the listing in CLAUDE.md. `CHANGELOG.md` gets checked
