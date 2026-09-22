@@ -1,0 +1,183 @@
+# The rest of the README roadmap
+
+**Status: planned, nothing implemented.** Steps 0–4 of
+[the roadmap](04-roadmap.md) are detailed. Steps 5–14 are deliberately rough and
+get re-planned once the layer beneath them exists.
+
+| File | What it holds |
+|---|---|
+| [01-current-state.md](01-current-state.md) | what each item builds on, measured |
+| [02-prior-art.md](02-prior-art.md) | how Unreal, Unity, Godot and miniaudio answer the same questions |
+| [03-design.md](03-design.md) | the classes, item by item |
+| [04-roadmap.md](04-roadmap.md) | the order to build them in |
+
+## Goal
+
+Build the nine features left on [the README's roadmap](../../../README.md):
+input that reads holds and combos, a scene manager with transitions, a debug
+layer wired to collision, pushing and pulling, inventory and equipment screens,
+collectables and interactables, audio transitions, visual effects, and
+cutscenes. Tiled support is the tenth item and has
+[a plan of its own](../tiled-format/README.md).
+
+## Verdict
+
+**Eight of the nine are engine-layer Ruby over parts that already exist. One is
+C.** Nothing here needs a new subsystem, and no item is a plan of its own the
+way dialogue was.
+
+| Item | The shape it takes | Steps |
+|---|---|---|
+| Input | `hold:`, `tap:` and `all:` declared in the `InputMap`; `poll` takes `dt` | 1 |
+| Debug layer | an `Engine::Debug` system of named channels; shapes draw themselves | 1 |
+| Collectables | `Interactor` extends `Targeting`; `Collectable` frees its node | 1 |
+| Push and pull | `pushes:` on `Mover`, a `Pushable` mover, a `Grab` component | 2 |
+| Inventory | `UI::Grid`, `Stepping` over a grid, `UI::FocusGroup`, `UI::Tabs`, scrolling | 3 |
+| Visual effects | a fade node, `Components::Particles`, a bolt — plus blend modes in C | 2 |
+| Audio | fades, a crossfade, pause and resume, a volume per category | 1 |
+| Scenes | `SceneStack` defers and names its scenes; transitions; doors | 2 |
+| Cutscenes | a linear sequencer over `Engine::Tween` | 1 |
+
+**Three things carry more than one item, and each is built once.**
+
+1. **The tween**, which landed before this plan. A fade, a crossfade, a camera
+   move, a sliding crate and a cutscene's wait are all one.
+2. **The fade**, which is a tween and a rect the width of a view. A door uses
+   it, a cutscene uses it, a storm's flash is it with another colour, and a
+   lightning bolt's afterglow is it again.
+3. **"What is nearest in range on this layer"**, which `Components::Targeting`
+   already answers for a turret. Interacting asks the same question for another
+   reason, so `Interactor` extends it rather than asking it again.
+
+**One item changes how existing code behaves, and it is push and pull.**
+Everything else is additive. Pushing reaches into `CollisionSystem#move`, which
+is what gives every mover in the project its feel, so the driven examples are
+what decide whether it changed.
+
+**The C step is blend modes, and it stays inside OpenGL 1.1.**
+`glBlendFunc(GL_SRC_ALPHA, GL_ONE)` is core 1.0, so additive drawing needs no
+loader and no render target — see [01](01-current-state.md#f12). The work is in
+the draw queue: a blend mode has to travel with each command, as the clip does,
+because sorting reorders them.
+
+**Where the features meet is a test project, not a spec.** Nine features each
+verified alone is the failure CLAUDE.md names: two systems, both green, that
+compose badly. So `test_projects/adventure` is built in step 0 and grown by
+every step after it, and its drive script is what says a pickup reached the
+inventory and a door faded the music with the picture.
+
+## What was measured before planning
+
+Taken at `9abd338`, on this checkout.
+
+| | |
+|---|---|
+| `rake spec` | 3035 examples, 0 failures, 24.4 s |
+| GL functions called in `ext/` and `src/` | 21 distinct, 56 call sites, every one GL 1.1 |
+| `glBlendFunc` call sites | **1**, in `gl_backend.c` |
+| `poll` call sites | 3 in `lib/`, 70 in `spec/` |
+| Code in `lib/` that times a held button | **none** |
+| Roots hand-writing a deferred scene switch | **2**, each with a comment saying why |
+| Interaction patterns hand-written in `examples/quests_and_dialogue` | **3**: nearest on confirm, read on touch, pick up on touch |
+| `renderer.debug_box` callers outside specs | **0** |
+| Scenes mounting a `CollisionWorld` / a `TileWorld` | 6 / 5 |
+| Examples with a `WorldView` | 5, plus `test_projects/tiled_world` |
+| `Engine::Tween` consumers | 7 |
+| Music tracks in `examples/assets/` | **1**, 93 KB of the directory's 124 KB |
+
+## Hard constraints
+
+1. **The engine layer may not name `RGame::Core`.** Everything here is
+   `RGame::Engine`, with two exceptions: step 9's blend modes, which are Core
+   and C, and step 10's audio entry points.
+2. **One runtime gem dependency, `rexml`, and no more.**
+3. **Text a player reads is a translation key**, drawn through `Engine::Text`.
+   `Game/NoLiteralText` holds it for `lib/` and `examples/`.
+4. **Nothing on a draw path allocates or reads a clock.** Every effect here
+   accumulates in `update(dt)` and draws from state.
+5. **A fake must refuse what the real thing refuses.** A renderer or audio
+   method added in a step lands in its contract and its fake in the same
+   commit.
+6. **`Node2D` and `Component` subclasses obey the naming rules**: a signal is a
+   past-tense verb, a hook takes `_`, and `rgame_` is sealed. See
+   [write-ruby-code](../../../.claude/skills/write-ruby-code/SKILL.md).
+7. **Every feature works with two players.** A step's specs include a second
+   player where the feature is per player.
+8. **An asset ships only if it is CC0 or drawn here**, because
+   `examples/assets/` ships inside the gem.
+
+## Decisions already taken
+
+Settled in the question round before this plan was written. Not up for
+re-litigation inside the plan.
+
+1. **One plan, one roadmap.** The dependencies cross themes: fades feed scenes,
+   audio, effects and cutscenes; interaction feeds the inventory and the
+   cutscene. Each step still lands alone, so a release may follow any of them.
+2. **A long press is declared, not counted by the caller.** `hold: 0.5` makes an
+   action press once its buttons have been down that long; `tap: 0.3` makes one
+   press on release, and only if released sooner. `held_for` answers the
+   duration for a game that wants the number. This is what Unreal and Unity
+   both do — see [02](02-prior-art.md#input-a-trigger-per-action-not-a-timer-per-caller).
+3. **A combo is a chord.** Buttons down together, `all: [PAD_LB, PAD_RB]`. While
+   a chord is held, the plain actions on its buttons read as not held.
+   Sequences and double taps go to `possible-todos.md`.
+4. **Time enters input through `poll`.** `Players#poll(backend, dt)` down to
+   `ActionMapper#poll(backend, dt)`. The break is cheap now and gets no cheaper.
+5. **`SceneStack` defers every switch itself** and can name its scenes. The
+   deferral is required for correctness, so the engine makes it rather than
+   asking each game to.
+6. **A transition shows one scene at a time.** Fade out, switch while covered,
+   fade in. A crossfade shows two and needs the offscreen render target, which
+   stays a possible-todo — and nothing else in this plan needs it.
+7. **The hero node crosses a room change.** The old scene hands it over and the
+   new one places it at a named entrance. Its components leave the old scene's
+   systems and join the new one's through `exit_tree` and `enter_tree`, which
+   is what happens to any node that moves.
+8. **The debug layer has named channels.** `:stats` and `:shapes` ship, a game
+   adds its own, code switches any of them, and a release build turns the
+   development keys off.
+9. **Pushing is free, and a grid puzzle is an example.** A mover declares
+   `pushes:`, and a crate is a mover that only moves when pushed. The
+   Sokoban-style block that slides one cell is `OccupiesCell` plus a tween, with
+   no engine change.
+10. **The inventory ships screens, not items.** A grid, navigation across it,
+    focus that crosses menus, tabs switched with the shoulder buttons, and
+    scrolling. What an item *is* belongs to the game.
+11. **Two inventory examples.** A short one that shows the parts, and one that
+    shows a modern screen: tabs, an equipment screen that dresses a character,
+    and a bag that says what is worn. The dialogue examples are the precedent.
+12. **Interacting is a component; collecting is one too.** `Interactor` picks
+    the nearest interactable and emits on the press. `Collectable` frees its
+    node when touched, and plays a sound if given one.
+13. **Audio gets four transitions**: a fade in and out, a crossfade, pause and
+    resume, and a volume per category. Ducking goes to `possible-todos.md`.
+14. **A fade is driven by `update`,** like every other tween, with miniaudio's
+    own fade as the fallback if stepping the volume 60 times a second is
+    audible. The step ships an example to judge that by ear.
+15. **Lightning is both a bolt and a storm's flash**, sparkles come from an
+    engine emitter, and **additive blending is in scope** because it stays
+    inside GL 1.1.
+16. **A cutscene is a linear script.** Each step ends after a duration, on a
+    signal or on a press. It branches only through a conversation's responses,
+    and skipping finishes every remaining step at once.
+17. **Split-screen is in scope throughout.** Holds, chords, interacting,
+    pushing and the inventory are per player; a scene change and a cutscene are
+    for everyone. Two players in two rooms at once is out: the engine has one
+    shared world.
+
+## Open questions
+
+1. **Which second music track, and is it worth 90 KB in the gem?** The
+   crossfade example needs two loops, and `examples/assets/` has one.
+   `examples/assets/README.md` already measured four candidates from the same
+   CC0 pack for seam and tail silence. Waits on step 10. Blocks nothing before
+   it.
+2. **Which keyboard keys stand in for the shoulder buttons?** A tab bar is
+   built for LB and RB, and a keyboard needs an answer: `Q`/`E`, which games
+   use for shoulder buttons, or `Tab`/`Shift+Tab`, which desktop software uses.
+   The universal UI set gains two actions either way. Waits on step 6.
+3. **Does `Interactor` stay a subclass of `Targeting`?** They answer the same
+   question, so the design makes them one class. A facing-aware policy — "what
+   am I looking at", not "what is nearest" — may not fit a turret. Waits on
+   step 3's landing.

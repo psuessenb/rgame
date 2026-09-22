@@ -319,11 +319,11 @@ A file-by-file map of the whole repository is in
 
 There is no real roadmap for this project, but there are a few features on my mind which I want to include in the next release(s):
 
-- support more of Tiled's features. Orthogonal maps will stay the only one supported for a while, though.
+- support more of Tiled's features. Orthogonal maps will stay the only one supported for a while, though. - **IN PROGRESS**
 - allow better input-to-action-mapping for complexer inputs like long presses or button combinations
 - a better scene manager that means less boilerplate in each game with scene transitions. With it an example for teleports/room-transitions
 - allow toggeling the debug layer and connect it better to systems like collision (show collision boxes on toggle)
-- a dialogue system and better text representation - DONE
+- a dialogue system and better text representation - **DONE**
 - an examples (and if needed, new components) for pushing and pulling objects in the game world
 - an example (and if needed, new components) for inventory and equipment screens
 - an example (and if needed, new components) for collectable and interactable nodes like coins and treasure chests
