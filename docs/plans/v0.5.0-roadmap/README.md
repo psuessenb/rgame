@@ -1,6 +1,6 @@
 # The rest of the README roadmap
 
-**Status: planned, nothing implemented.** Steps 0–4 of
+**Status: step 0 is implemented.** Steps 0–4 of
 [the roadmap](04-roadmap.md) are detailed. Steps 5–14 are deliberately rough and
 get re-planned once the layer beneath them exists.
 

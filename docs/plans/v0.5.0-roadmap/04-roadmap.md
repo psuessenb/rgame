@@ -1,8 +1,9 @@
 # Roadmap
 
-Fifteen steps. Each is one branch and one pull request, and its sub-steps are
-one commit each. **Steps 0–4 are detailed. Steps 5–14 are deliberately rough**
-and get re-planned once the layer beneath them exists.
+**Status: step 0 is implemented.** Fifteen steps. Each is one branch and one
+pull request, and its sub-steps are one commit each. **Steps 0–4 are detailed.
+Steps 5–14 are deliberately rough** and get re-planned once the layer beneath
+them exists.
 
 ## Dependency shape
 
@@ -104,6 +105,39 @@ ruby tools/drive_test_project.rb test_projects/adventure/main.rb --ticks 240
 
 reports two viewports' worth of draw calls, one scene entered, and 240 ticks
 against its frames.
+
+**Landed.** Four files and the drive script, as sketched. `rake spec` 3035
+examples 0 failures, `rake spec:core` 476 examples 0 failures, `make test` 380
+checks 0 failures. The driven run reports 240 ticks against 240 frames, one
+scene pushed, 898 `tilemap` calls, 569 `sprite` calls, three clip rectangles —
+the full window 271 times, each half 209 times — and no audio. Two runs are
+byte-identical without a seed, because nothing in the project is random.
+
+Rule 2 measures as `translates … y -103.0..298.0`. 298 is the fence's top edge
+less the hero's height, with the feet box flush against it; player two holds
+south for 140 ticks, which is 187 pixels of travel from y 240, so an unstopped
+hero would end 129 pixels further south. Rule 1 measures as the clip count: 31
+frames of one viewport, then 209 of two, with the room counting nothing.
+
+What the sketch got wrong:
+
+- **The project's name collides with a guard nobody thought about.**
+  `spec/game_references_spec.rb` derives the forbidden words from
+  `test_projects/`, and `examples/assets/README.md` records a Kenney pack titled
+  *UI Pack - Pixel Adventure*. The spec now strips that title before matching,
+  beside the `snake_case` strip that was already there. Every later step that
+  adds a game keeps paying this: the guard treats a game's name as a word no
+  other file may use.
+- **`docs/project_structure.md` said test projects read from `media/`**, which
+  this one does not — it reads the town map, its tileset and the hero sheet from
+  `examples/assets/`. The entry now says they do not ship, so either directory
+  is open to them.
+- **No `CollisionWorld`.** The sketch's `blocked_by: [:tiles]` needs only a
+  `TileWorld`; a `FeetCollider` in a scene with no broadphase stays a bare
+  shape. Step 4's crate is what mounts the second index.
+- **No `PlayerLayer`.** Nothing is drawn in screen space yet, so every layer in
+  the report is in the `:world` band. The first step that adds a HUD splits
+  that count.
 
 ---
 
