@@ -942,3 +942,102 @@ before it lands.
    naming rules and whatever else moves from CLAUDE.md, the line in
    `write-plan`, and the listing in CLAUDE.md. `CHANGELOG.md` gets checked
    against every rename.
+
+   *Detailed at `1640caf`, against the code below.*
+
+   **What was measured before detailing.**
+
+   | | |
+   |---|---|
+   | CLAUDE.md sections that are Ruby rules | 2: "`Node2D` and `Component`: `rgame_` seals a method, `_` marks a hook" (35 lines) and "A label built from a changing value" (46 lines) |
+   | Unreleased `CHANGELOG.md` entries that describe a state v0.4.0 never had | 3, below |
+   | Stale hook names in CLAUDE.md | 1 example, in "`draw` renders state": `def update(dt)` and `def draw(renderer)` |
+   | Files linking to this plan | 0, outside the plan itself |
+   | "What proved wrong" bullets across #95, #96, #97 and #99 | 16 |
+
+   **The three changelog entries.** Checked with `git show v0.4.0:<file>`:
+
+   - "Two signals are renamed" names `Dialogue#on_beat`, but `Dialogue` did
+     not exist in 0.4.0. For a reader upgrading, only the timer's signal is
+     renamed.
+   - "The UI's hooks follow the same rule" names `on_draw_portrait`, but
+     `UI::DialogueBox` did not exist in 0.4.0. Its Added entry gains the hook
+     instead.
+   - "`Node2D`'s sealed machinery starts with `rgame_`" ends "A method
+     starting with `_` is an ordinary name again". Step 4 made that false. It
+     also names `Component`'s private `rgame_` methods, and `Component` has
+     none.
+
+   **What moves out of CLAUDE.md.** Decision 6 left three candidates.
+
+   - **The sealing section moves.** It is a naming rule, and the skill is
+     where the naming rules go. CLAUDE.md keeps three sentences under "Design
+     out misuse": the four kinds of name, the three guards, and a link.
+   - **The `Engine::Text` section moves.** It answers one cop's offense. What
+     makes the move safe is the cop itself: its message says "Build the
+     string once (on change) and use the cached value", which invites the
+     hand-rolled cache the section forbids. The message names
+     `RGame::Engine::Text` instead, so the rule reaches whoever the cop
+     stops, with or without the skill loaded. The cop ships in the gem, so
+     the message change gets a Changed entry.
+   - **The Ruby conventions line stays.** RuboCop enforces two of its three
+     rules, and the third is where the config lives. Moving it would add a
+     line to the skill and change nothing.
+
+   **The skill's shape**, per `write-skill`:
+
+   ```markdown
+   ---
+   name: write-ruby-code
+   description: <triggers: writing or editing Ruby under lib/, examples/,
+     test_projects/ or spec/; naming a method, signal or hook; subclassing
+     Node2D or Component; a Game/NoInterpolationInHotPath offense; a Ruby
+     sketch in a plan>
+   ---
+
+   # Writing Ruby for rgame
+   ## A name says which mechanism it is      the table of four kinds of name
+   ### A signal is a past-tense verb          the tense test, on_beat and on_timeout
+   ### A hook is the step the engine performs _gain_focus, on_portrait, Navigation
+   ### Node2D and Component: sealed or a seam moved from CLAUDE.md
+   ### What the guards cannot see             include and prepend
+   ## A label built from a changing value     moved from CLAUDE.md
+   ```
+
+   **Learning from the 16 bullets.** One lesson repeats: a count by one
+   spelling missed another. Step 3 counted `def` and missed an
+   `attr_accessor`, and step 4's trace missed hooks named by symbol in stubs.
+   No guard can check a plan's count, and `write-plan` says only "Count the
+   actual call sites". It gains one sentence. Every other bullet is a fact
+   about one step, or is already said: `verify` has the frame-drift caveat,
+   and `write-docs` the search of every page.
+
+   **What gets rescued.** Two items have a trigger, and go to
+   `docs/plans/possible-todos.md` as one entry:
+
+   - `on_hit` passes the tense rule weakly. Trigger: a change to the
+     collision API.
+   - `Players`, `Viewports` and `Facts` callers still use `system`, which
+     returns nil. Trigger: a `NoMethodError` on nil from one of them.
+
+   Everything else in the plan is either built, or a decision whose reason
+   the skill or `docs/api/` now states. The dated research note that links to
+   `AudioBus` stays as written, as step 1 decided.
+
+   - **5a. `CHANGELOG.md` against v0.4.0.** The three corrections.
+   - **5b. `write-ruby-code`.** The skill; the two sections leave CLAUDE.md,
+     which lists the skill and fixes its stale example; `write-plan` loads
+     the skill before a Ruby sketch.
+   - **5c. The cop names `Engine::Text`.** The message, its spec, and a
+     Changed entry.
+   - **5d. `write-plan` counts every spelling.** The one lesson.
+   - **5e. Rescue and delete.** The `possible-todos.md` entry, and this file
+     goes.
+
+   **Verify.** `.claude/skills/write-ruby-code/SKILL.md` exists, and CLAUDE.md
+   and `write-plan` link it. `grep -rn "signal-and-hook-naming"` finds
+   nothing. `grep -rnw "on_draw\|on_update\|on_control\|on_add\|on_remove\|on_attach\|on_detach"`
+   finds nothing outside `CHANGELOG.md`'s rename entries and released
+   sections. Each Unreleased entry names only what v0.4.0 had, or what it
+   adds. The standing tiers pass. No drive runs: nothing here changes what a
+   frame does.
