@@ -21,8 +21,8 @@ module RGame
       # confirm then picks the focused one. The marker is a button in the box's
       # UI::Menu, so every confirm the box acts on goes through the menu's
       # press rules: the confirm that opened the conversation, or finished a
-      # line, picks nothing. The box reads no input of its own, and answers to
-      # its `input_owner` as every node does.
+      # line, picks nothing. The box reads no confirm of its own, and answers
+      # to its `input_owner` as every node does.
       #
       # ## Responses the player cannot pick
       #
@@ -37,6 +37,26 @@ module RGame
       # the script has, so it never resizes during a conversation. The line
       # breaks at what is left of the width after the padding and
       # `portrait_width`, a column kept free at the left for `_draw_portrait`.
+      #
+      # ## The log
+      #
+      # `log:` names an action that opens the log, a paged UI::Label over the
+      # dialogue's transcript, in place of the speaker, the line and the
+      # responses:
+      #
+      #   UI::DialogueBox.new(dialogue: talk, unavailable: :hide, width: 600, log: :log)
+      #
+      # It opens on its last page. `ui_up` and `ui_down` turn the pages, and
+      # `log` or `ui_cancel` closes it. While it is open the conversation does
+      # not move and the line's reveal holds. It renders its text again only
+      # when an entry arrives or the language changes, and only while open.
+      #
+      # Each line reads "Speaker: line", and each response its label alone.
+      # Both are punctuation rather than words; a language that wants another
+      # form passes `log_entry:`, a Text whose variables are `:speaker` and
+      # `:line`, such as `Engine::Text.new('log.entry', :speaker, :line)`. The
+      # log is *a* representation of the transcript; a game with its own reads
+      # Engine::Dialogue#transcript.
       #
       # ## When the conversation ends
       #
@@ -72,15 +92,21 @@ module RGame
         # `reveal:` are the line's, as UI::Label takes them. `panel:` is drawn
         # behind the whole box and `button_style:` behind each response; either
         # is anything answering `draw(renderer, state, width, height)`, as a
-        # button's style does. Raises `ArgumentError` for any other
-        # `unavailable:`, and for a dialogue that has ended.
+        # button's style does. `log:` is the action that opens the log, or nil
+        # for no log, and `log_entry:` formats one of its lines. Raises
+        # `ArgumentError` for any other `unavailable:`, for a `log_entry:` whose
+        # variables are not `:speaker` and `:line`, and for a dialogue that has
+        # ended.
         def initialize(dialogue:, unavailable:, width:, lines_per_page: 3, reveal: 40,
                        typeface: Util::Typeface.default, panel: ShapeStyle::DEFAULT,
-                       button_style: ShapeStyle::DEFAULT, padding: 12, portrait_width: 0, **)
+                       button_style: ShapeStyle::DEFAULT, padding: 12, portrait_width: 0,
+                       log: nil, log_entry: nil, **)
           unless UNAVAILABLE.include?(unavailable)
             raise ArgumentError, "unavailable: must be one of #{UNAVAILABLE.inspect}, not #{unavailable.inspect}"
           end
           raise ArgumentError, 'the dialogue has ended; a box needs one still running' if dialogue.ended?
+
+          check_log_entry(log_entry)
 
           super(width:, **)
           @dialogue = dialogue
@@ -100,8 +126,14 @@ module RGame
           @marker = Marker.new(@line, COLOR)
           @marker.on_activated { advance }
           self.height = @menu.y + menu_height(column) + padding
+          build_log(log, log_entry, text_width)
           read_back
         end
+
+        # The action that opens the log, or nil.
+        attr_reader :log
+
+        def log_open? = @log_open
 
         hook :_draw_portrait
 
@@ -115,16 +147,75 @@ module RGame
         # doing what every node does.
         def update(dt)
           super
-          show_responses if !@paused && ready_for_responses?
+          show_responses if !@paused && !@log_open && ready_for_responses?
+        end
+
+        # Opens and closes the log, and turns its pages.
+        # hot-path
+        def _control(actions)
+          return if @log.nil?
+          return open_log if !@log_open && actions.pressed?(@log)
+          return unless @log_open
+          return close_log if actions.pressed?(@log) || actions.pressed?(:ui_cancel)
+
+          @log_label.page -= 1 if actions.pressed?(:ui_up)
+          @log_label.page += 1 if actions.pressed?(:ui_down)
         end
 
         def _draw(renderer, _view)
           @panel.draw(renderer, :idle, width, height)
+          return if @log_open
+
           _draw_portrait(renderer, @speaker)
           renderer.text(@speaker_name, @text_x, @padding, font: @typeface, color: COLOR)
         end
 
         private
+
+        def check_log_entry(log_entry)
+          return if log_entry.nil? || (log_entry.is_a?(Text) && log_entry.names == %i[line speaker])
+
+          raise ArgumentError, 'log_entry: must be an Engine::Text with the variables :speaker and :line, ' \
+                               "got #{log_entry.inspect}"
+        end
+
+        def build_log(log, log_entry, text_width)
+          @log = log
+          @log_open = false
+          return if log.nil?
+
+          @log_entry = log_entry || Text.computed(:speaker, :line) { |speaker:, line:| "#{speaker}: #{line}" }
+          text = Text.computed(:count) { |count:| log_text(count) }
+          lines = ((height - (2 * @padding)) / @typeface.height).floor.clamp(1, nil)
+          @log_label = Label.new(text:, x: @text_x, y: @padding, width: text_width, typeface: @typeface,
+                                 lines_per_page: lines)
+        end
+
+        def log_text(count)
+          @dialogue.transcript.first(count).map { log_line(it) }.join("\n")
+        end
+
+        def log_line(entry)
+          return entry.text.to_s if entry.response
+
+          @log_entry.with(speaker: entry.speaker_name.to_s, line: entry.text.to_s)
+        end
+
+        def open_log
+          @log_open = true
+          remove_node(@line)
+          @menu.close
+          @log_label.with(count: @dialogue.transcript.size)
+          add_node(@log_label)
+          @log_label.page = @log_label.page_count - 1
+        end
+
+        def close_log
+          @log_open = false
+          remove_node(@log_label)
+          add_node(@line)
+          @menu.open
+        end
 
         def advance
           if !@line.revealed?

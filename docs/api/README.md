@@ -11,7 +11,7 @@ or write C.
 | [The `rgame` command](cli.md) | `rgame new NAME` — starting a project, and the layout it gives you |
 | [App](app.md) | `RGame::Core::App` — the window and the frame loop |
 | [Game](game.md) | `RGame::Game` — the entry point that wires both halves together |
-| [Input](input.md) | `RGame::Core::Input`, `RGame::Util::Controls`, `RGame::Core::Gamepad`, `RGame::Core::VirtualGamepad` |
+| [Input](input.md) | `RGame::Core::Input`, `RGame::Util::Controls`, `RGame::Core::Gamepad`, `RGame::Core::VirtualGamepad`, and `Players#everyone` for input every player shares |
 | [Drawing](drawing.md) | `RGame::Core::Renderer` — shapes, images, transforms, clipping, recordings |
 | [Images](images.md) | `RGame::Core::Image` — loading PNGs, subimages, tiles |
 | [Text](text.md) | `RGame::Core::Font`, `Renderer#text`, `RGame::Util::Typeface` and `RGame::Engine::Paragraph` |

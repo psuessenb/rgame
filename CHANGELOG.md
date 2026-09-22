@@ -103,6 +103,14 @@ index, not the argument.
   and it frees itself when the conversation ends. A subclass draws a portrait
   beside the line in `_draw_portrait`. See
   [docs/api/ui.md](docs/api/ui.md#rgameengineuidialoguebox).
+- **A dialogue box can show its log.** `log:` on `UI::DialogueBox` names an
+  action that opens the transcript as a paged label in place of the line, and
+  `log_entry:` formats each line. The conversation waits while the log is open.
+  See [docs/api/ui.md](docs/api/ui.md#the-log).
+- **Every player can drive one node together.** `Players#everyone` is an input
+  owner whose buttons are the OR of every active player's, for a dialogue box, a
+  title screen or a pause menu during `solo!`. A `PlayerLayer` refuses it. See
+  [docs/api/input.md](docs/api/input.md#everyone-at-once).
 - **A menu can drop its buttons, and a label can change its text.**
   `UI::Menu#clear` removes every button. `UI::Label#text=` and
   `Engine::Paragraph#text=` take a new key or `Engine::Text`, and a label starts

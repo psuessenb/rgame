@@ -15,7 +15,7 @@ RSpec.describe RGame::Engine::UI::DialogueBox do
     end.new(10, 0)
   end
   let(:snapshot) do
-    reads = %i[ui_up ui_down ui_left ui_right ui_confirm]
+    reads = %i[ui_up ui_down ui_left ui_right ui_confirm ui_cancel log]
     held = reads.to_h { |name| [name, false] }
     previous = reads.to_h { |name| [name, false] }
     actions = engine::Actions.new(held: held, axes: {}, prev_held: previous)
@@ -337,6 +337,122 @@ RSpec.describe RGame::Engine::UI::DialogueBox do
     end
   end
 
+  describe 'the log' do
+    def press(action)
+      tick(action)
+      tick
+    end
+
+    # Talks to the smith as far as the work line, so the log holds a line, a
+    # response and a line.
+    def box_at_work(**)
+      box(log: :log, **).tap do |shown|
+        tick
+        choose(shown, 'ask_work')
+      end
+    end
+
+    it 'reads no action for it without log:' do
+      box
+      reads = %i[ui_up ui_down ui_left ui_right ui_confirm]
+      actions = engine::Actions.new(held: reads.to_h { [it, false] }, axes: {})
+      expect { root.control(actions) }.not_to raise_error
+    end
+
+    it 'opens on the log action, in place of the speaker, the line and the responses' do
+      shown = box_at_work
+      press(:log)
+      expect([shown.log_open?, texts.first(3)])
+        .to eq([true, ['Smith: Well met.', 'Any work?', 'Smith: The forge wants coal, the bellows want']])
+    end
+
+    it 'formats a line with the log_entry: given' do
+      engine::I18n.load_hash(en: { log: { entry: '%{line} (%{speaker})' } })
+      box_at_work(log_entry: engine::Text.new('log.entry', :speaker, :line))
+      press(:log)
+      expect(texts.first).to eq('Well met. (Smith)')
+    end
+
+    it 'refuses a log_entry: without :speaker and :line' do
+      expect { box(log: :log, log_entry: engine::Text.new('log.entry', :line)) }
+        .to raise_error(ArgumentError, /:speaker and :line/)
+    end
+
+    it 'opens on its last page, and turns the pages with ui_up and ui_down' do
+      shown = box(log: :log)
+      tick
+      8.times { choose(shown, 'again') }
+      press(:log)
+      log = line(shown)
+      last = log.page_count - 1
+      pages = [log.page]
+      press(:ui_up)
+      pages << log.page
+      press(:ui_down)
+      expect([last.positive?, pages << log.page]).to eq([true, [last, last - 1, last]])
+    end
+
+    it 'closes on the log action, showing the line again' do
+      shown = box_at_work
+      press(:log)
+      press(:log)
+      expect([shown.log_open?, texts.first]).to eq([false, 'Smith'])
+    end
+
+    it 'closes on ui_cancel' do
+      shown = box_at_work
+      press(:log)
+      press(:ui_cancel)
+      expect(shown.log_open?).to be(false)
+    end
+
+    it 'keeps the conversation where it was while open' do
+      dialogue = talk
+      box_at_work(dialogue:)
+      press(:log)
+      5.times { confirm }
+      expect([dialogue.beat, dialogue.transcript.size]).to eq([:work, 3])
+    end
+
+    it 'holds the line\'s reveal while open' do
+      shown = box_at_work(reveal: 40)
+      typing = line(shown)
+      press(:log)
+      shown_before = typing.revealed?
+      300.times { tick }
+      press(:log)
+      expect([shown_before, typing.revealed?, typing.page_length < 40 * 5]).to eq([false, false, true])
+    end
+
+    it 'reads in the language chosen while it is open' do
+      box(log: :log)
+      tick
+      press(:log)
+      engine::I18n.locale = :de
+      expect(texts).to eq(['Schmied: Sei gegrüßt.'])
+    end
+
+    it 'shows a transcript restored from a save' do
+      script = smith
+      played = engine::Dialogue.new(script, context: hero)
+      played.respond(played.responses[0])
+      transcript = engine::Dialogue::Transcript.from(played.transcript.to_h, script)
+      box(dialogue: engine::Dialogue.new(script, context: hero, from: played.to_h, transcript:), log: :log)
+      tick
+      press(:log)
+      expect(texts.first(3)).to eq(['Smith: Well met.', 'Any work?', 'Smith: The forge wants coal, the bellows want'])
+    end
+
+    it 'allocates nothing drawing while open' do
+      box_at_work
+      press(:log)
+      quiet = QuietRenderer.new
+      view = screen_view
+      root.draw(quiet, view)
+      expect { root.draw(quiet, view) }.to allocate_nothing
+    end
+  end
+
   describe 'who drives it' do
     let(:players) do
       engine::Players.new(
@@ -383,6 +499,43 @@ RSpec.describe RGame::Engine::UI::DialogueBox do
       untouched = dialogue.beat
       press_players(1)
       expect([untouched, dialogue.beat]).to eq(%i[greeting work])
+    end
+
+    # The file's shared helpers and this group's players, box and dialogue are
+    # each read by both examples here.
+    context 'with everyone as its input owner, during solo!' do # rubocop:disable RSpec/MultipleMemoizedHelpers
+      let(:dialogue) { talk }
+      let(:shown) do
+        described_class.new(dialogue:, unavailable: :disable, width: 400, lines_per_page: 6,
+                            band: :overlay, input_owner: players.everyone)
+      end
+
+      before do
+        root.add_component(players)
+        viewports = engine::Viewports.new(players, width: 640, height: 480)
+        root.add_component(viewports)
+        viewports.solo!(engine::Camera.new)
+        root.add_node(shown)
+        root.enter_tree
+        choose(shown, 'ask_work')
+        tick_players
+        tick_players
+      end
+
+      it 'lets player 1 reveal the line and player 2 continue it' do
+        press_players(0)
+        revealed = line(shown).revealed?
+        press_players(1)
+        expect([revealed, dialogue.beat]).to eq([true, :greeting])
+      end
+
+      it 'moves nothing on a press by one player while the other holds confirm' do
+        tick_players(0)
+        tick_players(0, 1)
+        tick_players(1)
+        tick_players
+        expect([line(shown).revealed?, dialogue.beat]).to eq([true, :work])
+      end
     end
   end
 end

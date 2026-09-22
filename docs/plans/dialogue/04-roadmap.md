@@ -1,7 +1,7 @@
 # Roadmap
 
-**Status: steps 0–5 are implemented.** Step 6 is detailed. Steps 7 and 8 are rough on purpose and get
-re-planned when the step before them lands.
+**Status: steps 0–6 are implemented.** Steps 7 and 8 are rough on purpose and
+get re-planned now that step 6 has landed.
 
 Each step is one branch and one pull request; each lettered sub-step is one
 commit. [implement-step](../../../.claude/skills/implement-step/SKILL.md) covers
@@ -1191,6 +1191,74 @@ open; the log after `transcript:` restored a saved conversation.
 `rake spec` green. A spec with two players and a box in the `:overlay` band
 during `solo!`, owned by `everyone`: player 1 reveals a line, player 2 continues
 it, and a press by one while the other holds confirm moves nothing.
+
+**Landed.** `Players#everyone` returns a `Players::Everyone`, in
+`lib/rgame/engine/players/everyone.rb`, and `UI::DialogueBox` takes `log:` and
+`log_entry:`. Three commits: 6a, 6b and 6c, and then this note.
+`docs/api/input.md` has "Everyone at once", with a headless example the doc
+specs run. `docs/api/ui.md` has "The log" under the box, and a paragraph on
+`everyone` under "Whose conversation it is". `docs/api/scene_graph.md` points to
+it from "Who a node answers to", the index row for Input names it, and
+`CHANGELOG.md` has two more entries under Added.
+
+`rake spec` ran 3004 examples, 0 failures, in 24.2 s. `players_spec.rb` gained
+17 of them, `player_layer_spec.rb` 2, and `dialogue_box_spec.rb` 14. `rake
+spec:core` ran 476, 0 failures, `rake docs:coverage` reported 0 of 179 classes
+with undocumented names, and `make test` ran 380 checks, 0 failures. The Verify
+spec passes: in the `:overlay` band during `solo!`, owned by `everyone`, player
+1's confirm reveals the work line and player 2's continues it. Player 2's
+confirm, pressed while player 1 holds confirm, leaves the beat at `:work`.
+Polling and reading `everyone` allocates nothing, and neither does drawing the
+open log. `examples/split_screen` and `examples/game_menu`, driven for 300 ticks
+with `--seed 1`, drew 300 frames each, and the split screen still split for two
+players.
+
+What the sketch got wrong or left out:
+
+- **`everyone` is a `Players::Everyone`, not a `Player`.** It answers only
+  `actions`, which is all `Players#actions_for` asks of an owner.
+  `PlayerLayer` checks for the class, and refuses it in `input_owner=` too, so
+  setting it after construction raises as well.
+- **With no active player, the primary player is its one member.** The first
+  draft returned the primary player's `Actions` instead of its own. The doc
+  example caught it: a node that kept `everyone.actions` from before the first
+  poll kept the primary player's object for good. Now `actions` is the same
+  object on every tick.
+- **The membership is rebuilt only when a player joins or leaves.** `poll`
+  compares the seated players with the members, allocating nothing, and
+  declares the actions again only on a change. So an action only a departed
+  player declared raises from the next tick.
+- **The box's own menu already refuses the overlapping press.** Mutating
+  `Everyone` so that every held tick read as a press failed 2 examples in
+  `players_spec.rb`, and none in `dialogue_box_spec.rb`. The menu takes no
+  confirm until it has seen confirm up. The union's edges matter for a node
+  that reads `pressed?` itself, such as a pause menu's toggle.
+- **The box reads one action of its own, `log`.** Step 5 said the box reads no
+  input. The log is not a confirm, so it does not go through the menu. The
+  box's `_control` opens and closes the log and turns its pages, and runs
+  before its children's.
+- **The log hides the line by taking it out of the tree, and closes the menu.**
+  `Node2D` has no visibility flag. A line out of the tree gets no `update`, so
+  its reveal holds, and a closed menu presses nothing. Both come back as they
+  were, with the same response focused, since `Stepping` keeps focus across
+  `open`.
+- **The log fills the whole box inside the padding**, at the line's width. The
+  speaker's name and the portrait go too: the current speaker's name above
+  someone else's line would read as a heading.
+- **`log_entry:` takes any `Text` with `:speaker` and `:line`**, a translation
+  as well as a `Text.computed`. Anything else raises `ArgumentError`. The
+  default is a `Text.computed` built per box.
+- **The log counts its entries as the `Text.computed` keyword.** The box calls
+  `with(count:)` when the log opens, so the text renders again only on a new
+  entry or a new language, and only while open.
+
+For step 7: a game with a log declares the action in its `InputMap`, since an
+undeclared `log:` raises `KeyError` on the first tick, as any action does.
+
+Where it got documented: `docs/api/input.md`, "Everyone at once";
+`docs/api/ui.md`, "The log" and "Whose conversation it is", and the `log:`,
+`log_entry:` and `log_open?` rows of the box's table;
+`docs/api/scene_graph.md`, "Who a node answers to".
 
 ---
 
