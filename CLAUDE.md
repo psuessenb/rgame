@@ -11,7 +11,7 @@ they're non-trivial and the name doesn't already tell the whole story.
 
 Comments inside methods or on private methods get automatically deleted on commit - write them freely, but don't rely on them. Write code that speaks and reads cleanly without those comments.
 
-Documentation rules live in the [write-docs](.claude/skills/write-docs/SKILL.md) skill; specs follow [write-spec](.claude/skills/write-spec/SKILL.md), plans [write-plan](.claude/skills/write-plan/SKILL.md), and the skills themselves [write-skill](.claude/skills/write-skill/SKILL.md). Ruby follows [write-ruby-code](.claude/skills/write-ruby-code/SKILL.md), which says how to name a signal, a hook and a method, and C follows [write-c-code](.claude/skills/write-c-code/SKILL.md).
+Documentation rules live in the [write-docs](.claude/skills/write-docs/SKILL.md) skill; specs follow [write-spec](.claude/skills/write-spec/SKILL.md), plans [write-plan](.claude/skills/write-plan/SKILL.md), and the skills themselves [write-skill](.claude/skills/write-skill/SKILL.md). Ruby follows [write-ruby-code](.claude/skills/write-ruby-code/SKILL.md), and C follows [write-c-code](.claude/skills/write-c-code/SKILL.md).
 
 Prose someone else reads is written with [write-prose](.claude/skills/write-prose/SKILL.md) loaded — load the skill before the first sentence, not from memory. That covers the top-level
 comments on modules, classes and C files, and the explaining comments on public

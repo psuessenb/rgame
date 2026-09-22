@@ -32,17 +32,14 @@ Declare the event, with no prefix: `signal :activated`, or
 `signal :changed, :index, :value` for a payload. The DSL generates `on_changed`
 to connect and a private `changed_signal` to emit on.
 
-The test: `on_<name>` reads as "when <name> happened". `on_beat` failed it and
-became `beat_entered`. `on_timeout` passed, but became `elapsed`, because a
-repeating timer's interval elapses on every fire and "timeout" suggests an end.
+The test: `on_<name>` reads as "when <name> happened".
 A verb that reads the same in both tenses, such as `hit`, passes weakly. No code
 can check tense, so this rule is written, not guarded.
 
 ### A hook is the step the engine performs, in the present tense
 
 `_draw`, `_update`, `_control`, `_enter_tree`, `_attach`. Name a new hook after
-the step that calls it, not after what it produces: `on_portrait` named a thing
-and became `_draw_portrait`. Tense then separates the two families a second
+the step that calls it, not after what it produces. Tense then separates the two families a second
 time, hooks present and signals past.
 
 - **A state that flips gets one hook per direction.** `UI::Button` calls
@@ -60,16 +57,14 @@ time, hooks present and signals past.
 
 These are the two classes a game subclasses. In Ruby `private` limits who may
 *call* a method, not who may *replace* one, so a subclass method named like the
-base's machinery silently switches that machinery off. A UI button's draw hook
-was first named `draw_content`, and broke every draw.
+base's machinery silently switches that machinery off.
 
 So in these two classes, and only there, every private or protected method is a
 decision:
 
 - **`rgame_` is machinery.** `Engine::SealedPrivates` raises `NameError` when a
   subclass defines one of the same name. The prefix matches the C layer's
-  `rgame_app_push_clip`. Not `__`, which reads as Ruby's `__send__`; not
-  `engine_`, which a racing game's `engine_power` would collide with.
+  `rgame_app_push_clip`.
 - **No prefix is a seam**, overridden with `super`, such as
   `Node2D#draw_children`. `spec/rgame/engine/sealed_privates_spec.rb` lists each
   class's seams, so an unprefixed method added without deciding fails there.
@@ -110,9 +105,7 @@ formatted rather than translated, uses
 same rule. `examples/pathfinding` builds a status line from four keys that way,
 two of them plurals.
 
-**Reach for it rather than a way round the cop.** `examples/sound` once drew a
-row of rectangles to avoid formatting a count, and the comment explaining why
-was longer than the code.
+**Reach for it rather than a way round the cop.**
 
 Two shapes need no `with` at all:
 
