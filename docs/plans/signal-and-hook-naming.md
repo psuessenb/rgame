@@ -1,6 +1,6 @@
 # Naming signals, hooks and the engine's own methods
 
-**Status: steps 1–3 are implemented; steps 4–5 are rough.** Decisions 1–6 are
+**Status: steps 1–4 are implemented; step 5 is rough.** Decisions 1–6 are
 taken, and every open question is settled. Each rough step gets detailed when
 it starts.
 
@@ -893,6 +893,51 @@ before it lands.
    from timings. Every hook is renamed, so every project is driven: a hook
    nobody calls any more shows up there as a missing draw or a scene that
    never changes.
+
+   **Landed.** Five commits, one per sub-step, on `hook-prefix`, after one
+   commit detailing the step. `Node2D`'s hooks are `_control`, `_update`,
+   `_draw`, `_enter_tree` and `_exit_tree`; `Component`'s are `_attach`,
+   `_detach`, `_control`, `_update`, `_draw` and `_sweep_freed`. `UI::Button`
+   calls `_gain_focus` and `_lose_focus`, `UI::DialogueBox` calls
+   `_draw_portrait`, and a `UI::Navigation` answers `control`, `opened` and
+   `buttons_changed`. `Signal::DSL` raises when a subclass replaces what it
+   generated, and `Engine::Hooks` raises on a `_` method no ancestor has.
+   `CHANGELOG.md` has two Added entries, for the guards, and three Changed
+   entries, for the renames. `scene_graph.md`, `components.md`, `signals.md`,
+   `ui.md` and the CLAUDE.md section describe the rules.
+
+   - `rake spec`: 2969 examples, 0 failures, 22.1 s (2948 before, plus 6
+     for the signal guard, 13 for `Hooks`, and one runnable example each in
+     `signals.md` and `scene_graph.md`). `rake spec:core`: 476, 0 failures.
+     `docs:coverage`: 0 of 178, one more class than before. `make test`: 380
+     checks, 0 failures. RuboCop is clean on every changed file.
+   - Every project under `examples/` and `test_projects/`, 29 in all, was
+     driven with `--seed 1 --texts` before the step and after each of 4b to
+     4e. After 4e all 29 reports are identical to the first, apart from
+     timings.
+   - Both greps find nothing. `CHANGELOG.md` names the old hooks only in its
+     rename entries and released sections.
+
+   What the sketch got wrong:
+
+   - **The trace missed 9 spec lines.** They name a component's hook by
+     symbol, not by a call: 7 `receive(:update)` stubs and an
+     `instance_double`, all in `node2d_*`, `player_layer` and `world_view`
+     specs, and one allocation example in the `a_mover` shared examples.
+     `rake spec` found them at once.
+   - **The `_helper` in `sealed_privates_spec.rb` did not trip the guard.**
+     That spec's base class extends only `SealedPrivates`, not `Hooks`. It is
+     `helper` now anyway, since a leading `_` reads as a hook.
+   - **`Hooks` has a public `hooks` class method**, which the sketch did not
+     show. The error message lists the same thing, and a game can ask for it.
+   - **`ui.md` no longer calls a navigation's methods hooks.** The table's
+     heading is "Method", and the page says why their names are plain.
+   - **Two drive runs lost frames to timing.** After 4c `tiled_world` drew
+     238 frames for 239, and after 4d `snake` drew 236 for 240, with every
+     per-frame count scaled by the same frames. Each matched the baseline
+     when run again. A slow frame makes the catch-up loop skip a draw, so an
+     exact draw count needs `--seed` and an unloaded machine, and a
+     difference that scales with the frame count is timing.
 5. **Fold back and delete this plan.** Decision 6: `write-ruby-code` with the
    naming rules and whatever else moves from CLAUDE.md, the line in
    `write-plan`, and the listing in CLAUDE.md. `CHANGELOG.md` gets checked
