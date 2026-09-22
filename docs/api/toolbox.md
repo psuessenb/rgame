@@ -29,7 +29,7 @@ search must read it, and a `Tensor`'s cells are Ruby objects.
 **`RGame::Engine::Text` (`rgame/engine/text`) holds a translation key and keeps
 the rendered String until an input changes.** The inputs are its variables and
 `I18n.generation`. Build a `Text` once, off the per-frame path, and read it in
-`on_draw`. A read with unchanged inputs returns the same frozen String and
+`_draw`. A read with unchanged inputs returns the same frozen String and
 allocates nothing. [Localization](localization.md) covers the tables it reads,
 plurals, and the player's language.
 
@@ -55,7 +55,7 @@ In a node, the draw reads the `Text` with the current value, or passes a `Text`
 with no names as it is:
 
 ```ruby
-def on_draw(renderer, _view)
+def _draw(renderer, _view)
   renderer.text(@score.with(score: @points), 12, 10)
   renderer.text(@title, 12, 30)
 end
@@ -313,7 +313,7 @@ pure and allocates nothing, so it runs on the per-frame path.
 ```ruby
 @spawn_timer = RGame::Engine::Timer.new(0.8)   # built once, off the hot path
 
-def on_update(dt)
+def _update(dt)
   @spawn_timer.update(dt)
   return unless @spawn_timer.ready?      # a whole interval has accumulated
 

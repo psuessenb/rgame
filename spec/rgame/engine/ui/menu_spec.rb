@@ -120,7 +120,7 @@ RSpec.describe RGame::Engine::UI::Menu do
       Class.new(RGame::Engine::Node2D) do
         attr_accessor :on_confirm
 
-        def on_control(actions)
+        def _control(actions)
           on_confirm.call if actions.pressed?(:ui_confirm)
         end
       end.new
@@ -274,12 +274,12 @@ RSpec.describe RGame::Engine::UI::Menu do
     end
   end
 
-  # A game's own look is a Button subclass with an on_draw, and the menu treats
+  # A game's own look is a Button subclass with an _draw, and the menu treats
   # it exactly as it treats a shipped one.
   describe 'a button written by the game' do
     before do
       swatch = Class.new(RGame::Engine::UI::Button) do
-        def on_draw(renderer, _view)
+        def _draw(renderer, _view)
           renderer.rect(0, 0, width, height, color: state == :focused ? [255, 255, 255] : [0, 0, 0])
         end
       end
@@ -329,7 +329,7 @@ RSpec.describe RGame::Engine::UI::Menu do
 
     before do
       swatch = Class.new(RGame::Engine::UI::Button) do
-        def on_draw(renderer, _view)
+        def _draw(renderer, _view)
           renderer.rect(0, 0, width, height, color: state == :focused ? [255, 255, 255] : [0, 0, 0])
         end
       end

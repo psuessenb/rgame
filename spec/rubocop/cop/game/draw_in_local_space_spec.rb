@@ -15,9 +15,9 @@ RSpec.describe RuboCop::Cop::Game::DrawInLocalSpace, :config do
   def local(name, method) = msg(name: name, method: method, distance: 'inside its parent')
 
   describe 'the world transform' do
-    it 'flags a bare world_x read in on_draw' do
-      expect_offense(<<~RUBY, x: world(:world_x, :on_draw))
-        def on_draw(renderer, _view)
+    it 'flags a bare world_x read in _draw' do
+      expect_offense(<<~RUBY, x: world(:world_x, :_draw))
+        def _draw(renderer, _view)
           renderer.rect(world_x, 0, width, height)
                         ^^^^^^^ %{x}
         end
@@ -25,8 +25,8 @@ RSpec.describe RuboCop::Cop::Game::DrawInLocalSpace, :config do
     end
 
     it 'flags the ivar spelling too' do
-      expect_offense(<<~RUBY, y: world(:world_y, :on_draw))
-        def on_draw(renderer, _view)
+      expect_offense(<<~RUBY, y: world(:world_y, :_draw))
+        def _draw(renderer, _view)
           renderer.text(@label, 0, @world_y)
                                    ^^^^^^^^ %{y}
         end
@@ -49,11 +49,11 @@ RSpec.describe RuboCop::Cop::Game::DrawInLocalSpace, :config do
   describe 'the parent-relative transform' do
     # The subtler half: `x` looks harmless and is off by less, which is exactly
     # what makes it survive a spec written at the origin.
-    it 'flags a bare x read in on_draw' do
-      x = local(:x, :on_draw)
-      y = local(:y, :on_draw)
+    it 'flags a bare x read in _draw' do
+      x = local(:x, :_draw)
+      y = local(:y, :_draw)
       expect_offense(<<~RUBY, x: x, y: y)
-        def on_draw(renderer, _view)
+        def _draw(renderer, _view)
           renderer.rect(x, y, width, height)
                         ^ %{x}
                            ^ %{y}
@@ -62,8 +62,8 @@ RSpec.describe RuboCop::Cop::Game::DrawInLocalSpace, :config do
     end
 
     it 'flags the storage ivar, whose short name it is' do
-      expect_offense(<<~RUBY, a: local(:angle, :on_draw))
-        def on_draw(renderer, _view)
+      expect_offense(<<~RUBY, a: local(:angle, :_draw))
+        def _draw(renderer, _view)
           renderer.sprite(@sheet, 0, 0, angle: @rel_angle)
                                                ^^^^^^^^^^ %{a}
         end
@@ -72,7 +72,7 @@ RSpec.describe RuboCop::Cop::Game::DrawInLocalSpace, :config do
 
     it 'does not flag a size, which is not a position' do
       expect_no_offenses(<<~RUBY)
-        def on_draw(renderer, _view)
+        def _draw(renderer, _view)
           renderer.rect(0, 0, width, height)
         end
       RUBY
@@ -80,7 +80,7 @@ RSpec.describe RuboCop::Cop::Game::DrawInLocalSpace, :config do
 
     it 'does not flag somebody else transform' do
       expect_no_offenses(<<~RUBY)
-        def on_draw(renderer, view)
+        def _draw(renderer, view)
           renderer.text(@label, view.width - PAD, camera.y)
         end
       RUBY
@@ -88,7 +88,7 @@ RSpec.describe RuboCop::Cop::Game::DrawInLocalSpace, :config do
 
     it 'does not flag a local or a block parameter named x' do
       expect_no_offenses(<<~RUBY)
-        def on_draw(renderer, _view)
+        def _draw(renderer, _view)
           x = @columns * CELL
           @rows.each { |y| renderer.line(0, y, x, y) }
         end
@@ -121,7 +121,7 @@ RSpec.describe RuboCop::Cop::Game::DrawInLocalSpace, :config do
     # commonest movement idiom in the engine an offence.
     it 'does not flag update, where both spellings are legitimate' do
       expect_no_offenses(<<~RUBY)
-        def on_update(dt)
+        def _update(dt)
           self.x = x + (@speed * dt)
           @target = @world.nearest(world_x, world_y, @range)
         end

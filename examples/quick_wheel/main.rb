@@ -85,14 +85,14 @@ class Dot < RGame::Engine::Node2D
     @speed_y = speed_y
   end
 
-  def on_update(dt)
+  def _update(dt)
     self.x += @speed_x * dt
     self.y += @speed_y * dt
     @speed_x = -@speed_x unless x.between?(0, WIDTH - SIZE)
     @speed_y = -@speed_y unless y.between?(0, HEIGHT - SIZE)
   end
 
-  def on_draw(renderer, _view) = renderer.rect(0, 0, SIZE, SIZE, color: COLOR)
+  def _draw(renderer, _view) = renderer.rect(0, 0, SIZE, SIZE, color: COLOR)
 end
 
 # The wheel, held open by `:quick_menu`, and what it last chose.
@@ -148,7 +148,7 @@ class Caption < RGame::Engine::Node2D
     @chosen = RGame::Engine::Text.new('status.chosen', :item)
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.text(@help, 12, 12)
     chosen = @wheel.chosen
     renderer.text(chosen ? @chosen.with(item: NAMES.fetch(chosen).to_s) : @nothing, 12, HEIGHT - 30)
@@ -158,7 +158,7 @@ end
 class Scene < RGame::Engine::Node2D
   DOTS = [[60, 80, 90, 40], [400, 120, -70, 60], [200, 360, 50, -80], [520, 300, -100, -30]].freeze
 
-  def on_add
+  def _enter_tree
     world = add_node(World.new)
     DOTS.each { |x, y, speed_x, speed_y| world.add_node(Dot.new(x: x, y: y, speed_x: speed_x, speed_y: speed_y)) }
     wheel = add_node(QuickWheel.new(world: world, x: WIDTH / 2, y: (HEIGHT / 2) + 6))

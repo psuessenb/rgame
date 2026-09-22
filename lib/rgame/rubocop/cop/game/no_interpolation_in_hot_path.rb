@@ -6,7 +6,7 @@ module RuboCop
   module Cop
     module Game
       # Disallow string interpolation inside per-frame methods — the engine's lifecycle
-      # hooks (`update`/`control`/`draw`/`on_update`/`on_draw`/`on_control`) and any method
+      # hooks (`update`/`control`/`draw`/`_update`/`_draw`/`_control`) and any method
       # tagged `# hot-path`.
       #
       # These run every frame (~60/s), and string interpolation builds a brand-new

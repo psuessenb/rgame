@@ -128,13 +128,13 @@ class Sheep < RGame::Engine::Node2D
     add_component(Identity.new(id: id))
   end
 
-  def on_update(dt)
+  def _update(dt)
     @wool = [@wool + (dt * GROWTH), MAX_WOOL].min
     self.x = x.clamp(0, WIDTH)
     self.y = y.clamp(40, HEIGHT)
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.circle(0, 0, MIN_R + @wool, color: FLEECE)
     renderer.text(@label, MIN_R + MAX_WOOL + 4, -8, color: INK)
   end
@@ -163,7 +163,7 @@ class Pasture < RGame::Engine::Node2D
     @status = :fresh
   end
 
-  def on_add
+  def _enter_tree
     @dog = add_node(build_dog)
     STARTING_FLOCK.times { spawn_sheep }
     @target = @flock.first
@@ -174,7 +174,7 @@ class Pasture < RGame::Engine::Node2D
     @status = :restored
   end
 
-  def on_control(actions)
+  def _control(actions)
     target_next if actions.pressed?(:target_next)
     shear if actions.pressed?(:shear)
     spawn_sheep if actions.pressed?(:spawn)
@@ -184,7 +184,7 @@ class Pasture < RGame::Engine::Node2D
     drop_save if actions.pressed?(:drop)
   end
 
-  def on_draw(renderer, view)
+  def _draw(renderer, view)
     renderer.rect(0, 0, view.width, view.height, color: GRASS)
     # Between two nodes, so the scene draws it: it is the only thing that knows
     # both. The sheep draw themselves, over this.

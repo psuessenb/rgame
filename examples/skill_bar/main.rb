@@ -120,7 +120,7 @@ class Caption < RGame::Engine::Node2D
     @nothing_used = RGame::Engine::Text.new('status.nothing_used')
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.text(@help, 12, 12)
     renderer.text(@focused.with(skill: @bar.focused_name.to_s), 12, HEIGHT - 52)
     used = @bar.used
@@ -129,7 +129,7 @@ class Caption < RGame::Engine::Node2D
 end
 
 class Scene < RGame::Engine::Node2D
-  def on_add
+  def _enter_tree
     bar = add_node(SkillBar.new(y: 300))
     bar.x = (WIDTH - bar.menu.bounds_width) / 2
     add_node(Caption.new(bar: bar))

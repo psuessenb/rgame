@@ -12,13 +12,13 @@ module RGame
       #       @color = color
       #     end
       #
-      #     def on_draw(renderer, _view)
+      #     def _draw(renderer, _view)
       #       inset = state == :focused ? 0 : 4
       #       renderer.rect(inset, inset, width - (inset * 2), height - (inset * 2), color: @color)
       #     end
       #   end
       #
-      # The look is a subclass's `on_draw`, and it reads `state` to decide what
+      # The look is a subclass's `_draw`, and it reads `state` to decide what
       # to draw. Everything the menu needs from a button — being told it is
       # focused or pressed, being activated, being asked to `adjust` — lives
       # here, so a subclass that only draws cannot leave any of it out.
@@ -31,7 +31,7 @@ module RGame
       # Menu inside a PlayerLayer puts its buttons inside that player's region
       # without either of them arranging it.
       #
-      # A Button with no `on_draw` of its own draws nothing.
+      # A Button with no `_draw` of its own draws nothing.
       #
       # ## The label is a translation key
       #
@@ -48,7 +48,7 @@ module RGame
       #
       #   @continue = Engine::Text.new('continue', :saves)
       #   menu.add(UI::PanelButton.new(label: @continue))
-      #   def on_update(_dt) = @continue.with(saves: @save_count)
+      #   def _update(_dt) = @continue.with(saves: @save_count)
       #
       # One given no `with` yet raises on the first draw, naming the keywords.
       #

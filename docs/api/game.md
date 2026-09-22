@@ -7,7 +7,7 @@ engine.
 require 'rgame/game'
 
 class HelloScene < RGame::Engine::Node2D
-  def on_draw(renderer, _view) = renderer.text('Hello world!', 250, 200)
+  def _draw(renderer, _view) = renderer.text('Hello world!', 250, 200)
 end
 
 RGame::Game.new(root: HelloScene.new, caption: 'Hello').start
@@ -193,7 +193,7 @@ empty seat draws no viewport, so one person playing a two-seat game sees an
 ordinary full-screen game. See
 [Players, seats and joining](input.md#players-seats-and-joining).
 
-A scene reads the resulting snapshot in `on_control(actions)`, with calls like
+A scene reads the resulting snapshot in `_control(actions)`, with calls like
 `actions.axis(:move_x)` and `actions.pressed?(:fire)`. It never sees a key.
 
 **`Game` polls input once per simulation tick**, not once per rendered frame.

@@ -65,7 +65,7 @@ class Rig < RGame::Engine::Node2D
   # nothing, the view stays pinned to the edge, and the player is left pushing a
   # key that does nothing visible. Clamping both to the same bounds keeps the
   # crosshair and the view agreeing.
-  def on_update(_dt)
+  def _update(_dt)
     self.x = x.clamp(0, @world_width)
     self.y = y.clamp(0, @world_height)
   end
@@ -73,7 +73,7 @@ class Rig < RGame::Engine::Node2D
   # (0, 0) is this node: Node2D#draw has already pushed its transform, and the
   # WorldView above has already applied the camera. Reading `x` or `world_x`
   # here would apply one of those a second time.
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.line(-ARM, 0, ARM, 0, color: TINT)
     renderer.line(0, -ARM, 0, ARM, color: TINT)
   end
@@ -86,7 +86,7 @@ class Scene < RGame::Engine::Node2D
     @help = RGame::Engine::Text.new('help.scroll')
   end
 
-  def on_add
+  def _enter_tree
     # `.tilemap` is a loader RGame::Game installs, because building one needs
     # both layers at once: Engine::TileMap reads the .tmx, and the renderer that
     # draws it is Core. What comes back holds both; `.map` is the grid half.
@@ -111,7 +111,7 @@ class Scene < RGame::Engine::Node2D
     actors.add_node(build_rig(map, players.primary.camera))
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     # Outside the WorldView, so this is screen space: it stays put while the
     # world scrolls under it.
     renderer.text(@help, 12, 12)

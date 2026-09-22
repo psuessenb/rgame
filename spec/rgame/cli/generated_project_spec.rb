@@ -77,7 +77,7 @@ RSpec.describe 'a generated project' do # rubocop:disable RSpec/DescribeClass --
       require 'rgame/game'
 
       class Score < RGame::Engine::Node2D
-        def on_draw(renderer, _view)
+        def _draw(renderer, _view)
           renderer.text("Score: \#{@points}", x, 0)
           @size = [4, 4]
           RGame::Core::Image

@@ -287,7 +287,7 @@ cells report the same corner.
 block.** The class is the Class field Tiled shows in an object's properties.
 
 ```ruby
-# In a scene's on_add, with `map` loaded and `slots` from TileMapLayer.mount.
+# In a scene's _enter_tree, with `map` loaded and `slots` from TileMapLayer.mount.
 objects = RGame::Engine::MapObjects.new
 objects.define('chest') { |o| Chest.new(x: o.x, y: o.y, contents: o.properties.fetch('contents')) }
 objects.define('trap')  { |o| Trap.new(x: o.x, y: o.y) }

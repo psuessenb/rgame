@@ -39,7 +39,7 @@
 #
 # The report keeps positional arguments only, and a pressed look is a keyword
 # colour, so "the Watering can drew pressed while unfocused for PRESS_FEEDBACK"
-# was counted with a probe prepended to UI::IconButton#on_draw: 6 frames, 0.1 s
+# was counted with a probe prepended to UI::IconButton#_draw: 6 frames, 0.1 s
 # at 60 Hz. The 26 extra outlines above are the same count seen from outside.
 #
 # Nothing here needs a seed.

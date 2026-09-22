@@ -4,7 +4,7 @@ require_relative 'high_scores'
 
 # The game-over screen: records the run into the root-scoped HighScores system,
 # then shows the final score and the top list, Enter to play again. The display
-# strings are built in on_add (not on_draw) so per-frame drawing allocates nothing
+# strings are built in _enter_tree (not _draw) so per-frame drawing allocates nothing
 # (the Game/NoInterpolationInDraw rule). Centring is against the `view` — see
 # StartScene for why that is the window's question and not the world's.
 class GameOverScene < RGame::Engine::Node2D
@@ -19,21 +19,21 @@ class GameOverScene < RGame::Engine::Node2D
     @score = score
   end
 
-  def on_add
+  def _enter_tree
     high_scores = system(HighScores)
     high_scores.record(@score)
     @score_text = "Final score: #{@score}"
     @high_lines = high_scores.top.each_with_index.map { |score, i| "#{i + 1}.  #{score}" }
   end
 
-  def on_control(actions)
+  def _control(actions)
     return unless actions.pressed?(:ui_confirm)
 
     system!(RGame::Engine::AudioOut).play_sound(:blip)
     root.go(:play)
   end
 
-  def on_draw(renderer, view)
+  def _draw(renderer, view)
     renderer.background(:space)
     centered(renderer, view, TITLE, 90, TITLE_COLOR)
     centered(renderer, view, @score_text, 130, TEXT_COLOR)

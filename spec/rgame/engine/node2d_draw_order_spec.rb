@@ -21,7 +21,7 @@ RSpec.describe RGame::Engine::Node2D do
   def tagged(tag, offset: 0, **)
     seen = layers
     Class.new(described_class) do
-      define_method(:on_draw) do |renderer, _view|
+      define_method(:_draw) do |renderer, _view|
         seen[renderer.layer] = tag
         renderer.rect(0, 0, 1, 1, z: offset)
       end

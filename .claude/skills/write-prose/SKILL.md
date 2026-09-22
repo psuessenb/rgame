@@ -40,7 +40,7 @@ is the point.
 
 | Not | But |
 |---|---|
-| The transform is pushed before `on_draw` is called. | `Node2D#draw` pushes the transform, then calls `on_draw`. |
+| The transform is pushed before `_draw` is called. | `Node2D#draw` pushes the transform, then calls `_draw`. |
 | Mistakes were made. | We made mistakes. |
 
 ### Cut weak adjectives and adverbs

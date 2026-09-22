@@ -30,7 +30,7 @@ module RGame
       # And the cause is nearly always the same, which is why the message says it.
       # A node assembled *outside* the tree collects every component before any
       # on_attach runs (Node2D#enter_tree), so add order does not matter there. A
-      # node that adds components from its own `on_add` is already in the tree, so
+      # node that adds components from its own `_enter_tree` is already in the tree, so
       # each one attaches as it arrives and can only see the ones before it. Same
       # two lines, opposite outcome, depending on where they were written.
       #

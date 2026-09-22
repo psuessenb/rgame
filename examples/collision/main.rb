@@ -35,7 +35,7 @@
 # entity cannot leak a registration, and no game code is asked to remember.
 #
 # That is also why every component here is added in `initialize` rather than in
-# `on_add`: a node assembled outside the tree collects all of its components
+# `_enter_tree`: a node assembled outside the tree collects all of its components
 # before any of them attaches, so the order they go on in never matters.
 #
 # ## A contact is reported to both sides, and neither is asked what it means
@@ -159,7 +159,7 @@ class Mover < RGame::Engine::Node2D
 
   # The centre is where the traversal has already put the renderer, and the
   # circle's collision centre is the node's origin — the same point.
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.circle(0, 0, RADIUS, color: @touching.positive? ? HIT : BODY)
     # Drawn at the node's own angle, which is what makes the spin visible at all:
     # a spinning circle looks like a still one without a mark on it.
@@ -226,9 +226,9 @@ class Crate < RGame::Engine::Node2D
   # Only the flash, which is a cosmetic timer and the one thing here that has to
   # be advanced rather than announced. The counter is not touched: it moves on the
   # edge, in the handler above.
-  def on_update(dt) = @flash -= dt
+  def _update(dt) = @flash -= dt
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.rect(-width / 2, -height / 2, width, height, color: @flash.positive? ? HIT : BODY)
     renderer.text(@label.with(count: @touches), -width / 2, (-height / 2) - 22, color: INK)
   end
@@ -254,7 +254,7 @@ class Scene < RGame::Engine::Node2D
     [150, 104, 0.0, 105.0, 0.0]
   ].freeze
 
-  # Both systems are mounted here rather than in `on_add`, so they exist before
+  # Both systems are mounted here rather than in `_enter_tree`, so they exist before
   # any child's collider attaches and goes looking for them.
   def initialize
     super
@@ -265,7 +265,7 @@ class Scene < RGame::Engine::Node2D
     add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
   end
 
-  def on_add
+  def _enter_tree
     CRATES.each { |x, y, w, h| add_node(Crate.new(x: x, y: y, width: w, height: h)) }
     DRIFTERS.each do |x, y, vx, vy, spin|
       add_node(Drifter.new(x: x, y: y, vx: vx, vy: vy, spin: spin))
@@ -273,7 +273,7 @@ class Scene < RGame::Engine::Node2D
     add_node(Walker.new(x: 80, y: 430))
   end
 
-  def on_draw(renderer, view)
+  def _draw(renderer, view)
     renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
     draw_cells(renderer, view)
 

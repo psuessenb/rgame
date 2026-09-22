@@ -27,7 +27,7 @@ calling code is asked to remember.
 Two examples of the shape this takes:
 
 - **Give the user a blank hook, keep the machinery separate.** A node exposes
-  an empty `on_draw` to override, while `draw` does the bookkeeping and calls
+  an empty `_draw` to override, while `draw` does the bookkeeping and calls
   it. That is better than one `draw` the user overrides and must remember to
   `super` from — because forgetting `super` is silent, and the failure shows up
   somewhere else entirely.
@@ -179,7 +179,7 @@ the ones that *do* fit here — fix the code, not the cop.
 
 `Game/NoInterpolationInHotPath` refuses the obvious `renderer.text("Score:
 #{@score}", ...)`, and the engine owns the answer: **`RGame::Engine::Text`.**
-Build it off the per-frame path; read it with `with` in `on_draw`, or pass it to
+Build it off the per-frame path; read it with `with` in `_draw`, or pass it to
 `renderer.text` as it is when it has no variables — or when something else gave
 it its values through `with`, such as a button's label. A `Text` answers
 `to_str`, so no `.to_s` is needed.
@@ -190,7 +190,7 @@ def initialize
   @score = Engine::Text.new('hud.score', :score)   # "Score: %{score}" in the table
 end
 
-def on_draw(renderer, _view) = renderer.text(@score.with(score: @points), 12, 10)
+def _draw(renderer, _view) = renderer.text(@score.with(score: @points), 12, 10)
 ```
 
 It keeps the last string and renders again only when a keyword differs or

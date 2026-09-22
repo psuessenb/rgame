@@ -7,7 +7,7 @@ module RuboCop
       # space, because both are already applied by the time they run.
       #
       # `Node2D#draw` pushes the node's transform onto the renderer and runs
-      # everything below it inside that, so within `on_draw` the origin *is* the
+      # everything below it inside that, so within `_draw` the origin *is* the
       # node, turned the way the node is turned. Drawing is done at (0, 0), or at
       # an offset from it that means something to the node itself.
       #
@@ -34,17 +34,17 @@ module RuboCop
       #
       # @example
       #   # bad — the traversal has already placed the renderer on this node
-      #   def on_draw(renderer, _view)
+      #   def _draw(renderer, _view)
       #     renderer.rect(world_x, world_y, width, height)
       #   end
       #
       #   # bad — same mistake, a smaller distance
-      #   def on_draw(renderer, _view)
+      #   def _draw(renderer, _view)
       #     renderer.rect(x, y, width, height)
       #   end
       #
       #   # good — its own origin
-      #   def on_draw(renderer, _view)
+      #   def _draw(renderer, _view)
       #     renderer.rect(0, 0, width, height)
       #   end
       #
@@ -59,7 +59,7 @@ module RuboCop
               '`%{method}` runs, so passing it places this %{distance} a second ' \
               'time. Draw at your own origin (0, 0), or an offset from it.'
 
-        METHODS = %i[draw on_draw rgame_draw_content draw_children].freeze
+        METHODS = %i[draw _draw rgame_draw_content draw_children].freeze
 
         RELATIVE = %i[x y angle].freeze
         WORLD = %i[world_x world_y world_angle].freeze

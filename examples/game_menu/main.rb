@@ -55,7 +55,7 @@ DEFAULT_SEED = 0x6E11
 # A walker that stays inside the window. Both the hero and the villagers are
 # this; only the controller hung on them differs.
 class Walker < RGame::Engine::Node2D
-  def on_update(_dt)
+  def _update(_dt)
     self.x = x.clamp(0, WIDTH - width)
     self.y = y.clamp(0, HEIGHT - height)
   end
@@ -78,7 +78,7 @@ class GameMenu < RGame::Engine::Node2D
     @hero = hero
   end
 
-  def on_add
+  def _enter_tree
     column = RGame::Engine::UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT, spacing: SPACING)
     # The panel reaches PADDING beyond the buttons, so placing the menu PADDING
     # in puts the panel's corner at this node's origin.
@@ -94,7 +94,7 @@ class GameMenu < RGame::Engine::Node2D
 
   # A closed menu draws nothing and takes no focus or confirm, but its parent
   # still reads Escape, which is what opens it again.
-  def on_control(actions)
+  def _control(actions)
     toggle if actions.pressed?(:ui_cancel)
   end
 
@@ -122,7 +122,7 @@ class Scene < RGame::Engine::Node2D
     @help = RGame::Engine::Text.new('help.walk')
   end
 
-  def on_add
+  def _enter_tree
     hero = add_node(walker(RGame::Engine::Components::PlayerController.new,
                            HERO_SPEED, WIDTH / 2, HEIGHT / 2))
     NPC_SPAWNS.each do |x, y|
@@ -137,7 +137,7 @@ class Scene < RGame::Engine::Node2D
     layer.add_node(GameMenu.new(hero: hero, x: MENU_MARGIN, y: MENU_MARGIN))
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.text(@help, 12, 12)
   end
 

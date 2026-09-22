@@ -236,7 +236,7 @@ RSpec.describe RGame::Engine::Scene::SceneStack do
       Class.new(RGame::Engine::Node2D) do
         attr_reader :seen
 
-        def on_control(actions) = @seen = actions
+        def _control(actions) = @seen = actions
       end.new
     end
 

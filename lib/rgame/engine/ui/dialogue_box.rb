@@ -57,7 +57,7 @@ module RGame
             @color = color
           end
 
-          def on_draw(renderer, _view)
+          def _draw(renderer, _view)
             return unless @line.revealed?
 
             middle = height / 2
@@ -116,7 +116,7 @@ module RGame
           show_responses if !@paused && ready_for_responses?
         end
 
-        def on_draw(renderer, _view)
+        def _draw(renderer, _view)
           @panel.draw(renderer, :idle, width, height)
           on_draw_portrait(renderer, @speaker)
           renderer.text(@speaker_name, @text_x, @padding, font: @typeface, color: COLOR)

@@ -19,7 +19,7 @@ class Root < RGame::Engine::Node2D
     @stack = add_component(RGame::Engine::Scene::SceneStack.new)
   end
 
-  def on_add = @stack.push(BeachScene.new)
+  def _enter_tree = @stack.push(BeachScene.new)
 end
 
 game = RGame::Game.new(

@@ -126,16 +126,16 @@ depends on whether the node has a class of its own:
 and the node enters. **Add order is therefore free.** `build_player` above adds an
 `AnimatedSprite` *before* the `CharacterBody` it faces by, and that works.
 
-### Adding from `on_add`, and when you must
+### Adding from `_enter_tree`, and when you must
 
-**A node running `on_add` is already in the tree.** Each `add_component` attaches
+**A node running `_enter_tree` is already in the tree.** Each `add_component` attaches
 at once and sees only the components added before it. The same two lines in the
 other order raise (see [`require_sibling`](#the-component-base) above). Prefer
-`initialize` or a builder. Use `on_add` only when the component cannot be built
+`initialize` or a builder. Use `_enter_tree` only when the component cannot be built
 earlier, because its constructor needs something only the tree can answer:
 
 ```ruby
-def on_add
+def _enter_tree
   # Both arguments are cross-tree lookups: the asset manager hangs off the root's
   # context, and the player registry is a system. Neither exists at construction.
   add_component(RGame::Engine::Components::TileWorld.new(
@@ -155,7 +155,7 @@ from the asset manager needs the tree, so it waits.
 The opposite exception is a component added **deliberately** after entry, because
 it depends on state that exists only once the node is live. An example is a
 `CameraFollow` whose offset comes from the sibling body's resolved
-`collision_box`. That is a later decision, not assembly, and `on_add` suits it.
+`collision_box`. That is a later decision, not assembly, and `_enter_tree` suits it.
 
 ## Available components
 

@@ -116,7 +116,7 @@ class Hero < RGame::Engine::Node2D
   # squash the placement too. It shrinks through the circle's radius rather than
   # the squash, which keeps the ellipse's proportions. `z: -1` puts it under the
   # sprite, which draws at 0.
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     box = @collider.box
     shrink = 1.0 / (1.0 + (@hop.height / SHADOW_HALF_AT))
     renderer.translated(box.offset_x + (box.width / 2.0), box.offset_y + (box.height / 2.0)) do
@@ -140,7 +140,7 @@ class Scene < RGame::Engine::Node2D
     @help_fence = RGame::Engine::Text.new('help.fence')
   end
 
-  def on_add
+  def _enter_tree
     map = root.context.assets.tilemap(MAP).map
     players = root.system(RGame::Engine::Players)
 
@@ -153,7 +153,7 @@ class Scene < RGame::Engine::Node2D
     @hero = actors.add_node(Hero.new(camera: players.primary.camera, x: START_X, y: START_Y))
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.text(@help_walk, 12, 12)
     renderer.text(@help_box, 12, 34)
     renderer.text(@help_fence, 12, 56)

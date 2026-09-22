@@ -33,7 +33,7 @@
 #     frames something is focused;
 #   - **720 `rect`**, the four dots, every frame. They move a quarter as far per
 #     tick while the wheel is open; the report cannot show that, and a probe
-#     prepended to `Dot#on_update` counted 1.5 px per tick for the first dot
+#     prepended to `Dot#_update` counted 1.5 px per tick for the first dot
 #     against 0.375 for exactly the 12 ticks of the first opening;
 #   - no audio, no scenes, one clip per frame.
 #

@@ -98,7 +98,7 @@ class Pasture < RGame::Engine::Node2D
     @status = :fresh
   end
 
-  def on_add
+  def _enter_tree
     # Built first, always, and identically. The save does not decide what exists
     # — only where it is.
     @dog = add_node(build_walker(RGame::Engine::Components::PlayerController.new,
@@ -116,13 +116,13 @@ class Pasture < RGame::Engine::Node2D
     @status = :restored
   end
 
-  def on_control(actions)
+  def _control(actions)
     save_state if actions.pressed?(:save)
     load_state if actions.pressed?(:load)
     drop_save if actions.pressed?(:drop)
   end
 
-  def on_draw(renderer, view)
+  def _draw(renderer, view)
     renderer.rect(0, 0, view.width, view.height, color: GRASS)
     @flock.each { |sheep| renderer.circle(sheep.x, sheep.y, SHEEP_R, color: SHEEP) }
     renderer.circle(@dog.x, @dog.y, DOG_R, color: DOG)

@@ -35,7 +35,7 @@ class Ship < RGame::Engine::Node2D
   # Start in the middle of the world. Asked for here rather than taken as a
   # constructor argument, because the scene's world system is only reachable once
   # this node is in the tree — see docs/api/systems.md.
-  def on_add
+  def _enter_tree
     world = system(RGame::Engine::Components::WorldBounds)
     self.x = world.world_width / 2.0
     self.y = world.world_height / 2.0

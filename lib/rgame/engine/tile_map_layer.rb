@@ -100,7 +100,7 @@ module RGame
         @layer = layer
       end
 
-      def on_add = @world = system(Components::TileWorld)
+      def _enter_tree = @world = system(Components::TileWorld)
 
       # The view supplies the cull rect: which part of the world this viewport
       # can see. The map draws in world coordinates and the WorldView's
@@ -110,7 +110,7 @@ module RGame
       # A screen-space view has no camera and nothing to cull against, so
       # there is nothing sensible to draw; that is a misplaced layer rather than
       # a state to handle, and it says so.
-      def on_draw(renderer, view)
+      def _draw(renderer, view)
         camera = view.camera
         raise 'TileMapLayer must be inside a WorldView — this view has no camera' if camera.nil?
 

@@ -24,7 +24,7 @@
 #
 # That is the sentence the whole design exists to make true, and this example is
 # the only place it can be shown rather than asserted. `Ground` draws the floor
-# once in its `on_draw`; with two players that method runs twice a frame, with
+# once in its `_draw`; with two players that method runs twice a frame, with
 # one it runs once, and nothing in it can tell. The walkers are the same: each is
 # a node in the world, so each is drawn in every viewport that can see it —
 # player two walks around inside player one's view, because there is one world
@@ -79,7 +79,7 @@
 # `walker.input_owner = player` is the only line about ownership in this file,
 # and `PlayerLayer` sets the same thing for its subtree. Everything below either
 # one reads that player's device: `PlayerController` moves the right walker,
-# `Badge#on_control` counts the right waves, and neither class names a player or
+# `Badge#_control` counts the right waves, and neither class names a player or
 # knows that there is more than one.
 #
 # That is what keeps a HUD written for one player working for two. The badge
@@ -129,7 +129,7 @@ STARTS = [[520.0, 460.0], [700.0, 500.0]].freeze
 
 # The world: a floor, a grid to make movement visible, and landmarks to tell one
 # part of it from another. It is a single node under the WorldView, so this
-# `on_draw` runs once per viewport and knows nothing about that.
+# `_draw` runs once per viewport and knows nothing about that.
 class Ground < RGame::Engine::Node2D
   FLOOR = RGame::Util::Color.new(38, 54, 44)
   GRID  = RGame::Util::Color.new(50, 70, 58)
@@ -145,7 +145,7 @@ class Ground < RGame::Engine::Node2D
   ].freeze
   BLOCK = 64
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.rect(0, 0, WORLD_W, WORLD_H, color: FLOOR)
     draw_grid(renderer)
     LANDMARKS.each { |x, y, color| renderer.rect(x, y, BLOCK, BLOCK, color: color) }
@@ -193,19 +193,19 @@ class Walker < RGame::Engine::Node2D
   # points; the cameras stop at the world's edges on their own, and a walker that
   # kept going would leave its half of the screen showing a player pushing a key
   # with nothing happening.
-  def on_update(_dt)
+  def _update(_dt)
     self.x = x.clamp(0, WORLD_W - width)
     self.y = y.clamp(0, WORLD_H - height)
   end
 
-  def on_draw(renderer, _view) = renderer.rect(0, -BANNER_H - 2, width, BANNER_H, color: @tint)
+  def _draw(renderer, _view) = renderer.rect(0, -BANNER_H - 2, width, BANNER_H, color: @tint)
 end
 
 # One player's badge, in their own corner of the screen.
 #
 # Written as though there were one player, because from in here there is. It
 # hangs under a PlayerLayer, so it is drawn inside that player's region, laid out
-# from that region's corner, and `on_control` is handed that player's actions.
+# from that region's corner, and `_control` is handed that player's actions.
 class Badge < RGame::Engine::Node2D
   PANEL = RGame::Util::Color.new(20, 26, 34, 190)
   INK   = RGame::Util::Color.new(226, 230, 238)
@@ -221,11 +221,11 @@ class Badge < RGame::Engine::Node2D
     @label = RGame::Engine::Text.new('hud.waves', :count)
   end
 
-  def on_control(actions)
+  def _control(actions)
     @waves += 1 if actions.pressed?(:fire)
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.rect(0, 0, W, H, color: PANEL)
     renderer.rect(0, 0, W, 3, color: @tint)
     renderer.text(@name, 8, 8, color: @tint)
@@ -242,7 +242,7 @@ class Scene < RGame::Engine::Node2D
     @help_join = RGame::Engine::Text.new('help.join')
   end
 
-  def on_add
+  def _enter_tree
     @players = root.system(RGame::Engine::Players)
     # Every camera, including the empty seat's: a camera that does not know how
     # big the world is will happily show the void past its edge, and the seat is
@@ -263,7 +263,7 @@ class Scene < RGame::Engine::Node2D
 
   # A plain child of the scene, so this is the global overlay: once across the
   # whole window, wherever the split is.
-  def on_draw(renderer, view)
+  def _draw(renderer, view)
     renderer.text(@help_keys, MARGIN, view.height - 52)
     renderer.text(@help_join, MARGIN, view.height - 30)
   end

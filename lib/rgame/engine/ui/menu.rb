@@ -111,7 +111,7 @@ module RGame
       # ## Focus is per player, and that costs nothing
       #
       # A Menu inside a PlayerLayer inherits that player as its `input_owner`,
-      # so the `actions` its `on_control` receives are already that player's.
+      # so the `actions` its `_control` receives are already that player's.
       # Two players with a menu open at once are independent without either menu
       # knowing the other exists, and without a word of focus-specific
       # per-player machinery. That falls out of ownership being inherited down
@@ -223,7 +223,7 @@ module RGame
         # frame confirm the newly focused button; then every hotkey; then
         # confirm, on a menu with no trigger; and a trigger's release last, so it
         # chooses what this frame focused.
-        def on_control(actions)
+        def _control(actions)
           trigger_edge = control_trigger(actions) if @trigger
           open_now if trigger_edge == :press
           return unless @open

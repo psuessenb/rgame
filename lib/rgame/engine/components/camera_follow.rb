@@ -29,7 +29,7 @@ module RGame
           @offset_y = offset_y
         end
 
-        # A node runs its components before its own `on_update`, so this reads
+        # A node runs its components before its own `_update`, so this reads
         # the node's world position from before whatever moves it this tick, and
         # the camera trails the node's own movement by one step (a couple of
         # pixels at walking speed). That is deliberate and uniform: everything

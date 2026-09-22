@@ -99,7 +99,7 @@ value. A window is not.
 
 - It may hold `Util` values as attributes, such as a `Color` or a `Tensor`.
 - It may **not name `Core` at all**: no require, no constant, no attribute.
-- It reaches `Core` only through objects it receives. A node's `on_draw`
+- It reaches `Core` only through objects it receives. A node's `_draw`
   receives a renderer and calls its methods by name. The node never stores the
   renderer and never checks its class.
 
@@ -133,14 +133,14 @@ class Hero < RGame::Engine::Node2D
 
   # Intent, read once per simulation tick. Never a key: `move_x` is whatever
   # this player's input map binds it to — arrows, WASD or a stick.
-  def on_control(actions)
+  def _control(actions)
     @vx = actions.axis(:move_x) * SPEED
     @vy = actions.axis(:move_y) * SPEED
   end
 
   # `dt` is always the same fixed step, never wall-clock frame time, so
   # movement is deterministic. `x`/`y` are relative to the parent.
-  def on_update(dt)
+  def _update(dt)
     self.x += @vx * dt
     self.y += @vy * dt
   end
@@ -149,15 +149,15 @@ class Hero < RGame::Engine::Node2D
   # drawn into, which most nodes ignore. Draw in the node's own space: the
   # traversal has already put the renderer on this node, so (0, 0) is here.
   # See docs/api/scene_graph.md, "Drawing happens in local space".
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.rect(0, 0, width, height)
   end
 end
 
-# The root of the tree. Children are added in `on_add`, once the node is in a
+# The root of the tree. Children are added in `_enter_tree`, once the node is in a
 # tree and can reach the game around it.
 class Scene < RGame::Engine::Node2D
-  def on_add
+  def _enter_tree
     add_node(Hero.new)
   end
 end
@@ -165,8 +165,8 @@ end
 RGame::Game.new(root: Scene.new, width: 800, height: 600, caption: 'My Game').start
 ```
 
-Subclass `Node2D` and override the hooks you need: `on_control`, `on_update`,
-`on_draw`, and the lifecycle hooks around them. A hook you do not override does
+Subclass `Node2D` and override the hooks you need: `_control`, `_update`,
+`_draw`, and the lifecycle hooks around them. A hook you do not override does
 nothing. Separate phase methods do the bookkeeping: they push the node's
 transform, drive components and descend into children. You never override
 those, so there is no `super` to forget. [Scene graph](scene_graph.md) lists
@@ -210,7 +210,7 @@ Two properties make this work:
 
 - **`update` takes `dt` as an argument and reads no clock.** A test passes any
   timestep it likes, so it can simulate minutes of play in milliseconds.
-- **A node never holds a renderer.** `on_draw` receives one. A spec passes a
+- **A node never holds a renderer.** `_draw` receives one. A spec passes a
   recording double and asserts on what the node asked it to draw. rgame's own
   suite checks its fake renderer against the real one with a shared contract in
   `spec/support/shared_examples/`. The whole suite runs headless.

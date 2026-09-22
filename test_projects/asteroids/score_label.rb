@@ -2,7 +2,7 @@
 
 # The score, in the corner.
 #
-# A node of its own rather than a line in PlayScene's `on_draw`, because it has
+# A node of its own rather than a line in PlayScene's `_draw`, because it has
 # to draw over the ship and the rocks — and those are PlayScene's children, so
 # anything PlayScene draws itself is already behind them. Saying `band: :hud`
 # puts this above every world slot in the frame whatever the tree looks like,
@@ -22,5 +22,5 @@ class ScoreLabel < RGame::Engine::Node2D
   end
 
   # At its own origin: the traversal has already put the renderer there.
-  def on_draw(renderer, _view) = renderer.text(@text, 0, 0, color: COLOR)
+  def _draw(renderer, _view) = renderer.text(@text, 0, 0, color: COLOR)
 end

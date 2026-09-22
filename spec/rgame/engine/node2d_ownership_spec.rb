@@ -29,7 +29,7 @@ RSpec.describe RGame::Engine::Node2D do
     Class.new(described_class) do
       attr_reader :seen
 
-      def on_control(actions) = @seen = actions
+      def _control(actions) = @seen = actions
     end.new
   end
 

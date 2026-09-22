@@ -428,9 +428,9 @@ asset manager, not through the map.
 **`elapsed` is seconds, passed as an argument.** The renderer reads no clock:
 
 ```ruby
-def on_update(dt) = @elapsed += dt
+def _update(dt) = @elapsed += dt
 
-def on_draw(renderer, view)
+def _draw(renderer, view)
   camera = view.camera
   renderer.tilemap(@id, @layer, camera.x, camera.y, view.width, view.height, elapsed: @elapsed)
 end

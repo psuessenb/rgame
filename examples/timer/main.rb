@@ -126,7 +126,7 @@ class TrueRunner < RGame::Engine::Node2D
 
   # Two timers, two slots. Without the names the second would be refused, and
   # `get_component(Components::Timer)` would have no single answer to give.
-  def on_add
+  def _enter_tree
     add_component(RGame::Engine::Components::Timer.new(BEAT), as: :beat)
       .on_elapsed { @beats += 1 }
     add_component(RGame::Engine::Components::Timer.new(CHIME), as: :chime)
@@ -139,7 +139,7 @@ class TrueRunner < RGame::Engine::Node2D
 
   def restart = @beats = 0
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     draw_track(renderer, BAR)
     renderer.rect(TRACK_W + 14, 4, MARK, MARK, color: @chimed ? MARK_ON : MARK_OFF)
   end
@@ -161,7 +161,7 @@ class NaiveRunner < RGame::Engine::Node2D
     @shortfall = 0
   end
 
-  def on_update(dt)
+  def _update(dt)
     @elapsed += dt
     return if @elapsed < BEAT
 
@@ -181,7 +181,7 @@ class NaiveRunner < RGame::Engine::Node2D
     @elapsed = 0.0
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     draw_track(renderer, BAR)
     return if @shortfall.zero?
 
@@ -201,12 +201,12 @@ class Fuse < RGame::Engine::Node2D
     @label = RGame::Engine::Text.new('fuse.banner')
   end
 
-  def on_add
+  def _enter_tree
     add_component(RGame::Engine::Components::Timer.new(FUSE, repeating: false))
       .on_elapsed { queue_free }
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.rect(0, 0, BANNER_W, BANNER_H, color: BANNER)
     renderer.text(@label, 10, 8, z: 1, color: INK)
   end
@@ -227,21 +227,21 @@ class Scene < RGame::Engine::Node2D
     @fuse_caption = RGame::Engine::Text.new('captions.fuse')
   end
 
-  def on_add
+  def _enter_tree
     @truth = add_node(TrueRunner.new(x: TRACK_X, y: 150))
     @naive = add_node(NaiveRunner.new(x: TRACK_X, y: 210))
   end
 
   # The lap is settled here, where both runners are visible, so that neither of
   # them needs to know the other exists.
-  def on_update(_dt)
+  def _update(_dt)
     return unless @truth.lap?
 
     @truth.restart
     @naive.restart
   end
 
-  def on_control(actions)
+  def _control(actions)
     return unless actions.pressed?(:fire)
     # One at a time: a second banner would sit exactly on top of the first.
     return if @fuse&.in_tree?
@@ -249,7 +249,7 @@ class Scene < RGame::Engine::Node2D
     @fuse = add_node(Fuse.new(x: FUSE_X, y: FUSE_Y))
   end
 
-  def on_draw(renderer, view)
+  def _draw(renderer, view)
     renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
 
     renderer.text(@help, 12, 12)

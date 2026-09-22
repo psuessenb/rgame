@@ -49,7 +49,7 @@ module RGame
           @pointer = pointer&.then { Util::Color.coerce(it) }
         end
 
-        def on_draw(renderer, _view)
+        def _draw(renderer, _view)
           radius = layout.radius
           renderer.circle(0, 0, backdrop_radius, color: @backdrop) if @backdrop
           renderer.circle(0, 0, navigation.dead_zone * radius, color: @dead_zone_color) if @dead_zone_color

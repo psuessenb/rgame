@@ -23,7 +23,7 @@ class Inventory < RGame::Engine::Node2D
     @walker = walker
   end
 
-  def on_add
+  def _enter_tree
     column = RGame::Engine::UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT, spacing: SPACING)
     @menu = add_node(RGame::Engine::UI::PanelMenu.new(x: PADDING, y: PADDING, padding: PADDING, layout: column))
     ITEMS.each { |label| @menu.add(RGame::Engine::UI::PanelButton.new(label: label)).on_activated { toggle } }
@@ -32,7 +32,7 @@ class Inventory < RGame::Engine::Node2D
 
   # A closed menu neither draws nor takes input, but this node still reads the
   # key that opens it.
-  def on_control(actions)
+  def _control(actions)
     toggle if actions.pressed?(:ui_cancel)
   end
 

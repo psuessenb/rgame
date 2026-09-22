@@ -105,7 +105,7 @@ questions, no shared code — and on that reading, two systems is right.
 They answered the same question about different things: *what is in the way*.
 Seen that way the duplication is obvious and it was expensive. The shape had two
 owners, so a character wanting both built one box privately and handed it to the
-other component in an `on_add` hook written for no other purpose — and forgetting
+other component in an `_enter_tree` hook written for no other purpose — and forgetting
 that hook was **silent** — precisely the failure
 [Design out misuse](../../../CLAUDE.md#design-out-misuse-the-right-thing-must-be-the-easy-thing)
 exists to refuse. Unifying it afterwards took six steps and touched every

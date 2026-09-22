@@ -11,7 +11,7 @@ RED = RGame::Util::Color.new(224, 64, 64)
 # what DrawInLocalSpace exists to stop, so the cop is off for it.
 # rubocop:disable Game/DrawInLocalSpace
 class WorldSpaceNode < RGame::Engine::Node2D
-  def on_draw(renderer, _view) = renderer.rect(world_x, world_y, 8, 8, color: RED)
+  def _draw(renderer, _view) = renderer.rect(world_x, world_y, 8, 8, color: RED)
 
   def draw(renderer, view)
     rgame_resolve_inherited
@@ -32,7 +32,7 @@ end
 # What shipped: stock Node2D#draw pushes the node's transform and the node draws
 # at its own origin. No override at all — that is the point.
 class LocalSpaceNode < RGame::Engine::Node2D
-  def on_draw(renderer, _view) = renderer.rect(0, 0, 8, 8, color: RED)
+  def _draw(renderer, _view) = renderer.rect(0, 0, 8, 8, color: RED)
 end
 
 # The old design's other half: resolving the whole tree's transform eagerly on

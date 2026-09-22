@@ -12,7 +12,7 @@ module RuboCop
       # the method name alone can't reveal it.
       module HotPath
         METHODS = %i[update control draw draw_children rgame_draw_content
-                     on_update on_draw on_control].freeze
+                     _update _draw _control].freeze
 
         # True for a `def` that runs per frame: a lifecycle method by name, or one tagged
         # `# hot-path` on the line directly above it.

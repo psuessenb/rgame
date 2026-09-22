@@ -143,6 +143,11 @@ index, not the argument.
   `Dialogue#on_beat` is `on_beat_entered`, since it fires as the conversation
   enters each beat.
 
+- **A node's hooks start with `_`, and `on_` means a signal.** Override
+  `_control`, `_update` and `_draw` for `on_control`, `on_update` and
+  `on_draw`, and `_enter_tree` and `_exit_tree` for `on_add` and `on_remove`.
+  Each hook is named after the step that calls it. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md#the-tick-control--update--draw).
 - **`Node2D`'s sealed machinery starts with `rgame_`, not `_`.** A subclass
   that defines `rgame_draw_content` or another of `Node2D`'s or `Component`'s
   private `rgame_` methods raises `NameError` where the class is defined. A

@@ -84,7 +84,7 @@ node under construction has no anchors. See
 
 The entered-tree cascade fixes an order that makes this safe. The scene's own
 components run `on_attach` first, so a `CollisionWorld` on the scene node exists.
-Then the scene's `on_add` runs, then its children enter. By the time a child
+Then the scene's `_enter_tree` runs, then its children enter. By the time a child
 collider attaches, the scene-scoped system it looks up is already there.
 
 ```ruby

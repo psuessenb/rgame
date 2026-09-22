@@ -11,7 +11,7 @@ require_relative 'score_label'
 # below carries it in a constructor.
 #
 # Entities are pooled Node2Ds — spawning is `pool.acquire` → `reset` → `add_node`
-# (enter_tree registers the collider); despawning is `queue_free`, and #on_update
+# (enter_tree registers the collider); despawning is `queue_free`, and #_update
 # reclaims freed entities back to their pool (detaching them from the tree). The
 # reclaim runs before the child traversal, so it never mutates the child list
 # mid-iteration.
@@ -44,7 +44,7 @@ class PlayScene < RGame::Engine::Node2D
     add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
   end
 
-  def on_add
+  def _enter_tree
     @score_label = add_node(ScoreLabel.new(x: SCORE_MARGIN, y: 10))
     refresh_score
     @ship = add_node(Ship.new)
@@ -54,9 +54,9 @@ class PlayScene < RGame::Engine::Node2D
     system!(RGame::Engine::AudioOut).play_music(:heartbeat)
   end
 
-  def on_remove = system!(RGame::Engine::AudioOut).stop_music
+  def _exit_tree = system!(RGame::Engine::AudioOut).stop_music
 
-  def on_update(dt)
+  def _update(dt)
     @spawn_timer -= dt
     if @spawn_timer <= 0.0
       @spawn_timer = SPAWN_INTERVAL
@@ -68,7 +68,7 @@ class PlayScene < RGame::Engine::Node2D
   # The backdrop only. This node's own drawing comes before its children's, so
   # anything drawn here is behind every entity — which is exactly right for a
   # starfield and wrong for a score, hence ScoreLabel.
-  def on_draw(renderer, _view) = renderer.background(:space)
+  def _draw(renderer, _view) = renderer.background(:space)
 
   # Called by a Rock when a bullet hits it: score, split into smaller rocks, despawn.
   def destroy_rock(rock)

@@ -16,7 +16,7 @@
 # ## Why a node does not just call the audio device
 #
 # It cannot. A node lives in `RGame::Engine`, and that layer may not name
-# `RGame::Core` at all — not a require, not a constant. So `Scene#on_control`
+# `RGame::Core` at all — not a require, not a constant. So `Scene#_control`
 # below asks the tree for the `AudioOut` system, and `AudioOut` forwards the call
 # to the device it holds. `RGame::Game` mounts it on the root when it starts, so
 # this file wires nothing.
@@ -65,12 +65,12 @@ class Scene < RGame::Engine::Node2D
     @plays = 0
     # Built once, here, and that is the whole trick: the key's text renders when
     # the count changes rather than when a frame is drawn. See the note above
-    # on_draw.
+    # _draw.
     @plays_label = RGame::Engine::Text.new('hud.plays', :plays)
     @help = RGame::Engine::Text.new('help.press')
   end
 
-  def on_control(actions)
+  def _control(actions)
     return unless actions.pressed?(:fire)
 
     # The whole of "make a noise". Nothing here knows what device plays it.
@@ -83,7 +83,7 @@ class Scene < RGame::Engine::Node2D
   # The flash is state, advanced by dt — not a clock read at draw time. That is
   # the standing rule (see "`draw` renders state"), and it is why pausing
   # this node would freeze the ring mid-fade instead of letting it run on.
-  def on_update(dt)
+  def _update(dt)
     @flash -= dt * FADE
     @flash = 0.0 if @flash.negative?
   end
@@ -100,7 +100,7 @@ class Scene < RGame::Engine::Node2D
   # **Reach for it rather than inventing a way round the rule.** A label built
   # from something that changes is common enough that the engine owns the
   # answer — see "A label built from a changing value".
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.circle(WIDTH / 2, HEIGHT / 2, MIN_R + (GROW * @flash), color: RING)
     renderer.text(@help, 12, 12)
     renderer.text(@plays_label.with(plays: @plays), 12, 44)

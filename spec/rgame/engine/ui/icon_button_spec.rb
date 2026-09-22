@@ -180,17 +180,17 @@ RSpec.describe RGame::Engine::UI::IconButton do
 
     it 'draws without allocating' do
       item = in_state(:focused, style: RGame::Engine::UI::ShapeStyle.new(shape: :disc))
-      expect { item.on_draw(quiet, nil) }.to allocate_nothing
+      expect { item._draw(quiet, nil) }.to allocate_nothing
     end
 
     it 'draws pressed on a style naming a content colour without allocating' do
       item = in_state(:pressed, label: 'home', style: RGame::Engine::UI::ShapeStyle.new(shape: :disc))
-      expect { item.on_draw(quiet, nil) }.to allocate_nothing
+      expect { item._draw(quiet, nil) }.to allocate_nothing
     end
 
     it 'draws captioned without allocating' do
       item = in_state(:disabled, label: 'home', tints: described_class::TINTS.merge(idle: [1, 2, 3]))
-      expect { item.on_draw(quiet, nil) }.to allocate_nothing
+      expect { item._draw(quiet, nil) }.to allocate_nothing
     end
   end
 end

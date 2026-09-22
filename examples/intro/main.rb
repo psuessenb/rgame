@@ -79,19 +79,19 @@ class Intro < RGame::Engine::Node2D
     @turn.on_elapsed { turn_page }
   end
 
-  def on_add = hold_for_page
+  def _enter_tree = hold_for_page
 
-  def on_control(actions)
+  def _control(actions)
     return unless actions.pressed?(:ui_confirm)
 
     @story.revealed? ? turn_page : @story.reveal_all
   end
 
-  def on_update(_dt)
+  def _update(_dt)
     @turn.reset unless @story.revealed?
   end
 
-  def on_draw(renderer, view)
+  def _draw(renderer, view)
     renderer.rect(0, 0, view.width, view.height, color: BLACK)
     return if @story.last_page?
 

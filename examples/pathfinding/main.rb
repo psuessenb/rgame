@@ -144,13 +144,13 @@ class Cursor < RGame::Engine::Node2D
     step(0, 0)
   end
 
-  def on_control(actions)
+  def _control(actions)
     return unless actions.pressed?(:ui_confirm)
 
     confirmed_signal.emit(world_x: @world.cell_centre_x(@col), world_y: @world.cell_centre_y(@row))
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.line(0, 0, @width, 0, thickness: 2.0, color: @color)
     renderer.line(@width, 0, @width, @height, thickness: 2.0, color: @color)
     renderer.line(@width, @height, 0, @height, thickness: 2.0, color: @color)
@@ -187,7 +187,7 @@ class Route < RGame::Engine::Node2D
     @world = world
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     navigator = @hero.navigator
     draw_cells(renderer, navigator.cells) if navigator.cells
     draw_path(renderer, navigator.path) if navigator.path
@@ -222,7 +222,7 @@ end
 # The scene: the map and its world, the hero, the route drawn under the hero and
 # the cursor over it — and the one line that connects a confirmed tile to a walk.
 class Scene < RGame::Engine::Node2D
-  def on_add
+  def _enter_tree
     map = root.context.assets.tilemap(MAP).map
     players = root.system(RGame::Engine::Players)
     world = add_component(RGame::Engine::Components::TileWorld.new(
@@ -253,7 +253,7 @@ class Scene < RGame::Engine::Node2D
     @help_route = RGame::Engine::Text.new('help.route')
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.text(@help_cursor, 12, 12)
     renderer.text(@help_route, 12, 34)
     renderer.text(@status_label.with(status: @status), 12, 56)

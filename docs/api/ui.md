@@ -315,13 +315,13 @@ pause menu is built once and toggled:
 class PauseMenu < RGame::Engine::Node2D
   UI = RGame::Engine::UI
 
-  def on_add
+  def _enter_tree
     @menu = add_node(UI::PanelMenu.new(x: 56, y: 56, layout: UI::Column.new(item_width: 180, item_height: 34)))
     @menu.add(UI::PanelButton.new(label: 'resume')).on_activated { @menu.close }
     @menu.close
   end
 
-  def on_control(actions)
+  def _control(actions)
     return unless actions.pressed?(:ui_cancel)
 
     @menu.open? ? @menu.close : @menu.open
@@ -396,7 +396,7 @@ zone and does not cover that.
 
 **Two players can each have a menu open, independently, and neither menu mentions
 players.** A menu inside a `PlayerLayer` inherits that player as its
-`input_owner`, and children inherit ownership. The `actions` its `on_control`
+`input_owner`, and children inherit ownership. The `actions` its `_control`
 receives already belong to that player.
 
 The menu does nothing special for this.
@@ -432,7 +432,7 @@ it. To put a panel's corner at (40, 40), place the menu at (40 + padding,
 40 + padding). The buttons are the menu's children, so they draw over the panel
 with no `z`.
 
-Any other backdrop works the same way: subclass `Menu` and draw it in `on_draw` from
+Any other backdrop works the same way: subclass `Menu` and draw it in `_draw` from
 `bounds_x`, `bounds_y`, `bounds_width` and `bounds_height`.
 
 ### `RGame::Engine::UI::RadialMenu`
@@ -484,7 +484,7 @@ whatever the wheel's parent draws itself sits under the backdrop.
 ### `RGame::Engine::UI::Button`
 
 **A `Button` has state, a label and an `on_activated` signal, but no look.** A
-subclass supplies the look in `on_draw`, reading `state`:
+subclass supplies the look in `_draw`, reading `state`:
 
 | `state` | When |
 |---|---|
@@ -498,7 +498,7 @@ subclass supplies the look in `on_draw`, reading `state`:
 | `label`, `label=` | the `Engine::Text` drawn, or `nil`; set from a key, a `Text` or `nil` — see [Labels are translation keys](#labels-are-translation-keys) |
 | `label_scope`, `label_scope=` | the scope a label given as a key resolves under; a [menu's `scope:`](#labels-are-translation-keys) sets it |
 | `enabled`, `enabled?` | whether it can be activated; `Stepping` and `Pointing` skip a disabled button |
-| `focused?`, `pressed?`, `state` | read by `on_draw` |
+| `focused?`, `pressed?`, `state` | read by `_draw` |
 | `activate_on` | `:release` (the default) or `:press`; anything else raises `ArgumentError` |
 | `hotkey` | an action name that presses this button, focused or not, or `nil` — see [Hotkeys](#hotkeys) |
 | `activate` | fire `on_activated` and return the button, or `nil` when disabled |
@@ -523,7 +523,7 @@ class EdgeButton < RGame::Engine::UI::Button
     pressed: RGame::Util::Color.new(255, 220, 120), disabled: RGame::Util::Color.new(110, 110, 110)
   }.freeze
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     color = COLORS.fetch(state)
     renderer.rect(0, 0, 4, height, color: color) unless state == :idle
     renderer.text(label, 12, (height - renderer.text_height) / 2, color: color)
@@ -533,7 +533,7 @@ end
 menu.add(EdgeButton.new(label: 'continue')).on_activated { resume }
 ```
 
-A `Button` without `on_draw` draws nothing, which suits an invisible slot.
+A `Button` without `_draw` draws nothing, which suits an invisible slot.
 
 A look that differs from a shipped button only in what sits behind the label needs
 no subclass. Pass a [style](#styles) to a `TextButton`.
@@ -575,7 +575,7 @@ keeps it, and a spec advances it by passing seconds.
   activate its own focused button.
 - **A change to the buttons starts that wait again.** After `add` or `clear`, the
   menu accepts no confirm press until it has seen `ui_confirm` up. A parent node's
-  `on_control` runs before the menu's. A parent that adds buttons on a confirm press
+  `_control` runs before the menu's. A parent that adds buttons on a confirm press
   therefore adds them before the menu reads that press, and the new buttons ignore
   it. A menu whose buttons change from a button's `on_activated` reads no more
   input that tick, hotkeys included.
@@ -737,7 +737,7 @@ menu.add(UI::TextButton.new(label: 'quit', style: nil))
 | `label_color:`, `disabled_label_color:` | a `Color` or `[r, g, b]`; defaults `TextButton::LABEL_COLOR` and `DISABLED_LABEL_COLOR`; a style's [content colour](#styles) takes precedence in the states it names |
 
 The style draws first, and the label over it at `z: 1`. A subclass that draws more
-than a label overrides the private `draw_foreground(renderer)`, not `on_draw`. It
+than a label overrides the private `draw_foreground(renderer)`, not `_draw`. It
 then keeps its style without having to draw it. `OptionButton` works this way.
 
 ### `RGame::Engine::UI::PanelButton`
@@ -957,7 +957,7 @@ can change how many pages there are. When it leaves fewer than the page set,
 `page` reads as the last one.
 
 ```ruby
-def on_control(actions)
+def _control(actions)
   @intro.page += 1 if actions.pressed?(:ui_confirm)
 end
 ```
@@ -975,7 +975,7 @@ each page whole, whatever time passes.
   text: 'smith.greeting', width: 440, lines_per_page: 3, reveal: 40
 ))
 
-def on_control(actions)
+def _control(actions)
   return unless actions.pressed?(:ui_confirm)
 
   @line.revealed? ? @line.page += 1 : @line.reveal_all

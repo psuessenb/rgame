@@ -34,7 +34,7 @@ module RGame
       #                        display: ->(percent) { Engine::Text.literal("#{percent}%") })
       #
       # `display` is called for the whole list in the constructor. Doing it in
-      # `on_draw` instead would allocate a String every frame for every row on
+      # `_draw` instead would allocate a String every frame for every row on
       # screen, which is what `Game/NoInterpolationInHotPath` refuses — and the
       # values themselves are what a game acts on, so they cannot simply be
       # stored as text.

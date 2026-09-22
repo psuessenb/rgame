@@ -15,9 +15,9 @@ module RGame
       # and `angle` are the short spelling of the same three, because that is
       # what reads well where a node moves itself:
       #
-      #   def on_update(dt) = self.x += @speed * dt
+      #   def _update(dt) = self.x += @speed * dt
       #
-      # Not for drawing, though it is tempting: `on_draw` runs with the renderer
+      # Not for drawing, though it is tempting: `_draw` runs with the renderer
       # already on this node (see #rgame_in_local_space), so drawing at `x`
       # offsets by this node's own position a second time. `Game/DrawInLocalSpace`
       # says so.
@@ -361,7 +361,7 @@ module RGame
         rgame_resolve_inherited
         actions = input.actions_for(@abs_input_owner)
         @components.each { it.control(actions) }
-        on_control(actions)
+        _control(actions)
         rgame_children_in_order.each { it.control(input) }
       end
 
@@ -372,7 +372,7 @@ module RGame
         return if @paused
 
         @components.each { it.update(dt) }
-        on_update(dt)
+        _update(dt)
         rgame_children_in_order.each { it.update(dt) }
       end
 
@@ -421,7 +421,7 @@ module RGame
 
       # Entered-tree cascade: anchors (root/scene) and sibling systems are now
       # reachable, so components attach (register with systems) before this node's
-      # own on_add, and the whole subtree enters depth-first. The engine fires this
+      # own _enter_tree, and the whole subtree enters depth-first. The engine fires this
       # — the user never calls it — so registration can't be forgotten. Idempotent.
       def enter_tree
         return if @in_tree
@@ -429,26 +429,31 @@ module RGame
         @in_tree = true
         @freed = false
         @components.each(&:on_attach)
-        on_add
+        _enter_tree
         rgame_children_in_order.each(&:enter_tree)
       end
 
       # Leaving-tree cascade: mirror of #enter_tree (children first, then this
-      # node's on_remove, then component on_detach to release registrations).
+      # node's _exit_tree, then component on_detach to release registrations).
       def exit_tree
         return unless @in_tree
 
         rgame_children_in_order.each(&:exit_tree)
-        on_remove
+        _exit_tree
         @components.each(&:on_detach)
         @in_tree = false
       end
 
-      def on_control(actions); end
-      def on_update(dt); end
-      def on_draw(renderer, view); end
-      def on_add; end
-      def on_remove; end
+      # The hooks a subclass overrides, each empty here and named after the step
+      # that calls it: `control`, `update` and `draw` call the first three after
+      # the node's components, and `enter_tree` and `exit_tree` the other two.
+      # The leading `_` marks a method the engine calls and a game does not; `on_`
+      # is kept for signals.
+      def _control(actions); end
+      def _update(dt); end
+      def _draw(renderer, view); end
+      def _enter_tree; end
+      def _exit_tree; end
 
       private
 
@@ -473,7 +478,7 @@ module RGame
       # hot-path
       def rgame_draw_content(renderer, view)
         @components.each { it.draw(renderer, view) }
-        on_draw(renderer, view)
+        _draw(renderer, view)
       end
 
       # hot-path

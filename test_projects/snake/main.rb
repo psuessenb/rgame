@@ -23,7 +23,7 @@ class Grid < RGame::Engine::Node2D
 
   # Drawn in the grid's own space: (0, 0) is the grid's top-left corner
   # wherever the tree has put it.
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.line(0, 0, 0, height)
     renderer.line(width, height, width, 0)
     renderer.line(width, 0, 0, 0)
@@ -80,7 +80,7 @@ class SnakePart < RGame::Engine::Node2D
     end
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.rect(0, 0, width - 1, height - 1, color: RGame::Util::Color::GREEN)
   end
 
@@ -119,13 +119,13 @@ class Snake < RGame::Engine::Node2D
     @current_size = @max_size
   end
 
-  def on_add
+  def _enter_tree
     @moved = 0.0
     move_intent(0, 1)
     build_body
   end
 
-  def on_control(actions)
+  def _control(actions)
     if actions.axis(:move_x).positive?
       move_intent(1, 0)
     elsif actions.axis(:move_x).negative?
@@ -137,7 +137,7 @@ class Snake < RGame::Engine::Node2D
     end
   end
 
-  def on_update(dt)
+  def _update(dt)
     return if @dead
 
     @moved += dt
@@ -216,7 +216,7 @@ class Fruit < RGame::Engine::Node2D
     end
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.rect(0, 0, width - 1, height - 1, color: RGame::Util::Color::RED)
   end
 
@@ -225,7 +225,7 @@ class Fruit < RGame::Engine::Node2D
   # yet, so every square reads free. One square in four hundred puts the first fruit
   # under the snake's head, which it then eats on the first step. Every spawn after
   # this one is asked of a populated index and does avoid the snake.
-  def on_add
+  def _enter_tree
     spawn
   end
 

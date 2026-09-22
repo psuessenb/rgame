@@ -133,13 +133,13 @@ class Prompts < RGame::Engine::Node2D
   PAD      = 14
   HEADER_H = 34
 
-  def on_add
+  def _enter_tree
     # One seat, so the player is the primary one. Held rather than looked up per
     # frame: which player this is cannot change, while the device they hold can.
     @player = system(RGame::Engine::Players).primary
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     device = @player.device
     renderer.rect(0, 0, WIDTH_PX, HEADER_H + (ROWS.size * ROW_H), color: PANEL)
     renderer.text(DEVICE_NAME.fetch(RGame::Util::Controls.gamepad?(device)), PAD, PAD, color: INK)
@@ -170,7 +170,7 @@ class Hero < RGame::Engine::Node2D
     add_component(RGame::Engine::Components::PlayerController.new)
   end
 
-  def on_update(_dt)
+  def _update(_dt)
     self.x = x.clamp(0, WIDTH - width)
     self.y = y.clamp(0, HEIGHT - height)
   end
@@ -189,12 +189,12 @@ class Scene < RGame::Engine::Node2D
     @help_back = RGame::Engine::Text.new('help.back')
   end
 
-  def on_add
+  def _enter_tree
     add_node(Hero.new(x: 470, y: 300))
     add_node(Prompts.new(x: MARGIN, y: MARGIN))
   end
 
-  def on_draw(renderer, view)
+  def _draw(renderer, view)
     renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
     renderer.text(@help_seat, MARGIN, view.height - 52)
     renderer.text(@help_back, MARGIN, view.height - 30)
