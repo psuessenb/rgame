@@ -104,9 +104,10 @@ end
 
 Zero is correct. One means something outlives the run — and the usual suspects
 are a proc, a constant, or a process-global that was never let go of.
-`RGame::Engine::AudioBus` was exactly that: it held the audio device, which held
-the asset manager, which held the window, and nobody noticed until something
-reached through it. `RGame::Game` owns the director for that reason.
+A global audio bus the engine once had was exactly that: it held the audio
+device, which held the asset manager, which held the window, and nobody noticed
+until something reached through it. Audio is now a system on the root, released
+with the tree.
 
 ---
 

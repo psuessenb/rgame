@@ -64,17 +64,9 @@
 # node**, so a subtree that goes away takes its subscriptions with it and there
 # is nothing to leak.
 #
-# The exception is the one signal that outlives everything. `Engine::AudioBus` is
-# a *module*, so it is built the other way round — it exposes its Signals
-# publicly rather than through the DSL — and `Engine::AudioDirector` disconnects
-# from them when it is released:
-#
-#     @bus.on_play_sound.disconnect(@handles[0])
-#
-# It has to. A module-level hub holds its listeners for as long as the process
-# runs, and the one that was forgotten there held the audio device, which held
-# the asset manager, which held the window. Reach for the public-Signal shape
-# when a hub outlives its subscribers, and for the DSL everywhere else.
+# A signal that outlived its listeners would need one. Keep signals on the
+# nodes and components whose events they report, and the question does not
+# come up.
 #
 # ## What it does not solve
 #

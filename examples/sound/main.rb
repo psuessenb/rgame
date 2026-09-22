@@ -9,19 +9,17 @@
 # Space (or A on a pad) plays a blip. Press it fast: each press is another
 # voice, so they overlap rather than cutting each other off. It exercises:
 #   - Core::Sample — a decoded, fire-and-forget effect, named by its path;
-#   - Engine::AudioBus — where gameplay says *what happened*;
-#   - Engine::AudioDirector — what turns that into playback, subscribed by
-#     RGame::Game;
+#   - Engine::AudioOut — the system a node plays sound through, mounted on
+#     the root by RGame::Game;
 #   - Engine::Text — a count on screen, from a key, that costs no String per frame.
 #
 # ## Why a node does not just call the audio device
 #
 # It cannot. A node lives in `RGame::Engine`, and that layer may not name
 # `RGame::Core` at all — not a require, not a constant. So `Scene#on_control`
-# below emits on `AudioBus`, a global signal hub that knows nothing about sound,
-# and an `AudioDirector` forwards it to the real device. `RGame::Game` subscribes
-# that director when it starts and releases it when the loop ends, so this file
-# wires nothing.
+# below asks the tree for the `AudioOut` system, and `AudioOut` forwards the call
+# to the device it holds. `RGame::Game` mounts it on the root when it starts, so
+# this file wires nothing.
 #
 # That looks like ceremony until you notice what it buys: the same scene runs in
 # a headless spec with a recording fake substituted for the device, and the spec
@@ -75,9 +73,8 @@ class Scene < RGame::Engine::Node2D
   def on_control(actions)
     return unless actions.pressed?(:fire)
 
-    # The whole of "make a noise": a fact, emitted. Nothing here knows whether
-    # anything is listening, or what it would play it on.
-    RGame::Engine::AudioBus.play_sound('blip.ogg')
+    # The whole of "make a noise". Nothing here knows what device plays it.
+    system!(RGame::Engine::AudioOut).play_sound('blip.ogg')
 
     @flash = 1.0
     @plays += 1

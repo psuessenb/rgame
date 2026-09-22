@@ -4,9 +4,9 @@ rgame plays sound through three classes. `Audio` is the sound device. A `Sample`
 is a short sound that can play over itself. A `Song` is a long sound streamed
 from disk.
 
-**A scene in an `RGame::Game` never touches these classes.** It emits on
-[`AudioBus`](toolbox.md#audiobus--decoupled-audio-facts), for example
-`RGame::Engine::AudioBus.play_sound('hit.ogg')`, and the game's director plays it.
+**A scene in an `RGame::Game` never touches these classes.** It plays sound
+through the [`AudioOut`](#audioout--the-system-a-node-plays-sound-through)
+system, for example `system!(RGame::Engine::AudioOut).play_sound('hit.ogg')`.
 The example below drives the device directly from a plain `App`:
 
 ```ruby
@@ -140,13 +140,9 @@ is a different bug from a mistyped name.
 whether it is already playing. Resolving one path to two `Song` objects would
 defeat that check and restart the track on every request.
 
-**A game wires none of this.** When `RGame::Game` starts, it subscribes an
-[`AudioDirector`](toolbox.md) to the global `AudioBus`. When the loop ends, it
-unsubscribes it. A scene that emits on the bus is heard with no setup. The engine
-owns both steps because each failure is invisible. Without a director, the tree
-runs and the events fire, but nothing plays. A director left on the bus keeps
-the device, the asset manager and the whole `App` alive for the life of the
-process. A single game never notices, but a process running two games does.
+**A game wires none of this.** `RGame::Game` mounts an
+[`AudioOut`](#audioout--the-system-a-node-plays-sound-through) holding its device
+on the root when it starts, so a scene that plays a sound is heard with no setup.
 
 **`play_music` is idempotent.** Asking for the track already playing does
 nothing. A scene that repeats the request each time it is entered never restarts
@@ -247,3 +243,34 @@ That spec loads no file, opens no device and needs no sound card.
 rgame audio has no MP3 or FLAC; it decodes Vorbis and WAV only, to keep the gem
 small. It also lacks positional and 3D audio, effects and filters, fades,
 pausing, seeking, per-play handles, playback position and recording.
+
+## `AudioOut` — the system a node plays sound through
+
+**`RGame::Engine::AudioOut` is a component on the root that holds the sound
+device.** A node reaches it with
+[`Node2D#system!`](systems.md#looking-a-system-up) and calls one of three
+methods:
+
+```ruby
+system!(RGame::Engine::AudioOut).play_sound(:boom)
+system!(RGame::Engine::AudioOut).play_music(:theme)
+system!(RGame::Engine::AudioOut).stop_music
+```
+
+Each forwards to the device, so ids, looping and what `stop_music` stops work as
+this page describes for `Audio`. `AudioOut` calls the device by method name, so
+the engine layer never names `RGame::Core::Audio`.
+
+**`RGame::Game` mounts it in `start`**, holding `Game#audio`: the device `App`
+builds, or the one passed as `audio:`. A node that is not in the tree, or a tree
+with no `AudioOut`, makes `system!` raise `KeyError` naming `AudioOut`. A node
+without a tree cannot play a sound, so a quest effect or other code that is not
+a node needs a node handed to it.
+
+**A headless spec mounts one on a recording device.** rgame's own suite does it
+with the `FakeAudio` in `spec/support/`, which is checked against the same
+contract as the real device:
+
+```ruby
+root.add_component(RGame::Engine::AudioOut.new(FakeAudio.new))
+```

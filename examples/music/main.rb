@@ -11,9 +11,8 @@
 # is below. It exercises:
 #   - Core::Song — a streamed track with one voice, which can be stopped and
 #     asked whether it is playing, named by its path;
-#   - Engine::AudioBus play_music / stop_music;
-#   - Engine::AudioDirector, the same one `examples/sound` uses, subscribed by
-#     RGame::Game.
+#   - Engine::AudioOut play_music / stop_music, the system `examples/sound`
+#     plays through, mounted by RGame::Game.
 #
 # ## A Song is not a Sample
 #
@@ -99,7 +98,7 @@ class Scene < RGame::Engine::Node2D
 
   private
 
-  # The bus call is unconditional on purpose: this node has no idea whether the
+  # The play_music call is unconditional on purpose: this node has no idea whether the
   # track is already going, and does not need one. The guard lives in
   # Audio#play_music, which owns the state that answers it.
   #
@@ -107,7 +106,7 @@ class Scene < RGame::Engine::Node2D
   # the label, which is why the bar carrying on through a second press proves
   # nothing about the device.
   def start
-    RGame::Engine::AudioBus.play_music('music.ogg')
+    system!(RGame::Engine::AudioOut).play_music('music.ogg')
     return if @playing
 
     @playing = true
@@ -115,7 +114,7 @@ class Scene < RGame::Engine::Node2D
   end
 
   def stop
-    RGame::Engine::AudioBus.stop_music
+    system!(RGame::Engine::AudioOut).stop_music
     @playing = false
     @elapsed = 0.0
     @status = @stopped

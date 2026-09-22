@@ -87,7 +87,7 @@ code, not from memory of the design. Three kinds of sentence go wrong most often
 **The reader writes a game on `RGame::Game`.** Lead with that path:
 
 - **Engine-layer examples are scene code.** A node receives the renderer in
-  `on_draw` and plays sound through `AudioBus`. When a page drives `RGame::Core`
+  `on_draw` and plays sound through the `AudioOut` system. When a page drives `RGame::Core`
   from a plain `App` to show the calls, it says so.
 - **Name the entry point.** State whether an example is a `Game` scene, a plain
   `App`, a spec, or a command in a repository checkout.
@@ -125,7 +125,7 @@ So:
   RSpec file: put `<!-- doc-example: skip — reason -->` on the line before its
   fence.
 - **Name things in prose with backticks and their real spelling**: `UI::Menu#open`
-  for an instance method, `AudioBus.play_sound` for a module or class method,
+  for an instance method, `Transcript.from` for a module or class method,
   `Controls::KEY_A` for a constant. The reference spec resolves every such name.
 
 ## What the checks catch, and what they do not

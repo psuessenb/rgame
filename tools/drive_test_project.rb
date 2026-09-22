@@ -421,8 +421,8 @@ module DriveTestProject
     end
   end
 
-  # The audio server. `AudioDirector` and `AudioBus` call it by name, so a
-  # delegator is all it takes. Only playback is recorded — the asset manager
+  # The audio server, passed to the game as `audio:`. `Engine::AudioOut` calls
+  # it by name, so a delegator is all it takes. Only playback is recorded — the asset manager
   # also decodes through this object (`sample`, `song`), and a file being loaded
   # is not a sound being heard.
   class AudioProbe < Probe
@@ -587,18 +587,8 @@ module DriveTestProject
       Module.new do
         define_method(:initialize) do |**kwargs|
           extra = pad ? { device: RGame::Util::Controls.gamepad(0) } : { input: input }
-          super(**kwargs, **extra)
+          super(**kwargs, **extra, audio: AudioProbe.new(RGame::Core::Audio.new, report))
           @renderer = RendererProbe.new(@renderer, report)
-        end
-
-        # Wrapped lazily: App#audio opens a device on first use, and wrapping it
-        # in initialize would open one for a game that never plays a sound.
-        # Not @audio: that is App's own ivar holding the real device, and
-        # memoizing the wrapper there would overwrite what we are wrapping.
-        define_method(:audio) do
-          # rubocop:disable Naming/MemoizedInstanceVariableName -- see above
-          @audio_probe ||= AudioProbe.new(super(), report)
-          # rubocop:enable Naming/MemoizedInstanceVariableName
         end
 
         define_method(:update) do |dt|

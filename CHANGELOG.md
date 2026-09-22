@@ -110,8 +110,22 @@ index, not the argument.
   `RGame::Engine::Exploration.run` walks every path a dialogue or a state
   machine can take. It reports each dead end, with the moves that reach it. See
   [docs/api/dialogue.md](docs/api/dialogue.md#checking-every-path).
+- **A node that needs a system can ask for it by raising.** `Node2D#system!`
+  finds a system as `system` does, and raises `KeyError` naming the class and
+  where it looked, rather than returning nil. See
+  [docs/api/systems.md](docs/api/systems.md#looking-a-system-up).
+- **`RGame::Game` takes the sound device as `audio:`**, as it takes the input
+  backend as `input:`, so a harness can record what a game plays. See
+  [docs/api/game.md](docs/api/game.md).
 
 ### Changed
+
+- **A node plays sound through the `AudioOut` system.** `RGame::Game` mounts
+  `RGame::Engine::AudioOut` on the root, holding the sound device. Write
+  `system!(RGame::Engine::AudioOut).play_sound(:boom)` for
+  `RGame::Engine::AudioBus.play_sound(:boom)`, and the same for `play_music`
+  and `stop_music`. A headless spec mounts an `AudioOut` on a recording device.
+  See [docs/api/audio.md](docs/api/audio.md#audioout--the-system-a-node-plays-sound-through).
 
 - **Every drawing call defaults to z 0, so call order decides.** A shape used to
   default above text and images within one node. A backdrop drawn first then
@@ -145,6 +159,8 @@ index, not the argument.
 
 ### Removed
 
+- **`RGame::Engine::AudioBus` and `RGame::Engine::AudioDirector`.** Play sound
+  through `AudioOut`, which replaces both; see Changed.
 - **`RGame::Engine::Tileset` and `TileMap#tileset`.** A map answers per tile:
   `solid?(tile)`, `animated_tiles` and `frame_tile(tile, elapsed)`, which takes
   seconds. `solid_ids` has no replacement; a tile is solid when it has a

@@ -21,8 +21,8 @@ overlay.
 ```ruby
 RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
                 media_root: 'media', input_map: nil, device: Controls::KEYBOARD,
-                players: 1, input: nil, fullscreen: false, scale_mode: :letterbox,
-                locales: 'locales')
+                players: 1, input: nil, audio: nil, fullscreen: false,
+                scale_mode: :letterbox, locales: 'locales')
 ```
 
 | Reader | |
@@ -33,14 +33,19 @@ RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
 | `viewports` | how the screen is divided between players |
 | `facts` | the flags and named state machines a game saves; see [Facts](dialogue.md#facts) |
 | `scale_mode`, `scale_mode=` | how the logical size maps onto the window; switchable while the game runs |
-| `assets`, `audio`, `media_root`, `width`, `height`, `fps` | inherited from [App](app.md) |
+| `audio` | the sound device: the one passed as `audio:`, or the one [App](app.md) builds on first use |
+| `assets`, `media_root`, `width`, `height`, `fps` | inherited from [App](app.md) |
 
-A node reaches all three as systems: `node.system(RGame::Engine::Players)`,
+A node reaches the first three as systems: `node.system(RGame::Engine::Players)`,
 `node.system(RGame::Engine::Viewports)` and
-`node.system(RGame::Engine::Components::Facts)`.
+`node.system(RGame::Engine::Components::Facts)`. It plays sound through a fourth,
+`RGame::Engine::AudioOut`, which holds `audio`; see [Audio](audio.md).
 
-`input:` replaces the input backend. A test harness passes a scripted backend
-here to drive a game without hardware. A game passes nothing.
+`input:` replaces the input backend, and `audio:` the sound device. A test
+harness passes a scripted backend and a recording device here, to drive a game
+without hardware and list what it played. `Game` hands the device its asset
+manager with `assets=`, as `App` does its own, so path ids resolve through it. A
+game passes neither.
 
 ### `scale_mode:` — what `width` and `height` mean
 
@@ -90,11 +95,8 @@ the game offers a way back. See [Fullscreen](app.md#fullscreen) and
 `examples/fullscreen`.
 
 `start` brings the tree live. It hands the game to the root as its `context`,
-mounts `Players`, `Viewports` and `Components::Facts` on the root, and
-subscribes an `AudioDirector` to the
-[`AudioBus`](toolbox.md#audiobus--decoupled-audio-facts). It then calls
-`enter_tree` and runs the loop until the window closes. When the loop ends, it
-unsubscribes the director. `F1` toggles the debug overlay and `F2` quits.
+mounts `Players`, `Viewports`, `Components::Facts` and `AudioOut` on the root. It
+then calls `enter_tree` and runs the loop until the window closes. `F1` toggles the debug overlay and `F2` quits.
 
 The debug overlay is an `RGame::Engine::DebugOverlay`. It shows frames per
 second, the total objects allocated, and the objects allocated since its last

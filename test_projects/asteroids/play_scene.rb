@@ -51,10 +51,10 @@ class PlayScene < RGame::Engine::Node2D
     @ship.on_fire { |x, y, angle| fire_bullet(x, y, angle) }
     @ship.on_destroyed { lose }
     INITIAL_ROCKS.times { spawn_rock }
-    RGame::Engine::AudioBus.play_music(:heartbeat)
+    system!(RGame::Engine::AudioOut).play_music(:heartbeat)
   end
 
-  def on_remove = RGame::Engine::AudioBus.stop_music
+  def on_remove = system!(RGame::Engine::AudioOut).stop_music
 
   def on_update(dt)
     @spawn_timer -= dt
@@ -74,7 +74,7 @@ class PlayScene < RGame::Engine::Node2D
   def destroy_rock(rock)
     @score += rock.points
     refresh_score
-    RGame::Engine::AudioBus.play_sound(:boom)
+    system!(RGame::Engine::AudioOut).play_sound(:boom)
     rock.split(@rock_pool, @rng)
     rock.queue_free
   end
@@ -87,7 +87,7 @@ class PlayScene < RGame::Engine::Node2D
                  vx: Math.cos(angle) * BULLET_SPEED,
                  vy: Math.sin(angle) * BULLET_SPEED)
     add_node(bullet)
-    RGame::Engine::AudioBus.play_sound(:shoot)
+    system!(RGame::Engine::AudioOut).play_sound(:shoot)
   end
 
   def spawn_rock
@@ -121,7 +121,7 @@ class PlayScene < RGame::Engine::Node2D
   end
 
   def lose
-    RGame::Engine::AudioBus.play_sound(:hurt)
+    system!(RGame::Engine::AudioOut).play_sound(:hurt)
     root.go(:game_over, score: @score)
   end
 

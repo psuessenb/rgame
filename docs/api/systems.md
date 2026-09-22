@@ -41,6 +41,17 @@ therefore override a global default, and nodes outside any scene still find
 globals. To mean one scope specifically, use its anchor:
 `node.root.get_component` or `node.scene.get_component`.
 
+**`Node2D#system!(klass)` is the same lookup for a caller that cannot work
+without the system.** Where `system` returns nil, `system!` raises `KeyError`.
+The message names the class, the node and where it looked, and says when the
+node has no parent:
+
+```ruby
+system!(RGame::Engine::AudioOut).play_sound(:boom)
+# KeyError: Ship found no RGame::Engine::AudioOut system on its scene or the root.
+#           Mount one there with add_component
+```
+
 ### Ask for a contract, not a class
 
 **The lookup matches by ancestry**, so `klass` can be a module the system
@@ -92,11 +103,12 @@ reports nothing. A tile-only game wants exactly that: its character carries a
 feet box to be *stopped* by (see [`Mover`](components.md#mover)), and there are no
 pairs to find. The cost is that an `on_hit` handler in such a scene never fires,
 and nothing reports it. Weigh that deliberately. A client that is useless without
-its system raises instead, as a mover's `blocked_by:` does.
+its system raises instead: with `system!`, or with a message of its own, as a
+mover's `blocked_by:` does.
 
-## The three systems `Game` mounts
+## The four systems `Game` mounts
 
-**`RGame::Game` puts three systems on the root before the tree goes live.** Any
+**`RGame::Game` puts four systems on the root before the tree goes live.** Any
 node can reach them without the game wiring anything:
 
 | | |
@@ -104,17 +116,20 @@ node can reach them without the game wiring anything:
 | `node.system(RGame::Engine::Players)` | who is playing — devices, bindings, cameras, and who a newly used controller belongs to |
 | `node.system(RGame::Engine::Viewports)` | how the screen is divided — one `View` per active player, and collapsing the split |
 | `node.system(RGame::Engine::Components::Facts)` | the flags and named state machines a game saves as one entry |
+| `node.system!(RGame::Engine::AudioOut)` | the sound device: `play_sound`, `play_music`, `stop_music` |
 
 They are ordinary root-scoped systems, mounted the way a game mounts its own. A
 scene that needs a camera to follow asks `Players` (`players.primary.camera`). A
 cutscene that collapses the split asks `Viewports` (`viewports.solo!(camera)`).
-A quest built in a scene registers with `Facts`, which the save code writes.
-All three work from anywhere in the tree, with nothing passed in. That reach is why
-they are systems and not objects `Game` hands down.
+A quest built in a scene registers with `Facts`, which the save code writes. A
+node plays a sound through `AudioOut`. All four work from anywhere in the tree,
+with nothing passed in. That reach is why they are systems and not objects
+`Game` hands down.
 
 See [Input](input.md#players-seats-and-joining),
-[Scene graph](scene_graph.md#viewports-and-views) and
-[Facts](dialogue.md#facts).
+[Scene graph](scene_graph.md#viewports-and-views),
+[Facts](dialogue.md#facts) and
+[Audio](audio.md#audioout--the-system-a-node-plays-sound-through).
 
 ## Collision: two indexes, one resolver
 

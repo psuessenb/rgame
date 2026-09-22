@@ -400,6 +400,31 @@ RSpec.describe RGame::Engine::Node2D do
         expect(child.system(SpecPhysicsComponent)).to be(local)
       end
     end
+
+    describe '#system!' do
+      it 'finds what #system finds, scene first' do
+        node.add_component(SpecPhysicsComponent.new)
+        scene = node.add_node(described_class.new)
+        scene.scene = scene
+        local = scene.add_component(SpecPhysicsComponent.new)
+
+        expect(scene.add_node(described_class.new).system!(SpecPhysicsComponent)).to be(local)
+      end
+
+      it 'raises KeyError naming the class and where it looked' do
+        scene = node.add_node(described_class.new)
+        scene.scene = scene
+        child = scene.add_node(described_class.new)
+
+        expect { child.system!(SpecPhysicsComponent) }
+          .to raise_error(KeyError, /no SpecPhysicsComponent system on its scene or the root\. Mount one/)
+      end
+
+      it 'says so when the node has no parent' do
+        expect { described_class.new.system!(SpecPhysicsComponent) }
+          .to raise_error(KeyError, /no SpecPhysicsComponent system on the root\. It has no parent/)
+      end
+    end
   end
 
   describe 'deferred free' do

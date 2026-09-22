@@ -335,6 +335,13 @@ module RGame
         scene&.get_component(klass) || root.get_component(klass)
       end
 
+      # The same lookup, for a caller that cannot work without the system: it
+      # raises `KeyError` naming the class and where it looked, rather than
+      # returning nil for the next call to fail on.
+      def system!(klass)
+        system(klass) || raise(KeyError, _missing_system(klass))
+      end
+
       # `input` is an input *source*, not one player's snapshot: an
       # RGame::Engine::Players registry, or a bare Actions when there is only
       # ever one answer (which is what a spec usually passes).
@@ -538,6 +545,17 @@ module RGame
       end
 
       private
+
+      def _missing_system(klass)
+        where = scene ? 'its scene or the root' : 'the root'
+        message = "#{self.class} found no #{klass} system on #{where}"
+        if @parent.nil?
+          return "#{message}. It has no parent, so it is the root: add it to the tree first, " \
+                 'or mount the system on it'
+        end
+
+        "#{message}. Mount one there with add_component"
+      end
 
       # hot-path
       def _resolve_inherited
