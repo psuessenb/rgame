@@ -21,7 +21,7 @@ RSpec.describe RGame::Engine::Node2D do
   before do
     backend.hold(controls::KEY_SPACE)
     backend.hold(controls::PAD_A, device: controls.gamepad(0))
-    players.poll(backend)
+    players.poll(backend, 0.016)
   end
 
   # Records the Actions its node was driven with.
@@ -116,7 +116,7 @@ RSpec.describe RGame::Engine::Node2D do
     it 'does not leak one player\'s input into another\'s subtree' do
       idle = RGame::Engine::Player.new(id: 2, device: RGame::Util::Controls.gamepad(1))
       registry = RGame::Engine::Players.new([one, idle])
-      registry.poll(backend)
+      registry.poll(backend, 0.016)
 
       root = described_class.new
       held = root.add_node(described_class.new(input_owner: one)).add_node(recorder)

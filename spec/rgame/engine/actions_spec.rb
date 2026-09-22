@@ -5,7 +5,8 @@ RSpec.describe RGame::Engine::Actions do
     subject(:actions) do
       described_class.new(held: { fire: true, jump: false },
                           axes: { move_x: 0.5 },
-                          prev_held: { fire: false, jump: true })
+                          prev_held: { fire: false, jump: true },
+                          hold_times: { fire: 0.75, jump: 0.0 })
     end
 
     it 'reports a held action' do
@@ -26,6 +27,10 @@ RSpec.describe RGame::Engine::Actions do
 
     it 'reports an axis value' do
       expect(actions.axis(:move_x)).to eq(0.5)
+    end
+
+    it 'reports how long an action has been down' do
+      expect(actions.held_for(:fire)).to eq(0.75)
     end
 
     it 'lists what it can answer for' do
@@ -57,6 +62,10 @@ RSpec.describe RGame::Engine::Actions do
       expect { actions.axis(:move_z) }.to raise_error(KeyError, /:move_z/)
     end
 
+    it 'raises from held_for' do
+      expect { actions.held_for(:fyre) }.to raise_error(KeyError, /:fyre/)
+    end
+
     it 'says what it does know, so the typo is visible in the message' do
       expect { actions.held?(:fyre) }.to raise_error(KeyError, /:fire/)
     end
@@ -74,12 +83,12 @@ RSpec.describe RGame::Engine::Actions do
       expect { actions.held?(:move_x) }.to raise_error(KeyError)
     end
 
-    # ActionMapper seeds all three hashes from its map, so through the normal
+    # ActionMapper seeds all four hashes from its map, so through the normal
     # path every declared action answers every query.
-    it 'answers both for a snapshot built the way ActionMapper builds one' do
+    it 'answers all three for a snapshot built the way ActionMapper builds one' do
       map = RGame::Engine::InputMap.new(fire: { buttons: [RGame::Util::Controls::KEY_SPACE] })
-      actions = RGame::Engine::ActionMapper.new(map).poll(FakeInputBackend.new)
-      expect([actions.held?(:fire), actions.axis(:fire)]).to eq([false, 0.0])
+      actions = RGame::Engine::ActionMapper.new(map).poll(FakeInputBackend.new, 1.0 / 60)
+      expect([actions.held?(:fire), actions.axis(:fire), actions.held_for(:fire)]).to eq([false, 0.0, 0.0])
     end
   end
 

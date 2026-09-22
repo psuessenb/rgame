@@ -6,12 +6,18 @@ module RGame
     # snapshot.
     #
     #   mapper = ActionMapper.new(input_map, device: Controls.gamepad(0))
-    #   actions = mapper.poll(input)
+    #   actions = mapper.poll(input, dt)
     #
     # **One of these per player.** The device is what makes that work: every
     # query carries it, so two mappers over the same map read two different
     # controllers, and each keeps its own previous-frame state so their edge
     # queries are independent.
+    #
+    # **`poll` takes the timestep**, because an action can be declared as a hold
+    # or a tap and those are answers about time. Nothing else in the engine could
+    # supply it: the mapper is the one place that sees every action once a tick,
+    # and a caller counting its own seconds is the per-caller timer this exists
+    # to remove.
     #
     # Pure logic. The backend is duck-typed and the whole interface is
     # `down?(physical_id, device:)` and `axis(axis_id, device:)` — a spec passes
@@ -30,21 +36,26 @@ module RGame
         @held = {}
         @prev_held = {}
         @axes = {}
+        @hold_times = {}
         map.bindings.each_key do |name|
           @held[name] = false
           @prev_held[name] = false
           @axes[name] = 0.0
+          @hold_times[name] = 0.0
         end
-        @actions = Actions.new(held: @held, axes: @axes, prev_held: @prev_held)
+        @actions = Actions.new(held: @held, axes: @axes, prev_held: @prev_held, hold_times: @hold_times)
       end
 
-      def poll(backend)
+      # One tick's input, as the Actions snapshot this mapper reuses. `dt` is the
+      # timestep, in seconds, and is what every duration here is counted from.
+      def poll(backend, dt)
         @held.each { |name, down| @prev_held[name] = down }
 
         return rest if @device.nil?
 
         @map.bindings.each do |name, binding|
           @held[name] = any_down?(backend, binding.buttons) if binding.buttons
+          count_hold(name, dt)
           @axes[name] = axis_value(backend, binding) if binding.pairs || binding.stick
         end
 
@@ -56,7 +67,17 @@ module RGame
       def rest
         @held.each_key { |name| @held[name] = false }
         @axes.each_key { |name| @axes[name] = 0.0 }
+        @hold_times.each_key { |name| @hold_times[name] = 0.0 }
         @actions
+      end
+
+      # hot-path
+      def count_hold(name, dt)
+        if @held[name]
+          @hold_times[name] += dt
+        elsif !@prev_held[name]
+          @hold_times[name] = 0.0
+        end
       end
 
       # hot-path

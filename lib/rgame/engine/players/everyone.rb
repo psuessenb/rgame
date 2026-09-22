@@ -16,6 +16,7 @@ module RGame
       #   another player already holds the action is no press, so one press
       #   still does one thing.
       # - `axis` is the value of largest magnitude.
+      # - `held_for` is the longest any active player has held it.
       #
       # An action no active player declares raises `KeyError`, as `Actions`
       # does. With no active player at all, it reads the primary player.
@@ -30,7 +31,8 @@ module RGame
           @held = {}
           @prev_held = {}
           @axes = {}
-          @actions = Actions.new(held: @held, axes: @axes, prev_held: @prev_held)
+          @hold_times = {}
+          @actions = Actions.new(held: @held, axes: @axes, prev_held: @prev_held, hold_times: @hold_times)
         end
 
         # The union of every active player's input this tick, or the primary
@@ -45,6 +47,7 @@ module RGame
           @held.each { |name, down| @prev_held[name] = down }
           @held.each_key { |name| @held[name] = false }
           @axes.each_key { |name| @axes[name] = 0.0 }
+          @hold_times.each_key { |name| @hold_times[name] = 0.0 }
           @members.each { |player| fold(player) }
           self
         end
@@ -72,6 +75,7 @@ module RGame
             @held[name] = false unless @held.key?(name)
             @prev_held[name] = false unless @prev_held.key?(name)
             @axes[name] = 0.0 unless @axes.key?(name)
+            @hold_times[name] = 0.0 unless @hold_times.key?(name)
           end
         end
 
@@ -79,6 +83,7 @@ module RGame
           @held.delete(name)
           @prev_held.delete(name)
           @axes.delete(name)
+          @hold_times.delete(name)
         end
 
         # hot-path
@@ -88,6 +93,8 @@ module RGame
             @held[name] = true if actions.held?(name)
             value = actions.axis(name)
             @axes[name] = value if value.abs > @axes[name].abs
+            time = actions.held_for(name)
+            @hold_times[name] = time if time > @hold_times[name]
           end
         end
       end

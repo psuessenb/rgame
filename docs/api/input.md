@@ -301,10 +301,10 @@ players = RGame::Engine::Players.new(
 )
 everyone = players.everyone.actions
 
-players.poll(Held.new([Controls::KEY_SPACE, Controls::KEYBOARD]))
+players.poll(Held.new([Controls::KEY_SPACE, Controls::KEYBOARD]), 1.0 / 60)
 everyone.pressed?(:ui_confirm) # => true — player 0 pressed it
 
-players.poll(Held.new([Controls::KEY_SPACE, Controls::KEYBOARD], [Controls::PAD_A, Controls.gamepad(0)]))
+players.poll(Held.new([Controls::KEY_SPACE, Controls::KEYBOARD], [Controls::PAD_A, Controls.gamepad(0)]), 1.0 / 60)
 everyone.pressed?(:ui_confirm) # => false — player 1 pressed while player 0 held it
 everyone.held?(:ui_confirm)    # => true
 ```

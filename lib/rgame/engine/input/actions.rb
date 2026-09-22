@@ -10,6 +10,12 @@ module RGame
     # held state, so a one-shot action (menu confirm, jump) fires exactly once
     # per press rather than every frame it is held.
     #
+    # A fourth query, `held_for`, answers how long an action's buttons have been
+    # down. An action declared with `hold:` or `tap:` in the InputMap reads its
+    # threshold through the ordinary three; `held_for` is for a game that wants
+    # the number itself — a charge meter, a bar filling while a door is held
+    # open.
+    #
     # ## Reading an action nobody declared raises
     #
     # A game declares its actions once, in an InputMap. Asking for one that is
@@ -36,13 +42,14 @@ module RGame
     # that has not said what the action set is cannot claim a component reads
     # the right part of it.
     class Actions
-      # `held`, `axes` and `prev_held` are mutable hashes the mapper updates in
-      # place each poll, so the snapshot stays a single reused, allocation-free
-      # object.
-      def initialize(held: {}, axes: {}, prev_held: {})
+      # `held`, `axes`, `prev_held` and `hold_times` are mutable hashes the mapper
+      # updates in place each poll, so the snapshot stays a single reused,
+      # allocation-free object.
+      def initialize(held: {}, axes: {}, prev_held: {}, hold_times: {})
         @held = held
         @axes = axes
         @prev_held = prev_held
+        @hold_times = hold_times
       end
 
       # Every action this snapshot can answer for.
@@ -79,6 +86,19 @@ module RGame
       # hot-path
       def axis(name)
         @axes.fetch(name) { undeclared(name) }
+      end
+
+      # Seconds the action's buttons have been down, counted by the mapper from
+      # the timestep it polls with. It is 0.0 at rest, and it survives the tick
+      # of the release: a caller asking `released?(:door) && held_for(:door) > 1.0`
+      # gets the length of the press that just ended. The tick after that, it is
+      # 0.0 again.
+      #
+      # A snapshot built by hand answers only for the actions its `hold_times`
+      # names, which is why a spec that reads it passes that hash.
+      # hot-path
+      def held_for(name)
+        @hold_times.fetch(name) { undeclared(name) }
       end
 
       private

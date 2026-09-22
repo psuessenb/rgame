@@ -244,7 +244,7 @@ RSpec.describe RGame::Engine::Scene::SceneStack do
       backend = FakeInputBackend.new
       backend.hold(RGame::Util::Controls::KEY_SPACE)
       backend.hold(RGame::Util::Controls::PAD_A, device: RGame::Util::Controls.gamepad(0))
-      players.poll(backend)
+      players.poll(backend, 0.016)
     end
 
     # A host with the stack mounted and the scene pushed, optionally with the

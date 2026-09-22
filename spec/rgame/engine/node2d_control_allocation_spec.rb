@@ -22,7 +22,7 @@ RSpec.describe RGame::Engine::Node2D do
     end
   end
 
-  before { players.poll(FakeInputBackend.new) }
+  before { players.poll(FakeInputBackend.new, 0.016) }
 
   it 'allocates nothing while routing input by owner' do
     expect { root.control(players) }.to allocate_nothing

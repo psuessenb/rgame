@@ -3,6 +3,7 @@
 RSpec.describe RGame::Engine::Player do
   let(:controls) { RGame::Util::Controls }
   let(:backend)  { FakeInputBackend.new }
+  let(:step)     { 1.0 / 60 }
 
   describe 'what a player owns' do
     subject(:player) { described_class.new(id: 1, device: RGame::Util::Controls.gamepad(0)) }
@@ -52,20 +53,20 @@ RSpec.describe RGame::Engine::Player do
     it 'reads its own device' do
       backend.hold(controls::KEY_SPACE)
       player = described_class.new(device: controls::KEYBOARD)
-      player.poll(backend)
+      player.poll(backend, step)
       expect(player.actions.held?(:fire)).to be(true)
     end
 
     it 'does not see input meant for another device' do
       backend.hold(controls::PAD_A, device: controls.gamepad(1))
       player = described_class.new(device: controls.gamepad(0))
-      player.poll(backend)
+      player.poll(backend, step)
       expect(player.actions.held?(:fire)).to be(false)
     end
 
     it 'reuses one Actions object rather than allocating per tick' do
       player = described_class.new
-      expect(player.poll(backend)).to equal(player.poll(backend))
+      expect(player.poll(backend, step)).to equal(player.poll(backend, step))
     end
 
     # An empty seat is polled like any other; it just reads as nothing held.
@@ -73,16 +74,16 @@ RSpec.describe RGame::Engine::Player do
     # case in the tick.
     it 'reads as nothing held when no device is driving it' do
       player = described_class.new(device: nil)
-      player.poll(backend)
+      player.poll(backend, step)
       expect(player.actions.held?(:fire)).to be(false)
     end
 
     it 'releases what was held when its device goes away mid-press' do
       backend.hold(controls::KEY_SPACE)
       player = described_class.new(device: controls::KEYBOARD)
-      player.poll(backend)
+      player.poll(backend, step)
       player.device = nil
-      player.poll(backend)
+      player.poll(backend, step)
       expect(player.actions.held?(:fire)).to be(false)
     end
   end
@@ -107,7 +108,7 @@ RSpec.describe RGame::Engine::Player do
 
       backend.hold(controls::KEY_SPACE)
       backend.hold(controls::PAD_X, device: controls.gamepad(0))
-      [one, two].each { |player| player.poll(backend) }
+      [one, two].each { |player| player.poll(backend, step) }
 
       expect([one.actions.held?(:fire), two.actions.held?(:fire)]).to eq([true, true])
     end
@@ -117,9 +118,9 @@ RSpec.describe RGame::Engine::Player do
       two = described_class.new(id: 1)
       backend.hold(controls::KEY_SPACE)
 
-      one.poll(backend)
-      one.poll(backend) # held now, not pressed, for this player only
-      two.poll(backend)
+      one.poll(backend, step)
+      one.poll(backend, step) # held now, not pressed, for this player only
+      two.poll(backend, step)
 
       expect([one.actions.pressed?(:fire), two.actions.pressed?(:fire)]).to eq([false, true])
     end

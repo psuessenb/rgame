@@ -14,6 +14,9 @@ RSpec.describe RGame::Engine::ActionMapper do
     )
   end
 
+  # The engine's fixed step, read into a local before a loop measures it.
+  let(:step) { 1.0 / 60 }
+
   # A pad, so the analog path is exercised too: the dead zone and the
   # digital-vs-analog comparison both run on every poll for move_x.
   let(:pad) { RGame::Util::Controls.gamepad(0) }
@@ -27,15 +30,16 @@ RSpec.describe RGame::Engine::ActionMapper do
 
   it 'returns the same Actions instance on every poll' do
     mapper = described_class.new(map, device: pad)
-    expect(mapper.poll(backend)).to equal(mapper.poll(backend))
+    expect(mapper.poll(backend, step)).to equal(mapper.poll(backend, step))
   end
 
   it 'is allocation-free in steady state' do
     mapper = described_class.new(map, device: pad)
-    mapper.poll(backend) # warm up
+    mapper.poll(backend, step) # warm up
+    dt = step
 
     before = GC.stat(:total_allocated_objects)
-    1000.times { mapper.poll(backend) }
+    1000.times { mapper.poll(backend, dt) }
     after = GC.stat(:total_allocated_objects)
 
     expect(after - before).to be < 100
@@ -48,7 +52,7 @@ RSpec.describe RGame::Engine::ActionMapper do
   # tick.
   it 'does not allocate for the block Actions guards its lookups with' do
     mapper = described_class.new(map, device: pad)
-    actions = mapper.poll(backend)
+    actions = mapper.poll(backend, step)
 
     before = GC.stat(:total_allocated_objects)
     1000.times do
@@ -67,10 +71,11 @@ RSpec.describe RGame::Engine::ActionMapper do
   # the callee declares them, and this is what says so out loud.
   it 'does not allocate for the device keyword it passes on every query' do
     mapper = described_class.new(map, device: pad)
-    mapper.poll(backend)
+    mapper.poll(backend, step)
+    dt = step
 
     before = GC.stat(:total_allocated_objects)
-    100.times { mapper.poll(backend) }
+    100.times { mapper.poll(backend, dt) }
     after = GC.stat(:total_allocated_objects)
 
     expect(after - before).to be < 10

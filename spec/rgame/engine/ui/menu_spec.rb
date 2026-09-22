@@ -1011,7 +1011,7 @@ RSpec.describe RGame::Engine::UI::Menu do
 
       backend = FakeInputBackend.new
       backend.hold(RGame::Util::Controls::PAD_DPAD_DOWN, device: RGame::Util::Controls.gamepad(0))
-      players.poll(backend)
+      players.poll(backend, 0.016)
       root.control(players)
 
       expect([one.focused.label.key, two.focused.label.key]).to eq(%w[A B])

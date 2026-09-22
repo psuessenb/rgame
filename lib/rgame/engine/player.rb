@@ -59,7 +59,7 @@ module RGame
       # object — hold the Player, never this.
       def actions = @mapper.actions
 
-      def poll(backend) = @mapper.poll(backend)
+      def poll(backend, dt) = @mapper.poll(backend, dt)
 
       # What this player's map can answer for. The vocabulary is the game's, so
       # it is the same for every player; the bindings behind it are not.
