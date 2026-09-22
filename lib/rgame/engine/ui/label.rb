@@ -37,9 +37,10 @@ module RGame
       #
       # A character is a grapheme cluster, so a letter built from a base and a
       # combining mark appears whole. The reveal starts again from nothing when
-      # the page turns, the text changes or the width changes. It draws prefixes
-      # of each line, built once when the page appears, and places each where
-      # the whole line will stand, so a centred line does not move as it grows.
+      # the page turns, the text changes, `text=` is called or the width
+      # changes. It draws prefixes of each line, built once when the page
+      # appears, and places each where the whole line will stand, so a centred
+      # line does not move as it grows.
       # A paused label does not reveal, since time reaches it only through
       # `update`.
       class Label < Node2D
@@ -77,6 +78,19 @@ module RGame
           @built = nil
           @shown = 0.0
           @total = 0
+        end
+
+        # Changes the text: a translation key or an Engine::Text, as `new`
+        # takes. Always starts again, on page 0 with nothing revealed, even for
+        # the `Text` it already shows. A label in the tree with a reveal builds
+        # the new page at once, as `page=` does.
+        def text=(text)
+          @paragraph.text = text
+          @page = 0
+          return unless @built
+
+          @built = nil
+          build_page
         end
 
         # Gives the text its variables, as Engine::Text#with does, and returns

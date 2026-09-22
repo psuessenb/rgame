@@ -55,6 +55,14 @@ module RGame
       # would otherwise read the same press edge again and activate its own
       # button with it.
       #
+      # A change to the buttons starts that wait again: after `add` or `clear`,
+      # the menu takes no confirm press until it has seen confirm up. A parent
+      # that adds buttons on a confirm press — a dialogue box showing its
+      # responses as a line ends — does so before the menu reads the same
+      # press, since `control` runs a parent before its children. And a menu
+      # whose buttons change from a button's `on_activated` reads no more input
+      # that tick, so a new button is not pressed by the press that made it.
+      #
       #   wheel = UI::Menu.new(x: 320, y: 240, navigation: UI::Pointing.new,
       #                        layout: UI::Ring.new(radius: 120, item_width: 96, item_height: 30))
       #
@@ -140,6 +148,7 @@ module RGame
           @confirm_seen_up = false
           @trigger_seen_up = false
           @hotkey_seen_up = []
+          @buttons_changed = false
           navigation&.attach(self)
         end
 
@@ -154,10 +163,20 @@ module RGame
           @buttons << button
           @hotkey_seen_up << false
           add_node(button)
-          @layout.arrange(@buttons)
-          @bounds_x, @bounds_y, @bounds_width, @bounds_height = @layout.bounds(@buttons)
-          @navigation&.on_buttons_changed
+          buttons_changed
           button
+        end
+
+        # Removes every button from the menu and from the tree, focuses
+        # nothing, and returns the menu, ready for `add`. A closed menu may be
+        # cleared.
+        def clear
+          focus(nil)
+          @buttons.each { remove_node(it) }
+          @buttons.clear
+          @hotkey_seen_up.clear
+          buttons_changed
+          self
         end
 
         # The focused button, or nil when nothing is — which under UI::Pointing
@@ -209,8 +228,11 @@ module RGame
           open_now if trigger_edge == :press
           return unless @open
 
+          @buttons_changed = false
           @navigation&.on_control(actions)
           press_hotkeys(actions)
+          return if @buttons_changed
+
           @trigger ? release_trigger(trigger_edge) : confirm(actions)
         end
 
@@ -221,6 +243,14 @@ module RGame
         end
 
         private
+
+        def buttons_changed
+          @layout.arrange(@buttons)
+          @bounds_x, @bounds_y, @bounds_width, @bounds_height = @layout.bounds(@buttons)
+          @confirm_seen_up = false
+          @buttons_changed = true
+          @navigation&.on_buttons_changed
+        end
 
         def open_now
           @open = true
@@ -255,7 +285,7 @@ module RGame
 
         def press_hotkeys(actions)
           index = 0
-          while index < @buttons.size
+          while index < @buttons.size && !@buttons_changed
             button = @buttons[index]
             hotkey = button.hotkey
             if hotkey

@@ -143,6 +143,51 @@ RSpec.describe RGame::Engine::UI::Label do
     end
   end
 
+  describe '#text=' do
+    def texts = drawn.map { it.args.first }
+
+    it 'draws the new text' do
+      notice = label(width: 520)
+      notice.text = RGame::Engine::Text.new('greeting', :name)
+      notice.with(name: 'Ada')
+      expect(texts).to eq(['Well met, Ada.'])
+    end
+
+    it 'starts again on page 0' do
+      story = label(text: 'story', width: 440, lines_per_page: 3)
+      story.page = 1
+      story.text = 'story'
+      expect(story.page).to eq(0)
+    end
+
+    it 'reveals the new text from nothing' do
+      notice = label(reveal: 10)
+      root.update(10.0)
+      notice.text = 'story'
+      expect([notice.revealed?, texts]).to eq([false, []])
+    end
+
+    it 'starts again for the Text it already shows' do
+      line = RGame::Engine::Text.new('notice')
+      notice = label(text: line, reveal: 10)
+      root.update(10.0)
+      notice.text = line
+      root.update(0.3)
+      expect([notice.revealed?, texts]).to eq([false, ['The']])
+    end
+
+    it 'builds the new page at once in the tree, off the draw path' do
+      notice = label(reveal: 10)
+      notice.text = 'story'
+      quiet = QuietRenderer.new
+      expect { notice.on_draw(quiet, nil) }.to allocate_nothing
+    end
+
+    it 'refuses what new refuses' do
+      expect { label.text = 42 }.to raise_error(TypeError, /translation key or an Engine::Text/)
+    end
+  end
+
   describe '#with' do
     it 'gives the text its variables and returns the label' do
       greeting = label(text: RGame::Engine::Text.new('greeting', :name), width: 520)

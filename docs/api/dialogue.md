@@ -412,6 +412,9 @@ a speaker saying a line, and whose picked transitions are *responses*. A
 dialogue holds a `StateMachine` over that graph and adds the words. Nothing in
 it decides where the conversation goes that the machine does not.
 
+A dialogue draws nothing. [`UI::DialogueBox`](ui.md#rgameengineuidialoguebox)
+shows one on screen, and a game with its own box drives the dialogue itself.
+
 ### Writing a script
 
 `Dialogue::Script.build(start:, scope:)` runs its block against a

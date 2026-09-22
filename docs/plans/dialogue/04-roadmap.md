@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: steps 0–4 are implemented.** Steps 5 and 6 are detailed. Steps 7 and 8 are rough on purpose and get
+**Status: steps 0–5 are implemented.** Step 6 is detailed. Steps 7 and 8 are rough on purpose and get
 re-planned when the step before them lands.
 
 Each step is one branch and one pull request; each lettered sub-step is one
@@ -1047,6 +1047,70 @@ nothing undocumented. A scratch game driven with `tools/drive_test_project.rb
 --texts` talks to the smith from greeting to goodbye in both languages, and
 shows the bribe drawn disabled with `unavailable: :disable` and absent with
 `:hide`. That scratch game is not committed; step 7 is its committed form.
+
+**Landed.** `UI::DialogueBox` in `lib/rgame/engine/ui/dialogue_box.rb`, as four
+commits: 5a, 5b, 5c and 5d, and then this note. `docs/api/ui.md` has a section
+on the box, `docs/api/dialogue.md` links to it from "Dialogue", the index row
+names it, and `CHANGELOG.md` has two entries under Added and one under Fixed,
+for the held confirm.
+
+`rake spec` ran 2939 examples, 0 failures, in 24.6 s. `dialogue_box_spec.rb`
+holds 27 of them, `menu_spec.rb` gained 12, and `label_spec.rb` and
+`paragraph_spec.rb` 10 between them. `rake spec:core` ran 476, 0 failures,
+and `rake docs:coverage` reported 0 of 178 classes with undocumented names.
+`make test` ran 380 checks, 0 failures. The invariant spec drives the smith
+script through the box and directly, with the same picks, and the two
+transcripts' `to_h` are equal. Over 100 ticks on a waiting beat, the bribe's
+condition ran once. The six held-confirm specs in `menu_spec.rb` fail without
+5a's change.
+
+The scratch game was driven four times, English and German, each with
+`:disable` and `:hide`, 400 ticks each. All four talk from the greeting through
+"Any work?" and back to "Farewell.". Each hands `on_ended` a transcript of 5
+entries at tick 336, and none reports a missing key. The bribe label is drawn
+under `:disable`, from tick 74 in English and 86 in German, and never under
+`:hide`. Both languages break the work line into three lines at 576 px. The
+scratch game used `lines_per_page: 2`, so the line takes two pages and the run
+turns one.
+
+What the sketch got wrong or left out:
+
+- **Rule 3 covers hotkeys too, and Stepping learned that an empty menu has no
+  focus.** A change to the buttons during `on_control` stops the hotkey loop
+  and skips confirm and a trigger's release for that tick. `Stepping`
+  focused index 0 on an empty menu, which read as focused on nothing only by
+  accident. Now it focuses nil.
+- **A pick comes one tick after the responses appear, at least.** This follows
+  from rule 2 and is correct, but it is easy to trip over. The box spec's
+  first `choose` helper confirmed in the tick the responses appeared, and the
+  menu ignored it. Step 7's drive script has to leave that tick, and the
+  scratch game's did.
+- **The marker is a private `Button` subclass, drawn only once the page is
+  fully shown.** It holds the line's `Label` and asks `revealed?`. It is the
+  same object for the whole conversation, re-added after each `clear`.
+- **The box overrides `update`, not `on_update`.** It checks for the responses
+  after `super`, so a reveal that finishes on a tick shows them on that tick.
+  A subclass's own `on_update` cannot switch this off.
+- **The box keeps the speaker and name from its last move** and draws those. It
+  never reads the dialogue on the draw path.
+- **The layout was left to the step, and was decided here.** The name goes at
+  the top, the line's `lines_per_page` lines below it, and the menu below
+  those. A response slot is `typeface.height + padding` high, with
+  `padding / 2` between slots. A state with no line counts as no responses,
+  and the box has room for at least one slot, the marker's.
+- **Response labels draw in the renderer's font, not in `typeface:`**, since
+  they are `TextButton`s. A game with a larger face gets a name and line in it
+  and responses in the default font. That is a gap in `TextButton`, which has
+  no `font:`, and is left open.
+- **The portrait hook is `on_draw_portrait`, not `on_portrait`.** A hook's
+  name says what it does, with a verb, as `on_draw` and `on_ended` do.
+- **`QuietRenderer`**, in rgame's own suite, answers `triangle`, `layered` and
+  `translated`, so a whole box's draw is measured rather than one node's.
+
+Where it got documented: `docs/api/ui.md`, "`RGame::Engine::UI::DialogueBox`"
+and its "Whose conversation it is", the `clear` row and the third press rule
+under "Menu", and the `text=` rows of the `Label` table. `Paragraph#text=` is
+in `docs/api/text.md`.
 
 ---
 
