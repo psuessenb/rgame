@@ -6,14 +6,15 @@
 #
 #   ruby examples/intro/main.rb
 #
-# **Enter** turns the page, and the pages also turn on their own every six
-# seconds. It exercises:
+# Each page types itself out. **Enter** shows the rest of the page at once,
+# and on a page already shown turns it. A page also turns on its own six
+# seconds after it is fully shown. It exercises:
 #   - UI::Label — a translated text drawn as lines that fit a width, a page at
-#     a time;
+#     a time, and revealed at 40 characters a second with `reveal:`;
 #   - Engine::Paragraph — underneath the label, breaking the text and grouping
 #     the lines into pages;
-#   - Components::Timer — a one-shot that turns the page, re-armed with `reset`
-#     after every turn but the last.
+#   - Components::Timer — a one-shot that turns the page, held back while the
+#     page is still typing.
 #
 # ## The text is one line
 #
@@ -24,18 +25,21 @@
 # the same story takes ten lines and a fourth page, because German words are
 # longer. Neither table says where a line ends, and neither has to.
 #
-# ## The label turns no pages itself
+# ## The label reveals, and its owner decides
 #
-# A label reads no input. This root decides when a page turns: when the timer
-# fires, or when the player presses Enter. Either way the root re-arms the
-# timer, so a page turned by hand gets its full six seconds. The timer is a
-# one-shot (`repeating: false`), so on the last page the root simply does not
-# re-arm it, and stops drawing the hint. Nothing has to remove it.
+# A label reads no input. It types a page out in its own `update`, and says
+# whether the page is fully shown with `revealed?`. This root decides what
+# Enter means from that: `reveal_all` while the page is typing, a page turn
+# once it is shown. A page turned starts typing again from nothing.
+#
+# The six seconds count from the moment a page is fully shown. While it is
+# still typing, the root resets the timer every tick, so the one-shot never
+# gets near firing. On the last page it fires once and the turn does nothing,
+# and the root stops drawing the hint.
 #
 # ## What it does not solve
 #
-# There is no typewriter reveal, no fade between pages, and nothing after the
-# last page. Those belong to a dialogue system, which this is not. The block of
+# There is no fade between pages and nothing after the last page. The block of
 # text is placed for this window's fixed size, so a fullscreen switch would
 # leave it where it was.
 
@@ -47,6 +51,7 @@ HEIGHT = 480
 LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml and de.yml
 
 PAGE_SECONDS = 6.0
+REVEAL = 40 # characters a second
 TEXT_WIDTH = 440
 LINES_PER_PAGE = 3
 
@@ -61,7 +66,7 @@ class Intro < RGame::Engine::Node2D
     @story = add_node(RGame::Engine::UI::Label.new(
                         text: 'intro.story', x: (WIDTH - TEXT_WIDTH) / 2,
                         y: (HEIGHT - (LINES_PER_PAGE * FACE.height)) / 2, width: TEXT_WIDTH,
-                        typeface: FACE, lines_per_page: LINES_PER_PAGE, align: :center
+                        typeface: FACE, lines_per_page: LINES_PER_PAGE, align: :center, reveal: REVEAL
                       ))
     @hint = RGame::Engine::Text.new('hint.next')
     @turn = add_component(RGame::Engine::Components::Timer.new(PAGE_SECONDS, repeating: false))
@@ -69,7 +74,13 @@ class Intro < RGame::Engine::Node2D
   end
 
   def on_control(actions)
-    turn_page if actions.pressed?(:ui_confirm)
+    return unless actions.pressed?(:ui_confirm)
+
+    @story.revealed? ? turn_page : @story.reveal_all
+  end
+
+  def on_update(_dt)
+    @turn.reset unless @story.revealed?
   end
 
   def on_draw(renderer, view)
@@ -83,7 +94,7 @@ class Intro < RGame::Engine::Node2D
 
   def turn_page
     @story.page += 1
-    @turn.reset unless @story.last_page?
+    @turn.reset
   end
 end
 
