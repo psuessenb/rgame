@@ -113,6 +113,18 @@ RSpec.describe RGame::Engine::UI::Label do
       expect([story.page, story.last_page?]).to eq([2, true])
     end
 
+    it 'counts the characters on the page drawn' do
+      story.page = 2
+      lines = RGame::Engine::Paragraph.new('story', width: 440, typeface: face, lines_per_page: 3).page(2)
+      expect(story.page_length).to eq(lines.sum(&:length))
+    end
+
+    it 'counts a letter built with a combining mark as one character' do
+      i18n.load_hash(de: { tired: "Mu\u0308de." })
+      i18n.locale = :de
+      expect(label(text: 'tired').page_length).to eq(5)
+    end
+
     it 'is one page without lines_per_page' do
       expect([label.page_count, label.last_page?]).to eq([1, true])
     end

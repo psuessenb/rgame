@@ -248,10 +248,10 @@ A story on a black screen, three centred lines at a time. The translation table
 holds it as one line, and the label breaks it to fit 440 pixels. In German it
 takes ten lines and a fourth page, where English takes eight and three. Each
 page types itself out at 40 characters a second. Enter shows the rest of a page
-still typing and turns a page already shown. A one-shot timer turns it six
-seconds after it is fully shown.
+still typing and turns a page already shown. A one-shot timer turns it once it
+has been fully shown for a second, plus 20 milliseconds for each character.
 
-**Uses:** `UI::Label` (`reveal:`, `revealed?`, `reveal_all`),
+**Uses:** `UI::Label` (`reveal:`, `revealed?`, `reveal_all`, `page_length`),
 `Engine::Paragraph`, `Util::Typeface`, `Components::Timer` (`repeating: false`,
 reset every tick while a page types).
 

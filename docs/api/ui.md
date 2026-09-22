@@ -942,6 +942,7 @@ was measured against.
 | `reveal:` | characters a second to reveal each page at, or nil (the default) to draw it whole; anything but a positive number raises `ArgumentError` |
 | `revealed?` | whether the whole page is shown |
 | `reveal_all` | shows the rest of the page at once, and returns the label |
+| `page_length` | how many characters the page drawn holds, in grapheme clusters; counts afresh on every call, so not for a draw path |
 
 **A label reads no input. Its owner turns the page.** `page=` clamps to the
 pages there are, so `page += 1` on the last page stays there. A language switch
@@ -991,7 +992,9 @@ What confirm does on a page still typing is the owner's decision, as turning the
 page is.
 
 `examples/intro` turns the pages on Enter and on a one-shot timer, and types
-each one out. Enter shows the rest of a page still typing.
+each one out. Enter shows the rest of a page still typing. The timer holds a
+shown page for a second plus a little for each character `page_length` counts,
+so a short page does not stay up as long as a full one.
 
 ## What this is not
 

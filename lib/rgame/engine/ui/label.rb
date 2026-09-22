@@ -111,6 +111,11 @@ module RGame
 
         def last_page? = page == page_count - 1
 
+        # How many characters the page drawn holds, counted in grapheme clusters
+        # as the reveal counts them: for sizing how long a page stays up. It
+        # counts afresh on every call, so it is not for a draw path.
+        def page_length = @paragraph.page(@page).sum { it.grapheme_clusters.size }
+
         # Whether the whole page is shown: always without `reveal:`, and for a
         # page the label has not yet started revealing, which it draws whole.
         def revealed? = !@paragraph.page(@page).equal?(@built) || @shown >= @total

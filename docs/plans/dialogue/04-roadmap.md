@@ -657,18 +657,19 @@ page a character at a time", and the intro's entries in `examples.md`,
 `README.md` and `CHANGELOG.md` say it types itself out. The label's and the
 intro's changelog entries were edited in place, since both are unreleased.
 
-`rake spec` ran 2853 examples, 0 failures, in 23.6 s; `label_spec.rb` holds 36,
-18 of them new. `rake spec:core` ran 474, 0 failures, and `rake docs:coverage`
+`rake spec` ran 2855 examples, 0 failures; `label_spec.rb` holds 38, 20 of
+them new. `rake spec:core` ran 474, 0 failures, and `rake docs:coverage`
 reported 0 of 175 classes with undocumented names. `make test` ran 380 checks,
 0 failures. 200 draws mid-reveal allocate nothing. "Mu\u0308de", with the
 umlaut built from a combining mark, shows "Mu\u0308" after two characters.
 
-The intro, driven with `--ticks 1800 --texts` in both languages, draws "L" from
+The intro, driven with `--ticks 1200 --texts` in both languages, draws "L" from
 tick 2 and the first line whole from tick 59. Nothing of the story is drawn
 whole at tick 0. Enter at tick 120 shows the rest of page 1 at tick 121. Every
-later page starts 360 ticks after the one before was fully shown: English pages
-at 481 and 1030, German at 481, about 1015 and 1557. The hint is drawn 1030
-frames in English and 1557 in German, and no key is missing.
+later page starts one second plus 20 ms a character after the one before was
+fully shown, about 210 ticks for a full page: English pages at 335 and about
+735, German at about 332, 705 and 1092. The hint is drawn 735 frames in English
+and 1092 in German, and no key is missing.
 
 What the sketch got wrong or left out:
 
@@ -691,12 +692,22 @@ What the sketch got wrong or left out:
   where before it raised on the first draw.
 - **Each prefix sits where its whole line will stand**, which the sketch did not
   say. A centred line placed by its prefix's width would slide left as it grew.
-- **`Components::Timer` cannot be stopped.** The intro's six seconds count from
-  a page being fully shown, so the root resets the one-shot on every tick while
+- **`Components::Timer` cannot be stopped.** The intro's hold counts from a
+  page being fully shown, so the root resets the one-shot on every tick while
   the page types. It works and reads plainly, but step 5's box may want a timer
   it can hold.
-- **The drive needs 1800 ticks.** Typing adds about three seconds a page, and
-  1200 ticks ended before German's fourth page.
+- **A flat hold after the reveal read as a stall.** The intro first kept its
+  six seconds per page, counted from the page being shown, and a page sat
+  finished for longer than it took to read. The hold is now one second plus
+  20 ms a character, from `UI::Label#page_length`, a reader the sketch did not
+  list. The reader has read along while the page typed, so the hold is only the
+  time to finish.
+- **The hint has never been visible, and the drive could not tell.** The
+  intro's backdrop `rect` defaults to z 50 and its hint `text` to z 10, so the
+  backdrop covers the hint in the same `on_draw`. Nine other examples hide
+  their help text the same way. The drive records the calls, not what reaches
+  the screen, so it reported the hint drawn on every frame. It is fixed in the
+  engine's defaults on a branch of its own.
 
 Where it got documented: `docs/api/ui.md`, "Revealing a page a character at a
 time", and the `UI::Label` table.

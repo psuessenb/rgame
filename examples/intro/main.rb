@@ -7,14 +7,15 @@
 #   ruby examples/intro/main.rb
 #
 # Each page types itself out. **Enter** shows the rest of the page at once,
-# and on a page already shown turns it. A page also turns on its own six
-# seconds after it is fully shown. It exercises:
+# and on a page already shown turns it. A page also turns on its own once it
+# has been fully shown for a second, plus a little for every character on it.
+# It exercises:
 #   - UI::Label — a translated text drawn as lines that fit a width, a page at
 #     a time, and revealed at 40 characters a second with `reveal:`;
 #   - Engine::Paragraph — underneath the label, breaking the text and grouping
 #     the lines into pages;
 #   - Components::Timer — a one-shot that turns the page, held back while the
-#     page is still typing.
+#     page is still typing, its interval set for each page.
 #
 # ## The text is one line
 #
@@ -32,10 +33,14 @@
 # Enter means from that: `reveal_all` while the page is typing, a page turn
 # once it is shown. A page turned starts typing again from nothing.
 #
-# The six seconds count from the moment a page is fully shown. While it is
-# still typing, the root resets the timer every tick, so the one-shot never
-# gets near firing. On the last page it fires once and the turn does nothing,
-# and the root stops drawing the hint.
+# The hold counts from the moment a page is fully shown, and grows with the
+# page: one second, plus 20 milliseconds for each character `page_length`
+# counts. A full page stays up about three and a half seconds after it is
+# shown, and a short last line under two. The reader has read along while the
+# page typed, so the hold is only the time to finish. While the page is still
+# typing, the root resets the timer every tick, so the one-shot never gets near
+# firing. On the last page it fires once and the turn does nothing, and the
+# root stops drawing the hint.
 #
 # ## What it does not solve
 #
@@ -50,7 +55,8 @@ WIDTH  = 640
 HEIGHT = 480
 LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml and de.yml
 
-PAGE_SECONDS = 6.0
+HOLD_SECONDS = 1.0 # how long a page stays up once shown, before its characters are counted
+HOLD_PER_CHARACTER = 0.02
 REVEAL = 40 # characters a second
 TEXT_WIDTH = 440
 LINES_PER_PAGE = 3
@@ -69,9 +75,11 @@ class Intro < RGame::Engine::Node2D
                         typeface: FACE, lines_per_page: LINES_PER_PAGE, align: :center, reveal: REVEAL
                       ))
     @hint = RGame::Engine::Text.new('hint.next')
-    @turn = add_component(RGame::Engine::Components::Timer.new(PAGE_SECONDS, repeating: false))
+    @turn = add_component(RGame::Engine::Components::Timer.new(HOLD_SECONDS, repeating: false))
     @turn.on_timeout { turn_page }
   end
+
+  def on_add = hold_for_page
 
   def on_control(actions)
     return unless actions.pressed?(:ui_confirm)
@@ -94,6 +102,11 @@ class Intro < RGame::Engine::Node2D
 
   def turn_page
     @story.page += 1
+    hold_for_page
+  end
+
+  def hold_for_page
+    @turn.interval = HOLD_SECONDS + (HOLD_PER_CHARACTER * @story.page_length)
     @turn.reset
   end
 end
