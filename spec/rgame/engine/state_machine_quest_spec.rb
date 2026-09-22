@@ -15,13 +15,13 @@ RSpec.describe RGame::Engine::StateMachine do
         state :open
       end)
 
-      def on_add
+      def _enter_tree
         @facts = system(RGame::Engine::Components::Facts)
         @machine = RGame::Engine::StateMachine.new(self.class::GRAPH, facts: @facts, name: :gate)
         @bridge = @facts.watch(:bridge_down) { |down| @machine.fire(:lower) if down }
       end
 
-      def on_remove = @facts.unwatch(@bridge)
+      def _exit_tree = @facts.unwatch(@bridge)
 
       def open? = @machine.state == :open
     end)
@@ -43,7 +43,7 @@ RSpec.describe RGame::Engine::StateMachine do
         @gate = add_node(Gate.new)
       end
 
-      def on_add
+      def _enter_tree
         facts = system(RGame::Engine::Components::Facts)
         @hammer = RGame::Engine::StateMachine.new(self.class::HAMMER, context: self, facts:, name: :hammer)
       end

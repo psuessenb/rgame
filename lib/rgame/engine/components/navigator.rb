@@ -51,7 +51,7 @@ module RGame
           @cells = nil
         end
 
-        def on_attach
+        def _attach
           super
           @world = node.system(TileWorld) ||
                    raise("#{mover_name} plans routes over the scene's TileWorld, and the scene " \

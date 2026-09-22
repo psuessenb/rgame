@@ -40,7 +40,7 @@ RSpec.describe RGame::Engine::Dialogue do
         @gold = 0
       end
 
-      def on_add
+      def _enter_tree
         @quests = { hammer: RGame::Engine::StateMachine.new(self.class::HAMMER, context: self, facts:, name: :hammer) }
       end
 

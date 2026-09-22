@@ -2,7 +2,7 @@
 
 # A renderer for `allocate_nothing`, and for nothing else.
 #
-#   expect { button.on_draw(QuietRenderer.new, nil) }.to allocate_nothing
+#   expect { button._draw(QuietRenderer.new, nil) }.to allocate_nothing
 #
 # FakeRenderer records every call, which allocates, so it cannot measure a draw;
 # an RSpec double allocates per call too. This one answers the drawing methods a
@@ -13,7 +13,7 @@
 # the game, and the matcher sees it.
 #
 # `layered` and `translated` only yield, so a whole subtree's `draw` can be
-# measured as well as one node's `on_draw`.
+# measured as well as one node's `_draw`.
 #
 # It refuses nothing and records nothing, so it says nothing about *what* was
 # drawn. That is FakeRenderer's job, checked against the renderer contract.

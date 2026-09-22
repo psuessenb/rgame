@@ -17,9 +17,9 @@ MEDIA  = File.join(__dir__, '../../media')
 SEED = ENV.fetch('RGAME_SEED', nil)&.to_i
 
 # Root: owns scene navigation (SceneStack) and program-lifetime state (HighScores,
-# a global/root-scoped system). Scene switches are deferred to #on_update so a scene
+# a global/root-scoped system). Scene switches are deferred to #_update so a scene
 # never tears itself down mid-traversal — #go only records the request, and Root's
-# on_update (which runs after the active scene's whole update has unwound) applies it.
+# _update (which runs after the active scene's whole update has unwound) applies it.
 class Root < RGame::Engine::Node2D
   def initialize(seed: nil)
     super()
@@ -29,13 +29,13 @@ class Root < RGame::Engine::Node2D
     @pending = nil
   end
 
-  def on_add = go(:start)
+  def _enter_tree = go(:start)
 
   def go(name, **args)
     @pending = [name, args]
   end
 
-  def on_update(_dt)
+  def _update(_dt)
     return unless @pending
 
     name, args = @pending

@@ -124,13 +124,13 @@ class Root < RGame::Engine::Node2D
     @greeting = RGame::Engine::Text.new('root.greeting')
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.text(@greeting, 20, 20)
   end
 end
 ```
 
-Override `on_control(actions)`, `on_update(dt)` and `on_draw(renderer, view)`,
+Override `_control(actions)`, `_update(dt)` and `_draw(renderer, view)`,
 not `control`, `update` or `draw`. The engine does its bookkeeping in the outer
 methods and calls these hooks, so there is no `super` to forget. See
 [Scene graph](scene_graph.md).
@@ -147,11 +147,11 @@ down that reason:
 
 ```ruby
 RSpec.describe Root do
-  describe '#on_draw' do
+  describe '#_draw' do
     it 'draws its greeting from the English table' do
       renderer = spy('renderer')
 
-      described_class.new.on_draw(renderer, nil)
+      described_class.new._draw(renderer, nil)
 
       expect(renderer).to have_received(:text).with('Hello from tictactoe!', 20, 20)
     end
@@ -229,8 +229,8 @@ lint. An existing project gets the cops by adding those three lines.
 | `Game/NoLiteralText` | a String literal passed to `text`, `text_width` or `text_lines` | everywhere |
 | `Game/NoCoreInEngineLayer` | naming `RGame::Core`, or requiring `rgame/core` or `rgame/game` | `nodes/` and `spec/` |
 
-A per-frame method is `update`, `control`, `draw`, `on_update`, `on_control` or
-`on_draw`, or any method with a `# hot-path` comment on the line above its
+A per-frame method is `update`, `control`, `draw`, `_update`, `_control` or
+`_draw`, or any method with a `# hot-path` comment on the line above its
 `def`. For a label that changes, the answer to the first cop is an
 [`Engine::Text`](toolbox.md#text--the-string-a-node-draws).
 

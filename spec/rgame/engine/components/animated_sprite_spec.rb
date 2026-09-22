@@ -34,11 +34,11 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
   # Drive one frame for the given intent, then draw.
   def step(intent_x, intent_y)
     body.set_intent(intent_x, intent_y)
-    sprite.update(0.0)
-    sprite.draw(renderer, screen_view)
+    sprite._update(0.0)
+    sprite._draw(renderer, screen_view)
   end
 
-  describe '#on_attach' do
+  describe '#_attach' do
     it 'sizes the node to the resolved sheet frame' do
       expect([node.width, node.height]).to eq([16, 32])
     end
@@ -100,9 +100,9 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
       walker.add_component(follow)
       walker.add_component(walker_sprite)
       walker.enter_tree
-      follow.update(dt)
-      walker_sprite.update(dt)
-      walker_sprite.draw(renderer, screen_view)
+      follow._update(dt)
+      walker_sprite._update(dt)
+      walker_sprite._draw(renderer, screen_view)
     end
 
     it 'walks right along a rightward segment' do

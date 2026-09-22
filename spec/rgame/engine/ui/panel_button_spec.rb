@@ -134,7 +134,7 @@ RSpec.describe RGame::Engine::UI::PanelButton do
       it "draws #{state} without allocating" do
         subject_item = item(enabled: state != :disabled)
         subject_item.focused = state == :focused
-        expect { subject_item.on_draw(quiet, nil) }.to allocate_nothing
+        expect { subject_item._draw(quiet, nil) }.to allocate_nothing
       end
     end
   end

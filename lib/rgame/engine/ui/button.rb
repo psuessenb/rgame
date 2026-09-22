@@ -12,13 +12,13 @@ module RGame
       #       @color = color
       #     end
       #
-      #     def on_draw(renderer, _view)
+      #     def _draw(renderer, _view)
       #       inset = state == :focused ? 0 : 4
       #       renderer.rect(inset, inset, width - (inset * 2), height - (inset * 2), color: @color)
       #     end
       #   end
       #
-      # The look is a subclass's `on_draw`, and it reads `state` to decide what
+      # The look is a subclass's `_draw`, and it reads `state` to decide what
       # to draw. Everything the menu needs from a button — being told it is
       # focused or pressed, being activated, being asked to `adjust` — lives
       # here, so a subclass that only draws cannot leave any of it out.
@@ -31,7 +31,7 @@ module RGame
       # Menu inside a PlayerLayer puts its buttons inside that player's region
       # without either of them arranging it.
       #
-      # A Button with no `on_draw` of its own draws nothing.
+      # A Button with no `_draw` of its own draws nothing.
       #
       # ## The label is a translation key
       #
@@ -48,7 +48,7 @@ module RGame
       #
       #   @continue = Engine::Text.new('continue', :saves)
       #   menu.add(UI::PanelButton.new(label: @continue))
-      #   def on_update(_dt) = @continue.with(saves: @save_count)
+      #   def _update(_dt) = @continue.with(saves: @save_count)
       #
       # One given no `with` yet raises on the first draw, naming the keywords.
       #
@@ -153,7 +153,7 @@ module RGame
           @focused ? :focused : :idle
         end
 
-        # Called by the Menu. Calls `on_focus_changed` when the value actually
+        # Called by the Menu. Calls `_gain_focus` or `_lose_focus` when the value actually
         # changes, and never for a repeated assignment, so a menu that reasserts
         # focus every frame does not replay a focus sound every frame. Losing
         # focus lets go of a confirm press without activating it; a hotkey press
@@ -163,7 +163,7 @@ module RGame
 
           @focused = value
           @holder = nil if !value && @holder == :confirm
-          on_focus_changed(value)
+          value ? _gain_focus : _lose_focus
         end
 
         # Called by the Menu when a press from `source` — `:confirm` or
@@ -235,9 +235,12 @@ module RGame
           super
         end
 
-        # Hook: override to react to gaining or losing focus — a sound, the
-        # start of an animation. Called only on a change.
-        def on_focus_changed(focused); end
+        hook :_gain_focus, :_lose_focus
+
+        # Hooks: override to react to gaining or losing focus — a sound, the
+        # start of an animation. Each is called only on a change.
+        def _gain_focus; end
+        def _lose_focus; end
 
         private
 

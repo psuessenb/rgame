@@ -23,7 +23,7 @@ RSpec.describe RGame::Engine::Components::FeetCollider do
       expect([collider.aabb_x, collider.aabb_y, collider.aabb_w, collider.aabb_h]).to eq([102, 216, 12, 6])
     end
 
-    # The box cannot be built at construction: a node is sized by AnimatedSprite#on_attach,
+    # The box cannot be built at construction: a node is sized by AnimatedSprite#_attach,
     # so building it early would bake a box anchored to a 0x0 node. Deferring the build to
     # the first read is what makes the order components were added in irrelevant.
     it 'builds the box on first read rather than at construction' do

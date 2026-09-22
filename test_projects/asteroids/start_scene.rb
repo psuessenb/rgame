@@ -13,14 +13,14 @@ class StartScene < RGame::Engine::Node2D
   TITLE_COLOR = [230, 240, 255].freeze
   HINT_COLOR  = [150, 170, 200].freeze
 
-  def on_control(actions)
+  def _control(actions)
     return unless actions.pressed?(:ui_confirm)
 
     system!(RGame::Engine::AudioOut).play_sound(:blip)
     root.go(:play)
   end
 
-  def on_draw(renderer, view)
+  def _draw(renderer, view)
     renderer.background(:space)
     centered(renderer, view, TITLE, (view.height / 2) - 30, TITLE_COLOR)
     centered(renderer, view, HINT, (view.height / 2) + 20, HINT_COLOR)

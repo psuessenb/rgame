@@ -137,7 +137,7 @@ module RGame
         end
 
         # Advances the tile animations. Seconds, like every other duration here.
-        def update(dt)
+        def _update(dt)
           @elapsed += dt
         end
 

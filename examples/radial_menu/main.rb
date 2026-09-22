@@ -134,7 +134,7 @@ class ChosenIcon < RGame::Engine::Node2D
     @menu = menu
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     image = @menu.chosen_image
     renderer.image(image, 0, 0, scale: SCALE) if image
   end
@@ -153,7 +153,7 @@ class Caption < RGame::Engine::Node2D
     @chosen = RGame::Engine::Text.new('status.chosen', :item)
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.text(@help, 12, 12)
     chosen = @menu.chosen
     renderer.text(chosen ? @chosen.with(item: NAMES.fetch(chosen).to_s) : @nothing, 12, HEIGHT - 30)
@@ -161,7 +161,7 @@ class Caption < RGame::Engine::Node2D
 end
 
 class Scene < RGame::Engine::Node2D
-  def on_add
+  def _enter_tree
     menu = add_node(QuickMenu.new(x: WIDTH / 2, y: (HEIGHT / 2) + 6))
     add_node(Caption.new(menu: menu))
   end

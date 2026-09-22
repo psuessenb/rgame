@@ -32,7 +32,7 @@ module RGame
         # to the world system on `node` for either axis left nil. The single place
         # that fallback is written, so the components sharing it cannot drift.
         #
-        # Call it from `on_attach`, not `initialize` — a node has no scene to ask
+        # Call it from `_attach`, not `initialize` — a node has no scene to ask
         # until it is in the tree, and a pooled entity is built long before it is.
         def self.resolve(node, width, height)
           return [width, height] if width && height
@@ -64,7 +64,7 @@ module RGame
         # to change if a game wants wrapping on one axis and stopping on the other: the
         # rule then becomes one response per axis.
         #
-        # Every response calls this from its own on_attach, which is what makes it
+        # Every response calls this from its own _attach, which is what makes it
         # order-free: a node assembled outside the tree already holds all its
         # components when the first attaches, and on a live node each attaches on
         # arrival, so the second response always finds the first.

@@ -8,7 +8,7 @@ module RGame
       # It registers itself with the scene's CollisionWorld when it enters the tree
       # and unregisters on leaving, so a spawned/despawned entity can't leak a
       # registration. A scene with no world mounted leaves it a bare shape (see
-      # on_attach).
+      # _attach).
       #
       # The rectangle is an Engine::CollisionBox: an offset + size relative to the
       # node's origin, so a 32x32 sprite can carry a small box at its feet —
@@ -52,8 +52,8 @@ module RGame
         # The cost is that an on_hit handler in such a scene never fires and nothing says
         # so. That is the trade taken deliberately: what declares "I expect to be stopped"
         # is `blocked_by`, and that *does* raise for a system it cannot find.
-        def on_attach = node.system(CollisionWorld)&.register(self)
-        def on_detach = node.system(CollisionWorld)&.unregister(self)
+        def _attach = node.system(CollisionWorld)&.register(self)
+        def _detach = node.system(CollisionWorld)&.unregister(self)
 
         # The broadphase AABB in world space, one component per call rather than
         # CollisionBox#aabb's Array: CollisionWorld reads these for every collider

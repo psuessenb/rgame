@@ -8,7 +8,7 @@ module RGame
   # The entry point of a game, and the one class that knows both halves.
   #
   #   class HelloScene < RGame::Engine::Node2D
-  #     def on_draw(renderer) = renderer.text('Hello world!', 250, 200)
+  #     def _draw(renderer) = renderer.text('Hello world!', 250, 200)
   #   end
   #
   #   RGame::Game.new(root: HelloScene.new, caption: 'Hello').start

@@ -64,7 +64,7 @@ numbers from its map. Both include `Components::WorldBounds`, so a component
 that needs bounds asks for the *contract*:
 
 ```ruby
-def on_attach
+def _attach
   world = node.system(RGame::Engine::Components::WorldBounds)
   @width = world.world_width
   @height = world.world_height
@@ -83,8 +83,8 @@ node under construction has no anchors. See
 [Lifecycle](scene_graph.md#lifecycle-constructing-vs-entering-the-tree).
 
 The entered-tree cascade fixes an order that makes this safe. The scene's own
-components run `on_attach` first, so a `CollisionWorld` on the scene node exists.
-Then the scene's `on_add` runs, then its children enter. By the time a child
+components run `_attach` first, so a `CollisionWorld` on the scene node exists.
+Then the scene's `_enter_tree` runs, then its children enter. By the time a child
 collider attaches, the scene-scoped system it looks up is already there.
 
 ```ruby
@@ -92,8 +92,8 @@ collider attaches, the scene-scoped system it looks up is already there.
 # enters the tree and releases the registration when it leaves — the engine fires
 # both hooks, so a spawned/despawned entity can't leak a registration.
 class CircleCollider < RGame::Engine::Component
-  def on_attach = node.system(CollisionWorld)&.register(self)
-  def on_detach = node.system(CollisionWorld)&.unregister(self)
+  def _attach = node.system(CollisionWorld)&.register(self)
+  def _detach = node.system(CollisionWorld)&.unregister(self)
 end
 ```
 

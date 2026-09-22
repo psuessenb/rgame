@@ -79,7 +79,7 @@ RSpec.describe RGame::Engine::Components::Targeting do
       enemy(150, 100)
       targeting = turret(100, 100)
       tick # resolve positions + build the broadphase index
-      expect { targeting.update(1.0 / 60) }.to allocate_nothing
+      expect { targeting._update(1.0 / 60) }.to allocate_nothing
     end
   end
 end

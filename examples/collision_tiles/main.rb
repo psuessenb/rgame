@@ -184,7 +184,7 @@ class Hero < RGame::Engine::Node2D
   # Components draw first, so this lands over the sprite. The box's offsets are
   # relative to the node's origin, which is exactly where the renderer already
   # is — a collision box and local space agree about what (0, 0) means.
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     box = @collider.box
     renderer.rect(box.offset_x, box.offset_y, box.width, box.height, color: FEET)
   end
@@ -207,10 +207,10 @@ class SpikyBall < RGame::Engine::Node2D
                   ))
   end
 
-  # Local space, like every other on_draw: the node's transform is already
+  # Local space, like every other _draw: the node's transform is already
   # pushed, so the ball is drawn around its own origin and lands wherever the
   # node is.
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.line(RADIUS, -SPIKE_LENGTH, RADIUS, BALL_SIZE + SPIKE_LENGTH, thickness: 2.0, color: SPIKE)
     renderer.line(-SPIKE_LENGTH, RADIUS, BALL_SIZE + SPIKE_LENGTH, RADIUS, thickness: 2.0, color: SPIKE)
     renderer.circle(RADIUS, RADIUS, RADIUS, color: BODY)
@@ -221,7 +221,7 @@ end
 # steps as `examples/scroll_map`, with an actor that collides instead of a rig
 # that does not.
 class Scene < RGame::Engine::Node2D
-  def on_add
+  def _enter_tree
     map = root.context.assets.tilemap(MAP).map
     players = root.system(RGame::Engine::Players)
 
@@ -243,7 +243,7 @@ class Scene < RGame::Engine::Node2D
     actors = RGame::Engine::TileMapLayer.mount(view)[:actors]
     actors.add_node(SpikyBall.new(x: BALL_X, y: BALL_Y))
     @hero = actors.add_node(Hero.new(camera: players.primary.camera, x: START_X, y: START_Y))
-    # Built here rather than in on_draw: the text renders once per change of the
+    # Built here rather than in _draw: the text renders once per change of the
     # count, and the frames in between read the string it kept.
     @lives_label = RGame::Engine::Text.new('hud.lives', :lives)
     @help_walk = RGame::Engine::Text.new('help.walk')
@@ -253,7 +253,7 @@ class Scene < RGame::Engine::Node2D
   end
 
   # Screen space: outside the WorldView, so it stays put while the map scrolls.
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.text(@help_walk, 12, 12)
     renderer.text(@help_slide, 12, 34)
     renderer.text(@help_box, 12, 56)

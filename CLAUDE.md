@@ -27,7 +27,7 @@ calling code is asked to remember.
 Two examples of the shape this takes:
 
 - **Give the user a blank hook, keep the machinery separate.** A node exposes
-  an empty `on_draw` to override, while `draw` does the bookkeeping and calls
+  an empty `_draw` to override, while `draw` does the bookkeeping and calls
   it. That is better than one `draw` the user overrides and must remember to
   `super` from — because forgetting `super` is silent, and the failure shows up
   somewhere else entirely.
@@ -42,7 +42,7 @@ suite lives in its own directory with its own runner, rather than in a shared
 one with an `exclude_pattern` that must not be forgotten. A convention that
 fails loudly beats one that has to be observed.
 
-### `Node2D` and `Component`: `rgame_` seals a method
+### `Node2D` and `Component`: `rgame_` seals a method, `_` marks a hook
 
 These two are the classes a game subclasses, so their non-public methods are
 names a game author can collide with without knowing they exist — and in Ruby
@@ -62,11 +62,20 @@ So in `Node2D` and `Component`, and **only** there:
   overridden with `super` — `Node2D#draw_children` is the one there is.
   Unguarded by design.
 
+And a method whose name starts with `_` is a **hook**, which the engine calls
+and a subclass overrides, such as `_draw` or a component's `_attach`.
+`Engine::Hooks` raises `NameError` when a subclass defines a `_` method that no
+ancestor has, so a misspelled hook fails where it is written. A class adding a
+hook for its own subclasses declares it with `hook :_gain_focus` before the
+`def`, as `UI::Button` does. A name starting with `on_` is a signal and nothing
+else, and `Signal::DSL` raises when a subclass replaces what it generated.
+
 Adding a non-public method to either class is therefore a decision about which
 of the two it is, and `spec/rgame/engine/sealed_privates_spec.rb` lists each
 class's seams so that an unprefixed method added without deciding fails there.
-Everywhere else — engine subclasses included — the usual naming applies, and a
-private hook such as `Components::Mover#take_step` is ordinary.
+The seal covers only the two base classes' own methods: in an engine subclass a
+private hook such as `Components::Mover#take_step` is ordinary. The `_` rule
+covers every subclass of the two, engine ones included.
 
 ## Before building: find the thing it resembles
 
@@ -179,7 +188,7 @@ the ones that *do* fit here — fix the code, not the cop.
 
 `Game/NoInterpolationInHotPath` refuses the obvious `renderer.text("Score:
 #{@score}", ...)`, and the engine owns the answer: **`RGame::Engine::Text`.**
-Build it off the per-frame path; read it with `with` in `on_draw`, or pass it to
+Build it off the per-frame path; read it with `with` in `_draw`, or pass it to
 `renderer.text` as it is when it has no variables — or when something else gave
 it its values through `with`, such as a button's label. A `Text` answers
 `to_str`, so no `.to_s` is needed.
@@ -190,7 +199,7 @@ def initialize
   @score = Engine::Text.new('hud.score', :score)   # "Score: %{score}" in the table
 end
 
-def on_draw(renderer, _view) = renderer.text(@score.with(score: @points), 12, 10)
+def _draw(renderer, _view) = renderer.text(@score.with(score: @points), 12, 10)
 ```
 
 It keeps the last string and renders again only when a keyword differs or

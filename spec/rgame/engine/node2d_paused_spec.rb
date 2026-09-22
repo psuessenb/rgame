@@ -20,9 +20,9 @@ RSpec.describe RGame::Engine::Node2D do
         @updates = @controls = @draws = 0
       end
 
-      def on_update(_dt) = @updates += 1
-      def on_control(_actions) = @controls += 1
-      def on_draw(_renderer, _view) = @draws += 1
+      def _update(_dt) = @updates += 1
+      def _control(_actions) = @controls += 1
+      def _draw(_renderer, _view) = @draws += 1
     end.new
   end
 

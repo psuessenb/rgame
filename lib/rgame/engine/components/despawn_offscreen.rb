@@ -23,14 +23,14 @@ module RGame
           @margin = margin
         end
 
-        # See ScreenWrap#on_attach: resolved per entry, so a recycled node is correct
+        # See ScreenWrap#_attach: resolved per entry, so a recycled node is correct
         # after a scene change.
-        def on_attach
+        def _attach
           WorldBounds.one_response!(node)
           @width, @height = WorldBounds.resolve(node, @given_width, @given_height)
         end
 
-        def update(_dt)
+        def _update(_dt)
           x = node.world_x
           y = node.world_y
           offscreen = x < -@margin || x > @width + @margin || y < -@margin || y > @height + @margin

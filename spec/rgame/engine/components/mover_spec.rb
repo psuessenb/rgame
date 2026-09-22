@@ -116,7 +116,7 @@ RSpec.describe RGame::Engine::Components::Mover do
     scene.add_node(ship)
     scene.enter_tree
 
-    controller.control(RGame::Engine::Actions.new(axes: { turn: 0.0, thrust: 1.0 }))
+    controller._control(RGame::Engine::Actions.new(axes: { turn: 0.0, thrust: 1.0 }))
     tick(120)
     expect(ship.x).to eq(184.0)
   end

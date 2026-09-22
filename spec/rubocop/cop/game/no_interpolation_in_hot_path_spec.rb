@@ -15,7 +15,7 @@ RSpec.describe RuboCop::Cop::Game::NoInterpolationInHotPath, :config do
   end
 
   it 'flags interpolation in every lifecycle method, not just draw' do
-    %i[update control on_update on_draw on_control].each do |method|
+    %i[update control _update _draw _control].each do |method|
       expect_offense(<<~RUBY, msg: described_class::MSG)
         def #{method}(renderer)
           renderer.text("Score: \#{@score}", 10, 10)

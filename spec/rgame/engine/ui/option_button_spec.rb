@@ -325,18 +325,18 @@ RSpec.describe RGame::Engine::UI::OptionButton do
         captions[:high].with(n: 2)
         item = slots(captions, index: 1)
         quiet = QuietRenderer.new
-        item.on_draw(quiet, nil)
-        expect { item.on_draw(quiet, nil) }.to allocate_nothing
+        item._draw(quiet, nil)
+        expect { item._draw(quiet, nil) }.to allocate_nothing
       end
     end
 
     it 'draws without allocating after a switch has been drawn once' do
       item = shadows(index: 1)
       quiet = QuietRenderer.new
-      item.on_draw(quiet, nil)
+      item._draw(quiet, nil)
       i18n.locale = :de
-      item.on_draw(quiet, nil)
-      expect { item.on_draw(quiet, nil) }.to allocate_nothing
+      item._draw(quiet, nil)
+      expect { item._draw(quiet, nil) }.to allocate_nothing
     end
   end
 
@@ -346,12 +346,12 @@ RSpec.describe RGame::Engine::UI::OptionButton do
 
     it 'draws with both chevrons without allocating' do
       subject_item = option(index: 1)
-      expect { subject_item.on_draw(quiet, nil) }.to allocate_nothing
+      expect { subject_item._draw(quiet, nil) }.to allocate_nothing
     end
 
     it 'draws disabled without allocating' do
       subject_item = option(index: 1, enabled: false)
-      expect { subject_item.on_draw(quiet, nil) }.to allocate_nothing
+      expect { subject_item._draw(quiet, nil) }.to allocate_nothing
     end
   end
 end

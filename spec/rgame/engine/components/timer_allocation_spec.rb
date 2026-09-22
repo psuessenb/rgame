@@ -8,7 +8,7 @@ RSpec.describe RGame::Engine::Components::Timer do
     timer = node.add_component(described_class.new(0.8))
     timer.on_elapsed { nil } # a real, allocation-free listener
     dt = 1.0 / 60.0
-    expect { timer.update(dt) }.to allocate_nothing.after_warmup(120)
+    expect { timer._update(dt) }.to allocate_nothing.after_warmup(120)
   end
 
   # A one-shot's steady state is the inert post-fire phase (a projectile's despawn timer
@@ -17,8 +17,8 @@ RSpec.describe RGame::Engine::Components::Timer do
     node = RGame::Engine::Node2D.new
     timer = node.add_component(described_class.new(0.8, repeating: false))
     timer.on_elapsed { nil }
-    timer.update(1.0) # fire once, then it stays inert
+    timer._update(1.0) # fire once, then it stays inert
     dt = 1.0 / 60.0
-    expect { timer.update(dt) }.to allocate_nothing
+    expect { timer._update(dt) }.to allocate_nothing
   end
 end

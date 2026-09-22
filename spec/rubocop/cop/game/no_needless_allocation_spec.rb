@@ -38,7 +38,7 @@ RSpec.describe RuboCop::Cop::Game::NoNeedlessAllocation, :config do
   describe 'any literal inside a per-frame method' do
     it 'flags an array literal returned from a lifecycle method' do
       expect_offense(<<~RUBY, msg: hot_path_msg(kind: 'array'))
-        def on_draw(r)
+        def _draw(r)
           r.text([@a, @b])
                  ^^^^^^^^ %{msg}
         end
@@ -59,7 +59,7 @@ RSpec.describe RuboCop::Cop::Game::NoNeedlessAllocation, :config do
   describe 'allowed cases' do
     it 'allows an empty array (mutable-state seed)' do
       expect_no_offenses(<<~RUBY)
-        def on_add
+        def _enter_tree
           @items = []
         end
       RUBY

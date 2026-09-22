@@ -25,6 +25,11 @@ module RGame
       #
       # The DSL adds the `on_` itself, so a name starting with `on_` raises at
       # class definition, as does anything but Symbols after the name.
+      #
+      # A subclass defining either generated method raises `NameError` where it
+      # is defined. A `def on_activated` meant as a hook would otherwise replace
+      # the connect method, and every block passed to it would be dropped
+      # without a word.
       module DSL
         def signal(name, *fields)
           if name.start_with?('on_')
@@ -34,6 +39,7 @@ module RGame
 
           type = Signal.define(*fields)
           reader = :"#{name}_signal"
+          connect = :"on_#{name}"
           ivar = :"@#{reader}"
 
           define_method(reader) do
@@ -41,8 +47,24 @@ module RGame
           end
           private reader
 
-          define_method(:"on_#{name}") { |&block| send(reader).connect(&block) }
+          define_method(connect) { |&block| send(reader).connect(&block) }
+          signal_methods[reader] = signal_methods[connect] = name
         end
+
+        def method_added(name)
+          super
+          declarer = ancestors.find { it.is_a?(DSL) && it.signal_methods.key?(name) }
+          return unless declarer
+
+          event = declarer.signal_methods[name]
+          raise NameError.new("#{self}##{name} would replace what signal :#{event} generated in #{declarer}, " \
+                              'and no block could connect to that signal any more. To react to it, connect ' \
+                              "a block: on_#{event} { ... }. Otherwise give the method another name.", name)
+        end
+
+        protected
+
+        def signal_methods = (@signal_methods ||= {})
       end
 
       def self.define(*fields)

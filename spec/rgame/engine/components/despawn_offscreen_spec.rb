@@ -16,14 +16,14 @@ RSpec.describe RGame::Engine::Components::DespawnOffscreen do
 
     it 'queues the node for removal once its origin is further than the margin past an edge' do
       node.x = 106
-      despawn.update(0.0)
+      despawn._update(0.0)
       expect(node).to be_freed
     end
 
     it 'leaves a node inside the bounds (plus margin) alive' do
       node.x = -5
       node.y = 85
-      despawn.update(0.0)
+      despawn._update(0.0)
       expect(node).not_to be_freed
     end
   end
@@ -46,7 +46,7 @@ RSpec.describe RGame::Engine::Components::DespawnOffscreen do
       root.enter_tree
 
       node.x = 106
-      despawn.update(0.0)
+      despawn._update(0.0)
       expect(node).to be_freed
     end
 

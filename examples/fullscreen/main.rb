@@ -146,7 +146,7 @@ class Scene < RGame::Engine::Node2D
     @mode_index = MODES.index(SCALE_MODE) || 0
   end
 
-  def on_control(actions)
+  def _control(actions)
     # `context` is the Game, which is an App. A node may not *name* RGame::Core,
     # but it may call methods on an object it is handed — the same duck-typing a
     # node uses on the renderer.
@@ -164,7 +164,7 @@ class Scene < RGame::Engine::Node2D
   # `view` is the region being drawn into. Under fullscreen it is the screen;
   # windowed it is the window. Reading it rather than WIDTH/HEIGHT is the whole
   # reason the border below keeps up.
-  def on_draw(renderer, view)
+  def _draw(renderer, view)
     right = view.width - INSET
     bottom = view.height - INSET
 

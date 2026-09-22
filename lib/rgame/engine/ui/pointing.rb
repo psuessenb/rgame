@@ -102,7 +102,7 @@ module RGame
           nearest
         end
 
-        def on_control(actions)
+        def control(actions)
           @aim_x = actions.axis(:ui_radial_x)
           @aim_y = actions.axis(:ui_radial_y)
           if Math.hypot(@aim_x, @aim_y) < @dead_zone
@@ -123,7 +123,7 @@ module RGame
 
         # Forgets the last aim and focuses nothing, so a menu opened again does
         # not start where the last opening left off.
-        def on_opened
+        def opened
           @aim_x = 0.0
           @aim_y = 0.0
           @at_rest = false

@@ -79,4 +79,35 @@ RSpec.describe RGame::Engine::Signal::DSL do
 
     expect { Class.new(lever_class) { signal :changed, payload } }.to raise_error(ArgumentError, /invalid field name/)
   end
+
+  describe 'a method replacing one the DSL generated' do
+    before { stub_const('Lever', lever_class) }
+
+    it 'raises for the connect method, naming the signal and where it was declared' do
+      expect { Class.new(Lever) { def on_pulled = nil } }
+        .to raise_error(NameError, /#on_pulled would replace what signal :pulled generated in Lever,/)
+    end
+
+    it 'raises for the emit reader' do
+      expect { Class.new(Lever) { private def moved_signal = nil } }
+        .to raise_error(NameError, /#moved_signal would replace what signal :moved generated in Lever,/)
+    end
+
+    it 'raises however the method is made' do
+      expect { Class.new(Lever) { define_method(:on_changed) { nil } } }.to raise_error(NameError)
+    end
+
+    it 'raises in the declaring class too, after the declaration' do
+      expect { Lever.class_eval { def on_pulled = nil } }.to raise_error(NameError)
+    end
+
+    it 'raises when a subclass declares the same signal again' do
+      expect { Class.new(Lever) { signal :pulled } }.to raise_error(NameError)
+    end
+
+    it 'names how to react to the signal instead' do
+      expect { Class.new(Lever) { def on_pulled = nil } }
+        .to raise_error(NameError, /connect a block: on_pulled \{ ... \}/)
+    end
+  end
 end

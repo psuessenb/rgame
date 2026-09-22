@@ -49,7 +49,7 @@ RSpec.describe RGame::Engine::Components::Pool do
     it 'detaches a freed node and returns it to the pool to be recycled' do
       first = pool.spawn
       first.queue_free
-      pool.update(0.016) # reclaim: detach + back to the free list
+      pool._update(0.016) # reclaim: detach + back to the free list
 
       expect(owner.children).to eq([])
       expect(pool.spawn).to be(first) # recycled, not rebuilt
@@ -58,7 +58,7 @@ RSpec.describe RGame::Engine::Components::Pool do
 
     it 'leaves live nodes attached' do
       live = pool.spawn
-      pool.update(0.016)
+      pool._update(0.016)
       expect(owner.children).to eq([live])
     end
   end
@@ -79,7 +79,7 @@ RSpec.describe RGame::Engine::Components::Pool do
       expect(pool).not_to be_empty
 
       child.queue_free
-      pool.update(0.016)
+      pool._update(0.016)
       expect(pool).to be_empty
     end
   end

@@ -32,7 +32,7 @@ class BeachScene < RGame::Engine::Node2D
     @walkers = {}
   end
 
-  def on_add
+  def _enter_tree
     @map = node_context.assets.tilemap(MAP_KEY).map
     @players = root.system(RGame::Engine::Players)
     add_component(RGame::Engine::Components::TileWorld.new(

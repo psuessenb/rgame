@@ -114,7 +114,7 @@ never names a Core class:
 @face = RGame::Util::Typeface.default(24)       # in initialize
 @x = (width - @face.text_width(@title)) / 2     # in update
 
-def on_draw(renderer, _view) = renderer.text(@title, @x, 10, font: @face)
+def _draw(renderer, _view) = renderer.text(@title, @x, 10, font: @face)
 ```
 
 The renderer builds a `Font` for a typeface the first time it draws one, and
@@ -217,10 +217,10 @@ greeting.lines # => ["Sei gegrüßt, Ada. Das Tor ist für die", "Nacht geschlos
 String its `Text` returns is a different object, or when the width changed. A
 `Text` returns the same String until a variable or the language changes, so a
 paragraph follows both with no call of its own. An unchanged read returns the
-same Array and allocates nothing, so a node may read `lines` in `on_draw`:
+same Array and allocates nothing, so a node may read `lines` in `_draw`:
 
 ```ruby
-def on_draw(renderer, _view)
+def _draw(renderer, _view)
   @notice.lines.each_with_index do |line, i|
     renderer.text(line, 0, i * renderer.text_height)
   end
@@ -266,7 +266,7 @@ Each page is a frozen Array, and an unchanged read of `page` or `page_count`
 allocates nothing. A `lines_per_page` below 1 raises `ArgumentError`.
 
 A paragraph holds a typeface, never a renderer. It draws nothing, so it lays text
-out in `update` or in a headless spec as well as in `on_draw`.
+out in `update` or in a headless spec as well as in `_draw`.
 
 ### The default font, and what it covers
 

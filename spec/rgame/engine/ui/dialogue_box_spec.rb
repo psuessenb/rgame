@@ -298,9 +298,9 @@ RSpec.describe RGame::Engine::UI::DialogueBox do
       expect([typing, renderer.drawn?(:triangle)]).to eq([false, true])
     end
 
-    it 'calls on_draw_portrait with the speaker, in the box\'s own space' do
+    it 'calls _draw_portrait with the speaker, in the box\'s own space' do
       portrait = Class.new(described_class) do
-        def on_draw_portrait(renderer, speaker)
+        def _draw_portrait(renderer, speaker)
           renderer.rect(12, 12, 64, 64, color: speaker == :smith ? [255, 0, 0] : nil)
         end
       end
@@ -318,7 +318,7 @@ RSpec.describe RGame::Engine::UI::DialogueBox do
 
     it 'draws no portrait by default' do
       shown = box(portrait_width: 64)
-      shown.on_draw_portrait(renderer, :smith)
+      shown._draw_portrait(renderer, :smith)
       expect(renderer.calls).to eq([])
     end
 

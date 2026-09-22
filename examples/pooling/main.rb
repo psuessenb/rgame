@@ -57,9 +57,9 @@
 # its own rules — which is worth saying, because the one rule it *does* add is
 # easy to miss.
 #
-# ## The one rule: components go in `initialize`, not `on_add`
+# ## The one rule: components go in `initialize`, not `_enter_tree`
 #
-# `on_add` fires on **every** entry into the tree, and a pooled node enters it
+# `_enter_tree` fires on **every** entry into the tree, and a pooled node enters it
 # again on each spawn. A component added there is added a second time, and
 # `add_component` refuses a slot that is already taken — so a pool that worked
 # for one lifetime raises on the next. Mote below adds its components in
@@ -67,7 +67,7 @@
 # once.
 #
 # The mirror of that rule is what makes reuse safe: `Components::Timer` re-arms
-# itself in `on_attach`, and `Components::DespawnOffscreen` re-resolves its world
+# itself in `_attach`, and `Components::DespawnOffscreen` re-resolves its world
 # bounds there, so a recycled node inherits neither a spent countdown nor the
 # dimensions of the scene it came from.
 #
@@ -103,8 +103,8 @@ DEFAULT_SEED = 0x9001
 DESPAWN_MARGIN = 30.0
 
 # A blank when the factory builds it, a particular mote when `reset` is done with
-# it. Both of its components are added here rather than in `on_add`, because a
-# pooled node re-enters the tree on every spawn and `on_add` fires every time.
+# it. Both of its components are added here rather than in `_enter_tree`, because a
+# pooled node re-enters the tree on every spawn and `_enter_tree` fires every time.
 class Mote < RGame::Engine::Node2D
   SIZE = 7
 
@@ -127,7 +127,7 @@ class Mote < RGame::Engine::Node2D
     self
   end
 
-  def on_draw(renderer, _view) = renderer.rect(-SIZE / 2, -SIZE / 2, SIZE, SIZE, color: @color)
+  def _draw(renderer, _view) = renderer.rect(-SIZE / 2, -SIZE / 2, SIZE, SIZE, color: @color)
 end
 
 # Emits motes on a cadence, either from a pool or by building each one, and the
@@ -149,7 +149,7 @@ class Spawner < RGame::Engine::Node2D
   # bar vanish in fresh mode and hide the thing being compared.
   def live = children.size
 
-  def on_add
+  def _enter_tree
     @pool = add_component(RGame::Engine::Components::Pool.new { Mote.new })
     add_component(RGame::Engine::Components::Timer.new(SPAWN_EVERY))
       .on_elapsed { PER_BURST.times { emit } }
@@ -194,12 +194,12 @@ class Meter < RGame::Engine::Node2D
     @last = 0
   end
 
-  def on_add
+  def _enter_tree
     @last = GC.stat(:total_allocated_objects)
     add_component(RGame::Engine::Components::Timer.new(SAMPLE)).on_elapsed { sample }
   end
 
-  def on_draw(renderer, _view) = renderer.text(@label.with(count: @count), 0, 0, color: INK)
+  def _draw(renderer, _view) = renderer.text(@label.with(count: @count), 0, 0, color: INK)
 
   private
 
@@ -229,16 +229,16 @@ class Scene < RGame::Engine::Node2D
     add_component(RGame::Engine::Components::World.new(width: WIDTH, height: HEIGHT))
   end
 
-  def on_add
+  def _enter_tree
     @spawner = add_node(Spawner.new(rng: @rng, x: WIDTH / 2, y: HEIGHT / 2))
     @meter = add_node(Meter.new(x: 12, y: 34))
   end
 
-  def on_control(actions)
+  def _control(actions)
     @spawner.toggle if actions.pressed?(:fire)
   end
 
-  def on_draw(renderer, view)
+  def _draw(renderer, view)
     renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
     renderer.text(MODE.fetch(@spawner.pooled?), 12, 12)
     # The live count as a bar rather than a number: it changes most frames, and

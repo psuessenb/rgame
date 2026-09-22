@@ -180,7 +180,7 @@ RSpec.describe RGame::Engine::UI::Label do
       notice = label(reveal: 10)
       notice.text = 'story'
       quiet = QuietRenderer.new
-      expect { notice.on_draw(quiet, nil) }.to allocate_nothing
+      expect { notice._draw(quiet, nil) }.to allocate_nothing
     end
 
     it 'refuses what new refuses' do
@@ -322,8 +322,8 @@ RSpec.describe RGame::Engine::UI::Label do
       story = label(text: 'story', width: 440, lines_per_page: 3, align: :center, reveal: 30)
       root.update(1.5)
       quiet = QuietRenderer.new
-      story.on_draw(quiet, nil)
-      expect { story.on_draw(quiet, nil) }.to allocate_nothing.over(200)
+      story._draw(quiet, nil)
+      expect { story._draw(quiet, nil) }.to allocate_nothing.over(200)
     end
   end
 
@@ -334,7 +334,7 @@ RSpec.describe RGame::Engine::UI::Label do
   it 'allocates nothing on an unchanged draw' do
     story = label(text: 'story', width: 440, lines_per_page: 3, align: :center)
     quiet = QuietRenderer.new
-    story.on_draw(quiet, nil)
-    expect { story.on_draw(quiet, nil) }.to allocate_nothing.over(200_000)
+    story._draw(quiet, nil)
+    expect { story._draw(quiet, nil) }.to allocate_nothing.over(200_000)
   end
 end

@@ -70,7 +70,7 @@ module RGame
           end
         end
 
-        def on_control(actions)
+        def control(actions)
           step(-1) if actions.pressed?(@step_back)
           step(1) if actions.pressed?(@step_on)
 
@@ -81,7 +81,7 @@ module RGame
           current.adjust(1) if actions.pressed?(@adjust_up)
         end
 
-        def on_buttons_changed
+        def buttons_changed
           return menu.focus(nil) if menu.buttons.empty?
           return if menu.focused&.enabled?
 

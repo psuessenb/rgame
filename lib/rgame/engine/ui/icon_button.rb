@@ -64,7 +64,7 @@ module RGame
           @disabled_label_color = Util::Color.coerce(disabled_label_color)
         end
 
-        def on_draw(renderer, _view)
+        def _draw(renderer, _view)
           current = state
           caption_height = @label ? renderer.text_height : 0
           @style&.draw(renderer, current, width, height - caption_height)

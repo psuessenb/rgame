@@ -33,7 +33,7 @@ module RGame
       # diagonally against a wall creeps to rest instead of sliding to the corner. A walker
       # meant to get round something replans its path rather than relying on the slide.
       #
-      # `on_attach` still places the node on the first waypoint absolutely, blocked or
+      # `_attach` still places the node on the first waypoint absolutely, blocked or
       # not: where a walker starts is a placement, not a step.
       #
       # ## A new route, and none
@@ -63,7 +63,7 @@ module RGame
         # Restart the walk as the node enters the tree — back to the first waypoint, with
         # progress cleared — so a pooled follower reacquired and re-added begins a fresh walk
         # rather than resuming (or staying finished) where its previous life ended.
-        def on_attach
+        def _attach
           super
           restart
         end

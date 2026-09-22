@@ -30,7 +30,7 @@ RSpec.describe 'RGame::Game locales' do # rubocop:disable RSpec/DescribeClass --
       require 'json'
 
       class Root < RGame::Engine::Node2D
-        def on_update(_dt) = context.close
+        def _update(_dt) = context.close
       end
 
       i18n = RGame::Engine::I18n

@@ -61,6 +61,6 @@ RSpec.describe RGame::Engine::UI::PanelMenu do
   it 'allocates nothing drawing its panel' do
     menu.add(button('one'))
     quiet = Class.new { def nine_slice(_id, _x, _y, _width, _height) = nil }.new
-    expect { menu.on_draw(quiet, nil) }.to allocate_nothing
+    expect { menu._draw(quiet, nil) }.to allocate_nothing
   end
 end

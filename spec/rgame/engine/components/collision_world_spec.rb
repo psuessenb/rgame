@@ -28,7 +28,7 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
     collider = node.add_component(component)
     collider.on_hit { |other| hits << [layer, other.layer] }
     collider.on_separated { |other| separations << [layer, other.layer] }
-    scene.add_node(node) # scene is live, so on_attach registers the collider
+    scene.add_node(node) # scene is live, so _attach registers the collider
     collider
   end
 
@@ -40,7 +40,7 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
 
   def tick
     resolve_positions
-    world.update(0.0)
+    world._update(0.0)
   end
 
   describe '#update' do
@@ -123,7 +123,7 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
       place_box(100, 100, :pickup, width: 10, height: 10)
       place(110, 70, :rock)
       tick
-      expect { world.update(0.0) }.to allocate_nothing
+      expect { world._update(0.0) }.to allocate_nothing
     end
 
     # The interesting half of the rule now that contacts are remembered between steps:
@@ -135,7 +135,7 @@ RSpec.describe RGame::Engine::Components::CollisionWorld do
       place_box(100, 100, :player, width: 24, height: 24)
       place_box(110, 110, :pickup, width: 24, height: 24)
       tick
-      expect { world.update(0.0) }.to allocate_nothing
+      expect { world._update(0.0) }.to allocate_nothing
     end
   end
 

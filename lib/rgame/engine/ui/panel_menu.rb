@@ -26,7 +26,7 @@ module RGame
           @padding = padding
         end
 
-        def on_draw(renderer, _view)
+        def _draw(renderer, _view)
           renderer.nine_slice(@panel, bounds_x - @padding, bounds_y - @padding,
                               bounds_width + (@padding * 2), bounds_height + (@padding * 2))
         end

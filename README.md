@@ -52,7 +52,7 @@ The simplest "game" you can write, all in one file:
 require 'rgame/game'
 
 class Scene < RGame::Engine::Node2D
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.text('Hello world!', 250, 200)
   end
 end

@@ -13,8 +13,8 @@ a whole scene or program.
 
 ## When what you want is not a component
 
-**A component is behaviour on the node's tick.** It overrides `control`, `update`
-or `draw`, and the node drives it. Much of what a game needs is not that. Searching
+**A component is behaviour on the node's tick.** It overrides `_control`, `_update`
+or `_draw`, and the node drives it. Much of what a game needs is not that. Searching
 this page for it leads to worse, hand-made answers.
 
 Those helpers live in the [Toolbox](toolbox.md). A game constructs them directly,
@@ -49,11 +49,11 @@ emit signals.
 **Per-tick hooks.** In each phase a node runs its components before its own hook
 and before its children.
 
-- `control(actions)` reads intent from the per-tick action snapshot. The snapshot
+- `_control(actions)` reads intent from the per-tick action snapshot. The snapshot
   belongs to whoever [owns the node](scene_graph.md#who-a-node-answers-to), so a
   component never learns there is more than one player.
-- `update(dt)` advances state over the timestep.
-- `draw(renderer, view)` renders through the renderer interface into the
+- `_update(dt)` advances state over the timestep.
+- `_draw(renderer, view)` renders through the renderer interface into the
   [viewport being drawn](scene_graph.md#viewports-and-views). Most components
   ignore `view`. It serves layout against the region's edges, and culling.
 
@@ -61,15 +61,19 @@ and before its children.
 the live tree. Anchors and sibling systems are reachable here, so wire across
 nodes here, not in `initialize`.
 
-- `on_attach`: the node entered the tree. Look up shared systems and register
+- `_attach`: the node entered the tree. Look up shared systems and register
   with them.
-- `on_detach`: the node is leaving. Release those registrations.
+- `_detach`: the node is leaving. Release those registrations.
 
-`sweep_freed` serves container components that hold nodes outside the normal
+`_sweep_freed` serves container components that hold nodes outside the normal
 child list. The default does nothing; see
 [deferred free](scene_graph.md#deferred-free).
 
-**`require_sibling(klass)` opens the `on_attach` of a component that drives a
+A component may define a `_` method only if it is one of these hooks, or one an
+ancestor declared with `hook`. Anything else raises `NameError` when the class
+loads; see [the tick](scene_graph.md#the-tick-control--update--draw).
+
+**`require_sibling(klass)` opens the `_attach` of a component that drives a
 sibling**: `@body = require_sibling(CharacterBody)`. It returns the component, or
 raises naming both. A plain `nil` would stay silent until the first frame called a
 method on it. When it raises, the cause is nearly always add order; see
@@ -122,20 +126,20 @@ depends on whether the node has a class of its own:
   ```
 
 **Both shapes work for the same reason.** The node is not in the tree yet, so
-`add_component` only appends. No `on_attach` fires until the whole set is present
+`add_component` only appends. No `_attach` fires until the whole set is present
 and the node enters. **Add order is therefore free.** `build_player` above adds an
 `AnimatedSprite` *before* the `CharacterBody` it faces by, and that works.
 
-### Adding from `on_add`, and when you must
+### Adding from `_enter_tree`, and when you must
 
-**A node running `on_add` is already in the tree.** Each `add_component` attaches
+**A node running `_enter_tree` is already in the tree.** Each `add_component` attaches
 at once and sees only the components added before it. The same two lines in the
 other order raise (see [`require_sibling`](#the-component-base) above). Prefer
-`initialize` or a builder. Use `on_add` only when the component cannot be built
+`initialize` or a builder. Use `_enter_tree` only when the component cannot be built
 earlier, because its constructor needs something only the tree can answer:
 
 ```ruby
-def on_add
+def _enter_tree
   # Both arguments are cross-tree lookups: the asset manager hangs off the root's
   # context, and the player registry is a system. Neither exists at construction.
   add_component(RGame::Engine::Components::TileWorld.new(
@@ -155,7 +159,7 @@ from the asset manager needs the tree, so it waits.
 The opposite exception is a component added **deliberately** after entry, because
 it depends on state that exists only once the node is live. An example is a
 `CameraFollow` whose offset comes from the sibling body's resolved
-`collision_box`. That is a later decision, not assembly, and `on_add` suits it.
+`collision_box`. That is a later decision, not assembly, and `_enter_tree` suits it.
 
 ## Available components
 
@@ -170,7 +174,7 @@ name, so listeners filter. The same component serves "fire" in a shooter or
   `{ action => seconds }`, e.g. `ActionTrigger.new(fire: 0.22)`.
 - **Signal:** `on_triggered` fires with the action name:
   `trigger.on_triggered { |a| … }`.
-- **Phase:** `update(dt)` ticks the per-action cooldowns. `control(actions)` emits
+- **Phase:** `_update(dt)` ticks the per-action cooldowns. `_control(actions)` emits
   when an action is held and its cooldown has elapsed. Held plus cooldown gives
   auto-repeat.
 
@@ -190,15 +194,15 @@ animation table.
 - **Construct:** `AnimatedSprite.new(sheet:, z: 0)`. `sheet` is the asset's
   relative path. `z` orders this component against the node's other drawing,
   inside the node's own slot, as for [`Sprite`](#sprite).
-- **Lifecycle:** `on_attach` resolves the sheet from the game's asset manager
+- **Lifecycle:** `_attach` resolves the sheet from the game's asset manager
   (`node.root.context.assets.sheet(sheet)`) and builds its animation set. It
   **sizes the node** to the sheet's frame (`node.width` and `height`), so a
   [`FeetCollider`](#feetcollider) can read them. It then looks up the mover sibling
   it faces by. A node with **two** movers raises here, naming both: both write the
   position, so no facing is defined. The renderer resolves the same path when
   drawing, so nothing is registered or passed in by hand.
-- **Phase:** `update(dt)` selects and advances the animation.
-  `draw(renderer, view)` renders the current frame via `renderer.sprite` at
+- **Phase:** `_update(dt)` selects and advances the animation.
+  `_draw(renderer, view)` renders the current frame via `renderer.sprite` at
   **`0, 0`** with no angle. The traversal already placed the renderer on the node,
   and a [`WorldView`](scene_graph.md#view-transforms-and-the-camera) ancestor
   already applied the camera. The frame is lifted by
@@ -220,8 +224,8 @@ leaves, so spawning and despawning never leak a registration.
   The offsets are relative to the node's origin, so a 32×32 sprite can carry a
   small box at its feet. `layer` is an opaque tag. The *owner* reads it to decide
   what a contact means; the collision system ignores it.
-- **Lifecycle:** `on_attach` registers with `node.system(CollisionWorld)`, and
-  `on_detach` unregisters. In a scene with **no** world, it stays a bare shape and
+- **Lifecycle:** `_attach` registers with `node.system(CollisionWorld)`, and
+  `_detach` unregisters. In a scene with **no** world, it stays a bare shape and
   does not raise. A collider is a shape; a world turns shapes into contacts. A
   tile-only game can therefore carry a feet box for
   [`CharacterBody(blocked_by:)`](#characterbody), or any other [`Mover`](#mover),
@@ -264,7 +268,7 @@ collider.on_hit { |other| collect if other.layer == :player }
 - **Construct:** `CameraFollow.new(camera:, offset_x: 0.0, offset_y: 0.0)`. The
   offsets shift the point the camera centres on, for a node whose origin should not
   sit mid-screen. A bottom-anchored sprite usually wants its feet centred.
-- **Phase:** `update(dt)` calls `camera.center_on` with the node's world origin.
+- **Phase:** `_update(dt)` calls `camera.center_on` with the node's world origin.
   The camera trails the node's movement by one step, uniformly.
 - **Example:** `examples/scroll_map`. The followed node is an invisible rig with a
   `CharacterBody` and a `PlayerController`. That is all "scroll the map with the
@@ -299,7 +303,7 @@ add_component(RGame::Engine::Components::PlayerController.new)
 - **State:** `set_intent(x, y)` writes the step's intent. `move_x` and `move_y`
   read it back, and so do `heading_x` and `heading_y`. A body pressed into a wall
   still heads into it.
-- **Phase:** `update(dt)` applies `intent * speed * dt` through `apply_move`, and
+- **Phase:** `_update(dt)` applies `intent * speed * dt` through `apply_move`, and
   moves nothing when the intent is zero. That still counts as a step, so a body
   that stops pushing into a wall reports `on_unblocked`.
 - **Seam:** a body that resolves a step differently, such as a platformer's with
@@ -320,8 +324,8 @@ and despawning never leak a registration.
 - **Construct:** `CircleCollider.new(radius:, layer: :default)`. `layer` is an
   opaque tag. The *owner* reads it to decide what a contact means; the collision
   system ignores it.
-- **Lifecycle:** `on_attach` registers with `node.system(CollisionWorld)`, and
-  `on_detach` unregisters. As with [`BoxCollider`](#boxcollider), a scene with no
+- **Lifecycle:** `_attach` registers with `node.system(CollisionWorld)`, and
+  `_detach` unregisters. As with [`BoxCollider`](#boxcollider), a scene with no
   world leaves it a bare shape, without raising.
 - **Geometry:** `cx` and `cy` are the node's world origin (`node.world_x`,
   `world_y`). `radius` is read/write, so a pooled entity can retune its shape on
@@ -377,7 +381,7 @@ shape by answering the same few methods.
   declares a collider layer does this through its resolver. Anything else that
   moves a collider mid-step may call it directly: a mover that declared nothing, or
   an ancestor.
-- **Phase:** `update(dt)` rebuilds the spatial index. It fires both colliders'
+- **Phase:** `_update(dt)` rebuilds the spatial index. It fires both colliders'
   `on_hit` for each pair that *started* overlapping, then both colliders'
   `on_separated` for each pair that *stopped*. It **ignores layers**: it reports
   contacts, and each owner decides their meaning by reading the other's `layer`. It
@@ -464,8 +468,8 @@ margin reaches half its extent.
 
 - **Construct:** `DespawnOffscreen.new(margin: 0.0)`, with the same optional
   `width:` and `height:` override as `ScreenWrap`.
-- **Lifecycle:** `on_attach` resolves the bounds, exactly as `ScreenWrap` does.
-- **Phase:** `update(dt)` calls `node.queue_free` once the node's **world**
+- **Lifecycle:** `_attach` resolves the bounds, exactly as `ScreenWrap` does.
+- **Phase:** `_update(dt)` calls `node.queue_free` once the node's **world**
   position passes an edge. A projectile spawned as a child of an offset emitter
   leaves at the world's edge, not at an edge shifted by the emitter's position.
   Removal is *deferred* (see [deferred free](scene_graph.md#deferred-free)), so
@@ -528,11 +532,11 @@ and child that reads its position.
 - **State:** `height` (px above the ground now), `airborne?`, `peak`, `duration`.
 - **Starting one:** press `action` during `control`, or call `jump`. `jump` does
   nothing while a hop is under way. NPCs and scripts call it.
-- **Phase:** `update(dt)` advances the arc and writes the height to
+- **Phase:** `_update(dt)` advances the arc and writes the height to
   [`node.elevation`](scene_graph.md#elevation). [`AnimatedSprite`](#animatedsprite)
   and [`Sprite`](#sprite) draw lifted by it. The arc depends on the time accumulated
   in `update`, never on a clock, so a paused node hangs in the air.
-- **Lifecycle:** `on_attach` lands the node, so a pooled node reused mid-hop starts
+- **Lifecycle:** `_attach` lands the node, so a pooled node reused mid-hop starts
   on the ground.
 
 **The game decides what a hop crosses.** `Hop` knows nothing about tiles or
@@ -693,7 +697,7 @@ another.
 
 - **Construct:** every mover takes `blocked_by: []`. A bare Symbol also works
   (`blocked_by: :tiles`).
-- **Lifecycle:** `on_attach` resolves the declarations and builds the mover's own
+- **Lifecycle:** `_attach` resolves the declarations and builds the mover's own
   [`CollisionSystem`](internals.md#collisionsystem--move-an-actor-against-its-blockers)
   from the sources it finds. It **raises** for anything missing. It checks the
   node's collider first, then the scene's `TileWorld` for `:tiles`, its `WorldBounds`
@@ -703,7 +707,7 @@ another.
 - **Signals:** `on_blocked` fires with what stopped the step and the stopped axis.
   `on_unblocked` fires with what stopped stopping it:
   `mover.on_blocked { |by, axis| ... }`, `mover.on_unblocked { |by| ... }`.
-- **Phase:** `update(dt)` opens the step, calls the subclass's private
+- **Phase:** `_update(dt)` opens the step, calls the subclass's private
   `take_step(dt)`, and reports the edges. Do not override it; it guarantees that no
   mover forgets an edge.
 - **Heading:** `heading_x` and `heading_y` give the step's direction, each axis in
@@ -745,7 +749,7 @@ navigator.go_to(200.0, 360.0) # => true — the hero sets off; false when there 
   stays idle until the first `go_to`. [`Mover`](#mover) decides what may stop it. A
   navigator that should stay off solid tiles while walking declares `:tiles`, like
   any mover.
-- **Lifecycle:** `on_attach` raises when the scene has no `TileWorld` to plan over.
+- **Lifecycle:** `_attach` raises when the scene has no `TileWorld` to plan over.
   It also looks up the node's `BoxCollider`, if any. Calling `go_to` before the
   node is in the tree raises too.
 - **`go_to(world_x, world_y)`** plans from where the node stands and starts walking
@@ -810,7 +814,7 @@ world.solid?(12, 7) # => true
 - **Construct:** `OccupiesCell.new(col:, row:)`. `col` and `row` read it back.
 - **Lifecycle:** the cell turns solid when the node enters the tree, or when the
   component is added to a node already in it. It turns back when the node leaves the
-  tree or the component is removed. `on_attach` raises when the scene has no
+  tree or the component is removed. `_attach` raises when the scene has no
   `TileWorld`, and raises `ArgumentError` naming the cell and the map's size for a
   cell outside the map.
 - **One store.** The cell is solid in the store `TileWorld#blockers`, `#nav_grid`
@@ -835,7 +839,7 @@ to that signal.
 - **Construct:** `PathFollow.new(speed:, path: nil, blocked_by: [])`.
   [`Mover`](#mover) decides what may stop it. Without a path, the follower is idle:
   it moves nothing, never finishes, and heads nowhere until it receives one.
-- **Lifecycle:** `on_attach` restarts the walk. It returns to the first waypoint,
+- **Lifecycle:** `_attach` restarts the walk. It returns to the first waypoint,
   clears progress, and *places* the node there regardless of declarations. A pooled
   follower acquired and added again starts a fresh walk.
 - **A new route:** `follow(path)` restarts with a different path, at any time. A
@@ -855,7 +859,7 @@ to that signal.
   segment.
 - **Signal:** `on_finished` fires once, without payload, at the path's end:
   `follow.on_finished { node.queue_free }`. `finished?` reports the same state.
-- **Phase:** `update(dt)` advances `speed * dt`, crosses as many segments as one step
+- **Phase:** `_update(dt)` advances `speed * dt`, crosses as many segments as one step
   spans, and interpolates the node's position. It allocates nothing. With nothing
   declared, it places the node on that point.
 - **When blocked, the walk waits.** With declarations, the follower moves the node
@@ -875,9 +879,9 @@ inertia (unlike `ThrustController`). It neither knows nor cares whether the body
 blocked.
 
 - **Construct:** `PlayerController.new(x_axis: :move_x, y_axis: :move_y)`.
-- **Lifecycle:** `on_attach` looks up the node's `CharacterBody` with
+- **Lifecycle:** `_attach` looks up the node's `CharacterBody` with
   `require_sibling`.
-- **Phase:** `control(actions)` copies the two axes into the body's intent.
+- **Phase:** `_control(actions)` copies the two axes into the body's intent.
 - **Example:** `examples/walk`.
 
 ### `Pool`
@@ -893,9 +897,9 @@ membership.
   the component with a name (`as:`) when a node needs several pools.
 - **Spawn:** `pool.spawn` takes a node, recycled or newly built, and adds it as a
   child. `pool.spawn { |n| n.reset(...) }` runs the block to re-initialise the node
-  *before* it enters the tree, so `on_attach` sees the reset state. Projectiles need
+  *before* it enters the tree, so `_attach` sees the reset state. Projectiles need
   that order.
-- **Reclaim:** `update(dt)` returns every freed pooled node to the free list, and
+- **Reclaim:** `_update(dt)` returns every freed pooled node to the free list, and
   detaches any still attached. Despawning is thus `node.queue_free` from anywhere;
   the pool recycles the node with no game-side wiring. It allocates nothing in steady
   state.
@@ -911,11 +915,11 @@ reappears at the opposite one.
   one edge before reappearing on the other. Bounds come from the scene's world
   system. `ScreenWrap.new(width:, height:, margin:)` overrides them for a node whose
   wrap region is not the whole world.
-- **Lifecycle:** `on_attach` resolves the bounds, which is why you can omit them. A
+- **Lifecycle:** `_attach` resolves the bounds, which is why you can omit them. A
   pooled entity is built long before it enters a tree, and has nothing to ask yet. It
   resolves again on every entry, so a recycled node follows the scene it lands in.
   Attaching without bounds and without a world system in scope **raises**.
-- **Phase:** `update(dt)` wraps the node's **world** position against the bounds, and
+- **Phase:** `_update(dt)` wraps the node's **world** position against the bounds, and
   writes it back through [`Node2D#world_x=`](scene_graph.md#the-two-spaces). A node
   under an offset container wraps at the world's edge, not at an edge shifted by the
   container.
@@ -936,7 +940,7 @@ traversal already placed and rotated the renderer.
   under a sprite, inside the node's own slot. It is not the node's `z`, which orders
   the node among its siblings. See [Drawing](drawing.md#draw-order).
 - **State:** `scale` is read/write, so a pooled entity can retune it.
-- **Phase:** `draw(renderer, view)` draws the image at **`0, 0`** with **no angle**.
+- **Phase:** `_draw(renderer, view)` draws the image at **`0, 0`** with **no angle**.
   `Node2D#draw` already pushed the node's transform, so the origin and rotation
   already apply. Passing either would apply it twice. The image is lifted by
   [`node.elevation`](scene_graph.md#elevation), in the node's local space. The
@@ -960,8 +964,8 @@ collider, so targeting keeps no entity list.
 - **State:** `target` is the chosen **node**, or `nil` when nothing is in range. It
   refreshes every `update`, so a freed or out-of-range target clears itself. It is a
   node, not a collider, so the owner can read its position and components.
-- **Lifecycle:** `on_attach` looks up the scene's `CollisionWorld`.
-- **Phase:** `update(dt)` selects the target again. It allocates nothing, so it runs
+- **Lifecycle:** `_attach` looks up the scene's `CollisionWorld`.
+- **Phase:** `_update(dt)` selects the target again. It allocates nothing, so it runs
   every frame.
 
 ### `ThrustController`
@@ -971,10 +975,10 @@ node, and a thrust axis accelerates it along its heading.
 
 - **Construct:** `ThrustController.new(turn_speed:, accel:, max_speed:, drag: 0.0,
   turn_action: :turn, thrust_action: :thrust)`.
-- **Lifecycle:** `on_attach` looks up the node's `Velocity` with `require_sibling`,
+- **Lifecycle:** `_attach` looks up the node's `Velocity` with `require_sibling`,
   so a missing one raises at once instead of surfacing later as a `nil`.
-- **Phase:** `control(actions)` reads intent: turn sets `velocity.spin`, and thrust
-  is stored. `update(dt)` accelerates along the heading, applies drag, and clamps to
+- **Phase:** `_control(actions)` reads intent: turn sets `velocity.spin`, and thrust
+  is stored. `_update(dt)` accelerates along the heading, applies drag, and clamps to
   `max_speed`. Angle 0 points up, so forward is `(sin θ, −cos θ)`. Firing is not part
   of this component.
 
@@ -1033,7 +1037,7 @@ data to another, depends on a sibling's add order, or names a layer it may not n
 - **It does not resolve a step.** Tiles, other actors, the world's edge, or any
   combination may stop a mover, and only the mover knows which. The resolver
   therefore belongs to the mover, and the grid to this system.
-- **Phase:** `update(dt)` advances the map's animation clock.
+- **Phase:** `_update(dt)` advances the map's animation clock.
 - **Examples:** `examples/scroll_map` loads a `.tmx` through the asset manager and
   uses this system, `TileMapLayer.mount`, and a camera clamped to the map's edges.
   `examples/collision_tiles` adds an actor that collides, and shows the solid half of
@@ -1080,10 +1084,10 @@ drift-free carry-forward.
   board scrolls and the entity leaves the screen, use `DespawnOffscreen` instead.
 - **Signal:** `on_elapsed` fires once per whole interval:
   `timer.on_elapsed { spawn_enemy }`.
-- **Lifecycle:** `on_attach` restarts the countdown and re-arms a spent one-shot. A
+- **Lifecycle:** `_attach` restarts the countdown and re-arms a spent one-shot. A
   pooled node acquired and added again starts fresh, without its previous life's
   elapsed time.
-- **Phase:** `update(dt)` advances and emits. In one long step, a repeating timer
+- **Phase:** `_update(dt)` advances and emits. In one long step, a repeating timer
   emits once per interval crossed, catching up without drift. A one-shot emits at
   most once. It allocates nothing.
 - **Reset:** `reset` drops accumulated time and re-arms a one-shot, giving a fresh
@@ -1096,8 +1100,8 @@ drift-free carry-forward.
 - **Construct:** `Velocity.new(vx: 0.0, vy: 0.0, spin: 0.0, blocked_by: [])`.
   [`Mover`](#mover) decides what may stop it, as for a `CharacterBody`.
 - **State:** `vx`, `vy` and `spin` are read/write. A controller, or the node's own
-  `control` hook, writes them as movement intent.
-- **Phase:** `update(dt)` moves the node by `vx*dt` and `vy*dt` through `apply_move`.
+  `_control` hook, writes them as movement intent.
+- **Phase:** `_update(dt)` moves the node by `vx*dt` and `vy*dt` through `apply_move`.
   It adds `spin*dt` to `node.angle` directly: a collision box does not turn with its
   node, so nothing can block a rotation.
 - **Blocked:** a stopped step leaves `vx` and `vy` unchanged. They are the intent.
@@ -1120,9 +1124,9 @@ one of eight or idle, and holds it. A wall that blocks it triggers an early re-r
 The RNG is injected, so tests get deterministic behaviour.
 
 - **Construct:** `WanderController.new(rng: Random.new, change_interval: 1.0..3.0, idle_chance: 0.25)`.
-- **Lifecycle:** `on_attach` looks up the node's `CharacterBody` with
+- **Lifecycle:** `_attach` looks up the node's `CharacterBody` with
   `require_sibling`.
-- **Phase:** `update(dt)` counts down and re-rolls on timeout or when blocked.
+- **Phase:** `_update(dt)` counts down and re-rolls on timeout or when blocked.
   "Blocked" means *the node did not move while intending to*. The controller measures
   that instead of asking a collision world. It therefore works over a plain
   `CharacterBody` too, and never re-rolls early for a body whose steps always land.
@@ -1150,7 +1154,7 @@ to pass the numbers along.
 - **One response to the edge per node:** `WorldBounds.one_response!(node)` raises,
   naming both, if the node carries more than one of [`ScreenWrap`](#screenwrap),
   [`DespawnOffscreen`](#despawnoffscreen) and a [`Mover`](#mover) declaring
-  `blocked_by: [:bounds]`. Each of the three calls it from `on_attach`, so whichever
+  `blocked_by: [:bounds]`. Each of the three calls it from `_attach`, so whichever
   attaches second raises, in any add order. No pair makes sense. Stopping and
   wrapping disagree about where the node ends up. Wrapping and despawning race on
   which margin is reached first. Stopping tests the collision box, while the other

@@ -141,14 +141,14 @@ RSpec.describe RGame::Engine::Scene::SceneStack do
       stack.push(below)
       stack.push(current)
 
-      stack.control(actions)
+      stack._control(actions)
 
       expect(current).to have_received(:control).with(actions)
       expect(below).not_to have_received(:control)
     end
 
     it 'does nothing on an empty stack' do
-      expect { stack.control(actions) }.not_to raise_error
+      expect { stack._control(actions) }.not_to raise_error
     end
   end
 
@@ -161,14 +161,14 @@ RSpec.describe RGame::Engine::Scene::SceneStack do
       stack.push(below)
       stack.push(current)
 
-      stack.update(0.016)
+      stack._update(0.016)
 
       expect(current).to have_received(:update).with(0.016)
       expect(below).not_to have_received(:update)
     end
 
     it 'does nothing on an empty stack' do
-      expect { stack.update(0.016) }.not_to raise_error
+      expect { stack._update(0.016) }.not_to raise_error
     end
   end
 
@@ -177,12 +177,12 @@ RSpec.describe RGame::Engine::Scene::SceneStack do
       scene = scene_double
       allow(scene).to receive(:sweep_freed)
       stack.push(scene)
-      stack.sweep_freed
+      stack._sweep_freed
       expect(scene).to have_received(:sweep_freed)
     end
 
     it 'does nothing on an empty stack' do
-      expect { stack.sweep_freed }.not_to raise_error
+      expect { stack._sweep_freed }.not_to raise_error
     end
   end
 
@@ -198,7 +198,7 @@ RSpec.describe RGame::Engine::Scene::SceneStack do
       stack.push(below)
       stack.push(current)
 
-      stack.draw(renderer, screen_view)
+      stack._draw(renderer, screen_view)
 
       expect(drawn).to eq(%i[below current])
     end
@@ -209,13 +209,13 @@ RSpec.describe RGame::Engine::Scene::SceneStack do
       allow(scene).to receive(:draw)
       stack.push(scene)
 
-      stack.draw(renderer, view)
+      stack._draw(renderer, view)
 
       expect(scene).to have_received(:draw).with(renderer, view)
     end
 
     it 'does nothing on an empty stack' do
-      expect { stack.draw(renderer, screen_view) }.not_to raise_error
+      expect { stack._draw(renderer, screen_view) }.not_to raise_error
     end
   end
 
@@ -236,7 +236,7 @@ RSpec.describe RGame::Engine::Scene::SceneStack do
       Class.new(RGame::Engine::Node2D) do
         attr_reader :seen
 
-        def on_control(actions) = @seen = actions
+        def _control(actions) = @seen = actions
       end.new
     end
 

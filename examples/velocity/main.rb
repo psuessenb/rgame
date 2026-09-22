@@ -55,7 +55,7 @@
 # matches with `is_a?`, which matches an included module as readily as a class,
 # and that is the whole mechanism.
 #
-# It resolves in `on_attach` rather than `initialize`, because a node has no
+# It resolves in `_attach` rather than `initialize`, because a node has no
 # scene to ask until it is in the tree — and it resolves again on every entry, so
 # an entity pooled out of one scene and into a smaller one wraps against the
 # smaller one.
@@ -101,7 +101,7 @@ class Drifter < RGame::Engine::Node2D
     @spin = spin
   end
 
-  def on_add
+  def _enter_tree
     add_component(RGame::Engine::Components::Velocity.new(vx: @vx, vy: @vy, spin: @spin))
     add_component(RGame::Engine::Components::ScreenWrap.new(margin: WRAP_MARGIN))
   end
@@ -109,7 +109,7 @@ class Drifter < RGame::Engine::Node2D
   # Centred on the node's own origin, which is where the traversal has already
   # put the renderer — so a spinning node turns this rectangle about its middle
   # and this method never learns of it.
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.rect(-BOX_W / 2, -BOX_H / 2, BOX_W, BOX_H, color: @color)
   end
 end
@@ -124,15 +124,15 @@ class Walker < RGame::Engine::Node2D
   end
 
   # CharacterBody first: PlayerController drives a sibling body and asks for it
-  # by class when it attaches, and a component added from `on_add` can only see
+  # by class when it attaches, and a component added from `_enter_tree` can only see
   # the ones already there.
-  def on_add
+  def _enter_tree
     add_component(RGame::Engine::Components::CharacterBody.new(speed: WALK_SPEED))
     add_component(RGame::Engine::Components::PlayerController.new)
     add_component(RGame::Engine::Components::ScreenWrap.new(margin: RADIUS))
   end
 
-  def on_draw(renderer, _view) = renderer.circle(0, 0, RADIUS, color: BODY)
+  def _draw(renderer, _view) = renderer.circle(0, 0, RADIUS, color: BODY)
 end
 
 class Scene < RGame::Engine::Node2D
@@ -151,9 +151,9 @@ class Scene < RGame::Engine::Node2D
     [62.0, 90.0, 0.0, [120, 200, 255]]
   ].freeze
 
-  # Mounted here rather than in `on_add` for a reason worth knowing: a node
+  # Mounted here rather than in `_enter_tree` for a reason worth knowing: a node
   # assembled outside the tree collects every component before any of them
-  # attaches, so nothing depends on the order. Added from `on_add` the node is
+  # attaches, so nothing depends on the order. Added from `_enter_tree` the node is
   # already live, each component attaches as it arrives, and the wraps below
   # would resolve their bounds before this existed.
   def initialize
@@ -164,7 +164,7 @@ class Scene < RGame::Engine::Node2D
     add_component(RGame::Engine::Components::World.new(width: WORLD_W, height: WORLD_H))
   end
 
-  def on_add
+  def _enter_tree
     DRIFTERS.each_with_index do |(vx, vy, spin, rgb), index|
       add_node(Drifter.new(color: RGame::Util::Color.new(*rgb), vx: vx, vy: vy, spin: spin,
                            x: 60 + (index * 120), y: 40 + (index * 60)))
@@ -173,7 +173,7 @@ class Scene < RGame::Engine::Node2D
     add_node(Walker.new(x: WORLD_W / 2, y: WORLD_H / 2))
   end
 
-  def on_draw(renderer, view)
+  def _draw(renderer, view)
     renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
     renderer.rect(0, 0, WORLD_W, WORLD_H, color: FLOOR)
     renderer.rect(0, WORLD_H - THICK, WORLD_W, THICK, color: EDGE)

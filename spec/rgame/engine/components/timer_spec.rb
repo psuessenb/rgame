@@ -15,35 +15,35 @@ RSpec.describe RGame::Engine::Components::Timer do
   end
 
   it 'does not emit before a whole interval elapses' do
-    fires = fired { timer.update(0.6) }
+    fires = fired { timer._update(0.6) }
     expect(fires).to eq(0)
   end
 
   it 'emits on_elapsed once a whole interval has accumulated' do
     fires = fired do
-      timer.update(0.6)
-      timer.update(0.6)
+      timer._update(0.6)
+      timer._update(0.6)
     end
     expect(fires).to eq(1)
   end
 
   it 'carries the remainder forward so the cadence does not drift' do
     fires = fired do
-      timer.update(1.2) # fires once, 0.2 overshoot survives
-      timer.update(0.8) # 0.2 + 0.8 = 1.0, fires again exactly on time
+      timer._update(1.2) # fires once, 0.2 overshoot survives
+      timer._update(0.8) # 0.2 + 0.8 = 1.0, fires again exactly on time
     end
     expect(fires).to eq(2)
   end
 
   it 'emits once per whole interval crossed in a single long step (catch-up)' do
-    fires = fired { timer.update(3.0) } # three whole intervals at once
+    fires = fired { timer._update(3.0) } # three whole intervals at once
     expect(fires).to eq(3)
   end
 
   it 'reflects a retuned interval' do
     fires = fired do
       timer.interval = 0.5
-      timer.update(0.6)
+      timer._update(0.6)
     end
     expect(fires).to eq(1)
   end
@@ -51,9 +51,9 @@ RSpec.describe RGame::Engine::Components::Timer do
   describe '#reset' do
     it 'drops accumulated time' do
       fires = fired do
-        timer.update(0.9)
+        timer._update(0.9)
         timer.reset
-        timer.update(0.5)
+        timer._update(0.5)
       end
       expect(fires).to eq(0)
     end
@@ -64,30 +64,30 @@ RSpec.describe RGame::Engine::Components::Timer do
 
     it 'fires on_elapsed exactly once when the interval elapses' do
       fires = fired do
-        timer.update(0.6)
-        timer.update(0.6) # crosses 1.0 → fires
+        timer._update(0.6)
+        timer._update(0.6) # crosses 1.0 → fires
       end
       expect(fires).to eq(1)
     end
 
     it 'does not fire again after it has fired' do
       fires = fired do
-        timer.update(1.0) # fires
-        timer.update(5.0) # stays inert
+        timer._update(1.0) # fires
+        timer._update(5.0) # stays inert
       end
       expect(fires).to eq(1)
     end
 
     it 'fires only once even when a single long step crosses several intervals' do
-      fires = fired { timer.update(3.0) }
+      fires = fired { timer._update(3.0) }
       expect(fires).to eq(1)
     end
 
     it 'is re-armed by reset' do
       fires = fired do
-        timer.update(1.0) # fires
+        timer._update(1.0) # fires
         timer.reset
-        timer.update(1.0) # fires again
+        timer._update(1.0) # fires again
       end
       expect(fires).to eq(2)
     end
@@ -98,7 +98,7 @@ RSpec.describe RGame::Engine::Components::Timer do
         fires += 1
         timer.reset
       end
-      5.times { timer.update(1.0) }
+      5.times { timer._update(1.0) }
       expect(fires).to eq(5)
     end
 
@@ -108,12 +108,12 @@ RSpec.describe RGame::Engine::Components::Timer do
         fires += 1
         timer.reset
       end
-      timer.update(3.0)
+      timer._update(3.0)
       expect(fires).to eq(1)
     end
   end
 
-  describe 'on_attach reset (recycling)' do
+  describe '_attach reset (recycling)' do
     it 'restarts the countdown when the node re-enters the tree' do
       count = 0
       timer.on_elapsed { count += 1 }
@@ -121,7 +121,7 @@ RSpec.describe RGame::Engine::Components::Timer do
       node.update(0.6) # 0.6 toward 1.0
 
       node.exit_tree
-      node.enter_tree # on_attach drops the accumulated 0.6
+      node.enter_tree # _attach drops the accumulated 0.6
 
       node.update(0.6) # only 0.6 of a fresh interval → no fire
       expect(count).to eq(0)
@@ -137,7 +137,7 @@ RSpec.describe RGame::Engine::Components::Timer do
       host.enter_tree
       host.update(1.0) # fires once
       host.exit_tree
-      host.enter_tree # on_attach re-arms it
+      host.enter_tree # _attach re-arms it
 
       host.update(1.0) # fires again
       expect(count).to eq(2)

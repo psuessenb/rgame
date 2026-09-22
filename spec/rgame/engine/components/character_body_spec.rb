@@ -57,13 +57,13 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
 
     it 'moves the node by the intent scaled by speed and dt' do
       body.set_intent(1.0, -0.5)
-      body.update(0.5)
+      body._update(0.5)
       expect([node.x, node.y]).to eq([125.0, 87.5]) # 1.0 * 50 * 0.5, -0.5 * 50 * 0.5
     end
 
     it 'does nothing when the intent is zero' do
       body.set_intent(0.0, 0.0)
-      body.update(0.5)
+      body._update(0.5)
       expect([node.x, node.y]).to eq([100.0, 100.0])
     end
 
@@ -85,19 +85,19 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
       it 'moves with no sprite size on the node' do
         expect(node.width).to be_zero
         body.set_intent(1.0, 0.0)
-        expect { body.update(0.1) }.to change(node, :x).by(5.0)
+        expect { body._update(0.1) }.to change(node, :x).by(5.0)
       end
 
       it 'moves with no world system on the scene' do
         expect(node.system(RGame::Engine::Components::TileWorld)).to be_nil
         body.set_intent(0.0, 1.0)
-        expect { body.update(0.1) }.to change(node, :y).by(5.0)
+        expect { body._update(0.1) }.to change(node, :y).by(5.0)
       end
 
       it 'moves with no collider on the node' do
         expect(node.get_component(RGame::Engine::Components::BoxCollider)).to be_nil
         body.set_intent(1.0, 0.0)
-        expect { body.update(0.1) }.to change(node, :x).by(5.0)
+        expect { body._update(0.1) }.to change(node, :x).by(5.0)
       end
     end
   end
@@ -126,25 +126,25 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     # edge, and inside its column. TileBlockers assumes a step smaller than a tile.
     it 'stops the step flush against a solid tile' do
       body.set_intent(1.0, 0.0)
-      body.update(0.2)
+      body._update(0.2)
       expect(node.x).to eq(104.0) # the box right edge rests on the wall at 128
     end
 
     it 'heads where it intends, not where it got, while the wall stops it' do
       body.set_intent(1.0, 0.0)
-      3.times { body.update(0.2) }
+      3.times { body._update(0.2) }
       expect([body.heading_x, body.heading_y]).to eq([1.0, 0.0])
     end
 
     it 'moves freely where nothing is solid' do
       body.set_intent(0.0, 1.0)
-      body.update(0.5)
+      body._update(0.5)
       expect(node.y).to eq(125.0)
     end
 
     it 'does nothing when the intent is zero' do
       body.set_intent(0.0, 0.0)
-      body.update(0.5)
+      body._update(0.5)
       expect([node.x, node.y]).to eq([100.0, 100.0])
     end
 
@@ -278,7 +278,7 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     # The scene's own order: the world rebuilds its index, then the children take steps.
     def tick(dt = 1.0)
       root.children.each { it.update(0.0) } # resolve world transforms, as a scene's pass does
-      collision_world.update(dt)
+      collision_world._update(dt)
       root.children.each { it.update(dt) }
     end
 
@@ -377,7 +377,7 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
 
     def tick(dt = 1.0)
       root.children.each { it.update(0.0) }
-      collision_world.update(dt)
+      collision_world._update(dt)
       root.children.each { it.update(dt) }
     end
 
@@ -431,7 +431,7 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
       npc_at(120.0, 100.0)
       body.set_intent(1.0, 0.0)
       tick
-      expect { body.update(1.0) }.to allocate_nothing
+      expect { body._update(1.0) }.to allocate_nothing
     end
   end
   # rubocop:enable RSpec/MultipleMemoizedHelpers
@@ -452,7 +452,7 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
 
     def step(intent_x, intent_y)
       body.set_intent(intent_x, intent_y)
-      body.update(1.0)
+      body._update(1.0)
       [node.x, node.y]
     end
 
@@ -491,7 +491,7 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
       container.add_node(inner)
       root.enter_tree
       moving.set_intent(1.0, 0.0)
-      moving.update(1.0)
+      moving._update(1.0)
       expect([inner.x, inner.world_x]).to eq([130.0, 190.0]) # world 190, local 190 - 60
     end
   end
@@ -510,13 +510,13 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
 
     it 'stops at the wall when it is nearer than the world edge' do
       body.set_intent(-1.0, 0.0)
-      body.update(0.01) # a 10px step, smaller than a tile
+      body._update(0.01) # a 10px step, smaller than a tile
       expect(node.x).to eq(96.0)
     end
 
     it 'stops at the world edge when nothing else is in the way' do
       body.set_intent(1.0, 0.0)
-      body.update(1.0)
+      body._update(1.0)
       expect(node.x).to eq(190.0)
     end
   end
@@ -531,7 +531,7 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
       body = node.add_component(described_class.new(speed: 1000.0, blocked_by: [:tiles]))
       enter
       body.set_intent(1.0, 0.0)
-      body.update(1.0)
+      body._update(1.0)
       expect(node.x).to eq(1100.0)
     end
   end
@@ -589,7 +589,7 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     # one frame would report a second step in which it pushed into nothing.
     def tick(intent_x, intent_y, dt = 1.0)
       body.set_intent(intent_x, intent_y)
-      collision_world.update(dt)
+      collision_world._update(dt)
       root.children.each { it.update(dt) }
     end
 
@@ -725,9 +725,9 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
       tick(1.0, 0.0)
       expect do
         body.set_intent(1.0, 0.0)
-        body.update(1.0)
+        body._update(1.0)
         body.set_intent(0.0, 0.0)
-        body.update(1.0)
+        body._update(1.0)
       end.to allocate_nothing
     end
   end

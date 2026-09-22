@@ -29,7 +29,7 @@
 #
 # ## Nothing switches scenes while the tree is being walked
 #
-# `Shell#go` records a request and `Shell#on_update` carries it out. A menu item
+# `Shell#go` records a request and `Shell#_update` carries it out. A menu item
 # activates during `control`, which is the middle of a traversal of the very
 # subtree the switch is about to take apart, and unbuilding a tree while walking
 # it is the sort of bug that shows up somewhere else entirely.
@@ -157,7 +157,7 @@ class Shell < RGame::Engine::Node2D
     @pending = nil
   end
 
-  def on_add = show(:title)
+  def _enter_tree = show(:title)
 
   # `push` keeps what is under it; `replace` does not; `pop` returns to it. Each
   # one records the request and returns, for the reason at the top of this file.
@@ -167,7 +167,7 @@ class Shell < RGame::Engine::Node2D
 
   # Runs after the active scene's own update has unwound, so the tree being
   # rebuilt is not one the traversal is standing in.
-  def on_update(_dt)
+  def _update(_dt)
     return unless @pending
 
     action, name = @pending
@@ -207,7 +207,7 @@ class TitleScene < RGame::Engine::Node2D
     @help = RGame::Engine::Text.new('title.help')
   end
 
-  def on_add
+  def _enter_tree
     menu = add_node(UI::Menu.new(x: MENU_X, y: MENU_Y, scope: 'title',
                                  layout: UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT)))
     menu.add(UI::PanelButton.new(label: 'play')).on_activated { root.swap(:play) }
@@ -215,7 +215,7 @@ class TitleScene < RGame::Engine::Node2D
     menu.add(UI::PanelButton.new(label: 'quit')).on_activated { root.context.close }
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.text(@heading, MENU_X, 44)
     renderer.text(@help, MENU_X, 68)
   end
@@ -240,7 +240,7 @@ class SettingsScene < RGame::Engine::Node2D
     @heading = RGame::Engine::Text.new('settings.heading')
   end
 
-  def on_add
+  def _enter_tree
     @menu = add_node(UI::Menu.new(x: PANEL_X + PADDING, y: PANEL_Y + PADDING + 30, scope: 'settings',
                                   layout: UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT)))
     Settings::ROWS.each { |key, row| option(key, row) }
@@ -250,11 +250,11 @@ class SettingsScene < RGame::Engine::Node2D
   # Escape does what Back does, because that is what every player will try
   # first. Both go through the same deferred request, so pressing one on the
   # same tick as the other is still one pop.
-  def on_control(actions)
+  def _control(actions)
     root.back if actions.pressed?(:ui_cancel)
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.nine_slice(:panel, PANEL_X, PANEL_Y, PANEL_WIDTH, PANEL_HEIGHT)
     renderer.text(@heading, PANEL_X + PADDING, PANEL_Y + PADDING, z: 1)
   end
@@ -304,7 +304,7 @@ class PlayScene < RGame::Engine::Node2D
     @help = RGame::Engine::Text.new('play.help')
   end
 
-  def on_control(actions)
+  def _control(actions)
     system!(RGame::Engine::AudioOut).play_sound(BLIP) if actions.pressed?(:ui_confirm)
     root.swap(:title) if actions.pressed?(:ui_cancel)
   end
@@ -312,11 +312,11 @@ class PlayScene < RGame::Engine::Node2D
   # The sweep is state advanced by dt, and where it lands on screen is worked
   # out from the view at draw time — so it follows a window that grew without
   # anything here listening for the change.
-  def on_update(dt)
+  def _update(dt)
     @phase = (@phase + (dt * SPEED)) % 2.0
   end
 
-  def on_draw(renderer, view)
+  def _draw(renderer, view)
     right = view.width - MARGIN
     bottom = view.height - MARGIN
     renderer.line(MARGIN, MARGIN, right, MARGIN, thickness: THICK, color: EDGE)

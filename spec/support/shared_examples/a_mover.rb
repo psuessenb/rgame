@@ -119,7 +119,7 @@ RSpec.shared_examples 'a mover' do
     # query, the snap and the blocker bookkeeping.
     it 'allocates nothing on a blocked step' do
       run_ticks(60)
-      expect { mover.update(mover_dt) }.to allocate_nothing
+      expect { mover._update(mover_dt) }.to allocate_nothing
     end
   end
 
@@ -163,7 +163,7 @@ RSpec.shared_examples 'a mover' do
       started = 0
       mover.on_blocked { started += 1 }
       run_ticks(14)
-      expect { mover.update(mover_dt) }.to allocate_nothing
+      expect { mover._update(mover_dt) }.to allocate_nothing
       expect(started).to eq(1)
     end
   end

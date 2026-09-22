@@ -2,7 +2,7 @@
 
 Everything on screen goes through `RGame::Core::Renderer`. **In an
 `RGame::Game`, you never build one.** `Game` builds it and passes it to every
-node's `on_draw(renderer, view)`. The examples on this page build one on a plain
+node's `_draw(renderer, view)`. The examples on this page build one on a plain
 `App` instead, to show the calls without a scene graph:
 
 ```ruby
@@ -30,7 +30,7 @@ MyGame.new.run
 
 Know two rules before anything else.
 
-**Draw only inside `draw`**, or a node's `on_draw`. A drawing call from `update`
+**Draw only inside `draw`**, or a node's `_draw`. A drawing call from `update`
 or from a constructor raises. The frame is not open then, so the call would vanish without a trace.
 A loud failure beats an invisible one. `renderer.drawing?` returns whether a frame
 is open.
@@ -286,7 +286,7 @@ transform and run the block, so unrotated drawing pays nothing.
 
 **Inside a scene graph you rarely open a transform block yourself.** The examples
 on this page drive the renderer from an `App`, in window coordinates. For a
-`Node2D`, the traversal pushes the node's transform before it calls `on_draw`. A
+`Node2D`, the traversal pushes the node's transform before it calls `_draw`. A
 node therefore draws at *its own* origin, and passing its position would apply it
 twice. See [Scene graph](scene_graph.md#drawing-happens-in-local-space).
 
@@ -375,7 +375,7 @@ from `spec/support/`:
 
 ```ruby
 renderer = FakeRenderer.new
-health_bar.on_draw(renderer, nil)
+health_bar._draw(renderer, nil)
 
 expect(renderer.calls_to(:rect).map(&:args)).to eq([[10, 10, 64, 8]])
 ```

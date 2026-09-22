@@ -113,7 +113,7 @@ class Screen < RGame::Engine::Node2D
     @heading = Text.new('language.title')
   end
 
-  def on_add
+  def _enter_tree
     menu = add_node(UI::Menu.new(x: MARGIN, y: MENU_Y, scope: 'language',
                                  layout: UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT)))
     menu.add(UI::PanelButton.new(label: Text.literal('English'))).on_activated { @language.pick(:en) }
@@ -121,12 +121,12 @@ class Screen < RGame::Engine::Node2D
     menu.add(UI::PanelButton.new(label: 'system')).on_activated { @language.follow_system }
   end
 
-  def on_control(actions)
+  def _control(actions)
     @apples_held += 1 if actions.pressed?(:ui_right)
     @apples_held -= 1 if actions.pressed?(:ui_left) && @apples_held.positive?
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.text(@title, MARGIN, 24)
     renderer.text(@apples.with(count: @apples_held), MARGIN, 72)
     renderer.text(@locale.with(locale: I18n.locale.name), MARGIN, 96)

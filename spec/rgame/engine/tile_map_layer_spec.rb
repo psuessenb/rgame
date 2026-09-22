@@ -44,7 +44,7 @@ RSpec.describe RGame::Engine::TileMapLayer do
     allow(renderer).to receive(:tilemap) { |_id, layer, *| order << layer }
     marks.each do |gap, mark|
       marker = RGame::Engine::Node2D.new
-      marker.define_singleton_method(:on_draw) { |*| order << mark }
+      marker.define_singleton_method(:_draw) { |*| order << mark }
       gap.add_node(marker)
     end
     scene.draw(renderer, view)
@@ -182,7 +182,7 @@ RSpec.describe RGame::Engine::TileMapLayer do
 
   describe 'the animation clock' do
     it "hands the scene's elapsed seconds to every layer" do
-      3.times { world.update(0.5) }
+      3.times { world._update(0.5) }
       draw_frame
 
       expect(renderer).to have_received(:tilemap)

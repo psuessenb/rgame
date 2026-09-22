@@ -9,15 +9,16 @@ module RGame
     class Node2D
       extend Engine::Signal::DSL
       extend Engine::SealedPrivates
+      extend Engine::Hooks
 
       # This node's transform **in its parent's space** — where it sits inside
       # whatever contains it, and the only position a node ever sets. `x`, `y`
       # and `angle` are the short spelling of the same three, because that is
       # what reads well where a node moves itself:
       #
-      #   def on_update(dt) = self.x += @speed * dt
+      #   def _update(dt) = self.x += @speed * dt
       #
-      # Not for drawing, though it is tempting: `on_draw` runs with the renderer
+      # Not for drawing, though it is tempting: `_draw` runs with the renderer
       # already on this node (see #rgame_in_local_space), so drawing at `x`
       # offsets by this node's own position a second time. `Game/DrawInLocalSpace`
       # says so.
@@ -300,7 +301,7 @@ module RGame
         @components << component
         @component_slots[slot] = component
         component.node = self
-        component.on_attach if @in_tree
+        component._attach if @in_tree
         component
       end
 
@@ -308,7 +309,7 @@ module RGame
         component = get_component(key)
         return nil unless component
 
-        component.on_detach if @in_tree
+        component._detach if @in_tree
         @components.delete(component)
         @component_slots.delete(@component_slots.key(component))
         component.node = nil
@@ -360,8 +361,8 @@ module RGame
 
         rgame_resolve_inherited
         actions = input.actions_for(@abs_input_owner)
-        @components.each { it.control(actions) }
-        on_control(actions)
+        @components.each { it._control(actions) }
+        _control(actions)
         rgame_children_in_order.each { it.control(input) }
       end
 
@@ -371,8 +372,8 @@ module RGame
       def update(dt)
         return if @paused
 
-        @components.each { it.update(dt) }
-        on_update(dt)
+        @components.each { it._update(dt) }
+        _update(dt)
         rgame_children_in_order.each { it.update(dt) }
       end
 
@@ -406,7 +407,7 @@ module RGame
       # update traversal. Components get a hook too, so a container-style component
       # (e.g. SceneStack) can flush the subtree it owns off the normal child list.
       def sweep_freed
-        @components.each(&:sweep_freed)
+        @components.each(&:_sweep_freed)
         i = 0
         while i < @children.size
           child = @children[i]
@@ -421,34 +422,39 @@ module RGame
 
       # Entered-tree cascade: anchors (root/scene) and sibling systems are now
       # reachable, so components attach (register with systems) before this node's
-      # own on_add, and the whole subtree enters depth-first. The engine fires this
+      # own _enter_tree, and the whole subtree enters depth-first. The engine fires this
       # — the user never calls it — so registration can't be forgotten. Idempotent.
       def enter_tree
         return if @in_tree
 
         @in_tree = true
         @freed = false
-        @components.each(&:on_attach)
-        on_add
+        @components.each(&:_attach)
+        _enter_tree
         rgame_children_in_order.each(&:enter_tree)
       end
 
       # Leaving-tree cascade: mirror of #enter_tree (children first, then this
-      # node's on_remove, then component on_detach to release registrations).
+      # node's _exit_tree, then component _detach to release registrations).
       def exit_tree
         return unless @in_tree
 
         rgame_children_in_order.each(&:exit_tree)
-        on_remove
-        @components.each(&:on_detach)
+        _exit_tree
+        @components.each(&:_detach)
         @in_tree = false
       end
 
-      def on_control(actions); end
-      def on_update(dt); end
-      def on_draw(renderer, view); end
-      def on_add; end
-      def on_remove; end
+      # The hooks a subclass overrides, each empty here and named after the step
+      # that calls it: `control`, `update` and `draw` call the first three after
+      # the node's components, and `enter_tree` and `exit_tree` the other two.
+      # The leading `_` marks a method the engine calls and a game does not; `on_`
+      # is kept for signals.
+      def _control(actions); end
+      def _update(dt); end
+      def _draw(renderer, view); end
+      def _enter_tree; end
+      def _exit_tree; end
 
       private
 
@@ -472,8 +478,8 @@ module RGame
 
       # hot-path
       def rgame_draw_content(renderer, view)
-        @components.each { it.draw(renderer, view) }
-        on_draw(renderer, view)
+        @components.each { it._draw(renderer, view) }
+        _draw(renderer, view)
       end
 
       # hot-path

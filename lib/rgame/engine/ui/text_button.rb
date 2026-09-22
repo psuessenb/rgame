@@ -37,7 +37,7 @@ module RGame
           @disabled_label_color = Util::Color.coerce(disabled_label_color)
         end
 
-        def on_draw(renderer, _view)
+        def _draw(renderer, _view)
           @style&.draw(renderer, state, width, height)
           draw_foreground(renderer)
         end

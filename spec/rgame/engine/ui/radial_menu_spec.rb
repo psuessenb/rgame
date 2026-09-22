@@ -163,7 +163,7 @@ RSpec.describe RGame::Engine::UI::RadialMenu do
       8.times { menu.add(button) }
       aim(0.7, -0.6)
       quiet = QuietRenderer.new
-      expect { menu.on_draw(quiet, nil) }.to allocate_nothing
+      expect { menu._draw(quiet, nil) }.to allocate_nothing
     end
   end
 end

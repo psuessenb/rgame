@@ -26,13 +26,13 @@ module RGame
           @timer = 0.0
         end
 
-        def on_attach
+        def _attach
           @body = require_sibling(CharacterBody)
           @last_x = node.x
           @last_y = node.y
         end
 
-        def update(dt)
+        def _update(dt)
           blocked = intending_to_move? && !moved_since_last?
           @last_x = node.x
           @last_y = node.y

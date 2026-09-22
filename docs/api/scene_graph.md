@@ -28,7 +28,7 @@ top-down view. It defaults to 0, and positive is up the screen.
 children all ignore it. A character can therefore leave the ground while its feet
 box and the camera following it stay put. Components that draw the node's
 picture read it: `Components::Sprite` and `Components::AnimatedSprite` draw
-lifted. `Components::Hop` writes it. A node's own `on_draw` is not lifted, so the
+lifted. `Components::Hop` writes it. A node's own `_draw` is not lifted, so the
 parts that stay on the ground go there:
 
 ```ruby
@@ -44,8 +44,8 @@ class Hero < RGame::Engine::Node2D
     add_component(RGame::Engine::Components::Hop.new(peak: 18, duration: 0.5))
   end
 
-  # A shadow at the feet: drawn in on_draw, so it stays down while the sprite rises.
-  def on_draw(renderer, _view)
+  # A shadow at the feet: drawn in _draw, so it stays down while the sprite rises.
+  def _draw(renderer, _view)
     renderer.rect(2, 19, 12, 3, color: SHADOW)
   end
 end
@@ -71,9 +71,35 @@ A `draw` must therefore depend on state alone and never read a clock. See
 means the node's components run, then its own hook. You override the hook, not
 the phase:
 
-- `on_control(actions)`
-- `on_update(dt)`
-- `on_draw(renderer, view)`
+- `_control(actions)`
+- `_update(dt)`
+- `_draw(renderer, view)`
+
+A hook is named after the phase that calls it, with a leading `_`. The `_` marks
+a method the engine calls and your code overrides. A name starting with `on_` is
+a [signal](signals.md), which you connect a block to instead.
+
+**A subclass may define a `_` method only if it is a hook.** A misspelled hook,
+such as `_updte`, would never be called, so `RGame::Engine::Hooks` raises
+`NameError` when the class loads and lists the hooks the class has.
+`Node2D.hooks` returns the same list. Name a helper without the leading `_`. A
+class that adds a hook for its own subclasses declares it with `hook` before
+defining it:
+
+```ruby
+require 'rgame'
+
+class Enemy < RGame::Engine::Node2D
+  hook :_die
+
+  # Called once the enemy's health reaches 0. Draws no explosion unless a subclass does.
+  def _die; end
+end
+
+Class.new(Enemy).hooks.include?(:_die) # => true
+```
+
+`Component` follows the same rule, with its own hooks.
 
 `view` is the viewport the node is drawn into: its rectangle and the camera, if
 any. Most nodes ignore it. Two tasks need it. One is laying out against the edges
@@ -164,12 +190,12 @@ where the traversal reaches it, not from a sum of its ancestors' values. See
 
 ### Drawing happens in local space
 
-**A node's `on_draw` never mentions where the node is.** `Node2D#draw` pushes the
+**A node's `_draw` never mentions where the node is.** `Node2D#draw` pushes the
 node's transform onto the renderer before the node and its children draw. Inside
-`on_draw`, the origin *is* the node, turned the way the node is turned:
+`_draw`, the origin *is* the node, turned the way the node is turned:
 
 ```ruby
-def on_draw(renderer, _view)
+def _draw(renderer, _view)
   renderer.rect(0, 0, width, height)   # this node's own box, wherever it is
 end
 ```
@@ -230,7 +256,7 @@ opens a layer per node, taking the next slot in the node's band. See
 a [`RGame::Engine::Players`](input.md) registry, or a bare `Actions` when only one
 answer exists. Each node asks the source for the actions of the player who owns
 it. It then hands that plain `Actions` to its components and its own
-`on_control`.
+`_control`.
 
 `input_owner` sets ownership. **Children inherit it, the way the transform
 accumulates.** `control`, the one phase that reads ownership, resolves it onto
@@ -436,10 +462,10 @@ to a node** instead of building it into a subclass. A component knows its owning
 - `remove_component(key)` detaches the component in that slot (class or name) and
   returns it, or `nil` if the slot is empty.
 
-A component mirrors the node's three phases: `control(actions)`, `update(dt)` and
-`draw(renderer, view)`. In each phase the node drives its components before its
+A component has a hook for each of the node's three phases: `_control(actions)`,
+`_update(dt)` and `_draw(renderer, view)`. In each phase the node drives its components before its
 own hook and before its children. Components also have two tree-lifecycle hooks,
-`on_attach` and `on_detach`, described below.
+`_attach` and `_detach`, described below.
 
 ## Lifecycle: constructing vs. entering the tree
 
@@ -452,11 +478,11 @@ trace.
    Build children and attach components here. Do **not** look anything up across
    the tree.
 2. **Entering the tree**: when the node goes live, the engine runs a depth-first
-   cascade. It fires each component's `on_attach`, then the node's `on_add`, then
+   cascade. It fires each component's `_attach`, then the node's `_enter_tree`, then
    the same for every child. **Anchors and systems are available here**, so a
    component registers with a shared system at this point. Leaving the tree runs
-   the mirror cascade: children first, then `on_remove`, then each component's
-   `on_detach` to release its registrations.
+   the mirror cascade: children first, then `_exit_tree`, then each component's
+   `_detach` to release its registrations.
 
 The engine drives this; you never call it. It uses `enter_tree`, `exit_tree` and
 `in_tree?`, fired at these points:
@@ -465,17 +491,17 @@ The engine drives this; you never call it. It uses `enter_tree`, `exit_tree` and
   Otherwise the child enters when its ancestor does. A tree assembled in
   `initialize` therefore comes alive all at once when it is mounted. `remove_node`
   exits the subtree the same way.
-- `add_component` and `remove_component` fire `on_attach` and `on_detach` at once
+- `add_component` and `remove_component` fire `_attach` and `_detach` at once
   when the host node is live. Otherwise attachment happens when the node enters.
 - `SceneStack#push` and `pop` enter and exit a scene. `RGame::Game#start` enters
   the root once, at boot.
 
-**Put cross-tree lookups in `on_add` or `on_attach`, never in `initialize`.** That
+**Put cross-tree lookups in `_enter_tree` or `_attach`, never in `initialize`.** That
 covers anchors, systems and sibling components. The engine wires the anchors
 before those hooks run, so you cannot read them too early.
 
 The mirror rule is that *attaching* components belongs in `initialize` or a
-builder. Use `on_add` only when the component's constructor needs the tree. See
+builder. Use `_enter_tree` only when the component's constructor needs the tree. See
 [Where to add a component](components.md#where-to-add-a-component).
 
 ## Anchors and shared systems
@@ -526,12 +552,12 @@ change a parent's `children` while the traversal iterates that list.
 - `queue_free` marks a node for removal, and `freed?` reports the mark. The node
   stays in the tree and keeps ticking until the sweep.
 - `sweep_freed` detaches every marked node, depth-first, and runs the normal
-  leave-tree cascade (`on_remove` / `on_detach`) on each. The game loop calls it
+  leave-tree cascade (`_exit_tree` / `_detach`) on each. The game loop calls it
   once per step, after `update`, outside the traversal.
 
 Any component or hook can therefore call `node.queue_free` from inside `update`
 without corrupting the traversal. A component that holds nodes outside the normal
-child list, such as `SceneStack`, overrides `Component#sweep_freed` to pass the
+child list, such as `SceneStack`, overrides `Component#_sweep_freed` to pass the
 sweep into the subtree it owns.
 
 `enter_tree` clears the freed flag, so a node detached and added again comes back

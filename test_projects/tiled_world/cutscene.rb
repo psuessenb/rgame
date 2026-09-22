@@ -31,7 +31,7 @@ class Cutscene < RGame::Engine::Node2D
     @elapsed = 0.0
   end
 
-  def on_add
+  def _enter_tree
     @players = root.system(RGame::Engine::Players)
     @viewports = root.system(RGame::Engine::Viewports)
     system(RGame::Engine::Components::TileWorld).bound(@camera)
@@ -39,7 +39,7 @@ class Cutscene < RGame::Engine::Node2D
 
   # Either player can start or end it, so this reads every seat rather than
   # whichever one happens to own this node.
-  def on_control(_actions)
+  def _control(_actions)
     return unless @players.any? { |player| player.actions.pressed?(:cutscene) }
 
     @open ? close : open
@@ -47,11 +47,11 @@ class Cutscene < RGame::Engine::Node2D
 
   # It animates while the world does not — which is the whole point of pausing a
   # subtree rather than the tick.
-  def on_update(dt)
+  def _update(dt)
     @elapsed += dt if @open
   end
 
-  def on_draw(renderer, view)
+  def _draw(renderer, view)
     return unless @open
 
     x = view.x + ((view.width - PANEL_W) / 2)

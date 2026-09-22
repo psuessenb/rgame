@@ -140,18 +140,18 @@ module RGame
           self
         end
 
-        def on_add
+        def _enter_tree
           build_page if @reveal
         end
 
-        def on_update(dt)
+        def _update(dt)
           return unless @reveal
 
           build_page
           @shown = (@shown + (@reveal * dt)).clamp(0, @total)
         end
 
-        def on_draw(renderer, _view)
+        def _draw(renderer, _view)
           lines = @paragraph.page(@page)
           return draw_revealing(renderer, lines) if lines.equal?(@built)
 

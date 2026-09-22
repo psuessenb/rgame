@@ -14,9 +14,9 @@ RSpec.describe 'a node that lays out text with a typeface' do # rubocop:disable 
         @face = RGame::Util::Typeface.default(24)
       end
 
-      def on_update(_dt) = @left = (@box_width - @face.text_width(@title)) / 2
+      def _update(_dt) = @left = (@box_width - @face.text_width(@title)) / 2
 
-      def on_draw(renderer, _view) = renderer.text(@title, @left, 0, font: @face)
+      def _draw(renderer, _view) = renderer.text(@title, @left, 0, font: @face)
     end
   end
 

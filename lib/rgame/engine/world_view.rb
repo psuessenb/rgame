@@ -28,7 +28,7 @@ module RGame
     #
     # `control` and `update` still run **once** for this subtree, however many
     # viewports draw it. That is what keeps simulation cost independent of player
-    # count, and it is also a safety property: a world node's `on_update` is
+    # count, and it is also a safety property: a world node's `_update` is
     # where mutation belongs, so per-view updating would move an actor at twice
     # the speed with two players — correctly in single player, silently wrong the
     # moment somebody joins.

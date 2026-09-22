@@ -87,7 +87,7 @@ code, not from memory of the design. Three kinds of sentence go wrong most often
 **The reader writes a game on `RGame::Game`.** Lead with that path:
 
 - **Engine-layer examples are scene code.** A node receives the renderer in
-  `on_draw` and plays sound through the `AudioOut` system. When a page drives `RGame::Core`
+  `_draw` and plays sound through the `AudioOut` system. When a page drives `RGame::Core`
   from a plain `App` to show the calls, it says so.
 - **Name the entry point.** State whether an example is a `Game` scene, a plain
   `App`, a spec, or a command in a repository checkout.

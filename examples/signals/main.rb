@@ -40,7 +40,7 @@
 #
 # **Emitting is private on purpose.** Only the plate can say the plate was
 # pressed. That is the same "give the user a blank hook, keep the machinery
-# separate" rule that makes `on_draw` overridable while `draw` is not: the thing
+# separate" rule that makes `_draw` overridable while `draw` is not: the thing
 # a stranger is invited to do is the safe one.
 #
 # ## A payload, for signals that have something to say
@@ -100,7 +100,7 @@ class Plate < RGame::Engine::Node2D
     @down = false
   end
 
-  def on_control(actions)
+  def _control(actions)
     @down = actions.held?(:stand_on_plate)
     # An edge, not the held state: one press is one event, however long the key
     # stays down. The Signal has no opinion on that — deciding when a thing has
@@ -108,7 +108,7 @@ class Plate < RGame::Engine::Node2D
     pressed_signal.emit if actions.pressed?(:stand_on_plate)
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.rect(0, 0, PLATE_W, PLATE_H, color: @down ? DOWN : UP)
   end
 end
@@ -131,15 +131,15 @@ class Door < RGame::Engine::Node2D
   # Connecting is the whole of the wiring, and it happens here rather than in
   # `initialize` because the plate has to exist first — which in this scene it
   # does, but a listener built outside the tree would not be able to rely on it.
-  def on_add = @plate.on_pressed { @open = !@open }
+  def _enter_tree = @plate.on_pressed { @open = !@open }
 
-  def on_update(dt)
+  def _update(dt)
     target = @open ? 1.0 : 0.0
     step = SPEED * dt
     @openness += (target - @openness).clamp(-step, step)
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.rect(0, 0, DOOR_W, DOOR_H, color: FRAME)
     # The leaf slides up into the frame, so an open door is a short one.
     leaf = DOOR_H * (1.0 - @openness)
@@ -161,16 +161,16 @@ class Lamp < RGame::Engine::Node2D
     @glow = 0.0
   end
 
-  def on_add = @plate.on_pressed { @glow = 1.0 }
+  def _enter_tree = @plate.on_pressed { @glow = 1.0 }
 
   # The glow is state advanced by dt, not a clock read while drawing — the
   # standing rule, and the reason pausing this node would freeze it mid-fade.
-  def on_update(dt)
+  def _update(dt)
     @glow -= dt * FADE
     @glow = 0.0 if @glow.negative?
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.circle(0, 0, RADIUS, color: @glow.positive? ? ON : OFF)
     renderer.circle(0, 0, RADIUS * @glow, color: ON) if @glow.positive?
   end
@@ -194,7 +194,7 @@ class Repeater < RGame::Engine::Node2D
     @counts = { fire: 0, poke: 0 }
   end
 
-  def on_add
+  def _enter_tree
     trigger = add_component(
       RGame::Engine::Components::ActionTrigger.new(fire: FIRE_COOLDOWN, poke: POKE_COOLDOWN)
     )
@@ -204,7 +204,7 @@ class Repeater < RGame::Engine::Node2D
     trigger.on_triggered { |action| @counts[action] += 1 }
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     draw_row(renderer, @counts[:fire], 0, FIRE_COLOR)
     draw_row(renderer, @counts[:poke], ROW, POKE_COLOR)
   end
@@ -231,7 +231,7 @@ class Scene < RGame::Engine::Node2D
     @help_cooldowns = RGame::Engine::Text.new('help.cooldowns')
   end
 
-  def on_add
+  def _enter_tree
     plate = add_node(Plate.new(x: 60, y: 150))
     # Both are handed the plate and connect themselves. The plate is handed
     # nothing at all.
@@ -240,7 +240,7 @@ class Scene < RGame::Engine::Node2D
     add_node(Repeater.new(x: 60, y: 330))
   end
 
-  def on_draw(renderer, view)
+  def _draw(renderer, view)
     renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
 
     renderer.text(@help_plate, 12, 12)

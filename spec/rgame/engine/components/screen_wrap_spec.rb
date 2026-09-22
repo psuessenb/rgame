@@ -16,25 +16,25 @@ RSpec.describe RGame::Engine::Components::ScreenWrap do
 
     it 'wraps a node past the left edge round to the right' do
       node.x = -6
-      wrap.update(0.0)
+      wrap._update(0.0)
       expect(node.x).to eq(105) # width + margin
     end
 
     it 'wraps a node past the right edge round to the left' do
       node.x = 106
-      wrap.update(0.0)
+      wrap._update(0.0)
       expect(node.x).to eq(-5) # -margin
     end
 
     it 'wraps a node past the top edge round to the bottom' do
       node.y = -6
-      wrap.update(0.0)
+      wrap._update(0.0)
       expect(node.y).to eq(85) # height + margin
     end
 
     it 'wraps a node past the bottom edge round to the top' do
       node.y = 86
-      wrap.update(0.0)
+      wrap._update(0.0)
       expect(node.y).to eq(-5)
     end
 
@@ -47,17 +47,17 @@ RSpec.describe RGame::Engine::Components::ScreenWrap do
       container.add_node(nested)
       root.add_node(container)
       root.enter_tree
-      nested_wrap.update(0.0) # warm the transform cache: this one wraps to the right
+      nested_wrap._update(0.0) # warm the transform cache: this one wraps to the right
       expect do
         nested.x -= 200.0
-        nested_wrap.update(0.0)
+        nested_wrap._update(0.0)
       end.to allocate_nothing
     end
 
     it 'leaves a node inside the bounds untouched' do
       node.x = 50
       node.y = 40
-      wrap.update(0.0)
+      wrap._update(0.0)
       expect([node.x, node.y]).to eq([50, 40])
     end
   end
@@ -91,7 +91,7 @@ RSpec.describe RGame::Engine::Components::ScreenWrap do
       root.enter_tree
 
       node.x = -6
-      wrap.update(0.0)
+      wrap._update(0.0)
       expect(node.x).to eq(105)
     end
 
@@ -102,7 +102,7 @@ RSpec.describe RGame::Engine::Components::ScreenWrap do
       root.enter_tree
 
       node.x = -6
-      explicit.update(0.0)
+      explicit._update(0.0)
       expect(node.x).to eq(105)
     end
 
@@ -122,7 +122,7 @@ RSpec.describe RGame::Engine::Components::ScreenWrap do
       large.add_node(node) # the pool's move: same component instance, new scene
 
       node.x = -6
-      wrap.update(0.0)
+      wrap._update(0.0)
       expect(node.x).to eq(405)
     end
   end

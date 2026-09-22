@@ -373,7 +373,7 @@ needs to, such as a condition or a quest log that draws `quest.state`, needs no
 watcher.
 
 **A watcher belongs to the object that connected it.** A node that watches in
-`on_add` unwatches in `on_remove`. A watcher left connected after its node is
+`_enter_tree` unwatches in `_exit_tree`. A watcher left connected after its node is
 gone keeps running, and one that moves a machine the node built finds that
 machine replaced:
 
@@ -384,13 +384,13 @@ class Gate < RGame::Engine::Node2D
     state :open
   end
 
-  def on_add
+  def _enter_tree
     @facts = system(RGame::Engine::Components::Facts)
     @machine = RGame::Engine::StateMachine.new(GRAPH, facts: @facts, name: :gate)
     @bridge = @facts.watch(:bridge_down) { |down| @machine.fire(:lower) if down }
   end
 
-  def on_remove = @facts.unwatch(@bridge)
+  def _exit_tree = @facts.unwatch(@bridge)
 end
 ```
 

@@ -25,7 +25,7 @@
 # ## Starting it twice does not restart it
 #
 # `Audio#play_music` returns early when the song is already playing. That is not
-# a nicety — a scene that emits `play_music` from `on_add` every time it is
+# a nicety — a scene that emits `play_music` from `_enter_tree` every time it is
 # entered would otherwise chop the track back to zero each time the player
 # walked through a door.
 #
@@ -74,18 +74,18 @@ class Scene < RGame::Engine::Node2D
     @status = @stopped
   end
 
-  def on_control(actions)
+  def _control(actions)
     start if actions.pressed?(:ui_confirm)
     stop if actions.pressed?(:ui_cancel)
   end
 
-  def on_update(dt)
+  def _update(dt)
     return unless @playing
 
     @elapsed += dt
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.text(@help, 12, 12)
     renderer.text(@status, 12, 34)
 

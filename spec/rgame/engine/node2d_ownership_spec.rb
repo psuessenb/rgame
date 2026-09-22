@@ -29,7 +29,7 @@ RSpec.describe RGame::Engine::Node2D do
     Class.new(described_class) do
       attr_reader :seen
 
-      def on_control(actions) = @seen = actions
+      def _control(actions) = @seen = actions
     end.new
   end
 
@@ -135,7 +135,7 @@ RSpec.describe RGame::Engine::Node2D do
       root = described_class.new(input_owner: two)
       body = root.add_component(RGame::Engine::Components::ActionTrigger.new(fire: 0.0))
       seen = nil
-      allow(body).to receive(:control) { |actions| seen = actions }
+      allow(body).to receive(:_control) { |actions| seen = actions }
 
       root.control(players)
 

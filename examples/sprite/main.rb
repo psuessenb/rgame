@@ -38,9 +38,9 @@
 # A **node's** `z` orders it against its siblings: which of two nodes is drawn
 # first. A **component's** `z:` is an offset inside that one node's own slot, so
 # it can only ever settle the order of what a single node draws — against its own
-# other components, and against its own `on_draw`. It cannot reach the next node.
+# other components, and against its own `_draw`. It cannot reach the next node.
 #
-# The bottom node draws a panel from `on_draw` and hangs a sprite on itself, and
+# The bottom node draws a panel from `_draw` and hangs a sprite on itself, and
 # they land in one slot together. The default offsets are not equal: a shape is
 # drawn at 50 and an image at 0, so the panel covers the sprite unless the sprite
 # asks for more. `z: ABOVE_PANEL` is that ask, and the node did not move.
@@ -85,19 +85,19 @@ class Turntable < RGame::Engine::Node2D
     @resize = 0.0
   end
 
-  def on_add
+  def _enter_tree
     @sprite = add_component(RGame::Engine::Components::Sprite.new(id: STILL, scale: START_SCALE))
   end
 
   # Axes, not buttons: `move_x` and `move_y` come from the default map already
   # bound to the arrows, WASD and a left stick, so this example declares no input
   # of its own. Screen y grows downward, so up reads negative and is subtracted.
-  def on_control(actions)
+  def _control(actions)
     @turn = actions.axis(:move_x)
     @resize = actions.axis(:move_y)
   end
 
-  def on_update(dt)
+  def _update(dt)
     self.angle += @turn * TURN_SPEED * dt
     @sprite.scale = (@sprite.scale - (@resize * GROW_SPEED * dt)).clamp(MIN_SCALE, MAX_SCALE)
   end
@@ -117,13 +117,13 @@ class Layered < RGame::Engine::Node2D
     super(width: FRAME_W, height: FRAME_H, **)
   end
 
-  def on_add
+  def _enter_tree
     add_component(RGame::Engine::Components::Sprite.new(id: STILL, scale: SCALE, z: ABOVE_PANEL))
   end
 
   # Centred on this node's own origin, which is where the traversal has already
   # put the renderer — the same reason the component draws at (0, 0).
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.rect(-PANEL_W / 2, -PANEL_H / 2, PANEL_W, PANEL_H, color: PANEL)
   end
 end
@@ -141,12 +141,12 @@ class Scene < RGame::Engine::Node2D
     @above = RGame::Engine::Text.new('captions.above')
   end
 
-  def on_add
+  def _enter_tree
     add_node(Turntable.new(x: WIDTH / 2, y: 230))
     add_node(Layered.new(x: WIDTH / 2, y: 400))
   end
 
-  def on_draw(renderer, view)
+  def _draw(renderer, view)
     renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
 
     # A String is a path, resolved through the asset manager on first use and

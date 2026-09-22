@@ -57,7 +57,7 @@ later value.
 
 ## Drawing translated text
 
-A node builds a `Text` once and reads it in `on_draw`. A read with unchanged
+A node builds a `Text` once and reads it in `_draw`. A read with unchanged
 variables and an unchanged language returns the same String and allocates
 nothing:
 
@@ -70,7 +70,7 @@ class Hud < RGame::Engine::Node2D
     @title = RGame::Engine::Text.new('hud.title')
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.text(@score.with(score: @points), 12, 10)
     renderer.text(@apples.with(count: @apples_held), 12, 30)
     renderer.text(@title, 12, 50)

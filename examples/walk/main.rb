@@ -8,7 +8,7 @@
 #
 # Arrow keys, WASD, a d-pad or a left stick; they all work and none of them are
 # mentioned below. It exercises:
-#   - Node2D — the scene tree, and `on_update`/`on_draw` as blank hooks;
+#   - Node2D — the scene tree, and `_update`/`_draw` as blank hooks;
 #   - Components::AnimatedSprite — directional animation off a sprite sheet;
 #   - Components::CharacterBody — an intent in -1..1 becomes a step at a speed;
 #   - Components::PlayerController — input axes become that intent;
@@ -24,7 +24,7 @@
 # an NPC.
 #
 # The one subclass here is Hero, and it exists only to keep the walker on
-# screen — see the comment on `on_update`.
+# screen — see the comment on `_update`.
 
 # lib/ on the load path, so `require 'rgame/game'` resolves the same way it
 # would from an installed gem. examples/ and lib/ are siblings in both, so this
@@ -43,13 +43,13 @@ SPEED = 90.0 # pixels per second
 #
 # Clamping is not something the engine does for you here: a plain CharacterBody
 # moves the node wherever the intent points, because it is meant for an actor in
-# a world with nothing to bump into. Giving it edges is one `on_update` — and in
+# a world with nothing to bump into. Giving it edges is one `_update` — and in
 # a real game it is usually Components::TileWorld doing it instead, which is
 # what `examples/scroll_map` shows.
 class Hero < RGame::Engine::Node2D
-  # `on_update` is the blank hook: Node2D#update does the bookkeeping and calls
+  # `_update` is the blank hook: Node2D#update does the bookkeeping and calls
   # this, so there is no `super` to forget.
-  def on_update(_dt)
+  def _update(_dt)
     self.x = x.clamp(0, WIDTH - width)
     self.y = y.clamp(0, HEIGHT - height)
   end
@@ -68,7 +68,7 @@ class Root < RGame::Engine::Node2D
     add_node(build_hero)
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.text(@help, 12, 12)
   end
 

@@ -105,8 +105,8 @@ RSpec.describe RGame::Engine::UI::TextButton do
         item = button(label: saves)
         saves.with(saves: 3)
         quiet = QuietRenderer.new
-        item.on_draw(quiet, nil)
-        expect { item.on_draw(quiet, nil) }.to allocate_nothing
+        item._draw(quiet, nil)
+        expect { item._draw(quiet, nil) }.to allocate_nothing
       end
     end
 
@@ -170,13 +170,13 @@ RSpec.describe RGame::Engine::UI::TextButton do
     item = button
     item.press
     quiet = QuietRenderer.new
-    expect { item.on_draw(quiet, nil) }.to allocate_nothing
+    expect { item._draw(quiet, nil) }.to allocate_nothing
   end
 
   it 'draws without allocating, with array colours given' do
     item = button(label_color: [1, 2, 3])
     item.focused = true
     quiet = QuietRenderer.new
-    expect { item.on_draw(quiet, nil) }.to allocate_nothing
+    expect { item._draw(quiet, nil) }.to allocate_nothing
   end
 end

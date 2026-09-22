@@ -5,7 +5,7 @@ module RGame
     module Components
       # Wraps an Engine::Pool of nodes and folds the tree bookkeeping into the frame tick:
       # `spawn` takes a node from the pool (recycled or freshly built) and adds it as a
-      # child of the owner, and `update` returns freed nodes to the pool — so a game only
+      # child of the owner, and `_update` returns freed nodes to the pool — so a game only
       # ever writes `pool.spawn` and the ordinary `node.queue_free`, never a hand-written
       # acquire/add/reclaim bridge. Pooled nodes are normal children, so the scene's usual
       # traversal updates and draws them; this component only manages their pool membership.
@@ -23,7 +23,7 @@ module RGame
         end
 
         # Take a node from the pool, let the caller re-initialise it before it goes live
-        # (optional block — runs before on_attach), and add it as a child of the owner.
+        # (optional block — runs before _attach), and add it as a child of the owner.
         def spawn
           child = @pool.acquire
           yield child if block_given?
@@ -33,7 +33,7 @@ module RGame
 
         # Ride the tick: return every freed pooled node to the free list, detaching any that
         # are still in the tree — so a queue_free elsewhere recycles with no game-side wiring.
-        def update(_dt)
+        def _update(_dt)
           @pool.reclaim_if do |child|
             next false unless child.freed?
 

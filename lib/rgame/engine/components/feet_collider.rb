@@ -27,13 +27,13 @@ module RGame
         # The feet box, derived from the node's sprite size and memoised.
         #
         # **Only valid once the node is in the tree**, and it says so rather than letting
-        # you find out later. The size comes from AnimatedSprite#on_attach, so a read from
+        # you find out later. The size comes from AnimatedSprite#_attach, so a read from
         # a constructor sees a 0x0 node and bakes a box anchored to nothing — permanently,
         # because this memoises. The symptom is an actor that walks through walls it
         # should not, a long way from the call that caused it. Guarding costs one
         # comparison, once.
         #
-        # Building it here rather than in on_attach is what makes the order components
+        # Building it here rather than in _attach is what makes the order components
         # were added in irrelevant: the first read is a frame later, by which time every
         # sibling has attached. Assigning `box =` still wins, since that leaves nothing
         # to memoise.

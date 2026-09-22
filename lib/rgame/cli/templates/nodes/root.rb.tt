@@ -4,8 +4,8 @@ require 'rgame'
 
 # The root of the scene tree. Everything the game draws hangs below it.
 #
-# The three hooks to override are `on_control(actions)`, `on_update(dt)` and
-# `on_draw(renderer, view)`. Override those rather than `control`, `update` or
+# The three hooks to override are `_control(actions)`, `_update(dt)` and
+# `_draw(renderer, view)`. Override those rather than `control`, `update` or
 # `draw`: the engine does its own bookkeeping in the outer methods and calls
 # these, so there is no `super` to forget.
 #
@@ -18,7 +18,7 @@ class Root < RGame::Engine::Node2D
     @greeting = RGame::Engine::Text.new('root.greeting')
   end
 
-  def on_draw(renderer, _view)
+  def _draw(renderer, _view)
     renderer.text(@greeting, 20, 20)
   end
 end

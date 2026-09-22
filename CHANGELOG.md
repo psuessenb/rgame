@@ -117,6 +117,15 @@ index, not the argument.
 - **`RGame::Game` takes the sound device as `audio:`**, as it takes the input
   backend as `input:`, so a harness can record what a game plays. See
   [docs/api/game.md](docs/api/game.md).
+- **A subclass cannot replace what `signal` generated.** Defining a signal's
+  connect method or emit reader in a subclass, such as a `def on_activated`
+  meant as a hook, raises `NameError` when the class is defined, naming the
+  signal. See [docs/api/signals.md](docs/api/signals.md#the-dsl-declaring-a-signal-on-a-class).
+- **A misspelled hook raises.** A `Node2D` or `Component` subclass defining a
+  `_` method that no ancestor has, such as `_updte`, raises `NameError` when
+  the class is defined, listing the hooks it has. `Node2D.hooks` returns that
+  list, and `hook :_name` declares a new hook for a class's subclasses. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md#the-tick-control--update--draw).
 
 ### Changed
 
@@ -139,6 +148,22 @@ index, not the argument.
   `Dialogue#on_beat` is `on_beat_entered`, since it fires as the conversation
   enters each beat.
 
+- **A node's hooks start with `_`, and `on_` means a signal.** Override
+  `_control`, `_update` and `_draw` for `on_control`, `on_update` and
+  `on_draw`, and `_enter_tree` and `_exit_tree` for `on_add` and `on_remove`.
+  Each hook is named after the step that calls it. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md#the-tick-control--update--draw).
+- **A component's hooks start with `_` too.** Override `_control`, `_update`
+  and `_draw` for `control`, `update` and `draw`, `_attach` and `_detach` for
+  `on_attach` and `on_detach`, and `_sweep_freed` for `sweep_freed`. A node and
+  a component now name the same hook the same way. See
+  [docs/api/components.md](docs/api/components.md).
+- **The UI's hooks follow the same rule.** `UI::Button` calls `_gain_focus` and
+  `_lose_focus` for `on_focus_changed(focused)`, and `UI::DialogueBox` calls
+  `_draw_portrait` for `on_draw_portrait`. A `UI::Navigation` answers
+  `control`, `opened` and `buttons_changed` for `on_control`, `on_opened` and
+  `on_buttons_changed`, which also ends the clash with `UI::Menu#on_opened`. See
+  [docs/api/ui.md](docs/api/ui.md).
 - **`Node2D`'s sealed machinery starts with `rgame_`, not `_`.** A subclass
   that defines `rgame_draw_content` or another of `Node2D`'s or `Component`'s
   private `rgame_` methods raises `NameError` where the class is defined. A

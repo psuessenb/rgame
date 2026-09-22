@@ -9,27 +9,27 @@ class SpecHealthComponent < RGame::Engine::Component; end
 class SpecPhysicsComponent < RGame::Engine::Component; end
 
 # Records its tree-lifecycle calls into an injected shared log, so the enter/exit
-# cascade order (component attach before node on_add, etc.) can be asserted with a
+# cascade order (component attach before node _enter_tree, etc.) can be asserted with a
 # real component class rather than a stub.
 class SpecLifecycleComponent < RGame::Engine::Component
   attr_accessor :log
 
-  def on_attach = log << :component_attach
-  def on_detach = log << :component_detach
+  def _attach = log << :component_attach
+  def _detach = log << :component_detach
 end
 
-# A node that records its own on_add/on_remove into the same shared log.
+# A node that records its own _enter_tree/_exit_tree into the same shared log.
 class SpecLifecycleNode < RGame::Engine::Node2D
   attr_accessor :log
 
-  def on_add    = log << :node_add
-  def on_remove = log << :node_remove
+  def _enter_tree = log << :node_add
+  def _exit_tree  = log << :node_remove
 end
 
 # Moves itself in its own update hook, which is what a node with a velocity of
 # its own does. Used to check that its subtree follows it within the same tick.
 class SpecSelfMovingNode < RGame::Engine::Node2D
-  def on_update(_dt) = self.x += 10
+  def _update(_dt) = self.x += 10
 end
 
 # Records each lifecycle-hook call (with its argument) to a shared log, so the
@@ -41,9 +41,9 @@ class SpecRecordingNode < RGame::Engine::Node2D
     @log = log
   end
 
-  def on_control(actions) = @log << [:hook, actions]
-  def on_update(dt)       = @log << [:hook, dt]
-  def on_draw(renderer, _view) = @log << [:hook, renderer]
+  def _control(actions) = @log << [:hook, actions]
+  def _update(dt) = @log << [:hook, dt]
+  def _draw(renderer, _view) = @log << [:hook, renderer]
 end
 
 RSpec.describe RGame::Engine::Node2D do
@@ -275,7 +275,7 @@ RSpec.describe RGame::Engine::Node2D do
         expect(log).to eq([])
       end
 
-      it 'attaches components before running the node on_add hook' do
+      it 'attaches components before running the node _enter_tree hook' do
         node.enter_tree
         expect(log).to eq(%i[component_attach node_add])
       end
@@ -302,7 +302,7 @@ RSpec.describe RGame::Engine::Node2D do
     describe '#exit_tree' do
       before { node.enter_tree }
 
-      it 'runs the node on_remove hook before detaching components' do
+      it 'runs the node _exit_tree hook before detaching components' do
         log.clear
         node.exit_tree
         expect(log).to eq(%i[node_remove component_detach])
@@ -340,7 +340,7 @@ RSpec.describe RGame::Engine::Node2D do
         log.clear
         late = SpecPhysicsComponent.new
         attached = []
-        allow(late).to receive(:on_attach) { attached << late }
+        allow(late).to receive(:_attach) { attached << late }
         node.add_component(late)
         expect(attached).to eq([late])
       end
@@ -456,10 +456,10 @@ RSpec.describe RGame::Engine::Node2D do
       end
 
       it 'forwards the sweep into its components' do
-        component = instance_double(RGame::Engine::Component, :node= => nil, on_attach: nil, sweep_freed: nil)
+        component = instance_double(RGame::Engine::Component, :node= => nil, _attach: nil, _sweep_freed: nil)
         node.add_component(component)
         node.sweep_freed
-        expect(component).to have_received(:sweep_freed)
+        expect(component).to have_received(:_sweep_freed)
       end
     end
   end
@@ -483,7 +483,7 @@ RSpec.describe RGame::Engine::Node2D do
       end
 
       it 'drives components, then its own hook, then children — each with the actions' do
-        allow(component).to receive(:control) { |a| log << [:component, a] }
+        allow(component).to receive(:_control) { |a| log << [:component, a] }
         allow(child).to receive(:control) { |a| log << [:child, a] }
         node.add_component(component)
         node.add_node(child)
@@ -496,7 +496,7 @@ RSpec.describe RGame::Engine::Node2D do
 
     describe '#update' do
       it 'drives components, then its own hook, then children — each with the timestep' do
-        allow(component).to receive(:update) { |dt| log << [:component, dt] }
+        allow(component).to receive(:_update) { |dt| log << [:component, dt] }
         allow(child).to receive(:update) { |dt| log << [:child, dt] }
         node.add_component(component)
         node.add_node(child)
@@ -516,7 +516,7 @@ RSpec.describe RGame::Engine::Node2D do
       before { allow(renderer).to receive(:layered).and_yield }
 
       it 'draws components, then its own hook, then children — each with the renderer' do
-        allow(component).to receive(:draw) { |r, _v| log << [:component, r] }
+        allow(component).to receive(:_draw) { |r, _v| log << [:component, r] }
         allow(child).to receive(:draw) { |r, _v| log << [:child, r] }
         node.add_component(component)
         node.add_node(child)
@@ -891,7 +891,7 @@ RSpec.describe RGame::Engine::Node2D do
     it 'reads back the new resolved position inside the hook that moved it' do
       seen = []
       mover = Class.new(described_class) do
-        define_method(:on_update) do |_dt|
+        define_method(:_update) do |_dt|
           self.x = 10
           seen << world_x
         end
@@ -1010,7 +1010,7 @@ RSpec.describe RGame::Engine::Node2D do
         events << :translate_end
       end
 
-      mid = SpecRecordingNode.new(events) # logs [:hook, renderer] from on_draw
+      mid = SpecRecordingNode.new(events) # logs [:hook, renderer] from _draw
       mid.x = 10
       child = described_class.new
       allow(child).to receive(:draw) { events << :child }

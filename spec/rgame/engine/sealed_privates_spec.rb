@@ -68,7 +68,7 @@ RSpec.describe RGame::Engine::SealedPrivates do
     end
 
     it 'lets a subclass have methods the base does not seal' do
-      expect(Class.new(base) { private def _helper = 3 }.private_method_defined?(:_helper)).to be(true)
+      expect(Class.new(base) { private def helper = 3 }.private_method_defined?(:helper)).to be(true)
     end
 
     it 'lets a subclass define initialize' do
