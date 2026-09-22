@@ -67,35 +67,35 @@ module RGame
         end
 
         # The value of `key`, or nil for a key never set.
-        def [](key) = @values[_key(key)]
+        def [](key) = @values[checked_key(key)]
 
         # Sets `key`, and emits `on_changed` and calls its watchers when the value
         # differs from the one held.
         def []=(key, value)
-          _key(key)
-          _value(key, value)
+          checked_key(key)
+          checked_value(key, value)
           previous = @values[key]
           @values[key] = value.is_a?(String) ? -value : value
-          _changed(key, previous)
+          report_change(key, previous)
         end
 
         # As `Hash#fetch`: a default, a block, or `KeyError` for a key never set.
-        def fetch(key, ...) = @values.fetch(_key(key), ...)
+        def fetch(key, ...) = @values.fetch(checked_key(key), ...)
 
-        def key?(key) = @values.key?(_key(key))
+        def key?(key) = @values.key?(checked_key(key))
 
         # Removes `key` and returns its value. Reads nil afterwards, so it emits
         # and calls watchers when the value was not already nil.
         def delete(key)
-          previous = @values.delete(_key(key))
-          _changed(key, previous)
+          previous = @values.delete(checked_key(key))
+          report_change(key, previous)
           previous
         end
 
         # Calls the block with the value of `key` now, then with every value that
         # differs, restores included. Returns a handle for `unwatch`.
         def watch(key, &block)
-          (@watchers[_key(key)] ||= []) << block
+          (@watchers[checked_key(key)] ||= []) << block
           yield @values[key]
           block
         end
@@ -124,14 +124,14 @@ module RGame
         # Runs no effect and emits no `on_changed`. Once every fact and machine is
         # back, calls the watchers of each key whose value differs.
         def restore(saved)
-          values, entries = _parse(saved)
+          values, entries = parse(saved)
           placed = @machines.to_h { |name, machine| [machine, machine.parse_saved(entries[name])] }
           previous = @values
           @values = values
           @entries = entries
           placed.each { |machine, parsed| machine.place(parsed) }
           (previous.keys | values.keys).each do |key|
-            _notify(key) unless previous[key].eql?(values[key])
+            notify_watchers(key) unless previous[key].eql?(values[key])
           end
           self
         end
@@ -150,34 +150,34 @@ module RGame
 
         private
 
-        def _key(key)
+        def checked_key(key)
           return key if key.is_a?(Symbol)
 
           raise TypeError, "a fact's key is a Symbol, got #{key.inspect} (#{key.class})"
         end
 
-        def _value(key, value) = Facts.check_value(value) { "facts[#{key.inspect}]" }
+        def checked_value(key, value) = Facts.check_value(value) { "facts[#{key.inspect}]" }
 
-        def _parse(saved)
+        def parse(saved)
           return [{}, {}] if saved.nil?
           raise TypeError, "facts restore from a Hash, got #{saved.class}" unless saved.is_a?(Hash)
 
           values = saved.fetch(:values, {}).to_h do |key, value|
-            _value(_key(key), value)
+            checked_value(checked_key(key), value)
             [key, value.is_a?(String) ? -value : value]
           end
-          [values, saved.fetch(:machines, {}).to_h { |name, entry| [_key(name), entry] }]
+          [values, saved.fetch(:machines, {}).to_h { |name, entry| [checked_key(name), entry] }]
         end
 
-        def _changed(key, previous)
+        def report_change(key, previous)
           value = @values[key]
           return if previous.eql?(value)
 
           changed_signal.emit(key:, value:)
-          _notify(key)
+          notify_watchers(key)
         end
 
-        def _notify(key)
+        def notify_watchers(key)
           @watchers[key]&.each { it.call(@values[key]) }
         end
       end

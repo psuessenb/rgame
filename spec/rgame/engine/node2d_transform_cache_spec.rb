@@ -3,7 +3,7 @@
 # The world transform is computed when read and cached until something moves,
 # so its correctness is not a property of any one call — it is a property of
 # *sequences* of moves, reparentings and reads, and of an invariant about which
-# nodes are stale at any moment (see Node2D#_soil).
+# nodes are stale at any moment (see Node2D#rgame_soil).
 #
 # The examples elsewhere cover the cases someone thought of. This one covers the
 # ones nobody did: it drives random sequences against a from-scratch walk of the

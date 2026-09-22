@@ -88,15 +88,15 @@ position is computed when read, from wherever everything is at that moment. See
 The traversal recurses into children for you. **Never iterate children
 yourself**: add them with `add_node` and let the tree drive them.
 
-**A subclass cannot replace a `Node2D` method whose name starts with `_`.** Those
-methods are the machinery the phases call, such as `_draw_content` and
-`_resolve_inherited`. A subclass method with the same name would take its place
-without warning. So `RGame::Engine::SealedPrivates` raises `NameError` when the
-class loads, naming both methods. `Component` follows the same rule. A non-public method *without*
-the underscore is a seam, meant to be overridden with `super`. `Node2D` has one:
-`draw_children`; see
-[View transforms and the camera](#view-transforms-and-the-camera). Only these two
-classes guard underscored methods; engine subclasses do not.
+**A subclass cannot replace a `Node2D` method whose name starts with `rgame_`.**
+Those methods are the machinery the phases call, such as `rgame_draw_content`
+and `rgame_resolve_inherited`. A subclass method with the same name would take
+its place without warning. So `RGame::Engine::SealedPrivates` raises `NameError`
+when the class loads, naming both methods. `Component` follows the same rule. A
+non-public method *without* the prefix is a seam, meant to be overridden with
+`super`. `Node2D` has one: `draw_children`; see
+[View transforms and the camera](#view-transforms-and-the-camera). Only these
+two classes guard prefixed methods; engine subclasses do not.
 
 ### The two spaces
 

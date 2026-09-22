@@ -97,9 +97,9 @@ RSpec.describe RuboCop::Cop::Game::DrawInLocalSpace, :config do
   end
 
   describe 'the methods it covers' do
-    it 'flags _draw_content, which runs once per viewport' do
-      expect_offense(<<~RUBY, x: world(:world_x, :_draw_content))
-        def _draw_content(renderer, view)
+    it 'flags rgame_draw_content, which runs once per viewport' do
+      expect_offense(<<~RUBY, x: world(:world_x, :rgame_draw_content))
+        def rgame_draw_content(renderer, view)
           renderer.sprite(@sheet, world_x, 0)
                                   ^^^^^^^ %{x}
         end
