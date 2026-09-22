@@ -140,6 +140,9 @@ were built without, each with its own trigger:
   from its top-left corner and nothing behind it. The design had a `style:`
   like `UI::TextButton`'s, but a style draws per button state, which a label
   does not have.
+- **A face per `UI::TextButton`.** A button draws its label in the renderer's
+  font, so a `UI::DialogueBox` given a larger `typeface:` draws the name and
+  the line in it and its responses in the default font.
 
 **What exists instead.** A caller steps lines by `height` and aligns them
 horizontally. `examples/intro` places its block of text with its own arithmetic
@@ -150,7 +153,10 @@ script written without spaces, and nothing aligns two faces on one line.
 
 **Trigger.** Ascent and descent: a caller aligning two faces on one line.
 Breaking between characters: a font shipped or loaded that covers such a script.
-The panel and vertical alignment: the dialogue box, whose design they belong to.
+The panel and vertical alignment: a third place drawing a backdrop behind a
+label by hand. `examples/intro` is one, and `UI::DialogueBox` draws its `panel:`
+behind the whole box rather than the label. A face per button: a game that
+passes the box a `typeface:` and finds its responses in another face.
 
 ---
 
@@ -386,7 +392,7 @@ stages and a conversation's beats. State moves when a player chooses or an event
 arrives, and nothing in it runs per frame. Its conditions run on every
 `available?` call, and its transitions list is built for a menu of choices, not
 for a loop that must allocate nothing. The dialogue plan kept per-frame
-behaviour out on purpose (its decision 6).
+behaviour out on purpose (its decision 6, in git at `bf5db5c`).
 
 **Why not now.** No NPC or animation in this repository hand-rolls a state
 machine, so nothing says what shape the per-frame one should take, or whether
@@ -412,3 +418,45 @@ it chose not to change.
   `system(RGame::Engine::Players)` and use the result at once. Outside a
   `Game` each fails as a `NoMethodError` on nil. **Trigger:** someone hitting
   that `NoMethodError`, or the next change to one of those callers.
+
+---
+
+## A file format for dialogue and state graphs
+
+**What.** A loader that reads a conversation or a quest from a data file, YAML
+or a reading of Yarn Spinner's format, and builds the same `Dialogue::Script` or
+`StateGraph` the Ruby builder does.
+
+**What exists instead.** `Dialogue::Script.build` and `StateGraph.build` are the
+graphs' construction API, and a loader would call the same one. The dialogue
+plan kept that possible on purpose (its decision 2, in git at `bf5db5c`). Every
+option a builder takes as a block also takes a Symbol, sent to the context, so
+`if: :can_buy?` is what a file would say where Ruby says a lambda. A line is a
+translation key, and `vars:` a Symbol. Nothing about a format needs deciding
+before a loader exists.
+
+**Why not now.** Everyone writing a script so far writes Ruby, and a format
+chosen with no writer to serve is a guess at what they need.
+
+**Trigger.** A writer who will not write Ruby, or a game importing conversations
+written in Yarn Spinner.
+
+---
+
+## A connection that ends with its node
+
+**What.** A signal connection, or a `Facts#watch`, that ends by itself when the
+node that made it leaves the tree.
+
+**What exists instead.** A node that connects in `_enter_tree` disconnects in
+`_exit_tree`: `Facts#unwatch` for a watch, and the same by hand for every other
+signal. `docs/api/dialogue.md` says so for watchers.
+
+**Why not now.** Forgetting is loud in one case and silent in the other. A
+watcher that moves a named machine finds it replaced and raises; one that only
+sets its own node's state keeps running on a node nobody draws. A fix belongs
+to every signal the engine has, not to facts alone, so it is a change to
+`Signal` rather than to the dialogue.
+
+**Trigger.** A bug traced to a connection that outlived its node, or a second
+component that has to write the same `_exit_tree`.

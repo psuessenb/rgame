@@ -802,3 +802,17 @@ end
 - **The block must build the same world every time.** A replay that arrives
   somewhere the first walk did not raises `ArgumentError`, so a world built
   from shared state, or a random one, fails loudly.
+
+## What this is not
+
+**A script is Ruby, not a file.** There is no loader for YAML or for another
+tool's format. Every option a builder takes as a block also takes a Symbol, so a
+graph holds nothing a file could not name.
+
+**A line is words and nothing else.** A dialogue plays no sound, and the box
+draws each line in one face and one colour: no voice, no emphasis, no icon
+inside a sentence.
+
+**The box stays where its owner put it.** It does not follow a speaker or draw
+a speech bubble. A game that wants either drives a `Dialogue` from a node of
+its own, as it would any other view.
