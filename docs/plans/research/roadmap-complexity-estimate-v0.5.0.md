@@ -30,15 +30,48 @@ S is one branch. M is a few. L is a plan of its own.
 
 ### Nothing in the engine moves a value over time — *(measured: no match for `lerp`, `ease` or `tween` under `lib/`)*
 
+*(Landed after this estimate: `Engine::Tween` and `Components::Tween`, the
+second taking over every one-shot `Components::Timer`. See
+[toolbox.md](../../api/toolbox.md#tween--a-value-that-moves-over-time). The
+consumer list below was wrong about the typewriter; see
+[What the typewriter showed](#what-the-typewriter-showed).)*
+
 `Timer` accumulates intervals. `Animator` steps sprite frames. Neither eases a
 number from one value to another over a duration.
 
-A fade to black, an audio fade, a typewriter reveal, a cutscene camera move and
-a scene transition are one object with five consumers. That is the "extend or
-generalize" pile CLAUDE.md asks a plan to fill: build one pure
-`Engine::Tween` driven by `update(dt)` and items 2, 4, 8, 9 and 10 all shrink.
-Build it in any other order and it gets written four times, noticed only from
-the file that needs two of them.
+A fade to black, an audio fade, a cutscene camera move and a scene transition
+are one object with four consumers. That is the "extend or generalize" pile
+CLAUDE.md asks a plan to fill: build one pure `Engine::Tween` driven by
+`update(dt)` and items 2, 8, 9 and 10 all shrink. Build it in any other order
+and it gets written four times, noticed only from the file that needs two of
+them.
+
+#### What the typewriter showed
+
+This finding first listed a typewriter reveal as a fifth consumer, and item 4
+as one the tween would shrink. Item 4 landed first and needed no tween. The
+reveal's timing is one line in `UI::Label#_update`, a count of characters that
+rises at a fixed rate. It is a linear tween in form, but a tween saves nothing
+there:
+
+- **A speed drives it, not a duration.** A page's reveal time follows from its
+  length.
+- **It is always linear.** Typing that eases looks wrong.
+- **Its output is an index** into prefixes built once per page.
+- **Its hard parts were elsewhere:** drawing without allocating, grapheme
+  clusters, and a centred line that stays put as it grows.
+
+The better test for a consumer is whether it needs a duration, an ease, or a
+"finished" edge to chain on. The typewriter needs none of them. The code held
+better evidence, written by hand: `Components::Hop`'s arc, the flash in
+`examples/sound`, the playhead in `examples/music`, the hint delay in
+`test_projects/tiled_world/cutscene.rb`, and every one-shot `Components::Timer`.
+All of them now use a tween, and `UI::Label` keeps its own count.
+
+`Timer` did not stand in for the tween either. The reveal never used it, and a
+timer answers "how many whole intervals have passed", not "how far along". The
+two overlapped only in the one-shot, which is why the one-shot moved to
+`Components::Tween` and `Components::Timer` now only repeats.
 
 ### Text measurement gates two items, and the write-up already exists
 
@@ -89,7 +122,8 @@ the 87-line
 named scenes and a deferred switch, and breaks nothing.
 
 Transitions are where the item stops being small. Fading one scene into another
-means holding both alive across several ticks, which wants the tween above.
+means holding both alive across several ticks. `Components::Tween` gives the fade
+and the `on_finished` edge to switch on; holding both scenes alive is still open.
 
 The teleport example carries its own design question: moving a node from one
 scene to the next. `push` and `pop` do not answer it today.
@@ -134,7 +168,8 @@ exist to refuse. So it needs wrapped lines cached against the string, the width
 and `I18n.generation`. [`Engine::Text`](../../../lib/rgame/engine/text.rb) is that
 shape already, and a cache built this way survives the typeface moving to Util
 later. Typewriter reveal hits the same trap, a prefix per frame, and takes the
-same fix.
+same fix. *(It did, and needed no tween; see
+[What the typewriter showed](#what-the-typewriter-showed).)*
 
 The machinery above it is ordinary engine Ruby: a queue of beats, advance on
 `ui_confirm`, branching choices through `UI::Menu`.
@@ -217,7 +252,8 @@ lifetime, which is `examples/pooling` with different art. Lightning is
 `renderer.line(thickness:)`
 ([renderer.rb:153](../../../lib/rgame/core/renderer.rb#L153)).
 
-The part worth designing is the shared tween.
+The part worth designing was the shared tween. *(Landed: `Engine::Tween`, with
+`Components::Tween` for a fade that ends in `on_finished`.)*
 
 One caveat on ambition: additive blending and per-particle colour ramps would
 reach into the GL backend, and no blend mode is exposed today. Stay inside the
@@ -234,7 +270,7 @@ overlay above it keeps animating.
 94-line cutscene *(measured)* — read it as the picture of what this replaces.
 
 What is missing is the script: beats with waits, each ending on a duration or a
-signal. That is a small sequencer node, plus the tween.
+signal. That is a small sequencer node over the tween, which exists now.
 
 A cutscene is mostly dialogue with fades between the beats, so it belongs last.
 
@@ -250,6 +286,8 @@ measurement ─→ 4 dialogue ────────┘
 
 7 collectables    3 debug    1 input    5 push/pull    (independent)
 ```
+
+*(Landed since: the tween, and item 4, which needed only the measurement.)*
 
 Build the tween first. Take 7 and the toggle half of 3 next, since neither waits
 on anything. Settle the measurement question. Take 1 while its `poll(dt)` break
