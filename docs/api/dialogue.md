@@ -480,8 +480,8 @@ context, `vars:` included.
 
 ### Running one
 
-`Dialogue.new(script, context: nil, facts: nil, from: nil, name: nil)` starts
-the conversation at the script's first beat:
+`Dialogue.new(script, context: nil, facts: nil, from: nil, name: nil,
+transcript: nil)` starts the conversation at the script's first beat:
 
 ```ruby
 require 'rgame'
@@ -529,8 +529,9 @@ talk.line                          # => nil
 | `ended?` | whether the conversation has ended |
 | `visits(beat)` | how often the conversation entered `beat` |
 | `context`, `facts`, `name`, `to_h` | as the machine's |
+| `transcript` | what the conversation has said; see [The transcript](#the-transcript) |
 | `on_beat` | connects a listener, called with each beat reached |
-| `on_ended` | connects a listener, called when the conversation ends |
+| `on_ended` | connects a listener, called with the frozen transcript when the conversation ends |
 
 `speaker`, `speaker_name` and `line` are nil once the conversation has ended.
 
@@ -597,6 +598,126 @@ again.available?(again.responses.first)  # => false
 So `once:` holds across every conversation with a named dialogue. An unnamed
 dialogue starts with no visits, and its `once:` lasts one conversation. A
 dialogue saved in the middle of a conversation resumes at the beat it was on.
+
+### The transcript
+
+**A dialogue records what it says, and hands the record to the game when the
+conversation ends.** `transcript` returns a `Dialogue::Transcript`: each line
+shown and each response picked, in order. `on_ended` passes it to its
+listeners, frozen. The engine saves nothing: a game shows it, saves it or drops
+it.
+
+```ruby
+require 'rgame'
+
+RGame::Engine::I18n.load(<<~YAML)
+  en:
+    smith:
+      gold: "You have %{gold}."
+YAML
+
+Hero = Struct.new(:gold) do
+  def purse = { gold: }
+end
+
+SMITH = RGame::Engine::Dialogue::Script.build(start: :greeting, scope: 'smith') do
+  gold = RGame::Engine::Text.new('gold', :gold, scope: 'smith')
+
+  beat :greeting, speaker: :smith, line: 'greeting' do
+    respond 'ask_gold', to: :purse
+    respond 'bye'
+  end
+
+  beat :purse, speaker: :smith, line: gold, vars: :purse, to: :greeting
+end
+
+hero = Hero.new(5)
+talk = RGame::Engine::Dialogue.new(SMITH, context: hero)
+kept = nil
+talk.on_ended { kept = it }
+
+talk.respond(talk.responses.first)
+talk.continue
+hero.gold = 80
+talk.respond(talk.responses.last)
+
+kept.map(&:beat)       # => [:greeting, :greeting, :purse, :greeting, :greeting]
+kept[2].text.to_s      # => 'You have 5.'
+kept[1].text.key       # => 'ask_gold'
+kept.frozen?           # => true
+```
+
+Each entry is a `Transcript::Entry`:
+
+| Field | A line | A response |
+|---|---|---|
+| `beat` | the beat that said it | the beat it was picked at |
+| `speaker`, `speaker_name` | who said it: the Symbol, and the `Text` for its name | nil |
+| `text` | the line's `Text` | the response's label `Text` |
+| `vars` | the values it was shown with, frozen; nil for a line without variables | nil |
+| `response` | nil | the `StateGraph::Transition` picked |
+
+**A line keeps the values it was shown with.** Its entry holds a `Text` of its
+own, so a later visit to the same beat with other values leaves it as it was. A
+line without variables shares the script's `Text`. Every entry's text follows a
+language switch, as any `Text` does.
+
+A continue records nothing, since its line is already there. A state with no
+line records nothing either. `each`, `size`, `[]`, `last` and `empty?` read the
+entries and allocate nothing, and the class is `Enumerable`.
+
+#### Saving one
+
+`to_h` returns the transcript as a frozen Hash, and `Transcript.from(saved,
+script)` rebuilds it:
+
+```ruby
+require 'rgame'
+require 'tmpdir'
+
+SMITH = RGame::Engine::Dialogue::Script.build(start: :greeting, scope: 'smith') do
+  beat :greeting, speaker: :smith, line: 'greeting' do
+    respond 'ask_work', to: :work
+    respond 'bye'
+  end
+
+  beat :work, speaker: :smith, line: 'work', to: :greeting
+end
+
+talk = RGame::Engine::Dialogue.new(SMITH)
+talk.respond(talk.responses.first)
+talk.transcript.to_h # => { entries: [{ beat: :greeting }, { beat: :greeting, response: 0 }, { beat: :work }] }
+
+Dir.mktmpdir do |dir|
+  save = RGame::Util::SaveFile.new('slot1.json', dir:)
+  save.write(talk: talk.to_h, log: talk.transcript.to_h)
+
+  loaded = save.read
+  log = RGame::Engine::Dialogue::Transcript.from(loaded[:log], SMITH)
+  resumed = RGame::Engine::Dialogue.new(SMITH, from: loaded[:talk], transcript: log)
+  resumed.continue
+  resumed.transcript.map(&:beat) # => [:greeting, :greeting, :work, :greeting]
+end
+```
+
+An entry saves its beat and either its variables or its response's index among
+the beat's responses. The words come back from the script, so a transcript
+restored after a language switch reads in the new language.
+
+- **`to_h` holds each variable to the rule facts are held to**: nil, true,
+  false, an Integer, a Float or a String. It raises `TypeError` naming the entry
+  and the variable. Only `to_h` checks, so a game that never saves a transcript
+  never meets the rule.
+- **`from` takes what `SaveFile#read` returns**, beat names as Strings
+  included. It raises `ArgumentError` for a beat the script lacks, a response
+  its beat does not list, and variables that do not match the line's names.
+
+**Where a conversation has got to and what it said are two saves.** A
+conversation resumed with `from:` or `name:` starts a new transcript, holding
+the beat it resumes at. `transcript:` hands it one to record on instead. The
+dialogue then records the beat it resumes at only if the transcript does not
+already end with that beat's line, as one saved mid-conversation does. A frozen
+transcript is copied, and one of another script raises `ArgumentError`.
 
 ## Checking every path
 
