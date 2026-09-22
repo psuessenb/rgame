@@ -1,6 +1,6 @@
 # Naming signals, hooks and the engine's own methods
 
-**Status: step 1 is implemented; steps 2–5 are rough.** Decisions 1–6 are
+**Status: steps 1–2 are implemented; steps 3–5 are rough.** Decisions 1–6 are
 taken, and every open question is settled. Each rough step gets detailed when
 it starts.
 
@@ -564,6 +564,114 @@ before it lands.
    comment in `tools/strip_comments.rb` that names `signal :on_hit`, and the
    declarations `spec/tools/comment_stripper_spec.rb` feeds the stripper as
    text.
+
+   *Detailed at `ef2370e`, against the code below.*
+
+   | Measured at `ef2370e` | |
+   |---|---|
+   | `signal` declarations in `lib/` | 18, in 14 files |
+   | `signal` declarations in `examples/` and `test_projects/` | 6: `signals`, `pathfinding`, `snake` (2), `asteroids` (2) |
+   | `<name>_signal` emit sites | 27, every one inside its declaring class |
+   | Reads of a signal's instance variable (`@on_changed`) | 0 |
+   | Specs of `Signal::DSL` itself | 0: `signal_spec.rb` covers `Signal.define` only |
+   | Connect sites of `on_timeout` | 15 in code (`examples/` 6, `spec/` 9), plus comments and 6 in `docs/api/` |
+   | Connect sites of `on_beat` | 1, in `dialogue_spec.rb`; no example builds a `Dialogue` |
+   | Connect sites of `on_fire` | 1, in `asteroids/play_scene.rb` |
+   | Methods already named like a new reader (`activated_signal`, …) | 0 |
+   | `rake spec` | 2938 examples, 0 failures |
+
+   **The DSL takes the event and its fields**, builds the signal class once
+   at declaration, and refuses the old spelling:
+
+   ```ruby
+   def signal(name, *fields)
+     # raises ArgumentError when name starts with on_, naming the declaration
+     # without it: "signal :on_hit: declare the event, signal :hit; the DSL adds on_"
+     type = Signal.define(*fields)
+     ivar = :"@#{name}_signal"
+     reader = :"#{name}_signal"
+     define_method(reader) { instance_variable_get(ivar) || instance_variable_set(ivar, type.new) }
+     private reader
+     define_method(:"on_#{name}") { |&block| send(reader).connect(&block) }
+   end
+   ```
+
+   A class passed where the old form took one fails in `Signal.define`,
+   whose field check refuses anything that is not a lower-case identifier.
+   So `signal :changed, ChangeSignal` raises at class definition, not at the
+   first emit, and needs no check of its own.
+
+   Rules the specs pin, in a new `spec/rgame/engine/signal_dsl_spec.rb`:
+
+   1. `signal :pulled` defines a public `on_pulled` that connects and returns
+      the handle, and a private `pulled_signal`.
+   2. One field emits positionally, several as keywords.
+   3. The signal lives in `@pulled_signal`, so a class keeping `@pulled` of
+      its own keeps it through an emit.
+   4. Each instance gets its own signal, built on first use.
+   5. `signal :on_pulled` raises `ArgumentError` naming `signal :pulled`.
+   6. A class as the second argument raises `ArgumentError`.
+
+   The override guard of decision 3 is not in this step. It guards hooks as
+   much as signals, and step 4 settles which of the two guards to build.
+
+   - **2a. The DSL takes the event, and every declaration drops `on_`.** One
+     commit, because the DSL change breaks every old declaration at once: the
+     DSL and its spec, the 24 declarations whose connect name stays, their 27
+     emit sites, and every text that shows a declaration or an emit reader:
+     `docs/api/signals.md`, the `Signal` comment, the `examples/signals`
+     header, `tools/strip_comments.rb` and `comment_stripper_spec.rb`. The
+     three renamed signals are declared under their old event name for one
+     commit (`signal :beat`, `:timeout`, `:fire`), so every caller still works.
+   - **2b. `beat_entered`, `elapsed` and `fired`.** The three declarations,
+     their connect sites and emit readers, the specs' descriptions, the
+     comments in `Components::Timer`, `examples/timer`, `examples/intro`,
+     `examples/pooling` and `test_projects/asteroids`, and `dialogue.md`,
+     `components.md` and `toolbox.md`. `CHANGELOG.md` gets one Changed entry
+     for the declaration form and one for the two engine renames.
+
+   **Verify.** `grep -rn "signal :on_"` finds nothing outside `docs/plans/`.
+   `grep -rnw "on_timeout\|on_beat\|on_fire"` finds nothing outside
+   `docs/plans/` and `CHANGELOG.md`'s released sections. Driving `signals`,
+   `timer`, `intro`, `pooling`, `pathfinding`, `menu_navigation`,
+   `collision`, `collision_tiles`, `split_screen`, `asteroids`, `snake` and
+   `tiled_world` with `--seed 1 --texts` reports the same as before the step,
+   apart from timings.
+
+   **Landed.** Two commits, one per sub-step, on `signal-dsl`, after one
+   commit detailing the step. `Signal::DSL#signal` takes the event and its
+   fields and refuses `on_`, and every declaration in `lib/`, `examples/` and
+   `test_projects/` uses the new form. `Components::Timer#on_elapsed`,
+   `Dialogue#on_beat_entered` and asteroids' `on_fired` replace the three
+   old names. `docs/api/signals.md` shows the new form, the tense rule and the
+   refusal, as a runnable example; `CHANGELOG.md` has two Changed entries.
+
+   - `rake spec`: 2948 examples, 0 failures, 21.6 s (2938 before, plus 9 for
+     the DSL and 1 for the refusal example in `signals.md`). `rake spec:core`:
+     476, 0 failures. `docs:coverage`: 0 of 177. `make test`: 380 checks,
+     0 failures. RuboCop is clean on every changed file.
+   - All twelve projects driven with `--seed 1 --texts` before and after
+     report the same, line for line, apart from timings. Asteroids' 5 shots
+     go through `on_fired`, and `timer`, `intro` and `pooling` through
+     `on_elapsed`.
+   - The first grep finds `signal :on_` only in the refusal's docs example,
+     its spec and the Unreleased `CHANGELOG.md` entry that names the old
+     form. The second finds the old names only in `CHANGELOG.md`: the
+     Unreleased rename entry and one released line.
+
+   What the sketch got wrong:
+
+   - **The spec lives at `spec/rgame/engine/signal/dsl_spec.rb`**, not
+     `signal_dsl_spec.rb`. `RSpec/SpecFilePathFormat` wants the path to
+     follow `Signal::DSL`.
+   - **The `CHANGELOG.md` entries went one per sub-step**, not both in 2b,
+     so each commit describes itself.
+   - **`signals.md` still said gameplay asks the audio layer through a
+     signal**, in its opening paragraph. Step 1 missed it; this step replaced
+     it with a dialogue reporting that it ended.
+   - **The acceptance greps were too strict.** A changelog entry for a
+     rename has to name the old spelling, and so does the refusal's example.
+     Nothing else matches.
 3. **`rgame_` for the machinery.** Decision 2, with `SealedPrivates`, its spec
    and the CLAUDE.md rule.
 4. **Hooks take `_`.** Decisions 3 and 5, with the guards. `Component`'s

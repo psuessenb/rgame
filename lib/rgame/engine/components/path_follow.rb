@@ -46,7 +46,7 @@ module RGame
       # Its heading is the unit direction of the segment it is on, worked out when the walk
       # crosses into a segment rather than on every read.
       class PathFollow < Mover
-        signal :on_finished
+        signal :finished
 
         attr_accessor :speed
         attr_reader :path, :heading_x, :heading_y
@@ -135,7 +135,7 @@ module RGame
         def finish
           @finished = true
           head_nowhere
-          on_finished_signal.emit
+          finished_signal.emit
         end
 
         def restart

@@ -13,7 +13,7 @@ require 'prism'
 #   - the description directly above a `class`, a `module`, or a constant that
 #     builds one (`Point = Data.define(:x, :y)`)
 #   - the description directly above a public method: a `def`, an `attr_*`,
-#     a `define_method`, an alias, or a declaration like `signal :on_hit` in a
+#     a `define_method`, an alias, or a declaration like `signal :hit` in a
 #     class body, when it is public at that point
 #   - the comment directly above a `class_eval`-style call; comments *inside* its
 #     heredoc are string content and never touched

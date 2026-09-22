@@ -4,20 +4,20 @@ module RGame
   module Engine
     module Components
       # A node-driven interval timer: it rides the node's update tick — so nothing can
-      # forget to advance it — and emits `on_timeout` each time a whole interval elapses.
+      # forget to advance it — and emits `on_elapsed` each time a whole interval elapses.
       # It wraps the pure Engine::Timer, reusing its carry-forward `consume` (the remainder
       # rolls over, so the cadence doesn't drift); this only adds the per-frame drive and
       # the signal.
       #
       #   timer = node.add_component(Engine::Components::Timer.new(0.8), as: :spawn)
-      #   timer.on_timeout { spawn_enemy }
+      #   timer.on_elapsed { spawn_enemy }
       #
-      # `repeating: false` makes it a one-shot: it fires `on_timeout` exactly once and then
+      # `repeating: false` makes it a one-shot: it fires `on_elapsed` exactly once and then
       # goes inert — the fixed-board despawn case (a projectile that vanishes after N
       # seconds, where DespawnOffscreen doesn't apply):
       #
       #   life = node.add_component(Engine::Components::Timer.new(2.0, repeating: false), as: :despawn)
-      #   life.on_timeout { node.queue_free }
+      #   life.on_elapsed { node.queue_free }
       #
       # The countdown restarts in `on_attach`, so a pooled node reacquired and re-added
       # starts fresh — a recycled projectile gets its full interval (and a one-shot can fire
@@ -26,7 +26,7 @@ module RGame
       # When a node needs more than one (a spawn cadence and a wave cadence), give them
       # distinct `as:` names — a node holds one component per slot.
       class Timer < Engine::Component
-        signal :on_timeout
+        signal :elapsed
 
         def initialize(interval, repeating: true)
           super()
@@ -45,7 +45,7 @@ module RGame
         # never inherits a previous life's accumulated time or spent one-shot.
         def on_attach = reset
 
-        # Advance one step and fire on_timeout once per whole interval that elapsed — so a
+        # Advance one step and fire on_elapsed once per whole interval that elapsed — so a
         # single long step still emits the right number of times (catch-up, not drift). A
         # one-shot (`repeating: false`) fires once and then stops accumulating.
         def update(dt)
@@ -55,14 +55,14 @@ module RGame
           while @timer.ready?
             @timer.consume
             @done = !@repeating
-            on_timeout_signal.emit
+            elapsed_signal.emit
             break unless @repeating
           end
         end
 
         # Back to a fresh timer: drop accumulated time and re-arm a spent one-shot (e.g.
         # after retuning the interval, or when a pooled node is reused). A one-shot's own
-        # `on_timeout` handler may call it to fire again one interval later. Returns self.
+        # `on_elapsed` handler may call it to fire again one interval later. Returns self.
         def reset
           @timer.reset
           @done = false

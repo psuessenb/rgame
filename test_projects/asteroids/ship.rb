@@ -3,8 +3,8 @@
 # The player ship — pure composition, almost no hand-written logic. Movement is the
 # reusable ThrustController (turn → spin, thrust → forward acceleration); firing is
 # the reusable ActionTrigger (held fire + cooldown → on_triggered), which the ship
-# turns into its own on_fire signal carrying the muzzle position/heading. The scene
-# listens for on_fire (to spawn a pooled bullet) and on_destroyed (to end the game),
+# turns into its own on_fired signal carrying the muzzle position/heading. The scene
+# listens for on_fired (to spawn a pooled bullet) and on_destroyed (to end the game),
 # so the ship stays pool-agnostic. Rendered with the :ship texture; Node2D#draw
 # orients it by the ship's absolute angle.
 class Ship < RGame::Engine::Node2D
@@ -15,8 +15,8 @@ class Ship < RGame::Engine::Node2D
   DRAG          = 0.4
   FIRE_COOLDOWN = 0.22
 
-  signal :on_fire, RGame::Engine::Signal.define(:x, :y, :angle)
-  signal :on_destroyed
+  signal :fired, :x, :y, :angle
+  signal :destroyed
 
   def initialize
     super
@@ -29,7 +29,7 @@ class Ship < RGame::Engine::Node2D
     trigger = add_component(RGame::Engine::Components::ActionTrigger.new(fire: FIRE_COOLDOWN))
     trigger.on_triggered { |action| fire if action == :fire }
     collider = add_component(RGame::Engine::Components::CircleCollider.new(radius: RADIUS, layer: :ship))
-    collider.on_hit { |other| on_destroyed_signal.emit if other.layer == :rock }
+    collider.on_hit { |other| destroyed_signal.emit if other.layer == :rock }
   end
 
   # Start in the middle of the world. Asked for here rather than taken as a
@@ -44,7 +44,7 @@ class Ship < RGame::Engine::Node2D
   private
 
   def fire
-    on_fire_signal.emit(
+    fired_signal.emit(
       x: x + (Math.cos(angle) * RADIUS),
       y: y + (Math.sin(angle) * RADIUS),
       angle: angle

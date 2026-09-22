@@ -103,8 +103,8 @@ module RGame
         # on_unblocked has no axis, because what ends is a blocker stopping this mover, not
         # an axis. A blocker that stopped x on one step and y on the next was in the way the
         # whole time, and ends once.
-        signal :on_blocked, Engine::Signal.define(:by, :axis)
-        signal :on_unblocked, Engine::Signal.define(:by)
+        signal :blocked, :by, :axis
+        signal :unblocked, :by
 
         TILES  = :tiles
         BOUNDS = :bounds
@@ -157,7 +157,7 @@ module RGame
 
           @stopped_by.begin_frame
           take_step(dt)
-          @stopped_by.each_ended { on_unblocked_signal.emit(it) }
+          @stopped_by.each_ended { unblocked_signal.emit(it) }
         end
 
         # Which way this mover's step is going, each axis in -1..1, and 0, 0 when it is not
@@ -241,7 +241,7 @@ module RGame
 
           started = @stopped_by.started?(by)
           @stopped_by.add(by)
-          on_blocked_signal.emit(by:, axis:) if started
+          blocked_signal.emit(by:, axis:) if started
         end
 
         def resolve_blockers

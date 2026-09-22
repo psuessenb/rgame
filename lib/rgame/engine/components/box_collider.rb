@@ -24,8 +24,8 @@ module RGame
         # collider starts overlapping another, on_separated on the step it stops. Each
         # fires once per pair, so a handler may count, play a sound or spend a life.
         # The listener gets the other collider and reads its #layer / #node to react.
-        signal :on_hit, Engine::Signal.define(:other)
-        signal :on_separated, Engine::Signal.define(:other)
+        signal :hit, :other
+        signal :separated, :other
 
         # box is writable so a pooled entity can retune its shape on reset — assign any
         # CollisionBox, CollisionBox.bottom_anchored(...) included. CollisionWorld reads
@@ -91,8 +91,8 @@ module RGame
         end
 
         # Called by CollisionWorld on each edge (the signals' emit is otherwise private).
-        def emit_hit(other) = on_hit_signal.emit(other)
-        def emit_separated(other) = on_separated_signal.emit(other)
+        def emit_hit(other) = hit_signal.emit(other)
+        def emit_separated(other) = separated_signal.emit(other)
       end
     end
   end

@@ -112,8 +112,8 @@ Declaring your own signal. A pressure plate announces that it was pressed, and
 does nothing more. The door and the lamp connect to it; the plate never names
 them.
 
-**Uses:** `Signal::DSL`, `Signal.define`, `Components::ActionTrigger`, the
-connect handle.
+**Uses:** `Signal::DSL`, a signal with a payload, `Components::ActionTrigger`,
+the connect handle.
 
 ### timer
 

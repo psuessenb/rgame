@@ -48,7 +48,7 @@ class PlayScene < RGame::Engine::Node2D
     @score_label = add_node(ScoreLabel.new(x: SCORE_MARGIN, y: 10))
     refresh_score
     @ship = add_node(Ship.new)
-    @ship.on_fire { |x, y, angle| fire_bullet(x, y, angle) }
+    @ship.on_fired { |x, y, angle| fire_bullet(x, y, angle) }
     @ship.on_destroyed { lose }
     INITIAL_ROCKS.times { spawn_rock }
     system!(RGame::Engine::AudioOut).play_music(:heartbeat)

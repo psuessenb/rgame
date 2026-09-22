@@ -61,10 +61,10 @@ RSpec.describe RGame::Engine::Dialogue do
       expect([talk.beat, talk.visits(:greeting), talk.visits(:work)]).to eq([:greeting, 2, 1])
     end
 
-    it 'emits on_beat for each beat reached and on_ended at the end' do
+    it 'emits on_beat_entered for each beat reached and on_ended at the end' do
       talk = described_class.new(smith)
       heard = []
-      talk.on_beat { heard << it }
+      talk.on_beat_entered { heard << it }
       talk.on_ended { heard << :ended }
       respond_to_label(talk, 'ask_work')
       talk.continue

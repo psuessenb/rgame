@@ -76,7 +76,7 @@ class Intro < RGame::Engine::Node2D
                       ))
     @hint = RGame::Engine::Text.new('hint.next')
     @turn = add_component(RGame::Engine::Components::Timer.new(HOLD_SECONDS, repeating: false))
-    @turn.on_timeout { turn_page }
+    @turn.on_elapsed { turn_page }
   end
 
   def on_add = hold_for_page

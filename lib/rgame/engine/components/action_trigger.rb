@@ -14,7 +14,7 @@ module RGame
       # Semantics: while an action is held and its cooldown has elapsed, it fires and
       # the cooldown restarts — i.e. auto-repeat at the cooldown rate.
       class ActionTrigger < Engine::Component
-        signal :on_triggered, Engine::Signal.define(:action)
+        signal :triggered, :action
 
         def initialize(cooldowns)
           super()
@@ -31,7 +31,7 @@ module RGame
             next unless actions.held?(action) && @timers[action] <= 0.0
 
             @timers[action] = @cooldowns[action]
-            on_triggered_signal.emit(action)
+            triggered_signal.emit(action)
           end
         end
       end
