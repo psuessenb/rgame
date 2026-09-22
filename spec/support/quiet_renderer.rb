@@ -12,15 +12,22 @@
 # over an Array colour allocates a Color per call here exactly as it would in
 # the game, and the matcher sees it.
 #
+# `layered` and `translated` only yield, so a whole subtree's `draw` can be
+# measured as well as one node's `on_draw`.
+#
 # It refuses nothing and records nothing, so it says nothing about *what* was
 # drawn. That is FakeRenderer's job, checked against the renderer contract.
 class QuietRenderer
   def rect(_x, _y, _width, _height, z: 0, color: nil) = coerce(z, color)
+  def triangle(_x1, _y1, _x2, _y2, _x3, _y3, z: 0, color: nil) = coerce(z, color)
   def circle(_cx, _cy, _radius, z: 0, color: nil) = coerce(z, color)
   def line(_x1, _y1, _x2, _y2, thickness: 1.0, z: 0, color: nil) = coerce(z + thickness, color)
   def nine_slice(_id, _x, _y, _width, _height, z: 0, tint: nil) = coerce(z, tint)
   def text(_string, _x, _y, z: 0, color: nil, font: nil) = coerce(z, color, font)
   def image(_image, _cx, _cy, scale: 1, z: 0, color: nil) = coerce(z + scale, color)
+
+  def layered(_band) = yield
+  def translated(_dx, _dy) = yield
 
   def typeface = RGame::Util::Typeface.default
   def text_width(string, font: nil) = (font || typeface).text_width(string)
