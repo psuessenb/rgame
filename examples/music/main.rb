@@ -12,7 +12,9 @@
 #   - Core::Song — a streamed track with one voice, which can be stopped and
 #     asked whether it is playing, named by its path;
 #   - Engine::AudioOut play_music / stop_music, the system `examples/sound`
-#     plays through, mounted by RGame::Game.
+#     plays through, mounted by RGame::Game;
+#   - Engine::Tween with `loop: true` — the playhead, which starts again at the
+#     loop point.
 #
 # ## A Song is not a Sample
 #
@@ -67,7 +69,7 @@ class Scene < RGame::Engine::Node2D
   def initialize
     super
     @playing = false
-    @elapsed = 0.0
+    @playhead = RGame::Engine::Tween.new(LOOP_SECONDS, loop: true)
     @help = RGame::Engine::Text.new('help.keys')
     @stopped = RGame::Engine::Text.new('status.stopped')
     @started = RGame::Engine::Text.new('status.playing')
@@ -80,9 +82,7 @@ class Scene < RGame::Engine::Node2D
   end
 
   def _update(dt)
-    return unless @playing
-
-    @elapsed += dt
+    @playhead.update(dt) if @playing
   end
 
   def _draw(renderer, _view)
@@ -92,8 +92,7 @@ class Scene < RGame::Engine::Node2D
     # Where the playhead sits inside one pass of the loop. It wraps at
     # LOOP_SECONDS, so the bar resetting is the loop point going past.
     renderer.rect(BAR_X, BAR_Y, BAR_W, BAR_H, color: TRACK)
-    position = @elapsed % LOOP_SECONDS
-    renderer.rect(BAR_X, BAR_Y, BAR_W * (position / LOOP_SECONDS), BAR_H, color: FILL)
+    renderer.rect(BAR_X, BAR_Y, BAR_W * @playhead.progress, BAR_H, color: FILL)
   end
 
   private
@@ -116,7 +115,7 @@ class Scene < RGame::Engine::Node2D
   def stop
     system!(RGame::Engine::AudioOut).stop_music
     @playing = false
-    @elapsed = 0.0
+    @playhead.restart
     @status = @stopped
   end
 end
