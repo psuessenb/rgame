@@ -39,7 +39,7 @@ index, not the argument.
   time, and `reveal_all` shows the rest. See
   [docs/api/ui.md](docs/api/ui.md#rgameengineuilabel).
 - **An intro example.** `examples/intro` tells a story a page at a time through a
-  `UI::Label`, typed out and turned by Enter and by a timer. Its tables hold the
+  `UI::Label`, typed out and turned by Enter and by a tween. Its tables hold the
   story as one line, and German takes a page more than English. See
   [docs/api/examples.md](docs/api/examples.md#intro).
 - **A Tiled map can use what Tiled writes.** A map may have several tilesets,
@@ -139,6 +139,11 @@ index, not the argument.
   the class is defined, listing the hooks it has. `Node2D.hooks` returns that
   list, and `hook :_name` declares a new hook for a class's subclasses. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md#the-tick-control--update--draw).
+- **A value can move over time.** `RGame::Engine::Tween` eases a number from
+  `from` to `to` over a duration, with one of five eases or any callable, and
+  `loop: true` starts it again at the end. `RGame::Engine::Components::Tween`
+  runs one on a node's tick and emits `on_finished` once; `stop` holds it until
+  `start`. See [docs/api/toolbox.md](docs/api/toolbox.md#tween--a-value-that-moves-over-time).
 
 ### Changed
 
@@ -223,6 +228,10 @@ index, not the argument.
   `solid?(tile)`, `animated_tiles` and `frame_tile(tile, elapsed)`, which takes
   seconds. `solid_ids` has no replacement; a tile is solid when it has a
   collision shape in Tiled.
+- **`Components::Timer`'s `repeating:` keyword.** A timer always repeats. For
+  something that happens once, use `Components::Tween` and `on_finished`, whose
+  handler may call `start` to run it again. See
+  [docs/api/components.md](docs/api/components.md#tween).
 
 ### Fixed
 
@@ -233,9 +242,6 @@ index, not the argument.
   tick. See [docs/api/ui.md](docs/api/ui.md#when-a-press-activates).
 - **A tile from a map's second tileset draws from that tileset.** Every gid was
   resolved through the first tileset.
-- **A one-shot timer can re-arm itself.** `Components::Timer#reset` called from
-  the timer's own `on_timeout` handler was undone as the handler returned, so a
-  `repeating: false` timer never fired again. It now fires one interval later.
 
 ## [0.4.0] - 2026-09-16
 

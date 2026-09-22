@@ -117,11 +117,11 @@ the connect handle.
 
 ### timer
 
-Periodic behaviour that no input drives: a spawn cadence and a one-shot, with two
-cadences on one node.
+Periodic behaviour that no input drives: a spawn cadence and two cadences on one
+node, and beside them a one-shot banner whose fuse burns down.
 
-**Uses:** `Components::Timer` (repeating and `repeating: false`, and `as:`),
-`Engine::Timer`.
+**Uses:** `Components::Timer` (and `as:`), `Engine::Timer`, `Components::Tween`
+(`value`, `on_finished`).
 
 ### pooling
 
@@ -187,14 +187,16 @@ on a disc `UI::ShapeStyle`, `InputMap.default.merge`, and a UI atlas's `images`
 A sound effect fired by a button, and the path it travels. A node may not name
 the audio device, so it calls the `AudioOut` system, which holds it.
 
-**Uses:** `Core::Sample`, `Engine::AudioOut`, `Node2D#system!`, `Engine::Text`.
+**Uses:** `Core::Sample`, `Engine::AudioOut`, `Node2D#system!`, `Engine::Text`,
+`Engine::Tween` (the ring's flash).
 
 ### music
 
 The other kind of sound: one streamed voice. You can stop it and ask whether it
 plays, and starting it again does not restart it.
 
-**Uses:** `Core::Song`, `AudioOut#play_music` / `#stop_music`.
+**Uses:** `Core::Song`, `AudioOut#play_music` / `#stop_music`, `Engine::Tween`
+(`loop: true`, the playhead).
 
 ## Players and input
 
@@ -246,12 +248,12 @@ A story on a black screen, three centred lines at a time. The translation table
 holds it as one line, and the label breaks it to fit 440 pixels. In German it
 takes ten lines and a fourth page, where English takes eight and three. Each
 page types itself out at 40 characters a second. Enter shows the rest of a page
-still typing and turns a page already shown. A one-shot timer turns it once it
+still typing and turns a page already shown. A one-shot tween turns it once it
 has been fully shown for a second, plus 20 milliseconds for each character.
 
 **Uses:** `UI::Label` (`reveal:`, `revealed?`, `reveal_all`, `page_length`),
-`Engine::Paragraph`, `Util::Typeface`, `Components::Timer` (`repeating: false`,
-reset every tick while a page types).
+`Engine::Paragraph`, `Util::Typeface`, `Components::Tween` (`stop` while a page
+types, `start` once it is shown).
 
 ## Persistence
 

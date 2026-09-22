@@ -1001,8 +1001,9 @@ end
 What confirm does on a page still typing is the owner's decision, as turning the
 page is.
 
-`examples/intro` turns the pages on Enter and on a one-shot timer, and types
-each one out. Enter shows the rest of a page still typing. The timer holds a
+`examples/intro` turns the pages on Enter and on a one-shot
+[`Components::Tween`](components.md#tween), and types each one out. Enter shows
+the rest of a page still typing. The tween holds a
 shown page for a second plus a little for each character `page_length` counts,
 so a short page does not stay up as long as a full one.
 

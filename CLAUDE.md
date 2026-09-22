@@ -377,7 +377,7 @@ def _update(dt) = @elapsed += dt
 def _draw(renderer, view) = renderer.tilemap(@id, @layer, view.camera.x, view.camera.y, view.width, view.height, elapsed: @elapsed)
 ```
 
-`RGame::Engine::Animator` and `RGame::Engine::Timer` are both built this way, and
+`RGame::Engine::Animator`, `RGame::Engine::Timer` and `RGame::Engine::Tween` are all built this way, and
 `DebugOverlay` is *handed* the frame rate rather than asking for it.
 
 The point is not that a number gets passed either way — it is **who owns the
