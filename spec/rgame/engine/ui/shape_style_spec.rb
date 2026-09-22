@@ -40,8 +40,8 @@ RSpec.describe RGame::Engine::UI::ShapeStyle do
   end
 
   describe 'z' do
-    # Shapes default to z: 50, which would cover the label and icon every
-    # shipped button draws at z: 1 — so every call names its z, at 0 or below.
+    # Every shipped button draws its label and icon at z: 1, so a style stays
+    # at 0 or below and names its z, rather than leaning on the default.
     %i[rect disc].each do |shape|
       it "draws a #{shape} at z 0 or below, naming it, in every state" do
         style = described_class.new(shape: shape)

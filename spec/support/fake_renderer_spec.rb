@@ -28,7 +28,22 @@ RSpec.describe FakeRenderer do
       renderer.circle(1, 2, 3)
 
       expect(renderer.calls_to(:circle).first.options)
-        .to eq(z: 50, color: nil, segments: 64)
+        .to eq(z: 0, color: nil, segments: 64)
+    end
+
+    # The real renderer defaults every drawing method to one z, so call order
+    # decides between them; a fake that kept a different default for one kind
+    # would sort a headless spec's frame differently from the game's.
+    it 'defaults every drawing method to the same z' do
+      renderer.rect(0, 0, 1, 1)
+      renderer.line(0, 0, 1, 1)
+      renderer.circle(0, 0, 1)
+      renderer.quad(0, 0, 1, 0, 1, 1, 0, 1)
+      renderer.triangle(0, 0, 1, 0, 0, 1)
+      renderer.debug_box(0, 0, 1, 1)
+      renderer.text('a', 0, 0)
+
+      expect(renderer.calls.map { it.options[:z] }.uniq).to eq([0])
     end
 
     it 'answers whether something was drawn at all' do

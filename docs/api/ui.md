@@ -636,8 +636,7 @@ style.content_color(state)   # optional: the colour content takes on this state'
 
 The button holds its style and calls it before drawing its own content; the menu
 never sees it. **A style draws at `z: 0` or below.** The button draws its label or
-icon at `z: 1`, and shapes default to `z: 50`, so a style without an explicit `z`
-would cover the content.
+icon at `z: 1`, so a style that drew higher would cover the content.
 
 **The style decides what reads on its fill.** A style that answers
 `content_color(state)` sets the colour of the button's label or icon in every state

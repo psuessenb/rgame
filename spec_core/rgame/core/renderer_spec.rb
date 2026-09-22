@@ -194,16 +194,39 @@ RSpec.describe RGame::Core::Renderer do
       expect(frame.about?(32, 32, [0, 0, 255, 255])).to be(true)
     end
 
-    it 'defaults shapes above images' do
-      # Not an arbitrary default: a debug box or a health bar drawn without a
-      # z: has to land on top of the scene, not under it.
-      green = PngFixture.write(64, 64) { [0, 255, 0, 255] }
-      frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, app|
-        renderer.rect(0, 0, 64, 64, color: [255, 0, 0])
-        renderer.background(RGame::Core::Image.new(app, green))
+    describe 'without a z:' do
+      # Every kind of call defaults to the same z, so call order decides, as on
+      # paper. Shapes once defaulted above text and images, and a backdrop
+      # drawn first hid the help text drawn after it in ten examples.
+      let(:green) { PngFixture.write(64, 64) { [0, 255, 0, 255] } }
+
+      it 'puts an image drawn after a shape on top of it' do
+        frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, app|
+          renderer.rect(0, 0, 64, 64, color: [255, 0, 0])
+          renderer.background(RGame::Core::Image.new(app, green))
+        end
+
+        expect(frame.about?(32, 32, [0, 255, 0, 255])).to be(true)
       end
 
-      expect(frame.about?(32, 32, [255, 0, 0, 255])).to be(true)
+      it 'puts a shape drawn after an image on top of it' do
+        frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, app|
+          renderer.background(RGame::Core::Image.new(app, green))
+          renderer.rect(0, 0, 64, 64, color: [255, 0, 0])
+        end
+
+        expect(frame.about?(32, 32, [255, 0, 0, 255])).to be(true)
+      end
+
+      it 'shows text drawn after a backdrop' do
+        frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, app|
+          renderer.rect(0, 0, 64, 64, color: [0, 0, 255])
+          renderer.text('MMMM', 0, 0, font: RGame::Core::Font.new(app, 32), color: [255, 255, 255])
+        end
+
+        lit = (0...64).to_a.product((0...32).to_a).count { |x, y| frame.about?(x, y, [255, 255, 255, 255]) }
+        expect(lit).to be > 20
+      end
     end
   end
 

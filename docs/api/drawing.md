@@ -36,8 +36,9 @@ A loud failure beats an invisible one. `renderer.drawing?` returns whether a fra
 is open.
 
 **The renderer draws nothing immediately.** It collects calls, sorts the frame
-and sends it to the GPU once, after `draw` returns. So call order does not decide
-what ends up on top; the scene tree does. See "Draw order" below.
+and sends it to the GPU once, after `draw` returns. The scene tree decides which
+node lies over which, and within one node a later call lies over an earlier one
+unless a `z:` says otherwise. See "Draw order" below.
 
 ## Coordinates, colours and z
 
@@ -52,10 +53,13 @@ what ends up on top; the scene tree does. See "Draw order" below.
 node's panel under its label and its shadow under its sprite. It cannot reach
 anything else. A value outside −512…511 raises.
 
-Shapes default to `50`, text to `10` and images to `0`. A debug box or a health
-bar without a `z:` therefore lands on top of *that node's* sprite. Calls with
-equal z keep their call order. Without that rule, two sprites on one layer could
-swap places from frame to frame, and players would see flicker.
+**Every drawing method defaults to z `0`**, `Renderer::DEFAULT_Z`, and calls
+with equal z keep their call order. So without a `z:`, a node draws as on
+paper: a backdrop drawn first lies under the text drawn after it, and a health
+bar drawn after the sprite lies over it. Call order among equal z is also what
+keeps two sprites on one layer from swapping places between frames, which
+players would see as flicker. Pass a `z:` only to draw something under what an
+earlier call put down.
 
 ## Draw order
 
@@ -131,12 +135,12 @@ end
 ## Shapes
 
 ```ruby
-renderer.rect(x, y, width, height, z: 50, color: nil)
-renderer.quad(x1, y1, x2, y2, x3, y3, x4, y4, z: 50, color: nil)
-renderer.triangle(x1, y1, x2, y2, x3, y3, z: 50, color: nil)
-renderer.line(x1, y1, x2, y2, thickness: 1.0, z: 50, color: nil)
-renderer.circle(cx, cy, radius, z: 50, color: nil, segments: 64)
-renderer.debug_box(x, y, width, height, z: 50)
+renderer.rect(x, y, width, height, z: 0, color: nil)
+renderer.quad(x1, y1, x2, y2, x3, y3, x4, y4, z: 0, color: nil)
+renderer.triangle(x1, y1, x2, y2, x3, y3, z: 0, color: nil)
+renderer.line(x1, y1, x2, y2, thickness: 1.0, z: 0, color: nil)
+renderer.circle(cx, cy, radius, z: 0, color: nil, segments: 64)
+renderer.debug_box(x, y, width, height, z: 0)
 ```
 
 A **quad** takes its four points in loop order: top-left, top-right,

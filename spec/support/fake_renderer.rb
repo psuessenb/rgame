@@ -160,33 +160,33 @@ class FakeRenderer
 
   # --- shapes -------------------------------------------------------------
 
-  def rect(x, y, width, height, z: 50, color: nil)
+  def rect(x, y, width, height, z: 0, color: nil)
     remember(:rect, [number(x), number(y), number(width), number(height)],
              z: z_arg(z), color: color_arg(color))
   end
 
-  def quad(x1, y1, x2, y2, x3, y3, x4, y4, z: 50, color: nil)
+  def quad(x1, y1, x2, y2, x3, y3, x4, y4, z: 0, color: nil)
     remember(:quad, [number(x1), number(y1), number(x2), number(y2),
                      number(x3), number(y3), number(x4), number(y4)],
              z: z_arg(z), color: color_arg(color))
   end
 
-  def triangle(x1, y1, x2, y2, x3, y3, z: 50, color: nil)
+  def triangle(x1, y1, x2, y2, x3, y3, z: 0, color: nil)
     remember(:triangle, [number(x1), number(y1), number(x2), number(y2), number(x3), number(y3)],
              z: z_arg(z), color: color_arg(color))
   end
 
-  def line(x1, y1, x2, y2, thickness: 1.0, z: 50, color: nil)
+  def line(x1, y1, x2, y2, thickness: 1.0, z: 0, color: nil)
     remember(:line, [number(x1), number(y1), number(x2), number(y2)],
              thickness: number(thickness), z: z_arg(z), color: color_arg(color))
   end
 
-  def circle(cx, cy, radius, z: 50, color: nil, segments: 64)
+  def circle(cx, cy, radius, z: 0, color: nil, segments: 64)
     remember(:circle, [number(cx), number(cy), number(radius)],
              z: z_arg(z), color: color_arg(color), segments: number(segments))
   end
 
-  def debug_box(x, y, width, height, z: 50)
+  def debug_box(x, y, width, height, z: 0)
     remember(:debug_box, [number(x), number(y), number(width), number(height)], z: z_arg(z))
   end
 
@@ -210,7 +210,7 @@ class FakeRenderer
 
   # --- text ---------------------------------------------------------------
 
-  def text(string, x, y, z: 10, color: nil, font: nil)
+  def text(string, x, y, z: 0, color: nil, font: nil)
     remember(:text, [string(string), number(x), number(y)],
              z: z_arg(z), color: color_arg(color), font: font)
   end

@@ -28,7 +28,7 @@ Every other drawing method uses the same corner. Typography measures from the
 baseline, but a caller placing a label does not have to.
 
 ```ruby
-renderer.text(string, x, y, z: 10, color: nil, font: nil)
+renderer.text(string, x, y, z: 0, color: nil, font: nil)
 renderer.text_width(string, font: nil)   # => Float — pixels
 renderer.text_height(font: nil)          # => Integer — the line height
 ```
