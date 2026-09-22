@@ -76,7 +76,8 @@ are frozen. `StateGraph#state` returns a `StateGraph::State`, with the `name`,
 `enter`, `data` and `transitions` it was built with. Each transition is a
 `StateGraph::Transition`, whose readers are `from`, `event`, `to`, `data`, and
 `requires`, `forbids` and `effect` for the builder's `if:`, `unless:` and
-`then:`. `StateGraph#each_symbol` yields every Symbol the graph uses as a
+`then:`. `StateGraph#state_names` lists every state's name in the order they
+were declared. `StateGraph#each_symbol` yields every Symbol the graph uses as a
 condition or effect, once each.
 
 ### Running one
@@ -402,3 +403,277 @@ entries. Code inside the run reaches the root store with
 
 **Settings are not facts.** Volume, key bindings and language belong to the
 player, not to a save slot. Keep them in a `Util::SaveFile` of their own.
+
+## Dialogue
+
+**A `Dialogue::Script` is a conversation's recipe; a `Dialogue` is one
+conversation running it.** A script is a state graph whose states are *beats*,
+a speaker saying a line, and whose picked transitions are *responses*. A
+dialogue holds a `StateMachine` over that graph and adds the words. Nothing in
+it decides where the conversation goes that the machine does not.
+
+### Writing a script
+
+`Dialogue::Script.build(start:, scope:)` runs its block against a
+`Dialogue::Script::Builder` and returns a frozen script:
+
+```ruby
+require 'rgame'
+
+class Hero
+  attr_accessor :gold
+
+  def initialize = @gold = 0
+  def can_bribe? = gold >= 50
+  def pay_bribe = self.gold -= 50
+end
+
+SMITH = RGame::Engine::Dialogue::Script.build(start: :greeting, scope: 'smith') do
+  beat :greeting, speaker: :smith, line: 'greeting' do
+    respond 'ask_work', to: :work, once: true
+    respond 'bribe', to: :bribed, if: :can_bribe?, then: :pay_bribe
+    respond 'bye'
+  end
+
+  beat :work, speaker: :smith, line: 'work', to: :greeting
+  beat :bribed, speaker: :smith, line: 'bribed'
+end
+
+SMITH.beat?(:work)                  # => true
+SMITH.graph.transitions(:work).size # => 1
+```
+
+The builder adds two words to `state`, `on` and `go`:
+
+| Call | Declares |
+|---|---|
+| `beat name, speaker:, line:, vars: nil, to: nil, enter: nil` | a state where `speaker` says `line`. Its block declares its responses. |
+| `respond label, to:, if:, unless:, then:, once: false` | a response the player may pick, inside a beat's block |
+
+- **A beat with responses waits for one.** A beat without them continues to its
+  `to:` when the player moves on, and ends the conversation with no `to:`. A
+  beat with both raises `ArgumentError`: a player could not tell a continue from
+  a choice.
+- **A line and a label are translation keys under `scope:`**, or an
+  `Engine::Text` used as it is. Anything else raises `TypeError`, so no String a
+  translation cannot reach gets in.
+- **A speaker is a Symbol the game owns.** Its name is the key
+  `speakers.<speaker>`, outside the scope, so every script shares one table of
+  names.
+- **`once: true` hides a response once its target was entered.** It needs a
+  `to:`, and takes the place of `unless:`: passing both raises.
+- **`vars:` fills a line's variables** on entering the beat. It is a block
+  called with the machine, or a Symbol sent to the context, and returns a Hash.
+  The line must be an `Engine::Text` built with those names; a line with
+  variables and no `vars:`, or `vars:` on a line without them, raises.
+- **`on` and `go` inside a beat raise.** Outside one, `state`, `on` and `go`
+  declare a state with no line: a branch point the conversation passes straight
+  through, deciding by condition alone.
+- **`respond` outside a beat raises.**
+
+Everything `StateGraph.build` refuses, a script refuses too. A beat's state
+carries a `Dialogue::Script::Beat` as its `data`, with `speaker`,
+`speaker_name`, `line` and `vars`. A response's transition carries a
+`Dialogue::Script::Response`, whose `label` is the `Text` to show.
+`Dialogue::Script#each_symbol` yields every Symbol the script sends to its
+context, `vars:` included.
+
+### Running one
+
+`Dialogue.new(script, context: nil, facts: nil, from: nil, name: nil)` starts
+the conversation at the script's first beat:
+
+```ruby
+require 'rgame'
+
+SMITH = RGame::Engine::Dialogue::Script.build(start: :greeting, scope: 'smith') do
+  beat :greeting, speaker: :smith, line: 'greeting' do
+    respond 'ask_work', to: :work, once: true
+    respond 'bye'
+  end
+
+  beat :work, speaker: :smith, line: 'work', to: :greeting
+end
+
+talk = RGame::Engine::Dialogue.new(SMITH)
+
+talk.beat                          # => :greeting
+talk.speaker                       # => :smith
+talk.speaker_name.key              # => 'speakers.smith'
+talk.line.key                      # => 'greeting'
+talk.waiting_for_response?         # => true
+talk.responses.map { it.data.label.key } # => ['ask_work', 'bye']
+
+talk.respond(talk.responses.first)
+talk.beat                          # => :work
+talk.continue
+talk.available?(talk.responses.first) # => false — once: after the answer
+talk.visits(:greeting)             # => 2
+
+talk.respond(talk.responses.last)
+talk.ended?                        # => true
+talk.line                          # => nil
+```
+
+| Method | Answers |
+|---|---|
+| `beat` | the beat the conversation is at; nil once ended |
+| `speaker` | that beat's speaker Symbol |
+| `speaker_name` | the `Text` for `speakers.<speaker>` |
+| `line` | the beat's line `Text`, filled by its `vars:` |
+| `responses` | the beat's responses, a frozen Array; empty on a beat that continues |
+| `waiting_for_response?` | whether the beat waits for a response |
+| `available?(response)` | whether its conditions hold now |
+| `respond(response)` | picks it, and returns it |
+| `continue` | moves on from a beat without responses |
+| `ended?` | whether the conversation has ended |
+| `visits(beat)` | how often the conversation entered `beat` |
+| `context`, `facts`, `name`, `to_h` | as the machine's |
+| `on_beat` | connects a listener, called with each beat reached |
+| `on_ended` | connects a listener, called when the conversation ends |
+
+`speaker`, `speaker_name` and `line` are nil once the conversation has ended.
+
+**A beat either waits or continues, and each call refuses the other kind.**
+`respond` on a beat that continues, and `continue` on one that waits, raise
+`RuntimeError`, as both do once the conversation has ended. `respond` and
+`available?` raise `ArgumentError` for a response not listed for the beat, and
+`respond` for one not available. Whatever drives the dialogue never has to
+guess what confirm means.
+
+**A condition, an effect or a `vars:` block is called with the machine.** It
+reads `context`, `facts` and `visits` exactly as a quest's condition does. A
+Symbol is sent to the context. The dialogue checks every Symbol in the script,
+`vars:` included, when it is built, and raises `NoMethodError` naming each one
+the context does not answer.
+
+**`line` and `speaker_name` return the same `Text` each time the beat is the
+same**, so a label holding one needs no rebuild. A line with `vars:` holds the
+values it was given on entering the beat, until the beat is entered again. Each
+dialogue keeps its own copy of such a line, so two conversations over one script
+show their own values. Reading `responses`, `beat` and `line` allocates nothing.
+
+**A state with no line is passed through within the same move.** The dialogue
+takes its first available transition and arrives at the next beat. Two cases
+would leave the player stuck, and both raise `RuntimeError`, naming the state:
+
+- a state with no line and no available transition, or states with no line
+  that loop without reaching a beat;
+- a beat that waits for a response with none available.
+
+Each raises while a player plays, so a spec should find them first; see
+[Checking every path](#checking-every-path).
+
+### Saving a conversation
+
+A dialogue saves as a machine does. `to_h` and `from:` save one by hand, and
+`name:` saves it in its facts with every other named machine. A save of a
+conversation that had ended starts it again at its first beat and keeps its
+visits:
+
+```ruby
+require 'rgame'
+
+SMITH = RGame::Engine::Dialogue::Script.build(start: :greeting, scope: 'smith') do
+  beat :greeting, speaker: :smith, line: 'greeting' do
+    respond 'ask_work', to: :work, once: true
+    respond 'bye'
+  end
+
+  beat :work, speaker: :smith, line: 'work', to: :greeting
+end
+
+facts = RGame::Engine::Components::Facts.new
+talk = RGame::Engine::Dialogue.new(SMITH, facts:, name: :smith)
+talk.respond(talk.responses.first)
+talk.continue
+talk.respond(talk.responses.last)
+
+again = RGame::Engine::Dialogue.new(SMITH, facts:, name: :smith)
+again.beat                               # => :greeting
+again.available?(again.responses.first)  # => false
+```
+
+So `once:` holds across every conversation with a named dialogue. An unnamed
+dialogue starts with no visits, and its `once:` lasts one conversation. A
+dialogue saved in the middle of a conversation resumes at the beat it was on.
+
+## Checking every path
+
+**`Exploration.run` walks every path a dialogue or a machine can take, and
+reports where one gets stuck.** Its block builds a fresh world and returns the
+dialogue or machine in it. The walk replays each path in a world of its own, so
+effects and facts behave as in play:
+
+```ruby
+require 'rgame'
+
+SHUT = RGame::Engine::Dialogue::Script.build(start: :greeting, scope: 'guard') do
+  beat :greeting, speaker: :guard, line: 'greeting' do
+    respond 'pass', to: :gate, if: ->(m) { m.facts[:pass] }
+    respond 'bye'
+  end
+
+  beat :gate, speaker: :guard, line: 'gate' do
+    respond 'enter', if: ->(m) { m.facts[:key] }
+  end
+end
+
+report = RGame::Engine::Exploration.run do
+  facts = RGame::Engine::Components::Facts.new
+  facts[:pass] = true
+  RGame::Engine::Dialogue.new(SHUT, facts:)
+end
+
+report.ends?          # => true
+report.ending         # => ['greeting: bye']
+report.problems.size  # => 1
+report.stuck.first.state # => :gate
+report.stuck.first.path  # => ['greeting: pass']
+```
+
+| Method | Answers |
+|---|---|
+| `problems` | one String per problem, with the path that reaches it; empty when every path has a way on and some path ends |
+| `stuck` | each position with no way on, an `Exploration::Stuck` with `path`, `state` and the `error` a move raised |
+| `ends?` | whether some path ends |
+| `ending` | the moves of the shortest path to an end |
+| `unreached` | the states no path entered |
+| `truncated?` | whether the walk stopped at a limit with positions left |
+| `positions` | how many distinct positions the walk saw |
+
+A game's spec asserts on `problems`, which prints each failure in full:
+
+<!-- doc-example: skip — an RSpec file, run by a game's own suite -->
+```ruby
+it 'lets the player out of every beat' do
+  report = RGame::Engine::Exploration.run { RGame::Engine::Dialogue.new(SMITH, context: Hero.new) }
+  expect(report.problems).to eq([])
+end
+```
+
+- **A move is any available transition**: a response or a continue for a
+  dialogue, and any transition, fired or picked, for a machine.
+- **A position is stuck** when a move raises, a condition raises, or a machine
+  has transitions and none is available. A block that raises while it builds
+  the world is reported too.
+- **An end** is an ended dialogue or machine, or a machine's state with no
+  transitions, as a finished quest's is.
+- **A condition sees only the world the block built** and what the walk's own
+  moves changed. A branch the world shuts shows in `unreached`, which is not a
+  problem: a spec that expects every state reached asserts `unreached` is empty,
+  or builds a second world with the branch open.
+- **Positions are the same when the state, the states ever entered and the
+  facts match.** Visits count as entered or not, so a question the player may
+  ask again and again is one position. A condition that counts visits past one
+  is explored as if it did not.
+- **A condition that reads the context needs `key:`**, a block called with the
+  dialogue or machine that returns what the condition reads. Without it, gold
+  earned in a loop looks like the same position and a purchase is never
+  reached.
+- **The walk stops at `max_moves:`, 100 by default, or `max_positions:`,
+  10 000**, and a walk cut short is a problem. A counter in the facts that grows
+  on every loop produces a new position each time and reaches the limit.
+- **The block must build the same world every time.** A replay that arrives
+  somewhere the first walk did not raises `ArgumentError`, so a world built
+  from shared state, or a random one, fails loudly.
