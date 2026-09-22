@@ -1,5 +1,12 @@
 # frozen_string_literal: true
 
+# A node that remembers whether fire was held when it was last controlled.
+class SpecFireReadingNode < RGame::Engine::Node2D
+  attr_reader :fire_held
+
+  def _control(actions) = @fire_held = actions.held?(:fire)
+end
+
 RSpec.describe RGame::Engine::Players do
   let(:controls) { RGame::Util::Controls }
   let(:backend)  { FakeInputBackend.new }
@@ -238,6 +245,148 @@ RSpec.describe RGame::Engine::Players do
       players.device_disconnected(0)
 
       expect(solo.device).to eq(controls::KEYBOARD)
+    end
+  end
+
+  describe '#everyone' do
+    subject(:players) { described_class.new([one, two]) }
+
+    let(:one) { player(0) }
+    let(:two) { player(1, device: controls.gamepad(0)) }
+    let(:pad) { controls.gamepad(0) }
+
+    def everyone_after_poll
+      players.poll(backend)
+      players.everyone.actions
+    end
+
+    it 'is held while either player holds the action' do
+      backend.hold(controls::PAD_A, device: pad)
+      expect(everyone_after_poll.held?(:fire)).to be(true)
+    end
+
+    it 'is not held while nobody holds it' do
+      expect(everyone_after_poll.held?(:fire)).to be(false)
+    end
+
+    it 'is pressed on the tick one player presses' do
+      everyone_after_poll
+      backend.hold(controls::KEY_SPACE)
+      expect(everyone_after_poll.pressed?(:fire)).to be(true)
+    end
+
+    # One press does one thing: the union is already down, so the second
+    # player's press is no edge of it.
+    it 'is not pressed when a second player presses while the first holds' do
+      backend.hold(controls::KEY_SPACE)
+      everyone_after_poll
+      backend.hold(controls::PAD_A, device: pad)
+      expect(everyone_after_poll.pressed?(:fire)).to be(false)
+    end
+
+    it 'is not released while the second player still holds' do
+      backend.hold(controls::KEY_SPACE)
+      backend.hold(controls::PAD_A, device: pad)
+      everyone_after_poll
+      backend.release(controls::KEY_SPACE)
+      expect(everyone_after_poll.released?(:fire)).to be(false)
+    end
+
+    it 'is released when the last holder lets go' do
+      backend.hold(controls::KEY_SPACE)
+      everyone_after_poll
+      backend.release(controls::KEY_SPACE)
+      expect(everyone_after_poll.released?(:fire)).to be(true)
+    end
+
+    it 'reads the axis of largest magnitude' do
+      backend.hold(controls::KEY_LEFT)
+      backend.set_axis(controls::AXIS_LEFT_X, 0.6, device: pad)
+      expect(everyone_after_poll.axis(:move_x)).to eq(-1.0)
+    end
+
+    it 'reads a positive axis over a smaller negative one' do
+      backend.set_axis(controls::AXIS_LEFT_X, -0.3, device: pad)
+      backend.hold(controls::KEY_RIGHT)
+      expect(everyone_after_poll.axis(:move_x)).to eq(1.0)
+    end
+
+    it 'raises for an action no active player declares' do
+      expect { everyone_after_poll.held?(:fyre) }.to raise_error(KeyError, /:fyre/)
+    end
+
+    context 'when only one player declares an action' do
+      let(:two) do
+        map = RGame::Engine::InputMap.default.merge(dash: { buttons: [controls::PAD_B] })
+        RGame::Engine::Player.new(id: 1, device: pad, input_map: map)
+      end
+
+      it 'reads it from that player' do
+        backend.hold(controls::PAD_B, device: pad)
+        expect(everyone_after_poll.held?(:dash)).to be(true)
+      end
+
+      it 'raises for it once that player has left' do
+        players.device_disconnected(0)
+        expect { everyone_after_poll.held?(:dash) }.to raise_error(KeyError)
+      end
+    end
+
+    it 'leaves out a seat nobody is in' do
+      players.device_disconnected(0)
+      backend.hold(controls::PAD_A, device: pad)
+      expect(everyone_after_poll.held?(:fire)).to be(false)
+    end
+
+    it 'takes in a player who joins' do
+      players.device_disconnected(0)
+      everyone_after_poll
+      players.device_connected(0)
+      players.seat(pad)
+      backend.hold(controls::PAD_A, device: pad)
+      expect(everyone_after_poll.held?(:fire)).to be(true)
+    end
+
+    context 'with no active player' do
+      let(:two) { player(1, device: nil) }
+
+      let(:one) do
+        map = RGame::Engine::InputMap.default.merge(dash: { buttons: [controls::PAD_B] })
+        RGame::Engine::Player.new(id: 0, device: nil, input_map: map)
+      end
+
+      it 'reads the primary player' do
+        expect { everyone_after_poll.held?(:dash) }.not_to raise_error
+      end
+    end
+
+    it 'is the same object before the first poll as after it' do
+      held = players.everyone.actions
+      expect(everyone_after_poll).to equal(held)
+    end
+
+    it 'is what a node owned by it reads' do
+      root = RGame::Engine::Node2D.new
+      root.add_component(players)
+      node = root.add_node(SpecFireReadingNode.new(input_owner: players.everyone))
+      backend.hold(controls::PAD_A, device: pad)
+      players.poll(backend)
+      root.control(players)
+
+      expect(node.fire_held).to be(true)
+    end
+
+    it 'polls and reads without allocating' do
+      backend.hold(controls::KEY_SPACE)
+      backend.set_axis(controls::AXIS_LEFT_X, 0.6, device: pad)
+      players.poll(backend)
+      actions = players.everyone.actions
+      expect do
+        players.poll(backend)
+        actions.held?(:fire)
+        actions.pressed?(:fire)
+        actions.axis(:move_x)
+      end.to allocate_nothing
     end
   end
 

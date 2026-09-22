@@ -34,6 +34,7 @@ module RGame
     # anywhere under here reads their controller and nobody else's. Two players
     # with a menu open at once are independent without either one knowing the
     # other exists — see docs/api/scene_graph.md, "Who a node answers to".
+    # It refuses `Players#everyone`, which has no region to draw into.
     #
     # ## An empty region draws nothing
     #
@@ -54,6 +55,17 @@ module RGame
       # Whose layer this is. The same thing as `input_owner`, and stored only
       # there: two fields would be two things to keep in step.
       def player = input_owner
+
+      # Refuses `Players#everyone`, which has no region of the screen to draw
+      # into.
+      def input_owner=(owner)
+        if owner.is_a?(Players::Everyone)
+          raise ArgumentError, 'a PlayerLayer draws in one player\'s region, and everyone has none ' \
+                               '— put a node everyone drives in the :overlay band instead'
+        end
+
+        super
+      end
 
       def draw(renderer, _view = nil)
         region = system(Viewports).screen_for(player)

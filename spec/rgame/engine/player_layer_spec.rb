@@ -140,4 +140,15 @@ RSpec.describe RGame::Engine::PlayerLayer do
 
     expect { empty_root.draw(renderer, view) }.to allocate_nothing
   end
+
+  describe 'an owner standing for everyone' do
+    it 'is refused at construction, naming the band to use instead' do
+      expect { described_class.new(player: players.everyone) }
+        .to raise_error(ArgumentError, /:overlay/)
+    end
+
+    it 'is refused when set later' do
+      expect { layer.input_owner = players.everyone }.to raise_error(ArgumentError, /:overlay/)
+    end
+  end
 end

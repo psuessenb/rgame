@@ -384,5 +384,42 @@ RSpec.describe RGame::Engine::UI::DialogueBox do
       press_players(1)
       expect([untouched, dialogue.beat]).to eq(%i[greeting work])
     end
+
+    # The file's shared helpers and this group's players, box and dialogue are
+    # each read by both examples here.
+    context 'with everyone as its input owner, during solo!' do # rubocop:disable RSpec/MultipleMemoizedHelpers
+      let(:dialogue) { talk }
+      let(:shown) do
+        described_class.new(dialogue:, unavailable: :disable, width: 400, lines_per_page: 6,
+                            band: :overlay, input_owner: players.everyone)
+      end
+
+      before do
+        root.add_component(players)
+        viewports = engine::Viewports.new(players, width: 640, height: 480)
+        root.add_component(viewports)
+        viewports.solo!(engine::Camera.new)
+        root.add_node(shown)
+        root.enter_tree
+        choose(shown, 'ask_work')
+        tick_players
+        tick_players
+      end
+
+      it 'lets player 1 reveal the line and player 2 continue it' do
+        press_players(0)
+        revealed = line(shown).revealed?
+        press_players(1)
+        expect([revealed, dialogue.beat]).to eq([true, :greeting])
+      end
+
+      it 'moves nothing on a press by one player while the other holds confirm' do
+        tick_players(0)
+        tick_players(0, 1)
+        tick_players(1)
+        tick_players
+        expect([line(shown).revealed?, dialogue.beat]).to eq([true, :work])
+      end
+    end
   end
 end

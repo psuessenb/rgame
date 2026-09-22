@@ -66,6 +66,7 @@ module RGame
         @accepting_joins = true
         @connected = []
         @confirm_held = {}
+        @everyone = Everyone.new(self)
       end
 
       # The player a single-player game means, and the one an unowned node reads
@@ -82,6 +83,11 @@ module RGame
       def active_count = @list.count(&:active?)
 
       def [](id) = @list.find { |player| player.id == id }
+
+      # An input owner standing for every active player: one controller whose
+      # buttons are the OR of theirs. For a node no one player owns, such as a
+      # dialogue box or a pause menu during `solo!`. See Players::Everyone.
+      attr_reader :everyone
 
       def add(player)
         @list << player
@@ -105,13 +111,14 @@ module RGame
 
       # Every player's input for this tick, in one call. Each has their own
       # mapper and their own previous-frame state, so one player's press cannot
-      # consume another's edge.
+      # consume another's edge. `everyone` folds theirs together afterwards.
       # Then the devices nobody holds are checked for someone starting to use
       # one. Here rather than in a hot-plug hook because a *press* is a per-tick
       # idea, and this is the one place that already has the backend and runs
       # once a tick.
       def poll(backend)
         @list.each { |player| player.poll(backend) }
+        @everyone.poll
         admit(backend)
         self
       end
