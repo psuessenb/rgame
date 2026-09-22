@@ -192,9 +192,13 @@ RSpec.describe RGame::Engine::UI::Label do
       expect([texts.size, notice.revealed?]).to eq([3, true])
     end
 
-    it 'draws a page it has not yet started revealing whole' do
+    it 'starts from nothing on entering the tree, before any update' do
       notice = label(reveal: 10)
-      expect([texts.size, notice.revealed?]).to eq([3, true])
+      expect([texts, notice.revealed?]).to eq([[], false])
+    end
+
+    it 'counts as revealed before it enters the tree' do
+      expect(described_class.new(text: 'notice', width: 180, typeface: face, reveal: 10)).to be_revealed
     end
 
     it 'starts again when the page turns, with nothing shown until the next update' do
@@ -215,8 +219,8 @@ RSpec.describe RGame::Engine::UI::Label do
     end
 
     it 'starts again on a new text' do
-      greeting = label(text: RGame::Engine::Text.new('greeting', :name), width: 520, reveal: 10)
-      greeting.with(name: 'Ada')
+      greeting = label(text: RGame::Engine::Text.new('greeting', :name).tap { it.with(name: 'Ada') }, width: 520,
+                       reveal: 10)
       root.update(100.0)
       greeting.with(name: 'Grace')
       expect([greeting.revealed?, after(0.3)]).to eq([false, ['Wel']])

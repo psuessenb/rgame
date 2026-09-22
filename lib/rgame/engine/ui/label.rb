@@ -121,6 +121,10 @@ module RGame
           self
         end
 
+        def on_add
+          build_page if @reveal
+        end
+
         def on_update(dt)
           return unless @reveal
 
