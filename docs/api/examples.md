@@ -218,6 +218,15 @@ the pad takes the seat.
 **Uses:** `Controls.gamepad?`, `InputMap#button_for`, `Engine::Players` with
 `on_unassigned_input` defaulting to `:takeover`, `renderer.sprite`.
 
+### input_holds
+
+One button that opens a chest when tapped and searches it when held, and a chord
+that swaps stance. The thresholds are declared in the map, so nothing in the
+example counts a second for itself.
+
+**Uses:** `InputMap` with `tap:`, `hold:` and `all:`, `Actions#held_for`,
+`InputMap.default.merge`, `renderer.rect`.
+
 ## The window
 
 ### fullscreen
