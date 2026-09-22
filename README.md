@@ -99,6 +99,7 @@ You can learn more about how it works in the [documentation](docs/api/README.md)
 | [intro](docs/api/examples.md#intro) | A story broken into lines and pages that differ per language, typed out a character at a time |
 | [pathfinding](docs/api/examples.md#pathfinding) | Setting a target for an actor and let if find its way there |
 | [dialogue](docs/api/examples.md#dialogue) | A branching conversation in a dialogue box, and nothing else |
+| [quests_and_dialogue](docs/api/examples.md#quests_and_dialogue) | A village where talking moves a quest on, and one save keeps both |
 
 ## Building from source
 
