@@ -150,6 +150,21 @@ module RGame
         self
       end
 
+      # The transitions available now, for `Engine::Exploration`.
+      #
+      # @api private
+      def moves = transitions.select { holds?(it) }
+
+      # Takes a move `moves` listed, for `Engine::Exploration`.
+      #
+      # @api private
+      def make(move) = take(move)
+
+      # A move as a path shows it: the state it leaves, and its event.
+      #
+      # @api private
+      def explain(move) = "#{move.from}: #{move.event || (move.to ? "go to #{move.to}" : 'go, ending')}"
+
       # Enters the start state again after the machine ended, keeping every
       # visit: counts it, runs its `enter:`, and emits nothing. A `Dialogue`
       # resumed from an ended conversation starts over this way.

@@ -135,6 +135,33 @@ module RGame
       # Where the conversation has got to, in the shape `from:` takes.
       def to_h = @machine.to_h
 
+      # The script's graph, for `Engine::Exploration`.
+      #
+      # @api private
+      def graph = @script.graph
+
+      # The responses available now, or the continue on a beat without them,
+      # for `Engine::Exploration`.
+      #
+      # @api private
+      def moves
+        return NOTHING if ended?
+        return [@machine.transitions.first] unless waiting_for_response?
+
+        responses.select { @machine.available?(it) }
+      end
+
+      # Responds with, or continues by, a move `moves` listed.
+      #
+      # @api private
+      def make(move) = move.event == :continue ? continue : respond(move)
+
+      # A move as a path shows it: the beat it leaves, and the response's
+      # label key or "continue".
+      #
+      # @api private
+      def explain(move) = "#{move.from}: #{move.event == :continue ? 'continue' : move.data.label.key}"
+
       private
 
       def current

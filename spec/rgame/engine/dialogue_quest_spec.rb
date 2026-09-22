@@ -6,12 +6,7 @@
 # hero's gold.
 RSpec.describe RGame::Engine::Dialogue do
   let(:engine) { RGame::Engine }
-  let(:hero) do
-    root = engine::Node2D.new
-    root.add_component(engine::Components::Facts.new)
-    root.enter_tree
-    root.add_node(Hero.new)
-  end
+  let(:hero) { hero_in_new_world }
 
   before do
     stub_const('Hero', Class.new(engine::Node2D) do
@@ -60,6 +55,13 @@ RSpec.describe RGame::Engine::Dialogue do
     end)
   end
 
+  def hero_in_new_world
+    root = engine::Node2D.new
+    root.add_component(engine::Components::Facts.new)
+    root.enter_tree
+    root.add_node(Hero.new)
+  end
+
   def response(talk, key) = talk.responses.find { it.data.label.key == key }
 
   def pick(talk, key) = talk.respond(response(talk, key))
@@ -95,6 +97,11 @@ RSpec.describe RGame::Engine::Dialogue do
     expect(talk.available?(response(talk, 'bribe'))).to be(true)
     pick(talk, 'bribe')
     expect([talk.beat, hero.gold]).to eq([:bribed, 10])
+  end
+
+  it 'has a way out of every beat, with thanks and the bribe shut to a hero with no hammer and no gold' do
+    poor = engine::Exploration.run { hero_in_new_world.talk_to_smith }
+    expect([poor.problems, poor.unreached]).to eq([[], %i[thanks bribed]])
   end
 
   it 'keeps the work question answered in the next conversation' do

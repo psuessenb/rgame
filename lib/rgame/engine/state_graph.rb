@@ -62,6 +62,7 @@ module RGame
       def initialize(start, states)
         @start = start
         @states = states.freeze
+        @names = states.keys.freeze
         check_targets
         raise ArgumentError, "the start #{start.inspect} is not a state" unless state?(start)
 
@@ -70,6 +71,9 @@ module RGame
       end
 
       def state?(name) = @states.key?(name)
+
+      # Every state's name, a frozen Array in the order they were declared.
+      def state_names = @names
 
       # The `State` called `name`. Raises `ArgumentError` for a name the graph lacks.
       def state(name)
