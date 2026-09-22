@@ -185,18 +185,16 @@ on a disc `UI::ShapeStyle`, `InputMap.default.merge`, and a UI atlas's `images`
 ### sound
 
 A sound effect fired by a button, and the path it travels. A node may not name
-the audio device, so it emits a fact and a director plays it.
+the audio device, so it calls the `AudioOut` system, which holds it.
 
-**Uses:** `Core::Sample`, `Engine::AudioBus`, `Engine::AudioDirector`,
-`Engine::Text`.
+**Uses:** `Core::Sample`, `Engine::AudioOut`, `Node2D#system!`, `Engine::Text`.
 
 ### music
 
 The other kind of sound: one streamed voice. You can stop it and ask whether it
 plays, and starting it again does not restart it.
 
-**Uses:** `Core::Song`, `AudioBus.play_music` / `.stop_music`,
-`Engine::AudioDirector`.
+**Uses:** `Core::Song`, `AudioOut#play_music` / `#stop_music`.
 
 ## Players and input
 

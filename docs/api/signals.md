@@ -123,12 +123,12 @@ way: every `UI::Button` has its own `on_activated`, and every `UI::OptionButton`
 its own `on_changed`. The `signal` macro stores the instance in an ivar, which
 suits exactly this case.
 
-**A shared hub holds signals at module level.** Use one when a single channel
-serves the whole game. `RGame::Engine::AudioBus` holds its signals at module scope
-and exposes them through readers. Gameplay anywhere calls
-`RGame::Engine::AudioBus.play_sound(:boom)`, and the `AudioDirector` connects
-once to `AudioBus.on_play_sound`. The DSL does not apply, because there is no
-instance; the hub writes its readers by hand.
+**A signal built by hand holds one channel outside the DSL.**
+`RGame::Engine::Signal.define(:id).new` is a signal instance, and `connect`,
+`disconnect` and `emit` work on it directly. A signal kept at module level holds
+its listeners for as long as the process runs, and each listener holds whatever
+its block holds. The engine keeps every signal on the object whose event it
+reports.
 
 ## When to reach for a signal
 
@@ -140,8 +140,10 @@ Follow the engine's communication rules (see [Scene graph](scene_graph.md)):
   parent or an observer the parent arranges subscribes. A `UI::Button` exposes
   `on_activated`, and the scene that adds it to a menu connects to it. Edges stay
   direct, node to node.
-- **Concerns that cut across the game** and have no natural owner, such as
-  audio: use a module-level hub like `AudioBus`.
+- **A service every node needs**, such as playing a sound: that is a request,
+  not an event, and it wants exactly one receiver. Mount it as a
+  [system](systems.md) and call it, as
+  [`AudioOut`](audio.md#audioout--the-system-a-node-plays-sound-through) is.
 
 Keep the emitter ignorant of its listeners. A signal with no listeners emits to
 nobody, without error.

@@ -157,11 +157,8 @@ module RGame
       @root.add_component(@viewports)
       @root.add_component(@facts)
       @root.add_component(RGame::Engine::AudioOut.new(audio))
-      @audio_director = Engine::AudioDirector.new(audio).subscribe
       @root.enter_tree
       run
-    ensure
-      @audio_director&.unsubscribe
     end
 
     # One fixed simulation tick. `dt` is always the engine's fixed step, so the

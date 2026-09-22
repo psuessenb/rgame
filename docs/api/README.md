@@ -15,7 +15,7 @@ or write C.
 | [Drawing](drawing.md) | `RGame::Core::Renderer` — shapes, images, transforms, clipping, recordings |
 | [Images](images.md) | `RGame::Core::Image` — loading PNGs, subimages, tiles |
 | [Text](text.md) | `RGame::Core::Font`, `Renderer#text`, `RGame::Util::Typeface` and `RGame::Engine::Paragraph` |
-| [Audio](audio.md) | `RGame::Core::Audio`, `Sample`, `Song` — samples and streamed music |
+| [Audio](audio.md) | `RGame::Core::Audio`, `Sample`, `Song` — samples and streamed music — and `Engine::AudioOut`, the system a node plays them through |
 | [Assets](assets.md) | `RGame::Core::AssetManager`, `SpriteSheet`, `NineSlice`, `UiAtlas`, `TileMapRenderer` |
 | [Values](values.md) | `RGame::Util::Color`, `Tensor`, `SolidGrid`, `RouteSearch`, `TileSweep`, `Z`, `SaveFile` |
 | [Examples](examples.md) | What each program under `examples/` demonstrates |
@@ -31,7 +31,7 @@ The scene graph is `RGame::Engine`, the layer a game is written in:
 | [UI](ui.md) | `PlayerLayer`, `UI::Menu`, `UI::Label` and `UI::DialogueBox` — a player's own screen, a list or wheel navigated by focus, a translated paragraph drawn a page at a time, and a box that shows a conversation |
 | [Signals](signals.md) | The typed observer pattern nodes talk through |
 | [Dialogue and state machines](dialogue.md) | `StateGraph` and `StateMachine` — states, transitions with conditions and effects, visit counts; `Components::Facts`, the flags they read, and saving both as one entry; `Dialogue::Script` and `Dialogue` — beats, responses and conversations; `Dialogue::Transcript`, what one said; `Exploration`, which checks every path in a spec |
-| [Toolbox](toolbox.md) | What a game author reaches for directly: the text a node draws, pooling, paths and routes, timers, the camera, collision boxes, the audio bus |
+| [Toolbox](toolbox.md) | What a game author reaches for directly: the text a node draws, pooling, paths and routes, timers, the camera, collision boxes |
 | [Localization](localization.md) | `I18n` and translation tables — where they go, plurals, the fallback chain, the player's language, missing keys in specs |
 | [Internal building blocks](internals.md) | What components are built from: collision maths, the spatial index, animation playback |
 

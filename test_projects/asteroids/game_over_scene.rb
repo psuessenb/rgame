@@ -29,7 +29,7 @@ class GameOverScene < RGame::Engine::Node2D
   def on_control(actions)
     return unless actions.pressed?(:ui_confirm)
 
-    RGame::Engine::AudioBus.play_sound(:blip)
+    system!(RGame::Engine::AudioOut).play_sound(:blip)
     root.go(:play)
   end
 

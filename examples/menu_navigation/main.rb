@@ -305,7 +305,7 @@ class PlayScene < RGame::Engine::Node2D
   end
 
   def on_control(actions)
-    RGame::Engine::AudioBus.play_sound(BLIP) if actions.pressed?(:ui_confirm)
+    system!(RGame::Engine::AudioOut).play_sound(BLIP) if actions.pressed?(:ui_confirm)
     root.swap(:title) if actions.pressed?(:ui_cancel)
   end
 

@@ -100,7 +100,7 @@ class SkillBar < RGame::Engine::Node2D
     button = UI::IconButton.new(image: image, label: key, hotkey: hotkey, activate_on: :press, style: DISC)
     @menu.add(button).on_activated do
       @used = button.label
-      RGame::Engine::AudioBus.play_sound(CLICK)
+      system!(RGame::Engine::AudioOut).play_sound(CLICK)
     end
   end
 end

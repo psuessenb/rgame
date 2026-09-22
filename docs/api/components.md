@@ -18,13 +18,13 @@ or `draw`, and the node drives it. Much of what a game needs is not that. Search
 this page for it leads to worse, hand-made answers.
 
 Those helpers live in the [Toolbox](toolbox.md). A game constructs them directly,
-attached to nothing, and that is ordinary use. `examples/sound` emits on `AudioBus`
-and reads a `Text` within ten lines.
+attached to nothing, and that is ordinary use. `examples/sound` builds a `Text` and
+reads it within ten lines.
 
 | Looking for | Reach for | |
 |---|---|---|
 | a label from a value that changes, with no `String` per frame | `Text` | [→](toolbox.md#text--the-string-a-node-draws) |
-| to say *what happened* without naming a sound device | `AudioBus` | [→](toolbox.md#audiobus--decoupled-audio-facts) |
+| to play a sound without naming the sound device | `AudioOut`, a system | [→](audio.md#audioout--the-system-a-node-plays-sound-through) |
 | a point to follow, clamped to the world | `Camera` | [→](toolbox.md#camera--follow-a-point-clamp-to-the-world) |
 | text in the player's language | `I18n` | [→](localization.md) |
 | an ordered route to walk | `Path` | [→](toolbox.md#path--a-walkable-polyline) |

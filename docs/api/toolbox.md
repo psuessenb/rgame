@@ -1,7 +1,7 @@
 # Toolbox
 
 This page covers engine classes **a game author uses directly** that belong to no
-other chapter: pooling, the text a node draws, audio facts, the camera, collision boxes.
+other chapter: pooling, the text a node draws, the camera, collision boxes.
 All are pure Ruby, so they stay testable headless. One section is a recipe, not a
 class: [making a character that collides](#making-a-character-that-collides). No
 single class answers that question.
@@ -463,31 +463,3 @@ A [`BoxCollider`](components.md#boxcollider) component is a `CollisionBox` plus 
 registration in the scene's [`CollisionWorld`](components.md#collisionworld). These
 two methods are its narrowphase. [`FeetCollider`](components.md#feetcollider) adds
 the `bottom_anchored` arithmetic, computed from the node's own dimensions.
-
-## `AudioBus` — decoupled audio facts
-
-**`RGame::Engine::AudioBus` (`rgame/engine/audio_bus`) is a global audio bus.**
-Gameplay emits audio *facts* on it, such as "play this sound" or "play this
-music", separate from playback. An `AudioDirector` subscribes and turns the facts
-into sound. The bus is a module, not an instance, so any node reaches it without
-wiring.
-
-```ruby
-RGame::Engine::AudioBus.play_sound(:boom)
-RGame::Engine::AudioBus.play_music(:theme)
-RGame::Engine::AudioBus.stop_music
-```
-
-**`RGame::Game` subscribes a director when it starts, and calls `unsubscribe`
-when the loop ends.** A game does neither. The release matters. The bus is a
-module, so it holds its listeners until someone removes them. A listener holds the
-director, the audio device, and the asset manager the device resolves paths
-through. That manager holds the `App` it loads images for, window included. A
-single game never notices, because its `App` lives as long as the process. A
-process that runs two games does notice.
-
-`play_sound`, `play_music` and `stop_music` form the gameplay API. Under each sits
-an [`RGame::Engine::Signal`](signals.md) (`on_play_sound`, `on_play_music`,
-`on_stop_music`), which the director subscribes to. The engine only emits facts
-and never names an audio device. The bus therefore stays in the engine layer, and
-playback stays in `RGame::Core`.

@@ -7,7 +7,7 @@
 # What the report should show:
 #
 #   - **eight `sound blip.ogg` lines in the audio section**, one per press. That is
-#     the count to assert on: it goes through AudioBus, the AudioDirector and
+#     the count to assert on: it goes through Node2D#system!, AudioOut and
 #     Core::Audio, so a break anywhere in that chain drops it to zero;
 #   - one `circle` and **two** `text` calls per frame — the instructions, and the
 #     play count through an `Engine::Text.computed`. The second one's first

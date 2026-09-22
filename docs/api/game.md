@@ -95,11 +95,8 @@ the game offers a way back. See [Fullscreen](app.md#fullscreen) and
 `examples/fullscreen`.
 
 `start` brings the tree live. It hands the game to the root as its `context`,
-mounts `Players`, `Viewports`, `Components::Facts` and `AudioOut` on the root, and
-subscribes an `AudioDirector` to the
-[`AudioBus`](toolbox.md#audiobus--decoupled-audio-facts). It then calls
-`enter_tree` and runs the loop until the window closes. When the loop ends, it
-unsubscribes the director. `F1` toggles the debug overlay and `F2` quits.
+mounts `Players`, `Viewports`, `Components::Facts` and `AudioOut` on the root. It
+then calls `enter_tree` and runs the loop until the window closes. `F1` toggles the debug overlay and `F2` quits.
 
 The debug overlay is an `RGame::Engine::DebugOverlay`. It shows frames per
 second, the total objects allocated, and the objects allocated since its last
