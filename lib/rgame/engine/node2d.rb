@@ -18,8 +18,9 @@ module RGame
       #   def on_update(dt) = self.x += @speed * dt
       #
       # Not for drawing, though it is tempting: `on_draw` runs with the renderer
-      # already on this node (see #_in_local_space), so drawing at `x` offsets by
-      # this node's own position a second time. `Game/DrawInLocalSpace` says so.
+      # already on this node (see #rgame_in_local_space), so drawing at `x`
+      # offsets by this node's own position a second time. `Game/DrawInLocalSpace`
+      # says so.
       #
       # The ivar carries the longer name so that `@x` does not exist. Reaching
       # for a parent-relative coordinate where a world one was meant is the
@@ -50,7 +51,7 @@ module RGame
       # does.
       def parent=(value)
         @parent = value
-        _soil
+        rgame_soil
       end
 
       # Moving a node invalidates the world transform of the node *and its whole
@@ -58,21 +59,21 @@ module RGame
       # them. Whoever reads one next pays for that one.
       #
       # `node.x += dx` from a component (Components::Velocity does exactly that)
-      # is two writes and so two invalidations, which is why #_soil returns
+      # is two writes and so two invalidations, which is why #rgame_soil returns
       # immediately on a subtree that is already stale.
       def rel_x=(value)
         @rel_x = value
-        _soil
+        rgame_soil
       end
 
       def rel_y=(value)
         @rel_y = value
-        _soil
+        rgame_soil
       end
 
       def rel_angle=(value)
         @rel_angle = value
-        _soil
+        rgame_soil
       end
 
       alias x= rel_x=
@@ -91,7 +92,7 @@ module RGame
       #
       # **Computed on demand and cached**, which is how Godot and Unity do it and
       # why no phase resolves this any more. Moving a node marks it and its whole
-      # subtree stale (see #_soil); the next read walks up to the nearest node
+      # subtree stale (see #rgame_soil); the next read walks up to the nearest node
       # still current, recomputing on the way back down. Two consequences worth
       # knowing:
       #
@@ -104,13 +105,13 @@ module RGame
       #   phase whether or not anything had moved.
       # hot-path
       def world_x
-        _resolve_transform unless @world_current
+        rgame_resolve_transform unless @world_current
         @world_x
       end
 
       # hot-path
       def world_y
-        _resolve_transform unless @world_current
+        rgame_resolve_transform unless @world_current
         @world_y
       end
 
@@ -123,7 +124,7 @@ module RGame
       # position along *both* axes, which is what one world axis looks like from
       # inside a turned frame.
       #
-      # A node with no parent is pinned to the origin (see #_resolve_transform),
+      # A node with no parent is pinned to the origin (see #rgame_resolve_transform),
       # so there is no local position that would put it anywhere else, and this
       # changes nothing.
       # hot-path
@@ -134,7 +135,7 @@ module RGame
         if pa.zero?
           self.rel_x = value - @parent.world_x
         else
-          _place_in_rotated_parent(value - @parent.world_x, world_y - @parent.world_y, pa)
+          rgame_place_in_rotated_parent(value - @parent.world_x, world_y - @parent.world_y, pa)
         end
       end
 
@@ -146,13 +147,13 @@ module RGame
         if pa.zero?
           self.rel_y = value - @parent.world_y
         else
-          _place_in_rotated_parent(world_x - @parent.world_x, value - @parent.world_y, pa)
+          rgame_place_in_rotated_parent(world_x - @parent.world_x, value - @parent.world_y, pa)
         end
       end
 
       # hot-path
       def world_angle
-        _resolve_transform unless @world_current
+        rgame_resolve_transform unless @world_current
         @world_angle
       end
 
@@ -177,7 +178,7 @@ module RGame
       # front of something the node itself was behind. See RGame::Util::Z.
       def z=(value)
         @z = value
-        @parent&._children_unsorted!
+        @parent&.rgame_children_unsorted!
       end
 
       # Which band this node and everything under it draws in — `:world` (the
@@ -257,7 +258,7 @@ module RGame
       def add_node(node)
         @children << node
         node.parent = self
-        node._sibling_order = (@child_seq += 1)
+        node.rgame_sibling_order = (@child_seq += 1)
         @children_sorted = false
         node.enter_tree if @in_tree
         node
@@ -339,7 +340,7 @@ module RGame
       # raises `KeyError` naming the class and where it looked, rather than
       # returning nil for the next call to fail on.
       def system!(klass)
-        system(klass) || raise(KeyError, _missing_system(klass))
+        system(klass) || raise(KeyError, rgame_missing_system(klass))
       end
 
       # `input` is an input *source*, not one player's snapshot: an
@@ -357,11 +358,11 @@ module RGame
       def control(input)
         return if @paused
 
-        _resolve_inherited
+        rgame_resolve_inherited
         actions = input.actions_for(@abs_input_owner)
         @components.each { it.control(actions) }
         on_control(actions)
-        _children_in_order.each { it.control(input) }
+        rgame_children_in_order.each { it.control(input) }
       end
 
       # update game logic and physics (might become two calls with
@@ -372,7 +373,7 @@ module RGame
 
         @components.each { it.update(dt) }
         on_update(dt)
-        _children_in_order.each { it.update(dt) }
+        rgame_children_in_order.each { it.update(dt) }
       end
 
       # update visual game state, drawing the node. This runs last in
@@ -384,9 +385,9 @@ module RGame
       # half of it — and because culling needs it once the world is drawn more
       # than once. Most nodes ignore it and simply draw.
       def draw(renderer, view)
-        _resolve_inherited
-        _in_local_space(renderer) do
-          renderer.layered(@abs_band) { _draw_content(renderer, view) }
+        rgame_resolve_inherited
+        rgame_in_local_space(renderer) do
+          renderer.layered(@abs_band) { rgame_draw_content(renderer, view) }
           draw_children(renderer, view)
         end
       end
@@ -429,7 +430,7 @@ module RGame
         @freed = false
         @components.each(&:on_attach)
         on_add
-        _children_in_order.each(&:enter_tree)
+        rgame_children_in_order.each(&:enter_tree)
       end
 
       # Leaving-tree cascade: mirror of #enter_tree (children first, then this
@@ -437,7 +438,7 @@ module RGame
       def exit_tree
         return unless @in_tree
 
-        _children_in_order.each(&:exit_tree)
+        rgame_children_in_order.each(&:exit_tree)
         on_remove
         @components.each(&:on_detach)
         @in_tree = false
@@ -455,7 +456,7 @@ module RGame
       # rubocop:disable Style/ExplicitBlockArgument -- an explicit &block would
       # allocate a Proc for every node, every frame, per viewport. `yield` is
       # what keeps this path allocation-free, which culling_spec asserts.
-      def _in_local_space(renderer)
+      def rgame_in_local_space(renderer)
         return yield if @parent.nil?
         return yield if @rel_x.zero? && @rel_y.zero? && @rel_angle.zero?
 
@@ -470,34 +471,34 @@ module RGame
       # rubocop:enable Style/ExplicitBlockArgument
 
       # hot-path
-      def _draw_content(renderer, view)
+      def rgame_draw_content(renderer, view)
         @components.each { it.draw(renderer, view) }
         on_draw(renderer, view)
       end
 
       # hot-path
       def draw_children(renderer, view)
-        _children_in_order.each { it.draw(renderer, view) }
+        rgame_children_in_order.each { it.draw(renderer, view) }
       end
 
       # hot-path
-      def _children_in_order
-        _sort_children unless @children_sorted
+      def rgame_children_in_order
+        rgame_sort_children unless @children_sorted
         @children
       end
 
-      def _sort_children
+      def rgame_sort_children
         @children_sorted = true
         return if @children.size < 2
 
         @children.sort! do |a, b|
           order = a.z <=> b.z
-          order.zero? ? a._sibling_order <=> b._sibling_order : order
+          order.zero? ? a.rgame_sibling_order <=> b.rgame_sibling_order : order
         end
       end
 
       # hot-path
-      def _resolve_transform
+      def rgame_resolve_transform
         @world_current = true
         if @parent.nil?
           @world_x = @world_y = 0
@@ -518,7 +519,7 @@ module RGame
         @world_angle = pa + @rel_angle
       end
 
-      def _place_in_rotated_parent(offset_x, offset_y, pa)
+      def rgame_place_in_rotated_parent(offset_x, offset_y, pa)
         cos = Math.cos(pa)
         sin = Math.sin(pa)
         self.rel_x = (offset_x * cos) + (offset_y * sin)
@@ -527,26 +528,26 @@ module RGame
 
       protected
 
-      attr_accessor :_sibling_order
+      attr_accessor :rgame_sibling_order
 
-      def _children_unsorted! = @children_sorted = false
+      def rgame_children_unsorted! = @children_sorted = false
 
       # hot-path
-      def _soil
+      def rgame_soil
         return unless @world_current
 
         @world_current = false
-        # rubocop:disable Style/SymbolProc -- `&:_soil` would call through
+        # rubocop:disable Style/SymbolProc -- `&:rgame_soil` would call through
         # Symbol#to_proc, which dispatches publicly and so cannot reach a
         # protected method. An explicit receiver is the only form that works
         # here, and it allocates no more than the symbol would.
-        @children.each { it._soil }
+        @children.each { it.rgame_soil }
         # rubocop:enable Style/SymbolProc
       end
 
       private
 
-      def _missing_system(klass)
+      def rgame_missing_system(klass)
         where = scene ? 'its scene or the root' : 'the root'
         message = "#{self.class} found no #{klass} system on #{where}"
         if @parent.nil?
@@ -558,7 +559,7 @@ module RGame
       end
 
       # hot-path
-      def _resolve_inherited
+      def rgame_resolve_inherited
         if @parent.nil?
           @abs_input_owner = @input_owner
           @abs_band = @band || Util::Z::DEFAULT

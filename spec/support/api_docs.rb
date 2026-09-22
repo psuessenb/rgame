@@ -225,7 +225,7 @@ module ApiDocs
   def public_methods_of(mod)
     instance = mod.is_a?(Class) ? mod.public_instance_methods(false) : []
     names = (instance + mod.singleton_methods(false)).map(&:to_s).uniq
-    names.reject { IGNORED_METHODS.include?(it) || it.start_with?('_') }
+    names.reject { IGNORED_METHODS.include?(it) || it.start_with?(RGame::Engine::SealedPrivates::PREFIX) }
   end
 
   # The constant, or any module it is nested in, is tagged internal.

@@ -42,7 +42,7 @@ suite lives in its own directory with its own runner, rather than in a shared
 one with an `exclude_pattern` that must not be forgotten. A convention that
 fails loudly beats one that has to be observed.
 
-### `Node2D` and `Component`: an underscore seals a method
+### `Node2D` and `Component`: `rgame_` seals a method
 
 These two are the classes a game subclasses, so their non-public methods are
 names a game author can collide with without knowing they exist — and in Ruby
@@ -53,10 +53,12 @@ that machinery off for the class. (A UI button's draw hook was first named
 
 So in `Node2D` and `Component`, and **only** there:
 
-- **A private or protected method whose name starts with `_` is machinery.**
-  `Engine::SealedPrivates` raises `NameError` when a subclass defines one of the
-  same name, at class definition rather than on some later frame.
-- **A private or protected method without the `_` is a seam**, meant to be
+- **A private or protected method whose name starts with `rgame_` is
+  machinery**, such as `rgame_draw_content`. `Engine::SealedPrivates` raises
+  `NameError` when a subclass defines one of the same name, at class definition
+  rather than on some later frame. The prefix matches the C layer's
+  `rgame_app_push_clip`, and no game names a method that by accident.
+- **A private or protected method without the prefix is a seam**, meant to be
   overridden with `super` — `Node2D#draw_children` is the one there is.
   Unguarded by design.
 

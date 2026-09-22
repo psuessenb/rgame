@@ -14,13 +14,13 @@ class WorldSpaceNode < RGame::Engine::Node2D
   def on_draw(renderer, _view) = renderer.rect(world_x, world_y, 8, 8, color: RED)
 
   def draw(renderer, view)
-    _resolve_inherited
+    rgame_resolve_inherited
     renderer.layered(abs_band) do
       if world_angle.zero?
-        _draw_content(renderer, view)
+        rgame_draw_content(renderer, view)
       else
         renderer.rotated(world_angle * 180.0 / Math::PI, world_x, world_y) do
-          _draw_content(renderer, view)
+          rgame_draw_content(renderer, view)
         end
       end
     end
@@ -40,10 +40,10 @@ end
 # the saving stays measurable rather than remembered.
 class LocalSpaceNodeEagerResolve < LocalSpaceNode
   def draw(renderer, view)
-    _resolve_inherited
-    send(:_resolve_transform)
-    _in_local_space(renderer) do
-      renderer.layered(abs_band) { _draw_content(renderer, view) }
+    rgame_resolve_inherited
+    send(:rgame_resolve_transform)
+    rgame_in_local_space(renderer) do
+      renderer.layered(abs_band) { rgame_draw_content(renderer, view) }
       draw_children(renderer, view)
     end
   end

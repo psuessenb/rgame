@@ -139,6 +139,12 @@ index, not the argument.
   `Dialogue#on_beat` is `on_beat_entered`, since it fires as the conversation
   enters each beat.
 
+- **`Node2D`'s sealed machinery starts with `rgame_`, not `_`.** A subclass
+  that defines `rgame_draw_content` or another of `Node2D`'s or `Component`'s
+  private `rgame_` methods raises `NameError` where the class is defined. A
+  method starting with `_` is an ordinary name again. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md).
+
 - **Every drawing call defaults to z 0, so call order decides.** A shape used to
   default above text and images within one node. A backdrop drawn first then
   covered the text drawn after it, and ten examples showed no help text at all.
