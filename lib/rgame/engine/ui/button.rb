@@ -235,6 +235,8 @@ module RGame
           super
         end
 
+        hook :_gain_focus, :_lose_focus
+
         # Hooks: override to react to gaining or losing focus — a sound, the
         # start of an animation. Each is called only on a change.
         def _gain_focus; end

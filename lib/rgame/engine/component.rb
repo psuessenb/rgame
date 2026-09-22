@@ -5,6 +5,7 @@ module RGame
     class Component
       extend Signal::DSL
       extend SealedPrivates
+      extend Hooks
 
       attr_accessor :node
 

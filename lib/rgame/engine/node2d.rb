@@ -9,6 +9,7 @@ module RGame
     class Node2D
       extend Engine::Signal::DSL
       extend Engine::SealedPrivates
+      extend Engine::Hooks
 
       # This node's transform **in its parent's space** — where it sits inside
       # whatever contains it, and the only position a node ever sets. `x`, `y`

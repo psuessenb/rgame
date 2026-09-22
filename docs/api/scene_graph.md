@@ -79,6 +79,28 @@ A hook is named after the phase that calls it, with a leading `_`. The `_` marks
 a method the engine calls and your code overrides. A name starting with `on_` is
 a [signal](signals.md), which you connect a block to instead.
 
+**A subclass may define a `_` method only if it is a hook.** A misspelled hook,
+such as `_updte`, would never be called, so `RGame::Engine::Hooks` raises
+`NameError` when the class loads and lists the hooks the class has.
+`Node2D.hooks` returns the same list. Name a helper without the leading `_`. A
+class that adds a hook for its own subclasses declares it with `hook` before
+defining it:
+
+```ruby
+require 'rgame'
+
+class Enemy < RGame::Engine::Node2D
+  hook :_die
+
+  # Called once the enemy's health reaches 0. Draws no explosion unless a subclass does.
+  def _die; end
+end
+
+Class.new(Enemy).hooks.include?(:_die) # => true
+```
+
+`Component` follows the same rule, with its own hooks.
+
 `view` is the viewport the node is drawn into: its rectangle and the camera, if
 any. Most nodes ignore it. Two tasks need it. One is laying out against the edges
 of *this* region, not the whole window (`view.x`, `view.width`). The other is

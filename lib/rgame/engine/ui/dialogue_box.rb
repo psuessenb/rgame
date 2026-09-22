@@ -103,6 +103,8 @@ module RGame
           read_back
         end
 
+        hook :_draw_portrait
+
         # A blank hook: draws the speaker's portrait in the `portrait_width`
         # column the box keeps free at its left, which starts at `(padding,
         # padding)` in the box's own space. `speaker` is the beat's speaker

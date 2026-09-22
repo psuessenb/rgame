@@ -69,6 +69,10 @@ nodes here, not in `initialize`.
 child list. The default does nothing; see
 [deferred free](scene_graph.md#deferred-free).
 
+A component may define a `_` method only if it is one of these hooks, or one an
+ancestor declared with `hook`. Anything else raises `NameError` when the class
+loads; see [the tick](scene_graph.md#the-tick-control--update--draw).
+
 **`require_sibling(klass)` opens the `_attach` of a component that drives a
 sibling**: `@body = require_sibling(CharacterBody)`. It returns the component, or
 raises naming both. A plain `nil` would stay silent until the first frame called a

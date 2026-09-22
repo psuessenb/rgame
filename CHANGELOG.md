@@ -121,6 +121,11 @@ index, not the argument.
   connect method or emit reader in a subclass, such as a `def on_activated`
   meant as a hook, raises `NameError` when the class is defined, naming the
   signal. See [docs/api/signals.md](docs/api/signals.md#the-dsl-declaring-a-signal-on-a-class).
+- **A misspelled hook raises.** A `Node2D` or `Component` subclass defining a
+  `_` method that no ancestor has, such as `_updte`, raises `NameError` when
+  the class is defined, listing the hooks it has. `Node2D.hooks` returns that
+  list, and `hook :_name` declares a new hook for a class's subclasses. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md#the-tick-control--update--draw).
 
 ### Changed
 
