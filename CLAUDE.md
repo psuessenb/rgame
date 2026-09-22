@@ -11,7 +11,7 @@ they're non-trivial and the name doesn't already tell the whole story.
 
 Comments inside methods or on private methods get automatically deleted on commit - write them freely, but don't rely on them. Write code that speaks and reads cleanly without those comments.
 
-Documentation rules live in the [write-docs](.claude/skills/write-docs/SKILL.md) skill; specs follow [write-spec](.claude/skills/write-spec/SKILL.md), plans [write-plan](.claude/skills/write-plan/SKILL.md), and the skills themselves [write-skill](.claude/skills/write-skill/SKILL.md).
+Documentation rules live in the [write-docs](.claude/skills/write-docs/SKILL.md) skill; specs follow [write-spec](.claude/skills/write-spec/SKILL.md), plans [write-plan](.claude/skills/write-plan/SKILL.md), and the skills themselves [write-skill](.claude/skills/write-skill/SKILL.md). Ruby follows [write-ruby-code](.claude/skills/write-ruby-code/SKILL.md), and C follows [write-c-code](.claude/skills/write-c-code/SKILL.md).
 
 Prose someone else reads is written with [write-prose](.claude/skills/write-prose/SKILL.md) loaded — load the skill before the first sentence, not from memory. That covers the top-level
 comments on modules, classes and C files, and the explaining comments on public
@@ -42,40 +42,15 @@ suite lives in its own directory with its own runner, rather than in a shared
 one with an `exclude_pattern` that must not be forgotten. A convention that
 fails loudly beats one that has to be observed.
 
-### `Node2D` and `Component`: `rgame_` seals a method, `_` marks a hook
+### A name says which mechanism it is
 
-These two are the classes a game subclasses, so their non-public methods are
-names a game author can collide with without knowing they exist — and in Ruby
-`private` limits who may *call* a method, not who may *replace* one. A subclass
-method named like the base's machinery is found first and silently switches
-that machinery off for the class. (A UI button's draw hook was first named
-`draw_content`, and broke every draw.)
-
-So in `Node2D` and `Component`, and **only** there:
-
-- **A private or protected method whose name starts with `rgame_` is
-  machinery**, such as `rgame_draw_content`. `Engine::SealedPrivates` raises
-  `NameError` when a subclass defines one of the same name, at class definition
-  rather than on some later frame. The prefix matches the C layer's
-  `rgame_app_push_clip`, and no game names a method that by accident.
-- **A private or protected method without the prefix is a seam**, meant to be
-  overridden with `super` — `Node2D#draw_children` is the one there is.
-  Unguarded by design.
-
-And a method whose name starts with `_` is a **hook**, which the engine calls
-and a subclass overrides, such as `_draw` or a component's `_attach`.
-`Engine::Hooks` raises `NameError` when a subclass defines a `_` method that no
-ancestor has, so a misspelled hook fails where it is written. A class adding a
-hook for its own subclasses declares it with `hook :_gain_focus` before the
-`def`, as `UI::Button` does. A name starting with `on_` is a signal and nothing
-else, and `Signal::DSL` raises when a subclass replaces what it generated.
-
-Adding a non-public method to either class is therefore a decision about which
-of the two it is, and `spec/rgame/engine/sealed_privates_spec.rb` lists each
-class's seams so that an unprefixed method added without deciding fails there.
-The seal covers only the two base classes' own methods: in an engine subclass a
-private hook such as `Components::Mover#take_step` is ordinary. The `_` rule
-covers every subclass of the two, engine ones included.
+The same principle applies to names. `on_` means a signal, and in `Node2D`,
+`Component` and their subclasses a leading `_` means a hook and `rgame_` the
+base classes' sealed machinery. `Signal::DSL`, `Engine::Hooks` and
+`Engine::SealedPrivates` raise at class definition on each mix-up, where a wrong
+name would otherwise switch something off with no error. The rules, and what
+the guards cannot see, are in
+[write-ruby-code](.claude/skills/write-ruby-code/SKILL.md).
 
 ## Before building: find the thing it resembles
 
@@ -186,49 +161,9 @@ the ones that *do* fit here — fix the code, not the cop.
 
 ### A label built from a changing value
 
-`Game/NoInterpolationInHotPath` refuses the obvious `renderer.text("Score:
-#{@score}", ...)`, and the engine owns the answer: **`RGame::Engine::Text`.**
-Build it off the per-frame path; read it with `with` in `_draw`, or pass it to
-`renderer.text` as it is when it has no variables — or when something else gave
-it its values through `with`, such as a button's label. A `Text` answers
-`to_str`, so no `.to_s` is needed.
-
-```ruby
-def initialize
-  super
-  @score = Engine::Text.new('hud.score', :score)   # "Score: %{score}" in the table
-end
-
-def _draw(renderer, _view) = renderer.text(@score.with(score: @points), 12, 10)
-```
-
-It keeps the last string and renders again only when a keyword differs or
-`I18n.generation` moves, so a score that changes once costs one render, a
-language switch re-renders on the next read, and the frames between cost
-nothing — measured at zero objects over 200,000 unchanged reads, for zero, one
-and three variables. Text assembled from several translations, or formatted
-rather than translated, uses `Engine::Text.computed(:status) { |status:| ... }`,
-whose block runs under the same rule; `examples/pathfinding` is the worked
-example, a status line put together from four keys, two of them plurals.
-
-**Reach for it rather than inventing a way round the rule.** Every hand-rolled
-dodge is a reader's puzzle: `examples/sound` drew a row of rectangles to avoid
-formatting a count, and the comment explaining why was longer than the code.
-
-**Two shapes that need no `with` at all:**
-
-- **Text chosen by state is a table of `Text`s.** A frozen hash keyed by the
-  state — `STATE = { true => Engine::Text.new('state.fullscreen'), false =>
-  Engine::Text.new('state.windowed') }.freeze` in `examples/fullscreen`, `STATUS`
-  in `examples/save_load` — selects a `Text` rather than building a string. A
-  `Text.computed` block returning one of several constants is strictly worse to
-  read, and a table of Strings is text no translation can reach. A `Text` is
-  safe in a constant; a `Text.computed` made at the top level of a file is not,
-  because its block keeps that file's locals — `game` among them — alive.
-- **A value that never changes and is not words.** Build it once in `initialize`
-  and keep it in an ivar, the way a `Sheep` in `examples/save_load_ids` keeps
-  `id.to_s`. A number has nothing to translate, and a cache for something that
-  cannot change is indirection with no payer.
+`Game/NoInterpolationInHotPath`'s answer is `RGame::Engine::Text`, built off the
+per-frame path and read with `with`. The shapes that need no `with` are in
+[write-ruby-code](.claude/skills/write-ruby-code/SKILL.md#a-label-built-from-a-changing-value).
 
 ## What exists
 
@@ -438,8 +373,8 @@ So a cosmetic animation — one with no game state behind it — accumulates its
 elapsed time in `update` and hands the *number* to the renderer at draw time:
 
 ```ruby
-def update(dt) = @elapsed += dt
-def draw(renderer) = renderer.tilemap(@id, camera.x, camera.y, w, h, elapsed: @elapsed)
+def _update(dt) = @elapsed += dt
+def _draw(renderer, view) = renderer.tilemap(@id, @layer, view.camera.x, view.camera.y, view.width, view.height, elapsed: @elapsed)
 ```
 
 `RGame::Engine::Animator` and `RGame::Engine::Timer` are both built this way, and
