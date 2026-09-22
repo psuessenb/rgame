@@ -41,6 +41,17 @@ therefore override a global default, and nodes outside any scene still find
 globals. To mean one scope specifically, use its anchor:
 `node.root.get_component` or `node.scene.get_component`.
 
+**`Node2D#system!(klass)` is the same lookup for a caller that cannot work
+without the system.** Where `system` returns nil, `system!` raises `KeyError`.
+The message names the class, the node and where it looked, and says when the
+node has no parent:
+
+```ruby
+system!(RGame::Engine::AudioOut).play_sound(:boom)
+# KeyError: Ship found no RGame::Engine::AudioOut system on its scene or the root.
+#           Mount one there with add_component
+```
+
 ### Ask for a contract, not a class
 
 **The lookup matches by ancestry**, so `klass` can be a module the system
@@ -92,7 +103,8 @@ reports nothing. A tile-only game wants exactly that: its character carries a
 feet box to be *stopped* by (see [`Mover`](components.md#mover)), and there are no
 pairs to find. The cost is that an `on_hit` handler in such a scene never fires,
 and nothing reports it. Weigh that deliberately. A client that is useless without
-its system raises instead, as a mover's `blocked_by:` does.
+its system raises instead: with `system!`, or with a message of its own, as a
+mover's `blocked_by:` does.
 
 ## The three systems `Game` mounts
 
