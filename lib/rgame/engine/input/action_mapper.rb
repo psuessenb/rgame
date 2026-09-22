@@ -19,6 +19,22 @@ module RGame
     # and a caller counting its own seconds is the per-caller timer this exists
     # to remove.
     #
+    # ## What the buttons say, and what the action says
+    #
+    # For a plain action those are the same thing, and for a hold or a tap they
+    # are not — so the mapper keeps both. One hash holds the raw button state per
+    # action, another the level a game reads:
+    #
+    # | Declared | `held?` |
+    # |---|---|
+    # | `buttons:` alone | its buttons are down |
+    # | `hold: 0.6` | they have been down 0.6 s, until they come up |
+    # | `tap: 0.3` | one tick, on a release that came inside 0.3 s |
+    #
+    # `pressed?` and `released?` are the edges of that level and need no case of
+    # their own: a hold presses once, late, and a tap is a one-tick pulse whose
+    # up edge follows on the next tick.
+    #
     # Pure logic. The backend is duck-typed and the whole interface is
     # `down?(physical_id, device:)` and `axis(axis_id, device:)` — a spec passes
     # a fake and a game passes RGame::Core::Input.
@@ -37,11 +53,13 @@ module RGame
         @prev_held = {}
         @axes = {}
         @hold_times = {}
+        @down = {}
         map.bindings.each_key do |name|
           @held[name] = false
           @prev_held[name] = false
           @axes[name] = 0.0
           @hold_times[name] = 0.0
+          @down[name] = false
         end
         @actions = Actions.new(held: @held, axes: @axes, prev_held: @prev_held, hold_times: @hold_times)
       end
@@ -54,8 +72,7 @@ module RGame
         return rest if @device.nil?
 
         @map.bindings.each do |name, binding|
-          @held[name] = any_down?(backend, binding.buttons) if binding.buttons
-          count_hold(name, dt)
+          poll_buttons(name, binding, backend, dt) if binding.buttons
           @axes[name] = axis_value(backend, binding) if binding.pairs || binding.stick
         end
 
@@ -68,16 +85,34 @@ module RGame
         @held.each_key { |name| @held[name] = false }
         @axes.each_key { |name| @axes[name] = 0.0 }
         @hold_times.each_key { |name| @hold_times[name] = 0.0 }
+        @down.each_key { |name| @down[name] = false }
         @actions
       end
 
       # hot-path
-      def count_hold(name, dt)
-        if @held[name]
+      def poll_buttons(name, binding, backend, dt)
+        was_down = @down[name]
+        now_down = any_down?(backend, binding.buttons)
+        count_hold(name, was_down, now_down, dt)
+        @held[name] = level(name, binding, was_down, now_down)
+        @down[name] = now_down
+      end
+
+      # hot-path
+      def count_hold(name, was_down, now_down, dt)
+        if now_down
           @hold_times[name] += dt
-        elsif !@prev_held[name]
+        elsif !was_down
           @hold_times[name] = 0.0
         end
+      end
+
+      # hot-path
+      def level(name, binding, was_down, now_down)
+        return now_down && @hold_times[name] >= binding.hold if binding.hold
+        return was_down && !now_down && @hold_times[name] <= binding.tap if binding.tap
+
+        now_down
       end
 
       # hot-path

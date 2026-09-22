@@ -22,6 +22,25 @@ module RGame
     # | `axis:` | `axis` | `[negative_id, positive_id]`, or a list of such pairs — a digital axis from buttons |
     # | `stick:` | `axis` | an analog axis id, for a real stick or trigger |
     #
+    # ## A hold and a tap are declared here, not counted by the caller
+    #
+    # Two more keys say *when* an action's buttons count as pressed:
+    #
+    #   interact: { buttons: [Controls::KEY_E, Controls::PAD_A], tap: 0.3 },
+    #   search:   { buttons: [Controls::KEY_E, Controls::PAD_A], hold: 0.6 }
+    #
+    # `hold:` is the seconds the buttons must be down before the action presses;
+    # `tap:` is the seconds within which the release must come for it to press at
+    # all. **One button can back both**, which is the whole point: E tapped opens
+    # the chest and E held searches it. Holding past the tap's threshold means
+    # the release presses nothing, so the two never fire together.
+    #
+    # Both are numbers rather than `true`, so the threshold is a literal a
+    # rebinding screen can show and a designer can argue with. `ActionMapper`
+    # measures them from the timestep it polls with, and a game reads the
+    # ordinary `pressed?`, `held?` and `released?` — a hold is a level that
+    # begins late, and a tap is a one-tick pulse on the way up.
+    #
     # ## One table serves every device
     #
     # Listing a key and a pad button in the same entry is safe, and needs no
@@ -62,10 +81,15 @@ module RGame
       #
       # `buttons` is "held if any of these is down"; `pairs` is a list of
       # `[negative, positive]` button pairs, each a digital axis; `stick` is an
-      # analog axis id.
-      Binding = Struct.new(:buttons, :pairs, :stick)
+      # analog axis id. `hold` and `tap` are thresholds in seconds, and an action
+      # has at most one of them.
+      # rubocop:disable Lint/StructNewOverride -- a member is named after the entry key it
+      # holds, and `tap:` is that key. Kernel#tap on a Binding is worth less than the two
+      # spellings matching, and nothing in the engine taps one.
+      Binding = Struct.new(:buttons, :pairs, :stick, :hold, :tap)
+      # rubocop:enable Lint/StructNewOverride
 
-      SOURCES = %i[buttons axis stick].freeze
+      SOURCES = %i[buttons axis stick hold tap].freeze
 
       UI = {
         ui_up: { buttons: [Controls::KEY_UP, Controls::PAD_DPAD_UP] },
@@ -154,6 +178,8 @@ module RGame
           entry[:buttons] = binding.buttons if binding.buttons
           entry[:axis] = binding.pairs.size == 1 ? binding.pairs.first : binding.pairs if binding.pairs
           entry[:stick] = binding.stick if binding.stick
+          entry[:hold] = binding.hold if binding.hold
+          entry[:tap] = binding.tap if binding.tap
           [name, entry]
         end
       end
@@ -168,7 +194,24 @@ module RGame
         pairs = axis_pairs(name, entry[:axis])
         raise ArgumentError, "#{name}: no buttons, axis or stick" if buttons.nil? && pairs.nil? && entry[:stick].nil?
 
-        Binding.new(buttons, pairs, entry[:stick]).freeze
+        check_thresholds(name, entry, buttons)
+        Binding.new(buttons, pairs, entry[:stick], entry[:hold], entry[:tap]).freeze
+      end
+
+      def check_thresholds(name, entry, buttons)
+        hold = entry[:hold]
+        tap = entry[:tap]
+        raise ArgumentError, "#{name}: hold and tap are two answers to one question" if hold && tap
+        return if hold.nil? && tap.nil?
+        raise ArgumentError, "#{name}: a hold or a tap needs buttons" if buttons.nil?
+
+        check_threshold(name, hold || tap)
+      end
+
+      def check_threshold(name, seconds)
+        return if seconds.is_a?(Numeric) && seconds.positive?
+
+        raise ArgumentError, "#{name}: a threshold is a positive number of seconds, not #{seconds.inspect}"
       end
 
       def freeze_ids(name, ids)

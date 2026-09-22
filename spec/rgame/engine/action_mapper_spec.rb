@@ -229,6 +229,104 @@ RSpec.describe RGame::Engine::ActionMapper do
     end
   end
 
+  # E tapped opens the chest and E held searches it: one button, two actions, and
+  # the mapper deciding which of them the press was.
+  describe 'a hold and a tap on one button' do
+    subject(:subject_mapper) { mapper }
+
+    # A tenth of a second a tick, and thresholds that fall between two of them:
+    # which tick a threshold lands on is then a fact about the rule rather than
+    # about where a float accumulation happens to sit.
+    let(:step) { 0.1 }
+
+    let(:map) do
+      RGame::Engine::InputMap.new(
+        interact: { buttons: [RGame::Util::Controls::KEY_E], tap: 0.15 },
+        search: { buttons: [RGame::Util::Controls::KEY_E], hold: 0.25 }
+      )
+    end
+
+    def hold_for(ticks)
+      backend.hold(controls::KEY_E)
+      ticks.times { subject_mapper.poll(backend, step) }
+    end
+
+    def release
+      backend.release(controls::KEY_E)
+      subject_mapper.poll(backend, step)
+    end
+
+    describe 'the hold' do
+      it 'is not held before its threshold' do
+        hold_for(2)
+        expect(subject_mapper.actions.held?(:search)).to be(false)
+      end
+
+      it 'presses on the tick its threshold passes' do
+        hold_for(3)
+        expect(subject_mapper.actions.pressed?(:search)).to be(true)
+      end
+
+      it 'presses once, however long the button stays down' do
+        hold_for(3)
+        presses = 20.times.count { subject_mapper.poll(backend, step).pressed?(:search) }
+        expect(presses).to eq(0)
+      end
+
+      it 'stays held until the button comes up' do
+        hold_for(10)
+        expect(subject_mapper.actions.held?(:search)).to be(true)
+      end
+
+      it 'releases when the button comes up' do
+        hold_for(3)
+        expect(release.released?(:search)).to be(true)
+      end
+    end
+
+    describe 'the tap' do
+      it 'is not pressed while the button is down' do
+        hold_for(1)
+        expect(subject_mapper.actions.pressed?(:interact)).to be(false)
+      end
+
+      it 'presses on a release that came in time' do
+        hold_for(1)
+        expect(release.pressed?(:interact)).to be(true)
+      end
+
+      it 'is a single tick' do
+        hold_for(1)
+        release
+        expect(subject_mapper.poll(backend, step).held?(:interact)).to be(false)
+      end
+
+      it 'presses nothing on a release that came too late' do
+        hold_for(3)
+        expect(release.pressed?(:interact)).to be(false)
+      end
+    end
+
+    # The two never fire for one press, which is what makes a button safe to
+    # declare twice.
+    it 'answers a short press with the tap alone' do
+      hold_for(1)
+      released = release
+      expect([released.pressed?(:interact), released.held?(:search)]).to eq([true, false])
+    end
+
+    it 'answers a long press with the hold alone' do
+      hold_for(3)
+      held = subject_mapper.actions.held?(:search)
+      expect([release.pressed?(:interact), held]).to eq([false, true])
+    end
+
+    it 'counts the press for both, whichever of them fired' do
+      hold_for(2)
+      expect(subject_mapper.actions.held_for(:interact)).to be_within(0.0001).of(step * 2)
+    end
+  end
+
   # Edge detection compares against the previous poll, so it needs one mapper
   # polled repeatedly rather than a fresh one per poll.
   describe 'edge detection' do
