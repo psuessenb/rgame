@@ -674,6 +674,78 @@ before it lands.
      Nothing else matches.
 3. **`rgame_` for the machinery.** Decision 2, with `SealedPrivates`, its spec
    and the CLAUDE.md rule.
+
+   *Detailed at `6d1a150`, against the code below.*
+
+   | Measured at `6d1a150` | |
+   |---|---|
+   | Sealed methods on `Node2D` | 10: the nine in "What was counted", plus `_missing_system`, which step 1 added for `system!` |
+   | Sealed methods on `Component` | 0 |
+   | References to the ten | 54: 35 in `node2d.rb`, 7 in `tools/bench_node_draw.rb`, 3 in the `DrawInLocalSpace` cop's spec, 2 each in `sealed_privates_spec.rb` and `scene_graph.md`, 1 each in the two cops, `SealedPrivates`' comment and two `node2d_*` specs |
+   | Code keyed on a leading `_` | 3 files: `SealedPrivates` twice, `sealed_privates_spec.rb` twice, and the doc-coverage filter in `spec/support/api_docs.rb` |
+   | Other `_` methods in `lib/`, `examples/` and `test_projects/` | 5, all private helpers in `Components::Facts`: `_key`, `_value`, `_parse`, `_changed`, `_notify` |
+   | Existing Ruby methods named `rgame_…` | 0 |
+   | The seal in a release | yes: 0.4.0's Changed section describes it |
+   | `rake spec` | 2948 examples, 0 failures |
+
+   **`SealedPrivates` keys on one constant**, so the prefix is written once:
+
+   ```ruby
+   module SealedPrivates
+     PREFIX = 'rgame_'
+
+     def sealed_methods = ... .select { it.start_with?(PREFIX) }
+     def method_added(name)
+       ...
+       return if equal?(base) || !name.start_with?(PREFIX)
+   ```
+
+   The ten methods take `rgame_` for `_`, and keep the rest of their names:
+   `rgame_draw_content`, `rgame_children_unsorted!`, `rgame_missing_system`.
+   The two cops list `rgame_draw_content` as a per-frame method.
+
+   **The doc-coverage filter changes too.** It skips public names starting
+   with `_`, and `sealed_privates_spec.rb` already keeps every sealed method
+   non-public, so the filter skips nothing today. It moves to `rgame_`, so it
+   and the seal agree on what machinery is called.
+
+   **`Facts`' five helpers lose their `_`.** `Facts` is an engine subclass of
+   `Component`, so its private names follow the usual naming and nothing
+   seals them. But after step 4 a leading `_` means a hook, and `_changed`
+   beside `changed_signal` would read as the hook for that signal. They become
+   `checked_key`, `checked_value`, `parse`, `report_change` and
+   `notify_watchers`, none of which `Facts` defines today. It keeps step 4's
+   misspelled-hook guard, if it is built, from tripping on the engine's own
+   component.
+
+   Rules the specs pin, in `sealed_privates_spec.rb`, rewritten on the new
+   prefix:
+
+   1. A subclass defining a base's private or protected `rgame_` method raises
+      `NameError` naming both, however the method is made.
+   2. A subclass may define `_helper`, and override a non-public method with
+      no prefix, as a seam.
+   3. `Node2D`'s non-public methods without `rgame_` are exactly its seams,
+      `draw_children` and `initialize`.
+   4. No `rgame_` method on `Node2D` or `Component` is public.
+
+   - **3a. The machinery takes `rgame_`.** One commit, because the guard and
+     the names must move together: the ten methods and their callers,
+     `SealedPrivates` and its spec, the two cops and the cop spec, the
+     doc-coverage filter, `tools/bench_node_draw.rb`, the comments in two
+     `node2d_*` specs, `scene_graph.md`, the CLAUDE.md section and
+     `CHANGELOG.md`.
+   - **3b. `Facts`' helpers lose their `_`.** A rename inside one file, with
+     no visible effect, so no changelog entry.
+
+   **Verify.** `grep -rnE '\b_(children_|draw_content|in_local_space|place_in|resolve_|soil|sort_children|missing_system)'`
+   finds nothing outside `docs/plans/` and `CHANGELOG.md`'s released
+   sections. `grep -rnE 'def (self\.)?_[a-z]' lib examples test_projects` finds
+   nothing. `Class.new(RGame::Engine::Node2D) { def rgame_draw_content(*) = nil }`
+   raises `NameError`, and the same class with `_draw_content` does not. The
+   drive runs need not repeat: nothing here changes what a frame does, and
+   `rake spec` covers every rename, `bench_node_draw.rb` aside, which runs once
+   by hand.
 4. **Hooks take `_`.** Decisions 3 and 5, with the guards. `Component`'s
    work hooks, the split focus hook and `Navigation`'s plain names are part of
    it. It is the largest step:
