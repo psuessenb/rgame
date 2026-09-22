@@ -1,0 +1,34 @@
+# The English table: every string this example draws.
+# `smith.*` and `sign.*` are the two conversations, keyed by their scripts'
+# scopes. `speakers.*` holds every speaker's name, shared by every script.
+en:
+  speakers:
+    smith: Smith
+    sign: Signpost
+  smith:
+    greeting: Mind the sparks. If it's a lantern you're after, they're fifty gold, and worth every coin on a dark road.
+    ask_work: Any work going?
+    hammer: I found your hammer.
+    buy: I'll take a lantern.
+    bye: Goodbye.
+    work: Work? I've lost my best hammer, is what. Put it down by the well to cool, and now I can't find it. Bring it back and there's gold in it for you.
+    thanks: "That's the one! Here, %{reward} gold, as promised."
+    sold: There you are. Keep the wick trimmed and it'll see you home.
+  sign:
+    read: "North: the forge. East: the well. Everywhere else: more village."
+  quest:
+    not_started: "The smith's hammer: not heard of it"
+    searching: "The smith's hammer: somewhere by the well"
+    carried: "The smith's hammer: in hand"
+    done: "The smith's hammer: returned"
+  hud:
+    gold: "Gold: %{gold}"
+  status:
+    ready: F5 saves, F9 loads
+    saved: Saved
+    loaded: Loaded
+    empty: Nothing saved yet
+  help:
+    walk: Arrows or WASD walk; walk into the signpost to read it
+    talk: Enter next to the smith talks; in a conversation, L opens the log
+    save: F5 saves and F9 loads, except during a conversation

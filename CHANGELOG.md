@@ -87,8 +87,8 @@ index, not the argument.
 - **A game can hold a branching conversation.**
   `RGame::Engine::Dialogue::Script.build` declares beats, each a speaker saying
   a translated line, and responses that conditions can make unavailable.
-  `RGame::Engine::Dialogue` runs one and saves by `name:` like a quest. The game
-  draws it; there is no box yet. See
+  `RGame::Engine::Dialogue` runs one and saves by `name:` like a quest. It
+  draws nothing itself. See
   [docs/api/dialogue.md](docs/api/dialogue.md#dialogue).
 - **A conversation keeps a transcript and hands it over when it ends.**
   `RGame::Engine::Dialogue::Transcript` records each line with the values it
@@ -111,6 +111,10 @@ index, not the argument.
   owner whose buttons are the OR of every active player's, for a dialogue box, a
   title screen or a pause menu during `solo!`. A `PlayerLayer` refuses it. See
   [docs/api/input.md](docs/api/input.md#everyone-at-once).
+- **Two dialogue examples.** `examples/dialogue` holds one branching
+  conversation in a dialogue box, and nothing else. `examples/quests_and_dialogue`
+  is a village where a conversation moves a quest on, with a portrait, the log
+  and a save. See [docs/api/examples.md](docs/api/examples.md#conversation).
 - **A menu can drop its buttons, and a label can change its text.**
   `UI::Menu#clear` removes every button. `UI::Label#text=` and
   `Engine::Paragraph#text=` take a new key or `Engine::Text`, and a label starts

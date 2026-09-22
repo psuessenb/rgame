@@ -1,7 +1,6 @@
 # Roadmap
 
-**Status: steps 0–6 are implemented.** Steps 7 and 8 are rough on purpose and
-get re-planned now that step 6 has landed.
+**Status: steps 0–7 are implemented.** Step 8, the fold-back, is next.
 
 Each step is one branch and one pull request; each lettered sub-step is one
 commit. [implement-step](../../../.claude/skills/implement-step/SKILL.md) covers
@@ -11,7 +10,7 @@ the rest.
 
 ```
 0 state machine ─→ 1 facts ─→ 2 dialogue ─→ 4 transcript ─┐
-                                                          ├─→ 5 box ─→ 6 log, everyone ─→ 7 example ─→ 8 fold back
+                                                          ├─→ 5 box ─→ 6 log, everyone ─→ 7 examples ─→ 8 fold back
                                 3 label reveal ───────────┘
 ```
 
@@ -36,6 +35,7 @@ transcript with the one the same script produces with no box.
 | 4 | a transcript of every conversation, handed to the game when it ends, which it may save |
 | 5 | the shipped dialogue box, for one player or one per player in split screen |
 | 6 | a log over the transcript, and one input owner for every player — a box, a title screen or a pause menu during `solo!` |
+| 7 | two examples: one conversation on its own, and a village where a conversation moves a quest and the whole world saves |
 
 ## What each step documents
 
@@ -1262,16 +1262,299 @@ Where it got documented: `docs/api/input.md`, "Everyone at once";
 
 ---
 
-## Step 7 — `examples/dialogue` *(rough)*
+## Step 7 — `examples/dialogue` and `examples/quests_and_dialogue`
 
-One village, per [write-example](../../../.claude/skills/write-example/SKILL.md): a
-hero who walks, a smith with the script from the design, a hammer to find, and
-gold to bribe with. One conversation starts on confirm next to the smith
-(`CollisionWorld#nearest`), and a sign starts one by walking into it
-(`BoxCollider#on_hit`), answering the question the request asked. The box opens
-the log on a key. F5 saves `facts.to_h` and the hero's gold; loading resumes
-the quest, the smith's visits and the gold. A drive script plays the quest
-through, with `--texts` showing the unavailable bribe become available.
+Re-planned after step 6 landed. The rough sketch was one example, a village with
+a walking hero, a smith, a quest, a sign, the log and a save. That example
+stays, and becomes the second of two
+([decision 15](README.md#decisions-already-taken)). It shows what the whole
+system can do, and it is too much for a reader who only wants a conversation in
+their game and has read no other example. So the first example has no map, no
+actor, no quest and no log: a black screen, a prompt, and one small branching
+conversation that can be held again once it ends.
+
+The rough sketch, as it stood:
+
+> One village, per write-example: a hero who walks, a smith with the script
+> from the design, a hammer to find, and gold to bribe with. One conversation
+> starts on confirm next to the smith (`CollisionWorld#nearest`), and a sign
+> starts one by walking into it (`BoxCollider#on_hit`), answering the question
+> the request asked. The box opens the log on a key. F5 saves `facts.to_h` and
+> the hero's gold; loading resumes the quest, the smith's visits and the gold.
+> A drive script plays the quest through, with `--texts` showing the
+> unavailable bribe become available.
+
+### What was measured
+
+Taken at `ca6cd3f`, on this checkout.
+
+| | |
+|---|---|
+| `rake spec` | 3004 examples, 0 failures |
+| Examples | 25, none of them holding a conversation |
+| Examples naming `Dialogue`, `DialogueBox`, `StateMachine` or `Facts` | **0** |
+| Keys the default `InputMap` leaves free that this step wants | L, Tab, F5, F9, `PAD_Y` |
+| Keys the default map shares with `ui_up`/`ui_down` | the arrows, also `move_y` — a hero walks while a box reads them unless something stops it |
+| `CollisionWorld#nearest(x, y, r, layer:)` | exists, allocation-free |
+| `BoxCollider#on_hit` | fires once per pair on the step the two start to overlap |
+| A `Mover` stopped by a collider | `blocked_by:` a layer; the mover stops flush and no `on_hit` fires across a gap |
+
+### What the two resemble
+
+- **Reuse.** Everything the plan built: `Dialogue::Script`, `Dialogue`,
+  `UI::DialogueBox` with `_draw_portrait` and the log, `StateGraph` and
+  `StateMachine` for the quest, `Components::Facts` with `watch` and a named
+  machine, `Util::SaveFile`. From the rest of the engine, `examples/intro`'s
+  black screen and centred hint, `examples/collision`'s colliders and a
+  `PlayerController` hero, and `examples/save_load_ids`'s F5/F9 save.
+- **Extend.** Nothing. An example that needs engine work would say the plan
+  missed something, and that goes into the landed note.
+- **Genuinely new.** The two examples and their drive scripts.
+
+### 7a. `examples/dialogue`
+
+The smallest complete conversation. A black screen reads "Press Enter to begin
+the conversation". Enter starts one with an innkeeper, shown in a box at the
+bottom of the window. When it ends, the prompt comes back, and Enter holds it
+again from the start.
+
+```ruby
+INN = Engine::Dialogue::Script.build(start: :greeting, scope: 'inn') do
+  beat :greeting, speaker: :keeper, line: 'greeting', to: :hub
+
+  beat :hub, speaker: :keeper, line: 'hub' do
+    respond 'ask_room', to: :room
+    respond 'ask_road', to: :road
+    respond 'ask_news', to: :news
+    respond 'leave',    to: :farewell
+  end
+
+  beat :room, speaker: :keeper, line: 'room', to: :hub
+  beat :road, speaker: :keeper, line: 'road', to: :hub      # two pages long
+
+  beat :news, speaker: :keeper, line: 'news' do
+    respond 'news_more', to: :wolves
+    respond 'news_enough', to: :hub
+  end
+  beat :wolves, speaker: :keeper, line: 'wolves', to: :hub
+
+  beat :farewell, speaker: :keeper, line: 'farewell'
+end
+
+class Inn < Engine::Node2D
+  def _control(actions)
+    return if @talk || !actions.pressed?(:ui_confirm)
+    begin_conversation
+  end
+
+  private
+
+  def begin_conversation
+    @talk = Engine::Dialogue.new(INN)
+    @talk.on_ended { @talk = nil }
+    box = add_node(UI::DialogueBox.new(dialogue: @talk, unavailable: :hide, width: BOX_WIDTH, x: MARGIN))
+    box.y = HEIGHT - box.height - MARGIN
+  end
+end
+```
+
+Rules:
+
+1. **The prompt shows only while no conversation runs.**
+2. **The Enter that begins a conversation does not also move it.** The box's
+   menu takes no confirm until it has seen confirm up, so the first line types
+   out in full view.
+3. **The Enter that ends a conversation does not begin the next.** The root's
+   `_control` runs before the box's, so it has already read that tick when
+   `on_ended` clears `@talk`, and the next tick reads confirm as held.
+4. **Every question leads back to the hub.** `news` asks one question of its own
+   first, so "back to the hub" is sometimes two steps.
+5. **A new conversation starts from nothing.** The dialogue is unnamed, so it
+   keeps no visits and no transcript between two conversations.
+6. **Nothing but the conversation is drawn**: no map, no actor, no log, no
+   portrait. The header says where each of those is shown: the second example.
+
+The header names `unavailable: :hide` and says why the keyword is required when
+no response here has a condition. The text is in `locales/en.yml`; the speaker's
+name is `speakers.keeper`.
+
+Tests: none in `spec/`, as for every example. The drive script
+`tools/drive/examples/dialogue.rb` is the acceptance test: it starts a
+conversation, asks all three questions, takes the news branch both ways, leaves,
+and starts a second conversation.
+
+### 7b. `examples/quests_and_dialogue`
+
+The "Quests & Dialogue" example, which shows what the system can do. The rough
+sketch holds, with four changes:
+
+- **The bribe is a purchase.** The smith sells a lantern for 50 gold. A bribe
+  bought nothing a reader could name. The purchase is `if: :can_buy_lantern?`
+  plus `once: true`, so its condition and its once-only read as two separate
+  rules.
+- **Gold comes from the quest.** The hero starts with 20 gold. Returning the
+  hammer pays 40, which is what makes the lantern affordable. The purchase goes
+  from hidden to shown because the quest moved, and that link between the two
+  machines is the example's point.
+- **`unavailable: :hide`.** A disabled "I found your hammer" before the hero
+  has heard of a hammer gives the quest away. The greeting names the lantern's
+  price, so a player knows it exists before they can buy it.
+- **The log is in this example, and only here.** L opens it, or Y on a pad.
+
+```ruby
+HAMMER = Engine::StateGraph.build(start: :not_started) do
+  state(:not_started) { on :accepted, to: :searching, then: ->(m) { m.facts[:hammer_on_ground] = true } }
+  state(:searching)   { on :picked_up, to: :carried, then: ->(m) { m.facts[:hammer_on_ground] = false } }
+  state(:carried)     { on :returned, to: :done, then: ->(m) { m.context.gold += REWARD } }
+  state :done
+end
+
+SMITH = Engine::Dialogue::Script.build(start: :greeting, scope: 'smith') do
+  beat :greeting, speaker: :smith, line: 'greeting' do
+    respond 'ask_work', to: :work, once: true
+    respond 'hammer',   to: :thanks, if: :hammer_in_hand?, then: :hand_over_hammer
+    respond 'buy',      to: :sold, if: :can_buy_lantern?, then: :buy_lantern, once: true
+    respond 'bye'
+  end
+
+  beat :work,   speaker: :smith, line: 'work', to: :greeting, enter: :accept_work
+  beat :thanks, speaker: :smith, line: Engine::Text.new('smith.thanks', :reward), vars: :reward, to: :greeting
+  beat :sold,   speaker: :smith, line: 'sold', to: :greeting
+end
+
+SIGN = Engine::Dialogue::Script.build(start: :read, scope: 'sign') do
+  beat :read, speaker: :sign, line: 'read'
+end
+```
+
+The scene is one 640 × 480 village drawn in rectangles: a forge at the top with
+the smith in front of it, a signpost on the left, and a well on the right with
+the hammer beside it. Its parts:
+
+- **`Village`**, the root. It mounts `CollisionWorld`, builds the quest as a
+  machine named `:hammer` on `game.facts`, and is the context both conversations
+  ask: `hammer_in_hand?`, `hand_over_hammer`, `can_buy_lantern?`,
+  `buy_lantern`, `accept_work`, `reward`. It draws the ground, the HUD (gold,
+  the quest's stage from a table of `Text`s, the keys, the save status) and
+  reads Enter, F5 and F9.
+- **`Hero`**, a node with a `BoxCollider` on `:hero`, a `CharacterBody`
+  `blocked_by: [:npc]`, a `PlayerController`, and `gold`. It draws a lantern
+  once `facts[:lantern]` is set.
+- **`Smith`**, a node with a `BoxCollider` on `:npc`. Enter within 56 pixels of
+  it, found with `CollisionWorld#nearest(..., layer: :npc)`, starts
+  `Dialogue.new(SMITH, context: village, facts:, name: :smith)`.
+- **`Signpost`**, a `BoxCollider` on `:sign` that blocks nothing. Its `on_hit`,
+  for the hero, starts an unnamed `Dialogue.new(SIGN)`.
+- **`Hammer`**, a `BoxCollider` on `:item`. It watches `:hammer_on_ground` in
+  `_enter_tree` and unwatches in `_exit_tree`, and draws only while the fact is
+  true. Its `on_hit` fires `:picked_up` on the quest, which a quest in any other
+  stage ignores.
+- **`PortraitBox < UI::DialogueBox`**, drawing a coloured square per speaker in
+  `_draw_portrait`.
+
+Rules:
+
+7. **While a box is open the hero stands still.** The village sets
+   `hero.paused` when a conversation starts and clears it in `on_ended`, so the
+   arrows move focus and not the hero.
+8. **One conversation at a time.** Enter next to the smith and walking into the
+   sign both do nothing while a box is open.
+9. **The smith's conversation is named**, so `once: true` holds across every
+   talk with the smith and across a save: "Any work?" is asked once in the game, not
+   once a conversation.
+10. **The quest and the conversation meet only through the context.** The
+    smith's script fires the quest through `accept_work` and
+    `hand_over_hammer`. The quest pays the hero in its own transition. Neither
+    graph names the other.
+11. **The hammer follows a fact, not the quest's state.** After a load it lies
+    by the well or not, because `watch` hears the restored fact.
+12. **F5 saves `world: facts.to_h`, the hero's gold and position; F9 loads
+    them.** Both do nothing while a box is open. A save holds the quest, the
+    smith's visits, the lantern and the hammer's fact in its one `world` entry.
+13. **The log opens on L or Y**, declared in the example's `InputMap`.
+
+Tests: the drive script `tools/drive/examples/quests_and_dialogue.rb` walks the
+quest through. It talks to the smith and takes the work, walks into the sign,
+picks up the hammer, saves, hands it over and buys the lantern, opens the log,
+then loads and finds the hammer back in the hero's hands and the lantern gone.
+
+### 7c. Listed and linked
+
+Each example gets a `### name` entry in `docs/api/examples.md`, under a new
+"Conversation" heading, and a row in the examples table of `README.md`.
+`docs/api/dialogue.md` and the box's section of `docs/api/ui.md` point to both.
+`CHANGELOG.md` gains one entry for the two examples. The index spec fails on an
+example with no entry, so each example's commit carries its own entry and 7c
+adds the rest.
+
+### Verify
+
+`rake spec` green, with `spec/api_docs/index_spec.rb` finding both entries. Each
+example driven with `--texts`, nothing under "missing or mismatched keys":
+
+- `examples/dialogue`: the prompt drawn before the first conversation and again
+  after each; every line of the script drawn; the hub's responses drawn in each
+  visit; a second conversation's greeting typed out from nothing.
+- `examples/quests_and_dialogue`: "Buy a lantern" first drawn only after the
+  hammer is returned, the gold reading 20, then 60, then 10; the sign's line
+  drawn once for one walk into it; the log's lines drawn; after F9, the gold and
+  the quest's stage back at their saved values.
+
+Both run with `bundle exec rubocop` clean, and each header is read against
+[write-example](../../../.claude/skills/write-example/SKILL.md).
+
+**Landed.** `examples/dialogue` and `examples/quests_and_dialogue`, each with
+its drive script under `tools/drive/examples/`, an entry under a new
+"Conversation" heading in `docs/api/examples.md` and a row in `README.md`.
+Four commits: this plan, 7a, 7b and 7c. `docs/api/dialogue.md` and the box's
+section of `docs/api/ui.md` point to both, and `CHANGELOG.md` has one entry
+for the pair. No engine code changed.
+
+`rake spec` ran 3004 examples, 0 failures, in 23.7 s. `rake spec:core` ran 476,
+0 failures, `rake docs:coverage` reported 0 of 179 classes with undocumented
+names, and `make test` ran 380 checks, 0 failures. Both examples are clean
+under RuboCop, and both driven runs exit 0 with nothing under "missing or
+mismatched keys".
+
+- `examples/dialogue`, 1100 ticks with `--texts`: the prompt drawn for 83
+  frames, 21 before the first dialogue and 62 between the two. The greeting
+  types out in both dialogues, "E" from tick 22, and the hub with its four
+  responses is drawn on each of its four visits. The road's answer takes two
+  pages, its last line alone from tick 399. The second answer about the news
+  leads straight back to the hub.
+- `examples/quests_and_dialogue`, 1700 ticks with `--texts`: "Any work going?"
+  drawn only in the first talk, 23 frames. The stage reads "somewhere by the
+  well" from tick 166 and "in hand" from 407. "I found your hammer." is first
+  drawn at 860 and "I'll take a lantern." at 948, once the reward put the gold
+  at 60. The signpost speaks once, 22 frames from 612, though the hero stands
+  on it. The log's lines are drawn from 1058, and after F9 at 1166 the gold is
+  20 and the stage "in hand" again. The lantern's `circle` is drawn 195 times,
+  from the purchase to the load.
+
+What the sketch got wrong or left out:
+
+- **`vars: :reward` became `vars: :reward_vars`.** The Symbol is sent to the
+  village and returns a Hash. A method called `reward` that returns
+  `{ reward: 40 }` reads as returning 40.
+- **The forge and the well block the hero too.** They are `:wall` colliders,
+  and the hero is `blocked_by: %i[npc wall]`. The sketch listed only `:npc`.
+- **A load can start a conversation** *(expected, not measured)*. A load that
+  puts the hero onto the signpost should fire its `on_hit`, since the collision
+  world sees a new overlap however the hero got there. The drive script saves
+  only after walking off the post. The example does not guard against it, and
+  a game whose save points sit on triggers would have to.
+- **The graphs live in a class body.** `HAMMER`'s effects are lambdas, and a
+  lambda made at a script's top level keeps `game` alive, which
+  write-example's first trap describes. `Village::HAMMER` has no such scope.
+  `INN` in the simple example has no lambdas and stays at the top.
+- **A Down pressed while a line types does nothing.** The first drive of
+  `examples/dialogue` picked the wrong response for that reason. The
+  write-example skill now says how to time a box's presses from a trace.
+
+For step 8: nothing here changes the plan. The fold-back moves no text out of
+either example; their headers already say what the docs do not.
+
+---
 
 ## Step 8 — fold back and delete the plan
 

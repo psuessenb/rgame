@@ -272,3 +272,31 @@ collection alone does not.
 
 **Uses:** `Components::Identity`, `Util::SaveFile`, a save of records rather
 than positions.
+
+## Conversation
+
+### dialogue
+
+One branching conversation on a black screen, and nothing else. Enter begins
+it, and an innkeeper greets the player and asks what they want. Each of three
+questions leads back to that question, one of them by a question of its own, and
+a fourth response says goodnight. Once the conversation ends, Enter begins it
+again from the start. Read this one first; `quests_and_dialogue` builds on it.
+
+**Uses:** `Dialogue::Script`, `Engine::Dialogue`, `UI::DialogueBox`.
+
+### quests_and_dialogue
+
+A village where a conversation moves a quest on. The smith has lost a hammer:
+asking for work starts the quest, the hammer appears by the well, and handing
+it back pays 40 gold. That is what makes "I'll take a lantern." appear among the
+responses. Enter talks to the smith when the hero stands within reach, and
+walking into the signpost reads it. L opens the box's log. F5 saves the facts,
+which hold the quest and the smith's conversation, with the hero's gold; F9
+loads them. The quest and the conversation never name each other: the smith's
+script asks the village, and the village fires the quest's events.
+
+**Uses:** `StateGraph`, `StateMachine`, `Components::Facts`, `Dialogue::Script`,
+`Engine::Dialogue`, `UI::DialogueBox` and its `_draw_portrait` hook,
+`Components::CollisionWorld#nearest`, `Components::BoxCollider#on_hit`,
+`Util::SaveFile`.
