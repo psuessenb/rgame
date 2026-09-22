@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'dialogue/script'
+require_relative 'dialogue/transcript'
 
 module RGame
   module Engine
@@ -35,11 +36,14 @@ module RGame
     # visits, so a `once:` response stays hidden in every later conversation.
     # An unnamed dialogue starts with no visits, so `once:` lasts one
     # conversation.
+    #
+    # It keeps a `Dialogue::Transcript` of what was said, and `on_ended` hands
+    # it to the game, frozen. The game decides whether to keep it.
     class Dialogue
       extend Signal::DSL
 
       signal :on_beat, Signal.define(:beat)
-      signal :on_ended
+      signal :on_ended, Signal.define(:transcript)
 
       NOTHING = [].freeze
       private_constant :NOTHING
@@ -51,10 +55,18 @@ module RGame
       # A save of a conversation that had ended starts it again, keeping its
       # visits. Raises `NoMethodError` listing every Symbol in the script, its
       # `vars:` included, that the context does not answer.
-      def initialize(script, context: nil, facts: nil, from: nil, name: nil)
+      #
+      # A resumed conversation starts a new transcript unless `transcript:`
+      # hands it one to record on. A frozen one is copied; one of another
+      # script raises `ArgumentError`. The beat it resumes at is recorded
+      # unless the transcript already ends with that beat's line, as one saved
+      # mid-conversation does.
+      def initialize(script, context: nil, facts: nil, from: nil, name: nil, transcript: nil)
         @script = script
         @lines = {}
         @shown = nil
+        @transcript = transcript_for(transcript)
+        @resuming = !transcript.nil?
         StateMachine.check_answers(context, script.each_symbol)
         @machine = StateMachine.new(script.graph, context:, facts:, from:, name:)
         @machine.restart if @machine.ended?
@@ -105,7 +117,9 @@ module RGame
         raise "#{describe} continues rather than waiting for a response; call continue" unless waiting_for_response?
 
         check_listed(response)
+        at = beat
         @machine.take(response)
+        @transcript.record_response(at, response)
         settle
         response
       end
@@ -122,6 +136,10 @@ module RGame
       end
 
       def ended? = @machine.ended?
+
+      # What the conversation has said so far: a `Dialogue::Transcript`,
+      # recording until the conversation ends and frozen after.
+      attr_reader :transcript
 
       # How often the conversation entered `beat`; 0 for one never entered.
       def visits(beat) = @machine.visits(beat)
@@ -174,7 +192,7 @@ module RGame
       def settle
         passed = nil
         passed = pass(passed) until ended? || current
-        ended? ? on_ended_signal.emit : arrive
+        ended? ? finish : arrive
       end
 
       def pass(passed)
@@ -195,8 +213,26 @@ module RGame
           raise "#{describe} waits for a response and none is available, so the player has no way out"
         end
 
-        show(current)
+        data = current
+        vars = show(data)
+        @transcript.record_line(beat, data, vars) unless @resuming && @transcript.ends_with_line?(beat)
+        @resuming = false
         on_beat_signal.emit(beat)
+      end
+
+      def finish
+        @transcript.freeze
+        on_ended_signal.emit(@transcript)
+      end
+
+      def transcript_for(transcript)
+        return Transcript.new(@script) unless transcript
+
+        unless transcript.script.equal?(@script)
+          raise ArgumentError, 'transcript: records a conversation of another script'
+        end
+
+        transcript.frozen? ? transcript.dup : transcript
       end
 
       def show(data)
@@ -205,6 +241,7 @@ module RGame
 
         vars = data.vars.is_a?(Symbol) ? context.public_send(data.vars) : data.vars.call(@machine)
         line_for(data).with(**vars)
+        vars
       end
 
       def line_for(data) = data.vars ? (@lines[beat] ||= data.line.clone) : data.line
