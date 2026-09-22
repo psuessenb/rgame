@@ -36,7 +36,7 @@ module RGame
         # drawn through this camera trails equally, so nothing drifts apart on
         # screen. Reading it later — from the node's own hook, say — would put
         # this component's ordering among its siblings on show instead.
-        def update(_dt)
+        def _update(_dt)
           @camera.center_on(node.world_x + @offset_x, node.world_y + @offset_y)
         end
       end

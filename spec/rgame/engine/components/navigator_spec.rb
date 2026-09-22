@@ -387,7 +387,7 @@ RSpec.describe RGame::Engine::Components::Navigator do
       scene.enter_tree
       go_to_cell(navigator, 3, 6)
       5.times { scene.update(dt) }
-      sprite.draw(renderer, screen_view)
+      sprite._draw(renderer, screen_view)
       expect(renderer).to have_received(:sprite).with(:hero, 4, any_args)
     end
   end

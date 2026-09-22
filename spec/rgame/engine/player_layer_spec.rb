@@ -66,7 +66,7 @@ RSpec.describe RGame::Engine::PlayerLayer do
     it 'draws its own content inside the clip' do
       seen = nil
       component = RGame::Engine::Component.new
-      allow(component).to receive(:draw) { |_r, view| seen = view }
+      allow(component).to receive(:_draw) { |_r, view| seen = view }
       layer.add_component(component)
       draw_frame
       expect(seen.width).to eq(640)
@@ -115,7 +115,7 @@ RSpec.describe RGame::Engine::PlayerLayer do
     it 'draws nothing while the split is collapsed' do
       layer
       viewports.solo!(RGame::Engine::Camera.new)
-      viewports.update(0.016)
+      viewports._update(0.016)
       root.draw(renderer, viewports.screen)
 
       expect(renderer.calls).to be_empty

@@ -24,14 +24,14 @@ RSpec.describe RGame::Engine::Components::TileWorld do
     end
 
     it 'accumulates dt' do
-      3.times { world.update(0.5) }
+      3.times { world._update(0.5) }
       expect(world.elapsed).to eq(1.5)
     end
 
     it 'stands still while nothing updates it' do
       # What pausing looks like from here: a scene that stops ticking stops the
       # water. A wall clock could not express that.
-      world.update(0.25)
+      world._update(0.25)
       expect(world.elapsed).to eq(0.25)
     end
   end

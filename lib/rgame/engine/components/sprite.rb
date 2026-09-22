@@ -32,7 +32,7 @@ module RGame
         # it compares against the camera, which is nowhere near this node's
         # local space. Drawing is local, culling is world, and the two are
         # deliberately different arguments.
-        def draw(renderer, view)
+        def _draw(renderer, view)
           width = node.width * @scale
           height = node.height * @scale
           lift = node.elevation

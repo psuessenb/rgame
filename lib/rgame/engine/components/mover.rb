@@ -11,13 +11,13 @@ module RGame
       # that is this class.
       #
       # A mover fills in one private hook, `take_step(dt)`, and calls `apply_move(dx, dy)`
-      # from it. `update` is not for overriding: it opens the step, calls the hook and
+      # from it. `_update` is not for overriding: it opens the step, calls the hook and
       # reports what stopped being in the way, so no mover can forget either edge.
       #
       # **Why a base class, and not a sibling component or a Node2D method.** A separate
       # `Blocking` component that movers write through was tried, and it is order-dependent:
       # closing the step has to happen after the mover's step, and a sibling can only do
-      # that from its own `update`, which runs wherever it sits in the component list — two
+      # that from its own `_update`, which runs wherever it sits in the component list — two
       # add orders fired on_unblocked on two different ticks. A `Node2D#move_by` owning
       # `blocked_by` is order-free, but puts collision into the base of every node, HUDs and
       # menus included. A base class is order-free and touches only what moves.
@@ -26,7 +26,7 @@ module RGame
       #
       # `blocked_by:` lists what a step may not pass through, and the default is nothing:
       # the mover writes the node's position directly and needs no collider and no system
-      # on the scene. That free step is not quite free: `update` → `take_step` →
+      # on the scene. That free step is not quite free: `_update` → `take_step` →
       # `apply_move` is one dispatch more than a component writing `node.x` itself, which
       # measured about 12% on a bare Velocity step (tens of nanoseconds). Inlining the free
       # write into each subclass wins it back, at the cost of every mover copying
@@ -58,7 +58,7 @@ module RGame
       # what may I pass through, and what am I touching — and a flush-blocked pair does not
       # overlap, so a mover that must both stop and react needs both.
       #
-      # A declaration this scene cannot honour raises at on_attach rather than quietly
+      # A declaration this scene cannot honour raises at _attach rather than quietly
       # falling back to free movement — a mover passing through walls looks like a collision
       # bug, and the cause would be a scene three files away that never mounted the system.
       #
@@ -134,7 +134,7 @@ module RGame
         #
         # A subclass that needs its own attach work calls `super` first — PathFollow does,
         # to place its node before walking.
-        def on_attach
+        def _attach
           @stopped_by.reset
           return if @blocked_by.empty?
 
@@ -152,7 +152,7 @@ module RGame
         # fires. It also keeps the bookkeeping where a subclass cannot lose it — a mover
         # that resolves a step in several moves, or overrides apply_move, still opens the
         # step once and still reports its edges.
-        def update(dt)
+        def _update(dt)
           return take_step(dt) unless @collision
 
           @stopped_by.begin_frame

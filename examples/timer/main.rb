@@ -66,7 +66,7 @@
 # ## The one-shot arms itself, which matters more than it sounds
 #
 # `repeating: false` fires once and goes inert, and `reset` re-arms it. The
-# component calls `reset` from `on_attach`, so a node that leaves the tree and
+# component calls `reset` from `_attach`, so a node that leaves the tree and
 # comes back gets a fresh countdown rather than inheriting a spent one. That line
 # is what makes a pooled projectile with a lifetime work — see `examples/pooling`,
 # where the same component retires what the pool hands out.

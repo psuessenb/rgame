@@ -36,7 +36,7 @@ module RGame
         end
 
         # Attaching lands the node, so a pooled node reused mid-hop starts on the ground.
-        def on_attach = land
+        def _attach = land
 
         def airborne? = @airborne
 
@@ -48,11 +48,11 @@ module RGame
           @elapsed = 0.0
         end
 
-        def control(actions)
+        def _control(actions)
           jump if @action && actions.pressed?(@action)
         end
 
-        def update(dt)
+        def _update(dt)
           return unless @airborne
 
           @elapsed += dt

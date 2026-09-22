@@ -33,7 +33,7 @@ module RGame
           @layer = z
         end
 
-        def on_attach
+        def _attach
           sheet = context.assets.sheet(@sheet)
           @animator = Engine::Animator.new(Engine::AnimationSet.new(sheet.animations))
           node.width = sheet.frame_width
@@ -41,7 +41,7 @@ module RGame
           @mover = require_sibling(Mover)
         end
 
-        def update(dt)
+        def _update(dt)
           @animator.play(walk_animation(@mover.heading_x, @mover.heading_y))
           @animator.update(dt)
         end
@@ -49,7 +49,7 @@ module RGame
         # Top-left anchored, sized by the sheet's frame and lifted by the node's
         # elevation — so the footprint to cull against is the node's box, raised
         # by the same amount the picture is.
-        def draw(renderer, view)
+        def _draw(renderer, view)
           lift = node.elevation
           return if culled?(view, node.world_x, node.world_y - lift, node.width, node.height)
 

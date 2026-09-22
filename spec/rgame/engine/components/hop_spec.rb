@@ -107,7 +107,7 @@ RSpec.describe RGame::Engine::Components::Hop do
     dt = 1.0 / 60.0
     expect do
       hop.jump
-      hop.update(dt)
+      hop._update(dt)
     end.to allocate_nothing.after_warmup(120)
   end
 end

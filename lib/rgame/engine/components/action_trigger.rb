@@ -22,11 +22,11 @@ module RGame
           @timers = cooldowns.transform_values { 0.0 }
         end
 
-        def update(dt)
+        def _update(dt)
           @timers.each { |action, remaining| @timers[action] = remaining - dt if remaining.positive? }
         end
 
-        def control(actions)
+        def _control(actions)
           @cooldowns.each_key do |action|
             next unless actions.held?(action) && @timers[action] <= 0.0
 

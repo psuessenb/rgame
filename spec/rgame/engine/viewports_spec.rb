@@ -112,15 +112,15 @@ RSpec.describe RGame::Engine::Viewports do
       # wants something on screen draws in the global overlay band.
       it 'is nil for everyone while the split is collapsed' do
         viewports.solo!(RGame::Engine::Camera.new)
-        viewports.update(0.016)
+        viewports._update(0.016)
         expect(viewports.screen_for(players[0])).to be_nil
       end
 
       it 'comes back when the split does' do
         viewports.solo!(RGame::Engine::Camera.new)
-        viewports.update(0.016)
+        viewports._update(0.016)
         viewports.split!
-        viewports.update(0.016)
+        viewports._update(0.016)
         expect(viewports.screen_for(players[0])).not_to be_nil
       end
 
@@ -189,27 +189,27 @@ RSpec.describe RGame::Engine::Viewports do
 
     it 'collapses to one screen-wide view once applied' do
       viewports.solo!(cinematic)
-      viewports.update(0.016)
+      viewports._update(0.016)
       expect(rects).to eq([[0, 0, 640, 480]])
     end
 
     it 'looks through the camera it was given, not a player\'s' do
       viewports.solo!(cinematic)
-      viewports.update(0.016)
+      viewports._update(0.016)
       expect(viewports.views.first.camera).to equal(cinematic)
     end
 
     it 'reports itself as solo' do
       viewports.solo!(cinematic)
-      viewports.update(0.016)
+      viewports._update(0.016)
       expect(viewports).to be_solo
     end
 
     it 'goes back to a view per player on split!' do
       viewports.solo!(cinematic)
-      viewports.update(0.016)
+      viewports._update(0.016)
       viewports.split!
-      viewports.update(0.016)
+      viewports._update(0.016)
       expect(rects.size).to eq(2)
     end
 
@@ -218,7 +218,7 @@ RSpec.describe RGame::Engine::Viewports do
     it 'leaves the players\' own cameras alone' do
       players[0].camera.center_on(300, 300)
       viewports.solo!(cinematic)
-      viewports.update(0.016)
+      viewports._update(0.016)
       expect(players[0].camera.target_x).to eq(300)
     end
   end

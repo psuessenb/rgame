@@ -2,14 +2,14 @@
 
 RSpec.describe RGame::Engine::Component do
   describe '#require_sibling' do
-    # A component whose on_attach pulls a sibling, which is the shape the helper exists
+    # A component whose _attach pulls a sibling, which is the shape the helper exists
     # for. Anonymous rather than a real one so the examples pin the helper, not whichever
     # component was borrowed to demonstrate it.
     let(:driver_class) do
       Class.new(described_class) do
         attr_reader :body
 
-        def on_attach = @body = require_sibling(RGame::Engine::Components::CharacterBody)
+        def _attach = @body = require_sibling(RGame::Engine::Components::CharacterBody)
       end
     end
 
@@ -60,7 +60,7 @@ RSpec.describe RGame::Engine::Component do
     end
 
     # The mirror: assembled outside the tree, the whole set is present before any
-    # on_attach runs, so order genuinely does not matter and this must not raise.
+    # _attach runs, so order genuinely does not matter and this must not raise.
     it 'does not care about add order on a node assembled outside the tree' do
       driver = node.add_component(driver_class.new)
       node.add_component(body)

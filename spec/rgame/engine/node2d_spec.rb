@@ -14,8 +14,8 @@ class SpecPhysicsComponent < RGame::Engine::Component; end
 class SpecLifecycleComponent < RGame::Engine::Component
   attr_accessor :log
 
-  def on_attach = log << :component_attach
-  def on_detach = log << :component_detach
+  def _attach = log << :component_attach
+  def _detach = log << :component_detach
 end
 
 # A node that records its own _enter_tree/_exit_tree into the same shared log.
@@ -340,7 +340,7 @@ RSpec.describe RGame::Engine::Node2D do
         log.clear
         late = SpecPhysicsComponent.new
         attached = []
-        allow(late).to receive(:on_attach) { attached << late }
+        allow(late).to receive(:_attach) { attached << late }
         node.add_component(late)
         expect(attached).to eq([late])
       end
@@ -456,10 +456,10 @@ RSpec.describe RGame::Engine::Node2D do
       end
 
       it 'forwards the sweep into its components' do
-        component = instance_double(RGame::Engine::Component, :node= => nil, on_attach: nil, sweep_freed: nil)
+        component = instance_double(RGame::Engine::Component, :node= => nil, _attach: nil, _sweep_freed: nil)
         node.add_component(component)
         node.sweep_freed
-        expect(component).to have_received(:sweep_freed)
+        expect(component).to have_received(:_sweep_freed)
       end
     end
   end
@@ -483,7 +483,7 @@ RSpec.describe RGame::Engine::Node2D do
       end
 
       it 'drives components, then its own hook, then children — each with the actions' do
-        allow(component).to receive(:control) { |a| log << [:component, a] }
+        allow(component).to receive(:_control) { |a| log << [:component, a] }
         allow(child).to receive(:control) { |a| log << [:child, a] }
         node.add_component(component)
         node.add_node(child)
@@ -496,7 +496,7 @@ RSpec.describe RGame::Engine::Node2D do
 
     describe '#update' do
       it 'drives components, then its own hook, then children — each with the timestep' do
-        allow(component).to receive(:update) { |dt| log << [:component, dt] }
+        allow(component).to receive(:_update) { |dt| log << [:component, dt] }
         allow(child).to receive(:update) { |dt| log << [:child, dt] }
         node.add_component(component)
         node.add_node(child)
@@ -516,7 +516,7 @@ RSpec.describe RGame::Engine::Node2D do
       before { allow(renderer).to receive(:layered).and_yield }
 
       it 'draws components, then its own hook, then children — each with the renderer' do
-        allow(component).to receive(:draw) { |r, _v| log << [:component, r] }
+        allow(component).to receive(:_draw) { |r, _v| log << [:component, r] }
         allow(child).to receive(:draw) { |r, _v| log << [:child, r] }
         node.add_component(component)
         node.add_node(child)

@@ -19,7 +19,7 @@ module RGame
       #   life = node.add_component(Engine::Components::Timer.new(2.0, repeating: false), as: :despawn)
       #   life.on_elapsed { node.queue_free }
       #
-      # The countdown restarts in `on_attach`, so a pooled node reacquired and re-added
+      # The countdown restarts in `_attach`, so a pooled node reacquired and re-added
       # starts fresh — a recycled projectile gets its full interval (and a one-shot can fire
       # again) rather than inheriting the previous life's elapsed time.
       #
@@ -43,12 +43,12 @@ module RGame
 
         # Start the countdown fresh whenever the node (re-)enters the tree, so a pooled node
         # never inherits a previous life's accumulated time or spent one-shot.
-        def on_attach = reset
+        def _attach = reset
 
         # Advance one step and fire on_elapsed once per whole interval that elapsed — so a
         # single long step still emits the right number of times (catch-up, not drift). A
         # one-shot (`repeating: false`) fires once and then stops accumulating.
-        def update(dt)
+        def _update(dt)
           return if @done
 
           @timer.update(dt)

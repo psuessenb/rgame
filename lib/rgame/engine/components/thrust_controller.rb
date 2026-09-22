@@ -5,8 +5,8 @@ module RGame
     module Components
       # Inertial "ship" flight on top of a Velocity sibling: a turn axis rotates the
       # node (angular velocity) and a thrust axis accelerates it along its heading,
-      # with optional drag and a top-speed clamp. Reads intent in `control` and
-      # integrates it in `update`, so it composes with the normal phase order.
+      # with optional drag and a top-speed clamp. Reads intent in `_control` and
+      # integrates it in `_update`, so it composes with the normal phase order.
       #
       # Heading convention: angle 0 points along +x ("right"), so forward is
       # (cos θ, sin θ) — consistent with the renderer's clockwise rotation under a y-down screen
@@ -26,14 +26,14 @@ module RGame
         end
 
         # The Velocity sibling is only guaranteed present once attached to a node.
-        def on_attach = @velocity = require_sibling(Velocity)
+        def _attach = @velocity = require_sibling(Velocity)
 
-        def control(actions)
+        def _control(actions)
           @velocity.spin = actions.axis(@turn_action) * @turn_speed
           @thrust = actions.axis(@thrust_action)
         end
 
-        def update(dt)
+        def _update(dt)
           if @thrust != 0.0
             @velocity.vx += Math.cos(node.angle) * @accel * @thrust * dt
             @velocity.vy += Math.sin(node.angle) * @accel * @thrust * dt

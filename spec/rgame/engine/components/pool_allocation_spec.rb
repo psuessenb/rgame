@@ -9,6 +9,6 @@ RSpec.describe RGame::Engine::Components::Pool do
     owner.enter_tree
     5.times { pool.spawn } # a steady set of live nodes, none freed
 
-    expect { pool.update(1.0 / 60.0) }.to allocate_nothing
+    expect { pool._update(1.0 / 60.0) }.to allocate_nothing
   end
 end

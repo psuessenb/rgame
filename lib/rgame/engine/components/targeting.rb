@@ -32,9 +32,9 @@ module RGame
         attr_reader :target
 
         # Pull the broadphase once it's reachable (scene scope, resolved up the tree).
-        def on_attach = @world = node.system(CollisionWorld)
+        def _attach = @world = node.system(CollisionWorld)
 
-        def update(_dt)
+        def _update(_dt)
           collider = pick
           @target = collider&.node
         end

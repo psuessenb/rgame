@@ -12,7 +12,7 @@ module RGame
 
         # See #control: the scenes this holds need the input source, and a
         # component is only handed one player's snapshot.
-        def on_attach = @players = node.system(Engine::Players)
+        def _attach = @players = node.system(Engine::Players)
 
         def push(scene)
           @stack.push(scene)
@@ -55,13 +55,13 @@ module RGame
         # Without a registry — a spec driving a stack with a bare snapshot — the
         # snapshot is passed on, which is exactly what it means: one answer for
         # everyone.
-        def control(actions)
+        def _control(actions)
           return unless (current_scene = current)
 
           current_scene.control(@players || actions)
         end
 
-        def update(dt)
+        def _update(dt)
           return unless (current_scene = current)
 
           current_scene.update(dt)
@@ -70,7 +70,7 @@ module RGame
         # Every scene in the stack, not just the current one — that asymmetry
         # with control/update is what lets a menu pushed on top keep the world
         # visible underneath while freezing it.
-        def draw(renderer, view)
+        def _draw(renderer, view)
           @stack.each do |scene|
             scene.draw(renderer, view)
           end
@@ -78,7 +78,7 @@ module RGame
 
         # Scenes live in @stack, off the host's child list, so the host's #sweep_freed
         # can't reach them — forward the sweep into the active scene's subtree.
-        def sweep_freed
+        def _sweep_freed
           current&.sweep_freed
         end
       end

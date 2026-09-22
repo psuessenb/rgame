@@ -38,7 +38,7 @@ module RGame
         # Raises when the scene has no TileWorld, and ArgumentError when the cell is
         # outside the map, so a misplaced crate fails as it arrives rather than
         # blocking nothing.
-        def on_attach
+        def _attach
           world = node.system(TileWorld) ||
                   raise("OccupiesCell makes a cell of the scene's TileWorld solid, and the " \
                         "scene has none. Mount one before adding a node that occupies (#{@col}, #{@row}).")
@@ -46,7 +46,7 @@ module RGame
           @world = world
         end
 
-        def on_detach
+        def _detach
           @world&.vacate(@col, @row)
           @world = nil
         end

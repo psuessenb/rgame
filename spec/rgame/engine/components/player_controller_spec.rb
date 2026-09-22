@@ -7,7 +7,7 @@ RSpec.describe RGame::Engine::Components::PlayerController do
   before do
     node.add_component(body)
     node.add_component(described_class.new)
-    node.enter_tree # on_attach pulls the CharacterBody sibling
+    node.enter_tree # _attach pulls the CharacterBody sibling
   end
 
   # Both axes are declared every time, because that is the set this component

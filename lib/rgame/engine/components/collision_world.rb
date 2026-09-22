@@ -168,7 +168,7 @@ module RGame
         # come first and every one of them for the step is emitted before the first
         # ending one, because a separation is only knowable once every pair has been
         # looked at.
-        def update(_dt)
+        def _update(_dt)
           @hash.clear
           @colliders.each do |collider|
             collider.contacts.begin_frame

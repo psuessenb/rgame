@@ -71,7 +71,7 @@ RSpec.describe RGame::Engine::WorldView do
     it 'draws its own content inside the viewports, not outside them' do
       component = RGame::Engine::Component.new
       seen = []
-      allow(component).to receive(:draw) { |_r, view| seen << view }
+      allow(component).to receive(:_draw) { |_r, view| seen << view }
       world.add_component(component)
 
       draw_frame

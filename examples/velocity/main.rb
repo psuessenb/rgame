@@ -55,7 +55,7 @@
 # matches with `is_a?`, which matches an included module as readily as a class,
 # and that is the whole mechanism.
 #
-# It resolves in `on_attach` rather than `initialize`, because a node has no
+# It resolves in `_attach` rather than `initialize`, because a node has no
 # scene to ask until it is in the tree — and it resolves again on every entry, so
 # an entity pooled out of one scene and into a smaller one wraps against the
 # smaller one.

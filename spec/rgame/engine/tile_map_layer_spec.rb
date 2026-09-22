@@ -182,7 +182,7 @@ RSpec.describe RGame::Engine::TileMapLayer do
 
   describe 'the animation clock' do
     it "hands the scene's elapsed seconds to every layer" do
-      3.times { world.update(0.5) }
+      3.times { world._update(0.5) }
       draw_frame
 
       expect(renderer).to have_received(:tilemap)

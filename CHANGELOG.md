@@ -148,6 +148,11 @@ index, not the argument.
   `on_draw`, and `_enter_tree` and `_exit_tree` for `on_add` and `on_remove`.
   Each hook is named after the step that calls it. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md#the-tick-control--update--draw).
+- **A component's hooks start with `_` too.** Override `_control`, `_update`
+  and `_draw` for `control`, `update` and `draw`, `_attach` and `_detach` for
+  `on_attach` and `on_detach`, and `_sweep_freed` for `sweep_freed`. A node and
+  a component now name the same hook the same way. See
+  [docs/api/components.md](docs/api/components.md).
 - **`Node2D`'s sealed machinery starts with `rgame_`, not `_`.** A subclass
   that defines `rgame_draw_content` or another of `Node2D`'s or `Component`'s
   private `rgame_` methods raises `NameError` where the class is defined. A

@@ -7,7 +7,7 @@ RSpec.describe RGame::Engine::Components::PathFollow do
   let(:path) { RGame::Engine::Path.new([[0.0, 0.0], [100.0, 0.0], [100.0, 100.0]]) }
   let(:node) { RGame::Engine::Node2D.new(x: 999.0, y: 999.0) }
 
-  # add_component fires on_attach immediately only once the node is in the tree.
+  # add_component fires _attach immediately only once the node is in the tree.
   before do
     node.add_component(follow)
     node.enter_tree
@@ -18,26 +18,26 @@ RSpec.describe RGame::Engine::Components::PathFollow do
   end
 
   it 'advances along the first segment by speed * dt' do
-    follow.update(1.0) # 50 px along the +x leg
+    follow._update(1.0) # 50 px along the +x leg
     expect([node.x, node.y]).to eq([50.0, 0.0])
   end
 
   it 'turns the corner onto the next segment within a single step' do
-    follow.update(2.0) # 100 px: exactly to the corner, no further
+    follow._update(2.0) # 100 px: exactly to the corner, no further
     expect([node.x, node.y]).to eq([100.0, 0.0])
 
-    follow.update(1.0) # 50 px down the second leg
+    follow._update(1.0) # 50 px down the second leg
     expect([node.x, node.y]).to eq([100.0, 50.0])
   end
 
   it 'crosses multiple segments in one large step' do
-    follow.update(3.0) # 150 px: 100 across the first leg, 50 down the second
+    follow._update(3.0) # 150 px: 100 across the first leg, 50 down the second
     expect([node.x, node.y]).to eq([100.0, 50.0])
   end
 
   describe 'reaching the end' do
     it 'clamps to the final waypoint instead of overshooting' do
-      follow.update(10.0) # 500 px >> 200 px total
+      follow._update(10.0) # 500 px >> 200 px total
       expect([node.x, node.y]).to eq([100.0, 100.0])
     end
 
@@ -45,18 +45,18 @@ RSpec.describe RGame::Engine::Components::PathFollow do
       finishes = 0
       follow.on_finished { finishes += 1 }
 
-      follow.update(10.0)
+      follow._update(10.0)
       expect(follow).to be_finished
       expect(finishes).to eq(1)
 
-      follow.update(10.0) # further updates are inert
+      follow._update(10.0) # further updates are inert
       expect(finishes).to eq(1)
     end
   end
 
   describe 're-entering the tree (pool recycle)' do
     it 'restarts the walk from the first waypoint' do
-      follow.update(10.0) # walk all the way to the end
+      follow._update(10.0) # walk all the way to the end
       expect(follow).to be_finished
 
       node.exit_tree
@@ -70,10 +70,10 @@ RSpec.describe RGame::Engine::Components::PathFollow do
       finishes = 0
       follow.on_finished { finishes += 1 } # wired once, as a pooled entity would
 
-      follow.update(10.0) # first life reaches the end
+      follow._update(10.0) # first life reaches the end
       node.exit_tree
-      node.enter_tree     # recycled
-      follow.update(10.0) # second life reaches the end
+      node.enter_tree      # recycled
+      follow._update(10.0) # second life reaches the end
 
       expect(finishes).to eq(2)
     end
@@ -87,7 +87,7 @@ RSpec.describe RGame::Engine::Components::PathFollow do
     end
 
     it 'turns with the road once the walk crosses the corner' do
-      follow.update(3.0) # 50 px down the second leg
+      follow._update(3.0) # 50 px down the second leg
       expect(heading).to eq([0.0, 1.0])
     end
 
@@ -97,7 +97,7 @@ RSpec.describe RGame::Engine::Components::PathFollow do
     end
 
     it 'heads nowhere once finished' do
-      follow.update(10.0)
+      follow._update(10.0)
       expect(heading).to eq([0.0, 0.0])
     end
 
@@ -118,20 +118,20 @@ RSpec.describe RGame::Engine::Components::PathFollow do
     end
 
     it 'leaves the node where it stands, on attach and on every step' do
-      idle.update(1.0)
+      idle._update(1.0)
       expect([idle_node.x, idle_node.y]).to eq([30.0, 40.0])
     end
 
     it 'never finishes, and heads nowhere' do
       finishes = 0
       idle.on_finished { finishes += 1 }
-      idle.update(10.0)
+      idle._update(10.0)
       expect([idle.finished?, finishes, idle.heading_x, idle.heading_y]).to eq([false, 0, 0.0, 0.0])
     end
 
     it 'walks the first path it is handed' do
       idle.follow(RGame::Engine::Path.new([[30.0, 40.0], [30.0, 140.0]]))
-      idle.update(1.0)
+      idle._update(1.0)
       expect([idle_node.x, idle_node.y]).to eq([30.0, 90.0])
     end
   end
@@ -147,32 +147,32 @@ RSpec.describe RGame::Engine::Components::PathFollow do
     it 'walks again after finishing, and finishes again' do
       finishes = 0
       follow.on_finished { finishes += 1 }
-      follow.update(10.0)
+      follow._update(10.0)
       follow.follow(detour)
       expect(follow).not_to be_finished
-      follow.update(10.0)
+      follow._update(10.0)
       expect([node.x, node.y, finishes]).to eq([0.0, -100.0, 2])
     end
 
     it 'abandons a route still being walked at once, placing the node on the new start' do
-      follow.update(3.0) # halfway down the L's second leg
+      follow._update(3.0) # halfway down the L's second leg
       follow.follow(RGame::Engine::Path.new([[10.0, 10.0], [110.0, 10.0]]))
       expect([node.x, node.y]).to eq([10.0, 10.0])
-      follow.update(1.0)
+      follow._update(1.0)
       expect([node.x, node.y, follow.heading_x, follow.heading_y]).to eq([60.0, 10.0, 1.0, 0.0])
     end
 
     it 'can be handed a new route from its own on_finished' do
       follow.on_finished { follow.follow(detour) if follow.path.equal?(path) }
-      follow.update(10.0)
-      follow.update(10.0)
+      follow._update(10.0)
+      follow._update(10.0)
       expect([node.x, node.y, follow.finished?]).to eq([0.0, -100.0, true])
     end
 
     it 'stops the walk where it stands when handed nil' do
-      follow.update(1.0)
+      follow._update(1.0)
       follow.follow(nil)
-      follow.update(1.0)
+      follow._update(1.0)
       expect([node.x, node.y, follow.heading_x]).to eq([50.0, 0.0, 0.0])
     end
   end

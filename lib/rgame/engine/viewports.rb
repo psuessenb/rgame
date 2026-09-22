@@ -20,7 +20,7 @@ module RGame
     #
     # ## Mode changes are deferred
     #
-    # `solo!` and `split!` record a request; it is applied in `update`, which
+    # `solo!` and `split!` record a request; it is applied in `_update`, which
     # runs in the root's component phase. That matters because this is reachable
     # from anywhere, including from a `draw` — and a `draw` now runs once per
     # view, so a mode change made there would fire several times and tear the
@@ -101,7 +101,7 @@ module RGame
       # Applies a pending mode change, then rebuilds the rects. Runs in the
       # root's component phase, so a change requested during a tick lands on the
       # next one.
-      def update(_dt)
+      def _update(_dt)
         apply_pending
         refresh
       end

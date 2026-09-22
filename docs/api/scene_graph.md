@@ -440,10 +440,10 @@ to a node** instead of building it into a subclass. A component knows its owning
 - `remove_component(key)` detaches the component in that slot (class or name) and
   returns it, or `nil` if the slot is empty.
 
-A component mirrors the node's three phases: `control(actions)`, `update(dt)` and
-`draw(renderer, view)`. In each phase the node drives its components before its
+A component has a hook for each of the node's three phases: `_control(actions)`,
+`_update(dt)` and `_draw(renderer, view)`. In each phase the node drives its components before its
 own hook and before its children. Components also have two tree-lifecycle hooks,
-`on_attach` and `on_detach`, described below.
+`_attach` and `_detach`, described below.
 
 ## Lifecycle: constructing vs. entering the tree
 
@@ -456,11 +456,11 @@ trace.
    Build children and attach components here. Do **not** look anything up across
    the tree.
 2. **Entering the tree**: when the node goes live, the engine runs a depth-first
-   cascade. It fires each component's `on_attach`, then the node's `_enter_tree`, then
+   cascade. It fires each component's `_attach`, then the node's `_enter_tree`, then
    the same for every child. **Anchors and systems are available here**, so a
    component registers with a shared system at this point. Leaving the tree runs
    the mirror cascade: children first, then `_exit_tree`, then each component's
-   `on_detach` to release its registrations.
+   `_detach` to release its registrations.
 
 The engine drives this; you never call it. It uses `enter_tree`, `exit_tree` and
 `in_tree?`, fired at these points:
@@ -469,12 +469,12 @@ The engine drives this; you never call it. It uses `enter_tree`, `exit_tree` and
   Otherwise the child enters when its ancestor does. A tree assembled in
   `initialize` therefore comes alive all at once when it is mounted. `remove_node`
   exits the subtree the same way.
-- `add_component` and `remove_component` fire `on_attach` and `on_detach` at once
+- `add_component` and `remove_component` fire `_attach` and `_detach` at once
   when the host node is live. Otherwise attachment happens when the node enters.
 - `SceneStack#push` and `pop` enter and exit a scene. `RGame::Game#start` enters
   the root once, at boot.
 
-**Put cross-tree lookups in `_enter_tree` or `on_attach`, never in `initialize`.** That
+**Put cross-tree lookups in `_enter_tree` or `_attach`, never in `initialize`.** That
 covers anchors, systems and sibling components. The engine wires the anchors
 before those hooks run, so you cannot read them too early.
 
@@ -530,12 +530,12 @@ change a parent's `children` while the traversal iterates that list.
 - `queue_free` marks a node for removal, and `freed?` reports the mark. The node
   stays in the tree and keeps ticking until the sweep.
 - `sweep_freed` detaches every marked node, depth-first, and runs the normal
-  leave-tree cascade (`_exit_tree` / `on_detach`) on each. The game loop calls it
+  leave-tree cascade (`_exit_tree` / `_detach`) on each. The game loop calls it
   once per step, after `update`, outside the traversal.
 
 Any component or hook can therefore call `node.queue_free` from inside `update`
 without corrupting the traversal. A component that holds nodes outside the normal
-child list, such as `SceneStack`, overrides `Component#sweep_freed` to pass the
+child list, such as `SceneStack`, overrides `Component#_sweep_freed` to pass the
 sweep into the subtree it owns.
 
 `enter_tree` clears the freed flag, so a node detached and added again comes back

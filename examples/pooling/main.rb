@@ -67,7 +67,7 @@
 # once.
 #
 # The mirror of that rule is what makes reuse safe: `Components::Timer` re-arms
-# itself in `on_attach`, and `Components::DespawnOffscreen` re-resolves its world
+# itself in `_attach`, and `Components::DespawnOffscreen` re-resolves its world
 # bounds there, so a recycled node inherits neither a spent countdown nor the
 # dimensions of the scene it came from.
 #

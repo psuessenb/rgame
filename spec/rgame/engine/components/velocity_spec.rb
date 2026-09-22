@@ -9,7 +9,7 @@ RSpec.describe RGame::Engine::Components::Velocity do
 
   describe '#update' do
     it 'advances position and angle by velocity times the timestep' do
-      velocity.update(2.0)
+      velocity._update(2.0)
       expect([node.x, node.y, node.angle]).to eq([20.0, 14.0, 5.0])
     end
   end
@@ -17,7 +17,7 @@ RSpec.describe RGame::Engine::Components::Velocity do
   it 'defaults to no motion' do
     still = described_class.new
     RGame::Engine::Node2D.new(x: 7.0).tap { it.add_component(still) }
-    expect { still.update(1.0) }.not_to(change { still.node.x })
+    expect { still._update(1.0) }.not_to(change { still.node.x })
   end
 
   it_behaves_like 'a mover' do
