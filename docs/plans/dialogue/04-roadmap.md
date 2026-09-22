@@ -448,6 +448,52 @@ Rules:
     holds across every conversation with a named dialogue, and within one
     conversation with an unnamed one.
 
+*Settled before building, with the user:* the speaker's name is
+`speaker_name`, and `name` stays the name the dialogue is saved under, as a
+machine's is. And a second hang joins rule 9:
+
+12. Arriving at a beat that waits for a response, with none available, raises,
+    naming the beat. The player would have no way out.
+
+### 2c. Checking every path *(added before building)*
+
+Rules 9 and 12 raise while a player plays, which is the last moment to find a
+dead end. A spec should find it first. `Engine::Exploration` walks every path a
+dialogue or a machine can take and reports where one gets stuck:
+
+```ruby
+report = Engine::Exploration.run { Engine::Dialogue.new(SMITH, context: Hero.new, facts: Components::Facts.new) }
+
+report.problems    # => [] — or one String per problem, with the path that reaches it
+report.ends?       # whether some path ends
+report.stuck       # each position with no way on, and the path there
+report.unreached   # the states no path entered
+report.truncated?  # whether it stopped at a limit before it had seen every position
+```
+
+Rules:
+
+1. **The block builds a fresh world**, and the walk replays each path in a new
+   one. Effects and facts behave as in play, and a condition sees only what the
+   block set up and the walk's own moves changed.
+2. **A move is any available transition**: a response or a continue for a
+   dialogue, and any transition, fired or picked, for a machine.
+3. **A position is stuck** when a move raises, or when a machine has
+   transitions and none is available. A machine's state with no transitions is
+   an end, as a quest's `:done` is.
+4. **Positions are compared by state, the states visited, and the facts**,
+   with visits counted as entered or not. A repeatable question does not
+   multiply positions, and a condition that counts visits past one is explored
+   as if it did not.
+5. **`problems` lists every stuck position, no end reached, and a truncated
+   walk.** Unreached states are not a problem, since the world a spec builds
+   may leave a branch shut on purpose; a spec asserts on `unreached` itself.
+6. **A block that builds a different world on a replay raises**, rather than
+   reporting paths that do not exist.
+
+It returns Strings rather than shipping an RSpec matcher, so a game's spec
+writes `expect(report.problems).to eq([])` and the gem stays free of RSpec.
+
 ### Tests
 
 `spec/rgame/engine/dialogue/script_spec.rb`: each rule of 2a.
@@ -463,6 +509,10 @@ with the hammer quest from step 1 on the context and a `Facts` on the root. A
 response is unavailable until the quest reaches `:found`; taking it moves the
 quest to `:done`; the bribe is unavailable with too little gold and available
 with enough.
+
+`spec/rgame/engine/exploration_spec.rb`: each rule of 2c, over a machine and a
+dialogue; a dead beat and a hanging lineless state found with their paths; the
+hammer quest and the smith script both reported clean.
 
 ### Verify
 
