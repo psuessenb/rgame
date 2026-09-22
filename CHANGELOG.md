@@ -83,6 +83,16 @@ index, not the argument.
   `StateMachine` built with `name:` registers with it, so
   `facts.to_h` saves every named quest too and `facts.restore` puts all of them
   back. See [docs/api/dialogue.md](docs/api/dialogue.md#facts).
+- **A game can hold a branching conversation.**
+  `RGame::Engine::Dialogue::Script.build` declares beats, each a speaker saying
+  a translated line, and responses that conditions can make unavailable.
+  `RGame::Engine::Dialogue` runs one and saves by `name:` like a quest. The game
+  draws it; there is no box yet. See
+  [docs/api/dialogue.md](docs/api/dialogue.md#dialogue).
+- **A spec can check that no conversation strands a player.**
+  `RGame::Engine::Exploration.run` walks every path a dialogue or a state
+  machine can take. It reports each dead end, with the moves that reach it. See
+  [docs/api/dialogue.md](docs/api/dialogue.md#checking-every-path).
 
 ### Changed
 

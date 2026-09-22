@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: steps 0–1 are implemented.** Steps 0–3 are detailed. Steps 4–7 are rough on
+**Status: steps 0–2 are implemented.** Steps 0–3 are detailed. Steps 4–7 are rough on
 purpose and get re-planned when the step before them lands.
 
 Each step is one branch and one pull request; each lettered sub-step is one
@@ -31,7 +31,7 @@ transcript with the one the same script produces with no box.
 | Through step | What a game has |
 |---|---|
 | 1 | quests: a state machine with conditions, events, visit counts and saves, and a shared facts store |
-| 2 | branching dialogue for a game that draws its own box |
+| 2 | branching dialogue for a game that draws its own box, and a spec check that no conversation strands a player |
 | 3 | a typewriter reveal on any `UI::Label`, and `examples/intro` using it |
 
 ## What each step documents
@@ -448,6 +448,52 @@ Rules:
     holds across every conversation with a named dialogue, and within one
     conversation with an unnamed one.
 
+*Settled before building, with the user:* the speaker's name is
+`speaker_name`, and `name` stays the name the dialogue is saved under, as a
+machine's is. And a second hang joins rule 9:
+
+12. Arriving at a beat that waits for a response, with none available, raises,
+    naming the beat. The player would have no way out.
+
+### 2c. Checking every path *(added before building)*
+
+Rules 9 and 12 raise while a player plays, which is the last moment to find a
+dead end. A spec should find it first. `Engine::Exploration` walks every path a
+dialogue or a machine can take and reports where one gets stuck:
+
+```ruby
+report = Engine::Exploration.run { Engine::Dialogue.new(SMITH, context: Hero.new, facts: Components::Facts.new) }
+
+report.problems    # => [] — or one String per problem, with the path that reaches it
+report.ends?       # whether some path ends
+report.stuck       # each position with no way on, and the path there
+report.unreached   # the states no path entered
+report.truncated?  # whether it stopped at a limit before it had seen every position
+```
+
+Rules:
+
+1. **The block builds a fresh world**, and the walk replays each path in a new
+   one. Effects and facts behave as in play, and a condition sees only what the
+   block set up and the walk's own moves changed.
+2. **A move is any available transition**: a response or a continue for a
+   dialogue, and any transition, fired or picked, for a machine.
+3. **A position is stuck** when a move raises, or when a machine has
+   transitions and none is available. A machine's state with no transitions is
+   an end, as a quest's `:done` is.
+4. **Positions are compared by state, the states visited, and the facts**,
+   with visits counted as entered or not. A repeatable question does not
+   multiply positions, and a condition that counts visits past one is explored
+   as if it did not.
+5. **`problems` lists every stuck position, no end reached, and a truncated
+   walk.** Unreached states are not a problem, since the world a spec builds
+   may leave a branch shut on purpose; a spec asserts on `unreached` itself.
+6. **A block that builds a different world on a replay raises**, rather than
+   reporting paths that do not exist.
+
+It returns Strings rather than shipping an RSpec matcher, so a game's spec
+writes `expect(report.problems).to eq([])` and the gem stays free of RSpec.
+
 ### Tests
 
 `spec/rgame/engine/dialogue/script_spec.rb`: each rule of 2a.
@@ -464,12 +510,88 @@ response is unavailable until the quest reaches `:found`; taking it moves the
 quest to `:done`; the bribe is unavailable with too little gold and available
 with enough.
 
+`spec/rgame/engine/exploration_spec.rb`: each rule of 2c, over a machine and a
+dialogue; a dead beat and a hanging lineless state found with their paths; the
+hammer quest and the smith script both reported clean.
+
 ### Verify
 
 `rake spec` green. The three spec files run a whole conversation with no
 renderer in the process — the invariant, checked by `no_graphics_spec.rb`
 having nothing new to say. The page gains a "Dialogue" section, with the smith
 script as its example.
+
+**Landed.** `Dialogue::Script` in `lib/rgame/engine/dialogue/script.rb`,
+`Engine::Dialogue` in `lib/rgame/engine/dialogue.rb` and `Engine::Exploration`
+in `lib/rgame/engine/exploration.rb`, as five commits: one adding 2c to this
+roadmap, one per sub-step, and one for the documentation, and then this
+note.
+`docs/api/dialogue.md` has a "Dialogue" section and a "Checking every path"
+section, with five headless examples the doc specs run and assert, and the
+index row names all three classes. `CHANGELOG.md` has two more entries under
+Added.
+
+`rake spec` ran 2835 examples, 0 failures, in 24.7 s; the four new files hold
+75 of them. `rake spec:core` ran 474, 0 failures, and `rake docs:coverage`
+reported 0 of 175 classes with undocumented names. `make test` ran 380 checks,
+0 failures. The smith script runs from greeting to goodbye with no renderer in
+the process, and `no_graphics_spec.rb` passes unchanged. In
+`dialogue_quest_spec.rb`, the hammer response is unavailable until the quest
+reaches `:found`; taking it moves the quest to `:done` and pays 100 gold. The
+bribe is unavailable at 0 gold, available at 60, and leaves 10. An exploration
+of that world reports no problems, with `:thanks` and `:bribed` unreached.
+
+What the sketch got wrong or left out:
+
+- **A line with `vars:` cannot be shared between conversations.** Rule 8 kept
+  one `Text` per beat, on the frozen script. Two players talking to the smith
+  at once would each call `with` on it, and both boxes would draw the last
+  values. Each dialogue now clones such a line on first entry and keeps the
+  clone, so rule 8 holds per dialogue. A line without variables stays shared.
+- **A condition is called with the machine, not the dialogue.** The design
+  writes `->(d) { d.context }`. The machine calls its blocks with itself, and
+  the machine answers `context`, `facts` and `visits` exactly as the dialogue
+  does, so the design's scripts run unchanged. Passing the dialogue would have
+  needed a new keyword on `StateMachine` for no reader either lacks.
+- **`vars:` Symbols are not in the graph.** They live in a beat's `data`, so the
+  machine's construction check never saw them. `Script#each_symbol` adds them,
+  and `StateMachine.check_answers`, `@api private`, lets the dialogue check
+  every Symbol with one error.
+- **`vars:` and the line must agree at build.** A line with variables and no
+  `vars:` would raise on its first read, and `vars:` on a key line has no names
+  to fill. Both raise `ArgumentError` at build.
+- **`once:` and `unless:` cannot be combined.** Both land in the transition's
+  `forbids`, and joining them in a block would hide an `unless:` Symbol from
+  the construction check. Passing both raises.
+- **Inside a beat, `on` and `go` raise, and `respond` outside one raises.** A
+  beat's ways out are its responses and its `to:`, which is what lets
+  `waiting_for_response?` read the first transition's event and allocate
+  nothing.
+- **States with no line that loop raise too**, a third way to hang the sketch
+  did not list, found when a state is reached twice without a beat between.
+- **Any save of an ended conversation starts again**, `from:` as well as
+  `name:`. A dialogue that is ended when built is of no use to anything.
+- **`StateMachine#available?` returned a condition's own value.** A condition
+  answering nil made `available?` nil. It now answers true or false, with an
+  example in `state_machine_spec.rb`.
+- **A one-field signal emits positionally.** `on_beat_signal.emit(beat:)`
+  handed listeners a Hash; `Signal.define` takes a single field as a plain
+  parameter. The spec caught it.
+- **The graph needed two more readers.** `StateGraph.assemble`, `@api private`,
+  lets `Script` build through its own builder, and `StateGraph#state_names`
+  lets `Exploration` list what it did not reach. `Dialogue#beat` returns the
+  beat's name, which the sketch left out.
+- **2c needed `key:`.** A condition on the context, such as gold earned in a
+  loop, is invisible to positions compared by state, visits and facts. Without
+  `key:` the walk takes every return to the greeting as the same position and
+  never reaches the purchase. The spec shows both.
+- **2c's replay guard fired on its own first caller.** The quest spec's first
+  exploration added a new hero to one shared root on every replay, so the
+  facts carried over; the walk raised on the first replay, as rule 6 says.
+  Each replay now builds a new root.
+
+Where it got documented: `docs/api/dialogue.md`, sections "Dialogue" and
+"Checking every path", and `StateGraph#state_names` under "Building a graph".
 
 ---
 
