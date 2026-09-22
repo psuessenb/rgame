@@ -1,8 +1,9 @@
 # Dialogue, and the state machine beneath it
 
-**Status: steps 0–3 are implemented.** Steps 0–3 of
-[the roadmap](04-roadmap.md) are detailed. Steps 4–7 are deliberately rough and
-get re-planned once the layer beneath them exists.
+**Status: steps 0–3 are implemented.** Steps 0–6 of
+[the roadmap](04-roadmap.md) are detailed; 4–6 were re-planned after step 3
+landed. Steps 7 and 8 are deliberately rough and get re-planned once the layer
+beneath them exists.
 
 | File | What it holds |
 |---|---|
@@ -123,22 +124,45 @@ re-litigation inside the plan.
    into `possible-todos.md` with its trigger: the second hand-rolled state
    machine in NPC code.
 7. **A box sits in a `PlayerLayer`**, so a conversation belongs to the player
-   who started it. A game may show one conversation to every player; the design
-   allows it, and it is not the default.
+   who started it. *Revised by decision 12:* one conversation shown to every
+   player in split screen is not a case to support.
 8. **A text log ships.** The dialogue keeps a transcript, and the box can show
    it.
 9. **Voice clips are out**, with everything that comes with them, and are not a
    possible-todo: nothing would trigger one.
 
+Settled in a second question round, when steps 4–6 were re-planned:
+
+10. **The engine keeps the transcript; the game decides what to do with it.** A
+    transcript lasts one `Dialogue`. `on_ended` hands it to the game, which may
+    save it, show it on a screen that is not saved, or ignore it. The engine
+    makes saving possible — `to_h` and `Transcript.from` — and saves nothing by
+    default. A signal rather than a return value, because the box calls
+    `respond`, not the game. A whole-game backlog is a game listening to each
+    dialogue's `on_ended`.
+11. **`unavailable:` is a required keyword on the box.** Whether a response the
+    player cannot pick is shown is a game decision, and a default would be the
+    engine deciding for every game that does not look.
+12. **One dialogue, one box, and the box has no input rule of its own.** In
+    split screen everything belongs to a player: one player talks, in one box on
+    their part of the screen, and the others are elsewhere. The only shared case
+    is a conversation during `solo!`, where the game picks who drives it by
+    setting the box's `input_owner`. "Everyone" is an input owner of its own,
+    `Players#everyone`, because a title screen or a pause menu during `solo!`
+    asks the same question.
+13. **The continue is a button in the box's menu.** On a beat that continues,
+    the menu holds one button, drawn as the ▼ marker, so every confirm the box
+    acts on goes through the menu's press rules.
+14. **The log is a paged `UI::Label` over the transcript**, *a* representation
+    of it, as the box is of the dialogue. A game with its own log reads the
+    transcript instead.
+
 ## Open questions
 
-1. **Does the transcript go into a save?** A log restored after loading is nice.
-   It is also the one part of a save that grows without limit. Waits on step 4,
-   when the transcript's shape exists. Blocks nothing before it.
-2. **Default for `unavailable:`.** `:hide` matches Ink and most players'
-   expectations; `:disable` shows what they could have had. Or make it a
-   required keyword, so every game decides. Waits on step 5. Blocks nothing
-   before it.
+1. ~~**Does the transcript go into a save?**~~ **Settled — the game decides.**
+   See [decision 10](#decisions-already-taken).
+2. ~~**Default for `unavailable:`.**~~ **Settled — there is none; the keyword is
+   required.** See [decision 11](#decisions-already-taken).
 3. ~~**Does `RGame::Game` mount a `Facts` on the root by itself?**~~ **Settled
    in step 1 — yes.** `Game` mounts one beside `Players` and `Viewports`, and
    `game.facts` returns it. The counter-question was whether a game ever wants
@@ -146,9 +170,9 @@ re-litigation inside the plan.
    unlocks beside its current run. That case still wants the root store, and
    mounts its second on the run's scene, where `node.system` finds it first.
    See step 1's landed note in [the roadmap](04-roadmap.md).
-4. **How a shared conversation takes input.** When every player sees one
-   conversation, does one player answer, or whoever presses first? Waits on
-   step 5. Blocks nothing before it.
+4. ~~**How a shared conversation takes input.**~~ **Settled — it is not a
+   case in split screen, and during `solo!` the box's `input_owner` decides.**
+   See [decision 12](#decisions-already-taken).
 
 5. **Should a watch end when the node that made it leaves the tree?** A node
    that watches a fact in `on_add` must unwatch in `on_remove`, as with every

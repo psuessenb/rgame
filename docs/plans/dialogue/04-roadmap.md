@@ -1,7 +1,7 @@
 # Roadmap
 
-**Status: steps 0–3 are implemented.** Steps 0–3 are detailed. Steps 4–7 are rough on
-purpose and get re-planned when the step before them lands.
+**Status: steps 0–3 are implemented.** Steps 4–6 are detailed. Steps 7 and 8 are rough on purpose and get
+re-planned when the step before them lands.
 
 Each step is one branch and one pull request; each lettered sub-step is one
 commit. [implement-step](../../../.claude/skills/implement-step/SKILL.md) covers
@@ -11,7 +11,7 @@ the rest.
 
 ```
 0 state machine ─→ 1 facts ─→ 2 dialogue ─→ 4 transcript ─┐
-                                                          ├─→ 5 box ─→ 6 example ─→ 7 fold back
+                                                          ├─→ 5 box ─→ 6 log, everyone ─→ 7 example ─→ 8 fold back
                                 3 label reveal ───────────┘
 ```
 
@@ -33,13 +33,17 @@ transcript with the one the same script produces with no box.
 | 1 | quests: a state machine with conditions, events, visit counts and saves, and a shared facts store |
 | 2 | branching dialogue for a game that draws its own box, and a spec check that no conversation strands a player |
 | 3 | a typewriter reveal on any `UI::Label`, and `examples/intro` using it |
+| 4 | a transcript of every conversation, handed to the game when it ends, which it may save |
+| 5 | the shipped dialogue box, for one player or one per player in split screen |
+| 6 | a log over the transcript, and one input owner for every player — a box, a title screen or a pause menu during `solo!` |
 
 ## What each step documents
 
 The machine, the facts and the dialogue get one new page,
 `docs/api/dialogue.md`, linked from the index in `docs/api/README.md`. Step 0
 creates it, and each later step adds its own section. The reveal goes into the
-`UI::Label` section of `docs/api/ui.md`. The rules are in
+`UI::Label` section of `docs/api/ui.md`, the box and its log into a section of
+their own there, and `Players#everyone` into `docs/api/input.md`. The rules are in
 [write-docs](../../../.claude/skills/write-docs/SKILL.md); the doc specs run every
 example on the page.
 
@@ -714,37 +718,391 @@ time", and the `UI::Label` table.
 
 ---
 
-## Step 4 — the transcript *(rough)*
+## Re-planning steps 4–6
 
-Decision 8. `Dialogue#transcript` records each beat shown and each response
-picked, holding the speaker Symbol and the `Text` drawn, with a line's variables
-frozen as they were shown. Settle open question 1 — whether it goes into
-`to_h` — when the entry's shape exists. The box's log view is step 5's.
+Steps 4–6 were re-planned after step 3 landed, in a question round whose
+answers are now decisions 10–14 in [the brief](README.md#decisions-already-taken).
+The old step 5 held a menu change, a label change, the box, a log view and a
+shared conversation, which is two pull requests. It is now step 5, the box, and
+step 6, the log view and an input owner that stands for every player.
 
-## Step 5 — `UI::DialogueBox` *(rough)*
+### What was measured
 
-Starts with `UI::Menu` learning to drop its buttons (F3), as its own commit with
-its own specs. Then the box, as sketched in
-[the design](03-design.md#the-box-rough--step-5): confirm's order, the
-`unavailable:` switch, availability asked once per beat, a style for the panel,
-the portrait hook, and a log view over the transcript. Settles open questions 2
-and 4. The spec asserts the invariant: the same transcript through the box as
-without it. Also covers two boxes in two `PlayerLayer`s over two conversations,
-and one conversation shown to both players.
+Taken at `e251f69`, on this checkout.
 
-## Step 6 — `examples/dialogue` *(rough)*
+| | |
+|---|---|
+| `rake spec` | 2856 examples, 0 failures, 20.9 s |
+| A menu handed a button during a held confirm | **activates it on the release** — F3 was wrong; see below |
+| `UI::Label` / `Engine::Paragraph` methods that change the text | **0** — both take `text:` once |
+| Keeping one line's variables: clone its `Text`, give it the values | 6 objects |
+| Breaking a 200-entry log at 440 px with `Typeface#text_lines` | 2.2 ms |
+| Input owners that stand for more than one player | **0** — `Players#actions_for` answers for one |
+| `renderer.triangle` | exists, in `a renderer` and the fake — the continue marker needs no new method |
+
+**F3 was wrong, and the box would have tripped on it.** *(measured)*
+[01-current-state.md](01-current-state.md#f3-a-menu-can-list-responses-and-cannot-change-them--measured)
+says the confirm that finishes a line "will not" be read as a choice. A scratch
+script built a parent that adds a button on a confirm press, as the box does
+when a line ends at a beat that waits. The button activated on the release. The
+menu keeps one `@confirm_seen_up` for its lifetime and `add` resets only the new
+button's hotkey flag, while `Node2D#control` runs a parent's `on_control` before
+its children's. So the menu reads the same press in the same tick. Step 5a fixes
+it.
+
+### What the three steps resemble
+
+- **Reuse.** `UI::Menu` and its press rules, for every confirm the box reads,
+  the continue included (decision 13). `UI::Label` with its reveal, for the
+  line and for the log. `Text.computed`, for a log that renders again only when
+  an entry arrives or the language changes. `input_owner`, for who drives the
+  box. `queue_free`, for a box that removes itself.
+- **Extend.** `UI::Menu` learns to drop its buttons. `Paragraph` and `Label`
+  learn to change their text. `Players` learns an owner that stands for all of
+  them. `Facts`' value check becomes the transcript's too: both answer "does this
+  survive a `SaveFile`".
+- **Genuinely new.** `Dialogue::Transcript` — nothing records a sequence of
+  translated text — and `UI::DialogueBox`, the view.
+
+---
+
+## Step 4 — `Dialogue::Transcript` *(pure)*
+
+The box's log in step 6 reads it, and a game receives it when a conversation
+ends. It comes before the box so that the box is built against a record whose
+rules are pinned, and it is small enough to land alone.
+
+The engine keeps the transcript and hands it over; the game decides what to do
+with it (decision 10). So it saves and restores, and nothing saves it by
+default.
+
+### 4a. The record
+
+```ruby
+class Dialogue
+  signal :on_ended, Signal.define(:transcript)
+
+  def initialize(script, context: nil, facts: nil, from: nil, name: nil, transcript: nil)
+  def transcript   # => the Transcript, growing until the conversation ends, then frozen
+
+  class Transcript
+    include Enumerable
+
+    # One line shown or one response picked. `speaker` and `speaker_name` are
+    # nil for a response; `response` is nil for a line.
+    Entry = Data.define(:beat, :speaker, :speaker_name, :text, :vars, :response)
+
+    def each(&)
+    def size
+    def [](index)
+    def empty?
+  end
+end
+```
+
+Rules:
+
+1. **Arriving at a beat records its line**, re-arriving through a cycle
+   included. A state with no line records nothing.
+2. **`respond` records the response** before the next beat's line.
+3. **`continue` records nothing**, and neither does a page turn: the line is
+   already there.
+4. **A line with variables keeps the values it was shown with.** Its entry holds
+   a clone of the line's `Text`, given those values, and `vars` holds them
+   frozen. A later visit with other values leaves the earlier entry as it was. A
+   line without variables shares the script's `Text`.
+5. **`on_ended` emits the transcript, frozen**, and `transcript` returns that
+   same object afterwards.
+6. **A conversation resumed with `from:` or `name:` starts an empty
+   transcript.** Where a conversation has got to and what it said are two saves,
+   and a game makes the second only if it wants to.
+7. Reading allocates nothing: `each`, `size`, `[]`.
+
+### 4b. Saving and restoring
+
+```ruby
+class Transcript
+  def to_h                       # => { entries: [{ beat:, vars: }, { beat:, response: }] }, frozen
+  def self.from(saved, script)   # => a Transcript, for Dialogue.new(transcript:)
+end
+```
+
+Rules:
+
+8. **An entry saves its beat and either its variables or its response's index**
+   among the beat's responses. The words come back from the script, so a log
+   restored after a language switch reads in the new language.
+9. **`to_h` checks every variable by `Facts`' value rule** and raises
+   `TypeError` naming the entry and the key. The check is `Facts`' own, made
+   callable, not a copy. Only `to_h` checks, so a game that never saves never
+   meets the rule.
+10. **`from` accepts what `SaveFile#read` returns** — String beat names
+    included — and raises `ArgumentError` for a beat the script lacks, a
+    response index past the beat's responses, or variables that do not match
+    the line's names.
+11. `transcript:` on `Dialogue.new` continues the given transcript, which must
+    be unfrozen; a frozen one is copied. It is how a game that saves
+    mid-conversation gets its log back.
+
+### Tests
+
+`spec/rgame/engine/dialogue/transcript_spec.rb`: rules 1–4 over the smith
+script; a cycle back to the greeting recorded twice; a lineless state recorded
+nothing; a line with `vars:` keeping its first values after a second visit;
+`to_h` through a `SaveFile` round trip and `from`; a restored log reading in
+German after a locale switch; each refusal of rule 9 and rule 10;
+`allocate_nothing` over reading.
+
+`spec/rgame/engine/dialogue_spec.rb` gains: `on_ended` carrying the frozen
+transcript; a resumed conversation starting an empty one; `transcript:`
+continuing a saved one.
+
+### Verify
+
+`rake spec` green. The smith conversation, driven to the end with no renderer,
+hands its listener a transcript whose `to_h` survives a `SaveFile` and reads in
+German after `from`. `docs/api/dialogue.md` gains a "Transcript" section with a
+headless example, saying that nothing saves a transcript unless the game does.
+
+---
+
+## Step 5 — `UI::DialogueBox`
+
+The view the requirement asks for: "*a* possible representation", with the
+speaker, the line typed out and paged, and the responses. It is built on a
+finished dialogue (step 2), a finished reveal (step 3) and a finished record
+(step 4), so the box adds only what a view adds.
+
+### 5a. `UI::Menu#clear`, and a confirm that began before the buttons
+
+```ruby
+class Menu
+  def clear   # => the menu
+end
+```
+
+Rules:
+
+1. `clear` removes every button from the menu and from the tree, focuses
+   nothing, sets the bounds to zero and tells the navigation.
+2. **A change to the buttons forgets a confirm already down.** After `add` or
+   `clear`, the menu takes no confirm press until it has seen confirm up. This
+   is the fix for the F3 finding, and it holds for `add` alone.
+3. **A menu whose buttons change during its own `on_control`** — from a button's
+   `on_activated` — reads no more input that tick, so a hotkey loop never
+   presses a button added mid-loop.
+4. A closed menu may be cleared.
+
+Tests in `spec/rgame/engine/ui/menu_spec.rb`: each rule; the scratch script from
+the measurements as a spec, a parent adding a button on a confirm press, now
+activating nothing; clearing from `on_activated` and adding new buttons, none of
+them pressed.
+
+### 5b. A label and a paragraph that change their text
+
+```ruby
+Paragraph#text=(text)   # a key or an Engine::Text, as initialize takes
+Label#text=(text)
+```
+
+Rules:
+
+5. Either takes what `initialize` takes and refuses the rest with the same
+   `TypeError`.
+6. **`Label#text=` always starts again**: page 0, nothing revealed. It does so
+   for the same `Text` object too, since the box shows a beat entered twice in a
+   row with the same `Text`.
+7. A label in the tree builds the new page at once, off the draw path, as
+   `page=` does.
+
+Tests in `paragraph_spec.rb` and `label_spec.rb`.
+
+### 5c. The box
+
+```ruby
+module RGame
+  module Engine
+    module UI
+      class DialogueBox < Node2D
+        UNAVAILABLE = %i[hide disable].freeze
+
+        def initialize(dialogue:, unavailable:, width:, lines_per_page: 3, reveal: 40,
+                       typeface: Util::Typeface.default, panel: ShapeStyle::DEFAULT,
+                       button_style: ShapeStyle::DEFAULT, padding: 12, portrait_width: 0, **)
+
+        attr_reader :dialogue, :unavailable
+
+        # A blank hook: draws the speaker's portrait in the `portrait_width`
+        # the box keeps free at its left. Draws nothing unless a subclass does.
+        def on_portrait(renderer, speaker); end
+      end
+    end
+  end
+end
+```
+
+It holds a `UI::Label` for the line, with the reveal, and a `UI::Menu` with a
+`UI::Column`. On a beat that continues, or until a waiting beat's line is fully
+shown, the menu holds one button: the continue marker, `activate_on: :press`,
+drawn as a triangle with `renderer.triangle`. Every confirm the box acts on goes
+through the menu's press rules (decision 13), so the box reads no input itself.
+
+Its height is fixed at construction, from the most responses any beat in the
+script has, so the box never resizes during a conversation.
+
+Rules:
+
+8. **`unavailable:` is required**, `:hide` or `:disable`; anything else raises
+   `ArgumentError` (decision 11).
+9. **Confirm does the next thing**: reveal the rest of the page; else turn the
+   page; else, on a beat that continues, `continue`.
+10. **A waiting beat's responses replace the marker once its last page is fully
+    shown**, by the reveal or by confirm. By rule 2 the confirm that finished the
+    line picks nothing.
+11. **Availability is asked once per beat**, when the responses appear. No
+    condition runs on a frame without a move.
+12. `:hide` adds the available responses only. `:disable` adds all of them and
+    disables the rest, so `Stepping` passes over them.
+13. **After each move the box reads the dialogue back**: the new line through
+    `Label#text=`, the speaker, and the marker. The box is the only thing that
+    moves its dialogue (decision 12), so it needs no listener.
+14. **When the conversation ends, the box frees itself** with `queue_free`. The
+    game hears `Dialogue#on_ended`, with the transcript. A box built over an
+    ended dialogue raises `ArgumentError`.
+15. **The box answers to its `input_owner`**, as every node does: inside a
+    `PlayerLayer`, that layer's player; unowned, the primary player (decision
+    12).
+16. **`draw` allocates nothing**, revealing or not. The speaker's name is the
+    dialogue's `Text`, drawn as it is.
+17. The panel is `panel.draw(renderer, :idle, width, height)`, the call a
+    button's style already answers, so `NineSliceStyle` works too.
+
+### 5d. The box documented
+
+`docs/api/ui.md` gains "A dialogue box", and `docs/api/dialogue.md` links to it
+from "Dialogue". The section says what happens during `solo!`: a `PlayerLayer`
+draws nothing while collapsed, so the box goes in the `:overlay` band, with
+`input_owner` set to whoever drives it.
+
+### Tests
+
+`spec/rgame/engine/ui/dialogue_box_spec.rb`, in a `FakeRenderer`:
+
+- **The invariant**: the smith script driven through the box and driven
+  directly, with the same picks, produce transcripts whose `to_h` are equal.
+- Each of rules 8–17, with rule 11 counting condition calls over 100 ticks.
+- A box added while confirm is held reveals nothing until confirm is let go and
+  pressed again — the conversation opened by confirm next to the smith.
+- A beat entered twice in a row types out again.
+- `on_portrait` called with the speaker, in local space; the default draws
+  nothing.
+- Two players, two `PlayerLayer`s, two boxes over two dialogues: player 2's
+  confirm moves only player 2's conversation.
+- A box in the `:overlay` band during `solo!`, driven by player 2 through
+  `input_owner`.
+
+### Verify
+
+`rake spec` green, the invariant spec included. `rake docs:coverage` reports
+nothing undocumented. A scratch game driven with `tools/drive_test_project.rb
+--texts` talks to the smith from greeting to goodbye in both languages, and
+shows the bribe drawn disabled with `unavailable: :disable` and absent with
+`:hide`. That scratch game is not committed; step 7 is its committed form.
+
+---
+
+## Step 6 — the log, and an input owner for every player
+
+Two things the box needs that are not the box. The log is a second view,
+over the transcript. The input owner answers "who drives the box during
+`solo!`" when the answer is everyone, and it belongs to input rather than to
+dialogue: a title screen or a pause menu shown during `solo!` asks the same
+question.
+
+### 6a. `Players#everyone`
+
+```ruby
+class Players
+  def everyone   # => an input owner standing for every active player
+end
+
+box.input_owner = node.system(Players).everyone
+```
+
+Rules:
+
+1. **Everyone acts as one controller whose buttons are the OR of theirs.**
+   `held?` is true when any active player holds the action. `pressed?` and
+   `released?` are that union's edges, so a press while another player holds
+   the action is no press. One press does one thing, as the menu's own rules
+   already demand.
+2. `axis` is the active players' value of largest magnitude.
+3. An action no active player declares raises, as `Actions` does. One some
+   players declare reads from those.
+4. **It is built once a tick, in `Players#poll`, into reused hashes.** Reading it
+   allocates nothing. With no active player, it reads the primary player.
+5. A `PlayerLayer` given it raises `ArgumentError`: everyone has no region of
+   the screen. The message names the `:overlay` band.
+
+Tests in `spec/rgame/engine/players_spec.rb`: each rule, with two players
+pressing and holding in turn; `allocate_nothing` over reads.
+
+### 6b. The log view
+
+```ruby
+UI::DialogueBox.new(..., log: nil, log_entry: nil)
+# log:       an action that opens and closes the log, or nil for none
+# log_entry: a Text.computed(:speaker, :line) formatting one line, or nil for the default
+```
+
+The log is a `UI::Label` over a `Text.computed` whose block joins the
+transcript's entries, one paragraph each. It renders again only when an entry
+arrives or the language changes (measured: 2.2 ms for 200 entries), and only
+while the log is open. It is *a* representation of the transcript, as the box
+is of the dialogue (decision 14); a game with its own log reads the transcript
+from `on_ended` or `Dialogue#transcript`.
+
+Rules:
+
+6. `log: nil` reads no action for it.
+7. **Pressing `log` opens the log in place of the line and the responses**,
+   showing its last page. `ui_up` and `ui_down` turn the pages; `log` or
+   `ui_cancel` closes it.
+8. **While the log is open, the conversation does not move** and the line's
+   reveal holds.
+9. The default `log_entry` joins the speaker's name and the line with a colon,
+   and a response entry shows its label alone. Both are punctuation, not words,
+   and a game whose language wants another form passes its own `log_entry`.
+10. Drawing the open log allocates nothing once it is laid out.
+
+Tests in `dialogue_box_spec.rb`: each rule; a language switch while the log is
+open; the log after `transcript:` restored a saved conversation.
+
+### 6c. Documented
+
+`docs/api/input.md` gains "Everyone at once", and the box's section in
+`docs/api/ui.md` gains the log.
+
+### Verify
+
+`rake spec` green. A spec with two players and a box in the `:overlay` band
+during `solo!`, owned by `everyone`: player 1 reveals a line, player 2 continues
+it, and a press by one while the other holds confirm moves nothing.
+
+---
+
+## Step 7 — `examples/dialogue` *(rough)*
 
 One village, per [write-example](../../../.claude/skills/write-example/SKILL.md): a
 hero who walks, a smith with the script from the design, a hammer to find, and
 gold to bribe with. One conversation starts on confirm next to the smith
 (`CollisionWorld#nearest`), and a sign starts one by walking into it
-(`BoxCollider#on_hit`), answering the question the request asked. F5 saves
-`facts.to_h` and the hero's gold; loading resumes the quest, the smith's visits
-and the gold. A
-drive script plays the quest through, with `--texts` showing the unavailable
-bribe become available.
+(`BoxCollider#on_hit`), answering the question the request asked. The box opens
+the log on a key. F5 saves `facts.to_h` and the hero's gold; loading resumes
+the quest, the smith's visits and the gold. A drive script plays the quest
+through, with `--texts` showing the unavailable bribe become available.
 
-## Step 7 — fold back and delete the plan
+## Step 8 — fold back and delete the plan
 
 Per [implement-step](../../../.claude/skills/implement-step/SKILL.md): whatever is
 still true moves into `docs/api/`, and `docs/plans/dialogue/` is deleted. Run
@@ -761,7 +1119,8 @@ every landed note.
 ### Verify
 
 `CHANGELOG.md` names the state machine, the facts, the dialogue, the label's
-reveal, the box and the example, checked against every step's pull request per
+reveal, the transcript, the box, `Players#everyone` and the example, checked
+against every step's pull request per
 [update-changelog](../../../.claude/skills/update-changelog/SKILL.md).
 `grep -rn 'plans/dialogue' docs lib examples` finds nothing. `rake spec` and
 `rake spec:core` green.

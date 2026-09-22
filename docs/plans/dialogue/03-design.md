@@ -292,13 +292,17 @@ one written for a quest.
 A spec drives a `Dialogue` from greeting to goodbye with no box, and the box's
 spec drives the same script through the box and asserts the same transcript.
 
-### The transcript *(rough — step 4)*
+### The transcript *(step 4)*
 
 A record, not a history the machine can walk back through (decision 4). Each
 entry holds the speaker Symbol and the `Engine::Text` it drew, so a log drawn
 after a language switch reads in the new language. A line with variables keeps
-the values it was shown with, not the ones its `Text` holds now. Whether the
-transcript goes into a save is open question 1.
+the values it was shown with, not the ones its `Text` holds now.
+
+A transcript lasts one `Dialogue`, and `on_ended` hands it to the game, which
+decides whether to save it (decision 10). An entry saves as its beat and its
+variables, or its beat and a response's index, and comes back through the
+script, so a restored log follows the language too.
 
 ## The reveal *(extends `UI::Label`)*
 
@@ -326,16 +330,19 @@ What a label reveals is the label's business. When to call `reveal_all`, and
 what confirm does next, is its owner's. That is the division `UI::Label`
 already has for turning pages.
 
-## The box *(rough — step 5)*
+## The box *(steps 5 and 6)*
 
 `UI::DialogueBox` is a `Node2D` that holds one `Dialogue`, a `UI::Label` for the
-line, and a `UI::Menu` for the responses, and sits in a `PlayerLayer`.
+line, and a `UI::Menu` for the responses. In split screen it sits in the
+talking player's `PlayerLayer`; during `solo!` it sits in the `:overlay` band.
 
 - **Confirm does the next thing**, in order: reveal the rest of the page, turn
-  the page, then continue — or, on a beat that waits, hand focus to the menu.
-- **`unavailable: :hide | :disable`** decides what happens to a response whose
-  condition fails. `:disable` adds it as a disabled button, which `Stepping`
-  already skips. Its default is open question 2.
+  the page, then continue — or, on a beat that waits, show the responses.
+- **Every confirm goes through the menu.** On a beat that continues, the menu
+  holds one button, the ▼ marker, so the box reads no input of its own
+  (decision 13).
+- **`unavailable: :hide | :disable` is required** (decision 11). `:disable`
+  adds a response as a disabled button, which `Stepping` already skips.
 - **Availability is asked once per beat**, when the responses appear. The box
   asks nothing per frame.
 - **The panel is a style**, `UI::ShapeStyle` or `UI::NineSliceStyle`, as a
@@ -344,8 +351,10 @@ line, and a `UI::Menu` for the responses, and sits in a `PlayerLayer`.
   no portrait of its own.
 - **The menu needs a way to drop its buttons** (F3), which is the step's first
   sub-step.
-- **One conversation on every player's screen** is two boxes over one
-  `Dialogue`. How the two take input is open question 4.
+- **Who drives it is its `input_owner`** (decision 12): its layer's player, a
+  player the game picks, or `Players#everyone` during `solo!`.
+- **The log is a paged label over the transcript** (decision 14), opened by an
+  action the box names.
 
 The box is the one place that hands the dialogue's data to another component —
 responses into buttons. That is its job as a view, not a seam two systems

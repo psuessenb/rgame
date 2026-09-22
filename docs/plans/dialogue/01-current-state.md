@@ -56,9 +56,12 @@ Three things the menu already does are exactly right:
   ([stepping.rb:65](../../../lib/rgame/engine/ui/stepping.rb#L65)). A response
   shown but not available is a disabled button, and nothing new decides that
   focus passes over it.
-- **A menu acts only on a press it saw start.** The confirm that finishes a
+- ~~**A menu acts only on a press it saw start.** The confirm that finishes a
   line is still down when the responses appear, and the menu will not read it as
-  a choice.
+  a choice.~~ **Wrong** *(measured at `e251f69`)*: the menu keeps one confirm
+  flag for its lifetime, so a button added during a held confirm activates on
+  its release. Step 5a fixes it; see
+  [the roadmap](04-roadmap.md#re-planning-steps-46).
 - **A menu inherits its player.** Inside a `PlayerLayer`, its `actions` are that
   player's, so two players in two conversations need nothing.
 
@@ -102,7 +105,7 @@ The request asked whether this already works. It does. A `BoxCollider` emits
 `on_hit` with the other collider when two start to touch
 ([box_collider.rb:27](../../../lib/rgame/engine/components/box_collider.rb#L27)),
 and `CollisionWorld#nearest` answers "which character am I standing next to" for
-a conversation started with confirm. The example in step 6 shows both.
+a conversation started with confirm. The example in step 7 shows both.
 
 ## What this resembles: the three piles
 
