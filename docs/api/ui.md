@@ -67,6 +67,7 @@ The menu keeps everything that stays the same across combinations:
 | `ui_confirm` | press the focused button on the way down, release it on the way up — see [When a press activates](#when-a-press-activates) |
 | each button's `hotkey` | press that button, focused or not — see [Hotkeys](#hotkeys) |
 | `add(button)` | append a button, re-arrange them all, and return it; `TypeError` for anything that is not a `UI::Button` |
+| `clear` | remove every button from the menu and the tree, focus nothing, and return the menu; a closed menu may be cleared |
 | `buttons`, `focused`, `focused_index` | what it holds and what is focused — `nil` when nothing is |
 | `focus(index)` | focus a button directly, or nothing with `nil`; only buttons whose focus changes are told |
 | `layout`, `navigation` | the two parts it was built with |
@@ -566,12 +567,18 @@ away before letting go cancels it. `:press` suits buttons that answer instantly,
 such as a skill bar. The feedback counts down in `update(dt)`, so a paused button
 keeps it, and a spec advances it by passing seconds.
 
-**A button acts only on a press it saw start.** Two rules ensure that:
+**A button acts only on a press it saw start.** Three rules ensure that:
 
 - **A menu accepts no press until it has seen `ui_confirm` up.** A submenu added
   from `on_activated` is controlled later in the same tick, while the key that opened
   it is still down. Without this rule, the submenu would read that press again and
   activate its own focused button.
+- **A change to the buttons starts that wait again.** After `add` or `clear`, the
+  menu accepts no confirm press until it has seen `ui_confirm` up. A parent node's
+  `on_control` runs before the menu's. A parent that adds buttons on a confirm press
+  therefore adds them before the menu reads that press, and the new buttons ignore
+  it. A menu whose buttons change from a button's `on_activated` reads no more
+  input that tick, hotkeys included.
 - **A press whose release the button never saw is dropped**, feedback included, and
   activates nothing. A menu that closes itself from `on_activated` stops being
   controlled, so it never sees the key come up. Next time it is controlled, it finds

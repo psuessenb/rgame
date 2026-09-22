@@ -82,6 +82,7 @@ module RGame
         end
 
         def on_buttons_changed
+          return menu.focus(nil) if menu.buttons.empty?
           return if menu.focused&.enabled?
 
           first = menu.buttons.index(&:enabled?)

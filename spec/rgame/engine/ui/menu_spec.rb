@@ -74,6 +74,125 @@ RSpec.describe RGame::Engine::UI::Menu do
     end
   end
 
+  describe '#clear' do
+    it 'removes every button from the menu and from the tree, and returns the menu' do
+      built = build('One', 'Two')
+      first, second = built.buttons
+      expect([built.clear, built.buttons, built.children, first.parent, second.in_tree?])
+        .to eq([built, [], [], nil, false])
+    end
+
+    it 'focuses nothing, and tells the button that had focus' do
+      built = build('One', 'Two')
+      first = built.buttons.first
+      built.clear
+      expect([built.focused_index, built.focused, first.focused?]).to eq([nil, nil, false])
+    end
+
+    it 'has no extent afterwards' do
+      built = build('One', 'Two')
+      built.clear
+      expect([built.bounds_x, built.bounds_y, built.bounds_width, built.bounds_height]).to eq([0, 0, 0, 0])
+    end
+
+    it 'takes new buttons, focusing the first' do
+      built = build('One', 'Two')
+      built.clear
+      three = built.add(button('Three'))
+      expect([built.focused, three.y]).to eq([three, 0])
+    end
+
+    it 'may clear a closed menu' do
+      built = build('One')
+      built.close
+      expect(built.clear.buttons).to eq([])
+    end
+
+    it 'activates nothing on confirm while empty' do
+      build('One').clear
+      expect { press(:ui_confirm) }.not_to raise_error
+    end
+  end
+
+  describe 'a change to the buttons during a held confirm' do
+    # A node that runs a block on a confirm press, before its children read it.
+    def confirming_parent
+      Class.new(RGame::Engine::Node2D) do
+        attr_accessor :on_confirm
+
+        def on_control(actions)
+          on_confirm.call if actions.pressed?(:ui_confirm)
+        end
+      end.new
+    end
+
+    let(:activated) { [] }
+
+    def watched(label, **) = button(label, **).tap { |given| given.on_activated { activated << label } }
+
+    it 'activates nothing a parent adds on the press, under :release' do
+      parent = root.add_node(confirming_parent)
+      nested = parent.add_node(described_class.new(layout: column))
+      parent.on_confirm = -> { nested.add(watched('Answer')) if nested.buttons.empty? }
+      root.enter_tree
+      poll
+      press(:ui_confirm)
+      expect([activated, nested.focused.pressed?]).to eq([[], false])
+    end
+
+    it 'activates nothing a parent adds on the press, under :press' do
+      parent = root.add_node(confirming_parent)
+      nested = parent.add_node(described_class.new(layout: column))
+      parent.on_confirm = -> { nested.add(watched('Answer', activate_on: :press)) if nested.buttons.empty? }
+      root.enter_tree
+      poll
+      press(:ui_confirm)
+      expect(activated).to eq([])
+    end
+
+    it 'answers the next press of its own' do
+      parent = root.add_node(confirming_parent)
+      nested = parent.add_node(described_class.new(layout: column))
+      parent.on_confirm = -> { nested.add(watched('Answer')) if nested.buttons.empty? }
+      root.enter_tree
+      poll
+      press(:ui_confirm)
+      press(:ui_confirm)
+      expect(activated).to eq(['Answer'])
+    end
+
+    it 'forgets a confirm already down after clear, as after add' do
+      built = build('One')
+      poll(:ui_confirm)
+      built.clear.add(watched('Two'))
+      poll
+      press(:ui_confirm)
+      expect(activated).to eq(['Two'])
+    end
+
+    it 'presses none of the buttons added from on_activated' do
+      built = build
+      replace = lambda do
+        built.clear
+        built.add(watched('Next', activate_on: :press))
+        built.add(watched('Hot', hotkey: :skill1))
+      end
+      built.add(button('First', activate_on: :press)).on_activated(&replace)
+      poll
+      poll(:ui_confirm, :skill1)
+      expect([activated, built.buttons.map(&:pressed?)]).to eq([[], [false, false]])
+    end
+
+    it 'reads no more hotkeys once one of them changed the buttons' do
+      built = build
+      built.add(watched('Later', hotkey: :skill1))
+      built.buttons.first.on_activated { built.clear.add(watched('New', hotkey: :skill1)) }
+      poll
+      poll(:skill1)
+      expect([activated, built.buttons.first.pressed?]).to eq([['Later'], false])
+    end
+  end
+
   describe 'scope' do
     let(:scoped) { root.add_node(described_class.new(layout: column, scope: 'title_menu')) }
 
