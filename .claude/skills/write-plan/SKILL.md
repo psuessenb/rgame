@@ -273,7 +273,10 @@ A step has, in this order:
    or the mistake it prevents.
 3. **The concrete shape.** Write the struct, the header, the class skeleton or
    the method signature in a fenced block. A step whose API cannot be sketched
-   yet is a step that is not ready to be detailed.
+   yet is a step that is not ready to be detailed. A sketch is code, and its
+   names get built as written, so load
+   [write-ruby-code](../write-ruby-code/SKILL.md), or
+   [write-c-code](../write-c-code/SKILL.md) for C, before writing it.
 4. **The rules the tests must pin**, as a numbered list, when the step has
    behaviour worth stating independently of its implementation.
 5. **Tests**, naming the file and listing each case in a phrase.

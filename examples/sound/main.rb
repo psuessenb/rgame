@@ -99,7 +99,7 @@ class Scene < RGame::Engine::Node2D
   #
   # **Reach for it rather than inventing a way round the rule.** A label built
   # from something that changes is common enough that the engine owns the
-  # answer — see "A label built from a changing value".
+  # answer — see "`Text` — the string a node draws" in docs/api/toolbox.md.
   def _draw(renderer, _view)
     renderer.circle(WIDTH / 2, HEIGHT / 2, MIN_R + (GROW * @flash), color: RING)
     renderer.text(@help, 12, 12)
