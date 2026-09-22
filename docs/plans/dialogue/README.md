@@ -1,6 +1,6 @@
 # Dialogue, and the state machine beneath it
 
-**Status: steps 0–4 are implemented.** Steps 0–6 of
+**Status: steps 0–5 are implemented.** Steps 0–6 of
 [the roadmap](04-roadmap.md) are detailed; 4–6 were re-planned after step 3
 landed. Steps 7 and 8 are deliberately rough and get re-planned once the layer
 beneath them exists.
