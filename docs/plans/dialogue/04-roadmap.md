@@ -1,7 +1,6 @@
 # Roadmap
 
-**Status: steps 0–6 are implemented.** Step 7 is planned in detail, as two
-examples. Step 8 is rough on purpose.
+**Status: steps 0–7 are implemented.** Step 8, the fold-back, is next.
 
 Each step is one branch and one pull request; each lettered sub-step is one
 commit. [implement-step](../../../.claude/skills/implement-step/SKILL.md) covers
@@ -1503,6 +1502,59 @@ example driven with `--texts`, nothing under "missing or mismatched keys":
 
 Both run with `bundle exec rubocop` clean, and each header is read against
 [write-example](../../../.claude/skills/write-example/SKILL.md).
+
+**Landed.** `examples/dialogue` and `examples/quests_and_dialogue`, each with
+its drive script under `tools/drive/examples/`, an entry under a new
+"Conversation" heading in `docs/api/examples.md` and a row in `README.md`.
+Four commits: this plan, 7a, 7b and 7c. `docs/api/dialogue.md` and the box's
+section of `docs/api/ui.md` point to both, and `CHANGELOG.md` has one entry
+for the pair. No engine code changed.
+
+`rake spec` ran 3004 examples, 0 failures, in 23.7 s. `rake spec:core` ran 476,
+0 failures, `rake docs:coverage` reported 0 of 179 classes with undocumented
+names, and `make test` ran 380 checks, 0 failures. Both examples are clean
+under RuboCop, and both driven runs exit 0 with nothing under "missing or
+mismatched keys".
+
+- `examples/dialogue`, 1100 ticks with `--texts`: the prompt drawn for 83
+  frames, 21 before the first dialogue and 62 between the two. The greeting
+  types out in both dialogues, "E" from tick 22, and the hub with its four
+  responses is drawn on each of its four visits. The road's answer takes two
+  pages, its last line alone from tick 399. The second answer about the news
+  leads straight back to the hub.
+- `examples/quests_and_dialogue`, 1700 ticks with `--texts`: "Any work going?"
+  drawn only in the first talk, 23 frames. The stage reads "somewhere by the
+  well" from tick 166 and "in hand" from 407. "I found your hammer." is first
+  drawn at 860 and "I'll take a lantern." at 948, once the reward put the gold
+  at 60. The signpost speaks once, 22 frames from 612, though the hero stands
+  on it. The log's lines are drawn from 1058, and after F9 at 1166 the gold is
+  20 and the stage "in hand" again. The lantern's `circle` is drawn 195 times,
+  from the purchase to the load.
+
+What the sketch got wrong or left out:
+
+- **`vars: :reward` became `vars: :reward_vars`.** The Symbol is sent to the
+  village and returns a Hash. A method called `reward` that returns
+  `{ reward: 40 }` reads as returning 40.
+- **The forge and the well block the hero too.** They are `:wall` colliders,
+  and the hero is `blocked_by: %i[npc wall]`. The sketch listed only `:npc`.
+- **A load can start a conversation** *(expected, not measured)*. A load that
+  puts the hero onto the signpost should fire its `on_hit`, since the collision
+  world sees a new overlap however the hero got there. The drive script saves
+  only after walking off the post. The example does not guard against it, and
+  a game whose save points sit on triggers would have to.
+- **The graphs live in a class body.** `HAMMER`'s effects are lambdas, and a
+  lambda made at a script's top level keeps `game` alive, which
+  write-example's first trap describes. `Village::HAMMER` has no such scope.
+  `INN` in the simple example has no lambdas and stays at the top.
+- **A Down pressed while a line types does nothing.** The first drive of
+  `examples/dialogue` picked the wrong response for that reason. The
+  write-example skill now says how to time a box's presses from a trace.
+
+For step 8: nothing here changes the plan. The fold-back moves no text out of
+either example; their headers already say what the docs do not.
+
+---
 
 ## Step 8 — fold back and delete the plan
 

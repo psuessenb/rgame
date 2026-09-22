@@ -1,8 +1,8 @@
 # Dialogue, and the state machine beneath it
 
-**Status: steps 0–6 are implemented.** Steps 4–6 of
+**Status: steps 0–7 are implemented.** Steps 4–6 of
 [the roadmap](04-roadmap.md) were re-planned after step 3 landed, and step 7
-after step 6. Step 8 is deliberately rough.
+after step 6. Step 8, the fold-back, is next.
 
 | File | What it holds |
 |---|---|
