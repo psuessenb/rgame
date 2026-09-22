@@ -1,6 +1,6 @@
 # Naming signals, hooks and the engine's own methods
 
-**Status: steps 1–2 are implemented; steps 3–5 are rough.** Decisions 1–6 are
+**Status: steps 1–3 are implemented; steps 4–5 are rough.** Decisions 1–6 are
 taken, and every open question is settled. Each rough step gets detailed when
 it starts.
 
@@ -746,6 +746,32 @@ before it lands.
    drive runs need not repeat: nothing here changes what a frame does, and
    `rake spec` covers every rename, `bench_node_draw.rb` aside, which runs once
    by hand.
+
+   **Landed.** Two commits, one per sub-step, on `rgame-prefix`, after one
+   commit detailing the step. `Node2D`'s machinery starts with `rgame_`,
+   `SealedPrivates::PREFIX` holds the prefix, and the seal spec, both cops,
+   the doc-coverage filter, `scene_graph.md` and CLAUDE.md use it.
+   `CHANGELOG.md` has one Changed entry, since the `_` seal shipped in 0.4.0.
+   `Facts`' helpers are `checked_key`, `checked_value`, `parse`,
+   `report_change` and `notify_watchers`.
+
+   - `rake spec`: 2948 examples, 0 failures, 23.1 s, the same count as before:
+     the seal spec was rewritten, not extended. `rake spec:core`: 476,
+     0 failures. `docs:coverage`: 0 of 177. `make test`: 380 checks,
+     0 failures. RuboCop is clean on every changed file.
+   - Both greps find nothing outside `docs/plans/`. A `Node2D` subclass
+     defining `rgame_draw_content` raises `NameError`, and one defining
+     `_draw_content` loads. `tools/bench_node_draw.rb` runs under Xvfb and
+     reports all five variants.
+
+   What the sketch got wrong:
+
+   - **Eleven names are sealed, not ten.** `Node2D` also has a protected
+     `attr_accessor :_sibling_order`, which the count missed because it
+     searched for `def`. It is `rgame_sibling_order` now. The nine in "What
+     was counted" missed it the same way.
+   - **The doc-coverage filter names `SealedPrivates::PREFIX`** rather than
+     repeating the string, so the seal and the filter cannot drift apart.
 4. **Hooks take `_`.** Decisions 3 and 5, with the guards. `Component`'s
    work hooks, the split focus hook and `Navigation`'s plain names are part of
    it. It is the largest step:
