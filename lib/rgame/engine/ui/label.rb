@@ -26,6 +26,22 @@ module RGame
       #
       # A label reads no input. Its owner decides which page shows and when to
       # turn it.
+      #
+      # With `reveal:`, a number of characters per second, it shows each page a
+      # character at a time, counting in `update(dt)`:
+      #
+      #   @line = UI::Label.new(text: 'smith.greeting', width: 440, lines_per_page: 3, reveal: 40)
+      #
+      #   @line.revealed?     # => whether the page is fully shown
+      #   @line.reveal_all    # shows the rest at once, as confirm does first
+      #
+      # A character is a grapheme cluster, so a letter built from a base and a
+      # combining mark appears whole. The reveal starts again from nothing when
+      # the page turns, the text changes or the width changes. It draws prefixes
+      # of each line, built once when the page appears, and places each where
+      # the whole line will stand, so a centred line does not move as it grows.
+      # A paused label does not reveal, since time reaches it only through
+      # `update`.
       class Label < Node2D
         COLOR = TextButton::LABEL_COLOR
 
@@ -33,14 +49,22 @@ module RGame
 
         attr_reader :typeface, :align, :color
 
+        # Characters a second the page is revealed at, or nil for none.
+        attr_reader :reveal
+
         # `text:` is a translation key, as a String or Symbol, or an
         # Engine::Text. `width:` must be positive. `align:` is `:left`,
         # `:center` or `:right`, and places each line against the width.
-        # Without `lines_per_page:` the whole text is one page.
+        # Without `lines_per_page:` the whole text is one page. `reveal:` is a
+        # positive number of characters a second, or nil to draw each page
+        # whole.
         def initialize(text:, width:, typeface: Util::Typeface.default, lines_per_page: nil,
-                       align: :left, color: COLOR, **)
+                       align: :left, color: COLOR, reveal: nil, **)
           unless ALIGNS.include?(align)
             raise ArgumentError, "align: must be one of #{ALIGNS.inspect}, not #{align.inspect}"
+          end
+          unless reveal.nil? || (reveal.is_a?(Numeric) && reveal.positive?)
+            raise ArgumentError, "reveal: must be a positive number of characters a second, not #{reveal.inspect}"
           end
 
           @paragraph = Paragraph.new(text, width: width, typeface: typeface, lines_per_page: lines_per_page)
@@ -49,12 +73,17 @@ module RGame
           @align = align
           @color = Util::Color.coerce(color)
           @page = 0
+          @reveal = reveal
+          @built = nil
+          @shown = 0.0
+          @total = 0
         end
 
         # Gives the text its variables, as Engine::Text#with does, and returns
         # the label.
         def with(...)
           @paragraph.with(...)
+          follow_page
           self
         end
 
@@ -63,6 +92,7 @@ module RGame
         def width=(width)
           @paragraph.width = width
           super
+          follow_page
         end
 
         # The page drawn, counted from 0. It reads as the last page when a
@@ -73,6 +103,7 @@ module RGame
         # on the last page stays there.
         def page=(index)
           @page = index.clamp(0, page_count - 1)
+          follow_page
         end
 
         # How many pages the text fills: at least 1.
@@ -80,8 +111,27 @@ module RGame
 
         def last_page? = page == page_count - 1
 
+        # Whether the whole page is shown: always without `reveal:`, and for a
+        # page the label has not yet started revealing, which it draws whole.
+        def revealed? = !@paragraph.page(@page).equal?(@built) || @shown >= @total
+
+        # Shows the rest of the page at once.
+        def reveal_all
+          @shown = @total
+          self
+        end
+
+        def on_update(dt)
+          return unless @reveal
+
+          build_page
+          @shown = (@shown + (@reveal * dt)).clamp(0, @total)
+        end
+
         def on_draw(renderer, _view)
           lines = @paragraph.page(@page)
+          return draw_revealing(renderer, lines) if lines.equal?(@built)
+
           index = 0
           while index < lines.size
             line = lines[index]
@@ -91,6 +141,40 @@ module RGame
         end
 
         private
+
+        def draw_revealing(renderer, lines)
+          left = @shown.floor
+          index = 0
+          while index < lines.size && left.positive?
+            prefixes = @built_prefixes[index]
+            shown = left.clamp(0, prefixes.size - 1)
+            line = lines[index]
+            if shown.positive?
+              renderer.text(prefixes[shown], line_x(line), index * @typeface.height, font: @typeface, color: @color)
+            end
+            left -= shown
+            index += 1
+          end
+        end
+
+        def follow_page
+          build_page if @built
+        end
+
+        def build_page
+          lines = @paragraph.page(@page)
+          return if lines.equal?(@built)
+
+          @built_prefixes = lines.map { prefixes_of(it) }.freeze
+          @total = @built_prefixes.sum { it.size - 1 }
+          @built = lines
+          @shown = 0.0
+        end
+
+        def prefixes_of(line)
+          prefix = +''
+          ['', *line.grapheme_clusters.map { (prefix << it).dup.freeze }].freeze
+        end
 
         def line_x(line)
           case @align
