@@ -38,7 +38,7 @@ module RGame
     class StateMachine
       extend Signal::DSL
 
-      signal :on_changed, Signal.define(:from, :to, :transition)
+      signal :changed, :from, :to, :transition
 
       NOTHING = [].freeze
       private_constant :NOTHING
@@ -205,7 +205,7 @@ module RGame
         run(transition.effect)
         from = @state
         transition.to ? arrive(transition.to) : @state = nil
-        on_changed_signal.emit(from:, to: @state, transition:)
+        changed_signal.emit(from:, to: @state, transition:)
       end
 
       def arrive(name)

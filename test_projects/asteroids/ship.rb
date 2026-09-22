@@ -15,8 +15,8 @@ class Ship < RGame::Engine::Node2D
   DRAG          = 0.4
   FIRE_COOLDOWN = 0.22
 
-  signal :on_fire, RGame::Engine::Signal.define(:x, :y, :angle)
-  signal :on_destroyed
+  signal :fire, :x, :y, :angle
+  signal :destroyed
 
   def initialize
     super
@@ -29,7 +29,7 @@ class Ship < RGame::Engine::Node2D
     trigger = add_component(RGame::Engine::Components::ActionTrigger.new(fire: FIRE_COOLDOWN))
     trigger.on_triggered { |action| fire if action == :fire }
     collider = add_component(RGame::Engine::Components::CircleCollider.new(radius: RADIUS, layer: :ship))
-    collider.on_hit { |other| on_destroyed_signal.emit if other.layer == :rock }
+    collider.on_hit { |other| destroyed_signal.emit if other.layer == :rock }
   end
 
   # Start in the middle of the world. Asked for here rather than taken as a
@@ -44,7 +44,7 @@ class Ship < RGame::Engine::Node2D
   private
 
   def fire
-    on_fire_signal.emit(
+    fire_signal.emit(
       x: x + (Math.cos(angle) * RADIUS),
       y: y + (Math.sin(angle) * RADIUS),
       angle: angle

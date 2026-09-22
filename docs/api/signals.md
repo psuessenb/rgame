@@ -2,8 +2,8 @@
 
 **A signal is the engine's typed observer.** It holds a list of listener blocks
 and `emit`s to them. Decoupled parts of the engine talk through signals. A
-`UI::Button` reports that it was activated. A collider reports a hit. Gameplay
-asks the audio layer to play a sound. The emitter never knows who listens, or
+`UI::Button` reports that it was activated. A collider reports a hit. A
+dialogue reports that it ended. The emitter never knows who listens, or
 whether anyone does.
 
 No central dispatcher exists, and no string or symbol event types need matching.
@@ -67,7 +67,7 @@ never collecting them into an array or hash. The explicit fields make this
 possible; a `*splat` signature would allocate. Some signals fire every frame, and
 the engine never allocates on the hot path.
 
-## The DSL: declaring a signal slot
+## The DSL: declaring a signal on a class
 
 Wiring a signal onto a class by hand repeats itself. The class needs an ivar for
 the instance, a public method to subscribe, and a way to emit:
@@ -75,13 +75,13 @@ the instance, a public method to subscribe, and a way to emit:
 ```ruby
 # Without the DSL:
 ClickSignal = Signal.define
-def initialize(...) = @on_clicked = ClickSignal.new
-def on_clicked(&block) = @on_clicked.connect(&block)
-def activate = @on_clicked.emit
+def initialize(...) = @clicked_signal = ClickSignal.new
+def on_clicked(&block) = @clicked_signal.connect(&block)
+def activate = @clicked_signal.emit
 ```
 
 `RGame::Engine::Signal::DSL` reduces that to one declaration. `extend` it, then
-declare slots with `signal`:
+declare each signal with `signal`, naming the event and then its fields:
 
 ```ruby
 require 'rgame'
@@ -89,10 +89,10 @@ require 'rgame'
 class Lever < RGame::Engine::Node2D
   extend RGame::Engine::Signal::DSL
 
-  signal :on_pulled                                                  # a no-arg signal
-  signal :on_changed, RGame::Engine::Signal.define(:index, :value)   # a typed one
+  signal :pulled                    # no payload
+  signal :changed, :index, :value   # a payload of two fields
 
-  def pull = on_pulled_signal.emit
+  def pull = pulled_signal.emit
 end
 
 lever = Lever.new
@@ -100,16 +100,32 @@ lever.on_pulled { puts 'pulled' }
 lever.pull
 ```
 
-`signal :on_pulled` generates two methods:
+`signal :pulled` generates two methods, and adds the `on_` itself:
 
 - **`on_pulled(&block)`** is *public*. It subscribes a listener and returns the
   handle. Observers call it: `lever.on_pulled { ... }`.
-- **`on_pulled_signal`** is *private*. It returns the `Signal` instance, built on
-  first use. The class emits through it: `on_pulled_signal.emit`.
+- **`pulled_signal`** is *private*. It returns the `Signal` instance, built on
+  first use. The class emits through it: `pulled_signal.emit`.
 
-The reader builds the signal on first use, so the host wires **nothing** in
-`initialize`. Pass a signal class as the second argument for a typed slot. Omit
-it for a signal without a payload.
+The reader builds the signal on first use and keeps it in `@pulled_signal`, so
+the host wires **nothing** in `initialize`. A class keeping `@pulled` of its own
+keeps it. The fields after the name are what `Signal.define` takes, and the
+payload follows its rule: one field emits positionally, several as keywords.
+
+**Name the signal after its event, a verb in the past tense.** `on_pulled`
+then reads "when pulled happened". The DSL refuses a name that starts with
+`on_`, and anything but Symbols after the name, raising `ArgumentError` when the
+class is defined:
+
+```ruby
+require 'rgame'
+
+begin
+  Class.new(RGame::Engine::Node2D) { signal :on_pulled }
+rescue ArgumentError => e
+  e.message # => "signal :on_pulled: declare the event, signal :pulled; the DSL adds on_"
+end
+```
 
 **The DSL costs one extra method call per emit.** Emitting goes through the
 private reader instead of a bare ivar. `emit` itself stays an ordinary `def`. UI

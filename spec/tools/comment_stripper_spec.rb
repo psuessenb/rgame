@@ -58,11 +58,11 @@ RSpec.describe CommentStripper do
       source = <<~RUBY
         class Thing
           # Fires when hit.
-          signal :on_hit, Signal.define(:other)
+          signal :hit, :other
 
           Built = Class.new do
             # Fires when built.
-            signal :on_built
+            signal :built
           end
         end
       RUBY
@@ -166,25 +166,25 @@ RSpec.describe CommentStripper do
 
           def a
             # inside a method
-            signal :on_hit
+            signal :hit
           end
 
           private
 
           # private
-          signal :on_secret
+          signal :secret
         end
       RUBY
         class Thing
           private_constant :X
 
           def a
-            signal :on_hit
+            signal :hit
           end
 
           private
 
-          signal :on_secret
+          signal :secret
         end
       RUBY
     end

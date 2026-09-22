@@ -65,7 +65,7 @@ class SnakePart < RGame::Engine::Node2D
   attr_accessor :next
   attr_reader :cell_x, :cell_y
 
-  signal :on_destroyed
+  signal :destroyed
 
   def initialize(cell_x:, cell_y:, cell_size:, previous: nil)
     super(width: cell_size, height: cell_size)
@@ -76,7 +76,7 @@ class SnakePart < RGame::Engine::Node2D
 
     collider = add_component(RGame::Engine::Components::BoxCollider.new(width:, height:, layer: :snake))
     collider.on_hit do |other|
-      on_destroyed_signal.emit if other.layer == :snake
+      destroyed_signal.emit if other.layer == :snake
     end
   end
 
@@ -108,7 +108,7 @@ class Snake < RGame::Engine::Node2D
   START_LENGTH = 6
   MOVE_SPEED = 0.1
 
-  signal :on_destroyed
+  signal :destroyed
 
   def initialize(cell_x:, cell_y:, cell_size:)
     super()
@@ -182,7 +182,7 @@ class Snake < RGame::Engine::Node2D
     return if @dead
 
     @dead = true
-    on_destroyed_signal.emit
+    destroyed_signal.emit
   end
 
   def move

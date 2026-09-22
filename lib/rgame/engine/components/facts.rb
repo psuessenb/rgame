@@ -36,7 +36,7 @@ module RGame
       # keeps something in step with one fact: it hears the value at once, then
       # every value that differs, restores included.
       class Facts < Engine::Component
-        signal :on_changed, Signal.define(:key, :value)
+        signal :changed, :key, :value
 
         VALUE_TYPES = [NilClass, TrueClass, FalseClass, Integer, Float, String].freeze
         private_constant :VALUE_TYPES
@@ -173,7 +173,7 @@ module RGame
           value = @values[key]
           return if previous.eql?(value)
 
-          on_changed_signal.emit(key:, value:)
+          changed_signal.emit(key:, value:)
           _notify(key)
         end
 

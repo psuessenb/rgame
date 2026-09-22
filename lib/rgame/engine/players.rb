@@ -54,7 +54,7 @@ module RGame
       # Fires when a device is seated, with the player who got it. A scene
       # listens to spawn that player's avatar — which is how a game gains a
       # second character mid-session without polling for one.
-      signal :on_joined, Engine::Signal.define(:player)
+      signal :joined, :player
 
       attr_reader :list
       attr_accessor :on_unassigned_input, :accepting_joins
@@ -154,7 +154,7 @@ module RGame
         return nil if player.nil?
 
         player.device = device
-        on_joined_signal.emit(player)
+        joined_signal.emit(player)
         player
       end
 

@@ -2,32 +2,46 @@
 
 module RGame
   module Engine
+    # An observer channel: listeners connect a block, and the owner emits to
+    # every one of them in the order they connected. `Signal.define` builds the
+    # class for a payload, and `Signal::DSL` declares one per instance of a class.
     module Signal
       IDENTIFIER = /\A[a-z_][a-zA-Z0-9_]*\z/
 
-      # Class-level DSL for declaring signal "slots" so a host class need not hand-write
-      # the connect-forwarding boilerplate. `extend Engine::Signal::DSL`, then:
+      # Declares a signal on every instance of a class, named by its event: a
+      # verb in the past tense. `extend Engine::Signal::DSL`, then:
       #
-      #   signal :on_clicked               # a no-arg signal
-      #   signal :on_changed, ChangeSignal # a typed signal (Signal.define(:index, :value))
+      #   signal :activated                # no payload
+      #   signal :changed, :index, :value  # a payload of two fields
       #
-      # For :on_clicked this generates:
-      #   def on_clicked(&block) = on_clicked_signal.connect(&block) # public: subscribe, returns handle
-      #   def on_clicked_signal = (@on_clicked ||= type.new)         # private: the Signal, to emit on
+      # For :changed this generates:
+      #   def on_changed(&block) = changed_signal.connect(&block)            # public: connect, returns the handle
+      #   def changed_signal = (@changed_signal ||= Signal.define(...).new)  # private: the Signal, to emit on
       #
-      # The Signal is built lazily on first use, so the host wires nothing in #initialize;
-      # emit from inside the host via the private `<name>_signal` reader.
+      # The class emits through the private reader, `changed_signal.emit(index: 2,
+      # value: :hard)`. One field emits positionally and several as keywords, as
+      # `Signal.define` decides. The Signal is built on first use, so the class
+      # wires nothing in #initialize.
+      #
+      # The DSL adds the `on_` itself, so a name starting with `on_` raises at
+      # class definition, as does anything but Symbols after the name.
       module DSL
-        def signal(name, type = Signal.define)
-          ivar = :"@#{name}"
+        def signal(name, *fields)
+          if name.start_with?('on_')
+            raise ArgumentError, "signal :#{name}: declare the event, signal :#{name.to_s.delete_prefix('on_')}; " \
+                                 'the DSL adds on_'
+          end
+
+          type = Signal.define(*fields)
           reader = :"#{name}_signal"
+          ivar = :"@#{reader}"
 
           define_method(reader) do
             instance_variable_get(ivar) || instance_variable_set(ivar, type.new)
           end
           private reader
 
-          define_method(name) { |&block| send(reader).connect(&block) }
+          define_method(:"on_#{name}") { |&block| send(reader).connect(&block) }
         end
       end
 

@@ -50,7 +50,7 @@ module RGame
       class OptionButton < PanelButton
         # Emits the newly selected value, which is the only thing a listener
         # wants; `index` is available on the button for anything that needs it.
-        signal :on_changed, Signal.define(:value)
+        signal :changed, :value
 
         LEFT_CHEVRON = '<'
         RIGHT_CHEVRON = '>'
@@ -107,7 +107,7 @@ module RGame
           return nil if moved == @index
 
           @index = moved
-          on_changed_signal.emit(value)
+          changed_signal.emit(value)
           self
         end
 

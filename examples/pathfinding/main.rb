@@ -123,7 +123,7 @@ class Cursor < RGame::Engine::Node2D
   SOLID = RGame::Util::Color.rgba(240, 90, 90, 255)
   STEPS = { ui_left: [-1, 0], ui_right: [1, 0], ui_up: [0, -1], ui_down: [0, 1] }.freeze
 
-  signal :on_confirmed, RGame::Engine::Signal.define(:world_x, :world_y)
+  signal :confirmed, :world_x, :world_y
 
   def initialize(col:, row:, world:, camera:)
     super()
@@ -147,7 +147,7 @@ class Cursor < RGame::Engine::Node2D
   def on_control(actions)
     return unless actions.pressed?(:ui_confirm)
 
-    on_confirmed_signal.emit(world_x: @world.cell_centre_x(@col), world_y: @world.cell_centre_y(@row))
+    confirmed_signal.emit(world_x: @world.cell_centre_x(@col), world_y: @world.cell_centre_y(@row))
   end
 
   def on_draw(renderer, _view)

@@ -8,8 +8,8 @@
 #
 # **Enter** stands on the plate. Hold **Space** and hold **E**: both feed one
 # component, at different rates. It exercises:
-#   - Signal::DSL — `signal :on_pressed` on a node of your own;
-#   - Signal.define(:field) — a signal that carries a payload;
+#   - Signal::DSL — `signal :pressed` on a node of your own;
+#   - `signal :triggered, :action` — a signal that carries a payload;
 #   - Components::ActionTrigger — one component, several actions, one signal;
 #   - the connect handle, and the one place in the engine that can use it.
 #
@@ -20,7 +20,7 @@
 # to know about doors, and a plate with nothing to open would be a special case
 # to write. Instead the plate says *that it was pressed* and stops:
 #
-#     on_pressed_signal.emit
+#     pressed_signal.emit
 #
 # The door and the lamp connect to it, and neither appears anywhere in the
 # plate. Adding a third thing that reacts is one line, in the third thing.
@@ -28,14 +28,15 @@
 # ## Declaring one is a single line
 #
 #     class Plate < RGame::Engine::Node2D
-#       signal :on_pressed
+#       signal :pressed
 #     end
 #
 # `Node2D` extends `Signal::DSL`, so every node and every component has this
-# available. That one line generates two methods:
+# available. The declaration names the event, and that one line generates two
+# methods, adding the `on_` itself:
 #
 #   `on_pressed { ... }`   public — subscribe, and get a handle back
-#   `on_pressed_signal`    private — the Signal itself, to emit on
+#   `pressed_signal`       private — the Signal itself, to emit on
 #
 # **Emitting is private on purpose.** Only the plate can say the plate was
 # pressed. That is the same "give the user a blank hook, keep the machinery
@@ -44,11 +45,11 @@
 #
 # ## A payload, for signals that have something to say
 #
-# `signal :on_pressed` carries nothing, because "it happened" is all there is.
-# `Signal.define(:action)` builds one that carries a field, and
-# `Components::ActionTrigger` uses exactly that:
+# `signal :pressed` carries nothing, because "it happened" is all there is.
+# Fields named after the event make one that carries them, and
+# `Components::ActionTrigger` declares exactly that:
 #
-#     signal :on_triggered, Engine::Signal.define(:action)
+#     signal :triggered, :action
 #
 # The engine allows one component of a class per node, so a node that wanted a
 # separate component per action could not have one. Emitting the action name
@@ -59,7 +60,7 @@
 # ## The handle, and why almost nothing uses it
 #
 # `on_pressed { ... }` hands back a handle, and there is no public way to give it
-# back — `on_pressed_signal` is private, and `disconnect` lives on the Signal.
+# back — `pressed_signal` is private, and `disconnect` lives on the Signal.
 # That is deliberate rather than missing. **A node's listeners die with the
 # node**, so a subtree that goes away takes its subscriptions with it and there
 # is nothing to leak.
@@ -87,7 +88,7 @@ LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.
 # A plate that announces presses. It has no idea anything is listening, and
 # nothing below it in this file is named anywhere inside it.
 class Plate < RGame::Engine::Node2D
-  signal :on_pressed
+  signal :pressed
 
   PLATE_W = 150
   PLATE_H = 34
@@ -104,7 +105,7 @@ class Plate < RGame::Engine::Node2D
     # An edge, not the held state: one press is one event, however long the key
     # stays down. The Signal has no opinion on that — deciding when a thing has
     # happened is the emitter's job.
-    on_pressed_signal.emit if actions.pressed?(:stand_on_plate)
+    pressed_signal.emit if actions.pressed?(:stand_on_plate)
   end
 
   def on_draw(renderer, _view)

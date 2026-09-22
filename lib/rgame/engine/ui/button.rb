@@ -92,7 +92,7 @@ module RGame
       # button who taps that button's hotkey activates it once, when confirm is
       # let go; and losing focus ends a confirm hold but not a hotkey one.
       class Button < Node2D
-        signal :on_activated
+        signal :activated
 
         PRESS_FEEDBACK = 0.1
         STATES = %i[idle focused pressed disabled].freeze
@@ -225,7 +225,7 @@ module RGame
         def activate
           return nil unless @enabled
 
-          on_activated_signal.emit
+          activated_signal.emit
           self
         end
 
