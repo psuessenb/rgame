@@ -1,6 +1,6 @@
 # Dialogue, and the state machine beneath it
 
-**Status: step 0 is implemented.** Steps 0–3 of
+**Status: steps 0–1 are implemented.** Steps 0–3 of
 [the roadmap](04-roadmap.md) are detailed. Steps 4–7 are deliberately rough and
 get re-planned once the layer beneath them exists.
 
@@ -139,14 +139,24 @@ re-litigation inside the plan.
    expectations; `:disable` shows what they could have had. Or make it a
    required keyword, so every game decides. Waits on step 5. Blocks nothing
    before it.
-3. **Does `RGame::Game` mount a `Facts` on the root by itself?** It would design
-   out forgetting to. A game that never talks pays for nothing either way, and
-   mounting it is one line. Since the facts became what a game saves, the case
-   for mounting is stronger: a scene built before a load and one built after
-   should find the same store. Waits on step 1's landing. Blocks nothing.
+3. ~~**Does `RGame::Game` mount a `Facts` on the root by itself?**~~ **Settled
+   in step 1 — yes.** `Game` mounts one beside `Players` and `Viewports`, and
+   `game.facts` returns it. The counter-question was whether a game ever wants
+   more than one store. The one case found is a second lifetime: a roguelike's
+   unlocks beside its current run. That case still wants the root store, and
+   mounts its second on the run's scene, where `node.system` finds it first.
+   See step 1's landed note in [the roadmap](04-roadmap.md).
 4. **How a shared conversation takes input.** When every player sees one
    conversation, does one player answer, or whoever presses first? Waits on
    step 5. Blocks nothing before it.
+
+5. **Should a watch end when the node that made it leaves the tree?** A node
+   that watches a fact in `on_add` must unwatch in `on_remove`, as with every
+   signal the engine has. Forgetting is loud for a watch that moves a named
+   machine, and silent for one that only sets a node's own state. Tying a
+   connection to a node's lifetime would fix every signal, not only these, so
+   it is a question for the engine rather than this plan. Found in step 1.
+   Blocks nothing.
 
 ## What this does not deliver
 

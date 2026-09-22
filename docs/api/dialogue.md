@@ -1,8 +1,8 @@
 # Dialogue and state machines
 
 This page covers the machinery for a quest's stages and a conversation's
-branches. Both are pure Ruby, load with `require 'rgame'`, and run in a spec
-with no window.
+branches, and the store of flags they read and save. All of it is pure Ruby,
+loads with `require 'rgame'`, and runs in a spec with no window.
 
 ## State machines
 
@@ -122,6 +122,7 @@ quest.visits(:elsewhere)      # => 0
 | `visits(name)` | how often the machine entered `name`; 0 for a state never entered |
 | `ended?` | whether a transition with no `to:` was taken |
 | `on_changed` | connects a listener, called with the old state, the new one and the transition |
+| `name` | the `name:` it was built with, or nil |
 
 **Availability is asked, not stored.** `available?` runs the transition's
 conditions on every call. `transitions` returns the state's own frozen Array,
@@ -231,3 +232,173 @@ end
   version of a game may name a stage that no longer exists, and the game decides
   how to migrate it.
 - **An ended machine saves a nil state**, and resumes ended.
+
+`to_h` and `from:` suit a machine a game saves by hand. A game's quests
+normally take a `name:` instead, and the facts save them with everything else.
+See [Saving the world](#saving-the-world).
+
+## Facts
+
+**`Components::Facts` holds the flags that belong to no object**: "met the
+smith", "the bridge is down", "wolves killed". It is a system on the root, so
+every node reaches the same store with `node.system`. `RGame::Game` mounts one
+when it starts, and `game.facts` returns it. Outside a `Game`, as in a spec,
+mount it yourself:
+
+```ruby
+require 'rgame'
+
+root = RGame::Engine::Node2D.new
+root.add_component(RGame::Engine::Components::Facts.new)
+smithy = root.add_node(RGame::Engine::Node2D.new)
+
+facts = smithy.system(RGame::Engine::Components::Facts)
+facts[:met_smith] = true
+facts[:wolves] = facts.fetch(:wolves, 0) + 1
+
+facts[:wolves]            # => 1
+facts[:bridge_down]       # => nil — never set
+facts.key?(:bridge_down)  # => false
+```
+
+| Method | Does |
+|---|---|
+| `facts[key]` | the value, or nil for a key never set |
+| `facts[key] = value` | sets it |
+| `fetch(key, ...)` | as `Hash#fetch`: a default, a block, or `KeyError` |
+| `key?(key)` | whether the key was set |
+| `delete(key)` | removes the key, and returns its value |
+| `on_changed` | connects a listener, called with the key and the new value |
+| `watch(key)` | calls its block with the value now, then with every value that differs; returns a handle |
+| `unwatch(handle)` | stops calling a block `watch` returned |
+| `to_h` | every fact and every named machine, frozen |
+| `restore(saved)` | replaces all of them with a saved `to_h` |
+
+A state machine built with `facts:` reads them in its conditions as `m.facts`.
+
+**The store takes only what a save brings back unchanged.** Keys are Symbols.
+Values are nil, true, false, an Integer, a Float or a String. Anything else
+raises `TypeError`, naming the key and the class, and so does a String key.
+
+**A Symbol value is refused.** JSON brings `:open` back as `"open"`, so a
+condition comparing against `:open` would fail after every load. The error says
+to store the String.
+
+### `on_changed` and `watch`
+
+**`on_changed` reports a change made in play**, so a listener may act on it:
+the tenth wolf spawns the boss. Setting the value a key already holds emits
+nothing. A restore never emits, so loading a save with ten wolves spawns no
+second boss.
+
+**`watch` keeps something in step with one fact.** It calls its block with the
+value at once, nil for a key never set. It then calls it with every value that
+differs, restores included. A gate that opens when the bridge is down uses
+`watch`, so it opens after a load too.
+
+A value that differs counts `1` and `1.0` as different, as a save would write
+them.
+
+### Saving the world
+
+**A machine built with a `name:` registers with its facts.** `facts.to_h` then
+holds every flag and every named machine, and `restore` puts them all back. A
+game saves one entry and never lists its quests:
+
+```ruby
+require 'rgame'
+require 'tmpdir'
+
+HAMMER = RGame::Engine::StateGraph.build(start: :not_started) do
+  state(:not_started) { on :accepted, to: :searching }
+  state(:searching) { on :hammer_found, to: :found }
+  state :found
+end
+
+facts = RGame::Engine::Components::Facts.new
+quest = RGame::Engine::StateMachine.new(HAMMER, facts:, name: :hammer)
+facts[:met_smith] = true
+quest.fire(:accepted)
+
+facts.to_h  # => { values: { met_smith: true }, machines: { hammer: { state: :searching, visits: { not_started: 1, searching: 1 } } } }
+
+Dir.mktmpdir do |dir|
+  save = RGame::Util::SaveFile.new('slot1.json', dir: dir)
+  save.write(world: facts.to_h)
+
+  loaded = RGame::Engine::Components::Facts.new
+  loaded.restore(save.read[:world])
+  again = RGame::Engine::StateMachine.new(HAMMER, facts: loaded, name: :hammer)
+  again.state         # => :searching
+  loaded[:met_smith]  # => true
+end
+```
+
+`name:` is a Symbol, needs `facts:`, and takes the place of `from:`: passing
+both raises `ArgumentError`.
+
+**Order does not matter.**
+
+- **A machine built after `restore`** resumes from its entry, by the rules
+  `from:` has, running no effect. With no entry it starts fresh.
+- **A machine built before `restore`** is put where its entry says. It runs no
+  effect and emits no `on_changed`. With no entry it goes back to its start
+  state, again running nothing.
+- **`restore(nil)`**, for no save yet, clears every fact and puts every named
+  machine back at its start.
+- **An entry no machine claims is kept**, and `to_h` writes it back, so a quest
+  the player has not met this session survives the next save.
+
+**A machine built under a name another already holds takes over from it.** The
+new machine starts where the old one had got to. The old one raises
+`RuntimeError` if it is moved again. So a scene the player leaves and enters
+again builds its quests anew and loses nothing, and two objects both driving
+one quest fail on the first move.
+
+**`restore` checks everything before it changes anything.** A value the store
+would refuse, or an entry naming a state its machine's graph lacks, raises and
+leaves every fact and every machine as it was.
+
+**`restore` calls watchers once the whole world is back.** Every fact and every
+machine is restored first, then the watchers of each key whose value differs
+run. A watcher that reads another fact or a machine reads the restored one.
+
+**To keep the scene in step with a quest, watch a fact the quest sets.** A
+transition's effect writes the fact, the save brings it back, and a watcher
+hears it after a load as well as in play. A machine has no `watch` of its own:
+a fact names what the scene cares about, such as `bridge_down`, and keeps
+working when a quest's stages are renamed. Code that reads a machine when it
+needs to, such as a condition or a quest log that draws `quest.state`, needs no
+watcher.
+
+**A watcher belongs to the object that connected it.** A node that watches in
+`on_add` unwatches in `on_remove`. A watcher left connected after its node is
+gone keeps running, and one that moves a machine the node built finds that
+machine replaced:
+
+```ruby
+class Gate < RGame::Engine::Node2D
+  GRAPH = RGame::Engine::StateGraph.build(start: :shut) do
+    state(:shut) { on :lower, to: :open }
+    state :open
+  end
+
+  def on_add
+    @facts = system(RGame::Engine::Components::Facts)
+    @machine = RGame::Engine::StateMachine.new(GRAPH, facts: @facts, name: :gate)
+    @bridge = @facts.watch(:bridge_down) { |down| @machine.fire(:lower) if down }
+  end
+
+  def on_remove = @facts.unwatch(@bridge)
+end
+```
+
+**A second store is for a second lifetime.** A roguelike keeps unlocks that
+outlast every run beside flags that reset with each one. Mount a second `Facts`
+on the run's scene node. `node.system` looks at the scene before the root, so
+the run's nodes and quests find the run's store, and the game saves both
+entries. Code inside the run reaches the root store with
+`node.root.get_component(RGame::Engine::Components::Facts)`.
+
+**Settings are not facts.** Volume, key bindings and language belong to the
+player, not to a save slot. Keep them in a `Util::SaveFile` of their own.

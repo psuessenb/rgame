@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: step 0 is implemented.** Steps 0–3 are detailed. Steps 4–7 are rough on
+**Status: steps 0–1 are implemented.** Steps 0–3 are detailed. Steps 4–7 are rough on
 purpose and get re-planned when the step before them lands.
 
 Each step is one branch and one pull request; each lettered sub-step is one
@@ -301,6 +301,71 @@ load without the spec opening it.
 helper the spec invented to make the API bearable. The page gains a "Facts"
 section. Open question 3 (whether `Game` mounts `Facts`) is answered in the
 landed note.
+
+**Landed.** `Components::Facts` in `lib/rgame/engine/components/facts.rb`, and
+`name:` on `Engine::StateMachine`, as four commits, one per sub-step. A fifth
+has `Game` mount the store, and a sixth removes the machine's `watch`.
+`docs/api/dialogue.md` has a "Facts" section with two headless examples the doc
+specs run, and the index row names it. `CHANGELOG.md` has one more entry under
+Added. `docs/plans/possible-todos.md` has "State machines for
+per-frame behaviour".
+
+`rake spec` ran 2755 examples, 0 failures, in 22.2 s; the three new files hold
+37 of them. `rake spec:core` ran 474, 0 failures, and `rake docs:coverage`
+reported 0 of 168 classes with undocumented names. `make test` ran 380 checks,
+0 failures. The quest spec builds both machines in `on_add` of two ordinary
+nodes, as a game would, with no helper. It saves one `facts.to_h` at `:found`
+and resumes in a village built after the load and in one built before. The gate
+is open both times without the spec opening it. A save with no entry for the
+gate opens it from the `bridge_down` fact alone.
+
+What the sketch got wrong or left out:
+
+- **Rule 2 of 1b was wrong, and 1c found it.** Refusing a second live machine
+  under a name broke every scene a player enters twice: the machine built in
+  `on_add` the first time is never ended, so the second `on_add` raised. That is
+  the ordinary place to build a quest. **A new machine under a name now takes
+  over.** It resumes where the old one had got to, and the old one raises
+  `RuntimeError` if it is moved again. Two objects driving one quest still
+  fail, on the first move rather than at build. Step 2's rule 11 composes with
+  this unchanged.
+- **A machine needs no `watch`; the sketch's was built and then removed.** It
+  was meant for a mirror of a quest's state that hears a load. Nothing needs
+  one: a transition's effect sets a fact, the save brings the fact back, and the
+  scene watches the fact. The fact names what the scene cares about, such as
+  `bridge_down`, and survives a quest's stages being renamed. Code that reads a
+  machine when it needs to, such as a condition or a quest log drawing
+  `quest.state`, needs no watcher either. The quest spec's gate already worked
+  this way, and the machine's `watch` had no caller but its own specs.
+- **`Facts#watch` needs an `unwatch`.** The sketch returned a handle with
+  nothing to pass it to. A node that watches in `on_add` unwatches in
+  `on_remove`, as every signal in the engine asks. Forgetting is loud when the
+  stale watcher moves a retired machine, which raises. See open question 5.
+- **The machine needs two `@api private` methods for the facts to call.**
+  `parse_saved` checks an entry and `place` puts the machine there silently.
+  The split lets `restore` check every machine before it moves any, and call
+  fact watchers only once every fact and every machine is back.
+  `Facts#register` is the third.
+- **A machine's `name` must be a Symbol**, and a String raises `TypeError`, as a
+  fact's key does.
+- **Values that differ include `1` and `1.0`.** Both `Facts#on_changed` and
+  `Facts#watch` compare with `eql?`, since a save writes them differently.
+- **Step 2 has a name clash to settle.** `StateMachine#name` is the name it is
+  saved under, while step 2's sketch gives `Dialogue#name` the speaker's
+  `Engine::Text`. One of them needs another word before step 2 is written out;
+  `speaker_name` for the dialogue's reads well.
+
+Open question 3, whether `Game` mounts `Facts`: **yes, in a fifth commit.**
+The spec mounted it with one line, and forgetting fails loudly on the first
+named machine. But a store every save goes through is the engine's job. The
+question that settled it was whether a game ever wants two stores. The only
+case found is two lifetimes, such as a roguelike's unlocks beside its current
+run. That case still wants the root store and mounts a second on the run's
+scene, where `node.system` finds it first; `docs/api/dialogue.md` says so.
+`Game#facts` returns the store, which exists from `Game.new`, so a game can
+restore a save before `start`. A driven scratch game built a named machine in
+`on_add` through `node.system` and found `game.facts`. `docs/api/systems.md`
+now lists three systems `Game` mounts.
 
 ---
 

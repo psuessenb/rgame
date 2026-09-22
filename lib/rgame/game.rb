@@ -108,6 +108,7 @@ module RGame
       @presentation.fit(self.width, self.height)
       @viewports = RGame::Engine::Viewports.new(@players, width: @presentation.width,
                                                           height: @presentation.height)
+      @facts = RGame::Engine::Components::Facts.new
       @debug = RGame::Engine::DebugOverlay.new
       @dirty = true
 
@@ -129,6 +130,11 @@ module RGame
     # anything being handed to it.
     attr_reader :viewports
 
+    # The flags and named state machines a game saves as one entry. Reachable
+    # as `node.system(RGame::Engine::Components::Facts)`, so a quest built deep
+    # in a scene registers with the same store the save code writes.
+    attr_reader :facts
+
     # Brings the tree live and runs until the window closes.
     #
     # The root gets this object as its `context`, which is how a node deep in
@@ -138,6 +144,7 @@ module RGame
       @root.context = self
       @root.add_component(@players)
       @root.add_component(@viewports)
+      @root.add_component(@facts)
       @audio_director = Engine::AudioDirector.new(audio).subscribe
       @root.enter_tree
       run
