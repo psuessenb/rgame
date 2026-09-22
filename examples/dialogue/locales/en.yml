@@ -1,0 +1,22 @@
+# The English table: every string this example draws.
+# `inn.*` is the conversation, keyed by the script's scope. `speakers.*` holds
+# every speaker's name, outside any scope, so every script shares it.
+en:
+  prompt:
+    begin: Press Enter to begin the dialogue
+  speakers:
+    keeper: Innkeeper
+  inn:
+    greeting: Evening, traveller. Come in out of the wind, and shut the door behind you.
+    hub: What can I do for you?
+    ask_room: Have you a room for the night?
+    ask_road: Where does the road lead?
+    ask_news: Any news?
+    leave: Nothing, thank you. Goodnight.
+    room: One left, up under the roof. It's small, but the chimney runs through it, so it's the warmest bed in the house.
+    road: North, over the pass, to the city. Three days on foot if the weather holds, and it never does. The first night you'll want the shepherds' hut by the lake, the second the ferry at the ford. Past the ford the road is paved again, and the city walls are the first thing you'll see. Don't sleep in the open past the lake. Nobody does.
+    news: News is scarce up here. There's talk of wolves by the lake, if you believe that sort of thing.
+    news_more: Wolves? Tell me more.
+    news_enough: I'd rather not hear it.
+    wolves: A shepherd lost three sheep last week, and swears there were eyes in the reeds. Keep to the road and you'll be fine.
+    farewell: Goodnight, then. The fire stays lit till morning.

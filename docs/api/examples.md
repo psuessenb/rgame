@@ -272,3 +272,15 @@ collection alone does not.
 
 **Uses:** `Components::Identity`, `Util::SaveFile`, a save of records rather
 than positions.
+
+## Conversation
+
+### dialogue
+
+One branching conversation on a black screen, and nothing else. Enter begins
+it, and an innkeeper greets the player and asks what they want. Each of three
+questions leads back to that question, one of them by a question of its own, and
+a fourth response says goodnight. Once the conversation ends, Enter begins it
+again from the start. Read this one first; `quests_and_dialogue` builds on it.
+
+**Uses:** `Dialogue::Script`, `Engine::Dialogue`, `UI::DialogueBox`.
