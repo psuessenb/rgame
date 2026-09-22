@@ -533,7 +533,7 @@ talk.line                          # => nil
 | `visits(beat)` | how often the conversation entered `beat` |
 | `context`, `facts`, `name`, `to_h` | as the machine's |
 | `transcript` | what the conversation has said; see [The transcript](#the-transcript) |
-| `on_beat` | connects a listener, called with each beat reached |
+| `on_beat_entered` | connects a listener, called with each beat the conversation enters |
 | `on_ended` | connects a listener, called with the frozen transcript when the conversation ends |
 
 `speaker`, `speaker_name` and `line` are nil once the conversation has ended.

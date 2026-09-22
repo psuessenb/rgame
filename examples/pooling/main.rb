@@ -152,7 +152,7 @@ class Spawner < RGame::Engine::Node2D
   def on_add
     @pool = add_component(RGame::Engine::Components::Pool.new { Mote.new })
     add_component(RGame::Engine::Components::Timer.new(SPAWN_EVERY))
-      .on_timeout { PER_BURST.times { emit } }
+      .on_elapsed { PER_BURST.times { emit } }
   end
 
   private
@@ -196,7 +196,7 @@ class Meter < RGame::Engine::Node2D
 
   def on_add
     @last = GC.stat(:total_allocated_objects)
-    add_component(RGame::Engine::Components::Timer.new(SAMPLE)).on_timeout { sample }
+    add_component(RGame::Engine::Components::Timer.new(SAMPLE)).on_elapsed { sample }
   end
 
   def on_draw(renderer, _view) = renderer.text(@label.with(count: @count), 0, 0, color: INK)

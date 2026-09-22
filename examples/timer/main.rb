@@ -49,7 +49,7 @@
 #
 # ## The catch-up half of the same idea
 #
-# `Components::Timer#update` fires `on_timeout` *once per whole interval* that
+# `Components::Timer#update` fires `on_elapsed` *once per whole interval* that
 # elapsed, in a loop, rather than once per call. A step long enough to cover
 # three intervals emits three times. Nothing in this example produces one — the
 # loop is fixed-timestep — but a game that ever sees a long step wants the
@@ -128,9 +128,9 @@ class TrueRunner < RGame::Engine::Node2D
   # `get_component(Components::Timer)` would have no single answer to give.
   def on_add
     add_component(RGame::Engine::Components::Timer.new(BEAT), as: :beat)
-      .on_timeout { @beats += 1 }
+      .on_elapsed { @beats += 1 }
     add_component(RGame::Engine::Components::Timer.new(CHIME), as: :chime)
-      .on_timeout { @chimed = !@chimed }
+      .on_elapsed { @chimed = !@chimed }
   end
 
   # Resetting the lap is this node's business rather than the timer's: the timer
@@ -203,7 +203,7 @@ class Fuse < RGame::Engine::Node2D
 
   def on_add
     add_component(RGame::Engine::Components::Timer.new(FUSE, repeating: false))
-      .on_timeout { queue_free }
+      .on_elapsed { queue_free }
   end
 
   def on_draw(renderer, _view)

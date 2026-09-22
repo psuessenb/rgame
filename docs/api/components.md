@@ -472,7 +472,7 @@ margin reaches half its extent.
   triggering it inside the update traversal is safe. For an entity that never
   leaves a *fixed* board, such as a projectile that should vanish after N seconds,
   use a one-shot [`Timer`](#timer) (`repeating: false`) with
-  `on_timeout { node.queue_free }` instead.
+  `on_elapsed { node.queue_free }` instead.
 - **One response to the edge per node.** It raises at attach beside a `ScreenWrap`
   or a mover declaring `blocked_by: [:bounds]`; see
   [`WorldBounds.one_response!`](#world).
@@ -1067,19 +1067,19 @@ nothing to draw. Nothing here picks a `z`.
 ### `Timer`
 
 **A node-driven interval timer.** It runs in the node's update tick, so nothing can
-forget to advance it. It emits `on_timeout` each time a whole interval elapses: a
+forget to advance it. It emits `on_elapsed` each time a whole interval elapses: a
 spawn cadence, a turret's fire rate, a wave clock. It wraps the pure
 [`RGame::Engine::Timer`](toolbox.md#timer--paced-periodic-events) and reuses its
 drift-free carry-forward.
 
 - **Construct:** `Timer.new(interval, repeating: true)`, in seconds. Add it with a
   name when a node needs several: `node.add_component(Timer.new(0.8), as: :spawn)`.
-  `repeating: false` makes a **one-shot** that fires `on_timeout` exactly once, then
+  `repeating: false` makes a **one-shot** that fires `on_elapsed` exactly once, then
   goes inert. A projectile that should vanish after N seconds on a fixed board is
-  `Timer.new(2.0, repeating: false)` plus `on_timeout { node.queue_free }`. When the
+  `Timer.new(2.0, repeating: false)` plus `on_elapsed { node.queue_free }`. When the
   board scrolls and the entity leaves the screen, use `DespawnOffscreen` instead.
-- **Signal:** `on_timeout` fires once per whole interval:
-  `timer.on_timeout { spawn_enemy }`.
+- **Signal:** `on_elapsed` fires once per whole interval:
+  `timer.on_elapsed { spawn_enemy }`.
 - **Lifecycle:** `on_attach` restarts the countdown and re-arms a spent one-shot. A
   pooled node acquired and added again starts fresh, without its previous life's
   elapsed time.

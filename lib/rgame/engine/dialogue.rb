@@ -42,7 +42,7 @@ module RGame
     class Dialogue
       extend Signal::DSL
 
-      signal :beat, :beat
+      signal :beat_entered, :beat
       signal :ended, :transcript
 
       NOTHING = [].freeze
@@ -217,7 +217,7 @@ module RGame
         vars = show(data)
         @transcript.record_line(beat, data, vars) unless @resuming && @transcript.ends_with_line?(beat)
         @resuming = false
-        beat_signal.emit(beat)
+        beat_entered_signal.emit(beat)
       end
 
       def finish

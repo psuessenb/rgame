@@ -134,6 +134,11 @@ index, not the argument.
   in place of the fields, raises `ArgumentError` when the class is defined. See
   [docs/api/signals.md](docs/api/signals.md#the-dsl-declaring-a-signal-on-a-class).
 
+- **Two signals are renamed after what happened.** `Components::Timer#on_timeout`
+  is `on_elapsed`, since a repeating timer's interval elapses on every fire.
+  `Dialogue#on_beat` is `on_beat_entered`, since it fires as the conversation
+  enters each beat.
+
 - **Every drawing call defaults to z 0, so call order decides.** A shape used to
   default above text and images within one node. A backdrop drawn first then
   covered the text drawn after it, and ten examples showed no help text at all.

@@ -9,7 +9,7 @@ RSpec.describe RGame::Engine::Components::Timer do
 
   def fired
     count = 0
-    timer.on_timeout { count += 1 }
+    timer.on_elapsed { count += 1 }
     yield
     count
   end
@@ -19,7 +19,7 @@ RSpec.describe RGame::Engine::Components::Timer do
     expect(fires).to eq(0)
   end
 
-  it 'emits on_timeout once a whole interval has accumulated' do
+  it 'emits on_elapsed once a whole interval has accumulated' do
     fires = fired do
       timer.update(0.6)
       timer.update(0.6)
@@ -62,7 +62,7 @@ RSpec.describe RGame::Engine::Components::Timer do
   describe 'repeating: false (one-shot)' do
     subject(:timer) { described_class.new(1.0, repeating: false) }
 
-    it 'fires on_timeout exactly once when the interval elapses' do
+    it 'fires on_elapsed exactly once when the interval elapses' do
       fires = fired do
         timer.update(0.6)
         timer.update(0.6) # crosses 1.0 → fires
@@ -92,9 +92,9 @@ RSpec.describe RGame::Engine::Components::Timer do
       expect(fires).to eq(2)
     end
 
-    it 'is re-armed by a reset in its own on_timeout handler' do
+    it 'is re-armed by a reset in its own on_elapsed handler' do
       fires = 0
-      timer.on_timeout do
+      timer.on_elapsed do
         fires += 1
         timer.reset
       end
@@ -104,7 +104,7 @@ RSpec.describe RGame::Engine::Components::Timer do
 
     it 'fires once per reset, even when the step that re-arms it is long' do
       fires = 0
-      timer.on_timeout do
+      timer.on_elapsed do
         fires += 1
         timer.reset
       end
@@ -116,7 +116,7 @@ RSpec.describe RGame::Engine::Components::Timer do
   describe 'on_attach reset (recycling)' do
     it 'restarts the countdown when the node re-enters the tree' do
       count = 0
-      timer.on_timeout { count += 1 }
+      timer.on_elapsed { count += 1 }
       node.enter_tree
       node.update(0.6) # 0.6 toward 1.0
 
@@ -132,7 +132,7 @@ RSpec.describe RGame::Engine::Components::Timer do
       oneshot = described_class.new(1.0, repeating: false)
       host.add_component(oneshot)
       count = 0
-      oneshot.on_timeout { count += 1 }
+      oneshot.on_elapsed { count += 1 }
 
       host.enter_tree
       host.update(1.0) # fires once
@@ -147,7 +147,7 @@ RSpec.describe RGame::Engine::Components::Timer do
   describe 'on a node' do
     it 'advances on the node update tick, so the owner need not drive it' do
       count = 0
-      timer.on_timeout { count += 1 }
+      timer.on_elapsed { count += 1 }
       node.enter_tree
       6.times { node.update(0.2) } # 1.2s total → one whole interval
       expect(count).to eq(1)

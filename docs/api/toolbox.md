@@ -329,7 +329,7 @@ change `interval`. When one step may span several intervals, loop:
 
 For a node that should tick on its own, use
 [`Components::Timer`](components.md#timer). It owns a `Timer`, runs in the node's
-update tick so nothing can forget to drive it, and emits `on_timeout` instead of
+update tick so nothing can forget to drive it, and emits `on_elapsed` instead of
 making you poll `ready?` and `consume`.
 
 ## `Camera` — follow a point, clamp to the world
