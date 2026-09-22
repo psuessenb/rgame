@@ -1062,8 +1062,8 @@ ended.
 | `panel:` | drawn behind the whole box as `panel.draw(renderer, :idle, width, height)`; `ShapeStyle::DEFAULT` by default |
 | `button_style:` | drawn behind each response, as a [`TextButton`](#rgameengineuitextbutton)'s `style:`; `ShapeStyle::DEFAULT` by default |
 | `padding:` | the gap round the edge and between the parts, 12 by default |
-| `portrait_width:` | a column kept free at the left for `on_portrait`, 0 by default |
-| `on_portrait(renderer, speaker)` | a hook that draws nothing; see below |
+| `portrait_width:` | a column kept free at the left for `on_draw_portrait`, 0 by default |
+| `on_draw_portrait(renderer, speaker)` | a hook that draws nothing; see below |
 | `DialogueBox::UNAVAILABLE` | `[:hide, :disable]` |
 | `DialogueBox::COLOR` | the colour of the speaker's name and the marker |
 
@@ -1075,13 +1075,13 @@ The responses are `TextButton`s, which draw their labels in the renderer's font.
 Any style works as `panel:` or `button_style:`, a
 [`NineSliceStyle`](#styles) included.
 
-**`on_portrait` draws a portrait.** The box calls it on every draw, in its own
-space, with the beat's speaker Symbol. The portrait column starts at
-`(padding, padding)` and is `portrait_width` wide:
+**A subclass draws a portrait in `on_draw_portrait`.** The box calls it on every
+draw, in its own space, with the beat's speaker Symbol. The portrait column
+starts at `(padding, padding)` and is `portrait_width` wide:
 
 ```ruby
 class PortraitBox < RGame::Engine::UI::DialogueBox
-  def on_portrait(renderer, speaker)
+  def on_draw_portrait(renderer, speaker)
     renderer.image(PORTRAITS.fetch(speaker), 12 + 32, 12 + 32)
   end
 end

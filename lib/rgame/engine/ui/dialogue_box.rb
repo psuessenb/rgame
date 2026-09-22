@@ -36,7 +36,7 @@ module RGame
       # The box is `width` wide and as tall as the most responses any beat of
       # the script has, so it never resizes during a conversation. The line
       # breaks at what is left of the width after the padding and
-      # `portrait_width`, a column kept free at the left for `on_portrait`.
+      # `portrait_width`, a column kept free at the left for `on_draw_portrait`.
       #
       # ## When the conversation ends
       #
@@ -107,7 +107,7 @@ module RGame
         # column the box keeps free at its left, which starts at `(padding,
         # padding)` in the box's own space. `speaker` is the beat's speaker
         # Symbol. Draws nothing unless a subclass does.
-        def on_portrait(renderer, speaker); end
+        def on_draw_portrait(renderer, speaker); end
 
         # Shows a waiting beat's responses once its line is fully shown, after
         # doing what every node does.
@@ -118,7 +118,7 @@ module RGame
 
         def on_draw(renderer, _view)
           @panel.draw(renderer, :idle, width, height)
-          on_portrait(renderer, @speaker)
+          on_draw_portrait(renderer, @speaker)
           renderer.text(@speaker_name, @text_x, @padding, font: @typeface, color: COLOR)
         end
 

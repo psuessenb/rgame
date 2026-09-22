@@ -1102,6 +1102,8 @@ What the sketch got wrong or left out:
   they are `TextButton`s. A game with a larger face gets a name and line in it
   and responses in the default font. That is a gap in `TextButton`, which has
   no `font:`, and is left open.
+- **The portrait hook is `on_draw_portrait`, not `on_portrait`.** A hook's
+  name says what it does, with a verb, as `on_draw` and `on_ended` do.
 - **`QuietRenderer`**, in rgame's own suite, answers `triangle`, `layered` and
   `translated`, so a whole box's draw is measured rather than one node's.
 
