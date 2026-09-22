@@ -100,7 +100,8 @@ index, not the argument.
   responses. Confirm shows the rest of a page, turns it, or moves on.
   `unavailable:` hides or disables a response the player cannot pick. The box
   answers to its player, so two players can talk in two halves of the screen,
-  and it frees itself when the conversation ends. See
+  and it frees itself when the conversation ends. A subclass draws a portrait
+  beside the line in `_draw_portrait`. See
   [docs/api/ui.md](docs/api/ui.md#rgameengineuidialoguebox).
 - **A menu can drop its buttons, and a label can change its text.**
   `UI::Menu#clear` removes every button. `UI::Label#text=` and
@@ -143,10 +144,9 @@ index, not the argument.
   in place of the fields, raises `ArgumentError` when the class is defined. See
   [docs/api/signals.md](docs/api/signals.md#the-dsl-declaring-a-signal-on-a-class).
 
-- **Two signals are renamed after what happened.** `Components::Timer#on_timeout`
-  is `on_elapsed`, since a repeating timer's interval elapses on every fire.
-  `Dialogue#on_beat` is `on_beat_entered`, since it fires as the conversation
-  enters each beat.
+- **A timer's signal is renamed after what happened.**
+  `Components::Timer#on_timeout` is `on_elapsed`, since a repeating timer's
+  interval elapses on every fire.
 
 - **A node's hooks start with `_`, and `on_` means a signal.** Override
   `_control`, `_update` and `_draw` for `on_control`, `on_update` and
@@ -159,15 +159,14 @@ index, not the argument.
   a component now name the same hook the same way. See
   [docs/api/components.md](docs/api/components.md).
 - **The UI's hooks follow the same rule.** `UI::Button` calls `_gain_focus` and
-  `_lose_focus` for `on_focus_changed(focused)`, and `UI::DialogueBox` calls
-  `_draw_portrait` for `on_draw_portrait`. A `UI::Navigation` answers
+  `_lose_focus` for `on_focus_changed(focused)`. A `UI::Navigation` answers
   `control`, `opened` and `buttons_changed` for `on_control`, `on_opened` and
   `on_buttons_changed`, which also ends the clash with `UI::Menu#on_opened`. See
   [docs/api/ui.md](docs/api/ui.md).
 - **`Node2D`'s sealed machinery starts with `rgame_`, not `_`.** A subclass
-  that defines `rgame_draw_content` or another of `Node2D`'s or `Component`'s
-  private `rgame_` methods raises `NameError` where the class is defined. A
-  method starting with `_` is an ordinary name again. See
+  that defines `rgame_draw_content` or another of `Node2D`'s private `rgame_`
+  methods raises `NameError` where the class is defined. A method starting
+  with `_` is a hook, as the entries above say. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md).
 
 - **Every drawing call defaults to z 0, so call order decides.** A shape used to
