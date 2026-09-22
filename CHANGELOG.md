@@ -95,6 +95,17 @@ index, not the argument.
   was shown with, and each response picked. `on_ended` passes it to the game,
   frozen, and the engine saves nothing; `to_h` and `Transcript.from` save and
   restore one. See [docs/api/dialogue.md](docs/api/dialogue.md#the-transcript).
+- **A dialogue box shows a conversation.** `RGame::Engine::UI::DialogueBox`
+  draws the speaker's name, types the line out a page at a time, and lists the
+  responses. Confirm shows the rest of a page, turns it, or moves on.
+  `unavailable:` hides or disables a response the player cannot pick. The box
+  answers to its player, so two players can talk in two halves of the screen,
+  and it frees itself when the conversation ends. See
+  [docs/api/ui.md](docs/api/ui.md#rgameengineuidialoguebox).
+- **A menu can drop its buttons, and a label can change its text.**
+  `UI::Menu#clear` removes every button. `UI::Label#text=` and
+  `Engine::Paragraph#text=` take a new key or `Engine::Text`, and a label starts
+  again on its first page. See [docs/api/ui.md](docs/api/ui.md#rgameengineuimenu).
 - **A spec can check that no conversation strands a player.**
   `RGame::Engine::Exploration.run` walks every path a dialogue or a state
   machine can take. It reports each dead end, with the moves that reach it. See
@@ -141,6 +152,11 @@ index, not the argument.
 
 ### Fixed
 
+- **A button added during a held confirm ignores that press.** A menu read the
+  confirm a parent had just acted on, so a button added on that press was
+  activated by it. `add` and `clear` now make the menu wait for confirm to come
+  up. A menu whose buttons change from `on_activated` reads no more input that
+  tick. See [docs/api/ui.md](docs/api/ui.md#when-a-press-activates).
 - **A tile from a map's second tileset draws from that tileset.** Every gid was
   resolved through the first tileset.
 - **A one-shot timer can re-arm itself.** `Components::Timer#reset` called from

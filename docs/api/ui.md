@@ -1004,6 +1004,114 @@ each one out. Enter shows the rest of a page still typing. The timer holds a
 shown page for a second plus a little for each character `page_length` counts,
 so a short page does not stay up as long as a full one.
 
+## `RGame::Engine::UI::DialogueBox`
+
+**A dialogue box shows one [`Engine::Dialogue`](dialogue.md#dialogue).** It draws
+the speaker's name, types the line out a page at a time, and lists the responses
+to pick from. It is a node, and the game adds it where the conversation should
+appear:
+
+```ruby
+UI = RGame::Engine::UI
+
+talk = RGame::Engine::Dialogue.new(SMITH, context: hero, facts: facts)
+talk.on_ended { |transcript| @journal.concat(transcript.to_a) }
+layer.add_node(UI::DialogueBox.new(dialogue: talk, unavailable: :disable, width: 600, x: 20, y: 300))
+```
+
+It is one way to draw a conversation. A game that draws its own drives the
+`Dialogue` itself, and nothing in `Dialogue` depends on the box.
+
+**Confirm does the next thing:**
+
+1. On a page still typing, it shows the rest of the page.
+2. On a page fully shown that is not the last, it turns the page.
+3. On the last page of a beat that continues, it calls `Dialogue#continue`.
+
+On a beat that waits for a response, the responses replace the ▼ marker once the
+last page is fully shown, by the reveal or by confirm. The next confirm picks the
+focused response, and `ui_up` and `ui_down` move focus, as in any
+[`Menu`](#rgameengineuimenu).
+
+**Every confirm goes through the box's menu.** The ▼ marker is the menu's one
+button while a line is shown, and it activates on the press. The box reads no
+input itself. So the menu's [press rules](#when-a-press-activates) apply to all of
+it: a box added while confirm is held does nothing until confirm is let go and
+pressed again, and the confirm that finishes a line picks no response.
+
+**`unavailable:` is required.** It decides what happens to a response whose
+condition fails. The box asks each response's condition once, when the responses
+appear, and not on the frames after.
+
+| `unavailable:` | the response |
+|---|---|
+| `:hide` | is left out of the list |
+| `:disable` | is listed, drawn disabled, and skipped as focus moves |
+
+Anything else raises `ArgumentError`, and so does a dialogue that has already
+ended.
+
+| Keyword or method | |
+|---|---|
+| `dialogue:`, `dialogue` | the conversation shown |
+| `unavailable:`, `unavailable` | `:hide` or `:disable`; see above |
+| `width:` | the box's width; its height follows from the other keywords |
+| `lines_per_page:` | the line's lines per page, 3 by default |
+| `reveal:` | characters a second the line types out at, 40 by default; nil draws each page whole |
+| `typeface:` | the face the speaker's name and the line are measured and drawn with; `Util::Typeface.default` by default |
+| `panel:` | drawn behind the whole box as `panel.draw(renderer, :idle, width, height)`; `ShapeStyle::DEFAULT` by default |
+| `button_style:` | drawn behind each response, as a [`TextButton`](#rgameengineuitextbutton)'s `style:`; `ShapeStyle::DEFAULT` by default |
+| `padding:` | the gap round the edge and between the parts, 12 by default |
+| `portrait_width:` | a column kept free at the left for `on_portrait`, 0 by default |
+| `on_portrait(renderer, speaker)` | a hook that draws nothing; see below |
+| `DialogueBox::UNAVAILABLE` | `[:hide, :disable]` |
+| `DialogueBox::COLOR` | the colour of the speaker's name and the marker |
+
+**The box keeps one size for the whole conversation.** The speaker's name sits at
+the top, the line's `lines_per_page` lines below it, and the responses below
+those. The box is tall enough for the most responses any beat of the script has.
+The line breaks at the width left over after the padding and the portrait column.
+The responses are `TextButton`s, which draw their labels in the renderer's font.
+Any style works as `panel:` or `button_style:`, a
+[`NineSliceStyle`](#styles) included.
+
+**`on_portrait` draws a portrait.** The box calls it on every draw, in its own
+space, with the beat's speaker Symbol. The portrait column starts at
+`(padding, padding)` and is `portrait_width` wide:
+
+```ruby
+class PortraitBox < RGame::Engine::UI::DialogueBox
+  def on_portrait(renderer, speaker)
+    renderer.image(PORTRAITS.fetch(speaker), 12 + 32, 12 + 32)
+  end
+end
+```
+
+**When the conversation ends, the box frees itself** with `queue_free`. The game
+hears the end from `Dialogue#on_ended`, which hands over the transcript. The box
+reads the dialogue back after each move it makes, so the box should be the only
+thing moving its dialogue.
+
+**Drawing allocates nothing**, typing or not. The speaker's name is the
+dialogue's `Engine::Text`, drawn as it is.
+
+### Whose conversation it is
+
+**The box answers to its `input_owner`**, as every node does. Inside a
+`PlayerLayer` that is the layer's player, so two players can hold two
+conversations in their own halves of the screen, each moved only by its own
+controller. Outside one, with no owner set, it is the primary player.
+
+**During `solo!`, add the box in the `:overlay` band.** A `PlayerLayer` draws
+nothing while the split is collapsed, so a box inside one would disappear. Set
+`input_owner` to the player who drives the conversation:
+
+```ruby
+viewports.solo!(cutscene_camera)
+scene.add_node(UI::DialogueBox.new(dialogue: talk, unavailable: :hide, width: 600,
+                                   band: :overlay, input_owner: game.players[1]))
+```
+
 ## What this is not
 
 **This is a menu, not a widget library.** Every button in a menu has the same size,
