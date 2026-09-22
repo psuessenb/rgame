@@ -153,7 +153,7 @@ module RGame
           @focused ? :focused : :idle
         end
 
-        # Called by the Menu. Calls `on_focus_changed` when the value actually
+        # Called by the Menu. Calls `_gain_focus` or `_lose_focus` when the value actually
         # changes, and never for a repeated assignment, so a menu that reasserts
         # focus every frame does not replay a focus sound every frame. Losing
         # focus lets go of a confirm press without activating it; a hotkey press
@@ -163,7 +163,7 @@ module RGame
 
           @focused = value
           @holder = nil if !value && @holder == :confirm
-          on_focus_changed(value)
+          value ? _gain_focus : _lose_focus
         end
 
         # Called by the Menu when a press from `source` — `:confirm` or
@@ -235,9 +235,10 @@ module RGame
           super
         end
 
-        # Hook: override to react to gaining or losing focus — a sound, the
-        # start of an animation. Called only on a change.
-        def on_focus_changed(focused); end
+        # Hooks: override to react to gaining or losing focus — a sound, the
+        # start of an animation. Each is called only on a change.
+        def _gain_focus; end
+        def _lose_focus; end
 
         private
 

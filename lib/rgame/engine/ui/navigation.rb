@@ -7,7 +7,7 @@ module RGame
       # and UI::Pointing, and the class to subclass for a third way.
       #
       #   class Cycling < UI::Navigation
-      #     def on_control(actions)
+      #     def control(actions)
       #       menu.focus((menu.focused_index.to_i + 1) % menu.buttons.size) if actions.pressed?(:ui_right)
       #     end
       #   end
@@ -38,11 +38,11 @@ module RGame
         # Reads this frame's actions and moves focus with `menu.focus`. Called
         # before the Menu handles `ui_confirm`, so a focus change and a confirm on
         # the same frame activate the newly focused button.
-        def on_control(actions); end
+        def control(actions); end
 
         # Called after a button is added, for a navigation that has an opinion
         # about where focus starts.
-        def on_buttons_changed; end
+        def buttons_changed; end
 
         # Called by Menu on each update while the menu is not paused, for a
         # navigation that counts time. Time enters here and nowhere else.
@@ -50,7 +50,7 @@ module RGame
 
         # Called by Menu when it opens, for a navigation holding state that
         # belongs to one opening — UI::Pointing forgets its aim.
-        def on_opened; end
+        def opened; end
       end
     end
   end

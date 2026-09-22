@@ -153,6 +153,12 @@ index, not the argument.
   `on_attach` and `on_detach`, and `_sweep_freed` for `sweep_freed`. A node and
   a component now name the same hook the same way. See
   [docs/api/components.md](docs/api/components.md).
+- **The UI's hooks follow the same rule.** `UI::Button` calls `_gain_focus` and
+  `_lose_focus` for `on_focus_changed(focused)`, and `UI::DialogueBox` calls
+  `_draw_portrait` for `on_draw_portrait`. A `UI::Navigation` answers
+  `control`, `opened` and `buttons_changed` for `on_control`, `on_opened` and
+  `on_buttons_changed`, which also ends the clash with `UI::Menu#on_opened`. See
+  [docs/api/ui.md](docs/api/ui.md).
 - **`Node2D`'s sealed machinery starts with `rgame_`, not `_`.** A subclass
   that defines `rgame_draw_content` or another of `Node2D`'s or `Component`'s
   private `rgame_` methods raises `NameError` where the class is defined. A

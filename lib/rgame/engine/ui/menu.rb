@@ -229,7 +229,7 @@ module RGame
           return unless @open
 
           @buttons_changed = false
-          @navigation&.on_control(actions)
+          @navigation&.control(actions)
           press_hotkeys(actions)
           return if @buttons_changed
 
@@ -249,12 +249,12 @@ module RGame
           @bounds_x, @bounds_y, @bounds_width, @bounds_height = @layout.bounds(@buttons)
           @confirm_seen_up = false
           @buttons_changed = true
-          @navigation&.on_buttons_changed
+          @navigation&.buttons_changed
         end
 
         def open_now
           @open = true
-          @navigation&.on_opened
+          @navigation&.opened
           opened_signal.emit
         end
 

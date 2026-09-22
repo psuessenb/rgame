@@ -300,12 +300,12 @@ RSpec.describe RGame::Engine::UI::Pointing do
     end
   end
 
-  describe 'on_opened' do
+  describe '#opened' do
     before { build('N', 'E') }
 
     it 'forgets the aim and focuses nothing' do
       poll(1.0, 0.0)
-      pointing.on_opened
+      pointing.opened
       expect([pointing.aim_x, pointing.aim_y, menu.focused]).to eq([0.0, 0.0, nil])
     end
   end

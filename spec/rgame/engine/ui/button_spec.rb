@@ -6,7 +6,8 @@ RSpec.describe RGame::Engine::UI::Button do
   let(:recording_class) do
     Class.new(described_class) do
       def changes = @changes ||= []
-      def on_focus_changed(focused) = changes << focused
+      def _gain_focus = changes << true
+      def _lose_focus = changes << false
     end
   end
 
@@ -245,10 +246,10 @@ RSpec.describe RGame::Engine::UI::Button do
     end
   end
 
-  describe '#on_focus_changed' do
+  describe '#_gain_focus and #_lose_focus' do
     let(:button) { recording_class.new }
 
-    it 'is called with the new value when focus changes' do
+    it 'calls the one for the new value when focus changes' do
       button.focused = true
       button.focused = false
       expect(button.changes).to eq([true, false])

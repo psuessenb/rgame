@@ -376,12 +376,13 @@ RSpec.describe RGame::Engine::UI::Menu do
   # rubocop:enable RSpec/MultipleMemoizedHelpers
 
   describe '#focus' do
-    # A focus sound or animation hangs off on_focus_changed, so a menu that
+    # A focus sound or animation hangs off _gain_focus, so a menu that
     # reasserts focus every frame must not replay it.
     it 'tells only the buttons whose focus changed' do
       counting = Class.new(RGame::Engine::UI::Button) do
         def changes = @changes ||= []
-        def on_focus_changed(focused) = changes << focused
+        def _gain_focus = changes << true
+        def _lose_focus = changes << false
       end
       buttons = Array.new(3) { menu.add(counting.new) }
       menu.focus(1)
@@ -799,7 +800,7 @@ RSpec.describe RGame::Engine::UI::Menu do
   describe 'navigation' do
     let(:first_enabled) do
       Class.new(RGame::Engine::UI::Navigation) do
-        def on_control(_actions) = menu.focus(menu.buttons.index(&:enabled?))
+        def control(_actions) = menu.focus(menu.buttons.index(&:enabled?))
       end
     end
 
@@ -819,7 +820,7 @@ RSpec.describe RGame::Engine::UI::Menu do
     end
 
     it 'activates nothing when the navigation focuses nothing' do
-      nothing = Class.new(RGame::Engine::UI::Navigation) { def on_control(_actions) = menu.focus(nil) }
+      nothing = Class.new(RGame::Engine::UI::Navigation) { def control(_actions) = menu.focus(nil) }
       custom = root.add_node(described_class.new(layout: column, navigation: nothing.new))
       fired = false
       custom.add(button('One')).on_activated { fired = true }
