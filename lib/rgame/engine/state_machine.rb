@@ -72,7 +72,6 @@ module RGame
         @name = name
         @busy = false
         @retired = false
-        @watchers = []
         check_name(from)
         check_symbols
         if name
@@ -124,21 +123,6 @@ module RGame
       # Where the machine has got to: the state, nil once ended, and the visits.
       def to_h = { state: @state, visits: @visits.dup }
 
-      # Calls the block with the state now, then after every transition and
-      # every restore of the facts this machine is named in. Returns a handle
-      # for `unwatch`.
-      def watch(&block)
-        @watchers << block
-        yield @state
-        block
-      end
-
-      # Stops calling the block `watch` returned.
-      def unwatch(handle)
-        @watchers.delete(handle)
-        nil
-      end
-
       # The state and visits a saved Hash names, checked against the graph; the
       # start state visited once for nil. `Facts#restore` checks every machine
       # with this before it changes any.
@@ -175,13 +159,6 @@ module RGame
         self
       end
 
-      # Calls every `watch` block with the state, as after a restore.
-      #
-      # @api private
-      def notify_watchers
-        @watchers.each { it.call(@state) }
-      end
-
       private
 
       def move(transition)
@@ -189,7 +166,6 @@ module RGame
         from = @state
         transition.to ? arrive(transition.to) : @state = nil
         on_changed_signal.emit(from:, to: @state, transition:)
-        notify_watchers
       end
 
       def arrive(name)

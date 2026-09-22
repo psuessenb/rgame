@@ -93,25 +93,12 @@ RSpec.describe RGame::Engine::Components::Facts do
       expect([quest.state, quest.to_h[:visits], trail]).to eq([:a, { a: 1 }, []])
     end
 
-    it 'tells its watchers, after every fact and machine is restored' do
-      quest = machine
-      other = machine(:other)
-      heard = []
-      quest.watch { heard << [it, other.state, facts[:flag]] }
-      facts.restore(values: { flag: true }, machines: { quest: { state: :b }, other: { state: :b } })
-      expect(heard).to eq([[:a, :a, nil], [:b, :b, true]])
-    end
-  end
-
-  describe '#watch on a machine' do
-    it 'calls now with the state, then after every transition, until unwatched' do
+    it 'is in place before any fact watcher runs' do
       quest = machine
       heard = []
-      handle = quest.watch { heard << it }
-      quest.fire(:go)
-      quest.unwatch(handle)
-      quest.fire(:quit)
-      expect(heard).to eq(%i[a b])
+      facts.watch(:flag) { heard << [it, quest.state] }
+      facts.restore(values: { flag: true }, machines: { quest: { state: :b } })
+      expect(heard).to eq([[nil, :a], [true, :b]])
     end
   end
 

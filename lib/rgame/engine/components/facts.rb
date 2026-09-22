@@ -104,8 +104,8 @@ module RGame
         #
         # Checks everything first, so a value `[]=` would refuse, or an entry
         # naming a state its machine's graph lacks, raises and changes nothing.
-        # Runs no effect and emits no `on_changed`. Calls the watchers of each key
-        # whose value differs, then every named machine's, once all are restored.
+        # Runs no effect and emits no `on_changed`. Once every fact and machine is
+        # back, calls the watchers of each key whose value differs.
         def restore(saved)
           values, entries = _parse(saved)
           placed = @machines.to_h { |name, machine| [machine, machine.parse_saved(entries[name])] }
@@ -116,7 +116,6 @@ module RGame
           (previous.keys | values.keys).each do |key|
             _notify(key) unless previous[key].eql?(values[key])
           end
-          placed.each_key(&:notify_watchers)
           self
         end
 

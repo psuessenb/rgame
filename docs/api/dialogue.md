@@ -122,8 +122,6 @@ quest.visits(:elsewhere)      # => 0
 | `visits(name)` | how often the machine entered `name`; 0 for a state never entered |
 | `ended?` | whether a transition with no `to:` was taken |
 | `on_changed` | connects a listener, called with the old state, the new one and the transition |
-| `watch` | calls its block with the state now, then after every transition and every restore; returns a handle |
-| `unwatch(handle)` | stops calling a block `watch` returned |
 | `name` | the `name:` it was built with, or nil |
 
 **Availability is asked, not stored.** `available?` runs the transition's
@@ -344,8 +342,8 @@ both raises `ArgumentError`.
 - **A machine built after `restore`** resumes from its entry, by the rules
   `from:` has, running no effect. With no entry it starts fresh.
 - **A machine built before `restore`** is put where its entry says. It runs no
-  effect and emits no `on_changed`; its `watch` blocks hear the new state. With
-  no entry it goes back to its start state, again running nothing.
+  effect and emits no `on_changed`. With no entry it goes back to its start
+  state, again running nothing.
 - **`restore(nil)`**, for no save yet, clears every fact and puts every named
   machine back at its start.
 - **An entry no machine claims is kept**, and `to_h` writes it back, so a quest
@@ -362,9 +360,16 @@ would refuse, or an entry naming a state its machine's graph lacks, raises and
 leaves every fact and every machine as it was.
 
 **`restore` calls watchers once the whole world is back.** Every fact and every
-machine is restored first. Then the watchers of each key whose value differs
-run, then each named machine's. A watcher that reads another fact or machine
-reads the restored one.
+machine is restored first, then the watchers of each key whose value differs
+run. A watcher that reads another fact or a machine reads the restored one.
+
+**To keep the scene in step with a quest, watch a fact the quest sets.** A
+transition's effect writes the fact, the save brings it back, and a watcher
+hears it after a load as well as in play. A machine has no `watch` of its own:
+a fact names what the scene cares about, such as `bridge_down`, and keeps
+working when a quest's stages are renamed. Code that reads a machine when it
+needs to, such as a condition or a quest log that draws `quest.state`, needs no
+watcher.
 
 **A watcher belongs to the object that connected it.** A node that watches in
 `on_add` unwatches in `on_remove`. A watcher left connected after its node is
