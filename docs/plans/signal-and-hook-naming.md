@@ -1,8 +1,8 @@
 # Naming signals, hooks and the engine's own methods
 
-**Status: decisions 1–6 are taken, and every open question is settled.** The
-roadmap at the end is rough on purpose; each step gets detailed when it starts.
-Nothing here is implemented.
+**Status: step 1 is implemented; steps 2–5 are rough.** Decisions 1–6 are
+taken, and every open question is settled. Each rough step gets detailed when
+it starts.
 
 This started as a naming rule for signals. It grew into four changes to public
 API, most with a guard, and a new skill, so it gets a plan. It is not a full plan: no
@@ -333,9 +333,10 @@ name nil, not the system.
 That needs a lookup that raises. The happy path costs what `Node2D#system`
 costs: a walk up the parent chain and a scan of the anchor's components, which
 allocates nothing. The message String is built only in the branch that raises.
-Whether the lookup is a raising variant of `Node2D#system`, which `Players`,
+~~Whether the lookup is a raising variant of `Node2D#system`, which `Players`,
 `Viewports` and `Facts` could use too, or specific to audio, is decided in
-step 1.
+step 1.~~ **Settled in step 1: `Node2D#system!`, for every system.** See the
+step.
 
 ### 5. A hook is named after the step it runs in
 
@@ -508,6 +509,56 @@ before it lands.
    the step; `examples/music` reports its music start and stop; and
    `test_projects/asteroids` reports its sounds. A spec that plays a sound
    from a node outside any tree raises `KeyError` naming `AudioOut`.
+
+   **Landed.** Three commits, one per sub-step, on `audio-out`.
+   `Node2D#system!`, `Engine::AudioOut` and `Game`'s `audio:` shipped as
+   sketched, and `AudioBus`, `AudioDirector` and their spec are gone. The
+   docs listed above changed, and `CHANGELOG.md` has two Added entries, a
+   Changed entry with the replacement call, and a Removed entry.
+
+   - `rake spec`: 2938 examples, 0 failures, 21.5 s (2939 before, less the
+     9 director examples, plus 5 for `AudioOut` and 3 for `system!`). `rake spec:core`: 476, 0 failures. `docs:coverage`: 0 of
+     177. `make test`: 380 checks, 0 failures.
+   - Driven with `--seed 1` before and after: `examples/sound`,
+     `examples/music`, `examples/menu_navigation`, `examples/skill_bar`,
+     `examples/signals` and `test_projects/asteroids`. Every report is
+     identical apart from timings. `sound` shows 8 blips; `music` 4 starts
+     and 1 stop; `asteroids` a blip, the heartbeat and 5 shots.
+   - The asteroids script never leaves the play scene, so its `stop_music`
+     in `on_remove` is not driven. A headless run of a scene pushed and
+     popped on a `SceneStack` shows `song_play` then `song_stop`: the stack
+     calls `exit_tree` before it clears the parent, so `on_remove` still
+     reaches the root.
+   - The acceptance grep finds `AudioBus` and `AudioDirector` only in
+     `docs/plans/`, in a released `CHANGELOG.md` section, and in the two
+     skills' history paragraph, reworded to "a global audio bus the engine
+     once had".
+
+   What the sketch got wrong:
+
+   - **`Game` builds `AudioOut` in `start`, not `initialize`, and has no
+     `audio_out` reader.** Building it in `initialize` calls `audio`, which
+     opens the device, and a spec that builds a `Game` without starting it
+     would open one for nothing. `start` is where the director was built,
+     so the device opens when it always did. `Game#audio` is the reader a
+     caller wants.
+   - **The `system!` message is generic, not audio's.** The sketch in
+     decision 4 quoted a message naming `FakeAudio`. One lookup for every
+     system cannot name a stand-in, so the message names the class, the
+     node, where it looked, and a missing parent; the audio page says how a
+     spec mounts one.
+   - **The drive tool now opens the device in `initialize`.** Its probe is
+     passed as `audio:`, so it is built before the game. That was the
+     laziness its old comment protected, but `start` opened the device
+     anyway, so a driven run opens it a moment earlier and nothing else
+     changes.
+   - **`signals.md` lost its "two shapes" hub and gained a rule.** Without
+     `AudioBus` there was no module-level hub to show. The paragraph now
+     says what a hand-built signal is, and "when to reach for a signal"
+     sends a service every node needs to a system instead.
+   - **`docs/plans/research/roadmap-complexity-estimate-v0.5.0.md` links
+     the two deleted files.** It is a dated research note, and no spec
+     checks links under `docs/plans/`, so it was left as written.
 2. **The signal DSL and every declaration.** Decision 1 with its guard, the
    renames in its table, `docs/api/signals.md`, the `Signal` module comment, a
    comment in `tools/strip_comments.rb` that names `signal :on_hit`, and the
