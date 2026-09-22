@@ -264,6 +264,64 @@ spawn that player's character without polling. `examples/split_screen` shows the
 whole flow in one file. The game opens full-screen for one player and splits
 when a controller presses A.
 
+### Everyone at once
+
+**`players.everyone` is an input owner that stands for every active player.**
+Set it as the `input_owner` of a node no one player owns, such as a title
+screen, a pause menu or a dialogue box shown during `solo!`:
+
+```ruby
+pause_menu.input_owner = node.system(RGame::Engine::Players).everyone
+```
+
+The node then reads one controller whose buttons are the OR of every active
+player's:
+
+- `held?` is true while any active player holds the action.
+- `pressed?` and `released?` are the edges of that union. A press while another
+  player already holds the action is no press, so one press still does one
+  thing.
+- `axis` is the active players' value of largest magnitude.
+
+```ruby
+require 'rgame'
+
+Controls = RGame::Util::Controls
+
+# A backend reporting a fixed set of [button, device] pairs as held.
+class Held
+  def initialize(*pairs) = @pairs = pairs
+  def down?(id, device:) = @pairs.include?([id, device])
+  def axis(_id, device:) = 0.0
+end
+
+players = RGame::Engine::Players.new(
+  [RGame::Engine::Player.new(id: 0, device: Controls::KEYBOARD),
+   RGame::Engine::Player.new(id: 1, device: Controls.gamepad(0))]
+)
+everyone = players.everyone.actions
+
+players.poll(Held.new([Controls::KEY_SPACE, Controls::KEYBOARD]))
+everyone.pressed?(:ui_confirm) # => true — player 0 pressed it
+
+players.poll(Held.new([Controls::KEY_SPACE, Controls::KEYBOARD], [Controls::PAD_A, Controls.gamepad(0)]))
+everyone.pressed?(:ui_confirm) # => false — player 1 pressed while player 0 held it
+everyone.held?(:ui_confirm)    # => true
+```
+
+An action no active player declares raises `KeyError`, as a single player's
+`Actions` does. One that only some players declare reads from those. An empty
+seat counts for nothing, and a player counts from the tick they are seated.
+With no active player at all, `everyone` reads the primary player.
+
+`Players#poll` builds it once a tick, into hashes it reuses, so reading it
+allocates nothing.
+
+**A `PlayerLayer` refuses it** with `ArgumentError`, at construction or when its
+`input_owner` is set later. Everyone has no region of the screen. A node
+everyone drives during `solo!` goes in the `:overlay` band instead; see
+[Whose conversation it is](ui.md#whose-conversation-it-is).
+
 ## `RGame::Core::Input`
 
 `Input` answers the raw query and nothing more.

@@ -1037,7 +1037,7 @@ focused response, and `ui_up` and `ui_down` move focus, as in any
 
 **Every confirm goes through the box's menu.** The ▼ marker is the menu's one
 button while a line is shown, and it activates on the press. The box reads no
-input itself. So the menu's [press rules](#when-a-press-activates) apply to all of
+confirm itself. So the menu's [press rules](#when-a-press-activates) apply to all of
 it: a box added while confirm is held does nothing until confirm is let go and
 pressed again, and the confirm that finishes a line picks no response.
 
@@ -1051,7 +1051,7 @@ appear, and not on the frames after.
 | `:disable` | is listed, drawn disabled, and skipped as focus moves |
 
 Anything else raises `ArgumentError`, and so does a dialogue that has already
-ended.
+ended, or a `log_entry:` whose variables are not `:speaker` and `:line`.
 
 | Keyword or method | |
 |---|---|
@@ -1066,6 +1066,9 @@ ended.
 | `padding:` | the gap round the edge and between the parts, 12 by default |
 | `portrait_width:` | a column kept free at the left for `_draw_portrait`, 0 by default |
 | `_draw_portrait(renderer, speaker)` | a hook that draws nothing; see below |
+| `log:`, `log` | the action that opens [the log](#the-log), or nil for none, the default |
+| `log_entry:` | an `Engine::Text` with the variables `:speaker` and `:line`, formatting one line of the log; nil for the default |
+| `log_open?` | whether the log is showing |
 | `DialogueBox::UNAVAILABLE` | `[:hide, :disable]` |
 | `DialogueBox::COLOR` | the colour of the speaker's name and the marker |
 
@@ -1097,6 +1100,49 @@ thing moving its dialogue.
 **Drawing allocates nothing**, typing or not. The speaker's name is the
 dialogue's `Engine::Text`, drawn as it is.
 
+### The log
+
+**`log:` names an action that opens the log**, a paged
+[`UI::Label`](#rgameengineuilabel) over the dialogue's
+[transcript](dialogue.md#the-transcript). The action must be declared in the
+game's `InputMap`:
+
+```ruby
+input_map = RGame::Engine::InputMap.default.merge(log: { buttons: [Controls::KEY_L, Controls::PAD_Y] })
+game = RGame::Game.new(root: Village.new, input_map: input_map)
+
+# in a scene
+layer.add_node(UI::DialogueBox.new(dialogue: talk, unavailable: :hide, width: 600, log: :log))
+```
+
+The log replaces the speaker's name, the line and the responses. It takes the
+line's width and the box's whole height inside the padding. It opens on its last page. `ui_up` turns back a page and
+`ui_down` forward; the log action or `ui_cancel` closes it. With `log: nil` the
+box reads no action for it.
+
+**While the log is open, the conversation does not move.** The line leaves the
+tree, so its reveal holds where it was, and the menu closes, so confirm picks
+nothing. Closing the log puts both back as they were, with the same response
+focused.
+
+**Each line reads `Speaker: line`, and each response its label alone.** Both
+are punctuation, not words. A language that wants another form passes its own
+`log_entry:`, a translation with the two variables:
+
+```ruby
+UI::DialogueBox.new(dialogue: talk, unavailable: :hide, width: 600, log: :log,
+                    log_entry: RGame::Engine::Text.new('log.entry', :speaker, :line))
+```
+
+The log renders its text again only while open, and only when an entry has
+arrived or the language has changed since it last rendered. Drawing it otherwise
+allocates nothing. A
+transcript restored with `Dialogue.new(transcript:)` shows in the log as it was
+saved, in the current language.
+
+The log is one way to show a transcript. A game with its own log reads
+`Dialogue#transcript`, or the transcript `on_ended` hands over.
+
 ### Whose conversation it is
 
 **The box answers to its `input_owner`**, as every node does. Inside a
@@ -1113,6 +1159,11 @@ viewports.solo!(cutscene_camera)
 scene.add_node(UI::DialogueBox.new(dialogue: talk, unavailable: :hide, width: 600,
                                    band: :overlay, input_owner: game.players[1]))
 ```
+
+**To let every player drive it, set `input_owner` to
+[`players.everyone`](input.md#everyone-at-once).** Any player's confirm then
+moves the conversation. A confirm pressed while another player holds confirm is
+no press, so one line never skips twice.
 
 ## What this is not
 

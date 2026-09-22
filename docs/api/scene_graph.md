@@ -270,6 +270,9 @@ A node that names nobody inherits its parent's owner. A tree that names nobody
 anywhere reads the primary player. Single-player games therefore never mention
 ownership.
 
+A node every player drives at once, such as a pause menu during `solo!`, takes
+[`players.everyone`](input.md#everyone-at-once) as its owner.
+
 The *source* descends through the tree, not the resolved snapshot. Two subtrees
 in one traversal can thus read two different controllers, while each component
 still receives a plain `control(actions)`.
