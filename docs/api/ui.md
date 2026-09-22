@@ -939,6 +939,9 @@ was measured against.
 | `page`, `page=` | the page drawn, from 0 |
 | `page_count` | how many pages the text fills, at least 1 |
 | `last_page?` | whether the page drawn is the last |
+| `reveal:` | characters a second to reveal each page at, or nil (the default) to draw it whole; anything but a positive number raises `ArgumentError` |
+| `revealed?` | whether the whole page is shown |
+| `reveal_all` | shows the rest of the page at once, and returns the label |
 
 **A label reads no input. Its owner turns the page.** `page=` clamps to the
 pages there are, so `page += 1` on the last page stays there. A language switch
@@ -951,7 +954,44 @@ def on_control(actions)
 end
 ```
 
-`examples/intro` turns the pages on Enter and on a one-shot timer.
+### Revealing a page a character at a time
+
+**With `reveal:`, a label types each page out.** It counts in `update(dt)`, so
+it shows `reveal` characters for every second of `dt`, carried from one line to
+the next in reading order. A character is a grapheme cluster: a letter built
+from a base and a combining mark appears whole. Without `reveal:`, a label draws
+each page whole, whatever time passes.
+
+```ruby
+@line = add_node(RGame::Engine::UI::Label.new(
+  text: 'smith.greeting', width: 440, lines_per_page: 3, reveal: 40
+))
+
+def on_control(actions)
+  return unless actions.pressed?(:ui_confirm)
+
+  @line.revealed? ? @line.page += 1 : @line.reveal_all
+end
+```
+
+- **A page starts from nothing** when the label enters the tree, when the page
+  turns, and when `with` or `width=` changes the lines. A `page=` that stays on
+  the same page, such as `page += 1` on the last one, does not start again.
+- **A language switch or a variable changed on the `Engine::Text` itself starts
+  the page again on the label's next update.** A draw before that update draws
+  the new page whole, rather than building anything on the draw path.
+- **A paused label does not reveal.** Time reaches it only through `update`.
+- **Each prefix sits where its whole line will stand**, so a centred line grows
+  in place instead of moving as it lengthens.
+- **Drawing allocates nothing, mid-reveal or not.** The label builds every
+  prefix of a page's lines once, when the page appears, as frozen Strings.
+
+`revealed?` is true once the whole page is shown, and always without `reveal:`.
+What confirm does on a page still typing is the owner's decision, as turning the
+page is.
+
+`examples/intro` turns the pages on Enter and on a one-shot timer, and types
+each one out. Enter shows the rest of a page still typing.
 
 ## What this is not
 
