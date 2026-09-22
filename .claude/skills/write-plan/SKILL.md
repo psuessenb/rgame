@@ -57,6 +57,10 @@ Put a "What was measured before planning" section near the top of the roadmap
 or the brief, as a two-column table, with the commit the numbers were taken at.
 Count the actual call sites. Run the suite and record the example count and the
 runtime. Grep for the thing you are about to sweep and paste the list.
+**Count every spelling of a name, not only its `def`**: `attr_*`,
+`define_method`, and a Symbol in `send`, `receive` or `instance_double`. The
+naming plan's counts missed an `attr_accessor` in one step and nine stubs in
+the next.
 
 This pays twice. It stops the plan budgeting from a guess, and it sometimes
 kills a step outright — a sweep that sounded like the expensive part of a rework
