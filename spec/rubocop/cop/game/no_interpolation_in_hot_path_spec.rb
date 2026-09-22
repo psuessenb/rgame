@@ -14,6 +14,10 @@ RSpec.describe RuboCop::Cop::Game::NoInterpolationInHotPath, :config do
     RUBY
   end
 
+  it 'names Engine::Text as the answer, not a hand-rolled cache' do
+    expect(described_class::MSG).to include('RGame::Engine::Text')
+  end
+
   it 'flags interpolation in every lifecycle method, not just draw' do
     %i[update control _update _draw _control].each do |method|
       expect_offense(<<~RUBY, msg: described_class::MSG)

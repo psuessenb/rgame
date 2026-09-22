@@ -12,24 +12,26 @@ module RuboCop
       # These run every frame (~60/s), and string interpolation builds a brand-new
       # `String` each time it is evaluated (the `frozen_string_literal` pragma freezes
       # *literals*, not interpolated results). So a `"Score: #{n}"` here is a per-frame
-      # allocation. Build the string once — on construction, or when the value changes
-      # (see `Engine::Text`) — and draw the cached copy.
+      # allocation. The message names the answer, `RGame::Engine::Text`, rather than
+      # asking for a hand-rolled cache: a `Text` renders again only when a variable
+      # or the language changes, and reaches the translation tables.
       #
       # @example
       #   # bad
-      #   def draw(renderer)
+      #   def _draw(renderer, _view)
       #     renderer.text("Score: #{@score}", 10, 10)
       #   end
       #
-      #   # good  (rebuilt only when @score changes)
-      #   def draw(renderer)
-      #     renderer.text(@score_label, 10, 10)
+      #   # good  (@score_label = RGame::Engine::Text.new('hud.score', :score), built once)
+      #   def _draw(renderer, _view)
+      #     renderer.text(@score_label.with(score: @score), 10, 10)
       #   end
       class NoInterpolationInHotPath < RuboCop::Cop::Base
         include HotPath
 
         MSG = 'Avoid string interpolation in a per-frame method: it allocates a String ' \
-              'every frame. Build the string once (on change) and use the cached value.'
+              'every frame. Build an RGame::Engine::Text once, outside it, and read it ' \
+              'with `with`.'
 
         def on_def(node)
           return unless hot_path_def?(node)

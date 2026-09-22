@@ -168,6 +168,10 @@ index, not the argument.
   methods raises `NameError` where the class is defined. A method starting
   with `_` is a hook, as the entries above say. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md).
+- **`Game/NoInterpolationInHotPath` names `RGame::Engine::Text`.** Its message
+  asked for a string built once and cached. It now says to build a `Text` and
+  read it with `with`. See
+  [docs/api/toolbox.md](docs/api/toolbox.md#text--the-string-a-node-draws).
 
 - **Every drawing call defaults to z 0, so call order decides.** A shape used to
   default above text and images within one node. A backdrop drawn first then
