@@ -58,6 +58,10 @@ module RGame
     # game from a script instead of from hardware — see
     # tools/drive_test_project.rb, and "The test projects are the acceptance test
     # for wiring", which is why driving one has to be possible at all. A game passes nothing and gets the real thing.
+    # `audio:` overrides the sound device the same way, for the same harness,
+    # which wraps the real one to record what plays. It is handed this game's
+    # asset manager with `assets=`, as the device `App` builds is, so a path id
+    # resolves and the manager decodes samples through it.
     # `players:` is how many seats the game has, and therefore the most people
     # who can play it. Player 0 starts on `device:`; the rest start empty and
     # are filled when someone uses a controller — see RGame::Engine::Players for
@@ -89,7 +93,7 @@ module RGame
     # does not exist loads nothing, and every key shows as itself.
     def initialize(root:, width: WIDTH, height: HEIGHT, caption: 'RGame',
                    media_root: 'media', input_map: nil, device: Controls::KEYBOARD,
-                   players: 1, input: nil, fullscreen: false, scale_mode: :letterbox,
+                   players: 1, input: nil, audio: nil, fullscreen: false, scale_mode: :letterbox,
                    locales: 'locales')
       super(width: width, height: height, caption: caption, media_root: media_root,
             fullscreen: fullscreen)
@@ -97,6 +101,8 @@ module RGame
       @root = root
       @renderer = RGame::Core::Renderer.new(self)
       @input = input || RGame::Core::Input.new(self)
+      @audio_device = audio
+      audio&.assets = assets
       @players = RGame::Engine::Players.new(
         Array.new(players) do |id|
           RGame::Engine::Player.new(id: id, device: id.zero? ? device : nil,
@@ -135,6 +141,11 @@ module RGame
     # in a scene registers with the same store the save code writes.
     attr_reader :facts
 
+    # The sound device: the one passed as `audio:`, or the one `App` builds on
+    # first use. Nodes reach it through the RGame::Engine::AudioOut system on
+    # the root, which `start` mounts.
+    def audio = @audio_device || super
+
     # Brings the tree live and runs until the window closes.
     #
     # The root gets this object as its `context`, which is how a node deep in
@@ -145,6 +156,7 @@ module RGame
       @root.add_component(@players)
       @root.add_component(@viewports)
       @root.add_component(@facts)
+      @root.add_component(RGame::Engine::AudioOut.new(audio))
       @audio_director = Engine::AudioDirector.new(audio).subscribe
       @root.enter_tree
       run
