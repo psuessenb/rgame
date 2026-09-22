@@ -90,6 +90,12 @@ RSpec.describe RGame::Engine::StateMachine do
       expect(machine.available?(machine.transitions.first)).to be true
     end
 
+    it 'answers true or false whatever a condition returns' do
+      nil_if = machine_with(if: ->(_) {})
+      truthy_if = machine_with(if: ->(_) { 1 })
+      expect([nil_if, truthy_if].map { it.available?(it.transitions.first) }).to eq([false, true])
+    end
+
     it 'runs its condition on every call' do
       count = 0
       machine = machine_with(if: ->(_) { count += 1 })

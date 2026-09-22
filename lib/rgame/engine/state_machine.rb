@@ -90,7 +90,7 @@ module RGame
       # transition not listed for the current state.
       def available?(transition)
         check_listed(transition)
-        holds?(transition)
+        holds?(transition) || false
       end
 
       # Takes `transition`, and returns it. Raises `ArgumentError` for one not
@@ -150,6 +150,31 @@ module RGame
         self
       end
 
+      # Enters the start state again after the machine ended, keeping every
+      # visit: counts it, runs its `enter:`, and emits nothing. A `Dialogue`
+      # resumed from an ended conversation starts over this way.
+      #
+      # @api private
+      def restart
+        check_idle
+        raise "the machine #{@name.inspect} restarts only once it has ended" unless ended?
+
+        guarded { arrive(@graph.start) }
+        self
+      end
+
+      # Raises `NoMethodError` naming every Symbol in `symbols` that `context`
+      # does not answer, as a machine does at construction.
+      #
+      # @api private
+      def self.check_answers(context, symbols)
+        missing = symbols.reject { context&.respond_to?(it) }
+        return if missing.empty?
+
+        who = context.nil? ? 'a machine with no context' : context.class
+        raise NoMethodError.new("#{who} does not answer #{missing.map(&:inspect).join(', ')}", missing.first)
+      end
+
       # Marks the machine as replaced by a newer one under its name, so moving
       # it raises.
       #
@@ -203,13 +228,7 @@ module RGame
         raise ArgumentError, "the machine #{@name.inspect} resumes from its facts, so it takes no from:"
       end
 
-      def check_symbols
-        missing = @graph.each_symbol.reject { @context&.respond_to?(it) }
-        return if missing.empty?
-
-        who = @context.nil? ? 'a machine with no context' : @context.class
-        raise NoMethodError.new("#{who} does not answer #{missing.map(&:inspect).join(', ')}", missing.first)
-      end
+      def check_symbols = self.class.check_answers(@context, @graph.each_symbol)
 
       def guarded
         @busy = true
