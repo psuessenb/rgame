@@ -211,8 +211,8 @@ examples/                    One runnable file per concept — "how do I do X".
 test_projects/               Complete games built on the public API. They are
                              the acceptance test for how the layers are wired,
                              because they are the only tier where all three are
-                             present at once. Unlike examples/ these read from
-                             media/, so they do not ship.
+                             present at once. They do not ship, so they may
+                             read from media/ as well as from examples/assets/.
 tools/                       Development tools, outside the engine and not
                              built by make.
   drive_test_project.rb      Boots a test project unmodified, feeds it a
