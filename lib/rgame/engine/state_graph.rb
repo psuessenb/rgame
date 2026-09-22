@@ -43,8 +43,14 @@ module RGame
       # frozen. Raises `ArgumentError` for a `to:` naming no state, a start that
       # is not a state, a state declared twice, a transition outside a `state`
       # block, or a condition or effect that is neither callable nor a Symbol.
-      def self.build(start:, &)
-        builder = Builder.new
+      def self.build(start:, &) = assemble(start, Builder.new, &)
+
+      # Runs the block against `builder`, a `Builder` or a subclass of one, and
+      # builds the graph from what it declared. `Dialogue::Script` builds its
+      # graph this way.
+      #
+      # @api private
+      def self.assemble(start, builder, &)
         builder.instance_exec(&) if block_given?
         new(start, builder.states)
       end
