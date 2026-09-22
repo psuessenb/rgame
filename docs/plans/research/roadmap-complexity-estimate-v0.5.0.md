@@ -119,6 +119,12 @@ draw from.
 
 ### 4. Dialogue and better text
 
+*(Landed after this estimate: `Engine::StateMachine`, `Components::Facts`,
+`Engine::Dialogue`, a reveal on `UI::Label` and `UI::DialogueBox`, with
+`examples/dialogue` and `examples/quests_and_dialogue`. See
+[docs/api/dialogue.md](../../api/dialogue.md). The reveal builds its prefixes
+once per page, as below. It needed no tween.)*
+
 The largest item, and the only one that is a plan rather than a branch.
 
 Wrapping at draw time works — the UI buttons measure that way already
