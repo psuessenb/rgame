@@ -96,6 +96,15 @@ index, not the argument.
 
 ### Changed
 
+- **Every drawing call defaults to z 0, so call order decides.** A shape used to
+  default above text and images within one node. A backdrop drawn first then
+  covered the text drawn after it, and ten examples showed no help text at all.
+  Now a later call lies over an earlier one unless a `z:` says otherwise.
+  `Renderer::SHAPE_Z`, `IMAGE_Z` and `TEXT_Z` are gone; `Renderer::DEFAULT_Z` is
+  0. A node that drew a shape before an image and relied on it landing on top
+  passes a `z:`, or draws the shape last. See
+  [docs/api/drawing.md](docs/api/drawing.md#coordinates-colours-and-z).
+
 - **A tile map is built from a parsed file.** `TileMap.load` and
   `TileMap.parse` are gone. Write
   `TileMap.from_tiled(RGame::Engine::Tiled::Map.load(path))`, or

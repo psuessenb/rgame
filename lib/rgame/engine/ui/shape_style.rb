@@ -20,8 +20,8 @@ module RGame
       # draw allocates nothing; and a missing state is a `KeyError` here, rather
       # than on the first frame a button happens to be disabled.
       #
-      # Fill and outline are drawn at `z: 0` and `z: -1`. Shapes default to
-      # `z: 50`, which would cover the label or icon a button draws at `z: 1`.
+      # Fill and outline are drawn at `z: 0` and `z: -1`, under the label or
+      # icon a button draws at `z: 1`.
       #
       # ## What reads on the fill is the style's to say
       #

@@ -27,9 +27,11 @@ module RGame
     # be silently discarded, and an invisible failure is the worst kind.
     #
     # Nothing is drawn immediately. Calls accumulate and are sorted when the
-    # frame closes, so what ends up on top is decided by z rather than by call
-    # order. Equal z keeps call order, which is what stops same-layer sprites
-    # flickering between frames.
+    # frame closes: by z first, then by call order among equal z, which is
+    # what stops same-layer sprites flickering between frames. Every drawing
+    # method defaults to the same z, `DEFAULT_Z`, so a call without a `z:` lands
+    # over whatever was drawn before it, as on paper: a backdrop drawn first
+    # stays under the text drawn after it.
     #
     # ## `z:` is an offset inside the current layer, not a global number
     #
@@ -59,12 +61,10 @@ module RGame
 
       Z = RGame::Util::Z
 
-      SHAPE_Z = 50
-      IMAGE_Z = 0
+      DEFAULT_Z = 0
 
       CIRCLE_SEGMENTS = 64
 
-      TEXT_Z = 10
       FONT_SIZE = RGame::Util::Typeface::DEFAULT_SIZE
 
       DEBUG_BOX_COLOR = Color.new(255, 40, 40, 120)
@@ -98,14 +98,14 @@ module RGame
       end
 
       # One frame of a registered or resolvable sprite sheet, top-left at (x, y).
-      def sprite(id, row, col, x, y, flip_x: false, z: IMAGE_Z)
+      def sprite(id, row, col, x, y, flip_x: false, z: DEFAULT_Z)
         lookup(:sheet, id).draw(self, row, col, x, y, flip_x: flip_x, z: z)
       end
 
       # A nine-slice filling (x, y, width, height), tinted by `tint` if given.
       # Registration only: a nine-slice id names an element of an atlas, not a
       # file, so there is nothing for the asset manager to resolve it to.
-      def nine_slice(id, x, y, width, height, z: IMAGE_Z, tint: nil)
+      def nine_slice(id, x, y, width, height, z: DEFAULT_Z, tint: nil)
         lookup(:nine_slice, id).draw(self, x, y, width, height, z: z, color: tint)
       end
 
@@ -134,28 +134,28 @@ module RGame
       end
 
       # A filled axis-aligned rectangle.
-      def rect(x, y, width, height, z: SHAPE_Z, color: nil)
+      def rect(x, y, width, height, z: DEFAULT_Z, color: nil)
         draw_rect(x, y, width, height, Z.offset(z), packed(color))
       end
 
       # Four arbitrary points, in loop order: listing them in Z order gives an
       # hourglass rather than a shape.
-      def quad(x1, y1, x2, y2, x3, y3, x4, y4, z: SHAPE_Z, color: nil)
+      def quad(x1, y1, x2, y2, x3, y3, x4, y4, z: DEFAULT_Z, color: nil)
         draw_quad(x1, y1, x2, y2, x3, y3, x4, y4, Z.offset(z), packed(color))
       end
 
-      def triangle(x1, y1, x2, y2, x3, y3, z: SHAPE_Z, color: nil)
+      def triangle(x1, y1, x2, y2, x3, y3, z: DEFAULT_Z, color: nil)
         draw_triangle(x1, y1, x2, y2, x3, y3, Z.offset(z), packed(color))
       end
 
       # A line of real thickness — drawn as a quad, because GL's own line width
       # is a suggestion drivers may ignore above one pixel.
-      def line(x1, y1, x2, y2, thickness: 1.0, z: SHAPE_Z, color: nil)
+      def line(x1, y1, x2, y2, thickness: 1.0, z: DEFAULT_Z, color: nil)
         draw_line(x1, y1, x2, y2, thickness, Z.offset(z), packed(color))
       end
 
       # A filled circle, as a fan of triangles around its centre.
-      def circle(cx, cy, radius, z: SHAPE_Z, color: nil, segments: CIRCLE_SEGMENTS)
+      def circle(cx, cy, radius, z: DEFAULT_Z, color: nil, segments: CIRCLE_SEGMENTS)
         draw_circle(cx, cy, radius, segments, Z.offset(z), packed(color))
       end
 
@@ -164,7 +164,7 @@ module RGame
       # that skips the transform stack entirely.
       #
       # Takes an `Image` or an id for one — see #resolve_image.
-      def image(image, cx, cy, angle: 0, scale: 1, z: IMAGE_Z, color: nil)
+      def image(image, cx, cy, angle: 0, scale: 1, z: DEFAULT_Z, color: nil)
         draw_image_rot(resolve_image(image), cx, cy, angle, scale, Z.offset(z), packed(color))
       end
 
@@ -179,14 +179,14 @@ module RGame
       #   renderer.image_at(frame, x, y, scale_x: facing_left ? -1 : 1)
       #
       # A zero scale draws nothing.
-      def image_at(image, x, y, scale_x: 1, scale_y: 1, z: IMAGE_Z, color: nil)
+      def image_at(image, x, y, scale_x: 1, scale_y: 1, z: DEFAULT_Z, color: nil)
         draw_image_scaled(resolve_image(image), x, y, scale_x, scale_y, Z.offset(z), packed(color))
       end
 
       # An image with its top-left at (x, y), at its natural size — a
       # full-screen backdrop by default. `image_at` with both scales at 1, kept
       # because "put this at the origin" is worth a name of its own.
-      def background(image, x = 0, y = 0, z: IMAGE_Z, color: nil)
+      def background(image, x = 0, y = 0, z: DEFAULT_Z, color: nil)
         draw_image(resolve_image(image), x, y, Z.offset(z), packed(color))
       end
 
@@ -298,7 +298,7 @@ module RGame
       #
       # Newlines are not special. A caller wanting two lines draws two, stepping
       # by #text_height.
-      def text(string, x, y, z: TEXT_Z, color: nil, font: nil)
+      def text(string, x, y, z: DEFAULT_Z, color: nil, font: nil)
         draw_text(font_for(font), string, x, y, Z.offset(z), packed(color))
       end
 
@@ -335,7 +335,7 @@ module RGame
 
       # A translucent overlay for visualising a collision box, so a scene can
       # ask for one without knowing what colour "debug" is.
-      def debug_box(x, y, width, height, z: SHAPE_Z)
+      def debug_box(x, y, width, height, z: DEFAULT_Z)
         rect(x, y, width, height, z: z, color: DEBUG_BOX_COLOR)
       end
 
