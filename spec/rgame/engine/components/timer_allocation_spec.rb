@@ -10,15 +10,4 @@ RSpec.describe RGame::Engine::Components::Timer do
     dt = 1.0 / 60.0
     expect { timer._update(dt) }.to allocate_nothing.after_warmup(120)
   end
-
-  # A one-shot's steady state is the inert post-fire phase (a projectile's despawn timer
-  # spends most of its life already fired); the early-out must not allocate either.
-  it 'does not allocate while inert after a one-shot has fired' do
-    node = RGame::Engine::Node2D.new
-    timer = node.add_component(described_class.new(0.8, repeating: false))
-    timer.on_elapsed { nil }
-    timer._update(1.0) # fire once, then it stays inert
-    dt = 1.0 / 60.0
-    expect { timer._update(dt) }.to allocate_nothing
-  end
 end

@@ -22,10 +22,12 @@
 #   - **six `rect` and five `text` calls per frame** as the floor — the backdrop,
 #     two tracks and two fills, the chime square, and the captions. Everything
 #     above that floor is the one-shot;
-#   - **the one-shot's banner present for about 72 frames after each Space**, and
-#     absent otherwise. It is a `repeating: false` timer calling `queue_free` on
-#     its own node, so the extra `rect` and `text` stop together and nothing
-#     removes the banner from outside;
+#   - **the one-shot's banner present for 71 frames after each Space**, and
+#     absent otherwise: 142 frames of "one-shot — this removes itself". It is a
+#     `Components::Tween` calling `queue_free` on its own node, so the extra
+#     two `rect` and one `text` stop together and nothing removes the banner
+#     from outside. The second `rect` is the fuse, 4 high at y 30 in the
+#     banner's space, and its width is the tween's value, 260 down to 0;
 #   - **three distinct translates while a banner exists and two without it** —
 #     the two runners, plus the banner when it is there.
 #

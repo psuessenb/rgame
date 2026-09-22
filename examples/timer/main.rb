@@ -8,9 +8,9 @@
 #
 # Watch the race; **Space** sets off the one-shot. It exercises:
 #   - Components::Timer — a repeating interval that rides the node's tick;
-#   - `repeating: false` — the same component as a one-shot that arms itself;
 #   - `as:` — two cadences on one node, because a node holds one per slot;
-#   - Engine::Timer — the pure accumulator underneath all of that.
+#   - Engine::Timer — the pure accumulator underneath all of that;
+#   - Components::Tween — the one-shot beside them, which arms itself.
 #
 # ## A spawner is not waiting for a key
 #
@@ -63,13 +63,17 @@
 # beside it. Naming them is the whole of making that legal, and it is also how
 # either is found again.
 #
-# ## The one-shot arms itself, which matters more than it sounds
+# ## Once is a tween, not a timer
 #
-# `repeating: false` fires once and goes inert, and `reset` re-arms it. The
-# component calls `reset` from `_attach`, so a node that leaves the tree and
-# comes back gets a fresh countdown rather than inheriting a spent one. That line
-# is what makes a pooled projectile with a lifetime work — see `examples/pooling`,
-# where the same component retires what the pool hands out.
+# A timer counts how many whole intervals have passed. Something that happens
+# once asks a different question, how far along it is, and that is
+# `Components::Tween`. The banner holds one: it emits `on_finished` once, and
+# the banner frees itself there. Its `value` runs from the banner's width to 0,
+# and the banner draws it as a fuse burning down beneath the words.
+#
+# The tween starts in `_attach`, so a node that leaves the tree and comes back
+# gets a fresh one rather than inheriting a spent one. That is what makes a
+# pooled projectile with a lifetime work.
 #
 # ## What it does not solve
 #
@@ -189,12 +193,15 @@ class NaiveRunner < RGame::Engine::Node2D
   end
 end
 
-# A banner that takes itself away. Nothing removes it from outside.
+# A banner that takes itself away when its fuse has burnt down. Nothing
+# removes it from outside.
 class Fuse < RGame::Engine::Node2D
   BANNER = RGame::Util::Color.new(120, 200, 255)
   INK = RGame::Util::Color.new(20, 26, 34)
+  SPARK = RGame::Util::Color.new(255, 226, 130)
   BANNER_W = 260
   BANNER_H = 30
+  FUSE_H = 4
 
   def initialize(**)
     super
@@ -202,12 +209,13 @@ class Fuse < RGame::Engine::Node2D
   end
 
   def _enter_tree
-    add_component(RGame::Engine::Components::Timer.new(FUSE, repeating: false))
-      .on_elapsed { queue_free }
+    @fuse = add_component(RGame::Engine::Components::Tween.new(FUSE, from: BANNER_W, to: 0))
+    @fuse.on_finished { queue_free }
   end
 
   def _draw(renderer, _view)
     renderer.rect(0, 0, BANNER_W, BANNER_H, color: BANNER)
+    renderer.rect(0, BANNER_H, @fuse.value, FUSE_H, color: SPARK)
     renderer.text(@label, 10, 8, z: 1, color: INK)
   end
 end
