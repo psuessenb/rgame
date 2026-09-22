@@ -50,6 +50,14 @@ module RGame
         self.width = width
       end
 
+      # Changes the text: a translation key or an `Engine::Text`, as `new`
+      # takes, with the same `TypeError` for anything else. The next read
+      # breaks it again.
+      def text=(text)
+        @text = text_for(text)
+        @source = nil
+      end
+
       # Gives the text its variables, as `Text#with` does, and returns the
       # paragraph: `@speech.with(name: @hero_name).lines`.
       def with(...)

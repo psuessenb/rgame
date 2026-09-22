@@ -940,6 +940,7 @@ was measured against.
 | `lines_per_page:` | how many lines a page holds; without it the whole text is one page |
 | `align:` | `:left` (the default), `:center` or `:right`, each line against the width; anything else raises `ArgumentError` |
 | `color:` | the text colour; `UI::Label::COLOR` by default, the colour a `TextButton` draws its label in |
+| `text=` | changes the text, taking what `text:` takes; starts again on page 0, with nothing revealed |
 | `with(...)` | gives the text its variables, and returns the label |
 | `width=` | sets the width the text breaks at and aligns against; zero or less raises `ArgumentError` |
 | `page`, `page=` | the page drawn, from 0 |
@@ -982,8 +983,9 @@ end
 ```
 
 - **A page starts from nothing** when the label enters the tree, when the page
-  turns, and when `with` or `width=` changes the lines. A `page=` that stays on
-  the same page, such as `page += 1` on the last one, does not start again.
+  turns, when `with` or `width=` changes the lines, and on every `text=`, even
+  one handing over the `Text` already shown. A `page=` that stays on the same
+  page, such as `page += 1` on the last one, does not start again.
 - **A language switch or a variable changed on the `Engine::Text` itself starts
   the page again on the label's next update.** A draw before that update draws
   the new page whole, rather than building anything on the draw path.

@@ -163,6 +163,33 @@ RSpec.describe RGame::Engine::Paragraph do
     end
   end
 
+  describe '#text=' do
+    it 'breaks the new key at the width it has' do
+      paragraph = described_class.new('greeting', width: 180, typeface: face)
+      paragraph.text = 'notice'
+      expect(paragraph.lines).to eq(face.text_lines('The gate is shut for the night, traveller.', 180))
+    end
+
+    it 'takes an Engine::Text as it is' do
+      paragraph = described_class.new('notice', width: 520)
+      greeting = text.new('greeting', :name)
+      greeting.with(name: 'Ada')
+      paragraph.text = greeting
+      expect(paragraph.lines).to eq([greeting.to_s])
+    end
+
+    it 'pages the new text' do
+      paragraph = described_class.new('notice', width: 300, lines_per_page: 4)
+      paragraph.text = 'story'
+      expect(paragraph.page_count).to eq((face.text_lines(i18n.t('story'), 300).size / 4.0).ceil)
+    end
+
+    it 'refuses what new refuses, with the same TypeError' do
+      paragraph = described_class.new('notice', width: 520)
+      expect { paragraph.text = 42 }.to raise_error(TypeError, /translation key or an Engine::Text/)
+    end
+  end
+
   describe '.new' do
     it 'takes a key as a Symbol' do
       expect(described_class.new(:notice, width: 520).lines).to eq(['The gate is shut for the night, traveller.'])

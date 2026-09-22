@@ -230,6 +230,7 @@ end
 | | |
 |---|---|
 | `Paragraph.new(text, width:, typeface:)` | `text` is a key, as a String or Symbol, or an `Engine::Text`. Anything else raises `TypeError`, so prose a player reads cannot arrive as a String no translation reaches. `typeface:` defaults to `Util::Typeface.default`, the face of the renderer's default font. |
+| `Paragraph#text=` | changes the text, taking what `new` takes, with the same `TypeError` for anything else; the next read breaks it again |
 | `Paragraph#with(**values)` | gives the `Text` its variables, as `Text#with` does, and returns the paragraph |
 | `Paragraph#width=` | changes the width; the next read breaks the text again. The same width breaks nothing. |
 | `Paragraph#width`, `Paragraph#typeface` | what the lines are fitted to |
