@@ -1,8 +1,8 @@
 # Dialogue, and the state machine beneath it
 
 **Status: steps 0–6 are implemented.** Steps 4–6 of
-[the roadmap](04-roadmap.md) were re-planned after step 3 landed. Steps 7 and 8
-are deliberately rough and get re-planned next.
+[the roadmap](04-roadmap.md) were re-planned after step 3 landed, and step 7
+after step 6. Step 8 is deliberately rough.
 
 | File | What it holds |
 |---|---|
@@ -155,6 +155,14 @@ Settled in a second question round, when steps 4–6 were re-planned:
 14. **The log is a paged `UI::Label` over the transcript**, *a* representation
     of it, as the box is of the dialogue. A game with its own log reads the
     transcript instead.
+
+Settled when step 7 was re-planned:
+
+15. **Two examples, not one.** `examples/quests_and_dialogue` is the village
+    the first draft of step 7 described, and shows everything the system can
+    do. `examples/dialogue` is for a reader who wants a conversation in their
+    game and has read no other example: a black screen, a prompt, one small
+    branching conversation and no log, held again once it ends.
 
 ## Open questions
 
