@@ -35,11 +35,12 @@ index, not the argument.
   `RGame::Engine::UI::Label` breaks its text at its width, aligns each line
   left, centred or right, and draws `lines_per_page:` lines at once. It follows
   a variable or a language switch with no call of its own, and its owner turns
-  the page with `page=`. See
+  the page with `page=`. With `reveal:` it types each page out a character at a
+  time, and `reveal_all` shows the rest. See
   [docs/api/ui.md](docs/api/ui.md#rgameengineuilabel).
 - **An intro example.** `examples/intro` tells a story a page at a time through a
-  `UI::Label`, turned by Enter and by a timer. Its tables hold the story as one
-  line, and German takes a page more than English. See
+  `UI::Label`, typed out and turned by Enter and by a timer. Its tables hold the
+  story as one line, and German takes a page more than English. See
   [docs/api/examples.md](docs/api/examples.md#intro).
 - **A Tiled map can use what Tiled writes.** A map may have several tilesets,
   embedded or in `.tsx` files, any layer encoding but zstd, group, image and

@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: steps 0–2 are implemented.** Steps 0–3 are detailed. Steps 4–7 are rough on
+**Status: steps 0–3 are implemented.** Steps 0–3 are detailed. Steps 4–7 are rough on
 purpose and get re-planned when the step before them lands.
 
 Each step is one branch and one pull request; each lettered sub-step is one
@@ -648,6 +648,69 @@ umlaut built from a combining mark reveals it whole.
 `rake spec` green, and
 `ruby tools/drive_test_project.rb examples/intro/main.rb --texts` shows prefixes
 of the first line growing and the full pages after, with no missing keys.
+
+**Landed.** `reveal:`, `revealed?` and `reveal_all` on `UI::Label` in
+`lib/rgame/engine/ui/label.rb`, and `examples/intro` typing itself out, as four
+commits: the reveal (3a and 3b together), a fix that driving the example found,
+the example, and the documentation. `docs/api/ui.md` has a section "Revealing a
+page a character at a time", and the intro's entries in `examples.md`,
+`README.md` and `CHANGELOG.md` say it types itself out. The label's and the
+intro's changelog entries were edited in place, since both are unreleased.
+
+`rake spec` ran 2855 examples, 0 failures; `label_spec.rb` holds 38, 20 of
+them new. `rake spec:core` ran 474, 0 failures, and `rake docs:coverage`
+reported 0 of 175 classes with undocumented names. `make test` ran 380 checks,
+0 failures. 200 draws mid-reveal allocate nothing. "Mu\u0308de", with the
+umlaut built from a combining mark, shows "Mu\u0308" after two characters.
+
+The intro, driven with `--ticks 1200 --texts` in both languages, draws "L" from
+tick 2 and the first line whole from tick 59. Nothing of the story is drawn
+whole at tick 0. Enter at tick 120 shows the rest of page 1 at tick 121. Every
+later page starts one second plus 20 ms a character after the one before was
+fully shown, about 210 ticks for a full page: English pages at 335 and about
+735, German at about 332, 705 and 1092. The hint is drawn 735 frames in English
+and 1092 in German, and no key is missing.
+
+What the sketch got wrong or left out:
+
+- **3a and 3b were one commit.** The prefixes are three private helpers on the
+  label, with nothing to call them or spec them until 3b's surface exists. The
+  label grew by about ninety lines, so no class beside `Paragraph` was needed.
+- **Rule 5 would have flashed a page.** A page turned after the label's own
+  update in a tick would draw whole for one frame, then blank, then type out.
+  `page=`, `with` and `width=` now build the new page at once, off the draw
+  path, so a turn starts from nothing on the next frame. Only a change the
+  label cannot see coming, a language switch or `with` called on the `Text`
+  itself, still reaches rule 5's whole-page draw.
+- **The first frame is drawn before the first update**, so a label that built
+  in `update` drew the first page whole and then blanked it. Driving the intro
+  showed it; the spec had not. The label builds its page in `on_add`.
+- **It builds nothing before it enters the tree.** `with` and `width=` often
+  run in a node's `initialize`, before `Game` loads the translations, where a
+  lookup would count as a missing key. One consequence: a label whose `Text`
+  names variables now raises on entering the tree if `with` was never called,
+  where before it raised on the first draw.
+- **Each prefix sits where its whole line will stand**, which the sketch did not
+  say. A centred line placed by its prefix's width would slide left as it grew.
+- **`Components::Timer` cannot be stopped.** The intro's hold counts from a
+  page being fully shown, so the root resets the one-shot on every tick while
+  the page types. It works and reads plainly, but step 5's box may want a timer
+  it can hold.
+- **A flat hold after the reveal read as a stall.** The intro first kept its
+  six seconds per page, counted from the page being shown, and a page sat
+  finished for longer than it took to read. The hold is now one second plus
+  20 ms a character, from `UI::Label#page_length`, a reader the sketch did not
+  list. The reader has read along while the page typed, so the hold is only the
+  time to finish.
+- **The hint has never been visible, and the drive could not tell.** The
+  intro's backdrop `rect` defaults to z 50 and its hint `text` to z 10, so the
+  backdrop covers the hint in the same `on_draw`. Nine other examples hide
+  their help text the same way. The drive records the calls, not what reaches
+  the screen, so it reported the hint drawn on every frame. It is fixed in the
+  engine's defaults on a branch of its own.
+
+Where it got documented: `docs/api/ui.md`, "Revealing a page a character at a
+time", and the `UI::Label` table.
 
 ---
 
