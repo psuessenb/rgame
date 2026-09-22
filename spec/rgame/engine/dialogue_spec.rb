@@ -212,6 +212,47 @@ RSpec.describe RGame::Engine::Dialogue do
     expect { talk.continue }.to raise_error(RuntimeError, /beat :shut waits for a response and none is available/)
   end
 
+  describe 'the transcript' do
+    it 'hands on_ended the frozen transcript' do
+      talk = described_class.new(smith)
+      heard = nil
+      talk.on_ended { heard = it }
+      respond_to_label(talk, 'bye')
+      expect([heard.equal?(talk.transcript), heard.frozen?,
+              heard.map(&:beat)]).to eq([true, true, %i[greeting greeting]])
+    end
+
+    it 'starts a new transcript for a resumed conversation, holding the beat it resumes at' do
+      talk = described_class.new(smith)
+      respond_to_label(talk, 'ask_work')
+      resumed = described_class.new(smith, from: talk.to_h)
+      expect(resumed.transcript.map { [it.beat, it.text.key] }).to eq([[:work, 'work']])
+    end
+
+    it 'continues a transcript handed in with transcript:, without recording the beat twice' do
+      talk = described_class.new(smith)
+      respond_to_label(talk, 'ask_work')
+      resumed = described_class.new(smith, from: talk.to_h, transcript: talk.transcript)
+      resumed.continue
+      expect(resumed.transcript.map(&:beat)).to eq(%i[greeting greeting work greeting])
+    end
+
+    it 'copies a frozen transcript handed in, and records into the copy' do
+      talk = described_class.new(smith)
+      respond_to_label(talk, 'bye')
+      again = described_class.new(smith, transcript: talk.transcript)
+      expect([again.transcript.equal?(talk.transcript), again.transcript.size,
+              talk.transcript.size]).to eq([false, 3, 2])
+    end
+
+    it 'refuses a transcript of another script' do
+      other = script { beat :greeting, speaker: :smith, line: 'greeting' }
+      expect do
+        described_class.new(smith, transcript: engine::Dialogue::Transcript.new(other))
+      end.to raise_error(ArgumentError, /another script/)
+    end
+  end
+
   describe 'saving' do
     def save_and_read(value)
       Dir.mktmpdir do |dir|

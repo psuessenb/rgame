@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: steps 0–3 are implemented.** Steps 4–6 are detailed. Steps 7 and 8 are rough on purpose and get
+**Status: steps 0–4 are implemented.** Steps 5 and 6 are detailed. Steps 7 and 8 are rough on purpose and get
 re-planned when the step before them lands.
 
 Each step is one branch and one pull request; each lettered sub-step is one
@@ -863,6 +863,45 @@ continuing a saved one.
 hands its listener a transcript whose `to_h` survives a `SaveFile` and reads in
 German after `from`. `docs/api/dialogue.md` gains a "Transcript" section with a
 headless example, saying that nothing saves a transcript unless the game does.
+
+**Landed.** `Dialogue::Transcript` in `lib/rgame/engine/dialogue/transcript.rb`,
+recorded by `Engine::Dialogue`, as three commits: 4a, 4b, and the
+documentation, and then this note. `docs/api/dialogue.md` has a section "The
+transcript", with two headless examples the doc specs run and assert. The index
+row names the class, and `CHANGELOG.md` has one more entry under Added.
+
+`rake spec` ran 2890 examples, 0 failures, in 23.2 s; `transcript_spec.rb` holds
+27 of them, and `dialogue_spec.rb` gained 5. `rake spec:core` ran 476, 0
+failures, and `rake docs:coverage` reported 0 of 177 classes with undocumented
+names. `make test` ran 380 checks, 0 failures. The smith conversation, driven
+to the end with no renderer, hands `on_ended` its transcript frozen. Its `to_h`
+survives a `SaveFile`, and after `from` the purse line reads "Du hast 5." once
+the locale is German. Reading `each`, `size`, `[]` and `empty?` allocates
+nothing.
+
+What the sketch got wrong or left out:
+
+- **Rule 6 said a resumed conversation starts an empty transcript.** It starts
+  a new one holding the beat it resumes at, because the player sees that line
+  again. With `transcript:`, the dialogue records that beat only if the
+  transcript does not already end with its line. A transcript saved
+  mid-conversation always does, so restoring one does not record the line
+  twice.
+- **A transcript knows its script.** `Transcript#script` exists, and
+  `transcript:` of another script raises `ArgumentError`. Without the check, a
+  response entry would hold a transition of a graph the dialogue does not run.
+- **`Facts`' check is a class method taking a block.** `Facts.check_value`,
+  `@api private`, raises with whatever the block names, and runs the block only
+  on a refusal. So `Facts#[]=` builds no message String on the way through.
+  `Facts#_value` calls it.
+- **Rule 10 refuses two more cases.** A saved state with no line is "not a
+  beat", and a response index at a beat that continues is refused, since such
+  a beat lists no responses.
+- **`Transcript#last`** joined the readers, for the resume check and for a
+  log that shows the newest entry.
+
+Where it got documented: `docs/api/dialogue.md`, "The transcript", and the
+`transcript` and `on_ended` rows of the `Dialogue` table.
 
 ---
 

@@ -90,6 +90,11 @@ index, not the argument.
   `RGame::Engine::Dialogue` runs one and saves by `name:` like a quest. The game
   draws it; there is no box yet. See
   [docs/api/dialogue.md](docs/api/dialogue.md#dialogue).
+- **A conversation keeps a transcript and hands it over when it ends.**
+  `RGame::Engine::Dialogue::Transcript` records each line with the values it
+  was shown with, and each response picked. `on_ended` passes it to the game,
+  frozen, and the engine saves nothing; `to_h` and `Transcript.from` save and
+  restore one. See [docs/api/dialogue.md](docs/api/dialogue.md#the-transcript).
 - **A spec can check that no conversation strands a player.**
   `RGame::Engine::Exploration.run` walks every path a dialogue or a state
   machine can take. It reports each dead end, with the moves that reach it. See

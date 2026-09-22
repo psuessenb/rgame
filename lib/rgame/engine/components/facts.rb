@@ -41,6 +41,23 @@ module RGame
         VALUE_TYPES = [NilClass, TrueClass, FalseClass, Integer, Float, String].freeze
         private_constant :VALUE_TYPES
 
+        # Returns `value` if a save brings it back as it was, and raises
+        # `TypeError` otherwise: the rule every fact is held to, for anything
+        # else a game saves. The block names what holds the value, for the
+        # message, and runs only on a refusal.
+        #
+        # @api private
+        def self.check_value(value)
+          return value if VALUE_TYPES.any? { value.is_a?(it) }
+
+          if value.is_a?(Symbol)
+            raise TypeError, "#{yield} cannot hold the Symbol #{value.inspect}: " \
+                             "a save brings it back as the String #{value.to_s.inspect}, so store that instead"
+          end
+
+          raise TypeError, "#{yield} holds nil, true, false, an Integer, a Float or a String, got a #{value.class}"
+        end
+
         def initialize
           super
           @values = {}
@@ -139,17 +156,7 @@ module RGame
           raise TypeError, "a fact's key is a Symbol, got #{key.inspect} (#{key.class})"
         end
 
-        def _value(key, value)
-          return if VALUE_TYPES.any? { value.is_a?(it) }
-
-          if value.is_a?(Symbol)
-            raise TypeError, "facts[#{key.inspect}] cannot hold the Symbol #{value.inspect}: " \
-                             "a save brings it back as the String #{value.to_s.inspect}, so store that instead"
-          end
-
-          raise TypeError, "facts[#{key.inspect}] holds nil, true, false, an Integer, a Float or a String, " \
-                           "got a #{value.class}"
-        end
+        def _value(key, value) = Facts.check_value(value) { "facts[#{key.inspect}]" }
 
         def _parse(saved)
           return [{}, {}] if saved.nil?
