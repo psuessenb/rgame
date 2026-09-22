@@ -1,6 +1,6 @@
 # Naming signals, hooks and the engine's own methods
 
-**Status: step 1 is implemented, step 2 is detailed; steps 3–5 are rough.** Decisions 1–6 are
+**Status: steps 1–2 are implemented; steps 3–5 are rough.** Decisions 1–6 are
 taken, and every open question is settled. Each rough step gets detailed when
 it starts.
 
@@ -637,6 +637,41 @@ before it lands.
    `collision`, `collision_tiles`, `split_screen`, `asteroids`, `snake` and
    `tiled_world` with `--seed 1 --texts` reports the same as before the step,
    apart from timings.
+
+   **Landed.** Two commits, one per sub-step, on `signal-dsl`, after one
+   commit detailing the step. `Signal::DSL#signal` takes the event and its
+   fields and refuses `on_`, and every declaration in `lib/`, `examples/` and
+   `test_projects/` uses the new form. `Components::Timer#on_elapsed`,
+   `Dialogue#on_beat_entered` and asteroids' `on_fired` replace the three
+   old names. `docs/api/signals.md` shows the new form, the tense rule and the
+   refusal, as a runnable example; `CHANGELOG.md` has two Changed entries.
+
+   - `rake spec`: 2948 examples, 0 failures, 21.6 s (2938 before, plus 9 for
+     the DSL and 1 for the refusal example in `signals.md`). `rake spec:core`:
+     476, 0 failures. `docs:coverage`: 0 of 177. `make test`: 380 checks,
+     0 failures. RuboCop is clean on every changed file.
+   - All twelve projects driven with `--seed 1 --texts` before and after
+     report the same, line for line, apart from timings. Asteroids' 5 shots
+     go through `on_fired`, and `timer`, `intro` and `pooling` through
+     `on_elapsed`.
+   - The first grep finds `signal :on_` only in the refusal's docs example,
+     its spec and the Unreleased `CHANGELOG.md` entry that names the old
+     form. The second finds the old names only in `CHANGELOG.md`: the
+     Unreleased rename entry and one released line.
+
+   What the sketch got wrong:
+
+   - **The spec lives at `spec/rgame/engine/signal/dsl_spec.rb`**, not
+     `signal_dsl_spec.rb`. `RSpec/SpecFilePathFormat` wants the path to
+     follow `Signal::DSL`.
+   - **The `CHANGELOG.md` entries went one per sub-step**, not both in 2b,
+     so each commit describes itself.
+   - **`signals.md` still said gameplay asks the audio layer through a
+     signal**, in its opening paragraph. Step 1 missed it; this step replaced
+     it with a dialogue reporting that it ended.
+   - **The acceptance greps were too strict.** A changelog entry for a
+     rename has to name the old spelling, and so does the refusal's example.
+     Nothing else matches.
 3. **`rgame_` for the machinery.** Decision 2, with `SealedPrivates`, its spec
    and the CLAUDE.md rule.
 4. **Hooks take `_`.** Decisions 3 and 5, with the guards. `Component`'s
