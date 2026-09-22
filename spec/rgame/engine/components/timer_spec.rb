@@ -59,60 +59,6 @@ RSpec.describe RGame::Engine::Components::Timer do
     end
   end
 
-  describe 'repeating: false (one-shot)' do
-    subject(:timer) { described_class.new(1.0, repeating: false) }
-
-    it 'fires on_elapsed exactly once when the interval elapses' do
-      fires = fired do
-        timer._update(0.6)
-        timer._update(0.6) # crosses 1.0 → fires
-      end
-      expect(fires).to eq(1)
-    end
-
-    it 'does not fire again after it has fired' do
-      fires = fired do
-        timer._update(1.0) # fires
-        timer._update(5.0) # stays inert
-      end
-      expect(fires).to eq(1)
-    end
-
-    it 'fires only once even when a single long step crosses several intervals' do
-      fires = fired { timer._update(3.0) }
-      expect(fires).to eq(1)
-    end
-
-    it 'is re-armed by reset' do
-      fires = fired do
-        timer._update(1.0) # fires
-        timer.reset
-        timer._update(1.0) # fires again
-      end
-      expect(fires).to eq(2)
-    end
-
-    it 'is re-armed by a reset in its own on_elapsed handler' do
-      fires = 0
-      timer.on_elapsed do
-        fires += 1
-        timer.reset
-      end
-      5.times { timer._update(1.0) }
-      expect(fires).to eq(5)
-    end
-
-    it 'fires once per reset, even when the step that re-arms it is long' do
-      fires = 0
-      timer.on_elapsed do
-        fires += 1
-        timer.reset
-      end
-      timer._update(3.0)
-      expect(fires).to eq(1)
-    end
-  end
-
   describe '_attach reset (recycling)' do
     it 'restarts the countdown when the node re-enters the tree' do
       count = 0
@@ -125,22 +71,6 @@ RSpec.describe RGame::Engine::Components::Timer do
 
       node.update(0.6) # only 0.6 of a fresh interval → no fire
       expect(count).to eq(0)
-    end
-
-    it 're-arms a spent one-shot when the node re-enters the tree' do
-      host = RGame::Engine::Node2D.new
-      oneshot = described_class.new(1.0, repeating: false)
-      host.add_component(oneshot)
-      count = 0
-      oneshot.on_elapsed { count += 1 }
-
-      host.enter_tree
-      host.update(1.0) # fires once
-      host.exit_tree
-      host.enter_tree # _attach re-arms it
-
-      host.update(1.0) # fires again
-      expect(count).to eq(2)
     end
   end
 

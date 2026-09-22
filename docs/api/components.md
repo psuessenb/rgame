@@ -31,10 +31,11 @@ reads it within ten lines.
 | the cheapest route between two tiles | `NavGrid`, from `TileWorld#nav_grid` | [→](toolbox.md#navgrid--routes-over-a-tile-grid) |
 | a node that walks itself to a point, around the map | `Components::Navigator` | [→](#navigator) |
 
-**Per-frame work earns a component.** Two toolbox classes have component wrappers,
-for that reason only. A timer must advance every tick, and a pool must reclaim
-freed nodes every tick. `Components::Timer` and `Components::Pool` put that work in
-the traversal, where nothing can forget it. Without per-frame work there is no
+**Per-frame work earns a component.** Three toolbox classes have component
+wrappers, for that reason only. A timer and a tween must advance every tick, and a
+pool must reclaim freed nodes every tick. `Components::Timer`, `Components::Tween`
+and `Components::Pool` put that work in the traversal, where nothing can forget
+it. Without per-frame work there is no
 wrapper. A `Text` is read when something draws it. A component that
 overrode no hook would be a component in name only. The one-per-slot rule would
 even make a second label on one node harder.
@@ -475,8 +476,7 @@ margin reaches half its extent.
   Removal is *deferred* (see [deferred free](scene_graph.md#deferred-free)), so
   triggering it inside the update traversal is safe. For an entity that never
   leaves a *fixed* board, such as a projectile that should vanish after N seconds,
-  use a one-shot [`Timer`](#timer) (`repeating: false`) with
-  `on_elapsed { node.queue_free }` instead.
+  use a [`Tween`](#tween) with `on_finished { node.queue_free }` instead.
 - **One response to the edge per node.** It raises at attach beside a `ScreenWrap`
   or a mover declaring `blocked_by: [:bounds]`; see
   [`WorldBounds.one_response!`](#world).
@@ -534,8 +534,10 @@ and child that reads its position.
   nothing while a hop is under way. NPCs and scripts call it.
 - **Phase:** `_update(dt)` advances the arc and writes the height to
   [`node.elevation`](scene_graph.md#elevation). [`AnimatedSprite`](#animatedsprite)
-  and [`Sprite`](#sprite) draw lifted by it. The arc depends on the time accumulated
-  in `update`, never on a clock, so a paused node hangs in the air.
+  and [`Sprite`](#sprite) draw lifted by it. The arc is an
+  [`Engine::Tween`](toolbox.md#tween--a-value-that-moves-over-time) with the
+  `:arc` ease, advanced in `update` and never read off a clock, so a paused node
+  hangs in the air.
 - **Lifecycle:** `_attach` lands the node, so a pooled node reused mid-hop starts
   on the ground.
 
@@ -1076,22 +1078,52 @@ spawn cadence, a turret's fire rate, a wave clock. It wraps the pure
 [`RGame::Engine::Timer`](toolbox.md#timer--paced-periodic-events) and reuses its
 drift-free carry-forward.
 
-- **Construct:** `Timer.new(interval, repeating: true)`, in seconds. Add it with a
-  name when a node needs several: `node.add_component(Timer.new(0.8), as: :spawn)`.
-  `repeating: false` makes a **one-shot** that fires `on_elapsed` exactly once, then
-  goes inert. A projectile that should vanish after N seconds on a fixed board is
-  `Timer.new(2.0, repeating: false)` plus `on_elapsed { node.queue_free }`. When the
-  board scrolls and the entity leaves the screen, use `DespawnOffscreen` instead.
+- **Construct:** `Timer.new(interval)`, in seconds. Add it with a name when a node
+  needs several: `node.add_component(Timer.new(0.8), as: :spawn)`. For something
+  that happens once, use a [`Tween`](#tween).
 - **Signal:** `on_elapsed` fires once per whole interval:
   `timer.on_elapsed { spawn_enemy }`.
-- **Lifecycle:** `_attach` restarts the countdown and re-arms a spent one-shot. A
-  pooled node acquired and added again starts fresh, without its previous life's
-  elapsed time.
-- **Phase:** `_update(dt)` advances and emits. In one long step, a repeating timer
-  emits once per interval crossed, catching up without drift. A one-shot emits at
-  most once. It allocates nothing.
-- **Reset:** `reset` drops accumulated time and re-arms a one-shot, giving a fresh
-  timer.
+- **Lifecycle:** `_attach` restarts the countdown. A pooled node acquired and
+  added again starts fresh, without its previous life's elapsed time.
+- **Phase:** `_update(dt)` advances and emits. In one long step it emits once per
+  interval crossed, catching up without drift. It allocates nothing.
+- **Reset:** `reset` drops accumulated time, giving a fresh timer.
+
+### `Tween`
+
+**A one-shot that says how far along it is.** It runs an
+[`Engine::Tween`](toolbox.md#tween--a-value-that-moves-over-time) in the node's
+update tick and emits `on_finished` once, when it reaches the end: a banner that
+removes itself, a projectile's lifetime, a hold before a page turns, a fade the
+next scene waits for.
+
+```ruby
+life = node.add_component(RGame::Engine::Components::Tween.new(2.0), as: :life)
+life.on_finished { node.queue_free }
+
+fade = node.add_component(RGame::Engine::Components::Tween.new(0.5, from: 0, to: 255))
+fade.value   # read in the node's _draw
+```
+
+- **Construct:** `Tween.new(duration, from: 0.0, to: 1.0, ease: :linear)`, as
+  `Engine::Tween` takes them. It refuses `loop:`, since a tween that loops never
+  finishes. A projectile that should vanish after N seconds on a fixed board is
+  `Tween.new(2.0)` plus `on_finished { node.queue_free }`. When the board scrolls
+  and the entity leaves the screen, use `DespawnOffscreen` instead.
+- **Reading it:** `value`, `progress`, `done?` and `duration`, as on
+  `Engine::Tween`. `running?` is true while it advances. `stopped?` is true while
+  `stop` holds it.
+- **Signal:** `on_finished` fires once per run, even when one long step passes the
+  end by several durations.
+- **Lifecycle:** `_attach` starts it from the beginning. A pooled node acquired and
+  added again runs a fresh one.
+- **Controlling it:** `start` runs it from the beginning, and an `on_finished`
+  handler may call it to run again. `stop` holds it at the beginning, emitting
+  nothing, until `start`: `examples/intro` stops its page hold while a page types.
+  `finish` jumps to the end and emits `on_finished`, and does nothing unless it is
+  running. `duration=` changes when it ends.
+- **Phase:** `_update(dt)` advances and emits. A paused node holds it. It
+  allocates nothing.
 
 ### `Velocity`
 

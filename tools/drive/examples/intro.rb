@@ -1,7 +1,7 @@
 # Input script for examples/intro.
 #
 # Presses Enter once, two seconds in, while the first page is still typing,
-# then leaves the timer to turn the rest. Run it with --texts, once in each
+# then leaves the tween to turn the rest. Run it with --texts, once in each
 # language; the draw-call section alone cannot show which lines were on screen
 # when:
 #
@@ -19,12 +19,12 @@
 #   - **the rest of page 1 whole at tick 121**, one tick after Enter: Enter
 #     reveals a page still typing rather than turning it;
 #   - **each later page starting one second plus 20 ms a character after the
-#     one before was fully shown**, the timer held back while a page types. A
-#     full page holds for about 210 ticks: English page 2 from tick 335 and
-#     page 3 from about 735; German page 2 from about 332, page 3 from about
-#     705 and page 4 from 1092;
-#   - **the hint drawn until the last page and not after it**: 735 frames of
-#     "Enter turns the page" in English, 1092 of "Enter blättert um" in German;
+#     one before was fully shown**, the tween stopped while a page types. A
+#     full page holds for about 210 ticks: English page 2 from tick 336 and
+#     page 3 from 738; German page 2 from 334, page 3 from about 708 and page 4
+#     from 1096;
+#   - **the hint drawn until the last page and not after it**: 737 frames of
+#     "Enter turns the page" in English, 1095 of "Enter blättert um" in German;
 #   - one `rect` per frame, the black backdrop at (0, 0, 640, 480);
 #   - nothing under "missing or mismatched keys".
 

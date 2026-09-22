@@ -15,25 +15,27 @@ module RGame
       #
       #   node.add_component(Engine::Components::Hop.new(peak: 18, duration: 0.5))
       #
-      # The arc is a function of the time accumulated in `update`, not of a clock,
-      # so a paused node hangs in the air and a spec can ask for the height at 0.25s.
+      # The arc is an Engine::Tween with the `:arc` ease, advanced in `update`
+      # rather than read off a clock, so a paused node hangs in the air and a
+      # spec can ask for the height at 0.25s.
       # It starts on the action's press edge, so holding the button hops once.
       # `action: nil` leaves only #jump, for something that is not a player.
       class Hop < Engine::Component
-        attr_reader :peak, :duration, :height
+        attr_reader :height
 
         def initialize(peak:, duration:, action: :jump)
           super()
           raise ArgumentError, "peak must be positive, got #{peak.inspect}" unless peak.positive?
           raise ArgumentError, "duration must be positive, got #{duration.inspect}" unless duration.positive?
 
-          @peak = peak
-          @duration = duration
+          @arc = Engine::Tween.new(duration, to: peak, ease: :arc)
           @action = action
           @height = 0.0
-          @elapsed = 0.0
           @airborne = false
         end
+
+        def peak = @arc.to
+        def duration = @arc.duration
 
         # Attaching lands the node, so a pooled node reused mid-hop starts on the ground.
         def _attach = land
@@ -45,7 +47,7 @@ module RGame
           return if @airborne
 
           @airborne = true
-          @elapsed = 0.0
+          @arc.restart
         end
 
         def _control(actions)
@@ -54,11 +56,9 @@ module RGame
 
         def _update(dt)
           return unless @airborne
+          return land if @arc.update(dt).done?
 
-          @elapsed += dt
-          return land if @elapsed >= @duration
-
-          @height = 4.0 * @peak * @elapsed * (@duration - @elapsed) / (@duration * @duration)
+          @height = @arc.value
           node.elevation = @height
         end
 
@@ -66,7 +66,6 @@ module RGame
 
         def land
           @airborne = false
-          @elapsed = 0.0
           @height = 0.0
           node.elevation = 0
         end

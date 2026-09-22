@@ -11,7 +11,8 @@
 #   - Core::Sample — a decoded, fire-and-forget effect, named by its path;
 #   - Engine::AudioOut — the system a node plays sound through, mounted on
 #     the root by RGame::Game;
-#   - Engine::Text — a count on screen, from a key, that costs no String per frame.
+#   - Engine::Text — a count on screen, from a key, that costs no String per frame;
+#   - Engine::Tween — the ring's flash, fading from full to nothing after each press.
 #
 # ## Why a node does not just call the audio device
 #
@@ -55,13 +56,13 @@ LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.
 
 class Scene < RGame::Engine::Node2D
   RING = RGame::Util::Color.new(120, 200, 255)
-  FADE = 3.0        # how fast the flash decays, in units per second
+  FADE = 1.0 / 3.0  # seconds the flash takes to fade out
   MIN_R = 18.0      # radius at rest
   GROW  = 90.0      # extra radius at full flash
 
   def initialize
     super
-    @flash = 0.0
+    @flash = RGame::Engine::Tween.new(FADE, from: 1.0, to: 0.0).finish
     @plays = 0
     # Built once, here, and that is the whole trick: the key's text renders when
     # the count changes rather than when a frame is drawn. See the note above
@@ -76,7 +77,7 @@ class Scene < RGame::Engine::Node2D
     # The whole of "make a noise". Nothing here knows what device plays it.
     system!(RGame::Engine::AudioOut).play_sound('blip.ogg')
 
-    @flash = 1.0
+    @flash.restart
     @plays += 1
   end
 
@@ -84,8 +85,7 @@ class Scene < RGame::Engine::Node2D
   # the standing rule (see "`draw` renders state"), and it is why pausing
   # this node would freeze the ring mid-fade instead of letting it run on.
   def _update(dt)
-    @flash -= dt * FADE
-    @flash = 0.0 if @flash.negative?
+    @flash.update(dt)
   end
 
   # A count, drawn as text, allocating nothing.
@@ -101,7 +101,7 @@ class Scene < RGame::Engine::Node2D
   # from something that changes is common enough that the engine owns the
   # answer — see "`Text` — the string a node draws" in docs/api/toolbox.md.
   def _draw(renderer, _view)
-    renderer.circle(WIDTH / 2, HEIGHT / 2, MIN_R + (GROW * @flash), color: RING)
+    renderer.circle(WIDTH / 2, HEIGHT / 2, MIN_R + (GROW * @flash.value), color: RING)
     renderer.text(@help, 12, 12)
     renderer.text(@plays_label.with(plays: @plays), 12, 44)
   end

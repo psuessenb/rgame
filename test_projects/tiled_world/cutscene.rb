@@ -22,13 +22,14 @@ class Cutscene < RGame::Engine::Node2D
   PANEL_H = 120
   TITLE_COLOR = [40, 30, 20].freeze
   HINT_COLOR  = [90, 78, 62].freeze
+  HINT_DELAY = 0.4
 
   def initialize(world_view:)
     super(band: :overlay)
     @world_view = world_view
     @open = false
     @camera = RGame::Engine::Camera.new
-    @elapsed = 0.0
+    @hint_delay = RGame::Engine::Tween.new(HINT_DELAY)
   end
 
   def _enter_tree
@@ -48,7 +49,7 @@ class Cutscene < RGame::Engine::Node2D
   # It animates while the world does not — which is the whole point of pausing a
   # subtree rather than the tick.
   def _update(dt)
-    @elapsed += dt if @open
+    @hint_delay.update(dt) if @open
   end
 
   def _draw(renderer, view)
@@ -58,7 +59,7 @@ class Cutscene < RGame::Engine::Node2D
     y = view.y + ((view.height - PANEL_H) / 2)
     renderer.nine_slice(:panel, x, y, PANEL_W, PANEL_H)
     centered(renderer, TITLE, view, y + 34, TITLE_COLOR)
-    centered(renderer, HINT, view, y + 74, HINT_COLOR) if @elapsed > 0.4
+    centered(renderer, HINT, view, y + 74, HINT_COLOR) if @hint_delay.done?
   end
 
   private
@@ -70,7 +71,7 @@ class Cutscene < RGame::Engine::Node2D
 
   def open
     @open = true
-    @elapsed = 0.0
+    @hint_delay.restart
     @camera.center_on(*midpoint)
     @viewports.solo!(@camera)
     @world_view.paused = true

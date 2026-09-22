@@ -12,27 +12,20 @@ module RGame
       #   timer = node.add_component(Engine::Components::Timer.new(0.8), as: :spawn)
       #   timer.on_elapsed { spawn_enemy }
       #
-      # `repeating: false` makes it a one-shot: it fires `on_elapsed` exactly once and then
-      # goes inert — the fixed-board despawn case (a projectile that vanishes after N
-      # seconds, where DespawnOffscreen doesn't apply):
-      #
-      #   life = node.add_component(Engine::Components::Timer.new(2.0, repeating: false), as: :despawn)
-      #   life.on_elapsed { node.queue_free }
+      # For something that happens once — a lifetime, a delay, a fade — use
+      # Components::Tween, which emits `on_finished` once and says how far along it is.
       #
       # The countdown restarts in `_attach`, so a pooled node reacquired and re-added
-      # starts fresh — a recycled projectile gets its full interval (and a one-shot can fire
-      # again) rather than inheriting the previous life's elapsed time.
+      # starts fresh rather than inheriting the previous life's elapsed time.
       #
       # When a node needs more than one (a spawn cadence and a wave cadence), give them
       # distinct `as:` names — a node holds one component per slot.
       class Timer < Engine::Component
         signal :elapsed
 
-        def initialize(interval, repeating: true)
+        def initialize(interval)
           super()
           @timer = Engine::Timer.new(interval)
-          @repeating = repeating
-          @done = false
         end
 
         def interval = @timer.interval
@@ -42,30 +35,23 @@ module RGame
         end
 
         # Start the countdown fresh whenever the node (re-)enters the tree, so a pooled node
-        # never inherits a previous life's accumulated time or spent one-shot.
+        # never inherits a previous life's accumulated time.
         def _attach = reset
 
         # Advance one step and fire on_elapsed once per whole interval that elapsed — so a
-        # single long step still emits the right number of times (catch-up, not drift). A
-        # one-shot (`repeating: false`) fires once and then stops accumulating.
+        # single long step still emits the right number of times (catch-up, not drift).
         def _update(dt)
-          return if @done
-
           @timer.update(dt)
           while @timer.ready?
             @timer.consume
-            @done = !@repeating
             elapsed_signal.emit
-            break unless @repeating
           end
         end
 
-        # Back to a fresh timer: drop accumulated time and re-arm a spent one-shot (e.g.
-        # after retuning the interval, or when a pooled node is reused). A one-shot's own
-        # `on_elapsed` handler may call it to fire again one interval later. Returns self.
+        # Back to a fresh timer: drop accumulated time (e.g. after retuning the interval,
+        # or when a pooled node is reused). Returns self.
         def reset
           @timer.reset
-          @done = false
           self
         end
       end

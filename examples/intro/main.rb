@@ -14,8 +14,8 @@
 #     a time, and revealed at 40 characters a second with `reveal:`;
 #   - Engine::Paragraph — underneath the label, breaking the text and grouping
 #     the lines into pages;
-#   - Components::Timer — a one-shot that turns the page, held back while the
-#     page is still typing, its interval set for each page.
+#   - Components::Tween — a one-shot that turns the page, stopped while the
+#     page is still typing, its duration set for each page.
 #
 # ## The text is one line
 #
@@ -37,10 +37,9 @@
 # page: one second, plus 20 milliseconds for each character `page_length`
 # counts. A full page stays up about three and a half seconds after it is
 # shown, and a short last line under two. The reader has read along while the
-# page typed, so the hold is only the time to finish. While the page is still
-# typing, the root resets the timer every tick, so the one-shot never gets near
-# firing. On the last page it fires once and the turn does nothing, and the
-# root stops drawing the hint.
+# page typed, so the hold is only the time to finish. A new page stops the
+# tween, and the root starts it once the page is fully shown. On the last page
+# the turn does nothing, and the root stops drawing the hint.
 #
 # ## What it does not solve
 #
@@ -75,8 +74,8 @@ class Intro < RGame::Engine::Node2D
                         typeface: FACE, lines_per_page: LINES_PER_PAGE, align: :center, reveal: REVEAL
                       ))
     @hint = RGame::Engine::Text.new('hint.next')
-    @turn = add_component(RGame::Engine::Components::Timer.new(HOLD_SECONDS, repeating: false))
-    @turn.on_elapsed { turn_page }
+    @turn = add_component(RGame::Engine::Components::Tween.new(HOLD_SECONDS))
+    @turn.on_finished { turn_page }
   end
 
   def _enter_tree = hold_for_page
@@ -88,7 +87,7 @@ class Intro < RGame::Engine::Node2D
   end
 
   def _update(_dt)
-    @turn.reset unless @story.revealed?
+    @turn.start if @turn.stopped? && @story.revealed?
   end
 
   def _draw(renderer, view)
@@ -106,8 +105,8 @@ class Intro < RGame::Engine::Node2D
   end
 
   def hold_for_page
-    @turn.interval = HOLD_SECONDS + (HOLD_PER_CHARACTER * @story.page_length)
-    @turn.reset
+    @turn.duration = HOLD_SECONDS + (HOLD_PER_CHARACTER * @story.page_length)
+    @turn.stop
   end
 end
 

@@ -1,7 +1,8 @@
 # Toolbox
 
 This page covers engine classes **a game author uses directly** that belong to no
-other chapter: pooling, the text a node draws, the camera, collision boxes.
+other chapter: pooling, the text a node draws, timers and tweens, the camera,
+collision boxes.
 All are pure Ruby, so they stay testable headless. One section is a recipe, not a
 class: [making a character that collides](#making-a-character-that-collides). No
 single class answers that question.
@@ -331,6 +332,70 @@ For a node that should tick on its own, use
 [`Components::Timer`](components.md#timer). It owns a `Timer`, runs in the node's
 update tick so nothing can forget to drive it, and emits `on_elapsed` instead of
 making you poll `ready?` and `consume`.
+
+## `Tween` — a value that moves over time
+
+**`RGame::Engine::Tween` (`rgame/engine/tween`) moves a number from `from` to
+`to` over a duration.** Use it for a fade, a camera move, a jump's arc or a
+delay. A tween says how far along something is. A `Timer` counts how many whole
+intervals have passed. `Tween` is pure and allocates nothing, so it runs on the
+per-frame path, and `restart` runs it again without building another.
+
+```ruby
+require 'rgame'
+
+fade = RGame::Engine::Tween.new(0.5, from: 0, to: 255, ease: :in_out)
+fade.update(0.25)
+fade.progress                                   # => 0.5
+fade.value                                      # => 127.5
+fade.done?                                      # => false
+fade.update(1.0).value                          # => 255.0 — it stops at the end
+fade.done?                                      # => true
+fade.restart.value                              # => 0.0
+```
+
+In a node, `_update` advances it and `_draw` reads it, so a paused node freezes
+it mid-way. `examples/sound` flashes a ring on each press this way:
+
+```ruby
+@flash = RGame::Engine::Tween.new(1.0 / 3, from: 1.0, to: 0.0).finish   # in initialize
+
+def _update(dt) = @flash.update(dt)
+def _draw(renderer, _view) = renderer.circle(320, 240, MIN_R + (GROW * @flash.value), color: RING)
+```
+
+A press calls `@flash.restart`.
+
+- **Construct:** `Tween.new(duration, from: 0.0, to: 1.0, ease: :linear, loop: false)`.
+  `duration` is in seconds and must be positive, or it raises `ArgumentError`.
+- **Reading it:** `progress` runs from 0 to 1 and ignores the ease. `value` is
+  the eased number between `from` and `to`. `done?` is true once the duration
+  has passed.
+- **Changing it:** `finish` jumps to the end and `restart` goes back to the
+  start. `from=` and `to=` move either end mid-way, as a camera move retargets.
+  `duration=` keeps the time already passed, so a longer duration sets a
+  finished tween running again.
+- **Looping:** with `loop: true` it starts again each time it reaches the end,
+  carrying the overshoot, and `done?` is never true. `loop?` says which.
+  `examples/music` draws its
+  playhead with one.
+
+`ease:` is one of `Tween::EASES`, or anything answering `call(t)` for a `t` from
+0 to 1:
+
+| `ease:` | Shape |
+|---|---|
+| `:linear` | an even pace |
+| `:in` | starts slow, ends fast |
+| `:out` | starts fast, ends slow |
+| `:in_out` | slow at both ends |
+| `:arc` | reaches `to` halfway and comes back to `from`: a jump |
+
+An ease need not end at 1, as `:arc` shows. [`Components::Hop`](components.md#hop)
+is an `:arc` tween from 0 to its peak.
+
+For a tween that should run on a node's tick and say when it ends, use
+[`Components::Tween`](components.md#tween). It emits `on_finished` once.
 
 ## `Camera` — follow a point, clamp to the world
 
