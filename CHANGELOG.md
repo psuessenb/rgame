@@ -117,6 +117,10 @@ index, not the argument.
 - **`RGame::Game` takes the sound device as `audio:`**, as it takes the input
   backend as `input:`, so a harness can record what a game plays. See
   [docs/api/game.md](docs/api/game.md).
+- **A subclass cannot replace what `signal` generated.** Defining a signal's
+  connect method or emit reader in a subclass, such as a `def on_activated`
+  meant as a hook, raises `NameError` when the class is defined, naming the
+  signal. See [docs/api/signals.md](docs/api/signals.md#the-dsl-declaring-a-signal-on-a-class).
 
 ### Changed
 

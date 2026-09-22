@@ -127,6 +127,27 @@ rescue ArgumentError => e
 end
 ```
 
+**A subclass cannot replace a generated method.** Defining `on_pulled` or
+`pulled_signal` in a subclass raises `NameError` when the class is defined,
+naming the signal and the class that declared it. A method meant as a hook but
+named like the signal would otherwise replace the connect method, and every
+block passed to it would be dropped. To react to a signal, connect a block to
+it.
+
+```ruby
+require 'rgame'
+
+class Lever < RGame::Engine::Node2D
+  signal :pulled
+end
+
+begin
+  Class.new(Lever) { def on_pulled = puts('pulled') }
+rescue NameError => e
+  e.name # => :on_pulled
+end
+```
+
 **The DSL costs one extra method call per emit.** Emitting goes through the
 private reader instead of a bare ivar. `emit` itself stays an ordinary `def`. UI
 and per-frame signals never notice. For a signal emitted thousands of times per
