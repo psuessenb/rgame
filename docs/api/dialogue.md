@@ -610,12 +610,6 @@ it.
 ```ruby
 require 'rgame'
 
-RGame::Engine::I18n.load(<<~YAML)
-  en:
-    smith:
-      gold: "You have %{gold}."
-YAML
-
 Hero = Struct.new(:gold) do
   def purse = { gold: }
 end
@@ -639,12 +633,14 @@ talk.on_ended { kept = it }
 talk.respond(talk.responses.first)
 talk.continue
 hero.gold = 80
+talk.respond(talk.responses.first)
+talk.continue
 talk.respond(talk.responses.last)
 
-kept.map(&:beat)       # => [:greeting, :greeting, :purse, :greeting, :greeting]
-kept[2].text.to_s      # => 'You have 5.'
-kept[1].text.key       # => 'ask_gold'
-kept.frozen?           # => true
+kept.select(&:vars).map(&:vars) # => [{ gold: 5 }, { gold: 80 }] — each visit as it was shown
+kept[1].text.key                # => 'ask_gold'
+kept.last.text.key              # => 'bye'
+kept.frozen?                    # => true
 ```
 
 Each entry is a `Transcript::Entry`:
