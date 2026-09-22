@@ -41,6 +41,30 @@ module RGame
     # ordinary `pressed?`, `held?` and `released?` — a hold is a level that
     # begins late, and a tap is a one-tick pulse on the way up.
     #
+    # ## A chord is buttons held together
+    #
+    # `all:` is an action that presses when the last of its ids arrives and reads
+    # held while every one of them is down:
+    #
+    #   swap: { all: [Controls::PAD_LEFT_SHOULDER, Controls::PAD_RIGHT_SHOULDER] }
+    #
+    # **While a chord is held, the plain actions on its buttons read as not
+    # held.** Otherwise the shoulder button that blocks would go on blocking
+    # through the swap, and a game would have to check for the chord in every
+    # action that shares a button with it. Which actions a chord silences is
+    # worked out here, once, from the ids they declare.
+    #
+    # A chord is held on **one** device, because a player holding two buttons at
+    # once is holding one thing. So an entry takes a list of chords, exactly as
+    # `axis:` takes a list of pairs, and the action is held while any one of them
+    # is complete:
+    #
+    #   swap: { all: [[Controls::KEY_Q, Controls::KEY_E],
+    #                 [Controls::PAD_LEFT_SHOULDER, Controls::PAD_RIGHT_SHOULDER]] }
+    #
+    # Without that, a keyboard chord and a pad chord would be two actions with
+    # one meaning, and every reader of either would have to know both.
+    #
     # ## One table serves every device
     #
     # Listing a key and a pad button in the same entry is safe, and needs no
@@ -81,15 +105,18 @@ module RGame
       #
       # `buttons` is "held if any of these is down"; `pairs` is a list of
       # `[negative, positive]` button pairs, each a digital axis; `stick` is an
-      # analog axis id. `hold` and `tap` are thresholds in seconds, and an action
-      # has at most one of them.
+      # analog axis id; `all` is a list of chords, each held when every one of its
+      # ids is down.
+      # `hold` and `tap` are thresholds in seconds, and an action has at most one
+      # of them. `silences` is the plain actions a chord switches off while it is
+      # held, worked out from the map as a whole.
       # rubocop:disable Lint/StructNewOverride -- a member is named after the entry key it
       # holds, and `tap:` is that key. Kernel#tap on a Binding is worth less than the two
       # spellings matching, and nothing in the engine taps one.
-      Binding = Struct.new(:buttons, :pairs, :stick, :hold, :tap)
+      Binding = Struct.new(:buttons, :pairs, :stick, :all, :hold, :tap, :silences)
       # rubocop:enable Lint/StructNewOverride
 
-      SOURCES = %i[buttons axis stick hold tap].freeze
+      SOURCES = %i[buttons axis stick all hold tap].freeze
 
       UI = {
         ui_up: { buttons: [Controls::KEY_UP, Controls::PAD_DPAD_UP] },
@@ -124,7 +151,9 @@ module RGame
       # `entries` are merged over the universal UI set, so declaring a game's
       # actions never costs it the ones the UI needs.
       def initialize(entries = {})
-        @bindings = UI.merge(entries).to_h { |name, entry| [name, build(name, entry)] }.freeze
+        bindings = UI.merge(entries).to_h { |name, entry| [name, build(name, entry)] }
+        bindings.each { |name, binding| silence(name, binding, bindings) }
+        @bindings = bindings.each_value(&:freeze).freeze
       end
 
       # The default map: the UI set plus DEFAULT_ACTIONS.
@@ -178,6 +207,7 @@ module RGame
           entry[:buttons] = binding.buttons if binding.buttons
           entry[:axis] = binding.pairs.size == 1 ? binding.pairs.first : binding.pairs if binding.pairs
           entry[:stick] = binding.stick if binding.stick
+          entry[:all] = binding.all.size == 1 ? binding.all.first : binding.all if binding.all
           entry[:hold] = binding.hold if binding.hold
           entry[:tap] = binding.tap if binding.tap
           [name, entry]
@@ -192,10 +222,36 @@ module RGame
 
         buttons = freeze_ids(name, entry[:buttons])
         pairs = axis_pairs(name, entry[:axis])
-        raise ArgumentError, "#{name}: no buttons, axis or stick" if buttons.nil? && pairs.nil? && entry[:stick].nil?
+        all = chords(name, entry[:all])
+        if buttons.nil? && pairs.nil? && all.nil? && entry[:stick].nil?
+          raise ArgumentError, "#{name}: no buttons, axis, stick or all"
+        end
 
-        check_thresholds(name, entry, buttons)
-        Binding.new(buttons, pairs, entry[:stick], entry[:hold], entry[:tap]).freeze
+        check_thresholds(name, entry, buttons || all)
+        Binding.new(buttons, pairs, entry[:stick], all, entry[:hold], entry[:tap], nil)
+      end
+
+      def silence(name, binding, bindings)
+        return if binding.all.nil?
+
+        ids = binding.all.flatten
+        binding.silences = bindings.filter_map do |other, candidate|
+          other if other != name && candidate.buttons&.intersect?(ids)
+        end.freeze
+      end
+
+      def chords(name, all)
+        return nil if all.nil?
+
+        list = all.is_a?(Array) && all.first.is_a?(Array) ? all : [all]
+        list.each { |ids| check_chord(name, ids) }
+        list.map { |ids| ids.dup.freeze }.freeze
+      end
+
+      def check_chord(name, ids)
+        return if ids.is_a?(Array) && ids.size > 1
+
+        raise ArgumentError, "#{name}: all must be at least two ids, or a list of those"
       end
 
       def check_thresholds(name, entry, buttons)
@@ -203,7 +259,7 @@ module RGame
         tap = entry[:tap]
         raise ArgumentError, "#{name}: hold and tap are two answers to one question" if hold && tap
         return if hold.nil? && tap.nil?
-        raise ArgumentError, "#{name}: a hold or a tap needs buttons" if buttons.nil?
+        raise ArgumentError, "#{name}: a hold or a tap needs buttons or all" if buttons.nil?
 
         check_threshold(name, hold || tap)
       end

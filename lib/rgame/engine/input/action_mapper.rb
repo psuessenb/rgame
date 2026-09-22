@@ -28,12 +28,19 @@ module RGame
     # | Declared | `held?` |
     # |---|---|
     # | `buttons:` alone | its buttons are down |
+    # | `all:` | every id of one of its chords is down |
     # | `hold: 0.6` | they have been down 0.6 s, until they come up |
     # | `tap: 0.3` | one tick, on a release that came inside 0.3 s |
     #
     # `pressed?` and `released?` are the edges of that level and need no case of
     # their own: a hold presses once, late, and a tap is a one-tick pulse whose
     # up edge follows on the next tick.
+    #
+    # A held chord then switches off the plain actions on its buttons, over a
+    # list the map worked out at construction — so the pass costs one walk of the
+    # chords a game declared, and nothing at all for the map of a game that
+    # declared none. `held_for` keeps counting through it, because it answers for
+    # the buttons rather than for the level.
     #
     # Pure logic. The backend is duck-typed and the whole interface is
     # `down?(physical_id, device:)` and `axis(axis_id, device:)` — a spec passes
@@ -61,6 +68,7 @@ module RGame
           @hold_times[name] = 0.0
           @down[name] = false
         end
+        @chords = map.bindings.filter_map { |name, binding| [name, binding.silences] if binding.all }.freeze
         @actions = Actions.new(held: @held, axes: @axes, prev_held: @prev_held, hold_times: @hold_times)
       end
 
@@ -72,9 +80,10 @@ module RGame
         return rest if @device.nil?
 
         @map.bindings.each do |name, binding|
-          poll_buttons(name, binding, backend, dt) if binding.buttons
+          poll_buttons(name, binding, backend, dt) if binding.buttons || binding.all
           @axes[name] = axis_value(backend, binding) if binding.pairs || binding.stick
         end
+        silence_chorded
 
         @actions
       end
@@ -90,9 +99,18 @@ module RGame
       end
 
       # hot-path
+      def silence_chorded
+        @chords.each do |name, silences|
+          next unless @held[name]
+
+          silences.each { |other| @held[other] = false }
+        end
+      end
+
+      # hot-path
       def poll_buttons(name, binding, backend, dt)
         was_down = @down[name]
-        now_down = any_down?(backend, binding.buttons)
+        now_down = down?(backend, binding)
         count_hold(name, was_down, now_down, dt)
         @held[name] = level(name, binding, was_down, now_down)
         @down[name] = now_down
@@ -116,8 +134,21 @@ module RGame
       end
 
       # hot-path
+      def down?(backend, binding)
+        return all_down?(backend, binding.all) if binding.buttons.nil?
+        return any_down?(backend, binding.buttons) if binding.all.nil?
+
+        any_down?(backend, binding.buttons) || all_down?(backend, binding.all)
+      end
+
+      # hot-path
       def any_down?(backend, ids)
         ids.any? { |id| backend.down?(id, device: @device) }
+      end
+
+      # hot-path
+      def all_down?(backend, chords)
+        chords.any? { |ids| ids.all? { |id| backend.down?(id, device: @device) } }
       end
 
       # hot-path

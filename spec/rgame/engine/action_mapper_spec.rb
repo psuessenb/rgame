@@ -327,6 +327,81 @@ RSpec.describe RGame::Engine::ActionMapper do
     end
   end
 
+  # L alone blocks and L+R swaps: while the chord is held, the action on L reads
+  # as not held, so a game writes neither a check for the other button nor an
+  # order between the two.
+  describe 'a chord' do
+    subject(:subject_mapper) { mapper(device: pad) }
+
+    let(:pad) { controls.gamepad(0) }
+
+    let(:map) do
+      RGame::Engine::InputMap.new(
+        block: { buttons: [RGame::Util::Controls::PAD_LEFT_SHOULDER] },
+        swap: { all: [RGame::Util::Controls::PAD_LEFT_SHOULDER,
+                      RGame::Util::Controls::PAD_RIGHT_SHOULDER] }
+      )
+    end
+
+    def poll_with(*ids)
+      backend.clear
+      backend.hold(*ids, device: pad) unless ids.empty?
+      subject_mapper.poll(backend, step)
+    end
+
+    it 'is not held while only one of its buttons is down' do
+      expect(poll_with(controls::PAD_LEFT_SHOULDER).held?(:swap)).to be(false)
+    end
+
+    it 'presses when the last of its buttons arrives' do
+      poll_with(controls::PAD_LEFT_SHOULDER)
+      expect(poll_with(controls::PAD_LEFT_SHOULDER, controls::PAD_RIGHT_SHOULDER).pressed?(:swap)).to be(true)
+    end
+
+    it 'stays held while every button is down' do
+      poll_with(controls::PAD_LEFT_SHOULDER, controls::PAD_RIGHT_SHOULDER)
+      expect(poll_with(controls::PAD_LEFT_SHOULDER, controls::PAD_RIGHT_SHOULDER).held?(:swap)).to be(true)
+    end
+
+    it 'releases when one of them comes up' do
+      poll_with(controls::PAD_LEFT_SHOULDER, controls::PAD_RIGHT_SHOULDER)
+      expect(poll_with(controls::PAD_LEFT_SHOULDER).released?(:swap)).to be(true)
+    end
+
+    it 'lets the plain action read while the chord is not held' do
+      expect(poll_with(controls::PAD_LEFT_SHOULDER).held?(:block)).to be(true)
+    end
+
+    it 'silences the plain action on one of its buttons' do
+      expect(poll_with(controls::PAD_LEFT_SHOULDER, controls::PAD_RIGHT_SHOULDER).held?(:block)).to be(false)
+    end
+
+    it 'releases the plain action as the chord takes over' do
+      poll_with(controls::PAD_LEFT_SHOULDER)
+      expect(poll_with(controls::PAD_LEFT_SHOULDER, controls::PAD_RIGHT_SHOULDER).released?(:block)).to be(true)
+    end
+
+    it 'gives the plain action back when the chord breaks' do
+      poll_with(controls::PAD_LEFT_SHOULDER, controls::PAD_RIGHT_SHOULDER)
+      expect(poll_with(controls::PAD_LEFT_SHOULDER).held?(:block)).to be(true)
+    end
+
+    it 'reads a chord declared for another device as its own' do
+      two = RGame::Engine::InputMap.new(
+        swap: { all: [[RGame::Util::Controls::KEY_Q, RGame::Util::Controls::KEY_E],
+                      [RGame::Util::Controls::PAD_LEFT_SHOULDER,
+                       RGame::Util::Controls::PAD_RIGHT_SHOULDER]] }
+      )
+      backend.hold(controls::PAD_LEFT_SHOULDER, controls::PAD_RIGHT_SHOULDER, device: pad)
+      expect(described_class.new(two, device: pad).poll(backend, step).held?(:swap)).to be(true)
+    end
+
+    it 'counts the chord\'s own hold' do
+      2.times { poll_with(controls::PAD_LEFT_SHOULDER, controls::PAD_RIGHT_SHOULDER) }
+      expect(subject_mapper.actions.held_for(:swap)).to be_within(0.0001).of(step * 2)
+    end
+  end
+
   # Edge detection compares against the previous poll, so it needs one mapper
   # polled repeatedly rather than a fresh one per poll.
   describe 'edge detection' do
