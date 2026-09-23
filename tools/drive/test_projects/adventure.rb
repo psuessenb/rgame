@@ -17,5 +17,7 @@ on controls.gamepad(0) do
   idle 10
   hold controls::PAD_DPAD_DOWN, 60
   hold [controls::PAD_DPAD_DOWN, controls::PAD_DPAD_RIGHT], 80
+  idle 5
+  hold [controls::PAD_Y, controls::PAD_DPAD_LEFT], 30
   idle 20
 end

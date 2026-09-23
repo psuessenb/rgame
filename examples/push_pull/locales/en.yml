@@ -1,0 +1,8 @@
+# The English table: every string this example draws.
+en:
+  help:
+    walk: Arrow keys / WASD / gamepad to walk. Walk into a crate to push it.
+    grab: Hold Left Shift / pad Y beside a crate to take hold of it.
+  hud:
+    free: Hands free
+    holding: Holding a crate

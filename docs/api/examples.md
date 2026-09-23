@@ -108,6 +108,31 @@ hop may cross, through `airborne?`.
 `Components::FeetCollider`, `Components::CharacterBody`, `Components::TileWorld`,
 `Components::CameraFollow`, `InputMap.default.merge`.
 
+### push_pull
+
+Crates pushed by walking into them, and one pulled back out with a held button.
+Each crate is a `Pushable` that declares what stops it, so a crate pushed into a
+wall moves nothing and the hero stops flush behind it, and a crate pushed into
+another crate pushes that one too. Holding Left Shift beside a crate hands it to
+the hero's `Grab`, and the hero's body drags it whichever way they walk.
+
+**Uses:** `Components::Pushable`, `Components::Grab`, `Components::CharacterBody`
+with `blocked_by: %i[wall crate]` and `pushes: [:crate]`,
+`Components::CollisionWorld`, `Components::BoxCollider`, `Engine::Text`.
+
+### block_puzzle
+
+Blocks pushed one cell at a time onto marked squares. A block is not a
+`Pushable`: it is a solid cell of the map, held by `OccupiesCell`, so the hero
+stops at it through `blocked_by: [:tiles]`. Pressing into it for a moment shoves
+it a cell, if `TileWorld#solid?` says the cell beyond is free, and a `Tween`
+slides it there. The push is the example's own rule, written against
+`on_blocked` and `on_unblocked`.
+
+**Uses:** `Components::OccupiesCell`, `Components::Tween`,
+`Components::TileWorld`, `Components::CharacterBody` with `on_blocked` and
+`on_unblocked`, `WorldView`, `TileMapLayer.mount`, `Engine::Text`.
+
 ### pathfinding
 
 Pick a tile, and the hero works out how to get there. Small dots show the route

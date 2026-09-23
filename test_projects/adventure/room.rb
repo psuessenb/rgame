@@ -5,11 +5,12 @@
 # It mounts a TileWorld over the town map, puts a WorldView under itself and
 # lets TileMapLayer.mount lay the map's layers out around an `:actors` slot. The
 # heroes go in that slot, so a tree's canopy draws in front of whoever walks
-# under it. The coins and the chest go in the same slot, for the same reason.
+# under it. The coins, the chest and the crate go in the same slot, for the same
+# reason.
 #
 # It also mounts a CollisionWorld. The map alone stops a hero, and that needed
-# no broadphase — but a coin is a contact and a chest is a range query, and both
-# read this one index.
+# no broadphase — but a coin is a contact, a chest is a range query and a crate
+# is a collider a step runs into, and all three read this one index.
 #
 # The room never counts players and never asks how the screen is divided. It
 # spawns for whoever is already playing and listens for whoever joins; Viewports
@@ -25,6 +26,8 @@ class Room < RGame::Engine::Node2D
 
   CHEST = [265, 115].freeze
 
+  CRATE = [440, 304].freeze
+
   def _enter_tree
     map = root.context.assets.tilemap(MAP).map
     @players = root.system(RGame::Engine::Players)
@@ -39,6 +42,7 @@ class Room < RGame::Engine::Node2D
 
     COINS.each { |x, y| @actors.add_node(Coin.new(x: x, y: y)) }
     @actors.add_node(Chest.new(x: CHEST.first, y: CHEST.last))
+    @actors.add_node(Crate.new(x: CRATE.first, y: CRATE.last))
 
     @players.each_active { |player| spawn(player) }
     @players.on_joined { |player| spawn(player) }
