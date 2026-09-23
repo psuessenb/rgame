@@ -52,7 +52,9 @@ and before its children.
 
 - `_control(actions)` reads intent from the per-tick action snapshot. The snapshot
   belongs to whoever [owns the node](scene_graph.md#who-a-node-answers-to), so a
-  component never learns there is more than one player.
+  component never learns there is more than one player. Its `pressed?` and
+  `released?` answer only for
+  [presses the node saw start](input.md#a-node-reads-only-the-presses-it-saw-start).
 - `_update(dt)` advances state over the timestep.
 - `_draw(renderer, view)` renders through the renderer interface into the
   [viewport being drawn](scene_graph.md#viewports-and-views). Most components

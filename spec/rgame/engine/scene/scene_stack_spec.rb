@@ -333,13 +333,13 @@ RSpec.describe RGame::Engine::Scene::SceneStack do
 
       host.control(players)
 
-      expect(scene.seen).to equal(players[1].actions)
+      expect(scene.seen.actions_for(nil)).to equal(players[1].actions)
     end
 
     it 'gives an unowned scene the primary player' do
       mount.control(players)
 
-      expect(scene.seen).to equal(players[0].actions)
+      expect(scene.seen.actions_for(nil)).to equal(players[0].actions)
     end
 
     # Without a registry in the tree there is only one answer anyway, so the

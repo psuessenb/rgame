@@ -298,6 +298,86 @@ leaving the dead zone ramps up from zero.
 `RGame::Game` builds the mappers and polls them once per tick. A game normally
 sees only the `Actions` passed to `control`.
 
+### A node reads only the presses it saw start
+
+**`pressed?` and `released?` are false in a node for a press that began before
+the node resumed.** A node resumes on the first poll `Node2D#control` reaches it
+after one it did not:
+
+- its first control, as when it was added while a button was down;
+- its first after it or an ancestor was paused;
+- its first after a scene above it was popped, or after its page of a
+  `UI::Tabs` was shown again;
+- its first after its `input_owner` changed, since the presses it reads from
+  then on are another player's.
+
+A press that began on the poll the node resumed on is refused too. So E tapped
+in a hero's bag and released after the bag closes opens no chest, although a tap
+presses on its release.
+
+`held?`, `axis` and `held_for` answer as before, so a direction held while a
+menu closes walks the hero on the next tick. The next press after a refused one
+reads as usual.
+
+The node's components and its own `_control` read through a gate the node makes
+on its first control, from `poll_count` and `down_since`. A snapshot built by hand
+has no `poll_count`, so a spec passing `Actions.new(...)` to `control` reads
+exactly what it passed.
+
+```ruby
+require 'rgame'
+
+Controls = RGame::Util::Controls
+
+# A backend holding the keyboard ids in `down`.
+class Keys
+  attr_reader :down
+
+  def initialize = @down = []
+  def down?(id, device:) = device == Controls::KEYBOARD && @down.include?(id)
+  def axis(_id, device:) = 0.0
+end
+
+# A hero that counts the presses of fire it reads.
+class Hero < RGame::Engine::Node2D
+  attr_reader :shots, :aiming
+
+  def initialize(**)
+    super
+    @shots = 0
+  end
+
+  def _control(actions)
+    @shots += 1 if actions.pressed?(:fire)
+    @aiming = actions.held?(:fire)
+  end
+end
+
+def tick(players, keys, hero)
+  players.poll(keys, 1.0 / 60)
+  hero.control(players)
+end
+
+keys = Keys.new
+players = RGame::Engine::Players.new([RGame::Engine::Player.new])
+hero = Hero.new
+tick(players, keys, hero)
+
+hero.paused = true
+keys.down << Controls::KEY_SPACE
+tick(players, keys, hero)
+hero.paused = false
+tick(players, keys, hero)
+hero.shots  # => 0 — fire went down while the hero was paused
+hero.aiming # => true — held? answers as before
+
+keys.down.clear
+tick(players, keys, hero)
+keys.down << Controls::KEY_SPACE
+tick(players, keys, hero)
+hero.shots # => 1 — the next press is the hero's own
+```
+
 ## Players, seats and joining
 
 `RGame::Engine::Players` is a root-scoped system that knows who is playing. Each

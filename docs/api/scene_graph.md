@@ -560,6 +560,11 @@ character while they browse a menu, without touching everyone else's simulation.
 No `abs_paused` exists to match `abs_input_owner`. A node needs its resolved owner
 even when its parent names nobody. A paused node, by contrast, never descends.
 
+**A press begun while a node was paused has no edges for it.** It reads the
+button as held once it runs again, but `pressed?` and `released?` stay false
+until the next press. See
+[A node reads only the presses it saw start](input.md#a-node-reads-only-the-presses-it-saw-start).
+
 A paused node under a moving ancestor draws where it is now, not where it
 stopped. The engine also culls it against its current position. Neither depends
 on the node running a phase. The traversal pushes the transform as it descends,

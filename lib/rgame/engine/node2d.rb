@@ -264,6 +264,7 @@ module RGame
         @scene = nil
         @in_tree = false
         @freed = false
+        @press_gate = nil
       end
 
       def add_node(node)
@@ -366,11 +367,22 @@ module RGame
       #
       # The source is what descends, not the resolved snapshot, because
       # ownership can change further down.
+      #
+      # **A node reads only the presses it saw start.** Its components and
+      # `_control` read through a gate of the node's own, where `pressed?` and
+      # `released?` are false for a press that began before the node resumed.
+      # A node resumes on the first poll it is controlled after one it was not:
+      # its first control, and its first after a pause, after a scene above it
+      # was popped, or after its page was hidden. It also resumes when its
+      # `input_owner` changes. So an E tapped in a bag and released after it
+      # closes opens no chest. `held?`, `axis` and `held_for` pass through, and
+      # a snapshot built by hand, which has no `poll_count`, is handed on as it
+      # is.
       def control(input)
         return if @paused
 
         rgame_resolve_inherited
-        actions = input.actions_for(@abs_input_owner)
+        actions = rgame_gate(input.actions_for(@abs_input_owner))
         @components.each { it._control(actions) }
         _control(actions)
         rgame_children_in_order.each { it.control(input) }
@@ -583,6 +595,14 @@ module RGame
         end
 
         "#{message}. Mount one there with add_component"
+      end
+
+      # hot-path
+      def rgame_gate(actions)
+        poll = actions.poll_count
+        return actions if poll.nil?
+
+        (@press_gate ||= PressGate.new).read(actions, poll)
       end
 
       # hot-path

@@ -221,7 +221,9 @@ input, but only on fast machines.
 
 Polling per tick costs nothing and loses nothing. The C layer snapshots the
 keyboard once per frame, so every tick inside one frame reads identical state.
-The edge lands on the first tick. One press gives one `pressed?`.
+The edge lands on the first tick. One press gives one `pressed?`, and only to
+nodes that were running when it began; see
+[A node reads only the presses it saw start](input.md#a-node-reads-only-the-presses-it-saw-start).
 
 ## Subclassing it
 

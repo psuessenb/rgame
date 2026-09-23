@@ -243,6 +243,12 @@ index, not the argument.
 
 ### Changed
 
+- **A node reads only the presses it saw start.** In a node's components and
+  `_control`, `pressed?` and `released?` are false for a press that began before
+  the node was last paused, hidden, below another scene, added, or given another
+  `input_owner`. `held?`, `axis` and `held_for` answer as before, and a snapshot
+  built with `Actions.new` is handed on as it is. See
+  [docs/api/input.md](docs/api/input.md#a-node-reads-only-the-presses-it-saw-start).
 - **Polling input takes the timestep.** `Players#poll`, `Player#poll` and
   `ActionMapper#poll` take `(backend, dt)`, in seconds, which is what a hold and
   a tap are measured against. `RGame::Game` passes its fixed step; a game driving

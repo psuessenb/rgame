@@ -499,8 +499,9 @@ RSpec.describe RGame::Engine::Node2D do
       let(:actions) do
         instance_double(RGame::Engine::Actions).tap do |snapshot|
           # A snapshot is its own input source: with one answer for everyone,
-          # resolving it returns itself.
-          allow(snapshot).to receive(:actions_for).and_return(snapshot)
+          # resolving it returns itself. Built by hand, it has no poll count,
+          # so the node hands it on as it is.
+          allow(snapshot).to receive_messages(actions_for: snapshot, poll_count: nil)
         end
       end
 
