@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: steps 0, 1 and 2 are implemented.** Fifteen steps. Each is one branch and one
+**Status: steps 0 to 3 are implemented.** Fifteen steps. Each is one branch and one
 pull request, and its sub-steps are one commit each. **Steps 0–4 are detailed.
 Steps 5–14 are deliberately rough** and get re-planned once the layer beneath
 them exists.
@@ -470,6 +470,78 @@ opened with a press, with a counter drawn from an `Engine::Text`. The `--texts`
 run is what shows the counter moving. In the adventure, the chest opens on a
 tap and is searched on a hold — steps 1 and 3 meeting, and the first thing the
 project proves that no spec does.
+
+**Landed.** Three sub-steps, one commit each. `make test` 380 checks 0 failures,
+`rake spec` 3171 examples 0 failures, `rake spec:core` 477 examples 0 failures,
+`rake docs:coverage` nothing undocumented.
+
+`Components::Interactor` is a `Targeting` plus `_control`, and `:interact` is in
+`InputMap::DEFAULT_ACTIONS` on E and the pad's X — a button nothing else in that
+map uses. `Components::Collectable` connects to its own node's collider and acts
+on the step a collider on the `by` layer touches it. Their two specs are 34
+examples between them, and rule 7's is one that fails without the `_detach`:
+`expected: 2, got: 3`.
+
+The acceptance run is `test_projects/adventure`, and it reports **"chest" from
+tick 0, "open" from 150 and "searched" from 206** on `--texts`. Both numbers are
+the thresholds rather than the script: `interact`'s tap fires on the release of a
+two-tick press at 148, and `search`'s 0.6 s is 36 ticks after the hold begins at
+170. That is steps 1 and 3 meeting on one button, and nothing in a spec says it.
+The rest of the report keeps step 2's numbers — 240 ticks against 240 frames, one
+scene pushed, 898 `tilemap`, 569 `sprite`, three clip rectangles — and adds 678
+`circle`, 449 `rect`, 449 `text`, 314 `debug_circle` and 4 sounds. Every other
+driven example and test project reports what it reported at the branch point,
+byte for byte.
+
+`examples/collectables` reports "Coins: 0" through "Coins: 4" with no number
+skipped, at ticks 0, 43, 87, 155 and 216, four sounds, and 1287 `circle` calls —
+the coin count integrated over the run, which is the number that says the chest
+spilled three.
+
+What the sketch got wrong:
+
+- **`require_sibling(BoxCollider)` would have made every collectable a
+  rectangle.** A coin is round, and `CircleCollider` answers the same contact
+  protocol, so the sketch's line ruled out the commonest pickup there is.
+  `Components::Collider` is the module both include and the thing `Collectable`
+  asks for; a node carrying both raises, which is `require_sibling`'s existing
+  answer to an ambiguous match. The adventure's coins are circles for this
+  reason, and that is also what gave `debug_circle` its first driven exercise —
+  step 2 landed it with a spec and no project that mounts one.
+- **`@collider.hit_signal.disconnect(@handle)` cannot be written.** The DSL keeps
+  `hit_signal` private, deliberately, because emitting belongs to the class. The
+  design's `_detach` would have raised `NoMethodError` on the first pooled node.
+  `signal :hit` now also generates a public `disconnect_hit(handle)`, which is
+  the smallest change that serves every signal in the engine rather than adding
+  an escape hatch to the two colliders. **This is the trigger
+  `possible-todos.md` records** under "A connection that ends with its node" —
+  the second component that has to write the same `_detach` — and it is still
+  open: the disconnect is now *possible*, not automatic.
+- **The room needed a `CollisionWorld`, which step 0 expected step 4 to add.**
+  A coin is a contact and a chest is a range query, and both read a broadphase
+  the map alone never needed. Step 4's crate now arrives to an index that exists.
+- **A tap and a hold cannot both be one `Interactor`.** One component per class
+  per node, and `action:` is a single action, so the adventure's hold is read by
+  the hero's own `_control` off `interactor.target`. That is what `target` being
+  public is for, and it is the shape a game with three verbs on one target takes.
+  Whether `Interactor` should take several actions is worth asking once something
+  needs it twice.
+- **The generated disconnects broke `rake docs:coverage`**, which counts a
+  public method as documented when its name appears in `docs/api/`. Naming every
+  `disconnect_*` would say the same thing once per signal, so the check now reads
+  one as documented when its `on_*` is — the rule it already applies to a setter
+  and its reader.
+
+Documented in [docs/api/components.md](../../api/components.md#interactor) —
+`Interactor`, `Collectable` and `Collider` — with the default action in
+[input.md](../../api/input.md#defaults-and-rebinding), the generated disconnect
+in [signals.md](../../api/signals.md#the-dsl-declaring-a-signal-on-a-class), and
+the example in [examples.md](../../api/examples.md#collectables).
+
+Open question 3 — *does `Interactor` stay a subclass of `Targeting`?* — waited on
+this step and is answered yes. Nothing in the step wanted a facing-aware policy,
+and the subclass cost exactly one documented consequence: `get_component`
+matches both, so a node holding both is asked by name.
 
 ---
 

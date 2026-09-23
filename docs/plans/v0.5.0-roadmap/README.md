@@ -1,6 +1,6 @@
 # The rest of the README roadmap
 
-**Status: steps 0, 1 and 2 are implemented.** Steps 0–4 of
+**Status: steps 0 to 3 are implemented.** Steps 0–4 of
 [the roadmap](04-roadmap.md) are detailed. Steps 5–14 are deliberately rough and
 get re-planned once the layer beneath them exists.
 
@@ -177,7 +177,11 @@ re-litigation inside the plan.
    built for LB and RB, and a keyboard needs an answer: `Q`/`E`, which games
    use for shoulder buttons, or `Tab`/`Shift+Tab`, which desktop software uses.
    The universal UI set gains two actions either way. Waits on step 6.
-3. **Does `Interactor` stay a subclass of `Targeting`?** They answer the same
+3. **Does `Interactor` stay a subclass of `Targeting`?** ~~They answer the same
    question, so the design makes them one class. A facing-aware policy — "what
    am I looking at", not "what is nearest" — may not fit a turret. Waits on
-   step 3's landing.
+   step 3's landing.~~ **Resolved in step 3: yes.** Nothing the step built
+   wanted a facing-aware policy, and the subclass costs one documented
+   consequence — `get_component(Targeting)` matches an `Interactor` too, so a
+   node holding both is asked by name. A policy that does not fit a turret is
+   still a policy, and `POLICIES` is where it would go.
