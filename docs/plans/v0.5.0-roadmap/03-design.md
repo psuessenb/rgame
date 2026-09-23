@@ -562,7 +562,7 @@ acceptance test for that meeting:
 | a chest opened by a tap and searched by a hold | 1, 3 |
 | collider shapes on F3 | 2 |
 | a crate to push, and one to pull | 4 |
-| a bag and an equipment screen, holding what was collected | 5–7 |
+| a bag per hero, holding what they collected and what they wear, and a lever | 7 |
 | sparkles where a pickup was, and a storm | 8, 9 |
 | music that fades as a door closes behind it | 10 |
 | a second room through a door, with an entrance | 11, 12 |

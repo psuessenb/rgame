@@ -1154,7 +1154,8 @@ pausing and a second player.
 ### Sub-steps
 
 - **7a** — `examples/equipment`.
-- **7b** — the adventure's bag: what each hero collected, on a page beside what
+- **7b** — `--texts` per clip in `tools/drive_test_project.rb`.
+- **7c** — the adventure's bag: what each hero carries, on a page beside what
   they wear.
 
 ### Shape
@@ -1165,7 +1166,13 @@ examples/equipment/locales/en.yml
 tools/drive/examples/equipment.rb
 tools/drive/examples/equipment_pad.rb
 
-test_projects/adventure/bag.rb      # one player's Tabs: a Carried page and a Worn page
+tools/drive_test_project.rb          # --texts also lists each clip's strings
+
+test_projects/adventure/bag.rb       # one player's bag: a node holding a Tabs of Carried and Worn
+test_projects/adventure/lever.rb     # a second interactable, with words of its own
+test_projects/adventure/hero.rb      # carried, worn and carry, and the worn pieces drawn
+test_projects/adventure/{main,room,coin,chest}.rb
+tools/drive/test_projects/adventure.rb
 ```
 
 `examples/equipment` is one `Tabs` with two pages:
@@ -1173,7 +1180,7 @@ test_projects/adventure/bag.rb      # one player's Tabs: a Carried page and a Wo
 ```
  [ Gear ]  [ Bag ]
  ┌────────┐   Head [ straw hat ]    ┌────┬────┬────┐
- │  hero  │   Body [     —     ]    │    │    │    │
+ │  hero  │   Body [   empty   ]    │    │    │    │
  │ dressed│   Feet [   boots   ]    ├────┼────┼────┤
  └────────┘                         │    │    │    │
                                     └────┴────┴────┘
@@ -1181,33 +1188,79 @@ test_projects/adventure/bag.rb      # one player's Tabs: a Carried page and a Wo
 
 - **Gear** is one `FocusGroup` of a column of slots and a grid of the clothes
   that fit them. Choosing a piece wears it and replaces what that slot held.
-  Choosing a slot takes its piece off. The hero draws from `hero.png` with the
-  worn pieces drawn over it as shapes.
-- **Bag** is a grid of everything carried, and marks each worn piece.
+  Choosing a slot takes its piece off. An empty slot stays enabled and says so,
+  so taking the last piece off leaves focus where it is. The hero draws from
+  `hero.png`, scaled up from its 16×22 frame, with the worn pieces drawn over it
+  as shapes.
+- **Bag** is a grid of everything carried, and a panel that names the focused
+  piece and says, as text, whether it is worn.
 
-Six pieces, two per slot, are drawn as shapes by one `Button` subclass in the
-example. The same drawing dresses the hero, so a piece and its slot always
-agree.
+**One outfit, read by everything.** The example holds one object that says
+which piece each slot wears. The slots, both grids and the hero figure read it,
+and nothing copies it. Six pieces, two per slot, each draw themselves as
+shapes. A piece's button and the figure call that one drawing, so a piece and
+its slot always agree.
 
-The adventure binds `bag` to I and the pad's Start. Each hero's bag lives in
-that player's `PlayerLayer`, closed, and the hero pauses while it is open. A coin
-goes to the hero whose feet box took it, through `Collectable#on_collected`. The
-chest's search puts a hat in the searching hero's bag, and wearing it draws it
-on that hero.
+The slot names, the pieces and the empty slot's word are keys in `en.yml`. The
+example's header does not name the test project, because
+`spec/game_references_spec.rb` fails a shipped file that does. An `### equipment`
+entry in `docs/api/examples.md`, which the index spec requires, and a row in
+`README.md` come with it.
+
+**The hero owns what it carries and wears**, so no hook hands a bag's data to
+the world:
+
+```ruby
+hero.carry(item)        # the one way in, for a coin and for the chest's hat
+hero.carried            # what the Carried page lists
+hero.worn               # what the Worn page shows, and what the hero draws
+Bag.new(hero:)          # handed its hero, as tiled_world's Inventory is handed its walker
+```
+
+A coin calls `carry` on `other.node` from `Collectable#on_collected`. `other` is
+the feet box that touched it, so the coin reaches the hero who took it. The
+chest's search returns the hat, and the hero who searched carries it. The hero
+draws the pieces it wears, and names them in words too, as the chest and the
+crate draw their state.
+
+**`Bag` is a node that holds a `Tabs`**, as `Inventory` holds its menu. A closed
+`Tabs` reads no input, so something outside it has to read `bag`. The adventure
+binds `bag` to I and the pad's Start. Each hero's bag lives in that player's
+`PlayerLayer`, closes its `Tabs` as it enters, and pauses its hero while the
+tabs are open.
+
+**A press can outlive the pause.** `:interact` is a tap, which fires on
+release, and the mapper computes edges whether a paused hero reads them or not.
+So E pressed in the bag and released within 0.3 s after I closes it opens what
+is in reach, and E held across the close searches late. That takes I pressed
+with E already down. The fix is every component acting only on a press it saw
+start, as `Menu` does, which is an engine change this step does not make. It
+goes to `possible-todos.md`.
 
 ### What the run proves
 
 No engine class is expected in this step, so it has no specs of its own. If one
 turns up, it arrives with its tests, as step 4's `ActorBlockers#passing` did.
+The harness grows instead: `--texts` keeps a count and a first tick for each
+clip as well as overall, and each `PlayerLayer` and each viewport is a clip of
+its own. That is what ties a string to a player.
+
 The adventure's run is what pins these:
 
 1. **A coin reaches the bag of the hero who took it**, and never the other's.
-2. **The hero whose bag is open stands still. The other walks on.**
-3. **E switches a tab and opens no chest.** E is both `ui_tab_next` and
-   `:interact`, and the paused hero reads neither of its own actions.
-4. **Player one's tabs and player two's switch apart.**
-5. **The hat the chest gave is drawn on the hero wearing it**, in both
-   viewports.
+   Each player takes a coin.
+2. **The hero whose bag is open stands still. The other walks on.** A fifth coin
+   lies where player one presses while moving through their bag. The audio
+   count stays where it is until the bag closes.
+3. **E switches a tab and opens nothing.** Player one stands by the lever, opens
+   their bag and presses E. The lever's word stays until they close the bag and
+   press E again. E is both `ui_tab_next` and `:interact`, and the paused hero
+   reads neither of its own actions.
+4. **Player one's tabs and player two's switch apart.** Player two opens their
+   bag with Start while player one's is open, and switches with the right
+   shoulder button. Then player one switches with E.
+5. **The hat the chest gave is drawn on the hero wearing it and on no other.**
+   Its words rise by two a frame, one per viewport, not four.
 
 ### Verify
 
@@ -1216,19 +1269,25 @@ bundle exec rake spec
 ruby tools/drive_test_project.rb examples/equipment/main.rb --ticks 400 --texts
 ruby tools/drive_test_project.rb examples/equipment/main.rb --gamepad \
   --script tools/drive/examples/equipment_pad.rb --ticks 400 --texts
-ruby tools/drive_test_project.rb test_projects/adventure/main.rb --ticks 480 --texts
+ruby tools/drive_test_project.rb test_projects/adventure/main.rb --ticks 600 --texts
 ```
 
-The equipment run wears a piece, swaps it for the other one in that slot, takes
-it off, and looks at the bag. `--texts` shows each slot's name changing in that
-order, and the bag's mark following.
+The equipment run wears a piece, swaps it for the other one in that slot, and
+takes it off, and looks at the Bag page after each. Taking a piece off draws the
+empty slot's word, which the Body slot has drawn since tick 0, so no new string
+shows it. The drive script's header therefore names the count or first tick that
+proves each change, as `tools/drive/examples/skill_bar.rb` does.
 
-The adventure's first 240 ticks keep the tick numbers step 4 recorded: "open"
-from 150, "searched" from 206, "east" from 111 and "west" from 189. After them,
-player one opens their bag, wears the hat and closes it again, while player two
-keeps walking. The landed note records each rule above with the tick it
-happened on, read off the report at chosen `--ticks` values, as step 0 read its
-rules off the translate range.
+The adventure's first 240 ticks keep the text ticks step 4 recorded: "open" from
+150, "searched" from 206, "east" from 111 and "west" from 189. Its draw, clip and
+band counts change: the first `PlayerLayer` adds a `:hud` band, and pushes each
+player's region as a clip a second time each frame. The lever stands more than
+`Hero::REACH` from player one's path in those ticks, so it cannot take the
+chest's press. After them, the script plays rules 1 to 5 in that order. The
+landed note records each rule with the tick it happened on, read off the report
+at the script's checkpoints, as step 0 read its rules off the translate range.
+
+`docs/plans/possible-todos.md` gains the press that outlives a pause.
 
 ## Step 8 — fades, and particles *(rough)*
 

@@ -184,7 +184,9 @@ re-litigation inside the plan.
    **Settled — Q and E**, beside the shoulder buttons, as `ui_tab_prev` and
    `ui_tab_next`. `E` is also `:interact` in `DEFAULT_ACTIONS`. That is safe
    because a hero pauses while their bag is open, so the two never act at once,
-   and step 7's adventure run checks it. Tab and Shift+Tab lost on two counts:
+   and step 7's adventure run checks it against a lever in reach. A tap that
+   starts in the bag and ends after it closes still reaches `:interact`, which
+   step 7 records as a known limit. Tab and Shift+Tab lost on two counts:
    Shift is `:grab`, and three examples already bind Tab. See
    [step 6](04-roadmap.md#step-6--tabs-and-scrolling).
 3. **Does `Interactor` stay a subclass of `Targeting`?** ~~They answer the same
