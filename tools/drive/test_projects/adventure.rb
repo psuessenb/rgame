@@ -4,6 +4,10 @@ on controls::KEYBOARD do
   hold [controls::KEY_UP, controls::KEY_LEFT], 10
   hold [controls::KEY_UP, controls::KEY_LEFT, controls::KEY_F4], 2
   hold [controls::KEY_UP, controls::KEY_LEFT], 78
+  idle 8
+  press controls::KEY_E
+  idle 20
+  hold controls::KEY_E, 50
   idle 20
 end
 

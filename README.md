@@ -84,6 +84,7 @@ You can learn more about how it works in the [documentation](docs/api/README.md)
 | [velocity](docs/api/examples.md#velocity) | Movement with nobody driving: a velocity, integrated |
 | [scroll_map](docs/api/examples.md#scroll_map) | A Tiled map larger than the window, scrolled by a camera |
 | [collision](docs/api/examples.md#collision) | Two shapes touching, and who gets told about it |
+| [collectables](docs/api/examples.md#collectables) | Coins taken by touch, and a chest opened with a press |
 | [collision_tiles](docs/api/examples.md#collision_tiles) | Walking into a wall of solid tiles, and sliding along it |
 | [jump_topdown](docs/api/examples.md#jump_topdown) | A hop in a top-down view, where the sprite rises and the feet stay on the ground |
 | [signals](docs/api/examples.md#signals) | A node announcing something happened, to nobody in particular |

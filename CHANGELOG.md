@@ -14,6 +14,25 @@ index, not the argument.
 
 ### Added
 
+- **A component for what the player is standing next to, and one for what picks
+  itself up.** `RGame::Engine::Components::Interactor` is a `Targeting` that
+  also reads a button: `target` is the nearest node in range on its layer, and
+  `on_interacted(target)` fires on the press. `Components::Collectable` acts on
+  the step a collider on the layer it names touches it — emit `collected`, play
+  a sound, and free the node unless `free: false`. `:interact` joins
+  `InputMap::DEFAULT_ACTIONS` on E and the pad's X. See
+  [docs/api/components.md](docs/api/components.md#interactor) and the
+  `collectables` example.
+- **`Components::Collider`, the module both colliders include**, so a component
+  can ask for the collider on its node without naming a shape:
+  `require_sibling(Collider)`. A node carrying both raises, as it did for
+  either alone. See
+  [docs/api/components.md](docs/api/components.md#collider).
+- **A signal generates a public disconnect beside its connect.** `signal :hit`
+  now makes `disconnect_hit(handle)` as well as `on_hit`, so a component that
+  connects to a sibling in `_attach` can end that connection in `_detach` — the
+  signal itself stays private, because emitting belongs to the class. See
+  [docs/api/signals.md](docs/api/signals.md#the-dsl-declaring-a-signal-on-a-class).
 - **Text can be measured without a window.** `RGame::Util::Typeface` loads with
   `require 'rgame'`, needs no graphics library, and gives the same width as
   `RGame::Core::Font` for the same file and size. `Typeface#text_lines` breaks

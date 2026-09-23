@@ -360,6 +360,58 @@ and despawning never leak a registration.
   `emit_hit(other)` and `emit_separated(other)`. Each fires once per pair; see
   [`CollisionWorld`](#collisionworld).
 
+### `Collectable`
+
+**A thing that is taken by being touched.** It listens to its own node's
+collider and acts on the step a collider on the `by` layer starts overlapping
+it: emit `collected`, play `sound`, and free the node.
+
+```ruby
+coin.add_component(RGame::Engine::Components::Collectable.new(by: :hero, sound: :blip))
+    .on_collected { |_other| purse.add(:coin) }
+
+chest.add_component(RGame::Engine::Components::Collectable.new(by: :hero, free: false))
+```
+
+- **Construct:** `Collectable.new(by:, sound: nil, free: true)`. `by` is the
+  layer whose colliders take this; every other layer is ignored. `sound` is a
+  sound id, or `nil` for a silent pickup. `free: false` keeps the node.
+- **Signal:** `on_collected(other)` fires with the collider that took it, before
+  the node is freed, so a listener can still read its node. `on_hit` is an edge,
+  so standing on a coin takes it once.
+- **Lifecycle:** `_attach` needs a [`Collider`](#collider) on the same node and
+  connects to it; `_detach` ends that connection, so a pooled node taken twice
+  fires twice.
+- **Sound:** played through the tree's [`AudioOut`](systems.md), looked up with
+  `system!` — a scene with a `sound:` and no `AudioOut` raises rather than going
+  quietly silent. A collectable given no sound needs no `AudioOut` at all.
+
+**The collectable does the collecting**, rather than the hero holding a list of
+what it may pick up. What a coin is worth belongs to the coin, and a game adds
+one by adding a node.
+
+**`free: false` is the chest**: it reports the touch and stays, and whatever
+listens decides what opening means. Pair it with an
+[`Interactor`](#interactor) for something reached by touch and opened with a
+press.
+
+### `Collider`
+
+**What [`BoxCollider`](#boxcollider) and [`CircleCollider`](#circlecollider)
+both are**, and the name to ask for when the shape does not matter:
+
+```ruby
+def _attach = @collider = require_sibling(RGame::Engine::Components::Collider)
+```
+
+It declares nothing. Both colliders already answer the same broadphase,
+narrowphase and contact protocol; this is the module they include so a component
+can name it. A coin is round and a chest is not, so
+[`Collectable`](#collectable) asks for this rather than for either shape.
+
+A node carrying both matches twice and `require_sibling` raises, which is the
+right answer: there is no telling which was meant.
+
 ### `CollisionWorld`
 
 **A scene-scoped broadphase collision system.** The component lives on the scene
@@ -603,6 +655,36 @@ The game must get two things right; this component does not check them:
   restores the wrong object, silently.
 - **The id allocator belongs in the save.** A counter that restarts at 1 on load
   reissues ids the restored objects already hold. Save the next id with them.
+
+### `Interactor`
+
+**What the owner would interact with, and the press that does it.** A
+[`Targeting`](#targeting) that also reads a button: each `update` it picks the
+nearest node in range on its layer, and a press on `action` emits it.
+
+```ruby
+hero.add_component(RGame::Engine::Components::Interactor.new(range: 56, layer: :interactable))
+    .on_interacted { |target| target.open }
+```
+
+- **Construct:** `Interactor.new(range:, layer: :interactable, action: :interact,
+  policy: :nearest)`. The range, layer and policy are `Targeting`'s. `action` is
+  read from the actions of whoever owns the node, and `:interact` is in
+  [`InputMap.default`](input.md#defaults-and-rebinding) on E and the pad's X.
+- **State:** `target`, `Targeting`'s, and `action`. Draw a prompt over `target`
+  and label it with `player.input_map.button_for(interactor.action, player.device)`.
+- **Signal:** `on_interacted(target)` fires once per press, and never while
+  `target` is `nil`. There is no signal for a press that reached nothing.
+- **Phase:** `_update(dt)` picks the target, `_control(actions)` reads the press.
+  A press acts on the target the last `update` chose.
+
+**It is a `Targeting`, so `get_component(Targeting)` matches it too.** A node
+holding both cannot be asked for either by class — hold the one you want by
+name, which is what `add_component` returns.
+
+**Two players interact independently with no per-player state here.** The
+control traversal hands each node the actions of its owner, so two heroes either
+side of one chest each press their own button and each reach it.
 
 ### `Mover`
 

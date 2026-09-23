@@ -20,6 +20,8 @@ module RGame
       # That is what an AABB buys — a spinning entity wants a CircleCollider, which
       # is rotation-invariant, rather than a per-frame box recompute.
       class BoxCollider < Engine::Component
+        include Collider
+
         # The two edges of a contact, fired by CollisionWorld: on_hit on the step this
         # collider starts overlapping another, on_separated on the step it stops. Each
         # fires once per pair, so a handler may count, play a sound or spend a life.

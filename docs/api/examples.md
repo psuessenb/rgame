@@ -67,6 +67,21 @@ tells both sides they overlapped. It never learns what either object is.
 **Uses:** `Components::CollisionWorld`, `Components::CircleCollider`,
 `Components::BoxCollider`, `Components::Velocity`, `Engine::Text`.
 
+### collectables
+
+Coins taken by walking over them, and a chest opened with a press. Two ways of
+reaching a thing, and neither is written in the hero: a coin carries a
+`Collectable` that acts on the contact, and the chest is found by an
+`Interactor`, which is a `Targeting` plus a button. Opening it spills three more
+coins, which are the same coin as the ones the room started with. The prompt is
+drawn over `interactor.target`, so it appears before the press rather than
+after.
+
+**Uses:** `Components::Collectable`, `Components::Interactor`,
+`Components::CollisionWorld`, `Components::CircleCollider`,
+`Components::BoxCollider`, `Components::CharacterBody` with
+`blocked_by: [:interactable]`, `Engine::Text`.
+
 ### collision_tiles
 
 A character against a grid of solid tiles, sliding along a wall while walking

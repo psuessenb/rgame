@@ -1,0 +1,7 @@
+# The English table: every string this example draws.
+en:
+  help:
+    walk: Arrow keys / WASD / gamepad to walk
+    open: Press E
+  hud:
+    coins: "Coins: %{count}"
