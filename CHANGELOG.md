@@ -215,9 +215,11 @@ index, not the argument.
   when its last id arrives. One button can back a tap and a hold, and a held
   chord silences the plain actions on its buttons. See
   [docs/api/input.md](docs/api/input.md#a-hold-a-tap-and-a-chord).
-- **An action says how long it has been held.** `Actions#held_for(name)` is the
-  seconds its buttons have been down, `0.0` at rest, and it survives the tick of
-  the release. `Players#everyone` folds it as the longest of the active players'.
+- **An action says how long it has been held, and since when.**
+  `Actions#held_for(name)` is the seconds its buttons have been down, `0.0` at
+  rest, and it survives the tick of the release. `Actions#down_since(name)` is
+  the `poll_count` they went down on, nil at rest. `Players#everyone` folds the
+  first as the longest of the active players' and the second as the earliest.
   See [docs/api/input.md](docs/api/input.md#rgameengineactionmapper).
 - **An input example.** `examples/input_holds` opens a chest on a tap of one
   button, searches it on a hold of the same one, and swaps stance on a chord.

@@ -262,6 +262,8 @@ actions.pressed?(:fire)   # did it go down this tick
 actions.released?(:fire)  # did it come up this tick
 actions.axis(:turn)       # -1.0..1.0
 actions.held_for(:fire)   # seconds its buttons have been down
+actions.down_since(:fire) # the poll its buttons went down on, or nil
+actions.poll_count        # which poll this is, counted from 1
 ```
 
 **`poll` takes the timestep** in seconds, because an action can be declared as a
@@ -273,6 +275,12 @@ sees every action once a tick, so it counts, and nothing else has to.
 ended. The tick after that it is `0.0` again. It counts the action's buttons, so
 a hold that has not reached its threshold and a chorded action that is silenced
 both still report the press.
+
+`down_since` is the `poll_count` on which the action's buttons went down, and
+nil at rest. It lasts until the press has no edge left to report: through the
+tick of the release, and through a tap's pulse, which presses on the release
+and releases on the tick after. So every edge of a press reads the poll the
+press began on. A snapshot built by hand with `Actions.new` has no `poll_count`.
 
 **Asking about an undeclared action raises `KeyError`**, naming the action and
 listing the declared ones. A mistyped name fails on the first tick instead of
@@ -374,6 +382,8 @@ player's:
   thing.
 - `axis` is the active players' value of largest magnitude.
 - `held_for` is the longest any active player has held it.
+- `down_since` is the poll the first of the presses under way began on, counted
+  in `everyone`'s own `poll_count`.
 
 ```ruby
 require 'rgame'

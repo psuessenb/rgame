@@ -6,7 +6,8 @@ RSpec.describe RGame::Engine::Actions do
       described_class.new(held: { fire: true, jump: false },
                           axes: { move_x: 0.5 },
                           prev_held: { fire: false, jump: true },
-                          hold_times: { fire: 0.75, jump: 0.0 })
+                          hold_times: { fire: 0.75, jump: 0.0 },
+                          down_since: { fire: 12, jump: nil })
     end
 
     it 'reports a held action' do
@@ -31,6 +32,18 @@ RSpec.describe RGame::Engine::Actions do
 
     it 'reports how long an action has been down' do
       expect(actions.held_for(:fire)).to eq(0.75)
+    end
+
+    it 'reports the poll a press began on' do
+      expect(actions.down_since(:fire)).to eq(12)
+    end
+
+    it 'reports nil for an action at rest' do
+      expect(actions.down_since(:jump)).to be_nil
+    end
+
+    it 'has no poll count, since nothing polls it' do
+      expect(actions.poll_count).to be_nil
     end
 
     it 'lists what it can answer for' do
@@ -60,6 +73,10 @@ RSpec.describe RGame::Engine::Actions do
 
     it 'raises from axis' do
       expect { actions.axis(:move_z) }.to raise_error(KeyError, /:move_z/)
+    end
+
+    it 'raises from down_since' do
+      expect { actions.down_since(:fyre) }.to raise_error(KeyError, /:fyre/)
     end
 
     it 'raises from held_for' do

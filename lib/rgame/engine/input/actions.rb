@@ -42,15 +42,22 @@ module RGame
     # that has not said what the action set is cannot claim a component reads
     # the right part of it.
     class Actions
-      # `held`, `axes`, `prev_held` and `hold_times` are mutable hashes the mapper
-      # updates in place each poll, so the snapshot stays a single reused,
-      # allocation-free object.
-      def initialize(held: {}, axes: {}, prev_held: {}, hold_times: {})
+      # `held`, `axes`, `prev_held`, `hold_times` and `down_since` are mutable
+      # hashes the mapper updates in place each poll, so the snapshot stays a
+      # single reused, allocation-free object. `poll_count` is 0 on a snapshot
+      # that something polls, and nil on one built by hand.
+      def initialize(held: {}, axes: {}, prev_held: {}, hold_times: {}, down_since: {}, poll_count: nil)
         @held = held
         @axes = axes
         @prev_held = prev_held
         @hold_times = hold_times
+        @down_since = down_since
+        @poll_count = poll_count
       end
+
+      # Which poll this snapshot holds, counted from 1 by whatever polls it. It
+      # is nil on a snapshot built by hand, which nothing polls.
+      attr_reader :poll_count
 
       # Every action this snapshot can answer for.
       def declared = @held.keys | @axes.keys
@@ -100,6 +107,25 @@ module RGame
       def held_for(name)
         @hold_times.fetch(name) { undeclared(name) }
       end
+
+      # The poll the action's buttons went down on, as a `poll_count`, or nil
+      # at rest. It lasts until the press has no edge left to report: through
+      # the tick of the release, and through the tick after a tap's release,
+      # which reports the tap's `released?`. So every edge of a press reads the
+      # poll it began on.
+      #
+      # A snapshot built by hand answers only for the actions its `down_since`
+      # names.
+      # hot-path
+      def down_since(name)
+        @down_since.fetch(name) { undeclared(name) }
+      end
+
+      # Moves `poll_count` on by one. The mapper that owns this snapshot calls it
+      # as it polls.
+      #
+      # @api private
+      def count_poll = @poll_count += 1
 
       private
 

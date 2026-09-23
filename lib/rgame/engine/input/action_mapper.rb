@@ -42,6 +42,13 @@ module RGame
     # declared none. `held_for` keeps counting through it, because it answers for
     # the buttons rather than for the level.
     #
+    # ## When a press began
+    #
+    # Each poll moves the snapshot's `poll_count` on by one, and `down_since`
+    # records the count on which an action's buttons went down. A node compares
+    # the two to tell a press it saw start from one begun before it was last
+    # controlled; see Node2D#control.
+    #
     # Pure logic. The backend is duck-typed and the whole interface is
     # `down?(physical_id, device:)` and `axis(axis_id, device:)` — a spec passes
     # a fake and a game passes RGame::Core::Input.
@@ -61,20 +68,24 @@ module RGame
         @axes = {}
         @hold_times = {}
         @down = {}
+        @since = {}
         map.bindings.each_key do |name|
           @held[name] = false
           @prev_held[name] = false
           @axes[name] = 0.0
           @hold_times[name] = 0.0
           @down[name] = false
+          @since[name] = nil
         end
         @chords = map.bindings.filter_map { |name, binding| [name, binding.silences] if binding.all }.freeze
-        @actions = Actions.new(held: @held, axes: @axes, prev_held: @prev_held, hold_times: @hold_times)
+        @actions = Actions.new(held: @held, axes: @axes, prev_held: @prev_held, hold_times: @hold_times,
+                               down_since: @since, poll_count: 0)
       end
 
       # One tick's input, as the Actions snapshot this mapper reuses. `dt` is the
       # timestep, in seconds, and is what every duration here is counted from.
       def poll(backend, dt)
+        @actions.count_poll
         @held.each { |name, down| @prev_held[name] = down }
 
         return rest if @device.nil?
@@ -95,6 +106,7 @@ module RGame
         @axes.each_key { |name| @axes[name] = 0.0 }
         @hold_times.each_key { |name| @hold_times[name] = 0.0 }
         @down.each_key { |name| @down[name] = false }
+        @since.each_key { |name| @since[name] = nil }
         @actions
       end
 
@@ -114,6 +126,16 @@ module RGame
         count_hold(name, was_down, now_down, dt)
         @held[name] = level(name, binding, was_down, now_down)
         @down[name] = now_down
+        note_start(name, was_down, now_down)
+      end
+
+      # hot-path
+      def note_start(name, was_down, now_down)
+        if now_down
+          @since[name] = @actions.poll_count unless was_down
+        elsif !@held[name] && !@prev_held[name]
+          @since[name] = nil
+        end
       end
 
       # hot-path
