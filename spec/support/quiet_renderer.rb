@@ -21,6 +21,8 @@ class QuietRenderer
   def rect(_x, _y, _width, _height, z: 0, color: nil) = coerce(z, color)
   def triangle(_x1, _y1, _x2, _y2, _x3, _y3, z: 0, color: nil) = coerce(z, color)
   def circle(_cx, _cy, _radius, z: 0, color: nil) = coerce(z, color)
+  def debug_box(_x, _y, _width, _height, z: 0) = coerce(z, nil)
+  def debug_circle(_cx, _cy, _radius, z: 0) = coerce(z, nil)
   def line(_x1, _y1, _x2, _y2, thickness: 1.0, z: 0, color: nil) = coerce(z + thickness, color)
   def nine_slice(_id, _x, _y, _width, _height, z: 0, tint: nil) = coerce(z, tint)
   def text(_string, _x, _y, z: 0, color: nil, font: nil) = coerce(z, color, font)

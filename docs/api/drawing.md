@@ -141,6 +141,7 @@ renderer.triangle(x1, y1, x2, y2, x3, y3, z: 0, color: nil)
 renderer.line(x1, y1, x2, y2, thickness: 1.0, z: 0, color: nil)
 renderer.circle(cx, cy, radius, z: 0, color: nil, segments: 64)
 renderer.debug_box(x, y, width, height, z: 0)
+renderer.debug_circle(cx, cy, radius, z: 0)
 ```
 
 A **quad** takes its four points in loop order: top-left, top-right,
@@ -152,8 +153,11 @@ may ignore OpenGL's own line width above one pixel.
 A **circle** is a fan of triangles in one batch. It needs no cached texture and
 no configuration. Adjust `segments:` if 64 is too many or too few.
 
-`debug_box` draws a translucent red rectangle to show a collision box. A scene
-can ask for one without choosing a debug colour.
+`debug_box` draws a translucent red rectangle to show a collision box, and
+`debug_circle` the same colour as a disc. A scene can ask for either without
+choosing a debug colour, and the colliders draw themselves with them when the
+debug layer's `:shapes` channel is on — see
+[Systems](systems.md#debug--a-switch-per-channel).
 
 ## Images
 

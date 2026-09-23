@@ -157,6 +157,9 @@ index, not the argument.
 - **An input example.** `examples/input_holds` opens a chest on a tap of one
   button, searches it on a hold of the same one, and swaps stance on a chord.
   See [docs/api/examples.md](docs/api/examples.md#input_holds).
+- **`Renderer#debug_circle`.** A translucent disc in the colour `debug_box`
+  draws with, for a round collision shape. See
+  [docs/api/drawing.md](docs/api/drawing.md#shapes).
 - **A debug layer of named channels.** `RGame::Engine::Debug` is a system
   `RGame::Game` mounts on the root, holding a switch per channel and drawing in
   the `:debug` band. `:stats` is the overlay, `:shapes` is drawn by the things
