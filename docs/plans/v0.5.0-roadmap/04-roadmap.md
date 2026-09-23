@@ -526,6 +526,14 @@ What the sketch got wrong:
   public is for, and it is the shape a game with three verbs on one target takes.
   Whether `Interactor` should take several actions is worth asking once something
   needs it twice.
+- **A drive script under `tools/drive/test_projects/` cannot keep a comment.**
+  Every comment in one is deleted when it is committed, so the adventure's
+  script carries no header however often one is written — which is why every
+  script in that directory has none and every script under
+  `tools/drive/examples/` has one. The
+  [write-example](../../../.claude/skills/write-example/SKILL.md) skill asks for
+  a header stating what the report should show, so for a test project that
+  statement lives here instead, in the landed note. The numbers above are it.
 - **The generated disconnects broke `rake docs:coverage`**, which counts a
   public method as documented when its name appears in `docs/api/`. Naming every
   `disconnect_*` would say the same thing once per signal, so the check now reads
