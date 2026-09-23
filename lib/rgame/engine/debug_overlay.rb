@@ -2,10 +2,13 @@
 
 module RGame
   module Engine
-    # A hard-wired development overlay, toggled by F1 (see RGame::Game), reporting
-    # runtime health in the bottom-right corner: frame rate (FPS), the process'
-    # cumulative allocated-object count (OBJ), and the objects allocated since the last
-    # frame (Δ/f).
+    # The `:stats` channel of RGame::Engine::Debug, reporting runtime health in the
+    # bottom-right corner: frame rate (FPS), the process' cumulative
+    # allocated-object count (OBJ), and the objects allocated since the last frame
+    # (Δ/f).
+    #
+    # It holds no flag of its own. `Debug` decides whether the channel is on, and
+    # calls #restart when it goes on and #draw while it is.
     #
     # **Δ/f is the one to watch, and it is a standing guard rather than a
     # diagnostic for one past bug.** A clean per-frame path holds it near zero; a
@@ -40,18 +43,15 @@ module RGame
       GAP   = 8
 
       def initialize
-        @visible = false
-        @prev_allocated = 0
+        @prev_allocated = GC.stat(:total_allocated_objects)
         @digit_widths  = Array.new(10)
         @label_widths  = {}
       end
 
-      def visible? = @visible
-
-      def toggle
-        @visible = !@visible
-        @prev_allocated = GC.stat(:total_allocated_objects) if @visible
-      end
+      # Counts Δ/f from now. Called when the channel goes on, so the first frame
+      # shown reports one frame's allocations rather than every one since the
+      # last time anybody looked.
+      def restart = @prev_allocated = GC.stat(:total_allocated_objects)
 
       # Laid out against the view it is drawn into rather than against the
       # window, so it stays in the corner of whatever region it is given. It
@@ -62,8 +62,6 @@ module RGame
       # other thing in the frame however the scene is arranged. Not a node, so
       # it opens its own layer rather than being given one by the traversal.
       def draw(renderer, view, fps)
-        return unless @visible
-
         allocated = GC.stat(:total_allocated_objects)
         delta = allocated - @prev_allocated
         @prev_allocated = allocated

@@ -14,32 +14,9 @@ RSpec.describe RGame::Engine::DebugOverlay do
     have_received(:text).with(string, anything, anything, color: anything)
   end
 
-  describe 'visibility' do
-    it 'starts hidden' do
-      expect(overlay).not_to be_visible
-    end
-
-    it 'toggles on and off' do
-      overlay.toggle
-      expect(overlay).to be_visible
-      overlay.toggle
-      expect(overlay).not_to be_visible
-    end
-  end
-
   describe '#draw' do
-    context 'when hidden' do
-      it 'draws nothing' do
-        overlay.draw(renderer, screen_view, 60)
-        expect(renderer).not_to have_received(:text)
-      end
-    end
-
-    context 'when visible' do
-      before do
-        overlay.toggle
-        overlay.draw(renderer, screen_view, 60)
-      end
+    describe 'the lines it draws' do
+      before { overlay.draw(renderer, screen_view, 60) }
 
       it 'labels each stat line' do
         expect(renderer).to drew('FPS')
@@ -64,9 +41,30 @@ RSpec.describe RGame::Engine::DebugOverlay do
     end
 
     it 'draws a single 0 digit for a zero value' do
-      overlay.toggle
       overlay.draw(renderer, screen_view, 0)
       expect(renderer).to drew('0').at_least(:once)
+    end
+  end
+
+  # Whether the overlay is on is RGame::Engine::Debug's answer, not this
+  # class's; #restart is how the channel says it has just gone on, so the first
+  # frame reports one frame's allocations rather than every one since anybody
+  # last looked.
+  describe '#restart' do
+    # Δ/f is drawn digit by digit between the OBJ and Δ/f labels, right to left.
+    def delta_drawn(recorder)
+      drawn = recorder.calls_to(:text).map { it.args.first }
+      drawn[(drawn.index('OBJ') + 1)...drawn.index('Δ/f')].reverse.join.to_i
+    end
+
+    it 'counts the allocations from then on' do
+      Array.new(1000) { Object.new }
+      overlay.restart
+
+      recorder = FakeRenderer.new
+      overlay.draw(recorder, screen_view, 60)
+
+      expect(delta_drawn(recorder)).to be < 1000
     end
   end
 end

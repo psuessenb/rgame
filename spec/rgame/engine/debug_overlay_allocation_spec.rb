@@ -22,7 +22,7 @@ RSpec.describe RGame::Engine::DebugOverlay do
 
   it 'draws without allocating per frame' do
     overlay = described_class.new
-    overlay.toggle
+    overlay.restart
     # One view, built once: the platform reuses its Views frame to frame, and
     # building a fresh one per call here would measure this spec instead.
     view = screen_view

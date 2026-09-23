@@ -15,7 +15,7 @@ module RGame
   #
   # A complete game is a root node plus that. `Game` assembles the pieces
   # around it — the window and its loop, the renderer, the asset manager, the
-  # sound device, the input mapper, the debug overlay — and drives the root
+  # sound device, the input mapper, the debug layer — and drives the root
   # node once per tick.
   #
   # ## Why this class is allowed to name both layers
@@ -115,7 +115,8 @@ module RGame
       @viewports = RGame::Engine::Viewports.new(@players, width: @presentation.width,
                                                           height: @presentation.height)
       @facts = RGame::Engine::Components::Facts.new
-      @debug = RGame::Engine::DebugOverlay.new
+      @debug = RGame::Engine::Debug.new
+      @debug_keys = true
       @dirty = true
 
       install_asset_loaders
@@ -141,6 +142,16 @@ module RGame
     # in a scene registers with the same store the save code writes.
     attr_reader :facts
 
+    # The development layer: the channels F1 and F3 switch, and the ones a game
+    # defines. Reachable as `node.system(RGame::Engine::Debug)` from anywhere in
+    # the tree, which is how a scene turns its own channel on.
+    attr_reader :debug
+
+    # Whether F1, F2 and F3 do anything. `false` is a build a player runs: the
+    # overlay, the shapes and the quit key all stop answering, and a game that
+    # still wants a channel switches it itself.
+    attr_accessor :debug_keys
+
     # The sound device: the one passed as `audio:`, or the one `App` builds on
     # first use. Nodes reach it through the RGame::Engine::AudioOut system on
     # the root, which `start` mounts.
@@ -156,6 +167,7 @@ module RGame
       @root.add_component(@players)
       @root.add_component(@viewports)
       @root.add_component(@facts)
+      @root.add_component(@debug)
       @root.add_component(RGame::Engine::AudioOut.new(audio))
       @root.enter_tree
       run
@@ -186,7 +198,7 @@ module RGame
 
     # Only the simulation advancing makes the frame stale. While the overlay is
     # up, redraw anyway, so its numbers stay live even when nothing is moving.
-    def needs_redraw? = @dirty || @debug.visible?
+    def needs_redraw? = @dirty || @debug.shows?(:stats)
 
     # The tree is drawn once, with the whole window as its view. Screen-space
     # content — a HUD, a menu, a title card — lands there and is drawn exactly
@@ -237,21 +249,29 @@ module RGame
     def gamepad_connected(slot) = @players.device_connected(slot)
     def gamepad_disconnected(slot) = @players.device_disconnected(slot)
 
-    # The two development keys, both function keys on purpose: **Escape is
+    # The three development keys, all function keys on purpose: **Escape is
     # deliberately not bound here**, because it is the natural `cancel`/`back`
     # button for a game's own menus, and a debug shortcut has no business taking
-    # the one key every player expects to close a dialog. F1 shows the overlay,
-    # F2 quits.
+    # the one key every player expects to close a dialog. F1 shows the stats
+    # overlay, F2 quits, and F3 shows the collision shapes. `debug_keys = false`
+    # turns all three off.
+    #
+    # These come from the window's own events rather than from a polled action,
+    # so a game driven by a scripted input backend never reaches them — see
+    # RGame::Engine::Debug.
     def button_down(id)
+      return unless @debug_keys
+
       close if id == Controls::KEY_F2
-      @debug.toggle if id == Controls::KEY_F1
+      @debug.toggle(:stats) if id == Controls::KEY_F1
+      @debug.toggle(:shapes) if id == Controls::KEY_F3
     end
 
     private
 
     def draw_tree
+      @debug.fps = fps
       @root.draw(@renderer, @viewports.screen)
-      @debug.draw(@renderer, @viewports.screen, fps)
     end
 
     def presented(&)

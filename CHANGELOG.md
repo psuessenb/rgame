@@ -157,6 +157,13 @@ index, not the argument.
 - **An input example.** `examples/input_holds` opens a chest on a tap of one
   button, searches it on a hold of the same one, and swaps stance on a chord.
   See [docs/api/examples.md](docs/api/examples.md#input_holds).
+- **A debug layer of named channels.** `RGame::Engine::Debug` is a system
+  `RGame::Game` mounts on the root, holding a switch per channel and drawing in
+  the `:debug` band. `:stats` is the overlay, `:shapes` is drawn by the things
+  that have shapes, and `define(:routes) { |renderer, view| ... }` adds a
+  channel of the game's own. `F3` toggles `:shapes` and `game.debug_keys =
+  false` turns the development keys off. See
+  [docs/api/systems.md](docs/api/systems.md#debug--a-switch-per-channel).
 
 ### Changed
 

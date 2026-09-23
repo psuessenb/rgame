@@ -149,8 +149,9 @@ RGame::Engine::Text.literal('Ada').to_s      # => "Ada"
 refuses `"Score: #{score}"` in a draw, and a `Text` built in `initialize` is the
 answer. `examples/sound` shows it: a play counter on screen costs one render per
 press and none in the frames between. A value that changes *every* frame, such
-as an FPS counter, gains nothing from a cache. `RGame::Engine::DebugOverlay`
-draws its digits one by one from cached single-character strings.
+as an FPS counter, gains nothing from a cache. `RGame::Engine::DebugOverlay`,
+which the debug layer's `:stats` channel draws, puts its digits on screen one by
+one from cached single-character strings.
 
 **Text chosen by state is a table of `Text`s**, such as
 `{ true => Text.new('state.fullscreen'), false => Text.new('state.windowed') }.freeze`.

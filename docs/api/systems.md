@@ -106,9 +106,9 @@ and nothing reports it. Weigh that deliberately. A client that is useless withou
 its system raises instead: with `system!`, or with a message of its own, as a
 mover's `blocked_by:` does.
 
-## The four systems `Game` mounts
+## The five systems `Game` mounts
 
-**`RGame::Game` puts four systems on the root before the tree goes live.** Any
+**`RGame::Game` puts five systems on the root before the tree goes live.** Any
 node can reach them without the game wiring anything:
 
 | | |
@@ -116,20 +116,74 @@ node can reach them without the game wiring anything:
 | `node.system(RGame::Engine::Players)` | who is playing — devices, bindings, cameras, and who a newly used controller belongs to |
 | `node.system(RGame::Engine::Viewports)` | how the screen is divided — one `View` per active player, and collapsing the split |
 | `node.system(RGame::Engine::Components::Facts)` | the flags and named state machines a game saves as one entry |
+| `node.system(RGame::Engine::Debug)` | the development layer — a switch per channel, drawn over the frame |
 | `node.system!(RGame::Engine::AudioOut)` | the sound device: `play_sound`, `play_music`, `stop_music` |
 
 They are ordinary root-scoped systems, mounted the way a game mounts its own. A
 scene that needs a camera to follow asks `Players` (`players.primary.camera`). A
 cutscene that collapses the split asks `Viewports` (`viewports.solo!(camera)`).
 A quest built in a scene registers with `Facts`, which the save code writes. A
-node plays a sound through `AudioOut`. All four work from anywhere in the tree,
-with nothing passed in. That reach is why they are systems and not objects
-`Game` hands down.
+collider asks `Debug` whether to draw its shape. A node plays a sound through
+`AudioOut`. All five work from anywhere in the tree, with nothing passed in. That
+reach is why they are systems and not objects `Game` hands down.
 
 See [Input](input.md#players-seats-and-joining),
 [Scene graph](scene_graph.md#viewports-and-views),
-[Facts](dialogue.md#facts) and
+[Facts](dialogue.md#facts),
+[Debug](#debug--a-switch-per-channel) and
 [Audio](audio.md#audioout--the-system-a-node-plays-sound-through).
+
+## `Debug` — a switch per channel
+
+```ruby
+debug = node.system(RGame::Engine::Debug)
+debug.show(:shapes)
+debug.hide(:shapes)
+debug.toggle(:stats)
+debug.shows?(:shapes)   # => false
+debug.channels          # => [:stats, :shapes]
+```
+
+`RGame::Engine::Debug` holds a flag per channel and draws in the `:debug` band,
+over every other thing in the frame. Every channel is off until something
+switches it on, and a name nobody declared raises `KeyError` rather than staying
+quietly dark — a misspelt channel that never draws looks exactly like one that is
+off.
+
+`RGame::Game` binds `F1` to `:stats` and `F3` to `:shapes`; see
+[Game](game.md#the-development-keys).
+
+### The two channels the engine draws
+
+**`:stats`** is the `RGame::Engine::DebugOverlay`: frames per second, the total
+objects allocated, and the objects allocated since the last frame, in the
+bottom-right corner of the view. The last of those is the number to watch — a
+clean per-frame path holds it near zero, and a steady nonzero one is a garbage
+collection being scheduled.
+
+**`:shapes`** is drawn by the things that have shapes rather than by `Debug`
+itself. A `BoxCollider` draws its box and a `CircleCollider` its circle, each in
+its node's own space, so a shape lands on its node in every viewport. A
+`WorldView` draws the solid cells of its scene's `Components::TileWorld`. Each of
+them asks `shows?(:shapes)` and draws nothing when the answer is false, and a
+scene with no `Debug` above it draws nothing at all.
+
+### A channel of the game's own
+
+```ruby
+debug.define(:routes) { |renderer, view| renderer.debug_box(x, y, 8, 8) }
+debug.show(:routes)
+```
+
+`define` names a channel and gives it the block that draws it. The block is
+called once per frame while the channel is on, never while it is off, and is
+handed the renderer and the view the root is drawn into. It draws in the `:debug`
+band without asking for it. Channels draw in the order they were defined.
+
+A channel starts off. Defining one again replaces its block and leaves the flag
+as it was, so a scene entered a second time may define its channels again.
+`define(:stats)` and `define(:shapes)` raise `ArgumentError`: those two are the
+engine's.
 
 ## Collision: two indexes, one resolver
 

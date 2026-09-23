@@ -16,7 +16,7 @@ RGame::Game.new(root: HelloScene.new, caption: 'Hello').start
 A root node plus those lines make a complete game. `Game` builds what a running
 game needs and drives the root node. It builds the window and its loop, the
 renderer, the asset manager, the sound device, the input mapper and the debug
-overlay.
+layer.
 
 ```ruby
 RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
@@ -95,19 +95,36 @@ the game offers a way back. See [Fullscreen](app.md#fullscreen) and
 `examples/fullscreen`.
 
 `start` brings the tree live. It hands the game to the root as its `context`,
-mounts `Players`, `Viewports`, `Components::Facts` and `AudioOut` on the root. It
-then calls `enter_tree` and runs the loop until the window closes. `F1` toggles the debug overlay and `F2` quits.
-
-The debug overlay is an `RGame::Engine::DebugOverlay`. It shows frames per
-second, the total objects allocated, and the objects allocated since its last
-frame, in the bottom-right corner. `F1` calls its `toggle`.
+mounts `Players`, `Viewports`, `Components::Facts`, `Debug` and `AudioOut` on the
+root. It then calls `enter_tree` and runs the loop until the window closes.
 
 Each tick, `Game` polls input, runs `control` and `update` on the tree, and sweeps
-freed nodes. It redraws only when a tick ran or the debug overlay is visible.
+freed nodes. It redraws only when a tick ran or the `:stats` channel is on.
 
-**Both development keys are function keys, and `Esc` stays free.** Players expect
-Escape to back out of a menu, so it belongs to the game. A debug shortcut on it
-would take it away from every game built on `Game`.
+### The development keys
+
+`F1` toggles the `:stats` channel, `F3` toggles `:shapes`, and `F2` quits.
+`game.debug_keys = false` turns all three off, for a build a player runs; a game
+that still wants a channel switches it itself through `game.debug`.
+
+```ruby
+game = RGame::Game.new(root: Shell.new)
+game.debug_keys = false
+game.debug.show(:stats)
+```
+
+`game.debug` is the `RGame::Engine::Debug` system, which any node reaches as
+`node.system(RGame::Engine::Debug)`. What each channel draws, and how a game adds
+one of its own, is in [Systems](systems.md#debug--a-switch-per-channel).
+
+**All three development keys are function keys, and `Esc` stays free.** Players
+expect Escape to back out of a menu, so it belongs to the game. A debug shortcut
+on it would take it away from every game built on `Game`.
+
+The keys come from the window's own events. A game driven by a scripted input
+backend — `tools/drive_test_project.rb` in rgame's own checkout — never reaches
+them, so a project that wants its channels driven binds an action of its own and
+switches from a node.
 
 ## Why this class exists
 
