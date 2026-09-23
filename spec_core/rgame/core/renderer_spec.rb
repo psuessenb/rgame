@@ -115,7 +115,7 @@ RSpec.describe RGame::Core::Renderer do
   describe 'what reaches the framebuffer' do
     it 'puts a rectangle where it was asked for, in the colour asked for' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        renderer.rect(10, 10, 20, 20, color: [255, 0, 0])
+        renderer.rect(10, 10, 20, 20, color: RGame::Util::Color::RED)
       end
 
       expect(frame.about?(20, 20, [255, 0, 0, 255])).to be(true)
@@ -127,7 +127,7 @@ RSpec.describe RGame::Core::Renderer do
 
     it 'measures y downwards from the top-left' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        renderer.rect(0, 0, 64, 8, color: [0, 255, 0])
+        renderer.rect(0, 0, 64, 8, color: RGame::Util::Color::GREEN)
       end
 
       expect(frame.about?(32, 4, [0, 255, 0, 255])).to be(true)
@@ -136,7 +136,7 @@ RSpec.describe RGame::Core::Renderer do
 
     it 'draws a circle round, filling its centre and missing its corners' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        renderer.circle(32, 32, 20, color: [255, 255, 0])
+        renderer.circle(32, 32, 20, color: RGame::Util::Color::YELLOW)
       end
 
       expect(frame.about?(32, 32, [255, 255, 0, 255])).to be(true)
@@ -146,7 +146,7 @@ RSpec.describe RGame::Core::Renderer do
 
     it 'gives a line real thickness' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        renderer.line(0, 32, 64, 32, thickness: 8, color: [255, 0, 255])
+        renderer.line(0, 32, 64, 32, thickness: 8, color: RGame::Util::Color::MAGENTA)
       end
 
       expect(frame.about?(32, 32, [255, 0, 255, 255])).to be(true)
@@ -167,7 +167,7 @@ RSpec.describe RGame::Core::Renderer do
 
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
         3.times { GC.start(full_mark: true, immediate_sweep: true) }
-        renderer.rect(0, 0, 64, 64, color: [255, 0, 0])
+        renderer.rect(0, 0, 64, 64, color: RGame::Util::Color::RED)
       end
 
       expect(frame.about?(32, 32, [255, 0, 0, 255])).to be(true)
@@ -177,8 +177,8 @@ RSpec.describe RGame::Core::Renderer do
   describe 'z ordering' do
     it 'puts a higher z on top regardless of the order calls were made' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        renderer.rect(0, 0, 64, 64, z: 10, color: [0, 0, 255])
-        renderer.rect(0, 0, 64, 64, z: 1, color: [255, 0, 0])
+        renderer.rect(0, 0, 64, 64, z: 10, color: RGame::Util::Color::BLUE)
+        renderer.rect(0, 0, 64, 64, z: 1, color: RGame::Util::Color::RED)
       end
 
       # Blue was drawn first but has the higher z, so blue wins.
@@ -187,8 +187,8 @@ RSpec.describe RGame::Core::Renderer do
 
     it 'keeps call order among equal z' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        renderer.rect(0, 0, 64, 64, z: 5, color: [255, 0, 0])
-        renderer.rect(0, 0, 64, 64, z: 5, color: [0, 0, 255])
+        renderer.rect(0, 0, 64, 64, z: 5, color: RGame::Util::Color::RED)
+        renderer.rect(0, 0, 64, 64, z: 5, color: RGame::Util::Color::BLUE)
       end
 
       expect(frame.about?(32, 32, [0, 0, 255, 255])).to be(true)
@@ -202,7 +202,7 @@ RSpec.describe RGame::Core::Renderer do
 
       it 'puts an image drawn after a shape on top of it' do
         frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, app|
-          renderer.rect(0, 0, 64, 64, color: [255, 0, 0])
+          renderer.rect(0, 0, 64, 64, color: RGame::Util::Color::RED)
           renderer.background(RGame::Core::Image.new(app, green))
         end
 
@@ -212,7 +212,7 @@ RSpec.describe RGame::Core::Renderer do
       it 'puts a shape drawn after an image on top of it' do
         frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, app|
           renderer.background(RGame::Core::Image.new(app, green))
-          renderer.rect(0, 0, 64, 64, color: [255, 0, 0])
+          renderer.rect(0, 0, 64, 64, color: RGame::Util::Color::RED)
         end
 
         expect(frame.about?(32, 32, [255, 0, 0, 255])).to be(true)
@@ -220,8 +220,8 @@ RSpec.describe RGame::Core::Renderer do
 
       it 'shows text drawn after a backdrop' do
         frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, app|
-          renderer.rect(0, 0, 64, 64, color: [0, 0, 255])
-          renderer.text('MMMM', 0, 0, font: RGame::Core::Font.new(app, 32), color: [255, 255, 255])
+          renderer.rect(0, 0, 64, 64, color: RGame::Util::Color::BLUE)
+          renderer.text('MMMM', 0, 0, font: RGame::Core::Font.new(app, 32), color: RGame::Util::Color::WHITE)
         end
 
         lit = (0...64).to_a.product((0...32).to_a).count { |x, y| frame.about?(x, y, [255, 255, 255, 255]) }
@@ -237,8 +237,8 @@ RSpec.describe RGame::Core::Renderer do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
         # Red asks for as high a z as its slot allows, blue for as low as its
         # allows, and blue still wins: slots do not overlap.
-        renderer.layered(:world) { renderer.rect(0, 0, 64, 64, z: 511, color: [255, 0, 0]) }
-        renderer.layered(:world) { renderer.rect(0, 0, 64, 64, z: -512, color: [0, 0, 255]) }
+        renderer.layered(:world) { renderer.rect(0, 0, 64, 64, z: 511, color: RGame::Util::Color::RED) }
+        renderer.layered(:world) { renderer.rect(0, 0, 64, 64, z: -512, color: RGame::Util::Color::BLUE) }
       end
 
       expect(frame.about?(32, 32, [0, 0, 255, 255])).to be(true)
@@ -246,8 +246,8 @@ RSpec.describe RGame::Core::Renderer do
 
     it 'puts a band over an earlier band whatever order they were asked for' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        renderer.layered(:hud) { renderer.rect(0, 0, 64, 64, z: -512, color: [0, 0, 255]) }
-        renderer.layered(:world) { renderer.rect(0, 0, 64, 64, z: 511, color: [255, 0, 0]) }
+        renderer.layered(:hud) { renderer.rect(0, 0, 64, 64, z: -512, color: RGame::Util::Color::BLUE) }
+        renderer.layered(:world) { renderer.rect(0, 0, 64, 64, z: 511, color: RGame::Util::Color::RED) }
       end
 
       expect(frame.about?(32, 32, [0, 0, 255, 255])).to be(true)
@@ -256,8 +256,8 @@ RSpec.describe RGame::Core::Renderer do
     it 'still lets a z reorder drawing within one slot' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
         renderer.layered(:world) do
-          renderer.rect(0, 0, 64, 64, z: 10, color: [0, 0, 255])
-          renderer.rect(0, 0, 64, 64, z: 1, color: [255, 0, 0])
+          renderer.rect(0, 0, 64, 64, z: 10, color: RGame::Util::Color::BLUE)
+          renderer.rect(0, 0, 64, 64, z: 1, color: RGame::Util::Color::RED)
         end
       end
 
@@ -271,8 +271,8 @@ RSpec.describe RGame::Core::Renderer do
       # discards whatever should have shown through. The CPU z-sort exists so
       # that blending can be on.
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        renderer.rect(0, 0, 64, 64, z: 1, color: [0, 0, 0])
-        renderer.rect(0, 0, 64, 64, z: 2, color: [255, 255, 255, 128])
+        renderer.rect(0, 0, 64, 64, z: 1, color: RGame::Util::Color.new(0, 0, 0))
+        renderer.rect(0, 0, 64, 64, z: 2, color: RGame::Util::Color.new(255, 255, 255, 128))
       end
 
       red, green, blue, = frame.at(32, 32)
@@ -284,7 +284,7 @@ RSpec.describe RGame::Core::Renderer do
     it 'confines drawing to the clip rectangle' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
         renderer.clipped(0, 0, 32, 32) do
-          renderer.rect(0, 0, 64, 64, color: [255, 0, 0])
+          renderer.rect(0, 0, 64, 64, color: RGame::Util::Color::RED)
         end
       end
 
@@ -301,7 +301,7 @@ RSpec.describe RGame::Core::Renderer do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
         renderer.clipped(0, 0, 32, 64) do
           renderer.clipped(0, 0, 64, 32) do
-            renderer.rect(0, 0, 64, 64, color: [255, 0, 0])
+            renderer.rect(0, 0, 64, 64, color: RGame::Util::Color::RED)
           end
         end
       end
@@ -313,8 +313,8 @@ RSpec.describe RGame::Core::Renderer do
 
     it 'releases the clip after the block' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        renderer.clipped(0, 0, 8, 8) { renderer.rect(0, 0, 4, 4, color: [0, 255, 0]) }
-        renderer.rect(40, 40, 16, 16, color: [255, 0, 0])
+        renderer.clipped(0, 0, 8, 8) { renderer.rect(0, 0, 4, 4, color: RGame::Util::Color::GREEN) }
+        renderer.rect(40, 40, 16, 16, color: RGame::Util::Color::RED)
       end
 
       expect(frame.about?(48, 48, [255, 0, 0, 255])).to be(true)
@@ -323,10 +323,10 @@ RSpec.describe RGame::Core::Renderer do
     it 'gives each viewport its own region, which is what split-screen is' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
         renderer.clipped(0, 0, 32, 64) do
-          renderer.translated(0, 0) { renderer.rect(0, 0, 64, 64, color: [255, 0, 0]) }
+          renderer.translated(0, 0) { renderer.rect(0, 0, 64, 64, color: RGame::Util::Color::RED) }
         end
         renderer.clipped(32, 0, 32, 64) do
-          renderer.translated(32, 0) { renderer.rect(0, 0, 64, 64, color: [0, 0, 255]) }
+          renderer.translated(32, 0) { renderer.rect(0, 0, 64, 64, color: RGame::Util::Color::BLUE) }
         end
       end
 
@@ -338,7 +338,7 @@ RSpec.describe RGame::Core::Renderer do
   describe 'transforms' do
     it 'moves what is drawn inside #translated' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        renderer.translated(32, 32) { renderer.rect(0, 0, 8, 8, color: [255, 0, 0]) }
+        renderer.translated(32, 32) { renderer.rect(0, 0, 8, 8, color: RGame::Util::Color::RED) }
       end
 
       expect(frame.about?(36, 36, [255, 0, 0, 255])).to be(true)
@@ -350,7 +350,7 @@ RSpec.describe RGame::Core::Renderer do
       # right of the pivot ends up below it, because screen y points down.
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
         renderer.rotated(90, 32, 32) do
-          renderer.rect(40, 28, 16, 8, color: [255, 0, 0]) # to the right of the pivot
+          renderer.rect(40, 28, 16, 8, color: RGame::Util::Color::RED) # to the right of the pivot
         end
       end
 
@@ -360,7 +360,7 @@ RSpec.describe RGame::Core::Renderer do
 
     it 'grows what is drawn inside #scaled' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        renderer.scaled(4) { renderer.rect(0, 0, 8, 8, color: [255, 0, 0]) }
+        renderer.scaled(4) { renderer.rect(0, 0, 8, 8, color: RGame::Util::Color::RED) }
       end
 
       expect(frame.about?(28, 28, [255, 0, 0, 255])).to be(true)
@@ -369,8 +369,8 @@ RSpec.describe RGame::Core::Renderer do
 
     it 'restores the transform after the block' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        renderer.translated(32, 32) { renderer.rect(0, 0, 4, 4, color: [0, 255, 0]) }
-        renderer.rect(0, 0, 8, 8, color: [255, 0, 0])
+        renderer.translated(32, 32) { renderer.rect(0, 0, 4, 4, color: RGame::Util::Color::GREEN) }
+        renderer.rect(0, 0, 8, 8, color: RGame::Util::Color::RED)
       end
 
       expect(frame.about?(4, 4, [255, 0, 0, 255])).to be(true)
@@ -395,11 +395,11 @@ RSpec.describe RGame::Core::Renderer do
 
     it 'looks the same replayed as drawn directly' do
       direct = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        renderer.rect(10, 10, 20, 20, color: [255, 0, 0])
+        renderer.rect(10, 10, 20, 20, color: RGame::Util::Color::RED)
       end
 
       replayed = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        renderer.record { renderer.rect(10, 10, 20, 20, color: [255, 0, 0]) }.draw
+        renderer.record { renderer.rect(10, 10, 20, 20, color: RGame::Util::Color::RED) }.draw
       end
 
       expect(replayed.at(20, 20)).to eq(direct.at(20, 20))
@@ -408,7 +408,7 @@ RSpec.describe RGame::Core::Renderer do
 
     it 'draws nothing at the moment it is baked' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        renderer.record { renderer.rect(0, 0, 64, 64, color: [255, 0, 0]) }
+        renderer.record { renderer.rect(0, 0, 64, 64, color: RGame::Util::Color::RED) }
       end
 
       expect(frame.about?(32, 32, background)).to be(true)
@@ -416,7 +416,7 @@ RSpec.describe RGame::Core::Renderer do
 
     it 'replays where it is put, not where it was baked' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        renderer.record { renderer.rect(0, 0, 8, 8, color: [255, 0, 0]) }.draw(40, 40)
+        renderer.record { renderer.rect(0, 0, 8, 8, color: RGame::Util::Color::RED) }.draw(40, 40)
       end
 
       expect(frame.about?(44, 44, [255, 0, 0, 255])).to be(true)
@@ -427,7 +427,7 @@ RSpec.describe RGame::Core::Renderer do
       # The camera case: bake the layer once in world coordinates, scroll it by
       # drawing it under a translate.
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        baked = renderer.record { renderer.rect(0, 0, 8, 8, color: [255, 0, 0]) }
+        baked = renderer.record { renderer.rect(0, 0, 8, 8, color: RGame::Util::Color::RED) }
         renderer.translated(32, 32) { baked.draw }
       end
 
@@ -436,7 +436,7 @@ RSpec.describe RGame::Core::Renderer do
 
     it 'can be clipped at replay time even though a clip cannot be baked' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        baked = renderer.record { renderer.rect(0, 0, 64, 64, color: [255, 0, 0]) }
+        baked = renderer.record { renderer.rect(0, 0, 64, 64, color: RGame::Util::Color::RED) }
         renderer.clipped(0, 0, 32, 32) { baked.draw }
       end
 
@@ -446,8 +446,8 @@ RSpec.describe RGame::Core::Renderer do
 
     it 'tints a replay, which the layer it replaces could not do' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        baked = renderer.record { renderer.rect(0, 0, 64, 64, color: [255, 255, 255]) }
-        baked.draw(0, 0, color: [255, 0, 0])
+        baked = renderer.record { renderer.rect(0, 0, 64, 64, color: RGame::Util::Color::WHITE) }
+        baked.draw(0, 0, color: RGame::Util::Color::RED)
       end
 
       expect(frame.about?(32, 32, [255, 0, 0, 255])).to be(true)
@@ -455,9 +455,9 @@ RSpec.describe RGame::Core::Renderer do
 
     it 'obeys the z it is replayed at, not the one it was baked at' do
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
-        baked = renderer.record { renderer.rect(0, 0, 64, 64, z: 500, color: [255, 0, 0]) }
+        baked = renderer.record { renderer.rect(0, 0, 64, 64, z: 500, color: RGame::Util::Color::RED) }
         baked.draw(0, 0, z: 1)
-        renderer.rect(0, 0, 64, 64, z: 2, color: [0, 0, 255])
+        renderer.rect(0, 0, 64, 64, z: 2, color: RGame::Util::Color::BLUE)
       end
 
       expect(frame.about?(32, 32, [0, 0, 255, 255])).to be(true)
@@ -558,7 +558,7 @@ RSpec.describe RGame::Core::Renderer do
       # the vertex. If the atlas were uploaded as anything else this would draw
       # white or nothing.
       frame = with_text do |renderer, font|
-        renderer.text('OO', 10, 10, color: [255, 0, 0], font: font)
+        renderer.text('OO', 10, 10, color: RGame::Util::Color::RED, font: font)
       end
 
       red = (0...frame.width).flat_map { |x| (0...frame.height).map { |y| frame.at(x, y) } }
@@ -596,8 +596,8 @@ RSpec.describe RGame::Core::Renderer do
 
     it 'obeys z like everything else' do
       frame = with_text do |renderer, font|
-        renderer.text('XXXX', 0, 0, z: 1, color: [255, 0, 0], font: font)
-        renderer.rect(0, 0, 256, 64, z: 2, color: [0, 0, 255])
+        renderer.text('XXXX', 0, 0, z: 1, color: RGame::Util::Color::RED, font: font)
+        renderer.rect(0, 0, 256, 64, z: 2, color: RGame::Util::Color::BLUE)
       end
 
       expect(frame.about?(10, 10, [0, 0, 255, 255])).to be(true)
@@ -740,7 +740,7 @@ RSpec.describe RGame::Core::Renderer do
       white = PngFixture.write(2, 2) { [255, 255, 255, 255] }
       frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, app|
         image = RGame::Core::Image.new(app, white)
-        renderer.scaled(32) { renderer.background(image, color: [255, 0, 0]) }
+        renderer.scaled(32) { renderer.background(image, color: RGame::Util::Color::RED) }
       end
 
       expect(frame.about?(32, 32, [255, 0, 0, 255])).to be(true)

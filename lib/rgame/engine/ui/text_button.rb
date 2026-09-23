@@ -15,8 +15,8 @@ module RGame
       # style draws at `z: 0` or below and the label at `z: 1`, so the label is
       # always on top. Focus, pressing and activation are all UI::Button's.
       #
-      # The label colours are coerced once, so they may be arrays and a draw
-      # still allocates nothing. A style answering `content_color(state)` —
+      # The label colours are coerced once, so a draw allocates nothing. A style
+      # answering `content_color(state)` —
       # UI::ShapeStyle does — overrides them in any state it names, because what
       # reads on a fill is the style's to say: a light label on a gold pressed
       # fill would all but disappear. A subclass that draws more than a label —

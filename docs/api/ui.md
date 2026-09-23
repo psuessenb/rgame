@@ -683,7 +683,7 @@ flat = UI::ShapeStyle.new(colors: UI::ShapeStyle::COLORS.merge(idle: nil), outli
 | | |
 |---|---|
 | `shape:` | `:rect` (default) or `:disc`; anything else raises `ArgumentError` |
-| `colors:` | the fill per state, a `Color` or `[r, g, b]`; `nil` draws no fill in that state; a state missing raises `KeyError` |
+| `colors:` | the fill per state, a `Color`; `nil` draws no fill in that state; a state missing raises `KeyError` |
 | `outline:` | drawn under the fill while focused or pressed; `nil` for none |
 | `border:` | how far the fill is inset (default 3) |
 | `content:` | the colour content takes over each state's fill, or `nil` for the button's own (default `ShapeStyle::CONTENT`: dark `(46, 34, 24)` while pressed, `nil` otherwise); a state missing raises `KeyError` |
@@ -714,8 +714,9 @@ end
 menu.add(RGame::Engine::UI::TextButton.new(label: 'continue', style: Underline.new))
 ```
 
-The colours are `Color`s built once. An `[r, g, b]` literal would make the renderer
-build a new `Color` on every draw. `Underline` has no `content_color`, so the label
+The colours are `Color`s built once, which is the only form a colour takes: a
+renderer coerces what it is handed, so `[r, g, b]` raises rather than becoming a
+new `Color` on every draw. `Underline` has no `content_color`, so the label
 keeps the button's own colour in every state. A style that fills behind the label
 should say what reads on that fill.
 
@@ -736,7 +737,7 @@ menu.add(UI::TextButton.new(label: 'quit', style: nil))
 |---|---|
 | `label:` | required, because it is drawn: a key or a `Text` |
 | `style:` | a [style](#styles); `UI::ShapeStyle::DEFAULT` unless given, `nil` for the label alone |
-| `label_color:`, `disabled_label_color:` | a `Color` or `[r, g, b]`; defaults `TextButton::LABEL_COLOR` and `DISABLED_LABEL_COLOR`; a style's [content colour](#styles) takes precedence in the states it names |
+| `label_color:`, `disabled_label_color:` | a `Color`; defaults `TextButton::LABEL_COLOR` and `DISABLED_LABEL_COLOR`; a style's [content colour](#styles) takes precedence in the states it names |
 
 The style draws first, and the label over it at `z: 1`. A subclass that draws more
 than a label overrides the private `draw_foreground(renderer)`, not `_draw`. It

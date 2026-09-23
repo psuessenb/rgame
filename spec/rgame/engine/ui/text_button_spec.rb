@@ -130,7 +130,7 @@ RSpec.describe RGame::Engine::UI::TextButton do
     end
 
     it 'takes its colour from label_color' do
-      button(label_color: [1, 2, 3])
+      button(label_color: RGame::Util::Color.new(1, 2, 3))
       expect(draw.last.options[:color]).to eq(RGame::Util::Color.new(1, 2, 3))
     end
 
@@ -148,12 +148,12 @@ RSpec.describe RGame::Engine::UI::TextButton do
       end
 
       it 'keeps label_color in a state the style leaves nil' do
-        button(label_color: [1, 2, 3]).focused = true
+        button(label_color: RGame::Util::Color.new(1, 2, 3)).focused = true
         expect(draw.last.options[:color]).to eq(RGame::Util::Color.new(1, 2, 3))
       end
 
       it 'takes the style colour over the disabled colour when the style names one' do
-        style = shape_style.new(content: shape_style::CONTENT.merge(disabled: [7, 8, 9]))
+        style = shape_style.new(content: shape_style::CONTENT.merge(disabled: RGame::Util::Color.new(7, 8, 9)))
         button(style: style, enabled: false)
         expect(draw.last.options[:color]).to eq(RGame::Util::Color.new(7, 8, 9))
       end
@@ -161,7 +161,7 @@ RSpec.describe RGame::Engine::UI::TextButton do
 
     it 'keeps label_color while pressed on a style that answers only draw' do
       plain = Class.new { def draw(_renderer, _state, _width, _height) = nil }.new
-      button(style: plain, label_color: [1, 2, 3]).press
+      button(style: plain, label_color: RGame::Util::Color.new(1, 2, 3)).press
       expect(draw.last.options[:color]).to eq(RGame::Util::Color.new(1, 2, 3))
     end
   end
@@ -173,8 +173,8 @@ RSpec.describe RGame::Engine::UI::TextButton do
     expect { item._draw(quiet, nil) }.to allocate_nothing
   end
 
-  it 'draws without allocating, with array colours given' do
-    item = button(label_color: [1, 2, 3])
+  it 'draws without allocating' do
+    item = button(label_color: RGame::Util::Color.new(1, 2, 3))
     item.focused = true
     quiet = QuietRenderer.new
     expect { item._draw(quiet, nil) }.to allocate_nothing

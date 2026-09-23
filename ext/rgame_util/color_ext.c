@@ -82,11 +82,17 @@ static VALUE color_s_from_packed(VALUE klass, VALUE packed) {
 }
 
 /*
- * Color.coerce(nil | [r,g,b] | [r,g,b,a] | Color) -> Color
+ * Color.coerce(nil | Color) -> Color
  *
- * Every draw call accepts a colour in any of those forms, so the conversion
- * lives in one place rather than being repeated in each primitive. nil means
- * white, matching what an untinted draw has always meant.
+ * The one place a `color:` argument is normalised, so each drawing primitive
+ * does not repeat it. nil means white, which is what an untinted draw means.
+ *
+ * A Color is the only thing a colour may be. It used to be [r, g, b] as well,
+ * from when this class lived in Core and engine code could not name it; now
+ * that it is a Util value every layer can build one, and the array form only
+ * bought a way to allocate a colour per draw call by accident. That is a cost
+ * nothing reports and nothing can see — see the Array branch below, which
+ * exists to say so rather than to convert.
  */
 static VALUE color_s_coerce(VALUE klass, VALUE value) {
     if (NIL_P(value)) {
@@ -96,15 +102,9 @@ static VALUE color_s_coerce(VALUE klass, VALUE value) {
         return value;
     }
     if (RB_TYPE_P(value, T_ARRAY)) {
-        long length = RARRAY_LEN(value);
-        if (length != 3 && length != 4) {
-            rb_raise(rb_eArgError, "colour array must be [r, g, b] or [r, g, b, a], got %ld elements",
-                     length);
-        }
-        VALUE alpha = length == 4 ? rb_ary_entry(value, 3) : INT2FIX(255);
-        VALUE args[4] = { rb_ary_entry(value, 0), rb_ary_entry(value, 1),
-                          rb_ary_entry(value, 2), alpha };
-        return color_s_new(4, args, klass);
+        rb_raise(rb_eTypeError,
+                 "a colour is a RGame::Util::Color, not an Array. Build it once with "
+                 "Color.new(r, g, b) and share it, rather than one per draw");
     }
     rb_raise(rb_eTypeError, "cannot coerce %" PRIsVALUE " into a colour", rb_obj_class(value));
 }

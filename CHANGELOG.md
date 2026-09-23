@@ -263,6 +263,14 @@ index, not the argument.
   `solid?(tile)`, `animated_tiles` and `frame_tile(tile, elapsed)`, which takes
   seconds. `solid_ids` has no replacement; a tile is solid when it has a
   collision shape in Tiled.
+- **The `[r, g, b]` form of a colour.** A colour is a `RGame::Util::Color` or
+  `nil` for white, everywhere one is taken: `Color.coerce` raises `TypeError` on
+  an Array, and so do every drawing method, `NineSlice#draw`, a recording's
+  replay and the UI classes that take colours. `Color` was in `Core` when the
+  array form was added, out of reach of engine code; it is a `Util` value now,
+  so every layer can build one. Build a `Color` once and share it — a renderer
+  coerces each colour it is handed, so an array was a `Color` allocated per draw
+  call. See [docs/api/values.md](docs/api/values.md#colorcoerce).
 - **`Components::Timer`'s `repeating:` keyword.** A timer always repeats. For
   something that happens once, use `Components::Tween` and `on_finished`, whose
   handler may call `start` to run it again. See

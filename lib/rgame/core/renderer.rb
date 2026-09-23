@@ -52,10 +52,12 @@ module RGame
     #
     # ## Colours
     #
-    # Every drawing method takes `color:`, accepting whatever `Color.coerce`
-    # does: `nil` (white — an untinted draw), `[r, g, b]`, `[r, g, b, a]`, or a
-    # `RGame::Util::Color`. Passing a `Color` is the allocation-free path and is
-    # what per-frame code should do; an array allocates one colour per call.
+    # Every drawing method takes `color:`, and a colour is a `RGame::Util::Color`
+    # or `nil` for white — an untinted draw. `Color.coerce` says so, and refuses
+    # `[r, g, b]` rather than converting it: the coercion happens per call, so an
+    # array is a colour allocated per draw, which is the one cost a per-frame
+    # path cannot afford and nothing measures. A `Color` is a frozen value built
+    # once and shared.
     class Renderer
       Color = RGame::Util::Color
 

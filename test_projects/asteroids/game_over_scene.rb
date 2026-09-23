@@ -10,9 +10,9 @@ require_relative 'high_scores'
 class GameOverScene < RGame::Engine::Node2D
   TITLE = 'G A M E   O V E R'
   HINT  = 'Press Enter to play again'
-  TITLE_COLOR = [255, 200, 200].freeze
-  TEXT_COLOR  = [220, 225, 235].freeze
-  HINT_COLOR  = [150, 170, 200].freeze
+  TITLE_COLOR = RGame::Util::Color.new(255, 200, 200)
+  TEXT_COLOR  = RGame::Util::Color.new(220, 225, 235)
+  HINT_COLOR  = RGame::Util::Color.new(150, 170, 200)
 
   def initialize(score:)
     super()

@@ -10,8 +10,8 @@
 class StartScene < RGame::Engine::Node2D
   TITLE = 'A S T E R O I D S'
   HINT  = 'Press Enter to start'
-  TITLE_COLOR = [230, 240, 255].freeze
-  HINT_COLOR  = [150, 170, 200].freeze
+  TITLE_COLOR = RGame::Util::Color.new(230, 240, 255)
+  HINT_COLOR  = RGame::Util::Color.new(150, 170, 200)
 
   def _control(actions)
     return unless actions.pressed?(:ui_confirm)

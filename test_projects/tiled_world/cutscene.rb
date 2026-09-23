@@ -20,8 +20,8 @@ class Cutscene < RGame::Engine::Node2D
   HINT  = 'Tab to carry on'
   PANEL_W = 460
   PANEL_H = 120
-  TITLE_COLOR = [40, 30, 20].freeze
-  HINT_COLOR  = [90, 78, 62].freeze
+  TITLE_COLOR = RGame::Util::Color.new(40, 30, 20)
+  HINT_COLOR  = RGame::Util::Color.new(90, 78, 62)
   HINT_DELAY = 0.4
 
   def initialize(world_view:)

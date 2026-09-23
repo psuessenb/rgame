@@ -65,8 +65,8 @@ RSpec.describe RGame::Engine::UI::IconButton do
       end
     end
 
-    it 'coerces tints given as arrays' do
-      in_state(:idle, tints: described_class::TINTS.merge(idle: [1, 2, 3]))
+    it 'draws in the tint it was given' do
+      in_state(:idle, tints: described_class::TINTS.merge(idle: RGame::Util::Color.new(1, 2, 3)))
       expect(drawn_image.options[:color]).to eq(RGame::Util::Color.new(1, 2, 3))
     end
 
@@ -189,7 +189,8 @@ RSpec.describe RGame::Engine::UI::IconButton do
     end
 
     it 'draws captioned without allocating' do
-      item = in_state(:disabled, label: 'home', tints: described_class::TINTS.merge(idle: [1, 2, 3]))
+      tints = described_class::TINTS.merge(idle: RGame::Util::Color.new(1, 2, 3))
+      item = in_state(:disabled, label: 'home', tints: tints)
       expect { item._draw(quiet, nil) }.to allocate_nothing
     end
   end

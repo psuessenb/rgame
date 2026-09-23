@@ -47,7 +47,7 @@ unless a `z:` says otherwise. See "Draw order" below.
 | Origin | Top-left. x grows right, y grows **down**. |
 | Angles | Degrees. A **positive angle turns clockwise** on screen. |
 | `z:` | Where this call sits among **this node's own** drawing. −512…511. |
-| `color:` | `nil` (white), `[r, g, b]`, `[r, g, b, a]`, or a `RGame::Util::Color`. |
+| `color:` | a `RGame::Util::Color`, or `nil` for white — an untinted draw. |
 
 **`z:` is an offset inside the current layer**, not a global number. It puts a
 node's panel under its label and its shadow under its sprite. It cannot reach
@@ -121,8 +121,9 @@ call into the next band. See `RGame::Util::Z`.
 ### Colours and allocation
 
 **Passing a `Color` allocates nothing.** A `Color` is a frozen value, so every
-sprite can share the same one. Passing an array allocates a colour on every
-call. That is fine at setup and wasteful sixty times a second:
+sprite can share the same one. `[r, g, b]` raises `TypeError` rather than being
+converted, because a renderer coerces every colour it is handed and an array
+would be one allocation per draw call — a cost nothing reports:
 
 ```ruby
 RED = RGame::Util::Color.new(224, 64, 64)   # once
