@@ -263,6 +263,14 @@ index, not the argument.
   `solid?(tile)`, `animated_tiles` and `frame_tile(tile, elapsed)`, which takes
   seconds. `solid_ids` has no replacement; a tile is solid when it has a
   collision shape in Tiled.
+- **The `[r, g, b]` form of a colour.** A colour is a `RGame::Util::Color` or
+  `nil` for white, everywhere one is taken: `Color.coerce` raises `TypeError` on
+  an Array, and so do every drawing method, `NineSlice#draw`, a recording's
+  replay and the UI classes that take colours. `Color` was in `Core` when the
+  array form was added, out of reach of engine code; it is a `Util` value now,
+  so every layer can build one. Build a `Color` once and share it — a renderer
+  coerces each colour it is handed, so an array was a `Color` allocated per draw
+  call. See [docs/api/values.md](docs/api/values.md#colorcoerce).
 - **`Components::Timer`'s `repeating:` keyword.** A timer always repeats. For
   something that happens once, use `Components::Tween` and `on_finished`, whose
   handler may call `start` to run it again. See
@@ -270,6 +278,12 @@ index, not the argument.
 
 ### Fixed
 
+- **The debug overlay's Δ/f reads 0 in a game that allocates nothing.** Its
+  colour was the three numbers a colour is built from rather than a
+  `RGame::Util::Color`, and a renderer coerces what it is handed — so the
+  overlay allocated one Color per glyph it drew and reported its own cost as
+  the game's. Every game read about a dozen objects a frame with nothing of its
+  own to blame.
 - **The frame rate on the debug overlay draws its own digits, not three hundred
   leading zeros.** `App#fps` is a Float, and the digit loop divided by ten until
   nothing was left — which a Float never reaches. Each row is rounded to an

@@ -8,7 +8,7 @@
 # puts this above every world slot in the frame whatever the tree looks like,
 # which is the whole job of a band.
 class ScoreLabel < RGame::Engine::Node2D
-  COLOR = [220, 225, 235].freeze
+  COLOR = RGame::Util::Color.new(220, 225, 235)
 
   def initialize(x:, y:)
     super(x: x, y: y, band: :hud)

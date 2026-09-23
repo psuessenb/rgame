@@ -56,18 +56,18 @@ Clamping would hide the bug that produced the 300.
 
 ### `Color.coerce`
 
-Drawing calls accept a colour in several forms. **`coerce` performs every such
-conversion:**
+**A colour is a `Color`, or it is `nil`.** `coerce` is the one place a `color:`
+argument is normalised, and it has two cases:
 
 ```ruby
-Color.coerce(nil)               # => Color::WHITE — an untinted draw
-Color.coerce([255, 128, 0])     # => opaque
-Color.coerce([255, 128, 0, 64]) # => with alpha
-Color.coerce(Color::WHITE)      # => Color::WHITE — the same object, not copied
+Color.coerce(nil)            # => Color::WHITE — an untinted draw
+Color.coerce(Color::WHITE)   # => Color::WHITE — the same object, not copied
 ```
 
-Any other type raises `TypeError`. An array of the wrong size raises
-`ArgumentError`.
+Anything else raises `TypeError`, including `[r, g, b]`. The components a
+colour is built from are not a colour: a renderer coerces what it is handed, so
+accepting them would build a `Color` on every draw call that passed them. Build
+one and share it.
 
 ### Value semantics in practice
 

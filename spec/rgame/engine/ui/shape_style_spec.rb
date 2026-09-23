@@ -22,9 +22,9 @@ RSpec.describe RGame::Engine::UI::ShapeStyle do
       expect { described_class.new(colors: colors) }.to raise_error(KeyError, /disabled/)
     end
 
-    it 'coerces array colours once' do
-      style = described_class.new(colors: described_class::COLORS.merge(idle: [1, 2, 3]),
-                                  outline: [4, 5, 6])
+    it 'keeps the colours it was given' do
+      style = described_class.new(colors: described_class::COLORS.merge(idle: RGame::Util::Color.new(1, 2, 3)),
+                                  outline: RGame::Util::Color.new(4, 5, 6))
       expect([style.colors[:idle], style.outline]).to eq([RGame::Util::Color.new(1, 2, 3),
                                                           RGame::Util::Color.new(4, 5, 6)])
     end
@@ -122,8 +122,10 @@ RSpec.describe RGame::Engine::UI::ShapeStyle do
 
     %i[rect disc].each do |shape|
       it "draws a #{shape} in every state without allocating" do
-        style = described_class.new(shape: shape, colors: { idle: [1, 2, 3], focused: [4, 5, 6],
-                                                            pressed: [7, 8, 9], disabled: [1, 1, 1] })
+        color = ->(r, g, b) { RGame::Util::Color.new(r, g, b) }
+        style = described_class.new(shape: shape,
+                                    colors: { idle: color[1, 2, 3], focused: color[4, 5, 6],
+                                              pressed: color[7, 8, 9], disabled: color[1, 1, 1] })
         expect { states.each { |state| style.draw(renderer, state, 64, 48) } }.to allocate_nothing
       end
     end
@@ -140,8 +142,8 @@ RSpec.describe RGame::Engine::UI::ShapeStyle do
       expect(%i[idle focused disabled].map { described_class.new.content_color(it) }).to all(be_nil)
     end
 
-    it 'takes what it is given, arrays coerced once' do
-      style = described_class.new(content: described_class::CONTENT.merge(idle: [1, 2, 3]))
+    it 'takes what it is given' do
+      style = described_class.new(content: described_class::CONTENT.merge(idle: RGame::Util::Color.new(1, 2, 3)))
       expect(style.content_color(:idle)).to eq(RGame::Util::Color.new(1, 2, 3))
     end
   end

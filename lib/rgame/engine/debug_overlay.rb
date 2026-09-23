@@ -45,7 +45,7 @@ module RGame
       OBJ_LABEL   = 'OBJ'
       DELTA_LABEL = 'Δ/f'
 
-      COLOR = [80, 255, 120].freeze
+      COLOR = Util::Color.new(80, 255, 120)
       PAD   = 8
       GAP   = 8
 

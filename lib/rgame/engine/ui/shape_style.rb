@@ -16,9 +16,9 @@ module RGame
       # the slot, as large as its shorter side.
       #
       # `nil` in `colors:` draws no fill in that state, and `outline: nil` draws no
-      # outline. Colours are coerced once, here, so `colors:` takes arrays and a
-      # draw allocates nothing; and a missing state is a `KeyError` here, rather
-      # than on the first frame a button happens to be disabled.
+      # outline. Colours are coerced once, here, so a draw allocates nothing; and
+      # a missing state is a `KeyError` here, rather than on the first frame a
+      # button happens to be disabled.
       #
       # Fill and outline are drawn at `z: 0` and `z: -1`, under the label or
       # icon a button draws at `z: 1`.

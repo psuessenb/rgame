@@ -213,10 +213,10 @@ RSpec.describe RGame::Core::NineSlice do
     it 'tints every piece, bands included' do
       # A focus highlight has to reach the whole widget; tinting only the
       # corners is a bug that reads as a rendering artefact.
-      slice.draw(renderer, 0, 0, 20, 20, color: [255, 0, 0])
+      slice.draw(renderer, 0, 0, 20, 20, color: RGame::Util::Color::RED)
 
       expect(renderer.calls_to(:image_at).map { |call| call.options[:color] }.uniq)
-        .to eq([[255, 0, 0]])
+        .to eq([RGame::Util::Color::RED])
     end
   end
 

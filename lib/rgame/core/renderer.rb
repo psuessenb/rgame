@@ -52,10 +52,9 @@ module RGame
     #
     # ## Colours
     #
-    # Every drawing method takes `color:`, accepting whatever `Color.coerce`
-    # does: `nil` (white — an untinted draw), `[r, g, b]`, `[r, g, b, a]`, or a
-    # `RGame::Util::Color`. Passing a `Color` is the allocation-free path and is
-    # what per-frame code should do; an array allocates one colour per call.
+    # Every drawing method takes `color:`, and a colour is a `RGame::Util::Color`
+    # or `nil` for white — an untinted draw. A `Color` is a frozen value built
+    # once and shared.
     class Renderer
       Color = RGame::Util::Color
 

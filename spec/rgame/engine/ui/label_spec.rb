@@ -45,7 +45,7 @@ RSpec.describe RGame::Engine::UI::Label do
     end
 
     it 'draws in the colour it was given' do
-      label(color: [255, 0, 0])
+      label(color: RGame::Util::Color.new(255, 0, 0))
       expect(drawn.first.options[:color]).to eq(RGame::Util::Color.new(255, 0, 0))
     end
   end

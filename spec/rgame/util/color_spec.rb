@@ -107,18 +107,10 @@ RSpec.describe RGame::Util::Color do
   end
 
   describe '.coerce' do
-    # Every draw call accepts a colour in any of these forms, so the conversion
-    # lives in one place rather than in each primitive.
+    # A colour is a Color or it is nothing, so the conversion lives in one place
+    # rather than in each primitive, and has one form to accept.
     it 'treats nil as white, which is what an untinted draw has always meant' do
       expect(described_class.coerce(nil)).to eq(described_class::WHITE)
-    end
-
-    it 'accepts a three-element array as opaque' do
-      expect(described_class.coerce([10, 20, 30])).to eq(described_class.new(10, 20, 30, 255))
-    end
-
-    it 'accepts a four-element array' do
-      expect(described_class.coerce([10, 20, 30, 40])).to eq(described_class.new(10, 20, 30, 40))
     end
 
     it 'passes a Color straight through, without allocating another' do
@@ -127,9 +119,17 @@ RSpec.describe RGame::Util::Color do
       expect(described_class.coerce(c)).to be(c)
     end
 
-    it 'rejects an array of the wrong length' do
-      expect { described_class.coerce([1, 2]) }.to raise_error(ArgumentError, /r, g, b/)
-      expect { described_class.coerce([1, 2, 3, 4, 5]) }.to raise_error(ArgumentError)
+    # The components a colour is built from are not a colour. Accepting them
+    # here would put an allocation on every draw call that passed them, which
+    # is the one cost a per-frame path cannot afford and nothing measures.
+    it 'rejects the components of a colour, and says what to write instead' do
+      expect { described_class.coerce([10, 20, 30]) }
+        .to raise_error(TypeError, /not an Array.*Color\.new\(r, g, b\)/m)
+    end
+
+    it 'rejects an array whatever its length' do
+      expect { described_class.coerce([1, 2]) }.to raise_error(TypeError, /not an Array/)
+      expect { described_class.coerce([1, 2, 3, 4]) }.to raise_error(TypeError, /not an Array/)
     end
 
     it 'rejects something that is not a colour at all' do

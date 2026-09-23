@@ -5,7 +5,7 @@ require 'fiddle'
 # Draws one frame through a real window and reads the result back.
 #
 #   frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, app|
-#     renderer.rect(0, 0, 32, 32, color: [255, 0, 0])
+#     renderer.rect(0, 0, 32, 32, color: RGame::Util::Color::RED)
 #   end
 #
 #   frame.at(10, 10)   # => [255, 0, 0, 255]

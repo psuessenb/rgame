@@ -280,7 +280,8 @@ RSpec.describe RGame::Engine::UI::Menu do
     before do
       swatch = Class.new(RGame::Engine::UI::Button) do
         def _draw(renderer, _view)
-          renderer.rect(0, 0, width, height, color: state == :focused ? [255, 255, 255] : [0, 0, 0])
+          renderer.rect(0, 0, width, height,
+                        color: state == :focused ? RGame::Util::Color::WHITE : RGame::Util::Color::BLACK)
         end
       end
       2.times { menu.add(swatch.new) }
@@ -304,7 +305,7 @@ RSpec.describe RGame::Engine::UI::Menu do
       renderer = FakeRenderer.new
       root.draw(renderer, screen_view)
       expect(renderer.calls_to(:rect).map { |call| [call.args, call.options[:color]] })
-        .to eq([[[0, 0, 200, 40], [255, 255, 255]], [[0, 0, 200, 40], [0, 0, 0]]])
+        .to eq([[[0, 0, 200, 40], RGame::Util::Color::WHITE], [[0, 0, 200, 40], RGame::Util::Color::BLACK]])
     end
   end
 
@@ -330,7 +331,8 @@ RSpec.describe RGame::Engine::UI::Menu do
     before do
       swatch = Class.new(RGame::Engine::UI::Button) do
         def _draw(renderer, _view)
-          renderer.rect(0, 0, width, height, color: state == :focused ? [255, 255, 255] : [0, 0, 0])
+          renderer.rect(0, 0, width, height,
+                        color: state == :focused ? RGame::Util::Color::WHITE : RGame::Util::Color::BLACK)
         end
       end
       RGame::Engine::I18n.load_hash(en: { resume: 'Resume', options: 'Options' })
@@ -370,7 +372,7 @@ RSpec.describe RGame::Engine::UI::Menu do
       slots = by_slot
       looks = [slots[48].first.options[:color], slots[96].first.options[:color], slots[144].first.options[:color]]
       expect(looks).to eq([RGame::Engine::UI::ShapeStyle::COLORS[:idle],
-                           RGame::Engine::UI::IconButton::TINTS[:focused], [0, 0, 0]])
+                           RGame::Engine::UI::IconButton::TINTS[:focused], RGame::Util::Color::BLACK])
     end
   end
   # rubocop:enable RSpec/MultipleMemoizedHelpers

@@ -103,7 +103,8 @@ RSpec.describe RGame::Engine::UI::RadialMenu do
     end
 
     it 'draws in the colours it was given' do
-      wheel(backdrop: [1, 2, 3], dead_zone_color: [4, 5, 6], pointer: [7, 8, 9])
+      wheel(backdrop: RGame::Util::Color.new(1, 2, 3), dead_zone_color: RGame::Util::Color.new(4, 5, 6),
+            pointer: RGame::Util::Color.new(7, 8, 9))
       expect(draw.map { |call| call.options[:color] }.uniq)
         .to eq([RGame::Util::Color.new(1, 2, 3), RGame::Util::Color.new(4, 5, 6), RGame::Util::Color.new(7, 8, 9)])
     end

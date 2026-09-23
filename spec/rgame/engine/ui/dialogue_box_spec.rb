@@ -301,14 +301,15 @@ RSpec.describe RGame::Engine::UI::DialogueBox do
     it 'calls _draw_portrait with the speaker, in the box\'s own space' do
       portrait = Class.new(described_class) do
         def _draw_portrait(renderer, speaker)
-          renderer.rect(12, 12, 64, 64, color: speaker == :smith ? [255, 0, 0] : nil)
+          renderer.rect(12, 12, 64, 64, color: speaker == :smith ? RGame::Util::Color::RED : nil)
         end
       end
       root.add_node(portrait.new(dialogue: talk, unavailable: :hide, width: 400, x: 30, y: 200, portrait_width: 64))
       root.enter_tree
       texts
       call = renderer.calls_to(:rect).find { it.args == [12, 12, 64, 64] }
-      expect([call.transforms.map(&:args), call.options[:color]]).to eq([[[30, 200]], [255, 0, 0]])
+      expect([call.transforms.map(&:args), call.options[:color]])
+        .to eq([[[30, 200]], RGame::Util::Color::RED])
     end
 
     it 'keeps the portrait column free, starting the text after it' do

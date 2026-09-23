@@ -232,7 +232,7 @@ RGame::Core::Image.load_tiles(app, "tiles.png", 16, 16)   # => [Image, ...]
 # z-sorted and batched once, after #draw returns.
 renderer = RGame::Core::Renderer.new(app)
 renderer.rect(10, 10, 100, 40, color: RGame::Util::Color::WHITE)
-renderer.circle(200, 200, 30, color: [255, 0, 0])
+renderer.circle(200, 200, 30, color: RGame::Util::Color::RED)
 renderer.line(0, 0, 100, 100, thickness: 4)
 renderer.image(sheet, 400, 300, angle: 45, scale: 2)      # centred, clockwise
 renderer.rotated(30, 400, 300) { renderer.rect(380, 280, 40, 40) }
@@ -256,5 +256,5 @@ grid = RGame::Util::Tensor.new(width, height, depth, initial: nil)
 grid[x, y, z] = value
 
 colour = RGame::Util::Color.new(255, 128, 0)   # frozen, compares by value
-RGame::Util::Color.coerce([255, 128, 0])       # nil / [r,g,b] / [r,g,b,a] / Color
+RGame::Util::Color.coerce(nil)                 # nil -> WHITE; a Color passes through
 ```

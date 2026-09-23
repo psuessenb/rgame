@@ -199,25 +199,26 @@ RSpec.shared_examples 'a renderer' do
     it 'accepts z: and color: on every drawing method' do
       expect do
         render do |renderer, image|
-          renderer.rect(0, 0, 1, 1, z: 1, color: [255, 0, 0])
-          renderer.quad(0, 0, 1, 0, 1, 1, 0, 1, z: 2, color: [0, 255, 0])
-          renderer.triangle(0, 0, 1, 0, 0, 1, z: 3, color: [0, 0, 255])
-          renderer.line(0, 0, 1, 1, thickness: 1, z: 4, color: [255, 255, 0])
-          renderer.circle(0, 0, 1, z: 5, color: [255, 0, 255])
-          renderer.image(image, 0, 0, z: 6, color: [0, 255, 255])
-          renderer.image_at(image, 0, 0, z: 7, color: [0, 255, 255])
-          renderer.background(image, z: 8, color: [128, 128, 128])
+          renderer.rect(0, 0, 1, 1, z: 1, color: RGame::Util::Color::RED)
+          renderer.quad(0, 0, 1, 0, 1, 1, 0, 1, z: 2, color: RGame::Util::Color::GREEN)
+          renderer.triangle(0, 0, 1, 0, 0, 1, z: 3, color: RGame::Util::Color::BLUE)
+          renderer.line(0, 0, 1, 1, thickness: 1, z: 4, color: RGame::Util::Color::YELLOW)
+          renderer.circle(0, 0, 1, z: 5, color: RGame::Util::Color::MAGENTA)
+          renderer.image(image, 0, 0, z: 6, color: RGame::Util::Color::CYAN)
+          renderer.image_at(image, 0, 0, z: 7, color: RGame::Util::Color::CYAN)
+          renderer.background(image, z: 8, color: RGame::Util::Color::GRAY)
         end
       end.not_to raise_error
     end
 
-    it 'accepts a colour as nil, a triple, a quadruple or a colour object' do
+    # nil and a Color are the whole of it. A colour is a value every layer can
+    # build, so there is no second spelling to accept.
+    it 'accepts a colour as nil or a colour object, opaque or not' do
       expect do
         render do |renderer, _image|
           renderer.rect(0, 0, 1, 1, color: nil)
-          renderer.rect(0, 0, 1, 1, color: [255, 0, 0])
-          renderer.rect(0, 0, 1, 1, color: [255, 0, 0, 128])
           renderer.rect(0, 0, 1, 1, color: RGame::Util::Color::WHITE)
+          renderer.rect(0, 0, 1, 1, color: RGame::Util::Color.new(255, 0, 0, 128))
         end
       end.not_to raise_error
     end
@@ -298,12 +299,12 @@ RSpec.shared_examples 'a renderer' do
       render do |renderer, _image|
         panel = recorder
         renderer.register_nine_slice(:panel, panel)
-        renderer.nine_slice(:panel, 1, 2, 30, 40, z: 5, tint: [255, 0, 0])
+        renderer.nine_slice(:panel, 1, 2, 30, 40, z: 5, tint: RGame::Util::Color::RED)
 
         name, args, options = panel.received.first
         expect(name).to eq(:draw)
         expect(args).to eq([renderer, 1, 2, 30, 40])
-        expect(options).to eq(z: 5, color: [255, 0, 0])
+        expect(options).to eq(z: 5, color: RGame::Util::Color::RED)
       end
     end
 
@@ -460,9 +461,14 @@ RSpec.shared_examples 'a renderer' do
         .to raise_error(TypeError)
     end
 
-    it 'refuses a colour with too few components' do
-      expect { render { |renderer, _image| renderer.rect(0, 0, 1, 1, color: [1, 2]) } }
-        .to raise_error(ArgumentError)
+    # The array form is refused rather than converted, and the message says what
+    # to write instead. It is the one refusal here that exists for a cost rather
+    # than for a crash: a renderer coerces every colour it is handed, so an
+    # array is a Color allocated per draw call, which nothing reports and
+    # nothing sees.
+    it 'refuses a colour given as an array of components' do
+      expect { render { |renderer, _image| renderer.rect(0, 0, 1, 1, color: [255, 0, 0]) } }
+        .to raise_error(TypeError, /not an Array/)
     end
 
     it 'refuses a z: outside one node\'s slot' do
@@ -506,7 +512,7 @@ RSpec.shared_examples 'a renderer' do
     it 'draws text in a given font, z and colour' do
       expect do
         render do |renderer, _image, font|
-          renderer.text('hello', 0, 0, z: 5, color: [255, 0, 0], font: font)
+          renderer.text('hello', 0, 0, z: 5, color: RGame::Util::Color::RED, font: font)
         end
       end.not_to raise_error
     end
@@ -684,7 +690,7 @@ RSpec.shared_examples 'a renderer' do
           baked.draw
           baked.draw(5, 5)
           baked.draw(5, 5, z: 3)
-          baked.draw(5, 5, z: 3, color: [255, 0, 0, 128])
+          baked.draw(5, 5, z: 3, color: RGame::Util::Color.new(255, 0, 0, 128))
         end
       end.not_to raise_error
     end
