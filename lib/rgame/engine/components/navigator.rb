@@ -46,7 +46,7 @@ module RGame
         # walked.
         attr_reader :cells
 
-        def initialize(speed:, blocked_by: [])
+        def initialize(speed:, blocked_by: [], pushes: [])
           super
           @cells = nil
         end

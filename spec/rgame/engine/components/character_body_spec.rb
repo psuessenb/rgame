@@ -103,8 +103,8 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
   end
 
   it_behaves_like 'a mover' do
-    def build_mover(blocked_by:, heading: [1, 0])
-      described_class.new(speed: 60.0, blocked_by: blocked_by).tap { it.set_intent(*heading) }
+    def build_mover(blocked_by:, pushes: [], heading: [1, 0])
+      described_class.new(speed: 60.0, blocked_by:, pushes:).tap { it.set_intent(*heading) }
     end
   end
 

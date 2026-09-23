@@ -9,13 +9,16 @@
 # its own spec and still be the one thing in a scene that walks through a wall, so the
 # promise is checked here rather than trusted to the base class.
 #
+# The pushes: group states that each of them can push, and that declaring it changes nothing
+# about a wall that cannot be pushed.
+#
 # The heading group states the other half they share: whichever way the step goes, the
 # mover's heading points that way.
 #
 # ## What the host must provide
 #
 #   it_behaves_like 'a mover' do
-#     def build_mover(blocked_by:, heading: [1, 0]) = ...
+#     def build_mover(blocked_by:, pushes: [], heading: [1, 0]) = ...
 #   end
 #
 # A mover, unattached, that carries its node from wherever the node stands — (170, 100) —
@@ -165,6 +168,35 @@ RSpec.shared_examples 'a mover' do
       run_ticks(14)
       expect { mover._update(mover_dt) }.to allocate_nothing
       expect(started).to eq(1)
+    end
+  end
+
+  describe 'pushes:' do
+    before do
+      mount_collision_world
+      add_box
+    end
+
+    it 'stops flush against a wall that is not Pushable, exactly as blocked_by alone does' do
+      mover = enter(build_mover(blocked_by: [:wall], pushes: [:wall]))
+      reports = []
+      mover.on_blocked { |by, axis| reports << [by, axis] }
+      run_ticks(60)
+      expect([mover_node.x, reports]).to eq([184.0, [[wall, :x]]])
+    end
+
+    # Fourteen steps reach the wall and the other forty-six push it, a pixel a step.
+    it 'pushes a Pushable wall by what is left of each step, and follows it' do
+      wall_node.add_component(RGame::Engine::Components::Pushable.new(blocked_by: []))
+      enter(build_mover(blocked_by: [:wall], pushes: [:wall]))
+      run_ticks(60)
+      expect([mover_node.x, wall_node.x]).to match([be_within(1e-6).of(230.0), be_within(1e-6).of(246.0)])
+    end
+
+    it 'allocates nothing on a step pressed into a wall it cannot push' do
+      mover = enter(build_mover(blocked_by: [:wall], pushes: [:wall]))
+      run_ticks(60)
+      expect { mover._update(mover_dt) }.to allocate_nothing
     end
   end
 

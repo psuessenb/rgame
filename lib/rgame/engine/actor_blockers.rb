@@ -28,7 +28,8 @@ module RGame
     # - **An overlap that already exists is not resolved.** A step is blocked only if it
     #   *crosses* an edge the mover was on the near side of. Two actors that start
     #   overlapping stay overlapping and neither is teleported out — blocking stops the
-    #   mover, it never moves the thing it hit.
+    #   mover, it never moves the thing it hit. Moving it is Components::Mover's
+    #   `pushes:`, decided after this source has answered.
     # - **Boxes only.** A CircleCollider on a blocked layer is skipped, and still reports
     #   on_hit exactly as it does now. It is a documented limit rather than a raise at
     #   attach: layer membership is a runtime fact, so a check at attach would catch only

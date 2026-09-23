@@ -14,8 +14,8 @@ module RGame
       class Velocity < Mover
         attr_accessor :vx, :vy, :spin
 
-        def initialize(vx: 0.0, vy: 0.0, spin: 0.0, blocked_by: [])
-          super(blocked_by: blocked_by)
+        def initialize(vx: 0.0, vy: 0.0, spin: 0.0, blocked_by: [], pushes: [])
+          super(blocked_by:, pushes:)
           @vx = vx
           @vy = vy
           @spin = spin

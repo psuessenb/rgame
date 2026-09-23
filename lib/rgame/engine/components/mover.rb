@@ -5,14 +5,16 @@ module RGame
     module Components
       # What every component that moves its node has in common: a step computed some way
       # of its own, landing either straight on the node or against whatever may stop it.
-      # CharacterBody, Velocity and PathFollow are the three, and they are three classes
+      # CharacterBody, Velocity and PathFollow compute one each, and they are three classes
       # because walking an intent, integrating a velocity and following a path are three
-      # different jobs. What they share is what happens *after* a step is computed, and
+      # different jobs. Pushable is the fourth mover, and computes none: it only moves when
+      # pushed. What they share is what happens *after* a step is computed, and
       # that is this class.
       #
       # A mover fills in one private hook, `take_step(dt)`, and calls `apply_move(dx, dy)`
       # from it. `_update` is not for overriding: it opens the step, calls the hook and
-      # reports what stopped being in the way, so no mover can forget either edge.
+      # reports what stopped being in the way, so no mover can forget either edge. Pushable
+      # replaces it, because a crate's pushes arrive during other movers' updates.
       #
       # **Why a base class, and not a sibling component or a Node2D method.** A separate
       # `Blocking` component that movers write through was tried, and it is order-dependent:
@@ -77,6 +79,28 @@ module RGame
       #     velocity.vy = -velocity.vy unless axis == :x
       #   end
       #
+      # ## What a step pushes is declared too
+      #
+      # `pushes:` names the collider layers a step moves rather than stops at. It parallels
+      # `blocked_by:`, and every layer it names must be there too: a crate you can push is a
+      # crate you cannot walk through, so a layer only in `pushes:` raises.
+      #
+      #   CharacterBody.new(speed: 80, blocked_by: %i[tiles crate], pushes: [:crate])
+      #
+      # A blocker on a pushed layer whose node holds a Pushable moves by what is left of the
+      # step, on the axis it stopped, as far as its own `blocked_by:` lets it. Then this
+      # mover resolves the rest of its step again, so it follows the crate that far. A crate
+      # against a wall moves nothing, and the pusher stops flush with `on_blocked` as usual.
+      # A crate that went the whole way stopped nothing, and nothing is reported.
+      #
+      # A mover that pushes resolves its two axes one after the other, rather than in one
+      # CollisionSystem#move, so the crate it met on x has moved before y is resolved. A
+      # mover declaring no `pushes:` takes exactly the step it always took.
+      #
+      # A Pushable may declare `pushes:` of its own, which is how a crate pushes a crate. The
+      # chain stops at PUSH_DEPTH, and a pushed node never pushes the node that pushed it, so
+      # a ring of crates ends rather than recursing.
+      #
       # ## The shape has one owner, and it is not this
       #
       # A blocked step is resolved against the node's **collider** box, read from the
@@ -110,13 +134,21 @@ module RGame
         BOUNDS = :bounds
         RESERVED = [TILES, BOUNDS].freeze
 
-        def initialize(blocked_by: [])
+        PUSH_DEPTH = 4
+
+        # `pushes:` raises ArgumentError for a layer missing from `blocked_by:`, and for
+        # `:tiles` or `:bounds`, which no step can move.
+        def initialize(blocked_by: [], pushes: [])
           super()
           @blocked_by = Array(blocked_by)
+          @pushes = Array(pushes)
+          check_pushes
           @collider = nil
           @collision = nil
           @last_move_blocked = false
           @stopped_by = Engine::ContactSet.new
+          @push_depth = 0
+          @pushed_by = nil
         end
 
         # Resolve each declared blocker and build the resolver that runs them, once the node
@@ -155,9 +187,9 @@ module RGame
         def _update(dt)
           return take_step(dt) unless @collision
 
-          @stopped_by.begin_frame
+          open_step
           take_step(dt)
-          @stopped_by.each_ended { unblocked_signal.emit(it) }
+          close_step
         end
 
         # Which way this mover's step is going, each axis in -1..1, and 0, 0 when it is not
@@ -169,6 +201,9 @@ module RGame
 
         # Whether `name` is one of the things this mover declared it may be stopped by.
         def blocked_by?(name) = @blocked_by.include?(name)
+
+        # Whether a step moves colliders on layer `name` rather than stopping at them.
+        def pushes?(name) = @pushes.include?(name)
 
         # Where a step lands. Public, and kept separate from `take_step`, so a mover that
         # resolves a step some other way — a platformer's CharacterBody, with gravity and a
@@ -184,9 +219,14 @@ module RGame
             return
           end
 
-          @collision.move(self, dx, dy)
-          blocked_x = @collision.blocked_x
-          blocked_y = @collision.blocked_y
+          if @pushes.empty?
+            @collision.move(self, dx, dy)
+            blocked_x = @collision.blocked_x
+            blocked_y = @collision.blocked_y
+          else
+            blocked_x = push_along_x(dx)
+            blocked_y = push_along_y(dy)
+          end
           @last_move_blocked = !(blocked_x.nil? && blocked_y.nil?)
           if blocked_x.equal?(blocked_y)
             record_blocker(blocked_x, :both)
@@ -235,6 +275,75 @@ module RGame
         def blocking? = !@collision.nil?
 
         def last_move_blocked? = @last_move_blocked
+
+        def open_step = @stopped_by.begin_frame
+
+        def close_step
+          @stopped_by.each_ended { unblocked_signal.emit(it) }
+        end
+
+        def check_pushes
+          if @pushes.intersect?(RESERVED)
+            raise ArgumentError, "#{mover_name} pushes #{(@pushes & RESERVED).map(&:inspect).join(', ')}, " \
+                                 'and no step can move the map or the edge of the world. ' \
+                                 '`pushes:` names collider layers.'
+          end
+          missing = @pushes - @blocked_by
+          return if missing.empty?
+
+          raise ArgumentError, "#{mover_name} pushes #{missing.map(&:inspect).join(', ')} and is not " \
+                               'blocked_by it. A step passes through a layer it is not blocked by, ' \
+                               'so nothing on it would ever be pushed. Add it to blocked_by too.'
+        end
+
+        def push_along_x(dx)
+          from = x
+          @collision.move(self, dx, 0.0)
+          by = @collision.blocked_x
+          pushed = nil
+          tries = 0
+          while by && !by.equal?(pushed) && tries < PUSH_DEPTH && (crate = pushable(by))
+            left = dx - (x - from)
+            break unless dx.positive? ? left.positive? : left.negative?
+
+            crate.push(left, 0.0, by: node, depth: @push_depth + 1)
+            @collision.move(self, left, 0.0)
+            pushed = by
+            by = @collision.blocked_x
+            by = nil if by.equal?(pushed) && !crate.stopped?
+            tries += 1
+          end
+          by
+        end
+
+        def push_along_y(dy)
+          from = y
+          @collision.move(self, 0.0, dy)
+          by = @collision.blocked_y
+          pushed = nil
+          tries = 0
+          while by && !by.equal?(pushed) && tries < PUSH_DEPTH && (crate = pushable(by))
+            left = dy - (y - from)
+            break unless dy.positive? ? left.positive? : left.negative?
+
+            crate.push(0.0, left, by: node, depth: @push_depth + 1)
+            @collision.move(self, 0.0, left)
+            pushed = by
+            by = @collision.blocked_y
+            by = nil if by.equal?(pushed) && !crate.stopped?
+            tries += 1
+          end
+          by
+        end
+
+        def pushable(by)
+          return nil if @push_depth >= PUSH_DEPTH || !@pushes.include?(by.layer)
+
+          other = by.node
+          return nil if other.nil? || other.equal?(@pushed_by)
+
+          other.get_component(Pushable)
+        end
 
         def record_blocker(by, axis)
           return if by.nil? || @stopped_by.touching?(by)
