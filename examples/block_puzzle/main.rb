@@ -187,11 +187,12 @@ class Hero < RGame::Engine::Node2D
   end
 end
 
-# The help line and the count, in the `:hud` band so they draw over the map. A
-# node draws in the `:world` band unless it says otherwise, and the map is there.
+# The help line and the count, in the `:overlay` band so they draw over the map,
+# once across the window. A node draws in the `:world` band unless it says
+# otherwise, and the map is there.
 class Hud < RGame::Engine::Node2D
   def initialize(room:)
-    super(band: :hud)
+    super(band: :overlay)
     @room = room
     @help = RGame::Engine::Text.new('help.walk')
     @count = RGame::Engine::Text.new('hud.home', :home, :total)

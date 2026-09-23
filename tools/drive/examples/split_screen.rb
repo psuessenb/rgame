@@ -29,10 +29,11 @@
 #     side, so each is in the other's view until they separate, and
 #     `Engine::Culling` drops the draw after that. A world drawn twice with nothing
 #     culled would be a flat 4 per frame;
-#   - **898 layers in the `:hud` band against 2005 in `:world`.** The hud ones are
-#     the player layers and their badges, which exist once per active player per
-#     frame rather than once per viewport — a player's own screen space is the
-#     third kind of content, and it is drawn once for them;
+#   - **898 layers in the `:hud` band against 1765 in `:world`, and 240 in
+#     `:overlay`.** The hud ones are the player layers and their badges, which
+#     exist once per active player per frame rather than once per viewport — a
+#     player's own screen space is its own kind of content, and it is drawn once
+#     for them. The overlay ones are the scene's instructions, once per frame;
 #   - **no audio and no scenes.** This example has one scene and never pushes
 #     another.
 #

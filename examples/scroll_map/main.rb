@@ -80,9 +80,14 @@ class Rig < RGame::Engine::Node2D
 end
 
 # The scene: mount the map, mount the world, put the rig in it.
+#
+# It draws the help line itself, so it sits in the `:overlay` band, once across
+# the window over everything else. In the default `:world` band the map, which
+# draws after it, would cover them. The WorldView below it declares `:world` for
+# its own subtree, so nothing in the world moves band.
 class Scene < RGame::Engine::Node2D
   def initialize
-    super
+    super(band: :overlay)
     @help = RGame::Engine::Text.new('help.scroll')
   end
 

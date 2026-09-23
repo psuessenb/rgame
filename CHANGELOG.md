@@ -329,6 +329,10 @@ index, not the argument.
   tick. See [docs/api/ui.md](docs/api/ui.md#when-a-press-activates).
 - **A tile from a map's second tileset draws from that tileset.** Every gid was
   resolved through the first tileset.
+- **Five examples show their instructions again.** `pathfinding`,
+  `collision_tiles`, `jump_topdown`, `scroll_map` and `split_screen` drew their
+  text from the scene in the `:world` band, where the map drawn after it covered
+  it. Each scene now draws in the `:overlay` band.
 
 ## [0.4.0] - 2026-09-16
 

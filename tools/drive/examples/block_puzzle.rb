@@ -18,7 +18,7 @@
 #     this line too: a block that had gone into the trees would never get home.
 #   - **no audio**, two clips per frame — the window's and the WorldView's —
 #     the tilemap's two layers drawn once each per frame, and 625 layers in the
-#     `:hud` band, one per frame for the count.
+#     `:overlay` band, one per frame for the help line and the count.
 #
 # The last hold down stops after 85 ticks, before a fourth push would take the
 # block past its square.

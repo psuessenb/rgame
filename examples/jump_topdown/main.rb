@@ -129,12 +129,17 @@ class Hero < RGame::Engine::Node2D
 end
 
 # The scene from `examples/collision_tiles`, less the spiky ball.
+#
+# It draws the help lines and the hop's state itself, so it sits in the `:overlay` band, once across
+# the window over everything else. In the default `:world` band the map, which
+# draws after it, would cover them. The WorldView below it declares `:world` for
+# its own subtree, so nothing in the world moves band.
 class Scene < RGame::Engine::Node2D
   STATE = { true => RGame::Engine::Text.new('status.airborne'),
             false => RGame::Engine::Text.new('status.grounded') }.freeze
 
   def initialize
-    super
+    super(band: :overlay)
     @help_walk = RGame::Engine::Text.new('help.walk')
     @help_box = RGame::Engine::Text.new('help.box')
     @help_fence = RGame::Engine::Text.new('help.fence')

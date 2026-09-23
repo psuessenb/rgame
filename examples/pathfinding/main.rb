@@ -221,7 +221,14 @@ end
 
 # The scene: the map and its world, the hero, the route drawn under the hero and
 # the cursor over it — and the one line that connects a confirmed tile to a walk.
+#
+# It draws the help and status lines itself, so it sits in the `:overlay` band, once across
+# the window over everything else. In the default `:world` band the map, which
+# draws after it, would cover them. The WorldView below it declares `:world` for
+# its own subtree, so nothing in the world moves band.
 class Scene < RGame::Engine::Node2D
+  def initialize = super(band: :overlay)
+
   def _enter_tree
     map = root.context.assets.tilemap(MAP).map
     players = root.system(RGame::Engine::Players)

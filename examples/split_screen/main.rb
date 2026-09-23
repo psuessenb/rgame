@@ -56,9 +56,10 @@
 #   - **a player's own screen space** — under a `PlayerLayer`, drawn once for that
 #     player, clipped to their region and laid out from *its* corner, so a badge
 #     at (16, 16) is sixteen pixels inside whichever half they were given;
-#   - **a global overlay** — a plain child of the scene, like the two lines of
-#     instructions at the bottom. Drawn once across the whole window whatever the
-#     split is doing.
+#   - **a global overlay** — in the `:overlay` band outside both, like the two
+#     lines of instructions at the bottom, which the scene draws itself. Drawn
+#     once across the whole window whatever the split is doing, over the world
+#     and every player's screen space.
 #
 # ## The screen splits when somebody joins, not when a pad is plugged in
 #
@@ -237,7 +238,7 @@ class Scene < RGame::Engine::Node2D
   MARGIN = 16
 
   def initialize
-    super
+    super(band: :overlay)
     @help_keys = RGame::Engine::Text.new('help.keys')
     @help_join = RGame::Engine::Text.new('help.join')
   end
@@ -261,8 +262,9 @@ class Scene < RGame::Engine::Node2D
     @players.on_joined { |player| spawn(player) }
   end
 
-  # A plain child of the scene, so this is the global overlay: once across the
-  # whole window, wherever the split is.
+  # The global overlay: once across the whole window, wherever the split is. The
+  # scene is in the `:overlay` band so the ground, which draws after it, does
+  # not cover it; the WorldView and each PlayerLayer declare their own bands.
   def _draw(renderer, view)
     renderer.text(@help_keys, MARGIN, view.height - 52)
     renderer.text(@help_join, MARGIN, view.height - 30)

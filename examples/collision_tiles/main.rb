@@ -220,7 +220,14 @@ end
 # The scene: mount the map, mount the world, put the hero in it. The same three
 # steps as `examples/scroll_map`, with an actor that collides instead of a rig
 # that does not.
+#
+# It draws the help lines and the lives itself, so it sits in the `:overlay` band, once across
+# the window over everything else. In the default `:world` band the map, which
+# draws after it, would cover them. The WorldView below it declares `:world` for
+# its own subtree, so nothing in the world moves band.
 class Scene < RGame::Engine::Node2D
+  def initialize = super(band: :overlay)
+
   def _enter_tree
     map = root.context.assets.tilemap(MAP).map
     players = root.system(RGame::Engine::Players)

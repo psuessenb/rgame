@@ -185,9 +185,18 @@ re-litigation inside the plan.
    consequence — `get_component(Targeting)` matches an `Interactor` too, so a
    node holding both is asked by name. A policy that does not fit a turret is
    still a policy, and `POLICIES` is where it would go.
-4. **Why does `examples/pathfinding` draw no help lines?** It draws them from the
-   scene that holds its `WorldView`, in the `:world` band, and the map covers
+4. **Why does `examples/pathfinding` draw no help lines?** ~~It draws them from
+   the scene that holds its `WorldView`, in the `:world` band, and the map covers
    them — a frame captured on `main` shows none. Step 4 found it while
    `examples/block_puzzle` had the same bug, and moved that HUD into the `:hud`
    band. Whether any other example with a map does the same is unchecked, and a
-   guard that a HUD is not under the map is the question. Blocks nothing.
+   guard that a HUD is not under the map is the question. Blocks nothing.~~
+   **Fixed in all five, and in `block_puzzle`.** `collision_tiles`,
+   `jump_topdown`, `scroll_map` and `split_screen` drew their text the same way,
+   and captured frames of two of them showed none of it. Each scene now declares
+   `band: :overlay` — content drawn once across the window, which `docs/api`
+   gives that band — and `block_puzzle`'s strip moved there from `:hud`, which is
+   `PlayerLayer`'s. The `WorldView` and each `PlayerLayer` declare their own
+   bands, so in every driven report exactly one layer a frame moved, and nothing
+   else changed. No check catches a HUD under the map: a driven report counts the
+   text calls either way.
