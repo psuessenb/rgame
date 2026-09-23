@@ -296,6 +296,13 @@ calling `super` from it.
 `examples/scroll_map` is the smallest program with a camera: a `WorldView`, a map
 under it, and one node the camera follows.
 
+A `WorldView` also draws the debug layer's solid cells: while the `:shapes`
+channel is on, it puts a box over every solid cell of its scene's
+`Components::TileWorld` that the viewport can see. It is the node that does it
+because it is the one already drawing once per viewport in world space, so the
+cells follow each camera with nothing mounted. A scene with no `TileWorld` draws
+none. See [Systems](systems.md#debug--a-switch-per-channel).
+
 ### Two words that are easy to confuse
 
 **Space** is structural, and the tree enforces it. A node is either inside a

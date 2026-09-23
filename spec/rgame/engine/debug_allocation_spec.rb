@@ -23,4 +23,57 @@ RSpec.describe RGame::Engine::Debug do
   it 'allocates nothing asking whether a channel is on' do
     expect { debug.shows?(:shapes) }.to allocate_nothing
   end
+
+  # The shapes are the one thing here that draws every frame in a real game, so
+  # they are measured with the channel on as well as off.
+  describe 'the :shapes channel' do
+    let(:root) do
+      RGame::Engine::Node2D.new.tap do |node|
+        node.add_component(debug)
+        collider = node.add_node(RGame::Engine::Node2D.new(x: 40, y: 60))
+        collider.add_component(RGame::Engine::Components::BoxCollider.new(width: 16, height: 16))
+        collider.add_component(RGame::Engine::Components::CircleCollider.new(radius: 8))
+        node.enter_tree
+      end
+    end
+
+    it 'allocates nothing while it is off' do
+      expect { root.draw(renderer, view) }.to allocate_nothing
+    end
+
+    it 'allocates nothing while it is on' do
+      debug.show(:shapes)
+
+      expect { root.draw(renderer, view) }.to allocate_nothing
+    end
+  end
+
+  # A WorldView walks the cells its viewport covers every frame the channel is
+  # on, which is the loop most likely to build a Range or an Array by accident.
+  describe 'the solid cells a WorldView draws' do
+    let(:players) { RGame::Engine::Players.new([RGame::Engine::Player.new(id: 0)]) }
+    let(:viewports) { RGame::Engine::Viewports.new(players, width: 320, height: 240) }
+
+    let(:root) do
+      RGame::Engine::Node2D.new.tap do |node|
+        node.add_component(players)
+        node.add_component(viewports)
+        node.add_component(debug)
+        scene = node.add_node(RGame::Engine::Node2D.new)
+        scene.scene = scene
+        scene.add_component(RGame::Engine::Components::TileWorld.new(
+                              map: WalledTileMap.build(['....', '.##.', '....']), tilemap_id: 'walls.tmx'
+                            ))
+        scene.add_node(RGame::Engine::WorldView.new)
+        node.enter_tree
+        viewports.refresh
+      end
+    end
+
+    it 'allocates nothing while the channel is on' do
+      debug.show(:shapes)
+
+      expect { root.draw(renderer, view) }.to allocate_nothing
+    end
+  end
 end

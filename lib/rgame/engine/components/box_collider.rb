@@ -52,8 +52,26 @@ module RGame
         # The cost is that an on_hit handler in such a scene never fires and nothing says
         # so. That is the trade taken deliberately: what declares "I expect to be stopped"
         # is `blocked_by`, and that *does* raise for a system it cannot find.
-        def _attach = node.system(CollisionWorld)&.register(self)
-        def _detach = node.system(CollisionWorld)&.unregister(self)
+        def _attach
+          @debug = node.system(Engine::Debug)
+          node.system(CollisionWorld)&.register(self)
+        end
+
+        def _detach
+          @debug = nil
+          node.system(CollisionWorld)&.unregister(self)
+        end
+
+        # The box, in the `:debug` band, while the debug layer's `:shapes`
+        # channel is on. The box is already in the node's local space, so it
+        # lands on the node in every viewport with no camera arithmetic, and a
+        # scene with no Engine::Debug above it draws nothing — the lookup
+        # happens once, on attach, so a frame asks the tree nothing.
+        def _draw(renderer, _view)
+          return unless @debug&.shows?(:shapes)
+
+          renderer.layered(:debug) { renderer.debug_box(box.offset_x, box.offset_y, box.width, box.height) }
+        end
 
         # The broadphase AABB in world space, one component per call rather than
         # CollisionBox#aabb's Array: CollisionWorld reads these for every collider

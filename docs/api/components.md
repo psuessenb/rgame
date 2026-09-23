@@ -248,6 +248,13 @@ leaves, so spawning and despawning never leak a registration.
 - **Blocking:** a box on a layer that some [`Mover`](#mover) named in
   `blocked_by:` also *stops* that mover's steps, flush against this box's edge. The
   box needs no opt-in; the other body's layer declaration is the whole setup.
+- **Drawing itself:** while the debug layer's `:shapes` channel is on, `_draw`
+  draws the box with `renderer.debug_box` in the `:debug` band, over everything
+  else in the frame. The box is already in the node's local space, so it lands on
+  the node in every viewport with no camera arithmetic. The `Debug` system is
+  looked up once, on attach, so a frame with the channel off costs a `nil` check
+  and a scene with no debug layer above it draws nothing. See
+  [Systems](systems.md#debug--a-switch-per-channel).
 - **Signals:** `on_hit` fires with the other collider on the step a contact
   **starts**, and `on_separated` on the step it **ends**:
   `collider.on_hit { |other| ... }`. The system triggers them through
@@ -335,6 +342,12 @@ and despawning never leak a registration.
 - **Contacts:** `overlap?(other)` works against a circle *or* a
   [`BoxCollider`](#boxcollider). The two colliders settle the test between
   themselves, so both shapes mix freely in one world.
+- **Drawing itself:** while the debug layer's `:shapes` channel is on, `_draw`
+  draws the circle with `renderer.debug_circle` in the `:debug` band. Its centre
+  is the node's own origin, which is `(0, 0)` in the space a component draws in.
+  As with [`BoxCollider`](#boxcollider), the lookup happens on attach and a scene
+  with no debug layer draws nothing. See
+  [Systems](systems.md#debug--a-switch-per-channel).
 - **It never blocks.** Blocking is box against box. A circle on a layer that a
   [`Mover`](#mover) named in `blocked_by:` reports contacts as usual and stops
   nobody. Nor can a circle *be* stopped. A mover that declares anything needs a

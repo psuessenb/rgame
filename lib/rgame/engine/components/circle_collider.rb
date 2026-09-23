@@ -39,8 +39,25 @@ module RGame
         # A collider is a *shape*; a CollisionWorld is what turns shapes into contacts.
         # A scene with no world mounted therefore leaves this a bare shape rather than
         # raising — BoxCollider#_attach says why, and it is the same trade here.
-        def _attach = node.system(CollisionWorld)&.register(self)
-        def _detach = node.system(CollisionWorld)&.unregister(self)
+        def _attach
+          @debug = node.system(Engine::Debug)
+          node.system(CollisionWorld)&.register(self)
+        end
+
+        def _detach
+          @debug = nil
+          node.system(CollisionWorld)&.unregister(self)
+        end
+
+        # The circle, in the `:debug` band, while the debug layer's `:shapes`
+        # channel is on. Its centre is the node's own origin, which is (0, 0) in
+        # the space a component draws in — see BoxCollider#_draw, which is the
+        # same shape for a rectangle.
+        def _draw(renderer, _view)
+          return unless @debug&.shows?(:shapes)
+
+          renderer.layered(:debug) { renderer.debug_circle(0, 0, @radius) }
+        end
 
         # World-space centre — the node's own origin, in world coordinates.
         def cx = node.world_x

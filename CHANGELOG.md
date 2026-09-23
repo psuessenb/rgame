@@ -160,6 +160,12 @@ index, not the argument.
 - **`Renderer#debug_circle`.** A translucent disc in the colour `debug_box`
   draws with, for a round collision shape. See
   [docs/api/drawing.md](docs/api/drawing.md#shapes).
+- **The colliders and the tile map draw their own debug shapes.** With the
+  `:shapes` channel on, `Components::BoxCollider` draws its box,
+  `Components::CircleCollider` its circle, and `RGame::Engine::WorldView` a box
+  over each solid cell of its scene's `Components::TileWorld` that the viewport
+  can see. Each draws in the `:debug` band, in its own space, once per viewport.
+  See [docs/api/systems.md](docs/api/systems.md#debug--a-switch-per-channel).
 - **A debug layer of named channels.** `RGame::Engine::Debug` is a system
   `RGame::Game` mounts on the root, holding a switch per channel and drawing in
   the `:debug` band. `:stats` is the overlay, `:shapes` is drawn by the things

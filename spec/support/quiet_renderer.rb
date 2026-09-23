@@ -12,8 +12,9 @@
 # over an Array colour allocates a Color per call here exactly as it would in
 # the game, and the matcher sees it.
 #
-# `layered` and `translated` only yield, so a whole subtree's `draw` can be
-# measured as well as one node's `_draw`.
+# `layered`, `translated` and `clipped` only yield, so a whole subtree's `draw`
+# can be measured as well as one node's `_draw` — a WorldView's included, which
+# opens a clip per viewport.
 #
 # It refuses nothing and records nothing, so it says nothing about *what* was
 # drawn. That is FakeRenderer's job, checked against the renderer contract.
@@ -30,6 +31,7 @@ class QuietRenderer
 
   def layered(_band) = yield
   def translated(_dx, _dy) = yield
+  def clipped(_x, _y, _width, _height) = yield
 
   def typeface = RGame::Util::Typeface.default
   def text_width(string, font: nil) = (font || typeface).text_width(string)

@@ -1,7 +1,9 @@
 on controls::KEYBOARD do
   idle 10
   hold controls::KEY_UP, 40
-  hold [controls::KEY_UP, controls::KEY_LEFT], 90
+  hold [controls::KEY_UP, controls::KEY_LEFT], 10
+  hold [controls::KEY_UP, controls::KEY_LEFT, controls::KEY_F4], 2
+  hold [controls::KEY_UP, controls::KEY_LEFT], 78
   idle 20
 end
 
