@@ -1,8 +1,9 @@
 # The rest of the README roadmap
 
-**Status: steps 0 to 4 are implemented.** Steps 0–4 of
-[the roadmap](04-roadmap.md) are detailed. Steps 5–14 are deliberately rough and
-get re-planned once the layer beneath them exists.
+**Status: steps 0 to 4 are implemented.** Steps 0–7 of
+[the roadmap](04-roadmap.md) are detailed, 5–7 re-planned after step 4 landed.
+Steps 8–14 are deliberately rough and get re-planned once the layer beneath them
+exists.
 
 | File | What it holds |
 |---|---|
@@ -32,7 +33,7 @@ way dialogue was.
 | Debug layer | an `Engine::Debug` system of named channels; shapes draw themselves | 1 |
 | Collectables | `Interactor` extends `Targeting`; `Collectable` frees its node | 1 |
 | Push and pull | `pushes:` on `Mover`, a `Pushable` mover, a `Grab` component | 2 |
-| Inventory | `UI::Grid`, `Stepping` over a grid, `UI::FocusGroup`, `UI::Tabs`, scrolling | 3 |
+| Inventory | `UI::Grid`, `Stepping` over a grid, `UI::FocusGroup`, `UI::Tabs` over a `Menu`, scrolling | 3 |
 | Visual effects | a fade node, `Components::Particles`, a bolt — plus blend modes in C | 2 |
 | Audio | fades, a crossfade, pause and resume, a volume per category | 1 |
 | Scenes | `SceneStack` defers and names its scenes; transitions; doors | 2 |
@@ -165,6 +166,9 @@ re-litigation inside the plan.
     pushing and the inventory are per player; a scene change and a cutscene are
     for everyone. Two players in two rooms at once is out: the engine has one
     shared world.
+18. **`examples/equipment` draws its clothes in code.** Taken when steps 5–7
+    were re-planned. A hat, a cloak and boots drawn as shapes over `hero.png` add
+    nothing to the gem, and constraint 8 allows art drawn here.
 
 ## Open questions
 
@@ -173,10 +177,16 @@ re-litigation inside the plan.
    `examples/assets/README.md` already measured four candidates from the same
    CC0 pack for seam and tail silence. Waits on step 10. Blocks nothing before
    it.
-2. **Which keyboard keys stand in for the shoulder buttons?** A tab bar is
+2. ~~**Which keyboard keys stand in for the shoulder buttons?** A tab bar is
    built for LB and RB, and a keyboard needs an answer: `Q`/`E`, which games
    use for shoulder buttons, or `Tab`/`Shift+Tab`, which desktop software uses.
-   The universal UI set gains two actions either way. Waits on step 6.
+   The universal UI set gains two actions either way. Waits on step 6.~~
+   **Settled — Q and E**, beside the shoulder buttons, as `ui_tab_prev` and
+   `ui_tab_next`. `E` is also `:interact` in `DEFAULT_ACTIONS`. That is safe
+   because a hero pauses while their bag is open, so the two never act at once,
+   and step 7's adventure run checks it. Tab and Shift+Tab lost on two counts:
+   Shift is `:grab`, and three examples already bind Tab. See
+   [step 6](04-roadmap.md#step-6--tabs-and-scrolling).
 3. **Does `Interactor` stay a subclass of `Targeting`?** ~~They answer the same
    question, so the design makes them one class. A facing-aware policy — "what
    am I looking at", not "what is nearest" — may not fit a turret. Waits on

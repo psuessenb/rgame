@@ -162,8 +162,10 @@ What nothing owns: **focus crossing from one menu to another**, and **a menu
 larger than the space it is drawn in**. `docs/api/ui.md` says so under "What
 this is not".
 
-[`Layout.each_cell`](../../../lib/rgame/engine/layout.rb) is the grid arithmetic,
-written for viewports and usable as it stands.
+~~[`Layout.each_cell`](../../../lib/rgame/engine/layout.rb) is the grid arithmetic,
+written for viewports and usable as it stands.~~ **Wrong, found in the re-plan
+of steps 5–7:** it divides a known total into even cells. A grid of fixed-size
+slots has no total to divide; `UI::Stack`'s arithmetic over rows is the match.
 
 `renderer.clipped` takes the **current transform's** coordinates, not the
 window's — `rgame_canvas_push_clip` maps the rect through the transform before
@@ -282,7 +284,6 @@ rather than assumed.
 - **`Engine::Tween`** — every fade, crossfade, camera move, sliding crate and
   cutscene wait.
 - **`Components::Pool`** — the particles.
-- **`Layout.each_cell`** — the inventory grid's arithmetic.
 - **`Components::OccupiesCell`** and `TileWorld#occupy` — the grid-snapped
   crate.
 - **`Engine::Dialogue`** — a cutscene's talking.
@@ -314,7 +315,8 @@ rather than assumed.
 
 - **`UI::Tabs` and `UI::FocusGroup`.** Nothing here passes focus between two
   menus, and nothing switches pages. `UI::Menu` holds buttons and cannot hold
-  menus.
+  menus. The re-plan of steps 5–7 moved the tab bar to the middle pile: it is a
+  `Menu`, and only the pages are new.
 - **`Components::Particles`.** A pool of things with a lifetime exists;
   spawning them along a spread with a colour over their life does not.
 - **`Engine::Cutscene`.** A sequencer of steps, each ending on a duration, a

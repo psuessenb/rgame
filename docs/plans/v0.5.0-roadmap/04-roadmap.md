@@ -1,9 +1,10 @@
 # Roadmap
 
 **Status: steps 0 to 4 are implemented.** Fifteen steps. Each is one branch and one
-pull request, and its sub-steps are one commit each. **Steps 0–4 are detailed.
-Steps 5–14 are deliberately rough** and get re-planned once the layer beneath
-them exists.
+pull request, and its sub-steps are one commit each. **Steps 0–7 are detailed**;
+5–7 were re-planned after step 4 landed, and
+[what that re-plan found](#re-planning-steps-57) comes before them. **Steps 8–14
+are deliberately rough** and get re-planned once the layer beneath them exists.
 
 ## Dependency shape
 
@@ -42,6 +43,8 @@ a regression shows.
 | 2 | a collision bug can only be found by reading numbers |
 | 3 | every game writes "what am I standing next to" again, as `quests_and_dialogue` did three times |
 | 4 | nothing in the world can be moved by walking into it |
+| 5 | two open menus under one player both move and both confirm, and a bag cannot be a grid |
+| 6 | a list longer than its panel cannot be shown, and a screen cannot have pages |
 | 8 | a scene cannot fade, so a transition cannot be written at all |
 | 10 | music cuts rather than fades, and cannot be paused |
 
@@ -718,28 +721,409 @@ action in [input.md](../../api/input.md#defaults-and-rebinding), `passing` in
 
 ---
 
-## Step 5 — the grid, and focus that crosses menus *(rough)*
+## Re-planning steps 5–7
 
-`UI::Grid` as a layout, `UI::Stepping` reading its `columns`, and
-`UI::FocusGroup` passing focus between menus laid side by side. No new
-navigation class: a grid changes the size of a step, not what a step is.
+Steps 5, 6 and 7 were re-planned at `3526096`, after step 4 landed. Reading the
+code overturned three things the design recorded, and one question was settled.
 
-Re-plan once step 3 has landed, because the inventory's contents come from it.
-Watch for: wrapping inside a row against wrapping to the next row, and what a
-group does when the neighbouring menu has no enabled button.
+### What was measured
 
-## Step 6 — tabs, and scrolling *(rough)*
+| | |
+|---|---|
+| `rake spec` | 3224 examples, 0 failures, 25.2 s |
+| `spec/rgame/engine/ui/` | 538 examples, 6.1 s |
+| Menus built in `examples/` and `test_projects/` | 10, in 7 files |
+| Scenes where one player has two open menus at once | **0** |
+| Two open menus under one owner, after one `ui_down` and one `ui_confirm` | **both move focus, and both activate a button** |
+| Readers of `layout.axis` | 1, `Stepping#attach` |
+| Buttons whose `adjust` can answer anything but nil | 1, `OptionButton` |
+| `Menu` subclasses | 2, `PanelMenu` and `RadialMenu`; `DialogueBox` holds a `Menu` |
+| Default actions on the candidate tab keys | `E` is `:interact`, Left Shift is `:grab`; three examples bind Tab |
 
-`UI::Tabs` holding a node per page off its child list, `ui_tab_prev` and
-`ui_tab_next` in the universal set, and `visible_rows:` on `UI::Column` and
-`UI::Grid`. [Open question 2](README.md#open-questions) picks the keys before
-this step starts.
+The fifth row shapes step 5. A script built two `Column` menus under one root
+and pressed `ui_down`, then `ui_confirm`. Focus moved in both, and two buttons
+activated. Nothing in the repository has met this, because the fourth row is
+zero. A focus group therefore has to decide which menu reads input, and not only
+where focus goes next.
 
-## Step 7 — `examples/inventory` and `examples/equipment` *(rough)*
+### What the design got wrong
 
-Two examples, as dialogue had two: one showing the parts, one showing the
-screen a game ships — tabs, clothes put on and taken off, and a bag that marks
-what is worn. The adventure's bag holds what step 3 collected.
+- **`Layout.each_cell` is not the grid's arithmetic.**
+  [F8](01-current-state.md#f8) called it usable as it stands. It divides a known
+  total into even cells, which suits viewports. A grid places fixed-size slots
+  with spacing, and its total is the answer rather than the input. `UI::Grid`
+  computes what `UI::Stack` computes, over rows.
+- **A tab bar is a menu.** The design put `UI::Tabs` in the "genuinely new"
+  pile. Its bar holds buttons, places them with a layout, scopes their labels,
+  marks one, and steps between them, skipping disabled ones and wrapping. That
+  is a `Menu` over `Stepping`, with two other actions and no confirm. Only the
+  pages are new, so `Tabs` holds a `Menu` for its bar and adds the pages.
+- **A group needs a current menu**, not only a way to cross. With the design's
+  group, both menus would still read every press. So a group names one
+  `current` menu, and a menu in a group that is not current reads no input.
+- **A direction a column has no use for has to cross as well.** A bag grid
+  beside a column of equipment slots is the equipment screen. In the column,
+  left and right go to the focused button's `adjust`, and a plain button adjusts
+  nothing. So the group also takes a direction the focused button does not
+  adjust. That needs `Button#adjustable?`. Reading nil from `adjust` fails:
+  `OptionButton#adjust` answers nil at the end of its values, and a volume row
+  at its maximum would jump to the next menu.
+
+### Decided in this re-plan
+
+- **Q and E switch tabs on a keyboard**, beside the shoulder buttons. See
+  [open question 2](README.md#open-questions).
+- **`examples/equipment` draws its clothes in code.** No new asset ships.
+- **`examples/inventory` lands with step 5 and grows in step 6**, so each UI
+  step has a driven run of its own. Step 7 keeps `examples/equipment` and the
+  adventure's bag.
+- **A screen that opens is a `Tabs` that opens.** `Node2D#visible` was
+  considered, because three things want a subtree left undrawn: a closed menu, a
+  page not shown and a closed screen. Each of the three also wants its input
+  stopped. Two flags a game must set together is the remembered rule this
+  project refuses, so `Tabs` gets `open` and `close`, as `Menu` has.
+
+### Three piles, for the UI steps
+
+- **Reuse:** `Menu`, the skipping and wrapping in `Stepping#step`, `PanelMenu`,
+  `IconButton`, a button's focused look for the shown tab, `PlayerLayer`, and
+  pausing a hero while their bag is open, as
+  `test_projects/tiled_world/inventory.rb` does.
+- **Extend:** `Stack` → `Grid`, the same slots over rows. `Stepping` → a grid,
+  and two named actions for a tab bar. `Menu` → `confirm:`, `active?` and a
+  window of rows. `Button` → `adjustable?`.
+- **Genuinely new:** `FocusGroup`, which decides which of one player's menus
+  reads input, and the pages of `Tabs`. Nothing in the engine holds more than
+  one menu for one player.
+
+---
+
+## Step 5 — the grid, and focus that crosses menus
+
+Steps 6 and 7 lay everything out on a grid, and an equipment screen is two
+menus that one player moves between. The step also closes the defect measured
+above: two open menus under one player both answer every press.
+
+### Sub-steps
+
+- **5a** — `UI::Grid`, and `Stepping` moving across and down it.
+- **5b** — `UI::FocusGroup`, `Menu#active?` and `Button#adjustable?`.
+- **5c** — `examples/inventory`: a bag grid, a column of verbs beside it, and a
+  panel naming the focused item.
+
+### Shape
+
+```ruby
+grid = UI::Grid.new(columns: 4, item_width: 56, item_height: 56, spacing: 6)
+grid.columns            # 4
+grid.axis               # :horizontal — the order it fills in
+
+group = layer.add_node(UI::FocusGroup.new)
+bag   = group.add_node(UI::PanelMenu.new(x: 16, y: 48, layout: grid))
+verbs = group.add_node(UI::PanelMenu.new(x: 300, y: 48,
+                                         layout: UI::Column.new(item_width: 120, item_height: 32)))
+
+group.menus             # [bag, verbs], in tree order
+group.current           # bag: the first open menu with an enabled button
+group.current = verbs   # verbs reads input now, from its first enabled button
+bag.active?             # false: it draws, focuses nothing and reads no input
+
+button.adjustable?      # false on a Button, true on an OptionButton
+```
+
+**A menu joins the nearest `FocusGroup` above it** as it enters the tree, and
+leaves it on exit. Nothing registers by hand, and a menu wrapped in a panel node
+still belongs to the group around the panel.
+
+On a layout that answers `columns`, `Stepping` moves along the row with the
+layout's axis pair and down the column with the other pair. Nothing in a grid is
+adjusted. `step(delta)` moves along the row.
+
+### The rules the tests pin
+
+For the grid:
+
+1. **A grid fills rows left to right, top to bottom**, `columns` to a row. Its
+   bounds enclose the rows it uses, so a single short row is as wide as its
+   buttons.
+2. **Left and right step inside the row**, and wrap inside it.
+3. **Up and down step inside the column**, and wrap inside it.
+4. **A step onto a row with no button in this column lands on that row's last
+   button**, going down or up.
+5. **A step skips disabled buttons along its line.** A line with no other
+   enabled button leaves focus where it is.
+6. **An explicit `axis:` other than the grid's raises** `ArgumentError`.
+7. **`Column`, `Row` and `Ring` step as before.** The existing examples in
+   `stepping_spec.rb` pass unchanged.
+
+For the group:
+
+8. **One menu in a group is `current`, and only it reads input**: navigation,
+   hotkeys and confirm. The others draw with nothing focused. The measured case
+   is a test: one `ui_confirm` activates one button.
+9. **`current` starts on the first menu in tree order that is open and has an
+   enabled button**, and is nil while none has.
+10. **Each tick, before its menus read input, a group re-checks `current`.** A
+    current menu that is closed or has no enabled button hands over to the first
+    that qualifies, which focuses its first enabled button.
+11. **A step past the end of a line crosses to the neighbour that way.** Only a
+    group with no neighbour in that direction wraps.
+12. **A direction the focused button does not adjust crosses too.** From a
+    column of plain buttons, left and right cross. On an `OptionButton` they
+    adjust, even at the end of its values.
+13. **The neighbour is the nearest menu wholly beyond the current one's edge**
+    in that direction. The gap between the two decides; the distance between
+    centres across it breaks a tie. A closed menu and a menu with no enabled
+    button are never neighbours.
+14. **Crossing clears focus in the menu it leaves.** The menu it enters focuses
+    the enabled button nearest the one left, and takes no confirm until it has
+    seen confirm up.
+15. **Buttons added to a menu that is not current focus nothing there.**
+    Stepping's "focus is never empty" holds for the current menu.
+16. **`current=` raises** `ArgumentError` for a menu outside the group.
+17. **Two players move in their own groups**, each in its own `PlayerLayer`.
+18. **Stepping a grid and crossing allocate nothing.**
+
+### Tests
+
+- `spec/rgame/engine/ui/grid_spec.rb`: rule 1 for a full grid, a short last row,
+  a single row and no buttons.
+- `spec/rgame/engine/ui/stepping_spec.rb`: a `describe 'across a grid'` group
+  for rules 2–6.
+- `spec/rgame/engine/ui/focus_group_spec.rb`: rules 8–17, with a grid and a
+  column side by side, a closed menu between two open ones, and a menu wrapped
+  in a plain node.
+- `spec/rgame/engine/ui/button_spec.rb` and `option_button_spec.rb`:
+  `adjustable?`.
+- `spec/rgame/engine/ui/menu_spec.rb`: a menu outside any group is always
+  `active?`.
+- `spec/rgame/engine/ui/focus_group_allocation_spec.rb`: rule 18.
+
+### Verify
+
+```
+bundle exec rake spec
+ruby tools/drive_test_project.rb examples/inventory/main.rb --ticks 300 --texts
+```
+
+`examples/inventory` holds eight items from `skills.json` and `icons.json` in a
+four-column grid. Beside it stands a column of two verbs, use and drop, and a
+panel names the focused item. The drive script walks right along the first row
+and on into the verbs, drops the item, and comes back left into the bag. It then
+presses up, which wraps inside the column because nothing lies above.
+
+`--texts` reports each item's name as focus reaches it, and the dropped item's
+name stops appearing. Drop is what exercises rule 15: the bag is rebuilt while
+the verbs are current.
+
+---
+
+## Step 6 — tabs, and scrolling
+
+A bag outgrows its panel once a game has more than a dozen things, and an
+equipment screen is a second page beside the bag. Step 7 is built from both.
+Both also change what a menu draws, so they land before any example depends on
+them.
+
+### Sub-steps
+
+- **6a** — `confirm:` on `Menu`, `actions:` on `Stepping`, `ui_tab_prev` and
+  `ui_tab_next` in the universal set, and `UI::Tabs`.
+- **6b** — `visible_rows:` on `Column` and `Grid`, and a menu that keeps its
+  focus in view.
+- **6c** — `examples/inventory` grows a page of key items and a bag longer than
+  its panel.
+
+### Shape
+
+```ruby
+# In InputMap::UI, beside ui_confirm
+ui_tab_prev: { buttons: [Controls::KEY_Q, Controls::PAD_LEFT_SHOULDER] },
+ui_tab_next: { buttons: [Controls::KEY_E, Controls::PAD_RIGHT_SHOULDER] },
+
+bar  = UI::Row.new(item_width: 96, item_height: 28)
+tabs = layer.add_node(UI::Tabs.new(x: 16, y: 8, layout: bar, scope: 'inventory'))
+items = tabs.add(UI::PanelButton.new(label: 'items'), UI::FocusGroup.new)
+keys  = tabs.add(UI::PanelButton.new(label: 'key_items'), UI::FocusGroup.new)
+
+tabs.current            # items: the page shown
+tabs.show(keys)
+tabs.on_changed { |page| ... }
+tabs.bar                # the Menu holding the tab buttons
+tabs.open? ; tabs.open ; tabs.close
+tabs.on_opened { ... } ; tabs.on_closed { ... }
+
+# What Tabs builds its bar from, which a game may use alone
+UI::Menu.new(layout: bar, confirm: nil)                  # nothing confirms it; hotkeys still work
+UI::Stepping.new(actions: %i[ui_tab_prev ui_tab_next])   # steps on these two, adjusts nothing
+
+grid = UI::Grid.new(columns: 4, item_width: 56, item_height: 56, spacing: 6, visible_rows: 3)
+bag.first_row           # the top row in view
+bag.rows_above          # 0 at the top; what a game draws a scroll arrow from
+bag.rows_below
+```
+
+`Tabs#add(button, page)` puts the button in the bar and the page under the tabs,
+and returns the page. A page is any node. It is placed from the tabs' origin,
+so it gives itself a `y` below the bar. The bar's focused button is the shown tab, so a tab draws its focused look while the
+bar never reads `ui_confirm`.
+
+A layout built with `visible_rows:` answers `visible_rows` and takes
+`arrange(buttons, first_row)`, placing the row in view at the menu's origin.
+`Menu` calls it that way and leaves the rows outside the window undrawn. A
+layout without `visible_rows`, a game's own included, is called as today.
+
+### The rules the tests pin
+
+For tabs:
+
+1. **`ui_tab_next` and `ui_tab_prev` show the next and the previous enabled
+   tab**, wrapping, and emit `on_changed` with the page shown.
+2. **Only the shown page is controlled, updated and drawn.** A page keeps its
+   state while hidden, so a menu's focus is where the player left it.
+3. **The first page added is shown.**
+4. **`show(page)` does what a press does**, emits only on a change, and raises
+   `ArgumentError` for a page the tabs do not hold.
+5. **A tab's hotkey shows its page.**
+6. **A closed `Tabs` draws nothing, and nothing under it reads input.** It still
+   ticks, as a closed `Menu` does. `open` and `close` emit only on a change, and
+   a `Tabs` starts open.
+7. **`ui_confirm` never reaches the bar.** A menu built with `confirm: nil`
+   activates nothing on a confirm, and `confirm:` naming another action confirms
+   on that one.
+8. **`Stepping.new(actions:)` reads those two actions and nothing else**, and
+   adjusts nothing. Anything but two action names raises `ArgumentError`.
+9. **Two players switch their own tabs.**
+
+For scrolling:
+
+10. **A menu over a layout with `visible_rows:` draws that many rows.** Its
+    bounds are the window's, so a `PanelMenu`'s panel keeps its size.
+11. **Every change of focus scrolls the focused button into view**, by the
+    fewest rows, whether navigation, the game's `focus` or a group crossing made
+    it. A wrap from the last row to the first scrolls to the top.
+12. **`rows_above` and `rows_below` count the hidden rows** on each side, and
+    are 0 when every row fits.
+13. **`clear` scrolls to the top.**
+14. **Switching tabs and scrolling allocate nothing.**
+
+### Tests
+
+- `spec/rgame/engine/ui/tabs_spec.rb`: rules 1–6 and 9.
+- `spec/rgame/engine/ui/menu_spec.rb`: rule 7, and rules 10–13.
+- `spec/rgame/engine/ui/stepping_spec.rb`: rule 8.
+- `spec/rgame/engine/ui/grid_spec.rb` and `column_spec.rb`: `arrange` with a
+  first row, and the bounds of a window.
+- `spec/rgame/engine/input_map_spec.rb`: the two actions in the universal set.
+- **The caller that uses all three**, in `tabs_spec.rb`: a page holding a group
+  of a scrolled grid and a column. Focus scrolls the grid and crosses to the
+  column. The page switches away and back, and focus and scroll are where they
+  were.
+- `focus_group_allocation_spec.rb` gains rule 14.
+
+### Verify
+
+```
+bundle exec rake spec
+ruby tools/drive_test_project.rb examples/inventory/main.rb --ticks 400 --texts
+ruby tools/drive_test_project.rb examples/inventory/main.rb --gamepad \
+  --script tools/drive/examples/inventory_pad.rb --ticks 400 --texts
+```
+
+The bag holds twenty items in three visible rows, and a second page holds key
+items. The script walks down past the window, switches to the key items with E
+and back with Q. `--texts` shows the key items' names only between the two
+switches. The `--gamepad` run does the same on the shoulder buttons.
+
+Every other driven example reports what it reported at the branch point, byte
+for byte. The universal set grew, and nothing else may notice.
+
+---
+
+## Step 7 — `examples/equipment`, and the adventure's bag
+
+The screen a game ships, and the first place a pickup reaches an inventory.
+Steps 5 and 6 each proved their own parts. Here those parts meet collecting,
+pausing and a second player.
+
+### Sub-steps
+
+- **7a** — `examples/equipment`.
+- **7b** — the adventure's bag: what each hero collected, on a page beside what
+  they wear.
+
+### Shape
+
+```
+examples/equipment/main.rb
+examples/equipment/locales/en.yml
+tools/drive/examples/equipment.rb
+tools/drive/examples/equipment_pad.rb
+
+test_projects/adventure/bag.rb      # one player's Tabs: a Carried page and a Worn page
+```
+
+`examples/equipment` is one `Tabs` with two pages:
+
+```
+ [ Gear ]  [ Bag ]
+ ┌────────┐   Head [ straw hat ]    ┌────┬────┬────┐
+ │  hero  │   Body [     —     ]    │    │    │    │
+ │ dressed│   Feet [   boots   ]    ├────┼────┼────┤
+ └────────┘                         │    │    │    │
+                                    └────┴────┴────┘
+```
+
+- **Gear** is one `FocusGroup` of a column of slots and a grid of the clothes
+  that fit them. Choosing a piece wears it and replaces what that slot held.
+  Choosing a slot takes its piece off. The hero draws from `hero.png` with the
+  worn pieces drawn over it as shapes.
+- **Bag** is a grid of everything carried, and marks each worn piece.
+
+Six pieces, two per slot, are drawn as shapes by one `Button` subclass in the
+example. The same drawing dresses the hero, so a piece and its slot always
+agree.
+
+The adventure binds `bag` to I and the pad's Start. Each hero's bag lives in
+that player's `PlayerLayer`, closed, and the hero pauses while it is open. A coin
+goes to the hero whose feet box took it, through `Collectable#on_collected`. The
+chest's search puts a hat in the searching hero's bag, and wearing it draws it
+on that hero.
+
+### What the run proves
+
+No engine class is expected in this step, so it has no specs of its own. If one
+turns up, it arrives with its tests, as step 4's `ActorBlockers#passing` did.
+The adventure's run is what pins these:
+
+1. **A coin reaches the bag of the hero who took it**, and never the other's.
+2. **The hero whose bag is open stands still. The other walks on.**
+3. **E switches a tab and opens no chest.** E is both `ui_tab_next` and
+   `:interact`, and the paused hero reads neither of its own actions.
+4. **Player one's tabs and player two's switch apart.**
+5. **The hat the chest gave is drawn on the hero wearing it**, in both
+   viewports.
+
+### Verify
+
+```
+bundle exec rake spec
+ruby tools/drive_test_project.rb examples/equipment/main.rb --ticks 400 --texts
+ruby tools/drive_test_project.rb examples/equipment/main.rb --gamepad \
+  --script tools/drive/examples/equipment_pad.rb --ticks 400 --texts
+ruby tools/drive_test_project.rb test_projects/adventure/main.rb --ticks 480 --texts
+```
+
+The equipment run wears a piece, swaps it for the other one in that slot, takes
+it off, and looks at the bag. `--texts` shows each slot's name changing in that
+order, and the bag's mark following.
+
+The adventure's first 240 ticks keep the tick numbers step 4 recorded: "open"
+from 150, "searched" from 206, "east" from 111 and "west" from 189. After them,
+player one opens their bag, wears the hat and closes it again, while player two
+keeps walking. The landed note records each rule above with the tick it
+happened on, read off the report at chosen `--ticks` values, as step 0 read its
+rules off the translate range.
 
 ## Step 8 — fades, and particles *(rough)*
 

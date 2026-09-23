@@ -276,6 +276,11 @@ already has every part, so this lives in the example.
 
 ## 5. Inventory and equipment screens
 
+Re-planned after step 4, and the roadmap's sketches supersede the ones below
+where they differ. [What that re-plan changed](04-roadmap.md#re-planning-steps-57):
+a group names the one menu that reads input, a direction a button does not
+adjust crosses as well as the end of a line does, and a tab bar is a `Menu`.
+
 ### A grid is a layout, and stepping already knows how to step
 
 ```ruby
@@ -296,11 +301,16 @@ the column.
 
 ```ruby
 group = layer.add_node(UI::FocusGroup.new)
-bag  = group.add(UI::Menu.new(x: 16,  y: 48, layout: grid))
-worn = group.add(UI::Menu.new(x: 320, y: 48, layout: column))
+bag  = group.add_node(UI::Menu.new(x: 16,  y: 48, layout: grid))
+worn = group.add_node(UI::Menu.new(x: 320, y: 48, layout: column))
+group.current   # the one menu that reads input
 ```
 
-A `Stepping` about to wrap asks its menu's group first. The group compares the
+A menu joins the nearest group above it as it enters the tree. Only the group's
+`current` menu reads input; the others draw with nothing focused.
+
+A `Stepping` about to wrap asks its menu's group first, and so does a direction
+the focused button does not adjust. The group compares the
 menus' bounds, finds the nearest one in that direction, and focuses its nearest
 button; with no neighbour that way, the step wraps as it does today. So a bag
 and a set of equipment slots become one screen, and neither menu knows the
@@ -309,14 +319,14 @@ other exists.
 ### Tabs take the shoulder buttons
 
 ```ruby
-tabs = layer.add_node(UI::Tabs.new(x: 16, y: 12, width: 420,
-                                   pages: %i[bag gear map], scope: 'inventory'))
-tabs.page(:gear).add_node(equipment_screen)
-tabs.on_changed { |name| ... }
+tabs = layer.add_node(UI::Tabs.new(x: 16, y: 12, layout: UI::Row.new(item_width: 96, item_height: 28),
+                                   scope: 'inventory'))
+gear = tabs.add(UI::PanelButton.new(label: 'gear'), equipment_screen)
+tabs.on_changed { |page| ... }
 ```
 
-`UI::Tabs` holds one node per page **off its child list**, the way `SceneStack`
-holds scenes, and draws and controls only the current one. It reads two new
+`UI::Tabs` holds its bar as a `Menu` that nothing confirms, stepped by two
+actions of its own. It draws, controls and updates only the page shown. It reads two new
 actions from the universal UI set, `ui_tab_prev` and `ui_tab_next`, bound to
 the shoulder buttons and to the keys
 [open question 2](README.md#open-questions) picks. The tab bar is never
