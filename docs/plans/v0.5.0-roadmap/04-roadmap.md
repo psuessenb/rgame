@@ -1,27 +1,35 @@
 # Roadmap
 
-**Status: steps 0 to 4 are implemented.** Fifteen steps. Each is one branch and one
-pull request, and its sub-steps are one commit each. **Steps 0–7 are detailed**;
-5–7 were re-planned after step 4 landed, and
-[what that re-plan found](#re-planning-steps-57) comes before them. **Steps 8–14
+**Status: steps 0 to 4 are implemented.** Sixteen steps. Each is one branch and one
+pull request, and its sub-steps are one commit each. **Steps 0–8 are detailed**;
+5–8 were planned after step 4 landed, and
+[what that re-plan found](#re-planning-steps-57) comes before them. **Steps 9–15
 are deliberately rough** and get re-planned once the layer beneath them exists.
+
+Step 7 was inserted by a review of the re-plan
+([decision 19](README.md#decisions-already-taken)). The landed notes of steps
+0–4 were written before that, so "step 13" there means today's step 14, and
+"step 14" means step 15. The re-plan's heading keeps the numbers it was written
+with: its steps 5–7 are today's 5, 6 and 8.
 
 ## Dependency shape
 
 ```
-0 adventure ─→ 1 input ───────────────────────────────────────────────┐
-               2 debug shapes                                          │ hold to skip
-               3 interact + collect ─→ 5 grid + focus ─→ 6 tabs ─→ 7 screens
-               4 push and pull                                         │
-               8 fades + particles ─┬─→ 11 scenes ─→ 12 doors ─→ 13 cutscenes
-               9 blend modes (C) ───┘                  │
-               10 audio transitions ───────────────────┘
-               14 fold back and delete the plan
+0 adventure ─→ 1 input ─→ 7 press gate ────────────────────────────────┐
+               2 debug shapes                                          │ a press it saw start
+               3 interact + collect ─→ 5 grid + focus ─→ 6 tabs ─→ 8 screens
+               4 push and pull                                         │ hold to skip
+               9 fades + particles ─┬─→ 12 scenes ─→ 13 doors ─→ 14 cutscenes
+               10 blend modes (C) ──┘                  │
+               11 audio transitions ───────────────────┘
+               15 fold back and delete the plan
 ```
 
 Step 0 comes first because every later step adds to it. Input comes next, while
 `poll(dt)` touches the fewest callers, and because a held button is what skips a
-cutscene in step 13. The debug shapes come before pushing, which is far easier
+cutscene in step 14. The press gate comes before the screens, because a bag that
+pauses its hero is where a press first outlives the node that should read it.
+The debug shapes come before pushing, which is far easier
 to watch with the boxes on screen. Fades come before scenes, because a door
 fades.
 
@@ -45,22 +53,23 @@ a regression shows.
 | 4 | nothing in the world can be moved by walking into it |
 | 5 | two open menus under one player both move and both confirm, and a bag cannot be a grid |
 | 6 | a list longer than its panel cannot be shown, and a screen cannot have pages |
-| 8 | a scene cannot fade, so a transition cannot be written at all |
-| 10 | music cuts rather than fades, and cannot be paused |
+| 7 | a press begun while a node was paused, hidden or not yet there reaches it once it runs |
+| 9 | a scene cannot fade, so a transition cannot be written at all |
+| 11 | music cuts rather than fades, and cannot be paused |
 
 ## Which roadmap item each step serves
 
 | README item | Steps |
 |---|---|
-| better input-to-action mapping | 1 |
+| better input-to-action mapping | 1, 7 |
 | debug layer, connected to collision | 2 |
 | collectable and interactable nodes | 3 |
 | pushing and pulling objects | 4 |
-| inventory and equipment screens | 5, 6, 7 |
-| visual effects | 8, 9 |
-| audio transitions | 10 |
-| scene manager, teleports and room transitions | 11, 12 |
-| cutscenes | 13 |
+| inventory and equipment screens | 5, 6, 8 |
+| visual effects | 9, 10 |
+| audio transitions | 11 |
+| scene manager, teleports and room transitions | 12, 13 |
+| cutscenes | 14 |
 
 ---
 
@@ -148,7 +157,7 @@ What the sketch got wrong:
 
 The signature change is cheapest now: `poll` has 3 call sites in `lib/` and 70
 in `spec/`, and every step after this adds callers. A held button is also what
-step 13 skips a cutscene with, so it wants to exist long before then.
+step 14 skips a cutscene with, so it wants to exist long before then.
 
 ### Sub-steps
 
@@ -756,18 +765,26 @@ where focus goes next.
 - **A tab bar is a menu.** The design put `UI::Tabs` in the "genuinely new"
   pile. Its bar holds buttons, places them with a layout, scopes their labels,
   marks one, and steps between them, skipping disabled ones and wrapping. That
-  is a `Menu` over `Stepping`, with two other actions and no confirm. Only the
-  pages are new, so `Tabs` holds a `Menu` for its bar and adds the pages.
+  is a `Menu` over `Stepping`, with two other actions and no confirm. The
+  pages are held off the child list, the way `SceneStack` holds its scenes. So
+  `Tabs` holds a `Menu` for its bar and adds the pages, and neither is new.
 - **A group needs a current menu**, not only a way to cross. With the design's
   group, both menus would still read every press. So a group names one
   `current` menu, and a menu in a group that is not current reads no input.
+- **A new `current` reads nothing until the next tick.** `Node2D#control`
+  controls a group's menus one after another from one snapshot, and crossing
+  happens inside the current menu's `_control`. A menu later in the tree would
+  then read the press that crossed into it, and step again. A group therefore
+  fixes which menu reads before any of them does.
 - **A direction a column has no use for has to cross as well.** A bag grid
   beside a column of equipment slots is the equipment screen. In the column,
   left and right go to the focused button's `adjust`, and a plain button adjusts
   nothing. So the group also takes a direction the focused button does not
   adjust. That needs `Button#adjustable?`. Reading nil from `adjust` fails:
   `OptionButton#adjust` answers nil at the end of its values, and a volume row
-  at its maximum would jump to the next menu.
+  at its maximum would jump to the next menu. A game's own slider overrides
+  `adjust` and would forget a second method, so `adjustable?` is worked out
+  from whether a class overrides `adjust`.
 
 ### Decided in this re-plan
 
@@ -775,7 +792,7 @@ where focus goes next.
   [open question 2](README.md#open-questions).
 - **`examples/equipment` draws its clothes in code.** No new asset ships.
 - **`examples/inventory` lands with step 5 and grows in step 6**, so each UI
-  step has a driven run of its own. Step 7 keeps `examples/equipment` and the
+  step has a driven run of its own. Step 8 keeps `examples/equipment` and the
   adventure's bag.
 - **A screen that opens is a `Tabs` that opens.** `Node2D#visible` was
   considered, because three things want a subtree left undrawn: a closed menu, a
@@ -786,58 +803,86 @@ where focus goes next.
 ### Three piles, for the UI steps
 
 - **Reuse:** `Menu`, the skipping and wrapping in `Stepping#step`, `PanelMenu`,
-  `IconButton`, a button's focused look for the shown tab, `PlayerLayer`, and
+  `IconButton`, a button's focused look for the shown tab, `PlayerLayer`,
+  `SceneStack`'s way of holding scenes off its child list for the pages, and
   pausing a hero while their bag is open, as
   `test_projects/tiled_world/inventory.rb` does.
-- **Extend:** `Stack` → `Grid`, the same slots over rows. `Stepping` → a grid,
-  and two named actions for a tab bar. `Menu` → `confirm:`, `active?` and a
-  window of rows. `Button` → `adjustable?`.
+- **Extend:** `Stack` → `Grid`, the same slots over rows, as a subclass
+  sharing one arithmetic. `Stepping` → a grid, and two named actions for a tab
+  bar. `Menu` → `confirm:`, `current?` and a window of rows. `Button` →
+  `adjustable?`.
 - **Genuinely new:** `FocusGroup`, which decides which of one player's menus
-  reads input, and the pages of `Tabs`. Nothing in the engine holds more than
-  one menu for one player.
+  reads input. Nothing in the engine holds more than one menu for one player.
 
 ---
 
 ## Step 5 — the grid, and focus that crosses menus
 
-Steps 6 and 7 lay everything out on a grid, and an equipment screen is two
+Steps 6 and 8 lay everything out on a grid, and an equipment screen is two
 menus that one player moves between. The step also closes the defect measured
 above: two open menus under one player both answer every press.
 
 ### Sub-steps
 
 - **5a** — `UI::Grid`, and `Stepping` moving across and down it.
-- **5b** — `UI::FocusGroup`, `Menu#active?` and `Button#adjustable?`.
+- **5b** — `UI::FocusGroup`, `Menu#current?`, `Menu#group` and
+  `Button#adjustable?`.
 - **5c** — `examples/inventory`: a bag grid, a column of verbs beside it, and a
-  panel naming the focused item.
+  panel naming the focused item. Its `locales/en.yml`, its drive script
+  `tools/drive/examples/inventory.rb`, an `### inventory` entry in
+  `docs/api/examples.md` and a row in `README.md` come with it.
 
 ### Shape
 
 ```ruby
-grid = UI::Grid.new(columns: 4, item_width: 56, item_height: 56, spacing: 6)
+grid = UI::Grid.new(columns: 4, item_width: 64, item_height: 64, spacing: 6)
 grid.columns            # 4
 grid.axis               # :horizontal — the order it fills in
 
 group = layer.add_node(UI::FocusGroup.new)
 bag   = group.add_node(UI::PanelMenu.new(x: 16, y: 48, layout: grid))
-verbs = group.add_node(UI::PanelMenu.new(x: 300, y: 48,
+verbs = group.add_node(UI::PanelMenu.new(x: 340, y: 48,
                                          layout: UI::Column.new(item_width: 120, item_height: 32)))
 
-group.menus             # [bag, verbs], in tree order
+group.menus             # [bag, verbs], in the order they joined
 group.current           # bag: the first open menu with an enabled button
-group.current = verbs   # verbs reads input now, from its first enabled button
-bag.active?             # false: it draws, focuses nothing and reads no input
+group.current = verbs   # verbs reads input from the next tick
+group.cross(:right)     # current moves to the neighbour that way; false, and nothing moves, if none
+bag.current?            # false: it draws, focuses nothing and reads no input
+bag.group               # the group it joined, or nil
 
-button.adjustable?      # false on a Button, true on an OptionButton
+button.adjustable?      # false on a Button; true on any class that overrides adjust
 ```
 
 **A menu joins the nearest `FocusGroup` above it** as it enters the tree, and
 leaves it on exit. Nothing registers by hand, and a menu wrapped in a panel node
-still belongs to the group around the panel.
+still belongs to the group around the panel. `Menu` joins in `enter_tree`
+itself, not in the `_enter_tree` hook, so a game's subclass that overrides the
+hook stays in its group.
+
+**Three menus refuse a group**, and raise `ArgumentError` as they join one. A
+menu with a `trigger:` opens only while its trigger is held, so a group could
+never make it current. A `DialogueBox` holds a menu that advances its
+conversation, and a group would stop it whenever another menu is current. And a
+menu that answers to a different player than the group's others would never
+read its own player's input.
+
+**`Grid` is a `Stack` whose lines hold `columns` slots.** A `Column`'s lines
+hold one slot, and a `Row`'s one line holds them all. One arithmetic places all
+three, so `Grid < Stack` adds a line length and nothing else.
 
 On a layout that answers `columns`, `Stepping` moves along the row with the
 layout's axis pair and down the column with the other pair. Nothing in a grid is
 adjusted. `step(delta)` moves along the row.
+
+**`Stepping` asks the group before it wraps.** At the end of a line, and on a
+direction the focused button is not `adjustable?` in, it calls
+`menu.group&.cross(direction)` and wraps only when that answers false. A game's
+own `Navigation` crosses the same way. `Pointing` never crosses.
+
+**`adjustable?` is worked out once per class**, from whether the class
+overrides `adjust`. A game's own slider then needs nothing more than the
+`adjust` it already writes.
 
 ### The rules the tests pin
 
@@ -846,58 +891,72 @@ For the grid:
 1. **A grid fills rows left to right, top to bottom**, `columns` to a row. Its
    bounds enclose the rows it uses, so a single short row is as wide as its
    buttons.
-2. **Left and right step inside the row**, and wrap inside it.
-3. **Up and down step inside the column**, and wrap inside it.
-4. **A step onto a row with no button in this column lands on that row's last
-   button**, going down or up.
-5. **A step skips disabled buttons along its line.** A line with no other
-   enabled button leaves focus where it is.
-6. **An explicit `axis:` other than the grid's raises** `ArgumentError`.
-7. **`Column`, `Row` and `Ring` step as before.** The existing examples in
-   `stepping_spec.rb` pass unchanged.
+2. **Left and right step along the row, and up and down along the column.** A
+   step down or up onto a row with no button in this column takes that row's
+   last button.
+3. **A step skips disabled buttons along its line**, and goes on to the next
+   one.
+4. **Past the end of a line, a step wraps inside it**, unless a group crosses
+   it (rule 11). The end is where no enabled button is left before the edge. A
+   line with no other enabled button leaves focus where it is.
+5. **An explicit `axis:` other than the grid's raises** `ArgumentError`.
+6. **`Column`, `Row` and `Ring` step as before.** The existing examples in
+   `stepping_spec.rb` and `stack_spec.rb` pass unchanged.
 
 For the group:
 
-8. **One menu in a group is `current`, and only it reads input**: navigation,
+7. **One menu in a group is `current`, and only it reads input**: navigation,
    hotkeys and confirm. The others draw with nothing focused. The measured case
    is a test: one `ui_confirm` activates one button.
-9. **`current` starts on the first menu in tree order that is open and has an
-   enabled button**, and is nil while none has.
-10. **Each tick, before its menus read input, a group re-checks `current`.** A
-    current menu that is closed or has no enabled button hands over to the first
-    that qualifies, which focuses its first enabled button.
+8. **`current` starts on the first menu to join that is open and has an enabled
+   button**, and is nil while none has.
+9. **Each tick, before its menus read input, a group re-checks `current`.** A
+   current menu that is closed, has no enabled button or has left the tree
+   hands over to the first that qualifies.
+10. **Every change of `current` follows one rule**, whether a crossing,
+    `current=`, a hand-over or the first menu to join made it. The menu left
+    clears its focus and reads nothing more that tick. The menu entered reads
+    no input until the next tick, and no confirm until it has seen confirm up.
+    Its navigation decides where focus starts: `Stepping` takes the enabled
+    button nearest the one left, or its first enabled button.
 11. **A step past the end of a line crosses to the neighbour that way.** Only a
     group with no neighbour in that direction wraps.
-12. **A direction the focused button does not adjust crosses too.** From a
-    column of plain buttons, left and right cross. On an `OptionButton` they
-    adjust, even at the end of its values.
+12. **A direction the focused button is not `adjustable?` in crosses too.**
+    From a column of plain buttons, left and right cross. On an `OptionButton`
+    they adjust, even at the end of its values, and so they do on a game's
+    button that overrides `adjust`.
 13. **The neighbour is the nearest menu wholly beyond the current one's edge**
     in that direction. The gap between the two decides; the distance between
     centres across it breaks a tie. A closed menu and a menu with no enabled
     button are never neighbours.
-14. **Crossing clears focus in the menu it leaves.** The menu it enters focuses
-    the enabled button nearest the one left, and takes no confirm until it has
-    seen confirm up.
-15. **Buttons added to a menu that is not current focus nothing there.**
-    Stepping's "focus is never empty" holds for the current menu.
+14. **One press crosses once**, whichever of the two menus comes first in the
+    tree. A grid above a column and a column left of a grid each land on the
+    nearest button, not the one after it.
+15. **`focus(index)` on a menu that is not current makes it current**, by
+    rule 10, on the button asked for. A navigation never focuses a menu that is
+    not current, so buttons added to one focus nothing there. Stepping's "focus
+    is never empty" holds for the current menu.
 16. **`current=` raises** `ArgumentError` for a menu outside the group.
-17. **Two players move in their own groups**, each in its own `PlayerLayer`.
-18. **Stepping a grid and crossing allocate nothing.**
+17. **A menu with a `trigger:`, a `DialogueBox` and a menu of another player
+    raise** `ArgumentError` as they join.
+18. **Two players move in their own groups**, each in its own `PlayerLayer`.
+19. **Stepping a grid, crossing, and a group's check each tick allocate
+    nothing.**
 
 ### Tests
 
 - `spec/rgame/engine/ui/grid_spec.rb`: rule 1 for a full grid, a short last row,
   a single row and no buttons.
 - `spec/rgame/engine/ui/stepping_spec.rb`: a `describe 'across a grid'` group
-  for rules 2–6.
-- `spec/rgame/engine/ui/focus_group_spec.rb`: rules 8–17, with a grid and a
-  column side by side, a closed menu between two open ones, and a menu wrapped
-  in a plain node.
+  for rules 2–5.
+- `spec/rgame/engine/ui/focus_group_spec.rb`: rules 7–18, with a grid and a
+  column side by side, the same pair in the other tree order, a closed menu
+  between two open ones, and a menu wrapped in a plain node.
 - `spec/rgame/engine/ui/button_spec.rb` and `option_button_spec.rb`:
-  `adjustable?`.
+  `adjustable?`, and a `Button` subclass that overrides `adjust`.
 - `spec/rgame/engine/ui/menu_spec.rb`: a menu outside any group is always
-  `active?`.
-- `spec/rgame/engine/ui/focus_group_allocation_spec.rb`: rule 18.
+  `current?`, and its `group` is nil.
+- `spec/rgame/engine/ui/focus_group_allocation_spec.rb`: rule 19.
 
 ### Verify
 
@@ -907,32 +966,45 @@ ruby tools/drive_test_project.rb examples/inventory/main.rb --ticks 300 --texts
 ```
 
 `examples/inventory` holds eight items from `skills.json` and `icons.json` in a
-four-column grid. Beside it stands a column of two verbs, use and drop, and a
-panel names the focused item. The drive script walks right along the first row
-and on into the verbs, drops the item, and comes back left into the bag. It then
-presses up, which wraps inside the column because nothing lies above.
+four-column grid. Its slots are 64 pixels, the size of the larger atlas's
+icons. Beside it stands a column of two verbs, use and drop, and a panel names
+the focused item. The bag's buttons draw no captions, so the panel is the only
+place an item's name is drawn as text. Crossing clears the bag's focus, so the
+example keeps the item last focused there, and the verbs act on that one.
 
-`--texts` reports each item's name as focus reaches it, and the dropped item's
-name stops appearing. Drop is what exercises rule 15: the bag is rebuilt while
-the verbs are current.
+The drive script walks right along the first row and on into the verbs, drops
+the item, and comes back left into the bag. It then presses up, which wraps
+inside the column because nothing lies above.
+
+`--texts` keeps a count and the tick a string first appeared, not the tick it
+last did. So the script's header lists `--ticks` checkpoints and what each
+report shows, as `tools/drive/examples/skill_bar.rb` does. Each item's name
+first appears as focus reaches it, and the dropped item's count stands still
+from the drop on. Rule 15 is pinned by its spec, not by this run: a bag
+rebuilt while the verbs are current and focusing its first item again would
+only raise a count the report already has.
+
+`docs/api/ui.md`'s "What this is not" says there is no grid, which stops being
+true here.
 
 ---
 
 ## Step 6 — tabs, and scrolling
 
 A bag outgrows its panel once a game has more than a dozen things, and an
-equipment screen is a second page beside the bag. Step 7 is built from both.
+equipment screen is a second page beside the bag. Step 8 is built from both.
 Both also change what a menu draws, so they land before any example depends on
 them.
 
 ### Sub-steps
 
-- **6a** — `confirm:` on `Menu`, `actions:` on `Stepping`, `ui_tab_prev` and
-  `ui_tab_next` in the universal set, and `UI::Tabs`.
-- **6b** — `visible_rows:` on `Column` and `Grid`, and a menu that keeps its
+- **6a** — `confirm:` on `Menu`, `actions:` on `Stepping`, and `ui_tab_prev`
+  and `ui_tab_next` in the universal set.
+- **6b** — `UI::Tabs`.
+- **6c** — `visible_rows:` on `Column` and `Grid`, and a menu that keeps its
   focus in view.
-- **6c** — `examples/inventory` grows a page of key items and a bag longer than
-  its panel.
+- **6d** — `examples/inventory` grows a page of key items and a bag longer than
+  its panel, with a second drive script, `inventory_pad.rb`.
 
 ### Shape
 
@@ -941,37 +1013,57 @@ them.
 ui_tab_prev: { buttons: [Controls::KEY_Q, Controls::PAD_LEFT_SHOULDER] },
 ui_tab_next: { buttons: [Controls::KEY_E, Controls::PAD_RIGHT_SHOULDER] },
 
-bar  = UI::Row.new(item_width: 96, item_height: 28)
-tabs = layer.add_node(UI::Tabs.new(x: 16, y: 8, layout: bar, scope: 'inventory'))
+row   = UI::Row.new(item_width: 96, item_height: 28)
+tabs  = layer.add_node(UI::Tabs.new(x: 16, y: 8, layout: row, scope: 'inventory'))
 items = tabs.add(UI::PanelButton.new(label: 'items'), UI::FocusGroup.new)
 keys  = tabs.add(UI::PanelButton.new(label: 'key_items'), UI::FocusGroup.new)
 
 tabs.current            # items: the page shown
-tabs.show(keys)
+tabs.current = keys     # what a press of E does
 tabs.on_changed { |page| ... }
-tabs.bar                # the Menu holding the tab buttons
 tabs.open? ; tabs.open ; tabs.close
 tabs.on_opened { ... } ; tabs.on_closed { ... }
 
 # What Tabs builds its bar from, which a game may use alone
-UI::Menu.new(layout: bar, confirm: nil)                  # nothing confirms it; hotkeys still work
-UI::Stepping.new(actions: %i[ui_tab_prev ui_tab_next])   # steps on these two, adjusts nothing
+UI::Menu.new(layout: row, confirm: nil)                  # nothing confirms it; hotkeys still work
+UI::Stepping.new(actions: %i[ui_tab_prev ui_tab_next])   # steps on these two, adjusts nothing, never crosses
 
-grid = UI::Grid.new(columns: 4, item_width: 56, item_height: 56, spacing: 6, visible_rows: 3)
+grid = UI::Grid.new(columns: 4, item_width: 64, item_height: 64, spacing: 6, visible_rows: 3)
 bag.first_row           # the top row in view
 bag.rows_above          # 0 at the top; what a game draws a scroll arrow from
 bag.rows_below
 ```
 
+**The universal set shares buttons with games, as it already does.** Space is
+both `ui_confirm` and `fire`. A game that chords the two shoulder buttons, as
+`examples/input_holds` does, now also silences both tab actions while the chord
+is held, and pressing the left one first shows the previous tab.
+
 `Tabs#add(button, page)` puts the button in the bar and the page under the tabs,
-and returns the page. A page is any node. It is placed from the tabs' origin,
-so it gives itself a `y` below the bar. The bar's focused button is the shown tab, so a tab draws its focused look while the
-bar never reads `ui_confirm`.
+and returns the page. A page is any node. `Tabs` places each page's origin at
+the bottom of the bar's bounds, so a page's own `y` of 0 starts under the tabs.
+The bar is the tabs' own and nothing outside reaches it, so no `add`, `clear`
+or `close` on it can leave a tab without its page. Its focused button is the
+shown tab, so a tab draws its focused look while the bar never reads
+`ui_confirm`. `current` is read off that focus, so the two cannot disagree.
+
+**Pages live off the child list**, the way `SceneStack` holds its scenes. Each
+page's `parent` is the tabs, and each enters and leaves the tree with them.
+`Tabs` controls and draws the page shown, and updates every page. The shown page
+is controlled before the bar, so a switch takes effect from the next tick.
+
+**`Tabs` bounds focus groups.** Its bar joins none. A menu inside a page joins a
+group inside that page or none, because the search for a group stops at the
+tabs. So a crossing never lands on the bar or on a hidden page. The bar can read
+input beside a page's current menu because the two read different actions. A
+`Tabs` inside another's page raises `ArgumentError`, since one press would
+switch both.
 
 A layout built with `visible_rows:` answers `visible_rows` and takes
 `arrange(buttons, first_row)`, placing the row in view at the menu's origin.
 `Menu` calls it that way and leaves the rows outside the window undrawn. A
 layout without `visible_rows`, a game's own included, is called as today.
+`first_row` belongs to the menu, because one layout may serve several menus.
 
 ### The rules the tests pin
 
@@ -979,47 +1071,60 @@ For tabs:
 
 1. **`ui_tab_next` and `ui_tab_prev` show the next and the previous enabled
    tab**, wrapping, and emit `on_changed` with the page shown.
-2. **Only the shown page is controlled, updated and drawn.** A page keeps its
-   state while hidden, so a menu's focus is where the player left it.
-3. **The first page added is shown.**
-4. **`show(page)` does what a press does**, emits only on a change, and raises
+2. **Only the shown page is controlled and drawn. Every page is updated.** A
+   page keeps its state while hidden, so a menu's focus is where the player left
+   it. Hiding is not pausing, as closing a menu is not: a button's pressed look
+   runs out while its page is hidden.
+3. **A page shown is first controlled on the next tick.** E and confirm on one
+   frame switch the page and activate nothing on it.
+4. **The first enabled tab's page is shown first.**
+5. **`current=` does what a press does**, emits only on a change, and raises
    `ArgumentError` for a page the tabs do not hold.
-5. **A tab's hotkey shows its page.**
-6. **A closed `Tabs` draws nothing, and nothing under it reads input.** It still
+6. **A tab's hotkey shows its page.**
+7. **A closed `Tabs` draws nothing, and nothing under it reads input.** It still
    ticks, as a closed `Menu` does. `open` and `close` emit only on a change, and
    a `Tabs` starts open.
-7. **`ui_confirm` never reaches the bar.** A menu built with `confirm: nil`
+8. **`ui_confirm` never reaches the bar.** A menu built with `confirm: nil`
    activates nothing on a confirm, and `confirm:` naming another action confirms
    on that one.
-8. **`Stepping.new(actions:)` reads those two actions and nothing else**, and
-   adjusts nothing. Anything but two action names raises `ArgumentError`.
-9. **Two players switch their own tabs.**
+9. **`Stepping.new(actions:)` reads those two actions and nothing else**,
+   adjusts nothing and never crosses. Anything but two action names raises
+   `ArgumentError`.
+10. **The bar joins no group, and a page's menus join none above the tabs.** A
+    `Tabs` inside another's page raises `ArgumentError`.
+11. **Two players switch their own tabs.**
 
 For scrolling:
 
-10. **A menu over a layout with `visible_rows:` draws that many rows.** Its
-    bounds are the window's, so a `PanelMenu`'s panel keeps its size.
-11. **Every change of focus scrolls the focused button into view**, by the
+12. **A menu over a layout with `visible_rows:` draws that many rows.** Its
+    bounds are the whole window's, however many rows are filled, so a
+    `PanelMenu`'s panel keeps its size as items come and go. A layout without
+    `visible_rows:` keeps step 5's rule 1.
+13. **Every change of focus scrolls the focused button into view**, by the
     fewest rows, whether navigation, the game's `focus` or a group crossing made
     it. A wrap from the last row to the first scrolls to the top.
-12. **`rows_above` and `rows_below` count the hidden rows** on each side, and
+14. **A crossing into a scrolled menu lands on the nearest enabled button in
+    view.**
+15. **`rows_above` and `rows_below` count the hidden rows** on each side, and
     are 0 when every row fits.
-13. **`clear` scrolls to the top.**
-14. **Switching tabs and scrolling allocate nothing.**
+16. **`clear` scrolls to the top.**
+17. **Switching tabs and scrolling allocate nothing.**
 
 ### Tests
 
-- `spec/rgame/engine/ui/tabs_spec.rb`: rules 1–6 and 9.
-- `spec/rgame/engine/ui/menu_spec.rb`: rule 7, and rules 10–13.
-- `spec/rgame/engine/ui/stepping_spec.rb`: rule 8.
+- `spec/rgame/engine/ui/tabs_spec.rb`: rules 1–7, 10 and 11.
+- `spec/rgame/engine/ui/menu_spec.rb`: rule 8, and rules 12, 13, 15 and 16.
+- `spec/rgame/engine/ui/stepping_spec.rb`: rule 9.
 - `spec/rgame/engine/ui/grid_spec.rb` and `column_spec.rb`: `arrange` with a
   first row, and the bounds of a window.
 - `spec/rgame/engine/input_map_spec.rb`: the two actions in the universal set.
+  The chord example's `contain_exactly(:block, :parry)` gains `ui_tab_prev` and
+  `ui_tab_next`, which is the chord silencing tab switching.
 - **The caller that uses all three**, in `tabs_spec.rb`: a page holding a group
   of a scrolled grid and a column. Focus scrolls the grid and crosses to the
-  column. The page switches away and back, and focus and scroll are where they
-  were.
-- `focus_group_allocation_spec.rb` gains rule 14.
+  column, and rule 14 lands it back in view. The page switches away and back,
+  and focus and scroll are where they were.
+- `focus_group_allocation_spec.rb` gains rule 17.
 
 ### Verify
 
@@ -1031,16 +1136,122 @@ ruby tools/drive_test_project.rb examples/inventory/main.rb --gamepad \
 ```
 
 The bag holds twenty items in three visible rows, and a second page holds key
-items. The script walks down past the window, switches to the key items with E
-and back with Q. `--texts` shows the key items' names only between the two
-switches. The `--gamepad` run does the same on the shoulder buttons.
+items. The two atlases hold thirteen icons, so icons repeat, but every item has
+a name of its own and `--texts` tells them apart. The script walks down past the
+window, switches to the key items with E and back with Q. The key items' names
+first appear after the E, and their counts stand still from the Q on; the
+script's header gives the checkpoints. The `--gamepad` run does the same on the
+shoulder buttons.
 
-Every other driven example reports what it reported at the branch point, byte
-for byte. The universal set grew, and nothing else may notice.
+**Every other driven example and test project reports what it reported at the
+branch point**, byte for byte, compared as the verify skill describes.
+`examples/input_holds` chords the shoulder buttons and `test_projects/adventure`
+binds E, so those two would show the universal set's growth first.
+
+Three places stop being true here: `docs/api/input.md`'s list of the universal
+set, `docs/api/ui.md`'s "no scrolling lists", and the universal actions
+`write-example` lists.
 
 ---
 
-## Step 7 — `examples/equipment`, and the adventure's bag
+## Step 7 — a node reads only the presses it saw start
+
+Step 8's bag pauses its hero, and a pause is where a press first outlives the
+node that should have read it. `:interact` is a tap, which presses on release,
+and the mapper computes edges whether a paused hero reads them or not. So E
+pressed in the bag and released within 0.3 s after I closes it opens the chest
+in reach, and E held across the close searches it late. The same press reaches
+a scene that comes back to the top of the stack, a page shown again, and a node
+added while a hold is running.
+
+`Menu` already refuses such a press, for itself: it takes no confirm until it
+has seen confirm up. Steps 5 and 6 each add a clause of the same kind, for a
+menu a group enters and a page a tab shows. All of them answer one question,
+whether this reader saw the press start. So this step answers it once, in
+`Node2D#control`, for every node, and no component has to remember it. It is
+[decision 19](README.md#decisions-already-taken).
+
+Nothing here is genuinely new. `ActionMapper` records when each press began,
+beside the `hold_times` it already keeps, and `Node2D#control` works out a gate
+the way it works out `abs_input_owner`. `Menu`'s rule is the definition.
+
+### Sub-steps
+
+- **7a** — `ActionMapper` and `Players::Everyone` record the poll each press
+  began on.
+- **7b** — `Node2D#control` hands its components and `_control` a gate.
+
+### Shape
+
+```ruby
+actions.poll_count              # which poll this snapshot is from; nil on one built by hand
+actions.down_since(:interact)   # the poll its buttons went down on; nil while they are up
+```
+
+`down_since` survives the tick of the release, as `held_for` does, because a tap
+presses on that tick.
+
+**A node resumes** on the first poll it is controlled after one it was not.
+That covers a paused node or ancestor, a scene below the top of the stack, a
+hidden page, and a node's first control.
+
+**Each node reads through a gate of its own**, made on its first control and
+reused after. The gate answers `pressed?` and `released?` from the snapshot,
+false for a press that began before the node resumed. It passes every other
+query through. `Node2D`'s part of this is `rgame_` machinery, so a subclass
+cannot switch it off.
+
+`Menu`'s own wait stays. It also waits after its buttons change, which no gap in
+control marks.
+
+### The rules the tests pin
+
+1. **A node reads the edges of a press only if the press began after it
+   resumed.** A paused parent, a scene popped back to and a node added mid-hold
+   each refuse the press that began before.
+2. **The press that resumed a node is not its press either.** A press that
+   began on the poll the node resumed is refused, as `Menu` refuses a press
+   already down when it opens.
+3. **Only `pressed?` and `released?` are gated.** `held?`, `axis` and
+   `held_for` answer as before, so a direction held across a bag closing walks
+   the hero.
+4. **The next press reads as usual.** Releasing and pressing again is a press.
+5. **A node whose `input_owner` changes resumes**, because it reads another
+   player's presses from then on.
+6. **A press of `players.everyone` began when its first member's did.**
+7. **A snapshot built by hand gates nothing**, so a spec passing
+   `Actions.new(...)` to `control` reads what it read before.
+8. **Nothing allocates per poll.** A node makes its gate once.
+
+### Tests
+
+- `spec/rgame/engine/action_mapper_spec.rb` and `actions_spec.rb`:
+  `poll_count` and `down_since`, and `down_since` on the tick a tap presses.
+- `spec/rgame/engine/players_spec.rb`: rule 6.
+- `spec/rgame/engine/node2d_press_gate_spec.rb`: rules 1–5 and 7, with a paused
+  parent, a `SceneStack` popped back to, a node added mid-hold, and two players.
+- **The caller that uses it**, in the same spec: a hero paused by a bag. E
+  tapped across the unpause opens nothing, and the next tap opens.
+- `spec/rgame/engine/node2d_control_allocation_spec.rb`: rule 8.
+- `spec/rgame/engine/sealed_privates_spec.rb`: the new `rgame_` methods.
+
+### Verify
+
+```
+bundle exec rake spec
+```
+
+**Every driven example and test project reports what it reported at the branch
+point**, byte for byte, compared as the verify skill describes. A report that
+changes names a press the gate now refuses, and the landed note says which.
+Step 8's adventure run is where the gate is seen working, on a tap of E begun
+in the bag and ended after it closes.
+
+`docs/api/input.md` gains the rule, beside the edges it gates.
+
+---
+
+## Step 8 — `examples/equipment`, and the adventure's bag
 
 The screen a game ships, and the first place a pickup reaches an inventory.
 Steps 5 and 6 each proved their own parts. Here those parts meet collecting,
@@ -1048,8 +1259,9 @@ pausing and a second player.
 
 ### Sub-steps
 
-- **7a** — `examples/equipment`.
-- **7b** — the adventure's bag: what each hero collected, on a page beside what
+- **8a** — `examples/equipment`.
+- **8b** — `--texts` per clip in `tools/drive_test_project.rb`.
+- **8c** — the adventure's bag: what each hero carries, on a page beside what
   they wear.
 
 ### Shape
@@ -1060,7 +1272,13 @@ examples/equipment/locales/en.yml
 tools/drive/examples/equipment.rb
 tools/drive/examples/equipment_pad.rb
 
-test_projects/adventure/bag.rb      # one player's Tabs: a Carried page and a Worn page
+tools/drive_test_project.rb          # --texts also lists each clip's strings
+
+test_projects/adventure/bag.rb       # one player's bag: a node holding a Tabs of Carried and Worn
+test_projects/adventure/lever.rb     # a second interactable, with words of its own
+test_projects/adventure/hero.rb      # carried, worn and carry, and the worn pieces drawn
+test_projects/adventure/{main,room,coin,chest}.rb
+tools/drive/test_projects/adventure.rb
 ```
 
 `examples/equipment` is one `Tabs` with two pages:
@@ -1068,7 +1286,7 @@ test_projects/adventure/bag.rb      # one player's Tabs: a Carried page and a Wo
 ```
  [ Gear ]  [ Bag ]
  ┌────────┐   Head [ straw hat ]    ┌────┬────┬────┐
- │  hero  │   Body [     —     ]    │    │    │    │
+ │  hero  │   Body [   empty   ]    │    │    │    │
  │ dressed│   Feet [   boots   ]    ├────┼────┼────┤
  └────────┘                         │    │    │    │
                                     └────┴────┴────┘
@@ -1076,33 +1294,76 @@ test_projects/adventure/bag.rb      # one player's Tabs: a Carried page and a Wo
 
 - **Gear** is one `FocusGroup` of a column of slots and a grid of the clothes
   that fit them. Choosing a piece wears it and replaces what that slot held.
-  Choosing a slot takes its piece off. The hero draws from `hero.png` with the
-  worn pieces drawn over it as shapes.
-- **Bag** is a grid of everything carried, and marks each worn piece.
+  Choosing a slot takes its piece off. An empty slot stays enabled and says so,
+  so taking the last piece off leaves focus where it is. The hero draws from
+  `hero.png`, scaled up from its 16×22 frame, with the worn pieces drawn over it
+  as shapes.
+- **Bag** is a grid of everything carried, and a panel that names the focused
+  piece and says, as text, whether it is worn.
 
-Six pieces, two per slot, are drawn as shapes by one `Button` subclass in the
-example. The same drawing dresses the hero, so a piece and its slot always
-agree.
+**One outfit, read by everything.** The example holds one object that says
+which piece each slot wears. The slots, both grids and the hero figure read it,
+and nothing copies it. Six pieces, two per slot, each draw themselves as
+shapes. A piece's button and the figure call that one drawing, so a piece and
+its slot always agree.
 
-The adventure binds `bag` to I and the pad's Start. Each hero's bag lives in
-that player's `PlayerLayer`, closed, and the hero pauses while it is open. A coin
-goes to the hero whose feet box took it, through `Collectable#on_collected`. The
-chest's search puts a hat in the searching hero's bag, and wearing it draws it
-on that hero.
+The slot names, the pieces and the empty slot's word are keys in `en.yml`. The
+example's header does not name the test project, because
+`spec/game_references_spec.rb` fails a shipped file that does. An `### equipment`
+entry in `docs/api/examples.md`, which the index spec requires, and a row in
+`README.md` come with it.
+
+**The hero owns what it carries and wears**, so no hook hands a bag's data to
+the world:
+
+```ruby
+hero.carry(item)        # the one way in, for a coin and for the chest's hat
+hero.carried            # what the Carried page lists
+hero.worn               # what the Worn page shows, and what the hero draws
+Bag.new(hero:)          # handed its hero, as tiled_world's Inventory is handed its walker
+```
+
+A coin calls `carry` on `other.node` from `Collectable#on_collected`. `other` is
+the feet box that touched it, so the coin reaches the hero who took it. The
+chest's search returns the hat, and the hero who searched carries it. The hero
+draws the pieces it wears, and names them in words too, as the chest and the
+crate draw their state.
+
+**`Bag` is a node that holds a `Tabs`**, as `Inventory` holds its menu. A closed
+`Tabs` reads no input, so something outside it has to read `bag`. The adventure
+binds `bag` to I and the pad's Start. Each hero's bag lives in that player's
+`PlayerLayer`, closes its `Tabs` as it enters, and pauses its hero while the
+tabs are open.
+
+**A press begun in the bag stays there.** Step 7 gates every press a node never
+saw start, so E tapped in the bag and released after it closes reaches neither
+the hero nor the chest.
 
 ### What the run proves
 
 No engine class is expected in this step, so it has no specs of its own. If one
 turns up, it arrives with its tests, as step 4's `ActorBlockers#passing` did.
+The harness grows instead: `--texts` keeps a count and a first tick for each
+clip as well as overall, and each `PlayerLayer` and each viewport is a clip of
+its own. That is what ties a string to a player.
+
 The adventure's run is what pins these:
 
 1. **A coin reaches the bag of the hero who took it**, and never the other's.
-2. **The hero whose bag is open stands still. The other walks on.**
-3. **E switches a tab and opens no chest.** E is both `ui_tab_next` and
-   `:interact`, and the paused hero reads neither of its own actions.
-4. **Player one's tabs and player two's switch apart.**
-5. **The hat the chest gave is drawn on the hero wearing it**, in both
-   viewports.
+   Each player takes a coin.
+2. **The hero whose bag is open stands still. The other walks on.** A fifth coin
+   lies where player one presses while moving through their bag. The audio
+   count stays where it is until the bag closes.
+3. **E switches a tab and opens nothing.** Player one stands by the lever, opens
+   their bag and presses E. The lever's word stays until they close the bag and
+   press E again. E is both `ui_tab_next` and `:interact`, and the paused hero
+   reads neither of its own actions. A tap of E begun in the bag and ended after
+   it closes opens nothing either, which is step 7 seen from a game.
+4. **Player one's tabs and player two's switch apart.** Player two opens their
+   bag with Start while player one's is open, and switches with the right
+   shoulder button. Then player one switches with E.
+5. **The hat the chest gave is drawn on the hero wearing it and on no other.**
+   Its words rise by two a frame, one per viewport, not four.
 
 ### Verify
 
@@ -1111,21 +1372,25 @@ bundle exec rake spec
 ruby tools/drive_test_project.rb examples/equipment/main.rb --ticks 400 --texts
 ruby tools/drive_test_project.rb examples/equipment/main.rb --gamepad \
   --script tools/drive/examples/equipment_pad.rb --ticks 400 --texts
-ruby tools/drive_test_project.rb test_projects/adventure/main.rb --ticks 480 --texts
+ruby tools/drive_test_project.rb test_projects/adventure/main.rb --ticks 600 --texts
 ```
 
-The equipment run wears a piece, swaps it for the other one in that slot, takes
-it off, and looks at the bag. `--texts` shows each slot's name changing in that
-order, and the bag's mark following.
+The equipment run wears a piece, swaps it for the other one in that slot, and
+takes it off, and looks at the Bag page after each. Taking a piece off draws the
+empty slot's word, which the Body slot has drawn since tick 0, so no new string
+shows it. The drive script's header therefore names the count or first tick that
+proves each change, as `tools/drive/examples/skill_bar.rb` does.
 
-The adventure's first 240 ticks keep the tick numbers step 4 recorded: "open"
-from 150, "searched" from 206, "east" from 111 and "west" from 189. After them,
-player one opens their bag, wears the hat and closes it again, while player two
-keeps walking. The landed note records each rule above with the tick it
-happened on, read off the report at chosen `--ticks` values, as step 0 read its
-rules off the translate range.
+The adventure's first 240 ticks keep the text ticks step 4 recorded: "open" from
+150, "searched" from 206, "east" from 111 and "west" from 189. Its draw, clip and
+band counts change: the first `PlayerLayer` adds a `:hud` band, and pushes each
+player's region as a clip a second time each frame. The lever stands more than
+`Hero::REACH` from player one's path in those ticks, so it cannot take the
+chest's press. After them, the script plays rules 1 to 5 in that order. The
+landed note records each rule with the tick it happened on, read off the report
+at the script's checkpoints, as step 0 read its rules off the translate range.
 
-## Step 8 — fades, and particles *(rough)*
+## Step 9 — fades, and particles *(rough)*
 
 `Engine::ScreenFade` and `Components::Particles`, plus `examples/effects`: a
 fade, a flash, sparkles and a bolt. Everything here is engine-layer Ruby over
@@ -1134,7 +1399,7 @@ fade, a flash, sparkles and a bolt. Everything here is engine-layer Ruby over
 Watch for: the colour a fade draws with changes every tick, so it is built in
 `_update` and never in `_draw`.
 
-## Step 9 — a blend mode on a draw command *(rough, and C)*
+## Step 10 — a blend mode on a draw command *(rough, and C)*
 
 `renderer.blended(:add) { ... }`, carried through the draw queue the way a clip
 is. A field on the command and the batch, a comparison in the batch test, a
@@ -1145,7 +1410,7 @@ Follow [write-c-code](../../../.claude/skills/write-c-code/SKILL.md). The Check
 suite asserts the batching: two additive quads and one alpha quad between them
 are three batches, and the same three in one blend mode are one.
 
-## Step 10 — audio transitions *(rough)*
+## Step 11 — audio transitions *(rough)*
 
 `Core::Audio` gains `music_volume`, `pause_music`, `resume_music` and
 `category_volume`; `Song#resume` is the one new C entry point. `AudioOut` gains
@@ -1156,7 +1421,7 @@ tween in `_update`.
 [open question 1](README.md#open-questions) — which second track, and whether it
 is worth 90 KB in the gem — is answered before this step starts.
 
-## Step 11 — the scene stack that names and defers *(rough)*
+## Step 12 — the scene stack that names and defers *(rough)*
 
 `define`, `carry:`, deferral in `_update`, `on_changed`, and `Scene::Fade` as a
 transition the stack drives. The two hand-written switches in
@@ -1166,14 +1431,14 @@ step, which is what proves the engine's version covers what they did.
 Watch for: the drive harness prepends `push` and `pop` to report scenes, so a
 deferred switch must still go through them.
 
-## Step 12 — doors, entrances, and the teleport example *(rough)*
+## Step 13 — doors, entrances, and the teleport example *(rough)*
 
 `examples/doors`: two rooms, a door between them that carries the hero and
 places them at a named entrance, and a warp pad that moves them inside one
 room. The adventure gains its second room. Doors come from a Tiled object layer
 through `Engine::MapObjects`.
 
-## Step 13 — cutscenes *(rough)*
+## Step 14 — cutscenes *(rough)*
 
 `Engine::Cutscene::Script`, `Engine::Cutscene` and `Components::Cutscene`, with
 the five step kinds and a skip that finishes the rest. `examples/cutscene`, and
@@ -1182,12 +1447,13 @@ the adventure's arrival scene, skipped with a held button.
 `test_projects/tiled_world/cutscene.rb` is the 95 lines this replaces: the step
 is done when that file could be written with the script instead.
 
-## Step 14 — fold the plan back and delete it
+## Step 15 — fold the plan back and delete it
 
 Move what is still true into the documentation and remove
 `docs/plans/v0.5.0-roadmap/`.
 
-- **`docs/api/input.md`** — holds, taps and chords, and `held_for`.
+- **`docs/api/input.md`** — holds, taps and chords, `held_for`, and the
+  presses a node never saw start.
 - **`docs/api/systems.md`** — `Engine::Debug` and its channels; `AudioOut`'s
   transitions.
 - **`docs/api/components.md`** — `Interactor`, `Collectable`, `Pushable`,

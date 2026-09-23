@@ -1,8 +1,8 @@
 # The rest of the README roadmap
 
-**Status: steps 0 to 4 are implemented.** Steps 0–7 of
-[the roadmap](04-roadmap.md) are detailed, 5–7 re-planned after step 4 landed.
-Steps 8–14 are deliberately rough and get re-planned once the layer beneath them
+**Status: steps 0 to 4 are implemented.** Steps 0–8 of
+[the roadmap](04-roadmap.md) are detailed, 5–8 planned after step 4 landed.
+Steps 9–15 are deliberately rough and get re-planned once the layer beneath them
 exists.
 
 | File | What it holds |
@@ -29,7 +29,7 @@ way dialogue was.
 
 | Item | The shape it takes | Steps |
 |---|---|---|
-| Input | `hold:`, `tap:` and `all:` declared in the `InputMap`; `poll` takes `dt` | 1 |
+| Input | `hold:`, `tap:` and `all:` declared in the `InputMap`; `poll` takes `dt`; a node reads only the presses it saw start | 2 |
 | Debug layer | an `Engine::Debug` system of named channels; shapes draw themselves | 1 |
 | Collectables | `Interactor` extends `Targeting`; `Collectable` frees its node | 1 |
 | Push and pull | `pushes:` on `Mover`, a `Pushable` mover, a `Grab` component | 2 |
@@ -50,10 +50,12 @@ way dialogue was.
    already answers for a turret. Interacting asks the same question for another
    reason, so `Interactor` extends it rather than asking it again.
 
-**One item changes how existing code behaves, and it is push and pull.**
-Everything else is additive. Pushing reaches into `CollisionSystem#move`, which
-is what gives every mover in the project its feel, so the driven examples are
-what decide whether it changed.
+**Two steps change how existing code behaves: push and pull, and the press
+gate.** Everything else is additive. Pushing reaches into
+`CollisionSystem#move`, which is what gives every mover in the project its
+feel. The gate changes what a node reads after it was paused, hidden or not yet
+in the tree. In both cases the driven examples decide whether anything a
+player feels changed.
 
 **The C step is blend modes, and it stays inside OpenGL 1.1.**
 `glBlendFunc(GL_SRC_ALPHA, GL_ONE)` is core 1.0, so additive drawing needs no
@@ -89,8 +91,8 @@ Taken at `9abd338`, on this checkout.
 ## Hard constraints
 
 1. **The engine layer may not name `RGame::Core`.** Everything here is
-   `RGame::Engine`, with two exceptions: step 9's blend modes, which are Core
-   and C, and step 10's audio entry points.
+   `RGame::Engine`, with two exceptions: step 10's blend modes, which are Core
+   and C, and step 11's audio entry points.
 2. **One runtime gem dependency, `rexml`, and no more.**
 3. **Text a player reads is a translation key**, drawn through `Engine::Text`.
    `Game/NoLiteralText` holds it for `lib/` and `examples/`.
@@ -169,13 +171,21 @@ re-litigation inside the plan.
 18. **`examples/equipment` draws its clothes in code.** Taken when steps 5–7
     were re-planned. A hat, a cloak and boots drawn as shapes over `hero.png` add
     nothing to the gem, and constraint 8 allows art drawn here.
+19. **A node reads only the presses it saw start, and that is a step of its
+    own.** Taken when the re-plan of steps 5–7 was reviewed. A tap of E begun in
+    a hero's bag and ended after it closes opened the chest in reach, because
+    the mapper computes edges whether a paused hero reads them or not. `Menu`
+    already refuses such a press for itself, and steps 5 and 6 each add a clause
+    of the same kind. So `Node2D#control` gates it once, for every node, as
+    [step 7](04-roadmap.md#step-7--a-node-reads-only-the-presses-it-saw-start),
+    before the screens that first pause a hero.
 
 ## Open questions
 
 1. **Which second music track, and is it worth 90 KB in the gem?** The
    crossfade example needs two loops, and `examples/assets/` has one.
    `examples/assets/README.md` already measured four candidates from the same
-   CC0 pack for seam and tail silence. Waits on step 10. Blocks nothing before
+   CC0 pack for seam and tail silence. Waits on step 11. Blocks nothing before
    it.
 2. ~~**Which keyboard keys stand in for the shoulder buttons?** A tab bar is
    built for LB and RB, and a keyboard needs an answer: `Q`/`E`, which games
@@ -184,7 +194,10 @@ re-litigation inside the plan.
    **Settled — Q and E**, beside the shoulder buttons, as `ui_tab_prev` and
    `ui_tab_next`. `E` is also `:interact` in `DEFAULT_ACTIONS`. That is safe
    because a hero pauses while their bag is open, so the two never act at once,
-   and step 7's adventure run checks it. Tab and Shift+Tab lost on two counts:
+   and step 8's adventure run checks it against a lever in reach. A tap that
+   starts in the bag and ends after it closes did reach `:interact`, and
+   [decision 19](#decisions-already-taken) is the answer. Tab and Shift+Tab
+   lost on two counts:
    Shift is `:grab`, and three examples already bind Tab. See
    [step 6](04-roadmap.md#step-6--tabs-and-scrolling).
 3. **Does `Interactor` stay a subclass of `Targeting`?** ~~They answer the same

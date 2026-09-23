@@ -315,8 +315,8 @@ rather than assumed.
 
 - **`UI::Tabs` and `UI::FocusGroup`.** Nothing here passes focus between two
   menus, and nothing switches pages. `UI::Menu` holds buttons and cannot hold
-  menus. The re-plan of steps 5–7 moved the tab bar to the middle pile: it is a
-  `Menu`, and only the pages are new.
+  menus. The re-plan of steps 5–7 moved `Tabs` to the middle pile: its bar is a
+  `Menu`, and its pages are held the way `SceneStack` holds scenes.
 - **`Components::Particles`.** A pool of things with a lifetime exists;
   spawning them along a spread with a colour over their life does not.
 - **`Engine::Cutscene`.** A sequencer of steps, each ending on a duration, a

@@ -98,6 +98,17 @@ nil today.
 - `all:` with fewer than two ids.
 - A threshold that is not a positive number.
 
+### A press a node never saw start
+
+Added when the re-plan of steps 5–7 was reviewed, as
+[step 7](04-roadmap.md#step-7--a-node-reads-only-the-presses-it-saw-start).
+The mapper records the poll each press began on. `Node2D#control` hands a
+node's components and `_control` a gate, which refuses the edges of a press
+that began before the node was last controlled after a gap. A paused hero, a
+scene back on top of the stack and a page shown again then read nothing that
+began while nothing read it for them. `Menu`'s wait for confirm up is the same
+rule, which it keeps for itself.
+
 ## 2. The debug layer
 
 ### A system of channels
@@ -326,12 +337,13 @@ tabs.on_changed { |page| ... }
 ```
 
 `UI::Tabs` holds its bar as a `Menu` that nothing confirms, stepped by two
-actions of its own. It draws, controls and updates only the page shown. It reads two new
-actions from the universal UI set, `ui_tab_prev` and `ui_tab_next`, bound to
-the shoulder buttons and to the keys
-[open question 2](README.md#open-questions) picks. The tab bar is never
-focused: switching a page is a route of its own, which is the console
-convention Unreal's CommonUI encodes.
+actions of its own. It holds its pages off its child list, the way `SceneStack`
+holds scenes, draws and controls the page shown, and updates every page. It
+reads two new actions from the universal UI set, `ui_tab_prev` and
+`ui_tab_next`, bound to the shoulder buttons and to the keys
+[open question 2](README.md#open-questions) picks. The bar's focused button is
+the tab shown, and `ui_confirm` never reaches it: switching a page is a route of
+its own, which is the console convention Unreal's CommonUI encodes.
 
 ### Scrolling shows whole rows
 
@@ -561,11 +573,11 @@ acceptance test for that meeting:
 | a chest opened by a tap and searched by a hold | 1, 3 |
 | collider shapes on F3 | 2 |
 | a crate to push, and one to pull | 4 |
-| a bag and an equipment screen, holding what was collected | 5–7 |
-| sparkles where a pickup was, and a storm | 8, 9 |
-| music that fades as a door closes behind it | 10 |
-| a second room through a door, with an entrance | 11, 12 |
-| an arrival cutscene, skippable with a held button | 13 |
+| a bag per hero, holding what they collected and what they wear, and a lever | 8 |
+| sparkles where a pickup was, and a storm | 9, 10 |
+| music that fades as a door closes behind it | 11 |
+| a second room through a door, with an entrance | 12, 13 |
+| an arrival cutscene, skippable with a held button | 14 |
 
 `examples/` still makes one point per file. This is the file where a pickup
 reaching an inventory, and a door fading picture and sound together, are things
