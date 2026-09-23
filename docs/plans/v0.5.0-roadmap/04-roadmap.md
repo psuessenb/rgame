@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: steps 0 to 4 are implemented.** Sixteen steps. Each is one branch and one
+**Status: steps 0 to 5 are implemented.** Sixteen steps. Each is one branch and one
 pull request, and its sub-steps are one commit each. **Steps 0–8 are detailed**;
 5–8 were planned after step 4 landed, and
 [what that re-plan found](#re-planning-steps-57) comes before them. **Steps 9–15
@@ -986,6 +986,89 @@ only raise a count the report already has.
 
 `docs/api/ui.md`'s "What this is not" says there is no grid, which stops being
 true here.
+
+**Landed.** Three sub-steps, one commit each. `make test` 380 checks 0 failures,
+`rake spec` 3315 examples 0 failures, `rake spec:core` 477 examples 0 failures,
+`rake docs:coverage` nothing undocumented.
+
+`UI::Grid` is a `Stack` that overrides one private method, the number of slots a
+row holds, and `Column`, `Row` and `Grid` now place and bound their buttons with
+one arithmetic. `Stepping` reads `columns` from a layout that answers it.
+`UI::FocusGroup` holds the menus that joined it and the one that reads.
+`Menu#current?`, `Menu#group` and `Button#adjustable?` are as sketched. The
+focus group's spec is 49 examples, and its allocation spec measures the check
+each tick, stepping a grid on both axes, and a crossing there and back, at
+zero objects each.
+
+The acceptance run is `examples/inventory`. `--texts` reports each item's name
+from the tick focus reached it: Wrench from 21, Torch from 33, Hammer from 45.
+"Used: Hammer" from 70, with the first click, is the crossing at the end of the
+row. Had the row wrapped, Enter would have confirmed the Wand in the bag, which
+does nothing. Hammer stops at 49 frames from the drop on tick 93. The crossing
+back lands on the Watering can at 115, which the drop moved into the first
+row's last slot, nearest Drop. Up at 136 wraps to the Gear at 137, the short last
+row's last button, because no menu lies above the bag. 300 ticks against 300
+frames, two clicks. The layout was also checked by eye, from frames captured
+with `xwd` on a private Xvfb: the bag focuses nothing while the verbs are
+current, and the panel keeps the item's name.
+
+**Every menu that existed steps as it did.** All 47 drive scripts at the branch
+point, every example, test project and gamepad run, report what they reported
+there, byte for byte, under `--seed 4242`, 240 ticks and `--texts`. The first
+capture of the adventure's baseline drew 238 frames against 240 ticks, the
+fixed-timestep loop skipping two draws. A rerun matched the branch exactly.
+
+What the sketch got wrong:
+
+- **"Until the next tick" is counted in the group's own control passes.** A
+  group has no tick number to read, so it counts the passes of its `control`
+  and remembers the pass `current` changed on. A crossing, a hand-over and a
+  `current=` from `update` all read from the next tick, as rule 10 says. A
+  `current=` from a node the tree controls *before* the group reads in the same
+  tick. Confirm still waits for confirm up, so only a navigation press could be
+  read twice that way, and nothing in the repository sets `current` from there.
+- **The navigation needed a fourth call.** Rule 10 has the navigation decide
+  where focus starts, and the interface had no call for it. `Navigation#entered(from)`
+  is it, with the button focused in the menu left. The base class focuses
+  nothing, `Pointing` inherits that, and `Stepping` takes the nearest enabled
+  button. With no button left, `Stepping` keeps an enabled focus the game set
+  before the menu joined, rather than moving it to the first button.
+- **The menu and its group talk through three `@api private` methods.**
+  `FocusGroup#join`, `#leave` and `#reading?`, and `Menu#enter_from`, which
+  resets the confirm wait and calls `entered`. None of them is a hook, so a game
+  subclass of `Menu` could replace `enter_from` without a guard noticing. The
+  seal covers only `Node2D` and `Component`.
+- **A menu leaving the tree hands over on the next check, not at once.** When a
+  whole group leaves, its menus leave one by one, and handing over at each exit
+  would focus buttons, and play a game's focus sound, on a screen that is
+  closing. `leave` clears `current`, and rule 9's check picks the next menu.
+- **The player check reads `input_owner` up the tree, not `abs_input_owner`.**
+  The resolved owner is only current once `control` has run, and a menu joins in
+  `enter_tree`, before that.
+- **A group knows a dialogue box's menu by its parent's class.** `join` refuses
+  a menu whose parent is a `DialogueBox`. No keyword on `Menu` says "may not be
+  grouped", because that would be a rule for the box's author to remember.
+- **The first spec let the menu left press a hotkey after crossing.** Its focus
+  was cleared, so confirm found nothing to press, and every example passed with
+  the check for "still current" deleted. A mutation found it, and an example
+  pressing a hotkey on the crossing tick now pins it.
+- **`toolbox.md` said "The engine has no grid class of its own"**, about grids
+  of values. It now says the engine holds a grid of values in no class of its
+  own, since `UI::Grid` holds none.
+- **RuboCop wanted two changes.** `FocusGroup#cross` answers true or false and
+  is a command, so `Naming/PredicateMethod` is disabled on it with a reason, as
+  on `Navigator#go_to`. `Game/NoNeedlessAllocation` refused a `%w[...].each` at
+  the top level of the example, and three lines replace it.
+
+For step 7: a group's menus that are not current are still controlled every
+tick, and only their `_control` returns early. The press gate will not see them
+as resuming, so the group's own rule stays, as `Menu`'s confirm wait does.
+
+Documented in [docs/api/ui.md](../../api/ui.md#rgameengineuifocusgroup) — the
+grid in the layouts table, stepping across a grid and in a focus group, the
+group itself, and `current?`, `group`, `adjustable?` and `entered` in their
+tables — with the example in [examples.md](../../api/examples.md#inventory), a
+row in `README.md`, and three entries in `CHANGELOG.md`.
 
 ---
 
