@@ -96,6 +96,28 @@ RSpec.describe RGame::Engine::Scene::SceneStack do
     end
   end
 
+  # A scene is held off its host's child list, so it follows the host only
+  # because setting `parent` registers it with the host.
+  describe 'a host that moves' do
+    # A node with no parent is the root and stays at the origin, so the host
+    # needs one to move at all.
+    it 'moves the scene with it' do
+      RGame::Engine::Node2D.new.add_node(host)
+      scene = RGame::Engine::Node2D.new(x: 5)
+      stack.push(scene)
+      scene.world_x
+      host.x = 50
+      expect(scene.world_x).to eq(55)
+    end
+
+    it 'lets go of the scenes it popped' do
+      popped = Class.new(RGame::Engine::Node2D)
+      build_in_finished_thread { 20.times { stack.push(popped.new).pop } }
+      collect_garbage
+      expect(ObjectSpace.each_object(popped).count).to eq(0)
+    end
+  end
+
   describe '#replace' do
     let(:outgoing) { scene_double }
     let(:incoming) { scene_double }

@@ -167,6 +167,12 @@ Two things invalidate a world position. One is writing `x`, `y` or `angle`. The
 other is a new parent through `add_node` or `remove_node`: the same offset from
 somewhere else is still a move.
 
+**A move reaches every node that names the mover as its `parent`**, whether or not
+it is in the mover's `children`. `SceneStack` holds its scenes off the child list
+and sets each one's `parent`, and a scene follows its host when the host moves. A
+container of your own that holds nodes the same way needs nothing more than
+setting `parent`, and setting it to `nil` lets the node go.
+
 **Which one to use.** Drawing needs neither; see "Drawing happens in local space"
 below. Game logic that reasons about the world reads `world_x`: a distance, a
 collision, a camera target. To move a node, write `x`. Write `world_x=` when the

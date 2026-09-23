@@ -343,6 +343,12 @@ index, not the argument.
 
 ### Fixed
 
+- **A scene follows its host when the host moves.** A scene on a
+  `RGame::Engine::Scene::SceneStack` kept the `world_x`, `world_y` and
+  `world_angle` it last read once the node holding the stack moved. A move now
+  reaches every node that names the mover as its `parent`, on the child list or
+  off it. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md#the-two-spaces).
 - **The debug overlay's Δ/f reads 0 in a game that allocates nothing.** Its
   colour was the three numbers a colour is built from rather than a
   `RGame::Util::Color`, and a renderer coerces what it is handed — so the
