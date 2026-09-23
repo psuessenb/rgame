@@ -50,7 +50,7 @@ each:
 
 | | Answers | Shipped |
 |---|---|---|
-| `layout:` | where each button goes, its size, and the [bounds](#layouts-column-row-and-ring) of them all | [`Column`](#layouts-column-row-and-ring), [`Row`](#layouts-column-row-and-ring), [`Ring`](#layouts-column-row-and-ring) |
+| `layout:` | where each button goes, its size, and the [bounds](#layouts-column-row-grid-and-ring) of them all | [`Column`](#layouts-column-row-grid-and-ring), [`Row`](#layouts-column-row-grid-and-ring), [`Grid`](#layouts-column-row-grid-and-ring), [`Ring`](#layouts-column-row-grid-and-ring) |
 | `navigation:` | which button this frame's input focuses | [`Stepping`](#stepping) (the default), [`Pointing`](#pointing), or [`nil`](#a-menu-with-no-navigation) |
 
 ```ruby
@@ -156,23 +156,32 @@ With no table loaded, a key shows as itself under the default missing policy, so
 that sets `I18n.missing = :raise` fails on it instead. See
 [Missing keys](localization.md#missing-keys).
 
-### Layouts: `Column`, `Row` and `Ring`
+### Layouts: `Column`, `Row`, `Grid` and `Ring`
 
 | | Places buttons | `axis` | Built with |
 |---|---|---|---|
 | `Column` | downwards from the menu's origin | `:vertical` | `item_width:`, `item_height:`, `spacing: 8` |
 | `Row` | rightwards from the menu's origin | `:horizontal` | `item_width:`, `item_height:`, `spacing: 8` |
+| `Grid` | in rows of `columns` slots from the menu's origin, left to right, then top to bottom | `:horizontal` | `columns:`, `item_width:`, `item_height:`, `spacing: 8` |
 | `Ring` | round a circle **centred on** the menu's origin, the first straight up, then clockwise | `:vertical` | `radius:`, `item_width:`, `item_height:` |
 
 ```ruby
 bar = layer.add_node(UI::Menu.new(layout: UI::Row.new(item_width: 64, item_height: 64)))
+bag = layer.add_node(UI::Menu.new(layout: UI::Grid.new(columns: 4, item_width: 64, item_height: 64, spacing: 6)))
 ```
 
-**`Column` and `Row` are one `UI::Stack` with a fixed `axis:`.** They compute the
-same thing with x and y swapped. Neither accepts `axis:`, since a column that is
-not vertical is a row. Passing one raises an unknown-keyword error instead of being
-ignored. `Stack.new(axis:, item_width:, item_height:, spacing: 8)` takes either
-axis in `Stack::AXES`, and raises `ArgumentError` for anything else.
+**`Column`, `Row` and `Grid` are one `UI::Stack`.** A stack places its buttons in
+rows of equal slots. A column's rows hold one slot each, a row's one row holds
+every slot, and a grid's rows hold `columns` slots. `Column` and `Row` fix the
+`axis:`, and neither accepts one, since a column that is not vertical is a row.
+Passing one raises an unknown-keyword error instead of being ignored.
+`Stack.new(axis:, item_width:, item_height:, spacing: 8)` takes either axis in
+`Stack::AXES`, and raises `ArgumentError` for anything else.
+
+**A `Grid`'s `axis` is the order it fills in**, and it takes no `axis:` either.
+`columns` answers the number it was built with, and `Grid.new` raises
+`ArgumentError` unless that is a positive Integer. [`Stepping`](#stepping) reads
+`columns` to move along the rows and down the columns.
 
 A layout is any object that answers three methods. The first two work relative to
 the menu:
@@ -185,12 +194,17 @@ the menu:
   `NoMethodError` when a menu is built with it and the default navigation. It works
   with an explicit `Stepping.new(axis:)` or any other navigation.
 
+A layout that also answers `columns` is a grid to `Stepping`, which then moves
+[across it](#across-a-grid).
+
 The menu calls `arrange` and `bounds` after every `add`, so a ring re-spaces itself
 as it grows. The menu copies the bounds into its own readers, so a backdrop drawn
 from them allocates nothing. A layout keeps no state about a menu, so one instance
 may serve several menus.
 
-`Column` and `Row` bounds match their slots exactly. `Ring` bounds are the square
+`Column`, `Row` and `Grid` bounds enclose the rows their buttons fill. A grid with
+a short last row is as wide as a full row, and a grid whose only row is short is as
+wide as its buttons. `Ring` bounds are the square
 around the whole circle of slots: `2 * radius + item_width` wide and
 `2 * radius + item_height` tall, whatever the count. A backdrop behind a wheel
 therefore keeps its size as buttons are added.
@@ -209,7 +223,7 @@ the order the buttons were added.
 |---|---|
 | `Stepping.new(axis: nil)` | `nil` takes the layout's `axis`; `:vertical` or `:horizontal` overrides it |
 | `axis` | the axis in use — resolved when the menu is built |
-| `step(delta)` | move focus forwards along the axis, `delta` times |
+| `step(delta)` | move focus `delta` places along the axis, or along the focused button's row on a grid |
 
 **The axis follows the layout.** `Menu.new(layout: UI::Row.new(...))` steps with
 left and right, with nothing else said. If the axis had to be set separately,
@@ -222,6 +236,23 @@ Focus starts on the first enabled button. It is never empty while the menu has o
 does not know what kind of button it addresses. It calls `adjust`, and a plain
 button returns `nil`. That makes an `OptionButton` work, and is why a settings menu
 uses `Stepping`.
+
+#### Across a grid
+
+**On a layout that answers `columns`, such as a [`Grid`](#layouts-column-row-grid-and-ring),
+both pairs move focus**, and nothing is adjusted:
+
+| | |
+|---|---|
+| `ui_left` / `ui_right` | along the row |
+| `ui_up` / `ui_down` | along the column |
+
+Each line, a row or a column, wraps inside itself, and a step skips the disabled
+buttons along it. A step up or down onto a short last row with no button in this
+column takes that row's last button. A line with no other enabled button leaves
+focus where it is. A grid's axis is the order it fills in, so
+`Stepping.new(axis: :vertical)` on a grid raises `ArgumentError` when the menu is
+built.
 
 ### `Pointing`
 
@@ -1172,7 +1203,7 @@ no press, so one line never skips twice.
 ## What this is not
 
 **This is a menu, not a widget library.** Every button in a menu has the same size,
-placed by a column, a row or a ring. That is the whole layout system: no grid, no
+placed by a column, a row, a grid or a ring. That is the whole layout system: no
 nesting, no scrolling lists, and no general layout model. It has no text entry and no
 continuous control. `OptionButton` covers a setting with a handful of values; a
 free-moving slider needs a control that does not exist.

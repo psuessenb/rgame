@@ -85,6 +85,107 @@ RSpec.describe RGame::Engine::UI::Stepping do
     end
   end
 
+  describe 'across a grid' do
+    # Four columns, so seven buttons make a full row and a short one:
+    #
+    #   b0 b1 b2 b3
+    #   b4 b5 b6
+    def grid_menu(count = 7, disabled: [])
+      grid = RGame::Engine::UI::Grid.new(columns: 4, item_width: 40, item_height: 40)
+      menu = root.add_node(RGame::Engine::UI::Menu.new(layout: grid))
+      count.times do |index|
+        menu.add(RGame::Engine::UI::TextButton.new(label: "b#{index}", enabled: !disabled.include?(index)))
+      end
+      root.enter_tree
+      menu
+    end
+
+    def focused_label(menu) = menu.focused.label.key
+
+    def after(menu, *presses)
+      presses.each { press(it) }
+      focused_label(menu)
+    end
+
+    it 'steps along the row with ui_right' do
+      expect(after(grid_menu, :ui_right)).to eq('b1')
+    end
+
+    it 'steps down the column with ui_down' do
+      expect(after(grid_menu, :ui_right, :ui_down)).to eq('b5')
+    end
+
+    it 'steps up the column with ui_up' do
+      expect(after(grid_menu, :ui_right, :ui_down, :ui_up)).to eq('b1')
+    end
+
+    it 'takes the last button of a short row that has none in this column' do
+      expect(after(grid_menu, :ui_left, :ui_down)).to eq('b6')
+    end
+
+    it 'skips a disabled button along the row' do
+      expect(after(grid_menu(disabled: [1]), :ui_right)).to eq('b2')
+    end
+
+    it 'skips a disabled button down the column, and goes on to the next one' do
+      expect(after(grid_menu(11, disabled: [5]), :ui_right, :ui_down)).to eq('b9')
+    end
+
+    it 'wraps past the end of a row, inside it' do
+      expect(after(grid_menu, :ui_left, :ui_right)).to eq('b0')
+    end
+
+    it 'wraps before the start of a row, inside it' do
+      expect(after(grid_menu, :ui_left)).to eq('b3')
+    end
+
+    it 'wraps inside a short last row' do
+      expect(after(grid_menu, :ui_down, :ui_left)).to eq('b6')
+    end
+
+    it 'wraps past the end of a column, inside it' do
+      expect(after(grid_menu, :ui_right, :ui_down, :ui_down)).to eq('b1')
+    end
+
+    it 'counts the edge from the last enabled button before it' do
+      expect(after(grid_menu(disabled: [3]), :ui_right, :ui_right, :ui_right)).to eq('b0')
+    end
+
+    it 'leaves focus where it is on a line with no other enabled button' do
+      expect(after(grid_menu(disabled: [4, 6]), :ui_right, :ui_down, :ui_right)).to eq('b5')
+    end
+
+    it 'moves along the row with #step' do
+      menu = grid_menu
+      menu.navigation.step(1)
+      expect(focused_label(menu)).to eq('b1')
+    end
+
+    # The pair that would adjust on a column moves focus on a grid, so an
+    # OptionButton in one keeps its value.
+    it 'adjusts nothing' do
+      grid = RGame::Engine::UI::Grid.new(columns: 2, item_width: 40, item_height: 40)
+      menu = root.add_node(RGame::Engine::UI::Menu.new(layout: grid))
+      option = menu.add(RGame::Engine::UI::OptionButton.new(label: 'Volume', values: [0, 1, 2], index: 1))
+      2.times { menu.add(RGame::Engine::UI::TextButton.new(label: 'Other')) }
+      root.enter_tree
+      press(:ui_down)
+      expect([menu.focused_index, option.value]).to eq([2, 1])
+    end
+
+    it 'refuses an axis other than the grid\'s' do
+      grid = RGame::Engine::UI::Grid.new(columns: 4, item_width: 40, item_height: 40)
+      expect { RGame::Engine::UI::Menu.new(layout: grid, navigation: described_class.new(axis: :vertical)) }
+        .to raise_error(ArgumentError, /a grid steps along its rows, so axis: must be :horizontal/)
+    end
+
+    it 'takes the grid\'s own axis when passed' do
+      grid = RGame::Engine::UI::Grid.new(columns: 4, item_width: 40, item_height: 40)
+      menu = RGame::Engine::UI::Menu.new(layout: grid, navigation: described_class.new(axis: :horizontal))
+      expect(menu.navigation.axis).to eq(:horizontal)
+    end
+  end
+
   describe 'the axis' do
     # The pair, as one example: a Row said nothing about navigation and still
     # steps the way it is laid out.

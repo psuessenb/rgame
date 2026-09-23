@@ -26,6 +26,16 @@ module RGame
       # PanelButton answers nil. That is what makes UI::OptionButton work, and the
       # reason an option row wants this navigation rather than UI::Pointing,
       # where every direction is one to point in.
+      #
+      # ## Across a grid
+      #
+      # On a layout that answers `columns`, such as UI::Grid, the other pair
+      # moves along the column instead, and nothing is adjusted. Each line — a
+      # row, or a column — wraps inside itself, and a step skips the disabled
+      # buttons along it. A step onto a short last row that has no button in
+      # this column takes that row's last button. `step` moves along the row. A
+      # grid's axis is the order it fills in, so an `axis:` other than its own
+      # raises ArgumentError.
       class Stepping < Navigation
         ACTIONS = {
           vertical: %i[ui_up ui_down ui_left ui_right].freeze,
@@ -41,44 +51,46 @@ module RGame
           @axis = axis
         end
 
-        # Resolves the axis against the menu's layout. Raises ArgumentError for
-        # an axis outside UI::Stack::AXES.
+        # Resolves the axis against the menu's layout, and reads its `columns`
+        # if it has them. Raises ArgumentError for an axis outside
+        # UI::Stack::AXES, and on a grid for an axis other than the grid's.
         def attach(menu)
           super
-          @axis ||= menu.layout.axis
+          layout = menu.layout
+          @columns = layout.respond_to?(:columns) ? layout.columns : nil
+          @axis ||= layout.axis
           unless Stack::AXES.include?(@axis)
             raise ArgumentError, "axis: must be one of #{Stack::AXES.inspect}, not #{@axis.inspect}"
           end
 
-          @step_back, @step_on, @adjust_down, @adjust_up = ACTIONS.fetch(@axis)
+          refuse_grid_axis(layout.axis) if @columns
+          @step_back, @step_on, @other_back, @other_on = ACTIONS.fetch(@axis)
         end
 
-        # Moves focus by `delta`, skipping anything disabled, and wrapping. Does
-        # nothing at all if no button can take focus.
+        # Moves focus by `delta` along the axis, or along the focused button's
+        # row on a grid, skipping anything disabled, and wrapping. Does nothing
+        # at all if no button along the way can take focus.
         def step(delta)
-          buttons = menu.buttons
-          count = buttons.size
+          count = menu.buttons.size
           index = menu.focused_index || 0
-          tried = 0
-          while tried < count
-            index = (index + delta) % count
-            if buttons[index].enabled?
-              menu.focus(index)
-              return
-            end
-            tried += 1
-          end
+          return move(0, 1, count, index, delta) unless @columns
+
+          start = index - (index % @columns)
+          length = count - start
+          length = @columns if length > @columns
+          move(start, 1, length, index - start, delta)
         end
 
         def control(actions)
           step(-1) if actions.pressed?(@step_back)
           step(1) if actions.pressed?(@step_on)
+          return control_column(actions) if @columns
 
           current = menu.focused
           return if current.nil?
 
-          current.adjust(-1) if actions.pressed?(@adjust_down)
-          current.adjust(1) if actions.pressed?(@adjust_up)
+          current.adjust(-1) if actions.pressed?(@other_back)
+          current.adjust(1) if actions.pressed?(@other_on)
         end
 
         def buttons_changed
@@ -87,6 +99,43 @@ module RGame
 
           first = menu.buttons.index(&:enabled?)
           menu.focus(first || 0)
+        end
+
+        private
+
+        def refuse_grid_axis(grid_axis)
+          return if @axis == grid_axis
+
+          raise ArgumentError, "a grid steps along its rows, so axis: must be #{grid_axis.inspect}, " \
+                               "not #{@axis.inspect}"
+        end
+
+        def control_column(actions)
+          step_column(-1) if actions.pressed?(@other_back)
+          step_column(1) if actions.pressed?(@other_on)
+        end
+
+        def step_column(delta)
+          count = menu.buttons.size
+          index = menu.focused_index || 0
+          rows = (count + @columns - 1) / @columns
+          move(index % @columns, @columns, rows, index / @columns, delta)
+        end
+
+        def move(start, stride, length, place, delta)
+          buttons = menu.buttons
+          last = buttons.size - 1
+          tried = 0
+          while tried < length
+            place = (place + delta) % length
+            index = start + (place * stride)
+            index = last if index > last
+            if buttons[index].enabled?
+              menu.focus(index)
+              return
+            end
+            tried += 1
+          end
         end
       end
     end
