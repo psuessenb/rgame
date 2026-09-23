@@ -761,13 +761,20 @@ where focus goes next.
 - **A group needs a current menu**, not only a way to cross. With the design's
   group, both menus would still read every press. So a group names one
   `current` menu, and a menu in a group that is not current reads no input.
+- **A new `current` reads nothing until the next tick.** `Node2D#control`
+  controls a group's menus one after another from one snapshot, and crossing
+  happens inside the current menu's `_control`. A menu later in the tree would
+  then read the press that crossed into it, and step again. A group therefore
+  fixes which menu reads before any of them does.
 - **A direction a column has no use for has to cross as well.** A bag grid
   beside a column of equipment slots is the equipment screen. In the column,
   left and right go to the focused button's `adjust`, and a plain button adjusts
   nothing. So the group also takes a direction the focused button does not
   adjust. That needs `Button#adjustable?`. Reading nil from `adjust` fails:
   `OptionButton#adjust` answers nil at the end of its values, and a volume row
-  at its maximum would jump to the next menu.
+  at its maximum would jump to the next menu. A game's own slider overrides
+  `adjust` and would forget a second method, so `adjustable?` is worked out
+  from whether a class overrides `adjust`.
 
 ### Decided in this re-plan
 
@@ -789,9 +796,10 @@ where focus goes next.
   `IconButton`, a button's focused look for the shown tab, `PlayerLayer`, and
   pausing a hero while their bag is open, as
   `test_projects/tiled_world/inventory.rb` does.
-- **Extend:** `Stack` → `Grid`, the same slots over rows. `Stepping` → a grid,
-  and two named actions for a tab bar. `Menu` → `confirm:`, `active?` and a
-  window of rows. `Button` → `adjustable?`.
+- **Extend:** `Stack` → `Grid`, the same slots over rows, as a subclass
+  sharing one arithmetic. `Stepping` → a grid, and two named actions for a tab
+  bar. `Menu` → `confirm:`, `current?` and a window of rows. `Button` →
+  `adjustable?`.
 - **Genuinely new:** `FocusGroup`, which decides which of one player's menus
   reads input, and the pages of `Tabs`. Nothing in the engine holds more than
   one menu for one player.
@@ -807,37 +815,64 @@ above: two open menus under one player both answer every press.
 ### Sub-steps
 
 - **5a** — `UI::Grid`, and `Stepping` moving across and down it.
-- **5b** — `UI::FocusGroup`, `Menu#active?` and `Button#adjustable?`.
+- **5b** — `UI::FocusGroup`, `Menu#current?`, `Menu#group` and
+  `Button#adjustable?`.
 - **5c** — `examples/inventory`: a bag grid, a column of verbs beside it, and a
-  panel naming the focused item.
+  panel naming the focused item. Its `locales/en.yml`, its drive script
+  `tools/drive/examples/inventory.rb`, an `### inventory` entry in
+  `docs/api/examples.md` and a row in `README.md` come with it.
 
 ### Shape
 
 ```ruby
-grid = UI::Grid.new(columns: 4, item_width: 56, item_height: 56, spacing: 6)
+grid = UI::Grid.new(columns: 4, item_width: 64, item_height: 64, spacing: 6)
 grid.columns            # 4
 grid.axis               # :horizontal — the order it fills in
 
 group = layer.add_node(UI::FocusGroup.new)
 bag   = group.add_node(UI::PanelMenu.new(x: 16, y: 48, layout: grid))
-verbs = group.add_node(UI::PanelMenu.new(x: 300, y: 48,
+verbs = group.add_node(UI::PanelMenu.new(x: 340, y: 48,
                                          layout: UI::Column.new(item_width: 120, item_height: 32)))
 
-group.menus             # [bag, verbs], in tree order
+group.menus             # [bag, verbs], in the order they joined
 group.current           # bag: the first open menu with an enabled button
-group.current = verbs   # verbs reads input now, from its first enabled button
-bag.active?             # false: it draws, focuses nothing and reads no input
+group.current = verbs   # verbs reads input from the next tick
+group.cross(:right)     # current moves to the neighbour that way; false, and nothing moves, if none
+bag.current?            # false: it draws, focuses nothing and reads no input
+bag.group               # the group it joined, or nil
 
-button.adjustable?      # false on a Button, true on an OptionButton
+button.adjustable?      # false on a Button; true on any class that overrides adjust
 ```
 
 **A menu joins the nearest `FocusGroup` above it** as it enters the tree, and
 leaves it on exit. Nothing registers by hand, and a menu wrapped in a panel node
-still belongs to the group around the panel.
+still belongs to the group around the panel. `Menu` joins in `enter_tree`
+itself, not in the `_enter_tree` hook, so a game's subclass that overrides the
+hook stays in its group.
+
+**Three menus refuse a group**, and raise `ArgumentError` as they join one. A
+menu with a `trigger:` opens only while its trigger is held, so a group could
+never make it current. A `DialogueBox` holds a menu that advances its
+conversation, and a group would stop it whenever another menu is current. And a
+menu that answers to a different player than the group's others would never
+read its own player's input.
+
+**`Grid` is a `Stack` whose lines hold `columns` slots.** A `Column`'s lines
+hold one slot, and a `Row`'s one line holds them all. One arithmetic places all
+three, so `Grid < Stack` adds a line length and nothing else.
 
 On a layout that answers `columns`, `Stepping` moves along the row with the
 layout's axis pair and down the column with the other pair. Nothing in a grid is
 adjusted. `step(delta)` moves along the row.
+
+**`Stepping` asks the group before it wraps.** At the end of a line, and on a
+direction the focused button is not `adjustable?` in, it calls
+`menu.group&.cross(direction)` and wraps only when that answers false. A game's
+own `Navigation` crosses the same way. `Pointing` never crosses.
+
+**`adjustable?` is worked out once per class**, from whether the class
+overrides `adjust`. A game's own slider then needs nothing more than the
+`adjust` it already writes.
 
 ### The rules the tests pin
 
@@ -846,58 +881,72 @@ For the grid:
 1. **A grid fills rows left to right, top to bottom**, `columns` to a row. Its
    bounds enclose the rows it uses, so a single short row is as wide as its
    buttons.
-2. **Left and right step inside the row**, and wrap inside it.
-3. **Up and down step inside the column**, and wrap inside it.
-4. **A step onto a row with no button in this column lands on that row's last
-   button**, going down or up.
-5. **A step skips disabled buttons along its line.** A line with no other
-   enabled button leaves focus where it is.
-6. **An explicit `axis:` other than the grid's raises** `ArgumentError`.
-7. **`Column`, `Row` and `Ring` step as before.** The existing examples in
-   `stepping_spec.rb` pass unchanged.
+2. **Left and right step along the row, and up and down along the column.** A
+   step down or up onto a row with no button in this column takes that row's
+   last button.
+3. **A step skips disabled buttons along its line**, and goes on to the next
+   one.
+4. **Past the end of a line, a step wraps inside it**, unless a group crosses
+   it (rule 11). The end is where no enabled button is left before the edge. A
+   line with no other enabled button leaves focus where it is.
+5. **An explicit `axis:` other than the grid's raises** `ArgumentError`.
+6. **`Column`, `Row` and `Ring` step as before.** The existing examples in
+   `stepping_spec.rb` and `stack_spec.rb` pass unchanged.
 
 For the group:
 
-8. **One menu in a group is `current`, and only it reads input**: navigation,
+7. **One menu in a group is `current`, and only it reads input**: navigation,
    hotkeys and confirm. The others draw with nothing focused. The measured case
    is a test: one `ui_confirm` activates one button.
-9. **`current` starts on the first menu in tree order that is open and has an
-   enabled button**, and is nil while none has.
-10. **Each tick, before its menus read input, a group re-checks `current`.** A
-    current menu that is closed or has no enabled button hands over to the first
-    that qualifies, which focuses its first enabled button.
+8. **`current` starts on the first menu to join that is open and has an enabled
+   button**, and is nil while none has.
+9. **Each tick, before its menus read input, a group re-checks `current`.** A
+   current menu that is closed, has no enabled button or has left the tree
+   hands over to the first that qualifies.
+10. **Every change of `current` follows one rule**, whether a crossing,
+    `current=`, a hand-over or the first menu to join made it. The menu left
+    clears its focus and reads nothing more that tick. The menu entered reads
+    no input until the next tick, and no confirm until it has seen confirm up.
+    Its navigation decides where focus starts: `Stepping` takes the enabled
+    button nearest the one left, or its first enabled button.
 11. **A step past the end of a line crosses to the neighbour that way.** Only a
     group with no neighbour in that direction wraps.
-12. **A direction the focused button does not adjust crosses too.** From a
-    column of plain buttons, left and right cross. On an `OptionButton` they
-    adjust, even at the end of its values.
+12. **A direction the focused button is not `adjustable?` in crosses too.**
+    From a column of plain buttons, left and right cross. On an `OptionButton`
+    they adjust, even at the end of its values, and so they do on a game's
+    button that overrides `adjust`.
 13. **The neighbour is the nearest menu wholly beyond the current one's edge**
     in that direction. The gap between the two decides; the distance between
     centres across it breaks a tie. A closed menu and a menu with no enabled
     button are never neighbours.
-14. **Crossing clears focus in the menu it leaves.** The menu it enters focuses
-    the enabled button nearest the one left, and takes no confirm until it has
-    seen confirm up.
-15. **Buttons added to a menu that is not current focus nothing there.**
-    Stepping's "focus is never empty" holds for the current menu.
+14. **One press crosses once**, whichever of the two menus comes first in the
+    tree. A grid above a column and a column left of a grid each land on the
+    nearest button, not the one after it.
+15. **`focus(index)` on a menu that is not current makes it current**, by
+    rule 10, on the button asked for. A navigation never focuses a menu that is
+    not current, so buttons added to one focus nothing there. Stepping's "focus
+    is never empty" holds for the current menu.
 16. **`current=` raises** `ArgumentError` for a menu outside the group.
-17. **Two players move in their own groups**, each in its own `PlayerLayer`.
-18. **Stepping a grid and crossing allocate nothing.**
+17. **A menu with a `trigger:`, a `DialogueBox` and a menu of another player
+    raise** `ArgumentError` as they join.
+18. **Two players move in their own groups**, each in its own `PlayerLayer`.
+19. **Stepping a grid, crossing, and a group's check each tick allocate
+    nothing.**
 
 ### Tests
 
 - `spec/rgame/engine/ui/grid_spec.rb`: rule 1 for a full grid, a short last row,
   a single row and no buttons.
 - `spec/rgame/engine/ui/stepping_spec.rb`: a `describe 'across a grid'` group
-  for rules 2–6.
-- `spec/rgame/engine/ui/focus_group_spec.rb`: rules 8–17, with a grid and a
-  column side by side, a closed menu between two open ones, and a menu wrapped
-  in a plain node.
+  for rules 2–5.
+- `spec/rgame/engine/ui/focus_group_spec.rb`: rules 7–18, with a grid and a
+  column side by side, the same pair in the other tree order, a closed menu
+  between two open ones, and a menu wrapped in a plain node.
 - `spec/rgame/engine/ui/button_spec.rb` and `option_button_spec.rb`:
-  `adjustable?`.
+  `adjustable?`, and a `Button` subclass that overrides `adjust`.
 - `spec/rgame/engine/ui/menu_spec.rb`: a menu outside any group is always
-  `active?`.
-- `spec/rgame/engine/ui/focus_group_allocation_spec.rb`: rule 18.
+  `current?`, and its `group` is nil.
+- `spec/rgame/engine/ui/focus_group_allocation_spec.rb`: rule 19.
 
 ### Verify
 
@@ -907,14 +956,26 @@ ruby tools/drive_test_project.rb examples/inventory/main.rb --ticks 300 --texts
 ```
 
 `examples/inventory` holds eight items from `skills.json` and `icons.json` in a
-four-column grid. Beside it stands a column of two verbs, use and drop, and a
-panel names the focused item. The drive script walks right along the first row
-and on into the verbs, drops the item, and comes back left into the bag. It then
-presses up, which wraps inside the column because nothing lies above.
+four-column grid. Its slots are 64 pixels, the size of the larger atlas's
+icons. Beside it stands a column of two verbs, use and drop, and a panel names
+the focused item. The bag's buttons draw no captions, so the panel is the only
+place an item's name is drawn as text. Crossing clears the bag's focus, so the
+example keeps the item last focused there, and the verbs act on that one.
 
-`--texts` reports each item's name as focus reaches it, and the dropped item's
-name stops appearing. Drop is what exercises rule 15: the bag is rebuilt while
-the verbs are current.
+The drive script walks right along the first row and on into the verbs, drops
+the item, and comes back left into the bag. It then presses up, which wraps
+inside the column because nothing lies above.
+
+`--texts` keeps a count and the tick a string first appeared, not the tick it
+last did. So the script's header lists `--ticks` checkpoints and what each
+report shows, as `tools/drive/examples/skill_bar.rb` does. Each item's name
+first appears as focus reaches it, and the dropped item's count stands still
+from the drop on. Rule 15 is pinned by its spec, not by this run: a bag
+rebuilt while the verbs are current and focusing its first item again would
+only raise a count the report already has.
+
+`docs/api/ui.md`'s "What this is not" says there is no grid, which stops being
+true here.
 
 ---
 
