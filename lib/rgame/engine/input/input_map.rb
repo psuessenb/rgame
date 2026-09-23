@@ -125,6 +125,8 @@ module RGame
         ui_right: { buttons: [Controls::KEY_RIGHT, Controls::PAD_DPAD_RIGHT] },
         ui_confirm: { buttons: [Controls::KEY_RETURN, Controls::KEY_SPACE, Controls::PAD_A] },
         ui_cancel: { buttons: [Controls::KEY_ESCAPE, Controls::PAD_B] },
+        ui_tab_prev: { buttons: [Controls::KEY_Q, Controls::PAD_LEFT_SHOULDER] },
+        ui_tab_next: { buttons: [Controls::KEY_E, Controls::PAD_RIGHT_SHOULDER] },
         ui_radial_x: { axis: [[Controls::KEY_LEFT, Controls::KEY_RIGHT],
                               [Controls::PAD_DPAD_LEFT, Controls::PAD_DPAD_RIGHT]],
                        stick: Controls::AXIS_LEFT_X },

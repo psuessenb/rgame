@@ -377,6 +377,50 @@ RSpec.describe RGame::Engine::UI::Menu do
   end
   # rubocop:enable RSpec/MultipleMemoizedHelpers
 
+  describe 'confirm:' do
+    def confirmed_by(confirm, *labels)
+      built = root.add_node(described_class.new(layout: column, confirm: confirm))
+      labels.each { |label| built.add(watched(label)) }
+      root.enter_tree
+      poll
+      built
+    end
+
+    let(:activated) { [] }
+
+    def watched(label, **) = button(label, **).tap { |made| made.on_activated { activated << label } }
+
+    it 'activates nothing on ui_confirm with nil' do
+      confirmed_by(nil, 'One')
+      press(:ui_confirm)
+      expect(activated).to be_empty
+    end
+
+    it 'still presses a hotkey with nil' do
+      confirmed_by(nil, 'One').add(watched('Hot', hotkey: :skill1))
+      poll
+      press(:skill1)
+      expect(activated).to eq(['Hot'])
+    end
+
+    it 'still moves focus with nil' do
+      built = confirmed_by(nil, 'One', 'Two')
+      press(:ui_down)
+      expect(built.focused.label.key).to eq('Two')
+    end
+
+    it 'confirms on the action it names' do
+      confirmed_by(:skill1, 'One')
+      press(:ui_confirm)
+      press(:skill1)
+      expect(activated).to eq(['One'])
+    end
+
+    it 'refuses anything but an action name or nil' do
+      expect { described_class.new(layout: column, confirm: 'ui_confirm') }.to raise_error(ArgumentError, /confirm:/)
+    end
+  end
+
   describe 'outside a focus group' do
     it 'is always current' do
       expect(build('One').current?).to be(true)

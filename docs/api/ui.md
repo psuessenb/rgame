@@ -65,6 +65,7 @@ The menu keeps everything that stays the same across combinations:
 | | |
 |---|---|
 | `ui_confirm` | press the focused button on the way down, release it on the way up — see [When a press activates](#when-a-press-activates) |
+| `confirm:` | the action that confirms, `:ui_confirm` by default; `nil` builds a menu nothing confirms, whose buttons only their hotkeys press. `ArgumentError` for anything but a Symbol or `nil` |
 | each button's `hotkey` | press that button, focused or not — see [Hotkeys](#hotkeys) |
 | `add(button)` | append a button, re-arrange them all, and return it; `TypeError` for anything that is not a `UI::Button` |
 | `clear` | remove every button from the menu and the tree, focus nothing, and return the menu; a closed menu may be cleared |
@@ -223,7 +224,9 @@ the order the buttons were added.
 | | |
 |---|---|
 | `Stepping.new(axis: nil)` | `nil` takes the layout's `axis`; `:vertical` or `:horizontal` overrides it |
+| `Stepping.new(actions: nil)` | two action names that step back and on, in place of the axis's pair — see [Two actions of its own](#two-actions-of-its-own) |
 | `axis` | the axis in use — resolved when the menu is built |
+| `actions` | the two action names it was given, or `nil` |
 | `step(delta)` | move focus `delta` places along the axis, or along the focused button's row on a grid |
 
 **The axis follows the layout.** `Menu.new(layout: UI::Row.new(...))` steps with
@@ -271,6 +274,20 @@ game's button that overrides `adjust`. With no neighbour that way, they do nothi
 A menu the group enters focuses its enabled button nearest the one focus left. A
 menu entered with no button left keeps an enabled focus, or takes its first enabled
 button. Focus is never empty in the group's current menu; the others focus nothing.
+
+#### Two actions of its own
+
+**`Stepping.new(actions: %i[ui_tab_prev ui_tab_next])` steps on those two actions
+and reads nothing else.** It adjusts nothing and never crosses to another menu,
+and it wraps at both ends. A tab bar steps this way, so the arrow keys stay with
+the page under it. Anything but two action names raises
+`ArgumentError`.
+
+```ruby
+row = UI::Row.new(item_width: 96, item_height: 28)
+bar = layer.add_node(UI::Menu.new(layout: row, confirm: nil,
+                                  navigation: UI::Stepping.new(actions: %i[ui_tab_prev ui_tab_next])))
+```
 
 ### `Pointing`
 

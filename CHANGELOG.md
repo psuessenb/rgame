@@ -24,6 +24,13 @@ index, not the argument.
   on a direction the focused button is not `adjustable?` in. `UI::Menu` answers
   `current?` and `group`, and `UI::Navigation` gains `entered`. See
   [docs/api/ui.md](docs/api/ui.md#rgameengineuifocusgroup).
+- **A menu that nothing confirms, and stepping on two actions of its own.**
+  `confirm:` on `RGame::Engine::UI::Menu` names the action that confirms, and
+  `confirm: nil` leaves only hotkeys to press its buttons.
+  `UI::Stepping.new(actions:)` steps on two named actions, reads nothing else
+  and never crosses to another menu. `ui_tab_prev` and `ui_tab_next` join the
+  universal UI set on Q and E and the shoulder buttons. See
+  [docs/api/ui.md](docs/api/ui.md#two-actions-of-its-own).
 - **An inventory example.** `examples/inventory` is a bag in a grid, and a
   column of verbs beside it that acts on the item chosen there. See
   [docs/api/examples.md](docs/api/examples.md#inventory).

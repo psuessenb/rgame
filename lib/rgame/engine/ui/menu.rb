@@ -39,6 +39,11 @@ module RGame
       # passing each button's `hotkey` to that button, focused or not. A
       # navigation cannot forget to do either, because it is never asked to.
       #
+      # `confirm:` names the action that confirms, `ui_confirm` by default.
+      # `confirm: nil` builds a menu that nothing confirms, whose buttons only
+      # their hotkeys press — a UI::Tabs bar, whose focused button is the page
+      # shown rather than a choice waiting to be made.
+      #
       # ## A menu with no navigation
       #
       # `navigation: nil` says input never moves focus: the menu focuses nothing
@@ -48,7 +53,7 @@ module RGame
       #
       # ## A menu acts only on a press it saw start
       #
-      # A menu takes no press until it has seen `ui_confirm` up, and no hotkey
+      # A menu takes no press until it has seen its confirm action up, and no hotkey
       # press on a button until it has seen that hotkey up since the button was
       # added. A menu opened from `on_activated` — a submenu — is controlled
       # later in the same tick, while the key that opened it is still down, and
@@ -144,8 +149,14 @@ module RGame
         # so reading them on a draw path costs nothing.
         attr_reader :bounds_x, :bounds_y, :bounds_width, :bounds_height
 
-        def initialize(layout:, navigation: Stepping.new, trigger: nil, scope: nil, **)
+        # `confirm` is an action name, or nil for a menu nothing confirms.
+        def initialize(layout:, navigation: Stepping.new, trigger: nil, scope: nil, confirm: :ui_confirm, **)
           super(**)
+          unless confirm.nil? || confirm.is_a?(Symbol)
+            raise ArgumentError, "confirm: must be an action name or nil, not #{confirm.inspect}"
+          end
+
+          @confirm = confirm
           @scope = scope&.to_s&.freeze
           @layout = layout
           @navigation = navigation
@@ -265,8 +276,8 @@ module RGame
         # A trigger's press first, so an opening's first frame already reads the
         # stick; then navigation, so a focus change and a confirm on the same
         # frame confirm the newly focused button; then every hotkey; then
-        # confirm, on a menu with no trigger; and a trigger's release last, so it
-        # chooses what this frame focused.
+        # confirm, on a menu with no trigger and a `confirm:` action; and a
+        # trigger's release last, so it chooses what this frame focused.
         def _control(actions)
           trigger_edge = control_trigger(actions) if @trigger
           open_now if trigger_edge == :press
@@ -277,7 +288,11 @@ module RGame
           press_hotkeys(actions)
           return if interrupted?
 
-          @trigger ? release_trigger(trigger_edge) : confirm(actions)
+          if @trigger
+            release_trigger(trigger_edge)
+          elsif @confirm
+            confirm_focused(actions)
+          end
         end
 
         # Lets the navigation count time, then does what every node does.
@@ -332,9 +347,9 @@ module RGame
           end
         end
 
-        def confirm(actions)
-          edge = press_edge(actions, :ui_confirm, @confirm_seen_up)
-          @confirm_seen_up = !actions.held?(:ui_confirm)
+        def confirm_focused(actions)
+          edge = press_edge(actions, @confirm, @confirm_seen_up)
+          @confirm_seen_up = !actions.held?(@confirm)
           button = focused
           pass_edge(button, edge, :confirm) if button
         end

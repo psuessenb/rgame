@@ -49,6 +49,15 @@ module RGame
       #
       # **Focus is never empty** holds for the group's current menu. The others
       # focus nothing, and a button added to one focuses nothing there.
+      #
+      # ## Two actions of its own
+      #
+      # `actions:` names the two actions that step back and on, in place of the
+      # axis's pair. Such a navigation reads nothing else, adjusts nothing and
+      # never crosses, and wraps at both ends. A UI::Tabs bar steps this way, on
+      # `ui_tab_prev` and `ui_tab_next`, so the arrow keys stay with the page:
+      #
+      #   UI::Menu.new(layout: row, confirm: nil, navigation: UI::Stepping.new(actions: %i[ui_tab_prev ui_tab_next]))
       class Stepping < Navigation
         ACTIONS = {
           vertical: %i[ui_up ui_down ui_left ui_right].freeze,
@@ -61,9 +70,19 @@ module RGame
         # built, its layout's. nil before then when none was passed.
         attr_reader :axis
 
-        def initialize(axis: nil)
+        # The two action names that step back and on, or nil when the axis
+        # decides.
+        attr_reader :actions
+
+        # Raises ArgumentError when `actions` is neither nil nor two Symbols.
+        def initialize(axis: nil, actions: nil)
           super()
+          unless actions.nil? || (actions.is_a?(Array) && actions.size == 2 && actions.all?(Symbol))
+            raise ArgumentError, "actions: must be two action names, not #{actions.inspect}"
+          end
+
           @axis = axis
+          @actions = actions&.dup&.freeze
         end
 
         # Resolves the axis against the menu's layout, and reads its `columns`
@@ -84,6 +103,7 @@ module RGame
           @on_direction = DIRECTIONS.fetch(@step_on)
           @other_back_direction = DIRECTIONS.fetch(@other_back)
           @other_on_direction = DIRECTIONS.fetch(@other_on)
+          @step_back, @step_on = @actions if @actions
         end
 
         # Moves focus by `delta` along the axis, or along the focused button's
@@ -106,6 +126,8 @@ module RGame
         def control(actions)
           step(-1) if actions.pressed?(@step_back)
           step(1) if actions.pressed?(@step_on) && menu.current?
+          return if @actions
+
           other(-1) if actions.pressed?(@other_back) && menu.current?
           other(1) if actions.pressed?(@other_on) && menu.current?
         end
@@ -166,7 +188,7 @@ module RGame
           while tried < length
             place += delta
             if !asked && (place.negative? || place >= length)
-              return if menu.group&.cross(direction)
+              return if @actions.nil? && menu.group&.cross(direction)
 
               asked = true
             end

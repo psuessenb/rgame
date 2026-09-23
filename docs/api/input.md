@@ -192,6 +192,8 @@ game declares them or not:
 
 - `ui_up`, `ui_down`, `ui_left`, `ui_right`, `ui_confirm`, `ui_cancel` are
   buttons.
+- `ui_tab_prev` and `ui_tab_next` are Q and E, and the left and right shoulder
+  buttons. A tab bar [steps on them](ui.md#two-actions-of-its-own).
 - `ui_radial_x` and `ui_radial_y` are axes on the left stick, the arrow keys and
   the d-pad. A menu built with [`Pointing`](ui.md#pointing) reads them.
 
@@ -208,6 +210,12 @@ to the right stick without touching movement.
 
 `ui_cancel` is Escape. That is why `RGame::Game` quits on `F2`: players expect
 Escape to back out of a menu.
+
+The universal set shares buttons with the default actions: Space is both
+`ui_confirm` and `fire`, and E is both `ui_tab_next` and `interact`. Nothing reads
+both at once while a game pauses its hero behind an open screen. A
+[chord](#a-hold-a-tap-and-a-chord) of the two shoulder buttons silences
+both tab actions while it is held.
 
 ### Defaults and rebinding
 
