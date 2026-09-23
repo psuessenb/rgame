@@ -157,6 +157,22 @@ index, not the argument.
 - **An input example.** `examples/input_holds` opens a chest on a tap of one
   button, searches it on a hold of the same one, and swaps stance on a chord.
   See [docs/api/examples.md](docs/api/examples.md#input_holds).
+- **`Renderer#debug_circle`.** A translucent disc in the colour `debug_box`
+  draws with, for a round collision shape. See
+  [docs/api/drawing.md](docs/api/drawing.md#shapes).
+- **The colliders and the tile map draw their own debug shapes.** With the
+  `:shapes` channel on, `Components::BoxCollider` draws its box,
+  `Components::CircleCollider` its circle, and `RGame::Engine::WorldView` a box
+  over each solid cell of its scene's `Components::TileWorld` that the viewport
+  can see. Each draws in the `:debug` band, in its own space, once per viewport.
+  See [docs/api/systems.md](docs/api/systems.md#debug--a-switch-per-channel).
+- **A debug layer of named channels.** `RGame::Engine::Debug` is a system
+  `RGame::Game` mounts on the root, holding a switch per channel and drawing in
+  the `:debug` band. `:stats` is the overlay, `:shapes` is drawn by the things
+  that have shapes, and `define(:routes) { |renderer, view| ... }` adds a
+  channel of the game's own. `F3` toggles `:shapes` and `game.debug_keys =
+  false` turns the development keys off. See
+  [docs/api/systems.md](docs/api/systems.md#debug--a-switch-per-channel).
 
 ### Changed
 
@@ -254,6 +270,10 @@ index, not the argument.
 
 ### Fixed
 
+- **The frame rate on the debug overlay draws its own digits, not three hundred
+  leading zeros.** `App#fps` is a Float, and the digit loop divided by ten until
+  nothing was left — which a Float never reaches. Each row is rounded to an
+  Integer before its digits are taken.
 - **A button added during a held confirm ignores that press.** A menu read the
   confirm a parent had just acted on, so a button added on that press was
   activated by it. `add` and `clear` now make the menu wait for confirm to come

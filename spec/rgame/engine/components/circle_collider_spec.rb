@@ -88,4 +88,56 @@ RSpec.describe RGame::Engine::Components::CircleCollider do
       expect(received).to be_nil
     end
   end
+
+  # The same shape as BoxCollider's, for a round collider: its centre is the
+  # node's own origin, which is (0, 0) in the space a component draws in.
+  describe 'drawing its shape' do
+    let(:renderer) { FakeRenderer.new }
+
+    def scene_with(debug)
+      root = RGame::Engine::Node2D.new
+      root.add_component(debug) if debug
+      node = root.add_node(RGame::Engine::Node2D.new(x: 100, y: 200))
+      node.add_component(described_class.new(radius: 12))
+      root.enter_tree
+      root
+    end
+
+    it 'draws its circle at its node\'s origin while the channel is on' do
+      debug = RGame::Engine::Debug.new
+      root = scene_with(debug)
+      debug.show(:shapes)
+
+      root.draw(renderer, screen_view)
+
+      expect(renderer.calls_to(:debug_circle).map(&:args)).to eq([[0, 0, 12]])
+    end
+
+    it 'follows a radius the node retuned' do
+      debug = RGame::Engine::Debug.new
+      root = scene_with(debug)
+      debug.show(:shapes)
+      root.children.first.get_component(described_class).radius = 20
+
+      root.draw(renderer, screen_view)
+
+      expect(renderer.calls_to(:debug_circle).map(&:args)).to eq([[0, 0, 20]])
+    end
+
+    it 'draws nothing while the channel is off' do
+      root = scene_with(RGame::Engine::Debug.new)
+
+      root.draw(renderer, screen_view)
+
+      expect(renderer.drawn?(:debug_circle)).to be(false)
+    end
+
+    it 'draws nothing in a scene with no debug layer above it' do
+      root = scene_with(nil)
+
+      root.draw(renderer, screen_view)
+
+      expect(renderer.drawn?(:debug_circle)).to be(false)
+    end
+  end
 end

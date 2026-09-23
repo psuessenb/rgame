@@ -135,4 +135,94 @@ RSpec.describe RGame::Engine::WorldView do
     end
   end
   # rubocop:enable RSpec/MultipleMemoizedHelpers
+
+  # The node already drawing once per viewport in world space is the one that
+  # draws the map's solid cells, so they follow each camera with nothing
+  # mounted and no arithmetic of their own.
+  # rubocop:disable RSpec/MultipleMemoizedHelpers -- the shared world, its viewports, the debug layer and the map
+  describe 'the debug layer\'s solid cells' do
+    let(:players) { RGame::Engine::Players.new([player(0)]) }
+    let(:debug) { RGame::Engine::Debug.new }
+    let(:map) { WalledTileMap.build(['....', '.##.', '....']) }
+
+    let(:root) do
+      RGame::Engine::Node2D.new.tap do |node|
+        node.add_component(players)
+        node.add_component(viewports)
+        node.add_component(debug)
+      end
+    end
+
+    # Marked as a scene boundary the way SceneStack#push marks one, since a
+    # TileWorld is scene-scoped and `system` looks at the scene before the root.
+    let(:scene) do
+      root.add_node(RGame::Engine::Node2D.new).tap do |node|
+        node.scene = node
+        node.add_component(RGame::Engine::Components::TileWorld.new(map: map, tilemap_id: 'walls.tmx'))
+      end
+    end
+
+    let(:world) { scene.add_node(described_class.new) }
+
+    before do
+      players.primary.camera.center_on(32, 24)
+      viewports.refresh
+      root.enter_tree
+    end
+
+    it 'draws a box over each solid cell in view' do
+      debug.show(:shapes)
+
+      draw_frame
+
+      expect(renderer.calls_to(:debug_box).map(&:args)).to eq([[16, 16, 16, 16], [32, 16, 16, 16]])
+    end
+
+    it 'draws nothing while the channel is off' do
+      draw_frame
+
+      expect(renderer.drawn?(:debug_box)).to be(false)
+    end
+
+    it 'draws a cell something occupies, as the map counts it solid' do
+      scene.get_component(RGame::Engine::Components::TileWorld).occupy(0, 0)
+      debug.show(:shapes)
+
+      draw_frame
+
+      expect(renderer.calls_to(:debug_box).map(&:args)).to include([0, 0, 16, 16])
+    end
+
+    it 'draws in the debug band, over the world it covers' do
+      debug.show(:shapes)
+
+      draw_frame
+
+      expect(renderer.calls_to(:debug_box).map(&:layer))
+        .to all(be >= RGame::Util::Z.base(:debug, 0))
+    end
+
+    it 'draws the cells once per viewport' do
+      players.list << RGame::Engine::Player.new(id: 1, device: RGame::Util::Controls.gamepad(1))
+      viewports.refresh
+      debug.show(:shapes)
+
+      draw_frame
+
+      expect(renderer.calls_to(:debug_box).count).to eq(4)
+    end
+
+    describe 'in a scene with no tile world' do
+      let(:scene) { root.add_node(RGame::Engine::Node2D.new).tap { it.scene = it } }
+
+      it 'draws nothing' do
+        debug.show(:shapes)
+
+        draw_frame
+
+        expect(renderer.drawn?(:debug_box)).to be(false)
+      end
+    end
+  end
+  # rubocop:enable RSpec/MultipleMemoizedHelpers
 end

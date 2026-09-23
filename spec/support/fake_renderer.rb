@@ -190,6 +190,10 @@ class FakeRenderer
     remember(:debug_box, [number(x), number(y), number(width), number(height)], z: z_arg(z))
   end
 
+  def debug_circle(cx, cy, radius, z: 0)
+    remember(:debug_circle, [number(cx), number(cy), number(radius)], z: z_arg(z))
+  end
+
   # --- images -------------------------------------------------------------
 
   def image(image, cx, cy, angle: 0, scale: 1, z: 0, color: nil)

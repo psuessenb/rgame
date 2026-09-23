@@ -9,7 +9,8 @@ bundle install
 ruby main.rb
 ```
 
-`F1` toggles the debug overlay, `F2` closes the window.
+`F1` toggles the stats overlay, `F2` closes the window, and `F3` draws the
+collision shapes.
 
 This project was generated on Ruby <%= ruby_version %>, which is what
 `.ruby-version` holds and what the `Gemfile` points at. Bundler treats that as

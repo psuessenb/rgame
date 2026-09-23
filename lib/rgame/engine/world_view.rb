@@ -41,12 +41,37 @@ module RGame
     # `system(Viewports).views` itself. Anything needing per-view state *over
     # time* — a screen shake, a hit flash — is per-*player* rather than per-view,
     # and belongs on that player's camera or their own subtree, which tick once.
+    #
+    # ## It draws the map's solid cells for the debug layer
+    #
+    # While `Engine::Debug`'s `:shapes` channel is on, this draws a box over
+    # every solid cell of the scene's `Components::TileWorld` that the viewport
+    # can see. It is the node that does it because it is the one already drawing
+    # once per viewport in world space, so the cells follow each camera with no
+    # arithmetic of their own and no node to mount. A scene with no `TileWorld`
+    # draws nothing, and so does one with no `Debug` above it.
+    #
+    # The cells walked are the ones the view covers, and nothing clamps them to
+    # the map: a cell outside it is not solid, so the loop needs no edge case.
+    # It steps with `upto` rather than over a Range, which would be one Array
+    # per viewport per frame.
     class WorldView < Node2D
       # World content, which is the default anyway — stated because this is the
       # node that marks where world space begins, and a reader looking for
       # "which band is the world in" should find the answer here.
       def initialize(**)
         super(band: :world, **)
+      end
+
+      def _enter_tree
+        @debug = system(Debug)
+        @world = system(Components::TileWorld)
+      end
+
+      def _draw(renderer, view)
+        return unless @debug&.shows?(:shapes) && @world
+
+        renderer.layered(:debug) { draw_solid_cells(renderer, view) }
       end
 
       # Drawn once per viewport, so this overrides the whole of `draw` rather
@@ -63,6 +88,22 @@ module RGame
             renderer.translated(world_view.offset_x, world_view.offset_y) do
               super(renderer, world_view)
             end
+          end
+        end
+      end
+
+      private
+
+      # hot-path
+      def draw_solid_cells(renderer, view)
+        left = view.origin_x
+        top = view.origin_y
+        @world.col_at(left).upto(@world.col_at(left + view.width)) do |col|
+          @world.row_at(top).upto(@world.row_at(top + view.height)) do |row|
+            next unless @world.solid?(col, row)
+
+            renderer.debug_box(@world.cell_x(col), @world.cell_y(row),
+                               @world.tile_width, @world.tile_height)
           end
         end
       end

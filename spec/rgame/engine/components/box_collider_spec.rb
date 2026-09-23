@@ -154,4 +154,78 @@ RSpec.describe RGame::Engine::Components::BoxCollider do
       expect(received).to be_nil
     end
   end
+
+  # The debug layer's `:shapes` channel. The box is already in the node's local
+  # space, so a shape lands on its node in every viewport with no camera
+  # arithmetic — see Game/DrawInLocalSpace.
+  describe 'drawing its shape' do
+    let(:renderer) { FakeRenderer.new }
+
+    def scene_with(debug)
+      root = RGame::Engine::Node2D.new
+      root.add_component(debug) if debug
+      node = root.add_node(RGame::Engine::Node2D.new(x: 100, y: 200))
+      node.add_component(described_class.new(width: 16, height: 8, offset_x: 4, offset_y: 12))
+      root.enter_tree
+      root
+    end
+
+    it 'draws its box at its own offsets while the channel is on' do
+      debug = RGame::Engine::Debug.new
+      root = scene_with(debug)
+      debug.show(:shapes)
+
+      root.draw(renderer, screen_view)
+
+      expect(renderer.calls_to(:debug_box).map(&:args)).to eq([[4, 12, 16, 8]])
+    end
+
+    it 'draws nothing while the channel is off' do
+      root = scene_with(RGame::Engine::Debug.new)
+
+      root.draw(renderer, screen_view)
+
+      expect(renderer.drawn?(:debug_box)).to be(false)
+    end
+
+    it 'draws nothing in a scene with no debug layer above it' do
+      root = scene_with(nil)
+
+      root.draw(renderer, screen_view)
+
+      expect(renderer.drawn?(:debug_box)).to be(false)
+    end
+
+    # `:debug` is the last band, so a layer at or above its first slot is in it.
+    it 'draws in the debug band, whatever band its node draws in' do
+      debug = RGame::Engine::Debug.new
+      root = RGame::Engine::Node2D.new
+      root.add_component(debug)
+      node = root.add_node(RGame::Engine::Node2D.new(band: :hud))
+      node.add_component(described_class.new(width: 4, height: 4))
+      root.enter_tree
+      debug.show(:shapes)
+
+      root.draw(renderer, screen_view)
+
+      expect(renderer.calls_to(:debug_box).map(&:layer))
+        .to all(be >= RGame::Util::Z.base(:debug, 0))
+    end
+
+    # FeetCollider derives its box from the node's sprite size, and the shape
+    # has to follow that rather than the width it was built with.
+    it 'draws a feet box where the feet are' do
+      debug = RGame::Engine::Debug.new
+      root = RGame::Engine::Node2D.new
+      root.add_component(debug)
+      node = root.add_node(RGame::Engine::Node2D.new(width: 32, height: 32))
+      node.add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height: 6))
+      root.enter_tree
+      debug.show(:shapes)
+
+      root.draw(renderer, screen_view)
+
+      expect(renderer.calls_to(:debug_box).map(&:args)).to eq([[10, 26, 12, 6]])
+    end
+  end
 end

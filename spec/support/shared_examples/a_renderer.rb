@@ -58,6 +58,10 @@ RSpec.shared_examples 'a renderer' do
     it 'draws a debug box from a rectangle, with no colour to choose' do
       expect { render { |renderer, _image| renderer.debug_box(1, 2, 3, 4) } }.not_to raise_error
     end
+
+    it 'draws a debug circle from a centre and a radius, with no colour to choose' do
+      expect { render { |renderer, _image| renderer.debug_circle(50, 50, 20) } }.not_to raise_error
+    end
   end
 
   describe 'images' do
@@ -472,6 +476,7 @@ RSpec.shared_examples 'a renderer' do
          -> { renderer.line(0, 0, 1, 1, z: 100_000) },
          -> { renderer.circle(0, 0, 1, z: 100_000) },
          -> { renderer.debug_box(0, 0, 1, 1, z: 100_000) },
+         -> { renderer.debug_circle(0, 0, 1, z: 100_000) },
          -> { renderer.image(image, 0, 0, z: 100_000) },
          -> { renderer.image_at(image, 0, 0, z: 100_000) },
          -> { renderer.background(image, z: 100_000) },

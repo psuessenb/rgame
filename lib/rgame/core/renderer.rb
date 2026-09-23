@@ -67,7 +67,7 @@ module RGame
 
       FONT_SIZE = RGame::Util::Typeface::DEFAULT_SIZE
 
-      DEBUG_BOX_COLOR = Color.new(255, 40, 40, 120)
+      DEBUG_COLOR = Color.new(255, 40, 40, 120)
 
       # `assets:` is where a draw id that is not registered gets resolved from,
       # and defaults to the app's own manager — so the common case wires itself
@@ -336,7 +336,13 @@ module RGame
       # A translucent overlay for visualising a collision box, so a scene can
       # ask for one without knowing what colour "debug" is.
       def debug_box(x, y, width, height, z: DEFAULT_Z)
-        rect(x, y, width, height, z: z, color: DEBUG_BOX_COLOR)
+        rect(x, y, width, height, z: z, color: DEBUG_COLOR)
+      end
+
+      # The same, for a round shape: a circle a CircleCollider can draw itself
+      # with, in the colour #debug_box uses.
+      def debug_circle(cx, cy, radius, z: DEFAULT_Z)
+        circle(cx, cy, radius, z: z, color: DEBUG_COLOR)
       end
 
       private
