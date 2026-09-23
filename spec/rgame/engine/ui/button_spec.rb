@@ -273,6 +273,32 @@ RSpec.describe RGame::Engine::UI::Button do
     expect(button.adjust(1)).to be_nil
   end
 
+  describe '#adjustable?' do
+    it 'is false on a button with nothing to adjust' do
+      expect(button.adjustable?).to be(false)
+    end
+
+    it 'is false on every shipped button that does not override adjust' do
+      classes = [RGame::Engine::UI::TextButton, RGame::Engine::UI::PanelButton, RGame::Engine::UI::IconButton]
+      expect(classes.map(&:adjustable?)).to eq([false, false, false])
+    end
+
+    it 'is true on a game\'s button that overrides adjust, with nothing else said' do
+      slider = Class.new(described_class) { def adjust(delta) = delta }
+      expect(slider.new.adjustable?).to be(true)
+    end
+
+    it 'is true on a subclass of a button that overrides adjust' do
+      slider = Class.new(described_class) { def adjust(delta) = delta }
+      expect(Class.new(slider).new.adjustable?).to be(true)
+    end
+
+    it 'is true on a button whose adjust comes from a module' do
+      adjusting = Module.new { def adjust(delta) = delta }
+      expect(Class.new(described_class) { include adjusting }.new.adjustable?).to be(true)
+    end
+  end
+
   it 'needs no label' do
     expect(described_class.new.label).to be_nil
   end

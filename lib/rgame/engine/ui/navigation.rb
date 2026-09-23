@@ -51,6 +51,12 @@ module RGame
         # Called by Menu when it opens, for a navigation holding state that
         # belongs to one opening — UI::Pointing forgets its aim.
         def opened; end
+
+        # Called when the menu's UI::FocusGroup makes it current, with the
+        # button focused in the menu left, or nil. Where focus starts is the
+        # navigation's decision: UI::Stepping takes the enabled button nearest
+        # `from`. This one focuses nothing.
+        def entered(from); end
       end
     end
   end

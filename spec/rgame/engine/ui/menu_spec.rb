@@ -377,6 +377,22 @@ RSpec.describe RGame::Engine::UI::Menu do
   end
   # rubocop:enable RSpec/MultipleMemoizedHelpers
 
+  describe 'outside a focus group' do
+    it 'is always current' do
+      expect(build('One').current?).to be(true)
+    end
+
+    it 'has no group' do
+      expect(build('One').group).to be_nil
+    end
+
+    it 'has no group under a plain node either' do
+      wrapped = root.add_node(RGame::Engine::Node2D.new).add_node(described_class.new(layout: column))
+      root.enter_tree
+      expect([wrapped.group, wrapped.current?]).to eq([nil, true])
+    end
+  end
+
   describe '#focus' do
     # A focus sound or animation hangs off _gain_focus, so a menu that
     # reasserts focus every frame must not replay it.

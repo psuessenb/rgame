@@ -69,7 +69,8 @@ The menu keeps everything that stays the same across combinations:
 | `add(button)` | append a button, re-arrange them all, and return it; `TypeError` for anything that is not a `UI::Button` |
 | `clear` | remove every button from the menu and the tree, focus nothing, and return the menu; a closed menu may be cleared |
 | `buttons`, `focused`, `focused_index` | what it holds and what is focused — `nil` when nothing is |
-| `focus(index)` | focus a button directly, or nothing with `nil`; only buttons whose focus changes are told |
+| `focus(index)` | focus a button directly, or nothing with `nil`; only buttons whose focus changes are told. In a [focus group](#rgameengineuifocusgroup), an index makes the menu current first |
+| `current?`, `group` | whether the menu reads input, and the [`FocusGroup`](#rgameengineuifocusgroup) it joined, or `nil`; a menu outside a group is always current |
 | `layout`, `navigation` | the two parts it was built with |
 | `scope:`, `scope` | a scope for its buttons' label keys, or `nil` — see [Labels are translation keys](#labels-are-translation-keys) |
 | `open?`, `open`, `close` | whether it is shown and takes input — see [Open and closed](#open-and-closed) |
@@ -230,7 +231,8 @@ left and right, with nothing else said. If the axis had to be set separately,
 someone would eventually forget, and a row would step with up and down. An axis
 outside `Stack::AXES` raises `ArgumentError` when the menu is built.
 
-Focus starts on the first enabled button. It is never empty while the menu has one.
+Focus starts on the first enabled button. It is never empty while the menu has one,
+unless the menu is in a [focus group](#in-a-focus-group) and not its current menu.
 
 **The axis moves focus; the other pair goes to the focused button.** `Stepping`
 does not know what kind of button it addresses. It calls `adjust`, and a plain
@@ -253,6 +255,22 @@ column takes that row's last button. A line with no other enabled button leaves
 focus where it is. A grid's axis is the order it fills in, so
 `Stepping.new(axis: :vertical)` on a grid raises `ArgumentError` when the menu is
 built.
+
+#### In a focus group
+
+**At the end of a line, `Stepping` asks the menu's
+[`FocusGroup`](#rgameengineuifocusgroup) to `cross` that way**, and wraps only when
+the group answers `false`. The end is where no enabled button is left before the
+edge, so a row whose last buttons are disabled crosses from the last enabled one.
+
+**A direction the focused button is not `adjustable?` in crosses too.** From a
+column of plain buttons, left and right cross to the menu beside it. On an
+`OptionButton` they adjust, even at the end of its values, and so they do on a
+game's button that overrides `adjust`. With no neighbour that way, they do nothing.
+
+A menu the group enters focuses its enabled button nearest the one focus left. A
+menu entered with no button left keeps an enabled focus, or takes its first enabled
+button. Focus is never empty in the group's current menu; the others focus nothing.
 
 ### `Pointing`
 
@@ -317,6 +335,7 @@ end
 | `buttons_changed` | after a button is added |
 | `update(dt)` | every update while the menu is not paused — where a navigation counts time |
 | `opened` | when the menu opens; `Pointing` forgets its aim and focus here |
+| `entered(from)` | when the menu's [`FocusGroup`](#rgameengineuifocusgroup) makes it current, with the button focused in the menu left, or `nil`; the base class focuses nothing |
 
 `menu` returns the menu it drives. **A navigation drives exactly one menu**, because
 `Pointing` keeps the last direction it read. Passing one instance to a second menu
@@ -436,6 +455,83 @@ The menu does nothing special for this.
 [Ownership routing](scene_graph.md#who-a-node-answers-to) does the work one layer
 down.
 
+### `RGame::Engine::UI::FocusGroup`
+
+**A `FocusGroup` makes one player's menus one screen, and names the one that reads
+input.** Without a group, two open menus under one player each move focus and each
+confirm on every press.
+
+```ruby
+require 'rgame'
+
+UI = RGame::Engine::UI
+
+root = RGame::Engine::Node2D.new
+group = root.add_node(UI::FocusGroup.new)
+bag = group.add_node(UI::Menu.new(layout: UI::Grid.new(columns: 2, item_width: 64, item_height: 64)))
+verbs = group.add_node(UI::Menu.new(x: 200, layout: UI::Column.new(item_width: 120, item_height: 32)))
+4.times { bag.add(UI::TextButton.new(label: RGame::Engine::Text.literal('item'))) }
+%w[use drop].each { |verb| verbs.add(UI::TextButton.new(label: verb)) }
+root.enter_tree
+
+group.current.equal?(bag)   # => true — the first menu to join that has an enabled button
+verbs.focused               # => nil — a menu that is not current focuses nothing
+group.cross(:right)         # => true
+verbs.current?              # => true
+bag.focused                 # => nil — the menu left clears its focus
+group.cross(:right)         # => false — nothing lies right of the verbs
+```
+
+**A menu joins the nearest group above it as it enters the tree**, and leaves as it
+exits. Nothing registers by hand. A menu wrapped in a node of the game's own still
+belongs to the group round that node. The menu joins in `enter_tree` itself, so a
+subclass that overrides `_enter_tree` stays in its group.
+
+| | |
+|---|---|
+| `menus` | every menu in the group, in the order they joined |
+| `current` | the menu that reads input, or `nil` |
+| `current = menu` | make `menu` current; `ArgumentError` for a menu outside the group |
+| `cross(direction)` | make the neighbour that way current and return `true`, or return `false` and change nothing. `direction` is one of `FocusGroup::DIRECTIONS`: `:left`, `:right`, `:up` or `:down`; anything else raises `ArgumentError` |
+
+**Only `current` reads input**: navigation, hotkeys and confirm. The other menus
+draw with nothing focused, and a button added to one focuses nothing there.
+`current` starts on the first menu to join that is open and has an enabled button,
+and is `nil` while none has. Each tick, before any of its menus reads, the group
+checks it. A current menu that is closed, has no enabled button or has left the
+tree hands over to the first menu that qualifies.
+
+**Focus crosses to a neighbouring menu.** `Stepping` asks the group before it wraps
+past the end of a line, and on a direction the focused button cannot adjust. See
+[In a focus group](#in-a-focus-group). The neighbour is the nearest menu wholly
+beyond the current one's edge in that direction, measured on the two menus'
+[bounds](#layouts-column-row-grid-and-ring). The gap between them decides, and the
+distance between their centres across the gap breaks a tie. A closed menu and a
+menu with no enabled button are never neighbours.
+
+**Every change of `current` follows one rule**, whether a crossing, `current=`, a
+hand-over or the first menu to join made it:
+
+- The menu left clears its focus and reads nothing more that tick.
+- The menu entered reads no input until the next tick. One press therefore crosses
+  once, whichever of the two menus the tree controls first.
+- The menu entered takes no confirm until it has seen confirm up.
+- Its navigation decides where focus starts. `Stepping` takes the enabled button
+  nearest the one left.
+
+`Menu#focus` with an index, on a menu that is not current, makes it current by the
+same rule and then focuses that button. `focus(nil)` changes nothing there.
+
+**Three menus refuse a group**, and raise `ArgumentError` as they join:
+
+| Menu | Why |
+|---|---|
+| a menu with a `trigger:` | it opens only while the trigger is held, so no group could make it current |
+| a `DialogueBox`'s | it advances the conversation, which a group would stop whenever another menu is current |
+| a menu answering to another player than the group | it would never read its own player's input |
+
+Two players each get a group of their own, inside their own `PlayerLayer`.
+
 ### `RGame::Engine::UI::PanelMenu`
 
 **A `Menu` that draws its own backdrop**: one nine-slice around its buttons,
@@ -537,6 +633,7 @@ subclass supplies the look in `_draw`, reading `state`:
 | `activate` | fire `on_activated` and return the button, or `nil` when disabled |
 | `activate_with_feedback` | `activate`, and draw pressed for `PRESS_FEEDBACK` — the instant press, needing nothing held |
 | `adjust(delta)` | what horizontal input does to it under `Stepping`; `nil` — nothing to change |
+| `adjustable?` | whether its class overrides `adjust`; `false` here, `true` on an `OptionButton` and on a game's button that overrides it. A [focus group](#in-a-focus-group) crosses on a direction the focused button is not adjustable in |
 | `_gain_focus`, `_lose_focus` | hooks, each called only when focus changes |
 
 `focused=`, `press(source)`, `release(source)` and `cancel_press(source)` form the
@@ -1204,7 +1301,9 @@ no press, so one line never skips twice.
 
 **This is a menu, not a widget library.** Every button in a menu has the same size,
 placed by a column, a row, a grid or a ring. That is the whole layout system: no
-nesting, no scrolling lists, and no general layout model. It has no text entry and no
+nesting, no scrolling lists, and no general layout model. A
+[`FocusGroup`](#rgameengineuifocusgroup) moves focus between menus side by side; it
+does not lay them out. It has no text entry and no
 continuous control. `OptionButton` covers a setting with a handful of values; a
 free-moving slider needs a control that does not exist.
 

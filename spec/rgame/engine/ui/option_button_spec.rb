@@ -58,6 +58,14 @@ RSpec.describe RGame::Engine::UI::OptionButton do
   end
 
   describe 'moving through the list' do
+    # A focus group crosses on a direction the focused button cannot adjust. An
+    # OptionButton answers nil at the end of its values, and still adjusts.
+    it 'is adjustable, even at the end of its values' do
+      item = option
+      item.value = 100
+      expect([item.adjust(1), item.adjustable?]).to eq([nil, true])
+    end
+
     it 'moves one step at a time' do
       item = option
       item.adjust(1)
