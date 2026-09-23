@@ -1,12 +1,18 @@
 # RGame
 
-RGame is a small 2D game engine for Ruby, written in Ruby and C. It's build on top of SDL2, OpenGL and miniaudio. It's built with testability and performance in mind, and aims to be an engine where you can write your whole game code in Ruby, test it as usual with RSpec (or Minitest, or another test framework) and still have acceptable performance.
-
-While still a work in progress, RGame aims to be more than a SDL/OpenGL binding - it ships with high level features like a scene graph, sprites, collision systems, debugging tools and an UI toolkit. At the moment it's geared towards top-down 2D games with non-pixel-art graphics style. You can check out the examples to get a feel for its capabilities.
+RGame is a small 2D game engine for Ruby, written in Ruby and C. It's built with testability and performance in mind, and aims to be an engine where you can write your whole game code in Ruby, test it as usual with RSpec (or Minitest, or another test framework) and still have acceptable performance.
 
 ## Why does this exist and should you use it?
 
-RGame is the product of both my lazyness and me looking for something that did not exist. Coming from Ruby on Rails, I wanted to write games while not learning a new language. There are Ruby game engines, but none offered me the option to write modern, standard Ruby and proper specs for the game logic. The closest I found was Gosu, and this project initially started as a "high level engine on top of Gosu", but eventually the limitations of Gosu drove me into rewriting this layer myself.
+RGame is not a universal game engine yet and is currently aimed at games with the following criteria:
+
+* top-down 2D
+* tiled maps and sprites for characters
+* controlled with a controller or keyboard alone (or multiple controllers, it supports local multiplayer and split-screen)
+* dialogue-, puzzle- or quest-based. There is no combat system in this engine, although you can of course build one
+* pixel-art as art-style is possible, but not scaled perfectly when playing in fullscreen at the moment
+
+RGame is the product of both my lazyness and me looking for something that did not exist. Coming from Ruby on Rails, I wanted to write games while not learning a new language. There are Ruby game engines, but none offered me what I wanted: The option to write modern, standard Ruby and proper specs for the game logic. The closest I found was [Gosu](https://github.com/gosu/gosu), which is just a media layer. This project initially started as a "high level engine on top of Gosu", but eventually the mismatch of my design philosophy with Gosu drove me into rewriting this layer myself.
 
 RGame puts a lot of emphazis on testing and being testable: It separates the layers that talk to SDL2/OpenGL from the high level engine concepts, so the whole game logic is testable headless.
 
@@ -321,7 +327,7 @@ A file-by-file map of the whole repository is in
 There is no real roadmap for this project, but there are a few features on my mind which I want to include in the next release(s):
 
 - support more of Tiled's features. Orthogonal maps will stay the only one supported for a while, though. - **IN PROGRESS**
-- allow better input-to-action-mapping for complexer inputs like long presses or button combinations
+- allow better input-to-action-mapping for complexer inputs like long presses or button combinations - **DONE**
 - a better scene manager that means less boilerplate in each game with scene transitions. With it an example for teleports/room-transitions
 - allow toggeling the debug layer and connect it better to systems like collision (show collision boxes on toggle)
 - a dialogue system and better text representation - **DONE**
