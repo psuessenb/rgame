@@ -32,12 +32,6 @@ module RGame
     # numbers are drawn digit-by-digit from a fixed set of pre-built single-character
     # strings, which the font caches per glyph.
     #
-    # **Its colour is a RGame::Util::Color and not the three numbers one is built
-    # from**, because a renderer coerces whatever it is handed: an Array becomes
-    # a fresh Color on every call, and this draws a dozen of them a frame. That
-    # is the whole of the number a clean game reports, and the overlay was
-    # reporting its own cost as the game's.
-    #
     # **Each row is rounded to an Integer before its digits are taken**, because
     # that loop divides by ten until nothing is left and a Float never gets
     # there: 59.94 walks down through 0.6, 0.06, 0.006 and draws a leading zero

@@ -118,21 +118,6 @@ matters, and drawing a HUD after the world does not put it on top. Its band
 does. Bands lie `2**40` apart and a `z:` spans 1024, so no offset can carry a
 call into the next band. See `RGame::Util::Z`.
 
-### Colours and allocation
-
-**Passing a `Color` allocates nothing.** A `Color` is a frozen value, so every
-sprite can share the same one. `[r, g, b]` raises `TypeError` rather than being
-converted, because a renderer coerces every colour it is handed and an array
-would be one allocation per draw call — a cost nothing reports:
-
-```ruby
-RED = RGame::Util::Color.new(224, 64, 64)   # once
-
-def draw
-  @renderer.rect(10, 10, 50, 50, color: RED) # every frame, allocation-free
-end
-```
-
 ## Shapes
 
 ```ruby

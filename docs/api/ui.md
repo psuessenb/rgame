@@ -714,9 +714,7 @@ end
 menu.add(RGame::Engine::UI::TextButton.new(label: 'continue', style: Underline.new))
 ```
 
-The colours are `Color`s built once, which is the only form a colour takes: a
-renderer coerces what it is handed, so `[r, g, b]` raises rather than becoming a
-new `Color` on every draw. `Underline` has no `content_color`, so the label
+The colours are `Color`s built once.`Underline` has no `content_color`, so the label
 keeps the button's own colour in every state. A style that fills behind the label
 should say what reads on that fill.
 

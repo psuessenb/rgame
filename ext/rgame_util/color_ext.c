@@ -87,12 +87,7 @@ static VALUE color_s_from_packed(VALUE klass, VALUE packed) {
  * The one place a `color:` argument is normalised, so each drawing primitive
  * does not repeat it. nil means white, which is what an untinted draw means.
  *
- * A Color is the only thing a colour may be. It used to be [r, g, b] as well,
- * from when this class lived in Core and engine code could not name it; now
- * that it is a Util value every layer can build one, and the array form only
- * bought a way to allocate a colour per draw call by accident. That is a cost
- * nothing reports and nothing can see — see the Array branch below, which
- * exists to say so rather than to convert.
+ * A Color is the only thing a colour may be.
  */
 static VALUE color_s_coerce(VALUE klass, VALUE value) {
     if (NIL_P(value)) {
