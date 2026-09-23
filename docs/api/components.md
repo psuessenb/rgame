@@ -583,6 +583,42 @@ feet = add_component(RGame::Engine::Components::FeetCollider.new(
 feet.on_hit { |other| take_damage if other.layer == :spike }
 ```
 
+### `Grab`
+
+**Holds a [`Pushable`](#pushable) while a button is held, so the node's mover drags
+it**: forwards, backwards and sideways. A [`Targeting`](#targeting) that also reads
+a button, as [`Interactor`](#interactor) is.
+
+```ruby
+hero.add_component(RGame::Engine::Components::CharacterBody.new(speed: 60, blocked_by: %i[tiles crate]))
+hero.add_component(RGame::Engine::Components::Grab.new(layer: :crate, range: 24))
+```
+
+While `action` is held, it takes hold of the `Pushable` on its `target`'s node, and
+keeps that one until the action is let go, even when another comes nearer. It lets
+go on the tick the action is released, and when the held node is freed or leaves
+the tree. A target with no `Pushable` is not held, and a press with nothing in range
+holds nothing.
+
+It hands the crate to the sibling [`Mover`](#mover) as `grabbed`, and the mover
+does the moving: see "A mover drags what it holds" there. `Grab` hands it over in
+`_control`, and every `_control` in the tree runs before any `update`, so the crate
+is in hand for the step that drags it, whatever order the two components were added
+in.
+
+- **Construct:** `Grab.new(range:, layer:, action: :grab, policy: :nearest)`. The
+  range, layer and policy are `Targeting`'s, measured from the node's origin.
+  `:grab` is in [`InputMap.default`](input.md#defaults-and-rebinding) on Left Shift
+  and the pad's Y.
+- **Lifecycle:** `_attach` raises when the node has no `Mover`. `_detach` lets go.
+- **State:** `holding` is the held node, or `nil`. `action` is the action it reads,
+  for a prompt.
+- **Two players:** it reads the actions of whoever owns the node, so each player
+  holds their own crate.
+
+**It is a `Targeting`, as an `Interactor` is.** A node holding either of them beside
+another `Targeting` cannot ask `get_component(Targeting)` for one; hold each by name.
+
 ### `Hop`
 
 **A jump in a top-down view.** The node's picture rises along a parabola and comes
@@ -816,6 +852,18 @@ layer.
 A `Pushable` may declare `pushes:` too, which is how a crate pushes a crate. One step
 moves at most `Mover::PUSH_DEPTH` crates in a row, 4; the next one stops the chain as a
 wall would. A pushed node never pushes the node that pushed it.
+
+**A mover drags what it holds.** `grabbed` is a `Pushable` the mover moves with every
+step, or `nil`; [`Grab`](#grab) sets it. On each axis the crate moves first, passing
+through the mover, and the mover follows as far as the crate went, passing through
+the crate. If the mover then went less far, the crate comes back to match. So the
+two always move together:
+
+- **Towards the crate** is a push, with or without `pushes:`.
+- **Away from it** is a pull: the crate follows into the space the mover leaves.
+- **A crate that cannot move holds the mover still**, and `on_blocked` reports the
+  crate's collider. A mover backed into a wall holds the crate still, and reports
+  the wall.
 
 **The shape has one owner, and it is not the mover.** A blocked step resolves
 against the sibling [`BoxCollider`](#boxcollider)'s rectangle;
@@ -1064,12 +1112,14 @@ while they overlap. Two players pushing side by side move it as far as one would
   [`BoxCollider`](#boxcollider), which is what a pusher runs into, or the scene has
   no [`CollisionWorld`](#collisionworld), which is where a pusher finds it.
 - **Push:** `push(dx, dy, by: nil, depth: 1)` moves the node as far as `blocked_by:`
-  allows. Movers call it through `pushes:`, and a game may call it directly, for a
-  crate a spell shoves. `by` is the node pushing, which the crate never pushes back.
+  allows. Movers call it through `pushes:` and `grabbed`, and a game may call it
+  directly, for a crate a spell shoves. `by` is the node pushing or pulling, which
+  the crate neither pushes back nor is stopped by.
   It re-indexes the collider at once, so a mover resolving later in the same step
   meets the crate where it now is.
 - **State:** `pushed_x` and `pushed_y` say how far the last push moved the node, in
   world pixels. `stopped?` is true when something cut the last push short.
+  `collider` is the `BoxCollider` a pusher runs into.
 - **Signals:** `on_blocked` and `on_unblocked`, as for any mover. A crate's pushes
   arrive during other movers' updates, so it counts blockers from one of its own
   updates to the next. A crate held against a wall reports it once, whatever order

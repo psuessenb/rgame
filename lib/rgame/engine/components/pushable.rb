@@ -37,6 +37,9 @@ module RGame
         # How far the last #push moved the node, on each axis, in world pixels.
         attr_reader :pushed_x, :pushed_y
 
+        # The BoxCollider a pusher runs into.
+        attr_reader :collider
+
         def _attach
           super
           @collider ||= require_sibling(BoxCollider)
@@ -57,8 +60,9 @@ module RGame
         end
 
         # Move by (dx, dy), as far as `blocked_by:` allows, and record how far that was in
-        # #pushed_x and #pushed_y. `by` is the node pushing, which this never pushes back,
-        # and `depth` is how many crates stand between it and the first pusher.
+        # #pushed_x and #pushed_y. `by` is the node pushing or pulling, which this neither
+        # pushes back nor is stopped by, and `depth` is how many crates stand between it and
+        # the first pusher.
         #
         # Movers call this through `pushes:`; a game may call it too, for a crate a spell
         # shoves. It re-indexes the collider in the CollisionWorld straight away, so a mover
@@ -70,11 +74,13 @@ module RGame
           box_y = @collider.aabb_y
           @pushed_by = by
           @push_depth = depth
+          @actor_source&.passing = by
           apply_move(dx, dy)
           @world.reindex(@collider, box_x, box_y, @collider.aabb_w, @collider.aabb_h)
           @pushed_x = x - from_x
           @pushed_y = y - from_y
         ensure
+          @actor_source&.passing = nil
           @pushed_by = nil
           @push_depth = 0
         end

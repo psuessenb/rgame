@@ -177,12 +177,14 @@ RSpec.describe RGame::Engine::Components::Pushable do
       expect([hero.x, crates.first.x, crates.last.x]).to eq([100.0, 116.0, 180.0])
     end
 
-    it 'never pushes back the node that pushed it' do
+    # `by:` is passed rather than pushed: a crate a hero drags moves towards them, into
+    # the space they are about to leave.
+    it 'never pushes back the node that pushed it, and is not stopped by it' do
       first = crate_at(116.0, 100.0, pushes: [:crate])
       second = crate_at(132.0, 100.0, pushes: [:crate])
       tick
       pushable(second).push(-1.0, 0.0, by: first)
-      expect([first.x, second.x, pushable(second).pushed_x]).to eq([116.0, 132.0, 0.0])
+      expect([first.x, second.x]).to eq([116.0, 131.0])
     end
 
     it 'pushes a crate that did not push it' do

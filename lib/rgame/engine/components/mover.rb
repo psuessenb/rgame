@@ -149,6 +149,8 @@ module RGame
           @stopped_by = Engine::ContactSet.new
           @push_depth = 0
           @pushed_by = nil
+          @grabbed = nil
+          @actor_source = nil
         end
 
         # Resolve each declared blocker and build the resolver that runs them, once the node
@@ -205,6 +207,10 @@ module RGame
         # Whether a step moves colliders on layer `name` rather than stopping at them.
         def pushes?(name) = @pushes.include?(name)
 
+        # The Pushable this mover drags with every step, or nil. Grab sets it from
+        # `_control`, before the step that reads it.
+        attr_accessor :grabbed
+
         # Where a step lands. Public, and kept separate from `take_step`, so a mover that
         # resolves a step some other way — a platformer's CharacterBody, with gravity and a
         # jump — inherits everything around it rather than restating it.
@@ -213,6 +219,8 @@ module RGame
         # writes straight to the node, and a blocked one hands *itself* to its resolver as
         # the actor being moved (see the adapter below).
         def apply_move(dx, dy)
+          return drag(dx, dy) if @grabbed
+
           unless @collision
             node.x += dx
             node.y += dy
@@ -227,13 +235,7 @@ module RGame
             blocked_x = push_along_x(dx)
             blocked_y = push_along_y(dy)
           end
-          @last_move_blocked = !(blocked_x.nil? && blocked_y.nil?)
-          if blocked_x.equal?(blocked_y)
-            record_blocker(blocked_x, :both)
-          else
-            record_blocker(blocked_x, :x)
-            record_blocker(blocked_y, :y)
-          end
+          report_blockers(blocked_x, blocked_y)
         end
 
         # The actor adapter CollisionSystem#move drives: it reads x/y/collision_box, works
@@ -277,6 +279,74 @@ module RGame
         def last_move_blocked? = @last_move_blocked
 
         def open_step = @stopped_by.begin_frame
+
+        def report_blockers(blocked_x, blocked_y)
+          @last_move_blocked = !(blocked_x.nil? && blocked_y.nil?)
+          return unless @collision
+
+          if blocked_x.equal?(blocked_y)
+            record_blocker(blocked_x, :both)
+          else
+            record_blocker(blocked_x, :x)
+            record_blocker(blocked_y, :y)
+          end
+        end
+
+        def drag(dx, dy)
+          report_blockers(drag_along_x(dx), drag_along_y(dy))
+        end
+
+        def drag_along_x(dx)
+          return nil if dx.zero?
+
+          crate = @grabbed
+          crate.push(dx, 0.0, by: node)
+          went = crate.pushed_x
+          cut_short = crate.stopped?
+          from = x
+          @actor_source&.passing = crate.node
+          by = step_x(went)
+          @actor_source&.passing = nil
+          crate.push(x - from - went, 0.0, by: node) if by
+          by || (cut_short ? crate.collider : nil)
+        end
+
+        def drag_along_y(dy)
+          return nil if dy.zero?
+
+          crate = @grabbed
+          crate.push(0.0, dy, by: node)
+          went = crate.pushed_y
+          cut_short = crate.stopped?
+          from = y
+          @actor_source&.passing = crate.node
+          by = step_y(went)
+          @actor_source&.passing = nil
+          crate.push(0.0, y - from - went, by: node) if by
+          by || (cut_short ? crate.collider : nil)
+        end
+
+        def step_x(dx)
+          unless @collision
+            node.x += dx
+            return nil
+          end
+          return push_along_x(dx) unless @pushes.empty?
+
+          @collision.move(self, dx, 0.0)
+          @collision.blocked_x
+        end
+
+        def step_y(dy)
+          unless @collision
+            node.y += dy
+            return nil
+          end
+          return push_along_y(dy) unless @pushes.empty?
+
+          @collision.move(self, 0.0, dy)
+          @collision.blocked_y
+        end
 
         def close_step
           @stopped_by.each_ended { unblocked_signal.emit(it) }
@@ -384,7 +454,7 @@ module RGame
                         'names collider layers, and the scene has no CollisionWorld system to ' \
                         'find them in. Mount one, or drop those names for a mover that only ' \
                         'the map stops.')
-          Engine::ActorBlockers.new(world: world, owner: @collider, layers: layers)
+          @actor_source = Engine::ActorBlockers.new(world: world, owner: @collider, layers: layers)
         end
 
         def mover_name = self.class.name&.split('::')&.last || self.class.inspect
