@@ -1,41 +1,50 @@
 # Input script for examples/inventory.
 #
-#   ruby tools/drive_test_project.rb examples/inventory/main.rb --ticks 300 --texts
+#   ruby tools/drive_test_project.rb examples/inventory/main.rb --ticks 400 --texts
 #
 # Walk right along the bag's first row to the Hammer, and right once more into
 # the verbs. Use it, step down to Drop and drop it. Come back left into the bag,
-# then press up, which wraps inside the bag's column because no menu lies above.
+# step down three rows, the last of them past the window, and switch to the key
+# items with E. Step right there, switch back with Q, and press up.
 #
 # What the report should show: the **item names under `texts drawn`**, each
-# drawn only by the panel under the bag, and the **`audio` count**, one click per
-# verb. `--texts` keeps the tick a string first appeared, and a budget's last
-# frame is drawn before its last tick runs, so a press on tick N shows at N + 1:
+# drawn only by a page's panel, the **`image` and `triangle` counts**, and the
+# **`audio` count**, one click per verb. `--texts` keeps the tick a string first
+# appeared, and a budget's last frame is drawn before its last tick runs, so a
+# press on tick N shows at N + 1:
 #
 #     --ticks  45  →  0 × sound, Wand 20, Wrench 12 from 21, Torch 12 from 33
-#     --ticks  70  →  1 × sound, Hammer 25 from 45, "Used: Hammer" not yet drawn
 #     --ticks  94  →  2 × sound, Hammer 49, "Used: Hammer" 24 from 70
-#     --ticks 115  →  2 × sound, Hammer 49, "Nothing chosen" 22, "Dropped: Hammer" from 94
-#     --ticks 137  →  2 × sound, "Watering can" 22 from 115
-#     --ticks 300  →  2 × sound, Hammer 49, "Gear" 163 from 137
+#     --ticks 115  →  "Dropped: Hammer" from 94, 1380 × image, 115 × triangle
+#     --ticks 161  →  "Copper can" from 149, 1932 × image, 161 × triangle
+#     --ticks 162  →  "Birch wand" from 161, 1944 × image, 163 × triangle
+#     --ticks 184  →  "House key" from 183, 2200 × image, 205 × triangle
+#     --ticks 227  →  "Cellar key" 22 from 205, 2372 × image, 205 × triangle
+#     --ticks 228  →  "Birch wand" 23, 2384 × image, 207 × triangle
+#     --ticks 400  →  2 × sound, "House key" 22, "Cellar key" 22, 4448 × image, 551 × triangle
 #
-# **"Used: Hammer" is the crossing.** Right at the end of the row on tick 56
-# drew nothing new, because the panel keeps the item the bag last focused. Had
-# the row wrapped instead, Enter on tick 68 would have confirmed the Wand in the
-# bag, which does nothing, and 70 would read no click.
+# **Every bag frame draws 12 images**, the three rows in view, though the bag
+# holds twenty items and then nineteen; the key items' page draws 4. So 4448 at
+# 400 is 356 bag frames × 12 and 44 key-item frames × 4.
 #
-# **Hammer stays at 49 from 94 on**: the drop took it out of the bag, and nothing
-# draws its name again. "Nothing chosen" is its first frame plus the 21 frames
-# between the drop and the crossing back.
+# **The triangles are the scroll.** The mark below the bag is drawn every bag
+# frame. Until 161 there is one a frame. From the third step down, onto the
+# Birch wand in the fourth row, the bag has scrolled and the mark above is drawn
+# too, so 162 counts 163.
 #
-# **"Watering can" from 115** is the crossing back landing on the button nearest
-# Drop. The drop moved the Watering can up into the first row's last slot.
-# **"Gear" from 137** is up wrapping: the group has no menu above the bag, so the
-# step wraps to the column's last row, which is short and answers with its last
-# button.
+# **E shows the key items and Q the bag again.** From 184 each frame adds 4
+# images and no mark. The key items' names count from 183 and stand still from
+# the Q on 226. At 228 a frame adds 12 images and two marks: the bag came back
+# scrolled, on the Birch wand it left. Up on 248 then moves to the Copper can,
+# still in view, and scrolls nothing.
 #
-# Also, at 300 ticks: 300 ticks against 300 frames, no scene entered, one clip
-# per frame, and translates spanning x 0..400, y 0..70. Nothing here is random,
-# so no seed is needed.
+# **"Used: Hammer" is the crossing.** Had the row wrapped instead, Enter on tick
+# 68 would have confirmed the Wand in the bag, which does nothing, and 70 would
+# read no click. **"Watering can" from 115** is the crossing back landing on the
+# button nearest Drop.
+#
+# Also, at 400: 400 ticks against 400 frames, no scene entered, one clip per
+# frame. Nothing here is random, so no seed is needed.
 
 idle 20
 press controls::KEY_RIGHT
@@ -53,6 +62,18 @@ idle 10
 press controls::KEY_RETURN
 idle 20
 press controls::KEY_LEFT
+idle 20
+press controls::KEY_DOWN
+idle 10
+press controls::KEY_DOWN
+idle 10
+press controls::KEY_DOWN
+idle 20
+press controls::KEY_E
+idle 20
+press controls::KEY_RIGHT
+idle 20
+press controls::KEY_Q
 idle 20
 press controls::KEY_UP
 idle 30

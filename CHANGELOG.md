@@ -41,8 +41,9 @@ index, not the argument.
   over one scrolls the focused button into view. `UI::Menu` answers
   `first_row`, `rows_above`, `rows_below` and `in_view?`. See
   [docs/api/ui.md](docs/api/ui.md#a-window-of-rows).
-- **An inventory example.** `examples/inventory` is a bag in a grid, and a
-  column of verbs beside it that acts on the item chosen there. See
+- **An inventory example.** `examples/inventory` is a bag in a grid that
+  scrolls, a column of verbs beside it that acts on the item chosen there, and
+  a second page of key items behind a tab. See
   [docs/api/examples.md](docs/api/examples.md#inventory).
 - **A component for what the player is standing next to, and one for what picks
   itself up.** `RGame::Engine::Components::Interactor` is a `Targeting` that

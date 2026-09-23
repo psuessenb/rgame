@@ -1,13 +1,16 @@
 # The English table: every string this example draws.
 en:
   help:
-    keys: Arrows move through the bag and on to the verbs. Enter chooses.
+    keys: Arrows move through the bag and the verbs. Enter chooses. Q and E switch pages.
   panel:
     nothing: Nothing chosen
   status:
     ready: Choose an item, then a verb
     used: "Used: %{item}"
     dropped: "Dropped: %{item}"
+  tabs:
+    items: Items
+    key_items: Key items
   verbs:
     use: Use
     drop: Drop
@@ -20,3 +23,19 @@ en:
     star: Star
     trophy: Trophy
     gear: Gear
+    oak_staff: Oak staff
+    spanner: Spanner
+    lantern: Lantern
+    mallet: Mallet
+    copper_can: Copper can
+    star_shard: Star shard
+    silver_cup: Silver cup
+    cog: Cog
+    birch_wand: Birch wand
+    pipe_wrench: Pipe wrench
+    candle: Candle
+    sledgehammer: Sledgehammer
+    house_key: House key
+    cellar_key: Cellar key
+    music_box: Music box
+    horn: Horn
