@@ -304,6 +304,58 @@ RSpec.describe RGame::Engine::UI::Tabs do
     end
   end
 
+  # The equipment screen's shape: a page holding a group of a scrolled grid and
+  # a column of verbs.
+  describe 'a page with a group of a scrolled grid and a column' do
+    #   bag, two rows in view    verbs
+    #   b0 b1                    v0
+    #   b2 b3 ─ first_row 1 ─    v1
+    #   b4 b5 ─────────────      v2
+    #   b6 b7                    v3
+    def bag_and_verbs
+      page = RGame::Engine::Node2D.new
+      group = page.add_node(ui::FocusGroup.new)
+      grid = ui::Grid.new(columns: 2, item_width: 40, item_height: 40, spacing: 10, visible_rows: 2)
+      bag = group.add_node(ui::Menu.new(layout: grid))
+      8.times { |index| bag.add(tab("b#{index}")) }
+      verbs = group.add_node(ui::Menu.new(x: 200, layout: ui::Column.new(item_width: 80, item_height: 40, spacing: 10)))
+      4.times { |index| verbs.add(tab("v#{index}")) }
+      tabs.add(tab('items'), page)
+      tabs.add(tab('keys'), page_of('k0', 'k1'))
+      root.enter_tree
+      poll
+      [group, bag, verbs]
+    end
+
+    def walk(*steps) = steps.each { press(it) }
+
+    it 'scrolls the grid as focus steps down it' do
+      _group, bag, = bag_and_verbs
+      walk(:ui_down, :ui_down)
+      expect([bag.focused_index, bag.first_row]).to eq([4, 1])
+    end
+
+    it 'crosses from the grid to the verb nearest the button left' do
+      group, _bag, verbs = bag_and_verbs
+      walk(:ui_down, :ui_down, :ui_right, :ui_right)
+      expect([group.current, verbs.focused_index]).to eq([verbs, 1])
+    end
+
+    # From v3 the nearest slot is b7, below the window; the nearest in view is b5.
+    it 'crosses back to the nearest slot in view, and scrolls nothing' do
+      group, bag, = bag_and_verbs
+      walk(:ui_down, :ui_down, :ui_right, :ui_right, :ui_down, :ui_down, :ui_left)
+      expect([group.current, bag.focused_index, bag.first_row]).to eq([bag, 5, 1])
+    end
+
+    it 'keeps focus and scroll where they were across a switch away and back' do
+      group, bag, = bag_and_verbs
+      walk(:ui_down, :ui_down, :ui_right)
+      walk(:ui_tab_next, :ui_down, :ui_tab_prev)
+      expect([group.current, bag.focused_index, bag.first_row]).to eq([bag, 5, 1])
+    end
+  end
+
   describe 'two players' do
     it 'switches each player\'s own tabs' do
       players = RGame::Engine::Players.new(

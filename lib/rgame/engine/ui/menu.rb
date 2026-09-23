@@ -131,6 +131,16 @@ module RGame
       # group is always current. `focus` with an index makes a menu current, so a game that
       # focuses a button in another menu moves the player there.
       #
+      # ## A window of rows
+      #
+      # Over a layout built with `visible_rows:`, the menu draws that many rows
+      # and scrolls the rest into view. Every change of focus scrolls the
+      # focused button into view by the fewest rows, whether navigation, the
+      # game's `focus` or a group crossing made it, and `clear` scrolls to the
+      # top. `rows_above` and `rows_below` count the rows out of view, which is
+      # what a game draws a scroll arrow from. The menu's bounds are the whole
+      # window's, so a UI::PanelMenu's panel keeps its size as items come and go.
+      #
       # ## What this is not
       #
       # It is a menu, not a widget library. Every button is the same size, placed
@@ -150,6 +160,10 @@ module RGame
         # so reading them on a draw path costs nothing.
         attr_reader :bounds_x, :bounds_y, :bounds_width, :bounds_height
 
+        # The top row in view: 0 at the top, and always 0 over a layout without
+        # `visible_rows`.
+        attr_reader :first_row
+
         # `confirm` is an action name, or nil for a menu nothing confirms.
         def initialize(layout:, navigation: Stepping.new, trigger: nil, scope: nil, confirm: :ui_confirm, **)
           super(**)
@@ -160,6 +174,9 @@ module RGame
           @confirm = confirm
           @scope = scope&.to_s&.freeze
           @layout = layout
+          @visible_rows = layout.respond_to?(:visible_rows) ? layout.visible_rows : nil
+          @per_row = layout.respond_to?(:columns) ? layout.columns : 1
+          @first_row = 0
           @navigation = navigation
           @trigger = trigger
           @open = trigger.nil?
@@ -197,6 +214,7 @@ module RGame
           @buttons.each { remove_node(it) }
           @buttons.clear
           @hotkey_seen_up.clear
+          @first_row = 0
           buttons_changed
           self
         end
@@ -219,7 +237,22 @@ module RGame
           current = focused
           previous.focused = false if previous && !previous.equal?(current)
           current&.focused = true
+          scroll_to(index / @per_row) if @visible_rows && index
         end
+
+        # Whether the button at `index` is in the window of rows the menu draws:
+        # always true over a layout without `visible_rows`.
+        def in_view?(index)
+          return true unless @visible_rows
+
+          row = index / @per_row
+          row >= @first_row && row < @first_row + @visible_rows
+        end
+
+        # The rows out of view above the window, and below it: 0 when every
+        # row fits.
+        def rows_above = @first_row
+        def rows_below = @visible_rows ? [row_count - @first_row - @visible_rows, 0].max : 0
 
         def open? = @open
 
@@ -304,6 +337,38 @@ module RGame
 
         private
 
+        def draw_children(renderer, view)
+          return super unless @visible_rows
+
+          rgame_children_in_order.each { |child| child.draw(renderer, view) if in_window?(child) }
+        end
+
+        def in_window?(child)
+          return true unless child.is_a?(Button)
+
+          child.y >= @bounds_y && child.y + child.height <= @bounds_y + @bounds_height
+        end
+
+        def row_count = (@buttons.size + @per_row - 1) / @per_row
+
+        def scroll_to(row)
+          first = @first_row
+          first = row if row < first
+          first = row - @visible_rows + 1 if row >= first + @visible_rows
+          return if first == @first_row
+
+          @first_row = first
+          @layout.arrange(@buttons, first)
+        end
+
+        def arrange_buttons
+          if @visible_rows
+            @layout.arrange(@buttons, @first_row)
+          else
+            @layout.arrange(@buttons)
+          end
+        end
+
         def join_group
           group = parent
           group = group.parent until group.nil? || group.is_a?(FocusGroup) || group.is_a?(Tabs)
@@ -317,7 +382,7 @@ module RGame
         def interrupted? = @buttons_changed || !current?
 
         def buttons_changed
-          @layout.arrange(@buttons)
+          arrange_buttons
           @bounds_x, @bounds_y, @bounds_width, @bounds_height = @layout.bounds(@buttons)
           @confirm_seen_up = false
           @buttons_changed = true

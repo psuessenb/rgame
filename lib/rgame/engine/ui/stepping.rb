@@ -45,7 +45,7 @@ module RGame
       # focused button is not `adjustable?` in crosses too, so left and right
       # leave a column of plain buttons, and still adjust an OptionButton at the
       # end of its values. A menu the group enters focuses the enabled button
-      # nearest the one focus left.
+      # nearest the one focus left, among those in view on a menu that scrolls.
       #
       # **Focus is never empty** holds for the group's current menu. The others
       # focus nothing, and a button added to one focuses nothing there.
@@ -138,13 +138,14 @@ module RGame
           focus_first if menu.current?
         end
 
-        # Focuses the enabled button nearest `from`, or with no `from`, keeps
-        # an enabled focus or takes the first enabled button.
+        # Focuses the enabled button nearest `from`, among those in view on a
+        # menu that scrolls, or with no `from`, keeps an enabled focus or takes
+        # the first enabled button.
         def entered(from)
           return if menu.buttons.empty?
           return focus_first if from.nil?
 
-          menu.focus(nearest_enabled(from) || 0)
+          menu.focus(nearest_enabled(from, in_view: true) || nearest_enabled(from, in_view: false) || 0)
         end
 
         private
@@ -202,7 +203,7 @@ module RGame
           end
         end
 
-        def nearest_enabled(from)
+        def nearest_enabled(from, in_view:)
           x = from.world_x + (from.width / 2.0)
           y = from.world_y + (from.height / 2.0)
           buttons = menu.buttons
@@ -211,7 +212,7 @@ module RGame
           index = 0
           while index < buttons.size
             button = buttons[index]
-            if button.enabled?
+            if button.enabled? && (!in_view || menu.in_view?(index))
               across = button.world_x + (button.width / 2.0) - x
               down = button.world_y + (button.height / 2.0) - y
               distance = (across * across) + (down * down)

@@ -68,4 +68,27 @@ RSpec.describe RGame::Engine::UI::Grid do
       expect([width, height]).to eq([placed.last.x + placed.last.width, placed.last.y + placed.last.height])
     end
   end
+
+  describe 'visible_rows:' do
+    let(:window) { described_class.new(columns: 3, item_width: 60, item_height: 40, spacing: 10, visible_rows: 2) }
+
+    it 'answers it' do
+      expect([window.visible_rows, grid.visible_rows]).to eq([2, nil])
+    end
+
+    it 'places the first row asked for at the origin' do
+      placed = items(7).tap { window.arrange(it, 1) }
+      expect(placed.map(&:y)).to eq([-50, -50, -50, 0, 0, 0, 50])
+    end
+
+    it 'bounds the window, however many rows are filled' do
+      expect([window.bounds(items(7)), window.bounds(items(1)), window.bounds([])])
+        .to eq([[0, 0, 200, 90]] * 3)
+    end
+
+    it 'refuses a count that is not a positive Integer' do
+      expect { described_class.new(columns: 3, item_width: 60, item_height: 40, visible_rows: 0) }
+        .to raise_error(ArgumentError, /visible_rows:/)
+    end
+  end
 end

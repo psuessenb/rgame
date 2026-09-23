@@ -18,4 +18,13 @@ RSpec.describe RGame::Engine::UI::Stack do
                RGame::Engine::UI::Ring.new(radius: 1, item_width: 1, item_height: 1)]
     expect(layouts.map(&:axis)).to eq(%i[vertical horizontal vertical])
   end
+
+  it 'refuses visible_rows: on the horizontal axis, which has one row' do
+    expect { described_class.new(axis: :horizontal, item_width: 60, item_height: 40, visible_rows: 2) }
+      .to raise_error(ArgumentError, /one row/)
+  end
+
+  it 'answers no visible_rows unless built with them' do
+    expect(RGame::Engine::UI::Row.new(item_width: 1, item_height: 1).visible_rows).to be_nil
+  end
 end

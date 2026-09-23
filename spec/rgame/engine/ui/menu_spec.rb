@@ -421,6 +421,121 @@ RSpec.describe RGame::Engine::UI::Menu do
     end
   end
 
+  describe 'a window of rows' do
+    let(:list) do
+      window = RGame::Engine::UI::Column.new(item_width: 200, item_height: 40, spacing: 10, visible_rows: 3)
+      root.add_node(described_class.new(layout: window))
+    end
+
+    # Six buttons, three in view, entered and polled once with nothing held.
+    def scrolled(count = 6)
+      count.times { |index| list.add(item("item#{index}")) }
+      root.enter_tree
+      poll
+      list
+    end
+
+    def item(label) = RGame::Engine::UI::TextButton.new(label: RGame::Engine::Text.literal(label))
+
+    def drawn(node)
+      renderer = FakeRenderer.new
+      node.draw(renderer, nil)
+      renderer.calls_to(:text).map { it.args.first }
+    end
+
+    it 'draws the rows in view' do
+      expect(drawn(scrolled)).to eq(%w[item0 item1 item2])
+    end
+
+    it 'bounds the whole window, however many rows are filled' do
+      expect([scrolled(1).bounds_height, list.bounds_width]).to eq([140, 200])
+    end
+
+    it 'keeps its bounds as buttons are added' do
+      scrolled
+      expect { list.add(item('more')) }.not_to change(list, :bounds_height)
+    end
+
+    it 'scrolls by one row as focus steps past the last row in view' do
+      scrolled
+      3.times { press(:ui_down) }
+      expect([list.first_row, drawn(list)]).to eq([1, %w[item1 item2 item3]])
+    end
+
+    it 'scrolls no further while focus stays in view' do
+      scrolled
+      3.times { press(:ui_down) }
+      press(:ui_up)
+      expect(list.first_row).to eq(1)
+    end
+
+    it 'scrolls to the top when focus wraps from the last row to the first' do
+      scrolled
+      6.times { press(:ui_down) }
+      expect([list.focused_index, list.first_row]).to eq([0, 0])
+    end
+
+    it 'scrolls to the bottom when focus wraps from the first row to the last' do
+      scrolled
+      press(:ui_up)
+      expect([list.focused_index, list.first_row]).to eq([5, 3])
+    end
+
+    it 'scrolls the button the game focuses into view, by the fewest rows' do
+      scrolled.focus(4)
+      expect(list.first_row).to eq(2)
+    end
+
+    it 'counts the rows out of view on each side' do
+      scrolled.focus(4)
+      expect([list.rows_above, list.rows_below]).to eq([2, 1])
+    end
+
+    it 'counts no rows out of view when every row fits' do
+      scrolled(2)
+      expect([list.rows_above, list.rows_below]).to eq([0, 0])
+    end
+
+    it 'answers whether a button is in view' do
+      scrolled.focus(4)
+      expect((0..5).map { list.in_view?(it) }).to eq([false, false, true, true, true, false])
+    end
+
+    it 'scrolls to the top on clear' do
+      scrolled.focus(5)
+      list.clear
+      expect([list.first_row, list.rows_above]).to eq([0, 0])
+    end
+
+    it 'scrolls up when the rows below the window go' do
+      scrolled.focus(5)
+      list.clear
+      2.times { list.add(item('kept')) }
+      expect([list.first_row, drawn(list)]).to eq([0, %w[kept kept]])
+    end
+
+    it 'scrolls a grid by whole rows' do
+      grid = RGame::Engine::UI::Grid.new(columns: 2, item_width: 40, item_height: 40, spacing: 10, visible_rows: 2)
+      bag = root.add_node(described_class.new(layout: grid))
+      7.times { |index| bag.add(item("slot#{index}")) }
+      root.enter_tree
+      bag.focus(6)
+      expect([bag.first_row, drawn(bag)]).to eq([2, %w[slot4 slot5 slot6]])
+    end
+
+    it 'draws a node of the game\'s own under the menu whatever the scroll' do
+      own = Class.new(RGame::Engine::Node2D) { def _draw(renderer, _view) = renderer.text('own', 0, 0) }
+      scrolled.add_node(own.new)
+      list.focus(5)
+      expect(drawn(list)).to include('own')
+    end
+
+    it 'keeps every button in view over a layout without visible_rows' do
+      build('One', 'Two')
+      expect([menu.first_row, menu.in_view?(1), menu.rows_below]).to eq([0, true, 0])
+    end
+  end
+
   describe 'outside a focus group' do
     it 'is always current' do
       expect(build('One').current?).to be(true)

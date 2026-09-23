@@ -455,6 +455,24 @@ RSpec.describe RGame::Engine::UI::FocusGroup do
     end
   end
 
+  describe 'a menu that scrolls' do
+    # A list of eight right of the verbs, two rows in view and scrolled to
+    # rows 2 and 3. From v2 the nearest button is 4, below the window; the
+    # nearest in view is 3.
+    it 'lands a crossing on the nearest enabled button in view' do
+      column = ui::Column.new(item_width: 80, item_height: 40, spacing: 10, visible_rows: 2)
+      list = group.add_node(ui::Menu.new(x: 200, layout: column))
+      8.times { |index| list.add(ui::TextButton.new(label: "l#{index}")) }
+      verbs = verbs_at(x: 0)
+      root.enter_tree
+      poll
+      list.focus(3)
+      verbs.focus(2)
+      press(:ui_right)
+      expect([focused_label(list), list.first_row]).to eq(['l3', 2])
+    end
+  end
+
   describe 'two players' do
     let(:players) do
       RGame::Engine::Players.new(

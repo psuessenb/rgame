@@ -36,6 +36,11 @@ index, not the argument.
   hotkey, and emits `on_changed`. A page is any node; the tabs control and draw
   the page shown and update every page. `open` and `close` show and hide the
   whole screen. See [docs/api/ui.md](docs/api/ui.md#rgameengineuitabs).
+- **A list longer than its panel scrolls.** `visible_rows:` on
+  `RGame::Engine::UI::Column` and `UI::Grid` shows that many rows, and a menu
+  over one scrolls the focused button into view. `UI::Menu` answers
+  `first_row`, `rows_above`, `rows_below` and `in_view?`. See
+  [docs/api/ui.md](docs/api/ui.md#a-window-of-rows).
 - **An inventory example.** `examples/inventory` is a bag in a grid, and a
   column of verbs beside it that acts on the item chosen there. See
   [docs/api/examples.md](docs/api/examples.md#inventory).

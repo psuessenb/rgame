@@ -19,22 +19,28 @@ module RGame
       # a column with `ui_up` and `ui_down`. Nothing in a grid is adjusted. It
       # takes no `axis:`, because a grid filled in columns would step the other
       # way round from every other grid.
+      #
+      # `visible_rows:` shows that many rows at a time, and the menu scrolls the
+      # rest into view. The window is `columns` slots wide however few buttons
+      # there are.
       class Grid < Stack
         attr_reader :columns
 
         # Raises ArgumentError unless `columns` is a positive Integer.
-        def initialize(columns:, item_width:, item_height:, spacing: 8)
+        def initialize(columns:, item_width:, item_height:, spacing: 8, visible_rows: nil)
           unless columns.is_a?(Integer) && columns.positive?
             raise ArgumentError, "columns: must be a positive Integer, not #{columns.inspect}"
           end
 
-          super(axis: :horizontal, item_width: item_width, item_height: item_height, spacing: spacing)
           @columns = columns
+          super(axis: :horizontal, item_width: item_width, item_height: item_height, spacing: spacing,
+                visible_rows: visible_rows)
         end
 
         private
 
         def row_length(_count) = @columns
+        def one_row? = false
       end
     end
   end

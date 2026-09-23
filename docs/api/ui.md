@@ -77,7 +77,8 @@ The menu keeps everything that stays the same across combinations:
 | `open?`, `open`, `close` | whether it is shown and takes input — see [Open and closed](#open-and-closed) |
 | `trigger:`, `trigger` | an action that holds the menu open — see [A menu held open by an action](#a-menu-held-open-by-an-action) |
 | `on_opened`, `on_closed` | signals; `on_closed` passes the button a trigger's release activated, or `nil` |
-| `bounds_x`, `bounds_y`, `bounds_width`, `bounds_height` | the rectangle enclosing every button, relative to the menu, as its layout reports it — all zero while empty |
+| `bounds_x`, `bounds_y`, `bounds_width`, `bounds_height` | the rectangle enclosing every button, relative to the menu, as its layout reports it — all zero while empty, and the whole window over a layout with `visible_rows` |
+| `first_row`, `rows_above`, `rows_below`, `in_view?(index)` | where a menu over a layout with `visible_rows` is scrolled — see [A window of rows](#a-window-of-rows) |
 
 The actions come from the [universal set](input.md#the-universal-ui-set) that every
 `InputMap` merges over, so a menu works without the game declaring anything.
@@ -162,9 +163,9 @@ that sets `I18n.missing = :raise` fails on it instead. See
 
 | | Places buttons | `axis` | Built with |
 |---|---|---|---|
-| `Column` | downwards from the menu's origin | `:vertical` | `item_width:`, `item_height:`, `spacing: 8` |
+| `Column` | downwards from the menu's origin | `:vertical` | `item_width:`, `item_height:`, `spacing: 8`, `visible_rows: nil` |
 | `Row` | rightwards from the menu's origin | `:horizontal` | `item_width:`, `item_height:`, `spacing: 8` |
-| `Grid` | in rows of `columns` slots from the menu's origin, left to right, then top to bottom | `:horizontal` | `columns:`, `item_width:`, `item_height:`, `spacing: 8` |
+| `Grid` | in rows of `columns` slots from the menu's origin, left to right, then top to bottom | `:horizontal` | `columns:`, `item_width:`, `item_height:`, `spacing: 8`, `visible_rows: nil` |
 | `Ring` | round a circle **centred on** the menu's origin, the first straight up, then clockwise | `:vertical` | `radius:`, `item_width:`, `item_height:` |
 
 ```ruby
@@ -177,8 +178,8 @@ rows of equal slots. A column's rows hold one slot each, a row's one row holds
 every slot, and a grid's rows hold `columns` slots. `Column` and `Row` fix the
 `axis:`, and neither accepts one, since a column that is not vertical is a row.
 Passing one raises an unknown-keyword error instead of being ignored.
-`Stack.new(axis:, item_width:, item_height:, spacing: 8)` takes either axis in
-`Stack::AXES`, and raises `ArgumentError` for anything else.
+`Stack.new(axis:, item_width:, item_height:, spacing: 8, visible_rows: nil)` takes
+either axis in `Stack::AXES`, and raises `ArgumentError` for anything else.
 
 **A `Grid`'s `axis` is the order it fills in**, and it takes no `axis:` either.
 `columns` answers the number it was built with, and `Grid.new` raises
@@ -197,7 +198,9 @@ the menu:
   with an explicit `Stepping.new(axis:)` or any other navigation.
 
 A layout that also answers `columns` is a grid to `Stepping`, which then moves
-[across it](#across-a-grid).
+[across it](#across-a-grid). A layout that answers a `visible_rows` other than
+`nil` is a [window of rows](#a-window-of-rows) to the menu, which then calls
+`arrange(buttons, first_row)` and scrolls it.
 
 The menu calls `arrange` and `bounds` after every `add`, so a ring re-spaces itself
 as it grows. The menu copies the bounds into its own readers, so a backdrop drawn
@@ -206,10 +209,53 @@ may serve several menus.
 
 `Column`, `Row` and `Grid` bounds enclose the rows their buttons fill. A grid with
 a short last row is as wide as a full row, and a grid whose only row is short is as
-wide as its buttons. `Ring` bounds are the square
+wide as its buttons. Built with `visible_rows:`, they bound the whole window
+instead. `Ring` bounds are the square
 around the whole circle of slots: `2 * radius + item_width` wide and
 `2 * radius + item_height` tall, whatever the count. A backdrop behind a wheel
 therefore keeps its size as buttons are added.
+
+#### A window of rows
+
+**A `Column` or `Grid` built with `visible_rows:` shows that many rows, and the
+menu scrolls the rest into view.** Whole rows scroll, and nothing is clipped. The
+window is the bounds, however many rows are filled, so a
+[`PanelMenu`](#rgameengineuipanelmenu)'s panel keeps its size as items come and
+go.
+
+```ruby
+require 'rgame'
+
+UI = RGame::Engine::UI
+
+grid = UI::Grid.new(columns: 4, item_width: 64, item_height: 64, spacing: 6, visible_rows: 3)
+bag = UI::Menu.new(layout: grid)
+20.times { bag.add(UI::IconButton.new(image: :star)) }
+
+bag.bounds_height   # => 204 — three rows, whatever the count
+bag.rows_below      # => 2
+bag.focus(19)
+bag.first_row       # => 2 — focus scrolled into view, by the fewest rows
+bag.rows_above      # => 2
+```
+
+| | |
+|---|---|
+| `first_row` | the top row in view; 0 at the top, and always 0 over a layout without `visible_rows` |
+| `rows_above`, `rows_below` | the rows out of view on each side, 0 when every row fits; what a game draws a scroll arrow from |
+| `in_view?(index)` | whether the button at `index` is in the window; always `true` without `visible_rows` |
+
+**Every change of focus scrolls the focused button into view**, by the fewest rows,
+whether navigation, the game's `focus` or a [group crossing](#in-a-focus-group)
+made it. A wrap from the last row to the first scrolls to the top. A crossing into
+a scrolled menu lands on the nearest enabled button in view. `clear` scrolls to
+the top.
+
+The menu draws the buttons in the window and leaves the rest undrawn. A node of
+the game's own added under the menu draws whatever the scroll. `first_row` belongs
+to the menu rather than the layout, so one layout may still serve several menus.
+`visible_rows:` must be a positive Integer, and `Stack.new(axis: :horizontal,
+visible_rows:)` raises `ArgumentError`, since a row has one row to show.
 
 ### `Stepping`
 
@@ -271,8 +317,9 @@ column of plain buttons, left and right cross to the menu beside it. On an
 `OptionButton` they adjust, even at the end of its values, and so they do on a
 game's button that overrides `adjust`. With no neighbour that way, they do nothing.
 
-A menu the group enters focuses its enabled button nearest the one focus left. A
-menu entered with no button left keeps an enabled focus, or takes its first enabled
+A menu the group enters focuses its enabled button nearest the one focus left,
+among those in view on a menu that [scrolls](#a-window-of-rows). A menu entered
+with no button left keeps an enabled focus, or takes its first enabled
 button. Focus is never empty in the group's current menu; the others focus nothing.
 
 #### Two actions of its own
@@ -1379,8 +1426,9 @@ no press, so one line never skips twice.
 ## What this is not
 
 **This is a menu, not a widget library.** Every button in a menu has the same size,
-placed by a column, a row, a grid or a ring. That is the whole layout system: no
-nesting, no scrolling lists, and no general layout model. A
+placed by a column, a row, a grid or a ring, and a column or a grid can scroll
+whole rows. That is the whole layout system: no nesting, no smooth scrolling, and
+no general layout model. A
 [`FocusGroup`](#rgameengineuifocusgroup) moves focus between menus side by side, and
 [`Tabs`](#rgameengineuitabs) shows one page at a time; neither lays them out. It has no text entry and no
 continuous control. `OptionButton` covers a setting with a handful of values; a

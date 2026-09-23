@@ -39,9 +39,9 @@ The scene graph is `RGame::Engine`, the layer a game is written in:
 input, draws shapes, images and text, and plays sound. A scene graph with
 split-screen players runs on top. The games under `test_projects/` use exactly
 what these pages document. The missing piece is a UI *toolkit*. [UI](ui.md)
-gives each player a region of the screen, menus with focus and activation, and a
-column, row or ring of equal-sized buttons. It has no general layout, no scrolling
-lists and no text entry. These pages describe
+gives each player a region of the screen, menus with focus and activation, a
+column, row, grid or ring of equal-sized buttons, lists that scroll whole rows, and
+pages under a bar of tabs. It has no general layout and no text entry. These pages describe
 what exists and grow with the engine.
 
 ## Loading it
