@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: steps 0 to 3 are implemented.** Fifteen steps. Each is one branch and one
+**Status: steps 0 to 4 are implemented.** Fifteen steps. Each is one branch and one
 pull request, and its sub-steps are one commit each. **Steps 0–4 are detailed.
 Steps 5–14 are deliberately rough** and get re-planned once the layer beneath
 them exists.
@@ -623,6 +623,98 @@ ruby tools/drive_test_project.rb examples/push_pull/main.rb --ticks 240
 movers that existed before it, and their reports must match `main` byte for
 byte. A change there is a change in feel, which is the risk this step carries
 and the only thing that catches it.
+
+**Landed.** Three sub-steps, one commit each. `make test` 380 checks 0 failures,
+`rake spec` 3224 examples 0 failures, `rake spec:core` 477 examples 0 failures,
+`rake docs:coverage` nothing undocumented.
+
+`pushes:` is on `Mover`, so all four movers take it — `CharacterBody`,
+`Velocity`, `PathFollow` and `Navigator` — and `Components::Pushable` is the
+fourth kind of mover, one with no step of its own. `Components::Grab` is a
+`Targeting` plus a held button, and `:grab` is in `InputMap::DEFAULT_ACTIONS` on
+Left Shift and the pad's Y. `ActorBlockers` gained `passing`, which is what a
+drag needs. `pushable_spec.rb` and `grab_spec.rb` are 40 examples between them,
+and the `a mover` group adds three on `pushes:` to each mover's spec.
+
+**Rule 1 holds across every driven run, not just the two.** All 45 drive scripts
+on `main` — every example, every test project, the gamepad runs — report what
+they reported there, byte for byte, after 4a. At the end of the step 44 still
+do, and the one that differs is the adventure, because it grew. Every run was
+compared under `--seed 4242` and 240 ticks.
+
+`examples/push_pull` reports "Holding a crate" from tick 86 for 40 frames, the
+length of the Shift hold exactly. `examples/block_puzzle` reports "Blocks home:
+1 of 2" from tick 197 and "Solved!" from tick 597. The adventure's crate draws the
+way it last moved, and `--texts` reports **"crate" from tick 0, "east" from 111
+and "west" from 189**: player two pushes it along the fence, then holds Y and
+pulls it back. The chest still reads "open" from 150 and "searched" from 206,
+with four sounds, so the crate changed nothing it does not touch.
+
+What the sketch got wrong:
+
+- **Rule 7 is inverted: a layer in `pushes:` but not `blocked_by:` raises.** The
+  sketch had it walked through, pushing nothing, with the docs asking for both.
+  That is a rule the caller must remember, and the failure is silent — a crate
+  the hero walks through. `Mover#initialize` raises `ArgumentError` naming the
+  layer, and does the same for `:tiles` and `:bounds`.
+- **A pushing mover resolves its axes in two moves.** `CollisionSystem#move`
+  resolves X then Y in one call, so a crate met on X would still stand where it
+  was when Y is resolved. A mover with `pushes:` calls it once per axis. One
+  without calls it once, as before, which is how rule 1 stays byte-exact.
+- **Pulling cannot move the crate first and clamp the mover.** The design's order
+  deadlocks against a crate that is `blocked_by` its puller, which is what a
+  crate must be for two players to hold it still from either side: the crate
+  steps into the hero and moves nothing. Backing into a wall with the order
+  reversed leaves the crate inside the hero. What shipped: the crate moves
+  first, passing the mover; the mover follows as far as the crate went, passing
+  the crate; and the crate comes back by whatever the mover fell short. That
+  needed `ActorBlockers#passing`, and it widened `push`'s `by:` from "never
+  pushed back" to "neither pushed back nor stopped by".
+- **A crate's blockers are counted from one of its updates to the next.** Its
+  pushes arrive during other movers' updates. With `Mover#_update`'s bookkeeping,
+  a hero that updates after its crate made the crate report `on_unblocked` and
+  `on_blocked` against the wall every tick. `Pushable` replaces `_update`, which
+  `Mover`'s header had said nothing does.
+- **A pushed crate re-indexes itself.** A crate declaring only `:tiles` has no
+  `ActorBlockers` to re-bucket it after a move, so a mover resolving later in the
+  same step would look for it in the cells it left. `Pushable#push` calls
+  `CollisionWorld#reindex` whatever the crate declares.
+- **A crate that went the whole way can still be reported, by rounding.**
+  `x + w` after a snap need not equal the edge it snapped to, so the pusher's
+  second resolve may name a crate that was not in the way. The pusher drops the
+  crate when `Pushable#stopped?` says it was not cut short. A drag's correction
+  likewise runs only when something stopped the mover, not whenever two floats
+  differ.
+- **`Grab` is a `Targeting`, the third.** The sketch's `pushable_in_reach` is the
+  question `Targeting` answers, so `Grab` extends it, as `Interactor` does. It
+  keeps what it took until the action is let go. One consequence surfaced:
+  `Targeting` measures range from the node's origin, which for a sprite node is
+  its top-left, so reach is lopsided — the adventure's hero needs a larger grip
+  than a centred one would, and `examples/push_pull` puts its hero's origin at
+  its centre instead.
+- **The grid puzzle's listener cannot learn the block from `on_blocked`.** A block
+  is a solid cell, so what stopped the hero is `TileBlockers::TILES`, which names
+  no cell. The example works the cell out from the hero's position and heading.
+  Nothing else in the design changed: `OccupiesCell`, a `Tween` and
+  `TileWorld#solid?` are all it needs.
+- **A node's HUD drawn from a scene that holds a `WorldView` is under the map.**
+  `examples/block_puzzle`'s count was invisible until it moved to a node in the
+  `:hud` band. `examples/pathfinding` on `main` draws its help lines the same
+  way, and a captured frame shows none of them. That is recorded under the open
+  questions rather than fixed here.
+
+The caller that uses both is in `pushable_spec.rb`. A crate a hero pushes onto a
+route a `Navigator` planned leaves a walker `blocked_by` crates standing behind
+it for good, `on_blocked` by the crate's collider, because the route was planned
+over the map and a crate is a collider. A walker that declares `pushes:
+[:crate]` shoves it along the route and finishes.
+
+Documented in [docs/api/components.md](../../api/components.md#pushable) —
+`Pushable`, `Grab`, and `pushes:` and dragging under `Mover` — with the default
+action in [input.md](../../api/input.md#defaults-and-rebinding), `passing` in
+[internals.md](../../api/internals.md), and both examples in
+[examples.md](../../api/examples.md#push_pull). `puzzle.tmx` is recorded in
+`examples/assets/README.md`.
 
 ---
 

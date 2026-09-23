@@ -168,6 +168,10 @@ It does three things a grid does not need:
   overlapping stays overlapping and is not teleported apart.
 - **It handles boxes only.** It skips a `CircleCollider` on a declared layer.
 
+`passing` names a node whose colliders stop nothing until it is set back to `nil`.
+A mover dragging a [`Pushable`](components.md#pushable) passes the crate, and the
+crate passes the mover, because the two move together.
+
 Its `moved` passes the mover to
 [`CollisionWorld#reindex`](components.md#collisionworld). That keeps a later query
 in the same step exact.

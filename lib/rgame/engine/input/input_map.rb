@@ -143,7 +143,8 @@ module RGame
                          [Controls::PAD_DPAD_UP, Controls::PAD_DPAD_DOWN]],
                   stick: Controls::AXIS_LEFT_Y },
         fire: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] },
-        interact: { buttons: [Controls::KEY_E, Controls::PAD_X] }
+        interact: { buttons: [Controls::KEY_E, Controls::PAD_X] },
+        grab: { buttons: [Controls::KEY_LSHIFT, Controls::PAD_Y] }
       }.freeze
 
       # Every action this map can answer for, as `name => Binding`.

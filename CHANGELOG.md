@@ -23,6 +23,21 @@ index, not the argument.
   `InputMap::DEFAULT_ACTIONS` on E and the pad's X. See
   [docs/api/components.md](docs/api/components.md#interactor) and the
   `collectables` example.
+- **A mover pushes what it walks into.** `pushes:` on every mover names collider
+  layers a step moves instead of stopping at, and each must be in `blocked_by:`
+  too. `RGame::Engine::Components::Pushable` is the thing pushed: a mover with no
+  step of its own, stopped by its own `blocked_by:`, and able to push the crates
+  behind it up to `Mover::PUSH_DEPTH` in a row. A mover that declares no
+  `pushes:` moves exactly as before. See
+  [docs/api/components.md](docs/api/components.md#pushable).
+- **A held button drags a crate.** `Components::Grab` holds the nearest
+  `Pushable` in range while its action is held, and the node's mover pulls it
+  as well as pushing it. `:grab` joins `InputMap::DEFAULT_ACTIONS` on Left Shift
+  and the pad's Y. See [docs/api/components.md](docs/api/components.md#grab).
+- **Two examples of moving things by walking into them.** `examples/push_pull`
+  pushes and pulls crates, and `examples/block_puzzle` shoves blocks a cell at a
+  time onto their squares with the components that already existed. See
+  [docs/api/examples.md](docs/api/examples.md#push_pull).
 - **`Components::Collider`, the module both colliders include**, so a component
   can ask for the collider on its node without naming a shape:
   `require_sibling(Collider)`. A node carrying both raises, as it did for

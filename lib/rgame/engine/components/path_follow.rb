@@ -51,8 +51,8 @@ module RGame
         attr_accessor :speed
         attr_reader :path, :heading_x, :heading_y
 
-        def initialize(speed:, path: nil, blocked_by: [])
-          super(blocked_by: blocked_by)
+        def initialize(speed:, path: nil, blocked_by: [], pushes: [])
+          super(blocked_by:, pushes:)
           @path = path
           @speed = speed
           restart

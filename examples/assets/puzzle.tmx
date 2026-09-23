@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Authored for examples/block_puzzle; edit it in Tiled. See README.md.
+
+     40x30 tiles at 16px = 640x480 pixels, the window exactly, so the camera
+     never scrolls. A room of grass sixteen tiles by twelve, walled with trees
+     and set in a forest, with a three-tile wall of trees standing inside it.
+     The blocks and the squares they go to are not in the map: they are nodes
+     the example places on cells. -->
+<map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="16" tileheight="16" infinite="0" nextlayerid="3" nextobjectid="1">
+ <tileset firstgid="1" source="tileset.tsx"/>
+ <layer id="1" name="ground" width="40" height="30">
+  <data encoding="base64" compression="zlib">eJztw0ENAAAMA6Grf9OzsQckrJqqqqqqPn0QtASx</data>
+ </layer>
+ <layer id="2" name="obstacles" width="40" height="30">
+  <data encoding="base64" compression="zlib">eJztzsEJAEAIBLFtwf6bvRZE8EDIQP5TSQoAPpjmz9/WX+fb392/Tv5u/AHAA3+aRpg=</data>
+ </layer>
+</map>

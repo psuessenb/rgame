@@ -120,4 +120,23 @@ RSpec.describe RGame::Engine::Components::Mover do
     tick(120)
     expect(ship.x).to eq(184.0)
   end
+
+  # A layer in pushes: that is not in blocked_by: would be walked through, so nothing on it
+  # could ever be pushed. It raises rather than quietly doing nothing.
+  describe 'pushes:' do
+    it 'refuses a layer that is not also in blocked_by, naming the mover and the layer' do
+      expect { RGame::Engine::Components::CharacterBody.new(speed: 1.0, blocked_by: [:wall], pushes: [:crate]) }
+        .to raise_error(ArgumentError, /CharacterBody pushes :crate and is not blocked_by it/)
+    end
+
+    it 'refuses the map and the edge of the world' do
+      expect { RGame::Engine::Components::Velocity.new(blocked_by: %i[tiles bounds], pushes: %i[tiles bounds]) }
+        .to raise_error(ArgumentError, /Velocity pushes :tiles, :bounds/)
+    end
+
+    it 'answers pushes? for what it declared' do
+      body = RGame::Engine::Components::CharacterBody.new(speed: 1.0, blocked_by: [:crate], pushes: [:crate])
+      expect([body.pushes?(:crate), body.pushes?(:wall)]).to eq([true, false])
+    end
+  end
 end

@@ -1,0 +1,7 @@
+# The English table: every string this example draws.
+en:
+  help:
+    walk: Arrow keys / WASD / gamepad to walk. Keep walking into a block to push it.
+  hud:
+    home: "Blocks home: %{home} of %{total}"
+    solved: Solved!

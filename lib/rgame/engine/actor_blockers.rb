@@ -28,7 +28,8 @@ module RGame
     # - **An overlap that already exists is not resolved.** A step is blocked only if it
     #   *crosses* an edge the mover was on the near side of. Two actors that start
     #   overlapping stay overlapping and neither is teleported out — blocking stops the
-    #   mover, it never moves the thing it hit.
+    #   mover, it never moves the thing it hit. Moving it is Components::Mover's
+    #   `pushes:`, decided after this source has answered.
     # - **Boxes only.** A CircleCollider on a blocked layer is skipped, and still reports
     #   on_hit exactly as it does now. It is a documented limit rather than a raise at
     #   attach: layer membership is a runtime fact, so a check at attach would catch only
@@ -42,7 +43,13 @@ module RGame
         @owner = owner
         @layers = Array(layers)
         @blocker = nil
+        @passing = nil
       end
+
+      # A node whose colliders stop nothing until this is set back to nil. A mover
+      # dragging a crate passes the crate, and the crate passes the mover, because the
+      # two move together and one would otherwise be in the other's way.
+      attr_accessor :passing
 
       # Who produced the edge the last resolve_x / resolve_y returned, or nil when that
       # axis was free. Per-move state, and safe because this source belongs to one body,
@@ -124,7 +131,8 @@ module RGame
         !other.equal?(@owner) &&
           other.is_a?(Components::BoxCollider) &&
           @layers.include?(other.layer) &&
-          !other.node.freed?
+          !other.node.freed? &&
+          !other.node.equal?(@passing)
       end
     end
   end

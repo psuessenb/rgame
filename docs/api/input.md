@@ -211,7 +211,8 @@ Escape to back out of a menu.
 
 ### Defaults and rebinding
 
-`InputMap.default` is the UI set plus eight-way movement, `fire` and `interact`.
+`InputMap.default` is the UI set plus eight-way movement, `fire`, `interact` and
+`grab`.
 `move_x` and `move_y` sit on the arrows, WASD, the d-pad and the left stick. A
 game that wants exactly this passes no `input_map:`.
 
@@ -219,6 +220,10 @@ game that wants exactly this passes no `input_map:`.
 [`Components::Interactor`](components.md#interactor) reads. It shares a button
 with nothing else in the default map, deliberately: `fire` is Space and A, and
 an action bound to a button another action already uses fires both.
+
+`grab` is Left Shift and the pad's Y, which is what
+[`Components::Grab`](components.md#grab) reads while it is held. It shares a
+button with nothing else in the default map either.
 
 `#merge` returns a copy with some actions replaced. A config screen uses it to
 rebind one action without restating the rest:

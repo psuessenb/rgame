@@ -36,6 +36,13 @@ RSpec.describe RGame::Engine::InputMap do
       binding = described_class.default[:fire]
       expect(binding.buttons).to include(controls::KEY_SPACE, controls::PAD_A)
     end
+
+    # What Components::Grab reads by default, on two buttons no other default action uses.
+    it 'holds grab on Left Shift and the pad Y, which nothing else reads' do
+      map = described_class.default
+      others = map.actions.reject { it == :grab }.flat_map { map[it].buttons }
+      expect([map[:grab].buttons, others & map[:grab].buttons]).to eq([[controls::KEY_LSHIFT, controls::PAD_Y], []])
+    end
   end
 
   # Reading input needs no branch because a device only answers for its own kind

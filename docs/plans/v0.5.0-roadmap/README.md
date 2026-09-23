@@ -1,6 +1,6 @@
 # The rest of the README roadmap
 
-**Status: steps 0 to 3 are implemented.** Steps 0–4 of
+**Status: steps 0 to 4 are implemented.** Steps 0–4 of
 [the roadmap](04-roadmap.md) are detailed. Steps 5–14 are deliberately rough and
 get re-planned once the layer beneath them exists.
 
@@ -185,3 +185,9 @@ re-litigation inside the plan.
    consequence — `get_component(Targeting)` matches an `Interactor` too, so a
    node holding both is asked by name. A policy that does not fit a turret is
    still a policy, and `POLICIES` is where it would go.
+4. **Why does `examples/pathfinding` draw no help lines?** It draws them from the
+   scene that holds its `WorldView`, in the `:world` band, and the map covers
+   them — a frame captured on `main` shows none. Step 4 found it while
+   `examples/block_puzzle` had the same bug, and moved that HUD into the `:hud`
+   band. Whether any other example with a map does the same is unchecked, and a
+   guard that a HUD is not under the map is the question. Blocks nothing.

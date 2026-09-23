@@ -7,9 +7,14 @@
 # PlayerController reads whatever that resolves to — which is what lets the same
 # class serve both seats with nothing configured.
 #
-# `blocked_by: [:tiles]` is the whole collision setup for the map. The feet box
-# is also what a coin waits for and what the room's broadphase indexes, so one
-# shape serves being stopped, being seen and picking things up.
+# `blocked_by: %i[tiles crate]` is the whole collision setup, and `pushes:
+# [:crate]` turns the crates from walls into things that move. The feet box is
+# also what a coin waits for and what the room's broadphase indexes, so one shape
+# serves being stopped, pushing, being seen and picking things up.
+#
+# A Grab on the default `:grab` action, Left Shift or the pad's Y, drags a crate
+# the other way. It is a Targeting, as the Interactor is, so the hero holds each
+# by name rather than asking for a Targeting.
 #
 # ## A tap opens and a hold searches, on one button
 #
@@ -27,6 +32,7 @@ class Hero < RGame::Engine::Node2D
   CAMERA_OFFSET_Y = 11
 
   REACH = 48.0
+  GRIP = 32.0
 
   def initialize(camera:, **)
     super(**)
@@ -35,7 +41,7 @@ class Hero < RGame::Engine::Node2D
                     width: FEET_WIDTH, height: FEET_HEIGHT, layer: :hero
                   ))
     add_component(RGame::Engine::Components::CharacterBody.new(
-                    speed: SPEED, blocked_by: [:tiles]
+                    speed: SPEED, blocked_by: %i[tiles crate], pushes: [:crate]
                   ))
     add_component(RGame::Engine::Components::PlayerController.new)
     add_component(RGame::Engine::Components::CameraFollow.new(
@@ -45,6 +51,7 @@ class Hero < RGame::Engine::Node2D
                                   range: REACH, layer: :interactable
                                 ))
     @interactor.on_interacted(&:open)
+    add_component(RGame::Engine::Components::Grab.new(range: GRIP, layer: :crate))
   end
 
   def _control(actions)

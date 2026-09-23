@@ -306,8 +306,8 @@ add_component(RGame::Engine::Components::CharacterBody.new(speed: 80, blocked_by
 add_component(RGame::Engine::Components::PlayerController.new)
 ```
 
-- **Construct:** `CharacterBody.new(speed:, blocked_by: [])`: walk speed in px/s,
-  and what may stop a step (see [`Mover`](#mover)).
+- **Construct:** `CharacterBody.new(speed:, blocked_by: [], pushes: [])`: walk speed
+  in px/s, what may stop a step, and what a step pushes (see [`Mover`](#mover)).
 - **State:** `set_intent(x, y)` writes the step's intent. `move_x` and `move_y`
   read it back, and so do `heading_x` and `heading_y`. A body pressed into a wall
   still heads into it.
@@ -583,6 +583,42 @@ feet = add_component(RGame::Engine::Components::FeetCollider.new(
 feet.on_hit { |other| take_damage if other.layer == :spike }
 ```
 
+### `Grab`
+
+**Holds a [`Pushable`](#pushable) while a button is held, so the node's mover drags
+it**: forwards, backwards and sideways. A [`Targeting`](#targeting) that also reads
+a button, as [`Interactor`](#interactor) is.
+
+```ruby
+hero.add_component(RGame::Engine::Components::CharacterBody.new(speed: 60, blocked_by: %i[tiles crate]))
+hero.add_component(RGame::Engine::Components::Grab.new(layer: :crate, range: 24))
+```
+
+While `action` is held, it takes hold of the `Pushable` on its `target`'s node, and
+keeps that one until the action is let go, even when another comes nearer. It lets
+go on the tick the action is released, and when the held node is freed or leaves
+the tree. A target with no `Pushable` is not held, and a press with nothing in range
+holds nothing.
+
+It hands the crate to the sibling [`Mover`](#mover) as `grabbed`, and the mover
+does the moving: see "A mover drags what it holds" there. `Grab` hands it over in
+`_control`, and every `_control` in the tree runs before any `update`, so the crate
+is in hand for the step that drags it, whatever order the two components were added
+in.
+
+- **Construct:** `Grab.new(range:, layer:, action: :grab, policy: :nearest)`. The
+  range, layer and policy are `Targeting`'s, measured from the node's origin.
+  `:grab` is in [`InputMap.default`](input.md#defaults-and-rebinding) on Left Shift
+  and the pad's Y.
+- **Lifecycle:** `_attach` raises when the node has no `Mover`. `_detach` lets go.
+- **State:** `holding` is the held node, or `nil`. `action` is the action it reads,
+  for a prompt.
+- **Two players:** it reads the actions of whoever owns the node, so each player
+  holds their own crate.
+
+**It is a `Targeting`, as an `Interactor` is.** A node holding either of them beside
+another `Targeting` cannot ask `get_component(Targeting)` for one; hold each by name.
+
 ### `Hop`
 
 **A jump in a top-down view.** The node's picture rises along a parabola and comes
@@ -689,9 +725,10 @@ side of one chest each press their own button and each reach it.
 ### `Mover`
 
 **The base class of every component that moves its node**:
-[`CharacterBody`](#characterbody), [`Velocity`](#velocity) and
-[`PathFollow`](#pathfollow). Walking an intent, integrating a velocity and following
-a path are three different jobs, so they are three classes. They share what happens
+[`CharacterBody`](#characterbody), [`Velocity`](#velocity),
+[`PathFollow`](#pathfollow) and [`Pushable`](#pushable). Walking an intent,
+integrating a velocity and following a path are three different jobs, so they are
+three classes, and a `Pushable` moves only when pushed. They share what happens
 *after* a step is computed, and `Mover` holds that part. You never add a `Mover` on
 its own.
 
@@ -785,6 +822,49 @@ may carry only one. Declaring `:bounds` beside either raises at attach. A game w
 entities wrap or despawn at the edge gives their movers no `:bounds`.
 `blocked_by?(name)` answers whether a mover declared a name.
 
+**A mover declares what it pushes, beside what stops it.** `pushes:` names collider
+layers a step moves instead of stopping at. Every layer in it must also be in
+`blocked_by:`, since a step passes through anything else and would push nothing; the
+constructor raises `ArgumentError` for one that is not, and for `:tiles` or
+`:bounds`.
+
+```ruby
+add_component(RGame::Engine::Components::CharacterBody.new(speed: 80, blocked_by: %i[tiles crate],
+                                                           pushes: [:crate]))
+```
+
+A step stopped by a collider on a pushed layer whose node holds a
+[`Pushable`](#pushable) moves that node by what is left of the step, on the stopped
+axis. The pushed node resolves the push against its own `blocked_by:`. The pusher
+then resolves the rest of its step again, so it follows as far as the crate went:
+
+- **A crate that goes the whole way stops nothing**, and the pusher reports nothing.
+- **A crate that goes part of the way, or none**, stops the pusher flush against it,
+  and `on_blocked` reports the crate's collider.
+- **A crate on a pushed layer with no `Pushable`** stops the step as `blocked_by:`
+  alone would.
+
+A mover that declares `pushes:` resolves X and then Y as two moves, so a crate it
+met on X has moved before Y is resolved. One that declares none takes a single move,
+exactly as without the keyword. `pushes?(name)` answers whether a mover declared a
+layer.
+
+A `Pushable` may declare `pushes:` too, which is how a crate pushes a crate. One step
+moves at most `Mover::PUSH_DEPTH` crates in a row, 4; the next one stops the chain as a
+wall would. A pushed node never pushes the node that pushed it.
+
+**A mover drags what it holds.** `grabbed` is a `Pushable` the mover moves with every
+step, or `nil`; [`Grab`](#grab) sets it. On each axis the crate moves first, passing
+through the mover, and the mover follows as far as the crate went, passing through
+the crate. If the mover then went less far, the crate comes back to match. So the
+two always move together:
+
+- **Towards the crate** is a push, with or without `pushes:`.
+- **Away from it** is a pull: the crate follows into the space the mover leaves.
+- **A crate that cannot move holds the mover still**, and `on_blocked` reports the
+  crate's collider. A mover backed into a wall holds the crate still, and reports
+  the wall.
+
 **The shape has one owner, and it is not the mover.** A blocked step resolves
 against the sibling [`BoxCollider`](#boxcollider)'s rectangle;
 [`FeetCollider`](#feetcollider) suits a walking character. You give the box once,
@@ -792,8 +872,8 @@ to the component that *is* a shape. The same rectangle stops the step and report
 contacts. Reassigning `collider.box` retunes both, and no component hands data to
 another.
 
-- **Construct:** every mover takes `blocked_by: []`. A bare Symbol also works
-  (`blocked_by: :tiles`).
+- **Construct:** every mover takes `blocked_by: []` and `pushes: []`. A bare Symbol
+  also works (`blocked_by: :tiles`).
 - **Lifecycle:** `_attach` resolves the declarations and builds the mover's own
   [`CollisionSystem`](internals.md#collisionsystem--move-an-actor-against-its-blockers)
   from the sources it finds. It **raises** for anything missing. It checks the
@@ -806,7 +886,7 @@ another.
   `mover.on_blocked { |by, axis| ... }`, `mover.on_unblocked { |by| ... }`.
 - **Phase:** `_update(dt)` opens the step, calls the subclass's private
   `take_step(dt)`, and reports the edges. Do not override it; it guarantees that no
-  mover forgets an edge.
+  mover forgets an edge. `Pushable` replaces it, because it has no step of its own.
 - **Heading:** `heading_x` and `heading_y` give the step's direction, each axis in
   -1..1, and `0, 0` when the mover is not trying to move.
   [`AnimatedSprite`](#animatedsprite) faces by it. It is a facing, not a velocity: a
@@ -842,7 +922,7 @@ actors.add_node(hero)
 navigator.go_to(200.0, 360.0) # => true — the hero sets off; false when there is no route
 ```
 
-- **Construct:** `Navigator.new(speed:, blocked_by: [])`. It takes no `path:` and
+- **Construct:** `Navigator.new(speed:, blocked_by: [], pushes: [])`. It takes no `path:` and
   stays idle until the first `go_to`. [`Mover`](#mover) decides what may stop it. A
   navigator that should stay off solid tiles while walking declares `:tiles`, like
   any mover.
@@ -933,7 +1013,7 @@ world.solid?(12, 7) # => true
 and emits `on_finished` at the last waypoint. Hook whatever should happen on arrival
 to that signal.
 
-- **Construct:** `PathFollow.new(speed:, path: nil, blocked_by: [])`.
+- **Construct:** `PathFollow.new(speed:, path: nil, blocked_by: [], pushes: [])`.
   [`Mover`](#mover) decides what may stop it. Without a path, the follower is idle:
   it moves nothing, never finishes, and heads nowhere until it receives one.
 - **Lifecycle:** `_attach` restarts the walk. It returns to the first waypoint,
@@ -1002,6 +1082,49 @@ membership.
   state.
 - **State:** `size` counts the live pooled nodes, and `empty?` is true once all are
   reclaimed. A scene reads it to tell when a wave is cleared.
+
+### `Pushable`
+
+**A [`Mover`](#mover) that moves only when something pushes it**: a crate, a boulder,
+a cart. A mover declaring its layer in `pushes:` moves it by what is left of a step
+it stopped, and it resolves that push against its own `blocked_by:`. So a crate stops
+against a solid tile, a wall collider or another crate, and its pusher stops flush
+behind it.
+
+```ruby
+crate = RGame::Engine::Node2D.new(x: 120, y: 80)
+crate.add_component(RGame::Engine::Components::BoxCollider.new(width: 16, height: 16, layer: :crate))
+crate.add_component(RGame::Engine::Components::Pushable.new(blocked_by: %i[tiles crate hero]))
+
+hero.add_component(RGame::Engine::Components::CharacterBody.new(speed: 80, blocked_by: %i[tiles crate],
+                                                                pushes: [:crate]))
+```
+
+**Put the pushers' layer in the crate's `blocked_by:`.** Two players pushing one crate
+from opposite sides then hold it still, and both stop against it. A crate that heroes
+do not stop is pushed into the hero on the far side, and neither stops the other
+while they overlap. Two players pushing side by side move it as far as one would.
+
+- **Construct:** `Pushable.new(blocked_by:, pushes: [])`. `blocked_by:` is what stops
+  the crate. `pushes:` makes it push the crates behind it, as for any
+  [`Mover`](#mover).
+- **Lifecycle:** `_attach` raises when the node has no
+  [`BoxCollider`](#boxcollider), which is what a pusher runs into, or the scene has
+  no [`CollisionWorld`](#collisionworld), which is where a pusher finds it.
+- **Push:** `push(dx, dy, by: nil, depth: 1)` moves the node as far as `blocked_by:`
+  allows. Movers call it through `pushes:` and `grabbed`, and a game may call it
+  directly, for a crate a spell shoves. `by` is the node pushing or pulling, which
+  the crate neither pushes back nor is stopped by.
+  It re-indexes the collider at once, so a mover resolving later in the same step
+  meets the crate where it now is.
+- **State:** `pushed_x` and `pushed_y` say how far the last push moved the node, in
+  world pixels. `stopped?` is true when something cut the last push short.
+  `collider` is the `BoxCollider` a pusher runs into.
+- **Signals:** `on_blocked` and `on_unblocked`, as for any mover. A crate's pushes
+  arrive during other movers' updates, so it counts blockers from one of its own
+  updates to the next. A crate held against a wall reports it once, whatever order
+  the crate and its pusher update in.
+- **Heading:** `0, 0`. A crate faces nowhere.
 
 ### `ScreenWrap`
 
@@ -1224,7 +1347,7 @@ fade.value   # read in the node's _draw
 
 **Integrates linear and angular velocity into the node's transform each step.**
 
-- **Construct:** `Velocity.new(vx: 0.0, vy: 0.0, spin: 0.0, blocked_by: [])`.
+- **Construct:** `Velocity.new(vx: 0.0, vy: 0.0, spin: 0.0, blocked_by: [], pushes: [])`.
   [`Mover`](#mover) decides what may stop it, as for a `CharacterBody`.
 - **State:** `vx`, `vy` and `spin` are read/write. A controller, or the node's own
   `_control` hook, writes them as movement intent.

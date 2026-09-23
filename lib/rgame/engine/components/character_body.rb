@@ -20,8 +20,8 @@ module RGame
       class CharacterBody < Mover
         attr_reader :move_x, :move_y
 
-        def initialize(speed:, blocked_by: [])
-          super(blocked_by: blocked_by)
+        def initialize(speed:, blocked_by: [], pushes: [])
+          super(blocked_by:, pushes:)
           @speed = speed
           @move_x = 0.0
           @move_y = 0.0

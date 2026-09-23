@@ -1,7 +1,7 @@
 # Example assets
 
-Everything the examples draw and play. Fifteen files besides this one, about
-124 KB in total — of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
+Everything the examples draw and play. Sixteen files besides this one, about
+125 KB in total — of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
 
 ## Why these files and not the ones in `media/`
 
@@ -73,6 +73,17 @@ placement is the point, and it took two tries to get right:
   border left a second gap nobody planned, at x=58, and the route quietly used
   that one instead. It now runs x=1..58, and the fence row is solid everywhere
   except the three gap tiles.
+
+### `puzzle.tmx` — ours
+
+40x30 tiles = 640x480 pixels, the window exactly, for `examples/block_puzzle`.
+A room of grass sixteen tiles by twelve, walled with trees (tile 16) and set in
+a forest of them, with a three-tile wall of trees standing inside. The blocks and
+their squares are nodes the example places, not part of the map.
+
+Written by a short Ruby script rather than in Tiled, in the same base64 + zlib
+format as `town.tmx`, over the same `tileset.tsx`. Edit it in Tiled like the
+other.
 
 ### `ui.png` + `ui.json` — Kenney, *UI Pack - Pixel Adventure*
 
