@@ -125,9 +125,10 @@ module RGame
       # ## Several menus on one screen
       #
       # A menu joins the nearest UI::FocusGroup above it as it enters the tree,
-      # and leaves as it exits. Only the group's current menu reads input; the
-      # others draw with nothing focused. A menu outside any group is always
-      # current. `focus` with an index makes a menu current, so a game that
+      # and leaves as it exits. The search stops at a UI::Tabs, so a menu on a
+      # page joins a group on that page or none. Only the group's current menu
+      # reads input; the others draw with nothing focused. A menu outside any
+      # group is always current. `focus` with an index makes a menu current, so a game that
       # focuses a button in another menu moves the player there.
       #
       # ## What this is not
@@ -305,8 +306,8 @@ module RGame
 
         def join_group
           group = parent
-          group = group.parent until group.nil? || group.is_a?(FocusGroup)
-          return if group.nil?
+          group = group.parent until group.nil? || group.is_a?(FocusGroup) || group.is_a?(Tabs)
+          return unless group.is_a?(FocusGroup)
 
           group.join(self)
           @group = group

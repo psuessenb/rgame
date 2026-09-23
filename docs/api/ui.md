@@ -279,8 +279,8 @@ button. Focus is never empty in the group's current menu; the others focus nothi
 
 **`Stepping.new(actions: %i[ui_tab_prev ui_tab_next])` steps on those two actions
 and reads nothing else.** It adjusts nothing and never crosses to another menu,
-and it wraps at both ends. A tab bar steps this way, so the arrow keys stay with
-the page under it. Anything but two action names raises
+and it wraps at both ends. A [`Tabs`](#rgameengineuitabs) bar steps this way, so
+the arrow keys stay with the page under it. Anything but two action names raises
 `ArgumentError`.
 
 ```ruby
@@ -548,6 +548,68 @@ same rule and then focuses that button. `focus(nil)` changes nothing there.
 | a menu answering to another player than the group | it would never read its own player's input |
 
 Two players each get a group of their own, inside their own `PlayerLayer`.
+
+### `RGame::Engine::UI::Tabs`
+
+**`Tabs` shows one page of a screen at a time, under a bar of tabs.** Q and E, or
+the shoulder buttons, show the previous and the next tab, as
+[`ui_tab_prev` and `ui_tab_next`](input.md#the-universal-ui-set).
+
+```ruby
+require 'rgame'
+
+UI = RGame::Engine::UI
+
+root = RGame::Engine::Node2D.new
+tabs = root.add_node(UI::Tabs.new(x: 16, y: 8, layout: UI::Row.new(item_width: 96, item_height: 28),
+                                  scope: 'inventory'))
+items = tabs.add(UI::PanelButton.new(label: 'items'), UI::FocusGroup.new)
+keys = tabs.add(UI::PanelButton.new(label: 'key_items'), UI::FocusGroup.new)
+root.enter_tree
+
+tabs.current.equal?(items)   # => true — the first enabled tab's page
+items.world_y                # => 36 — a page starts under the bar
+tabs.current = keys
+tabs.current.equal?(keys)    # => true
+```
+
+| | |
+|---|---|
+| `Tabs.new(layout:, scope: nil)` | `layout:` places the tabs; `scope:` scopes their label keys, as a menu's does |
+| `add(button, page)` | put `button` in the bar and `page` under it, and return the page. `TypeError` for a page that is not a `Node2D`, `ArgumentError` for one already held |
+| `pages` | every page, in the order their tabs were added |
+| `current` | the page shown, or `nil` before the first tab |
+| `current = page` | show `page`, as a press of its tab would; `ArgumentError` for a page the tabs do not hold |
+| `on_changed` | a signal with the page shown, each time it changes: a tab stepped to, a hotkey, `current=`, or the first tab added |
+| `open?`, `open`, `close` | whether it is shown and takes input |
+| `on_opened`, `on_closed` | signals, each emitted only on a change |
+
+**The bar is a menu.** It is a [`Menu`](#rgameengineuimenu) over `layout:`, built
+with `confirm: nil` and a [`Stepping` on the two tab actions](#two-actions-of-its-own).
+It skips disabled tabs and wraps at the ends. Its focused button is the tab shown,
+so a tab draws its focused look, and `ui_confirm` never reaches it. A tab's
+`hotkey` shows its page. The bar belongs to the tabs, so nothing outside can leave
+a tab without its page.
+
+**A page is any node.** `add` places each page's origin at the bottom of the bar's
+bounds, so a page's own `y` of 0 starts under the tabs. The tabs hold each page in
+a node of their own, which is the page's `parent`.
+
+**The tabs control and draw only the page shown, and update every page.** A page
+keeps its state while hidden, so a menu on it keeps its focus where the player left
+it. Hiding is not pausing: a button's pressed look runs out while its page is
+hidden. A page shown is first controlled on the next tick, so E and confirm on one
+frame switch the page and activate nothing on it.
+
+**Tabs bound focus groups.** The bar joins no [`FocusGroup`](#rgameengineuifocusgroup).
+A menu on a page joins a group on that page or none, because the search for a
+group stops at the tabs. So a crossing never lands on the bar or on a hidden page.
+A `Tabs` inside another's page raises `ArgumentError` as it enters the tree,
+because one press would switch both.
+
+**A closed `Tabs` draws nothing, and nothing under it reads input.** It still ticks,
+as a [closed menu](#open-and-closed) does. A `Tabs` starts open. A screen that
+opens and closes is a `Tabs` that opens and closes.
 
 ### `RGame::Engine::UI::PanelMenu`
 
@@ -1319,8 +1381,8 @@ no press, so one line never skips twice.
 **This is a menu, not a widget library.** Every button in a menu has the same size,
 placed by a column, a row, a grid or a ring. That is the whole layout system: no
 nesting, no scrolling lists, and no general layout model. A
-[`FocusGroup`](#rgameengineuifocusgroup) moves focus between menus side by side; it
-does not lay them out. It has no text entry and no
+[`FocusGroup`](#rgameengineuifocusgroup) moves focus between menus side by side, and
+[`Tabs`](#rgameengineuitabs) shows one page at a time; neither lays them out. It has no text entry and no
 continuous control. `OptionButton` covers a setting with a handful of values; a
 free-moving slider needs a control that does not exist.
 

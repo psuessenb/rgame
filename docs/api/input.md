@@ -193,7 +193,7 @@ game declares them or not:
 - `ui_up`, `ui_down`, `ui_left`, `ui_right`, `ui_confirm`, `ui_cancel` are
   buttons.
 - `ui_tab_prev` and `ui_tab_next` are Q and E, and the left and right shoulder
-  buttons. A tab bar [steps on them](ui.md#two-actions-of-its-own).
+  buttons. A [`UI::Tabs`](ui.md#rgameengineuitabs) bar steps on them.
 - `ui_radial_x` and `ui_radial_y` are axes on the left stick, the arrow keys and
   the d-pad. A menu built with [`Pointing`](ui.md#pointing) reads them.
 

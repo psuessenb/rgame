@@ -28,7 +28,7 @@ The scene graph is `RGame::Engine`, the layer a game is written in:
 | [Components](components.md) | Reusable behaviour attached to a node |
 | [Systems](systems.md) | Services a subtree shares — collision worlds, tile worlds |
 | [Tile maps](tile_maps.md) | `TileMap` — a Tiled map as data: loading, cells, tiles, solidity, layers, objects and the nodes built from them, custom properties |
-| [UI](ui.md) | `PlayerLayer`, `UI::Menu`, `UI::Label` and `UI::DialogueBox` — a player's own screen, a list or wheel navigated by focus, a translated paragraph drawn a page at a time, and a box that shows a conversation |
+| [UI](ui.md) | `PlayerLayer`, `UI::Menu`, `UI::Tabs`, `UI::Label` and `UI::DialogueBox` — a player's own screen, a list or wheel navigated by focus, pages shown one at a time under a bar of tabs, a translated paragraph drawn a page at a time, and a box that shows a conversation |
 | [Signals](signals.md) | The typed observer pattern nodes talk through |
 | [Dialogue and state machines](dialogue.md) | `StateGraph` and `StateMachine` — states, transitions with conditions and effects, visit counts; `Components::Facts`, the flags they read, and saving both as one entry; `Dialogue::Script` and `Dialogue` — beats, responses and conversations; `Dialogue::Transcript`, what one said; `Exploration`, which checks every path in a spec |
 | [Toolbox](toolbox.md) | What a game author reaches for directly: the text a node draws, pooling, paths and routes, timers and tweens, the camera, collision boxes |

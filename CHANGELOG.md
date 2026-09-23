@@ -31,6 +31,11 @@ index, not the argument.
   and never crosses to another menu. `ui_tab_prev` and `ui_tab_next` join the
   universal UI set on Q and E and the shoulder buttons. See
   [docs/api/ui.md](docs/api/ui.md#two-actions-of-its-own).
+- **A screen with pages.** `RGame::Engine::UI::Tabs` shows one page at a time
+  under a bar of tabs, switched with `ui_tab_prev` and `ui_tab_next` or a tab's
+  hotkey, and emits `on_changed`. A page is any node; the tabs control and draw
+  the page shown and update every page. `open` and `close` show and hide the
+  whole screen. See [docs/api/ui.md](docs/api/ui.md#rgameengineuitabs).
 - **An inventory example.** `examples/inventory` is a bag in a grid, and a
   column of verbs beside it that acts on the item chosen there. See
   [docs/api/examples.md](docs/api/examples.md#inventory).
