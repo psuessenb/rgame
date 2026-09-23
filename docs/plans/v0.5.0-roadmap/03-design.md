@@ -326,12 +326,13 @@ tabs.on_changed { |page| ... }
 ```
 
 `UI::Tabs` holds its bar as a `Menu` that nothing confirms, stepped by two
-actions of its own. It draws, controls and updates only the page shown. It reads two new
-actions from the universal UI set, `ui_tab_prev` and `ui_tab_next`, bound to
-the shoulder buttons and to the keys
-[open question 2](README.md#open-questions) picks. The tab bar is never
-focused: switching a page is a route of its own, which is the console
-convention Unreal's CommonUI encodes.
+actions of its own. It holds its pages off its child list, the way `SceneStack`
+holds scenes, draws and controls the page shown, and updates every page. It
+reads two new actions from the universal UI set, `ui_tab_prev` and
+`ui_tab_next`, bound to the shoulder buttons and to the keys
+[open question 2](README.md#open-questions) picks. The bar's focused button is
+the tab shown, and `ui_confirm` never reaches it: switching a page is a route of
+its own, which is the console convention Unreal's CommonUI encodes.
 
 ### Scrolling shows whole rows
 

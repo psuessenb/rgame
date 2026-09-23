@@ -756,8 +756,9 @@ where focus goes next.
 - **A tab bar is a menu.** The design put `UI::Tabs` in the "genuinely new"
   pile. Its bar holds buttons, places them with a layout, scopes their labels,
   marks one, and steps between them, skipping disabled ones and wrapping. That
-  is a `Menu` over `Stepping`, with two other actions and no confirm. Only the
-  pages are new, so `Tabs` holds a `Menu` for its bar and adds the pages.
+  is a `Menu` over `Stepping`, with two other actions and no confirm. The
+  pages are held off the child list, the way `SceneStack` holds its scenes. So
+  `Tabs` holds a `Menu` for its bar and adds the pages, and neither is new.
 - **A group needs a current menu**, not only a way to cross. With the design's
   group, both menus would still read every press. So a group names one
   `current` menu, and a menu in a group that is not current reads no input.
@@ -793,7 +794,8 @@ where focus goes next.
 ### Three piles, for the UI steps
 
 - **Reuse:** `Menu`, the skipping and wrapping in `Stepping#step`, `PanelMenu`,
-  `IconButton`, a button's focused look for the shown tab, `PlayerLayer`, and
+  `IconButton`, a button's focused look for the shown tab, `PlayerLayer`,
+  `SceneStack`'s way of holding scenes off its child list for the pages, and
   pausing a hero while their bag is open, as
   `test_projects/tiled_world/inventory.rb` does.
 - **Extend:** `Stack` → `Grid`, the same slots over rows, as a subclass
@@ -801,8 +803,7 @@ where focus goes next.
   bar. `Menu` → `confirm:`, `current?` and a window of rows. `Button` →
   `adjustable?`.
 - **Genuinely new:** `FocusGroup`, which decides which of one player's menus
-  reads input, and the pages of `Tabs`. Nothing in the engine holds more than
-  one menu for one player.
+  reads input. Nothing in the engine holds more than one menu for one player.
 
 ---
 
@@ -988,12 +989,13 @@ them.
 
 ### Sub-steps
 
-- **6a** — `confirm:` on `Menu`, `actions:` on `Stepping`, `ui_tab_prev` and
-  `ui_tab_next` in the universal set, and `UI::Tabs`.
-- **6b** — `visible_rows:` on `Column` and `Grid`, and a menu that keeps its
+- **6a** — `confirm:` on `Menu`, `actions:` on `Stepping`, and `ui_tab_prev`
+  and `ui_tab_next` in the universal set.
+- **6b** — `UI::Tabs`.
+- **6c** — `visible_rows:` on `Column` and `Grid`, and a menu that keeps its
   focus in view.
-- **6c** — `examples/inventory` grows a page of key items and a bag longer than
-  its panel.
+- **6d** — `examples/inventory` grows a page of key items and a bag longer than
+  its panel, with a second drive script, `inventory_pad.rb`.
 
 ### Shape
 
@@ -1002,37 +1004,57 @@ them.
 ui_tab_prev: { buttons: [Controls::KEY_Q, Controls::PAD_LEFT_SHOULDER] },
 ui_tab_next: { buttons: [Controls::KEY_E, Controls::PAD_RIGHT_SHOULDER] },
 
-bar  = UI::Row.new(item_width: 96, item_height: 28)
-tabs = layer.add_node(UI::Tabs.new(x: 16, y: 8, layout: bar, scope: 'inventory'))
+row   = UI::Row.new(item_width: 96, item_height: 28)
+tabs  = layer.add_node(UI::Tabs.new(x: 16, y: 8, layout: row, scope: 'inventory'))
 items = tabs.add(UI::PanelButton.new(label: 'items'), UI::FocusGroup.new)
 keys  = tabs.add(UI::PanelButton.new(label: 'key_items'), UI::FocusGroup.new)
 
 tabs.current            # items: the page shown
-tabs.show(keys)
+tabs.current = keys     # what a press of E does
 tabs.on_changed { |page| ... }
-tabs.bar                # the Menu holding the tab buttons
 tabs.open? ; tabs.open ; tabs.close
 tabs.on_opened { ... } ; tabs.on_closed { ... }
 
 # What Tabs builds its bar from, which a game may use alone
-UI::Menu.new(layout: bar, confirm: nil)                  # nothing confirms it; hotkeys still work
-UI::Stepping.new(actions: %i[ui_tab_prev ui_tab_next])   # steps on these two, adjusts nothing
+UI::Menu.new(layout: row, confirm: nil)                  # nothing confirms it; hotkeys still work
+UI::Stepping.new(actions: %i[ui_tab_prev ui_tab_next])   # steps on these two, adjusts nothing, never crosses
 
-grid = UI::Grid.new(columns: 4, item_width: 56, item_height: 56, spacing: 6, visible_rows: 3)
+grid = UI::Grid.new(columns: 4, item_width: 64, item_height: 64, spacing: 6, visible_rows: 3)
 bag.first_row           # the top row in view
 bag.rows_above          # 0 at the top; what a game draws a scroll arrow from
 bag.rows_below
 ```
 
+**The universal set shares buttons with games, as it already does.** Space is
+both `ui_confirm` and `fire`. A game that chords the two shoulder buttons, as
+`examples/input_holds` does, now also silences both tab actions while the chord
+is held, and pressing the left one first shows the previous tab.
+
 `Tabs#add(button, page)` puts the button in the bar and the page under the tabs,
-and returns the page. A page is any node. It is placed from the tabs' origin,
-so it gives itself a `y` below the bar. The bar's focused button is the shown tab, so a tab draws its focused look while the
-bar never reads `ui_confirm`.
+and returns the page. A page is any node. `Tabs` places each page's origin at
+the bottom of the bar's bounds, so a page's own `y` of 0 starts under the tabs.
+The bar is the tabs' own and nothing outside reaches it, so no `add`, `clear`
+or `close` on it can leave a tab without its page. Its focused button is the
+shown tab, so a tab draws its focused look while the bar never reads
+`ui_confirm`. `current` is read off that focus, so the two cannot disagree.
+
+**Pages live off the child list**, the way `SceneStack` holds its scenes. Each
+page's `parent` is the tabs, and each enters and leaves the tree with them.
+`Tabs` controls and draws the page shown, and updates every page. The shown page
+is controlled before the bar, so a switch takes effect from the next tick.
+
+**`Tabs` bounds focus groups.** Its bar joins none. A menu inside a page joins a
+group inside that page or none, because the search for a group stops at the
+tabs. So a crossing never lands on the bar or on a hidden page. The bar can read
+input beside a page's current menu because the two read different actions. A
+`Tabs` inside another's page raises `ArgumentError`, since one press would
+switch both.
 
 A layout built with `visible_rows:` answers `visible_rows` and takes
 `arrange(buttons, first_row)`, placing the row in view at the menu's origin.
 `Menu` calls it that way and leaves the rows outside the window undrawn. A
 layout without `visible_rows`, a game's own included, is called as today.
+`first_row` belongs to the menu, because one layout may serve several menus.
 
 ### The rules the tests pin
 
@@ -1040,47 +1062,60 @@ For tabs:
 
 1. **`ui_tab_next` and `ui_tab_prev` show the next and the previous enabled
    tab**, wrapping, and emit `on_changed` with the page shown.
-2. **Only the shown page is controlled, updated and drawn.** A page keeps its
-   state while hidden, so a menu's focus is where the player left it.
-3. **The first page added is shown.**
-4. **`show(page)` does what a press does**, emits only on a change, and raises
+2. **Only the shown page is controlled and drawn. Every page is updated.** A
+   page keeps its state while hidden, so a menu's focus is where the player left
+   it. Hiding is not pausing, as closing a menu is not: a button's pressed look
+   runs out while its page is hidden.
+3. **A page shown is first controlled on the next tick.** E and confirm on one
+   frame switch the page and activate nothing on it.
+4. **The first enabled tab's page is shown first.**
+5. **`current=` does what a press does**, emits only on a change, and raises
    `ArgumentError` for a page the tabs do not hold.
-5. **A tab's hotkey shows its page.**
-6. **A closed `Tabs` draws nothing, and nothing under it reads input.** It still
+6. **A tab's hotkey shows its page.**
+7. **A closed `Tabs` draws nothing, and nothing under it reads input.** It still
    ticks, as a closed `Menu` does. `open` and `close` emit only on a change, and
    a `Tabs` starts open.
-7. **`ui_confirm` never reaches the bar.** A menu built with `confirm: nil`
+8. **`ui_confirm` never reaches the bar.** A menu built with `confirm: nil`
    activates nothing on a confirm, and `confirm:` naming another action confirms
    on that one.
-8. **`Stepping.new(actions:)` reads those two actions and nothing else**, and
-   adjusts nothing. Anything but two action names raises `ArgumentError`.
-9. **Two players switch their own tabs.**
+9. **`Stepping.new(actions:)` reads those two actions and nothing else**,
+   adjusts nothing and never crosses. Anything but two action names raises
+   `ArgumentError`.
+10. **The bar joins no group, and a page's menus join none above the tabs.** A
+    `Tabs` inside another's page raises `ArgumentError`.
+11. **Two players switch their own tabs.**
 
 For scrolling:
 
-10. **A menu over a layout with `visible_rows:` draws that many rows.** Its
-    bounds are the window's, so a `PanelMenu`'s panel keeps its size.
-11. **Every change of focus scrolls the focused button into view**, by the
+12. **A menu over a layout with `visible_rows:` draws that many rows.** Its
+    bounds are the whole window's, however many rows are filled, so a
+    `PanelMenu`'s panel keeps its size as items come and go. A layout without
+    `visible_rows:` keeps step 5's rule 1.
+13. **Every change of focus scrolls the focused button into view**, by the
     fewest rows, whether navigation, the game's `focus` or a group crossing made
     it. A wrap from the last row to the first scrolls to the top.
-12. **`rows_above` and `rows_below` count the hidden rows** on each side, and
+14. **A crossing into a scrolled menu lands on the nearest enabled button in
+    view.**
+15. **`rows_above` and `rows_below` count the hidden rows** on each side, and
     are 0 when every row fits.
-13. **`clear` scrolls to the top.**
-14. **Switching tabs and scrolling allocate nothing.**
+16. **`clear` scrolls to the top.**
+17. **Switching tabs and scrolling allocate nothing.**
 
 ### Tests
 
-- `spec/rgame/engine/ui/tabs_spec.rb`: rules 1–6 and 9.
-- `spec/rgame/engine/ui/menu_spec.rb`: rule 7, and rules 10–13.
-- `spec/rgame/engine/ui/stepping_spec.rb`: rule 8.
+- `spec/rgame/engine/ui/tabs_spec.rb`: rules 1–7, 10 and 11.
+- `spec/rgame/engine/ui/menu_spec.rb`: rule 8, and rules 12, 13, 15 and 16.
+- `spec/rgame/engine/ui/stepping_spec.rb`: rule 9.
 - `spec/rgame/engine/ui/grid_spec.rb` and `column_spec.rb`: `arrange` with a
   first row, and the bounds of a window.
 - `spec/rgame/engine/input_map_spec.rb`: the two actions in the universal set.
+  The chord example's `contain_exactly(:block, :parry)` gains `ui_tab_prev` and
+  `ui_tab_next`, which is the chord silencing tab switching.
 - **The caller that uses all three**, in `tabs_spec.rb`: a page holding a group
   of a scrolled grid and a column. Focus scrolls the grid and crosses to the
-  column. The page switches away and back, and focus and scroll are where they
-  were.
-- `focus_group_allocation_spec.rb` gains rule 14.
+  column, and rule 14 lands it back in view. The page switches away and back,
+  and focus and scroll are where they were.
+- `focus_group_allocation_spec.rb` gains rule 17.
 
 ### Verify
 
@@ -1092,12 +1127,21 @@ ruby tools/drive_test_project.rb examples/inventory/main.rb --gamepad \
 ```
 
 The bag holds twenty items in three visible rows, and a second page holds key
-items. The script walks down past the window, switches to the key items with E
-and back with Q. `--texts` shows the key items' names only between the two
-switches. The `--gamepad` run does the same on the shoulder buttons.
+items. The two atlases hold thirteen icons, so icons repeat, but every item has
+a name of its own and `--texts` tells them apart. The script walks down past the
+window, switches to the key items with E and back with Q. The key items' names
+first appear after the E, and their counts stand still from the Q on; the
+script's header gives the checkpoints. The `--gamepad` run does the same on the
+shoulder buttons.
 
-Every other driven example reports what it reported at the branch point, byte
-for byte. The universal set grew, and nothing else may notice.
+**Every other driven example and test project reports what it reported at the
+branch point**, byte for byte, compared as the verify skill describes.
+`examples/input_holds` chords the shoulder buttons and `test_projects/adventure`
+binds E, so those two would show the universal set's growth first.
+
+Three places stop being true here: `docs/api/input.md`'s list of the universal
+set, `docs/api/ui.md`'s "no scrolling lists", and the universal actions
+`write-example` lists.
 
 ---
 
