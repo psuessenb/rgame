@@ -24,6 +24,18 @@ RSpec.describe RGame::Engine::Debug do
     expect { debug.shows?(:shapes) }.to allocate_nothing
   end
 
+  # The one channel that draws every frame of every session somebody is
+  # debugging, and the one whose own numbers a leak here would spoil. It is
+  # measured through the system rather than against the overlay directly,
+  # because that is the path a game runs, and `fps` arrives as the Float
+  # RGame::Game hands over.
+  it 'allocates nothing with the stats overlay on' do
+    debug.show(:stats)
+    debug.fps = 59.94
+
+    expect { debug._draw(renderer, view) }.to allocate_nothing
+  end
+
   # The shapes are the one thing here that draws every frame in a real game, so
   # they are measured with the channel on as well as off.
   describe 'the :shapes channel' do

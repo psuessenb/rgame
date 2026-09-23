@@ -2,36 +2,24 @@
 
 # Guards the overlay's load-bearing promise: the stats it shows change every frame, so
 # it draws numbers digit-by-digit from cached glyph strings rather than building a String
-# per frame. Drawing must therefore allocate ~nothing in steady state.
+# per frame. Drawing must therefore allocate nothing in steady state.
+#
+# It measures against QuietRenderer rather than a fake of its own, because the
+# overlay's cost is not all in the overlay. A renderer coerces every colour it is
+# handed, so what a draw *passes* costs as much as what it builds, and a fake
+# that ignores its `color:` cannot see that half. QuietRenderer coerces, as
+# RGame::Core::Renderer#packed does.
 RSpec.describe RGame::Engine::DebugOverlay do
-  # A faithful, allocation-free stand-in for RGame::Core::Renderer: explicit keyword
-  # params (like the real #text) so a call doesn't collect a keyword Hash, and a plain
-  # object rather than an RSpec double (doubles allocate per call).
-  #
-  # `layered` yields, and must allocate nothing doing it — the overlay opens one
-  # per frame and so does every node in a game, so a Proc allocated here would
-  # be one per node per frame.
-  let(:renderer) do
-    Class.new do
-      def layered(_band = :world) = yield
-      def text(string, x, y, z: 0, color: nil); end
-      def text_width(_string) = 10
-      def text_height = 16
-    end.new
-  end
+  subject(:overlay) { described_class.new }
+
+  # One view, built once: the platform reuses its Views frame to frame, and
+  # building a fresh one per call here would measure this spec instead.
+  let(:renderer) { QuietRenderer.new }
+  let(:view) { screen_view }
 
   it 'draws without allocating per frame' do
-    overlay = described_class.new
     overlay.restart
-    # One view, built once: the platform reuses its Views frame to frame, and
-    # building a fresh one per call here would measure this spec instead.
-    view = screen_view
-    overlay.draw(renderer, view, 59.94) # warm up: measure and cache digit/label widths
 
-    before = GC.stat(:total_allocated_objects)
-    1000.times { overlay.draw(renderer, view, 59.94) }
-    after = GC.stat(:total_allocated_objects)
-
-    expect(after - before).to be < 100
+    expect { overlay.draw(renderer, view, 59.94) }.to allocate_nothing
   end
 end
