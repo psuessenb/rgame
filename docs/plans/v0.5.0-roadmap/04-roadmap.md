@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: steps 0 and 1 are implemented.** Fifteen steps. Each is one branch and one
+**Status: steps 0, 1 and 2 are implemented.** Fifteen steps. Each is one branch and one
 pull request, and its sub-steps are one commit each. **Steps 0–4 are detailed.
 Steps 5–14 are deliberately rough** and get re-planned once the layer beneath
 them exists.
@@ -347,6 +347,59 @@ The adventure binds a `debug` action (F3 and a pad button) that calls
 `debug.toggle(:shapes)` from its own node, because the scripted backend drives
 polled input and never reaches `Game#button_down`. Its drive script presses it
 at tick 60, and the report shows `debug_box` calls appearing from that tick.
+
+**Landed.** Three sub-steps, one commit each. `make test` 380 checks 0 failures,
+`rake spec` 3136 examples 0 failures, `rake spec:core` 477 examples 0 failures,
+`rake docs:coverage` nothing undocumented.
+
+`RGame::Engine::Debug` is the system, mounted on the root beside the other four.
+It holds `show`, `hide`, `toggle`, `shows?`, `channels` and `define`, and draws
+the `:stats` overlay and every defined channel's block in the `:debug` band.
+`DebugOverlay` keeps no flag of its own any more: `Debug` decides, and calls
+`restart` when the channel goes on. `Game` gained `debug`, `debug_keys` and F3,
+and `needs_redraw?` reads `shows?(:stats)`.
+
+The acceptance run is `test_projects/adventure`. Its report matches `main` line
+for line — 240 ticks against 240 frames, one scene pushed, 898 `tilemap`, 569
+`sprite`, three clip rectangles, translates spanning y -103.0..298.0, no audio —
+with two lines added: **26493 `debug_box` calls and 1074 layers in the `:debug`
+band**. `--ticks 61` reports no shapes and `--ticks 62` reports one frame of
+them, six layers: each hero's feet box and the map's solid cells, twice over for
+the two viewports. Every other driven example and test project reports what it
+reported on `main`, byte for byte: 42 comparable runs, with `asteroids` and
+`snake` under `--seed 4242`.
+
+What the sketch got wrong:
+
+- **The adventure could not bind F3.** `Game` binds it to the same channel, and
+  the two would toggle it twice per press and cancel out — the run would look as
+  though nothing were bound. The project's own `debug` action is on F4 and
+  `PAD_BACK`, and the switch lives in a `DebugToggle` component on the shell
+  rather than in a node of the room, because a debug switch belongs to the
+  project rather than to any one scene.
+- **`:shapes` needed no `debug_circle` in the adventure**, but the contract did:
+  the example that exercises a `CircleCollider` is a spec, not a driven project,
+  because nothing under `examples/` or `test_projects/` mounts one on a scene
+  with a debug layer. The renderer's colour constant lost its box in the same
+  commit — `DEBUG_BOX_COLOR` is `DEBUG_COLOR`, since a box and a circle share it.
+- **A `WorldView` has to look its `TileWorld` up in `_enter_tree`**, which means
+  a scene that mounts the world *after* the view draws no cells. Every scene in
+  the repository mounts it first, and `TileMapLayer` already depends on the same
+  order, so the alternative — a lookup per viewport per frame — bought nothing.
+- **Occupied cells need no separate channel.** `TileWorld#solid?` already counts
+  a cell `OccupiesCell` marks, so the sub-step's "solid and occupied cells" is
+  one loop and one colour. A spec pins it rather than the code distinguishing
+  them.
+- **`QuietRenderer` had no `clipped`**, so a `WorldView`'s whole `draw` could not
+  be measured for allocations at all. It yields now, like `layered` and
+  `translated`.
+
+Documented in [docs/api/systems.md](../../api/systems.md#debug--a-switch-per-channel)
+— the system, its two channels and `define` — with the keys in
+[game.md](../../api/game.md#the-development-keys), the shapes in
+[components.md](../../api/components.md#boxcollider), the cells in
+[scene_graph.md](../../api/scene_graph.md#view-transforms-and-the-camera) and
+`debug_circle` in [drawing.md](../../api/drawing.md#shapes).
 
 ---
 
