@@ -463,7 +463,7 @@ RSpec.describe RGame::Engine::Players do
   end
 
   # It runs every tick for every unassigned device, and a steady drip is exactly
-  # what the debug overlay's Δ/f exists to catch.
+  # what the debug overlay's OBJ/s exists to catch.
   it 'scans for joiners without allocating' do
     players = described_class.new([player(0), player(1, device: nil)])
     players.device_connected(0)

@@ -225,7 +225,7 @@ RSpec.describe RGame::Engine::Viewports do
 
   # refresh runs once per frame, and Views and rects are both reused rather than
   # rebuilt — a handful of objects a frame is exactly the steady drip the debug
-  # overlay's Δ/f exists to catch.
+  # overlay's OBJ/s exists to catch.
   it 'refreshes without allocating' do
     viewports.refresh
     expect { viewports.refresh }.to allocate_nothing

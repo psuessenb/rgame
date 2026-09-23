@@ -16,7 +16,8 @@ module RGame
     # ## Two channels ship, and a game adds its own
     #
     # **`:stats`** is the RGame::Engine::DebugOverlay: frames per second, the
-    # allocated-object count, and the objects allocated since the last frame.
+    # objects allocated in all and over the last second, and the longest the
+    # collector ran in one tick of that second.
     # **`:shapes`** is drawn by the things that have shapes — a collider draws
     # its own box or circle, and a WorldView draws the solid cells of the
     # scene's tile map. Nothing here knows about either; they ask `shows?`.
@@ -92,6 +93,10 @@ module RGame
       # Every channel's name, the two the engine draws first and the game's own
       # in the order they were defined.
       def channels = @flags.keys
+
+      def _update(dt)
+        @overlay.update(dt) if @flags[:stats]
+      end
 
       def _draw(renderer, view)
         @overlay.draw(renderer, view, @fps) if @flags[:stats]

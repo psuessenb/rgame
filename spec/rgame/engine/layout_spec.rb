@@ -76,7 +76,7 @@ RSpec.describe RGame::Engine::Layout do
   end
 
   # It runs once per frame, and building rects to throw away is exactly the kind
-  # of steady drip the debug overlay's Δ/f exists to catch.
+  # of steady drip the debug overlay's OBJ/s exists to catch.
   it 'yields rects without allocating any' do
     expect { described_class.each_rect(4, 640, 480) { |_i, _x, _y, _w, _h| nil } }
       .to allocate_nothing

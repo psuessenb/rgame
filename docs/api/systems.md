@@ -155,11 +155,26 @@ off.
 
 ### The two channels the engine draws
 
-**`:stats`** is the `RGame::Engine::DebugOverlay`: frames per second, the total
-objects allocated, and the objects allocated since the last frame, in the
-bottom-right corner of the view. The last of those is the number to watch — a
-clean per-frame path holds it near zero, and a steady nonzero one is a garbage
-collection being scheduled.
+**`:stats`** is the `RGame::Engine::DebugOverlay`, four rows in the bottom-right
+corner of the view:
+
+| Row | Shows |
+|---|---|
+| FPS | the frame rate the loop measured |
+| OBJ | every object the process has allocated so far |
+| OBJ/s | the objects allocated over the last whole second |
+| GC ms | the longest the collector ran in one tick of that second, to a tenth of a millisecond |
+
+OBJ/s is the number to watch. A game that allocates nothing on its steady path
+holds it near zero, and a steady nonzero one schedules garbage collections. It
+counts a whole second rather than one frame, so allocation that comes in bursts,
+such as a spawn every few frames, shows rather than flickering past. GC ms is
+what a collection cost when it came. At one tick a frame, it is the worst frame's
+pause.
+
+The overlay samples once a tick, in `update`, so the second it covers is a second
+of `dt`. OBJ/s and GC ms read 0 for the first second after the channel goes
+on.
 
 **`:shapes`** is drawn by the things that have shapes rather than by `Debug`
 itself. A `BoxCollider` draws its box and a `CircleCollider` its circle, each in

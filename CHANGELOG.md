@@ -327,6 +327,11 @@ index, not the argument.
 - **`Game/NoLiteralText` also checks `text_lines`.** A String literal as the
   first argument of `text_lines` is an offense, as it is for `text` and
   `text_width`.
+- **The debug overlay counts allocations per second, and shows the worst
+  tick's collection.** The `:stats` channel's rows are FPS, OBJ, OBJ/s and GC
+  ms. OBJ/s replaces Δ/f and counts the last whole second rather than the last
+  frame. GC ms is the longest the collector ran in one tick of that second. See
+  [docs/api/systems.md](docs/api/systems.md#the-two-channels-the-engine-draws).
 - **`WorldBounds` resolves one axis at a time.**
   `RGame::Engine::Components::WorldBounds.resolve_width(node, width)` and
   `resolve_height(node, height)` replace `resolve(node, width, height)`, which
@@ -368,12 +373,11 @@ index, not the argument.
   reaches every node that names the mover as its `parent`, on the child list or
   off it. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md#the-two-spaces).
-- **The debug overlay's Δ/f reads 0 in a game that allocates nothing.** Its
-  colour was the three numbers a colour is built from rather than a
-  `RGame::Util::Color`, and a renderer coerces what it is handed — so the
-  overlay allocated one Color per glyph it drew and reported its own cost as
-  the game's. Every game read about a dozen objects a frame with nothing of its
-  own to blame.
+- **The debug overlay no longer counts its own drawing.** Its colour was the
+  three numbers a colour is built from rather than a `RGame::Util::Color`, and a
+  renderer coerces what it is handed — so the overlay allocated one Color per
+  glyph it drew and reported its own cost as the game's. Every game read about a
+  dozen objects a frame with nothing of its own to blame.
 - **The frame rate on the debug overlay draws its own digits, not three hundred
   leading zeros.** `App#fps` is a Float, and the digit loop divided by ten until
   nothing was left — which a Float never reaches. Each row is rounded to an

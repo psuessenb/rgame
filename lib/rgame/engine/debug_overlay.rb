@@ -2,63 +2,95 @@
 
 module RGame
   module Engine
-    # The `:stats` channel of RGame::Engine::Debug, reporting runtime health in the
-    # bottom-right corner: frame rate (FPS), the process' cumulative
-    # allocated-object count (OBJ), and the objects allocated since the last frame
-    # (Δ/f).
+    # The `:stats` channel of RGame::Engine::Debug: four rows in the bottom-right
+    # corner of the view.
     #
-    # It holds no flag of its own. `Debug` decides whether the channel is on, and
-    # calls #restart when it goes on and #draw while it is.
+    # | Row | Shows |
+    # |---|---|
+    # | FPS | the frame rate the loop measured |
+    # | OBJ | every object the process has allocated so far |
+    # | OBJ/s | the objects allocated over the last whole second |
+    # | GC ms | the longest the collector ran in one tick of that second |
     #
-    # **Δ/f is the one to watch, and it is a standing guard rather than a
-    # diagnostic for one past bug.** A clean per-frame path holds it near zero; a
-    # steady nonzero number is a garbage collection being scheduled. The cost is
-    # invisible by every other measure — nothing looks wrong, nothing is slower,
-    # until a pause lands mid-frame — so without a number on screen it is not
-    # noticed at all.
+    # It holds no flag of its own. `Debug` calls #restart when the channel goes
+    # on, and #update once a tick and #draw once a frame while it is on.
     #
-    # Every layer can break it and each has its own way of doing so. Core can
-    # allocate in a binding, the engine layer in a component's `draw`, and game
-    # code in a scene that builds a string or an array per frame. RuboCop's
-    # `Game/NoInterpolationInHotPath` and `Game/NoNeedlessAllocation` catch the
-    # shapes they can see in *this* repo; they cannot see a game built on top,
-    # and they cannot see an allocation that happens inside a method they think
-    # is cheap. This can.
+    # **OBJ/s and GC ms answer different questions, and a game needs both.**
+    # OBJ/s drives how often the collector runs. It counts a whole second rather
+    # than one frame, because work done on an event allocates in bursts: five
+    # objects every third frame reads 0, 0, 5 frame by frame, and 100 a second.
+    # GC ms is what a collection cost when it came. At one tick a frame, it is
+    # the worst frame's collection: the share of a hitch the collector caused.
     #
-    # Pure: it reads only GC.stat and draws against the renderer interface, so it stays
-    # headless-testable. The crux is that it must not allocate while drawing — the values
-    # change every frame, so the usual "cache the string, rebuild on change" trick would
-    # allocate a String per frame, and the meter would be measuring itself. Instead
-    # numbers are drawn digit-by-digit from a fixed set of pre-built single-character
-    # strings, which the font caches per glyph.
+    # Every layer can raise OBJ/s, each in its own way. Core can allocate in a
+    # binding, the engine layer in a component, and a game in a scene that
+    # builds a string per frame. RuboCop's `Game/NoInterpolationInHotPath` and
+    # `Game/NoNeedlessAllocation` catch the shapes they can see in *this* repo.
+    # They cannot see a game built on top, or an allocation inside a method
+    # they think is cheap. This can.
     #
-    # **Each row is rounded to an Integer before its digits are taken**, because
-    # that loop divides by ten until nothing is left and a Float never gets
-    # there: 59.94 walks down through 0.6, 0.06, 0.006 and draws a leading zero
-    # at every step, three hundred of them, until the number finally underflows.
-    # `App#fps` is a Float, so this is the frame rate's own path rather than a
-    # hypothetical one.
+    # **It samples in #update, never in #draw.** Time enters through `update`,
+    # so the second the rows cover is one second of `dt`, and a spec ends one by
+    # passing 1.0. Drawing shows numbers already taken. OBJ/s and GC ms read 0
+    # until the first whole second after #restart.
+    #
+    # Drawing must not allocate, or the overlay would count itself. A cached
+    # String would still be rebuilt each time a number changed, and every
+    # rebuild allocates. So each digit is drawn on its own, from a fixed set of
+    # single-character strings the font caches per glyph.
+    #
+    # **Each row is an Integer before its digits are taken**, because that loop
+    # divides by ten until nothing is left, and a Float never gets there: 59.94
+    # walks down through 0.6, 0.06 and 0.006, drawing a leading zero at every
+    # step until it underflows. `App#fps` is a Float, so the frame rate is
+    # rounded, and GC ms is kept as a whole number of tenths.
     class DebugOverlay
       DIGITS = %w[0 1 2 3 4 5 6 7 8 9].freeze
+      POINT = '.'
 
-      FPS_LABEL   = 'FPS'
-      OBJ_LABEL   = 'OBJ'
-      DELTA_LABEL = 'Δ/f'
+      FPS_LABEL  = 'FPS'
+      OBJ_LABEL  = 'OBJ'
+      RATE_LABEL = 'OBJ/s'
+      GC_LABEL   = 'GC ms'
+      ROWS = 4
+
+      WINDOW_SECONDS = 1.0
+      NS_PER_TENTH_MS = 100_000
 
       COLOR = Util::Color.new(80, 255, 120)
       PAD   = 8
       GAP   = 8
 
       def initialize
-        @prev_allocated = GC.stat(:total_allocated_objects)
-        @digit_widths  = Array.new(10)
-        @label_widths  = {}
+        @digit_widths = Array.new(10)
+        @string_widths = {}
+        restart
       end
 
-      # Counts Δ/f from now. Called when the channel goes on, so the first frame
-      # shown reports one frame's allocations rather than every one since the
-      # last time anybody looked.
-      def restart = @prev_allocated = GC.stat(:total_allocated_objects)
+      # Starts a fresh second, and zeroes OBJ/s and GC ms until it is over.
+      # Called when the channel goes on, so the first second shown counts from
+      # then rather than from the last time anybody looked.
+      def restart
+        @allocated = GC.stat(:total_allocated_objects)
+        @window_allocated = @allocated
+        @gc_ns = GC.total_time
+        @worst_gc_ns = 0
+        @elapsed = 0.0
+        @per_second = 0
+        @gc_tenths = 0
+      end
+
+      # Takes one tick's sample: the allocation count, and how long the
+      # collector ran since the tick before. Once a second of `dt` has passed,
+      # it publishes that second's OBJ/s and GC ms and starts the next.
+      def update(dt)
+        @allocated = GC.stat(:total_allocated_objects)
+        gc_ns = GC.total_time
+        @worst_gc_ns = gc_ns - @gc_ns if gc_ns - @gc_ns > @worst_gc_ns
+        @gc_ns = gc_ns
+        @elapsed += dt
+        close_window if @elapsed >= WINDOW_SECONDS
+      end
 
       # Laid out against the view it is drawn into rather than against the
       # window, so it stays in the corner of whatever region it is given. It
@@ -69,26 +101,39 @@ module RGame
       # other thing in the frame however the scene is arranged. Not a node, so
       # it opens its own layer rather than being given one by the traversal.
       def draw(renderer, view, fps)
-        allocated = GC.stat(:total_allocated_objects)
-        delta = allocated - @prev_allocated
-        @prev_allocated = allocated
-
         line_h  = renderer.text_height
         right_x = view.width - PAD
-        top_y   = view.height - PAD - (line_h * 3)
+        y       = view.height - PAD - (line_h * ROWS)
 
         renderer.layered(:debug) do
-          draw_line(renderer, FPS_LABEL, fps, right_x, top_y)
-          draw_line(renderer, OBJ_LABEL, allocated, right_x, top_y + line_h)
-          draw_line(renderer, DELTA_LABEL, delta, right_x, top_y + (line_h * 2))
+          label(renderer, FPS_LABEL, draw_uint(renderer, fps.round, right_x, y), y)
+          y += line_h
+          label(renderer, OBJ_LABEL, draw_uint(renderer, @allocated, right_x, y), y)
+          y += line_h
+          label(renderer, RATE_LABEL, draw_uint(renderer, @per_second, right_x, y), y)
+          y += line_h
+          label(renderer, GC_LABEL, draw_tenths(renderer, @gc_tenths, right_x, y), y)
         end
       end
 
       private
 
-      def draw_line(renderer, label, value, right_x, y)
-        number_left = draw_uint(renderer, value.round, right_x, y)
-        renderer.text(label, number_left - GAP - label_width(renderer, label), y, color: COLOR)
+      def close_window
+        @per_second = (@allocated - @window_allocated).fdiv(@elapsed).round
+        @gc_tenths = (@worst_gc_ns + (NS_PER_TENTH_MS / 2)) / NS_PER_TENTH_MS
+        @window_allocated = @allocated
+        @worst_gc_ns = 0
+        @elapsed = 0.0
+      end
+
+      def label(renderer, text, number_left, y)
+        renderer.text(text, number_left - GAP - string_width(renderer, text), y, color: COLOR)
+      end
+
+      def draw_tenths(renderer, tenths, right_x, y)
+        x = draw_uint(renderer, tenths % 10, right_x, y) - string_width(renderer, POINT)
+        renderer.text(POINT, x, y, color: COLOR)
+        draw_uint(renderer, tenths / 10, x, y)
       end
 
       def draw_uint(renderer, value, right_x, y)
@@ -108,8 +153,8 @@ module RGame
         @digit_widths[digit] ||= renderer.text_width(DIGITS[digit])
       end
 
-      def label_width(renderer, label)
-        @label_widths[label] ||= renderer.text_width(label)
+      def string_width(renderer, string)
+        @string_widths[string] ||= renderer.text_width(string)
       end
     end
   end

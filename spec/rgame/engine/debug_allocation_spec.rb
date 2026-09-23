@@ -10,7 +10,10 @@ RSpec.describe RGame::Engine::Debug do
   let(:view) { screen_view }
 
   it 'draws nothing, and allocates nothing, with every channel off' do
-    expect { debug._draw(renderer, view) }.to allocate_nothing
+    expect do
+      debug._update(1.0 / 60)
+      debug._draw(renderer, view)
+    end.to allocate_nothing
   end
 
   it 'allocates nothing with a channel of the game\'s own on' do
@@ -24,16 +27,20 @@ RSpec.describe RGame::Engine::Debug do
     expect { debug.shows?(:shapes) }.to allocate_nothing
   end
 
-  # The one channel that draws every frame of every session somebody is
-  # debugging, and the one whose own numbers a leak here would spoil. It is
-  # measured through the system rather than against the overlay directly,
-  # because that is the path a game runs, and `fps` arrives as the Float
-  # RGame::Game hands over.
+  # The one channel that samples every tick and draws every frame of every
+  # session somebody is debugging, and the one whose own numbers a leak here
+  # would spoil. It is measured through the system rather than against the
+  # overlay directly, because that is the path a game runs, and `fps` arrives
+  # as the Float RGame::Game hands over. The warm-up runs past one whole
+  # second, so the overlay has closed one before measuring starts.
   it 'allocates nothing with the stats overlay on' do
     debug.show(:stats)
     debug.fps = 59.94
 
-    expect { debug._draw(renderer, view) }.to allocate_nothing
+    expect do
+      debug._update(1.0 / 60)
+      debug._draw(renderer, view)
+    end.to allocate_nothing.after_warmup(61)
   end
 
   # The shapes are the one thing here that draws every frame in a real game, so

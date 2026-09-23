@@ -153,6 +153,18 @@ RSpec.describe RGame::Engine::Debug do
       expect(renderer.drawn?(:text)).to be(false)
     end
 
+    # The overlay samples in `update`, so its rows fill from the ticks the tree
+    # passes down, not from anything Debug reads at draw.
+    it 'reports the objects allocated over a second of the ticks it is updated with' do
+      debug.show(:stats)
+      Array.new(1000) { Object.new }
+      root.update(1.0)
+      draw_frame
+
+      drawn = renderer.calls_to(:text).map { it.args.first }
+      expect(drawn[(drawn.index('OBJ') + 1)...drawn.index('OBJ/s')].reverse.join.to_i).to be >= 1000
+    end
+
     # A Float, because that is what App#fps hands Game and Game hands here.
     it 'reports the frame rate it was handed' do
       debug.fps = 41.6
