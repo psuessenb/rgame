@@ -509,8 +509,13 @@ The engine drives this; you never call it. It uses `enter_tree`, `exit_tree` and
   exits the subtree the same way.
 - `add_component` and `remove_component` fire `_attach` and `_detach` at once
   when the host node is live. Otherwise attachment happens when the node enters.
-- `SceneStack#push` and `pop` enter and exit a scene. `RGame::Game#start` enters
-  the root once, at boot.
+- `SceneStack#push` enters a scene when its host is in the tree, and `pop` exits
+  it. `RGame::Game#start` enters the root once, at boot.
+- The cascade reaches every node that names the entering or leaving node as its
+  `parent`, on the child list or off it. So the scenes on a `SceneStack` are in
+  the tree exactly while its host is, all of them, not only the current one. A
+  node whose parent is outside the tree stays out when told to enter, and enters
+  with the parent.
 
 **Put cross-tree lookups in `_enter_tree` or `_attach`, never in `initialize`.** That
 covers anchors, systems and sibling components. The engine wires the anchors

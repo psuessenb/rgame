@@ -297,6 +297,20 @@ RSpec.describe RGame::Engine::Node2D do
         node.enter_tree
         expect(log).to eq(%i[component_attach node_add])
       end
+
+      it 'does nothing for a node whose parent is outside the tree' do
+        described_class.new.add_node(node)
+        node.enter_tree
+        expect([node.in_tree?, log]).to eq([false, []])
+      end
+
+      # As Scene::SceneStack holds its scenes: `parent` set, off the child list.
+      it 'enters a node that names it as parent without being its child' do
+        held = described_class.new
+        held.parent = node
+        node.enter_tree
+        expect(held).to be_in_tree
+      end
     end
 
     describe '#exit_tree' do
@@ -311,6 +325,14 @@ RSpec.describe RGame::Engine::Node2D do
       it 'marks the node as out of the tree' do
         node.exit_tree
         expect(node).not_to be_in_tree
+      end
+
+      it 'exits a node that names it as parent without being its child' do
+        held = described_class.new
+        held.parent = node
+        held.enter_tree
+        node.exit_tree
+        expect(held).not_to be_in_tree
       end
     end
 

@@ -1590,8 +1590,9 @@ Watch for: the drive harness prepends `push` and `pop` to report scenes, so a
 deferred switch must still go through them. Step 6 found that a scene held off
 its host's child list kept its old `world_x` once the host moved. Branch
 `held-node-transforms` fixed it in `Node2D#parent=`, so a scene follows its host
-and nothing here needs to. A scene still stays in the tree when its host leaves
-it, since `SceneStack` exits a scene only on `pop`.
+and nothing here needs to. Branch `held-nodes-enter-tree` did the same for
+entering and leaving the tree, so every scene on a stack is in the tree exactly
+while its host is.
 
 ## Step 13 — doors, entrances, and the teleport example *(rough)*
 

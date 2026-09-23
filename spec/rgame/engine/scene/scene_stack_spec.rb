@@ -98,6 +98,53 @@ RSpec.describe RGame::Engine::Scene::SceneStack do
 
   # A scene is held off its host's child list, so it follows the host only
   # because setting `parent` registers it with the host.
+  # The same holding, for entering and leaving the tree: the scenes on a stack
+  # are in the tree exactly while their host is.
+  describe 'a host entering and leaving the tree' do
+    let(:root) { RGame::Engine::Node2D.new.tap { it.add_node(host) } }
+
+    it 'keeps a scene pushed while the host is outside the tree out of it' do
+      scene = RGame::Engine::Node2D.new
+      stack.push(scene)
+      expect(scene).not_to be_in_tree
+    end
+
+    it 'enters that scene with its host' do
+      scene = RGame::Engine::Node2D.new
+      stack.push(scene)
+      root.enter_tree
+      expect(scene).to be_in_tree
+    end
+
+    it 'takes every scene on the stack out of the tree with its host' do
+      scenes = Array.new(2) { RGame::Engine::Node2D.new }
+      root.enter_tree
+      scenes.each { stack.push(it) }
+      root.remove_node(host)
+      expect(scenes.map(&:in_tree?)).to eq([false, false])
+    end
+
+    it 'detaches a scene\'s components as the host leaves' do
+      detached = []
+      component = Class.new(RGame::Engine::Component) { define_method(:_detach) { detached << :detached } }
+      scene = RGame::Engine::Node2D.new
+      scene.add_component(component.new)
+      root.enter_tree
+      stack.push(scene)
+      root.remove_node(host)
+      expect(detached).to eq([:detached])
+    end
+
+    it 'brings every scene back with its host' do
+      scenes = Array.new(2) { RGame::Engine::Node2D.new }
+      root.enter_tree
+      scenes.each { stack.push(it) }
+      root.remove_node(host)
+      root.add_node(host)
+      expect(scenes.map(&:in_tree?)).to eq([true, true])
+    end
+  end
+
   describe 'a host that moves' do
     # A node with no parent is the root and stays at the origin, so the host
     # needs one to move at all.

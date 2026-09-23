@@ -434,14 +434,21 @@ module RGame
       # reachable, so components attach (register with systems) before this node's
       # own _enter_tree, and the whole subtree enters depth-first. The engine fires this
       # — the user never calls it — so registration can't be forgotten. Idempotent.
+      #
+      # A node whose parent is outside the tree stays out, and enters when the
+      # parent does. The cascade reaches every node that names this one as
+      # `parent`, so a node a container holds off its child list, as
+      # Scene::SceneStack holds its scenes, enters and leaves with the
+      # container.
       def enter_tree
-        return if @in_tree
+        return if @in_tree || (@parent && !@parent.in_tree?)
 
         @in_tree = true
         @freed = false
         @components.each(&:_attach)
         _enter_tree
         rgame_children_in_order.each(&:enter_tree)
+        @placed&.each(&:enter_tree)
       end
 
       # Leaving-tree cascade: mirror of #enter_tree (children first, then this
@@ -450,6 +457,7 @@ module RGame
         return unless @in_tree
 
         rgame_children_in_order.each(&:exit_tree)
+        @placed&.each(&:exit_tree)
         _exit_tree
         @components.each(&:_detach)
         @in_tree = false
