@@ -332,11 +332,11 @@ There is no real roadmap for this project, but there are a few features on my mi
 - support more of Tiled's features. Orthogonal maps will stay the only one supported for a while, though. - **IN PROGRESS**
 - allow better input-to-action-mapping for complexer inputs like long presses or button combinations - **DONE**
 - a better scene manager that means less boilerplate in each game with scene transitions. With it an example for teleports/room-transitions
-- allow toggeling the debug layer and connect it better to systems like collision (show collision boxes on toggle)
+- allow toggeling the debug layer and connect it better to systems like collision (show collision boxes on toggle) - **DONE**
 - a dialogue system and better text representation - **DONE**
-- an examples (and if needed, new components) for pushing and pulling objects in the game world
+- an examples (and if needed, new components) for pushing and pulling objects in the game world - **DONE**
 - an example (and if needed, new components) for inventory and equipment screens
-- an example (and if needed, new components) for collectable and interactable nodes like coins and treasure chests
+- an example (and if needed, new components) for collectable and interactable nodes like coins and treasure chests - **DONE**
 - audio transitions - fades, pauses, etc.
 - visual effects like lightning, sparkles, fade-to-black
 - better engine support for cutscenes
