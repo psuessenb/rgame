@@ -1,8 +1,12 @@
 # frozen_string_literal: true
 
 # The mapper runs once per player per tick, so it must not allocate. It reuses
-# one Actions snapshot over three hashes it mutates in place, and the hashes are
+# one Actions snapshot over five hashes it mutates in place, and the hashes are
 # seeded from the map at construction so they are warm before the first poll.
+#
+# The map here declares every kind of entry — an axis, buttons, a hold, a tap and
+# a chord that silences a plain action — so the measurement covers each branch of
+# a poll rather than the cheapest one.
 RSpec.describe RGame::Engine::ActionMapper do
   let(:controls) { RGame::Util::Controls }
 
@@ -10,9 +14,17 @@ RSpec.describe RGame::Engine::ActionMapper do
     RGame::Engine::InputMap.new(
       move_x: { axis: [RGame::Util::Controls::KEY_LEFT, RGame::Util::Controls::KEY_RIGHT],
                 stick: RGame::Util::Controls::AXIS_LEFT_X },
-      fire: { buttons: [RGame::Util::Controls::KEY_SPACE, RGame::Util::Controls::PAD_A] }
+      fire: { buttons: [RGame::Util::Controls::KEY_SPACE, RGame::Util::Controls::PAD_A] },
+      search: { buttons: [RGame::Util::Controls::PAD_A], hold: 0.2 },
+      interact: { buttons: [RGame::Util::Controls::PAD_A], tap: 0.1 },
+      block: { buttons: [RGame::Util::Controls::PAD_LEFT_SHOULDER] },
+      swap: { all: [RGame::Util::Controls::PAD_LEFT_SHOULDER,
+                    RGame::Util::Controls::PAD_RIGHT_SHOULDER] }
     )
   end
+
+  # The engine's fixed step, read into a local before a loop measures it.
+  let(:step) { 1.0 / 60 }
 
   # A pad, so the analog path is exercised too: the dead zone and the
   # digital-vs-analog comparison both run on every poll for move_x.
@@ -20,22 +32,26 @@ RSpec.describe RGame::Engine::ActionMapper do
 
   let(:backend) do
     FakeInputBackend.new
-                    .hold(RGame::Util::Controls::PAD_A, device: RGame::Util::Controls.gamepad(0))
+                    .hold(RGame::Util::Controls::PAD_A,
+                          RGame::Util::Controls::PAD_LEFT_SHOULDER,
+                          RGame::Util::Controls::PAD_RIGHT_SHOULDER,
+                          device: RGame::Util::Controls.gamepad(0))
                     .set_axis(RGame::Util::Controls::AXIS_LEFT_X, 0.6,
                               device: RGame::Util::Controls.gamepad(0))
   end
 
   it 'returns the same Actions instance on every poll' do
     mapper = described_class.new(map, device: pad)
-    expect(mapper.poll(backend)).to equal(mapper.poll(backend))
+    expect(mapper.poll(backend, step)).to equal(mapper.poll(backend, step))
   end
 
   it 'is allocation-free in steady state' do
     mapper = described_class.new(map, device: pad)
-    mapper.poll(backend) # warm up
+    mapper.poll(backend, step) # warm up
+    dt = step
 
     before = GC.stat(:total_allocated_objects)
-    1000.times { mapper.poll(backend) }
+    1000.times { mapper.poll(backend, dt) }
     after = GC.stat(:total_allocated_objects)
 
     expect(after - before).to be < 100
@@ -48,13 +64,14 @@ RSpec.describe RGame::Engine::ActionMapper do
   # tick.
   it 'does not allocate for the block Actions guards its lookups with' do
     mapper = described_class.new(map, device: pad)
-    actions = mapper.poll(backend)
+    actions = mapper.poll(backend, step)
 
     before = GC.stat(:total_allocated_objects)
     1000.times do
       actions.held?(:fire)
       actions.pressed?(:fire)
       actions.axis(:move_x)
+      actions.held_for(:search)
     end
     after = GC.stat(:total_allocated_objects)
 
@@ -67,10 +84,11 @@ RSpec.describe RGame::Engine::ActionMapper do
   # the callee declares them, and this is what says so out loud.
   it 'does not allocate for the device keyword it passes on every query' do
     mapper = described_class.new(map, device: pad)
-    mapper.poll(backend)
+    mapper.poll(backend, step)
+    dt = step
 
     before = GC.stat(:total_allocated_objects)
-    100.times { mapper.poll(backend) }
+    100.times { mapper.poll(backend, dt) }
     after = GC.stat(:total_allocated_objects)
 
     expect(after - before).to be < 10

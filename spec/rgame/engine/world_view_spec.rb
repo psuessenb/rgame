@@ -116,7 +116,7 @@ RSpec.describe RGame::Engine::WorldView do
 
     before do
       world.add_node(counter)
-      players.poll(FakeInputBackend.new)
+      players.poll(FakeInputBackend.new, 0.016)
       root.control(players)
       root.update(0.016)
       draw_frame

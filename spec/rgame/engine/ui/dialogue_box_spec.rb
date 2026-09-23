@@ -464,7 +464,7 @@ RSpec.describe RGame::Engine::UI::DialogueBox do
     def tick_players(*pads)
       backend = FakeInputBackend.new
       pads.each { backend.hold(RGame::Util::Controls::PAD_A, device: RGame::Util::Controls.gamepad(it)) }
-      players.poll(backend)
+      players.poll(backend, 0.016)
       root.control(players)
       root.update(1.0 / 60)
     end

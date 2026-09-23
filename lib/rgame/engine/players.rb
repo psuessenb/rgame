@@ -109,15 +109,16 @@ module RGame
         owner.actions
       end
 
-      # Every player's input for this tick, in one call. Each has their own
-      # mapper and their own previous-frame state, so one player's press cannot
-      # consume another's edge. `everyone` folds theirs together afterwards.
+      # Every player's input for this tick, in one call. `dt` is the timestep the
+      # holds and taps in each player's map are measured against. Each player has
+      # their own mapper and their own previous-frame state, so one player's
+      # press cannot consume another's edge. `everyone` folds theirs together afterwards.
       # Then the devices nobody holds are checked for someone starting to use
       # one. Here rather than in a hot-plug hook because a *press* is a per-tick
       # idea, and this is the one place that already has the backend and runs
       # once a tick.
-      def poll(backend)
-        @list.each { |player| player.poll(backend) }
+      def poll(backend, dt)
+        @list.each { |player| player.poll(backend, dt) }
         @everyone.poll
         admit(backend)
         self

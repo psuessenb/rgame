@@ -92,6 +92,7 @@ You can learn more about how it works in the [documentation](docs/api/README.md)
 | [music](docs/api/examples.md#music) | A looping track, started and stopped |
 | [split_screen](docs/api/examples.md#split_screen) | Two players in one world, drawn once per viewport |
 | [input_glyphs](docs/api/examples.md#input_glyphs) | Prompts that match the device in your hands |
+| [input_holds](docs/api/examples.md#input_holds) | One button tapped and held, and a chord that silences it |
 | [fullscreen](docs/api/examples.md#fullscreen) | Fullscreen, switched at any time, and the scale modes |
 | [save_load](docs/api/examples.md#save_load) | Writing game state to disk and putting it back |
 | [save_load_ids](docs/api/examples.md#save_load_ids) | A save that has to name things, and why a reference forces ids |

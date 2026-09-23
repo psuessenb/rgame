@@ -7,9 +7,11 @@ class SpecFireReadingNode < RGame::Engine::Node2D
   def _control(actions) = @fire_held = actions.held?(:fire)
 end
 
+# rubocop:disable RSpec/MultipleMemoizedHelpers -- every group reads the file's controls, backend and step
 RSpec.describe RGame::Engine::Players do
   let(:controls) { RGame::Util::Controls }
   let(:backend)  { FakeInputBackend.new }
+  let(:step)     { 1.0 / 60 }
 
   def player(id, device: RGame::Util::Controls::KEYBOARD)
     RGame::Engine::Player.new(id: id, device: device)
@@ -64,7 +66,7 @@ RSpec.describe RGame::Engine::Players do
       players = described_class.new([player(0), player(1, device: controls.gamepad(0))])
       backend.hold(controls::KEY_SPACE)
       backend.hold(controls::PAD_A, device: controls.gamepad(0))
-      players.poll(backend)
+      players.poll(backend, step)
 
       expect(players.map { |p| p.actions.held?(:fire) }).to eq([true, true])
     end
@@ -72,7 +74,7 @@ RSpec.describe RGame::Engine::Players do
     it 'gives each player only their own device\'s input' do
       players = described_class.new([player(0), player(1, device: controls.gamepad(0))])
       backend.hold(controls::KEY_SPACE) # keyboard only
-      players.poll(backend)
+      players.poll(backend, step)
 
       expect(players.map { |p| p.actions.held?(:fire) }).to eq([true, false])
     end
@@ -125,7 +127,7 @@ RSpec.describe RGame::Engine::Players do
     def press_on(slot)
       players.device_connected(slot)
       backend.hold(confirm, device: controls.gamepad(slot))
-      players.poll(backend)
+      players.poll(backend, step)
     end
 
     it 'defaults to :join when the game asked for more than one seat' do
@@ -153,7 +155,7 @@ RSpec.describe RGame::Engine::Players do
     # cable. Nothing should happen.
     it 'seats nobody while the pad stays silent' do
       players.device_connected(0)
-      players.poll(backend)
+      players.poll(backend, step)
       expect(waiting).not_to be_active
     end
 
@@ -168,7 +170,7 @@ RSpec.describe RGame::Engine::Players do
       press_on(0)
       players.accepting_joins = true
       backend.clear
-      players.poll(backend) # release, so the next press is an edge
+      players.poll(backend, step) # release, so the next press is an edge
       press_on(0)
       expect(waiting).to be_active
     end
@@ -178,7 +180,7 @@ RSpec.describe RGame::Engine::Players do
       press_on(0)
       players.device_connected(1)
       backend.hold(confirm, device: controls.gamepad(1))
-      players.poll(backend)
+      players.poll(backend, step)
       expect(players.count(&:active?)).to eq(2) # the keyboard seat and pad 0
     end
 
@@ -209,7 +211,7 @@ RSpec.describe RGame::Engine::Players do
     it 'moves the only player onto a pad they start using' do
       players.device_connected(0)
       backend.hold(confirm, device: controls.gamepad(0))
-      players.poll(backend)
+      players.poll(backend, step)
 
       expect(solo.device).to eq(controls.gamepad(0))
     end
@@ -217,7 +219,7 @@ RSpec.describe RGame::Engine::Players do
     it 'adds no second player' do
       players.device_connected(0)
       backend.hold(confirm, device: controls.gamepad(0))
-      players.poll(backend)
+      players.poll(backend, step)
 
       expect(players.list.size).to eq(1)
     end
@@ -227,11 +229,11 @@ RSpec.describe RGame::Engine::Players do
     it 'moves them back to the keyboard when they use it again' do
       players.device_connected(0)
       backend.hold(confirm, device: controls.gamepad(0))
-      players.poll(backend)
+      players.poll(backend, step)
 
       backend.clear
       backend.hold(confirm, device: controls::KEYBOARD)
-      players.poll(backend)
+      players.poll(backend, step)
 
       expect(solo.device).to eq(controls::KEYBOARD)
     end
@@ -241,7 +243,7 @@ RSpec.describe RGame::Engine::Players do
     it 'falls back to the keyboard when their pad is unplugged' do
       players.device_connected(0)
       backend.hold(confirm, device: controls.gamepad(0))
-      players.poll(backend)
+      players.poll(backend, step)
       players.device_disconnected(0)
 
       expect(solo.device).to eq(controls::KEYBOARD)
@@ -256,7 +258,7 @@ RSpec.describe RGame::Engine::Players do
     let(:pad) { controls.gamepad(0) }
 
     def everyone_after_poll
-      players.poll(backend)
+      players.poll(backend, step)
       players.everyone.actions
     end
 
@@ -309,6 +311,27 @@ RSpec.describe RGame::Engine::Players do
       backend.set_axis(controls::AXIS_LEFT_X, -0.3, device: pad)
       backend.hold(controls::KEY_RIGHT)
       expect(everyone_after_poll.axis(:move_x)).to eq(1.0)
+    end
+
+    # The longest hold wins, as the largest axis does: one player holding a door
+    # open is the door being held open.
+    it 'reads the longest of the players\' holds' do
+      backend.hold(controls::KEY_SPACE)
+      3.times { everyone_after_poll }
+      backend.hold(controls::PAD_A, device: pad)
+      expect(everyone_after_poll.held_for(:fire)).to be_within(0.0001).of(step * 4)
+    end
+
+    it 'reads nothing while nobody holds the action' do
+      expect(everyone_after_poll.held_for(:fire)).to eq(0.0)
+    end
+
+    it 'forgets the hold once every player has let go' do
+      backend.hold(controls::KEY_SPACE)
+      2.times { everyone_after_poll }
+      backend.release(controls::KEY_SPACE)
+      2.times { everyone_after_poll }
+      expect(everyone_after_poll.held_for(:fire)).to eq(0.0)
     end
 
     it 'raises for an action no active player declares' do
@@ -370,7 +393,7 @@ RSpec.describe RGame::Engine::Players do
       root.add_component(players)
       node = root.add_node(SpecFireReadingNode.new(input_owner: players.everyone))
       backend.hold(controls::PAD_A, device: pad)
-      players.poll(backend)
+      players.poll(backend, step)
       root.control(players)
 
       expect(node.fire_held).to be(true)
@@ -379,10 +402,10 @@ RSpec.describe RGame::Engine::Players do
     it 'polls and reads without allocating' do
       backend.hold(controls::KEY_SPACE)
       backend.set_axis(controls::AXIS_LEFT_X, 0.6, device: pad)
-      players.poll(backend)
+      players.poll(backend, step)
       actions = players.everyone.actions
       expect do
-        players.poll(backend)
+        players.poll(backend, step)
         actions.held?(:fire)
         actions.pressed?(:fire)
         actions.axis(:move_x)
@@ -395,7 +418,8 @@ RSpec.describe RGame::Engine::Players do
   it 'scans for joiners without allocating' do
     players = described_class.new([player(0), player(1, device: nil)])
     players.device_connected(0)
-    players.poll(backend)
-    expect { players.poll(backend) }.to allocate_nothing
+    players.poll(backend, step)
+    expect { players.poll(backend, step) }.to allocate_nothing
   end
 end
+# rubocop:enable RSpec/MultipleMemoizedHelpers

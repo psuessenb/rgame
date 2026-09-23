@@ -130,6 +130,98 @@ RSpec.describe RGame::Engine::InputMap do
 
   # A map that reads as "nothing is ever pressed" is the failure this catches:
   # without it a typo surfaces as a frame nobody can move in, far from its cause.
+  # One button backs two actions, one tapped and one held, and the threshold is
+  # a number a rebinding screen can show.
+  describe 'a hold and a tap' do
+    it 'keeps the hold threshold' do
+      map = described_class.new(search: { buttons: [controls::KEY_E], hold: 0.6 })
+      expect(map[:search].hold).to eq(0.6)
+    end
+
+    it 'keeps the tap threshold' do
+      map = described_class.new(interact: { buttons: [controls::KEY_E], tap: 0.3 })
+      expect(map[:interact].tap).to eq(0.3)
+    end
+
+    it 'leaves both nil for a plain action' do
+      binding = described_class.default[:fire]
+      expect([binding.hold, binding.tap]).to eq([nil, nil])
+    end
+
+    it 'lets one button back a tap and a hold at once' do
+      map = described_class.new(interact: { buttons: [controls::KEY_E], tap: 0.3 },
+                                search: { buttons: [controls::KEY_E], hold: 0.6 })
+      expect([map[:interact].tap, map[:search].hold]).to eq([0.3, 0.6])
+    end
+
+    it 'still answers button_for, so a prompt can name the key' do
+      map = described_class.new(search: { buttons: [controls::KEY_E], hold: 0.6 })
+      expect(map.button_for(:search, controls::KEYBOARD)).to eq(controls::KEY_E)
+    end
+  end
+
+  # Two shoulder buttons held together, and the plain actions on those buttons
+  # switched off while they are.
+  describe 'a chord' do
+    let(:map) do
+      described_class.new(
+        block: { buttons: [controls::PAD_LEFT_SHOULDER] },
+        parry: { buttons: [controls::PAD_RIGHT_SHOULDER] },
+        fire: { buttons: [controls::PAD_A] },
+        swap: { all: [controls::PAD_LEFT_SHOULDER, controls::PAD_RIGHT_SHOULDER] }
+      )
+    end
+
+    it 'keeps its ids, as the one chord it was given' do
+      expect(map[:swap].all).to eq([[controls::PAD_LEFT_SHOULDER, controls::PAD_RIGHT_SHOULDER]])
+    end
+
+    # A chord is held on one device, so a game that wants one on the keyboard and
+    # one on a pad declares both here rather than as two actions.
+    it 'takes a chord per device' do
+      two = described_class.new(swap: { all: [[controls::KEY_Q, controls::KEY_E],
+                                              [controls::PAD_LEFT_SHOULDER,
+                                               controls::PAD_RIGHT_SHOULDER]] })
+      expect(two[:swap].all.size).to eq(2)
+    end
+
+    it 'silences the plain actions of every chord it holds' do
+      two = described_class.new(block: { buttons: [controls::KEY_Q] },
+                                parry: { buttons: [controls::PAD_LEFT_SHOULDER] },
+                                swap: { all: [[controls::KEY_Q, controls::KEY_E],
+                                              [controls::PAD_LEFT_SHOULDER,
+                                               controls::PAD_RIGHT_SHOULDER]] })
+      expect(two[:swap].silences).to include(:block, :parry)
+    end
+
+    it 'silences every plain action on one of its buttons' do
+      expect(map[:swap].silences).to contain_exactly(:block, :parry)
+    end
+
+    it 'leaves the actions it shares no button with alone' do
+      expect(map[:swap].silences).not_to include(:fire)
+    end
+
+    it 'silences nothing when nothing else uses its buttons' do
+      chord = described_class.new(swap: { all: [controls::PAD_X, controls::PAD_Y] })
+      expect(chord[:swap].silences).to be_empty
+    end
+
+    it 'leaves silences nil for an action that is not a chord' do
+      expect(map[:block].silences).to be_nil
+    end
+
+    # A prompt for a chord is two glyphs and a plus sign, which is a different
+    # picture — the same reason an axis answers nil.
+    it 'answers no button for a prompt' do
+      expect(map.button_for(:swap, controls.gamepad(0))).to be_nil
+    end
+
+    it 'round-trips through to_h' do
+      expect(described_class.new(map.to_h)[:swap].all).to eq(map[:swap].all)
+    end
+  end
+
   describe 'entries it refuses' do
     it 'names the action when a source is unknown' do
       expect { described_class.new(fire: { button: [controls::KEY_SPACE] }) }
@@ -138,7 +230,7 @@ RSpec.describe RGame::Engine::InputMap do
 
     it 'refuses an entry with no source at all' do
       expect { described_class.new(fire: {}) }
-        .to raise_error(ArgumentError, /fire.*no buttons, axis or stick/)
+        .to raise_error(ArgumentError, /fire.*no buttons, axis, stick or all/)
     end
 
     it 'refuses an empty button list' do
@@ -154,6 +246,67 @@ RSpec.describe RGame::Engine::InputMap do
     it 'refuses an axis that is not a pair' do
       expect { described_class.new(turn: { axis: [controls::KEY_LEFT] }) }
         .to raise_error(ArgumentError, /turn.*negative_id, positive_id/)
+    end
+
+    it 'refuses a chord of one id, which is a button list' do
+      expect { described_class.new(swap: { all: [controls::PAD_X] }) }
+        .to raise_error(ArgumentError, /swap.*at least two ids/)
+    end
+
+    it 'refuses a chord that is not a list' do
+      expect { described_class.new(swap: { all: controls::PAD_X }) }
+        .to raise_error(ArgumentError, /swap.*at least two ids/)
+    end
+
+    it 'refuses a short chord among several' do
+      expect { described_class.new(swap: { all: [[controls::KEY_Q, controls::KEY_E], [controls::PAD_X]] }) }
+        .to raise_error(ArgumentError, /swap.*at least two ids/)
+    end
+
+    it 'refuses an action that is both a hold and a tap' do
+      expect { described_class.new(search: { buttons: [controls::KEY_E], hold: 0.6, tap: 0.3 }) }
+        .to raise_error(ArgumentError, /search.*one question/)
+    end
+
+    it 'refuses a hold with nothing to hold' do
+      expect { described_class.new(search: { stick: controls::AXIS_LEFT_X, hold: 0.6 }) }
+        .to raise_error(ArgumentError, /search.*needs buttons/)
+    end
+
+    it 'refuses a tap with nothing to tap' do
+      expect { described_class.new(search: { stick: controls::AXIS_LEFT_X, tap: 0.3 }) }
+        .to raise_error(ArgumentError, /search.*needs buttons/)
+    end
+
+    it 'refuses a threshold that is not a number' do
+      expect { described_class.new(search: { buttons: [controls::KEY_E], hold: true }) }
+        .to raise_error(ArgumentError, /search.*positive number/)
+    end
+
+    it 'refuses a threshold of zero' do
+      expect { described_class.new(search: { buttons: [controls::KEY_E], hold: 0 }) }
+        .to raise_error(ArgumentError, /search.*positive number/)
+    end
+
+    it 'refuses a negative threshold' do
+      expect { described_class.new(search: { buttons: [controls::KEY_E], tap: -0.3 }) }
+        .to raise_error(ArgumentError, /search.*positive number/)
+    end
+  end
+
+  # A config screen edits the entries and rebuilds the map, so what comes out has
+  # to be what went in — every source included.
+  describe '#to_h' do
+    it 'gives the entries back in the shape they were declared in' do
+      entry = { buttons: [controls::KEY_E, controls::PAD_A], hold: 0.6 }
+      expect(described_class.new(search: entry).to_h[:search]).to eq(entry)
+    end
+
+    it 'round-trips a map that holds and taps' do
+      entries = { interact: { buttons: [controls::KEY_E], tap: 0.3 },
+                  search: { buttons: [controls::KEY_E], hold: 0.6 } }
+      rebuilt = described_class.new(described_class.new(entries).to_h)
+      expect([rebuilt[:interact].tap, rebuilt[:search].hold]).to eq([0.3, 0.6])
     end
   end
 

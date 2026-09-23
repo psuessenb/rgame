@@ -92,7 +92,7 @@ RSpec.describe RGame::Engine::PlayerLayer do
     # controller and nobody else's — with nothing declared inside it.
     it 'gives its whole subtree that player as their input owner' do
       leaf = layer.add_node(RGame::Engine::Node2D.new).add_node(RGame::Engine::Node2D.new)
-      players.poll(FakeInputBackend.new)
+      players.poll(FakeInputBackend.new, 0.016)
       root.control(players)
       expect(leaf.abs_input_owner).to equal(players[1])
     end

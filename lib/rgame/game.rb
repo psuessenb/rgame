@@ -177,7 +177,7 @@ module RGame
     # read identical state, and the edge lands on the first of them — one press,
     # one `pressed?`, which is what a caller means.
     def update(dt)
-      @players.poll(@input)
+      @players.poll(@input, dt)
       @root.control(@players)
       @root.update(dt)
       @root.sweep_freed

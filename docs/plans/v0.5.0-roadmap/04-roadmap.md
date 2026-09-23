@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: step 0 is implemented.** Fifteen steps. Each is one branch and one
+**Status: steps 0 and 1 are implemented.** Fifteen steps. Each is one branch and one
 pull request, and its sub-steps are one commit each. **Steps 0–4 are detailed.
 Steps 5–14 are deliberately rough** and get re-planned once the layer beneath
 them exists.
@@ -221,6 +221,62 @@ the run reports both.
 The `--gamepad` run is what says the real device path still reaches a map that
 now has three more kinds of entry. Every other driven example reports what it
 reported on `main`, byte for byte.
+
+**Landed.** Three sub-steps, one commit each, plus `examples/input_holds` and
+the documentation. `make test` 380 checks 0 failures, `rake spec` 3095 examples
+0 failures, `rake spec:core` 476 examples 0 failures, `rake docs:coverage`
+nothing undocumented.
+
+The driven run of the example reports 240 ticks against 240 frames, 1200 `text`
+calls, 510 `rect`, one clip per frame, three translates and three sounds — one
+per event. The budgets are the measurement, and its drive script records them:
+0 sounds at 55 ticks, 1 at 56 when the hold reaches 0.6 s, 2 at 111 when a
+release comes inside 0.3 s, 3 at 171 when the chord's second button arrives.
+Rule 4 is the count still reading 1 at tick 110: the first press was held for a
+second, so its release pressed nothing. Rule 6 is the `rect` count — the shield
+draws for the 30 ticks its button is held alone and not for the 30 inside the
+chord, so 510 rather than 540. The `--gamepad` run reports the same totals with
+each event a tick or two later, which is SDL's own latency.
+
+Every other driven example and test project reports what it reported on `main`,
+byte for byte: 42 comparable runs. `test_projects/snake` and
+`test_projects/asteroids` seed themselves from `Random.new` when `RGAME_SEED` is
+unset, so two runs of *the same* code differ; they were compared under
+`--seed 4242`.
+
+What the sketch got wrong:
+
+- **A chord cannot name one device, so `all:` takes a chord per device.** Every
+  id of a chord has to be down at once, so a list naming a key and a pad button
+  can never be pressed, and a game serving both devices would declare two
+  actions with one meaning. `all:` now takes a chord or a list of chords, as
+  `axis:` takes a pair or a list of pairs. The example is what exposed it: with
+  one list, the `--gamepad` run exercises no chord at all.
+- **`held_for` survives the tick of the release.** The sketch zeroed it on the
+  poll that sees the buttons up, which is the tick `released?` is true — so
+  `released?(:door) && held_for(:door) > 1.0` would read zero. It is zeroed on
+  the tick after, which is what rule 1 said and the sketch's code did not do.
+- **The poll counts before it decides.** The sketch's order made a hold fire one
+  tick after its threshold. Counting first fires it on the tick the threshold
+  passes, and the tap still reads the right duration because the count outlives
+  the release.
+- **`Struct.new(:tap)` overrides `Kernel#tap`.** `Lint/StructNewOverride` is
+  disabled on that line with the reason: the member is named after the entry key
+  it holds, and nothing in the engine taps a `Binding`.
+- **Adding `let(:step)` to `players_spec.rb` put four groups over
+  `RSpec/MultipleMemoizedHelpers`**, disabled for the file with a reason.
+
+Two things this step deliberately left alone. `Components::ActionTrigger` and
+`UI::Menu`'s `trigger:` still count their own seconds: a repeat on a cooldown
+and a menu held open are not a threshold on a press, and step 13's "hold to
+skip" is the case that will say whether either wants `held_for`. Sequences and
+double taps stay out, as decision 3 says; step 14 records them in
+`possible-todos.md`.
+
+Documented in [docs/api/input.md](../../api/input.md) — the sources table, a
+section on what each of the three declares, and the timestep `poll` takes — and
+in `CHANGELOG.md`, which lists the three as added and the poll signature as
+changed.
 
 ---
 

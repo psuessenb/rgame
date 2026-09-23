@@ -1,0 +1,15 @@
+# The English table: every string this example draws.
+en:
+  help:
+    keys: "E: tap to open, hold to search. L blocks, L+R swaps stance."
+    pad: "A: tap to open, hold to search. LB blocks, LB+RB swaps stance."
+  chest:
+    shut: "Chest: shut"
+    open: "Chest: open"
+    searched: "Chest: searched — a brass key"
+  stance:
+    sword: "Stance: sword"
+    shield: "Stance: shield"
+  status:
+    blocking: Blocking
+    open: Not blocking
