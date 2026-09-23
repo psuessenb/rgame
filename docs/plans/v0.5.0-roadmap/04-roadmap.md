@@ -1,27 +1,35 @@
 # Roadmap
 
-**Status: steps 0 to 4 are implemented.** Fifteen steps. Each is one branch and one
-pull request, and its sub-steps are one commit each. **Steps 0–7 are detailed**;
-5–7 were re-planned after step 4 landed, and
-[what that re-plan found](#re-planning-steps-57) comes before them. **Steps 8–14
+**Status: steps 0 to 4 are implemented.** Sixteen steps. Each is one branch and one
+pull request, and its sub-steps are one commit each. **Steps 0–8 are detailed**;
+5–8 were planned after step 4 landed, and
+[what that re-plan found](#re-planning-steps-57) comes before them. **Steps 9–15
 are deliberately rough** and get re-planned once the layer beneath them exists.
+
+Step 7 was inserted by a review of the re-plan
+([decision 19](README.md#decisions-already-taken)). The landed notes of steps
+0–4 were written before that, so "step 13" there means today's step 14, and
+"step 14" means step 15. The re-plan's heading keeps the numbers it was written
+with: its steps 5–7 are today's 5, 6 and 8.
 
 ## Dependency shape
 
 ```
-0 adventure ─→ 1 input ───────────────────────────────────────────────┐
-               2 debug shapes                                          │ hold to skip
-               3 interact + collect ─→ 5 grid + focus ─→ 6 tabs ─→ 7 screens
-               4 push and pull                                         │
-               8 fades + particles ─┬─→ 11 scenes ─→ 12 doors ─→ 13 cutscenes
-               9 blend modes (C) ───┘                  │
-               10 audio transitions ───────────────────┘
-               14 fold back and delete the plan
+0 adventure ─→ 1 input ─→ 7 press gate ────────────────────────────────┐
+               2 debug shapes                                          │ a press it saw start
+               3 interact + collect ─→ 5 grid + focus ─→ 6 tabs ─→ 8 screens
+               4 push and pull                                         │ hold to skip
+               9 fades + particles ─┬─→ 12 scenes ─→ 13 doors ─→ 14 cutscenes
+               10 blend modes (C) ──┘                  │
+               11 audio transitions ───────────────────┘
+               15 fold back and delete the plan
 ```
 
 Step 0 comes first because every later step adds to it. Input comes next, while
 `poll(dt)` touches the fewest callers, and because a held button is what skips a
-cutscene in step 13. The debug shapes come before pushing, which is far easier
+cutscene in step 14. The press gate comes before the screens, because a bag that
+pauses its hero is where a press first outlives the node that should read it.
+The debug shapes come before pushing, which is far easier
 to watch with the boxes on screen. Fades come before scenes, because a door
 fades.
 
@@ -45,22 +53,23 @@ a regression shows.
 | 4 | nothing in the world can be moved by walking into it |
 | 5 | two open menus under one player both move and both confirm, and a bag cannot be a grid |
 | 6 | a list longer than its panel cannot be shown, and a screen cannot have pages |
-| 8 | a scene cannot fade, so a transition cannot be written at all |
-| 10 | music cuts rather than fades, and cannot be paused |
+| 7 | a press begun while a node was paused, hidden or not yet there reaches it once it runs |
+| 9 | a scene cannot fade, so a transition cannot be written at all |
+| 11 | music cuts rather than fades, and cannot be paused |
 
 ## Which roadmap item each step serves
 
 | README item | Steps |
 |---|---|
-| better input-to-action mapping | 1 |
+| better input-to-action mapping | 1, 7 |
 | debug layer, connected to collision | 2 |
 | collectable and interactable nodes | 3 |
 | pushing and pulling objects | 4 |
-| inventory and equipment screens | 5, 6, 7 |
-| visual effects | 8, 9 |
-| audio transitions | 10 |
-| scene manager, teleports and room transitions | 11, 12 |
-| cutscenes | 13 |
+| inventory and equipment screens | 5, 6, 8 |
+| visual effects | 9, 10 |
+| audio transitions | 11 |
+| scene manager, teleports and room transitions | 12, 13 |
+| cutscenes | 14 |
 
 ---
 
@@ -148,7 +157,7 @@ What the sketch got wrong:
 
 The signature change is cheapest now: `poll` has 3 call sites in `lib/` and 70
 in `spec/`, and every step after this adds callers. A held button is also what
-step 13 skips a cutscene with, so it wants to exist long before then.
+step 14 skips a cutscene with, so it wants to exist long before then.
 
 ### Sub-steps
 
@@ -783,7 +792,7 @@ where focus goes next.
   [open question 2](README.md#open-questions).
 - **`examples/equipment` draws its clothes in code.** No new asset ships.
 - **`examples/inventory` lands with step 5 and grows in step 6**, so each UI
-  step has a driven run of its own. Step 7 keeps `examples/equipment` and the
+  step has a driven run of its own. Step 8 keeps `examples/equipment` and the
   adventure's bag.
 - **A screen that opens is a `Tabs` that opens.** `Node2D#visible` was
   considered, because three things want a subtree left undrawn: a closed menu, a
@@ -809,7 +818,7 @@ where focus goes next.
 
 ## Step 5 — the grid, and focus that crosses menus
 
-Steps 6 and 7 lay everything out on a grid, and an equipment screen is two
+Steps 6 and 8 lay everything out on a grid, and an equipment screen is two
 menus that one player moves between. The step also closes the defect measured
 above: two open menus under one player both answer every press.
 
@@ -983,7 +992,7 @@ true here.
 ## Step 6 — tabs, and scrolling
 
 A bag outgrows its panel once a game has more than a dozen things, and an
-equipment screen is a second page beside the bag. Step 7 is built from both.
+equipment screen is a second page beside the bag. Step 8 is built from both.
 Both also change what a menu draws, so they land before any example depends on
 them.
 
@@ -1145,7 +1154,104 @@ set, `docs/api/ui.md`'s "no scrolling lists", and the universal actions
 
 ---
 
-## Step 7 — `examples/equipment`, and the adventure's bag
+## Step 7 — a node reads only the presses it saw start
+
+Step 8's bag pauses its hero, and a pause is where a press first outlives the
+node that should have read it. `:interact` is a tap, which presses on release,
+and the mapper computes edges whether a paused hero reads them or not. So E
+pressed in the bag and released within 0.3 s after I closes it opens the chest
+in reach, and E held across the close searches it late. The same press reaches
+a scene that comes back to the top of the stack, a page shown again, and a node
+added while a hold is running.
+
+`Menu` already refuses such a press, for itself: it takes no confirm until it
+has seen confirm up. Steps 5 and 6 each add a clause of the same kind, for a
+menu a group enters and a page a tab shows. All of them answer one question,
+whether this reader saw the press start. So this step answers it once, in
+`Node2D#control`, for every node, and no component has to remember it. It is
+[decision 19](README.md#decisions-already-taken).
+
+Nothing here is genuinely new. `ActionMapper` records when each press began,
+beside the `hold_times` it already keeps, and `Node2D#control` works out a gate
+the way it works out `abs_input_owner`. `Menu`'s rule is the definition.
+
+### Sub-steps
+
+- **7a** — `ActionMapper` and `Players::Everyone` record the poll each press
+  began on.
+- **7b** — `Node2D#control` hands its components and `_control` a gate.
+
+### Shape
+
+```ruby
+actions.poll_count              # which poll this snapshot is from; nil on one built by hand
+actions.down_since(:interact)   # the poll its buttons went down on; nil while they are up
+```
+
+`down_since` survives the tick of the release, as `held_for` does, because a tap
+presses on that tick.
+
+**A node resumes** on the first poll it is controlled after one it was not.
+That covers a paused node or ancestor, a scene below the top of the stack, a
+hidden page, and a node's first control.
+
+**Each node reads through a gate of its own**, made on its first control and
+reused after. The gate answers `pressed?` and `released?` from the snapshot,
+false for a press that began before the node resumed. It passes every other
+query through. `Node2D`'s part of this is `rgame_` machinery, so a subclass
+cannot switch it off.
+
+`Menu`'s own wait stays. It also waits after its buttons change, which no gap in
+control marks.
+
+### The rules the tests pin
+
+1. **A node reads the edges of a press only if the press began after it
+   resumed.** A paused parent, a scene popped back to and a node added mid-hold
+   each refuse the press that began before.
+2. **The press that resumed a node is not its press either.** A press that
+   began on the poll the node resumed is refused, as `Menu` refuses a press
+   already down when it opens.
+3. **Only `pressed?` and `released?` are gated.** `held?`, `axis` and
+   `held_for` answer as before, so a direction held across a bag closing walks
+   the hero.
+4. **The next press reads as usual.** Releasing and pressing again is a press.
+5. **A node whose `input_owner` changes resumes**, because it reads another
+   player's presses from then on.
+6. **A press of `players.everyone` began when its first member's did.**
+7. **A snapshot built by hand gates nothing**, so a spec passing
+   `Actions.new(...)` to `control` reads what it read before.
+8. **Nothing allocates per poll.** A node makes its gate once.
+
+### Tests
+
+- `spec/rgame/engine/action_mapper_spec.rb` and `actions_spec.rb`:
+  `poll_count` and `down_since`, and `down_since` on the tick a tap presses.
+- `spec/rgame/engine/players_spec.rb`: rule 6.
+- `spec/rgame/engine/node2d_press_gate_spec.rb`: rules 1–5 and 7, with a paused
+  parent, a `SceneStack` popped back to, a node added mid-hold, and two players.
+- **The caller that uses it**, in the same spec: a hero paused by a bag. E
+  tapped across the unpause opens nothing, and the next tap opens.
+- `spec/rgame/engine/node2d_control_allocation_spec.rb`: rule 8.
+- `spec/rgame/engine/sealed_privates_spec.rb`: the new `rgame_` methods.
+
+### Verify
+
+```
+bundle exec rake spec
+```
+
+**Every driven example and test project reports what it reported at the branch
+point**, byte for byte, compared as the verify skill describes. A report that
+changes names a press the gate now refuses, and the landed note says which.
+Step 8's adventure run is where the gate is seen working, on a tap of E begun
+in the bag and ended after it closes.
+
+`docs/api/input.md` gains the rule, beside the edges it gates.
+
+---
+
+## Step 8 — `examples/equipment`, and the adventure's bag
 
 The screen a game ships, and the first place a pickup reaches an inventory.
 Steps 5 and 6 each proved their own parts. Here those parts meet collecting,
@@ -1153,9 +1259,9 @@ pausing and a second player.
 
 ### Sub-steps
 
-- **7a** — `examples/equipment`.
-- **7b** — `--texts` per clip in `tools/drive_test_project.rb`.
-- **7c** — the adventure's bag: what each hero carries, on a page beside what
+- **8a** — `examples/equipment`.
+- **8b** — `--texts` per clip in `tools/drive_test_project.rb`.
+- **8c** — the adventure's bag: what each hero carries, on a page beside what
   they wear.
 
 ### Shape
@@ -1229,13 +1335,9 @@ binds `bag` to I and the pad's Start. Each hero's bag lives in that player's
 `PlayerLayer`, closes its `Tabs` as it enters, and pauses its hero while the
 tabs are open.
 
-**A press can outlive the pause.** `:interact` is a tap, which fires on
-release, and the mapper computes edges whether a paused hero reads them or not.
-So E pressed in the bag and released within 0.3 s after I closes it opens what
-is in reach, and E held across the close searches late. That takes I pressed
-with E already down. The fix is every component acting only on a press it saw
-start, as `Menu` does, which is an engine change this step does not make. It
-goes to `possible-todos.md`.
+**A press begun in the bag stays there.** Step 7 gates every press a node never
+saw start, so E tapped in the bag and released after it closes reaches neither
+the hero nor the chest.
 
 ### What the run proves
 
@@ -1255,7 +1357,8 @@ The adventure's run is what pins these:
 3. **E switches a tab and opens nothing.** Player one stands by the lever, opens
    their bag and presses E. The lever's word stays until they close the bag and
    press E again. E is both `ui_tab_next` and `:interact`, and the paused hero
-   reads neither of its own actions.
+   reads neither of its own actions. A tap of E begun in the bag and ended after
+   it closes opens nothing either, which is step 7 seen from a game.
 4. **Player one's tabs and player two's switch apart.** Player two opens their
    bag with Start while player one's is open, and switches with the right
    shoulder button. Then player one switches with E.
@@ -1287,9 +1390,7 @@ chest's press. After them, the script plays rules 1 to 5 in that order. The
 landed note records each rule with the tick it happened on, read off the report
 at the script's checkpoints, as step 0 read its rules off the translate range.
 
-`docs/plans/possible-todos.md` gains the press that outlives a pause.
-
-## Step 8 — fades, and particles *(rough)*
+## Step 9 — fades, and particles *(rough)*
 
 `Engine::ScreenFade` and `Components::Particles`, plus `examples/effects`: a
 fade, a flash, sparkles and a bolt. Everything here is engine-layer Ruby over
@@ -1298,7 +1399,7 @@ fade, a flash, sparkles and a bolt. Everything here is engine-layer Ruby over
 Watch for: the colour a fade draws with changes every tick, so it is built in
 `_update` and never in `_draw`.
 
-## Step 9 — a blend mode on a draw command *(rough, and C)*
+## Step 10 — a blend mode on a draw command *(rough, and C)*
 
 `renderer.blended(:add) { ... }`, carried through the draw queue the way a clip
 is. A field on the command and the batch, a comparison in the batch test, a
@@ -1309,7 +1410,7 @@ Follow [write-c-code](../../../.claude/skills/write-c-code/SKILL.md). The Check
 suite asserts the batching: two additive quads and one alpha quad between them
 are three batches, and the same three in one blend mode are one.
 
-## Step 10 — audio transitions *(rough)*
+## Step 11 — audio transitions *(rough)*
 
 `Core::Audio` gains `music_volume`, `pause_music`, `resume_music` and
 `category_volume`; `Song#resume` is the one new C entry point. `AudioOut` gains
@@ -1320,7 +1421,7 @@ tween in `_update`.
 [open question 1](README.md#open-questions) — which second track, and whether it
 is worth 90 KB in the gem — is answered before this step starts.
 
-## Step 11 — the scene stack that names and defers *(rough)*
+## Step 12 — the scene stack that names and defers *(rough)*
 
 `define`, `carry:`, deferral in `_update`, `on_changed`, and `Scene::Fade` as a
 transition the stack drives. The two hand-written switches in
@@ -1330,14 +1431,14 @@ step, which is what proves the engine's version covers what they did.
 Watch for: the drive harness prepends `push` and `pop` to report scenes, so a
 deferred switch must still go through them.
 
-## Step 12 — doors, entrances, and the teleport example *(rough)*
+## Step 13 — doors, entrances, and the teleport example *(rough)*
 
 `examples/doors`: two rooms, a door between them that carries the hero and
 places them at a named entrance, and a warp pad that moves them inside one
 room. The adventure gains its second room. Doors come from a Tiled object layer
 through `Engine::MapObjects`.
 
-## Step 13 — cutscenes *(rough)*
+## Step 14 — cutscenes *(rough)*
 
 `Engine::Cutscene::Script`, `Engine::Cutscene` and `Components::Cutscene`, with
 the five step kinds and a skip that finishes the rest. `examples/cutscene`, and
@@ -1346,12 +1447,13 @@ the adventure's arrival scene, skipped with a held button.
 `test_projects/tiled_world/cutscene.rb` is the 95 lines this replaces: the step
 is done when that file could be written with the script instead.
 
-## Step 14 — fold the plan back and delete it
+## Step 15 — fold the plan back and delete it
 
 Move what is still true into the documentation and remove
 `docs/plans/v0.5.0-roadmap/`.
 
-- **`docs/api/input.md`** — holds, taps and chords, and `held_for`.
+- **`docs/api/input.md`** — holds, taps and chords, `held_for`, and the
+  presses a node never saw start.
 - **`docs/api/systems.md`** — `Engine::Debug` and its channels; `AudioOut`'s
   transitions.
 - **`docs/api/components.md`** — `Interactor`, `Collectable`, `Pushable`,
