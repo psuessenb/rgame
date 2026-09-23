@@ -50,8 +50,17 @@ module RGame
       # from somewhere else. Set by #add_node and #remove_node — a game does not
       # call this — and it invalidates the subtree for the same reason a move
       # does.
+      #
+      # It is also how a node joins the ones its parent invalidates when it
+      # moves. A container that holds nodes off its child list, as
+      # Scene::SceneStack holds its scenes, sets `parent` and needs nothing
+      # more: a move of the container reaches every node that names it as
+      # parent, child or not. A node keeps that list from the first node that
+      # names it, so a leaf a game spawns allocates nothing for it.
       def parent=(value)
+        @parent&.rgame_unplace(self)
         @parent = value
+        value&.rgame_place(self)
         rgame_soil
       end
 
@@ -246,6 +255,7 @@ module RGame
         @abs_input_owner = @input_owner
         @abs_band = @band || Util::Z::DEFAULT
         @children = []
+        @placed = nil
         @child_seq = 0
         @children_sorted = true
         @components = []
@@ -536,6 +546,9 @@ module RGame
 
       attr_accessor :rgame_sibling_order
 
+      def rgame_place(node) = (@placed ||= []) << node
+      def rgame_unplace(node) = @placed&.delete(node)
+
       def rgame_children_unsorted! = @children_sorted = false
 
       # hot-path
@@ -547,7 +560,7 @@ module RGame
         # Symbol#to_proc, which dispatches publicly and so cannot reach a
         # protected method. An explicit receiver is the only form that works
         # here, and it allocates no more than the symbol would.
-        @children.each { it.rgame_soil }
+        @placed&.each { it.rgame_soil }
         # rubocop:enable Style/SymbolProc
       end
 
