@@ -219,6 +219,20 @@ module RGame
         # disabled `activate` does. UI::OptionButton is the one that overrides it.
         def adjust(_delta) = nil
 
+        # Whether this button's class overrides `adjust`: true for a
+        # UI::OptionButton and for a game's own slider, false for every other
+        # shipped button. A UI::FocusGroup crosses to the next menu on a
+        # direction the focused button cannot adjust. Nil from `adjust` cannot
+        # say that, since an OptionButton answers nil at the end of its values.
+        def adjustable? = self.class.adjustable?
+
+        # The same question asked of a class, worked out once per class. A
+        # subclass therefore needs nothing more than the `adjust` it writes.
+        def self.adjustable?
+          @adjustable = !instance_method(:adjust).owner.equal?(Button) if @adjustable.nil?
+          @adjustable
+        end
+
         # Fires the signal and returns the button, or nil if it is disabled — so
         # a caller never has to check first, and a disabled button cannot be
         # activated by any route.

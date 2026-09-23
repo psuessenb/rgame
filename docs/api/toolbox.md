@@ -13,7 +13,7 @@ index, animation playback.
 
 ## Grids
 
-**The engine has no grid class of its own.** A fixed-size grid is a
+**The engine holds a grid of values in no class of its own.** A fixed-size grid is a
 [`RGame::Util::Tensor`](values.md#rgameutiltensor): three-dimensional, backed by
 one flat C array. A flat 2-D grid is a `Tensor` with a depth of 1. `TileMap`
 stacks its tile layers in one `Tensor(width, height, layer_count)`. It shows the

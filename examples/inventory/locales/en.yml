@@ -1,0 +1,22 @@
+# The English table: every string this example draws.
+en:
+  help:
+    keys: Arrows move through the bag and on to the verbs. Enter chooses.
+  panel:
+    nothing: Nothing chosen
+  status:
+    ready: Choose an item, then a verb
+    used: "Used: %{item}"
+    dropped: "Dropped: %{item}"
+  verbs:
+    use: Use
+    drop: Drop
+  items:
+    wand: Wand
+    wrench: Wrench
+    torch: Torch
+    hammer: Hammer
+    watering_can: Watering can
+    star: Star
+    trophy: Trophy
+    gear: Gear

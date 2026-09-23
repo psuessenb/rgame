@@ -117,6 +117,14 @@ module RGame
       # per-player machinery. That falls out of ownership being inherited down
       # the tree — see docs/api/scene_graph.md, "Who a node answers to".
       #
+      # ## Several menus on one screen
+      #
+      # A menu joins the nearest UI::FocusGroup above it as it enters the tree,
+      # and leaves as it exits. Only the group's current menu reads input; the
+      # others draw with nothing focused. A menu outside any group is always
+      # current. `focus` with an index makes a menu current, so a game that
+      # focuses a button in another menu moves the player there.
+      #
       # ## What this is not
       #
       # It is a menu, not a widget library. Every button is the same size, placed
@@ -128,7 +136,8 @@ module RGame
         signal :closed, :button
 
         # `trigger` is an action name, or nil. `scope` is a String, or nil.
-        attr_reader :buttons, :focused_index, :layout, :navigation, :trigger, :scope
+        # `group` is the UI::FocusGroup the menu joined, or nil.
+        attr_reader :buttons, :focused_index, :layout, :navigation, :trigger, :scope, :group
 
         # The rectangle the layout says encloses every button, relative to the
         # menu — what a subclass draws its backdrop round. Copied on each `add`,
@@ -149,6 +158,7 @@ module RGame
           @trigger_seen_up = false
           @hotkey_seen_up = []
           @buttons_changed = false
+          @group = nil
           navigation&.attach(self)
         end
 
@@ -187,7 +197,11 @@ module RGame
         # whose focus actually changes are told. It does not check `enabled?`:
         # which buttons may take focus is the navigation's rule, and a disabled
         # button cannot be activated whatever holds it.
+        #
+        # An index on a menu that is not its group's current one makes it
+        # current first, as a crossing would, and then focuses that button.
         def focus(index)
+          @group.current = self if index && !current?
           previous = focused
           @focused_index = index
           current = focused
@@ -196,6 +210,10 @@ module RGame
         end
 
         def open? = @open
+
+        # Whether this menu reads input: true outside a group, and in one only
+        # while it is the group's `current`.
+        def current? = @group.nil? || @group.current.equal?(self)
 
         # Opens the menu, lets the navigation forget the last opening, and emits
         # `on_opened`. Nothing if already open. Raises on a menu with a trigger,
@@ -218,6 +236,32 @@ module RGame
           super if @open
         end
 
+        # Enters the tree, then joins the nearest UI::FocusGroup above.
+        def enter_tree
+          return if in_tree?
+
+          super
+          join_group
+        end
+
+        # Leaves its group, then the tree.
+        def exit_tree
+          @group&.leave(self)
+          @group = nil
+          super
+        end
+
+        # Called by the menu's group when it makes the menu current. The menu
+        # takes no confirm until it has seen confirm up, and its navigation
+        # decides where focus starts, near `button` — the one focused in the
+        # menu left, or nil.
+        #
+        # @api private
+        def enter_from(button)
+          @confirm_seen_up = false
+          @navigation&.entered(button)
+        end
+
         # A trigger's press first, so an opening's first frame already reads the
         # stick; then navigation, so a focus change and a confirm on the same
         # frame confirm the newly focused button; then every hotkey; then
@@ -226,12 +270,12 @@ module RGame
         def _control(actions)
           trigger_edge = control_trigger(actions) if @trigger
           open_now if trigger_edge == :press
-          return unless @open
+          return unless @open && reads_input?
 
           @buttons_changed = false
           @navigation&.control(actions)
           press_hotkeys(actions)
-          return if @buttons_changed
+          return if interrupted?
 
           @trigger ? release_trigger(trigger_edge) : confirm(actions)
         end
@@ -243,6 +287,18 @@ module RGame
         end
 
         private
+
+        def join_group
+          group = parent
+          group = group.parent until group.nil? || group.is_a?(FocusGroup)
+          return if group.nil?
+
+          group.join(self)
+          @group = group
+        end
+
+        def reads_input? = @group.nil? || @group.reading?(self)
+        def interrupted? = @buttons_changed || !current?
 
         def buttons_changed
           @layout.arrange(@buttons)
@@ -285,7 +341,7 @@ module RGame
 
         def press_hotkeys(actions)
           index = 0
-          while index < @buttons.size && !@buttons_changed
+          while index < @buttons.size && !interrupted?
             button = @buttons[index]
             hotkey = button.hotkey
             if hotkey
