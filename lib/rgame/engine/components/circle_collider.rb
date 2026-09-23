@@ -13,6 +13,8 @@ module RGame
       # BoxCollider is the rectangular sibling, and the two collide with each other:
       # both answer the same broadphase (#aabb_*) and narrowphase (#overlap?) protocol.
       class CircleCollider < Engine::Component
+        include Collider
+
         # The two edges of a contact, fired by CollisionWorld: on_hit on the step this
         # collider starts overlapping another, on_separated on the step it stops. Each
         # fires once per pair, so a handler may count, play a sound or spend a life.

@@ -360,6 +360,58 @@ and despawning never leak a registration.
   `emit_hit(other)` and `emit_separated(other)`. Each fires once per pair; see
   [`CollisionWorld`](#collisionworld).
 
+### `Collectable`
+
+**A thing that is taken by being touched.** It listens to its own node's
+collider and acts on the step a collider on the `by` layer starts overlapping
+it: emit `collected`, play `sound`, and free the node.
+
+```ruby
+coin.add_component(RGame::Engine::Components::Collectable.new(by: :hero, sound: :blip))
+    .on_collected { |_other| purse.add(:coin) }
+
+chest.add_component(RGame::Engine::Components::Collectable.new(by: :hero, free: false))
+```
+
+- **Construct:** `Collectable.new(by:, sound: nil, free: true)`. `by` is the
+  layer whose colliders take this; every other layer is ignored. `sound` is a
+  sound id, or `nil` for a silent pickup. `free: false` keeps the node.
+- **Signal:** `on_collected(other)` fires with the collider that took it, before
+  the node is freed, so a listener can still read its node. `on_hit` is an edge,
+  so standing on a coin takes it once.
+- **Lifecycle:** `_attach` needs a [`Collider`](#collider) on the same node and
+  connects to it; `_detach` ends that connection, so a pooled node taken twice
+  fires twice.
+- **Sound:** played through the tree's [`AudioOut`](systems.md), looked up with
+  `system!` — a scene with a `sound:` and no `AudioOut` raises rather than going
+  quietly silent. A collectable given no sound needs no `AudioOut` at all.
+
+**The collectable does the collecting**, rather than the hero holding a list of
+what it may pick up. What a coin is worth belongs to the coin, and a game adds
+one by adding a node.
+
+**`free: false` is the chest**: it reports the touch and stays, and whatever
+listens decides what opening means. Pair it with an
+[`Interactor`](#interactor) for something reached by touch and opened with a
+press.
+
+### `Collider`
+
+**What [`BoxCollider`](#boxcollider) and [`CircleCollider`](#circlecollider)
+both are**, and the name to ask for when the shape does not matter:
+
+```ruby
+def _attach = @collider = require_sibling(RGame::Engine::Components::Collider)
+```
+
+It declares nothing. Both colliders already answer the same broadphase,
+narrowphase and contact protocol; this is the module they include so a component
+can name it. A coin is round and a chest is not, so
+[`Collectable`](#collectable) asks for this rather than for either shape.
+
+A node carrying both matches twice and `require_sibling` raises, which is the
+right answer: there is no telling which was meant.
+
 ### `CollisionWorld`
 
 **A scene-scoped broadphase collision system.** The component lives on the scene

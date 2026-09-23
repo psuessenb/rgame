@@ -217,8 +217,14 @@ module ApiDocs
 
   # A setter counts as mentioned when its reader is: a page says "`vx` and `spin`
   # are read/write" far more often than it shows an assignment.
+  #
+  # A `disconnect_pulled` counts when `on_pulled` is, for the same reason one
+  # step further: `signal :pulled` generates both, so a page that documents the
+  # signal has documented the pair. Naming every disconnect would say the same
+  # thing once per signal in the engine and add nothing a reader wants.
   def mentioned?(text, name)
     name = name.delete_suffix('=') if name.match?(/\A(?:\w+|\[\])=\z/)
+    name = name.sub('disconnect_', 'on_') if name.start_with?('disconnect_')
     text.match?(/(?<![\w@])#{Regexp.escape(name)}(?![\w?!])/)
   end
 

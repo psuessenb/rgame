@@ -38,6 +38,24 @@ RSpec.describe RGame::Engine::Signal::DSL do
     expect([heard, handle]).to match([[:pulled], an_instance_of(Proc)])
   end
 
+  it 'makes the disconnect public beside the connect' do
+    expect(lever_class.public_method_defined?(:disconnect_pulled)).to be(true)
+  end
+
+  # Ending a connection belongs to whoever made it, so the handle `on_pulled`
+  # returned is enough — the signal itself stays private, because emitting is
+  # the class's.
+  it 'ends one connection through the handle, leaving the others' do
+    heard = []
+    going = lever.on_pulled { heard << :going }
+    lever.on_pulled { heard << :staying }
+
+    lever.disconnect_pulled(going)
+    lever.pull
+
+    expect(heard).to eq([:staying])
+  end
+
   it 'emits one field positionally' do
     heard = nil
     lever.on_moved { heard = it }
@@ -99,6 +117,11 @@ RSpec.describe RGame::Engine::Signal::DSL do
 
     it 'raises in the declaring class too, after the declaration' do
       expect { Lever.class_eval { def on_pulled = nil } }.to raise_error(NameError)
+    end
+
+    it 'raises for the disconnect method' do
+      expect { Class.new(Lever) { def disconnect_pulled(handle) = handle } }
+        .to raise_error(NameError, /#disconnect_pulled would replace what signal :pulled generated in Lever,/)
     end
 
     it 'raises when a subclass declares the same signal again' do

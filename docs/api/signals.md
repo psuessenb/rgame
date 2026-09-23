@@ -100,12 +100,28 @@ lever.on_pulled { puts 'pulled' }
 lever.pull
 ```
 
-`signal :pulled` generates two methods, and adds the `on_` itself:
+`signal :pulled` generates three methods, and adds the `on_` itself:
 
 - **`on_pulled(&block)`** is *public*. It subscribes a listener and returns the
   handle. Observers call it: `lever.on_pulled { ... }`.
+- **`disconnect_pulled(handle)`** is *public*. It ends the one connection that
+  handle came from: `lever.disconnect_pulled(handle)`.
 - **`pulled_signal`** is *private*. It returns the `Signal` instance, built on
   first use. The class emits through it: `pulled_signal.emit`.
+
+**Ending a connection is public because it belongs to whoever made it**, while
+emitting belongs to the class. A component that connects to a sibling in
+`_attach` ends it in `_detach` with the handle it kept, so a pooled node
+attached a second time does not collect a second listener:
+
+```ruby
+def _attach
+  @collider = require_sibling(Collider)
+  @handle = @collider.on_hit { |other| take(other) }
+end
+
+def _detach = @collider.disconnect_hit(@handle)
+```
 
 The reader builds the signal on first use and keeps it in `@pulled_signal`, so
 the host wires **nothing** in `initialize`. A class keeping `@pulled` of its own

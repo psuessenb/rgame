@@ -16,7 +16,15 @@ module RGame
       #
       # For :changed this generates:
       #   def on_changed(&block) = changed_signal.connect(&block)            # public: connect, returns the handle
+      #   def disconnect_changed(handle) = changed_signal.disconnect(handle) # public: end one connection
       #   def changed_signal = (@changed_signal ||= Signal.define(...).new)  # private: the Signal, to emit on
+      #
+      # The disconnect is public because ending a connection belongs to whoever
+      # made it, while emitting belongs to the class. A component that connects
+      # in `_attach` ends it in `_detach` with the handle `on_changed` returned,
+      # so a pooled node that is attached twice does not collect two listeners.
+      # (A connection that ends with its node by itself is a change to Signal,
+      # not to each owner, and is a possible-todo.)
       #
       # The class emits through the private reader, `changed_signal.emit(index: 2,
       # value: :hard)`. One field emits positionally and several as keywords, as
@@ -40,6 +48,7 @@ module RGame
           type = Signal.define(*fields)
           reader = :"#{name}_signal"
           connect = :"on_#{name}"
+          disconnect = :"disconnect_#{name}"
           ivar = :"@#{reader}"
 
           define_method(reader) do
@@ -48,7 +57,8 @@ module RGame
           private reader
 
           define_method(connect) { |&block| send(reader).connect(&block) }
-          signal_methods[reader] = signal_methods[connect] = name
+          define_method(disconnect) { |handle| send(reader).disconnect(handle) }
+          signal_methods[reader] = signal_methods[connect] = signal_methods[disconnect] = name
         end
 
         def method_added(name)
