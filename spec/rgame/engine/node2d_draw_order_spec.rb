@@ -56,6 +56,14 @@ RSpec.describe RGame::Engine::Node2D do
       expect(draw_and_read).to eq(%i[first second third])
     end
 
+    it 'sorts a child added after a draw in among the others by its z' do
+      root.add_node(tagged(:people, z: 1))
+      draw_and_read
+
+      root.add_node(tagged(:ground, z: 0))
+      expect(draw_and_read).to eq(%i[ground people])
+    end
+
     it 're-sorts when a z changes' do
       first = root.add_node(tagged(:first))
       root.add_node(tagged(:second))

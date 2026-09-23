@@ -28,6 +28,15 @@ RSpec.describe RGame::Engine::Components::DespawnOffscreen do
     end
   end
 
+  # The default margin is 0.0, and negating it gives -0.0, a Float Ruby cannot
+  # store inline. Negated on every frame, it would allocate on every frame.
+  it 'allocates nothing per frame at the default margin' do
+    despawn = node.add_component(described_class.new(width: 100, height: 80))
+    root.enter_tree
+    node.x = 50
+    expect { despawn._update(0.0) }.to allocate_nothing
+  end
+
   it_behaves_like 'a world edge response' do
     def add_response(node, vx:)
       node.add_component(RGame::Engine::Components::Velocity.new(vx: vx))

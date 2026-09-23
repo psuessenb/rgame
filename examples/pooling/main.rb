@@ -21,12 +21,17 @@
 # switching modes moves it within a second or two of the press. Measured over a
 # steady eighty motes a second:
 #
-#   pooled   about 140 objects a second
-#   fresh    about 750
+#   pooled   0 to 5 objects a second
+#   fresh    about 1,290
 #
-# Same spawn rate, same motes on screen, same draw calls. The gap is around seven
-# and a half objects per mote — the node, its two components, and the few arrays
-# and hashes a node keeps for them — and it is *entirely* what the pool removes.
+# Same spawn rate, same motes on screen, same draw calls. The gap is about sixteen
+# objects per mote — the node, its two components, and the arrays and hashes each
+# of them keeps — and the pool removes all of it. The five left in pooled mode are
+# the readout itself, rendering the number it changed to.
+#
+# Pooled mode reads higher for its first fifteen seconds or so, while the pool
+# grows to the most motes ever live at once. Each mote it builds costs what a
+# fresh one does.
 #
 # A steady sixty-frame-per-second loop that allocates is a GC pause waiting to
 # happen, and a pause is not a slow frame: it is a visible hitch at a moment
@@ -34,9 +39,9 @@
 # things there are suddenly two hundred of.
 #
 # **The readout only means anything in a plain run.** Under
-# `tools/drive_test_project.rb` both numbers land near eighty-five thousand,
-# because the harness records every draw call it sees and that recording dwarfs
-# everything the game does. Measure the thing you changed, in the configuration
+# `tools/drive_test_project.rb` both numbers run to six figures, because the
+# harness records every draw call it sees and that recording dwarfs everything
+# the game does. Measure the thing you changed, in the configuration
 # you care about.
 #
 # ## A game writes two lines and no bookkeeping

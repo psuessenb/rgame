@@ -268,10 +268,10 @@ module RGame
       end
 
       def add_node(node)
+        @children_sorted = false unless rgame_sorts_last?(node)
         @children << node
         node.parent = self
         node.rgame_sibling_order = (@child_seq += 1)
-        @children_sorted = false
         node.enter_tree if @in_tree
         node
       end
@@ -522,6 +522,8 @@ module RGame
         rgame_sort_children unless @children_sorted
         @children
       end
+
+      def rgame_sorts_last?(node) = @children.empty? || @children.last.z <= node.z
 
       def rgame_sort_children
         @children_sorted = true

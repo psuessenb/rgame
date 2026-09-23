@@ -49,9 +49,10 @@
 #
 # ## Why the wrap asks for a contract rather than a class
 #
-# `ScreenWrap` never mentions `World`. It calls `WorldBounds.resolve`, and what
-# answers is whichever system the scene mounted — the plain rectangle here, or a
-# `TileWorld` that works its bounds out from a parsed map. `Node2D#get_component`
+# `ScreenWrap` never mentions `World`. It calls `WorldBounds.resolve_width` and
+# `resolve_height`, and what answers is whichever system the scene mounted — the
+# plain rectangle here, or a `TileWorld` that works its bounds out from a parsed
+# map. `Node2D#get_component`
 # matches with `is_a?`, which matches an included module as readily as a class,
 # and that is the whole mechanism.
 #

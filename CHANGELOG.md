@@ -327,6 +327,10 @@ index, not the argument.
 - **`Game/NoLiteralText` also checks `text_lines`.** A String literal as the
   first argument of `text_lines` is an offense, as it is for `text` and
   `text_width`.
+- **`WorldBounds` resolves one axis at a time.**
+  `RGame::Engine::Components::WorldBounds.resolve_width(node, width)` and
+  `resolve_height(node, height)` replace `resolve(node, width, height)`, which
+  returned a pair.
 
 ### Removed
 
@@ -385,6 +389,12 @@ index, not the argument.
   `collision_tiles`, `jump_topdown`, `scroll_map` and `split_screen` drew their
   text from the scene in the `:world` band, where the map drawn after it covered
   it. Each scene now draws in the `:overlay` band.
+- **A pooled node spawns without allocating.** A node carrying `ScreenWrap` or
+  `DespawnOffscreen` allocated an Array each time it entered the tree, and adding
+  any child made its parent sort its children again. A child whose `z` puts it
+  last now leaves them sorted.
+- **`ScreenWrap` and `DespawnOffscreen` allocate nothing per frame.** With
+  `margin:` left at its default, each allocated two Floats per node per frame.
 
 ## [0.4.0] - 2026-09-16
 

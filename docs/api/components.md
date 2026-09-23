@@ -1403,6 +1403,12 @@ to pass the numbers along.
   **world** coordinates. Everything that compares a node against them reads
   `world_x` and `world_y`. An entity under an offset container is inside the world
   exactly when its world position is.
+- **Resolving a component's bounds:** `WorldBounds.resolve_width(node, width)`
+  returns `width`, or the width of the world system `node` finds when `width` is
+  nil. `WorldBounds.resolve_height(node, height)` does the same for the height.
+  Each raises when it has to look and finds no system. Neither allocates:
+  [`ScreenWrap`](#screenwrap) and [`DespawnOffscreen`](#despawnoffscreen) call both
+  from `_attach`, and a pooled node attaches on every spawn.
 - **One response to the edge per node:** `WorldBounds.one_response!(node)` raises,
   naming both, if the node carries more than one of [`ScreenWrap`](#screenwrap),
   [`DespawnOffscreen`](#despawnoffscreen) and a [`Mover`](#mover) declaring

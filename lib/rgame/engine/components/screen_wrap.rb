@@ -25,23 +25,25 @@ module RGame
           @given_width = width
           @given_height = height
           @margin = margin
+          @left = @top = -margin
         end
 
         # Re-resolved on every entry rather than cached from the first, so a pooled
         # entity recycled into a differently sized scene wraps against that scene.
         def _attach
           WorldBounds.one_response!(node)
-          @width, @height = WorldBounds.resolve(node, @given_width, @given_height)
+          @right = WorldBounds.resolve_width(node, @given_width) + @margin
+          @bottom = WorldBounds.resolve_height(node, @given_height) + @margin
         end
 
         def _update(_dt)
           x = node.world_x
-          node.world_x = @width + @margin if x < -@margin
-          node.world_x = -@margin if x > @width + @margin
+          node.world_x = @right if x < @left
+          node.world_x = @left if x > @right
 
           y = node.world_y
-          node.world_y = @height + @margin if y < -@margin
-          node.world_y = -@margin if y > @height + @margin
+          node.world_y = @bottom if y < @top
+          node.world_y = @top if y > @bottom
         end
       end
     end

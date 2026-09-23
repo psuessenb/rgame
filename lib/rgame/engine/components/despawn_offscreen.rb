@@ -21,20 +21,21 @@ module RGame
           @given_width = width
           @given_height = height
           @margin = margin
+          @left = @top = -margin
         end
 
         # See ScreenWrap#_attach: resolved per entry, so a recycled node is correct
         # after a scene change.
         def _attach
           WorldBounds.one_response!(node)
-          @width, @height = WorldBounds.resolve(node, @given_width, @given_height)
+          @right = WorldBounds.resolve_width(node, @given_width) + @margin
+          @bottom = WorldBounds.resolve_height(node, @given_height) + @margin
         end
 
         def _update(_dt)
           x = node.world_x
           y = node.world_y
-          offscreen = x < -@margin || x > @width + @margin || y < -@margin || y > @height + @margin
-          node.queue_free if offscreen
+          node.queue_free if x < @left || x > @right || y < @top || y > @bottom
         end
       end
     end

@@ -28,23 +28,24 @@ module RGame
         def world_width = raise(NotImplementedError, "#{self.class} must define #world_width")
         def world_height = raise(NotImplementedError, "#{self.class} must define #world_height")
 
-        # The bounds a component should use: whatever it was handed, falling back
-        # to the world system on `node` for either axis left nil. The single place
-        # that fallback is written, so the components sharing it cannot drift.
+        # The width a component should use: the one it was handed, or the world
+        # system's on `node` when that is nil. `resolve_height` is the same for the
+        # other axis. They are the one place that fallback is written, so the
+        # components sharing it cannot drift.
         #
-        # Call it from `_attach`, not `initialize` — a node has no scene to ask
+        # Call them from `_attach`, not `initialize`. A node has no scene to ask
         # until it is in the tree, and a pooled entity is built long before it is.
-        def self.resolve(node, width, height)
-          return [width, height] if width && height
+        # A pooled entity also attaches on every spawn, so each axis is its own
+        # call and neither allocates.
+        def self.resolve_width(node, width) = width || bounds_in_scope(node).world_width
+        def self.resolve_height(node, height) = height || bounds_in_scope(node).world_height
 
-          bounds = node.system(self)
-          if bounds.nil?
-            raise 'no world bounds in scope: mount a World (or TileWorld) system on the scene, ' \
-                  'or pass explicit width:/height:'
-          end
-
-          [width || bounds.world_width, height || bounds.world_height]
+        def self.bounds_in_scope(node)
+          node.system(self) ||
+            raise('no world bounds in scope: mount a World (or TileWorld) system on the scene, ' \
+                  'or pass explicit width:/height:')
         end
+        private_class_method :bounds_in_scope
 
         # Refuse a node carrying more than one response to the edge of the world:
         # ScreenWrap, DespawnOffscreen, or a Mover declaring `blocked_by: [:bounds]`.

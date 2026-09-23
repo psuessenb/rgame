@@ -15,24 +15,37 @@ RSpec.describe RGame::Engine::Components::WorldBounds do
     expect { incomplete.world_height }.to raise_error(NotImplementedError)
   end
 
-  describe '.resolve' do
+  describe '.resolve_width and .resolve_height' do
     let(:node) { RGame::Engine::Node2D.new }
 
-    it 'returns explicit bounds without consulting the tree at all' do
-      # Nothing is mounted, and yet no error: an explicit pair short-circuits the lookup.
-      expect(described_class.resolve(node, 100, 80)).to eq([100, 80])
+    it 'returns an explicit dimension without consulting the tree at all' do
+      # Nothing is mounted, and yet no error: an explicit value short-circuits the lookup.
+      expect(described_class.resolve_width(node, 100)).to eq(100)
+      expect(described_class.resolve_height(node, 80)).to eq(80)
     end
 
     it 'falls back to the world system for a dimension left nil' do
       node.add_component(RGame::Engine::Components::World.new(width: 640, height: 480))
 
-      expect(described_class.resolve(node, nil, nil)).to eq([640, 480])
-      expect(described_class.resolve(node, 100, nil)).to eq([100, 480])
+      expect(described_class.resolve_width(node, nil)).to eq(640)
+      expect(described_class.resolve_height(node, nil)).to eq(480)
     end
 
     it 'raises when nothing in scope answers the contract' do
-      expect { described_class.resolve(node, nil, nil) }
+      expect { described_class.resolve_width(node, nil) }
         .to raise_error(RuntimeError, /no world bounds in scope/)
+      expect { described_class.resolve_height(node, nil) }
+        .to raise_error(RuntimeError, /no world bounds in scope/)
+    end
+
+    # A pooled node resolves on every spawn, and a spawn can be on any frame.
+    it 'allocates nothing' do
+      node.add_component(RGame::Engine::Components::World.new(width: 640, height: 480))
+
+      expect do
+        described_class.resolve_width(node, nil)
+        described_class.resolve_height(node, nil)
+      end.to allocate_nothing
     end
   end
 

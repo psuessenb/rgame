@@ -5,11 +5,11 @@
 # second or two because it samples once a second.
 #
 # **The readout is not what this script checks.** Under the harness both modes
-# report around eighty-five thousand objects a second, because the harness
-# records every draw call with its arguments and that recording is five hundred
-# times everything the game allocates. Run the example plainly to see the number
-# it is about — 140 a second pooled against 750 fresh. What the report *can*
-# show is that the two modes are otherwise identical:
+# report six figures a second, because the harness records every draw call with
+# its arguments and that recording dwarfs everything the game allocates. Run the
+# example plainly to see the number it is about — 0 to 5 a second pooled against
+# about 1,290 fresh. What the report *can* show is that the two modes are
+# otherwise identical:
 #
 #   - **`rect` and translate counts that do not care which mode is on.** The
 #     motes are the same motes, attached the same way, updated and drawn by the
