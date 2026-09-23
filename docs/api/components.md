@@ -604,6 +604,36 @@ The game must get two things right; this component does not check them:
 - **The id allocator belongs in the save.** A counter that restarts at 1 on load
   reissues ids the restored objects already hold. Save the next id with them.
 
+### `Interactor`
+
+**What the owner would interact with, and the press that does it.** A
+[`Targeting`](#targeting) that also reads a button: each `update` it picks the
+nearest node in range on its layer, and a press on `action` emits it.
+
+```ruby
+hero.add_component(RGame::Engine::Components::Interactor.new(range: 56, layer: :interactable))
+    .on_interacted { |target| target.open }
+```
+
+- **Construct:** `Interactor.new(range:, layer: :interactable, action: :interact,
+  policy: :nearest)`. The range, layer and policy are `Targeting`'s. `action` is
+  read from the actions of whoever owns the node, and `:interact` is in
+  [`InputMap.default`](input.md#defaults-and-rebinding) on E and the pad's X.
+- **State:** `target`, `Targeting`'s, and `action`. Draw a prompt over `target`
+  and label it with `player.input_map.button_for(interactor.action, player.device)`.
+- **Signal:** `on_interacted(target)` fires once per press, and never while
+  `target` is `nil`. There is no signal for a press that reached nothing.
+- **Phase:** `_update(dt)` picks the target, `_control(actions)` reads the press.
+  A press acts on the target the last `update` chose.
+
+**It is a `Targeting`, so `get_component(Targeting)` matches it too.** A node
+holding both cannot be asked for either by class — hold the one you want by
+name, which is what `add_component` returns.
+
+**Two players interact independently with no per-player state here.** The
+control traversal hands each node the actions of its owner, so two heroes either
+side of one chest each press their own button and each reach it.
+
 ### `Mover`
 
 **The base class of every component that moves its node**:
