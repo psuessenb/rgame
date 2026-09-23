@@ -270,6 +270,10 @@ index, not the argument.
 
 ### Fixed
 
+- **The frame rate on the debug overlay draws its own digits, not three hundred
+  leading zeros.** `App#fps` is a Float, and the digit loop divided by ten until
+  nothing was left — which a Float never reaches. Each row is rounded to an
+  Integer before its digits are taken.
 - **A button added during a held confirm ignores that press.** A menu read the
   confirm a parent had just acted on, so a button added on that press was
   activated by it. `add` and `clear` now make the menu wait for confirm to come

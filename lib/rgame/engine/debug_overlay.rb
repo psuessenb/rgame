@@ -31,6 +31,13 @@ module RGame
     # allocate a String per frame, and the meter would be measuring itself. Instead
     # numbers are drawn digit-by-digit from a fixed set of pre-built single-character
     # strings, which the font caches per glyph.
+    #
+    # **Each row is rounded to an Integer before its digits are taken**, because
+    # that loop divides by ten until nothing is left and a Float never gets
+    # there: 59.94 walks down through 0.6, 0.06, 0.006 and draws a leading zero
+    # at every step, three hundred of them, until the number finally underflows.
+    # `App#fps` is a Float, so this is the frame rate's own path rather than a
+    # hypothetical one.
     class DebugOverlay
       DIGITS = %w[0 1 2 3 4 5 6 7 8 9].freeze
 
@@ -80,7 +87,7 @@ module RGame
       private
 
       def draw_line(renderer, label, value, right_x, y)
-        number_left = draw_uint(renderer, value, right_x, y)
+        number_left = draw_uint(renderer, value.round, right_x, y)
         renderer.text(label, number_left - GAP - label_width(renderer, label), y, color: COLOR)
       end
 

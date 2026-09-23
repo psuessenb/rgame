@@ -153,12 +153,14 @@ RSpec.describe RGame::Engine::Debug do
       expect(renderer.drawn?(:text)).to be(false)
     end
 
+    # A Float, because that is what App#fps hands Game and Game hands here.
     it 'reports the frame rate it was handed' do
-      debug.fps = 42
+      debug.fps = 41.6
       debug.show(:stats)
       draw_frame
 
-      expect(renderer.calls_to(:text).map { it.args.first }).to include('4', '2')
+      drawn = renderer.calls_to(:text).map { it.args.first }
+      expect(drawn[0...drawn.index('FPS')].reverse.join).to eq('42')
     end
   end
 end

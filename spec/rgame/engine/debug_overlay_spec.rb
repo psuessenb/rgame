@@ -44,6 +44,29 @@ RSpec.describe RGame::Engine::DebugOverlay do
       overlay.draw(renderer, screen_view, 0)
       expect(renderer).to drew('0').at_least(:once)
     end
+
+    # `App#fps` is a Float, and dividing one by ten never reaches zero: 59.94
+    # walks down through 0.6, 0.06 and 0.006, drawing a leading zero at each
+    # step until it underflows. Every row is rounded before its digits are
+    # taken.
+    describe 'a row that arrives as a Float' do
+      let(:recorder) { FakeRenderer.new }
+
+      before { overlay.draw(recorder, screen_view, 59.94) }
+
+      def digits_drawn
+        drawn = recorder.calls_to(:text).map { it.args.first }
+        drawn[0...drawn.index('FPS')]
+      end
+
+      it 'rounds it rather than walking it down to nothing' do
+        expect(digits_drawn.reverse.join).to eq('60')
+      end
+
+      it 'draws one glyph per digit and no more' do
+        expect(digits_drawn.length).to eq(2)
+      end
+    end
   end
 
   # Whether the overlay is on is RGame::Engine::Debug's answer, not this
