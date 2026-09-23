@@ -343,6 +343,13 @@ index, not the argument.
 
 ### Fixed
 
+- **A scene enters and leaves the tree with its host.** The scenes on a
+  `RGame::Engine::Scene::SceneStack` stayed in the tree, and their components
+  registered with their systems, after the node holding the stack left it. A
+  scene pushed while the host was outside the tree entered at once. Entering
+  and leaving now reach every node that names the node as its `parent`, and a
+  node whose parent is outside the tree stays out. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md#lifecycle-constructing-vs-entering-the-tree).
 - **A scene follows its host when the host moves.** A scene on a
   `RGame::Engine::Scene::SceneStack` kept the `world_x`, `world_y` and
   `world_angle` it last read once the node holding the stack moved. A move now
