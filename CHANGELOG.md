@@ -215,9 +215,11 @@ index, not the argument.
   when its last id arrives. One button can back a tap and a hold, and a held
   chord silences the plain actions on its buttons. See
   [docs/api/input.md](docs/api/input.md#a-hold-a-tap-and-a-chord).
-- **An action says how long it has been held.** `Actions#held_for(name)` is the
-  seconds its buttons have been down, `0.0` at rest, and it survives the tick of
-  the release. `Players#everyone` folds it as the longest of the active players'.
+- **An action says how long it has been held, and since when.**
+  `Actions#held_for(name)` is the seconds its buttons have been down, `0.0` at
+  rest, and it survives the tick of the release. `Actions#down_since(name)` is
+  the `poll_count` they went down on, nil at rest. `Players#everyone` folds the
+  first as the longest of the active players' and the second as the earliest.
   See [docs/api/input.md](docs/api/input.md#rgameengineactionmapper).
 - **An input example.** `examples/input_holds` opens a chest on a tap of one
   button, searches it on a hold of the same one, and swaps stance on a chord.
@@ -241,6 +243,12 @@ index, not the argument.
 
 ### Changed
 
+- **A node reads only the presses it saw start.** In a node's components and
+  `_control`, `pressed?` and `released?` are false for a press that began before
+  the node was last paused, hidden, below another scene, added, or given another
+  `input_owner`. `held?`, `axis` and `held_for` answer as before, and a snapshot
+  built with `Actions.new` is handed on as it is. See
+  [docs/api/input.md](docs/api/input.md#a-node-reads-only-the-presses-it-saw-start).
 - **Polling input takes the timestep.** `Players#poll`, `Player#poll` and
   `ActionMapper#poll` take `(backend, dt)`, in seconds, which is what a hold and
   a tap are measured against. `RGame::Game` passes its fixed step; a game driving

@@ -85,8 +85,13 @@ RSpec.describe RGame::Engine::Components::Interactor do
   describe 'the press' do
     let(:seen) { [] }
 
+    # The hero is controlled once before anything is pressed: a node reads only
+    # the presses it saw start, and a press on its first tick is not one.
     def interactor_at(x, y, **)
-      hero(x, y, **).tap { it.on_interacted { |target| seen << target } }
+      hero(x, y, **).tap do |interactor|
+        interactor.on_interacted { |target| seen << target }
+        tick
+      end
     end
 
     it 'emits the target once per press' do
@@ -203,6 +208,7 @@ RSpec.describe RGame::Engine::Components::Interactor do
       box
       owned_hero(160, one)
       owned_hero(240, two)
+      tick
     end
 
     it 'lets each player reach it with their own button' do

@@ -262,6 +262,8 @@ actions.pressed?(:fire)   # did it go down this tick
 actions.released?(:fire)  # did it come up this tick
 actions.axis(:turn)       # -1.0..1.0
 actions.held_for(:fire)   # seconds its buttons have been down
+actions.down_since(:fire) # the poll its buttons went down on, or nil
+actions.poll_count        # which poll this is, counted from 1
 ```
 
 **`poll` takes the timestep** in seconds, because an action can be declared as a
@@ -273,6 +275,12 @@ sees every action once a tick, so it counts, and nothing else has to.
 ended. The tick after that it is `0.0` again. It counts the action's buttons, so
 a hold that has not reached its threshold and a chorded action that is silenced
 both still report the press.
+
+`down_since` is the `poll_count` on which the action's buttons went down, and
+nil at rest. It lasts until the press has no edge left to report: through the
+tick of the release, and through a tap's pulse, which presses on the release
+and releases on the tick after. So every edge of a press reads the poll the
+press began on. A snapshot built by hand with `Actions.new` has no `poll_count`.
 
 **Asking about an undeclared action raises `KeyError`**, naming the action and
 listing the declared ones. A mistyped name fails on the first tick instead of
@@ -289,6 +297,86 @@ leaving the dead zone ramps up from zero.
 
 `RGame::Game` builds the mappers and polls them once per tick. A game normally
 sees only the `Actions` passed to `control`.
+
+### A node reads only the presses it saw start
+
+**`pressed?` and `released?` are false in a node for a press that began before
+the node resumed.** A node resumes on the first poll `Node2D#control` reaches it
+after one it did not:
+
+- its first control, as when it was added while a button was down;
+- its first after it or an ancestor was paused;
+- its first after a scene above it was popped, or after its page of a
+  `UI::Tabs` was shown again;
+- its first after its `input_owner` changed, since the presses it reads from
+  then on are another player's.
+
+A press that began on the poll the node resumed on is refused too. So E tapped
+in a hero's bag and released after the bag closes opens no chest, although a tap
+presses on its release.
+
+`held?`, `axis` and `held_for` answer as before, so a direction held while a
+menu closes walks the hero on the next tick. The next press after a refused one
+reads as usual.
+
+The node's components and its own `_control` read through a gate the node makes
+on its first control, from `poll_count` and `down_since`. A snapshot built by hand
+has no `poll_count`, so a spec passing `Actions.new(...)` to `control` reads
+exactly what it passed.
+
+```ruby
+require 'rgame'
+
+Controls = RGame::Util::Controls
+
+# A backend holding the keyboard ids in `down`.
+class Keys
+  attr_reader :down
+
+  def initialize = @down = []
+  def down?(id, device:) = device == Controls::KEYBOARD && @down.include?(id)
+  def axis(_id, device:) = 0.0
+end
+
+# A hero that counts the presses of fire it reads.
+class Hero < RGame::Engine::Node2D
+  attr_reader :shots, :aiming
+
+  def initialize(**)
+    super
+    @shots = 0
+  end
+
+  def _control(actions)
+    @shots += 1 if actions.pressed?(:fire)
+    @aiming = actions.held?(:fire)
+  end
+end
+
+def tick(players, keys, hero)
+  players.poll(keys, 1.0 / 60)
+  hero.control(players)
+end
+
+keys = Keys.new
+players = RGame::Engine::Players.new([RGame::Engine::Player.new])
+hero = Hero.new
+tick(players, keys, hero)
+
+hero.paused = true
+keys.down << Controls::KEY_SPACE
+tick(players, keys, hero)
+hero.paused = false
+tick(players, keys, hero)
+hero.shots  # => 0 — fire went down while the hero was paused
+hero.aiming # => true — held? answers as before
+
+keys.down.clear
+tick(players, keys, hero)
+keys.down << Controls::KEY_SPACE
+tick(players, keys, hero)
+hero.shots # => 1 — the next press is the hero's own
+```
 
 ## Players, seats and joining
 
@@ -374,6 +462,8 @@ player's:
   thing.
 - `axis` is the active players' value of largest magnitude.
 - `held_for` is the longest any active player has held it.
+- `down_since` is the poll the first of the presses under way began on, counted
+  in `everyone`'s own `poll_count`.
 
 ```ruby
 require 'rgame'

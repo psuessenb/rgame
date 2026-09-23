@@ -338,6 +338,55 @@ RSpec.describe RGame::Engine::Players do
       expect { everyone_after_poll.held?(:fyre) }.to raise_error(KeyError, /:fyre/)
     end
 
+    it 'counts its own polls' do
+      2.times { everyone_after_poll }
+      expect(everyone_after_poll.poll_count).to eq(3)
+    end
+
+    describe '#down_since' do
+      it 'is the poll one player pressed on' do
+        everyone_after_poll
+        backend.hold(controls::KEY_SPACE)
+        expect(everyone_after_poll.down_since(:fire)).to eq(2)
+      end
+
+      # The union went down with the first press, so a second player joining in
+      # starts nothing.
+      it 'keeps the first press while a second player joins it' do
+        backend.hold(controls::KEY_SPACE)
+        everyone_after_poll
+        backend.hold(controls::PAD_A, device: pad)
+        expect(everyone_after_poll.down_since(:fire)).to eq(1)
+      end
+
+      it 'keeps the first press while its player lets go and another still holds' do
+        backend.hold(controls::KEY_SPACE)
+        everyone_after_poll
+        backend.hold(controls::PAD_A, device: pad)
+        everyone_after_poll
+        backend.release(controls::KEY_SPACE)
+        2.times { everyone_after_poll }
+        expect(everyone_after_poll.down_since(:fire)).to eq(1)
+      end
+
+      it 'is nil once every player has let go' do
+        backend.hold(controls::KEY_SPACE)
+        everyone_after_poll
+        backend.release(controls::KEY_SPACE)
+        2.times { everyone_after_poll }
+        expect(everyone_after_poll.down_since(:fire)).to be_nil
+      end
+
+      it 'starts again on the next press' do
+        backend.hold(controls::KEY_SPACE)
+        everyone_after_poll
+        backend.release(controls::KEY_SPACE)
+        2.times { everyone_after_poll }
+        backend.hold(controls::PAD_A, device: pad)
+        expect(everyone_after_poll.down_since(:fire)).to eq(4)
+      end
+    end
+
     context 'when only one player declares an action' do
       let(:two) do
         map = RGame::Engine::InputMap.default.merge(dash: { buttons: [controls::PAD_B] })

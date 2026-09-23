@@ -32,4 +32,38 @@ RSpec.describe RGame::Engine::Node2D do
     snapshot = RGame::Engine::Actions.new(held: { fire: false })
     expect { root.control(snapshot) }.to allocate_nothing
   end
+
+  # Each node makes its gate on its first control and keeps it, so neither a
+  # tick nor a resume after a pause allocates.
+  describe 'the press gate' do
+    # A node that reads both edges, so each measured control asks its gate.
+    before do
+      reader = Class.new(described_class) do
+        def _control(actions)
+          @presses = (@presses || 0) + 1 if actions.pressed?(:fire) || actions.released?(:fire)
+        end
+      end
+      root.children.first.add_node(reader.new)
+    end
+
+    it 'allocates nothing from one tick to the next' do
+      dt = 0.016
+      backend = FakeInputBackend.new.hold(RGame::Util::Controls::KEY_SPACE)
+      expect do
+        players.poll(backend, dt)
+        root.control(players)
+      end.to allocate_nothing
+    end
+
+    it 'allocates nothing as a node resumes' do
+      dt = 0.016
+      backend = FakeInputBackend.new.hold(RGame::Util::Controls::KEY_SPACE)
+      parent = root.children.first
+      expect do
+        parent.paused = !parent.paused
+        players.poll(backend, dt)
+        root.control(players)
+      end.to allocate_nothing
+    end
+  end
 end

@@ -74,12 +74,14 @@ RSpec.describe RGame::Engine::Node2D do
     end
   end
 
+  # A node reads through a gate of its own, and the gate answers with the
+  # snapshot it reads from.
   describe 'the actions a node is driven with' do
     it 'is the primary player\'s when nobody claims it' do
       root = described_class.new
       node = root.add_node(recorder)
       root.control(players)
-      expect(node.seen).to equal(one.actions)
+      expect(node.seen.actions_for(nil)).to equal(one.actions)
     end
 
     it 'is its owner\'s when one is named' do
@@ -87,7 +89,7 @@ RSpec.describe RGame::Engine::Node2D do
       node = root.add_node(recorder)
       node.input_owner = two
       root.control(players)
-      expect(node.seen).to equal(two.actions)
+      expect(node.seen.actions_for(nil)).to equal(two.actions)
     end
 
     # The point of the whole design: one traversal, two players, two answers.
@@ -128,10 +130,9 @@ RSpec.describe RGame::Engine::Node2D do
   end
 
   describe 'what components receive' do
-    # Unchanged, and that is the design: a component belongs to one node, so one
-    # player's snapshot is exactly right for it. Nothing in components/ had to
-    # change for any of this.
-    it 'is a plain Actions, not the source' do
+    # A component belongs to one node, so one player's snapshot is exactly
+    # right for it. It reads that snapshot through its node's gate.
+    it 'is one player\'s snapshot, not the source' do
       root = described_class.new(input_owner: two)
       body = root.add_component(RGame::Engine::Components::ActionTrigger.new(fire: 0.0))
       seen = nil
@@ -139,7 +140,18 @@ RSpec.describe RGame::Engine::Node2D do
 
       root.control(players)
 
-      expect(seen).to equal(two.actions)
+      expect(seen.actions_for(nil)).to equal(two.actions)
+    end
+
+    it 'is what the node\'s own hook reads' do
+      root = recorder
+      body = root.add_component(RGame::Engine::Components::ActionTrigger.new(fire: 0.0))
+      seen = nil
+      allow(body).to receive(:_control) { |actions| seen = actions }
+
+      root.control(players)
+
+      expect(seen).to equal(root.seen)
     end
   end
 

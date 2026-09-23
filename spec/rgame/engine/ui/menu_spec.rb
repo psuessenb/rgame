@@ -1185,8 +1185,10 @@ RSpec.describe RGame::Engine::UI::Menu do
       labels = %w[A B]
       [one, two].each { |m| labels.each { |label| m.add(button(label)) } }
       root.enter_tree
-
       backend = FakeInputBackend.new
+      players.poll(backend, 0.016)
+      root.control(players)
+
       backend.hold(RGame::Util::Controls::PAD_DPAD_DOWN, device: RGame::Util::Controls.gamepad(0))
       players.poll(backend, 0.016)
       root.control(players)

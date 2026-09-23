@@ -98,6 +98,11 @@ RSpec.describe RGame::Engine::SealedPrivates do
     end
 
     # The documented seam examples/game_menu uses to hide a closed menu.
+    it "seals Node2D's press gate" do
+      expect { Class.new(RGame::Engine::Node2D) { def rgame_gate(actions) = actions } }
+        .to raise_error(NameError, /Node2D#rgame_gate/)
+    end
+
     it "leaves Node2D's draw_children open to override" do
       expect { Class.new(RGame::Engine::Node2D) { def draw_children(renderer, view) = (super unless @hidden) } }
         .not_to raise_error

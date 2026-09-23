@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: steps 0 to 6 are implemented.** Sixteen steps. Each is one branch and one
+**Status: steps 0 to 7 are implemented.** Sixteen steps. Each is one branch and one
 pull request, and its sub-steps are one commit each. **Steps 0–8 are detailed**;
 5–8 were planned after step 4 landed, and
 [what that re-plan found](#re-planning-steps-57) comes before them. **Steps 9–15
@@ -1406,6 +1406,67 @@ Step 8's adventure run is where the gate is seen working, on a tap of E begun
 in the bag and ended after it closes.
 
 `docs/api/input.md` gains the rule, beside the edges it gates.
+
+**Landed.** Two sub-steps, one commit each. `make test` 380 checks 0 failures,
+`rake spec` 3455 examples 0 failures (3410 at the branch point), `rake spec:core`
+477 examples 0 failures, `rake docs:coverage` nothing undocumented.
+
+`Actions` answers `poll_count` and `down_since`, and `ActionMapper` and
+`Players::Everyone` move the count on each poll. `Node2D#control` hands its
+components and `_control` a `PressGate`, `@api private`, made on the node's
+first control with a polled snapshot and kept. The gate spec is 15 examples:
+rules 1–7 with a paused parent, a scene popped back to, a node added mid-hold,
+an owner changing and a node everyone owns, and the caller that uses it, a hero
+paused by a bag. A tap of E begun in the bag and ended after it closes opens
+nothing, and the next tap opens the chest. The allocation spec measures a tick
+and a resume at zero objects each. Nineteen mutations were run over the two
+sub-steps. The three that survived the first draft each named a condition the
+code did not need, now gone.
+
+**No driven report changes for a refused press.** All 49 scripts ran on `main`
+and on the branch, one tree after the other, under `--seed 4242`, 240 ticks and
+`--texts`. 47 reports are identical, byte for byte. `examples/sprite` drew 219
+frames on `main` under load and matched the branch when run again. The one
+change is `examples/pooling`'s readout, which the next bullets explain. No
+script presses across a pause, so step 8's adventure run is still where the gate
+is seen working.
+
+What the sketch got wrong:
+
+- **A node's gate costs one object, once, and a fresh node pays it.** Measured
+  in a plain run of `examples/pooling`, not under the harness: pooled motes
+  steady at 111 objects a second on both trees, fresh motes 1306–1322 on `main`
+  and 1386–1398 on the branch. That is 80 a second, one per mote at 80 motes a
+  second. A pooled mote keeps its gate, so only the pool's first seconds read
+  higher while it fills. A gate made only for nodes whose class or components
+  override `_control` would save it, at the price of a per-class cache and a
+  flag kept in step with `add_component`. Not done.
+- **`down_since` outlives the release by a tick more for a tap.** The sketch had
+  it survive the release tick, as `held_for` does. A tap presses on its release
+  and releases on the tick after, and the gate asks when the press began on both
+  ticks. So `down_since` lasts until the press has no edge left to report,
+  and a hold let go before its threshold forgets it on the release.
+- **The gate answers `actions_for` with the snapshot it gates.** `SceneStack`
+  hands its component's `actions` to its scene when no `Players` is mounted,
+  and that is now a gate. Each node in the scene then gates the raw snapshot
+  itself.
+- **A press on a node's very first tick is refused**, by rule 2. Seven examples
+  of the existing specs pressed on the tick they built their tree, six in the
+  interactor spec and one in the menu spec. Each now ticks once before it
+  presses, as a running game would. Five expected the snapshot itself where a
+  node now reads its gate, and read it through `actions_for`. A double of
+  `Actions` answers `poll_count` with nil, as a snapshot built by hand does.
+- **`FocusGroup` and `Tabs` keep their own wait.** The gate refuses edges only;
+  those two stop every read on the tick a menu or page takes over. The case step
+  5 left open stays open: a menu made current by a node the tree controls
+  earlier in the same tick was controlled all along while not current, so it
+  never resumes and the gate does not see it.
+
+Documented in [docs/api/input.md](../../api/input.md#a-node-reads-only-the-presses-it-saw-start),
+with `down_since` and `poll_count` beside `held_for`, links from
+[scene_graph.md](../../api/scene_graph.md#pausing-a-subtree),
+[components.md](../../api/components.md) and [game.md](../../api/game.md), a
+`Changed` entry in `CHANGELOG.md`, and `down_since` added to the `held_for` entry.
 
 ---
 

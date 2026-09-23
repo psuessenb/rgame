@@ -229,6 +229,77 @@ RSpec.describe RGame::Engine::ActionMapper do
     end
   end
 
+  describe '#poll_count' do
+    it 'is 0 before the first poll' do
+      expect(mapper.actions.poll_count).to eq(0)
+    end
+
+    it 'counts each poll' do
+      subject_mapper = mapper
+      3.times { subject_mapper.poll(backend, step) }
+      expect(subject_mapper.actions.poll_count).to eq(3)
+    end
+
+    it 'counts a poll while the device is nil' do
+      subject_mapper = mapper(device: nil)
+      2.times { subject_mapper.poll(backend, step) }
+      expect(subject_mapper.actions.poll_count).to eq(2)
+    end
+  end
+
+  describe '#down_since' do
+    subject(:subject_mapper) { mapper }
+
+    def poll_with(*ids)
+      backend.clear
+      backend.hold(*ids) unless ids.empty?
+      subject_mapper.poll(backend, step)
+    end
+
+    it 'is nil for an action nobody has touched' do
+      expect(poll_with.down_since(:fire)).to be_nil
+    end
+
+    it 'is the poll the button went down on' do
+      2.times { poll_with }
+      expect(poll_with(controls::KEY_SPACE).down_since(:fire)).to eq(3)
+    end
+
+    it 'stays on that poll while the button is down' do
+      poll_with
+      3.times { poll_with(controls::KEY_SPACE) }
+      expect(subject_mapper.actions.down_since(:fire)).to eq(2)
+    end
+
+    # `released?` reads on that tick, and asks when the press began.
+    it 'still reads the press on the tick of the release' do
+      2.times { poll_with(controls::KEY_SPACE) }
+      expect(poll_with.down_since(:fire)).to eq(1)
+    end
+
+    it 'is nil the tick after the release' do
+      2.times { poll_with(controls::KEY_SPACE) }
+      poll_with
+      expect(poll_with.down_since(:fire)).to be_nil
+    end
+
+    it 'starts again on the next press' do
+      poll_with(controls::KEY_SPACE)
+      2.times { poll_with }
+      expect(poll_with(controls::KEY_SPACE).down_since(:fire)).to eq(4)
+    end
+
+    it 'is nil for an action bound to an axis alone' do
+      expect(poll_with(controls::KEY_RIGHT).down_since(:move_x)).to be_nil
+    end
+
+    it 'is nil while the device is nil' do
+      poll_with(controls::KEY_SPACE)
+      subject_mapper.device = nil
+      expect(poll_with(controls::KEY_SPACE).down_since(:fire)).to be_nil
+    end
+  end
+
   # E tapped opens the chest and E held searches it: one button, two actions, and
   # the mapper deciding which of them the press was.
   describe 'a hold and a tap on one button' do
@@ -324,6 +395,34 @@ RSpec.describe RGame::Engine::ActionMapper do
     it 'counts the press for both, whichever of them fired' do
       hold_for(2)
       expect(subject_mapper.actions.held_for(:interact)).to be_within(0.0001).of(step * 2)
+    end
+
+    # A tap presses on the release and releases the tick after, and both edges
+    # ask when the press began.
+    describe 'when the press began' do
+      it 'reads it on the tick the tap presses' do
+        hold_for(1)
+        expect(release.down_since(:interact)).to eq(1)
+      end
+
+      it 'reads it on the tick the tap releases' do
+        hold_for(1)
+        release
+        released = subject_mapper.poll(backend, step)
+        expect([released.released?(:interact), released.down_since(:interact)]).to eq([true, 1])
+      end
+
+      it 'forgets it once the tap has released' do
+        hold_for(1)
+        2.times { release }
+        expect(subject_mapper.poll(backend, step).down_since(:interact)).to be_nil
+      end
+
+      it 'reads it for the hold, from the poll the button went down on' do
+        subject_mapper.poll(backend, step)
+        hold_for(3)
+        expect(subject_mapper.actions.down_since(:search)).to eq(2)
+      end
     end
   end
 
