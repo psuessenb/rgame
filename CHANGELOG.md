@@ -14,6 +14,19 @@ index, not the argument.
 
 ### Added
 
+- **A menu lays its buttons out in a grid.** `RGame::Engine::UI::Grid` places
+  them in rows of `columns:` slots, and `UI::Stepping` moves across it: left and
+  right along a row, up and down along a column, each line wrapping inside
+  itself. See [docs/api/ui.md](docs/api/ui.md#layouts-column-row-grid-and-ring).
+- **Several menus make one screen.** A menu joins the nearest
+  `RGame::Engine::UI::FocusGroup` above it, and only the group's `current` menu
+  reads input. `Stepping` crosses to the menu beside it at the end of a line, and
+  on a direction the focused button is not `adjustable?` in. `UI::Menu` answers
+  `current?` and `group`, and `UI::Navigation` gains `entered`. See
+  [docs/api/ui.md](docs/api/ui.md#rgameengineuifocusgroup).
+- **An inventory example.** `examples/inventory` is a bag in a grid, and a
+  column of verbs beside it that acts on the item chosen there. See
+  [docs/api/examples.md](docs/api/examples.md#inventory).
 - **A component for what the player is standing next to, and one for what picks
   itself up.** `RGame::Engine::Components::Interactor` is a `Targeting` that
   also reads a button: `target` is the nearest node in range on its layer, and

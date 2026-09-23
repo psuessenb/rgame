@@ -220,6 +220,17 @@ uses it once.
 on a disc `UI::ShapeStyle`, `InputMap.default.merge`, and a UI atlas's `images`
 (`skills.json`).
 
+### inventory
+
+A bag of eight items in a grid of four columns, and a column of two verbs, Use and
+Drop, beside it. Right from the end of a row crosses into the verbs, and left
+crosses back. A panel under the bag names the item last focused there, which the
+verbs act on. Dropping an item takes it out of the bag.
+
+**Uses:** `UI::Grid`, `UI::Stepping` across a grid, `UI::FocusGroup`,
+`UI::PanelMenu`, uncaptioned `UI::IconButton`s on a `UI::ShapeStyle`, and a UI
+atlas's `images` (`skills.json` and `icons.json`).
+
 ## Audio
 
 ### sound
