@@ -39,6 +39,11 @@ module RGame
       # passing each button's `hotkey` to that button, focused or not. A
       # navigation cannot forget to do either, because it is never asked to.
       #
+      # `confirm:` names the action that confirms, `ui_confirm` by default.
+      # `confirm: nil` builds a menu that nothing confirms, whose buttons only
+      # their hotkeys press — a UI::Tabs bar, whose focused button is the page
+      # shown rather than a choice waiting to be made.
+      #
       # ## A menu with no navigation
       #
       # `navigation: nil` says input never moves focus: the menu focuses nothing
@@ -48,7 +53,7 @@ module RGame
       #
       # ## A menu acts only on a press it saw start
       #
-      # A menu takes no press until it has seen `ui_confirm` up, and no hotkey
+      # A menu takes no press until it has seen its confirm action up, and no hotkey
       # press on a button until it has seen that hotkey up since the button was
       # added. A menu opened from `on_activated` — a submenu — is controlled
       # later in the same tick, while the key that opened it is still down, and
@@ -120,10 +125,21 @@ module RGame
       # ## Several menus on one screen
       #
       # A menu joins the nearest UI::FocusGroup above it as it enters the tree,
-      # and leaves as it exits. Only the group's current menu reads input; the
-      # others draw with nothing focused. A menu outside any group is always
-      # current. `focus` with an index makes a menu current, so a game that
+      # and leaves as it exits. The search stops at a UI::Tabs, so a menu on a
+      # page joins a group on that page or none. Only the group's current menu
+      # reads input; the others draw with nothing focused. A menu outside any
+      # group is always current. `focus` with an index makes a menu current, so a game that
       # focuses a button in another menu moves the player there.
+      #
+      # ## A window of rows
+      #
+      # Over a layout built with `visible_rows:`, the menu draws that many rows
+      # and scrolls the rest into view. Every change of focus scrolls the
+      # focused button into view by the fewest rows, whether navigation, the
+      # game's `focus` or a group crossing made it, and `clear` scrolls to the
+      # top. `rows_above` and `rows_below` count the rows out of view, which is
+      # what a game draws a scroll arrow from. The menu's bounds are the whole
+      # window's, so a UI::PanelMenu's panel keeps its size as items come and go.
       #
       # ## What this is not
       #
@@ -144,10 +160,23 @@ module RGame
         # so reading them on a draw path costs nothing.
         attr_reader :bounds_x, :bounds_y, :bounds_width, :bounds_height
 
-        def initialize(layout:, navigation: Stepping.new, trigger: nil, scope: nil, **)
+        # The top row in view: 0 at the top, and always 0 over a layout without
+        # `visible_rows`.
+        attr_reader :first_row
+
+        # `confirm` is an action name, or nil for a menu nothing confirms.
+        def initialize(layout:, navigation: Stepping.new, trigger: nil, scope: nil, confirm: :ui_confirm, **)
           super(**)
+          unless confirm.nil? || confirm.is_a?(Symbol)
+            raise ArgumentError, "confirm: must be an action name or nil, not #{confirm.inspect}"
+          end
+
+          @confirm = confirm
           @scope = scope&.to_s&.freeze
           @layout = layout
+          @visible_rows = layout.respond_to?(:visible_rows) ? layout.visible_rows : nil
+          @per_row = layout.respond_to?(:columns) ? layout.columns : 1
+          @first_row = 0
           @navigation = navigation
           @trigger = trigger
           @open = trigger.nil?
@@ -185,6 +214,7 @@ module RGame
           @buttons.each { remove_node(it) }
           @buttons.clear
           @hotkey_seen_up.clear
+          @first_row = 0
           buttons_changed
           self
         end
@@ -207,7 +237,22 @@ module RGame
           current = focused
           previous.focused = false if previous && !previous.equal?(current)
           current&.focused = true
+          scroll_to(index / @per_row) if @visible_rows && index
         end
+
+        # Whether the button at `index` is in the window of rows the menu draws:
+        # always true over a layout without `visible_rows`.
+        def in_view?(index)
+          return true unless @visible_rows
+
+          row = index / @per_row
+          row >= @first_row && row < @first_row + @visible_rows
+        end
+
+        # The rows out of view above the window, and below it: 0 when every
+        # row fits.
+        def rows_above = @first_row
+        def rows_below = @visible_rows ? [row_count - @first_row - @visible_rows, 0].max : 0
 
         def open? = @open
 
@@ -265,8 +310,8 @@ module RGame
         # A trigger's press first, so an opening's first frame already reads the
         # stick; then navigation, so a focus change and a confirm on the same
         # frame confirm the newly focused button; then every hotkey; then
-        # confirm, on a menu with no trigger; and a trigger's release last, so it
-        # chooses what this frame focused.
+        # confirm, on a menu with no trigger and a `confirm:` action; and a
+        # trigger's release last, so it chooses what this frame focused.
         def _control(actions)
           trigger_edge = control_trigger(actions) if @trigger
           open_now if trigger_edge == :press
@@ -277,7 +322,11 @@ module RGame
           press_hotkeys(actions)
           return if interrupted?
 
-          @trigger ? release_trigger(trigger_edge) : confirm(actions)
+          if @trigger
+            release_trigger(trigger_edge)
+          elsif @confirm
+            confirm_focused(actions)
+          end
         end
 
         # Lets the navigation count time, then does what every node does.
@@ -288,10 +337,42 @@ module RGame
 
         private
 
+        def draw_children(renderer, view)
+          return super unless @visible_rows
+
+          rgame_children_in_order.each { |child| child.draw(renderer, view) if in_window?(child) }
+        end
+
+        def in_window?(child)
+          return true unless child.is_a?(Button)
+
+          child.y >= @bounds_y && child.y + child.height <= @bounds_y + @bounds_height
+        end
+
+        def row_count = (@buttons.size + @per_row - 1) / @per_row
+
+        def scroll_to(row)
+          first = @first_row
+          first = row if row < first
+          first = row - @visible_rows + 1 if row >= first + @visible_rows
+          return if first == @first_row
+
+          @first_row = first
+          @layout.arrange(@buttons, first)
+        end
+
+        def arrange_buttons
+          if @visible_rows
+            @layout.arrange(@buttons, @first_row)
+          else
+            @layout.arrange(@buttons)
+          end
+        end
+
         def join_group
           group = parent
-          group = group.parent until group.nil? || group.is_a?(FocusGroup)
-          return if group.nil?
+          group = group.parent until group.nil? || group.is_a?(FocusGroup) || group.is_a?(Tabs)
+          return unless group.is_a?(FocusGroup)
 
           group.join(self)
           @group = group
@@ -301,7 +382,7 @@ module RGame
         def interrupted? = @buttons_changed || !current?
 
         def buttons_changed
-          @layout.arrange(@buttons)
+          arrange_buttons
           @bounds_x, @bounds_y, @bounds_width, @bounds_height = @layout.bounds(@buttons)
           @confirm_seen_up = false
           @buttons_changed = true
@@ -332,9 +413,9 @@ module RGame
           end
         end
 
-        def confirm(actions)
-          edge = press_edge(actions, :ui_confirm, @confirm_seen_up)
-          @confirm_seen_up = !actions.held?(:ui_confirm)
+        def confirm_focused(actions)
+          edge = press_edge(actions, @confirm, @confirm_seen_up)
+          @confirm_seen_up = !actions.held?(@confirm)
           button = focused
           pass_edge(button, edge, :confirm) if button
         end

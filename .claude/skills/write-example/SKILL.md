@@ -129,9 +129,10 @@ time.
   puts `shear` on Space, which the default map has on `fire` and `ui_confirm`,
   and nothing in that example reads either.
 
-`ui_up` / `ui_down` / `ui_left` / `ui_right` / `ui_confirm` / `ui_cancel` all
-come from the universal set every map is merged over, so a menu needs no
-declaration at all.
+`ui_up` / `ui_down` / `ui_left` / `ui_right` / `ui_confirm` / `ui_cancel` and
+`ui_tab_prev` / `ui_tab_next` all come from the universal set every map is merged
+over, so a menu needs no declaration at all. The tab actions are Q and E, and E
+is also the default `interact`.
 
 ---
 

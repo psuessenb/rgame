@@ -25,6 +25,12 @@ RSpec.describe RGame::Engine::InputMap do
       expect([map[:ui_radial_x].stick, map[:ui_radial_y].stick]).to eq([controls::AXIS_LEFT_X, controls::AXIS_LEFT_Y])
     end
 
+    it 'switches tabs on Q and E, and on the shoulder buttons' do
+      map = described_class.new
+      expect([map[:ui_tab_prev].buttons, map[:ui_tab_next].buttons])
+        .to eq([[controls::KEY_Q, controls::PAD_LEFT_SHOULDER], [controls::KEY_E, controls::PAD_RIGHT_SHOULDER]])
+    end
+
     it 'lets a game override one of them' do
       map = described_class.new(ui_confirm: { buttons: [controls::PAD_X] })
       expect(map[:ui_confirm].buttons).to eq([controls::PAD_X])
@@ -201,8 +207,10 @@ RSpec.describe RGame::Engine::InputMap do
       expect(two[:swap].silences).to include(:block, :parry)
     end
 
+    # The universal set switches tabs on the shoulder buttons, so a chord of the
+    # two silences tab switching while it is held.
     it 'silences every plain action on one of its buttons' do
-      expect(map[:swap].silences).to contain_exactly(:block, :parry)
+      expect(map[:swap].silences).to contain_exactly(:block, :parry, :ui_tab_prev, :ui_tab_next)
     end
 
     it 'leaves the actions it shares no button with alone' do

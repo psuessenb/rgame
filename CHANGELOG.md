@@ -24,8 +24,26 @@ index, not the argument.
   on a direction the focused button is not `adjustable?` in. `UI::Menu` answers
   `current?` and `group`, and `UI::Navigation` gains `entered`. See
   [docs/api/ui.md](docs/api/ui.md#rgameengineuifocusgroup).
-- **An inventory example.** `examples/inventory` is a bag in a grid, and a
-  column of verbs beside it that acts on the item chosen there. See
+- **A menu that nothing confirms, and stepping on two actions of its own.**
+  `confirm:` on `RGame::Engine::UI::Menu` names the action that confirms, and
+  `confirm: nil` leaves only hotkeys to press its buttons.
+  `UI::Stepping.new(actions:)` steps on two named actions, reads nothing else
+  and never crosses to another menu. `ui_tab_prev` and `ui_tab_next` join the
+  universal UI set on Q and E and the shoulder buttons. See
+  [docs/api/ui.md](docs/api/ui.md#two-actions-of-its-own).
+- **A screen with pages.** `RGame::Engine::UI::Tabs` shows one page at a time
+  under a bar of tabs, switched with `ui_tab_prev` and `ui_tab_next` or a tab's
+  hotkey, and emits `on_changed`. A page is any node; the tabs control and draw
+  the page shown and update every page. `open` and `close` show and hide the
+  whole screen. See [docs/api/ui.md](docs/api/ui.md#rgameengineuitabs).
+- **A list longer than its panel scrolls.** `visible_rows:` on
+  `RGame::Engine::UI::Column` and `UI::Grid` shows that many rows, and a menu
+  over one scrolls the focused button into view. `UI::Menu` answers
+  `first_row`, `rows_above`, `rows_below` and `in_view?`. See
+  [docs/api/ui.md](docs/api/ui.md#a-window-of-rows).
+- **An inventory example.** `examples/inventory` is a bag in a grid that
+  scrolls, a column of verbs beside it that acts on the item chosen there, and
+  a second page of key items behind a tab. See
   [docs/api/examples.md](docs/api/examples.md#inventory).
 - **A component for what the player is standing next to, and one for what picks
   itself up.** `RGame::Engine::Components::Interactor` is a `Targeting` that

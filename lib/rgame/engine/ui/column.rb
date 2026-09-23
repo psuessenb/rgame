@@ -10,9 +10,12 @@ module RGame
       #   UI::Menu.new(layout: UI::Column.new(item_width: 220, item_height: 44))
       #
       # It takes no `axis:` — a column that is not vertical is a UI::Row.
+      # `visible_rows:` shows that many buttons at a time, and the menu scrolls
+      # the rest into view.
       class Column < Stack
-        def initialize(item_width:, item_height:, spacing: 8)
-          super(axis: :vertical, item_width: item_width, item_height: item_height, spacing: spacing)
+        def initialize(item_width:, item_height:, spacing: 8, visible_rows: nil)
+          super(axis: :vertical, item_width: item_width, item_height: item_height, spacing: spacing,
+                visible_rows: visible_rows)
         end
       end
     end

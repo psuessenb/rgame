@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: steps 0 to 5 are implemented.** Sixteen steps. Each is one branch and one
+**Status: steps 0 to 6 are implemented.** Sixteen steps. Each is one branch and one
 pull request, and its sub-steps are one commit each. **Steps 0–8 are detailed**;
 5–8 were planned after step 4 landed, and
 [what that re-plan found](#re-planning-steps-57) comes before them. **Steps 9–15
@@ -1235,6 +1235,81 @@ Three places stop being true here: `docs/api/input.md`'s list of the universal
 set, `docs/api/ui.md`'s "no scrolling lists", and the universal actions
 `write-example` lists.
 
+**Landed.** Four sub-steps, one commit each. `make test` 380 checks 0 failures,
+`rake spec` 3399 examples 0 failures (3315 at the branch point), `rake spec:core`
+477 examples 0 failures, `rake docs:coverage` nothing undocumented.
+
+`Menu` takes `confirm:`, `Stepping` takes `actions:`, and the universal set
+gains `ui_tab_prev` and `ui_tab_next` as sketched. `UI::Tabs` holds its bar and
+its pages, and emits `on_changed`, `on_opened` and `on_closed`. `Column` and
+`Grid` take `visible_rows:`, and a menu over one answers `first_row`,
+`rows_above`, `rows_below` and `in_view?`. The tabs spec is 39 examples,
+including the caller that uses all three: a page holding a group of a scrolled
+grid and a column, switched away and back. The allocation spec measures
+switching tabs both ways and scrolling a grid a row at a time, at zero objects
+each.
+
+The acceptance run is `examples/inventory`, with twenty items in three rows and
+four key items on a second page: 400 ticks against 400 frames and two clicks.
+The counts show the window. Every bag frame draws 12 images and every key-item
+frame 4, so 4448 images is 356 bag frames and 44 key-item frames. The mark
+below the bag is drawn every bag frame, and the mark above from the third step
+down, tick 161, when the bag scrolls: 551 triangles. E on 182 shows "House
+key" from 183, and the key items' counts stand still from Q on 226. At 228 a
+frame adds 12 images and both marks, so the bag came back scrolled, on the item
+it left. The `--gamepad` run on the shoulder buttons reports the same one tick
+later. Frames captured with `xwd` on a private Xvfb show the tab shown, both
+scroll marks, and a crossing into the verbs from a scrolled row.
+
+**Every other driven run reports what it reported at the branch point**, byte
+for byte: all 47 other scripts, under `--seed 4242`, 240 ticks and `--texts`,
+`examples/input_holds` and `test_projects/adventure` among them. The baseline
+was captured twice and agreed with itself, six reports drawing 239 frames in
+both captures.
+
+What the sketch got wrong:
+
+- **Pages do not live off the child list.** A node held off it is never told
+  its parent moved, because `Node2D#rgame_soil` walks `@children`, so a page
+  would keep its old `world_x` once the tabs moved. Each page sits instead in a
+  node the tabs add as a child, controlled only while its page is shown and
+  drawn only while shown. That node is the page's `parent`, not the tabs. The
+  tree's own entry, exit, sweep and transforms then reach every page with
+  nothing overridden. **`SceneStack` has the same gap**: a scene pushed onto a
+  host that then moves answers its old `world_x`. Nothing moves a stack's host
+  today. It belongs to [step 12](#step-12--the-scene-stack-that-names-and-defers-rough).
+- **The bar is controlled before the pages, and the order does not matter.** A
+  page shown is first controlled on the next of the tabs' own passes, counted
+  as `FocusGroup` counts its own. That also holds when a page's own button
+  switches to a page later in the tree, which the ordering alone did not cover.
+  A `Tabs` opened by a node the tree controls earlier in the same tick is read
+  that tick, the same case step 5 noted for `current=`.
+- **The bar is a `Menu` subclass that reports its focus.** `current` is read
+  off the bar's focus, so every route that moves it, a step, a hotkey,
+  `current=` and the first tab added, goes through the bar's `focus`. The
+  subclass and the page's holder are private constants. `on_changed` also
+  emits for the first page shown, as its tab is added.
+- **`Stack#arrange` allocated.** `each_with_index` built an object each call,
+  harmless while `arrange` ran on `add` only. Scrolling calls it on a press, so
+  it loops by index now.
+- **`in_view?` is new.** Rule 14 needs `Stepping#entered` to know which buttons
+  are in the window, so `Menu` answers `in_view?(index)`. A horizontal `Stack`
+  refuses `visible_rows:`, having one row, which cost `Grid` a second
+  overridden private method.
+- **A clamp on `first_row` was dead code.** A menu's buttons shrink only
+  through `clear`, which scrolls to the top. The clamp and that reset each hid
+  the other from mutation, so the clamp went.
+- **The example's items stopped naming their pictures.** Twenty names share
+  thirteen images, so `ITEMS` maps each name to one. The help line grew to 636
+  pixels in a 640-pixel window, and was shortened.
+
+Documented in [docs/api/ui.md](../../api/ui.md#rgameengineuitabs): `Tabs`,
+[a window of rows](../../api/ui.md#a-window-of-rows),
+[two actions of its own](../../api/ui.md#two-actions-of-its-own) and `confirm:`,
+with the universal set in [input.md](../../api/input.md#the-universal-ui-set),
+the example in [examples.md](../../api/examples.md#inventory), and four entries
+in `CHANGELOG.md`.
+
 ---
 
 ## Step 7 — a node reads only the presses it saw start
@@ -1512,7 +1587,10 @@ transition the stack drives. The two hand-written switches in
 step, which is what proves the engine's version covers what they did.
 
 Watch for: the drive harness prepends `push` and `pop` to report scenes, so a
-deferred switch must still go through them.
+deferred switch must still go through them. And a scene is held off its host's
+child list, so it is never told its host moved and keeps its old `world_x`.
+Step 6's landed note measured it, and `Tabs` avoided it by holding each page in
+a child node.
 
 ## Step 13 — doors, entrances, and the teleport example *(rough)*
 

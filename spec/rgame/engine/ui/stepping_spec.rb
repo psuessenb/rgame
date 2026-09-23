@@ -229,6 +229,70 @@ RSpec.describe RGame::Engine::UI::Stepping do
     end
   end
 
+  describe 'actions:' do
+    let(:snapshot) do
+      reads = %i[ui_up ui_down ui_left ui_right ui_confirm ui_tab_prev ui_tab_next]
+      held = reads.to_h { |name| [name, false] }
+      previous = reads.to_h { |name| [name, false] }
+      actions = RGame::Engine::Actions.new(held: held, axes: {}, prev_held: previous)
+
+      lambda do |*down|
+        held.each { |name, state| previous[name] = state }
+        reads.each { |name| held[name] = down.include?(name) }
+        actions
+      end
+    end
+
+    let(:tabs) { described_class.new(actions: %i[ui_tab_prev ui_tab_next]) }
+
+    it 'steps on with the second action' do
+      menu = build(layout: row, navigation: tabs)
+      press(:ui_tab_next)
+      expect(menu.focused.label.key).to eq('Two')
+    end
+
+    it 'wraps back with the first' do
+      menu = build(layout: row, navigation: tabs)
+      press(:ui_tab_prev)
+      expect(menu.focused.label.key).to eq('Three')
+    end
+
+    it 'reads neither pair of arrows' do
+      menu = build(layout: row, navigation: tabs)
+      %i[ui_left ui_right ui_up ui_down].each { press(it) }
+      expect(menu.focused.label.key).to eq('One')
+    end
+
+    it 'adjusts nothing' do
+      menu = build(layout: column, navigation: tabs)
+      press(:ui_tab_next)
+      press(:ui_right)
+      expect(menu.focused.value).to eq(1)
+    end
+
+    it 'never crosses, and wraps inside its own menu' do
+      group = root.add_node(RGame::Engine::UI::FocusGroup.new)
+      menu = group.add_node(RGame::Engine::UI::Menu.new(layout: row, navigation: tabs))
+      %w[One Two].each { |label| menu.add(RGame::Engine::UI::TextButton.new(label: label)) }
+      beside = group.add_node(RGame::Engine::UI::Menu.new(x: 400, layout: row))
+      beside.add(RGame::Engine::UI::TextButton.new(label: 'Beside'))
+      root.enter_tree
+      root.control(snapshot.call)
+      2.times { press(:ui_tab_next) }
+      expect([group.current, menu.focused.label.key]).to eq([menu, 'One'])
+    end
+
+    it 'keeps the names it was given' do
+      expect(tabs.actions).to eq(%i[ui_tab_prev ui_tab_next])
+    end
+
+    [[:ui_tab_next], %i[a b c], 'ui_tab_prev', %w[ui_tab_prev ui_tab_next]].each do |given|
+      it "refuses #{given.inspect}" do
+        expect { described_class.new(actions: given) }.to raise_error(ArgumentError, /actions:/)
+      end
+    end
+  end
+
   describe '#step' do
     it 'skips a disabled button' do
       menu = root.add_node(RGame::Engine::UI::Menu.new(layout: row))

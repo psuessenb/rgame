@@ -222,14 +222,17 @@ on a disc `UI::ShapeStyle`, `InputMap.default.merge`, and a UI atlas's `images`
 
 ### inventory
 
-A bag of eight items in a grid of four columns, and a column of two verbs, Use and
-Drop, beside it. Right from the end of a row crosses into the verbs, and left
-crosses back. A panel under the bag names the item last focused there, which the
-verbs act on. Dropping an item takes it out of the bag.
+A bag of twenty items in a grid of four columns, three rows of it in view, and a
+column of two verbs, Use and Drop, beside it. Focus leaving the window scrolls the
+bag a row, and marks beside it show rows out of view. Right from the end of a row
+crosses into the verbs, and left crosses back. A panel under the bag names the
+item last focused there, which the verbs act on. Dropping an item takes it out of
+the bag. Q and E, or the shoulder buttons, switch to a second page of key items
+and back, and each page keeps its focus and scroll.
 
-**Uses:** `UI::Grid`, `UI::Stepping` across a grid, `UI::FocusGroup`,
-`UI::PanelMenu`, uncaptioned `UI::IconButton`s on a `UI::ShapeStyle`, and a UI
-atlas's `images` (`skills.json` and `icons.json`).
+**Uses:** `UI::Tabs`, `UI::Grid` with `visible_rows:`, `UI::Stepping` across a
+grid, `UI::FocusGroup`, `UI::PanelMenu`, uncaptioned `UI::IconButton`s on a
+`UI::ShapeStyle`, and a UI atlas's `images` (`skills.json` and `icons.json`).
 
 ## Audio
 

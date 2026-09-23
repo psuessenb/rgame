@@ -301,8 +301,8 @@ end
 **A game does not write that.**
 [`RGame::Engine::WorldView`](scene_graph.md#view-transforms-and-the-camera) does it
 once per active player, with the layout's rectangles and each player's camera.
-Call `clipped` directly for a region of your own, such as a minimap or a
-scrolling list.
+Call `clipped` directly for a region of your own, such as a minimap or a list
+that scrolls by the pixel.
 
 ## Recordings: bake once, replay cheaply
 
