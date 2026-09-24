@@ -59,7 +59,13 @@ on controls::KEYBOARD do
   idle 10
   hold controls::KEY_UP, 27
   hold controls::KEY_RIGHT, 257
-  idle 190
+  idle 110
+  press controls::KEY_I
+  idle 21
+  press controls::KEY_I
+  idle 50
+  press controls::KEY_I
+  idle 30
 end
 
 on controls.gamepad(0) do

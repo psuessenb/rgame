@@ -27,13 +27,19 @@ module RGame
       # lives in `Facts`, as a loaded save's state does.
       #
       # **A move lands in the sweep**, as a SceneStack's switch does. `move`
-      # records what was asked, pauses each node it names, and covers each
-      # moving player's region. Once a player's cover is complete, the sweep
-      # takes each of their nodes from its parent, builds the room if it is not
-      # running, and hands the node to the room's `_arrive`. Then the cover
-      # reveals, and the node gets back the `paused` it had once the reveal
-      # ends. A move to the room a node stands in is a warp: `_arrive` places
-      # the node again and nothing leaves the tree.
+      # records what was asked, pauses each node it names, suspends each moving
+      # player's input, and covers each moving player's region. Once a player's
+      # cover is complete, the sweep takes each of their nodes from its parent,
+      # builds the room if it is not running, and hands the node to the room's
+      # `_arrive`. Then the cover reveals. Once the reveal ends, the node gets
+      # back the `paused` it had and its player's input resumes. A move to the
+      # room a node stands in is a warp: `_arrive` places the node again and
+      # nothing leaves the tree.
+      #
+      # **A moving player reads no input anywhere**, as no scene does under a
+      # stack's transition. A bag or a pause menu of theirs outside the rooms
+      # reads nothing held until the reveal ends, and refuses a press begun
+      # under the cover, so nothing of theirs acts on a screen they cannot see.
       #
       # **A node's player** is the one its `input_owner` names, looked up
       # through its parents, and the primary player when none does. A move
@@ -111,6 +117,7 @@ module RGame
           @holds = {}
           @moves = []
           @paused = []
+          @suspended = {}
           @covers = {}
           @transition = nil
           @players = nil
@@ -129,8 +136,11 @@ module RGame
         # snapshot a component is handed.
         def _attach = @players = node.system(Engine::Players)
 
-        # Releases every song the rooms claim, at once.
+        # Releases every song the rooms claim, at once, and resumes the input of
+        # every player a move had suspended.
         def _detach
+          @suspended.each_key(&:resume_input)
+          @suspended.clear
           @out&.release_music(*@claimed.keys.map { @songs[it].key })
           @claimed.clear
           @out = nil
@@ -214,7 +224,7 @@ module RGame
         # hot-path
         def _update(dt)
           @covers.each_value { it.curtain.update(dt) }
-          restore_paused unless @paused.empty?
+          restore_moved unless @paused.empty? && @suspended.empty?
           @running.each { it.update(dt) }
         end
 
@@ -240,6 +250,7 @@ module RGame
           @moves.delete_if { it.node.equal?(moving) }
           @moves << Move.new(moving, name, entrance, player)
           pause(moving, player)
+          suspend(player) if player
           at_once = player && @room_of[player].nil?
           cover = transition ? cover_for(player) : @covers[player] if player
           cover&.curtain&.close(transition, at_once:)
@@ -293,11 +304,21 @@ module RGame
           moving.paused = true
         end
 
-        def restore_paused
+        def suspend(player)
+          @suspended[player] = player.suspend_input unless @suspended.key?(player)
+        end
+
+        def restore_moved
           @paused.delete_if do |entry|
             next false if moving?(entry.node) || covered?(entry.player)
 
             entry.node.paused = entry.was
+            true
+          end
+          @suspended.delete_if do |player, _|
+            next false if @moves.any? { it.player.equal?(player) } || covered?(player)
+
+            player.resume_input
             true
           end
         end
@@ -315,7 +336,7 @@ module RGame
           end
           bound_cameras
           @covers.each { |player, cover| cover.curtain.open unless @moves.any? { it.player.equal?(player) } }
-          restore_paused
+          restore_moved
         end
 
         def ready?(move) = move.player.nil? || @covers[move.player].nil? || @covers[move.player].curtain.ready?

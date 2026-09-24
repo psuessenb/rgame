@@ -40,4 +40,22 @@ RSpec.describe RGame::Engine::Scene::Rooms do
 
     expect { tick(root, players, renderer, view) }.to allocate_nothing
   end
+
+  # The cover takes 30 ticks and the reveal 60, so the measured tick is in the
+  # middle of the reveal, where the moving player's input is still suspended
+  # and each tick asks whether to resume it.
+  it 'allocates nothing on a tick of a reveal, with the moving player\'s input suspended' do
+    root, players = mounted
+    renderer = QuietRenderer.new
+    view = screen_view
+    30.times { tick(root, players, renderer, view) }
+    rooms = root.children.first.get_component(described_class)
+    hero = rooms[:town].actors.children.first
+    rooms.move(hero, to: :garden, entrance: 'well', transition: RGame::Engine::Scene::Fade.new(cover: 0.5, reveal: 1.0))
+    60.times { tick(root, players, renderer, view) }
+    suspended = players.primary.input_suspended?
+
+    expect { tick(root, players, renderer, view) }.to allocate_nothing
+    expect(suspended).to be(true)
+  end
 end

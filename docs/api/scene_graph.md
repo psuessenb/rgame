@@ -923,7 +923,14 @@ both. A warp pad and a door are one call.
 
 **Each node stands paused from the request until its player's reveal ends**, and
 then gets back the `paused` it had. With no transition it gets it back as the
-move lands. A `CharacterBody` stands still as its node enters the tree, so a
+move lands.
+
+**The moving player reads no input anywhere until then**, as no scene does under
+a stack's transition. The rooms [suspend their
+input](input.md#a-players-input-can-be-suspended): a bag or a pause menu of
+theirs outside the rooms reads nothing held, and refuses a press begun under
+the cover. So nothing of theirs can change the `paused` the rooms will give
+back. The other players read their input as before. A `CharacterBody` stands still as its node enters the tree, so a
 hero carried into a room does not walk on. Set an intent after placing it for
 one that should walk in.
 

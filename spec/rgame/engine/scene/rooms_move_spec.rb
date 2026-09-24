@@ -4,6 +4,23 @@
 # ticks and reveals in four more, with no rounding. Each tick runs as
 # RGame::Game runs one: a poll, a control of the whole tree, an update and a
 # sweep.
+# What a node reads of `:fire`: whether it is held, and how many presses of
+# it reached the node.
+class FireListener < RGame::Engine::Node2D
+  attr_reader :held, :presses
+
+  def initialize(**)
+    super
+    @held = false
+    @presses = 0
+  end
+
+  def _control(actions)
+    @held = actions.held?(:fire)
+    @presses += 1 if actions.pressed?(:fire)
+  end
+end
+
 # rubocop:disable RSpec/MultipleMemoizedHelpers -- two players, their heroes, the screen and the tree every group shares
 RSpec.describe RGame::Engine::Scene::Rooms do
   let(:fade) { RGame::Engine::Scene::Fade.new(cover: 0.5, reveal: 0.5) }
@@ -127,6 +144,54 @@ RSpec.describe RGame::Engine::Scene::Rooms do
     rooms.move(hero, to: :garden, entrance: 'well')
     under_way = run(8) { rooms.transitioning? }
     expect(under_way).to eq([true] * 7 + [false])
+  end
+
+  describe 'the moving player\'s input' do
+    # A node of the first player's outside the rooms, as a bag in the world is.
+    let(:bag) { root.add_node(FireListener.new(input_owner: first)) }
+    let(:other_bag) { root.add_node(FireListener.new(input_owner: second)) }
+
+    it 'is suspended from the request until the reveal ends, and nobody else\'s is' do
+      rooms.move(hero, to: :garden, entrance: 'well')
+      suspended = [first.input_suspended?] + run(8) { first.input_suspended? }
+
+      expect(suspended).to eq([true] * 8 + [false])
+      expect(second.input_suspended?).to be(false)
+    end
+
+    it 'reaches no node of that player under the cover, while the other player\'s still reads theirs' do
+      bag
+      other_bag
+      rooms.move(hero, to: :garden, entrance: 'well')
+      tick
+      backend.hold(RGame::Util::Controls::KEY_SPACE)
+             .hold(RGame::Util::Controls::PAD_A, device: RGame::Util::Controls.gamepad(0))
+      tick
+
+      expect([bag.held, other_bag.held]).to eq([false, true])
+    end
+
+    it 'refuses, once the reveal ends, a press begun under the cover' do
+      bag
+      rooms.move(hero, to: :garden, entrance: 'well')
+      tick
+      backend.hold(RGame::Util::Controls::KEY_SPACE)
+      run(8)
+      under_cover = bag.presses
+      backend.release(RGame::Util::Controls::KEY_SPACE)
+      tick
+      backend.hold(RGame::Util::Controls::KEY_SPACE)
+      tick
+
+      expect([under_cover, bag.presses]).to eq([0, 1])
+    end
+
+    it 'resumes as the rooms leave the tree mid-move' do
+      rooms.move(hero, to: :garden, entrance: 'well')
+      root.remove_node(world)
+
+      expect(first.input_suspended?).to be(false)
+    end
   end
 end
 # rubocop:enable RSpec/MultipleMemoizedHelpers

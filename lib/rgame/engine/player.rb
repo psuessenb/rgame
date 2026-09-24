@@ -28,6 +28,15 @@ module RGame
     # device only answers for its own kind of input. Each player gets their own
     # ActionMapper, so their edge queries are independent — one player's press
     # cannot consume another's.
+    #
+    # ## Input can be suspended
+    #
+    # `suspend_input` makes `actions` read as nothing held, for every node that
+    # answers to this player, until `resume_input` is called as often. The device
+    # is still polled underneath, so a button held throughout reads as held
+    # again once input resumes. A node's press gate sees another snapshot come
+    # back and refuses any press begun while input was suspended.
+    # Scene::Rooms suspends a player's input while it moves them.
     class Player
       Controls = RGame::Util::Controls
 
@@ -44,6 +53,8 @@ module RGame
         @mapper = ActionMapper.new(input_map || InputMap.default, device: device)
         @ui = Node2D.new
         @name = nil
+        @suspended = 0
+        @idle_actions = nil
       end
 
       def device = @mapper.device
@@ -56,14 +67,45 @@ module RGame
       end
 
       # This player's input for the current tick. Set by #poll, and a reused
-      # object — hold the Player, never this.
-      def actions = @mapper.actions
+      # object — hold the Player, never this. While input is suspended, a
+      # snapshot of the same actions with nothing held.
+      # hot-path
+      def actions = @suspended.zero? ? @mapper.actions : idle_actions
+
+      # Suspends this player's input until a matching #resume_input. Calls
+      # count, so two owners may each suspend and resume. Returns the player.
+      def suspend_input
+        @suspended += 1
+        self
+      end
+
+      # Ends one #suspend_input. Raises when nothing suspended the input, since
+      # a resume with no suspend is one owner ending another's.
+      def resume_input
+        raise 'resume_input called with no suspend_input to end' if @suspended.zero?
+
+        @suspended -= 1
+        self
+      end
+
+      def input_suspended? = @suspended.positive?
 
       def poll(backend, dt) = @mapper.poll(backend, dt)
 
       # What this player's map can answer for. The vocabulary is the game's, so
       # it is the same for every player; the bindings behind it are not.
       def input_map = @mapper.map
+
+      private
+
+      def idle_actions
+        @idle_actions ||= begin
+          names = @mapper.map.bindings.keys
+          at_rest = ->(value) { names.to_h { [it, value] }.freeze }
+          Actions.new(held: at_rest[false], axes: at_rest[0.0], prev_held: at_rest[false],
+                      hold_times: at_rest[0.0], down_since: at_rest[nil], poll_count: 0)
+        end
+      end
     end
   end
 end

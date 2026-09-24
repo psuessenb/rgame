@@ -309,7 +309,9 @@ after one it did not:
 - its first after a scene above it was popped, or after its page of a
   `UI::Tabs` was shown again;
 - its first after its `input_owner` changed, since the presses it reads from
-  then on are another player's.
+  then on are another player's;
+- its first after its player's input was
+  [suspended](#a-players-input-can-be-suspended), as a room's move suspends it.
 
 A press that began on the poll the node resumed on is refused too. So E tapped
 in a hero's bag and released after the bag closes opens no chest, although a tap
@@ -396,6 +398,25 @@ full-screen game.
 
 `player.active?` is `false` while that seat is empty. `players.each_active` yields
 only the seated players, and `players.active_count` counts them.
+
+### A player's input can be suspended
+
+```ruby
+player.suspend_input      # every node of theirs reads nothing held
+player.input_suspended?   # => true
+player.resume_input       # ends one suspend_input
+```
+
+**`Player#suspend_input` makes `Player#actions` read as nothing held**, for every
+node that answers to that player, until `Player#resume_input` is called as often.
+Calls count, so two owners can each suspend and resume without ending the
+other's. A resume with no suspend to end raises. The device is still polled, so
+a button held throughout reads as held again once input resumes. Each node then
+resumes, so a press begun while input was suspended is refused.
+
+`Scene::Rooms` suspends a player's input from the moment their move is asked
+for until its reveal ends, so a bag of theirs outside the rooms cannot open or
+close on a screen they cannot see. See [Rooms](scene_graph.md#a-move-lands-in-the-sweep).
 
 ### A device is seated when someone uses it
 
