@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: steps 0 to 15 are implemented.** Eighteen steps. Each is one branch and one
+**Status: steps 0 to 16 are implemented.** Eighteen steps. Each is one branch and one
 pull request, and its sub-steps are one commit each. **Steps 0–16 are detailed.**
 Steps 5–8 were planned after step 4 landed, steps 9–12 after step 8, and steps
 13–16 after step 12. What each re-plan found comes before its steps:
@@ -3643,6 +3643,97 @@ keeps its own map and moves.
 the script, and `docs/api/dialogue.md` `finish` and the box.
 `scene_graph.md` says what `solo!`'s `room:` shows, and `examples.md` and
 `README.md` gain `examples/cutscene`.
+
+**Landed.** Five commits: 16a, one for `Node2D#suspend` that 16b needed first,
+16b, 16c and 16d. `make test` 412 checks 0 failures, as at the branch point.
+`rake spec` 3979 examples 0 failures (3917), `rake spec:core` 517 examples 0
+failures (517), `rake docs:coverage` nothing undocumented in 206 classes, and
+`rake drive:allocations` passes all 41 projects. `examples/cutscene` runs at
+63.1 objects a second under a budget of 80, and the adventure at 74.6 under 90,
+from 52.9.
+
+**`examples/cutscene` ends in the same world whether watched or skipped.**
+Driven for 720 ticks, the watched run draws "Town crier" and the first line
+from tick 391, as the walk ends, the second line from 423, and "The garden gate
+is open" from 507. The skipped run holds Tab from tick 122, during the walk,
+and draws "The garden gate is open" from 158 and no line of the crier's.
+After the end both draw the same two texts, each half of the window holds 126
+distinct translates, and both end on the same last `tilemap` call. A trace
+put the crier at (456, 232), the end of its walk, and both heroes running, in
+both runs. The screen is one clip of the whole window from E to the end, and
+two halves before and after.
+
+**`tiled_world`'s cutscene reports what it reported, but for one tick of the
+world.** Driven with `media/` present under `--seed 4242`, the texts are drawn
+from the same ticks and as often, and every clip is pushed as often. The report
+differs by 2 sprite draws and 5 distinct translates. The old cutscene unpaused
+the world in the control phase, and the component gives it back in its update,
+after the world's, so the world runs again one tick later.
+
+**The adventure opens under its cutscene, and its keyboard track holds the skip
+through it.** Driven for 1640 ticks under `--seed 4242`, "Morning in the town"
+is drawn from tick 2 to 75, in the one clip of the whole window, and the second
+caption never: the skip runs it and the last step clears it in the same tick.
+Every line after the opening reads as `main` reads it, 80 ticks later: the
+rooms in the same order, every text as often per clip, every clip as often, and
+the same music. In the garden, "Keep off the flower beds" is drawn 34 times
+from tick 1063, in the pad's region only, while the keyboard's region draws the
+town. The pad's confirm ends it, and the pad's hero walks on to the pads and the
+horn as before.
+
+What the sketch got wrong:
+
+- **Two owners of one `paused` give back each other's value.** Rule 4 paused
+  each node and rule 5 gave back the `paused` it found, as step 13's moves did.
+  The garden's sign starts under the door's reveal: the move records false,
+  the sign true, the move gives back false, the sign true, and the hero stays
+  paused. `Node2D#suspend` and `#resume` count, and leave `paused` to the game.
+  The rooms and the cutscene suspend. It landed as its own commit before 16b,
+  and `rooms_move_spec.rb` and `cutscene_spec.rb` pin both orders.
+- **A step starts the tick the one before it ended only when that ended before
+  the cutscene's update.** Steps move on in `_update`. A `hold` on a node the
+  tree updates after the cutscene's node is heard as it ends, and the next step
+  starts on the cutscene's next update. Moving on inside the signal would have
+  run the next steps from within another node's update, and disconnected a
+  listener in the middle of its emit, which skips the next listener.
+- **A press names its action.** `tiled_world` ends its scene on Tab from either
+  player, not on `ui_confirm`. `press :cutscene` waits for that action, and a
+  node `Players#everyone` owns reads every player.
+- **A cutscene with a camera hides a cover under way.** The adventure's opening
+  starts as the town is built, under the first hero's arrival fade. A solo view
+  gives no player a region, so the cover draws nothing: the report reads 240
+  `faded` where `main` reads 270.
+- **The skip is refused when it starts under a cover.** The first hero's input
+  is suspended until the arrival reveal ends, and the town's gate refuses a
+  press begun on the poll it resumed on. The keyboard holds Tab from tick 40,
+  and the skip lands at 76. The joins are closed until then, so both tracks
+  start 80 ticks later.
+- **The adventure's pad joins after the warm-up.** Spawning its hero and bag at
+  tick 142 is counted, about 315 objects, and the sign's scene about 60 more.
+  The script's budget is 90, and the reason lives here, since the hook strips a
+  comment from a test project's script ([open question
+  7](README.md#open-questions)).
+- **Nothing refuses a skip action without `hold:`.** Rule 7 is written in the
+  documentation, and no code checks the binding.
+- **A cutscene that leaves the tree fires no `ended`.** Rule 5 gives everything
+  back, and rule 10 says nothing about this case. It did not end, so nothing
+  fires.
+- **`solo_camera` reads the applied mode.** A `solo!` asked for in the tick a
+  cutscene starts is not seen, so the cutscene would give back the split rather
+  than that solo. Nothing does that today.
+
+Documented in [components.md](../../api/components.md#cutscene), which gains
+`Components::Cutscene` and `PathFollow#finish`, in
+[toolbox.md](../../api/toolbox.md#cutscenescript--a-cutscenes-steps), which
+gains the script and `ScreenFade#finish`, in
+[dialogue.md](../../api/dialogue.md#running-one) and
+[ui.md](../../api/ui.md#rgameengineuidialoguebox) for `finish` and the box,
+and in [scene_graph.md](../../api/scene_graph.md#pausing-a-subtree), which
+gains `suspend`, `solo!`'s `room:` and `Rooms#running`.
+[examples.md](../../api/examples.md#cutscene) and `README.md` gain
+`examples/cutscene`, and `CHANGELOG.md` gains cutscenes, the example,
+suspended nodes and the solo room, and `finish` in the entries for the fade,
+the dialogue and the box.
 
 ---
 
