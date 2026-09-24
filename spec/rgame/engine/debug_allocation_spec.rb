@@ -33,9 +33,17 @@ RSpec.describe RGame::Engine::Debug do
   # overlay directly, because that is the path a game runs, and `fps` arrives
   # as the Float RGame::Game hands over. The warm-up runs past one whole
   # second, so the overlay has closed one before measuring starts.
+  #
+  # It also takes one tick the collector worked in, so the overlay has timed a
+  # collection before measuring starts. The matcher pauses the collector, but a
+  # lazy sweep can still move its clock across a millisecond inside the window,
+  # and the first time that branch runs it fills two call caches: about one
+  # run in 400 did, before this tick was added.
   it 'allocates nothing with the stats overlay on' do
     debug.show(:stats)
     debug.fps = 59.94
+    GC.start
+    debug._update(1.0 / 60)
 
     expect do
       debug._update(1.0 / 60)
