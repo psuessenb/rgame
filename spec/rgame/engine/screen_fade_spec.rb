@@ -160,6 +160,39 @@ RSpec.describe RGame::Engine::ScreenFade do
     end
   end
 
+  describe '#finish' do
+    it 'jumps a cover to covered and emits once' do
+      count = finishes
+      fade.cover(0.4)
+      step(0.1)
+      fade.finish.finish
+      expect([fade.opacity, fade.covered?, count.call]).to eq([1.0, true, 1])
+    end
+
+    it 'jumps a reveal to clear' do
+      fade.opacity = 1
+      fade.reveal(0.4)
+      fade.finish
+      expect([fade.opacity, fade.running?]).to eq([0.0, false])
+    end
+
+    it 'ends a flash clear, back in its own colour' do
+      fade.flash(0.4, color: glare)
+      step(0.2)
+      fade.finish
+      opacity = fade.opacity
+      fade.opacity = 1
+      draw
+      expect([opacity, rects.last.options[:color], fade.running?]).to eq([0.0, color::BLACK, false])
+    end
+
+    it 'does nothing with nothing running' do
+      count = finishes
+      fade.finish
+      expect([fade.opacity, count.call]).to eq([0, 0])
+    end
+  end
+
   describe 'on_finished' do
     it 'fires once when a cover, a reveal or a flash ends' do
       count = finishes

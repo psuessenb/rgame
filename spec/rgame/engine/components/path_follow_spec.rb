@@ -54,6 +54,29 @@ RSpec.describe RGame::Engine::Components::PathFollow do
     end
   end
 
+  describe '#finish' do
+    it 'places the node on the last waypoint and emits on_finished once' do
+      finishes = 0
+      follow.on_finished { finishes += 1 }
+      follow._update(0.5)
+
+      follow.finish
+      follow.finish
+      follow._update(1.0)
+      expect([node.x, node.y, follow.finished?, finishes]).to eq([100.0, 100.0, true, 1])
+    end
+
+    it 'does nothing for a follower with no route' do
+      idle = described_class.new(speed: 50.0)
+      walker = RGame::Engine::Node2D.new(x: 5.0, y: 6.0)
+      walker.add_component(idle)
+      walker.enter_tree
+
+      idle.finish
+      expect([walker.x, walker.y, idle.finished?]).to eq([5.0, 6.0, false])
+    end
+  end
+
   describe 're-entering the tree (pool recycle)' do
     it 'restarts the walk from the first waypoint' do
       follow._update(10.0) # walk all the way to the end
@@ -213,6 +236,12 @@ RSpec.describe RGame::Engine::Components::PathFollow do
     def hold_then_open
       64.times { tick }
       gate.x = 1000.0
+    end
+
+    it 'is placed past the gate by finish' do
+      40.times { tick }
+      held.finish
+      expect([walker.x, held.finished?]).to eq([100.0, true])
     end
 
     it 'waits where it was stopped rather than being placed further on' do

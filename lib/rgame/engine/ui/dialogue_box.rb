@@ -60,9 +60,11 @@ module RGame
       #
       # ## When the conversation ends
       #
-      # The box frees itself. The game hears the end, and gets the transcript,
-      # from Engine::Dialogue#on_ended. The box is the only thing meant to move
-      # its dialogue; it reads the dialogue back after each move it makes.
+      # The box frees itself, whether it moved the dialogue to its end or
+      # another hand ended it with Engine::Dialogue#finish, as skipping a
+      # cutscene does. The game hears the end, and gets the transcript, from
+      # Engine::Dialogue#on_ended. The box is the only thing meant to move its
+      # dialogue on; it reads the dialogue back after each move it makes.
       class DialogueBox < Node2D
         UNAVAILABLE = %i[hide disable].freeze
 
@@ -110,6 +112,7 @@ module RGame
 
           super(width:, **)
           @dialogue = dialogue
+          dialogue.on_ended { queue_free }
           @unavailable = unavailable
           @typeface = typeface
           @panel = panel
@@ -237,7 +240,7 @@ module RGame
         end
 
         def after_move
-          return queue_free if @dialogue.ended?
+          return if @dialogue.ended?
 
           @line.text = @dialogue.line
           read_back

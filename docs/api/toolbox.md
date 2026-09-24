@@ -441,6 +441,9 @@ fade draws nothing, and neither stepping nor drawing allocates.
   included. A flash under way keeps its own colour until it ends.
 - **Each call replaces whatever was running.** `on_finished` fires once for the
   one that reaches its end, and never for one replaced before it.
+- **`finish`** jumps to where the one running was going and fires
+  `on_finished`, as its end does: covered after a cover, clear after a reveal or
+  a flash. It does nothing when nothing runs.
 - **`running?`** is true while one runs. **`covered?`** is true when the fade is
   opaque and nothing is running.
 - **To start covered**, set `opacity = 1` before the first `reveal`.

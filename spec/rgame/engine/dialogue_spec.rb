@@ -212,6 +212,36 @@ RSpec.describe RGame::Engine::Dialogue do
     expect { talk.continue }.to raise_error(RuntimeError, /beat :shut waits for a response and none is available/)
   end
 
+  describe '#finish' do
+    let(:paid) { [] }
+    let(:bribe) do
+      paid = self.paid
+      script do
+        beat :greeting, speaker: :smith, line: 'greeting' do
+          respond 'bribe', to: :work, then: ->(_) { paid << :bribe }
+        end
+        beat :work, speaker: :smith, line: 'work'
+      end
+    end
+
+    it 'ends where it stands, running no response, and hands on_ended the transcript so far' do
+      talk = described_class.new(bribe)
+      heard = []
+      talk.on_ended { heard << it }
+      talk.finish.finish
+      expect([talk.ended?, paid, heard.size, heard.first.frozen?,
+              heard.first.map(&:beat)]).to eq([true, [], 1, true, [:greeting]])
+    end
+
+    it 'starts a saved conversation again at its first beat' do
+      facts = engine::Components::Facts.new
+      talk = described_class.new(smith, facts:, name: :smith)
+      respond_to_label(talk, 'ask_work')
+      talk.finish
+      expect(described_class.new(smith, facts:, name: :smith).beat).to eq(:greeting)
+    end
+  end
+
   describe 'the transcript' do
     it 'hands on_ended the frozen transcript' do
       talk = described_class.new(smith)

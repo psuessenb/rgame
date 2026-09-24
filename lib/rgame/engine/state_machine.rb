@@ -178,6 +178,17 @@ module RGame
         self
       end
 
+      # Ends the machine where it stands, taking no transition, running no
+      # effect and telling no one. `Dialogue#finish` ends a conversation this
+      # way.
+      #
+      # @api private
+      def stop
+        check_idle
+        @state = nil
+        self
+      end
+
       # Raises `NoMethodError` naming every Symbol in `symbols` that `context`
       # does not answer, as a machine does at construction.
       #

@@ -75,9 +75,13 @@ index, not the argument.
   also answers `pause_music`, `resume_music`, `set_music_volume(id, volume)` and
   `stop_music(id)`, and `Song#resume` carries on where `stop` left it. See
   [docs/api/audio.md](docs/api/audio.md#categories).
+- **A walker can be put at the end of its route.**
+  `Components::PathFollow#finish` places its node on the last waypoint and
+  emits `on_finished`, and so does a `Navigator`'s. See
+  [docs/api/components.md](docs/api/components.md#pathfollow).
 - **A fade over the screen.** `RGame::Engine::ScreenFade` covers the view it is
   drawn into in one colour, reveals it again, and flashes it, emitting
-  `on_finished` at the end of each. See
+  `on_finished` at the end of each. `finish` jumps to the end at once. See
   [docs/api/toolbox.md](docs/api/toolbox.md#screenfade--cover-the-view-and-flash-it).
 - **Particles.** `RGame::Engine::Components::Particles` bursts and streams
   small squares that fall, change colour with age and vanish, allocating
@@ -235,8 +239,8 @@ index, not the argument.
 - **A game can hold a branching conversation.**
   `RGame::Engine::Dialogue::Script.build` declares beats, each a speaker saying
   a translated line, and responses that conditions can make unavailable.
-  `RGame::Engine::Dialogue` runs one and saves by `name:` like a quest. It
-  draws nothing itself. See
+  `RGame::Engine::Dialogue` runs one and saves by `name:` like a quest, and
+  `finish` ends it where it stands. It draws nothing itself. See
   [docs/api/dialogue.md](docs/api/dialogue.md#dialogue).
 - **A conversation keeps a transcript and hands it over when it ends.**
   `RGame::Engine::Dialogue::Transcript` records each line with the values it
@@ -248,8 +252,8 @@ index, not the argument.
   responses. Confirm shows the rest of a page, turns it, or moves on.
   `unavailable:` hides or disables a response the player cannot pick. The box
   answers to its player, so two players can talk in two halves of the screen,
-  and it frees itself when the conversation ends. A subclass draws a portrait
-  beside the line in `_draw_portrait`. See
+  and it frees itself when the conversation ends, however it ends. A subclass
+  draws a portrait beside the line in `_draw_portrait`. See
   [docs/api/ui.md](docs/api/ui.md#rgameengineuidialoguebox).
 - **A dialogue box can show its log.** `log:` on `UI::DialogueBox` names an
   action that opens the transcript as a paged label in place of the line, and

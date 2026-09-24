@@ -41,7 +41,8 @@ module RGame
       # `path: nil` builds an idle follower, which moves nothing and never finishes, and
       # `follow(path)` hands any follower a route to walk from its start — the same restart
       # entering the tree gives, so a walker that finished one route walks the next and
-      # finishes again, and one still walking drops its old route at once.
+      # finishes again, and one still walking drops its old route at once. `finish` puts
+      # the walker at the end of its route at once, as skipping a cutscene does.
       #
       # Its heading is the unit direction of the segment it is on, worked out when the walk
       # crosses into a segment rather than on every read.
@@ -76,6 +77,17 @@ module RGame
           restart
         end
 
+        # Places the node on the last waypoint and emits `on_finished`, as
+        # reaching it does, whatever stands in the way. Does nothing when the
+        # walk has finished or there is no route. Returns self.
+        def finish
+          return self if @finished || @path.nil?
+
+          place_at(@path.count - 1) if node
+          arrive
+          self
+        end
+
         private
 
         def take_step(dt)
@@ -86,7 +98,7 @@ module RGame
 
           if advance_to_end?(@speed * dt)
             last = @path.count - 1
-            return finish if moved_to?(@path.x_at(last), @path.y_at(last))
+            return arrive if moved_to?(@path.x_at(last), @path.y_at(last))
 
             rewind(from_segment, from_distance)
           else
@@ -132,7 +144,7 @@ module RGame
           @distance = distance
         end
 
-        def finish
+        def arrive
           @finished = true
           head_nowhere
           finished_signal.emit

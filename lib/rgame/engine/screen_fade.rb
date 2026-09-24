@@ -9,6 +9,7 @@ module RGame
     #   fade.cover(0.4)                   # to opaque over 0.4 s, from where it is
     #   fade.reveal(0.4)                  # back to clear
     #   fade.flash(0.15, color: GLARE)    # up to GLARE and back down
+    #   fade.finish                       # to where it was going, at once
     #   fade.on_finished { ... }
     #
     # **It fades by its own `opacity`.** It steps a tween in `_update` and
@@ -73,6 +74,17 @@ module RGame
         run(@flash.restart)
       end
 
+      # Jumps to where the cover, reveal or flash under way was going, and
+      # emits `on_finished`, as its end does. A flash ends clear. Does nothing
+      # when nothing is running. Returns self.
+      def finish
+        return self unless @running
+
+        self.opacity = @running.finish.value.clamp(0.0, 1.0)
+        complete
+        self
+      end
+
       # Whether a cover, a reveal or a flash is under way.
       def running? = !@running.nil?
 
@@ -83,11 +95,7 @@ module RGame
         return unless @running
 
         self.opacity = @running.update(dt).value.clamp(0.0, 1.0)
-        return unless @running.done?
-
-        @running = nil
-        @drawn = @color
-        finished_signal.emit
+        complete if @running.done?
       end
 
       def _draw(renderer, view)
@@ -95,6 +103,12 @@ module RGame
       end
 
       private
+
+      def complete
+        @running = nil
+        @drawn = @color
+        finished_signal.emit
+      end
 
       def fade_to(target, duration)
         @fade.duration = duration

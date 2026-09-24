@@ -1108,6 +1108,10 @@ to that signal.
   another route drops that route at once and is placed on the new first waypoint. You
   may call it from an `on_finished` handler. `follow(nil)` stops the walk where it
   stands. `path` returns the route being walked.
+- **To the end at once:** `finish` places the node on the last waypoint and emits
+  `on_finished`, whatever stands in the way, as skipping a
+  cutscene does. It does nothing for a finished or idle follower.
+  A [`Navigator`](#navigator) finishes the same way, at the end of its route.
 
   ```ruby
   out  = RGame::Engine::Path.new([[40.0, 100.0], [200.0, 100.0]])

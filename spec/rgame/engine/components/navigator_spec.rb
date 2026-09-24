@@ -256,6 +256,18 @@ RSpec.describe RGame::Engine::Components::Navigator do
       expect(anchor(navigator)).to eq(centre(1, 4))
     end
 
+    it 'is at the end of its route at once when finished, and emits once' do
+      mount(fence)
+      navigator = hero_at(1, 1)
+      scene.enter_tree
+      finishes = 0
+      navigator.on_finished { finishes += 1 }
+      go_to_cell(navigator, 18, 10)
+      navigator.finish
+      scene.update(dt)
+      expect([anchor(navigator), finishes]).to eq([centre(18, 10), 1])
+    end
+
     describe 'to the cell the node is already in' do
       it 'walks to the centre of it' do
         mount(fence)

@@ -534,6 +534,7 @@ talk.line                          # => nil
 | `available?(response)` | whether its conditions hold now |
 | `respond(response)` | picks it, and returns it |
 | `continue` | moves on from a beat without responses |
+| `finish` | ends the conversation where it stands; see below |
 | `ended?` | whether the conversation has ended |
 | `visits(beat)` | how often the conversation entered `beat` |
 | `context`, `facts`, `name`, `to_h` | as the machine's |
@@ -549,6 +550,14 @@ talk.line                          # => nil
 `available?` raise `ArgumentError` for a response not listed for the beat, and
 `respond` for one not available. Whatever drives the dialogue never has to
 guess what confirm means.
+
+**`finish` ends the conversation where it stands,** as skipping a
+cutscene does. Nobody picks a response, so no
+response's `then:` runs, and `on_ended` fires with the transcript so far. A
+`UI::DialogueBox` showing the dialogue frees itself. A saved conversation
+starts again at its first beat, as one that ended any other way does. Once the
+conversation has ended, `finish` does nothing. A script whose outcome must hold
+either way puts it after the conversation, not in a response's `then:`.
 
 **A condition, an effect or a `vars:` block is called with the machine.** It
 reads `context`, `facts` and `visits` exactly as a quest's condition does. A
