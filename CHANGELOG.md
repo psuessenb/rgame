@@ -14,6 +14,13 @@ index, not the argument.
 
 ### Added
 
+- **Scenes that fade in and out.** `Scene::SceneStack#transition=` takes a
+  `Scene::Fade`, a colour and two durations, and each switch then covers the
+  view, lands while covered and reveals the new scene. No scene reads input
+  until the reveal ends. `push`, `replace` and `pop` take `transition:` for one
+  switch, `nil` for none, and `transitioning?` answers whether one runs.
+  `ScreenFade#color=` changes the colour a fade covers in. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md#transitions).
 - **Scenes by name.** `Scene::SceneStack#define(name) { |**keywords| ... }`
   names a scene, and `push` and `replace` take the name with the keywords its
   builder takes. A name the stack was not given raises `KeyError` where it is

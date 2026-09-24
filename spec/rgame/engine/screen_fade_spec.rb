@@ -132,6 +132,34 @@ RSpec.describe RGame::Engine::ScreenFade do
     end
   end
 
+  describe '#color=' do
+    it 'changes the colour a cover draws in, one under way included' do
+      fade.cover(0.4)
+      step(0.1)
+      fade.color = glare
+      draw
+
+      expect([fade.color, rects.last.options[:color]]).to eq([glare, glare])
+    end
+
+    it 'leaves a flash under way in its own colour until it ends' do
+      fade.flash(0.4, color: color::WHITE)
+      step(0.1)
+      fade.color = glare
+      draw
+      step(0.3)
+      fade.cover(0.4)
+      step(0.1)
+      draw
+
+      expect(rects.map { it.options[:color] }).to eq([color::WHITE, glare])
+    end
+
+    it 'refuses a colour that is not a Color' do
+      expect { fade.color = :black }.to raise_error(TypeError, /must be a/)
+    end
+  end
+
   describe 'on_finished' do
     it 'fires once when a cover, a reveal or a flash ends' do
       count = finishes

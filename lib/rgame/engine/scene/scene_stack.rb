@@ -16,6 +16,9 @@ module RGame
       #   stack.pop
       #   stack.on_changed { |scene| ... }       # the top scene, once a switch lands
       #
+      #   stack.transition = Engine::Scene::Fade.new(cover: 0.25, reveal: 0.25)
+      #   stack.push(:pause, transition: nil)    # this switch without one
+      #
       # **A switch lands in the sweep**, after the tick that asked for it, as a
       # `queue_free` does. A menu item asks during `control`, in the middle of a
       # walk over the scene the switch takes apart, so `push`, `replace` and
@@ -36,6 +39,19 @@ module RGame
       # leaves the tree, and hands it to the builder under its key. Its
       # components leave the old scene's systems as it goes, and join the new
       # one's when the builder puts it in the new scene.
+      #
+      # **A transition covers the view, switches, and reveals it.** With a
+      # Scene::Fade, a switch covers the host's view in `:overlay`, lands in the
+      # sweep after the cover ends, and reveals the new scene. No scene is
+      # controlled until the reveal ends. The scene leaving is not updated
+      # under the cover, and the scene arriving is updated from the tick after
+      # it lands. So a scene's first press after a transition began after it.
+      #
+      # A switch asked for during a cover replaces the one waiting, and one
+      # asked for during a reveal covers again from where the reveal got to.
+      # Either joins the transition under way when it has none of its own. A
+      # push onto an empty stack starts covered, since there is nothing to
+      # cover.
       class SceneStack < Engine::Component
         # Fired once for each switch that lands, after the new top scene entered
         # the tree. It carries that scene, or nil once the stack is empty.
@@ -46,7 +62,12 @@ module RGame
         KEYWORDS = %i[key keyreq].freeze
         NONE = {}.freeze
         Switch = Data.define(:kind, :scene, :keywords, :carry)
-        private_constant :KEPT, :POSITIONAL, :KEYWORDS, :NONE, :Switch
+        Named = Data.define(:builder, :required, :accepted, :open)
+        private_constant :KEPT, :POSITIONAL, :KEYWORDS, :NONE, :Switch, :Named
+
+        # The Scene::Fade a switch runs unless it names its own, or nil, the
+        # default, for none.
+        attr_reader :transition
 
         def initialize
           super
@@ -54,6 +75,16 @@ module RGame
           @players = nil
           @builders = {}
           @request = nil
+          @transition = nil
+          @running = nil
+          @phase = nil
+          @screen_fade = nil
+        end
+
+        # Sets the transition every switch runs unless it names its own. Anything
+        # but a Scene::Fade or nil raises `TypeError`.
+        def transition=(transition)
+          @transition = checked_transition(transition)
         end
 
         # See #control: the scenes this holds need the input source, and a
@@ -72,8 +103,7 @@ module RGame
           raise ArgumentError, "define(#{name.inspect}) needs a block that builds the scene" unless builder
           raise ArgumentError, "a scene named #{name.inspect} is already defined on this stack" if @builders.key?(name)
 
-          check_builder(name, builder.parameters)
-          @builders[name] = builder
+          @builders[name] = named(name, builder)
           self
         end
 
@@ -83,13 +113,21 @@ module RGame
         #
         # `carry:` is a Hash of nodes to take into the new scene, each handed to
         # the builder under its key. It needs a name, not a node.
-        def push(scene, carry: NONE, **) = ask(:push, scene, carry, **)
+        #
+        # `transition:` is a Scene::Fade for this switch in place of the
+        # stack's, or nil for none.
+        def push(scene, carry: NONE, transition: @transition, **)
+          ask(:push, scene, carry, transition, **)
+        end
 
         # Asks for `scene` in place of the current one.
-        def replace(scene, carry: NONE, **) = ask(:replace, scene, carry, **)
+        def replace(scene, carry: NONE, transition: @transition, **)
+          ask(:replace, scene, carry, transition, **)
+        end
 
         # Asks for the top scene to go. Landing on an empty stack changes nothing.
-        def pop
+        def pop(transition: @transition)
+          start(checked_transition(transition))
           @request = Switch.new(:pop, nil, NONE, NONE)
           self
         end
@@ -101,6 +139,9 @@ module RGame
 
         # Whether a switch was asked for and has not landed.
         def pending? = !@request.nil?
+
+        # Whether a transition is covering or revealing.
+        def transitioning? = !@phase.nil?
 
         # Scenes live off the host's child list, so the traversal does not reach
         # them on its own — and what has to reach them is the input *source*,
@@ -117,48 +158,99 @@ module RGame
         # snapshot is passed on, which is exactly what it means: one answer for
         # everyone.
         def _control(actions)
+          return if @phase
           return unless (current_scene = current)
 
           current_scene.control(@players || actions)
         end
 
         def _update(dt)
+          step_transition(dt) if @phase
           return unless (current_scene = current)
 
-          current_scene.update(dt)
+          current_scene.update(dt) unless @phase == :cover
         end
 
         # Every scene in the stack, not just the current one — that asymmetry
         # with control/update is what lets a menu pushed on top keep the world
-        # visible underneath while freezing it.
+        # visible underneath while freezing it. A transition's fade draws over
+        # them all.
         def _draw(renderer, view)
           @stack.each do |scene|
             scene.draw(renderer, view)
           end
+          @screen_fade&.draw(renderer, view)
         end
 
         # Scenes live in @stack, off the host's child list, so the host's
         # #sweep_freed cannot reach them. The sweep goes into the top scene's
-        # subtree, and then the switch asked for lands.
+        # subtree, and then the switch asked for lands, once any cover is done.
         def _sweep_freed
           current&.sweep_freed
-          land if @request
+          return unless @request
+          return if @phase == :cover && !@screen_fade.covered?
+
+          land
+          reveal if @phase == :cover
         end
 
         private
 
-        def ask(kind, scene, carry, **keywords)
+        def ask(kind, scene, carry, transition, **keywords)
           if scene.is_a?(Symbol)
             check_carry(carry, keywords)
-            check_keywords(scene, keywords.keys + carry.keys)
+            check_keywords(scene, keywords, carry)
           elsif !scene.respond_to?(:enter_tree)
             raise TypeError, "a scene is a node or a name given to define, not #{scene.inspect}"
           elsif !keywords.empty? || !carry.empty?
             raise ArgumentError, "keywords and carry: go to a named scene's builder, and #{scene.class} is a " \
                                  "node: #{(keywords.keys + carry.keys).join(', ')}"
           end
+          start(checked_transition(transition))
           @request = Switch.new(kind, scene, keywords, carry)
           self
+        end
+
+        def start(transition)
+          case @phase
+          when :reveal then cover(transition || @running)
+          when nil then cover(transition) if transition
+          end
+        end
+
+        def cover(transition)
+          @running = transition
+          fade = screen_fade
+          fade.color = transition.color
+          if current.nil?
+            fade.opacity = 1
+          else
+            fade.cover(transition.cover)
+          end
+          @phase = :cover
+        end
+
+        def reveal
+          @screen_fade.reveal(@running.reveal)
+          @phase = :reveal
+        end
+
+        def step_transition(dt)
+          @screen_fade.update(dt)
+          @phase = nil if @phase == :reveal && !@screen_fade.running?
+        end
+
+        def screen_fade
+          @screen_fade ||= Engine::ScreenFade.new.tap do |fade|
+            fade.parent = node
+            fade.enter_tree
+          end
+        end
+
+        def checked_transition(transition)
+          return transition if transition.nil? || transition.is_a?(Fade)
+
+          raise TypeError, "a transition is a #{Fade} or nil, not #{transition.inspect}"
         end
 
         def land
@@ -176,7 +268,7 @@ module RGame
         def built(switch)
           return switch.scene unless switch.scene.is_a?(Symbol)
 
-          @builders.fetch(switch.scene).call(**switch.keywords, **switch.carry)
+          @builders.fetch(switch.scene).builder.call(**switch.keywords, **switch.carry)
         end
 
         def land_push(scene)
@@ -195,27 +287,34 @@ module RGame
           scene.parent = nil
         end
 
-        def builder_for(name)
+        def named_for(name)
           @builders.fetch(name) do
             raise KeyError.new("this stack has no scene named #{name.inspect}. Name it first: " \
                                "define(#{name.inspect}) { ... }", receiver: @builders, key: name)
           end
         end
 
-        def check_builder(name, parameters)
+        def named(name, builder)
+          parameters = builder.parameters
           if parameters.any? { |type, _| POSITIONAL.include?(type) }
             raise ArgumentError, "the builder for #{name.inspect} takes positional parameters. A builder takes " \
                                  'keywords only, the ones a switch passes: define(:name) { |score:| ... }'
           end
 
-          taken = parameters.filter_map { |type, key| key if KEYWORDS.include?(type) } & KEPT
-          return if taken.empty?
+          accepted = parameters.filter_map { |type, key| key if KEYWORDS.include?(type) }
+          taken = accepted & KEPT
+          unless taken.empty?
+            raise ArgumentError, "the builder for #{name.inspect} declares #{taken.join(' and ')}, which the " \
+                                 'stack keeps for itself. Give the keyword another name'
+          end
 
-          raise ArgumentError, "the builder for #{name.inspect} declares #{taken.join(' and ')}, which the " \
-                               'stack keeps for itself. Give the keyword another name'
+          required = parameters.filter_map { |type, key| key if type == :keyreq }
+          Named.new(builder, required.freeze, accepted.freeze, parameters.any? { |type, _| type == :keyrest })
         end
 
         def check_carry(carry, keywords)
+          return if carry.equal?(NONE)
+
           unless carry.is_a?(Hash) && carry.all? { |key, carried| key.is_a?(Symbol) && carried.respond_to?(:parent) }
             raise TypeError, "carry: is a Hash of names to nodes, as in carry: { hero: hero }, not #{carry.inspect}"
           end
@@ -224,14 +323,16 @@ module RGame
           raise ArgumentError, "#{both.join(', ')} given both as a keyword and in carry:" unless both.empty?
         end
 
-        def check_keywords(name, given)
-          parameters = builder_for(name).parameters
-          required = parameters.filter_map { |type, key| key if type == :keyreq }
-          missing = required - given
-          raise ArgumentError, "scene #{name.inspect} needs #{missing.join(', ')}" unless missing.empty?
-          return if parameters.any? { |type, _| type == :keyrest }
+        def check_keywords(name, keywords, carry)
+          named = named_for(name)
+          return if keywords.empty? && carry.empty? && named.required.empty?
 
-          unknown = given - parameters.filter_map { |type, key| key if KEYWORDS.include?(type) }
+          given = keywords.keys + carry.keys
+          missing = named.required - given
+          raise ArgumentError, "scene #{name.inspect} needs #{missing.join(', ')}" unless missing.empty?
+          return if named.open
+
+          unknown = given - named.accepted
           raise ArgumentError, "scene #{name.inspect} takes no #{unknown.join(', ')}" unless unknown.empty?
         end
       end

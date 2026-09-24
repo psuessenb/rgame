@@ -10,6 +10,7 @@
 # settings screen **left and right change the value under the cursor**. Quit,
 # run it again, and the settings are where you left them. It exercises:
 #   - Scene::SceneStack — push, pop and replace, and the difference between them;
+#   - Scene::Fade — the transition that covers a replace;
 #   - UI::OptionButton — a menu row whose value is chosen from a list;
 #   - Util::SaveFile holding settings rather than a saved game;
 #   - RGame::Game's fullscreen, scale_mode and audio volume, driven from a menu.
@@ -36,6 +37,17 @@
 #
 # Two requests in one tick — the Back item and Escape both firing — keep only
 # the last, so they are one pop rather than two.
+#
+# ## Play fades, and Settings does not
+#
+# The stack has a transition, so a replace covers the screen, switches while it
+# is covered, and reveals the new scene. Settings is pushed and popped with
+# `transition: nil`: fading the title out only to draw it again under a panel
+# would hide the very thing pushing keeps.
+#
+# No scene reads input while a transition runs. A press begun under the cover
+# does nothing once the new scene shows, so the next press is the one that
+# counts.
 #
 # ## Settings apply now and persist immediately
 #
@@ -149,9 +161,12 @@ end
 
 # The root: scene navigation, and the settings every screen shares.
 class Shell < RGame::Engine::Node2D
+  FADE = RGame::Engine::Scene::Fade.new(cover: 0.25, reveal: 0.25)
+
   def initialize(settings:)
     super()
     @stack = add_component(RGame::Engine::Scene::SceneStack.new)
+    @stack.transition = FADE
     @stack.define(:title) { TitleScene.new }
     @stack.define(:settings) { SettingsScene.new(settings: settings) }
     @stack.define(:play) { PlayScene.new }
@@ -160,9 +175,10 @@ class Shell < RGame::Engine::Node2D
   def _enter_tree = show(:title)
 
   # `push` keeps what is under it; `replace` does not; `pop` returns to it.
-  def show(name) = @stack.push(name)
+  # Only a replace fades. See "Play fades, and Settings does not".
+  def show(name) = @stack.push(name, transition: nil)
   def swap(name) = @stack.replace(name)
-  def back = @stack.pop
+  def back = @stack.pop(transition: nil)
 end
 
 # The title: a heading and three choices.

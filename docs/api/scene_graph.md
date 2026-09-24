@@ -721,3 +721,43 @@ A key in `carry:` is checked against the builder as a keyword is, and a key
 given as a keyword too raises `ArgumentError`. `carry:` beside a node rather
 than a name raises `ArgumentError`, and anything but a Hash of names to nodes
 raises `TypeError`.
+
+### Transitions
+
+```ruby
+stack.transition = RGame::Engine::Scene::Fade.new(cover: 0.25, reveal: 0.25)
+stack.replace(:play)                     # covers, switches, reveals
+stack.push(:settings, transition: nil)   # this switch without one
+stack.transitioning?                     # covering or revealing
+```
+
+**A transition covers the view, switches while it is covered, and reveals the
+new scene.** `RGame::Engine::Scene::Fade` describes one: a `color`, black unless
+given, and `cover` and `reveal` durations in seconds, which must be positive. It
+is a frozen value.
+
+The stack builds one `ScreenFade` the first time a transition runs, and holds it
+off the host's child list as it holds its scenes. It draws the fade after every
+scene, over the host's view, in the `:overlay` band.
+
+- **The switch lands in the sweep after the cover ends.** `on_changed` fires
+  then, under a full cover, and the reveal starts.
+- **No scene is controlled until the reveal ends.** The scene leaving is not
+  updated under the cover, and the scene arriving is updated from the tick after
+  it lands. A scene's first press after a transition therefore began after it:
+  the press gate refuses one begun under the cover, as it refuses any press a
+  node did not see start. See
+  [A node reads only the presses it saw start](input.md#a-node-reads-only-the-presses-it-saw-start).
+- **A push onto an empty stack starts covered**, since there is nothing to
+  cover, lands in the first sweep, and reveals.
+- **A switch asked for during a cover replaces the one waiting**, and the cover
+  goes on. **One asked for during a reveal covers again** from where the reveal
+  got to. Either joins the transition under way when it has none of its own.
+
+`transition` is `nil` until set, and a switch without one lands in the next
+sweep. `transition:` on `push`, `replace` or `pop` runs another `Fade` for that
+switch, and `nil` runs none. Anything but a `Fade` or `nil` raises `TypeError`.
+
+A paused host holds its transition where it is, since time reaches the fade
+through the stack's `update`. A menu pushed over a world usually wants
+`transition: nil`: a fade would hide the world that pushing keeps on screen.

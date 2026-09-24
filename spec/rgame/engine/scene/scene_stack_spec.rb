@@ -529,6 +529,54 @@ RSpec.describe RGame::Engine::Scene::SceneStack do
     end
   end
 
+  # Rule 12.
+  describe 'a switch\'s own transition' do
+    let(:black) { RGame::Engine::Scene::Fade.new(cover: 0.5, reveal: 0.5) }
+    let(:white) { RGame::Engine::Scene::Fade.new(color: RGame::Util::Color::WHITE, cover: 0.25, reveal: 0.25) }
+
+    before do
+      push(scene_double)
+      stack.transition = black
+    end
+
+    it 'runs in place of the stack\'s' do
+      scene = scene_double
+      stack.replace(scene, transition: white)
+      2.times do
+        stack._update(0.125)
+        sweep
+      end
+
+      expect(stack.current).to be(scene)
+    end
+
+    it 'means none when it is nil, so the switch lands in the first sweep' do
+      scene = scene_double
+      stack.push(scene, transition: nil)
+      sweep
+
+      expect([stack.current, stack.transitioning?]).to eq([scene, false])
+    end
+
+    it 'means none for a pop, too' do
+      stack.pop(transition: nil)
+      sweep
+
+      expect([stack.current, stack.transitioning?]).to eq([nil, false])
+    end
+
+    it 'leaves the stack\'s own in place' do
+      stack.push(scene_double, transition: nil)
+
+      expect(stack.transition).to be(black)
+    end
+
+    it 'refuses anything but a Fade or nil' do
+      expect { stack.push(scene_double, transition: 0.5) }.to raise_error(TypeError, /Fade or nil/)
+      expect { stack.transition = :black }.to raise_error(TypeError, /Fade or nil/)
+    end
+  end
+
   # Rule 6.
   describe '#on_changed' do
     let(:root) { RGame::Engine::Node2D.new.tap { it.add_node(host) } }

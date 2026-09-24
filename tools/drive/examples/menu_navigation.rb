@@ -17,7 +17,15 @@
 #     there. It was never taken apart, so there is nothing to rebuild;
 #   - **`nine_slice` at 0 during play**, because Play *replaces* the title rather
 #     than pushing over it. That contrast is the whole point of the example;
-#   - **one `sound blip.ogg`**, from Enter during the play scene;
+#   - **one `sound blip.ogg`**, from Enter during the play scene. Play fades,
+#     and no scene reads input until the fade has revealed the play scene, so
+#     the script waits 40 ticks before that Enter;
+#   - **62 `rect`s and 60 `faded`, only while Play and Escape fade.** Each
+#     transition draws a rect over the whole view in `:overlay` for 31 frames:
+#     30 inside `faded`, and one at full cover, the frame the switch lands. The
+#     play scene's text starts at tick 211, 16 ticks after the Enter on Play.
+#     Settings is pushed and popped with `transition: nil`, so opening and
+#     closing it fades nothing;
 #   - `scaled` appearing once the scale row is moved off `:disabled`, and a clip
 #     per frame with it — the presentation transform, exactly as in
 #     `tools/drive/examples/fullscreen.rb`.
@@ -27,6 +35,16 @@
 # earlier run would change what this script does.
 #
 #   ruby tools/drive_test_project.rb examples/menu_navigation/main.rb --ticks 320
+#
+# Under `--allocations` it allocates about 78 objects a second, on 4% of ticks,
+# over the default 60. The warm-up ends before Play, so the run measures the
+# first transition in the process: about 150 objects filling call caches and
+# building the stack's fade. A later transition allocates 5, and a tick while
+# one runs allocates nothing, which
+# `spec/rgame/engine/scene/scene_stack_transition_spec.rb` holds it to. The
+# other 56 a second are the scenes built again as each switch lands.
+
+allocation_budget objects_per_second: 90
 
 idle 15
 
@@ -57,11 +75,11 @@ idle 20
 
 press controls::KEY_UP     # Settings -> Play
 idle 8
-press controls::KEY_RETURN # replaces the title
-idle 20
+press controls::KEY_RETURN # replaces the title, under a fade
+idle 40                    # the fade covers and reveals; nothing reads input until it ends
 
 press controls::KEY_RETURN # blip, at the volume set above
 idle 20
 
-press controls::KEY_ESCAPE # back to the title
-idle 25
+press controls::KEY_ESCAPE # back to the title, under a fade
+idle 40

@@ -39,6 +39,14 @@ module RGame
       # otherwise.
       attr_reader :color
 
+      # Changes the colour a cover and a reveal draw in, one under way
+      # included. A flash under way keeps its own colour until it ends. Anything
+      # but a Util::Color raises `TypeError`.
+      def color=(color)
+        @color = checked_color(color)
+        @drawn = @color unless @running.equal?(@flash)
+      end
+
       # `color:` must be a Util::Color. Every other keyword is Node2D's.
       def initialize(color: Util::Color::BLACK, band: :overlay, **)
         super(band:, **)
