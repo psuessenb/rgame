@@ -69,7 +69,9 @@ passes a number only for the last step.
 1. **The band**: `:world` (the default), `:hud`, `:overlay` or `:debug`.
    Everything in one band lies under everything in the next.
 2. **The slot.** The traversal walks the scene tree depth-first, siblings in `z`
-   order. Each node takes the next slot in its band when the walk reaches it.
+   order, or by where they stand under a
+   [y-sorted parent](scene_graph.md#y-sort). Each node takes the next slot in its
+   band when the walk reaches it.
    Draw order is therefore **tree order**. A node's subtree forms one unbroken
    run and cannot straddle a sibling.
 3. **The offset**: the `z:` above, inside one node's slot.

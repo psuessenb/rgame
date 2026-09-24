@@ -111,6 +111,133 @@ RSpec.describe RGame::Engine::Node2D do
     end
   end
 
+  describe 'a y-sorted parent' do
+    let(:sorted) { root.add_node(described_class.new(y_sort: true)) }
+
+    def boxed(tag, box_y:, box_height:, **)
+      tagged(tag, **).tap do |node|
+        node.add_component(RGame::Engine::Components::BoxCollider.new(width: 8, height: box_height, offset_y: box_y))
+      end
+    end
+
+    it 'draws a child standing further down after one standing further up' do
+      sorted.add_node(tagged(:front, y: 50))
+      sorted.add_node(tagged(:back, y: 10))
+
+      expect(draw_and_read).to eq(%i[back front])
+    end
+
+    it 'follows a child that walks past another' do
+      walker = sorted.add_node(tagged(:walker, y: 10))
+      sorted.add_node(tagged(:post, y: 30))
+      expect(draw_and_read).to eq(%i[walker post])
+
+      walker.y = 40
+      expect(draw_and_read).to eq(%i[post walker])
+    end
+
+    it 'draws a higher z later, wherever the children stand' do
+      sorted.add_node(tagged(:sparkles, y: 0, z: 1))
+      sorted.add_node(tagged(:hero, y: 100))
+
+      expect(draw_and_read).to eq(%i[hero sparkles])
+    end
+
+    it 'keeps the order added for children standing level, frame after frame' do
+      sorted.add_node(tagged(:first, y: 20))
+      sorted.add_node(tagged(:second, y: 20))
+      sorted.add_node(tagged(:third, y: 20))
+
+      expect([draw_and_read, draw_and_read]).to all(eq(%i[first second third]))
+    end
+
+    it 'stands a child with a box at the bottom edge of the box' do
+      # The crate's origin is above the hero's, and its box reaches below it.
+      sorted.add_node(boxed(:crate, y: 10, box_y: 0, box_height: 40))
+      sorted.add_node(tagged(:hero, y: 30))
+
+      expect(draw_and_read).to eq(%i[hero crate])
+    end
+
+    it 'stands a child with no box at its y' do
+      sorted.add_node(tagged(:coin, y: 30))
+      sorted.add_node(boxed(:crate, y: 0, box_y: 0, box_height: 20))
+
+      expect(draw_and_read).to eq(%i[crate coin])
+    end
+
+    it 'draws a lifted child where it stands, not where its picture is' do
+      sorted.add_node(tagged(:hero, y: 30)).elevation = 25
+      sorted.add_node(tagged(:rock, y: 20))
+
+      expect(draw_and_read).to eq(%i[rock hero])
+    end
+
+    it "sorts a child's subtree as one unit, at the child's footing" do
+      hero = sorted.add_node(tagged(:hero, y: 10))
+      hero.add_node(tagged(:shadow, y: 100))
+      sorted.add_node(tagged(:post, y: 30))
+
+      expect(draw_and_read).to eq(%i[hero shadow post])
+    end
+
+    it 'draws the same order through every viewport of a frame' do
+      sorted.add_node(tagged(:front, y: 50))
+      sorted.add_node(tagged(:back, y: 10))
+      renderer.clear
+      2.times { root.draw(renderer, screen_view) }
+
+      expect(renderer.calls_to(:rect).map { layers.fetch(it.layer) }).to eq(%i[back front back front])
+    end
+
+    it 'returns to z order when switched off' do
+      sorted.add_node(tagged(:front, y: 50))
+      sorted.add_node(tagged(:back, y: 10))
+      sorted.y_sort = false
+
+      expect(draw_and_read).to eq(%i[front back])
+    end
+
+    it 'sorts the children it already had when switched on' do
+      plain = root.add_node(described_class.new)
+      plain.add_node(tagged(:front, y: 50))
+      plain.add_node(tagged(:back, y: 10))
+      plain.y_sort = true
+
+      expect(draw_and_read).to eq(%i[back front])
+    end
+
+    it 'stops drawing a child that was removed, and draws one added later in its place' do
+      gone = sorted.add_node(tagged(:gone, y: 10))
+      sorted.add_node(tagged(:stays, y: 20))
+      draw_and_read
+      sorted.remove_node(gone)
+      sorted.add_node(tagged(:late, y: 0))
+
+      expect(draw_and_read).to eq(%i[late stays])
+    end
+
+    # Everything at once: a feet box on a hero mid-hop, a crate's body box and
+    # a coin with none, in one sorted gap drawn through two viewports.
+    it 'sorts a hero mid-hop, a crate and a coin the same way in both viewports' do
+      components = RGame::Engine::Components
+      hero = tagged(:hero, y: 0, width: 16, height: 24)
+      hero.add_component(components::FeetCollider.new(width: 12, height: 6))
+      hop = hero.add_component(components::Hop.new(peak: 30, duration: 0.5, action: nil))
+      sorted.add_node(boxed(:crate, y: 4, box_y: 0, box_height: 16))
+      sorted.add_node(hero)
+      sorted.add_node(tagged(:coin, y: 22))
+      root.enter_tree
+      hop.jump
+      root.update(0.25)
+      renderer.clear
+      2.times { root.draw(renderer, screen_view) }
+
+      expect(hero.elevation).to be > 0
+      expect(renderer.calls_to(:rect).map { layers.fetch(it.layer) }).to eq(%i[crate coin hero] * 2)
+    end
+  end
+
   describe 'bands' do
     it 'defaults to the world band' do
       node = root.add_node(described_class.new)

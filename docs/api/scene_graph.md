@@ -256,6 +256,46 @@ leave its inherited band says so with `band:`, the one explicit way out.
 opens a layer per node, taking the next slot in the node's band. See
 [Drawing](drawing.md#draw-order) and `RGame::Util::Z`.
 
+### Y-sort
+
+**A node with `y_sort: true` draws its children by where they stand.** A child
+lower on the screen draws in front of one higher up, so a character walks behind
+a tree and then in front of it. The children are ordered by three keys:
+
+1. `z`, as for any siblings, so a child at `z: 1` still draws over the rest;
+2. where the child stands, lower on the screen later;
+3. the order they were added in.
+
+```ruby
+actors = scene.add_node(RGame::Engine::Node2D.new(y_sort: true))
+actors.add_node(hero)
+actors.add_node(chest)
+actors.add_node(Sparkles.new(z: 1))   # over both, wherever they stand
+```
+
+**A child stands at the bottom edge of its `Components::BoxCollider` box**, a
+`Components::FeetCollider` included, and at its `y` when it has none. That puts
+a character with a feet box at their feet, and a chest with a box the size of its
+body at its base, whatever their pictures do. The rule reads the box the node
+has when it draws, so adding or removing a collider changes where the node stands
+from the next frame on. A node with two `BoxCollider`s raises, because
+`get_component` cannot choose between them.
+
+`elevation` plays no part, so a character mid-hop sorts by the spot they left.
+A child's subtree sorts as one unit, at the child's footing: a shadow or a name
+tag under a hero draws with the hero. A y-sorted child of a y-sorted node sorts
+the same way, as one unit.
+
+**Only drawing follows the sort.** `control` and `update` visit the children in
+the order they would without `y_sort`. An actor walking north never changes who
+moves first, and a run plays the same however often it was drawn. The node keeps
+a second list of its children for drawing and sorts it on every draw. The sort
+allocates nothing.
+
+`y_sort` is off by default, and a node can turn it on or off at any time with
+`node.y_sort = true`. UI does not use it, because its order is structural: a
+list opens over the buttons below it.
+
 ### Opacity
 
 **`opacity` fades a node and everything under it.** It runs from 0, which draws

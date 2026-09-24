@@ -14,6 +14,12 @@ index, not the argument.
 
 ### Added
 
+- **Y-sorted drawing.** A `Node2D` built with `y_sort: true`, or given
+  `node.y_sort = true`, draws its children by `z`, then lower on the screen
+  later, then in the order added. A child stands at the bottom edge of its
+  `BoxCollider` box, or at its `y` if it has none. `control` and `update` keep
+  the order they had. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md#y-sort).
 - **Rooms that players stand apart in.** `RGame::Engine::Scene::Rooms` runs
   every room a player stands in, each a `Scene::Room` built anew as it starts
   running. `define(name) { Room.new }` names a room, and `move(hero, to:,

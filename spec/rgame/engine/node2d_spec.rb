@@ -46,6 +46,26 @@ class SpecRecordingNode < RGame::Engine::Node2D
   def _draw(renderer, _view) = @log << [:hook, renderer]
 end
 
+# Logs its tag for each phase it takes part in, and walks down the screen in
+# its own update, so a y-sorted parent sees its children reorder every tick.
+class SpecWalkingNode < RGame::Engine::Node2D
+  def initialize(tag, log, y:, speed:)
+    super(y:)
+    @tag = tag
+    @log = log
+    @speed = speed
+  end
+
+  def _control(_actions) = @log << [:control, @tag]
+
+  def _update(_dt)
+    @log << [:update, @tag]
+    self.y += @speed
+  end
+
+  def _draw(_renderer, _view) = @log << [:draw, @tag]
+end
+
 RSpec.describe RGame::Engine::Node2D do
   subject(:node) { described_class.new }
 
@@ -1109,6 +1129,60 @@ RSpec.describe RGame::Engine::Node2D do
       node.draw(renderer, screen_view)
 
       expect(events).to eq([[:hook, renderer], :child])
+    end
+  end
+
+  describe '#y_sort' do
+    let(:renderer) { FakeRenderer.new }
+    let(:log) { [] }
+    let(:actions) { RGame::Engine::Actions.new(held: {}) }
+
+    def walkers(parent)
+      parent.add_node(SpecWalkingNode.new(:slow, log, y: 0, speed: 1))
+      parent.add_node(SpecWalkingNode.new(:fast, log, y: 5, speed: -5))
+      parent.add_node(SpecWalkingNode.new(:still, log, y: 2, speed: 0))
+    end
+
+    def phase(name) = log.select { it.first == name }.map(&:last)
+
+    # The invariant the whole design keeps: the draw order is the draw's own,
+    # so how often a frame is drawn cannot change who moves first.
+    it 'leaves control and update in the order they would be without it' do
+      runs = [false, true].map do |y_sort|
+        log.clear
+        parent = described_class.new(y_sort:)
+        walkers(parent)
+        4.times do |tick|
+          parent.control(actions)
+          parent.update(0.016)
+          tick.even? && parent.draw(renderer, screen_view)
+        end
+        [phase(:control), phase(:update)]
+      end
+
+      expect(runs.last).to eq(runs.first)
+    end
+
+    it 'draws by footing while update keeps the order added' do
+      parent = described_class.new(y_sort: true)
+      walkers(parent)
+      parent.update(0.016)
+      parent.draw(renderer, screen_view)
+
+      expect([phase(:update), phase(:draw)]).to eq([%i[slow fast still], %i[fast slow still]])
+    end
+
+    it 'stands a child on a collider added after it was drawn, from the next draw on' do
+      parent = described_class.new(y_sort: true)
+      crate = parent.add_node(SpecWalkingNode.new(:crate, log, y: 0, speed: 0))
+      parent.add_node(SpecWalkingNode.new(:hero, log, y: 10, speed: 0))
+      parent.draw(renderer, screen_view)
+      box = crate.add_component(RGame::Engine::Components::BoxCollider.new(width: 8, height: 20))
+      parent.draw(renderer, screen_view)
+      crate.remove_component(box.class)
+      parent.draw(renderer, screen_view)
+
+      expect(phase(:draw)).to eq(%i[crate hero hero crate crate hero])
     end
   end
 end
