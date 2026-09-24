@@ -45,6 +45,10 @@ index, not the argument.
   scrolls, a column of verbs beside it that acts on the item chosen there, and
   a second page of key items behind a tab. See
   [docs/api/examples.md](docs/api/examples.md#inventory).
+- **An equipment example.** `examples/equipment` dresses a character from a
+  column of slots and a grid of clothes, and a second page shows the bag and
+  says what is worn. See
+  [docs/api/examples.md](docs/api/examples.md#equipment).
 - **A component for what the player is standing next to, and one for what picks
   itself up.** `RGame::Engine::Components::Interactor` is a `Targeting` that
   also reads a button: `target` is the nearest node in range on its layer, and

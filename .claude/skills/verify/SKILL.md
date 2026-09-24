@@ -70,7 +70,9 @@ driving**: a plain boot of a game whose menu responded to nothing once reported
 counts unless the run is seeded with `--seed N`.
 `--texts` adds every distinct string drawn with `text`, its count and the tick it
 first appeared on — the draw-call section keeps only first and last arguments, so
-"the same text, string for string" needs it.
+"the same text, string for string" needs it. A run with more than one clip lists
+them per clip as well, and each viewport and `PlayerLayer` clips to its player's
+region, so that is how a report says which player saw a string.
 
 Comparing a run against `main` is the strongest form of this: with `--seed N` two
 runs of unchanged code are byte-identical, so a diff of nothing is real evidence

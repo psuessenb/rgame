@@ -216,9 +216,16 @@ module DriveTestProject
     # `texts:` adds a section listing every distinct String drawn with `text`,
     # which the draw-call section cannot show: it keeps only the first and last
     # arguments of each method.
+    #
+    # A run that pushed more than one clip also lists them per clip, keyed by
+    # the innermost clip each was drawn in. Each viewport and each PlayerLayer
+    # clips to its player's region, so that is what ties a string to a player.
+    # A run with one clip would list the same strings twice, so it lists them
+    # once.
     def initialize(texts: false)
       @show_texts = texts
       @texts = {}
+      @clip_texts = {}
       @missing_keys = {}
       @ticks = 0
       @frames = 0
@@ -262,8 +269,8 @@ module DriveTestProject
     # counts as the same text. Kept in first-drawn order, with the tick it first
     # appeared on, so a report shows what changed and when.
     def record_text(string)
-      seen = (@texts[string] ||= [0, @ticks])
-      seen[0] += 1
+      count_text(@texts, string)
+      count_text(@clip_texts[@clip] ||= {}, string) if @clip
     end
 
     # A key `I18n` could not answer: missing from every table in the chain, or
@@ -289,7 +296,8 @@ module DriveTestProject
 
       out << section('scenes', @scenes)
       out << section('draw calls', @draws.sort_by { |_, c| -c.calls }.map { |name, c| draw_line(name, c) })
-      out << section('texts drawn', text_lines) if @show_texts
+      out << section('texts drawn', text_lines(@texts)) if @show_texts
+      out << section('texts drawn per clip', clip_text_lines) if @show_texts && @clip_texts.size > 1
       out << section('missing or mismatched keys', missing_lines) unless @missing_keys.empty?
       out << section('layers per band', band_lines)
       out << section('clips pushed', clip_lines)
@@ -305,8 +313,17 @@ module DriveTestProject
       out << section("allocations after a #{AllocationProbe::WARMUP}-tick warm-up", @allocations.lines)
     end
 
-    def text_lines
-      @texts.map { |string, (count, tick)| format('%6d  %s from tick %d', count, string.inspect, tick) }
+    def count_text(texts, string)
+      seen = (texts[string] ||= [0, @ticks])
+      seen[0] += 1
+    end
+
+    def text_lines(texts)
+      texts.map { |string, (count, tick)| format('%6d  %s from tick %d', count, string.inspect, tick) }
+    end
+
+    def clip_text_lines
+      @clip_texts.flat_map { |rect, texts| [rect.inspect, *text_lines(texts).map { "  #{it}" }] }
     end
 
     def missing_lines
@@ -794,7 +811,7 @@ if $PROGRAM_NAME == __FILE__
     o.on('--script PATH', 'Input script (default: tools/drive/<project path>.rb)') { options[:script] = it }
     o.on('--gamepad', 'Drive a synthetic SDL controller instead of the input backend') { options[:gamepad] = true }
     o.on('--seed N', Integer, 'Seed the project RNG, so two runs can be compared') { options[:seed] = it }
-    o.on('--texts', 'List every distinct string drawn with text, with its count') { options[:texts] = true }
+    o.on('--texts', 'List every distinct string drawn with text, overall and per clip') { options[:texts] = true }
     o.on('--installed', 'Load rgame as installed, instead of from this checkout') { options[:installed] = true }
     o.on('--allocations', 'Count what the run allocates once warm, and fail over its budget') do
       options[:allocations] = true

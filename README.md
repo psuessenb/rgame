@@ -98,6 +98,7 @@ You can learn more about how it works in the [documentation](docs/api/README.md)
 | [quick_wheel](docs/api/examples.md#quick_wheel) | A wheel held open by a button and chosen by letting go |
 | [skill_bar](docs/api/examples.md#skill_bar) | A row of tools, stepped through or fired by hotkeys |
 | [inventory](docs/api/examples.md#inventory) | A bag in a grid that scrolls, focus that crosses to the verbs beside it, and a second page behind a tab |
+| [equipment](docs/api/examples.md#equipment) | A character dressed from slots and a grid of clothes, and a bag that says what is worn |
 | [sound](docs/api/examples.md#sound) | A sound effect fired by a button, and the seam it travels |
 | [music](docs/api/examples.md#music) | A looping track, started and stopped |
 | [split_screen](docs/api/examples.md#split_screen) | Two players in one world, drawn once per viewport |

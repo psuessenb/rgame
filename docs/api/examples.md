@@ -234,6 +234,21 @@ and back, and each page keeps its focus and scroll.
 grid, `UI::FocusGroup`, `UI::PanelMenu`, uncaptioned `UI::IconButton`s on a
 `UI::ShapeStyle`, and a UI atlas's `images` (`skills.json` and `icons.json`).
 
+### equipment
+
+A character dressed from a column of three slots, Head, Body and Feet, and a
+grid of six pieces two to a row, a row to a slot. Right from a slot crosses to
+the pieces that fit it. Enter on a piece wears it in place of what its slot
+held, and Enter on a slot takes its piece off. An empty slot says so and keeps
+focus. The character is `hero.png` drawn five times its size, with the worn
+pieces drawn over it as shapes. E switches to the bag, where a panel names the
+focused piece and says whether it is worn. One object holds what each slot
+wears, and every screen reads it.
+
+**Uses:** `UI::Tabs`, `UI::FocusGroup`, `UI::Grid`, a `UI::Button` subclass that
+draws its piece, a `UI::PanelButton` subclass overriding `draw_foreground`,
+`UI::ShapeStyle`, `renderer.scaled` and `renderer.sprite`.
+
 ## Audio
 
 ### sound
