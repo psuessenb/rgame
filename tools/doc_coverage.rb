@@ -22,7 +22,7 @@ module DocCoverage
       out.puts("#{gap[:path]}#{' (class never named)' unless gap[:class_named]}")
       gap[:methods].each { out.puts("  #{it}") }
     end
-    modules = index.count { |_, value| value.is_a?(Module) }
+    modules = index.values.grep(Module).uniq.size
     out.puts("\n#{gaps.size} of #{modules} modules and classes have undocumented names.")
     gaps
   end

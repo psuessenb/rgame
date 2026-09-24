@@ -139,23 +139,34 @@ module ApiDocs
 
   # Every module and constant reachable under `root` (an already loaded `RGame`),
   # as `{ 'RGame::Engine::Node2D' => object }`.
+  #
+  # A module appears under its own name and under every alias of it, and what
+  # it holds is walked once, under its own name. `Core::Renderer::Color` is
+  # `Util::Color`, and a page may name either. Keeping only the first path met
+  # made which one resolved depend on the order the two extensions defined
+  # their modules in.
   def constant_index(root)
     index = {}
     seen = {}.compare_by_identity
-    walk = lambda do |mod, path|
+    walk = lambda do |mod|
       return if seen[mod]
 
       seen[mod] = true
-      index[path] = mod
+      index[mod.name] = mod
       mod.constants(false).each do |name|
         next if mod.autoload?(name)
 
         value = mod.const_get(name, false)
-        child = "#{path}::#{name}"
-        value.is_a?(Module) && value.name&.start_with?(root.name) ? walk.call(value, child) : index[child] ||= value
+        child = "#{mod.name}::#{name}"
+        if value.is_a?(Module) && value.name&.start_with?(root.name)
+          index[child] = value
+          walk.call(value)
+        else
+          index[child] ||= value
+        end
       end
     end
-    walk.call(root, root.name)
+    walk.call(root)
     index
   end
 
