@@ -87,11 +87,10 @@ FEET_HEIGHT = 6
 START_COL = 24
 START_ROW = 18
 
-# The middle of the feet box, from the hero's origin: centred across the 16px-wide
-# sprite, and half the box up from the bottom of its 22px height. Standing the hero
-# with this point on a tile's centre is standing it on that tile.
-FEET_CENTRE_X = 8
-FEET_CENTRE_Y = 19
+# The middle of the feet box, from the hero's origin: centred across it, and half
+# the box up from the feet. Standing the hero with this point on a tile's centre is
+# standing it on that tile.
+FEET_CENTRE_Y = -3
 
 # How often a held direction moves the cursor another tile.
 CURSOR_REPEAT = 0.12 # s
@@ -173,8 +172,8 @@ end
 # Both drawings of the hero's current route, in world space: a dot per tile the
 # search returned, and a line per segment of the path being walked.
 #
-# The path's waypoints are where the hero's *origin* goes — its sprite's top-left
-# corner — while the route was planned for the middle of its feet. Adding the feet
+# The path's waypoints are where the hero's *origin* goes — the bottom of its
+# feet — while the route was planned for the middle of the feet box. Adding the
 # box's centre back puts the lines on the ground the dots are on. Its `z: -1` keeps
 # the route on the ground, under the hero walking it.
 class Route < RGame::Engine::Node2D
@@ -240,10 +239,9 @@ class Scene < RGame::Engine::Node2D
 
     view = add_node(RGame::Engine::WorldView.new)
     actors = RGame::Engine::TileMapLayer.mount(view)[:actors]
-    # The hero's origin is its sprite's top-left, and what stands on the start tile
-    # is its feet, so the feet's centre goes on the tile's.
-    @hero = Hero.new(x: world.cell_centre_x(START_COL) - FEET_CENTRE_X,
-                     y: world.cell_centre_y(START_ROW) - FEET_CENTRE_Y)
+    # What stands on the start tile is the hero's feet box, so the box's centre
+    # goes on the tile's.
+    @hero = Hero.new(x: world.cell_centre_x(START_COL), y: world.cell_centre_y(START_ROW) - FEET_CENTRE_Y)
     actors.add_node(Route.new(hero: @hero, world: world))
     actors.add_node(@hero)
     cursor = actors.add_node(Cursor.new(col: START_COL, row: START_ROW, world: world,

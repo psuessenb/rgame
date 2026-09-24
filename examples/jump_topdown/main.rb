@@ -70,12 +70,12 @@ HOP_DURATION = 0.5
 FEET_WIDTH  = 12
 FEET_HEIGHT = 6
 
-CAMERA_OFFSET_X = 8
-CAMERA_OFFSET_Y = 19
+# The camera looks at the middle of the feet box, three pixels above the origin.
+CAMERA_OFFSET_Y = -3
 
 # North of the fence, two tiles above it: one walk down reaches it.
-START_X = 384.0
-START_Y = 264.0
+START_X = 392.0
+START_Y = 286.0
 
 Controls = RGame::Util::Controls
 
@@ -106,7 +106,7 @@ class Hero < RGame::Engine::Node2D
     # elevation, and the sprite already draws lifted by whatever that is.
     @hop = add_component(RGame::Engine::Components::Hop.new(peak: HOP_PEAK, duration: HOP_DURATION))
     add_component(RGame::Engine::Components::CameraFollow.new(
-                    camera: camera, offset_x: CAMERA_OFFSET_X, offset_y: CAMERA_OFFSET_Y
+                    camera: camera, offset_y: CAMERA_OFFSET_Y
                   ))
   end
 

@@ -59,11 +59,11 @@
 # frame collided could not stand with their head overlapping the fence behind
 # them — which is what standing close to it looks like from this angle.
 #
-# `FeetCollider` builds it from the node's own dimensions, which
-# `AnimatedSprite` fills in from the sprite frame when it attaches. So the box
-# follows the art: re-export the hero at a different size and the feet stay at
-# the feet. Note what the `Hero` does *not* pass — a sprite size, an offset, or
-# the box to anybody else. One component owns the shape and the body reads it.
+# `FeetCollider` puts it under the node's origin, and `AnimatedSprite` stands the
+# picture on that same spot. So the box follows the art: re-export the hero at a
+# different size and the feet stay at the feet. Note what the `Hero` does *not*
+# pass — a sprite size, an offset, or the box to anybody else. One component
+# owns the shape and the body reads it.
 #
 # ## Sliding is the whole feel
 #
@@ -130,16 +130,14 @@ SPEED = 80.0 # px/s
 FEET_WIDTH  = 12
 FEET_HEIGHT = 6
 
-# Where the camera looks: the middle of that box rather than the node's origin,
-# which is the sprite's top-left corner. Without it the hero drifts below the
-# centre of the screen by half a sprite, which reads as the camera lagging.
-CAMERA_OFFSET_X = 8
-CAMERA_OFFSET_Y = 19
+# Where the camera looks: the middle of that box, three pixels above the node's
+# origin at the hero's feet.
+CAMERA_OFFSET_Y = -3
 
 # North of the fence and a few tiles east of its gap, so that holding a diagonal
 # into it arrives there.
-START_X = 384.0
-START_Y = 272.0
+START_X = 392.0
+START_Y = 294.0
 
 # The spiky ball: three tiles east of the hero, on the open ground between the
 # trees, and low enough that its box sits across the hero's feet.
@@ -177,7 +175,7 @@ class Hero < RGame::Engine::Node2D
     body.on_blocked { |by| @lives = [@lives - 1, 0].max if by.layer == :spike }
     add_component(RGame::Engine::Components::PlayerController.new)
     add_component(RGame::Engine::Components::CameraFollow.new(
-                    camera: camera, offset_x: CAMERA_OFFSET_X, offset_y: CAMERA_OFFSET_Y
+                    camera: camera, offset_y: CAMERA_OFFSET_Y
                   ))
   end
 

@@ -48,10 +48,12 @@ SPEED = 90.0 # pixels per second
 # what `examples/scroll_map` shows.
 class Hero < RGame::Engine::Node2D
   # `_update` is the blank hook: Node2D#update does the bookkeeping and calls
-  # this, so there is no `super` to forget.
+  # this, so there is no `super` to forget. The sprite stands on the node's
+  # origin, so the picture reaches half its width to either side and its whole
+  # height above.
   def _update(_dt)
-    self.x = x.clamp(0, WIDTH - width)
-    self.y = y.clamp(0, HEIGHT - height)
+    self.x = x.clamp(width / 2.0, WIDTH - (width / 2.0))
+    self.y = y.clamp(height, HEIGHT)
   end
 end
 
@@ -75,7 +77,7 @@ class Root < RGame::Engine::Node2D
   private
 
   def build_hero
-    hero = Hero.new(x: (WIDTH - 16) / 2, y: (HEIGHT - 22) / 2)
+    hero = Hero.new(x: WIDTH / 2, y: (HEIGHT + 22) / 2) # the 16x22 hero, centred
     # The sheet is a path relative to the asset manager's root, resolved on
     # attach — nothing is loaded or registered by hand. hero.json names its own
     # image and its animations; AnimatedSprite picks between them by reading the
