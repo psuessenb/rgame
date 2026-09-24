@@ -74,13 +74,15 @@ class FakeAudio
   # cannot stand in for is a path that does not exist — the fake opens nothing,
   # so a missing file is `spec_core`'s to cover.
 
-  def register_sound(id, sample)
+  def register_sound(id, sample, category: :effects)
     sounds[id] = sample
+    place(sample, category)
     self
   end
 
-  def register_music(id, song)
+  def register_music(id, song, category: :music)
     music[id] = song
+    place(song, category)
     self
   end
 
@@ -88,16 +90,61 @@ class FakeAudio
 
   def play_music(id)
     song = lookup(music, :song, id)
+    @paused = false
+    @playing_song = song
     return song if song.playing?
 
-    @playing_song = song
     song.play(looping: true)
   end
 
-  def stop_music
-    @playing_song&.stop
+  def stop_music(id = nil)
+    song = id.nil? ? @playing_song : lookup(music, :song, id)
+    song&.stop
+    return if id && !song.equal?(@playing_song)
+
+    @paused = false
     @playing_song = nil
   end
+
+  def pause_music
+    return unless @playing_song&.playing?
+
+    @playing_song.stop
+    @paused = true
+  end
+
+  def resume_music
+    return unless @paused
+
+    @paused = false
+    @playing_song.resume
+  end
+
+  def set_music_volume(id, volume)
+    lookup(music, :song, id).volume = volume
+  end
+
+  # --- categories ---------------------------------------------------------
+  #
+  # The same names the real device keeps, with the same limit and the same
+  # refusals. The device holds a group per name in C; this holds a volume per
+  # name, and remembers which name each sound was last registered under.
+
+  CATEGORIES = 16
+
+  def category_volume(name) = category_volumes.fetch(category_index(name), 1.0)
+
+  def set_category_volume(name, volume)
+    index = category_index(name)
+    category_volumes[index] = FakeAudio.clamp(volume)
+    remember(:category_volume, nil, [name, category_volumes[index]])
+    volume
+  end
+
+  # The category a sound was last registered under, or nil for one never
+  # registered. The real device keeps this in C, where only what comes out of
+  # the mixer shows it, so a spec asks the fake.
+  def category_of(sound) = placed[sound]
 
   # --- what a spec asks afterwards ----------------------------------------
 
@@ -150,6 +197,25 @@ class FakeAudio
   private
 
   attr_reader :sounds, :music
+
+  def categories = @categories ||= { music: 0, effects: 1 }
+  def category_volumes = @category_volumes ||= {}
+  def placed = @placed ||= {}.compare_by_identity
+
+  def category_index(name)
+    categories.fetch(name) { raise KeyError, "no sound was registered under the category #{name.inspect}" }
+  end
+
+  def place(sound, name)
+    raise TypeError, "a category is named by a Symbol, not #{name.inspect}" unless name.is_a?(Symbol)
+
+    categories.fetch(name) do
+      raise ArgumentError, "no more than #{CATEGORIES} categories" if categories.size == CATEGORIES
+
+      categories[name] = categories.size
+    end
+    placed[sound] = name
+  end
 
   # Registered ids win; a String is a path and is resolved once. Caching is not
   # an optimisation here — resolving one path to two Songs would break the
@@ -210,6 +276,12 @@ class FakeSong
   def stop
     @playing = false
     @audio.remember(:song_stop, @path, [])
+    self
+  end
+
+  def resume
+    @playing = true
+    @audio.remember(:song_resume, @path, [])
     self
   end
 

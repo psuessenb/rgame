@@ -34,6 +34,8 @@ module RGame
 
       attr_accessor :assets
 
+      private_constant :CATEGORIES
+
       # Loads a short sound to play over itself. The same thing as
       # `Sample.new(audio, path)`, and the form to prefer: it reads in the
       # direction the objects depend, and it is the form a stand-in device can
@@ -44,14 +46,21 @@ module RGame
       def song(path) = Song.new(self, path)
 
       #   audio.play_sound(:hit)
-
-      def register_sound(id, sample)
+      #
+      # `category:` names the volume the sound plays under: `:effects` unless
+      # given. A name used here for the first time is created, fourteen at most
+      # beside `:music` and `:effects`, and a sound registered again plays under
+      # the last name given.
+      def register_sound(id, sample, category: :effects)
         samples[id] = sample
+        put_in_category(sample, category_for(category))
         self
       end
 
-      def register_music(id, song)
+      # As #register_sound, for a song, under `:music` unless given.
+      def register_music(id, song, category: :music)
         songs[id] = song
+        put_in_category(song, category_for(category))
         self
       end
 
@@ -61,32 +70,86 @@ module RGame
         lookup(:sound, id).play
       end
 
-      # Starts a song looping, and does **nothing** if it is already playing —
-      # so a scene that re-emits the same request every time it is entered never
+      # Starts a song looping, and makes it the song #stop_music and
+      # #pause_music act on. A song already playing is **not** restarted, so a
+      # scene that re-emits the same request every time it is entered never
       # restarts the music mid-loop.
       def play_music(id)
         song = lookup(:song, id)
+        @paused = false
+        @playing_song = song
         return song if song.playing?
 
-        @playing_song = song
         song.play(looping: true)
       end
 
-      # Stops the song this registry started.
+      # Stops the song the id names, or with no id the one #play_music last
+      # started.
       #
-      # Deliberately not "stop whatever is playing": the layer being replaced
-      # reached for a process-wide `current_song`, and there is no such global
-      # here by the decision that one-song-at-a-time is a game's policy rather
-      # than the engine's. A `Song` a game started by hand is its own to stop.
-      def stop_music
-        @playing_song&.stop
+      # Deliberately not "stop whatever is playing": one song at a time is a
+      # game's policy rather than the engine's, so there is no process-wide
+      # current song, and a `Song` a game started by hand is its own to stop.
+      def stop_music(id = nil)
+        song = id.nil? ? @playing_song : lookup(:song, id)
+        song&.stop
+        return if id && !song.equal?(@playing_song)
+
+        @paused = false
         @playing_song = nil
+      end
+
+      # Stops the current song where it is. #resume_music carries on from
+      # there, and #play_music starts it from the top.
+      def pause_music
+        return unless @playing_song&.playing?
+
+        @playing_song.stop
+        @paused = true
+      end
+
+      # Carries on the song #pause_music stopped. Does nothing unless a song is
+      # paused.
+      def resume_music
+        return unless @paused
+
+        @paused = false
+        @playing_song.resume
+      end
+
+      # Sets the song's own volume, as `Song#volume=` does, by id.
+      def set_music_volume(id, volume)
+        lookup(:song, id).volume = volume
+      end
+
+      # The volume every sound in the category plays under, 1.0 until set. It
+      # multiplies each sound's own volume and leaves it as it was. A name no
+      # sound was registered under raises KeyError, so a mistyped category
+      # fails rather than changing nothing.
+      def category_volume(name) = category_volume_at(category_index(name))
+
+      def set_category_volume(name, volume)
+        set_category_volume_at(category_index(name), volume)
       end
 
       private
 
       def samples = @samples ||= {}
       def songs = @songs ||= {}
+      def categories = @categories ||= { music: 0, effects: 1 }
+
+      def category_index(name)
+        categories.fetch(name) { raise KeyError, "no sound was registered under the category #{name.inspect}" }
+      end
+
+      def category_for(name)
+        raise TypeError, "a category is named by a Symbol, not #{name.inspect}" unless name.is_a?(Symbol)
+
+        categories.fetch(name) do
+          raise ArgumentError, "no more than #{CATEGORIES} categories" if categories.size == CATEGORIES
+
+          categories[name] = categories.size
+        end
+      end
 
       def registry(type) = type == :sound ? samples : songs
 
@@ -128,10 +191,11 @@ module RGame
     #   music.play(looping: true)
     #   music.playing?  # => true
     #   music.stop
+    #   music.resume    # from where it stopped
     #
     # Unlike a sample, a song is one voice: playing it while it plays restarts
-    # it from the beginning. Stopping and playing again also restarts — there is
-    # no pause.
+    # it from the beginning. Stopping and playing again also restarts, and
+    # stopping and resuming carries on where it stopped.
     #
     # "Only one song at a time" is a rule a game keeps, not one this class
     # enforces. Two songs can play at once, which is what a crossfade is.

@@ -487,14 +487,35 @@ module DriveTestProject
       @target.play_music(id, **)
     end
 
-    # Recorded with no id because it takes none: `stop_music` stops whatever
-    # *this registry* started, deliberately rather than "whatever is playing".
-    # It is reported for the same reason the other two are — a scene that stops
-    # its music on the way out is a structural fact, and its absence from a run
-    # that should have had one is the kind of thing this harness exists to show.
-    def stop_music
-      @report.record_sound('music', 'stop')
-      @target.stop_music
+    # Recorded as `music stop` with no id, when it stops whatever *this
+    # registry* started, and with the id when a fade or a crossfade names the
+    # song. A scene that stops its music on the way out is a structural fact,
+    # and its absence from a run that should have had one is the kind of thing
+    # this harness exists to show.
+    def stop_music(id = nil)
+      id.nil? ? @report.record_sound('music', 'stop') : @report.record_sound('music stop', id)
+      @target.stop_music(id)
+    end
+
+    def pause_music
+      @report.record_sound('music', 'pause')
+      @target.pause_music
+    end
+
+    def resume_music
+      @report.record_sound('music', 'resume')
+      @target.resume_music
+    end
+
+    # One a tick while a fade runs, so a fade reads as the count of its steps.
+    def set_music_volume(id, volume)
+      @report.record_sound('music volume', id)
+      @target.set_music_volume(id, volume)
+    end
+
+    def set_category_volume(name, volume)
+      @report.record_sound('category volume', name)
+      @target.set_category_volume(name, volume)
     end
   end
 
