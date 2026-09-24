@@ -5,15 +5,21 @@ require_relative 'hot_path'
 module RuboCop
   module Cop
     module Game
-      # Flag fresh Array / Range literals that are needless per-frame allocations.
+      # Flag needless per-frame allocations: fresh Array / Range literals, and the
+      # iterators that allocate behind the call.
       #
-      # Two triggers:
+      # Three triggers:
       #  * Anywhere — a literal used as a method-call *receiver*: `[a, b].sum`,
       #    `(a..b).any? { ... }`. Each call allocates the collection just to reduce or
       #    iterate it; compare directly or loop with an index instead.
       #  * Inside a per-frame method (a lifecycle hook or a `# hot-path`-tagged helper) —
       #    *any* Array/Range literal, e.g. returning `[x, y, w, h]` for the caller to
       #    decompose. Expose the parts separately (see `Engine::AnimationSet` row/col/flip_x).
+      #  * Inside a per-frame method — an iterator in HIDDEN. Each allocates on every
+      #    call although nothing in the line shows it: `each_with_index` one object,
+      #    `inject` with a block two, `min_by` two. An Array answers `each_index`,
+      #    `sum` and `min` with a block itself, allocating nothing, and HIDDEN names
+      #    that answer for each. `inject(:+)`, with no block, allocates nothing.
       #
       # Allowed: an empty `[]` (idiomatic mutable-state seed), a frozen `[...].freeze`
       # (allocated once), a parallel-assignment RHS (`a, b = c, d`, which the VM does
@@ -40,6 +46,21 @@ module RuboCop
         MSG_HOT_PATH = 'Needless %{kind} allocation in a per-frame method: this literal ' \
                        'is built every frame — build it once or expose the parts directly.'
 
+        HIDDEN = {
+          each_with_index: '`each` with a counter in a local, or `each_index` on an Array',
+          each_with_object: '`each`, with the object in a local',
+          inject: '`sum`, or `each` with a local',
+          reduce: '`sum`, or `each` with a local',
+          min_by: '`min` with a block comparing two',
+          max_by: '`max` with a block comparing two',
+          minmax_by: '`min` and `max` with blocks comparing two',
+          minmax: '`min` and `max`',
+          each_slice: 'a `while` loop with an index',
+          each_cons: 'a `while` loop with an index'
+        }.freeze
+        BLOCK_ONLY = %i[inject reduce].freeze
+        MSG_HIDDEN = '`%{method}` allocates on every call, in a per-frame method. Use %{instead}.'
+
         def on_array(node)
           check(node, 'array')
         end
@@ -51,6 +72,15 @@ module RuboCop
         def on_erange(node)
           check(node, 'range')
         end
+
+        def on_send(node)
+          instead = HIDDEN[node.method_name]
+          return if instead.nil? || !in_hot_path?(node)
+          return if BLOCK_ONLY.include?(node.method_name) && !node.block_node && !node.block_argument?
+
+          add_offense(node.loc.selector, message: format(MSG_HIDDEN, method: node.method_name, instead: instead))
+        end
+        alias on_csend on_send
 
         private
 

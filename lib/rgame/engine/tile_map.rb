@@ -223,8 +223,7 @@ module RGame
         frames = @frames[tile] or return tile
 
         into = elapsed % frames.last.last
-        frames.each { |shown, ends| return shown if into < ends }
-        frames.last.first
+        (frames.find { |_shown, ends| into < ends } || frames.last).first
       end
 
       # Solid if any layer has a solid tile at (col, row). Out of bounds is not
@@ -234,8 +233,9 @@ module RGame
       def solid_tile?(col, row)
         return false unless in_bounds?(col, row)
 
-        @tiles.depth.times { |plane| return true if @solid[@tiles[col, row, plane]] }
-        false
+        plane = 0
+        plane += 1 while plane < @tiles.depth && !@solid[@tiles[col, row, plane]]
+        plane < @tiles.depth
       end
 
       def solid_at?(world_x, world_y) = solid_tile?(col_at(world_x), row_at(world_y))

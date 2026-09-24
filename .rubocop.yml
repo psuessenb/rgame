@@ -32,6 +32,20 @@ Game/NoNeedlessAllocation:
   Exclude:
     - 'spec/**/*'
     - 'spec_core/**/*'
+# In a game, the hot path is its lifecycle hooks and what it tags. rgame's own
+# runtime is what those hooks call into, and no method there can know whether a
+# game calls it every frame, so every one of them counts. A block exit always
+# has a free rewrite, which is what makes that affordable here and not for the
+# other two guards, whose error messages and loaders would all be flagged.
+Game/NoBlockExitInHotPath:
+  EveryMethodIn:
+    - 'lib/rgame/engine/**/*.rb'
+    - 'lib/rgame/core/**/*.rb'
+    - 'lib/rgame/util/**/*.rb'
+    - 'lib/rgame/game.rb'
+  Exclude:
+    - 'spec/**/*'
+    - 'spec_core/**/*'
 # The engine layer must stay headless: it may never name RGame::Core, in lib or
 # in its specs. Everything else is allowed to (Core's own code, its specs, the
 # test-project driver), so the cop is scoped to where the rule applies rather

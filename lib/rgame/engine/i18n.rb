@@ -108,11 +108,8 @@ module RGame
         # but not shortened: `choose(['fr-CA', 'de-AT'])` with a `de` table is
         # `:'de-AT'`. The default when none has.
         def choose(preferred)
-          preferred.each do |candidate|
-            locale = normalize(candidate)
-            return locale if lineage(locale).any? { |link| @tables.key?(link) }
-          end
-          @default
+          chosen = preferred.find { |candidate| lineage(normalize(candidate)).any? { @tables.key?(it) } }
+          chosen ? normalize(chosen) : @default
         end
 
         def missing=(policy)
@@ -255,11 +252,8 @@ module RGame
         end
 
         def lookup(key)
-          @chain.each do |link|
-            entry = @tables[link]&.[](key)
-            return entry if entry
-          end
-          nil
+          link = @chain.find { @tables[it]&.[](key) }
+          @tables[link][key] if link
         end
 
         def merge(hash, source)

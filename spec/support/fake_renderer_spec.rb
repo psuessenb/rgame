@@ -18,6 +18,20 @@ RSpec.describe FakeRenderer do
   it_behaves_like 'a renderer'
 
   describe 'recording' do
+    # A spec reads a revealed line as what is on screen, not as the whole line
+    # and a count.
+    it 'keeps the part of a string that bytes: draws' do
+      renderer.text('Hello', 0, 0, bytes: 2)
+
+      expect(renderer.calls_to(:text).map { it.args.first }).to eq(['He'])
+    end
+
+    it 'cuts at the last whole character, as the real renderer does' do
+      renderer.text('héllo', 0, 0, bytes: 2)
+
+      expect(renderer.calls_to(:text).map { it.args.first }).to eq(['h'])
+    end
+
     it 'keeps each call with its positional arguments' do
       renderer.rect(10, 20, 30, 40)
 

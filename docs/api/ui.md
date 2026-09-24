@@ -1245,10 +1245,12 @@ end
   the page again on the label's next update.** A draw before that update draws
   the new page whole, rather than building anything on the draw path.
 - **A paused label does not reveal.** Time reaches it only through `update`.
-- **Each prefix sits where its whole line will stand**, so a centred line grows
-  in place instead of moving as it lengthens.
-- **Drawing allocates nothing, mid-reveal or not.** The label builds every
-  prefix of a page's lines once, when the page appears, as frozen Strings.
+- **The start of each line sits where the whole line will stand**, so a centred
+  line grows in place instead of moving as it lengthens.
+- **Drawing allocates nothing, mid-reveal or not.** When a page appears, the
+  label finds where each character of its lines ends, one Array of numbers a
+  line. It then draws the start of each line with
+  [`renderer.text`](text.md#where-text-goes)'s `bytes:`.
 
 `revealed?` is true once the whole page is shown, and always without `reveal:`.
 What confirm does on a page still typing is the owner's decision, as turning the

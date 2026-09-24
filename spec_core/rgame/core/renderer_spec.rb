@@ -230,6 +230,27 @@ RSpec.describe RGame::Core::Renderer do
     end
   end
 
+  # The contract can say `bytes:` is taken; only the pixels can say it draws
+  # what the shorter String would, and nothing where a cut character was.
+  describe 'text with bytes:' do
+    def text_frame(string, bytes: nil)
+      RenderedFrame.capture(width: 64, height: 32) do |renderer, app|
+        renderer.text(string, 0, 0, font: RGame::Core::Font.new(app, 24), color: RGame::Util::Color::WHITE,
+                                    bytes: bytes)
+      end
+    end
+
+    def pixels(frame) = (0...64).flat_map { |x| (0...32).map { |y| frame.at(x, y) } }
+
+    it 'draws exactly what the start of the string draws' do
+      expect(pixels(text_frame('MMMM', bytes: 2))).to eq(pixels(text_frame('MM')))
+    end
+
+    it 'draws a count ending inside a character as the characters before it' do
+      expect(pixels(text_frame('éé', bytes: 3))).to eq(pixels(text_frame('é')))
+    end
+  end
+
   # The contract can state that one layer's base is above another's; only
   # reading pixels back can say the sort actually reached the GPU that way.
   describe 'layers' do

@@ -1,6 +1,6 @@
 ---
 name: verify
-description: How to verify rgame changes — the four test tiers (Check/C, RSpec/Ruby, headless live window with synthetic keyboard input, manual), how to prove new C code does not leak, the shared contracts that keep a fake from drifting from the real thing, and what the suites skip per platform. Use when writing or reviewing engine code, adding a C class or Ruby extension, testing input handling, checking for memory leaks, or deciding what kind of test a change needs.
+description: How to verify rgame changes — the four test tiers (Check/C, RSpec/Ruby, headless live window with synthetic keyboard input, manual), the allocation budgets every driven project is held to, how to prove new C code does not leak, the shared contracts that keep a fake from drifting from the real thing, and what the suites skip per platform. Use when writing or reviewing engine code, adding a C class or Ruby extension, testing input handling, checking for memory leaks, deciding what kind of test a change needs, or checking whether something allocates per frame.
 ---
 
 # Verifying rgame
@@ -15,6 +15,7 @@ cheap tiers are the ones that stay green.
 | 2b. Ruby, Core | `rake spec:core` | `RGame::Core`; real windows, own Xvfb | ~1s |
 | 3. Live window | `ruby .claude/skills/verify/scripts/smoke_live_window.rb` | Real SDL window + GL + input, **headless** | ~5s |
 | 3b. Driven test project | `ruby tools/drive_test_project.rb <project>/main.rb` | All three layers wired together, from a script | ~5s |
+| 3c. Allocation budgets | `rake drive:allocations` | What every driven project allocates once warm, against its budget | ~90s |
 | 4. Manual | `make run` / `ruby ext/.../example.rb` | Does it look right | human |
 
 Tiers 1–3 are all automated and need no display. Tier 3 is the one most
@@ -100,6 +101,23 @@ broken one: the crashed baselines above were byte-identical to each other, so "t
 two captures agree" passed. Check that each report has its `ticks / frames` section
 and no backtrace — for example, grep the captures for `Error` — before diffing
 anything against them.
+
+**Tier 3c — allocation budgets.** Every example and test project, driven by its
+own script with `--allocations`: nothing recorded, the collector paused after a
+120-tick warm-up, and what the game allocates from then on counted and traced to
+the line. A run fails over 60 objects a second on average, or with more than 10%
+of its ticks allocating anything, unless its script declares another
+`allocation_budget` and says why. The two numbers catch different mistakes. An
+event, such as a page of dialogue, allocates in a burst on a few ticks. An
+allocation every frame is only 60 objects a second, but it is on every tick.
+
+This is the tier for "does the engine allocate per frame", because it is the only
+one that sees a whole game. The allocation specs measure one class with the data
+they were given, and the cops read one method. `TileMap#frame_tile` allocated
+for every animated tile in view with every spec green: no spec's map ever showed
+a frame but the last, and nothing marked the method as per-frame. An allocation
+spec has to reach every branch that can allocate. Take a hash of cells: an
+item moving into a cell it has never been in, not the same cells again.
 
 **Tier 4 — manual.** Subjective/visual only. Never the only evidence for a
 correctness claim.

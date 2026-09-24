@@ -24,7 +24,7 @@ candidates that share a cell, not every pair. It is the index inside
 
 ```ruby
 hash = RGame::Engine::SpatialHash.new(cell_size: 64)
-hash.clear                                  # reuse bucket arrays, keep capacity
+hash.clear                                  # empty every cell, keeping its Array
 rocks.each { |r| hash.insert(r, *r.aabb) }  # insert the static set
 hash.query(*bullet.aabb) { |rock| ...narrowphase... }
 ```
@@ -36,6 +36,12 @@ A typical frame calls `clear`, inserts every collider of one set, then runs
 `remove(item, x, y, w, h)` undoes one `insert`. Pass the box the item was
 inserted at, not where it is now: the hash does not remember where it put
 anything. Removing an item that is not there does nothing.
+
+**The hash holds only the cells in use.** `clear`, and a `remove` that empties a
+cell, keep the cell's Array for the next insert, wherever that lands. A frame
+that fills as many cells as the one before allocates nothing, however far its
+colliders have moved. So the hash grows with the most cells in use at once, not
+with every cell a walker has crossed.
 
 **`query` may yield an item more than once.** An item spanning several cells sits
 in each of them. Removing repeats is the narrowphase caller's job, which spares the
@@ -54,8 +60,8 @@ contract. The caller refines candidates by true distance (see
 
 `cell_empty?(x, y)` asks whether the single cell *containing the point* `(x, y)`
 is empty. It takes a point, not a region, so pass any coordinate inside the cell
-you mean. It allocates nothing. Unlike a plain read of the bucket Hash, a miss
-creates no bucket.
+you mean. It allocates nothing. Neither it nor `query` stores anything for a
+cell that holds nothing.
 
 **The cell walk is half-open on the far edge.** The hash buckets an item by its
 bounding box. A box ending exactly on a cell boundary stops at the cell before it.

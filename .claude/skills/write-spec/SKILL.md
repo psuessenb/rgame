@@ -1,6 +1,6 @@
 ---
 name: write-spec
-description: How to write an RSpec spec in this project — the mocking rules and the exception the scene graph forces, when a value is a `let` and when it stays a method or a local, and `describe` versus `context`. Use whenever adding or editing a spec under `spec/` or `spec_core/`, or when a change to `lib/` or `ext/` needs one.
+description: How to write an RSpec spec in this project — the mocking rules and the exception the scene graph forces, when a value is a `let` and when it stays a method or a local, `describe` versus `context`, and what an allocation spec has to reach. Use whenever adding or editing a spec under `spec/` or `spec_core/`, or when a change to `lib/` or `ext/` needs one.
 ---
 
 # Writing a spec
@@ -48,3 +48,22 @@ flat because it has 580 `describe` to 2 `context` — `describe 'blocked_by:
 %i[tiles npc]'` is a context — and `RSpec/ContextWording` never fires, because it
 only inspects `context` blocks. New specs follow the rule; converting the
 existing ones buys nothing.
+
+## Allocation specs
+
+`allocate_nothing` measures what one call allocates, and only on the branches
+the spec's data reaches. So:
+
+- **Reach every branch that can allocate.** `TileMap#frame_tile` allocated
+  only when a frame other than the last was showing, and `SpatialHash` only in
+  a cell it had never used. The specs that missed both showed only the last
+  frame and reused the same cells. Measure a walk into new cells, and each
+  frame of an animation.
+- **Warm up past what happens once.** Ruby fills a method's caches on its first
+  call, and a periodic path first runs when its period ends. A spec measuring
+  something that closes a window each second warms up with
+  `after_warmup(61)`. Give the reason in a comment, as `grab_spec.rb` does for
+  the row boundary a drag crosses.
+- **A cost per event is `retain_nothing`, not `allocate_nothing`.** A pooled
+  node's spawn and reclaim allocate nothing per frame, and can still leave
+  something behind each cycle. `pool_allocation_spec.rb` measures the cycle.

@@ -240,13 +240,39 @@ static VALUE renderer_draw_image_rot(int argc, VALUE *argv, VALUE self) {
 }
 
 /*
- * #draw_text(font, string, x, y, z, rgba)
+ * The first `bytes` bytes of a `length`-byte string, shortened to the last
+ * whole character: a count that ends inside one would otherwise draw a
+ * replacement glyph for every byte of it that made the cut.
+ */
+static long whole_characters(const char *text, long length, VALUE bytes) {
+    if (NIL_P(bytes)) {
+        return length;
+    }
+
+    long limit = NUM2LONG(bytes);
+    if (limit < 0) {
+        rb_raise(rb_eArgError, "bytes: must not be negative, got %ld", limit);
+    }
+    if (limit >= length) {
+        return length;
+    }
+    while (limit > 0 && ((unsigned char)text[limit] & 0xC0) == 0x80) {
+        limit--;
+    }
+    return limit;
+}
+
+/*
+ * #draw_text(font, string, x, y, z, rgba, bytes)
  *
  * The string's bytes go to C as they are: no `each_char`, no codepoints array,
  * nothing allocated per call. Walking UTF-8 is what typeface.c is for.
+ * `bytes` is nil for the whole string, or how many of its bytes to draw, which
+ * is how a label reveals a line a character at a time without a String for
+ * every step.
  */
 static VALUE renderer_draw_text(int argc, VALUE *argv, VALUE self) {
-    rb_check_arity(argc, 6, 6);
+    rb_check_arity(argc, 7, 7);
 
     VALUE font = argv[0];
     VALUE string = argv[1];
@@ -257,7 +283,7 @@ static VALUE renderer_draw_text(int argc, VALUE *argv, VALUE self) {
      * StringValue converts what can convert and raises TypeError otherwise. */
     StringValue(string);
     const char *text = RSTRING_PTR(string);
-    long length = RSTRING_LEN(string);
+    long length = whole_characters(text, RSTRING_LEN(string), argv[6]);
 
     int drawn = rgame_app_draw_text(drawing_app(self), rgame_font_unwrap(font), text,
                                     (size_t)length, (float)NUM2DBL(argv[2]),

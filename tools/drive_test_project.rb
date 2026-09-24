@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require 'fileutils'
+require 'json'
+require 'objspace'
 require 'optparse'
 require 'tmpdir'
 
@@ -91,7 +93,22 @@ module DriveTestProject
     def initialize
       @tracks = {}
       @device = nil
+      @budget = {}
     end
+
+    # What a run of this script may allocate once it is warm, for
+    # `--allocations`: the objects a second, and the share of its ticks that
+    # allocate anything. Each left out keeps AllocationProbe's default. A
+    # script that raises one says why in its header.
+    #
+    #   allocation_budget objects_per_second: 1_500
+    def allocation_budget(objects_per_second: nil, share_of_ticks: nil)
+      @budget = { objects_per_second:, share_of_ticks: }.compact
+      self
+    end
+
+    # The limits `allocation_budget` set, as keywords for AllocationProbe.new.
+    attr_reader :budget
 
     # Available to a script, so it can name physical ids without knowing where
     # they live: `hold controls::KEY_RIGHT, 60`.
@@ -193,7 +210,7 @@ module DriveTestProject
   class Report
     Call = Struct.new(:calls, :first_args, :last_args, :ranges)
 
-    attr_accessor :ticks, :frames, :loaded_from, :saves
+    attr_accessor :ticks, :frames, :loaded_from, :saves, :allocations
     attr_reader :draws, :clips, :translates, :sounds, :scenes, :bands, :texts, :missing_keys
 
     # `texts:` adds a section listing every distinct String drawn with `text`,
@@ -268,6 +285,8 @@ module DriveTestProject
       out << section('rgame loaded from', Array(@loaded_from))
       out << section('saves', [@saves])
       out << section('ticks / frames', ["#{@ticks} ticks, #{@frames} frames"])
+      return allocation_report(out) if @allocations
+
       out << section('scenes', @scenes)
       out << section('draw calls', @draws.sort_by { |_, c| -c.calls }.map { |name, c| draw_line(name, c) })
       out << section('texts drawn', text_lines) if @show_texts
@@ -280,6 +299,11 @@ module DriveTestProject
     end
 
     private
+
+    def allocation_report(out)
+      out << section('missing or mismatched keys', missing_lines) unless @missing_keys.empty?
+      out << section("allocations after a #{AllocationProbe::WARMUP}-tick warm-up", @allocations.lines)
+    end
 
     def text_lines
       @texts.map { |string, (count, tick)| format('%6d  %s from tick %d', count, string.inspect, tick) }
@@ -406,6 +430,16 @@ module DriveTestProject
       @target.layered(band, &)
     end
 
+    # Named so `--texts` lists what a player saw. A label revealing a line
+    # draws the whole line with `bytes:`, and what reached the screen is its
+    # start, cut at the last whole character as the renderer cuts it.
+    def text(string, *, bytes: nil, **, &)
+      drawn = @target.text(string, *, bytes: bytes, **, &)
+      label = label?(string) ? string.to_str : string
+      note(:text, [bytes ? label.byteslice(0, bytes).scrub('') : label, *])
+      drawn
+    end
+
     private
 
     def note(name, args)
@@ -512,6 +546,115 @@ module DriveTestProject
     end
   end
 
+  # What a run allocates once it is warm, for `--allocations`.
+  #
+  # The first WARMUP ticks load assets, build scenes and fill Ruby's method
+  # caches, none of which a player waits on twice, so counting starts after
+  # them. From then on the collector is paused: every object the game makes is
+  # still there at the end to be traced to the line that made it, and no
+  # collection adds objects of its own mid-count.
+  #
+  # **Two numbers, because they catch different mistakes.** Objects a second
+  # is what the collector has to keep up with, and a burst of work on an event
+  # is what raises it: a page of dialogue, a path planned. The share of ticks
+  # that allocate anything is what an allocation every frame raises. One
+  # object a frame is only 60 a second, but it is on every tick, where the
+  # events in a driven run touch a few in a hundred.
+  #
+  # A failed run lists the lines that allocated most. The dump they come from
+  # also lists Ruby's object shapes and the harness's own objects. Neither is
+  # the game's, so neither is listed.
+  class AllocationProbe
+    WARMUP = 120
+    TICKS_PER_SECOND = 60
+    OBJECTS_PER_SECOND = 60
+    SHARE_OF_TICKS = 0.1
+    SITES = 12
+    HARNESS = File.expand_path(__FILE__)
+
+    def initialize(objects_per_second: OBJECTS_PER_SECOND, share_of_ticks: SHARE_OF_TICKS)
+      @objects_per_second = objects_per_second
+      @share_of_ticks = share_of_ticks
+      @per_tick = []
+      @sites = []
+    end
+
+    # Called once a tick, with the tick's number counted from 1.
+    def tick(number)
+      if number == WARMUP
+        start
+      elsif @counted
+        note
+      end
+    end
+
+    # Stops counting at the end of the run, and traces what was counted.
+    def finish
+      return unless @counted
+
+      note
+      ObjectSpace.trace_object_allocations_stop
+      @sites = sites
+      @counted = nil
+      GC.enable
+    end
+
+    # Whether the run went over either budget, or ended before its warm-up
+    # did and so measured nothing.
+    def failed? = @per_tick.empty? || per_second > @objects_per_second || share > @share_of_ticks
+
+    def lines
+      return ["the run ended before its #{WARMUP}-tick warm-up did, so nothing was measured"] if @per_tick.empty?
+
+      [format('%<n>d objects over %<ticks>d ticks: %<rate>.1f a second (budget %<budget>d)',
+              n: total, ticks: @per_tick.size, rate: per_second, budget: @objects_per_second),
+       format('%<busy>d of %<ticks>d ticks allocated anything: %<share>.1f%% (budget %<budget>.1f%%)',
+              busy: busy, ticks: @per_tick.size, share: share * 100, budget: @share_of_ticks * 100),
+       "worst second: #{worst_second}",
+       *(failed? ? ['where, most first:', *@sites] : [])]
+    end
+
+    private
+
+    def start
+      GC.start
+      GC.disable
+      @generation = GC.count
+      ObjectSpace.trace_object_allocations_start
+      @counted = GC.stat(:total_allocated_objects)
+    end
+
+    def note
+      now = GC.stat(:total_allocated_objects)
+      @per_tick << (now - @counted)
+      @counted = GC.stat(:total_allocated_objects)
+    end
+
+    def total = @per_tick.sum
+    def busy = @per_tick.count(&:positive?)
+    def per_second = total.fdiv(@per_tick.size) * TICKS_PER_SECOND
+    def share = busy.fdiv(@per_tick.size)
+    def worst_second = @per_tick.each_slice(TICKS_PER_SECOND).map(&:sum).max
+
+    def sites
+      counts = Hash.new(0)
+      ObjectSpace.dump_all(output: :string, since: @generation).each_line do |line|
+        object = JSON.parse(line)
+        next if object['type'] == 'SHAPE' || (object['file'] && File.expand_path(object['file']) == HARNESS)
+
+        counts[site(object)] += 1
+      end
+      counts.sort_by { |_, n| -n }.first(SITES).map { |where, n| format('%6d  %s', n, where) }
+    end
+
+    def site(object)
+      type = object['type'] == 'IMEMO' ? "IMEMO/#{object['imemo_type']}" : object['type']
+      return "#{type} (no Ruby frame)" unless object['file']
+
+      "#{type} #{object['file'].delete_prefix("#{ROOT}/")}:#{object['line']} in #{object['method']}"
+    end
+  end
+
   class << self
     # Drives one project and returns what it did.
     #
@@ -529,15 +672,21 @@ module DriveTestProject
     # nothing an earlier run saved can change what this one does. Pass one to keep a save across two runs. The
     # report names a directory only when it was passed, so two runs' reports
     # stay comparable byte for byte.
-    def run(project:, script_path:, ticks:, gamepad: false, texts: false, installed: false, out: $stdout)
+    #
+    # `allocations:` counts what the run allocates instead of what it drew; see
+    # AllocationProbe. It records nothing, because recording would allocate far
+    # more than any game. `ticks: nil` runs 240 ticks, and with `allocations:`
+    # the whole script or AllocationProbe::WARMUP and 300 more, the longer.
+    def run(project:, script_path:, ticks: nil, gamepad: false, texts: false, installed: false,
+            allocations: false, out: $stdout)
       fresh = ENV['RGAME_SAVE_DIR'].nil?
       ENV['RGAME_SAVE_DIR'] = Dir.mktmpdir('rgame-drive-') if fresh
-      drive(project, script_path, ticks, gamepad, texts, installed, out, fresh)
+      drive(project, script_path, ticks, gamepad, texts, installed, allocations, out, fresh)
     ensure
       FileUtils.remove_entry(ENV.delete('RGAME_SAVE_DIR')) if fresh && ENV['RGAME_SAVE_DIR']
     end
 
-    def drive(project, script_path, ticks, gamepad, texts, installed, out, fresh)
+    def drive(project, script_path, ticks, gamepad, texts, installed, allocations, out, fresh)
       HeadlessDisplay.start
       checkout_lib = File.join(ROOT, 'lib')
       $LOAD_PATH.unshift(checkout_lib) unless installed || $LOAD_PATH.include?(checkout_lib)
@@ -547,6 +696,8 @@ module DriveTestProject
       report = Report.new(texts: texts)
       report.loaded_from = loaded_binaries
       report.saves = fresh ? 'a fresh directory, removed after the run' : ENV.fetch('RGAME_SAVE_DIR')
+      report.allocations = AllocationProbe.new(**script.budget) if allocations
+      ticks ||= allocations ? [script.length, AllocationProbe::WARMUP + 300].max : 240
       if gamepad
         require_relative '../spec_core/support/virtual_gamepad'
         install(report, nil, ticks, pad: ScriptedGamepad.new(script))
@@ -580,15 +731,17 @@ module DriveTestProject
 
     def install(report, input, budget, pad: nil)
       RGame::Game.prepend(game_probe(report, input, budget, pad))
-      RGame::Engine::Scene::SceneStack.prepend(scene_probe(report))
+      RGame::Engine::Scene::SceneStack.prepend(scene_probe(report)) unless report.allocations
     end
 
     def game_probe(report, input, budget, pad)
+      recording = report.allocations.nil?
       Module.new do
         define_method(:initialize) do |**kwargs|
           extra = pad ? { device: RGame::Util::Controls.gamepad(0) } : { input: input }
-          super(**kwargs, **extra, audio: AudioProbe.new(RGame::Core::Audio.new, report))
-          @renderer = RendererProbe.new(@renderer, report)
+          extra[:audio] = AudioProbe.new(RGame::Core::Audio.new, report) if recording
+          super(**kwargs, **extra)
+          @renderer = RendererProbe.new(@renderer, report) if recording
         end
 
         define_method(:update) do |dt|
@@ -599,9 +752,11 @@ module DriveTestProject
             input.tick = report.ticks
           end
           report.ticks += 1
+          report.allocations&.tick(report.ticks)
           super(dt)
           next unless report.ticks >= budget
 
+          report.allocations&.finish
           pad&.detach
           close
         end
@@ -630,15 +785,20 @@ module DriveTestProject
 end
 
 if $PROGRAM_NAME == __FILE__
-  options = { ticks: 240, script: nil, gamepad: false, seed: nil, texts: false, installed: false }
+  options = { ticks: nil, script: nil, gamepad: false, seed: nil, texts: false, installed: false, allocations: false }
   parser = OptionParser.new do |o|
     o.banner = 'Usage: ruby tools/drive_test_project.rb PROJECT_MAIN [options]'
-    o.on('--ticks N', Integer, 'Stop after N simulation ticks (default 240)') { options[:ticks] = it }
+    o.on('--ticks N', Integer, 'Stop after N simulation ticks (default 240, or the script with --allocations)') do |n|
+      options[:ticks] = n
+    end
     o.on('--script PATH', 'Input script (default: tools/drive/<project path>.rb)') { options[:script] = it }
     o.on('--gamepad', 'Drive a synthetic SDL controller instead of the input backend') { options[:gamepad] = true }
     o.on('--seed N', Integer, 'Seed the project RNG, so two runs can be compared') { options[:seed] = it }
     o.on('--texts', 'List every distinct string drawn with text, with its count') { options[:texts] = true }
     o.on('--installed', 'Load rgame as installed, instead of from this checkout') { options[:installed] = true }
+    o.on('--allocations', 'Count what the run allocates once warm, and fail over its budget') do
+      options[:allocations] = true
+    end
   end
   parser.parse!
 
@@ -653,8 +813,10 @@ if $PROGRAM_NAME == __FILE__
 
   report = DriveTestProject.run(project: project, script_path: script_path,
                                 ticks: options[:ticks], gamepad: options.fetch(:gamepad, false),
-                                texts: options[:texts], installed: options[:installed])
+                                texts: options[:texts], installed: options[:installed],
+                                allocations: options[:allocations])
 
-  abort "#{project} drew nothing in #{options[:ticks]} ticks." if DriveTestProject.drew_nothing?(report)
+  abort "#{project} drew nothing in #{report.ticks} ticks." if DriveTestProject.drew_nothing?(report)
   exit 1 if DriveTestProject.missing_translations?(report)
+  exit 1 if report.allocations&.failed?
 end

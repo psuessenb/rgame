@@ -32,6 +32,14 @@
 # The walks are timed at 150 pixels a second, 2.5 a tick. The hero is paused
 # during a conversation, so a direction still held when one starts walks on
 # once it ends.
+#
+# Under `--allocations`, about 80 objects a second, on about 3% of ticks. The
+# script steps through a dialogue beat every half second or so, and each beat
+# builds its response menu anew: buttons, their signals and their labels'
+# lines. That is work done on an event, not every frame, so it keeps the
+# default share of ticks and asks for more objects a second.
+
+allocation_budget objects_per_second: 120
 
 # --- the first talk: the work --------------------------------------------
 idle 10

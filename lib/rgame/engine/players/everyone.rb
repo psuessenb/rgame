@@ -65,10 +65,8 @@ module RGame
         # hot-path
         def members_current?
           nobody = @players.list.none?(&:active?)
-          @players.list.each do |player|
-            return false unless member?(player, nobody) == @members.include?(player)
-          end
-          @members.all? { |player| @players.list.include?(player) }
+          @players.list.all? { |player| member?(player, nobody) == @members.include?(player) } &&
+            @members.all? { |player| @players.list.include?(player) }
         end
 
         # hot-path

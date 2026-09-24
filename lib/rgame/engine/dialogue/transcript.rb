@@ -19,7 +19,7 @@ module RGame
       # visit to the same beat with other values leaves the earlier entry as it
       # was.
       class Transcript
-        include Enumerable
+        include Collection.of(:@entries)
 
         # One line shown or one response picked. For a line, `speaker` and
         # `speaker_name` name who said it, `text` is the line and `vars` the

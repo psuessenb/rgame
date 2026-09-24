@@ -26,6 +26,13 @@ namespace :docs do
   end
 end
 
+namespace :drive do
+  desc 'Drive every example and test project, and fail one that allocates over its budget (boots Xvfb)'
+  task :allocations do
+    ruby 'tools/drive_allocations.rb'
+  end
+end
+
 desc 'Run the C unit tests (Check)'
 task :test do
   sh 'make test'

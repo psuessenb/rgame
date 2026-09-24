@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'strscan'
 require_relative '../paragraph'
 
 module RGame
@@ -38,15 +39,18 @@ module RGame
       # A character is a grapheme cluster, so a letter built from a base and a
       # combining mark appears whole. The reveal starts again from nothing when
       # the page turns, the text changes, `text=` is called or the width
-      # changes. It draws prefixes of each line, built once when the page
-      # appears, and places each where the whole line will stand, so a centred
-      # line does not move as it grows.
+      # changes. It draws the start of each line with `renderer.text`'s
+      # `bytes:`, from where each character ends, which it finds once when the
+      # page appears. So a page allocates an Array of numbers a line rather
+      # than a String a character. It places each start where the whole line
+      # will stand, so a centred line does not move as it grows.
       # A paused label does not reveal, since time reaches it only through
       # `update`.
       class Label < Node2D
         COLOR = TextButton::LABEL_COLOR
 
         ALIGNS = %i[left center right].freeze
+        GRAPHEME = /\X/
 
         attr_reader :typeface, :align, :color
 
@@ -78,6 +82,7 @@ module RGame
           @built = nil
           @shown = 0.0
           @total = 0
+          @scanner = StringScanner.new('')
         end
 
         # Changes the text: a translation key or an Engine::Text, as `new`
@@ -127,8 +132,8 @@ module RGame
 
         # How many characters the page drawn holds, counted in grapheme clusters
         # as the reveal counts them: for sizing how long a page stays up. It
-        # counts afresh on every call, so it is not for a draw path.
-        def page_length = @paragraph.page(@page).sum { it.grapheme_clusters.size }
+        # counts afresh on every call.
+        def page_length = @paragraph.page(@page).sum { characters_in(it) }
 
         # Whether the whole page is shown: always without `reveal:`, and for a
         # page the label has not yet started revealing, which it draws whole.
@@ -169,11 +174,12 @@ module RGame
           left = @shown.floor
           index = 0
           while index < lines.size && left.positive?
-            prefixes = @built_prefixes[index]
-            shown = left.clamp(0, prefixes.size - 1)
+            ends = @built_ends[index]
+            shown = left.clamp(0, ends.size - 1)
             line = lines[index]
             if shown.positive?
-              renderer.text(prefixes[shown], line_x(line), index * @typeface.height, font: @typeface, color: @color)
+              renderer.text(line, line_x(line), index * @typeface.height, font: @typeface, color: @color,
+                                                                          bytes: ends[shown])
             end
             left -= shown
             index += 1
@@ -188,15 +194,24 @@ module RGame
           lines = @paragraph.page(@page)
           return if lines.equal?(@built)
 
-          @built_prefixes = lines.map { prefixes_of(it) }.freeze
-          @total = @built_prefixes.sum { it.size - 1 }
+          @built_ends = lines.map { character_ends(it) }.freeze
+          @total = @built_ends.sum { it.size - 1 }
           @built = lines
           @shown = 0.0
         end
 
-        def prefixes_of(line)
-          prefix = +''
-          ['', *line.grapheme_clusters.map { (prefix << it).dup.freeze }].freeze
+        def character_ends(line)
+          @scanner.string = line
+          ends = [0]
+          ends << @scanner.pos while @scanner.skip(GRAPHEME)
+          ends.freeze
+        end
+
+        def characters_in(line)
+          @scanner.string = line
+          count = 0
+          count += 1 while @scanner.skip(GRAPHEME)
+          count
         end
 
         def line_x(line)
