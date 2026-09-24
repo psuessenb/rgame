@@ -59,7 +59,7 @@ on controls::KEYBOARD do
   idle 10
   hold controls::KEY_UP, 27
   hold controls::KEY_RIGHT, 257
-  idle 60
+  idle 190
 end
 
 on controls.gamepad(0) do
@@ -87,5 +87,11 @@ on controls.gamepad(0) do
   idle 102
   hold controls::PAD_DPAD_RIGHT, 6
   hold controls::PAD_DPAD_UP, 164
-  idle 60
+  idle 50
+  hold controls::PAD_DPAD_RIGHT, 36
+  hold controls::PAD_DPAD_UP, 92
+  idle 190
+  hold controls::PAD_DPAD_RIGHT, 27
+  hold controls::PAD_DPAD_UP, 44
+  idle 90
 end

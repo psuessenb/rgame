@@ -24,10 +24,12 @@
 #
 # ## The music
 #
-# The town claims `music.ogg` at priority 1, while a player stands in it or is
-# on the way to it. The claim changes as a move is asked for, so the song fades
-# out over the cover and the reveal of the move that empties the town, and in
-# again over the move that fills it.
+# The town claims `music.ogg` at priority 1, and the garden its own song at
+# priority 2 when it has one, each while a player stands in it or is on the way
+# to it. The claims change as a move is asked for, so the music crossfades to
+# the garden's song over the cover and the reveal of the first hero asked into
+# the garden, and back as the horn is sounded. With no song in the garden, the
+# town's fades out when the town empties and in again when it fills.
 #
 # The world listens to `Players#on_joined` for as long as it is in the tree,
 # and ends that as it leaves.
@@ -46,7 +48,7 @@ class World < RGame::Engine::Node2D
     super
     @rooms = add_component(RGame::Engine::Scene::Rooms.new)
     @rooms.define(:town, music: MUSIC, priority: 1) { Town.new }
-    @rooms.define(:garden) { Garden.new }
+    @rooms.define(:garden, music: Garden::SONG, priority: 2) { Garden.new }
     @rooms.transition = DOORS
     @heroes = []
   end
