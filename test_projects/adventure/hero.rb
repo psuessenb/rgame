@@ -22,7 +22,17 @@
 # hold is `:search` on the same buttons, read here. Both act on the same
 # `target`, so the hero asks "what is in reach" once and the input map decides
 # which of the two a press meant — see main.rb for the two entries.
+#
+# ## What it carries and wears
+#
+# The hero owns both lists, and `carry` is the one way in: a coin calls it on
+# whoever touched it, and a search carries what the chest gave. The player's Bag
+# reads `carried` and `worn` and calls `wear` and `take_off`. The hero draws
+# what it wears over its sprite, and names it in words above its head, as the
+# chest and the crate draw their state.
 class Hero < RGame::Engine::Node2D
+  SLOTS = %i[head].freeze
+
   SPEED = 80.0
 
   FEET_WIDTH  = 12
@@ -33,6 +43,9 @@ class Hero < RGame::Engine::Node2D
 
   REACH = 48.0
   GRIP = 32.0
+
+  HAT_WIDTH = 14
+  HAT_HEIGHT = 4
 
   def initialize(camera:, **)
     super(**)
@@ -52,9 +65,46 @@ class Hero < RGame::Engine::Node2D
                                 ))
     @interactor.on_interacted(&:open)
     add_component(RGame::Engine::Components::Grab.new(range: GRIP, layer: :crate))
+    @carried = []
+    @worn = {}
+    @revision = 0
+  end
+
+  # `carried` is every Item held and not worn, in the order it came. `worn`
+  # maps a slot to the Item it wears. `revision` counts the changes to either,
+  # so a reader can tell whether what it last read is still true.
+  attr_reader :carried, :worn, :revision
+
+  def carry(item)
+    @carried << item
+    @revision += 1
+  end
+
+  # Wears `item` from what is carried, and carries whatever its slot wore.
+  def wear(item)
+    @carried.delete_at(@carried.index(item))
+    take_off(item.slot)
+    @worn[item.slot] = item
+    @revision += 1
+  end
+
+  def take_off(slot)
+    item = @worn.delete(slot)
+    carry(item) if item
   end
 
   def _control(actions)
-    @interactor.target&.search if actions.pressed?(:search)
+    return unless actions.pressed?(:search)
+
+    found = @interactor.target&.search
+    carry(found) if found
+  end
+
+  def _draw(renderer, _view)
+    hat = @worn[:head]
+    return unless hat
+
+    renderer.rect(1, 0, HAT_WIDTH, HAT_HEIGHT, z: 1, color: hat.color)
+    renderer.text(hat.name, 0, -12)
   end
 end

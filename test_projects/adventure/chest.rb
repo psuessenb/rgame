@@ -18,6 +18,8 @@ class Chest < RGame::Engine::Node2D
   SEARCHED = RGame::Util::Color.new(72, 96, 78)
 
   LABELS = { closed: 'chest', open: 'open', searched: 'searched' }.freeze
+
+  STRAW = RGame::Util::Color.new(232, 200, 112)
   COLORS = { closed: CLOSED, open: OPEN, searched: SEARCHED }.freeze
 
   def initialize(**)
@@ -33,11 +35,14 @@ class Chest < RGame::Engine::Node2D
     @state = :open if @state == :closed
   end
 
-  # Only an open chest has anything to search, so a hold on a closed one does
-  # nothing — which is what makes the two actions distinguishable in a report
-  # rather than merely both firing.
+  # Returns the hat inside, once. Only an open chest has anything to search, so
+  # a hold on a closed one finds nothing — which is what makes the two actions
+  # distinguishable in a report rather than merely both firing.
   def search
-    @state = :searched if @state == :open
+    return unless @state == :open
+
+    @state = :searched
+    Item.new('hat', slot: :head, color: STRAW)
   end
 
   def _draw(renderer, _view)
