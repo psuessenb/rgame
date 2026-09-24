@@ -290,6 +290,59 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
     end
   end
 
+  # The doors between the town and the garden live in the maps, so a designer
+  # who moves one in Tiled can break a room nobody has walked into yet. These
+  # hold the files themselves, before any example runs.
+  describe 'the doors in town.tmx and garden.tmx' do
+    let(:maps) do
+      %w[town garden].to_h do |name|
+        [name, RGame::Engine::TileMap.from_tiled(RGame::Engine::Tiled::Map.load(File.join(assets, "#{name}.tmx")))]
+      end
+    end
+
+    # How far a feet box reaches from the point a node stands on: half a hero's
+    # 12 px width, rounded up to half a tile.
+    let(:reach) { 8 }
+
+    def all_of(class_names)
+      maps.flat_map { |room, map| map.objects.select { class_names.include?(it.class_name) }.map { [room, it] } }
+    end
+
+    it 'loads the garden, the size of the window' do
+      expect([maps['garden'].pixel_width, maps['garden'].pixel_height]).to eq([640, 480])
+    end
+
+    it "names, on every door and warp, an entrance on the map the door's to names" do
+      targets = all_of(%w[door warp]).map do |room, door|
+        to = door.class_name == 'warp' ? room : door.properties.fetch('to')
+        maps.fetch(to).object_named(door.properties.fetch('entrance')).class_name
+      end
+
+      expect(targets).to all(eq('entrance')).and have_attributes(size: 5)
+    end
+
+    it "puts every entrance off every door's and pad's box, so nobody arrives on one" do
+      on_a_door = all_of(%w[entrance]).select do |room, entrance|
+        maps[room].objects.select { %w[door warp].include?(it.class_name) }.any? do |door|
+          entrance.x.between?(door.x - reach, door.x + door.width + reach) &&
+            entrance.y.between?(door.y - reach, door.y + door.height + reach)
+        end
+      end
+
+      expect(on_a_door.map { |room, entrance| "#{room} #{entrance.name}" }).to be_empty
+    end
+
+    it 'puts every entrance and every door on walkable ground' do
+      blocked = all_of(%w[entrance door warp]).select do |room, object|
+        [[object.x, object.y], [object.x + object.width, object.y + object.height]].any? do |x, y|
+          maps[room].solid_at?(x, [y - 1, object.y].max)
+        end
+      end
+
+      expect(blocked.map { |room, object| "#{room} #{object.name}" }).to be_empty
+    end
+  end
+
   # Breadth-first over the walkable tiles: how many steps the shortest route
   # takes, or nil if there is none. Deliberately not A* — this states what the
   # map guarantees without depending on the algorithm the example under test

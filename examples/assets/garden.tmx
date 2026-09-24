@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Authored for examples/doors; edit it in Tiled. See README.md.
+
+     40x30 tiles at 16px = 640x480 pixels, the window exactly. A garden of
+     grass and flowers walled with trees, with a few small trees standing in it.
+     The doors, the warp pads and the entrances are in the "doors" object
+     layer, and a door draws itself, so no tile marks one. -->
+<map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="16" tileheight="16" infinite="0" nextlayerid="4" nextobjectid="9">
+ <tileset firstgid="1" source="tileset.tsx"/>
+ <layer id="1" name="ground" width="40" height="30">
+  <data encoding="base64" compression="zlib">eJztkzEOwCAMA1P4/5+7UyrlgkEMHlhQZB8R1yPiWTz9574JMsYZkkl7stlZVroD2rO6i1lPNTOzEwXv2FPJzLAqeGc9NJP8NTUr5bXDvMcO73VYzVrhtcOsxw7bYTJTybDDdzhMeuywlveEwy35nkqPHbbDO3jt8DfzVodfD60Fbw==</data>
+ </layer>
+ <layer id="2" name="obstacles" width="40" height="30">
+  <data encoding="base64" compression="zlib">eJzt1sENACEIRFFasAD7b9MGMBJHcERe4sXTD5jNNhFp5IdV9WGY+rpyx9Sn8ejros9ih1ffKT/u18ryDm7Pj71vpfow1YeJ6EO+11Hz222s/WIy9538j5pB+7xl3m8ES1/EHmcyzO+mV/qYzwCwsQqC</data>
+ </layer>
+ <objectgroup id="3" name="doors">
+  <object id="1" name="start" type="entrance" x="320" y="240">
+   <point/>
+  </object>
+  <object id="2" name="gate_in" type="entrance" x="72" y="240">
+   <point/>
+  </object>
+  <object id="3" name="gate" type="door" x="16" y="224" width="16" height="16">
+   <properties>
+    <property name="to" value="town"/>
+    <property name="entrance" value="gate_out"/>
+   </properties>
+  </object>
+  <object id="4" name="pad_a" type="warp" x="160" y="96" width="16" height="16">
+   <properties>
+    <property name="entrance" value="beside_b"/>
+   </properties>
+  </object>
+  <object id="5" name="pad_b" type="warp" x="464" y="352" width="16" height="16">
+   <properties>
+    <property name="entrance" value="beside_a"/>
+   </properties>
+  </object>
+  <object id="6" name="beside_a" type="entrance" x="168" y="144">
+   <point/>
+  </object>
+  <object id="7" name="beside_b" type="entrance" x="472" y="400">
+   <point/>
+  </object>
+  <object id="8" name="horn" type="door" x="560" y="320" width="16" height="16">
+   <properties>
+    <property name="to" value="town"/>
+    <property name="entrance" value="square"/>
+    <property name="party" type="bool" value="true"/>
+   </properties>
+  </object>
+ </objectgroup>
+</map>

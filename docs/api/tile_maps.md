@@ -36,8 +36,9 @@ map = RGame::Engine::TileMap.from_tiled(parsed)
 
 map.width         # => 60 — in tiles
 map.pixel_width   # => 960
-map.layer_count   # => 2
+map.layer_count   # => 3 — ground, obstacles and the doors object layer
 map.tile_count    # => 132
+map.object_named('start').x # => 376.0 — a point the doors layer names
 ```
 
 **`Tiled::Map.load(path)` reads the file as Tiled wrote it**, with every tileset
@@ -263,8 +264,15 @@ and the repeat in the layer's properties in Tiled.
 ### Objects
 
 ```ruby
-map.objects   # => every object of every object layer, as MapObjects
+map.objects                 # => every object of every object layer, as MapObjects
+map.object_named('gate_in') # => the one object named gate_in
 ```
+
+**`TileMap#object_named` finds an object a designer named,** such as a spawn point
+or the entrance a door leads to. It raises `KeyError`, listing the map's object
+names, for a name no object has. It raises `ArgumentError`, naming the objects'
+ids, for a name two objects share, since either could be meant. An object left
+unnamed in Tiled has the name `''`.
 
 **A `RGame::Engine::MapObject` is in the game's coordinates.** `x` and `y` are its
 top-left corner in pixels, for every shape, and `rotation` turns it clockwise, in

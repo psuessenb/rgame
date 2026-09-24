@@ -352,6 +352,36 @@ RSpec.describe RGame::Engine::TileMap do
     end
   end
 
+  describe '#object_named' do
+    def map(body) = build(%(<objectgroup name="doors">#{body}</objectgroup>))
+
+    let(:entrances) do
+      map('<object id="1" name="gate_in" x="10" y="20"><point/></object>' \
+          '<object id="2" x="0" y="0"/><object id="3" name="start" x="30" y="40"><point/></object>')
+    end
+
+    it 'returns the one object with that name' do
+      object = entrances.object_named('start')
+
+      expect([object.id, object.x, object.y]).to eq([3, 30.0, 40.0])
+    end
+
+    it "raises KeyError listing the map's names, for a name it lacks" do
+      expect { entrances.object_named('gate_out') }
+        .to raise_error(KeyError, "no object named 'gate_out' in this map (has: gate_in, start)")
+    end
+
+    it 'says so, for a map with no named object' do
+      expect { map('<object id="1" x="0" y="0"/>').object_named('start') }.to raise_error(KeyError, /has: none/)
+    end
+
+    it 'raises ArgumentError naming the ids, for a name two objects share' do
+      twice = map('<object id="4" name="start" x="0" y="0"/><object id="7" name="start" x="16" y="0"/>')
+
+      expect { twice.object_named('start') }.to raise_error(ArgumentError, /2 objects are named 'start'.*ids 4, 7/)
+    end
+  end
+
   describe 'a fixed map and its infinite twin' do
     # The same picture twice: a tile in the top-left and a flipped one in the
     # bottom-right cell, a tile object and a polygon. The infinite one is

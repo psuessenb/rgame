@@ -189,7 +189,8 @@ index, not the argument.
 - **A tile map says what its tiles, layers and objects are.** `TileMap` answers
   `orientation`, `tile_class`, `tile_properties`, `layer`, `layer_index`,
   `image_layers` and `objects`, which are `RGame::Engine::MapObject`s in the
-  game's coordinates. Custom properties are `RGame::Engine::Properties`. See
+  game's coordinates. `object_named` finds the one object a designer named.
+  Custom properties are `RGame::Engine::Properties`. See
   [docs/api/tile_maps.md](docs/api/tile_maps.md).
 - **A tile map draws what Tiled shows.** Turned and flipped tiles draw turned,
   hidden layers draw nothing, and a layer fades by its opacity. Tilesets with a
