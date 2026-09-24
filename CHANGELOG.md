@@ -35,6 +35,11 @@ index, not the argument.
   running with nobody in it. A room's `WorldView` draws only into its players'
   views, and each player's camera takes their room's limits. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md#rooms-scenerooms).
+- **A player's input can be suspended.** `Player#suspend_input` makes every
+  node of that player read nothing held until `#resume_input`, and a press begun
+  meanwhile is refused. `Scene::Rooms` suspends a moving player's input until
+  their reveal ends. See
+  [docs/api/input.md](docs/api/input.md#a-players-input-can-be-suspended).
 - **Scenes that fade in and out.** `Scene::SceneStack#transition=` takes a
   `Scene::Fade`, a colour and two durations, and each switch then covers the
   view, lands while covered and reveals the new scene. No scene reads input

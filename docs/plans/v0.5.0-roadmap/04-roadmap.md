@@ -3394,11 +3394,13 @@ the licence need not be CC0, and the landed note records the source.
 `docs/api/examples.md` and `README.md` gain `examples/doors`, and
 `scene_graph.md`'s rooms section points at it.
 
-**Landed.** Four sub-steps, one commit each. `make test` 412 checks 0 failures,
-as at the branch point, since no C changed. `rake spec` 3907 examples 0 failures
-(3898), `rake spec:core` 517 examples 0 failures (517), `rake docs:coverage`
-nothing undocumented in 201 classes, and `rake drive:allocations` passes all 40
-projects, `examples/doors` at 37.9 objects a second and the adventure at 53.0.
+**Landed.** Four sub-steps, one commit each, and a fifth for the moving
+player's input, found by the adventure after the four. `make test` 412 checks 0
+failures, as at the branch point, since no C changed. `rake spec` 3917 examples
+0 failures (3898), `rake spec:core` 517 examples 0 failures (517), `rake
+docs:coverage` nothing undocumented in 201 classes, and `rake drive:allocations`
+passes all 40 projects, `examples/doors` at 37.9 objects a second and the
+adventure at 52.9.
 
 **The four examples on `town.tmx` report what `main` reports.**
 `collision_tiles`, `jump_topdown`, `pathfinding` and `scroll_map` matched byte
@@ -3486,9 +3488,17 @@ What the sketch got wrong:
 - **`examples/doors` needs `--ticks 900`.** The Verify block's command runs 240
   ticks, which ends before the gate. The script's header gives the command.
 
-Found while writing the world, and recorded as
-[open question 8](README.md#open-questions): a bag closed during its hero's
-move leaves the hero paused, since the rooms give back the `paused` they found.
+- **A moving player's other nodes still read input.** The adventure's bag,
+  opened before the horn and closed under its cover, left the hero paused with
+  the bag closed once the reveal ended, since the rooms give back the `paused`
+  they found. A stack controls no scene under its cover (decision 23), and the
+  rooms controlled every node but the moving one. `Player#suspend_input` now
+  makes a player's actions read as nothing held, and the rooms suspend a moving
+  player's input from the request until their reveal ends, so a press begun
+  under the cover is refused. The drive script presses I under the horn's cover:
+  the bag stays open and its hero paused, and the next press after the reveal
+  closes the bag and frees the hero. Settles
+  [open question 8](README.md#open-questions).
 
 Documented in [tile_maps.md](../../api/tile_maps.md#a-door-from-the-map), which
 gains `object_named` and a worked door, in
@@ -3496,8 +3506,10 @@ gains `object_named` and a worked door, in
 [scene_graph.md](../../api/scene_graph.md#a-room-places-what-arrives), whose
 rooms section points at both and says how a first arrival's song fades.
 `examples/assets/README.md` records `garden.tmx` and the town's doors layer.
-`CHANGELOG.md` gains the doors example under Added, and `object_named` in the
-tile map entry.
+[input.md](../../api/input.md#a-players-input-can-be-suspended) gains a
+player's suspended input, and the rooms' move section says the moving player
+reads none. `CHANGELOG.md` gains the doors example and suspended input under
+Added, and `object_named` in the tile map entry.
 
 ---
 

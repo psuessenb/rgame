@@ -88,6 +88,39 @@ RSpec.describe RGame::Engine::Player do
     end
   end
 
+  describe 'suspended input' do
+    subject(:player) { described_class.new(device: controls::KEYBOARD) }
+
+    before { backend.hold(controls::KEY_SPACE) }
+
+    it 'reads as nothing held while suspended' do
+      player.suspend_input.poll(backend, step)
+
+      expect([player.actions.held?(:fire), player.actions.axis(:move_x)]).to eq([false, 0.0])
+    end
+
+    it 'still refuses an action nobody declared' do
+      expect { player.suspend_input.actions.held?(:fyre) }.to raise_error(KeyError, /no such action :fyre/)
+    end
+
+    it 'reads the device again once resumed, a button held throughout still held' do
+      player.suspend_input.poll(backend, step)
+      player.resume_input.poll(backend, step)
+
+      expect(player.actions.held?(:fire)).to be(true)
+    end
+
+    it 'stays suspended until every suspend is resumed' do
+      player.suspend_input.suspend_input.resume_input.poll(backend, step)
+
+      expect([player.input_suspended?, player.actions.held?(:fire)]).to eq([true, false])
+    end
+
+    it 'refuses a resume with no suspend to end' do
+      expect { player.resume_input }.to raise_error(RuntimeError, /no suspend_input/)
+    end
+  end
+
   describe 'bindings' do
     it 'takes a map of its own' do
       map = RGame::Engine::InputMap.new(fire: { buttons: [RGame::Util::Controls::KEY_RETURN] })
