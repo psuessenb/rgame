@@ -194,9 +194,11 @@ walks. A [`Velocity`](#velocity) faces where it flies. The component owns an
 `RGame::Engine::Animator` over the pure `AnimationSet` built from the sheet's
 animation table.
 
-- **Construct:** `AnimatedSprite.new(sheet:, z: 0)`. `sheet` is the asset's
-  relative path. `z` orders this component against the node's other drawing,
-  inside the node's own slot, as for [`Sprite`](#sprite).
+- **Construct:** `AnimatedSprite.new(sheet:, z: 0, anchor: :top_left)`. `sheet`
+  is the asset's relative path. `z` orders this component against the node's
+  other drawing, inside the node's own slot, as for [`Sprite`](#sprite). `anchor`
+  places the frame against the node's origin, with the same three values as
+  [`Sprite`](#sprite). An unknown anchor raises `ArgumentError`.
 - **Lifecycle:** `_attach` resolves the sheet from the game's asset manager
   (`node.root.context.assets.sheet(sheet)`) and builds its animation set. It
   **sizes the node** to the sheet's frame (`node.width` and `height`), so a
@@ -205,15 +207,16 @@ animation table.
   position, so no facing is defined. The renderer resolves the same path when
   drawing, so nothing is registered or passed in by hand.
 - **Phase:** `_update(dt)` selects and advances the animation.
-  `_draw(renderer, view)` renders the current frame via `renderer.sprite` at
-  **`0, 0`** with no angle. The traversal already placed the renderer on the node,
-  and a [`WorldView`](scene_graph.md#view-transforms-and-the-camera) ancestor
-  already applied the camera. The frame is lifted by
-  [`node.elevation`](scene_graph.md#elevation), so it draws at `0, -elevation`.
-  The component skips the draw when the view cannot show it. It measures the
-  node's box, raised by the same elevation, against `node.world_x` and `world_y`.
-  Culling uses world coordinates because it compares against the camera.
-  [`Sprite`](#sprite) is the single-image counterpart.
+  `_draw(renderer, view)` renders the current frame via `renderer.sprite`, placed
+  by the anchor, with no angle. The traversal already placed the renderer on the
+  node, and a [`WorldView`](scene_graph.md#view-transforms-and-the-camera)
+  ancestor already applied the camera. The frame is lifted by
+  [`node.elevation`](scene_graph.md#elevation). The component skips the draw when
+  the view cannot show it. It measures the node's box, moved by the anchor and
+  raised by the elevation, against `node.world_x` and `world_y`. Culling uses
+  world coordinates because it compares against the camera.
+  [`Sprite`](#sprite) is the single-image counterpart: with the same anchor and
+  size, the two cover the same pixels.
 
 ### `BoxCollider`
 
@@ -1233,21 +1236,33 @@ reappears at the opposite one.
 
 ### `Sprite`
 
-**Draws one registered image centred on the node's origin**, at `0, 0`, where the
-traversal already placed and rotated the renderer.
+**Draws one registered image at the node's origin**, where the traversal already
+placed and rotated the renderer. By default the image is centred on the origin.
 
-- **Construct:** `Sprite.new(id:, scale: 1.0, z: 0)`. `id` is a renderer image id.
-  `z` orders this component against the node's *other* drawing, such as a shadow
-  under a sprite, inside the node's own slot. It is not the node's `z`, which orders
-  the node among its siblings. See [Drawing](drawing.md#draw-order).
-- **State:** `scale` is read/write, so a pooled entity can retune it.
-- **Phase:** `_draw(renderer, view)` draws the image at **`0, 0`** with **no angle**.
-  `Node2D#draw` already pushed the node's transform, so the origin and rotation
-  already apply. Passing either would apply it twice. The image is lifted by
+- **Construct:** `Sprite.new(id:, scale: 1.0, z: 0, anchor: :center)`. `id` is a
+  renderer image id. `z` orders this component against the node's *other* drawing,
+  such as a shadow under a sprite, inside the node's own slot. It is not the node's
+  `z`, which orders the node among its siblings. See
+  [Drawing](drawing.md#draw-order). `anchor` places the image against the origin,
+  measured from the node's size. An unknown anchor raises `ArgumentError`.
+
+  | `anchor:` | On the origin |
+  |---|---|
+  | `:center` | the image's centre, so a rotating node spins in place |
+  | `:bottom` | its bottom centre, so a character's origin is where they stand |
+  | `:top_left` | its top-left corner |
+
+- **State:** `scale` is read/write, so a pooled entity can retune it. The image
+  scales about the anchor.
+- **Phase:** `_draw(renderer, view)` draws the image with **no angle** and no
+  position of its own. `Node2D#draw` already pushed the node's transform, so the
+  origin and rotation already apply. Passing either would apply it twice. The
+  node rotates about its origin, whatever the anchor. The image is lifted by
   [`node.elevation`](scene_graph.md#elevation), in the node's local space. The
   component skips the draw entirely when the view cannot show it. It measures the
-  node's box, scaled and lifted, against `node.world_x` and `world_y`. A node that
-  never set a size is never culled.
+  node's box, scaled, moved by the anchor and lifted, against `node.world_x` and
+  `world_y`. A node that never set a size is never culled, and draws centred on
+  its origin whatever the anchor.
 
 ### `Targeting`
 

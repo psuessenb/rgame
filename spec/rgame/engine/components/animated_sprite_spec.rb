@@ -148,4 +148,65 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
       expect(renderer).not_to have_received(:sprite)
     end
   end
+
+  # A 16x32 frame on a node at (100, 100), drawn through a FakeRenderer so the
+  # frame's top-left corner is what the sheet was asked to draw at.
+  describe 'anchor:' do
+    def placed_node(elevation: 0)
+      root = RGame::Engine::Node2D.new
+      root.context = node.context
+      root.add_node(RGame::Engine::Node2D.new(x: 100, y: 100)).tap { it.elevation = elevation }
+    end
+
+    def corner_drawn(anchor, elevation: 0)
+      walker = placed_node(elevation: elevation)
+      frames = FakeRenderer.new
+      frames.register_sheet(:hero, FakeSheet.new(animations: animations, frame_width: 16, frame_height: 32))
+      walker.add_component(RGame::Engine::Components::CharacterBody.new(speed: 50.0))
+      walker.add_component(described_class.new(sheet: :hero, anchor: anchor))
+      walker.parent.enter_tree
+      walker.parent.update(0.0)
+      walker.parent.draw(frames, screen_view)
+      frames.calls_to(:image_at).last.args.drop(1)
+    end
+
+    it 'puts the top-left corner of the frame on the origin for :top_left' do
+      expect(corner_drawn(:top_left)).to eq([0, 0])
+    end
+
+    it 'puts the bottom centre of the frame on the origin for :bottom' do
+      expect(corner_drawn(:bottom)).to eq([-8, -32])
+    end
+
+    it 'puts the centre of the frame on the origin for :center' do
+      expect(corner_drawn(:center)).to eq([-8, -16])
+    end
+
+    it 'lifts the frame by the node elevation for every anchor' do
+      expect(%i[center bottom top_left].map { corner_drawn(it, elevation: 5) })
+        .to eq([[-8, -21], [-8, -37], [0, -5]])
+    end
+
+    # The two components draw differently, a Sprite by its centre and a sheet
+    # frame by its corner, so the pixels they cover are the thing to compare.
+    it 'covers the same pixels as a Sprite of the same size and anchor' do
+      pictures = FakeRenderer.new.tap { it.register_image(:ship, StubImage.new(16, 32)) }
+      covered = %i[center bottom top_left].map do |anchor|
+        still = placed_node
+        still.width = 16
+        still.height = 32
+        still.add_component(RGame::Engine::Components::Sprite.new(id: :ship, anchor: anchor))
+        still.parent.draw(pictures, screen_view)
+        _, centre_x, centre_y = pictures.calls_to(:image).last.args
+        [centre_x - 8, centre_y - 16]
+      end
+
+      expect(covered).to eq(%i[center bottom top_left].map { corner_drawn(it) })
+    end
+
+    it 'raises at construction for an unknown anchor, naming the three' do
+      expect { described_class.new(sheet: :hero, anchor: :feet) }
+        .to raise_error(ArgumentError, /:center, :bottom, :top_left.*:feet/)
+    end
+  end
 end

@@ -21,6 +21,11 @@ index, not the argument.
   the order they had. `TileMapLayer.mount` y-sorts every gap it leaves, and
   `mount(..., y_sort: false)` does not. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md#y-sort).
+- **Sprites take an anchor.** `Components::Sprite` and
+  `Components::AnimatedSprite` take `anchor:`, one of `:center`, `:bottom` and
+  `:top_left`, and put the picture's centre, bottom centre or top-left corner
+  on the node's origin. The two cover the same pixels for the same anchor and
+  size. See [docs/api/components.md](docs/api/components.md#sprite).
 - **Rooms that players stand apart in.** `RGame::Engine::Scene::Rooms` runs
   every room a player stands in, each a `Scene::Room` built anew as it starts
   running. `define(name) { Room.new }` names a room, and `move(hero, to:,

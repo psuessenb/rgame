@@ -12,7 +12,8 @@ module RGame
       # which way it faces. Owns its Animator + the pure AnimationSet built from the sheet's
       # animation table.
       #
-      # Like Sprite, it passes NO angle and NO position: it draws at (0, 0), which
+      # Like Sprite, it places its frame against the node's origin by `anchor:` (see
+      # Engine::Anchor), and passes NO angle and NO position of its own: (0, 0) is what
       # Node2D#draw has already made mean "at this node, correctly rotated", and a
       # WorldView ancestor has already made mean "through the camera". `z` is the
       # render layer (kept as @layer, distinct from the node's transform z); it must
@@ -27,10 +28,11 @@ module RGame
       class AnimatedSprite < Engine::Component
         include Engine::Culling
 
-        def initialize(sheet:, z: 0)
+        def initialize(sheet:, z: 0, anchor: :top_left)
           super()
           @sheet = sheet
           @layer = z
+          @anchor = Engine::Anchor.check!(anchor)
         end
 
         def _attach
@@ -46,14 +48,15 @@ module RGame
           @animator.update(dt)
         end
 
-        # Top-left anchored, sized by the sheet's frame and lifted by the node's
-        # elevation — so the footprint to cull against is the node's box, raised
-        # by the same amount the picture is.
+        # Placed by the anchor, sized by the sheet's frame and lifted by the node's
+        # elevation — so the footprint to cull against is the node's box, moved and
+        # raised the same way the picture is.
         def _draw(renderer, view)
-          lift = node.elevation
-          return if culled?(view, node.world_x, node.world_y - lift, node.width, node.height)
+          left = Engine::Anchor.left(@anchor, node.width)
+          top = Engine::Anchor.top(@anchor, node.height) - node.elevation
+          return if culled?(view, node.world_x + left, node.world_y + top, node.width, node.height)
 
-          renderer.sprite(@sheet, @animator.row, @animator.col, 0, -lift,
+          renderer.sprite(@sheet, @animator.row, @animator.col, left, top,
                           flip_x: @animator.flip_x, z: @layer)
         end
 
