@@ -7,7 +7,8 @@
 #   ruby examples/sprite/main.rb
 #
 # Left and right turn the middle sprite; up and down resize it. It exercises:
-#   - Components::Sprite — a picture drawn at the node it is attached to;
+#   - Components::Sprite — a picture drawn at the node it is attached to,
+#     centred on it with `anchor: :center`;
 #   - Image#subimage — one cell of a sheet, as a view costing no second decode;
 #   - renderer.register_image — binding a Symbol to an image the game chose;
 #   - the two id spaces, a String path and a registered Symbol, in one file.
@@ -21,14 +22,18 @@
 #
 # ## It passes no position and no angle, and that is the whole trick
 #
-# The component's draw is one line, and both coordinates in it are zero:
+# The component draws against the node's origin, and only its `anchor:` moves
+# the picture from there. These sprites pass `anchor: :center`, so the picture's
+# centre is the origin and the draw comes down to:
 #
 #     renderer.image(@id, 0, 0, scale: @scale, z: @layer)
 #
 # `Node2D#draw` has already pushed this node's transform onto the renderer, so
 # drawing at the origin *is* drawing at the node, turned by however much the node
 # is turned. Hold left and watch: nothing inside Components::Sprite knows that an
-# angle exists, and the sprite turns anyway.
+# angle exists, and the sprite turns anyway. It turns about its centre because a
+# node turns about its origin. The default anchor, `:bottom`, would swing the
+# picture round its bottom edge instead.
 #
 # Writing `node.x` there would apply the position a second time, which is what
 # `Game/DrawInLocalSpace` refuses — `world_x` included, and for the same reason.
@@ -86,7 +91,7 @@ class Turntable < RGame::Engine::Node2D
   end
 
   def _enter_tree
-    @sprite = add_component(RGame::Engine::Components::Sprite.new(id: STILL, scale: START_SCALE))
+    @sprite = add_component(RGame::Engine::Components::Sprite.new(id: STILL, scale: START_SCALE, anchor: :center))
   end
 
   # Axes, not buttons: `move_x` and `move_y` come from the default map already
@@ -118,7 +123,7 @@ class Layered < RGame::Engine::Node2D
   end
 
   def _enter_tree
-    add_component(RGame::Engine::Components::Sprite.new(id: STILL, scale: SCALE, z: ABOVE_PANEL))
+    add_component(RGame::Engine::Components::Sprite.new(id: STILL, scale: SCALE, z: ABOVE_PANEL, anchor: :center))
   end
 
   # Centred on this node's own origin, which is where the traversal has already

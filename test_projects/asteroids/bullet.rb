@@ -12,7 +12,7 @@ class Bullet < RGame::Engine::Node2D
     super
     @velocity = add_component(RGame::Engine::Components::Velocity.new)
     add_component(RGame::Engine::Components::DespawnOffscreen.new(margin: RADIUS * 2))
-    add_component(RGame::Engine::Components::Sprite.new(id: :bullet))
+    add_component(RGame::Engine::Components::Sprite.new(id: :bullet, anchor: :center))
     collider = add_component(RGame::Engine::Components::CircleCollider.new(radius: RADIUS, layer: :bullet))
     collider.on_hit { |other| queue_free if other.layer == :rock }
   end

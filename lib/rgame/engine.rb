@@ -2,6 +2,7 @@
 
 require_relative 'util'
 
+require_relative 'engine/anchor'
 require_relative 'engine/culling'
 require_relative 'engine/signal'
 require_relative 'engine/state_graph'

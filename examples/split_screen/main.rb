@@ -114,10 +114,9 @@ WORLD_H = 960
 
 SPEED = 120.0
 
-# Where the camera looks: the middle of the 16x22 sprite rather than its
-# top-left origin.
-CAMERA_OFFSET_X = 8
-CAMERA_OFFSET_Y = 11
+# Where the camera looks: the middle of the 16x22 sprite, half its height above
+# the feet it stands on.
+CAMERA_OFFSET_Y = -11
 
 # One player, one colour. Their walker carries it as a banner and their badge
 # prints their name in it, which is the only way to tell two halves apart at a
@@ -126,7 +125,7 @@ TINTS = [RGame::Util::Color.new(255, 190, 90), RGame::Util::Color.new(120, 200, 
 
 # Where each player's walker starts: side by side, so each of them is in the
 # other's half of the screen until the two of them walk apart.
-STARTS = [[520.0, 460.0], [700.0, 500.0]].freeze
+STARTS = [[528.0, 482.0], [708.0, 522.0]].freeze
 
 # The world: a floor, a grid to make movement visible, and landmarks to tell one
 # part of it from another. It is a single node under the WorldView, so this
@@ -186,20 +185,22 @@ class Walker < RGame::Engine::Node2D
     add_component(RGame::Engine::Components::CharacterBody.new(speed: SPEED))
     add_component(RGame::Engine::Components::PlayerController.new)
     add_component(RGame::Engine::Components::CameraFollow.new(
-                    camera: camera, offset_x: CAMERA_OFFSET_X, offset_y: CAMERA_OFFSET_Y
+                    camera: camera, offset_y: CAMERA_OFFSET_Y
                   ))
   end
 
   # Keep them on the floor. A plain CharacterBody walks wherever the intent
   # points; the cameras stop at the world's edges on their own, and a walker that
   # kept going would leave its half of the screen showing a player pushing a key
-  # with nothing happening.
+  # with nothing happening. The walker stands on its origin, so the picture
+  # reaches half its width to either side and its whole height above.
   def _update(_dt)
-    self.x = x.clamp(0, WORLD_W - width)
-    self.y = y.clamp(0, WORLD_H - height)
+    self.x = x.clamp(width / 2.0, WORLD_W - (width / 2.0))
+    self.y = y.clamp(height, WORLD_H)
   end
 
-  def _draw(renderer, _view) = renderer.rect(0, -BANNER_H - 2, width, BANNER_H, color: @tint)
+  # Over the walker's head, which is the sprite's height above its feet.
+  def _draw(renderer, _view) = renderer.rect(-width / 2.0, -height - BANNER_H - 2, width, BANNER_H, color: @tint)
 end
 
 # One player's badge, in their own corner of the screen.

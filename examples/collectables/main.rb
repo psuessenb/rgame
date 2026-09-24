@@ -135,7 +135,8 @@ class Hero < RGame::Engine::Node2D
     add_component(RGame::Engine::Components::CharacterBody.new(speed: SPEED,
                                                                blocked_by: [:interactable]))
     add_component(RGame::Engine::Components::PlayerController.new)
-    add_component(RGame::Engine::Components::BoxCollider.new(width: 16, height: 22, layer: :hero))
+    add_component(RGame::Engine::Components::BoxCollider.new(width: 16, height: 22, offset_x: -8, offset_y: -22,
+                                                             layer: :hero))
     @interactor = add_component(RGame::Engine::Components::Interactor.new(range: REACH,
                                                                           layer: :interactable))
   end
@@ -145,9 +146,11 @@ class Hero < RGame::Engine::Node2D
 
   def on_interacted(&) = @interactor.on_interacted(&)
 
+  # The 16x22 hero stands on its origin, so it reaches 8px to either side and
+  # 22px above.
   def _update(_dt)
-    self.x = x.clamp(0, WIDTH - 16)
-    self.y = y.clamp(0, HEIGHT - 22)
+    self.x = x.clamp(8, WIDTH - 8)
+    self.y = y.clamp(22, HEIGHT)
   end
 end
 
@@ -167,7 +170,7 @@ class Room < RGame::Engine::Node2D
   def _enter_tree
     COINS.each { |x, y| spill(x, y) }
     add_node(Chest.new(x: 300, y: 236))
-    @hero = add_node(Hero.new(x: 60, y: 240))
+    @hero = add_node(Hero.new(x: 68, y: 262))
     @hero.on_interacted(&:open)
   end
 

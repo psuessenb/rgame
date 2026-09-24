@@ -36,9 +36,7 @@ RSpec.describe RGame::Engine::Components::BoxCollider do
 
     it 'follows a reassigned box (a pooled entity retuning its shape)' do
       collider = collider_at(100, 100, width: 8, height: 8)
-      collider.box = RGame::Engine::CollisionBox.bottom_anchored(
-        sprite_width: 32, sprite_height: 32, width: 16, height: 16
-      )
+      collider.box = RGame::Engine::CollisionBox.new(width: 16, height: 16, offset_x: 8, offset_y: 16)
       expect([collider.aabb_x, collider.aabb_y, collider.aabb_w, collider.aabb_h]).to eq([108, 116, 16, 16])
     end
   end
@@ -212,8 +210,8 @@ RSpec.describe RGame::Engine::Components::BoxCollider do
         .to all(be >= RGame::Util::Z.base(:debug, 0))
     end
 
-    # FeetCollider derives its box from the node's sprite size, and the shape
-    # has to follow that rather than the width it was built with.
+    # A FeetCollider's box sits across the node's origin, so the shape drawn
+    # has to be the offset box rather than one at the origin.
     it 'draws a feet box where the feet are' do
       debug = RGame::Engine::Debug.new
       root = RGame::Engine::Node2D.new
@@ -225,7 +223,7 @@ RSpec.describe RGame::Engine::Components::BoxCollider do
 
       root.draw(renderer, screen_view)
 
-      expect(renderer.calls_to(:debug_box).map(&:args)).to eq([[10, 26, 12, 6]])
+      expect(renderer.calls_to(:debug_box).map(&:args)).to eq([[-6, -6, 12, 6]])
     end
   end
 end

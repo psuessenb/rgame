@@ -194,26 +194,31 @@ walks. A [`Velocity`](#velocity) faces where it flies. The component owns an
 `RGame::Engine::Animator` over the pure `AnimationSet` built from the sheet's
 animation table.
 
-- **Construct:** `AnimatedSprite.new(sheet:, z: 0)`. `sheet` is the asset's
-  relative path. `z` orders this component against the node's other drawing,
-  inside the node's own slot, as for [`Sprite`](#sprite).
+- **Construct:** `AnimatedSprite.new(sheet:, z: 0, anchor: :bottom)`. `sheet`
+  is the asset's relative path. `z` orders this component against the node's
+  other drawing, inside the node's own slot, as for [`Sprite`](#sprite). `anchor`
+  places the frame against the node's origin, with the same three values as
+  [`Sprite`](#sprite). The default stands the character on the origin, which is
+  where a [`FeetCollider`](#feetcollider) puts its box. An unknown anchor raises
+  `ArgumentError`.
 - **Lifecycle:** `_attach` resolves the sheet from the game's asset manager
   (`node.root.context.assets.sheet(sheet)`) and builds its animation set. It
-  **sizes the node** to the sheet's frame (`node.width` and `height`), so a
-  [`FeetCollider`](#feetcollider) can read them. It then looks up the mover sibling
+  **sizes the node** to the sheet's frame (`node.width` and `height`), which the
+  anchor and culling measure from. It then looks up the mover sibling
   it faces by. A node with **two** movers raises here, naming both: both write the
   position, so no facing is defined. The renderer resolves the same path when
   drawing, so nothing is registered or passed in by hand.
 - **Phase:** `_update(dt)` selects and advances the animation.
-  `_draw(renderer, view)` renders the current frame via `renderer.sprite` at
-  **`0, 0`** with no angle. The traversal already placed the renderer on the node,
-  and a [`WorldView`](scene_graph.md#view-transforms-and-the-camera) ancestor
-  already applied the camera. The frame is lifted by
-  [`node.elevation`](scene_graph.md#elevation), so it draws at `0, -elevation`.
-  The component skips the draw when the view cannot show it. It measures the
-  node's box, raised by the same elevation, against `node.world_x` and `world_y`.
-  Culling uses world coordinates because it compares against the camera.
-  [`Sprite`](#sprite) is the single-image counterpart.
+  `_draw(renderer, view)` renders the current frame via `renderer.sprite`, placed
+  by the anchor, with no angle. The traversal already placed the renderer on the
+  node, and a [`WorldView`](scene_graph.md#view-transforms-and-the-camera)
+  ancestor already applied the camera. The frame is lifted by
+  [`node.elevation`](scene_graph.md#elevation). The component skips the draw when
+  the view cannot show it. It measures the node's box, moved by the anchor and
+  raised by the elevation, against `node.world_x` and `world_y`. Culling uses
+  world coordinates because it compares against the camera.
+  [`Sprite`](#sprite) is the single-image counterpart: with the same anchor and
+  size, the two cover the same pixels.
 
 ### `BoxCollider`
 
@@ -236,9 +241,8 @@ leaves, so spawning and despawning never leak a registration.
   reports it.
 - **Geometry:** the rectangle is an
   [`RGame::Engine::CollisionBox`](toolbox.md#collisionbox--an-actors-feet-box),
-  exposed as the read/write `box` accessor. Assign a new one, such as
-  `CollisionBox.bottom_anchored(...)`, to retune a pooled entity's shape on reset.
-  No re-registration is needed. `aabb_x`, `aabb_y`, `aabb_w` and `aabb_h` give the
+  exposed as the read/write `box` accessor. Assign a new one to retune a pooled
+  entity's shape on reset. No re-registration is needed. `aabb_x`, `aabb_y`, `aabb_w` and `aabb_h` give the
   world-space box. `cx` and `cy` give the **box's** centre, which the world's range
   queries measure from. A circle's centre, by contrast, is the node origin.
 - **Rotation:** the box stays axis-aligned in world space and does not turn with
@@ -277,7 +281,8 @@ collider.on_hit { |other| collect if other.layer == :player }
 
 - **Construct:** `CameraFollow.new(camera:, offset_x: 0.0, offset_y: 0.0)`. The
   offsets shift the point the camera centres on, for a node whose origin should not
-  sit mid-screen. A bottom-anchored sprite usually wants its feet centred.
+  sit mid-screen. A character drawn with the default `:bottom` anchor stands on its
+  origin, so the camera centres on their feet with no offset.
 - **Phase:** `_update(dt)` calls `camera.center_on` with the node's world origin.
   The camera trails the node's movement by one step, uniformly.
 - **Example:** `examples/scroll_map`. The followed node is an invisible rig with a
@@ -555,23 +560,21 @@ margin reaches half its extent.
 ### `FeetCollider`
 
 **A [`BoxCollider`](#boxcollider) whose rectangle is the node's feet**: centred
-horizontally in the node's dimensions and anchored to their bottom. A top-down
+across the node's origin, with its bottom edge on it. A top-down
 character should collide with this shape. A 16×22 hero occupies the 12×6 patch
 under them, not the whole sprite, so their head does not bump a wall a tile away. In
 every other respect it is a `BoxCollider`: same registration, same signals, same
 mixing with circles. `get_component(BoxCollider)` finds it.
 
 - **Construct:** `FeetCollider.new(width:, height:, layer: :default)`, the feet box
-  size in px. It takes no sprite size and no offsets. Those come from `node.width`
-  and `node.height`, which [`AnimatedSprite`](#animatedsprite) sets from the sprite
-  frame, so box and sprite never disagree. A node without a sprite sets its own
-  dimensions.
-- **Geometry:** the collider builds `box` on **first read** and keeps it, not at
-  construction. A node has no size until its sprite attaches, so add order never
-  matters. Reading `box` from a 0×0 node **raises**, naming the size. The
-  alternative would be a box anchored to nothing, and an actor walking through walls
-  far from the cause. Assigning `box =` still takes priority, which lets a pooled
-  entity retune its shape on reset.
+  size in px. It takes no sprite size and no offsets. A 12×6 box has
+  `offset_x: -6.0` and `offset_y: -6`.
+- **Geometry:** the box is right from construction and never reads the node's
+  size. [`Sprite`](#sprite) and [`AnimatedSprite`](#animatedsprite) stand on the
+  origin with their default `:bottom` anchor, so the box sits under the picture
+  whatever size it is. A picture drawn with another anchor needs a plain
+  [`BoxCollider`](#boxcollider) with offsets instead. Assigning `box =` lets a
+  pooled entity retune its shape on reset.
 - **Everything else:** as [`BoxCollider`](#boxcollider): `aabb_*`, `cx` and `cy`,
   `overlap?`, `on_hit` and `on_separated`, and registration with the scene's
   [`CollisionWorld`](#collisionworld) when one exists.
@@ -1233,21 +1236,35 @@ reappears at the opposite one.
 
 ### `Sprite`
 
-**Draws one registered image centred on the node's origin**, at `0, 0`, where the
-traversal already placed and rotated the renderer.
+**Draws one registered image at the node's origin**, where the traversal already
+placed and rotated the renderer. By default the image stands on the origin, its
+bottom centre there. A node that rotates passes `anchor: :center`, so it spins in
+place.
 
-- **Construct:** `Sprite.new(id:, scale: 1.0, z: 0)`. `id` is a renderer image id.
-  `z` orders this component against the node's *other* drawing, such as a shadow
-  under a sprite, inside the node's own slot. It is not the node's `z`, which orders
-  the node among its siblings. See [Drawing](drawing.md#draw-order).
-- **State:** `scale` is read/write, so a pooled entity can retune it.
-- **Phase:** `_draw(renderer, view)` draws the image at **`0, 0`** with **no angle**.
-  `Node2D#draw` already pushed the node's transform, so the origin and rotation
-  already apply. Passing either would apply it twice. The image is lifted by
+- **Construct:** `Sprite.new(id:, scale: 1.0, z: 0, anchor: :bottom)`. `id` is a
+  renderer image id. `z` orders this component against the node's *other* drawing,
+  such as a shadow under a sprite, inside the node's own slot. It is not the node's
+  `z`, which orders the node among its siblings. See
+  [Drawing](drawing.md#draw-order). `anchor` places the image against the origin,
+  measured from the node's size. An unknown anchor raises `ArgumentError`.
+
+  | `anchor:` | On the origin |
+  |---|---|
+  | `:center` | the image's centre, so a rotating node spins in place |
+  | `:bottom` | its bottom centre, so a character's origin is where they stand. The default |
+  | `:top_left` | its top-left corner |
+
+- **State:** `scale` is read/write, so a pooled entity can retune it. The image
+  scales about the anchor.
+- **Phase:** `_draw(renderer, view)` draws the image with **no angle** and no
+  position of its own. `Node2D#draw` already pushed the node's transform, so the
+  origin and rotation already apply. Passing either would apply it twice. The
+  node rotates about its origin, whatever the anchor. The image is lifted by
   [`node.elevation`](scene_graph.md#elevation), in the node's local space. The
   component skips the draw entirely when the view cannot show it. It measures the
-  node's box, scaled and lifted, against `node.world_x` and `world_y`. A node that
-  never set a size is never culled.
+  node's box, scaled, moved by the anchor and lifted, against `node.world_x` and
+  `world_y`. A node that never set a size is never culled, and draws centred on
+  its origin whatever the anchor.
 
 ### `Targeting`
 

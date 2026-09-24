@@ -172,9 +172,11 @@ class Hero < RGame::Engine::Node2D
     add_component(RGame::Engine::Components::PlayerController.new)
   end
 
+  # The hero stands on its origin, so the picture reaches half its width to
+  # either side and its whole height above.
   def _update(_dt)
-    self.x = x.clamp(0, WIDTH - width)
-    self.y = y.clamp(0, HEIGHT - height)
+    self.x = x.clamp(width / 2.0, WIDTH - (width / 2.0))
+    self.y = y.clamp(height, HEIGHT)
   end
 end
 
@@ -192,7 +194,7 @@ class Scene < RGame::Engine::Node2D
   end
 
   def _enter_tree
-    add_node(Hero.new(x: 470, y: 300))
+    add_node(Hero.new(x: 478, y: 322))
     add_node(Prompts.new(x: MARGIN, y: MARGIN))
   end
 

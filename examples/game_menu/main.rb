@@ -46,7 +46,7 @@ LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.
 SHEET       = 'hero.json'
 HERO_SPEED  = 90.0
 NPC_SPEED   = 55.0
-NPC_SPAWNS  = [[140, 120], [430, 170], [220, 330], [480, 360]].freeze
+NPC_SPAWNS  = [[148, 142], [438, 192], [228, 352], [488, 382]].freeze
 
 # Seeded so the villagers wander the same way every run and two driven runs can
 # be compared. `tools/drive_test_project.rb --seed N` overrides it.
@@ -55,9 +55,11 @@ DEFAULT_SEED = 0x6E11
 # A walker that stays inside the window. Both the hero and the villagers are
 # this; only the controller hung on them differs.
 class Walker < RGame::Engine::Node2D
+  # A walker stands on its origin, so the picture reaches half its width to
+  # either side and its whole height above.
   def _update(_dt)
-    self.x = x.clamp(0, WIDTH - width)
-    self.y = y.clamp(0, HEIGHT - height)
+    self.x = x.clamp(width / 2.0, WIDTH - (width / 2.0))
+    self.y = y.clamp(height, HEIGHT)
   end
 end
 
@@ -123,8 +125,9 @@ class Scene < RGame::Engine::Node2D
   end
 
   def _enter_tree
+    # The hero's 16x22 picture starts with its top-left corner on the window's centre.
     hero = add_node(walker(RGame::Engine::Components::PlayerController.new,
-                           HERO_SPEED, WIDTH / 2, HEIGHT / 2))
+                           HERO_SPEED, (WIDTH / 2) + 8, (HEIGHT / 2) + 22))
     NPC_SPAWNS.each do |x, y|
       add_node(walker(RGame::Engine::Components::WanderController.new(rng: @rng), NPC_SPEED, x, y))
     end
