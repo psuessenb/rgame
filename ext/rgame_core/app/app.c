@@ -792,6 +792,13 @@ int rgame_app_push_blend(rgame_app *app, int blend) {
     return 1;
 }
 
+void rgame_app_push_opacity(rgame_app *app, float opacity) {
+    rgame_canvas *canvas = drawing_canvas(app);
+    if (canvas) {
+        rgame_canvas_push_opacity(canvas, opacity);
+    }
+}
+
 void rgame_app_push_layer(rgame_app *app, double base) {
     rgame_canvas *canvas = drawing_canvas(app);
     if (canvas) {

@@ -8,18 +8,21 @@ enum {
     RGAME_PUSH_CLIP,
     RGAME_PUSH_LAYER,
     RGAME_PUSH_BLEND,
+    RGAME_PUSH_OPACITY,
     /* The underlying stack was full. Nothing to undo, but it still occupies a
      * slot so that the caller's matching pop stays paired with this push. */
     RGAME_PUSH_NOTHING
 };
 
-/* The layer and blend stacks and the per-band counters, all back to their
- * frame start. */
+/* The layer, blend and opacity stacks and the per-band counters, all back to
+ * their frame start. */
 static void reset_layers(rgame_canvas *canvas) {
     canvas->layers[0] = 0.0;
     canvas->layer_depth = 0;
     canvas->blends[0] = RGAME_BLEND_ALPHA;
     canvas->blend_depth = 0;
+    canvas->opacities[0] = 1.0f;
+    canvas->opacity_depth = 0;
     for (int i = 0; i < RGAME_LAYER_BANDS; i++) {
         canvas->slots[i] = 0;
     }
@@ -167,6 +170,31 @@ rgame_blend rgame_canvas_blend(const rgame_canvas *canvas) {
     return canvas->blends[canvas->blend_depth];
 }
 
+/* NaN changes nothing, as the queue sorts a NaN z at 0; anything else is held
+ * to 0..1. */
+static float clamped_opacity(float opacity) {
+    if (opacity != opacity) {
+        return 1.0f;
+    }
+    if (opacity < 0.0f) {
+        return 0.0f;
+    }
+    return opacity > 1.0f ? 1.0f : opacity;
+}
+
+void rgame_canvas_push_opacity(rgame_canvas *canvas, float opacity) {
+    int ok = canvas->opacity_depth + 1 < RGAME_OPACITY_STACK_DEPTH;
+    if (ok) {
+        float outer = canvas->opacities[canvas->opacity_depth];
+        canvas->opacities[++canvas->opacity_depth] = outer * clamped_opacity(opacity);
+    }
+    account_push(canvas, ok, RGAME_PUSH_OPACITY);
+}
+
+float rgame_canvas_opacity(const rgame_canvas *canvas) {
+    return canvas->opacities[canvas->opacity_depth];
+}
+
 unsigned int rgame_canvas_next_slot(rgame_canvas *canvas, int band) {
     if (band < 0 || band >= RGAME_LAYER_BANDS) {
         return 0;
@@ -198,6 +226,9 @@ void rgame_canvas_pop(rgame_canvas *canvas) {
     case RGAME_PUSH_BLEND:
         canvas->blend_depth--;
         break;
+    case RGAME_PUSH_OPACITY:
+        canvas->opacity_depth--;
+        break;
     default:
         break; /* RGAME_PUSH_NOTHING: the push never took effect */
     }
@@ -213,14 +244,27 @@ static rgame_vertex *queue_alloc(rgame_canvas *canvas, unsigned int count, doubl
                                   rgame_canvas_blend(canvas));
 }
 
+/* An alpha byte at the opacity in effect, rounded to the nearest byte. At 1 it
+ * is returned as it came, so a draw outside any fade is bit for bit what it
+ * was before opacity existed. */
+static unsigned char faded_alpha(const rgame_canvas *canvas, int alpha) {
+    float opacity = rgame_canvas_opacity(canvas);
+    if (opacity >= 1.0f) {
+        return (unsigned char)alpha;
+    }
+    return (unsigned char)(((float)alpha * opacity) + 0.5f);
+}
+
 /* Fills one vertex: map the point into screen space, copy through the texture
- * coordinate, and write the colour as the four bytes GL reads. */
+ * coordinate, and write the colour as the four bytes GL reads, its alpha faded
+ * by the opacity in effect. */
 static void write_vertex(const rgame_canvas *canvas, rgame_vertex *vertex, float x, float y,
                          float u, float v, rgame_color color) {
     rgame_transform_apply(&canvas->transforms, x, y, &vertex->x, &vertex->y);
     vertex->u = u;
     vertex->v = v;
     rgame_color_bytes(color, vertex->rgba);
+    vertex->rgba[3] = faded_alpha(canvas, vertex->rgba[3]);
 }
 
 void rgame_canvas_triangle(rgame_canvas *canvas, const float *xy6, rgame_color color,
@@ -286,9 +330,10 @@ void rgame_canvas_replay(rgame_canvas *canvas, const rgame_recording *recording,
                                   &out[i].y);
             out[i].u = baked->u;
             out[i].v = baked->v;
-            for (int c = 0; c < 4; c++) {
+            for (int c = 0; c < 3; c++) {
                 out[i].rgba[c] = modulate(baked->rgba[c], tint[c]);
             }
+            out[i].rgba[3] = faded_alpha(canvas, modulate(baked->rgba[3], tint[3]));
         }
     }
 }

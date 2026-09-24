@@ -1,4 +1,5 @@
 #include <check.h>
+#include <math.h>
 
 #include "graphics/canvas.h"
 #include "suites.h"
@@ -589,6 +590,157 @@ START_TEST(blend_pushes_past_the_stack_limit_still_balance) {
 }
 END_TEST
 
+/* --- opacity --- */
+
+static const unsigned char *rgba(const rgame_canvas *c, unsigned int index) {
+    return vertex(c, index)->rgba;
+}
+
+START_TEST(opacity_scales_alpha_to_the_nearest_byte_and_leaves_the_colour_alone) {
+    rgame_canvas c;
+    begin(&c);
+
+    rgame_canvas_push_opacity(&c, 0.5f);
+    quad_at(&c, 0.0f, 0.0f, 0x102030C8u, 0.0); /* alpha 200 */
+    quad_at(&c, 0.0f, 0.0f, RGAME_COLOR_WHITE, 1.0);
+    rgame_canvas_pop(&c);
+    rgame_canvas_end_frame(&c);
+
+    ck_assert_uint_eq(rgba(&c, 0)[0], 0x10);
+    ck_assert_uint_eq(rgba(&c, 0)[1], 0x20);
+    ck_assert_uint_eq(rgba(&c, 0)[2], 0x30);
+    ck_assert_uint_eq(rgba(&c, 0)[3], 100);
+    /* 127.5 rounds up: truncating would draw every half-faded white at 127. */
+    ck_assert_uint_eq(rgba(&c, 6)[3], 128);
+    for (unsigned int i = 0; i < 6; i++) {
+        ck_assert_uint_eq(rgba(&c, i)[3], 100);
+    }
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(opacity_inside_opacity_multiplies) {
+    rgame_canvas c;
+    begin(&c);
+
+    rgame_canvas_push_opacity(&c, 0.5f);
+    rgame_canvas_push_opacity(&c, 0.5f);
+    ck_assert_float_eq_tol(rgame_canvas_opacity(&c), 0.25f, TOL);
+    quad_at(&c, 0.0f, 0.0f, RGAME_COLOR_WHITE, 0.0);
+    rgame_canvas_pop(&c);
+    quad_at(&c, 0.0f, 0.0f, RGAME_COLOR_WHITE, 1.0);
+    rgame_canvas_pop(&c);
+    quad_at(&c, 0.0f, 0.0f, RGAME_COLOR_WHITE, 2.0);
+    rgame_canvas_end_frame(&c);
+
+    ck_assert_uint_eq(rgba(&c, 0)[3], 64); /* 63.75 */
+    ck_assert_uint_eq(rgba(&c, 6)[3], 128);
+    ck_assert_uint_eq(rgba(&c, 12)[3], 255);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(opacity_reaches_every_primitive) {
+    rgame_canvas c;
+    begin(&c);
+
+    rgame_canvas_push_opacity(&c, 0.5f);
+    float xy6[6] = { 0.0f, 0.0f, 10.0f, 0.0f, 0.0f, 10.0f };
+    rgame_canvas_triangle(&c, xy6, RGAME_COLOR_WHITE, 0.0);
+    float xy8[8] = { 0.0f, 0.0f, 10.0f, 0.0f, 10.0f, 10.0f, 0.0f, 10.0f };
+    float uv8[8] = { 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f };
+    rgame_canvas_textured_quad(&c, 5, xy8, uv8, RGAME_COLOR_WHITE, 1.0);
+    rgame_canvas_pop(&c);
+    rgame_canvas_end_frame(&c);
+
+    ck_assert_uint_eq(rgba(&c, 0)[3], 128);
+    ck_assert_uint_eq(rgba(&c, 3)[3], 128);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(zero_opacity_draws_at_alpha_zero_and_out_of_range_is_clamped) {
+    rgame_canvas c;
+    begin(&c);
+
+    rgame_canvas_push_opacity(&c, 0.0f);
+    quad_at(&c, 0.0f, 0.0f, RGAME_COLOR_WHITE, 0.0);
+    rgame_canvas_pop(&c);
+    rgame_canvas_push_opacity(&c, -3.0f);
+    ck_assert_float_eq(rgame_canvas_opacity(&c), 0.0f);
+    rgame_canvas_pop(&c);
+    rgame_canvas_push_opacity(&c, 7.0f);
+    ck_assert_float_eq(rgame_canvas_opacity(&c), 1.0f);
+    rgame_canvas_pop(&c);
+    rgame_canvas_push_opacity(&c, NAN);
+    ck_assert_float_eq(rgame_canvas_opacity(&c), 1.0f);
+    rgame_canvas_pop(&c);
+    rgame_canvas_end_frame(&c);
+
+    ck_assert_uint_eq(rgba(&c, 0)[3], 0);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(opacity_is_not_part_of_the_batch) {
+    /* It travels in the vertices, so a faded quad and an unfaded one with the
+     * same texture and clip still go to the GPU as one call. */
+    rgame_canvas c;
+    begin(&c);
+
+    quad_at(&c, 0.0f, 0.0f, RGAME_COLOR_WHITE, 0.0);
+    rgame_canvas_push_opacity(&c, 0.5f);
+    quad_at(&c, 0.0f, 0.0f, RGAME_COLOR_WHITE, 1.0);
+    rgame_canvas_pop(&c);
+    rgame_canvas_end_frame(&c);
+
+    ck_assert_uint_eq(batch_count(&c), 1);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(the_same_pop_undoes_an_opacity_and_a_new_frame_starts_at_one) {
+    rgame_canvas c;
+    begin(&c);
+
+    rgame_canvas_push_opacity(&c, 0.5f);
+    rgame_canvas_push_translate(&c, 10.0f, 0.0f);
+    rgame_canvas_pop(&c); /* the translate */
+    ck_assert_float_eq(rgame_canvas_opacity(&c), 0.5f);
+
+    /* No pop for the opacity: the next frame must not inherit it. */
+    rgame_canvas_begin_frame(&c, 800, 600);
+    ck_assert_float_eq(rgame_canvas_opacity(&c), 1.0f);
+    ck_assert_int_eq(rgame_canvas_depth(&c), 0);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(opacity_pushes_past_the_stack_limit_still_balance) {
+    rgame_canvas c;
+    begin(&c);
+
+    const int pushes = RGAME_OPACITY_STACK_DEPTH + 10;
+    for (int i = 0; i < pushes; i++) {
+        rgame_canvas_push_opacity(&c, 0.9f);
+    }
+    for (int i = 0; i < pushes; i++) {
+        rgame_canvas_pop(&c);
+    }
+
+    ck_assert_float_eq(rgame_canvas_opacity(&c), 1.0f);
+    ck_assert_int_eq(rgame_canvas_depth(&c), 0);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
 /* --- the frame --- */
 
 START_TEST(z_order_wins_over_draw_order_through_the_canvas) {
@@ -739,6 +891,17 @@ Suite *canvas_suite(void) {
     tcase_add_test(tc_blend, the_same_pop_undoes_a_blend_mode_among_the_others);
     tcase_add_test(tc_blend, blend_pushes_past_the_stack_limit_still_balance);
     suite_add_tcase(suite, tc_blend);
+
+    TCase *tc_opacity = tcase_create("opacity");
+    tcase_add_test(tc_opacity,
+                   opacity_scales_alpha_to_the_nearest_byte_and_leaves_the_colour_alone);
+    tcase_add_test(tc_opacity, opacity_inside_opacity_multiplies);
+    tcase_add_test(tc_opacity, opacity_reaches_every_primitive);
+    tcase_add_test(tc_opacity, zero_opacity_draws_at_alpha_zero_and_out_of_range_is_clamped);
+    tcase_add_test(tc_opacity, opacity_is_not_part_of_the_batch);
+    tcase_add_test(tc_opacity, the_same_pop_undoes_an_opacity_and_a_new_frame_starts_at_one);
+    tcase_add_test(tc_opacity, opacity_pushes_past_the_stack_limit_still_balance);
+    suite_add_tcase(suite, tc_opacity);
 
     TCase *tc_frame = tcase_create("frame");
     tcase_add_test(tc_frame, z_order_wins_over_draw_order_through_the_canvas);

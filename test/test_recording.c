@@ -394,6 +394,52 @@ START_TEST(a_tint_multiplies_the_recorded_colours) {
 }
 END_TEST
 
+START_TEST(a_replay_inside_an_opacity_is_faded_after_its_tint) {
+    rgame_recording recording;
+    bake(&recording, one_red_rect);
+
+    rgame_canvas c;
+    begin(&c);
+    rgame_canvas_push_opacity(&c, 0.5f);
+    rgame_canvas_replay(&c, &recording, 0.0f, 0.0f, RGAME_COLOR_WHITE, 0.0);
+    rgame_canvas_replay(&c, &recording, 0.0f, 0.0f, 0xFFFFFF80u, 1.0);
+    rgame_canvas_pop(&c);
+    rgame_canvas_end_frame(&c);
+
+    ck_assert_uint_eq(vertex(&c, 0)->rgba[0], 255);
+    ck_assert_uint_eq(vertex(&c, 0)->rgba[3], 128);
+    /* The tint's 128 of 255, then half of that: 64. */
+    ck_assert_uint_eq(vertex(&c, 6)->rgba[3], 64);
+
+    rgame_canvas_destroy(&c);
+    rgame_recording_destroy(&recording);
+}
+END_TEST
+
+static void one_half_faded_rect(rgame_canvas *c) {
+    rgame_canvas_push_opacity(c, 0.5f);
+    rgame_prim_rect(c, 0.0f, 0.0f, 10.0f, 10.0f, RGAME_COLOR_WHITE, 0.0);
+    rgame_canvas_pop(c);
+}
+
+START_TEST(an_opacity_pushed_while_baking_is_baked_in) {
+    /* Unlike a clip, an opacity lives in the vertices, so a recording keeps
+     * it and a replay outside any fade still draws at half. */
+    rgame_recording recording;
+    bake(&recording, one_half_faded_rect);
+
+    rgame_canvas c;
+    begin(&c);
+    rgame_canvas_replay(&c, &recording, 0.0f, 0.0f, RGAME_COLOR_WHITE, 0.0);
+    rgame_canvas_end_frame(&c);
+
+    ck_assert_uint_eq(vertex(&c, 0)->rgba[3], 128);
+
+    rgame_canvas_destroy(&c);
+    rgame_recording_destroy(&recording);
+}
+END_TEST
+
 START_TEST(replaying_a_destroyed_or_missing_recording_draws_nothing) {
     rgame_recording recording;
     bake(&recording, one_red_rect);
@@ -520,6 +566,8 @@ Suite *recording_suite(void) {
     tcase_add_test(tc, the_painter_order_baked_into_a_recording_survives_replay);
     tcase_add_test(tc, a_white_tint_leaves_the_recorded_colours_alone);
     tcase_add_test(tc, a_tint_multiplies_the_recorded_colours);
+    tcase_add_test(tc, a_replay_inside_an_opacity_is_faded_after_its_tint);
+    tcase_add_test(tc, an_opacity_pushed_while_baking_is_baked_in);
     tcase_add_test(tc, replaying_a_destroyed_or_missing_recording_draws_nothing);
     tcase_add_test(tc, a_recording_can_be_replayed_many_times_in_one_frame);
 
