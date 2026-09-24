@@ -4,8 +4,9 @@ module RGame
   module Engine
     module Components
       # Draws a single registered image at its node's origin, placed by `anchor:`
-      # (see Engine::Anchor). The default, `:center`, puts the image's centre on
-      # the origin, so a rotating node spins in place.
+      # (see Engine::Anchor). The default, `:bottom`, puts the image's bottom centre
+      # on the origin, where a character stands. A node that rotates passes
+      # `anchor: :center`, so it spins in place.
       #
       # It passes NO angle and NO position of its own to the renderer: Node2D#draw
       # has already pushed the node's transform, so drawing against (0, 0) *is*
@@ -21,7 +22,7 @@ module RGame
 
         attr_accessor :scale
 
-        def initialize(id:, scale: 1.0, z: 0, anchor: :center)
+        def initialize(id:, scale: 1.0, z: 0, anchor: :bottom)
           super()
           @id = id
           @scale = scale

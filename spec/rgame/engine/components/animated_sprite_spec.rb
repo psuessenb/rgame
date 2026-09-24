@@ -12,24 +12,30 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
       walk_down: { row: 4, frames: 1, fps: 1 }
     }
   end
-  let(:node) { RGame::Engine::Node2D.new(x: 5.0, y: 7.0) }
+  # A scene holding the node, so the node's world position is its own and the
+  # frame standing on it is in view.
+  let(:node) { RGame::Engine::Node2D.new.add_node(RGame::Engine::Node2D.new(x: 50.0, y: 70.0)) }
   let(:body) { RGame::Engine::Components::CharacterBody.new(speed: 50.0) }
   let(:sprite) { described_class.new(sheet: :hero, z: 10) }
-  let(:renderer) { instance_double(FakeRenderer, layered: nil) }
+  let(:renderer) { instance_double(FakeRenderer, layered: nil, translated: nil) }
 
   before do
     # The component resolves its sheet from node.root.context.assets on attach.
     sheet = instance_double(FakeSheet, animations: animations, frame_width: 16, frame_height: 32)
     assets = instance_double(FakeAssets, sheet: sheet)
-    node.context = instance_double(FakeGame, assets: assets)
+    scene.context = instance_double(FakeGame, assets: assets)
     node.add_component(body)
     node.add_component(sprite)
-    node.enter_tree
+    scene.enter_tree
+    scene.update(0.0) # resolves node.world_x/world_y; no intent yet, so the body stays put
     allow(renderer).to receive(:sprite)
     # Every node opens a layer for its own drawing; this double has to yield or
     # nothing inside it runs.
     allow(renderer).to receive(:layered).and_yield
+    allow(renderer).to receive(:translated).and_yield
   end
+
+  def scene = node.parent
 
   # Drive one frame for the given intent, then draw.
   def step(intent_x, intent_y)
@@ -92,16 +98,13 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
   describe 'beside a PathFollow' do
     # A walker on a 100 px rightward road, taking one step of `dt` and drawing it.
     def walk_and_draw(dt)
-      follow = RGame::Engine::Components::PathFollow.new(path: RGame::Engine::Path.new([[0.0, 0.0], [100.0, 0.0]]),
+      follow = RGame::Engine::Components::PathFollow.new(path: RGame::Engine::Path.new([[0.0, 50.0], [100.0, 50.0]]),
                                                          speed: 50.0)
       walker_sprite = described_class.new(sheet: :hero)
-      walker = RGame::Engine::Node2D.new
-      walker.context = node.context
+      walker = scene.add_node(RGame::Engine::Node2D.new)
       walker.add_component(follow)
       walker.add_component(walker_sprite)
-      walker.enter_tree
-      follow._update(dt)
-      walker_sprite._update(dt)
+      scene.update(dt)
       walker_sprite._draw(renderer, screen_view)
     end
 
@@ -119,7 +122,7 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
   # Two movers both write the position, so there is no telling which way the node faces.
   it 'refuses a node with two movers, naming both' do
     crowded = RGame::Engine::Node2D.new
-    crowded.context = node.context
+    crowded.context = scene.context
     crowded.add_component(RGame::Engine::Components::CharacterBody.new(speed: 50.0))
     crowded.add_component(RGame::Engine::Components::PathFollow.new(speed: 50.0))
     crowded.add_component(described_class.new(sheet: :hero))
@@ -128,22 +131,20 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
   end
 
   describe '#draw' do
-    it 'draws at the node resolved world origin with the configured layer and no flip' do
+    it 'draws the frame standing on the node origin, with the configured layer and no flip' do
       body.set_intent(0.0, 0.0)
-      node.update(0.0) # resolves world_x/world_y; zero intent so the body makes no move
-      node.draw(renderer, screen_view)
-      expect(renderer).to have_received(:sprite)
-        .with(:hero, 0, anything, node.world_x, node.world_y, flip_x: false, z: 10)
+      scene.draw(renderer, screen_view)
+      expect(renderer).to have_received(:sprite).with(:hero, 0, anything, -8, -32, flip_x: false, z: 10)
     end
 
     it 'draws the picture lifted by the node elevation' do
       node.elevation = 6
       step(0.0, 0.0)
-      expect(renderer).to have_received(:sprite).with(:hero, 0, anything, 0, -6, flip_x: false, z: 10)
+      expect(renderer).to have_received(:sprite).with(:hero, 0, anything, -8, -38, flip_x: false, z: 10)
     end
 
     it 'culls against the lifted box rather than the spot the node stands on' do
-      node.elevation = 40 # the 32-tall frame now spans y -40..-8, above a view starting at 0
+      node.elevation = 80 # the 32-tall frame now spans y -42..-10, above a view starting at 0
       step(0.0, 0.0)
       expect(renderer).not_to have_received(:sprite)
     end
@@ -154,7 +155,7 @@ RSpec.describe RGame::Engine::Components::AnimatedSprite do
   describe 'anchor:' do
     def placed_node(elevation: 0)
       root = RGame::Engine::Node2D.new
-      root.context = node.context
+      root.context = scene.context
       root.add_node(RGame::Engine::Node2D.new(x: 100, y: 100)).tap { it.elevation = elevation }
     end
 

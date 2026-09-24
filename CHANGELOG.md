@@ -321,6 +321,16 @@ index, not the argument.
 
 ### Changed
 
+- **`Sprite` and `AnimatedSprite` stand on the node's origin by default.** Both
+  take `anchor: :bottom` unless told otherwise, so the picture's bottom centre
+  is on the origin. A `Sprite` that rotates passes `anchor: :center` to keep
+  spinning in place. For an `AnimatedSprite` that was top-left anchored, move
+  the node down by the frame's height and right by half its width, or pass
+  `anchor: :top_left`. See [docs/api/components.md](docs/api/components.md#sprite).
+- **`FeetCollider` puts its box under the node's origin**, centred across it
+  with its bottom edge on it. It no longer reads the node's size, so it no
+  longer raises on a node without one. See
+  [docs/api/components.md](docs/api/components.md#feetcollider).
 - **`Node2D#system` looks through every enclosing scene**, nearest first, and
   then the root. A node in a scene held inside another finds the outer scene's
   systems. See [docs/api/systems.md](docs/api/systems.md).
@@ -440,6 +450,8 @@ index, not the argument.
 
 ### Removed
 
+- **`CollisionBox.bottom_anchored`.** Build the box with `CollisionBox.new` and
+  its `offset_x:` and `offset_y:`, or use a `FeetCollider`.
 - **`RGame::Engine::AudioBus` and `RGame::Engine::AudioDirector`.** Play sound
   through `AudioOut`, which replaces both; see Changed.
 - **`RGame::Engine::Tileset` and `TileMap#tileset`.** A map answers per tile:

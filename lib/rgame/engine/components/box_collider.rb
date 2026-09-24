@@ -30,8 +30,7 @@ module RGame
         signal :separated, :other
 
         # box is writable so a pooled entity can retune its shape on reset — assign any
-        # CollisionBox, CollisionBox.bottom_anchored(...) included. CollisionWorld reads
-        # it fresh each frame, so no re-registration.
+        # CollisionBox. CollisionWorld reads it fresh each frame, so no re-registration.
         attr_accessor :box
         attr_reader :layer
 

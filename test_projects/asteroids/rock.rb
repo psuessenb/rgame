@@ -23,7 +23,7 @@ class Rock < RGame::Engine::Node2D
   def initialize
     super
     @velocity = add_component(RGame::Engine::Components::Velocity.new)
-    @sprite   = add_component(RGame::Engine::Components::Sprite.new(id: :rock))
+    @sprite   = add_component(RGame::Engine::Components::Sprite.new(id: :rock, anchor: :center))
     add_component(RGame::Engine::Components::ScreenWrap.new(margin: RADII.first))
     @collider = add_component(RGame::Engine::Components::CircleCollider.new(radius: RADII.first, layer: :rock))
     @collider.on_hit { |other| scene.destroy_rock(self) if other.layer == :bullet }

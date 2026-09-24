@@ -25,7 +25,7 @@ class Ship < RGame::Engine::Node2D
                     turn_speed: TURN_SPEED, accel: ACCEL, max_speed: MAX_SPEED, drag: DRAG
                   ))
     add_component(RGame::Engine::Components::ScreenWrap.new(margin: RADIUS))
-    add_component(RGame::Engine::Components::Sprite.new(id: :ship))
+    add_component(RGame::Engine::Components::Sprite.new(id: :ship, anchor: :center))
     trigger = add_component(RGame::Engine::Components::ActionTrigger.new(fire: FIRE_COOLDOWN))
     trigger.on_triggered { |action| fire if action == :fire }
     collider = add_component(RGame::Engine::Components::CircleCollider.new(radius: RADIUS, layer: :ship))

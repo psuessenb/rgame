@@ -30,7 +30,7 @@ RSpec.describe RGame::Engine::Culling do
                                             angle: angle))
   end
 
-  describe 'a Sprite, centred on its node by default' do
+  describe 'a Sprite, centred on its node' do
     def drew?(node, anchor: :center)
       node.add_component(RGame::Engine::Components::Sprite.new(id: :rock, anchor: anchor))
       node.parent.enter_tree
@@ -75,7 +75,7 @@ RSpec.describe RGame::Engine::Culling do
     end
   end
 
-  describe 'an AnimatedSprite, anchored at its top-left by default' do
+  describe 'an AnimatedSprite, standing on its node' do
     let(:sheet) do
       instance_double(FakeSheet, animations: { stand: { row: 0, frames: 1, fps: 1 } },
                                  frame_width: 20, frame_height: 20, draw: nil)
@@ -84,7 +84,7 @@ RSpec.describe RGame::Engine::Culling do
     # It sizes the node from its sheet on attach, so its footprint is exactly
     # the node's box — no guessing needed. The renderer hands a sprite draw
     # straight to the sheet, so that is where the call lands.
-    def drew?(node, anchor: :top_left)
+    def drew?(node, anchor: :bottom)
       node.root.context = FakeGame.new(assets: instance_double(FakeAssets, sheet: sheet))
       renderer.register_sheet(:hero, sheet)
       node.add_component(RGame::Engine::Components::CharacterBody.new(speed: 1.0))
@@ -107,12 +107,13 @@ RSpec.describe RGame::Engine::Culling do
       expect(drew?(node_at(500, 5000))).to be(false)
     end
 
+    # Its origin is 5px below the view, so only a picture standing on it shows.
     it 'measures the footprint where the anchor put it' do
-      expect(drew?(node_at(500, 555), anchor: :bottom)).to be(true)
+      expect(drew?(node_at(500, 555))).to be(true)
     end
 
     it 'skips one hanging below an origin just below the view' do
-      expect(drew?(node_at(500, 555))).to be(false)
+      expect(drew?(node_at(500, 555), anchor: :top_left)).to be(false)
     end
   end
 

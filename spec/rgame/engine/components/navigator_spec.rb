@@ -67,10 +67,10 @@ RSpec.describe RGame::Engine::Components::Navigator do
   def centre(col, row) = [(col + 0.5) * tile, (row + 0.5) * tile]
 
   # A hero-sized node — a 16x22 frame with a 12x6 FeetCollider, so its anchor, the centre of
-  # the feet box, is (8, 19) from its origin — standing with that anchor on a cell's centre.
+  # the feet box, is 3px above its origin — standing with that anchor on a cell's centre.
   def hero_at(col, row, speed: 60.0, blocked_by: [:tiles])
     x, y = centre(col, row)
-    hero = RGame::Engine::Node2D.new(x: x - 8, y: y - 19)
+    hero = RGame::Engine::Node2D.new(x: x, y: y + 3)
     hero.width = 16
     hero.height = 22
     hero.add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height: 6))
@@ -79,7 +79,7 @@ RSpec.describe RGame::Engine::Components::Navigator do
     navigator
   end
 
-  def anchor(navigator) = [navigator.node.world_x + 8, navigator.node.world_y + 19]
+  def anchor(navigator) = [navigator.node.world_x, navigator.node.world_y - 3]
 
   def waypoints(path) = Array.new(path.count) { [path.x_at(it), path.y_at(it)] }
 
@@ -141,7 +141,7 @@ RSpec.describe RGame::Engine::Components::Navigator do
       navigator.node.x += 3.0
       go_to_cell(navigator, 15, 9)
       expect(waypoints(navigator.path).first).to eq([navigator.node.x, navigator.node.y])
-      expect([navigator.node.x, navigator.node.y]).to eq([centre(1, 1)[0] - 5, centre(1, 1)[1] - 19])
+      expect([navigator.node.x, navigator.node.y]).to eq([centre(1, 1)[0] + 3, centre(1, 1)[1] + 3])
     end
 
     it 'is two waypoints across open ground, however many cells the search went through' do
@@ -199,7 +199,7 @@ RSpec.describe RGame::Engine::Components::Navigator do
       # What the fixture is for: the point's straight line really does clip the box.
       it 'is right to, since the feet box walking the straight line is stopped by the tree' do
         mount(tree)
-        straight = point_route.map { |x, y| [x - 8, y - 19] }
+        straight = point_route.map { |x, y| [x, y + 3] }
         walker = RGame::Engine::Node2D.new(x: straight[0][0], y: straight[0][1])
         walker.width = 16
         walker.height = 22

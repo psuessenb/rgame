@@ -504,10 +504,10 @@ node.add_component(RGame::Engine::Components::PlayerController.new)
 
 Each line does one job:
 
-- The [sprite](components.md#animatedsprite) gives the node its dimensions, and
-  reads the body's intent back as a facing.
-- The [`FeetCollider`](components.md#feetcollider) derives a small box at the
-  bottom of those dimensions. It is the node's **only** shape.
+- The [sprite](components.md#animatedsprite) stands the picture on the node's
+  origin, and reads the body's intent back as a facing.
+- The [`FeetCollider`](components.md#feetcollider) puts a small box under the
+  origin, where the sprite stands. It is the node's **only** shape.
 - The [`CharacterBody`](components.md#characterbody) names what that shape may not
   pass through.
 - The [controller](components.md#playercontroller) writes an intent each step, and
@@ -528,8 +528,8 @@ scene file three directories away.
 
 Three things need no remembering:
 
-- **Component order does not matter.** The feet box needs the size the sprite
-  gives the node. So the collider builds it on first read, not at construction.
+- **Component order does not matter.** The feet box needs nothing from the
+  sprite, because both stand on the node's origin.
 - **The node has one shape, not two.** The body resolves the collider's box. The
   rectangle a fence stops is the rectangle that reports contacts, and
   `collider.box =` retunes both.
@@ -545,24 +545,22 @@ describes the architecture behind those four lines.
 ## `CollisionBox` — an actor's feet box
 
 **`RGame::Engine::CollisionBox` (`rgame/engine/collision_box`) is a character's
-collision rectangle.** It stores an offset and a size **relative to the sprite's
-top-left origin**, independent of the sprite's size. A 32×32 sprite can therefore
-carry a small box at its feet. A [`BoxCollider`](components.md#boxcollider) holds
-one. [`FeetCollider`](components.md#feetcollider) builds this shape from the node's
-dimensions, so a character rarely constructs one by hand. The collision code
+collision rectangle.** It stores an offset and a size **relative to the node's
+origin**, independent of the sprite's size. A 32×32 sprite can therefore carry a
+small box at its feet. A [`BoxCollider`](components.md#boxcollider) holds one.
+[`FeetCollider`](components.md#feetcollider) builds the common one, centred under
+the origin, so a character rarely constructs one by hand. The collision code
 resolves the box, not the sprite, against whatever the body declared: solid tiles,
 other actors, the world's edge.
 
 ```ruby
-box = RGame::Engine::CollisionBox.bottom_anchored(
-  sprite_width: 32, sprite_height: 32, width: 16, height: 16
-) # centred horizontally, anchored to the sprite's feet
+box = RGame::Engine::CollisionBox.new(width: 16, height: 16, offset_x: -8, offset_y: -16)
 box.aabb(x, y) # => [x + offset_x, y + offset_y, width, height]
 ```
 
-`bottom_anchored` covers the common feet box. For anything else, the constructor
-takes `width:` and `height:`, plus optional `offset_x:` and `offset_y:`, both
-defaulting to 0.
+The constructor takes `width:` and `height:`, plus optional `offset_x:` and
+`offset_y:`, both defaulting to 0. The box above sits centred on top of the
+origin, as a feet box does.
 
 `CollisionBox` also holds rectangle geometry, as class methods over plain numbers.
 A per-frame path can call them without building a box:
@@ -583,5 +581,5 @@ broadphase buckets by the same convention, so the two never disagree.
 
 A [`BoxCollider`](components.md#boxcollider) component is a `CollisionBox` plus a
 registration in the scene's [`CollisionWorld`](components.md#collisionworld). These
-two methods are its narrowphase. [`FeetCollider`](components.md#feetcollider) adds
-the `bottom_anchored` arithmetic, computed from the node's own dimensions.
+two methods are its narrowphase. [`FeetCollider`](components.md#feetcollider) is a
+`BoxCollider` that works out those offsets from the feet box's size.

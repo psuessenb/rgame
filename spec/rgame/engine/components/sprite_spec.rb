@@ -65,7 +65,7 @@ RSpec.describe RGame::Engine::Components::Sprite do
     it 'spins a :center picture in place, since the node rotates about its origin' do
       root = RGame::Engine::Node2D.new
       root.add_node(RGame::Engine::Node2D.new(x: 100, y: 100, width: 20, height: 30, angle: Math::PI / 2))
-          .add_component(described_class.new(id: :ship))
+          .add_component(described_class.new(id: :ship, anchor: :center))
       root.draw(renderer, screen_view)
 
       drawn = renderer.calls_to(:image).last

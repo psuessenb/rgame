@@ -13,7 +13,9 @@ module RGame
       # animation table.
       #
       # Like Sprite, it places its frame against the node's origin by `anchor:` (see
-      # Engine::Anchor), and passes NO angle and NO position of its own: (0, 0) is what
+      # Engine::Anchor). The default, `:bottom`, stands the character on the origin,
+      # which is where a FeetCollider puts its box. It passes NO angle and NO
+      # position of its own: (0, 0) is what
       # Node2D#draw has already made mean "at this node, correctly rotated", and a
       # WorldView ancestor has already made mean "through the camera". `z` is the
       # render layer (kept as @layer, distinct from the node's transform z); it must
@@ -22,13 +24,13 @@ module RGame
       #
       # `sheet` is the asset's relative path. The component resolves it from the game's
       # asset manager on attach — via node.root.context.assets (the platform seam) — to
-      # build its animation table and to size the node to the sprite's frame, so siblings
-      # like FeetCollider can read node.width/height. The renderer resolves the same
+      # build its animation table and to size the node to the sprite's frame, which the
+      # anchor and culling measure from. The renderer resolves the same
       # symbol when drawing, so nothing is registered or passed in by hand.
       class AnimatedSprite < Engine::Component
         include Engine::Culling
 
-        def initialize(sheet:, z: 0, anchor: :top_left)
+        def initialize(sheet:, z: 0, anchor: :bottom)
           super()
           @sheet = sheet
           @layer = z
