@@ -623,6 +623,46 @@ RSpec.describe RGame::Engine::Scene::SceneStack do
     end
   end
 
+  # Rule 14.
+  describe '#on_requested' do
+    let(:seen) { [] }
+    let(:fade) { RGame::Engine::Scene::Fade.new(cover: 0.25, reveal: 0.25) }
+
+    before do
+      stack.define(:title) { RGame::Engine::Node2D.new }
+      stack.on_requested { |scene, transition| seen << [scene, transition, stack.pending?] }
+    end
+
+    it 'fires as a switch is asked for, before it lands, with the name and its transition' do
+      stack.transition = fade
+      stack.push(:title)
+      expect(seen).to eq([[:title, fade, true]])
+    end
+
+    it 'carries the node asked for, and the switch\'s own transition in place of the stack\'s' do
+      scene = RGame::Engine::Node2D.new
+      stack.transition = fade
+      stack.replace(scene, transition: nil)
+      expect(seen).to eq([[scene, nil, true]])
+    end
+
+    it 'carries nil for a pop' do
+      stack.pop(transition: fade)
+      expect(seen).to eq([[nil, fade, true]])
+    end
+
+    it 'does not fire for a switch that raises' do
+      expect { stack.push(:nowhere) }.to raise_error(KeyError)
+      expect(seen).to be_empty
+    end
+
+    it 'does not fire again as the switch lands' do
+      stack.push(:title)
+      sweep
+      expect(seen.size).to eq(1)
+    end
+  end
+
   describe '#control' do
     let(:actions) { instance_double(RGame::Engine::Actions) }
 

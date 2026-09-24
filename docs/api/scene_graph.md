@@ -669,6 +669,9 @@ stack.current.score                    # => 12
 - `on_changed { |scene| ... }` fires once for each switch that lands, after the
   new top scene entered the tree. It carries that scene, or nil once the stack
   is empty.
+- `on_requested { |scene, transition| ... }` fires as a switch is asked for,
+  before it lands. It carries the name or node asked for, or nil for a pop, and
+  the `Fade` the switch runs, or nil. A switch that raises fires nothing.
 
 ### A switch lands in the sweep
 
@@ -742,6 +745,9 @@ scene, over the host's view, in the `:overlay` band.
 
 - **The switch lands in the sweep after the cover ends.** `on_changed` fires
   then, under a full cover, and the reveal starts.
+- **Music that should cross over the cover starts at the request.** Start it
+  from `on_requested`, which fires as the cover begins, rather than from
+  `on_changed`.
 - **No scene is controlled until the reveal ends.** The scene leaving is not
   updated under the cover, and the scene arriving is updated from the tick after
   it lands. A scene's first press after a transition therefore began after it:

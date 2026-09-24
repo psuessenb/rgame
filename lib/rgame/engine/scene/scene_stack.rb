@@ -15,6 +15,7 @@ module RGame
       #   stack.replace(:village, carry: { hero: hero })
       #   stack.pop
       #   stack.on_changed { |scene| ... }       # the top scene, once a switch lands
+      #   stack.on_requested { |scene, transition| ... }   # as a switch is asked for
       #
       #   stack.transition = Engine::Scene::Fade.new(cover: 0.25, reveal: 0.25)
       #   stack.push(:pause, transition: nil)    # this switch without one
@@ -57,6 +58,11 @@ module RGame
         # the tree. It carries that scene, or nil once the stack is empty.
         signal :changed, :scene
 
+        # Fired as a switch is asked for, before it lands: with the name or the
+        # node asked for, or nil for a pop, and the Scene::Fade it runs, or nil.
+        # A crossfade over the cover starts here, since `changed` fires after it.
+        signal :requested, :scene, :transition
+
         KEPT = %i[carry transition].freeze
         POSITIONAL = %i[req opt rest].freeze
         KEYWORDS = %i[key keyreq].freeze
@@ -76,9 +82,7 @@ module RGame
           @builders = {}
           @request = nil
           @transition = nil
-          @running = nil
-          @phase = nil
-          @screen_fade = nil
+          @curtain = nil
         end
 
         # Sets the transition every switch runs unless it names its own. Anything
@@ -127,8 +131,10 @@ module RGame
 
         # Asks for the top scene to go. Landing on an empty stack changes nothing.
         def pop(transition: @transition)
-          start(checked_transition(transition))
+          transition = checked_transition(transition)
+          start(transition)
           @request = Switch.new(:pop, nil, NONE, NONE)
+          requested_signal.emit(scene: nil, transition:)
           self
         end
 
@@ -141,7 +147,7 @@ module RGame
         def pending? = !@request.nil?
 
         # Whether a transition is covering or revealing.
-        def transitioning? = !@phase.nil?
+        def transitioning? = curtain.running?
 
         # Scenes live off the host's child list, so the traversal does not reach
         # them on its own — and what has to reach them is the input *source*,
@@ -158,17 +164,17 @@ module RGame
         # snapshot is passed on, which is exactly what it means: one answer for
         # everyone.
         def _control(actions)
-          return if @phase
+          return if curtain.running?
           return unless (current_scene = current)
 
           current_scene.control(@players || actions)
         end
 
         def _update(dt)
-          step_transition(dt) if @phase
+          curtain.update(dt)
           return unless (current_scene = current)
 
-          current_scene.update(dt) unless @phase == :cover
+          current_scene.update(dt) unless curtain.covering?
         end
 
         # Every scene in the stack, not just the current one — that asymmetry
@@ -179,7 +185,7 @@ module RGame
           @stack.each do |scene|
             scene.draw(renderer, view)
           end
-          @screen_fade&.draw(renderer, view)
+          curtain.draw(renderer, view)
         end
 
         # Scenes live in @stack, off the host's child list, so the host's
@@ -187,11 +193,10 @@ module RGame
         # subtree, and then the switch asked for lands, once any cover is done.
         def _sweep_freed
           current&.sweep_freed
-          return unless @request
-          return if @phase == :cover && !@screen_fade.covered?
+          return unless @request && curtain.ready?
 
           land
-          reveal if @phase == :cover
+          curtain.open
         end
 
         private
@@ -206,46 +211,16 @@ module RGame
             raise ArgumentError, "keywords and carry: go to a named scene's builder, and #{scene.class} is a " \
                                  "node: #{(keywords.keys + carry.keys).join(', ')}"
           end
-          start(checked_transition(transition))
+          transition = checked_transition(transition)
+          start(transition)
           @request = Switch.new(kind, scene, keywords, carry)
+          requested_signal.emit(scene:, transition:)
           self
         end
 
-        def start(transition)
-          case @phase
-          when :reveal then cover(transition || @running)
-          when nil then cover(transition) if transition
-          end
-        end
+        def start(transition) = curtain.close(transition, at_once: current.nil?)
 
-        def cover(transition)
-          @running = transition
-          fade = screen_fade
-          fade.color = transition.color
-          if current.nil?
-            fade.opacity = 1
-          else
-            fade.cover(transition.cover)
-          end
-          @phase = :cover
-        end
-
-        def reveal
-          @screen_fade.reveal(@running.reveal)
-          @phase = :reveal
-        end
-
-        def step_transition(dt)
-          @screen_fade.update(dt)
-          @phase = nil if @phase == :reveal && !@screen_fade.running?
-        end
-
-        def screen_fade
-          @screen_fade ||= Engine::ScreenFade.new.tap do |fade|
-            fade.parent = node
-            fade.enter_tree
-          end
-        end
+        def curtain = @curtain ||= Curtain.new(node)
 
         def checked_transition(transition)
           return transition if transition.nil? || transition.is_a?(Fade)
