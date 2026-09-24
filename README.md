@@ -92,6 +92,7 @@ You can learn more about how it works in the [documentation](docs/api/README.md)
 | [signals](docs/api/examples.md#signals) | A node announcing something happened, to nobody in particular |
 | [timer](docs/api/examples.md#timer) | Things that happen on a clock, with nothing pressed |
 | [pooling](docs/api/examples.md#pooling) | Spawning a lot of things without allocating them |
+| [effects](docs/api/examples.md#effects) | A fade, a flash, sparkles and a lightning bolt that glow over what is behind them |
 | [game_menu](docs/api/examples.md#game_menu) | A menu over a world that keeps running |
 | [menu_navigation](docs/api/examples.md#menu_navigation) | Several screens, and settings that persist |
 | [radial_menu](docs/api/examples.md#radial_menu) | A wheel of icons, chosen by the direction of the stick |

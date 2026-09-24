@@ -171,6 +171,16 @@ screen makes the case.
 **Uses:** `Components::Pool`, `Engine::Pool`, `Components::DespawnOffscreen`,
 `Components::Timer`, `Engine::Text`.
 
+### effects
+
+A dark room with a torch streaming embers. Enter covers it in black and reveals
+it again, L strikes a lightning bolt that flashes the room white, and Space
+bursts sparkles. Nothing builds a colour once it runs: the fades and the bolt
+change their opacity, and each particle reads its colour off a ramp.
+
+**Uses:** `Engine::ScreenFade`, `Components::Particles`, `Util::ColorRamp`,
+`Node2D#opacity`, `Renderer#blended`.
+
 ## UI
 
 ### game_menu

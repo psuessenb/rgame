@@ -60,4 +60,34 @@ RSpec.describe RGame::Engine::Pool do
     pool.reclaim_if(&:dead)
     expect(pool).to be_empty
   end
+
+  describe '#reserve' do
+    it 'builds that many now, and hands them out before calling the factory again' do
+      built = 0
+      pool = described_class.new { built += 1 }
+      pool.reserve(3)
+      reserved = built
+      handed = Array.new(3) { pool.acquire }
+      pool.acquire
+
+      expect([reserved, handed.sort, built]).to eq([3, [1, 2, 3], 4])
+    end
+
+    it 'counts what is live and free already, building only the difference' do
+      built = 0
+      pool = described_class.new { built += 1 }
+      pool.acquire
+      pool.reclaim_if { false }
+      pool.reserve(3)
+      pool.reserve(2)
+
+      expect(built).to eq(3)
+    end
+
+    it 'leaves the pool empty of live objects' do
+      pool = described_class.new { +'x' }.reserve(2)
+
+      expect(pool).to be_empty
+    end
+  end
 end

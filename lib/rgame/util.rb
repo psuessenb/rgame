@@ -2,6 +2,7 @@
 
 require_relative 'util/blend'
 require_relative 'util/color'
+require_relative 'util/color_ramp'
 require_relative 'util/controls'
 require_relative 'util/route_search'
 require_relative 'util/save_file'

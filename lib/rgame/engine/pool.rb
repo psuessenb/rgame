@@ -28,6 +28,14 @@ module RGame
         obj
       end
 
+      # Builds objects until the pool holds `count`, live and free together,
+      # so that many can be acquired later without calling the factory. For an
+      # emitter that must not allocate on its first burst. Returns self.
+      def reserve(count)
+        @free.push(@factory.call) while @active.size + @free.size < count
+        self
+      end
+
       def each(&) = @active.each(&)
 
       def size = @active.size

@@ -1,8 +1,8 @@
 # Toolbox
 
 This page covers engine classes **a game author uses directly** that belong to no
-other chapter: pooling, the text a node draws, timers and tweens, the camera,
-collision boxes.
+other chapter: pooling, the text a node draws, timers and tweens, a fade over
+the screen, the camera, collision boxes.
 All are pure Ruby, so they stay testable headless. One section is a recipe, not a
 class: [making a character that collides](#making-a-character-that-collides). No
 single class answers that question.
@@ -182,6 +182,11 @@ The factory builds a *blank* object. The caller re-initialises it after
 and moves every object the block marks dead onto the free list. Call it *after*
 iterating with `each`; never change the active list mid-iteration. `active`,
 `size`, `empty?` and `each` expose the live set for update and draw.
+
+`pool.reserve(48)` builds objects until the pool holds 48, live and free
+together, and returns the pool. `acquire` hands those out before it calls the
+factory again, so a pool reserved to its limit allocates nothing on its first
+burst. [`Particles`](components.md#particles) reserves its pool this way.
 
 ## `Path` — a walkable polyline
 
@@ -397,6 +402,54 @@ is an `:arc` tween from 0 to its peak.
 
 For a tween that should run on a node's tick and say when it ends, use
 [`Components::Tween`](components.md#tween). It emits `on_finished` once.
+
+## `ScreenFade` — cover the view, and flash it
+
+**`RGame::Engine::ScreenFade` is a node that draws one colour over the view it
+is drawn into, and fades it in and out.** A scene changes behind it once it is
+covered, and a storm flashes it white.
+
+```ruby
+BLACK = RGame::Util::Color::BLACK
+GLARE = RGame::Util::Color.new(255, 255, 255, 160)
+
+fade = add_node(RGame::Engine::ScreenFade.new(color: BLACK))   # in a scene's initialize: clear
+
+fade.cover(0.4)                  # to opaque over 0.4 s, from where it is
+fade.on_finished { start_level } # once the cover ends
+fade.reveal(0.4)                 # back to clear
+fade.flash(0.15, color: GLARE)   # up to GLARE and back down
+```
+
+It steps a tween in `_update` and writes the value to its own
+[`opacity`](scene_graph.md#opacity), so `Node2D#draw` fades the rect. A clear
+fade draws nothing, and neither stepping nor drawing allocates.
+
+- **Construct:** `ScreenFade.new(color: Color::BLACK, band: :overlay, **)`.
+  `color:` must be a `Util::Color`, or it raises `TypeError`. The other keywords
+  are `Node2D`'s. It starts clear, in the `:overlay` band, over the world and
+  every player's HUD.
+- **`cover(duration)` and `reveal(duration)`** fade to opaque and to clear.
+  Each starts from the opacity the fade has, so a cover begun halfway through a
+  reveal turns back from there.
+- **`flash(duration, color: self.color)`** rises from clear to `color` at half
+  its duration and falls back to clear. The colour's own alpha is the peak, so
+  `GLARE` above never covers the scene. After a flash the fade draws in its own
+  `color` again.
+- **Each call replaces whatever was running.** `on_finished` fires once for the
+  one that reaches its end, and never for one replaced before it.
+- **`running?`** is true while one runs. **`covered?`** is true when the fade is
+  opaque and nothing is running.
+- **To start covered**, set `opacity = 1` before the first `reveal`.
+- **Durations** are in seconds and must be positive, as a `Tween`'s are.
+
+It draws over `view.origin_x`, `view.origin_y`, `view.width` and `view.height`,
+in the space of the node it hangs under. That is the whole window at the root,
+one player's region under a [`PlayerLayer`](ui.md#a-players-own-screen), and
+each camera's view under a `WorldView`. Leave it at its parent's origin, where
+it starts.
+
+Time reaches it only through `update`, so a paused fade holds where it is.
 
 ## `Camera` — follow a point, clamp to the world
 
