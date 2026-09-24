@@ -1,0 +1,190 @@
+# frozen_string_literal: true
+
+module RGame
+  module Engine
+    module Components
+      # Sparks, embers and dust: small squares that fly out from a point, fall,
+      # change colour as they age, and vanish.
+      #
+      #   EMBER = Util::ColorRamp.new(Util::Color.new(255, 240, 160), Util::Color.new(255, 120, 0, 0))
+      #
+      #   sparkles = actors.add_node(Engine::Node2D.new)
+      #   particles = sparkles.add_component(Engine::Components::Particles.new(
+      #     limit: 48, lifetime: 0.4..0.7, speed: 30.0..80.0, spread: Math::PI,
+      #     gravity: 90.0, size: 3, ramp: EMBER, blend: :add, rng: rng
+      #   ))
+      #   particles.burst(16, x, y)   # 16 at once
+      #   particles.rate = 40         # a stream from the node's origin, per second
+      #
+      # **A particle is a plain object in a Pool, not a node.** The pool builds
+      # `limit` of them when the component is made, so bursting, streaming,
+      # stepping and drawing allocate nothing after that. A burst past the limit
+      # places what fits and drops the rest.
+      #
+      # Each particle takes a lifetime and a speed from its ranges, and a
+      # heading up to `spread` radians either side of `direction`. Each update
+      # adds `gravity` to its downward speed, moves it, and frees it once its
+      # age reaches its lifetime. It draws as a square of `size` centred on
+      # where it is, in `ramp.at(age / lifetime)`, inside the renderer's
+      # `blended(blend)`.
+      #
+      # Particles live in the node's local space, so they move with the node.
+      # An emitter that must outlive what it sparkles for, as a coin that frees
+      # itself when taken, goes on a node of its own, and the coin is handed it.
+      #
+      # `rng:` should be the game's own seeded Random, so two runs place every
+      # particle the same. Time reaches particles only through `update`, so a
+      # paused node's particles hold still. A node that leaves the tree takes
+      # its particles with it.
+      class Particles < Engine::Component
+        # One particle's state, rewritten each time the pool hands it out.
+        class Particle
+          attr_accessor :x, :y, :vx, :vy, :age, :lifetime
+
+          def place(x, y, vx, vy, lifetime)
+            @x = x
+            @y = y
+            @vx = vx
+            @vy = vy
+            @age = 0.0
+            @lifetime = lifetime
+            self
+          end
+        end
+        private_constant :Particle
+
+        CARRY_SLACK = 1e-9
+        private_constant :CARRY_SLACK
+
+        attr_reader :limit, :blend
+
+        # Particles a second, streamed from the node's origin. 0, the default,
+        # streams none.
+        attr_reader :rate
+
+        # `limit` is how many can be alive at once. `lifetime` in seconds and
+        # `speed` in pixels a second are each a number or a Range to draw one
+        # from. `direction` and `spread` are radians: 0 is right and
+        # -Math::PI / 2 up, and a spread of Math::PI is every way. `gravity` is
+        # pixels a second added to the downward speed each second. `ramp` is a
+        # Util::ColorRamp, and `blend` a mode `renderer.blended` takes.
+        def initialize(limit:, lifetime:, speed:, ramp:, direction: -Math::PI / 2, spread: Math::PI,
+                       gravity: 0.0, size: 2, blend: :alpha, rng: Random.new)
+          super()
+          @limit = positive(limit, 'limit', integer: true)
+          @lifetime = float_range(lifetime, 'lifetime', above_zero: true)
+          @speed = float_range(speed, 'speed')
+          @ramp = ramp!(ramp)
+          @direction = direction.to_f
+          @spread = spread.to_f
+          @gravity = gravity.to_f
+          @size = positive(size, 'size')
+          @half = @size / 2.0
+          @blend = Util::Blend.mode!(blend)
+          @rng = rng
+          @rate = 0
+          @carry = 0.0
+          @pool = Engine::Pool.new { Particle.new }.reserve(limit)
+        end
+
+        # Changes the stream's rate. Must be a number of 0 or more.
+        def rate=(per_second)
+          unless per_second.is_a?(Numeric) && per_second >= 0
+            raise ArgumentError, "rate must be a number of particles a second, 0 or more, not #{per_second.inspect}"
+          end
+
+          @carry = 0.0 if per_second.zero?
+          @rate = per_second
+        end
+
+        # How many are alive.
+        def live = @pool.size
+
+        # Places `count` particles at (x, y) in the node's local space, or as
+        # many as the limit leaves room for. `count` is an Integer. Returns how
+        # many it placed.
+        # hot-path
+        def burst(count, x = 0.0, y = 0.0)
+          placed = [count, @limit - @pool.size].min
+          placed = 0 if placed.negative?
+          i = 0
+          while i < placed
+            emit(x, y)
+            i += 1
+          end
+          placed
+        end
+
+        def _update(dt)
+          @pool.each { step(it, dt) }
+          @pool.reclaim_if { it.age >= it.lifetime }
+          stream(dt) if @rate.positive?
+        end
+
+        def _draw(renderer, _view)
+          return if @pool.empty?
+
+          renderer.blended(@blend) do
+            @pool.each { draw_particle(renderer, it) }
+          end
+        end
+
+        def _detach
+          @pool.reclaim_if { true }
+          @carry = 0.0
+        end
+
+        private
+
+        def step(particle, dt)
+          particle.vy += @gravity * dt
+          particle.x += particle.vx * dt
+          particle.y += particle.vy * dt
+          particle.age += dt
+        end
+
+        def stream(dt)
+          @carry += @rate * dt
+          whole = (@carry + CARRY_SLACK).floor
+          return if whole.zero?
+
+          @carry -= whole
+          burst(whole)
+        end
+
+        def emit(x, y)
+          heading = @direction + (@spread * ((2.0 * @rng.rand) - 1.0))
+          speed = @rng.rand(@speed)
+          @pool.acquire.place(x, y, Math.cos(heading) * speed, Math.sin(heading) * speed, @rng.rand(@lifetime))
+        end
+
+        def draw_particle(renderer, particle)
+          renderer.rect(particle.x - @half, particle.y - @half, @size, @size,
+                        color: @ramp.at(particle.age / particle.lifetime))
+        end
+
+        def ramp!(ramp)
+          return ramp if ramp.is_a?(Util::ColorRamp)
+
+          raise TypeError, "ramp: must be a #{Util::ColorRamp}, not #{ramp.inspect}"
+        end
+
+        def positive(value, name, integer: false)
+          return value if (integer ? value.is_a?(Integer) : value.is_a?(Numeric)) && value.positive?
+
+          raise ArgumentError, "#{name}: must be a positive #{integer ? 'Integer' : 'number'}, not #{value.inspect}"
+        end
+
+        def float_range(value, name, above_zero: false)
+          low, high = value.is_a?(Range) ? [value.begin, value.end] : [value, value]
+          unless low.is_a?(Numeric) && high.is_a?(Numeric) && low <= high && (above_zero ? low.positive? : low >= 0)
+            raise ArgumentError, "#{name}: must be a number or a Range of numbers, " \
+                                 "#{above_zero ? 'above' : 'from'} 0, not #{value.inspect}"
+          end
+
+          low.to_f..high.to_f
+        end
+      end
+    end
+  end
+end

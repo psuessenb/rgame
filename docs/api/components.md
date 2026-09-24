@@ -1008,6 +1008,80 @@ world.solid?(12, 7) # => true
 - **The cell is fixed.** Something that moves from cell to cell is a body with a
   collider. A mover that names the collider's layer in `blocked_by` stops against it.
 
+### `Particles`
+
+**Sparks, embers and dust: small squares that fly out from a point, fall,
+change colour as they age, and vanish.**
+
+```ruby
+EMBER = RGame::Util::ColorRamp.new(RGame::Util::Color.new(255, 240, 160),
+                                   RGame::Util::Color.new(255, 120, 0, 0))
+
+# In a scene's initialize. @rng is the scene's own seeded Random.
+sparkles = add_node(RGame::Engine::Node2D.new)
+@sparks = sparkles.add_component(RGame::Engine::Components::Particles.new(
+  limit: 48, lifetime: 0.4..0.7, speed: 30.0..80.0,
+  direction: -Math::PI / 2, spread: Math::PI, gravity: 90.0,
+  size: 3, ramp: EMBER, blend: :add, rng: @rng
+))
+
+@sparks.burst(16, x, y)   # 16 at once from (x, y)
+@sparks.rate = 40         # a stream from the node's origin, 40 a second
+```
+
+A particle is a plain object in an [`Engine::Pool`](toolbox.md#pool--reuse-dont-allocate),
+not a node. The component builds `limit` of them when it is made, so bursting,
+streaming, stepping and drawing allocate nothing after that.
+
+- **Construct:** `Particles.new(limit:, lifetime:, speed:, ramp:, direction: -Math::PI / 2,
+  spread: Math::PI, gravity: 0.0, size: 2, blend: :alpha, rng: Random.new)`.
+  - `limit` is how many can be alive at once, a positive Integer.
+  - `lifetime`, in seconds, and `speed`, in pixels a second, are each a number
+    or a Range to draw one from. A lifetime must be above 0, and a speed at
+    least 0.
+  - `direction` and `spread` are radians. 0 is right, `-Math::PI / 2` is up,
+    and each particle heads up to `spread` either side of `direction`, so
+    `Math::PI` is every way.
+  - `gravity` is added to each particle's downward speed, in pixels a second
+    per second.
+  - `size` is the side of each square, in pixels.
+  - `ramp` is a [`Util::ColorRamp`](values.md#rgameutilcolorramp). A particle
+    draws in `ramp.at(age / lifetime)`, so a ramp to alpha 0 fades it out.
+  - `blend` is a mode [`renderer.blended`](drawing.md#blending-and-fading)
+    takes. `:add` makes sparks glow over what is behind them.
+  - `rng` is the Random the particles draw from. Pass the game's own seeded
+    one, and two runs place every particle the same.
+
+  A bad value raises `ArgumentError`, and a `ramp` that is not a `ColorRamp`
+  raises `TypeError`.
+- **`burst(count, x = 0.0, y = 0.0)`** places `count` particles at (x, y), in
+  the node's local space. Past `limit` it places what fits, drops the rest, and
+  returns how many it placed.
+- **`rate=`** streams that many a second from the node's origin. It carries the
+  fraction from tick to tick, so 40 a second at 60 ticks is 2 in every 3. 0, the
+  default, streams none. A negative rate raises `ArgumentError`.
+- **`live`** is how many are alive. `limit`, `rate` and `blend` read back what
+  was set.
+- **Phase:** `_update(dt)` adds gravity to each particle's downward speed,
+  moves it, and frees it once its age reaches its lifetime. Then it streams.
+  `_draw` draws every particle as a square centred on it, inside
+  `renderer.blended(blend)`, and draws nothing while none is alive.
+- **Lifecycle:** `_detach` frees every particle, so a node that leaves the tree
+  enters again with none.
+
+Particles live in the node's local space and move with it. An emitter that
+must outlive what it sparkles for goes on a node of its own. A coin that frees
+itself when taken would take its sparkles with it, so the scene holds one
+`Particles` and each coin's `on_collected` bursts it:
+
+```ruby
+coin.add_component(RGame::Engine::Components::Collectable.new(by: :hero))
+    .on_collected { @sparks.burst(8, coin.world_x, coin.world_y) }
+```
+
+A component draws in its node's slot, so put that node where the sparks should
+show, such as a tile map's actors slot, among the characters.
+
 ### `PathFollow`
 
 **Walks the owning node along an

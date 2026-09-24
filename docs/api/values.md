@@ -103,7 +103,8 @@ EMBER.steps     # => 5
 Building a `Color` allocates an object, so a colour built every tick is 60
 objects a second. `at` returns one of the colours the ramp built, and
 allocates nothing. So a particle whose colour changes with its age reads it
-from a ramp in `_draw`.
+from a ramp in `_draw`. [`Particles`](components.md#particles) takes one as
+`ramp:`.
 
 | | |
 |---|---|

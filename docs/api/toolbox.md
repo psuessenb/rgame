@@ -183,6 +183,11 @@ and moves every object the block marks dead onto the free list. Call it *after*
 iterating with `each`; never change the active list mid-iteration. `active`,
 `size`, `empty?` and `each` expose the live set for update and draw.
 
+`pool.reserve(48)` builds objects until the pool holds 48, live and free
+together, and returns the pool. `acquire` hands those out before it calls the
+factory again, so a pool reserved to its limit allocates nothing on its first
+burst. [`Particles`](components.md#particles) reserves its pool this way.
+
 ## `Path` — a walkable polyline
 
 **`RGame::Engine::Path` (`rgame/engine/path`) is an ordered polyline** that an
