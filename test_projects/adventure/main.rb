@@ -13,6 +13,8 @@ require_relative 'item'
 require_relative 'lever'
 require_relative 'room'
 require_relative 'shell'
+require_relative 'sparkles'
+require_relative 'storm'
 
 WIDTH  = 640
 HEIGHT = 480

@@ -6,7 +6,7 @@
 # lets TileMapLayer.mount lay the map's layers out around an `:actors` slot. The
 # heroes go in that slot, so a tree's canopy draws in front of whoever walks
 # under it. The coins, the chest, the lever and the crate go in the same slot,
-# for the same reason.
+# for the same reason, and so do the sparkles every coin bursts as it is taken.
 #
 # Each hero's Bag goes in a PlayerLayer of that hero's player, so it draws in
 # their region, over the world, and reads their input.
@@ -33,6 +33,8 @@ class Room < RGame::Engine::Node2D
 
   CRATE = [440, 304].freeze
 
+  DEFAULT_SEED = 0xAD7E
+
   def _enter_tree
     map = root.context.assets.tilemap(MAP).map
     @players = root.system(RGame::Engine::Players)
@@ -45,7 +47,9 @@ class Room < RGame::Engine::Node2D
     @view = add_node(RGame::Engine::WorldView.new)
     @actors = RGame::Engine::TileMapLayer.mount(@view)[:actors]
 
-    COINS.each { |x, y| @actors.add_node(Coin.new(x: x, y: y)) }
+    rng = Random.new(ENV.fetch('RGAME_SEED', DEFAULT_SEED).to_i)
+    sparkles = @actors.add_node(Sparkles.new(rng: rng))
+    COINS.each { |x, y| @actors.add_node(Coin.new(x: x, y: y, sparkles: sparkles)) }
     @actors.add_node(Chest.new(x: CHEST.first, y: CHEST.last))
     @actors.add_node(Lever.new(x: LEVER.first, y: LEVER.last))
     @actors.add_node(Crate.new(x: CRATE.first, y: CRATE.last))
