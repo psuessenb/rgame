@@ -42,6 +42,13 @@ module RGame
     # time* — a screen shake, a hit flash — is per-*player* rather than per-view,
     # and belongs on that player's camera or their own subtree, which tick once.
     #
+    # ## In a room, only its players' views
+    #
+    # A WorldView inside a Scene::Room draws only into the views of the players
+    # who stand in that room, so two players in two rooms each see their own. A
+    # view no player owns, such as a solo view, shows the primary player's
+    # room. A WorldView in no room draws into every view.
+    #
     # ## It draws the map's solid cells for the debug layer
     #
     # While `Engine::Debug`'s `:shapes` channel is on, this draws a box over
@@ -66,6 +73,8 @@ module RGame
       def _enter_tree
         @debug = system(Debug)
         @world = system(Components::TileWorld)
+        @room = scene.is_a?(Scene::Room) ? scene : nil
+        @players = system(Players)
       end
 
       def _draw(renderer, view)
@@ -84,6 +93,8 @@ module RGame
       def draw(renderer, _view = nil)
         viewports = system(Viewports)
         viewports.views.each do |world_view|
+          next unless shows?(world_view)
+
           renderer.clipped(world_view.x, world_view.y, world_view.width, world_view.height) do
             renderer.translated(world_view.offset_x, world_view.offset_y) do
               super(renderer, world_view)
@@ -93,6 +104,14 @@ module RGame
       end
 
       private
+
+      # hot-path
+      def shows?(view)
+        return true unless @room
+
+        watcher = view.player || @players&.primary
+        @room.players.include?(watcher)
+      end
 
       # hot-path
       def draw_solid_cells(renderer, view)

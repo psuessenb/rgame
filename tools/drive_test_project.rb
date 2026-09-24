@@ -286,6 +286,7 @@ module DriveTestProject
     def record_band(band) = @bands[band] += 1
     def record_sound(kind, id) = @sounds["#{kind} #{id}"] += 1
     def record_scene(action, scene) = @scenes << "#{action} #{scene.class}"
+    def record_move(node, room) = @scenes << "move #{node.class} to #{room.class}"
 
     def to_s
       out = +"\n"
@@ -769,7 +770,10 @@ module DriveTestProject
 
     def install(report, input, budget, pad: nil)
       RGame::Game.prepend(game_probe(report, input, budget, pad))
-      RGame::Engine::Scene::SceneStack.prepend(scene_probe(report)) unless report.allocations
+      return if report.allocations
+
+      RGame::Engine::Scene::SceneStack.prepend(scene_probe(report))
+      RGame::Engine::Scene::Rooms.prepend(rooms_probe(report))
     end
 
     def game_probe(report, input, budget, pad)
@@ -819,6 +823,25 @@ module DriveTestProject
         end
 
         private :land_push, :land_pop
+      end
+    end
+
+    def rooms_probe(report)
+      Module.new do
+        define_method(:build) do |name|
+          super(name).tap { report.record_scene('build', it) }
+        end
+
+        define_method(:free) do |room|
+          report.record_scene('free', room)
+          super(room)
+        end
+
+        define_method(:land) do |move|
+          super(move).tap { report.record_move(move.node, self[move.name]) }
+        end
+
+        private :build, :free, :land
       end
     end
   end

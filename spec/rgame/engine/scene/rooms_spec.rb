@@ -293,6 +293,13 @@ RSpec.describe RGame::Engine::Scene::Rooms do
         def world = get_component(RGame::Engine::Components::CollisionWorld)
       end
     end
+    let(:viewports) { RGame::Engine::Viewports.new(players, width: 320, height: 240) }
+    let(:root) do
+      RGame::Engine::Node2D.new.tap do |node|
+        node.add_component(players)
+        node.add_component(viewports)
+      end
+    end
     let(:body_hero) { mapped_hero(first) }
     let(:body_other) { mapped_hero(second) }
 
@@ -343,6 +350,12 @@ RSpec.describe RGame::Engine::Scene::Rooms do
 
     it 'keeps the town running for the player who stayed' do
       expect { tick(3) }.to change { rooms[:big_town].ticks }.by(3)
+    end
+
+    it 'draws each room only into the view of the player standing in it' do
+      renderer = FakeRenderer.new
+      root.draw(renderer, viewports.screen)
+      expect(renderer.calls_to(:clipped).map(&:args)).to eq([[0, 0, 320, 120], [0, 120, 320, 120]])
     end
   end
 

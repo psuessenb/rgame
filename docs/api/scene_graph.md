@@ -356,7 +356,8 @@ once. Bands subdivide that space by what should cover what.
 their own local space and never know about a camera. The `WorldView` draws its
 subtree **once per active viewport**. Each time, it clips to that viewport's
 rectangle and translates by its camera. A child drawing at its own origin lands
-wherever that viewport looks:
+wherever that viewport looks. Inside a room, it draws only into the views of the
+room's players; see [Covers and cameras](#covers-and-cameras).
 
 ```ruby
 view = scene.add_node(RGame::Engine::WorldView.new)
@@ -922,6 +923,11 @@ the cover reveals. A player in no room starts covered, since there is nothing
 on screen to cover. A move asked for during a player's reveal covers again from
 where the reveal got to, as a stack's switch does. `transition:` on one move
 runs another `Fade` for it, and `nil` none.
+
+**A room's `WorldView` draws only into the views of the players who stand in
+it**, so two players in two rooms each see their own. A view no player owns,
+such as a solo view, shows the primary player's room. A player in no room sees
+no room, and a `WorldView` in no room draws into every view.
 
 **A player's camera takes the limits of the room they stand in.** As a move
 lands, each player's camera is bounded by their room's `TileWorld`, whichever
