@@ -1,6 +1,6 @@
 # The rest of the README roadmap
 
-**Status: steps 0 to 10 are implemented.** Steps 0–12 of
+**Status: steps 0 to 11 are implemented.** Steps 0–12 of
 [the roadmap](04-roadmap.md) are detailed: 5–8 planned after step 4 landed, and
 9–12 after step 8. Steps 13–15 are deliberately rough and get re-planned once
 the layer beneath them exists.
@@ -263,3 +263,11 @@ re-planned. See [what that re-plan found](04-roadmap.md#re-planning-steps-912).
    at the end, or a seam of 34.9%. *8BitBattleLoop* measured clean, but its
    source and licence were not recorded. Waits on step 13. Blocks nothing
    before it.
+6. **Can a subclass be kept from overwriting `Node2D`'s instance variables?**
+   Step 11's `examples/music` kept its own pause flag in `@paused`, which is
+   the ivar `Node2D#paused` reads. Pausing the music paused the scene, and its
+   next press never arrived. Nothing raised: `SealedPrivates` checks method
+   names when they are defined, and an ivar is set, not defined. The
+   write-example skill lists the names `Node2D` uses. A guard would need to
+   see an assignment in a subclass body, which a RuboCop cop could, given the
+   list. Found in step 11. Blocks nothing.
