@@ -5,7 +5,7 @@
 #
 # The emitter is a node of its own in the actors slot, not a component on each
 # coin. A coin frees itself as it is taken, and its sparkles would go with it.
-# So the room builds one of these and hands it to every coin. It sits above the
+# So the town builds one of these and hands it to every coin. It sits above the
 # heroes in the slot, because the sparkles are light, and it draws under the
 # canopy with everything else there.
 class Sparkles < RGame::Engine::Node2D

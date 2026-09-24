@@ -9,6 +9,8 @@
 # It draws its state as a word, "lever" or "pulled", so a driven run can say
 # which press reached it and which did not. A hold searches it and finds
 # nothing.
+#
+# Like the chest, it keeps its state in Facts under the key the room names.
 class Lever < RGame::Engine::Node2D
   WIDTH = 12
   HEIGHT = 20
@@ -18,17 +20,20 @@ class Lever < RGame::Engine::Node2D
 
   LABELS = { up: 'lever', down: 'pulled' }.freeze
 
-  def initialize(**)
-    super
+  def initialize(facts:, key:, **)
+    super(**)
     add_component(RGame::Engine::Components::BoxCollider.new(width: WIDTH, height: HEIGHT,
                                                              layer: :interactable))
-    @state = :up
+    @facts = facts
+    @key = key
+    @state = facts.fetch(key, 'up').to_sym
   end
 
   attr_reader :state
 
   def open
     @state = @state == :up ? :down : :up
+    @facts[@key] = @state.name
   end
 
   def search = nil

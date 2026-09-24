@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: steps 0 to 14 are implemented.** Eighteen steps. Each is one branch and one
+**Status: steps 0 to 15 are implemented.** Eighteen steps. Each is one branch and one
 pull request, and its sub-steps are one commit each. **Steps 0–16 are detailed.**
 Steps 5–8 were planned after step 4 landed, steps 9–12 after step 8, and steps
 13–16 after step 12. What each re-plan found comes before its steps:
@@ -3393,6 +3393,111 @@ the licence need not be CC0, and the landed note records the source.
 `docs/api/tile_maps.md` gains `object_named` and a worked door.
 `docs/api/examples.md` and `README.md` gain `examples/doors`, and
 `scene_graph.md`'s rooms section points at it.
+
+**Landed.** Four sub-steps, one commit each. `make test` 412 checks 0 failures,
+as at the branch point, since no C changed. `rake spec` 3907 examples 0 failures
+(3898), `rake spec:core` 517 examples 0 failures (517), `rake docs:coverage`
+nothing undocumented in 201 classes, and `rake drive:allocations` passes all 40
+projects, `examples/doors` at 37.9 objects a second and the adventure at 53.0.
+
+**The four examples on `town.tmx` report what `main` reports.**
+`collision_tiles`, `jump_topdown`, `pathfinding` and `scroll_map` matched byte
+for byte under `--seed 4242`, 240 ticks and `--texts`, after 15a and again at
+the branch's head, apart from the paths of the extensions each run loaded.
+
+**`examples/doors` walks the whole route.** Driven for 900 ticks, its report
+reads `build :town`, then `build :garden`, `move Hero to :garden` and `free
+:town` for the gate, two more moves into the garden with nothing built for the
+pads, and `build :town`, `free :garden` on the way back. "In the garden" is
+drawn from tick 289, and `faded` 135 times: 15 for the opening reveal and 30
+for each of the four moves.
+
+**The adventure's run proves each of the plan's claims but one.** Driven for
+1560 ticks under `--seed 4242`:
+
+- The pad's hero walks through the gate alone at tick 960, while the keyboard's
+  bag is open and its hero paused. From tick 983 the second region draws the
+  garden's `gate`, `horn`, `pad_a` and `pad_b`, and the first goes on drawing
+  the town until its own hero follows at tick 1297, which frees the town.
+- The pad's hero steps on `pad_a` and lands beside `pad_b`, with nothing built
+  or freed.
+- The horn moves both heroes to the town square: `build :town`, a move each,
+  `free :garden`. The town is the town they left. It draws `searched`, `pulled`
+  and `east` again and never `chest`, `lever`, `crate` or a coin, and the new
+  crate stands at (558, 304), where the old one was left.
+- With `media/music/garden.ogg` present, the report reads one play of it and 64
+  volume steps: the music crossfades to it as the pad's hero is asked into the
+  garden, and back to `music.ogg`, played a second time, at the horn. Without
+  the file, the town's song reads 96 volume steps, 2 plays and 1 stop: in at
+  the start, out as the town empties, in again at the horn. The two reports
+  differ nowhere else but by one frame at boot.
+- **Not shown: that only the second clip draws the cover.** The report counts
+  `faded` for the whole window, not per clip. `rooms_move_spec.rb` pins a
+  cover to its player's region.
+
+Over the script's first 800 ticks, the adventure reports what `main` reports:
+every text at the same count, first drawn one tick later, and the same 32
+music volume steps. The new lines are the rooms, the gate's name and the clips
+each player's cover pushes.
+
+The garden's song is *House In a Forest Loop* by HorrorPen, CC-BY 3.0, from
+<https://opengameart.org/content/loop-house-in-a-forest>, taken from the assets
+of Godot's *Dodge the Creeps* tutorial. `tools/shrink_ogg.c` measures a seam of
+2.0% and no silence at either end.
+
+What the sketch got wrong:
+
+- **A room's song faded in over a cover nobody saw.** A player in no room
+  starts covered, so the first hero's arrival has no cover, but the town's claim
+  faded over cover and reveal together, twice as long as the reveal. A room's
+  song now fades in over the reveal alone for such a player, and the town's
+  song rises with the opening reveal as it did under the stack. Found by the
+  adventure, the first caller; `rooms_music_spec.rb` pins it.
+- **The harness named rooms by class.** `examples/doors` builds both rooms from
+  one class, and even the report spec's two rooms read `build SpecRoom` twice.
+  A room is now reported by its name, `build :garden`, where the plan wrote
+  `build Garden`.
+- **The first door walked through parsed a map.** In `examples/doors`, the
+  garden's first build read `garden.tmx` with REXML, 21,251 objects in one
+  second. Both worlds load every room's map as they enter the tree.
+- **One entrance, two heroes.** `start` and `square` are points, and the
+  adventure's heroes started 48 px apart. Its rooms stand a second player's
+  hero 48 px east of the entrance, so the existing script runs unchanged.
+- **A joining player arrives with no transition.** The first hero arrives
+  under a half-second fade, the old stack's arrival, now the rooms'. A hero
+  spawned for a player who joins later moves with `transition: nil`, into the
+  primary player's room. Covering them would have paused the pad's hero for
+  half a second of its scripted walk. The stack has no transition any more.
+- **The town hands its Facts to each thing as it is built.** A crate moved to
+  its kept place in `_enter_tree` would have been placed after its collider
+  joined the broadphase. The crate writes only on a tick it has moved, since
+  `Pushable#pushed_x` keeps the last push for good.
+- **Every coin is taken before the horn,** so "the coins taken stay taken" reads
+  as no coin in the rebuilt town, and no coin goes on in the first region once
+  the pad's hero leaves.
+- **Rule 3 needed a reach, and a fourth rule came with it.** An entrance lies
+  more than 8 px off every door's box, the reach of a feet box, and every door
+  and entrance stands on walkable ground.
+- **Shipped files may not name the adventure.** `game_references_spec.rb`
+  refused `garden.tmx`'s header and the assets README, which the plan's "both
+  examples and the adventure" had put there.
+- **A door draws its name** in the adventure, as the chest draws its state, so
+  the texts per clip say which room each region shows.
+- **`examples/doors` needs `--ticks 900`.** The Verify block's command runs 240
+  ticks, which ends before the gate. The script's header gives the command.
+
+Found while writing the world, and recorded as
+[open question 8](README.md#open-questions): a bag closed during its hero's
+move leaves the hero paused, since the rooms give back the `paused` they found.
+
+Documented in [tile_maps.md](../../api/tile_maps.md#a-door-from-the-map), which
+gains `object_named` and a worked door, in
+[examples.md](../../api/examples.md#doors) and `README.md`, and in
+[scene_graph.md](../../api/scene_graph.md#a-room-places-what-arrives), whose
+rooms section points at both and says how a first arrival's song fades.
+`examples/assets/README.md` records `garden.tmx` and the town's doors layer.
+`CHANGELOG.md` gains the doors example under Added, and `object_named` in the
+tile map entry.
 
 ---
 

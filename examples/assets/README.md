@@ -1,7 +1,7 @@
 # Example assets
 
-Everything the examples draw and play. Sixteen files besides this one, about
-125 KB in total — of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
+Everything the examples draw and play. Seventeen files besides this one, about
+128 KB in total — of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
 
 ## Why these files and not the ones in `media/`
 
@@ -52,9 +52,9 @@ new examples need them.
 ### `town.tmx` — ours
 
 60x40 tiles = 960x640 pixels, deliberately larger than the 640x480 window on
-both axes so a camera has somewhere to scroll. Two layers, `ground` (entirely
-walkable) and `obstacles` (a tree border, a fence across the middle, scattered
-trees).
+both axes so a camera has somewhere to scroll. Two tile layers, `ground`
+(entirely walkable) and `obstacles` (a tree border, a fence across the middle,
+scattered trees), and an object layer, `doors`.
 
 Layer data is **base64 + zlib**, which is what `RGame::Engine::TileMap.parse`
 reads — it inflates the layer and unpacks little-endian `uint32` gids. CSV will
@@ -73,6 +73,41 @@ placement is the point, and it took two tries to get right:
   border left a second gap nobody planned, at x=58, and the route quietly used
   that one instead. It now runs x=1..58, and the fence row is solid everywhere
   except the three gap tiles.
+
+The `doors` layer holds what `examples/doors` moves a hero through. Each object
+has a class, and a door names where it goes in its properties:
+
+| Object | Class | Properties |
+|---|---|---|
+| `start`, `square`, `gate_out` | `entrance` | |
+| `garden_gate` | `door` | `to: garden`, `entrance: gate_in` |
+
+An entrance is a point, where a node arriving stands. A door draws itself, so
+the layer changes no tile, and `spec/fixtures/town_solidity.txt` still pins
+every solid cell.
+
+### `garden.tmx` — ours
+
+40x30 tiles = 640x480 pixels, the window exactly, for `examples/doors`. A
+garden of grass and flowers, walled with trees (tile 16), with a few small trees
+(tile 28) standing in it.
+
+Written by a short Ruby script rather than in Tiled, as `puzzle.tmx` was, in
+the same base64 + zlib format over the same `tileset.tsx`. Edit it in Tiled
+like the others. Its `doors` layer:
+
+| Object | Class | Properties |
+|---|---|---|
+| `start`, `gate_in`, `beside_a`, `beside_b` | `entrance` | |
+| `gate` | `door` | `to: town`, `entrance: gate_out` |
+| `pad_a`, `pad_b` | `warp` | `entrance: beside_b`, `entrance: beside_a` |
+| `horn` | `door` | `to: town`, `entrance: square`, `party: true` |
+
+A warp is a door into its own room, so it names only an entrance. A door marked
+`party` moves every hero, and any other door moves the hero who touched it.
+`spec/example_assets_spec.rb` holds both maps to three rules: a door's
+entrance exists on the map it leads to, no entrance lies on a door, and every
+door and entrance stands on walkable ground.
 
 ### `puzzle.tmx` — ours
 

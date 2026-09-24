@@ -174,6 +174,23 @@ module RGame
                            receiver: self, key: name_or_path)
       end
 
+      # The one MapObject named `name`, a door's entrance or a spawn point. Raises
+      # `KeyError` listing the map's object names when none has it, and
+      # `ArgumentError` when two objects share it, since either could be meant.
+      def object_named(name)
+        found = @objects.select { it.name == name }
+        return found.first if found.size == 1
+
+        unless found.empty?
+          raise ArgumentError, "#{found.size} objects are named '#{name}' in this map (ids " \
+                               "#{found.map(&:id).join(', ')}). Give each its own name"
+        end
+
+        names = @objects.map(&:name).reject(&:empty?).uniq
+        raise KeyError.new("no object named '#{name}' in this map (has: #{names.empty? ? 'none' : names.join(', ')})",
+                           receiver: self, key: name)
+      end
+
       def in_bounds?(col, row)
         col >= 0 && row >= 0 && col < @width && row < @height
       end

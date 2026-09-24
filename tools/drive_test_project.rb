@@ -286,7 +286,8 @@ module DriveTestProject
     def record_band(band) = @bands[band] += 1
     def record_sound(kind, id) = @sounds["#{kind} #{id}"] += 1
     def record_scene(action, scene) = @scenes << "#{action} #{scene.class}"
-    def record_move(node, room) = @scenes << "move #{node.class} to #{room.class}"
+    def record_room(action, room) = @scenes << "#{action} #{room.name.inspect}"
+    def record_move(node, room) = @scenes << "move #{node.class} to #{room.name.inspect}"
 
     def to_s
       out = +"\n"
@@ -829,11 +830,11 @@ module DriveTestProject
     def rooms_probe(report)
       Module.new do
         define_method(:build) do |name|
-          super(name).tap { report.record_scene('build', it) }
+          super(name).tap { report.record_room('build', it) }
         end
 
         define_method(:free) do |room|
-          report.record_scene('free', room)
+          report.record_room('free', room)
           super(room)
         end
 

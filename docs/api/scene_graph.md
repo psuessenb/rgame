@@ -899,6 +899,11 @@ A room is its own `scene`. Its nodes find its `TileWorld` and `CollisionWorld`
 first, and the world's `Rooms` beyond them, since `system` looks through each
 enclosing scene. So a door in a room reaches `system(Scene::Rooms)`.
 
+**A room built over a Tiled map finds its entrances on the map.** Its `_arrive`
+places the node on the object `TileMap#object_named` finds, and the doors are
+the map's objects too. [A door from the map](tile_maps.md#a-door-from-the-map)
+is the code, and `examples/doors` walks a hero through a gate and two warp pads.
+
 **A room is built anew each time it starts running.** A room left and entered
 again is a new object, with new timers. What should outlast a visit, a chest
 opened or a coin taken, lives in `Facts`, where a loaded save puts it too. See
@@ -992,7 +997,8 @@ When the garden's player walks back to the town, the town's song comes back.
 
 - **The claims change as a move is asked for**, before `on_requested` fires. A
   new song crossfades over the move's cover and reveal together, or at once for
-  a move with no transition.
+  a move with no transition. A player in no room starts covered, so a room's
+  song fades in over their reveal alone.
 - **A move of several nodes changes the song once**, to the song of the rooms
   they end in.
 - **A room a `hold` keeps with nobody in it claims nothing.**

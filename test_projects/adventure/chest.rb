@@ -10,6 +10,10 @@
 #
 # It draws its state as a word so a driven run can tell a tap from a hold. A
 # test project draws Strings; an example would draw a translation key.
+#
+# Its state is kept in Facts under the key the room names, so a room built anew
+# holds the chest as it was left. It reads the fact as it is built, and writes
+# it at each change.
 class Chest < RGame::Engine::Node2D
   SIZE = 20
 
@@ -22,17 +26,19 @@ class Chest < RGame::Engine::Node2D
   STRAW = RGame::Util::Color.new(232, 200, 112)
   COLORS = { closed: CLOSED, open: OPEN, searched: SEARCHED }.freeze
 
-  def initialize(**)
-    super
+  def initialize(facts:, key:, **)
+    super(**)
     add_component(RGame::Engine::Components::BoxCollider.new(width: SIZE, height: SIZE,
                                                              layer: :interactable))
-    @state = :closed
+    @facts = facts
+    @key = key
+    @state = facts.fetch(key, 'closed').to_sym
   end
 
   attr_reader :state
 
   def open
-    @state = :open if @state == :closed
+    change(:open) if @state == :closed
   end
 
   # Returns the hat inside, once. Only an open chest has anything to search, so
@@ -41,12 +47,19 @@ class Chest < RGame::Engine::Node2D
   def search
     return unless @state == :open
 
-    @state = :searched
+    change(:searched)
     Item.new('hat', slot: :head, color: STRAW)
   end
 
   def _draw(renderer, _view)
     renderer.rect(0, 0, SIZE, SIZE, color: COLORS.fetch(@state))
     renderer.text(LABELS.fetch(@state), 0, -12)
+  end
+
+  private
+
+  def change(state)
+    @state = state
+    @facts[@key] = state.name
   end
 end

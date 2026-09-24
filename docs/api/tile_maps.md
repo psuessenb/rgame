@@ -36,8 +36,9 @@ map = RGame::Engine::TileMap.from_tiled(parsed)
 
 map.width         # => 60 — in tiles
 map.pixel_width   # => 960
-map.layer_count   # => 2
+map.layer_count   # => 3 — ground, obstacles and the doors object layer
 map.tile_count    # => 132
+map.object_named('start').x # => 376.0 — a point the doors layer names
 ```
 
 **`Tiled::Map.load(path)` reads the file as Tiled wrote it**, with every tileset
@@ -263,8 +264,15 @@ and the repeat in the layer's properties in Tiled.
 ### Objects
 
 ```ruby
-map.objects   # => every object of every object layer, as MapObjects
+map.objects                 # => every object of every object layer, as MapObjects
+map.object_named('gate_in') # => the one object named gate_in
 ```
+
+**`TileMap#object_named` finds an object a designer named,** such as a spawn point
+or the entrance a door leads to. It raises `KeyError`, listing the map's object
+names, for a name no object has. It raises `ArgumentError`, naming the objects'
+ids, for a name two objects share, since either could be meant. An object left
+unnamed in Tiled has the name `''`.
 
 **A `RGame::Engine::MapObject` is in the game's coordinates.** `x` and `y` are its
 top-left corner in pixels, for every shape, and `rotation` turns it clockwise, in
@@ -310,6 +318,64 @@ objects.spawn_into(slots[:actors], map.objects) # => the chests and traps it add
   where a node's origin sits is up to its class. The registry moves nothing.
 - **Nothing spawns a map's objects unless the scene asks.** The scene calls
   `spawn_into` and chooses the parent.
+
+### A door from the map
+
+**A door is an object whose properties say where it leads.** In `town.tmx`, the
+object `garden_gate` has the class `door` and the properties `to: garden` and
+`entrance: gate_in`. `gate_in` is a point object in `garden.tmx`, with the class
+`entrance`. A room built over each map turns the doors into nodes and places
+whatever arrives on the entrance named:
+
+```ruby
+# A Scene::Room of a world whose Scene::Rooms defines :town and :garden.
+class Grounds < RGame::Engine::Scene::Room
+  def _enter_tree
+    @map = root.context.assets.tilemap(@map_id).map
+    add_component(RGame::Engine::Components::TileWorld.new(map: @map, tilemap_id: @map_id))
+    add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 32))
+    slots = RGame::Engine::TileMapLayer.mount(add_node(RGame::Engine::WorldView.new),
+                                              gaps: { doors: nil, actors: nil })
+    @actors = slots[:actors]
+
+    doors = RGame::Engine::MapObjects.new
+    doors.define('door') { |o| Door.new(object: o, world: parent) }
+    doors.define('warp') { |o| Door.new(object: o, world: parent, to: name) }
+    doors.spawn_into(slots[:doors], @map.objects)
+  end
+
+  def _arrive(node, entrance)
+    spot = @map.object_named(entrance)
+    node.x = spot.x
+    node.y = spot.y
+    @actors.add_node(node)
+  end
+end
+
+# A box that asks the world's rooms for a move when a hero's feet touch it.
+class Door < RGame::Engine::Node2D
+  def initialize(object:, world:, to: object.properties.fetch('to').to_sym)
+    super(x: object.x, y: object.y, width: object.width, height: object.height)
+    entrance = object.properties.fetch('entrance')
+    add_component(RGame::Engine::Components::BoxCollider.new(width: object.width, height: object.height,
+                                                             layer: :door))
+    add_component(RGame::Engine::Components::Collectable.new(by: :hero, free: false))
+      .on_collected { |other| world.rooms.move(other.node, to:, entrance:) }
+  end
+end
+```
+
+- **A `warp` is a door into its own room**, so the room hands over its own
+  `name` as `to`, and the map names only the entrance. A move into the room a
+  node stands in only places it again.
+- **An entrance lies off every door's box.** A hero arriving on a door would
+  leave through it on its next step.
+- **The world passes itself to each door**, as `parent` of the room, so a door
+  reaches the rooms without looking them up. A door that moves every hero asks
+  the world for them.
+
+`examples/doors` is this code with a hero walking it, and
+[Rooms](scene_graph.md#rooms-scenerooms) says how a move runs.
 
 ## `RGame::Engine::Properties`
 

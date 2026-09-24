@@ -35,7 +35,7 @@ RSpec.describe DriveTestProject::Report do
       world.add_component(probed.new)
     end
 
-    it 'lists each room built, each node a move landed, and each room freed, in order' do
+    it 'lists each room built, each node a move landed, and each room freed, by name, in order' do
       rooms.define(:town) { SpecRoom.new }
       rooms.define(:garden) { SpecRoom.new }
       root.enter_tree
@@ -46,11 +46,11 @@ RSpec.describe DriveTestProject::Report do
       root.sweep_freed
 
       expect(section('scenes')).to eq(<<~SCENES)
-        \s\sbuild SpecRoom
-        \s\smove RGame::Engine::Node2D to SpecRoom
-        \s\sbuild SpecRoom
-        \s\smove RGame::Engine::Node2D to SpecRoom
-        \s\sfree SpecRoom
+        \s\sbuild :town
+        \s\smove RGame::Engine::Node2D to :town
+        \s\sbuild :garden
+        \s\smove RGame::Engine::Node2D to :garden
+        \s\sfree :town
       SCENES
     end
   end

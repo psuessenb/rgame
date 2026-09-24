@@ -54,6 +54,9 @@ index, not the argument.
   in seconds, and `AudioOut#crossfade(id, over:)` lowers one song while it
   raises the next. `#pause_music` and `#resume_music` hold a song and its fade.
   See [docs/api/audio.md](docs/api/audio.md#fades).
+- **A doors example.** `examples/doors` walks a hero through a gate between the
+  town and a garden, and across a pair of warp pads, each placed in Tiled. See
+  [docs/api/examples.md](docs/api/examples.md#doors).
 - **Music that a room or an event claims.** `AudioOut#claim_music(key, id,
   priority:, fade:)` asks for a song, and the claim with the highest priority
   plays, crossfading when the winner changes. `#release_music` ends a claim, and
@@ -189,7 +192,8 @@ index, not the argument.
 - **A tile map says what its tiles, layers and objects are.** `TileMap` answers
   `orientation`, `tile_class`, `tile_properties`, `layer`, `layer_index`,
   `image_layers` and `objects`, which are `RGame::Engine::MapObject`s in the
-  game's coordinates. Custom properties are `RGame::Engine::Properties`. See
+  game's coordinates. `object_named` finds the one object a designer named.
+  Custom properties are `RGame::Engine::Properties`. See
   [docs/api/tile_maps.md](docs/api/tile_maps.md).
 - **A tile map draws what Tiled shows.** Turned and flipped tiles draw turned,
   hidden layers draw nothing, and a layer fades by its opacity. Tilesets with a

@@ -1,6 +1,6 @@
 # The rest of the README roadmap
 
-**Status: steps 0 to 14 are implemented.** Steps 0–16 of
+**Status: steps 0 to 15 are implemented.** Steps 0–16 of
 [the roadmap](04-roadmap.md) are detailed: 5–8 planned after step 4 landed,
 9–12 after step 8, and 13–16 after step 12. Step 17 folds the plan back.
 
@@ -340,3 +340,10 @@ re-planned. See [what that re-plan found](04-roadmap.md#re-planning-steps-1316).
    deleted it. The landed note keeps the reason. Adding `tools/drive` to the
    stripper's exclusions would keep them, and whether a test project's script
    owes a header is the question. Found in step 12. Blocks nothing.
+8. **Who gives a node back its `paused`?** A move pauses its node and, as the
+   reveal ends, gives back the `paused` it found. The adventure's bag pauses its
+   hero while open. A bag open when the horn moves its hero, and closed before
+   that move's reveal ends, leaves the hero paused with the bag closed, until
+   the bag opens and closes again. Two owners write one flag, and the last
+   write wins. The run does not do this. A count of pauses, or a pause per
+   owner, would let both hold. Found in step 15. Blocks nothing.

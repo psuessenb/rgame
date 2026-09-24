@@ -7,7 +7,7 @@
 # worth having in a project: one shared world, two people in it. `other` is the
 # feet box that touched it, so its node is the hero who carries the coin.
 #
-# The sparkles belong to the room, which hands them to every coin: a coin frees
+# The sparkles belong to the town, which hands them to every coin: a coin frees
 # itself as it is taken, and they should outlive it.
 class Coin < RGame::Engine::Node2D
   RADIUS = 6

@@ -158,6 +158,15 @@ RSpec.describe RGame::Engine::Scene::Rooms do
     end
   end
 
+  it 'fades a room\'s song in over the reveal alone, for a player in no room, whose cover is complete at once' do
+    rooms.define(:garden, music: :garden, priority: 2) { SpecRoom.new }
+    root.enter_tree
+    rooms.move(hero, to: :garden, entrance: 'well', transition: fade)
+    4.times { tick }
+
+    expect(volumes).to eq(garden: 1.0)
+  end
+
   # Rule 7.
   it 'lets a game play the primary player\'s room, claiming one key of its own from on_arrived' do
     rooms.define(:town) { SpecRoom.new }
