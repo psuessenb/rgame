@@ -1,4 +1,11 @@
+/* mkstemp is POSIX, and -std=c17 asks for strict ISO C, which hides it. Must
+ * come before any include that pulls in features.h. */
+#define _POSIX_C_SOURCE 200809L
+
 #include <check.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "audio/audio_internal.h"
@@ -75,6 +82,134 @@ static double peak_over(rgame_audio *audio, unsigned int frames) {
         frames -= got;
     }
     return peak;
+}
+
+/* Where to put a scratch file: TMPDIR, TEMP or TMP, since Windows has no /tmp.
+ * The same order test_vorbis_decoder.c reads them in. */
+static const char *scratch_dir(void) {
+    const char *candidates[] = { "TMPDIR", "TEMP", "TMP" };
+    for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+        const char *dir = getenv(candidates[i]);
+        if (dir && *dir) {
+            return dir;
+        }
+    }
+    return "/tmp";
+}
+
+static void put_u32(FILE *file, uint32_t value) {
+    unsigned char bytes[4] = { value & 0xFF, (value >> 8) & 0xFF, (value >> 16) & 0xFF,
+                               (value >> 24) & 0xFF };
+    fwrite(bytes, 1, 4, file);
+}
+
+static void put_u16(FILE *file, uint16_t value) {
+    unsigned char bytes[2] = { value & 0xFF, (value >> 8) & 0xFF };
+    fwrite(bytes, 1, 2, file);
+}
+
+/*
+ * A stereo 16-bit WAV at OFFLINE_RATE holding one constant level, written to a
+ * scratch file whose path it returns. Constant, so every frame that comes out
+ * is the level times the gain at that frame: a volume step reads straight off
+ * the difference between two frames, with no waveform in the way.
+ */
+static const char *level_wav(double seconds, int16_t level) {
+    static char path[512];
+    int written = snprintf(path, sizeof(path), "%s/rgame_audio_levelXXXXXX", scratch_dir());
+    ck_assert_int_gt(written, 0);
+    ck_assert_uint_lt((size_t)written, sizeof(path));
+
+    int fd = mkstemp(path);
+    ck_assert_int_ge(fd, 0);
+    FILE *file = fdopen(fd, "wb");
+    ck_assert_ptr_nonnull(file);
+
+    uint32_t frames = (uint32_t)(seconds * OFFLINE_RATE);
+    uint32_t data = frames * 2 * 2;
+    fwrite("RIFF", 1, 4, file);
+    put_u32(file, 36 + data);
+    fwrite("WAVEfmt ", 1, 8, file);
+    put_u32(file, 16);
+    put_u16(file, 1); /* PCM */
+    put_u16(file, 2);
+    put_u32(file, OFFLINE_RATE);
+    put_u32(file, OFFLINE_RATE * 2 * 2);
+    put_u16(file, 2 * 2);
+    put_u16(file, 16);
+    fwrite("data", 1, 4, file);
+    put_u32(file, data);
+    for (uint32_t i = 0; i < frames * 2; i++) {
+        put_u16(file, (uint16_t)level);
+    }
+    fclose(file);
+    return path;
+}
+
+/* One tick of a 60 Hz game at OFFLINE_RATE. */
+#define TICK_FRAMES (OFFLINE_RATE / 60)
+
+/*
+ * Mixes `frames` frames and returns the largest change between two neighbouring
+ * frames of the left channel, counting from `*last`, the frame before them,
+ * which it updates. Over a constant level that is the largest volume step.
+ */
+static double largest_step(rgame_audio *audio, unsigned int frames, double *last) {
+    static float buffer[TICK_FRAMES * 2];
+    double step = 0.0;
+
+    while (frames > 0) {
+        unsigned int chunk = frames > TICK_FRAMES ? TICK_FRAMES : frames;
+        unsigned int got = rgame_audio_read(audio, buffer, chunk);
+        if (got == 0) {
+            break;
+        }
+        for (unsigned int i = 0; i < got; i++) {
+            double change = buffer[i * 2] - *last;
+            if (change < 0) {
+                change = -change;
+            }
+            if (change > step) {
+                step = change;
+            }
+            *last = buffer[i * 2];
+        }
+        frames -= got;
+    }
+    return step;
+}
+
+#define LEVEL 16384 /* 0.5 of full scale */
+
+/*
+ * Plays a constant level as a song, lowers its volume from 1 to 0 in `ticks`
+ * steps, one a tick, the way the engine's fade does, and returns the largest
+ * step that came out.
+ */
+static double fade_step(int ticks) {
+    rgame_audio *audio = open_offline();
+    const char *path = level_wav(2.0, LEVEL);
+    char error[256] = {0};
+    rgame_song *song = rgame_song_load(audio, path, error, sizeof(error));
+    ck_assert_msg(song != NULL, "%s", error);
+
+    rgame_song_play(song, 0);
+    double last = 0.0;
+    largest_step(audio, TICK_FRAMES, &last);
+
+    double step = 0.0;
+    for (int tick = 1; tick <= ticks; tick++) {
+        rgame_song_set_volume(song, 1.0f - (float)tick / (float)ticks);
+        double this_tick = largest_step(audio, TICK_FRAMES, &last);
+        if (this_tick > step) {
+            step = this_tick;
+        }
+    }
+
+    rgame_song_destroy(song);
+    rgame_audio_destroy(audio);
+    remove(path);
+    return step;
 }
 
 /* --- the device --- */
@@ -518,6 +653,245 @@ START_TEST(a_song_makes_sound_until_it_is_stopped) {
 }
 END_TEST
 
+/* --- categories --- */
+
+START_TEST(a_category_volume_multiplies_every_sound_in_it) {
+    /* Each of the three volumes multiplies the others, and setting one leaves
+     * the other two as they were: a settings screen that turns the effects
+     * down does not change what a game set on one sample. */
+    rgame_audio *audio = open_offline();
+    const char *path = level_wav(0.5, LEVEL);
+    rgame_sample *sample = rgame_sample_load(audio, path, NULL, 0);
+
+    rgame_audio_set_category_volume(audio, RGAME_AUDIO_EFFECTS, 0.5f);
+    rgame_sample_play(sample);
+    double category = peak_over(audio, 256);
+
+    rgame_sample_set_volume(sample, 0.5f);
+    double both = peak_over(audio, 256);
+
+    rgame_audio_set_volume(audio, 0.5f);
+    double all_three = peak_over(audio, 256);
+
+    ck_assert_double_eq_tol(category, 0.25, 1e-3);
+    ck_assert_double_eq_tol(both, 0.125, 1e-3);
+    ck_assert_double_eq_tol(all_three, 0.0625, 1e-3);
+    ck_assert_float_eq_tol(rgame_sample_volume(sample), 0.5f, 1e-4f);
+    ck_assert_float_eq_tol(rgame_audio_category_volume(audio, RGAME_AUDIO_EFFECTS), 0.5f, 1e-4f);
+
+    rgame_sample_destroy(sample);
+    rgame_audio_destroy(audio);
+    remove(path);
+}
+END_TEST
+
+START_TEST(a_song_plays_under_music_and_a_sample_under_effects) {
+    rgame_audio *audio = open_offline();
+    const char *path = level_wav(0.5, LEVEL);
+    rgame_sample *sample = rgame_sample_load(audio, path, NULL, 0);
+    rgame_song *song = rgame_song_load(audio, path, NULL, 0);
+
+    rgame_audio_set_category_volume(audio, RGAME_AUDIO_MUSIC, 0.0f);
+    rgame_song_play(song, 1);
+    double music_off = peak_over(audio, 256);
+    rgame_sample_play(sample);
+    double sample_over_it = peak_over(audio, 256);
+
+    ck_assert_double_eq(music_off, 0.0);
+    ck_assert_double_eq_tol(sample_over_it, 0.5, 1e-3);
+
+    rgame_song_destroy(song);
+    rgame_sample_destroy(sample);
+    rgame_audio_destroy(audio);
+    remove(path);
+}
+END_TEST
+
+START_TEST(a_sound_moved_to_another_category_takes_that_volume) {
+    /* The last category a sound was put in is the one it plays under, and a
+     * voice already sounding moves with its sample. */
+    rgame_audio *audio = open_offline();
+    const char *path = level_wav(0.5, LEVEL);
+    rgame_sample *sample = rgame_sample_load(audio, path, NULL, 0);
+    rgame_song *song = rgame_song_load(audio, path, NULL, 0);
+    int voice = 5;
+
+    rgame_audio_set_category_volume(audio, voice, 0.0f);
+    rgame_sample_play(sample);
+    rgame_sample_set_category(sample, voice);
+    double moved = peak_over(audio, 256);
+    rgame_sample_set_category(sample, RGAME_AUDIO_EFFECTS);
+    double back = peak_over(audio, 256);
+
+    rgame_song_set_category(song, voice);
+    rgame_song_play(song, 1);
+    double song_moved = peak_over(audio, 256);
+
+    ck_assert_double_eq(moved, 0.0);
+    ck_assert_double_eq_tol(back, 0.5, 1e-3);
+    ck_assert_double_eq_tol(song_moved, 0.5, 1e-3); /* the sample still sounds */
+
+    rgame_sample_destroy(sample);
+    rgame_song_stop(song);
+    ck_assert_double_eq(peak_over(audio, 4096), 0.0);
+
+    rgame_song_destroy(song);
+    rgame_audio_destroy(audio);
+    remove(path);
+}
+END_TEST
+
+START_TEST(a_category_volume_reads_back_and_clamps) {
+    rgame_audio *audio = open_audio();
+
+    ck_assert_float_eq_tol(rgame_audio_category_volume(audio, 9), 1.0f, 1e-4f);
+    rgame_audio_set_category_volume(audio, 9, 0.25f);
+    ck_assert_float_eq_tol(rgame_audio_category_volume(audio, 9), 0.25f, 1e-4f);
+    rgame_audio_set_category_volume(audio, 9, -1.0f);
+    ck_assert_float_eq_tol(rgame_audio_category_volume(audio, 9), 0.0f, 1e-4f);
+
+    rgame_audio_set_category_volume(audio, RGAME_AUDIO_CATEGORIES, 0.5f);
+    rgame_audio_set_category_volume(audio, -1, 0.5f);
+    ck_assert_float_eq(rgame_audio_category_volume(audio, RGAME_AUDIO_CATEGORIES), 0.0f);
+    ck_assert_float_eq(rgame_audio_category_volume(audio, -1), 0.0f);
+
+    rgame_audio_destroy(audio);
+}
+END_TEST
+
+START_TEST(a_category_out_of_range_leaves_a_sound_where_it_was) {
+    rgame_audio *audio = open_offline();
+    const char *path = level_wav(0.5, LEVEL);
+    rgame_sample *sample = rgame_sample_load(audio, path, NULL, 0);
+
+    rgame_sample_set_category(sample, RGAME_AUDIO_CATEGORIES);
+    rgame_audio_set_category_volume(audio, RGAME_AUDIO_EFFECTS, 0.0f);
+    rgame_sample_play(sample);
+
+    ck_assert_double_eq(peak_over(audio, 256), 0.0);
+
+    rgame_sample_destroy(sample);
+    rgame_audio_destroy(audio);
+    remove(path);
+}
+END_TEST
+
+/* --- resume --- */
+
+START_TEST(resume_carries_on_where_stop_left_the_song) {
+    /* Stop then resume is a pause; stop then play starts from the top. The
+     * cursor is in the file's frames, and the fixture is 11025 of them, so
+     * nothing here reads far enough to reach its end. */
+    rgame_audio *audio = open_offline();
+    rgame_song *song = rgame_song_load(audio, FIXTURE, NULL, 0);
+
+    rgame_song_play(song, 0);
+    peak_over(audio, 4096);
+    rgame_song_stop(song);
+    unsigned long long stopped = rgame_song_cursor(song);
+    peak_over(audio, 1024);
+    unsigned long long while_stopped = rgame_song_cursor(song);
+
+    rgame_song_resume(song);
+    int playing = rgame_song_playing(song);
+    peak_over(audio, 1024);
+    unsigned long long resumed = rgame_song_cursor(song);
+
+    rgame_song_stop(song);
+    rgame_song_play(song, 0);
+    peak_over(audio, 1024);
+    unsigned long long replayed = rgame_song_cursor(song);
+
+    ck_assert_uint_gt(stopped, 2048);
+    ck_assert_uint_eq(while_stopped, stopped);
+    ck_assert_int_eq(playing, 1);
+    ck_assert_uint_gt(resumed, stopped);
+    ck_assert_uint_lt(replayed, stopped);
+
+    rgame_song_destroy(song);
+    rgame_audio_destroy(audio);
+}
+END_TEST
+
+START_TEST(resume_keeps_the_looping_the_last_play_asked_for) {
+    rgame_audio *audio = open_audio();
+    rgame_song *song = rgame_song_load(audio, FIXTURE, NULL, 0);
+
+    rgame_song_play(song, 1);
+    rgame_song_stop(song);
+    rgame_song_resume(song);
+
+    ck_assert_int_eq(rgame_song_playing(song), 1);
+    ck_assert_int_eq(rgame_song_looping(song), 1);
+
+    rgame_song_destroy(song);
+    rgame_audio_destroy(audio);
+}
+END_TEST
+
+START_TEST(a_null_device_or_sound_takes_the_new_calls) {
+    rgame_audio_set_category_volume(NULL, 0, 1.0f);
+    ck_assert_float_eq(rgame_audio_category_volume(NULL, 0), 0.0f);
+    rgame_sample_set_category(NULL, 0);
+    rgame_song_set_category(NULL, 0);
+    rgame_song_resume(NULL);
+    ck_assert_uint_eq(rgame_song_cursor(NULL), 0);
+}
+END_TEST
+
+/* --- a volume stepped once a tick --- */
+
+START_TEST(a_fade_stepped_once_a_tick_steps_by_one_ticks_share) {
+    /* The engine fades a song by setting its volume once a tick. Nothing
+     * spreads the change, so the largest step is one tick's share of the
+     * level: 1/60 of it for a fade of a second, 1/30 for half a second. See
+     * VOLUME_SMOOTH_FRAMES in audio.c for why nothing spreads it. */
+    double level = LEVEL / 32768.0;
+
+    ck_assert_double_le(fade_step(60), level / 60 + 1e-4);
+    ck_assert_double_le(fade_step(30), level / 30 + 1e-4);
+}
+END_TEST
+
+START_TEST(a_song_started_again_at_silence_starts_silent) {
+    /* A fade in sets the volume to 0 and then plays. A song that last played
+     * at full volume must not sound its first frames at full volume, which is
+     * what spreading the change from where the volume was would do. */
+    rgame_audio *audio = open_offline();
+    const char *path = level_wav(1.0, LEVEL);
+    rgame_song *song = rgame_song_load(audio, path, NULL, 0);
+
+    rgame_song_play(song, 0);
+    peak_over(audio, TICK_FRAMES);
+    rgame_song_stop(song);
+    rgame_song_set_volume(song, 0.0f);
+    rgame_song_play(song, 0);
+
+    ck_assert_double_eq(peak_over(audio, TICK_FRAMES), 0.0);
+
+    rgame_song_destroy(song);
+    rgame_audio_destroy(audio);
+    remove(path);
+}
+END_TEST
+
+START_TEST(a_samples_first_frames_are_at_its_full_level) {
+    /* A click has a hard attack. A ramp over its first frames would make it a
+     * different sound. */
+    rgame_audio *audio = open_offline();
+    const char *path = level_wav(0.2, LEVEL);
+    rgame_sample *sample = rgame_sample_load(audio, path, NULL, 0);
+
+    rgame_sample_play(sample);
+
+    ck_assert_double_eq_tol(peak_over(audio, 4), LEVEL / 32768.0, 1e-3);
+
+    rgame_sample_destroy(sample);
+    rgame_audio_destroy(audio);
+    remove(path);
+}
+END_TEST
+
 Suite *audio_suite(void) {
     Suite *suite = suite_create("audio");
     TCase *tc = tcase_create("core");
@@ -553,6 +927,20 @@ Suite *audio_suite(void) {
     tcase_add_test(tc, a_samples_volume_reaches_the_output);
     tcase_add_test(tc, the_master_volume_reaches_the_output);
     tcase_add_test(tc, a_song_makes_sound_until_it_is_stopped);
+
+    tcase_add_test(tc, a_category_volume_multiplies_every_sound_in_it);
+    tcase_add_test(tc, a_song_plays_under_music_and_a_sample_under_effects);
+    tcase_add_test(tc, a_sound_moved_to_another_category_takes_that_volume);
+    tcase_add_test(tc, a_category_volume_reads_back_and_clamps);
+    tcase_add_test(tc, a_category_out_of_range_leaves_a_sound_where_it_was);
+
+    tcase_add_test(tc, resume_carries_on_where_stop_left_the_song);
+    tcase_add_test(tc, resume_keeps_the_looping_the_last_play_asked_for);
+    tcase_add_test(tc, a_null_device_or_sound_takes_the_new_calls);
+
+    tcase_add_test(tc, a_fade_stepped_once_a_tick_steps_by_one_ticks_share);
+    tcase_add_test(tc, a_song_started_again_at_silence_starts_silent);
+    tcase_add_test(tc, a_samples_first_frames_are_at_its_full_level);
 
     suite_add_tcase(suite, tc);
     return suite;

@@ -58,6 +58,17 @@ struct rgame_audio {
      * does every sample and song loaded from it. See audio_release.
      */
     int refs;
+    /*
+     * One group per category, which every sample's group and every song plays
+     * into. Each is built the first time something uses it, so a game pays for
+     * the categories it names and no others.
+     *
+     * They live here, inside the counted device, because every sound attached
+     * to one holds a claim on the device: by the time the last claim goes and
+     * audio_release tears them down, nothing is attached to them any more.
+     */
+    ma_sound_group categories[RGAME_AUDIO_CATEGORIES];
+    unsigned char category_built[RGAME_AUDIO_CATEGORIES];
 };
 
 struct rgame_sample {
@@ -90,6 +101,21 @@ struct rgame_song {
 /* See rgame_audio_live_sounds. */
 static long live_sounds = 0;
 
+/*
+ * How many frames miniaudio spreads a volume change over: none, so a volume
+ * set once a tick lands on the next frame, as one step.
+ *
+ * Measured on the offline device with a constant level of 0.5, faded to 0 over
+ * 60 ticks. With nothing spread, the largest step between two frames is 0.0083,
+ * one tick's share. Spread over 735 frames, one tick at 44.1 kHz, it is still
+ * 0.0054: miniaudio 0.11.25's ramp jumps partway through a tick rather than
+ * sloping across it. Worse, a song that played at full volume and starts again
+ * at 0, as a fade in does, sounds its first frames at full volume while the
+ * ramp runs down from where it was. test_audio.c pins both; worth measuring
+ * again when miniaudio is bumped.
+ */
+#define VOLUME_SMOOTH_FRAMES 0
+
 long rgame_audio_live_sounds(void) {
     return live_sounds;
 }
@@ -104,6 +130,46 @@ static void set_error(char *err, size_t err_size, const char *format, const char
  * zero is not a volume at all. */
 static float clamp_volume(float volume) {
     return volume < 0.0f ? 0.0f : volume;
+}
+
+static int category_in_range(int category) {
+    return category >= 0 && category < RGAME_AUDIO_CATEGORIES;
+}
+
+/*
+ * The group for `category`, built on first use. NULL for an index out of range,
+ * or for a group miniaudio could not build, and a sound handed NULL plays
+ * straight to the endpoint: a category that failed costs its volume, not the
+ * sound.
+ */
+static ma_sound_group *category_group(rgame_audio *audio, int category) {
+    if (!category_in_range(category)) {
+        return NULL;
+    }
+
+    if (!audio->category_built[category]) {
+        /* No pitch, so no resampler: at a ratio of one it still holds back a
+         * frame, which then sounds after a stop at the category's volume. */
+        if (ma_sound_group_init(&audio->engine, MA_SOUND_FLAG_NO_PITCH, NULL,
+                                &audio->categories[category]) != MA_SUCCESS) {
+            return NULL;
+        }
+        audio->category_built[category] = 1;
+    }
+    return &audio->categories[category];
+}
+
+/* Attaches a sound's output to a category's group, which detaches it from
+ * wherever it was. miniaudio's graph takes the change while the audio thread
+ * runs, so a voice already sounding moves with it. */
+static void attach_to_category(rgame_audio *audio, ma_sound *sound, int category) {
+    if (!category_in_range(category)) {
+        return;
+    }
+
+    ma_sound_group *group = category_group(audio, category);
+    ma_node *target = group ? (ma_node *)group : ma_engine_get_endpoint(&audio->engine);
+    ma_node_attach_output_bus(sound, 0, target, 0);
 }
 
 /* ------------------------------------------------------------------------- *
@@ -185,6 +251,7 @@ static rgame_audio *create_audio(int offline, unsigned int sample_rate, char *er
      */
     ma_engine_config engine = ma_engine_config_init();
     engine.pResourceManager = &audio->resources;
+    engine.defaultVolumeSmoothTimeInPCMFrames = VOLUME_SMOOTH_FRAMES;
     if (offline) {
         /* No device at all: the caller pumps the mixer. Channels and rate have
          * to be stated, because without a device there is nothing to ask. */
@@ -266,6 +333,12 @@ static void audio_release(rgame_audio *audio) {
         return;
     }
 
+    for (int i = 0; i < RGAME_AUDIO_CATEGORIES; i++) {
+        if (audio->category_built[i]) {
+            ma_sound_group_uninit(&audio->categories[i]);
+        }
+    }
+
     /* The engine first: it owns the device thread, and the resource manager
      * underneath is still holding the data that thread may be reading. */
     ma_engine_uninit(&audio->engine);
@@ -287,6 +360,27 @@ float rgame_audio_volume(const rgame_audio *audio) {
     /* ma_engine_get_volume takes a non-const pointer for no reason this call
      * can honour; the cast keeps the query const for callers. */
     return audio ? ma_engine_get_volume((ma_engine *)&audio->engine) : 0.0f;
+}
+
+void rgame_audio_set_category_volume(rgame_audio *audio, int category, float volume) {
+    if (!audio) {
+        return;
+    }
+
+    ma_sound_group *group = category_group(audio, category);
+    if (group) {
+        ma_sound_group_set_volume(group, clamp_volume(volume));
+    }
+}
+
+float rgame_audio_category_volume(const rgame_audio *audio, int category) {
+    if (!audio || !category_in_range(category)) {
+        return 0.0f;
+    }
+    if (!audio->category_built[category]) {
+        return 1.0f;
+    }
+    return ma_sound_group_get_volume((ma_sound_group *)&audio->categories[category]);
 }
 
 const char *rgame_audio_backend(const rgame_audio *audio) {
@@ -380,7 +474,8 @@ rgame_sample *rgame_sample_load(rgame_audio *audio, const char *path, char *err,
         return NULL;
     }
 
-    if (ma_sound_group_init(&audio->engine, 0, NULL, &sample->group) != MA_SUCCESS) {
+    if (ma_sound_group_init(&audio->engine, 0, category_group(audio, RGAME_AUDIO_EFFECTS),
+                            &sample->group) != MA_SUCCESS) {
         ma_sound_uninit(&sample->decoded);
         free(sample);
         set_error(err, err_size, "%s", "could not create a mixer group for the sample");
@@ -460,6 +555,12 @@ float rgame_sample_volume(const rgame_sample *sample) {
     return sample ? ma_sound_group_get_volume((ma_sound_group *)&sample->group) : 0.0f;
 }
 
+void rgame_sample_set_category(rgame_sample *sample, int category) {
+    if (sample) {
+        attach_to_category(sample->audio, &sample->group, category);
+    }
+}
+
 /* ------------------------------------------------------------------------- *
  * Songs
  * ------------------------------------------------------------------------- */
@@ -496,7 +597,8 @@ rgame_song *rgame_song_load(rgame_audio *audio, const char *path, char *err, siz
      * What it protects is a number nobody measures until a player's machine
      * starts swapping.
      */
-    if (ma_sound_init_from_file(&audio->engine, path, MA_SOUND_FLAG_STREAM, NULL, NULL,
+    if (ma_sound_init_from_file(&audio->engine, path, MA_SOUND_FLAG_STREAM,
+                                category_group(audio, RGAME_AUDIO_MUSIC), NULL,
                                 &song->sound) != MA_SUCCESS) {
         free(song);
         set_error(err, err_size, "could not load %s", path);
@@ -558,6 +660,12 @@ void rgame_song_stop(rgame_song *song) {
     }
 }
 
+void rgame_song_resume(rgame_song *song) {
+    if (song) {
+        ma_sound_start(&song->sound);
+    }
+}
+
 int rgame_song_playing(const rgame_song *song) {
     return song && ma_sound_is_playing((ma_sound *)&song->sound) ? 1 : 0;
 }
@@ -574,4 +682,18 @@ void rgame_song_set_volume(rgame_song *song, float volume) {
 
 float rgame_song_volume(const rgame_song *song) {
     return song ? ma_sound_get_volume((ma_sound *)&song->sound) : 0.0f;
+}
+
+void rgame_song_set_category(rgame_song *song, int category) {
+    if (song) {
+        attach_to_category(song->audio, &song->sound, category);
+    }
+}
+
+unsigned long long rgame_song_cursor(const rgame_song *song) {
+    ma_uint64 cursor = 0;
+    if (song) {
+        ma_sound_get_cursor_in_pcm_frames(&song->sound, &cursor);
+    }
+    return (unsigned long long)cursor;
 }

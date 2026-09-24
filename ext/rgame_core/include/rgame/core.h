@@ -730,6 +730,25 @@ float rgame_audio_volume(const rgame_audio *audio);
 const char *rgame_audio_backend(const rgame_audio *audio);
 
 /*
+ * Categories: a volume shared by a set of sounds, such as all the music or all
+ * the voices, which a settings screen turns up and down.
+ *
+ * A sound plays in exactly one category. A song starts in RGAME_AUDIO_MUSIC and
+ * a sample in RGAME_AUDIO_EFFECTS; the rest are numbered for a game to use. A
+ * category volume multiplies every sound in it, over each sound's own volume
+ * and under the master volume, so none of the three overwrites another.
+ *
+ * An index outside 0 to RGAME_AUDIO_CATEGORIES - 1 is ignored, and reads as 0.
+ * A category no one has used reads 1.0.
+ */
+#define RGAME_AUDIO_CATEGORIES 16
+#define RGAME_AUDIO_MUSIC 0
+#define RGAME_AUDIO_EFFECTS 1
+
+void rgame_audio_set_category_volume(rgame_audio *audio, int category, float volume);
+float rgame_audio_category_volume(const rgame_audio *audio, int category);
+
+/*
  * A short sound, decoded into memory once. Playing it again while it is still
  * sounding starts a second voice rather than restarting it, which is what makes
  * a rapid-fire effect sound right.
@@ -744,6 +763,8 @@ void rgame_sample_destroy(rgame_sample *sample);
 void rgame_sample_play(rgame_sample *sample);
 void rgame_sample_set_volume(rgame_sample *sample, float volume);
 float rgame_sample_volume(const rgame_sample *sample);
+/* Moves the sample, and every voice it has out, into another category. */
+void rgame_sample_set_category(rgame_sample *sample, int category);
 
 /*
  * A long sound, streamed from disk. One voice, so playing it again while it
@@ -756,11 +777,17 @@ rgame_song *rgame_song_load(rgame_audio *audio, const char *path, char *err, siz
 void rgame_song_destroy(rgame_song *song);
 void rgame_song_play(rgame_song *song, int looping);
 void rgame_song_stop(rgame_song *song);
+/*
+ * Starts the song again where `stop` left it, where `play` starts from the top.
+ * Stop then resume is a pause. A song that ran to its end starts from the top.
+ */
+void rgame_song_resume(rgame_song *song);
 int rgame_song_playing(const rgame_song *song);
 /* Whether the last `play` asked for looping. */
 int rgame_song_looping(const rgame_song *song);
 void rgame_song_set_volume(rgame_song *song, float volume);
 float rgame_song_volume(const rgame_song *song);
+void rgame_song_set_category(rgame_song *song, int category);
 
 /*
  * ---------------------------------------------------------------------------

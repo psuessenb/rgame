@@ -34,6 +34,13 @@ long rgame_audio_live_sounds(void);
 rgame_audio *rgame_audio_create_offline(unsigned int sample_rate, char *err, size_t err_size);
 
 /*
+ * Where the song's playhead is, in frames of its file. A game has no use for
+ * it; a test reads it to tell a resume, which keeps the playhead, from a play,
+ * which starts from the top.
+ */
+unsigned long long rgame_song_cursor(const rgame_song *song);
+
+/*
  * Mixes the next `frames` frames of stereo output into `out`, which must have
  * room for `frames * 2` floats. Returns the number of frames written.
  *
