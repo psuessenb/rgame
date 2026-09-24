@@ -15,7 +15,7 @@ or write C.
 | [Drawing](drawing.md) | `RGame::Core::Renderer` — shapes, images, transforms, clipping, blending and fading, recordings |
 | [Images](images.md) | `RGame::Core::Image` — loading PNGs, subimages, tiles |
 | [Text](text.md) | `RGame::Core::Font`, `Renderer#text`, `RGame::Util::Typeface` and `RGame::Engine::Paragraph` |
-| [Audio](audio.md) | `RGame::Core::Audio`, `Sample`, `Song` — samples and streamed music — and `Engine::AudioOut`, the system a node plays them through |
+| [Audio](audio.md) | `RGame::Core::Audio`, `Sample`, `Song` — samples, streamed music and category volumes — and `Engine::AudioOut`, the system a node plays them through and fades music with |
 | [Assets](assets.md) | `RGame::Core::AssetManager`, `SpriteSheet`, `NineSlice`, `UiAtlas`, `TileMapRenderer` |
 | [Values](values.md) | `RGame::Util::Color`, `ColorRamp`, `Tensor`, `SolidGrid`, `RouteSearch`, `TileSweep`, `Z`, `Blend`, `SaveFile` |
 | [Examples](examples.md) | What each program under `examples/` demonstrates |
