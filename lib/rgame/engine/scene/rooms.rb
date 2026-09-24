@@ -50,6 +50,18 @@ module RGame
       # **A player's camera takes the limits of the room they stand in.** As a
       # move lands, each player's camera is bounded by their room's TileWorld,
       # whichever cameras that room handed its own.
+      #
+      # **A room defined with `music:` claims its song** on the AudioOut, at the
+      # room's `priority:`, while a player stands in it or is on their way to
+      # it:
+      #
+      #   rooms.define(:town, music: 'town.ogg', priority: 1) { Town.new }
+      #   rooms.define(:garden, music: 'garden.ogg', priority: 2) { Garden.new }
+      #
+      # The claims change as a move is asked for, so a new song crossfades over
+      # the move's cover and reveal together. The key a room claims under is
+      # its own, and no game can release it. The rooms release every claim at
+      # once as their node leaves the tree.
       class Rooms < Engine::Component
         # Fired once for each node a move names, as the move is asked for, with
         # the node and the name of the room it goes to.
@@ -61,7 +73,16 @@ module RGame
 
         Move = Data.define(:node, :name, :entrance, :player)
         Paused = Struct.new(:node, :was, :player)
-        private_constant :Move, :Paused
+        Song = Data.define(:key, :id, :priority)
+        private_constant :Move, :Paused, :Song
+
+        # The key a room's song is claimed under. No game holds one, so no game
+        # can release a room's claim.
+        class Claim
+          def initialize(name) = @name = name
+          def inspect = "the room #{@name.inspect}"
+        end
+        private_constant :Claim
 
         # One player's region, covered by a curtain of its own.
         class Cover < Engine::PlayerLayer
@@ -92,6 +113,9 @@ module RGame
           @covers = {}
           @transition = nil
           @players = nil
+          @songs = {}
+          @claimed = {}
+          @out = nil
         end
 
         # Sets the transition every move runs unless it names its own. Anything
@@ -104,9 +128,20 @@ module RGame
         # snapshot a component is handed.
         def _attach = @players = node.system(Engine::Players)
 
+        # Releases every song the rooms claim, at once.
+        def _detach
+          @out&.release_music(*@claimed.keys.map { @songs[it].key })
+          @claimed.clear
+          @out = nil
+        end
+
         # Names a room. The block builds a new Scene::Room each time the room
         # starts running, and takes no parameters. A name is defined once.
-        def define(name, &builder)
+        #
+        # `music:` is the song the room claims at `priority:` while a player
+        # stands in it or is on their way to it. nil, the default, claims
+        # nothing.
+        def define(name, music: nil, priority: 0, &builder)
           raise TypeError, "a room's name is a Symbol, not #{name.inspect}" unless name.is_a?(Symbol)
           raise ArgumentError, "define(#{name.inspect}) needs a block that builds the room" unless builder
           raise ArgumentError, "a room named #{name.inspect} is already defined" if @builders.key?(name)
@@ -115,7 +150,10 @@ module RGame
                                  'none. What a room needs to know lives in Facts, or reaches it in _arrive'
           end
 
+          raise TypeError, "a room's priority is a number, not #{priority.inspect}" unless priority.is_a?(Numeric)
+
           @builders[name] = builder
+          @songs[name] = Song.new(Claim.new(name), music, priority) if music
           self
         end
 
@@ -132,8 +170,12 @@ module RGame
           if nodes.is_a?(Array)
             nodes.all? { checked_node(it) }
             nodes.each { ask(it, to, entrance, transition) }
+            claim_songs(transition)
+            nodes.each { requested_signal.emit(node: it, name: to) }
           else
             ask(checked_node(nodes), to, entrance, transition)
+            claim_songs(transition)
+            requested_signal.emit(node: nodes, name: to)
           end
           self
         end
@@ -201,7 +243,27 @@ module RGame
           pause(moving, player)
           cover = transition ? cover_for(player) : @covers[player] if player
           cover&.curtain&.close(transition, at_once: @room_of[player].nil?)
-          requested_signal.emit(node: moving, name:)
+        end
+
+        def claim_songs(transition)
+          return if @songs.empty?
+
+          @out ||= node.system!(Engine::AudioOut)
+          fade = transition ? transition.cover + transition.reveal : 0
+          @songs.each do |name, song|
+            next if @claimed.key?(name) || !wanted?(name)
+
+            @claimed[name] = true
+            @out.claim_music(song.key, song.id, priority: song.priority, fade:)
+          end
+          left = @claimed.keys.reject { wanted?(it) }
+          left.each { @claimed.delete(it) }
+          @out.release_music(*left.map { @songs[it].key }, fade:) unless left.empty?
+        end
+
+        def wanted?(name)
+          @moves.any? { |move| move.player && move.name == name } ||
+            @room_of.any? { |player, room| room.name == name && @moves.none? { it.player.equal?(player) } }
         end
 
         def player_of(moving)

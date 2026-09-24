@@ -54,6 +54,13 @@ index, not the argument.
   in seconds, and `AudioOut#crossfade(id, over:)` lowers one song while it
   raises the next. `#pause_music` and `#resume_music` hold a song and its fade.
   See [docs/api/audio.md](docs/api/audio.md#fades).
+- **Music that a room or an event claims.** `AudioOut#claim_music(key, id,
+  priority:, fade:)` asks for a song, and the claim with the highest priority
+  plays, crossfading when the winner changes. `#release_music` ends a claim, and
+  `#claimed_music` names the song the claims chose. `Scene::Rooms#define` takes
+  `music:` and `priority:`, and a room claims its song while a player stands in
+  it or is on their way to it. While a claim holds, `play_music`, `crossfade`
+  and `stop_music` raise. See [docs/api/audio.md](docs/api/audio.md#claims).
 - **Volume categories, and a song that pauses.** `Audio#register_sound` and
   `#register_music` take a `category:` a game names, and
   `Audio#set_category_volume` turns every sound under it up or down. The device

@@ -975,5 +975,42 @@ lands, each player's camera is bounded by their room's `TileWorld`, whichever
 cameras that room handed its `TileWorld`. Two rooms of different sizes cannot
 set each other's players' limits.
 
-**Start a room's music from `on_requested`**, which fires as the cover begins.
-`on_arrived` fires once the cover is complete, too late for a crossfade over it.
+### A room's music
+
+**A room defined with `music:` claims its song** on the `AudioOut`, at its
+`priority:`, while a player stands in it or is on their way to it. The claim
+with the highest priority plays, as [claims](audio.md#claims) describe:
+
+```ruby
+rooms.define(:town, music: 'town.ogg', priority: 1) { Town.new }
+rooms.define(:garden, music: 'garden.ogg', priority: 2) { Garden.new }
+rooms.define(:cellar) { Cellar.new }   # claims nothing
+```
+
+With one player in the town and one in the garden, the garden's song plays.
+When the garden's player walks back to the town, the town's song comes back.
+
+- **The claims change as a move is asked for**, before `on_requested` fires. A
+  new song crossfades over the move's cover and reveal together, or at once for
+  a move with no transition.
+- **A move of several nodes changes the song once**, to the song of the rooms
+  they end in.
+- **A room a `hold` keeps with nobody in it claims nothing.**
+- **A room claims under a key of its own**, which no game holds, so
+  `release_music` cannot end it. A game claims over every room with a higher
+  priority, as for a battle.
+- **The rooms release their claims at once as their node leaves the tree**, so
+  a scene that replaces the world can play its own music.
+- A `priority:` that is not a number raises `TypeError`.
+
+**A game that wants the primary player's room to choose the song** defines its
+rooms without `music:`, and claims one key of its own from `on_arrived`:
+
+```ruby
+rooms.on_arrived do |_node, room|
+  out.claim_music(:room, SONGS[room.name], fade: 0.5) if rooms.room_of(players.primary).equal?(room)
+end
+```
+
+`on_arrived` fires once the cover is complete, so that song changes under the
+reveal. A game that wants it over the cover claims from `on_requested`.
