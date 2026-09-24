@@ -67,16 +67,20 @@ module RGame
       # layer marked `above`, so a map that already marks its canopies needs
       # nothing said. Gaps under the same layer draw in the order declared.
       #
+      # Every gap is y-sorted (see Node2D#y_sort), so actors in one draw by
+      # where they stand. `y_sort: false` leaves them in the order added, for a
+      # side-view game.
+      #
       # An object layer gets no node, since it has nothing to draw. `parent`
       # must be inside a WorldView, like the nodes themselves.
-      def self.mount(parent, gaps: { actors: nil })
+      def self.mount(parent, gaps: { actors: nil }, y_sort: true)
         world = parent.system(Components::TileWorld)
         under = gaps.transform_values { covering_layer(world, it) }
         z = -1
         nodes = {}
 
         (world.layer_count + 1).times do |index|
-          under.each { |name, layer| nodes[name] = parent.add_node(Node2D.new(z: z += 1)) if layer == index }
+          under.each { |name, layer| nodes[name] = parent.add_node(Node2D.new(z: z += 1, y_sort:)) if layer == index }
           next if index == world.layer_count || world.layer(index).kind == :object
 
           parent.add_node(new(layer: index, z: z += 1))

@@ -250,7 +250,9 @@ roofs: add a custom **bool** property named `above` and tick it. A layer without
 the property draws below, and an `above` property of any other type raises.
 `TileWorld#first_above_layer` returns the first flagged layer, and
 [`TileMapLayer.mount`](components.md#tileworld) leaves the actors' gap below it,
-unless the scene names another layer with `gaps:`.
+unless the scene names another layer with `gaps:`. Tiles do not sort with the
+actors, so a tree whose canopy a character walks under is two layers: a trunk
+below the gap and a canopy in an `above` layer.
 
 `map.image_layers` lists the image layers, each a `TileMap::ImageLayer`: a
 `Layer` that adds `image` (the image's path, or `nil`), `offset_x` and `offset_y`

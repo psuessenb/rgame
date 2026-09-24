@@ -259,8 +259,31 @@ module RGame
         @opacity = Util::Blend.opacity(value)
       end
 
+      # Whether this node draws its children by where they stand: by `z` first,
+      # then the child standing further down the screen later, then in the order
+      # they were added. Off by default. TileMapLayer.mount turns it on for the
+      # gaps it leaves between tile layers, which is where a top-down game's
+      # actors live.
+      #
+      #   actors = Node2D.new(y_sort: true)   # whoever is lower on screen draws in front
+      #
+      # A child stands at the bottom edge of its Components::BoxCollider box, a
+      # feet box included, or at its `y` if it has none. `elevation` plays no
+      # part, so a character mid-hop sorts by the spot they left. A child's
+      # subtree sorts as one unit with it.
+      #
+      # **Only drawing follows it.** `control` and `update` visit the children in
+      # the order they would without it, so an actor walking north never changes
+      # who moves first, and a run does not depend on how often it was drawn.
+      attr_reader :y_sort
+
+      def y_sort=(value)
+        @y_sort = value
+        @draw_order = value ? @children.dup : nil
+      end
+
       def initialize(x: 0, y: 0, z: 0, angle: 0, width: 0, height: 0, input_owner: nil,
-                     band: nil)
+                     band: nil, y_sort: false)
         @input_owner = input_owner
         @paused = false
         @opacity = 1
@@ -287,6 +310,9 @@ module RGame
         @in_tree = false
         @freed = false
         @press_gate = nil
+        @footing = nil
+        @footing_known = false
+        self.y_sort = y_sort
       end
 
       # Adds `node` as the last child, and answers it. A node that already has
@@ -301,6 +327,7 @@ module RGame
         end
         @children_sorted = false unless rgame_sorts_last?(node)
         @children << node
+        @draw_order&.push(node)
         node.parent = self
         node.rgame_sibling_order = (@child_seq += 1)
         node.enter_tree if @in_tree
@@ -310,6 +337,7 @@ module RGame
       def remove_node(node)
         node.exit_tree if @in_tree
         @children.delete(node)
+        @draw_order&.delete(node)
         node.parent = nil
         node
       end
@@ -343,6 +371,7 @@ module RGame
         @components << component
         @component_slots[slot] = component
         component.node = self
+        @footing_known = false
         component._attach if @in_tree
         component
       end
@@ -355,6 +384,7 @@ module RGame
         @components.delete(component)
         @component_slots.delete(@component_slots.key(component))
         component.node = nil
+        @footing_known = false
         component
       end
 
@@ -566,7 +596,46 @@ module RGame
 
       # hot-path
       def draw_children(renderer, view)
-        rgame_children_in_order.each { it.draw(renderer, view) }
+        rgame_children_in_draw_order.each { it.draw(renderer, view) }
+      end
+
+      # hot-path
+      def rgame_children_in_draw_order
+        return rgame_children_in_order unless @draw_order
+
+        rgame_sort_by_footing(@draw_order)
+        @draw_order
+      end
+
+      # hot-path
+      def rgame_sort_by_footing(order)
+        i = 1
+        while i < order.size
+          node = order[i]
+          j = i
+          while j.positive? && rgame_draws_after?(order[j - 1], node)
+            order[j] = order[j - 1]
+            j -= 1
+          end
+          order[j] = node
+          i += 1
+        end
+      end
+
+      # hot-path
+      def rgame_draws_after?(one, other)
+        return one.z > other.z unless one.z == other.z
+
+        one_y = one.rgame_footing_y
+        other_y = other.rgame_footing_y
+        return one_y > other_y unless one_y == other_y
+
+        one.rgame_sibling_order > other.rgame_sibling_order
+      end
+
+      def rgame_find_footing
+        @footing_known = true
+        @footing = get_component(Components::BoxCollider)
       end
 
       # hot-path
@@ -624,6 +693,15 @@ module RGame
       def rgame_unplace(node) = @placed&.delete(node)
 
       def rgame_children_unsorted! = @children_sorted = false
+
+      # hot-path
+      def rgame_footing_y
+        rgame_find_footing unless @footing_known
+        return @rel_y unless @footing
+
+        box = @footing.box
+        @rel_y + box.offset_y + box.height
+      end
 
       # hot-path
       def rgame_soil

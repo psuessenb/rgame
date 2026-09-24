@@ -119,6 +119,18 @@ RSpec.describe RGame::Engine::TileMapLayer do
         .to eq([0, :boats, 1, :shadows, :actors, 2])
     end
 
+    it 'y-sorts every gap, so actors in one draw by where they stand' do
+      slots = described_class.mount(scene, gaps: { shadows: nil, actors: nil })
+
+      expect(slots.names.map { slots[it].y_sort }).to all(be(true))
+    end
+
+    it 'leaves the gaps unsorted when told to, for a side-view game' do
+      slots = described_class.mount(scene, gaps: { shadows: nil, actors: nil }, y_sort: false)
+
+      expect(slots.names.map { slots[it].y_sort }).to all(be(false))
+    end
+
     it 'raises at mount for a layer name the map lacks, listing its layers' do
       expect { described_class.mount(scene, gaps: { actors: 'canopy' }) }
         .to raise_error(KeyError, /no layer 'canopy'.*layer0, layer1, layer2/)

@@ -116,12 +116,13 @@ class Block < RGame::Engine::Node2D
 end
 
 # A square a block belongs on. It only draws: whether a block is home is the
-# room's question, asked by cell.
+# room's question, asked by cell. Its `z: -1` keeps it on the floor, under a block
+# sliding onto it.
 class Square < RGame::Engine::Node2D
   attr_reader :col, :row
 
   def initialize(world:, col:, row:)
-    super(x: world.cell_x(col), y: world.cell_y(row))
+    super(x: world.cell_x(col), y: world.cell_y(row), z: -1)
     @col = col
     @row = row
   end
