@@ -29,7 +29,7 @@
  * ---------------------------------------------------------------------------
  *
  * Vertices go in one big array; commands index into it. That keeps the records
- * being sorted small (a command is ~40 bytes, not six vertices), and lets
+ * being sorted small (a command is under 50 bytes, not six vertices), and lets
  * triangles and quads sit in the same queue without a variant type.
  *
  * `prepare` then does two things: sorts the commands, and walks them building a
@@ -42,6 +42,16 @@
  * someone else to walk, which keeps the dependency one-directional and means
  * the whole module is testable with no fake and no display.
  */
+
+/*
+ * How a command's pixels combine with what is already on screen.
+ *
+ * ALPHA draws over what is behind, at the source's alpha: a translucent panel,
+ * and every draw that does not ask for anything else. ADD adds the source,
+ * scaled by its alpha, to what is behind, so light drawn on light gets
+ * brighter: a spark, a glow, a bolt.
+ */
+typedef enum { RGAME_BLEND_ALPHA = 0, RGAME_BLEND_ADD = 1 } rgame_blend;
 
 /*
  * One vertex, 20 bytes: position, texture coordinate, colour.
@@ -77,14 +87,21 @@ typedef struct {
      * without being rebuilt.
      */
     rgame_rect clip;
+    /*
+     * The blend mode travels with the command for the reason the clip does.
+     * The sort never reads it, so a mode left current at draw time would land
+     * on whichever commands sorted next to the ones that asked for it.
+     */
+    rgame_blend blend;
     unsigned int first_vertex, vertex_count;
 } rgame_draw_command;
 
-/* A run of adjacent sorted commands that share a texture and a clip, and can
- * therefore go to the GPU as one call. */
+/* A run of adjacent sorted commands that share a texture, a clip and a blend
+ * mode, and can therefore go to the GPU as one call. */
 typedef struct {
     unsigned int texture;
     rgame_rect clip;
+    rgame_blend blend;
     unsigned int first_vertex, vertex_count; /* into the prepared vertex array */
 } rgame_draw_batch;
 
@@ -134,7 +151,7 @@ void rgame_draw_queue_reset(rgame_draw_queue *queue);
  * should get a draw that does not appear, not a crash.
  */
 rgame_vertex *rgame_draw_queue_alloc(rgame_draw_queue *queue, unsigned int count, double z,
-                                     unsigned int texture, rgame_rect clip);
+                                     unsigned int texture, rgame_rect clip, rgame_blend blend);
 
 /*
  * Sorts the commands and builds the batch list and the contiguous vertex array

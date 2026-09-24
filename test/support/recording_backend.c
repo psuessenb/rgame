@@ -30,6 +30,12 @@ static void record_set_clip(void *ctx, rgame_rect clip) {
     call->clip = clip;
 }
 
+static void record_set_blend(void *ctx, rgame_blend blend) {
+    rgame_recorded_call *call = next_call(ctx);
+    call->kind = RGAME_CALL_SET_BLEND;
+    call->blend = blend;
+}
+
 static void record_draw_batch(void *ctx, unsigned int texture, const rgame_vertex *vertices,
                               unsigned int count) {
     rgame_recording_backend *recorder = ctx;
@@ -71,6 +77,7 @@ void rgame_recording_backend_destroy(rgame_recording_backend *recorder) {
 rgame_draw_backend rgame_recording_backend_interface(rgame_recording_backend *recorder) {
     rgame_draw_backend backend = { .begin_frame = record_begin_frame,
                                    .set_clip = record_set_clip,
+                                   .set_blend = record_set_blend,
                                    .draw_batch = record_draw_batch,
                                    .end_frame = record_end_frame,
                                    .ctx = recorder };

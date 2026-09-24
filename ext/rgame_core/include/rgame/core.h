@@ -549,7 +549,7 @@ int rgame_app_draw_image_rot(rgame_app *app, const rgame_image *image, float cx,
                              float angle_degrees, float scale, unsigned int color, double z);
 
 /*
- * The transform, clip and layer stacks. Every push is undone by the same
+ * The transform, clip, blend and layer stacks. Every push is undone by the same
  * `rgame_app_pop`, so a caller can never pop the wrong one; a push that cannot
  * be honoured (a full stack) is still counted, so pops stay balanced and the
  * drawing comes out untransformed rather than desynchronised.
@@ -567,6 +567,17 @@ void rgame_app_push_scale(rgame_app *app, float sx, float sy);
  * always succeed as far as the caller is concerned.
  */
 int rgame_app_push_clip(rgame_app *app, int x, int y, int width, int height);
+
+/*
+ * How everything drawn until the matching pop combines with what is behind it:
+ * 0 draws over it at the source's alpha, as every draw does outside any push,
+ * and 1 adds to it, so light drawn on light gets brighter. Any other value is
+ * taken as 0. A push inside another replaces it.
+ *
+ * Returns 0 without pushing if a recording is open, as `rgame_app_push_clip`
+ * does: a recording keeps no blend mode, so replay it inside the push instead.
+ */
+int rgame_app_push_blend(rgame_app *app, int blend);
 
 /*
  * The layer stack: what every subsequent `z` is measured from, until the

@@ -17,6 +17,7 @@
 typedef enum {
     RGAME_CALL_BEGIN_FRAME,
     RGAME_CALL_SET_CLIP,
+    RGAME_CALL_SET_BLEND,
     RGAME_CALL_DRAW_BATCH,
     RGAME_CALL_END_FRAME
 } rgame_call_kind;
@@ -25,6 +26,7 @@ typedef struct {
     rgame_call_kind kind;
     int width, height;             /* begin_frame */
     rgame_rect clip;               /* set_clip */
+    rgame_blend blend;             /* set_blend */
     unsigned int texture;          /* draw_batch */
     unsigned int first_vertex;     /* draw_batch: index into the recorded copy */
     unsigned int vertex_count;

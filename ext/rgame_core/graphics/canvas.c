@@ -7,15 +7,19 @@ enum {
     RGAME_PUSH_TRANSFORM,
     RGAME_PUSH_CLIP,
     RGAME_PUSH_LAYER,
+    RGAME_PUSH_BLEND,
     /* The underlying stack was full. Nothing to undo, but it still occupies a
      * slot so that the caller's matching pop stays paired with this push. */
     RGAME_PUSH_NOTHING
 };
 
-/* The layer stack and the per-band counters, both back to their frame start. */
+/* The layer and blend stacks and the per-band counters, all back to their
+ * frame start. */
 static void reset_layers(rgame_canvas *canvas) {
     canvas->layers[0] = 0.0;
     canvas->layer_depth = 0;
+    canvas->blends[0] = RGAME_BLEND_ALPHA;
+    canvas->blend_depth = 0;
     for (int i = 0; i < RGAME_LAYER_BANDS; i++) {
         canvas->slots[i] = 0;
     }
@@ -151,6 +155,18 @@ double rgame_canvas_layer(const rgame_canvas *canvas) {
     return canvas->layers[canvas->layer_depth];
 }
 
+void rgame_canvas_push_blend(rgame_canvas *canvas, rgame_blend blend) {
+    int ok = canvas->blend_depth + 1 < RGAME_BLEND_STACK_DEPTH;
+    if (ok) {
+        canvas->blends[++canvas->blend_depth] = blend;
+    }
+    account_push(canvas, ok, RGAME_PUSH_BLEND);
+}
+
+rgame_blend rgame_canvas_blend(const rgame_canvas *canvas) {
+    return canvas->blends[canvas->blend_depth];
+}
+
 unsigned int rgame_canvas_next_slot(rgame_canvas *canvas, int band) {
     if (band < 0 || band >= RGAME_LAYER_BANDS) {
         return 0;
@@ -179,15 +195,22 @@ void rgame_canvas_pop(rgame_canvas *canvas) {
     case RGAME_PUSH_LAYER:
         canvas->layer_depth--;
         break;
+    case RGAME_PUSH_BLEND:
+        canvas->blend_depth--;
+        break;
     default:
         break; /* RGAME_PUSH_NOTHING: the push never took effect */
     }
 }
 
-/* Every z that reaches the queue is an offset from the current layer base. One
- * addition, in the one place all four queueing paths pass through. */
-static double layer_z(const rgame_canvas *canvas, double z) {
-    return canvas->layers[canvas->layer_depth] + z;
+/* The one place all four queueing paths pass through. Every z that reaches the
+ * queue is an offset from the current layer base, and every command carries the
+ * clip and the blend mode in effect. */
+static rgame_vertex *queue_alloc(rgame_canvas *canvas, unsigned int count, double z,
+                                 unsigned int texture) {
+    return rgame_draw_queue_alloc(&canvas->queue, count, canvas->layers[canvas->layer_depth] + z,
+                                  texture, rgame_clip_current(&canvas->clips),
+                                  rgame_canvas_blend(canvas));
 }
 
 /* Fills one vertex: map the point into screen space, copy through the texture
@@ -202,8 +225,7 @@ static void write_vertex(const rgame_canvas *canvas, rgame_vertex *vertex, float
 
 void rgame_canvas_triangle(rgame_canvas *canvas, const float *xy6, rgame_color color,
                            double z) {
-    rgame_vertex *out = rgame_draw_queue_alloc(&canvas->queue, 3, layer_z(canvas, z), 0,
-                                               rgame_clip_current(&canvas->clips));
+    rgame_vertex *out = queue_alloc(canvas, 3, z, 0);
     for (int i = 0; i < 3; i++) {
         write_vertex(canvas, &out[i], xy6[i * 2], xy6[(i * 2) + 1], 0.0f, 0.0f, color);
     }
@@ -213,8 +235,7 @@ void rgame_canvas_triangle(rgame_canvas *canvas, const float *xy6, rgame_color c
 static const int RGAME_QUAD_TRIANGLES[6] = { 0, 1, 2, 0, 2, 3 };
 
 void rgame_canvas_quad(rgame_canvas *canvas, const float *xy8, rgame_color color, double z) {
-    rgame_vertex *out = rgame_draw_queue_alloc(&canvas->queue, 6, layer_z(canvas, z), 0,
-                                               rgame_clip_current(&canvas->clips));
+    rgame_vertex *out = queue_alloc(canvas, 6, z, 0);
     for (int i = 0; i < 6; i++) {
         int corner = RGAME_QUAD_TRIANGLES[i];
         write_vertex(canvas, &out[i], xy8[corner * 2], xy8[(corner * 2) + 1], 0.0f, 0.0f,
@@ -224,8 +245,7 @@ void rgame_canvas_quad(rgame_canvas *canvas, const float *xy8, rgame_color color
 
 void rgame_canvas_textured_quad(rgame_canvas *canvas, unsigned int texture, const float *xy8,
                                 const float *uv8, rgame_color color, double z) {
-    rgame_vertex *out = rgame_draw_queue_alloc(&canvas->queue, 6, layer_z(canvas, z), texture,
-                                               rgame_clip_current(&canvas->clips));
+    rgame_vertex *out = queue_alloc(canvas, 6, z, texture);
     for (int i = 0; i < 6; i++) {
         int corner = RGAME_QUAD_TRIANGLES[i];
         write_vertex(canvas, &out[i], xy8[corner * 2], xy8[(corner * 2) + 1], uv8[corner * 2],
@@ -254,9 +274,7 @@ void rgame_canvas_replay(rgame_canvas *canvas, const rgame_recording *recording,
         /* One command per baked batch, rather than one per original draw call:
          * the whole point of a recording is that the per-tile work happened
          * once, at bake time. */
-        rgame_vertex *out = rgame_draw_queue_alloc(&canvas->queue, batch->vertex_count, layer_z(canvas, z),
-                                                   batch->texture,
-                                                   rgame_clip_current(&canvas->clips));
+        rgame_vertex *out = queue_alloc(canvas, batch->vertex_count, z, batch->texture);
 
         for (unsigned int i = 0; i < batch->vertex_count; i++) {
             const rgame_vertex *baked = &recording->vertices[batch->first_vertex + i];

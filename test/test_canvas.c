@@ -511,6 +511,84 @@ START_TEST(a_band_outside_the_table_answers_zero_rather_than_reading_past_it) {
 }
 END_TEST
 
+/* --- blend modes --- */
+
+START_TEST(a_quad_carries_the_current_blend_mode_into_its_command) {
+    rgame_canvas c;
+    begin(&c);
+
+    ck_assert_int_eq(rgame_canvas_blend(&c), RGAME_BLEND_ALPHA);
+    rgame_canvas_push_blend(&c, RGAME_BLEND_ADD);
+    quad_at(&c, 0.0f, 0.0f, RGAME_COLOR_WHITE, 0.0);
+    rgame_canvas_pop(&c);
+    rgame_canvas_end_frame(&c);
+
+    ck_assert_uint_eq(batch_count(&c), 1);
+    ck_assert_int_eq(batch(&c, 0)->blend, RGAME_BLEND_ADD);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(a_blend_mode_inside_another_replaces_it_and_pop_restores_it) {
+    rgame_canvas c;
+    begin(&c);
+
+    rgame_canvas_push_blend(&c, RGAME_BLEND_ADD);
+    rgame_canvas_push_blend(&c, RGAME_BLEND_ALPHA);
+    quad_at(&c, 0.0f, 0.0f, RGAME_COLOR_WHITE, 1.0);
+    rgame_canvas_pop(&c);
+    quad_at(&c, 0.0f, 0.0f, RGAME_COLOR_WHITE, 2.0);
+    rgame_canvas_pop(&c);
+    quad_at(&c, 0.0f, 0.0f, RGAME_COLOR_WHITE, 3.0);
+    rgame_canvas_end_frame(&c);
+
+    ck_assert_uint_eq(batch_count(&c), 3);
+    ck_assert_int_eq(batch(&c, 0)->blend, RGAME_BLEND_ALPHA);
+    ck_assert_int_eq(batch(&c, 1)->blend, RGAME_BLEND_ADD);
+    ck_assert_int_eq(batch(&c, 2)->blend, RGAME_BLEND_ALPHA);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(the_same_pop_undoes_a_blend_mode_among_the_others) {
+    rgame_canvas c;
+    begin(&c);
+
+    rgame_canvas_push_blend(&c, RGAME_BLEND_ADD);
+    rgame_canvas_push_translate(&c, 10.0f, 0.0f);
+    ck_assert_int_eq(rgame_canvas_depth(&c), 2);
+
+    rgame_canvas_pop(&c); /* the translate */
+    ck_assert_int_eq(rgame_canvas_blend(&c), RGAME_BLEND_ADD);
+    rgame_canvas_pop(&c);
+    ck_assert_int_eq(rgame_canvas_blend(&c), RGAME_BLEND_ALPHA);
+    ck_assert_int_eq(rgame_canvas_depth(&c), 0);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(blend_pushes_past_the_stack_limit_still_balance) {
+    rgame_canvas c;
+    begin(&c);
+
+    const int pushes = RGAME_BLEND_STACK_DEPTH + 10;
+    for (int i = 0; i < pushes; i++) {
+        rgame_canvas_push_blend(&c, RGAME_BLEND_ADD);
+    }
+    for (int i = 0; i < pushes; i++) {
+        rgame_canvas_pop(&c);
+    }
+
+    ck_assert_int_eq(rgame_canvas_blend(&c), RGAME_BLEND_ALPHA);
+    ck_assert_int_eq(rgame_canvas_depth(&c), 0);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
 /* --- the frame --- */
 
 START_TEST(z_order_wins_over_draw_order_through_the_canvas) {
@@ -533,11 +611,13 @@ START_TEST(begin_frame_clears_the_previous_frame_and_its_stacks) {
     begin(&c);
 
     rgame_canvas_push_translate(&c, 500.0f, 500.0f);
+    rgame_canvas_push_blend(&c, RGAME_BLEND_ADD);
     quad_at(&c, 0.0f, 0.0f, RGAME_COLOR_WHITE, 0.0);
     rgame_canvas_end_frame(&c);
     ck_assert_uint_eq(batch_count(&c), 1);
 
-    /* No pop was issued — the next frame must not inherit that translate. */
+    /* No pop was issued — the next frame must not inherit that translate, or
+     * the blend mode. */
     rgame_canvas_begin_frame(&c, 800, 600);
     ck_assert_int_eq(rgame_canvas_depth(&c), 0);
     quad_at(&c, 3.0f, 4.0f, RGAME_COLOR_WHITE, 0.0);
@@ -545,6 +625,7 @@ START_TEST(begin_frame_clears_the_previous_frame_and_its_stacks) {
 
     ck_assert_uint_eq(batch_count(&c), 1);
     ck_vertex_xy(&c, 0, 3.0f, 4.0f);
+    ck_assert_int_eq(batch(&c, 0)->blend, RGAME_BLEND_ALPHA);
 
     rgame_canvas_destroy(&c);
 }
@@ -651,6 +732,13 @@ Suite *canvas_suite(void) {
     tcase_add_test(tc_layer, slots_count_up_per_band_and_start_over_each_frame);
     tcase_add_test(tc_layer, a_band_outside_the_table_answers_zero_rather_than_reading_past_it);
     suite_add_tcase(suite, tc_layer);
+
+    TCase *tc_blend = tcase_create("blend");
+    tcase_add_test(tc_blend, a_quad_carries_the_current_blend_mode_into_its_command);
+    tcase_add_test(tc_blend, a_blend_mode_inside_another_replaces_it_and_pop_restores_it);
+    tcase_add_test(tc_blend, the_same_pop_undoes_a_blend_mode_among_the_others);
+    tcase_add_test(tc_blend, blend_pushes_past_the_stack_limit_still_balance);
+    suite_add_tcase(suite, tc_blend);
 
     TCase *tc_frame = tcase_create("frame");
     tcase_add_test(tc_frame, z_order_wins_over_draw_order_through_the_canvas);

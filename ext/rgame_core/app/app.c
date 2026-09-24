@@ -777,6 +777,21 @@ int rgame_app_push_clip(rgame_app *app, int x, int y, int width, int height) {
     return 1;
 }
 
+int rgame_app_push_blend(rgame_app *app, int blend) {
+    /* A recording's batches carry no blend mode, so a mode pushed inside one
+     * would be dropped at capture. Refused for the reason a clip is. */
+    if (app && app->recording) {
+        return 0;
+    }
+
+    rgame_canvas *canvas = drawing_canvas(app);
+    if (canvas) {
+        rgame_canvas_push_blend(canvas, blend == RGAME_BLEND_ADD ? RGAME_BLEND_ADD
+                                                                 : RGAME_BLEND_ALPHA);
+    }
+    return 1;
+}
+
 void rgame_app_push_layer(rgame_app *app, double base) {
     rgame_canvas *canvas = drawing_canvas(app);
     if (canvas) {
