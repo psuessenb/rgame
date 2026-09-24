@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: steps 0 to 10 are implemented.** Sixteen steps. Each is one branch and one
+**Status: steps 0 to 11 are implemented.** Sixteen steps. Each is one branch and one
 pull request, and its sub-steps are one commit each. **Steps 0–12 are detailed.**
 Steps 5–8 were planned after step 4 landed, and steps 9–12 after step 8. What
 each re-plan found comes before its steps:
@@ -2433,6 +2433,106 @@ branch point**, byte for byte.
 
 `docs/api/audio.md` gains fades, the crossfade, pause and resume, and
 categories.
+
+**Landed.** Four sub-steps, one commit each, and two more. One, between 11c
+and 11d, holds a plain fade out on a pause, which planning the example showed
+it cut short. The other corrects two sentences in `audio.md`. `make
+test` 412 checks 0 failures (401 at the branch point), `rake spec` 3671
+examples 0 failures (3626), `rake spec:core` 517 examples 0 failures (499),
+`rake docs:coverage` nothing undocumented, and `rake drive:allocations`
+passes all 39 projects. The C suite is clean under AddressSanitizer and UBSan.
+
+**Volume smoothing stays off, and the measurement decided it.** The offline
+device played a WAV of one constant level, 0.5, as a song, and a fade stepped
+its volume once a tick, 735 frames at 44.1 kHz. Over a constant level, each
+frame out is the level times the gain, so the largest change between two frames
+is the largest step.
+
+| | Largest step, 60-tick fade | Largest step, 30-tick fade | A song played at 1.0, stopped, set to 0 and played |
+|---|---|---|---|
+| Smoothing off | 0.0083, one tick's share | 0.0167 | silent |
+| Smoothing over 735 frames | 0.0054 | 0.0100 | 0.5, full level, in its first tick |
+
+miniaudio 0.11.25's ramp does not slope across a tick. It jumps partway: a ramp
+from 0.5 to 0.25 went from 0.458 to 0.401 in one frame. Sent straight to the
+endpoint, with no category group in the way, it measured 0.0057 and 0.0114, so
+the jump is miniaudio's. Smoothing also starts a fade in at the song's last
+volume, so every song that played before would sound its first frames at full
+level. So the smoothing is not the fallback decision 14 hoped for. Three Check
+tests pin the unsmoothed behaviour: one tick's share at most, a song started
+again at 0 starts silent, and a sample's first frames at full level. Turning
+smoothing on fails the second, and two volume tests with it. **Whether sixty
+steps a second are audible is still for a person to hear**, with
+`examples/music`. If they are, the design's other fallback, miniaudio's fader
+between two steps, is unmeasured.
+
+**`examples/music` reports every transition the rules name**, over 600 ticks
+of its drive script:
+
+- `4 × music music.ogg`, one per Enter. The one sent while the track plays
+  sends no volume, so nothing restarts and nothing fades.
+- `275 × music volume music.ogg`. A fade in is a 0 before the play and sixty
+  steps, on ticks 11 to 70 and 475 to 534. The first fade out steps 32 times,
+  from 0.983 to 0.467, and the Enter after it raises the song from 0.476
+  without starting it again. The second fade out steps nothing between the
+  pause at 361 and the resume at 393, reaches 0 at 430, and puts the song back
+  at 1.0 as it stops.
+- `1 × music stop music.ogg`, only the second fade out, since the first was
+  brought back.
+- `2 × music pause`, `2 × music resume`, `3 × category volume music`,
+  `3 × category volume effects` and `3 × sound blip.ogg`, a blip for each
+  effects press.
+
+Under `--allocations` it reads 11.2 objects a second, on 11 of 427 ticks.
+Listing the sites puts none on a frame: the volume line renders again for each
+of its six changes, the blip loads on its first press, and each new call fills
+its call cache once.
+
+**Every other driven run reports what it reported at the branch point.** All
+51 other scripts ran under `--seed 4242`, 240 ticks and `--texts` on both
+trees, once the extension paths in the header were set aside. Every report
+matched byte for byte on the first capture, asteroids' music and its stop
+among them. The two localization runs differ only in the save directory's
+path, which each run is handed fresh.
+
+What the sketch got wrong:
+
+- **Smoothing is off, not the fallback.** See the table above.
+- **A category group must not resample.** A group resamples by default, even at
+  a ratio of one, and holds back one frame. Sample groups always had that
+  frame, but their own volume scaled it. A category group at 1.0 let it through
+  after a stop, and two existing output tests, a song's stop and a sample at
+  volume 0, failed on it. Category groups are built with
+  `MA_SOUND_FLAG_NO_PITCH`.
+- **`play_music` makes a song current even when it is already playing.** A
+  crossfade asked back the other way asks for the song on its way out, which
+  is still playing. The device returned early without making it current, so a
+  pause would have held the wrong song. The contract pins it, and
+  `CHANGELOG.md` lists it under Changed, since `stop_music` now stops the song
+  last asked for rather than the one last started.
+- **Rule 12 needed a second sentence.** A pause during a crossfade stops the
+  song on its way out, since the device pauses one song. A pause during a plain
+  `stop_music(fade:)` holds that song and its fade, since it is the only music.
+  11c stopped both, and the commit after it holds the second.
+- **The real device cannot show from Ruby which category a sound is in.** Rule
+  2 is checked twice: in C by what comes out, and on the fake by
+  `FakeAudio#category_of`.
+- **A fade of half a second takes 31 ticks.** Thirty steps of 1/60 add up to a
+  hair under 0.5, and `Tween` finishes on the tick after. A second is sixty.
+- **The example's first pause paused the scene.** It kept its flag in
+  `@paused`, which is `Node2D`'s own, so no press reached `_control` again.
+  Nothing raised. The write-example skill now lists `Node2D`'s ivars, and
+  [open question 6](README.md#open-questions) asks whether a cop could.
+- **The C header names categories 0 and 1** as `RGAME_AUDIO_MUSIC` and
+  `RGAME_AUDIO_EFFECTS`, and `rgame_song_cursor` reads a song's playhead for
+  the resume test, in `audio_internal.h`.
+
+Documented in [audio.md](../../api/audio.md): categories, pause and resume,
+`stop_music(id)` and `set_music_volume` on the device, and a Fades section for
+`AudioOut` with a headless example of a crossfade. `systems.md` and
+`docs/api/README.md` name the fades, [examples.md](../../api/examples.md#music)
+and `README.md` describe the example, and `CHANGELOG.md` has two entries under
+Added and one under Changed.
 
 ---
 

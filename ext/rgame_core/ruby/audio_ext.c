@@ -109,6 +109,28 @@ static VALUE audio_s_debug_live_sounds(VALUE klass) {
     return LONG2NUM(rgame_audio_live_sounds());
 }
 
+/* The C index of a category, checked. lib/rgame/core/audio.rb maps names to
+ * indices and raises first, so an index out of range here is a bug in that
+ * mapping rather than a game's mistake. */
+static int category_index(VALUE index) {
+    int category = NUM2INT(index);
+    if (category < 0 || category >= RGAME_AUDIO_CATEGORIES) {
+        rb_raise(rb_eArgError, "category index %d is out of range", category);
+    }
+    return category;
+}
+
+static VALUE audio_category_volume_at(VALUE self, VALUE index) {
+    rgame_audio *audio = audio_unwrap(self);
+    return DBL2NUM((double)rgame_audio_category_volume(audio, category_index(index)));
+}
+
+static VALUE audio_set_category_volume_at(VALUE self, VALUE index, VALUE volume) {
+    rgame_audio_set_category_volume(audio_unwrap(self), category_index(index),
+                                    (float)NUM2DBL(volume));
+    return volume;
+}
+
 /* ------------------------------------------------------------------------- *
  * Sample and Song — one shape, two payloads
  * ------------------------------------------------------------------------- */
@@ -272,6 +294,12 @@ static VALUE song_stop(VALUE self) {
     return self;
 }
 
+/* #resume — starts again where #stop left it. */
+static VALUE song_resume(VALUE self) {
+    rgame_song_resume((rgame_song *)sound_unwrap(self, &song_data_type)->handle);
+    return self;
+}
+
 static VALUE song_playing_p(VALUE self) {
     return rgame_song_playing((rgame_song *)sound_unwrap(self, &song_data_type)->handle) ? Qtrue
                                                                                         : Qfalse;
@@ -293,6 +321,25 @@ static VALUE song_set_volume(VALUE self, VALUE volume) {
     return volume;
 }
 
+/*
+ * Moves a registered sound into a category. Anything that is not a Sample or a
+ * Song is left alone: a game may register a stand-in of its own, and a
+ * stand-in has no group to move.
+ */
+static VALUE audio_put_in_category(VALUE self, VALUE sound, VALUE index) {
+    audio_unwrap(self);
+    int category = category_index(index);
+
+    if (rb_typeddata_is_kind_of(sound, &sample_data_type)) {
+        rgame_sample_set_category((rgame_sample *)sound_unwrap(sound, &sample_data_type)->handle,
+                                  category);
+    } else if (rb_typeddata_is_kind_of(sound, &song_data_type)) {
+        rgame_song_set_category((rgame_song *)sound_unwrap(sound, &song_data_type)->handle,
+                                category);
+    }
+    return sound;
+}
+
 void rgame_init_audio(VALUE mCore) {
     cAudio = rb_define_class_under(mCore, "Audio", rb_cObject);
     rb_define_alloc_func(cAudio, audio_alloc);
@@ -302,6 +349,10 @@ void rgame_init_audio(VALUE mCore) {
     rb_define_method(cAudio, "backend", audio_backend, 0);
     rb_define_method(cAudio, "inspect", audio_inspect, 0);
     rb_define_singleton_method(cAudio, "debug_live_sounds", audio_s_debug_live_sounds, 0);
+    rb_define_const(cAudio, "CATEGORIES", INT2NUM(RGAME_AUDIO_CATEGORIES));
+    rb_define_private_method(cAudio, "category_volume_at", audio_category_volume_at, 1);
+    rb_define_private_method(cAudio, "set_category_volume_at", audio_set_category_volume_at, 2);
+    rb_define_private_method(cAudio, "put_in_category", audio_put_in_category, 2);
 
     cSample = rb_define_class_under(mCore, "Sample", rb_cObject);
     /* A file that cannot be read or is not a sound the engine knows — an
@@ -319,6 +370,7 @@ void rgame_init_audio(VALUE mCore) {
     rb_define_method(cSong, "initialize", song_initialize, 2);
     rb_define_private_method(cSong, "play_looping", song_play, 1);
     rb_define_method(cSong, "stop", song_stop, 0);
+    rb_define_method(cSong, "resume", song_resume, 0);
     rb_define_method(cSong, "playing?", song_playing_p, 0);
     rb_define_method(cSong, "looping?", song_looping_p, 0);
     rb_define_method(cSong, "volume", song_volume, 0);

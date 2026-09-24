@@ -117,7 +117,7 @@ node can reach them without the game wiring anything:
 | `node.system(RGame::Engine::Viewports)` | how the screen is divided — one `View` per active player, and collapsing the split |
 | `node.system(RGame::Engine::Components::Facts)` | the flags and named state machines a game saves as one entry |
 | `node.system(RGame::Engine::Debug)` | the development layer — a switch per channel, drawn over the frame |
-| `node.system!(RGame::Engine::AudioOut)` | the sound device: `play_sound`, `play_music`, `stop_music` |
+| `node.system!(RGame::Engine::AudioOut)` | the sound device: `play_sound`, `play_music`, `stop_music`, and fades, a crossfade, pause and category volumes |
 
 They are ordinary root-scoped systems, mounted the way a game mounts its own. A
 scene that needs a camera to follow asks `Players` (`players.primary.camera`). A

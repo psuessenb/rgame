@@ -14,6 +14,16 @@ index, not the argument.
 
 ### Added
 
+- **Music that fades.** `AudioOut#play_music` and `#stop_music` take `fade:`,
+  in seconds, and `AudioOut#crossfade(id, over:)` lowers one song while it
+  raises the next. `#pause_music` and `#resume_music` hold a song and its fade.
+  See [docs/api/audio.md](docs/api/audio.md#fades).
+- **Volume categories, and a song that pauses.** `Audio#register_sound` and
+  `#register_music` take a `category:` a game names, and
+  `Audio#set_category_volume` turns every sound under it up or down. The device
+  also answers `pause_music`, `resume_music`, `set_music_volume(id, volume)` and
+  `stop_music(id)`, and `Song#resume` carries on where `stop` left it. See
+  [docs/api/audio.md](docs/api/audio.md#categories).
 - **A fade over the screen.** `RGame::Engine::ScreenFade` covers the view it is
   drawn into in one colour, reveals it again, and flashes it, emitting
   `on_finished` at the end of each. See
@@ -275,6 +285,10 @@ index, not the argument.
 
 ### Changed
 
+- **`Audio#play_music` makes the song it is asked for current**, even one
+  already playing, so `stop_music` stops the song last asked for rather than
+  the one last started. See
+  [docs/api/audio.md](docs/api/audio.md#playing-by-id).
 - **A node reads only the presses it saw start.** In a node's components and
   `_control`, `pressed?` and `released?` are false for a press that began before
   the node was last paused, hidden, below another scene, added, or given another

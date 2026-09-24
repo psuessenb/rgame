@@ -1,6 +1,6 @@
 ---
 name: write-example
-description: How to write an example under examples/ — the file shape, the drive script that acceptance-tests it, the asset licence rule, and the traps that have actually bitten (a top-level proc pinning the window, a save key that also walks the player, paused not gating draw, a nine-slice id that resolves to nothing). Use when adding or changing anything under examples/ or tools/drive/examples/, or when a driven example prints no report.
+description: How to write an example under examples/ — the file shape, the drive script that acceptance-tests it, the asset licence rule, and the traps that have actually bitten (a top-level proc pinning the window, a save key that also walks the player, paused not gating draw, an ivar that is Node2D's own, a nine-slice id that resolves to nothing). Use when adding or changing anything under examples/ or tools/drive/examples/, or when a driven example prints no report.
 ---
 
 # Writing an rgame example
@@ -150,6 +150,15 @@ end
 
 A `UI::Menu` does not need that: `menu.close` hides it and stops its input, and
 `menu.open` brings it back. `examples/game_menu` is the shape.
+
+**A node's own instance variables are `Node2D`'s too.** `examples/music` kept
+"is the music paused" in `@paused`, which is the ivar `Node2D#paused` reads, so
+pausing the music paused the scene. Its next press never reached `_control`,
+and the driven run showed the state line stuck. Nothing raises:
+`SealedPrivates` guards method names, not ivars. Before naming one, check it is
+not among `Node2D`'s: `@paused`, `@opacity`, `@scene`, `@parent`, `@children`,
+`@components`, `@band`, `@z`, `@width`, `@height`, `@input_owner` and the
+`@rel_*` and `@world_*` family are all taken.
 
 **Draw from `view`, not from `WIDTH`/`HEIGHT`.** Those constants are what the
 window *opens* at. Under fullscreen the view is the screen; under a scale mode

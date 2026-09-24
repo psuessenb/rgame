@@ -91,14 +91,16 @@ music.play(looping: true)
 music.playing?   # => true
 music.volume = 0.6
 music.stop
+music.resume     # from where it stopped
 ```
 
 A song streams from its file as it plays. A three-minute track costs a buffer,
 not forty megabytes.
 
 **A song is one voice.** Playing a song that is already playing restarts it from
-the beginning, and so does playing it after `stop`. Songs cannot pause: `stop`
-then `play` starts from the top.
+the beginning, and so does playing it after `stop`. `resume` carries on where
+`stop` left it, so `stop` then `resume` is a pause. A song that ran to its end
+resumes from the top.
 
 `#playing?` and `#looping?` report what the song was last told to do.
 `#looping?` is a flag, not a count.
@@ -115,8 +117,12 @@ loops, stops and restarts a song.
 
 ```ruby
 audio.play_sound('hurt.ogg')
-audio.play_music('theme.ogg')   # loops
+audio.play_music('theme.ogg')           # loops
+audio.set_music_volume('theme.ogg', 0.5)
+audio.pause_music
+audio.resume_music
 audio.stop_music
+audio.stop_music('theme.ogg')           # that song, whichever is current
 ```
 
 **Ids come in two kinds, the same two the renderer uses.** A **String is a
@@ -144,16 +150,58 @@ defeat that check and restart the track on every request.
 [`AudioOut`](#audioout--the-system-a-node-plays-sound-through) holding its device
 on the root when it starts, so a scene that plays a sound is heard with no setup.
 
-**`play_music` is idempotent.** Asking for the track already playing does
-nothing. A scene that repeats the request each time it is entered never restarts
-the music mid-loop.
+**`play_music` never restarts a song that is playing.** Asking for the track
+already playing leaves it playing. A scene that repeats the request each time it
+is entered never restarts the music mid-loop.
 
-**`stop_music` stops the song `play_music` most recently started**, not whatever
-is sounding. The engine keeps no process-wide "current song", because one song at
-a time is a game's policy. **`play_music` with a different track does not stop the
-previous one**, so both play. To switch tracks, call `stop_music` first. You stop
-a `Song` you started by hand yourself. `stop_music` with nothing playing does
+**The song `play_music` was last asked for is the current song**, even when it
+was already playing. `stop_music` with no id stops it, and `pause_music` and
+`resume_music` act on it. The engine keeps no process-wide "current song",
+because one song at a time is a game's policy. **`play_music` with a different
+track does not stop the previous one**, so both play. To switch tracks, call
+`stop_music` first, or fade between them with
+[`AudioOut#crossfade`](#fades). You stop a `Song` you started by hand yourself. `stop_music` with nothing playing does
 nothing.
+
+**`stop_music(id)` stops the song the id names**, and forgets the current song
+only when it is that one. `set_music_volume(id, volume)` sets the song's own
+volume, as `Song#volume=` does, and `AudioOut` fades a song with it.
+
+**`pause_music` stops the current song where it is**, and `resume_music` carries
+on from there. `resume_music` does nothing unless a song is paused, and
+`play_music` asked for the paused song starts it from the top.
+
+## Categories
+
+```ruby
+audio.register_sound(:line, app.assets.sound('line.ogg'), category: :voice)
+audio.register_music(:rain, app.assets.song('rain.ogg'), category: :ambience)
+
+audio.set_category_volume(:music, 0.7)
+audio.set_category_volume(:voice, 0.8)
+audio.category_volume(:effects)   # => 1.0
+```
+
+**A category is a volume that a set of sounds share**, such as the one a
+settings screen offers for music. Every song plays under `:music` and every
+sample under `:effects`, unless it was registered under another name. A category
+volume multiplies each sound's own volume and leaves it as it was, and the
+device's `volume` multiplies over all of them.
+
+**A game names its own categories** with `category:` when it registers a sound.
+The first registration under a name creates it, and a sound registered again
+plays under the last name given. The device holds sixteen: `:music`, `:effects`
+and fourteen more. The seventeenth name raises `ArgumentError`.
+
+**A name no sound was registered under raises `KeyError`**, from
+`category_volume` and `set_category_volume` alike, so a mistyped category fails
+instead of changing nothing. A category is named by a Symbol; anything else
+raises `TypeError`.
+
+**A category belongs to the sound, not to the id.** `play_sound('line.ogg')`
+finds the sample the asset manager already made for `:line` above, so it plays
+under `:voice` too. A sound no registration named plays under `:music` if it is
+a song and `:effects` if it is a sample.
 
 ## Loading and failure
 
@@ -192,7 +240,8 @@ named `.ogg`.
 
 ## Volume
 
-Every volume behaves the same way, whether the device's, a sample's or a song's:
+Every volume behaves the same way, whether the device's, a category's, a
+sample's or a song's:
 
 | Value | Effect |
 |---|---|
@@ -241,25 +290,107 @@ That spec loads no file, opens no device and needs no sound card.
 ## What is not here
 
 rgame audio has no MP3 or FLAC; it decodes Vorbis and WAV only, to keep the gem
-small. It also lacks positional and 3D audio, effects and filters, fades,
-pausing, seeking, per-play handles, playback position and recording.
+small. It also lacks positional and 3D audio, effects and filters, seeking,
+per-play handles, playback position and recording. `AudioOut` fades music but
+not samples, and has no ducking: nothing lowers the music while a voice line
+plays.
 
 ## `AudioOut` — the system a node plays sound through
 
 **`RGame::Engine::AudioOut` is a component on the root that holds the sound
-device.** A node reaches it with
-[`Node2D#system!`](systems.md#looking-a-system-up) and calls one of three
-methods:
+device, and the clock its music fades on.** A node reaches it with
+[`Node2D#system!`](systems.md#looking-a-system-up):
 
 ```ruby
-system!(RGame::Engine::AudioOut).play_sound(:boom)
-system!(RGame::Engine::AudioOut).play_music(:theme)
-system!(RGame::Engine::AudioOut).stop_music
+out = system!(RGame::Engine::AudioOut)
+out.play_sound(:boom)
+out.play_music(:theme)                # at full volume
+out.play_music(:theme, fade: 0.8)     # up from silence over 0.8 s
+out.stop_music(fade: 0.5)             # down to silence, then stopped
+out.crossfade(:battle, over: 1.2)     # :theme down while :battle comes up
+out.pause_music
+out.resume_music
+out.set_category_volume(:music, 0.7)
+out.category_volume(:music)
+out.fading?                           # a song on its way up or down
 ```
 
-Each forwards to the device, so ids, looping and what `stop_music` stops work as
-this page describes for `Audio`. `AudioOut` calls the device by method name, so
-the engine layer never names `RGame::Core::Audio`.
+`play_sound`, the two category calls, and `play_music` and `stop_music` without
+a fade forward to the device. Ids, looping and what `stop_music` stops work as
+this page describes for `Audio`. While no fade runs, a call without a fade sends
+the device exactly the call of the same name, and nothing else. `AudioOut` calls
+the device by method name, so the engine layer never names `RGame::Core::Audio`.
+
+### Fades
+
+**A fade is the song's own volume, set once a tick.** `AudioOut` sets it with
+`Audio#set_music_volume` from its `_update`, so a fade runs on the game's clock.
+Nothing spreads a step across the frames of a tick: a one-second fade moves the
+volume in sixty steps of 1/60.
+
+- `play_music(id, fade:)` sets the song to silence, plays it, and raises it to
+  full volume over `fade` seconds.
+- `stop_music(fade:)` lowers the current song to silence over `fade` seconds and
+  stops it on the tick it arrives.
+- `crossfade(id, over:)` lowers the current song while it raises `id` over the
+  same time, and stops the old song once it is silent. With no current song it
+  is a fade in.
+
+A song that `AudioOut` stops or fades out plays at full volume the next time.
+`fade:` and `over:` take 0 or more seconds; anything else raises `ArgumentError`.
+
+This runs headless, with a stand-in for the device that keeps each song's
+volume, the way rgame's own specs drive it:
+
+```ruby
+require 'rgame'
+
+# Keeps the volume each song was last given, and plays nothing.
+class Mixer
+  attr_reader :volumes
+
+  def initialize = @volumes = {}
+  def play_music(id) = @volumes[id] ||= 1.0
+  def stop_music(_id = nil) = nil
+  def set_music_volume(id, volume) = @volumes[id] = volume
+end
+
+mixer = Mixer.new
+root = RGame::Engine::Node2D.new
+out = root.add_component(RGame::Engine::AudioOut.new(mixer))
+root.enter_tree
+
+out.play_music(:theme)
+out.crossfade(:battle, over: 1.0)
+root.update(0.25)
+mixer.volumes   # => {theme: 0.75, battle: 0.25}
+out.fading?     # => true
+root.update(0.75)
+mixer.volumes   # => {theme: 1.0, battle: 1.0} — :theme stopped, at full for next time
+out.fading?     # => false
+```
+
+**`AudioOut` tracks two songs: the current one, and one on its way out.** Four
+rules follow from that:
+
+- **Asking for the song on its way out brings it back up from where it is.**
+  `play_music` with a fade, or `crossfade`, raises it again without starting it
+  from the top. A crossfade asked for back the other way turns both songs round.
+- **A crossfade begun before the last one ended** stops the song still on its
+  way out at once, and brings the one that was coming in down from where it is.
+- **`stop_music` without a fade** stops the song on its way out too.
+- **`play_music` with another song and no crossfade** leaves the current one
+  playing, as `Audio#play_music` does. If the current song was fading in, it
+  goes to full volume at once.
+
+**A fade outlives the scene that asked for it.** `AudioOut` is on the root, so a
+scene that fades its music out as it leaves the tree still fades. For the same
+reason, pausing a scene does not pause its music or a fade.
+
+**`pause_music` holds the music and its fade where they are**, and
+`resume_music` carries both on. That is the current song, or the song a
+`stop_music(fade:)` is lowering. A song on its way out of a crossfade stops at
+once. Stepping a fade, and holding one, allocates nothing.
 
 **`RGame::Game` mounts it in `start`**, holding `Game#audio`: the device `App`
 builds, or the one passed as `audio:`. A node that is not in the tree, or a tree

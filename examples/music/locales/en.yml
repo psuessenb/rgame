@@ -1,7 +1,12 @@
 # The English table: every string this example draws.
 en:
   help:
-    keys: Enter / A starts, Escape / B stops
+    keys: Enter / A fades in, Escape / B fades out, P / Start pauses
+    volume: "Up / Down: music volume. Left / Right: effects volume, with a blip"
   status:
     stopped: stopped — press Enter
-    playing: playing — press Enter again; listen for whether it restarts
+    rising: fading in — listen for steps under the fade
+    playing: playing — press Enter again; it does not restart
+    falling: fading out — press Enter to bring it back
+    paused: paused — press P to carry on
+    volumes: "Music %{music}%   Effects %{effects}%"

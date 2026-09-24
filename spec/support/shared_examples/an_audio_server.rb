@@ -203,6 +203,53 @@ RSpec.shared_examples 'an audio server' do
       end
     end
 
+    it 'stops the song an id names, and leaves the current one playing' do
+      with_audio do |audio, path|
+        audio.register_music(:theme, theme = audio.song(path))
+        audio.register_music(:battle, battle = audio.song(path))
+        audio.play_music(:theme)
+        audio.play_music(:battle)
+        audio.stop_music(:theme)
+
+        expect([theme.playing?, battle.playing?]).to eq([false, true])
+      end
+    end
+
+    it 'forgets the current song once an id stops it' do
+      with_audio do |audio, path|
+        audio.register_music(:theme, theme = audio.song(path))
+        audio.play_music(:theme)
+        audio.stop_music(:theme)
+        audio.resume_music
+
+        expect(theme).not_to be_playing
+      end
+    end
+
+    it 'makes a song asked for current, even when it was already playing' do
+      # A crossfade back: the song on its way out is asked for again. It keeps
+      # playing rather than restarting, and it is the one a pause then holds.
+      with_audio do |audio, path|
+        audio.register_music(:theme, theme = audio.song(path))
+        audio.register_music(:battle, battle = audio.song(path))
+        audio.play_music(:theme)
+        audio.play_music(:battle)
+        audio.play_music(:theme)
+        audio.pause_music
+
+        expect([theme.playing?, battle.playing?]).to eq([false, true])
+      end
+    end
+
+    it 'sets a song\'s own volume by id' do
+      with_audio do |audio, path|
+        audio.register_music(:theme, theme = audio.song(path))
+        audio.set_music_volume(:theme, 0.25)
+
+        expect(theme.volume).to eq(0.25)
+      end
+    end
+
     it 'stops nothing when no music was started through it' do
       # The layer being replaced reached for a process-wide "current song".
       # There is no such global here, so a song a game started by hand is its
@@ -214,6 +261,114 @@ RSpec.shared_examples 'an audio server' do
         audio.stop_music
 
         expect(song).to be_playing
+      end
+    end
+  end
+
+  describe 'pausing' do
+    it 'stops the current song, and resuming plays it again' do
+      with_audio do |audio, path|
+        audio.register_music(:theme, theme = audio.song(path))
+        audio.play_music(:theme)
+        audio.pause_music
+        paused = theme.playing?
+        audio.resume_music
+
+        expect([paused, theme.playing?]).to eq([false, true])
+      end
+    end
+
+    it 'resumes nothing while nothing is paused' do
+      with_audio do |audio, path|
+        audio.register_music(:theme, theme = audio.song(path))
+        audio.play_music(:theme)
+        audio.stop_music
+        audio.resume_music
+
+        expect(theme).not_to be_playing
+      end
+    end
+
+    it 'pauses nothing when no music is playing' do
+      with_audio { |audio, _path| expect { audio.pause_music }.not_to raise_error }
+    end
+
+    it 'plays a paused song again when play_music asks for it' do
+      # From the top, as after a stop. Only test/test_audio.c can see where the
+      # playhead is, through the device with no device behind it.
+      with_audio do |audio, path|
+        audio.register_music(:theme, theme = audio.song(path))
+        audio.play_music(:theme)
+        audio.pause_music
+        audio.play_music(:theme)
+        audio.resume_music
+
+        expect(theme).to be_playing
+      end
+    end
+  end
+
+  # A volume shared by the sounds registered under one name. What it does to
+  # the output is test/test_audio.c's to check; this is the naming.
+  describe 'categories' do
+    it 'starts :music and :effects at full volume' do
+      with_audio do |audio, _path|
+        expect([audio.category_volume(:music), audio.category_volume(:effects)]).to eq([1.0, 1.0])
+      end
+    end
+
+    it 'round-trips a category volume' do
+      with_audio do |audio, _path|
+        audio.set_category_volume(:effects, 0.25)
+
+        expect(audio.category_volume(:effects)).to eq(0.25)
+      end
+    end
+
+    it 'clamps a negative category volume to silence' do
+      with_audio do |audio, _path|
+        audio.set_category_volume(:music, -1.0)
+
+        expect(audio.category_volume(:music)).to eq(0.0)
+      end
+    end
+
+    it 'creates a category a sound is registered under' do
+      with_audio do |audio, path|
+        audio.register_sound(:line, audio.sample(path), category: :voice)
+        audio.register_music(:rain, audio.song(path), category: :ambience)
+        before = [audio.category_volume(:voice), audio.category_volume(:ambience)]
+        audio.set_category_volume(:voice, 0.5)
+
+        expect(before).to eq([1.0, 1.0])
+        expect(audio.category_volume(:voice)).to eq(0.5)
+      end
+    end
+
+    it 'raises KeyError for a name no sound was registered under' do
+      with_audio do |audio, _path|
+        expect { audio.category_volume(:voice) }.to raise_error(KeyError, /:voice/)
+        expect { audio.set_category_volume(:voice, 0.5) }.to raise_error(KeyError, /:voice/)
+      end
+    end
+
+    it 'refuses a seventeenth category' do
+      with_audio do |audio, path|
+        sample = audio.sample(path)
+        14.times { |n| audio.register_sound(:"sound#{n}", sample, category: :"category#{n}") }
+
+        expect { audio.register_sound(:more, sample, category: :one_too_many) }
+          .to raise_error(ArgumentError, /16 categories/)
+        expect(audio.category_volume(:category13)).to eq(1.0)
+      end
+    end
+
+    it 'keeps sixteen: registering under a name already made takes no room' do
+      with_audio do |audio, path|
+        sample = audio.sample(path)
+        14.times { |n| audio.register_sound(:"sound#{n}", sample, category: :"category#{n}") }
+
+        expect { audio.register_sound(:again, sample, category: :category0) }.not_to raise_error
       end
     end
   end
@@ -237,6 +392,24 @@ RSpec.shared_examples 'an audio server' do
       # rather than "no sound registered for nil", which describes a typo.
       with_audio { |audio, _path| expect { audio.play_sound(nil) }.to raise_error(TypeError) }
       with_audio { |audio, _path| expect { audio.play_music(nil) }.to raise_error(TypeError) }
+    end
+
+    it 'refuses a category volume or a song volume that is not a number' do
+      with_audio do |audio, path|
+        audio.register_music(:theme, audio.song(path))
+
+        expect { audio.set_category_volume(:music, nil) }.to raise_error(TypeError)
+        expect { audio.set_music_volume(:theme, nil) }.to raise_error(TypeError)
+      end
+    end
+
+    it 'refuses a category that is not named by a Symbol' do
+      with_audio do |audio, path|
+        expect { audio.register_sound(:hit, audio.sample(path), category: 'voice') }
+          .to raise_error(TypeError, /Symbol/)
+        expect { audio.register_music(:theme, audio.song(path), category: nil) }
+          .to raise_error(TypeError, /Symbol/)
+      end
     end
 
     it 'refuses a volume that is not a number on a sound' do
@@ -337,6 +510,18 @@ RSpec.shared_examples 'an audio server' do
         song = audio.song(path)
         song.play(looping: true)
 
+        expect(song).to be_looping
+      end
+    end
+
+    it 'plays again when resumed after a stop' do
+      with_audio do |audio, path|
+        song = audio.song(path)
+        song.play(looping: true)
+        song.stop
+
+        expect(song.resume).to equal(song)
+        expect(song).to be_playing
         expect(song).to be_looping
       end
     end
