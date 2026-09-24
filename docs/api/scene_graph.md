@@ -564,7 +564,8 @@ they cannot go stale:
 - `root` is the top-most node; a node without a parent is its own root. Global
   systems that live as long as the program belong there.
 - `scene` is the nearest enclosing scene node, marked as a boundary by
-  `SceneStack`. Systems that live as long as a scene belong there.
+  `SceneStack` or `Scene::Rooms`. Systems that live as long as a scene belong
+  there.
 
 A *system* is a `Component` on one of those anchor nodes. A node finds one with
 `node.system(SomeSystem)`, which checks the nearest scene, then each scene
@@ -615,7 +616,8 @@ change a parent's `children` while the traversal iterates that list.
 Any component or hook can therefore call `node.queue_free` from inside `update`
 without corrupting the traversal. A component that holds nodes outside the normal
 child list, such as `SceneStack`, overrides `Component#_sweep_freed` to pass the
-sweep into the subtree it owns. A `SceneStack` also lands its switches there.
+sweep into the subtree it owns. A `SceneStack` also lands its switches there,
+and `Scene::Rooms` its moves.
 
 `enter_tree` clears the freed flag, so a node detached and added again comes back
 alive. Pools rely on this. A despawned node returns to its pool, and acquiring it
@@ -768,3 +770,163 @@ switch, and `nil` runs none. Anything but a `Fade` or `nil` raises `TypeError`.
 A paused host holds its transition where it is, since time reaches the fade
 through the stack's `update`. A menu pushed over a world usually wants
 `transition: nil`: a fade would hide the world that pushing keeps on screen.
+
+## Rooms: `Scene::Rooms`
+
+**The rooms of one world run side by side, each while a player stands in it.**
+`RGame::Engine::Scene::Rooms` is a component on the scene a stack holds while the
+game is played. Two players can stand in two rooms, and each room runs for as
+long as somebody is in it. A stack answers what lies over what; rooms side by
+side do not lie over each other.
+
+```ruby
+require 'rgame'
+
+class Town < RGame::Engine::Scene::Room
+  SPOTS = { 'square' => [160, 120], 'gate' => [300, 120] }.freeze
+
+  def _enter_tree
+    @actors = add_node(RGame::Engine::WorldView.new)
+  end
+
+  def _arrive(node, entrance)
+    node.x, node.y = SPOTS.fetch(entrance)
+    @actors.add_node(node)
+  end
+end
+
+class Garden < Town; end
+
+class World < RGame::Engine::Node2D
+  attr_reader :rooms
+
+  def initialize
+    super
+    @rooms = add_component(RGame::Engine::Scene::Rooms.new)
+    @rooms.define(:town) { Town.new }
+    @rooms.define(:garden) { Garden.new }
+  end
+end
+
+players = RGame::Engine::Players.new([RGame::Engine::Player.new(id: 0)])
+root = RGame::Engine::Node2D.new
+root.add_component(players)
+stack = root.add_component(RGame::Engine::Scene::SceneStack.new)
+root.enter_tree
+world = World.new
+stack.push(world)
+root.sweep_freed
+
+hero = RGame::Engine::Node2D.new
+world.rooms.move(hero, to: :town, entrance: 'square')
+root.sweep_freed                            # a move lands in the sweep
+world.rooms.room_of(players.primary)        # => Town
+[hero.x, hero.y]                            # => [160, 120]
+
+world.rooms.move(hero, to: :garden, entrance: 'gate')
+root.sweep_freed
+world.rooms.room_of(players.primary)        # => Garden
+world.rooms[:town]                          # => nil — nobody stands in it, so it was freed
+```
+
+- `define(name) { Room.new }` names a room. The block takes no parameters, and
+  builds a new `Scene::Room` each time the room starts running. A name is a
+  Symbol, defined once.
+- `move(nodes, to:, entrance:)` asks for one node, or an Array of them, to go to
+  the room named `to`. `entrance` reaches the room's `_arrive` as it is: a
+  String, since a designer names it on the map and a programmer types the same
+  word. A name the rooms were not given raises `KeyError` when asked.
+- `room_of(player)` is the room a player stands in, or nil. `rooms[name]` is the
+  running room of that name, or nil. `Room#players` lists who stands in a room,
+  and `Room#name` is the name it was defined under.
+- `pending?` answers whether a move was asked for and has not landed, and
+  `transitioning?` whether any player's cover is covering or revealing.
+- `on_requested { |node, name| ... }` fires once for each node a move names, as
+  the move is asked for. `on_arrived { |node, room| ... }` fires once for each
+  node as its move lands, after `_arrive` placed it.
+
+### A room places what arrives
+
+**`Room#_arrive(node, entrance)` is the room's hook for placing a node.** The
+rooms call it as a move lands, after the room entered the tree. A node from
+another room arrives in no room, and `_arrive` adds it to a node in this one. A
+node `_arrive` leaves outside the room raises. The builder is the wrong place
+for it: a room is built once, and a node may arrive many times.
+
+A room is its own `scene`. Its nodes find its `TileWorld` and `CollisionWorld`
+first, and the world's `Rooms` beyond them, since `system` looks through each
+enclosing scene. So a door in a room reaches `system(Scene::Rooms)`.
+
+**A room is built anew each time it starts running.** A room left and entered
+again is a new object, with new timers. What should outlast a visit, a chest
+opened or a coin taken, lives in `Facts`, where a loaded save puts it too. See
+[Facts](dialogue.md#facts).
+
+### A move lands in the sweep
+
+**`move` records what was asked, and the move lands in the sweep**, as a stack's
+switch does. As it lands, each node leaves its parent, the room is built if it
+is not running, and `_arrive` places the node. A second move asked for a node
+before its first lands replaces the first.
+
+**A move to the room a node stands in is a warp.** `_arrive` places the node
+again, and nothing leaves the tree. `Node2D#add_node` leaves a node that is
+already its child where it is, so an `_arrive` that adds the node works for
+both. A warp pad and a door are one call.
+
+**Each node stands paused from the request until its player's reveal ends**, and
+then gets back the `paused` it had. With no transition it gets it back as the
+move lands. A `CharacterBody` stands still as its node enters the tree, so a
+hero carried into a room does not walk on. Set an intent after placing it for
+one that should walk in.
+
+### Whose move it is
+
+**A node's player is the one its `input_owner` names**, looked up through its
+parents, and the primary player when none does. A move makes that player stand
+in the room the node goes to, and covers that player's region only. A node
+owned by `Players#everyone` stands nobody anywhere and moves under no cover.
+
+```ruby
+rooms.move(hero, to: :garden, entrance: 'gate_in')   # the player who walked through
+rooms.move(heroes, to: :town, entrance: 'square')    # every hero, from whichever room
+```
+
+### Which rooms run
+
+**A room runs while a player stands in it, or while `hold` holds it.** The
+sweep frees a room that has neither and that no move is on its way to. Each
+running room is controlled, updated and drawn once a tick, in the order the
+rooms were built. The rooms live off the host's child list, as a stack's scenes
+do, and enter and leave the tree with the host.
+
+```ruby
+rooms.hold(:garden)      # built in the next sweep, and kept with nobody in it
+rooms.release(:garden)   # freed in the next sweep, unless somebody stands in it
+```
+
+`hold` keeps a room running before anyone reaches it, so what it loads is ready
+when they do. Holding a name the rooms were not given raises `KeyError`.
+
+### Covers and cameras
+
+```ruby
+rooms.transition = RGame::Engine::Scene::Fade.new(cover: 0.25, reveal: 0.25)
+rooms.move(hero, to: :garden, entrance: 'gate_in', transition: nil)   # this move without one
+```
+
+**A transition covers each moving player's region, and nobody else's.** Each
+player has a cover of their own, a `ScreenFade` in the `:overlay` band inside
+their region. Their move lands in the sweep after their cover is complete, and
+the cover reveals. A player in no room starts covered, since there is nothing
+on screen to cover. A move asked for during a player's reveal covers again from
+where the reveal got to, as a stack's switch does. `transition:` on one move
+runs another `Fade` for it, and `nil` none.
+
+**A player's camera takes the limits of the room they stand in.** As a move
+lands, each player's camera is bounded by their room's `TileWorld`, whichever
+cameras that room handed its `TileWorld`. Two rooms of different sizes cannot
+set each other's players' limits.
+
+**Start a room's music from `on_requested`**, which fires as the cover begins.
+`on_arrived` fires once the cover is complete, too late for a crossfade over it.

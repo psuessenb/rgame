@@ -24,7 +24,7 @@ The scene graph is `RGame::Engine`, the layer a game is written in:
 
 | Page | Covers |
 |---|---|
-| [Scene graph](scene_graph.md) | `Node2D`, the tree, the lifecycle, transforms and the camera, and the scene stack with its transitions |
+| [Scene graph](scene_graph.md) | `Node2D`, the tree, the lifecycle, transforms and the camera, the scene stack with its transitions, and the rooms players stand apart in |
 | [Components](components.md) | Reusable behaviour attached to a node |
 | [Systems](systems.md) | Services a subtree shares — collision worlds, tile worlds |
 | [Tile maps](tile_maps.md) | `TileMap` — a Tiled map as data: loading, cells, tiles, solidity, layers, objects and the nodes built from them, custom properties |

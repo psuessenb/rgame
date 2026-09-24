@@ -114,6 +114,24 @@ RSpec.describe RGame::Engine::Node2D do
       node.add_node(child)
       expect(node.root).to be(node)
     end
+
+    it 'takes a node from the parent it had' do
+      other = described_class.new
+      other.add_node(child)
+      node.add_node(child)
+      expect([other.children, node.children, child.parent]).to eq([[], [child], node])
+    end
+
+    it 'leaves a node that is already its child where it is, in the tree' do
+      log = []
+      component = SpecLifecycleComponent.new.tap { it.log = log }
+      child.add_component(component)
+      node.enter_tree
+      node.add_node(child)
+      log.clear
+      node.add_node(child)
+      expect([node.children, log]).to eq([[child], []])
+    end
   end
 
   describe '#remove_node' do
