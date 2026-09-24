@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: steps 0 to 8 are implemented.** Sixteen steps. Each is one branch and one
+**Status: steps 0 to 9 are implemented.** Sixteen steps. Each is one branch and one
 pull request, and its sub-steps are one commit each. **Steps 0–12 are detailed.**
 Steps 5–8 were planned after step 4 landed, and steps 9–12 after step 8. What
 each re-plan found comes before its steps:
@@ -1956,6 +1956,70 @@ runs too.
 
 `docs/api/drawing.md` gains both blocks, and `docs/api/scene_graph.md` gains
 `opacity`.
+
+**Landed.** Four sub-steps, one commit each. `make test` 401 checks 0 failures
+(380 at the branch point), `rake spec` 3561 examples 0 failures (3530),
+`rake spec:core` 499 examples 0 failures (483), `rake docs:coverage` nothing
+undocumented, and `rake drive:allocations` passes every project.
+
+The pixels read back exactly. A red quad of (128, 0, 0) added over blue
+(0, 0, 128) reads (128, 0, 128), and the same quad drawn after the block reads
+(128, 0, 0). White faded by half over black reads 128, and by half inside half
+reads 64. An additive quad issued first but sorted last adds only itself, so
+the mode stays with its own draws.
+
+**Every driven run reports what it reported at the branch point**, compared as
+the verify skill describes: 51 scripts under `--seed 4242`, 240 ticks and
+`--texts`, one at a time, against two captures of `main`. The two captures
+differed in `tiled_world_2p` and `tiled_world_inventory`, each dropping a frame
+or two. 50 of the branch's reports match one capture byte for byte, once the
+extension paths in the header are set aside. `pooling` draws the process's own
+allocation rate, and its first second reads 42,620 against 42,616. Its second
+and third seconds match exactly, on two runs of each tree.
+
+What the sketch got wrong:
+
+- **The fake, the renderer and the node had no shared check.** Each would
+  have refused a bad mode or opacity with its own copy of the rule. So
+  `RGame::Util::Blend` holds `MODES`, `mode?`, `index` and `opacity`, the way
+  `Util::Z.offset` serves the renderer and its fake. `Node2D#opacity=` raises
+  exactly what `renderer.faded` raises, and a spec compares the two.
+  Step 10's particles can check their `blend:` with `Blend.mode!` when they are
+  built.
+- **`between?` raises on NaN.** `Float::NAN.between?(0, 1)` raises its own
+  ArgumentError, "comparison of Float with 0 failed", so `Blend.opacity`
+  compares with `>=` and `<=`, and disables `Style/ComparableBetween` with that
+  reason.
+- **No frame starts with a `set_blend`.** The backend's `begin_frame` already
+  sets alpha blending, so the submit loop counts changes from there. A frame
+  with no additive draw calls `set_blend` zero times, and every existing
+  backend test kept its call indices.
+- **Rule 7 is in the shared contract, not only in `spec_core`.** The fake
+  refuses `blended` inside `record` too, as it refuses `clipped`. Rule 6's
+  tests went into `test/test_recording.c`, beside the other replay tests.
+- **The C clamps an opacity, and the Ruby refuses it.** `rgame_canvas_push_opacity`
+  holds a value to 0..1 and takes NaN as 1, as the queue takes a NaN z as 0.
+  The Ruby raises first, so a game never reaches the clamp.
+- **A forwarded block allocates nothing.** `Style/ExplicitBlockArgument` asked
+  `rgame_at_opacity` to pass `&` rather than yield from a block of its own.
+  Measured on this Ruby, forwarding allocates nothing per call, so the cop's
+  form is the one that shipped.
+- **A faded pixel's alpha depends on the platform.** The first push failed on
+  macOS: two pixel specs compared all four channels of half white over black,
+  and blending writes the framebuffer's own alpha too, 0.75 there. macOS keeps
+  that channel and Xvfb has none, so Linux read 255 and passed. The window is
+  opaque either way, so the fade specs compare colour only, as the translucency
+  spec before them already did. A red, green and blue check of the quarter fade
+  passed on macOS, so the colours matched there.
+- **The adventure allocates 36.9 objects a second, where `main` allocates
+  36.4.** The traced difference is 5 of Ruby's call caches at the one new call
+  site in `Node2D#draw`. Each fills once for a node class the adventure first
+  draws after the warm-up, the bag's pages among them. None is per frame.
+
+Documented in [drawing.md](../../api/drawing.md#blending-and-fading),
+[scene_graph.md](../../api/scene_graph.md#opacity) and
+[values.md](../../api/values.md#rgameutilblend), rows in `docs/api/README.md`,
+and an entry in `CHANGELOG.md`.
 
 ---
 

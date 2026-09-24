@@ -14,6 +14,14 @@
 #define RGAME_CLEAR_G 0.1f
 #define RGAME_CLEAR_B 0.15f
 
+/* Both modes scale the source by its own alpha. ALPHA then keeps what is
+ * behind in proportion to what the source leaves uncovered; ADD keeps all of
+ * it, so the two sum. */
+static void gl_set_blend(void *ctx, rgame_blend blend) {
+    (void)ctx;
+    glBlendFunc(GL_SRC_ALPHA, blend == RGAME_BLEND_ADD ? GL_ONE : GL_ONE_MINUS_SRC_ALPHA);
+}
+
 static void gl_begin_frame(void *ctx, int width, int height) {
     rgame_gl_backend *state = ctx;
     state->width = width;
@@ -42,8 +50,10 @@ static void gl_begin_frame(void *ctx, int width, int height) {
      */
     glDisable(GL_DEPTH_TEST);
 
+    /* Every frame starts in ALPHA, whatever the last one ended in: the submit
+     * loop counts its changes from there. */
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    gl_set_blend(ctx, RGAME_BLEND_ALPHA);
 
     /* Clear before the scissor test goes on: glClear obeys the scissor, so
      * clearing afterwards would only clear whatever region was last set. */
@@ -114,6 +124,7 @@ rgame_draw_backend rgame_gl_backend_table(rgame_gl_backend *state) {
     rgame_draw_backend backend = {
         .begin_frame = gl_begin_frame,
         .set_clip = gl_set_clip,
+        .set_blend = gl_set_blend,
         .draw_batch = gl_draw_batch,
         .end_frame = gl_end_frame,
         .ctx = state,

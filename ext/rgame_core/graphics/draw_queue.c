@@ -75,7 +75,7 @@ static rgame_vertex *discard_span(rgame_draw_queue *queue, unsigned int count) {
 }
 
 rgame_vertex *rgame_draw_queue_alloc(rgame_draw_queue *queue, unsigned int count, double z,
-                                     unsigned int texture, rgame_rect clip) {
+                                     unsigned int texture, rgame_rect clip, rgame_blend blend) {
     /* Nothing to draw, or nowhere to draw it: drop before reserving anything. */
     if (count == 0 || rgame_rect_is_empty(clip)) {
         return discard_span(queue, count);
@@ -106,6 +106,7 @@ rgame_vertex *rgame_draw_queue_alloc(rgame_draw_queue *queue, unsigned int count
     command->order = queue->command_count;
     command->texture = texture;
     command->clip = clip;
+    command->blend = blend;
     command->first_vertex = queue->vertex_count;
     command->vertex_count = count;
 
@@ -139,10 +140,12 @@ int rgame_draw_command_compare(const void *lhs, const void *rhs) {
     return a->order > b->order ? 1 : 0;
 }
 
-/* Two commands can share a draw call only if both the texture and the clip
- * match — see the note on `clip` in the header for why the clip is part of it. */
+/* Two commands can share a draw call only if the texture, the clip and the
+ * blend mode all match — see the notes on `clip` and `blend` in the header for
+ * why the last two are part of it. */
 static int batchable_with(const rgame_draw_batch *batch, const rgame_draw_command *command) {
-    return batch->texture == command->texture && rgame_rect_equals(batch->clip, command->clip);
+    return batch->texture == command->texture && batch->blend == command->blend &&
+           rgame_rect_equals(batch->clip, command->clip);
 }
 
 void rgame_draw_queue_prepare(rgame_draw_queue *queue) {
@@ -178,6 +181,7 @@ void rgame_draw_queue_prepare(rgame_draw_queue *queue) {
             rgame_draw_batch *batch = &queue->batches[queue->batch_count++];
             batch->texture = command->texture;
             batch->clip = command->clip;
+            batch->blend = command->blend;
             batch->first_vertex = queue->sorted_count;
             batch->vertex_count = command->vertex_count;
         }

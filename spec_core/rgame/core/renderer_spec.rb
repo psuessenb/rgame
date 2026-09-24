@@ -398,6 +398,89 @@ RSpec.describe RGame::Core::Renderer do
     end
   end
 
+  describe 'blend modes' do
+    def over_blue(mode)
+      RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        renderer.rect(0, 0, 64, 64, z: 1, color: RGame::Util::Color.new(0, 0, 128))
+        renderer.blended(mode) do
+          renderer.rect(0, 0, 32, 64, z: 2, color: RGame::Util::Color.new(128, 0, 0))
+        end
+        renderer.rect(32, 0, 32, 64, z: 2, color: RGame::Util::Color.new(128, 0, 0))
+      end
+    end
+
+    it 'adds a quad drawn :add to what is behind it' do
+      frame = over_blue(:add)
+
+      expect(frame.about?(16, 32, [128, 0, 128, 255])).to be(true)
+      # The same colour drawn after the block covers the blue: the mode was
+      # popped, and a draw outside any block is drawn over.
+      expect(frame.about?(48, 32, [128, 0, 0, 255])).to be(true)
+    end
+
+    it 'draws a quad drawn :alpha over what is behind it' do
+      expect(over_blue(:alpha).about?(16, 32, [128, 0, 0, 255])).to be(true)
+    end
+
+    it 'keeps the mode with its own draws, whatever sorts next to them' do
+      # The additive quad is issued first but drawn last, by z. A mode left
+      # current at submit time would add the plain quad drawn between them.
+      frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        renderer.blended(:add) { renderer.rect(0, 0, 64, 64, z: 3, color: RGame::Util::Color.new(0, 64, 0)) }
+        renderer.rect(0, 0, 64, 64, z: 1, color: RGame::Util::Color.new(0, 0, 128))
+        renderer.rect(0, 0, 64, 64, z: 2, color: RGame::Util::Color.new(128, 0, 0))
+      end
+
+      expect(frame.about?(32, 32, [128, 64, 0, 255])).to be(true)
+    end
+  end
+
+  describe 'opacity' do
+    # A faded draw is translucent, and blending writes the framebuffer's own
+    # alpha as well as its colour: half white over opaque black leaves 0.75
+    # there. macOS's framebuffer keeps that channel, so alpha reads back below
+    # 255, while Xvfb's visual has none and reads 255. The window is opaque
+    # either way, so only the colour is what a player sees, and only the
+    # colour is compared.
+    def colour_at(frame) = frame.at(32, 32).first(3)
+
+    def white_over_black(opacity)
+      RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        renderer.rect(0, 0, 64, 64, z: 1, color: RGame::Util::Color.new(0, 0, 0))
+        renderer.faded(opacity) { renderer.rect(0, 0, 64, 64, z: 2, color: RGame::Util::Color::WHITE) }
+      end
+    end
+
+    it 'draws what is inside #faded at that share of its alpha' do
+      expect(colour_at(white_over_black(0.5))).to all(be_within(1).of(128))
+    end
+
+    it 'multiplies a fade inside another' do
+      frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        renderer.rect(0, 0, 64, 64, z: 1, color: RGame::Util::Color.new(0, 0, 0))
+        renderer.faded(0.5) do
+          renderer.faded(0.5) { renderer.rect(0, 0, 64, 64, z: 2, color: RGame::Util::Color::WHITE) }
+        end
+      end
+
+      expect(colour_at(frame)).to all(be_within(1).of(64))
+    end
+
+    it 'hides what is inside #faded at 0' do
+      expect(colour_at(white_over_black(0))).to eq([0, 0, 0])
+    end
+
+    it 'fades the replay of a recording' do
+      frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        renderer.rect(0, 0, 64, 64, z: 1, color: RGame::Util::Color.new(0, 0, 0))
+        baked = renderer.record { renderer.rect(0, 0, 64, 64, color: RGame::Util::Color::WHITE) }
+        renderer.faded(0.5) { baked.draw(0, 0, z: 2) }
+      end
+
+      expect(colour_at(frame)).to all(be_within(1).of(128))
+    end
+  end
+
   describe 'recordings' do
     # The pure half — what a recording holds and how a replay is offset — is in
     # test/test_recording.c. What needs a real window is the payoff: that a

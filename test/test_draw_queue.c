@@ -15,9 +15,9 @@ static rgame_rect full_clip(void) {
 
 /* Push one 3-vertex primitive whose first vertex x is `tag`, so the sorted
  * output can be read back and identified. */
-static void push_tagged(rgame_draw_queue *q, float tag, double z, unsigned int texture,
-                        rgame_rect clip) {
-    rgame_vertex *v = rgame_draw_queue_alloc(q, 3, z, texture, clip);
+static void push_blended(rgame_draw_queue *q, float tag, double z, unsigned int texture,
+                         rgame_rect clip, rgame_blend blend) {
+    rgame_vertex *v = rgame_draw_queue_alloc(q, 3, z, texture, clip, blend);
     for (int i = 0; i < 3; i++) {
         v[i].x = tag;
         v[i].y = 0.0f;
@@ -28,6 +28,11 @@ static void push_tagged(rgame_draw_queue *q, float tag, double z, unsigned int t
         v[i].rgba[2] = 255;
         v[i].rgba[3] = 255;
     }
+}
+
+static void push_tagged(rgame_draw_queue *q, float tag, double z, unsigned int texture,
+                        rgame_rect clip) {
+    push_blended(q, tag, z, texture, clip, RGAME_BLEND_ALPHA);
 }
 
 /* The tag of the primitive occupying sorted vertex slot `n * 3`. */
@@ -228,6 +233,65 @@ START_TEST(a_clip_change_splits_a_batch) {
 }
 END_TEST
 
+START_TEST(a_blend_change_splits_a_batch) {
+    /* One draw call has one blend mode, so an additive spark between two
+     * alpha-blended quads cannot share either one's call. */
+    rgame_draw_queue q;
+    rgame_draw_queue_init(&q);
+
+    push_blended(&q, 1.0f, 1.0, 7, full_clip(), RGAME_BLEND_ADD);
+    push_blended(&q, 2.0f, 2.0, 7, full_clip(), RGAME_BLEND_ALPHA);
+    push_blended(&q, 3.0f, 3.0, 7, full_clip(), RGAME_BLEND_ADD);
+    rgame_draw_queue_prepare(&q);
+
+    ck_assert_uint_eq(rgame_draw_queue_batch_count(&q), 3);
+    ck_assert_int_eq(rgame_draw_queue_batch(&q, 0)->blend, RGAME_BLEND_ADD);
+    ck_assert_int_eq(rgame_draw_queue_batch(&q, 1)->blend, RGAME_BLEND_ALPHA);
+    ck_assert_int_eq(rgame_draw_queue_batch(&q, 2)->blend, RGAME_BLEND_ADD);
+
+    rgame_draw_queue_destroy(&q);
+}
+END_TEST
+
+START_TEST(commands_in_one_blend_mode_stay_one_batch) {
+    rgame_draw_queue q;
+    rgame_draw_queue_init(&q);
+
+    push_blended(&q, 1.0f, 1.0, 7, full_clip(), RGAME_BLEND_ADD);
+    push_blended(&q, 2.0f, 2.0, 7, full_clip(), RGAME_BLEND_ADD);
+    push_blended(&q, 3.0f, 3.0, 7, full_clip(), RGAME_BLEND_ADD);
+    rgame_draw_queue_prepare(&q);
+
+    ck_assert_uint_eq(rgame_draw_queue_batch_count(&q), 1);
+    ck_assert_int_eq(rgame_draw_queue_batch(&q, 0)->blend, RGAME_BLEND_ADD);
+    ck_assert_uint_eq(rgame_draw_queue_batch(&q, 0)->vertex_count, 9);
+
+    rgame_draw_queue_destroy(&q);
+}
+END_TEST
+
+START_TEST(the_sort_never_reads_the_blend_mode) {
+    /* z and call order decide what is drawn over what. A sort that grouped by
+     * mode to save draw calls would move a spark in front of the wall it was
+     * drawn behind. */
+    rgame_draw_queue q;
+    rgame_draw_queue_init(&q);
+
+    push_blended(&q, 1.0f, 5.0, 0, full_clip(), RGAME_BLEND_ALPHA);
+    push_blended(&q, 2.0f, 5.0, 0, full_clip(), RGAME_BLEND_ADD);
+    push_blended(&q, 3.0f, 5.0, 0, full_clip(), RGAME_BLEND_ALPHA);
+    push_blended(&q, 0.0f, 1.0, 0, full_clip(), RGAME_BLEND_ADD);
+    rgame_draw_queue_prepare(&q);
+
+    for (unsigned int i = 0; i < 4; i++) {
+        ck_assert_float_eq(tag_at(&q, i), (float)i);
+    }
+    ck_assert_uint_eq(rgame_draw_queue_batch_count(&q), 4);
+
+    rgame_draw_queue_destroy(&q);
+}
+END_TEST
+
 START_TEST(batching_happens_after_sorting_not_before) {
     /*
      * The interesting case. Issued as A, B, A — but with z values that sort
@@ -319,7 +383,8 @@ START_TEST(a_dropped_command_still_returns_somewhere_writable) {
     rgame_draw_queue q;
     rgame_draw_queue_init(&q);
 
-    rgame_vertex *span = rgame_draw_queue_alloc(&q, 6, 0.0, 0, rgame_rect_make(0, 0, 0, 0));
+    rgame_vertex *span = rgame_draw_queue_alloc(&q, 6, 0.0, 0, rgame_rect_make(0, 0, 0, 0),
+                                               RGAME_BLEND_ALPHA);
     ck_assert_ptr_nonnull(span);
     for (int i = 0; i < 6; i++) {
         span[i].x = 1.0f;
@@ -336,7 +401,7 @@ START_TEST(a_zero_vertex_command_is_dropped) {
     rgame_draw_queue q;
     rgame_draw_queue_init(&q);
 
-    rgame_vertex *span = rgame_draw_queue_alloc(&q, 0, 1.0, 0, full_clip());
+    rgame_vertex *span = rgame_draw_queue_alloc(&q, 0, 1.0, 0, full_clip(), RGAME_BLEND_ALPHA);
     ck_assert_ptr_nonnull(span);
     ck_assert_uint_eq(rgame_draw_queue_command_count(&q), 0);
 
@@ -441,7 +506,7 @@ START_TEST(vertex_contents_survive_the_sort_intact) {
     rgame_draw_queue q;
     rgame_draw_queue_init(&q);
 
-    rgame_vertex *late = rgame_draw_queue_alloc(&q, 3, 9.0, 0, full_clip());
+    rgame_vertex *late = rgame_draw_queue_alloc(&q, 3, 9.0, 0, full_clip(), RGAME_BLEND_ALPHA);
     for (int i = 0; i < 3; i++) {
         late[i].x = 100.0f + i;
         late[i].y = 200.0f + i;
@@ -573,12 +638,15 @@ Suite *draw_queue_suite(void) {
     tcase_add_test(tc_order, negative_and_fractional_z_sort_correctly);
     tcase_add_test(tc_order, a_nan_z_does_not_corrupt_the_sort);
     tcase_add_test(tc_order, the_comparator_orders_by_z_then_insertion);
+    tcase_add_test(tc_order, the_sort_never_reads_the_blend_mode);
     suite_add_tcase(suite, tc_order);
 
     TCase *tc_batch = tcase_create("batching");
     tcase_add_test(tc_batch, commands_sharing_a_texture_and_clip_become_one_batch);
     tcase_add_test(tc_batch, a_texture_change_splits_a_batch);
     tcase_add_test(tc_batch, a_clip_change_splits_a_batch);
+    tcase_add_test(tc_batch, a_blend_change_splits_a_batch);
+    tcase_add_test(tc_batch, commands_in_one_blend_mode_stay_one_batch);
     tcase_add_test(tc_batch, batching_happens_after_sorting_not_before);
     tcase_add_test(tc_batch, a_batch_returning_to_an_earlier_texture_is_a_new_batch);
     tcase_add_test(tc_batch, batch_vertex_ranges_are_contiguous_and_cover_everything);

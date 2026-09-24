@@ -685,6 +685,71 @@ RSpec.shared_examples 'a renderer' do
     end
   end
 
+  describe 'blend and opacity blocks' do
+    it 'yields inside #blended in either mode and returns what the block returned' do
+      render do |renderer, _image|
+        expect(renderer.blended(:add) { :drew }).to eq(:drew)
+        expect(renderer.blended(:alpha) { :drew }).to eq(:drew)
+      end
+    end
+
+    it 'yields inside #faded at any opacity from 0 to 1' do
+      # 1 skips the push, so it is a second path through the method.
+      render do |renderer, _image|
+        expect(renderer.faded(0) { :drew }).to eq(:drew)
+        expect(renderer.faded(0.5) { :drew }).to eq(:drew)
+        expect(renderer.faded(1) { :drew }).to eq(:drew)
+      end
+    end
+
+    it 'nests, with each other and with the transform blocks' do
+      expect do
+        render do |renderer, image|
+          renderer.faded(0.5) do
+            renderer.blended(:add) do
+              renderer.translated(4, 4) { renderer.faded(0.5) { renderer.image(image, 0, 0) } }
+              renderer.blended(:alpha) { renderer.rect(0, 0, 4, 4) }
+            end
+          end
+        end
+      end.not_to raise_error
+    end
+
+    it 'unwinds a block that raises, and keeps working afterwards' do
+      render do |renderer, _image|
+        expect { renderer.blended(:add) { raise 'from inside the block' } }
+          .to raise_error(RuntimeError, 'from inside the block')
+        expect { renderer.faded(0.5) { raise 'from inside the block' } }
+          .to raise_error(RuntimeError, 'from inside the block')
+
+        renderer.rect(0, 0, 10, 10)
+      end
+    end
+
+    it 'refuses a blend mode it does not know' do
+      render do |renderer, _image|
+        expect { renderer.blended(:multiply) { nil } }
+          .to raise_error(ArgumentError, /unknown blend mode :multiply/)
+        expect { renderer.blended('add') { nil } }.to raise_error(ArgumentError, /unknown blend mode/)
+      end
+    end
+
+    it 'refuses an opacity outside 0 to 1' do
+      render do |renderer, _image|
+        [-0.1, 1.5, Float::NAN].each do |opacity|
+          expect { renderer.faded(opacity) { nil } }.to raise_error(ArgumentError, /outside 0\.\.1/)
+        end
+      end
+    end
+
+    it 'refuses an opacity that is not a number' do
+      render do |renderer, _image|
+        expect { renderer.faded(nil) { nil } }.to raise_error(TypeError)
+        expect { renderer.faded('0.5') { nil } }.to raise_error(TypeError)
+      end
+    end
+  end
+
   describe 'recording' do
     # A recording bakes a block of drawing so it can be replayed for a fraction
     # of the cost. What the contract can state is the shape: `record` takes a
@@ -756,6 +821,21 @@ RSpec.shared_examples 'a renderer' do
         expect { renderer.record { renderer.clipped(0, 0, 5, 5) { nil } } }
           .to raise_error(RuntimeError, /clip/)
       end
+    end
+
+    it 'refuses a blend mode inside the block, because a recording keeps none' do
+      render do |renderer, _image|
+        expect { renderer.record { renderer.blended(:add) { nil } } }
+          .to raise_error(RuntimeError, /blend mode cannot be recorded/)
+      end
+    end
+
+    it 'bakes a fade inside the block' do
+      expect do
+        render do |renderer, _image|
+          renderer.record { renderer.faded(0.5) { renderer.rect(0, 0, 4, 4) } }.draw(0, 0)
+        end
+      end.not_to raise_error
     end
 
     it 'unwinds a block that raises, and can record again afterwards' do

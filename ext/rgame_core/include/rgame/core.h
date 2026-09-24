@@ -549,10 +549,10 @@ int rgame_app_draw_image_rot(rgame_app *app, const rgame_image *image, float cx,
                              float angle_degrees, float scale, unsigned int color, double z);
 
 /*
- * The transform, clip and layer stacks. Every push is undone by the same
- * `rgame_app_pop`, so a caller can never pop the wrong one; a push that cannot
- * be honoured (a full stack) is still counted, so pops stay balanced and the
- * drawing comes out untransformed rather than desynchronised.
+ * The transform, clip, blend, opacity and layer stacks. Every push is undone by
+ * the same `rgame_app_pop`, so a caller can never pop the wrong one; a push
+ * that cannot be honoured (a full stack) is still counted, so pops stay
+ * balanced and the drawing comes out untransformed rather than desynchronised.
  *
  * A clip *narrows*: pushing one can only shrink the visible region, never widen
  * it, so a child can never draw outside what its parent allowed. That is what
@@ -567,6 +567,28 @@ void rgame_app_push_scale(rgame_app *app, float sx, float sy);
  * always succeed as far as the caller is concerned.
  */
 int rgame_app_push_clip(rgame_app *app, int x, int y, int width, int height);
+
+/*
+ * How everything drawn until the matching pop combines with what is behind it:
+ * 0 draws over it at the source's alpha, as every draw does outside any push,
+ * and 1 adds to it, so light drawn on light gets brighter. Any other value is
+ * taken as 0. A push inside another replaces it.
+ *
+ * Returns 0 without pushing if a recording is open, as `rgame_app_push_clip`
+ * does: a recording keeps no blend mode, so replay it inside the push instead.
+ */
+int rgame_app_push_blend(rgame_app *app, int blend);
+
+/*
+ * Fades everything drawn until the matching pop, the replay of a recording
+ * included: each vertex's alpha is multiplied by `opacity` and rounded to the
+ * nearest byte, and its colour is left alone. Pushes multiply, so 0.5 inside
+ * 0.5 draws at a quarter. Values outside 0..1 are clamped to it.
+ *
+ * Unlike a clip or a blend mode it is allowed inside a recording, and is baked
+ * into the vertices it fades.
+ */
+void rgame_app_push_opacity(rgame_app *app, float opacity);
 
 /*
  * The layer stack: what every subsequent `z` is measured from, until the

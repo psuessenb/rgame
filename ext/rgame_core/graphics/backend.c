@@ -25,6 +25,7 @@ void rgame_draw_submit(const rgame_draw_queue *queue, const rgame_draw_backend *
      */
     rgame_rect current_clip = { 0, 0, 0, 0 };
     int have_clip = 0;
+    rgame_blend current_blend = RGAME_BLEND_ALPHA;
 
     const rgame_vertex *vertices = rgame_draw_queue_vertices(queue);
     unsigned int batches = rgame_draw_queue_batch_count(queue);
@@ -38,6 +39,13 @@ void rgame_draw_submit(const rgame_draw_queue *queue, const rgame_draw_backend *
             }
             current_clip = batch->clip;
             have_clip = 1;
+        }
+
+        if (batch->blend != current_blend) {
+            if (backend->set_blend) {
+                backend->set_blend(backend->ctx, batch->blend);
+            }
+            current_blend = batch->blend;
         }
 
         if (backend->draw_batch) {

@@ -2,6 +2,7 @@
 
 require 'rgame/core_ext'
 require_relative 'font'
+require_relative '../util/blend'
 require_relative '../util/color'
 require_relative '../util/z'
 
@@ -59,6 +60,8 @@ module RGame
       Color = RGame::Util::Color
 
       Z = RGame::Util::Z
+
+      Blend = RGame::Util::Blend
 
       DEFAULT_Z = 0
 
@@ -264,6 +267,46 @@ module RGame
       # player a clipped block and you have split-screen.
       def clipped(x, y, width, height)
         push_clip(x, y, width, height)
+        begin
+          yield
+        ensure
+          pop
+        end
+      end
+
+      # Everything drawn in the block combines with what is behind it in `mode`.
+      # `:add` adds its light, so a spark drawn over a torch brightens it.
+      # `:alpha` draws over what is behind, as everything outside a `blended`
+      # block does. A mode inside another replaces it.
+      #
+      #   renderer.blended(:add) { renderer.circle(0, 0, 4, color: SPARK) }
+      #
+      # A mode is kept with each draw, so `z` still decides what is drawn over
+      # what. A recording keeps no blend mode, so one inside `record` raises:
+      # blend the replay instead.
+      def blended(mode)
+        push_blend(Blend.index(mode))
+        begin
+          yield
+        ensure
+          pop
+        end
+      end
+
+      # Everything drawn in the block is faded to `opacity`, from 0, which hides
+      # it, to 1, which changes nothing. Its alpha is multiplied and its colour
+      # kept, and a fade inside another multiplies again: `faded(0.5)` inside
+      # `faded(0.5)` draws at a quarter.
+      #
+      #   renderer.faded(0.4) { renderer.image(:hero, 0, 0) }
+      #
+      # One colour at a changing opacity is how a fade avoids building a new
+      # `Color` every tick. `faded(1)` skips the push, as `rotated(0, …)` does,
+      # and a fade inside `record` is baked into the recording.
+      def faded(opacity)
+        return yield if Blend.opacity(opacity) == 1
+
+        push_opacity(opacity)
         begin
           yield
         ensure

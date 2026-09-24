@@ -43,6 +43,12 @@ static void textured_quad_at(rgame_canvas *c, unsigned int texture, float x, dou
     rgame_canvas_textured_quad(c, texture, xy, uv, RGAME_COLOR_WHITE, z);
 }
 
+static void added_quad_at(rgame_canvas *c, float x, double z) {
+    rgame_canvas_push_blend(c, RGAME_BLEND_ADD);
+    quad_at(c, x, 0.0f, z);
+    rgame_canvas_pop(c);
+}
+
 static rgame_call_kind kind_at(const fixture *f, unsigned int index) {
     return rgame_recording_call(&f->recorder, index)->kind;
 }
@@ -240,6 +246,93 @@ START_TEST(returning_to_an_earlier_clip_sets_it_again) {
 }
 END_TEST
 
+/* --- blend state --- */
+
+START_TEST(a_frame_that_only_draws_over_never_sets_a_blend_mode) {
+    /* begin_frame leaves the backend in ALPHA, so the ordinary frame costs no
+     * blend call at all. */
+    fixture f;
+    fixture_begin(&f);
+    quad_at(&f.canvas, 0.0f, 0.0f, 1.0);
+    textured_quad_at(&f.canvas, 3, 20.0f, 2.0);
+    fixture_submit(&f);
+
+    ck_assert_uint_eq(rgame_recording_count_of(&f.recorder, RGAME_CALL_SET_BLEND), 0);
+
+    fixture_end(&f);
+}
+END_TEST
+
+START_TEST(the_blend_mode_is_set_before_the_draw_that_needs_it) {
+    fixture f;
+    fixture_begin(&f);
+    added_quad_at(&f.canvas, 0.0f, 1.0);
+    fixture_submit(&f);
+
+    /* begin_frame, set_clip, set_blend, draw_batch, end_frame. */
+    ck_assert_int_eq(kind_at(&f, 2), RGAME_CALL_SET_BLEND);
+    ck_assert_int_eq(rgame_recording_call(&f.recorder, 2)->blend, RGAME_BLEND_ADD);
+    ck_assert_int_eq(kind_at(&f, 3), RGAME_CALL_DRAW_BATCH);
+
+    fixture_end(&f);
+}
+END_TEST
+
+START_TEST(an_unchanged_blend_mode_is_not_re_issued_between_batches) {
+    fixture f;
+    fixture_begin(&f);
+    rgame_canvas_push_blend(&f.canvas, RGAME_BLEND_ADD);
+    textured_quad_at(&f.canvas, 1, 0.0f, 1.0);
+    textured_quad_at(&f.canvas, 2, 20.0f, 2.0);
+    rgame_canvas_pop(&f.canvas);
+    fixture_submit(&f);
+
+    ck_assert_uint_eq(rgame_recording_count_of(&f.recorder, RGAME_CALL_DRAW_BATCH), 2);
+    ck_assert_uint_eq(rgame_recording_count_of(&f.recorder, RGAME_CALL_SET_BLEND), 1);
+
+    fixture_end(&f);
+}
+END_TEST
+
+START_TEST(returning_to_alpha_sets_it_again) {
+    fixture f;
+    fixture_begin(&f);
+    added_quad_at(&f.canvas, 0.0f, 1.0);
+    quad_at(&f.canvas, 20.0f, 0.0f, 2.0);
+    fixture_submit(&f);
+
+    /* begin_frame, set_clip, set_blend, draw_batch, set_blend, draw_batch. */
+    ck_assert_uint_eq(rgame_recording_count_of(&f.recorder, RGAME_CALL_SET_BLEND), 2);
+    ck_assert_int_eq(kind_at(&f, 4), RGAME_CALL_SET_BLEND);
+    ck_assert_int_eq(rgame_recording_call(&f.recorder, 4)->blend, RGAME_BLEND_ALPHA);
+    ck_assert_int_eq(kind_at(&f, 5), RGAME_CALL_DRAW_BATCH);
+
+    fixture_end(&f);
+}
+END_TEST
+
+START_TEST(every_frame_starts_in_alpha) {
+    /* The loop counts changes from ALPHA each frame, not from wherever the
+     * last frame ended. A frame that ended additive, followed by one that
+     * starts additive, has to ask for it again. */
+    fixture f;
+    fixture_begin(&f);
+    added_quad_at(&f.canvas, 0.0f, 1.0);
+    fixture_submit(&f);
+
+    rgame_recording_backend_destroy(&f.recorder);
+    rgame_recording_backend_init(&f.recorder);
+    rgame_canvas_begin_frame(&f.canvas, 800, 600);
+    added_quad_at(&f.canvas, 0.0f, 1.0);
+    fixture_submit(&f);
+
+    ck_assert_uint_eq(rgame_recording_count_of(&f.recorder, RGAME_CALL_SET_BLEND), 1);
+    ck_assert_int_eq(kind_at(&f, 2), RGAME_CALL_SET_BLEND);
+
+    fixture_end(&f);
+}
+END_TEST
+
 START_TEST(clips_and_draws_interleave_rather_than_being_grouped) {
     /*
      * Order matters, not just counts: each scissor must be issued immediately
@@ -401,6 +494,14 @@ Suite *backend_suite(void) {
     tcase_add_test(tc_clip, clips_and_draws_interleave_rather_than_being_grouped);
     tcase_add_test(tc_clip, split_screen_reaches_the_backend_as_two_clipped_draws);
     suite_add_tcase(suite, tc_clip);
+
+    TCase *tc_blend = tcase_create("blend");
+    tcase_add_test(tc_blend, a_frame_that_only_draws_over_never_sets_a_blend_mode);
+    tcase_add_test(tc_blend, the_blend_mode_is_set_before_the_draw_that_needs_it);
+    tcase_add_test(tc_blend, an_unchanged_blend_mode_is_not_re_issued_between_batches);
+    tcase_add_test(tc_blend, returning_to_alpha_sets_it_again);
+    tcase_add_test(tc_blend, every_frame_starts_in_alpha);
+    suite_add_tcase(suite, tc_blend);
 
     TCase *tc_partial = tcase_create("partial_backend");
     tcase_add_test(tc_partial, a_backend_with_null_hooks_is_simply_skipped);

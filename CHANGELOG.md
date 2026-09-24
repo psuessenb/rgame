@@ -14,6 +14,13 @@ index, not the argument.
 
 ### Added
 
+- **Light that adds, and drawing that fades.** `Renderer#blended(:add)` adds
+  what is drawn inside it to what is behind, and `Renderer#faded(opacity)`
+  multiplies its alpha, nested fades multiplying again. Neither changes draw
+  order. `Node2D#opacity` fades a node and its whole subtree. `RGame::Util::Blend`
+  lists the modes and checks an opacity. See
+  [docs/api/drawing.md](docs/api/drawing.md#blending-and-fading) and
+  [docs/api/scene_graph.md](docs/api/scene_graph.md#opacity).
 - **A menu lays its buttons out in a grid.** `RGame::Engine::UI::Grid` places
   them in rows of `columns:` slots, and `UI::Stepping` moves across it: left and
   right along a row, up and down along a column, each line wrapping inside

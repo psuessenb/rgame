@@ -35,8 +35,10 @@
  * per-frame path marshals arguments for no benefit.
  */
 typedef struct {
+    /* Starts the frame in RGAME_BLEND_ALPHA, which the submit loop relies on. */
     void (*begin_frame)(void *ctx, int width, int height);
     void (*set_clip)(void *ctx, rgame_rect clip);
+    void (*set_blend)(void *ctx, rgame_blend blend);
     void (*draw_batch)(void *ctx, unsigned int texture, const rgame_vertex *vertices,
                        unsigned int count);
     void (*end_frame)(void *ctx);
@@ -47,13 +49,17 @@ typedef struct {
  * Walks a *prepared* queue and drives the backend:
  *
  *     begin_frame
- *       set_clip / draw_batch ... (per batch, clip only when it changes)
+ *       set_clip / set_blend / draw_batch ... (per batch, each state only
+ *                                              when it changes)
  *     end_frame
  *
  * `set_clip` is issued only when the rectangle actually differs from the last
- * one set. Batches split on either texture or clip, so two adjacent batches
- * often share a clip and differ only in texture — re-issuing an identical
- * scissor for each would be a wasted state change every frame.
+ * one set. Batches split on texture, clip or blend mode, so two adjacent
+ * batches often share a clip and differ only in texture — re-issuing an
+ * identical scissor for each would be a wasted state change every frame.
+ *
+ * `set_blend` follows the same rule, counting from the RGAME_BLEND_ALPHA that
+ * begin_frame leaves. A frame that never asks for another mode never calls it.
  *
  * begin_frame and end_frame are called even for an empty queue: the real
  * backend still has to clear and present the frame.

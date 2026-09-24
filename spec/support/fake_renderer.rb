@@ -272,6 +272,19 @@ class FakeRenderer
   def translated(dx, dy, &) = within(:translated, [number(dx), number(dy)], &)
   def scaled(sx, sy = sx, &) = within(:scaled, [number(sx), number(sy)], &)
 
+  # Blend and opacity blocks, recorded like the transform blocks, so a spec can
+  # read which of them a call was drawn inside off its `transforms`. Both run
+  # the check the real renderer runs, from RGame::Util::Blend.
+  def blended(mode, &)
+    RGame::Util::Blend.index(mode)
+    # The real renderer's recording keeps no blend mode, and refuses one.
+    raise 'a blend mode cannot be recorded — wrap the replay in #blended instead' if @recording
+
+    within(:blended, [mode], &)
+  end
+
+  def faded(opacity, &) = within(:faded, [RGame::Util::Blend.opacity(opacity)], &)
+
   def clipped(x, y, width, height, &)
     # The real renderer cannot bake a clip — clipping happens when pixels are
     # rasterised — so neither may this, or a scene would pass its specs and

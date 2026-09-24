@@ -71,11 +71,31 @@
  * ancestors happened to pick.
  *
  * ---------------------------------------------------------------------------
+ * The blend mode travels with each command
+ * ---------------------------------------------------------------------------
+ *
+ * `push_blend` sets how everything drawn until the matching pop combines with
+ * what is behind it. Like the clip, the mode is copied into each command as it
+ * is queued, because the sort reorders commands and a mode left current at
+ * draw time would reach the wrong ones. A push *replaces* the mode rather than
+ * combining with it, and the stack starts in RGAME_BLEND_ALPHA.
+ *
+ * ---------------------------------------------------------------------------
+ * Opacity travels with each vertex
+ * ---------------------------------------------------------------------------
+ *
+ * `push_opacity` fades everything drawn until the matching pop. The canvas
+ * multiplies it into each vertex's alpha as it writes the vertex, as it applies
+ * the transform, so the sort cannot move it and the batching never sees it.
+ * Nested pushes multiply, so half inside half draws at a quarter: a node fades
+ * with its parent and by its own amount at once. The stack starts at 1.
+ *
+ * ---------------------------------------------------------------------------
  * One pop for any push
  * ---------------------------------------------------------------------------
  *
- * `push_translate`, `push_rotate`, `push_scale`, `push_clip` and `push_layer`
- * are all undone by the same `pop`. The canvas remembers which stack each push
+ * `push_translate`, `push_rotate`, `push_scale`, `push_clip`, `push_layer`,
+ * `push_blend` and `push_opacity` are all undone by the same `pop`. The canvas remembers which stack each push
  * went to, so a caller never has to — and cannot pop the wrong one. Pushes that
  * could not be honoured (a full stack) are still counted, so pop stays balanced
  * and the drawing comes out untransformed rather than desynchronised.
@@ -84,15 +104,22 @@
 /* Deep enough for any sane scene graph, like the two stacks it sits beside. */
 #define RGAME_LAYER_STACK_DEPTH 32
 
+/* As deep as the layer stack: a blend mode is pushed per effect, at most once
+ * per node. */
+#define RGAME_BLEND_STACK_DEPTH 32
+
+/* As deep as the blend stack, for the same reason: at most once per node. */
+#define RGAME_OPACITY_STACK_DEPTH 32
+
 /* How many independent slot counters a frame has. RGame::Util::Z uses four;
  * the spare room costs four unsigned ints. */
 #define RGAME_LAYER_BANDS 8
 
-/* Deep enough that it cannot fill before all three underlying stacks have;
- * pushes beyond that are counted rather than recorded, so balance always
- * holds. */
-#define RGAME_CANVAS_STACK_DEPTH \
-    (RGAME_TRANSFORM_STACK_DEPTH + RGAME_CLIP_STACK_DEPTH + RGAME_LAYER_STACK_DEPTH)
+/* Deep enough that it cannot fill before every underlying stack has; pushes
+ * beyond that are counted rather than recorded, so balance always holds. */
+#define RGAME_CANVAS_STACK_DEPTH                                                   \
+    (RGAME_TRANSFORM_STACK_DEPTH + RGAME_CLIP_STACK_DEPTH + RGAME_LAYER_STACK_DEPTH + \
+     RGAME_BLEND_STACK_DEPTH + RGAME_OPACITY_STACK_DEPTH)
 
 typedef struct {
     rgame_transform_stack transforms;
@@ -103,6 +130,15 @@ typedef struct {
      * is the number of pushes outstanding and entries[layer_depth] is current. */
     double layers[RGAME_LAYER_STACK_DEPTH];
     int layer_depth;
+
+    /* blends[0] is RGAME_BLEND_ALPHA, and blends[blend_depth] is current. */
+    rgame_blend blends[RGAME_BLEND_STACK_DEPTH];
+    int blend_depth;
+
+    /* opacities[0] is 1, and each entry is the product of every push so far,
+     * so opacities[opacity_depth] is what a vertex's alpha is multiplied by. */
+    float opacities[RGAME_OPACITY_STACK_DEPTH];
+    int opacity_depth;
 
     /* Slots handed out per band this frame. Reset by begin_frame. */
     unsigned int slots[RGAME_LAYER_BANDS];
@@ -121,9 +157,10 @@ void rgame_canvas_init(rgame_canvas *canvas);
 void rgame_canvas_destroy(rgame_canvas *canvas);
 
 /*
- * Starts a frame: empties the queue (keeping its buffers), resets all three
- * stacks and the slot counters, and sets the clip base to the window. Re-stating the size every frame is also
- * how a resize takes effect, so there is no separate path to forget.
+ * Starts a frame: empties the queue (keeping its buffers), resets every stack
+ * and the slot counters, and sets the clip base to the window. Re-stating the
+ * size every frame is also how a resize takes effect, so there is no separate
+ * path to forget.
  */
 void rgame_canvas_begin_frame(rgame_canvas *canvas, int width, int height);
 
@@ -144,6 +181,26 @@ void rgame_canvas_push_layer(rgame_canvas *canvas, double base);
 
 /* The base currently in effect. */
 double rgame_canvas_layer(const rgame_canvas *canvas);
+
+/* Sets how everything drawn until the matching pop combines with what is
+ * behind it. Replaces the mode in effect rather than combining with it. */
+void rgame_canvas_push_blend(rgame_canvas *canvas, rgame_blend blend);
+
+/* The blend mode currently in effect. */
+rgame_blend rgame_canvas_blend(const rgame_canvas *canvas);
+
+/*
+ * Fades everything drawn until the matching pop: each vertex's alpha is
+ * multiplied by `opacity`, and by every opacity pushed around it, and rounded
+ * to the nearest byte. Its colour is left alone.
+ *
+ * 0 draws at alpha 0 and 1 changes nothing. A value outside 0..1 is clamped to
+ * it, and NaN is taken as 1, as the queue takes a NaN z as 0.
+ */
+void rgame_canvas_push_opacity(rgame_canvas *canvas, float opacity);
+
+/* The product of every opacity pushed so far; 1 outside any push. */
+float rgame_canvas_opacity(const rgame_canvas *canvas);
 
 /*
  * The next slot index in `band`, counting from 0 each frame. Out-of-range bands
@@ -170,7 +227,8 @@ void rgame_canvas_textured_quad(rgame_canvas *canvas, unsigned int texture, cons
 
 /*
  * Replays a baked recording (see recording.h) offset by (dx, dy), at `z`, tinted
- * by `color` — RGAME_COLOR_WHITE leaves the recorded colours alone.
+ * by `color` — RGAME_COLOR_WHITE leaves the recorded colours alone — and faded
+ * by the opacity in effect, as a primitive is.
  *
  * The offset is applied *before* the current transform, so a baked layer moves
  * with the camera it is drawn under and can be placed anywhere without being

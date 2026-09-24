@@ -256,6 +256,34 @@ leave its inherited band says so with `band:`, the one explicit way out.
 opens a layer per node, taking the next slot in the node's band. See
 [Drawing](drawing.md#draw-order) and `RGame::Util::Z`.
 
+### Opacity
+
+**`opacity` fades a node and everything under it.** It runs from 0, which draws
+none of the subtree, to 1, the default, which changes nothing:
+
+```ruby
+ghost.opacity = 0.5   # the ghost, its components and its children, at half their alpha
+```
+
+`Node2D#draw` applies it the way it applies the transform: around the node's
+components, its `_draw` and its children. A child cannot draw outside it, and a
+`_draw` cannot forget it. A child's own `opacity` multiplies with its parent's,
+so 0.5 under 0.5 draws at a quarter. Each node's `opacity` reads back only what
+was set on that node.
+
+To fade a node in or out, change `opacity` in `_update`, from a
+[`Tween`](toolbox.md#tween--a-value-that-moves-over-time) for instance. The
+colours it draws with stay the same, so the fade builds no new `Color` in any
+frame.
+
+**Only drawing changes.** A node at 0 is not drawn at all, but it still takes
+part in `control` and `update`, and its colliders still collide. Hide something
+that should also stop with `paused` as well, or remove it.
+
+Setting `opacity` checks the value at once. A number outside 0..1 raises
+`ArgumentError`, and anything that is not a number raises `TypeError`, as
+[`renderer.faded`](drawing.md#blending-and-fading) does.
+
 ### Who a node answers to
 
 **`control` receives an input source, not one player's snapshot.** The source is
