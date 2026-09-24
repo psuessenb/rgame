@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: steps 0 to 13 are implemented.** Eighteen steps. Each is one branch and one
+**Status: steps 0 to 14 are implemented.** Eighteen steps. Each is one branch and one
 pull request, and its sub-steps are one commit each. **Steps 0–16 are detailed.**
 Steps 5–8 were planned after step 4 landed, steps 9–12 after step 8, and steps
 13–16 after step 12. What each re-plan found comes before its steps:
@@ -3197,6 +3197,65 @@ rooms.define(:garden, music: GARDEN_SONG, priority: 2) { Garden.new }   # nil cl
 nothing claims yet. The device is not touched, so the 'an audio server'
 contract is unchanged. `docs/api/audio.md` gains claims, and says a game uses
 them or the direct calls, not both.
+
+**Landed.** Two sub-steps, one commit each. `make test` 412 checks 0 failures,
+as at the branch point, since no C changed. `rake spec` 3898 examples 0 failures
+(3857), `rake spec:core` 517 examples 0 failures (517), `rake docs:coverage`
+nothing undocumented in 201 classes, and `rake drive:allocations` passes all 39
+projects.
+
+**The rooms play the song the claims choose.** Two players stand in a town of
+priority 1, and the second walks into a garden of priority 2 under a fade of
+half a second each way. The garden is claimed as the move is asked for, before
+`on_requested` fires. Four ticks in, halfway through the cover and the reveal,
+the town plays at 0.5 and the garden at 0.5, and after eight only the garden
+plays. The player walks back, and the town's song returns the same way. Two
+heroes in a forest and a garden, moved to the town together, send the device one
+`play`, the town's. A battle claimed at priority 10 outranks every room, and a
+game's `release_music` cannot end a room's claim.
+
+**Nothing claims yet, so the driven runs report what they reported.**
+`examples/music`, the adventure and `asteroids`, the three projects that play
+music, ran under `--seed 4242` and `--texts` on `main` and on the branch.
+All three matched byte for byte, apart from the paths of the extensions each
+run loaded. The adventure's first run drew 239 frames where `main` drew 237,
+while `drive:allocations` was loading the machine. Run again alone, both drew
+240 and matched.
+
+What the sketch got wrong:
+
+- **Releasing rooms one at a time played a song nobody stood under.** Two heroes
+  in a forest of priority 3 and a garden of priority 2 moved to the town, and
+  the forest's release made the garden win for one call before the town did.
+  `release_music` takes several keys and changes the song once. The rooms claim
+  first and release in one call after: a move claims at most one room, and a
+  claim made first never wins unless it wins at the end too.
+- **`on_requested` fired inside each node's request.** For a move of several
+  nodes, the rooms now ask for every node, change the claims, and then fire
+  `requested` for each, so a handler reads the song the whole move chose.
+- **A world that left the tree kept its rooms' claims.** A stack `replace` of the
+  world with a title would leave the town's song claimed, and the title's
+  `play_music` would raise. The rules did not say; the rooms release every claim
+  at once as their node leaves the tree.
+- **A room's key needed a name for the error.** Rule 5's error names the keys,
+  and a room claims under a key no game holds. The key is a private object that
+  reads `the room :town`.
+- **A held room claims nothing.** Rule 6 counted only the players in a room and
+  on their way to it. A `hold` keeps a room running for what it loads, so it
+  claims no song either.
+- **Releasing a key that holds no claim changes nothing**, rather than raising.
+  A claim left behind still shows: the direct calls raise and name it.
+- **Rule 7's claim from `on_arrived` changes the song under the reveal.** The
+  arrival comes once the cover is complete. A game that wants the song to change
+  over the cover claims from `on_requested`, and the docs say both.
+- **Both `priority:` keywords default to 0,** and `claim_music` refuses a nil
+  song. The sketch gave neither.
+
+Documented in [audio.md](../../api/audio.md#claims), which gains a section for
+claims, and in [scene_graph.md](../../api/scene_graph.md#a-rooms-music), whose
+new section on a room's music replaces the line that told a game to start a
+room's music from `on_requested`. `systems.md`'s row for `AudioOut` names
+claims, and `CHANGELOG.md` has one entry under Added.
 
 ---
 
