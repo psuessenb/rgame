@@ -1081,6 +1081,7 @@ coin.add_component(RGame::Engine::Components::Collectable.new(by: :hero))
 
 A component draws in its node's slot, so put that node where the sparks should
 show, such as a tile map's actors slot, among the characters.
+`examples/effects` streams embers from a torch and bursts sparkles on a key.
 
 ### `PathFollow`
 

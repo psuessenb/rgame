@@ -14,6 +14,16 @@ index, not the argument.
 
 ### Added
 
+- **A fade over the screen.** `RGame::Engine::ScreenFade` covers the view it is
+  drawn into in one colour, reveals it again, and flashes it, emitting
+  `on_finished` at the end of each. See
+  [docs/api/toolbox.md](docs/api/toolbox.md#screenfade--cover-the-view-and-flash-it).
+- **Particles.** `RGame::Engine::Components::Particles` bursts and streams
+  small squares that fall, change colour with age and vanish, allocating
+  nothing once built. `RGame::Util::ColorRamp` answers a colour by how far
+  along it is, and `Engine::Pool#reserve` builds a pool's objects ahead of
+  time. See [docs/api/components.md](docs/api/components.md#particles).
+- **`examples/effects`**: a fade, a flash, sparkles, embers and a lightning bolt.
 - **Light that adds, and drawing that fades.** `Renderer#blended(:add)` adds
   what is drawn inside it to what is behind, and `Renderer#faded(opacity)`
   multiplies its alpha, nested fades multiplying again. Neither changes draw
