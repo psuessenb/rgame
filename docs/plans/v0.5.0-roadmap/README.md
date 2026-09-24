@@ -340,10 +340,12 @@ re-planned. See [what that re-plan found](04-roadmap.md#re-planning-steps-1316).
    deleted it. The landed note keeps the reason. Adding `tools/drive` to the
    stripper's exclusions would keep them, and whether a test project's script
    owes a header is the question. Found in step 12. Blocks nothing.
-8. **Who gives a node back its `paused`?** A move pauses its node and, as the
+8. ~~**Who gives a node back its `paused`?** A move pauses its node and, as the
    reveal ends, gives back the `paused` it found. The adventure's bag pauses its
    hero while open. A bag open when the horn moves its hero, and closed before
-   that move's reveal ends, leaves the hero paused with the bag closed, until
-   the bag opens and closes again. Two owners write one flag, and the last
-   write wins. The run does not do this. A count of pauses, or a pause per
-   owner, would let both hold. Found in step 15. Blocks nothing.
+   that move's reveal ends, leaves the hero paused with the bag closed.~~
+   **Settled — a moving player reads no input until their reveal ends.**
+   `Scene::Rooms` suspends the moving player's input through
+   `Player#suspend_input`, as no scene reads input under a stack's transition
+   ([decision 23](#decisions-already-taken)), so the bag cannot close under the
+   cover, and a press begun there is refused. Found and settled in step 15.
