@@ -252,6 +252,27 @@ is exact below `2**53`. Two different slots therefore never round to the same
 key. If they did, two sprites would swap places between frames, and nobody would
 suspect a precision problem.
 
+## `RGame::Util::Blend`
+
+`Blend` names the blend modes a renderer knows, and checks an opacity. The
+renderer's `blended` and `faded` blocks check their arguments with it, so a bad
+mode or opacity raises the same error wherever it is given.
+
+```ruby
+require 'rgame'
+
+RGame::Util::Blend::MODES           # => [:alpha, :add]
+RGame::Util::Blend.mode?(:add)      # => true
+RGame::Util::Blend.mode?(:multiply) # => false
+RGame::Util::Blend.opacity(0.4)     # => 0.4 — a number from 0 to 1, returned as given
+```
+
+`Blend.opacity` raises `ArgumentError` for a number outside 0..1, NaN included,
+and `TypeError` for anything that is not a number. Check an opacity a game
+hands you when it is set, not when it is drawn, so the error points at the line
+that set it. See
+[Blending and fading](drawing.md#blending-and-fading).
+
 ## `RGame::Util::SaveFile`
 
 `SaveFile` stores a game's saved state as one JSON file.

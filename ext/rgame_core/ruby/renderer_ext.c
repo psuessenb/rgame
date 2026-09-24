@@ -323,6 +323,23 @@ static VALUE renderer_push_clip(VALUE self, VALUE x, VALUE y, VALUE width, VALUE
     return self;
 }
 
+/* #push_blend(index) — a mode's index in RGame::Util::Blend::MODES, which is
+ * the value rgame_app_push_blend takes. */
+static VALUE renderer_push_blend(VALUE self, VALUE blend) {
+    if (!rgame_app_push_blend(drawing_app(self), NUM2INT(blend))) {
+        /* Refused for the reason a clip is: a recording keeps no blend mode,
+         * so the one pushed would be dropped when the replay draws. */
+        rb_raise(rb_eRuntimeError,
+                 "a blend mode cannot be recorded — wrap the replay in #blended instead");
+    }
+    return self;
+}
+
+static VALUE renderer_push_opacity(VALUE self, VALUE opacity) {
+    rgame_app_push_opacity(drawing_app(self), (float)NUM2DBL(opacity));
+    return self;
+}
+
 /*
  * #push_layer(base) / #layer — the base every subsequent z is measured from.
  *
@@ -414,6 +431,8 @@ void rgame_init_renderer(VALUE mCore) {
     rb_define_private_method(cRenderer, "push_rotate", renderer_push_rotate, 3);
     rb_define_private_method(cRenderer, "push_scale", renderer_push_scale, 2);
     rb_define_private_method(cRenderer, "push_clip", renderer_push_clip, 4);
+    rb_define_private_method(cRenderer, "push_blend", renderer_push_blend, 1);
+    rb_define_private_method(cRenderer, "push_opacity", renderer_push_opacity, 1);
     rb_define_private_method(cRenderer, "push_layer", renderer_push_layer, 1);
     rb_define_method(cRenderer, "layer", renderer_layer, 0);
     rb_define_private_method(cRenderer, "next_layer_slot", renderer_next_layer_slot, 1);

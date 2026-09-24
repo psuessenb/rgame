@@ -304,6 +304,53 @@ once per active player, with the layout's rectangles and each player's camera.
 Call `clipped` directly for a region of your own, such as a minimap or a list
 that scrolls by the pixel.
 
+## Blending and fading
+
+Two more blocks change how what is drawn inside them combines with what is
+already on screen. Both undo themselves afterwards, as the transform blocks do.
+
+```ruby
+renderer.blended(mode) { ... }     # :alpha or :add
+renderer.faded(opacity) { ... }    # 0 hides it, 1 changes nothing
+```
+
+**`blended(:add)` adds light to what is behind it.** Each pixel adds its colour,
+scaled by its alpha, to the one beneath. A spark over a torch makes it brighter,
+and one over black shows as it is:
+
+```ruby
+renderer.blended(:add) { renderer.circle(0, 0, 4, color: spark) }
+```
+
+`:alpha` draws over what is behind, as everything outside a `blended` block
+does. A mode inside another replaces it, so `blended(:alpha)` inside
+`blended(:add)` draws one part plainly. Any other mode raises `ArgumentError`,
+with the list in the message; `RGame::Util::Blend::MODES` holds it.
+
+**`faded` multiplies the alpha of everything drawn inside it** and keeps its
+colour. A fade inside another multiplies again, so `faded(0.5)` inside
+`faded(0.5)` draws at a quarter. An opacity outside 0..1, NaN included, raises
+`ArgumentError`, and anything but a number raises `TypeError`.
+
+```ruby
+renderer.faded(0.4) { renderer.image(:hero, 0, 0) }
+```
+
+`faded` is how something fades without a new colour every frame. A `Color` is a
+frozen value, so building one a tick allocates an object a tick. Keep one colour
+and change the opacity instead:
+
+```ruby
+def _update(dt) = @fade.update(dt)
+def _draw(renderer, view) = renderer.faded(@fade.value) { renderer.rect(0, 0, view.width, view.height, color: BLACK) }
+```
+
+`faded(1)` skips the push, as `rotated(0, …)` does.
+
+**Neither changes draw order.** The renderer keeps each draw's mode and opacity
+with the draw itself, so `z` alone decides what is drawn over what. An additive
+spark at a lower `z` than a wall is still drawn under the wall.
+
 ## Recordings: bake once, replay cheaply
 
 **`record` bakes a block of drawing, and a replay costs one call per texture.** A
@@ -351,6 +398,11 @@ Pushing a clip inside a `record` block raises. Clip the replay instead:
 ```ruby
 @renderer.clipped(0, 0, 400, 600) { @ground.draw(-@camera.x, -@camera.y) }
 ```
+
+**A blend mode cannot be recorded either**, and `blended` inside a `record`
+block raises for the same reason. Blend the replay. A `faded` block inside
+`record` is baked in, because opacity is part of each vertex's colour. A replay
+inside `faded` is faded, after its `color:` tint.
 
 Recordings do not nest. A block that raises leaves no half-built recording
 behind. A recording keeps its baked images alive, so dropping a sprite sheet

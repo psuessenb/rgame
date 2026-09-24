@@ -175,5 +175,12 @@ RSpec.describe FakeRenderer do
 
       expect(renderer.calls_to(:translated).map(&:args)).to eq([[5, 7]])
     end
+
+    it 'records a blend or an opacity block as it records a transform' do
+      renderer.faded(0.5) { renderer.blended(:add) { renderer.rect(0, 0, 1, 1) } }
+
+      rect = renderer.calls_to(:rect).first
+      expect(rect.transforms.map { [it.name, it.args] }).to eq([[:faded, [0.5]], [:blended, [:add]]])
+    end
   end
 end

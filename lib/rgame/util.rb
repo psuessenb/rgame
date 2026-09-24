@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative 'util/blend'
 require_relative 'util/color'
 require_relative 'util/controls'
 require_relative 'util/route_search'
