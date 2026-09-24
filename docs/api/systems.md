@@ -174,7 +174,10 @@ pause.
 
 The overlay samples once a tick, in `update`, so the second it covers is a second
 of `dt`. OBJ/s and GC ms read 0 for the first second after the channel goes
-on.
+on. It reads the collector's time only on a tick in which a collection started,
+or the collector's running total passed a whole millisecond. So a quiet tick
+allocates nothing on any platform. Lazy sweeping of under a millisecond that
+follows a collection counts toward the next tick the time is read on.
 
 **`:shapes`** is drawn by the things that have shapes rather than by `Debug`
 itself. A `BoxCollider` draws its box and a `CircleCollider` its circle, each in

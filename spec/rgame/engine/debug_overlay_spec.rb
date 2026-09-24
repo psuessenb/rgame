@@ -189,6 +189,23 @@ RSpec.describe RGame::Engine::DebugOverlay do
         expect(gc_ms).to eq(as_ms([first, second].max))
       end
 
+      # On 64-bit Windows an Integer past 2**30 is a Bignum, and GC.total_time,
+      # in nanoseconds, passes that after a second of collecting. From then on
+      # every read of it allocates there, so a quiet tick must not read it.
+      it 'reads the collector clock only on a tick the collector worked in' do
+        GC.start
+        overlay.update(0.1)
+        allow(GC).to receive(:total_time).and_call_original
+        GC.disable
+        begin
+          3.times { overlay.update(0.1) }
+        ensure
+          GC.enable
+        end
+
+        expect(GC).not_to have_received(:total_time)
+      end
+
       it 'reads 0.0 for a second in which the collector never ran' do
         GC.start
         overlay.update(1.0)

@@ -34,6 +34,16 @@ module RGame
     # passing 1.0. Drawing shows numbers already taken. OBJ/s and GC ms read 0
     # until the first whole second after #restart.
     #
+    # **It reads the collector's clock only on a tick the collector worked
+    # in**: when `GC.count` moved, or the whole milliseconds of
+    # `GC.stat(:time)` did. `GC.total_time` counts nanoseconds, and on 64-bit
+    # Windows an Integer of 2**30 or more is a Bignum, so after a second of
+    # collecting every read of it allocates there. Lazy sweeping that adds
+    # less than a millisecond after a collection's tick is counted on the next
+    # tick the clock is read. The same limit reaches OBJ once the process has
+    # allocated 2**30 objects, and nothing here avoids it: `GC.stat` answers
+    # with the Bignum.
+    #
     # Drawing must not allocate, or the overlay would count itself. A cached
     # String would still be rebuilt each time a number changed, and every
     # rebuild allocates. So each digit is drawn on its own, from a fixed set of
@@ -73,6 +83,8 @@ module RGame
       def restart
         @allocated = GC.stat(:total_allocated_objects)
         @window_allocated = @allocated
+        @gc_count = GC.count
+        @gc_ms = GC.stat(:time)
         @gc_ns = GC.total_time
         @worst_gc_ns = 0
         @elapsed = 0.0
@@ -85,9 +97,7 @@ module RGame
       # it publishes that second's OBJ/s and GC ms and starts the next.
       def update(dt)
         @allocated = GC.stat(:total_allocated_objects)
-        gc_ns = GC.total_time
-        @worst_gc_ns = gc_ns - @gc_ns if gc_ns - @gc_ns > @worst_gc_ns
-        @gc_ns = gc_ns
+        time_collector if collector_worked?
         @elapsed += dt
         close_window if @elapsed >= WINDOW_SECONDS
       end
@@ -117,6 +127,23 @@ module RGame
       end
 
       private
+
+      def collector_worked?
+        count = GC.count
+        ms = GC.stat(:time)
+        return false if count == @gc_count && ms == @gc_ms
+
+        @gc_count = count
+        @gc_ms = ms
+        true
+      end
+
+      def time_collector
+        gc_ns = GC.total_time
+        spent = gc_ns - @gc_ns
+        @worst_gc_ns = spent if spent > @worst_gc_ns
+        @gc_ns = gc_ns
+      end
 
       def close_window
         @per_second = (@allocated - @window_allocated).fdiv(@elapsed).round
