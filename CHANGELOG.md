@@ -18,7 +18,8 @@ index, not the argument.
   `node.y_sort = true`, draws its children by `z`, then lower on the screen
   later, then in the order added. A child stands at the bottom edge of its
   `BoxCollider` box, or at its `y` if it has none. `control` and `update` keep
-  the order they had. See
+  the order they had. `TileMapLayer.mount` y-sorts every gap it leaves, and
+  `mount(..., y_sort: false)` does not. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md#y-sort).
 - **Rooms that players stand apart in.** `RGame::Engine::Scene::Rooms` runs
   every room a player stands in, each a `Scene::Room` built anew as it starts

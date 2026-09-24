@@ -293,7 +293,8 @@ a second list of its children for drawing and sorts it on every draw. The sort
 allocates nothing.
 
 `y_sort` is off by default, and a node can turn it on or off at any time with
-`node.y_sort = true`. UI does not use it, because its order is structural: a
+`node.y_sort = true`. [`TileMapLayer.mount`](components.md#tileworld) turns it
+on for the gaps it leaves between tile layers. UI does not use it, because its order is structural: a
 list opens over the buttons below it.
 
 ### Opacity

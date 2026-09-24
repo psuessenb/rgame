@@ -117,7 +117,8 @@ end
 # A tile outline, moved a tile at a time. It knows which tile it is on and whether
 # that tile can be stood on; what confirming *means* is the scene's business, so it
 # only reports the tile's centre. Every size and position it draws at comes from the
-# world, which is what knows how big a tile is.
+# world, which is what knows how big a tile is. Its `z: 1` keeps it over the hero,
+# wherever the two stand in the y-sorted actors' gap.
 class Cursor < RGame::Engine::Node2D
   WALKABLE = RGame::Util::Color.rgba(120, 230, 120, 255)
   SOLID = RGame::Util::Color.rgba(240, 90, 90, 255)
@@ -126,7 +127,7 @@ class Cursor < RGame::Engine::Node2D
   signal :confirmed, :world_x, :world_y
 
   def initialize(col:, row:, world:, camera:)
-    super()
+    super(z: 1)
     @world = world
     @col = col
     @row = row
@@ -174,7 +175,8 @@ end
 #
 # The path's waypoints are where the hero's *origin* goes — its sprite's top-left
 # corner — while the route was planned for the middle of its feet. Adding the feet
-# box's centre back puts the lines on the ground the dots are on.
+# box's centre back puts the lines on the ground the dots are on. Its `z: -1` keeps
+# the route on the ground, under the hero walking it.
 class Route < RGame::Engine::Node2D
   DOT = RGame::Util::Color.rgba(255, 255, 255, 200)
   LINE = RGame::Util::Color.rgba(255, 220, 60, 255)
@@ -182,7 +184,7 @@ class Route < RGame::Engine::Node2D
   HALF_DOT = DOT_SIZE / 2
 
   def initialize(hero:, world:)
-    super()
+    super(z: -1)
     @hero = hero
     @world = world
   end

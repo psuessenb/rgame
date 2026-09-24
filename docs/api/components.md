@@ -1369,6 +1369,15 @@ map lacks raises `KeyError` listing its layers, when `mount` runs. Gaps under th
 same layer draw in the order declared. An object layer gets no node, since it has
 nothing to draw. Nothing here picks a `z`.
 
+**Every gap is [y-sorted](scene_graph.md#y-sort)**, so actors in one gap draw by
+where they stand: a hero walking below a chest draws in front of it. A side-view
+game passes `y_sort: false`, and its gaps draw their children in `z` order and
+then in the order added:
+
+```ruby
+slots = RGame::Engine::TileMapLayer.mount(world, y_sort: false)
+```
+
 ### `Timer`
 
 **A node-driven interval timer.** It runs in the node's update tick, so nothing can
