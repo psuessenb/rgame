@@ -27,7 +27,23 @@ module RGame
     # the device by method name, so it names no Core class, and the 'an audio
     # server' contract in rgame's own suite checks the stand-ins against the
     # real device.
+    #
+    # **Music can be claimed instead of played.** Each claim has a key, a song
+    # and a priority, and the claim with the highest priority plays:
+    #
+    #   out.claim_music(:battle, 'battle.ogg', priority: 10, fade: 0.3)
+    #   out.release_music(:battle, fade: 1.0)   # back to whatever the other claims choose
+    #
+    # A Scene::Rooms claims each room's song this way, so a battle claimed over
+    # every room outranks them all. A tie goes to the latest claim. The song
+    # crossfades only when the winner changes, over the `fade:` of the call
+    # that changed it. While any claim holds, `play_music`, `crossfade` and
+    # `stop_music` raise: a song with two owners would be fought over without
+    # a word. A game uses claims or those calls, not both.
     class AudioOut < Component
+      Claim = Struct.new(:song, :priority)
+      private_constant :Claim
+
       # `audio` is the sound device: anything answering the calls below by name,
       # as RGame::Core::Audio does.
       def initialize(audio)
@@ -39,6 +55,8 @@ module RGame
         @falling = nil
         @current = nil
         @paused = false
+        @claims = {}
+        @claimed = nil
       end
 
       def play_sound(id) = @audio.play_sound(id)
@@ -48,22 +66,16 @@ module RGame
       # sent exactly the one call it would be sent without a fade. A song on its
       # way out comes back up from where it is, rather than starting again.
       def play_music(id, fade: 0)
-        seconds = seconds!(:fade, fade)
-        level = level_of(id)
-        @falling = nil if @falling == id
-        bring_in(id, level, seconds)
+        unclaimed!(:play_music)
+        start_music(id, seconds!(:fade, fade))
       end
 
       # Stops the current song, or with `fade:` lowers it to silence over that
       # many seconds and stops it on the tick it arrives. A song still on its
       # way out of a crossfade stops at once.
       def stop_music(fade: 0)
-        seconds = seconds!(:fade, fade)
-        if seconds.zero?
-          stop_at_once
-        elsif @current
-          fade_out(@current, seconds)
-        end
+        unclaimed!(:stop_music)
+        end_music(seconds!(:fade, fade))
         nil
       end
 
@@ -73,14 +85,40 @@ module RGame
       # still on its way out, and brings the one that was coming in down from
       # where it is.
       def crossfade(id, over:)
-        seconds = seconds!(:over, over)
-        return play_music(id, fade: seconds) if @current.nil? || @current == id
-
-        level = level_of(id)
-        @falling = nil if @falling == id
-        fade_out(@current, seconds)
-        bring_in(id, level, seconds)
+        unclaimed!(:crossfade)
+        cross_to(id, seconds!(:over, over))
       end
+
+      # Claims the music for `key`, any object, with the song `id` at
+      # `priority`. Claiming a key again replaces its song and priority, and
+      # makes it the latest claim. When the song the claims choose changes, it
+      # crossfades over `fade` seconds.
+      def claim_music(key, id, priority: 0, fade: 0)
+        raise ArgumentError, "claim_music(#{key.inspect}) needs a song, not nil" if id.nil?
+        raise TypeError, "a claim's priority is a number, not #{priority.inspect}" unless priority.is_a?(Numeric)
+
+        seconds = seconds!(:fade, fade)
+        @claims.delete(key)
+        @claims[key] = Claim.new(id, priority)
+        follow_claims(seconds)
+        self
+      end
+
+      # Ends the claim each key holds, if it holds one. When the song the
+      # claims choose changes, it crossfades over `fade` seconds. Several keys
+      # released in one call change the song once, to what the claims left
+      # choose. Releasing the last claim fades the music to silence and stops
+      # it.
+      def release_music(*keys, fade: 0)
+        seconds = seconds!(:fade, fade)
+        released = false
+        keys.each { released = true if @claims.delete(it) }
+        follow_claims(seconds) if released
+        self
+      end
+
+      # The song the claims chose, or nil while nothing claims the music.
+      def claimed_music = @claimed
 
       # Holds the music and its fade where they are: the current song, or the
       # song a `stop_music(fade:)` is lowering. A song on its way out of a
@@ -111,6 +149,50 @@ module RGame
       end
 
       private
+
+      def start_music(id, seconds)
+        level = level_of(id)
+        @falling = nil if @falling == id
+        bring_in(id, level, seconds)
+      end
+
+      def end_music(seconds)
+        if seconds.zero?
+          stop_at_once
+        elsif @current
+          fade_out(@current, seconds)
+        end
+      end
+
+      def cross_to(id, seconds)
+        return start_music(id, seconds) if @current.nil? || @current == id
+
+        level = level_of(id)
+        @falling = nil if @falling == id
+        fade_out(@current, seconds)
+        bring_in(id, level, seconds)
+      end
+
+      def follow_claims(seconds)
+        winner = winning_song
+        return if winner == @claimed
+
+        @claimed = winner
+        winner.nil? ? end_music(seconds) : cross_to(winner, seconds)
+      end
+
+      def winning_song
+        best = nil
+        @claims.each_value { |claim| best = claim if best.nil? || claim.priority >= best.priority }
+        best&.song
+      end
+
+      def unclaimed!(call)
+        return if @claims.empty?
+
+        raise "#{call} while the music is claimed by #{@claims.keys.map(&:inspect).join(', ')}. " \
+              'A game uses claims or the direct calls, not both: claim_music the song instead'
+      end
 
       def level_of(id)
         return nil if id.nil?
