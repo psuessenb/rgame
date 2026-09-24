@@ -1,0 +1,7 @@
+# The English table: every string this example draws.
+en:
+  help:
+    walk: "Arrows / WASD / gamepad to walk. The brown square is a gate, the violet ones warp"
+  place:
+    town: In the town
+    garden: In the garden

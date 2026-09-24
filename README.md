@@ -110,6 +110,7 @@ You can learn more about how it works in the [documentation](docs/api/README.md)
 | [save_load_ids](docs/api/examples.md#save_load_ids) | A save that has to name things, and why a reference forces ids |
 | [localization](docs/api/examples.md#localization) | The same screen in two languages, switched and remembered |
 | [intro](docs/api/examples.md#intro) | A story broken into lines and pages that differ per language, typed out a character at a time |
+| [doors](docs/api/examples.md#doors) | A gate between two maps and a pair of warp pads, placed in Tiled |
 | [pathfinding](docs/api/examples.md#pathfinding) | Setting a target for an actor and let if find its way there |
 | [dialogue](docs/api/examples.md#dialogue) | A branching conversation in a dialogue box, and nothing else |
 | [quests_and_dialogue](docs/api/examples.md#quests_and_dialogue) | A village where talking moves a quest on, and one save keeps both |
