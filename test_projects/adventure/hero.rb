@@ -3,13 +3,13 @@
 # One player's character: a sprite, a feet box, a body the map stops, and a
 # camera that follows them.
 #
-# Nothing in it names a player. The room sets `input_owner` once, and
+# Nothing in it names a player. The world sets `input_owner` once, and
 # PlayerController reads whatever that resolves to — which is what lets the same
 # class serve both seats with nothing configured.
 #
 # `blocked_by: %i[tiles crate]` is the whole collision setup, and `pushes:
 # [:crate]` turns the crates from walls into things that move. The feet box is
-# also what a coin waits for and what the room's broadphase indexes, so one shape
+# also what a coin waits for and what the town's broadphase indexes, so one shape
 # serves being stopped, pushing, being seen and picking things up.
 #
 # A Grab on the default `:grab` action, Left Shift or the pad's Y, drags a crate

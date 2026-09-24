@@ -10,6 +10,11 @@
 #
 # It draws which way the last push moved it, as a word, so a driven run can tell
 # a push from a pull: "crate" until something moves it, then "east" or "west".
+#
+# Where it stands and which way it last moved are kept in Facts, under keys
+# made from the one the room names. It reads them as it is built, and writes
+# them on each tick it has moved, so a room built anew puts the crate back where
+# it was left.
 class Crate < RGame::Engine::Node2D
   SIZE = 16
 
@@ -17,20 +22,35 @@ class Crate < RGame::Engine::Node2D
 
   LABELS = { still: 'crate', east: 'east', west: 'west' }.freeze
 
-  def initialize(**)
-    super
+  KEPT = %w[x y way].freeze
+
+  def initialize(facts:, key:, x:, y:)
+    @keys = KEPT.map { :"#{key}_#{it}" }.freeze
+    x_key, y_key, way_key = @keys
+    super(x: @kept_x = facts.fetch(x_key, x), y: @kept_y = facts.fetch(y_key, y))
     add_component(RGame::Engine::Components::BoxCollider.new(width: SIZE, height: SIZE, layer: :crate))
     @pushable = add_component(RGame::Engine::Components::Pushable.new(blocked_by: %i[tiles crate hero]))
-    @way = :still
+    @facts = facts
+    @way = facts.fetch(way_key, 'still').to_sym
   end
 
   def _update(_dt)
     pushed = @pushable.pushed_x
     @way = pushed.positive? ? :east : :west unless pushed.zero?
+    keep unless x == @kept_x && y == @kept_y
   end
 
   def _draw(renderer, _view)
     renderer.rect(0, 0, SIZE, SIZE, color: COLOR)
     renderer.text(LABELS.fetch(@way), 0, -12)
+  end
+
+  private
+
+  def keep
+    x_key, y_key, way_key = @keys
+    @facts[x_key] = @kept_x = x
+    @facts[y_key] = @kept_y = y
+    @facts[way_key] = @way.name
   end
 end

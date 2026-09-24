@@ -997,7 +997,8 @@ When the garden's player walks back to the town, the town's song comes back.
 
 - **The claims change as a move is asked for**, before `on_requested` fires. A
   new song crossfades over the move's cover and reveal together, or at once for
-  a move with no transition.
+  a move with no transition. A player in no room starts covered, so a room's
+  song fades in over their reveal alone.
 - **A move of several nodes changes the song once**, to the song of the rooms
   they end in.
 - **A room a `hold` keeps with nobody in it claims nothing.**

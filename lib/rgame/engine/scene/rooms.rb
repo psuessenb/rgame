@@ -59,9 +59,10 @@ module RGame
       #   rooms.define(:garden, music: 'garden.ogg', priority: 2) { Garden.new }
       #
       # The claims change as a move is asked for, so a new song crossfades over
-      # the move's cover and reveal together. The key a room claims under is
-      # its own, and no game can release it. The rooms release every claim at
-      # once as their node leaves the tree.
+      # the move's cover and reveal together, or over the reveal alone for a
+      # player in no room, whose cover is complete from the start. The key a
+      # room claims under is its own, and no game can release it. The rooms
+      # release every claim at once as their node leaves the tree.
       class Rooms < Engine::Component
         # Fired once for each node a move names, as the move is asked for, with
         # the node and the name of the room it goes to.
@@ -169,12 +170,10 @@ module RGame
           transition = checked_transition(transition)
           if nodes.is_a?(Array)
             nodes.all? { checked_node(it) }
-            nodes.each { ask(it, to, entrance, transition) }
-            claim_songs(transition)
+            claim_songs(nodes.map { ask(it, to, entrance, transition) }.max || 0)
             nodes.each { requested_signal.emit(node: it, name: to) }
           else
-            ask(checked_node(nodes), to, entrance, transition)
-            claim_songs(transition)
+            claim_songs(ask(checked_node(nodes), to, entrance, transition))
             requested_signal.emit(node: nodes, name: to)
           end
           self
@@ -241,15 +240,18 @@ module RGame
           @moves.delete_if { it.node.equal?(moving) }
           @moves << Move.new(moving, name, entrance, player)
           pause(moving, player)
+          at_once = player && @room_of[player].nil?
           cover = transition ? cover_for(player) : @covers[player] if player
-          cover&.curtain&.close(transition, at_once: @room_of[player].nil?)
+          cover&.curtain&.close(transition, at_once:)
+          return 0 unless transition
+
+          at_once ? transition.reveal : transition.cover + transition.reveal
         end
 
-        def claim_songs(transition)
+        def claim_songs(fade)
           return if @songs.empty?
 
           @out ||= node.system!(Engine::AudioOut)
-          fade = transition ? transition.cover + transition.reveal : 0
           @songs.each do |name, song|
             next if @claimed.key?(name) || !wanted?(name)
 

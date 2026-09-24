@@ -8,13 +8,16 @@ require_relative 'chest'
 require_relative 'coin'
 require_relative 'crate'
 require_relative 'debug_toggle'
+require_relative 'door'
+require_relative 'garden'
 require_relative 'hero'
 require_relative 'item'
 require_relative 'lever'
-require_relative 'room'
 require_relative 'shell'
 require_relative 'sparkles'
 require_relative 'storm'
+require_relative 'town'
+require_relative 'world'
 
 WIDTH  = 640
 HEIGHT = 480
