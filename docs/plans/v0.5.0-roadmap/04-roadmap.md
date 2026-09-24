@@ -2004,6 +2004,13 @@ What the sketch got wrong:
   `rgame_at_opacity` to pass `&` rather than yield from a block of its own.
   Measured on this Ruby, forwarding allocates nothing per call, so the cop's
   form is the one that shipped.
+- **A faded pixel's alpha depends on the platform.** The first push failed on
+  macOS: two pixel specs compared all four channels of half white over black,
+  and blending writes the framebuffer's own alpha too, 0.75 there. macOS keeps
+  that channel and Xvfb has none, so Linux read 255 and passed. The window is
+  opaque either way, so the fade specs compare colour only, as the translucency
+  spec before them already did. A red, green and blue check of the quarter fade
+  passed on macOS, so the colours matched there.
 - **The adventure allocates 36.9 objects a second, where `main` allocates
   36.4.** The traced difference is 5 of Ruby's call caches at the one new call
   site in `Node2D#draw`. Each fills once for a node class the adventure first
