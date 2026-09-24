@@ -83,6 +83,37 @@ a.frozen?         # => true
 A frozen colour is safe to hand to two sprites. Neither can change it under the
 other.
 
+## `RGame::Util::ColorRamp`
+
+A `ColorRamp` builds the colours between two colours once, and answers one by
+how far along it is. Every channel moves in a straight line, alpha included.
+
+```ruby
+require 'rgame'
+
+Color = RGame::Util::Color
+EMBER = RGame::Util::ColorRamp.new(Color.new(255, 240, 160), Color.new(255, 120, 0, 0), steps: 5)
+
+EMBER.at(0)     # => Color.new(255, 240, 160) — the colour it was given
+EMBER.at(0.5)   # => Color.new(255, 180, 80, 128)
+EMBER.at(3)     # => Color.new(255, 120, 0, 0) — held at the end
+EMBER.steps     # => 5
+```
+
+Building a `Color` allocates an object, so a colour built every tick is 60
+objects a second. `at` returns one of the colours the ramp built, and
+allocates nothing. So a particle whose colour changes with its age reads it
+from a ramp in `_draw`.
+
+| | |
+|---|---|
+| `ColorRamp.new(from, to, steps: 64)` | `steps` colours from `from` to `to`, both ends included. `steps` must be an Integer of at least 2, and `from` and `to` must be `Color`s. |
+| `at(t)` | The colour nearest `t` of the way along. `at(0)` and `at(1)` return `from` and `to` themselves. A `t` below 0, or NaN, answers `from`, and above 1 answers `to`. |
+| `from` `to` `steps` | What it was built with. |
+
+To fade a whole node rather than change its hue, set its
+[`opacity`](scene_graph.md#opacity) instead.
+
 ## `RGame::Util::Tensor`
 
 `Tensor` is a fixed-size three-dimensional grid, addressed as `[x, y, z]`. One

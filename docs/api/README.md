@@ -17,7 +17,7 @@ or write C.
 | [Text](text.md) | `RGame::Core::Font`, `Renderer#text`, `RGame::Util::Typeface` and `RGame::Engine::Paragraph` |
 | [Audio](audio.md) | `RGame::Core::Audio`, `Sample`, `Song` — samples and streamed music — and `Engine::AudioOut`, the system a node plays them through |
 | [Assets](assets.md) | `RGame::Core::AssetManager`, `SpriteSheet`, `NineSlice`, `UiAtlas`, `TileMapRenderer` |
-| [Values](values.md) | `RGame::Util::Color`, `Tensor`, `SolidGrid`, `RouteSearch`, `TileSweep`, `Z`, `Blend`, `SaveFile` |
+| [Values](values.md) | `RGame::Util::Color`, `ColorRamp`, `Tensor`, `SolidGrid`, `RouteSearch`, `TileSweep`, `Z`, `Blend`, `SaveFile` |
 | [Examples](examples.md) | What each program under `examples/` demonstrates |
 
 The scene graph is `RGame::Engine`, the layer a game is written in:
