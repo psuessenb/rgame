@@ -1,7 +1,7 @@
 # Y-sort
 
-**Status: planned; nothing is implemented.** Four steps. Each is one branch and
-one pull request, and its sub-steps are one commit each. **Steps 1 and 2 are
+**Status: step 1 is implemented.** Four steps. Each is one branch and one pull
+request, and its sub-steps are one commit each. **Steps 1 and 2 are
 detailed.** Step 3 is rough and gets re-planned once step 2 lands. Step 4 folds
 the plan back and deletes it.
 
@@ -431,6 +431,43 @@ does not change. Nothing allocates.
   other page that mentions `mount` say what the code now does, per
   [write-docs](../../.claude/skills/write-docs/SKILL.md). `CHANGELOG.md` has an
   entry.
+
+**Landed.** `Node2D` takes `y_sort:` and answers `y_sort` and `y_sort=`. A
+sorted node keeps a second array of its children for drawing and
+insertion-sorts it on each draw by `z`, footing, then the order added.
+`TileMapLayer.mount` sorts its gaps unless passed `y_sort: false`. It landed on
+the `y-sort` branch in two commits, after the plan's own commit.
+
+- `rake spec`: 3839 examples, 0 failures, 20 of them new. `rake spec:core`:
+  517, 0 failures. `make test`: 412 checks, 0 failures. `rake drive:allocations`:
+  every project within budget.
+- Rule 7, the invariant, is pinned by `node2d_spec.rb`. Pointing the draw order
+  at `@children` itself instead of a copy fails all three new examples there.
+- Seeded `--texts` drives of all 12 runs that mount a gap, before and after:
+  every draw count, text count and sound is the same. `examples/pathfinding` and
+  `examples/block_puzzle` are byte-identical, so the three `z`s keep the order
+  they replaced. The other ten differ only in order: the first or last call
+  falls on a different actor, and rows with equal counts swap places in the
+  listing. In `test_projects/adventure` the lever's label now draws before the
+  chest's.
+- Allocations against `ff9122f`, same projects: equal, except
+  `examples/block_puzzle` at 3.3 objects a second instead of 3.1. The two extra
+  objects are `IMEMO/callcache` at the comparison in `rgame_draws_after?`: Ruby's
+  inline cache taking a new receiver class the first time a block and the hero
+  meet after warm-up. It happens once per pair of classes, not every frame.
+- **1a and 1b are one commit.** Footing has no caller and no public way to test
+  before the sort exists, so a 1a commit alone would have been untested code.
+- **A `FeetCollider` in a sorted parent needs its node's size before the first
+  draw.** Its `box` raises on a 0×0 node, and the sort reads `box`. In a game
+  the sprite sets the size on attach, before any draw. A spec that draws a tree
+  it never entered has to give the node a size. Step 2 removes the guard.
+- **Not checked by eye.** Walking round the spiky ball in
+  `examples/collision_tiles` and two heroes crossing in
+  `test_projects/adventure` still need someone at a window.
+- Documented in `docs/api/scene_graph.md` (a new "Y-sort" section),
+  `drawing.md` (the slot step), `components.md` (`mount`'s gaps) and
+  `tile_maps.md` (tiles do not sort with actors). `CHANGELOG.md` has one entry
+  under Added.
 
 ### Step 2 — the sprites agree on an anchor
 
