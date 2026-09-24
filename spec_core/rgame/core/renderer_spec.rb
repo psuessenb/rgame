@@ -436,6 +436,14 @@ RSpec.describe RGame::Core::Renderer do
   end
 
   describe 'opacity' do
+    # A faded draw is translucent, and blending writes the framebuffer's own
+    # alpha as well as its colour: half white over opaque black leaves 0.75
+    # there. macOS's framebuffer keeps that channel, so alpha reads back below
+    # 255, while Xvfb's visual has none and reads 255. The window is opaque
+    # either way, so only the colour is what a player sees, and only the
+    # colour is compared.
+    def colour_at(frame) = frame.at(32, 32).first(3)
+
     def white_over_black(opacity)
       RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
         renderer.rect(0, 0, 64, 64, z: 1, color: RGame::Util::Color.new(0, 0, 0))
@@ -444,7 +452,7 @@ RSpec.describe RGame::Core::Renderer do
     end
 
     it 'draws what is inside #faded at that share of its alpha' do
-      expect(white_over_black(0.5).about?(32, 32, [128, 128, 128, 255], tolerance: 1)).to be(true)
+      expect(colour_at(white_over_black(0.5))).to all(be_within(1).of(128))
     end
 
     it 'multiplies a fade inside another' do
@@ -455,12 +463,11 @@ RSpec.describe RGame::Core::Renderer do
         end
       end
 
-      red, green, blue, = frame.at(32, 32)
-      expect([red, green, blue]).to all(be_within(1).of(64))
+      expect(colour_at(frame)).to all(be_within(1).of(64))
     end
 
     it 'hides what is inside #faded at 0' do
-      expect(white_over_black(0).about?(32, 32, [0, 0, 0, 255], tolerance: 0)).to be(true)
+      expect(colour_at(white_over_black(0))).to eq([0, 0, 0])
     end
 
     it 'fades the replay of a recording' do
@@ -470,7 +477,7 @@ RSpec.describe RGame::Core::Renderer do
         renderer.faded(0.5) { baked.draw(0, 0, z: 2) }
       end
 
-      expect(frame.about?(32, 32, [128, 128, 128, 255], tolerance: 1)).to be(true)
+      expect(colour_at(frame)).to all(be_within(1).of(128))
     end
   end
 
