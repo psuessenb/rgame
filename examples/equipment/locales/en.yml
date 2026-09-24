@@ -1,0 +1,22 @@
+# The English table: every string this example draws.
+en:
+  help:
+    keys: Arrows move. Enter wears a piece or empties a slot. Q and E switch pages.
+  tabs:
+    gear: Gear
+    bag: Bag
+  slots:
+    head: Head
+    body: Body
+    feet: Feet
+  outfit:
+    empty: Nothing
+    worn: Worn
+    carried: In the bag
+  pieces:
+    straw_hat: Straw hat
+    pointed_hat: Pointed hat
+    cloak: Cloak
+    tunic: Tunic
+    boots: Boots
+    sandals: Sandals
