@@ -487,7 +487,7 @@ OPENING.frozen?             # => true
 | `wait n` | `n` seconds have passed | ends it |
 | `hold { \|c\| ... }` | what its block returns emits `on_finished` | runs the block, then calls `finish` on what it returned |
 | `talk { \|c\| ... }` | the `Engine::Dialogue` its block returns emits `on_ended` | runs the block, then calls the dialogue's `finish` |
-| `press` | the cutscene's player presses `ui_confirm` | ends it |
+| `press`, `press :action` | the cutscene's player presses `ui_confirm`, or the action named | ends it |
 
 - **A `hold` waits on anything answering `on_finished` and `finish`:** a
   [`Components::Tween`](components.md#tween) on a camera's node, a
@@ -505,9 +505,11 @@ OPENING.frozen?             # => true
 - **What `build` refuses:** a script with no steps, a `run`, `hold` or `talk`
   with no block, and a `press` with one raise `ArgumentError`. A `wait` that is
   not a number raises `TypeError`, and one that is not positive
-  `ArgumentError`. `Script.new` is private, so every script is checked.
+  `ArgumentError`. A `press` naming anything but a Symbol raises `TypeError`.
+  `Script.new` is private, so every script is checked.
 - **Reading one:** `steps` is a frozen Array of `Script::Step`s, each with its
-  `kind`, one of `Script::KINDS`, the `seconds` of a `wait`, and the `block`.
+  `kind`, one of `Script::KINDS`, the `seconds` of a `wait`, the `action` of a
+  `press`, and the `block`.
   `size` is how many there are.
 
 ## `Camera` — follow a point, clamp to the world

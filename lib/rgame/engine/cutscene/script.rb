@@ -12,6 +12,7 @@ module RGame
       #     hold { |c| c.pan_to('square') }   # ends on what it returns emitting on_finished
       #     talk { |c| c.say(MAYOR) }          # ends on the Dialogue it returns emitting on_ended
       #     press                              # ends on ui_confirm
+      #     press :carry_on                    # ends on the action named
       #     run { |c| c.open_gate }            # ends at once
       #   end
       #
@@ -24,7 +25,7 @@ module RGame
       # | `wait n` | `n` seconds have passed | ends it |
       # | `hold` | what its block returns emits `on_finished` | runs the block, then `finish`es what it returned |
       # | `talk` | the `Dialogue` its block returns emits `on_ended` | runs the block, then `finish`es the dialogue |
-      # | `press` | the cutscene's player presses `ui_confirm` | ends it |
+      # | `press` | the cutscene's player presses `ui_confirm`, or the action named | ends it |
       #
       # So a skipped cutscene leaves the world where watching it would have:
       # every `run` has run, and every walk and fade stands at its end. A
@@ -36,8 +37,9 @@ module RGame
         KINDS = %i[run wait hold talk press].freeze
 
         # One step: its `kind`, one of `KINDS`, the `seconds` a `wait` lasts,
-        # and the `block` a `run`, `hold` or `talk` calls.
-        Step = Data.define(:kind, :seconds, :block)
+        # the `action` a `press` waits for, and the `block` a `run`, `hold` or
+        # `talk` calls.
+        Step = Data.define(:kind, :seconds, :action, :block)
 
         # Builds a script from the block, which runs against a `Builder`, and
         # returns it frozen. Raises `ArgumentError` for a script with no steps
@@ -84,7 +86,7 @@ module RGame
             raise TypeError, "wait takes a number of seconds, not #{seconds.inspect}" unless seconds.is_a?(Numeric)
             raise ArgumentError, "wait takes a positive number of seconds, not #{seconds}" unless seconds.positive?
 
-            @steps << Step.new(:wait, seconds.to_f, nil)
+            @steps << Step.new(:wait, seconds.to_f, nil, nil)
             self
           end
 
@@ -98,12 +100,14 @@ module RGame
           # such as a `UI::DialogueBox`.
           def talk(&block) = add(:talk, block)
 
-          # A step that ends when the cutscene's player presses `ui_confirm`.
-          # Takes no block.
-          def press(&block)
-            raise ArgumentError, 'press takes no block; it ends on ui_confirm' if block
+          # A step that ends when the cutscene's player presses `action`,
+          # `ui_confirm` unless named. Takes no block. Raises `TypeError` for an
+          # action that is not a Symbol.
+          def press(action = :ui_confirm, &block)
+            raise ArgumentError, 'press takes no block; it ends on a press of its action' if block
+            raise TypeError, "press takes an action, a Symbol, not #{action.inspect}" unless action.is_a?(Symbol)
 
-            @steps << Step.new(:press, nil, nil)
+            @steps << Step.new(:press, nil, action, nil)
             self
           end
 
@@ -112,7 +116,7 @@ module RGame
           def add(kind, block)
             raise ArgumentError, "#{kind} needs a block, called with the cutscene's context" unless block
 
-            @steps << Step.new(kind, nil, block)
+            @steps << Step.new(kind, nil, nil, block)
             self
           end
         end

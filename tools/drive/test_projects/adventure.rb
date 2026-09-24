@@ -1,4 +1,8 @@
+allocation_budget objects_per_second: 90
+
 on controls::KEYBOARD do
+  idle 40
+  hold controls::KEY_TAB, 40
   idle 42
   hold controls::KEY_UP, 40
   hold [controls::KEY_UP, controls::KEY_LEFT], 10
@@ -69,7 +73,7 @@ on controls::KEYBOARD do
 end
 
 on controls.gamepad(0) do
-  idle 62
+  idle 142
   press controls::PAD_A
   idle 10
   hold controls::PAD_DPAD_DOWN, 60
@@ -94,9 +98,11 @@ on controls.gamepad(0) do
   hold controls::PAD_DPAD_RIGHT, 6
   hold controls::PAD_DPAD_UP, 164
   idle 50
+  press controls::PAD_A
+  idle 2
   hold controls::PAD_DPAD_RIGHT, 36
   hold controls::PAD_DPAD_UP, 92
-  idle 190
+  idle 186
   hold controls::PAD_DPAD_RIGHT, 27
   hold controls::PAD_DPAD_UP, 44
   idle 90

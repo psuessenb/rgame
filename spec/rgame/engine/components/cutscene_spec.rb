@@ -108,6 +108,28 @@ RSpec.describe RGame::Engine::Components::Cutscene do
       expect([stage.marks, cutscene.ended?]).to eq([[[:start, 0], [:done, 4]], true])
     end
 
+    it 'wait for the action a press names' do
+      play(script do
+        press :skip
+        run { |c| c.mark(:pressed) }
+      end)
+      tick
+      backend.hold(controls::KEY_RETURN)
+      2.times { tick }
+      backend.hold(controls::KEY_TAB)
+      3.times { tick }
+      expect(stage.marks).to eq([[:pressed, 5]])
+    end
+
+    it 'read every player on a node Players#everyone owns' do
+      scene.input_owner = players.everyone
+      cutscene = play(script { press })
+      tick
+      backend.hold(controls::PAD_A, device: controls.gamepad(0))
+      tick
+      expect(cutscene).to be_ended
+    end
+
     it 'wait for the player\'s confirm on a press' do
       cutscene = play(script do
         press

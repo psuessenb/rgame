@@ -25,9 +25,9 @@ module RGame
       # scene for the one player who walked into it, while the others play on.
       #
       # **It reads its node's player**, the primary one unless the game sets
-      # `input_owner`. A `press` step waits for that player's `ui_confirm`, and
-      # a press begun before the cutscene started counts for neither it nor the
-      # skip.
+      # `input_owner`, or every player for a node `Players#everyone` owns. A
+      # `press` step waits for that player's press, and a press begun before
+      # the cutscene started counts for neither it nor the skip.
       #
       # **`skip:` names an action the game declares with `hold:`**, so a player
       # has to mean it. Its press finishes the step under way, runs each
@@ -108,8 +108,9 @@ module RGame
           @since = actions.poll_count if @since.equal?(UNSEEN)
           if @skip && fresh?(actions, @skip)
             @skip_asked = true
-          elsif @script.steps[@index].kind == :press && fresh?(actions, :ui_confirm)
-            @step_done = true
+          else
+            step = @script.steps[@index]
+            @step_done = true if step.kind == :press && fresh?(actions, step.action)
           end
         end
 

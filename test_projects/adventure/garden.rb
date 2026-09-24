@@ -4,7 +4,8 @@
 # the horn.
 #
 # It is built as the first hero walks through the town's gate and freed once
-# nobody is left in it. Nothing in it changes, so it keeps nothing in Facts.
+# nobody is left in it. The first hero ever to arrive reads its Sign, a scene
+# for that player alone, and Facts remember it was read.
 #
 # Its doors come from the map. The gate leads back to the town. A pad is a
 # `warp`, a door into this same room, so it hands over its own name: stepping
@@ -48,5 +49,16 @@ class Garden < RGame::Engine::Scene::Room
     hero.x = spot.x + (Town::SPACING * hero.input_owner.id)
     hero.y = spot.y
     @actors.add_node(hero)
+    read_the_sign(hero)
+  end
+
+  private
+
+  def read_the_sign(hero)
+    facts = system!(RGame::Engine::Components::Facts)
+    return if facts[:sign_read]
+
+    facts[:sign_read] = true
+    @actors.add_node(Sign.new(hero:))
   end
 end

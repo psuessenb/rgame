@@ -580,9 +580,9 @@ and ends in the same town whether it is watched or skipped.
   split and running. `pause:` naming the node it rides, or a node above it,
   raises `ArgumentError`, since the cutscene would never run.
 - **Its player:** it reads its node's player, the primary one unless the game
-  sets `input_owner`. A `press` step waits for that player's `ui_confirm`. A
-  press begun before the cutscene started counts for neither a `press` nor the
-  skip.
+  sets `input_owner`. On a node `Players#everyone` owns, it reads every player.
+  A `press` step waits for that player's press of its action. A press begun
+  before the cutscene started counts for neither a `press` nor the skip.
 - **Skipping:** `skip:` names an action the game declares with `hold:`, so a
   tap does not skip. Its press finishes the step under way, runs each remaining
   step's skip in order, and ends. A skip leaves the world where watching would

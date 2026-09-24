@@ -8,9 +8,11 @@ RSpec.describe RGame::Engine::Cutscene::Script do
       hold { |c| c }
       talk { |c| c }
       press
+      press :carry_on
     end
-    expect([script.steps.map(&:kind), script.steps[1].seconds, script.size, script.frozen?,
-            script.steps.frozen?]).to eq([%i[run wait hold talk press], 1.0, 5, true, true])
+    expect([script.steps.map(&:kind), script.steps[1].seconds, script.steps.last(2).map(&:action), script.size,
+            script.frozen?, script.steps.frozen?])
+      .to eq([%i[run wait hold talk press press], 1.0, %i[ui_confirm carry_on], 6, true, true])
   end
 
   it 'keeps each block to call with the context' do
@@ -34,8 +36,9 @@ RSpec.describe RGame::Engine::Cutscene::Script do
       end
     end
 
-    it 'a press with a block' do
+    it 'a press with a block, or naming an action that is not a Symbol' do
       expect { described_class.build { press { nil } } }.to raise_error(ArgumentError, /press takes no block/)
+      expect { described_class.build { press 'go' } }.to raise_error(TypeError, /a Symbol/)
     end
 
     it 'a wait that is not a number, or not positive' do
