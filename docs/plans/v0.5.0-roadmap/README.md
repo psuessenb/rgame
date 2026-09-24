@@ -1,9 +1,9 @@
 # The rest of the README roadmap
 
-**Status: steps 0 to 8 are implemented.** Steps 0–8 of
-[the roadmap](04-roadmap.md) are detailed, 5–8 planned after step 4 landed.
-Steps 9–15 are deliberately rough and get re-planned once the layer beneath them
-exists.
+**Status: steps 0 to 8 are implemented.** Steps 0–12 of
+[the roadmap](04-roadmap.md) are detailed: 5–8 planned after step 4 landed, and
+9–12 after step 8. Steps 13–15 are deliberately rough and get re-planned once
+the layer beneath them exists.
 
 | File | What it holds |
 |---|---|
@@ -23,9 +23,9 @@ cutscenes. Tiled support is the tenth item and has
 
 ## Verdict
 
-**Eight of the nine are engine-layer Ruby over parts that already exist. One is
-C.** Nothing here needs a new subsystem, and no item is a plan of its own the
-way dialogue was.
+**Seven of the nine are engine-layer Ruby over parts that already exist.
+Visual effects and audio need some C as well.** Nothing here needs a new
+subsystem, and no item is a plan of its own the way dialogue was.
 
 | Item | The shape it takes | Steps |
 |---|---|---|
@@ -34,8 +34,8 @@ way dialogue was.
 | Collectables | `Interactor` extends `Targeting`; `Collectable` frees its node | 1 |
 | Push and pull | `pushes:` on `Mover`, a `Pushable` mover, a `Grab` component | 2 |
 | Inventory | `UI::Grid`, `Stepping` over a grid, `UI::FocusGroup`, `UI::Tabs` over a `Menu`, scrolling | 3 |
-| Visual effects | a fade node, `Components::Particles`, a bolt — plus blend modes in C | 2 |
-| Audio | fades, a crossfade, pause and resume, a volume per category | 1 |
+| Visual effects | a fade node, `Components::Particles`, a bolt — plus blend modes and opacity in C | 2 |
+| Audio | fades, a crossfade, pause and resume, a volume per category a game names | 1 |
 | Scenes | `SceneStack` defers and names its scenes; transitions; doors | 2 |
 | Cutscenes | a linear sequencer over `Engine::Tween` | 1 |
 
@@ -43,9 +43,10 @@ way dialogue was.
 
 1. **The tween**, which landed before this plan. A fade, a crossfade, a camera
    move, a sliding crate and a cutscene's wait are all one.
-2. **The fade**, which is a tween and a rect the width of a view. A door uses
-   it, a cutscene uses it, a storm's flash is it with another colour, and a
-   lightning bolt's afterglow is it again.
+2. **The fade**, which is a tween, a rect the width of a view and the node's own
+   opacity. A door uses it, a cutscene uses it, and a storm's flash is it with
+   another colour. A lightning bolt's afterglow is the same opacity on the
+   bolt.
 3. **"What is nearest in range on this layer"**, which `Components::Targeting`
    already answers for a turret. Interacting asks the same question for another
    reason, so `Interactor` extends it rather than asking it again.
@@ -57,11 +58,13 @@ feel. The gate changes what a node reads after it was paused, hidden or not yet
 in the tree. In both cases the driven examples decide whether anything a
 player feels changed.
 
-**The C step is blend modes, and it stays inside OpenGL 1.1.**
+**The C step is blend modes and opacity, and it stays inside OpenGL 1.1.**
 `glBlendFunc(GL_SRC_ALPHA, GL_ONE)` is core 1.0, so additive drawing needs no
 loader and no render target — see [01](01-current-state.md#f12). The work is in
 the draw queue: a blend mode has to travel with each command, as the clip does,
-because sorting reorders them.
+because sorting reorders them. Opacity travels with each vertex, as the
+transform does. Audio needs C too, for a volume per category and for resuming a
+song, and none of it touches GL.
 
 **Where the features meet is a test project, not a spec.** Nine features each
 verified alone is the failure CLAUDE.md names: two systems, both green, that
@@ -91,8 +94,8 @@ Taken at `9abd338`, on this checkout.
 ## Hard constraints
 
 1. **The engine layer may not name `RGame::Core`.** Everything here is
-   `RGame::Engine`, with two exceptions: step 10's blend modes, which are Core
-   and C, and step 11's audio entry points.
+   `RGame::Engine`, with two exceptions: step 9's blend modes and opacity, which
+   are Core and C, and step 11's audio entry points.
 2. **One runtime gem dependency, `rexml`, and no more.**
 3. **Text a player reads is a translation key**, drawn through `Engine::Text`.
    `Game/NoLiteralText` holds it for `lib/` and `examples/`.
@@ -180,13 +183,44 @@ re-litigation inside the plan.
     [step 7](04-roadmap.md#step-7--a-node-reads-only-the-presses-it-saw-start),
     before the screens that first pause a hero.
 
+Decisions 20 to 24 were taken in a question round when steps 9–12 were
+re-planned. See [what that re-plan found](04-roadmap.md#re-planning-steps-912).
+
+20. **Steps 9–12 are detailed together, and 13 and 14 stay rough.** Step 12's
+    transition is sketched on step 10's fade before the fade exists, as step 8
+    was sketched on steps 5–7.
+21. **No second music track ships.** A second loop would add about 6.5% to a
+    1.64 MB gem. `examples/music` shows fades, pause and resume, and category
+    volumes on its one track. The adventure, which does not ship, carries a
+    second track under `test_projects/adventure/`, and its door crossfades
+    between the rooms' music. So no shipped example shows a crossfade, and
+    `docs/api/audio.md` does.
+22. **A colour that changes every tick has two answers.** A `Color` is frozen,
+    and building one a tick is 60 objects a second, the whole default budget.
+    `Util::ColorRamp` builds a colour's steps once, for a particle whose hue
+    moves over its life. `renderer.faded` multiplies the alpha of everything
+    drawn inside it, and `Node2D#opacity` fades a node and its whole subtree
+    with it. The second is C, so it lands in step 9 beside the blend mode,
+    before the fade built on it.
+23. **No scene reads input during a transition.** The scene leaving stands
+    still under the cover, and the scene arriving runs under the reveal. A hero
+    keeps its last intent until something sets another, so a scene that ran
+    without input would walk its hero on into the dark. The press gate refuses
+    any press begun during the transition.
+24. **A game names its own volume categories.** A song plays under `:music` and
+    a sample under `:effects`, unless registered under another name. The device
+    holds a group per name in C, sixteen at most, and a name nothing was
+    registered under raises rather than changing nothing.
+
 ## Open questions
 
-1. **Which second music track, and is it worth 90 KB in the gem?** The
+1. ~~**Which second music track, and is it worth 90 KB in the gem?** The
    crossfade example needs two loops, and `examples/assets/` has one.
    `examples/assets/README.md` already measured four candidates from the same
    CC0 pack for seam and tail silence. Waits on step 11. Blocks nothing before
-   it.
+   it.~~ **Settled — none in the gem.** See
+   [decision 21](#decisions-already-taken). Which track the adventure carries is
+   open question 5.
 2. ~~**Which keyboard keys stand in for the shoulder buttons?** A tab bar is
    built for LB and RB, and a keyboard needs an answer: `Q`/`E`, which games
    use for shoulder buttons, or `Tab`/`Shift+Tab`, which desktop software uses.
@@ -223,3 +257,9 @@ re-litigation inside the plan.
    bands, so in every driven report exactly one layer a frame moved, and nothing
    else changed. No check catches a HUD under the map: a driven report counts the
    text calls either way.
+5. **Which second track does the adventure carry?** It needs a loop for its
+   second room. `examples/assets/README.md` measured three more from the CC0
+   pack `music.ogg` came from, and each has a flaw: 0.79 s or 1.48 s of silence
+   at the end, or a seam of 34.9%. *8BitBattleLoop* measured clean, but its
+   source and licence were not recorded. Waits on step 13. Blocks nothing
+   before it.

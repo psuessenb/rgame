@@ -60,9 +60,11 @@ pushes, pops and replaces at once, holds the stack off the host's child list,
 draws every scene and updates only the top one. It has no registry of scenes
 and no notion of a switch that is pending.
 
-The drive harness prepends `push` and `pop` to report scenes entered, so a
+The drive harness prepends `push` and `pop` to report scenes entered. ~~So a
 deferred switch must still go through those two methods to stay visible in a
-driven run.
+driven run.~~ **Changed in the re-plan of steps 9–12:** a deferred `push` only
+records a request, and a named one hands the harness a Symbol. The harness hooks
+the step that lands a switch instead.
 
 ### F4
 
@@ -204,8 +206,10 @@ What the C already gives, free:
   new C.**
 - **miniaudio's own fades** — `ma_sound_set_fade_in_milliseconds`, with `-1`
   meaning "from the current volume" — are in the vendored header and unused.
-- **`ma_sound_group`** exists for a volume per category, though multiplying in
-  `Core::Audio` reaches the same place with no C.
+- **`ma_sound_group`** exists for a volume per category. ~~Multiplying in
+  `Core::Audio` reaches the same place with no C.~~ **Wrong, found in the
+  re-plan of steps 9–12:** `Song#volume` would read back the product, which the
+  `an audio server` contract refuses.
 
 What it refuses: **resuming**.
 [`rgame_song_play`](../../../ext/rgame_core/audio/audio.c) seeks to zero on every

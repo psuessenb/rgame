@@ -1,16 +1,20 @@
 # Roadmap
 
 **Status: steps 0 to 8 are implemented.** Sixteen steps. Each is one branch and one
-pull request, and its sub-steps are one commit each. **Steps 0–8 are detailed**;
-5–8 were planned after step 4 landed, and
-[what that re-plan found](#re-planning-steps-57) comes before them. **Steps 9–15
-are deliberately rough** and get re-planned once the layer beneath them exists.
+pull request, and its sub-steps are one commit each. **Steps 0–12 are detailed.**
+Steps 5–8 were planned after step 4 landed, and steps 9–12 after step 8. What
+each re-plan found comes before its steps:
+[steps 5–7](#re-planning-steps-57) and [steps 9–12](#re-planning-steps-912).
+**Steps 13–15 are deliberately rough** and get re-planned once the layer beneath
+them exists.
 
 Step 7 was inserted by a review of the re-plan
 ([decision 19](README.md#decisions-already-taken)). The landed notes of steps
 0–4 were written before that, so "step 13" there means today's step 14, and
 "step 14" means step 15. The re-plan's heading keeps the numbers it was written
-with: its steps 5–7 are today's 5, 6 and 8.
+with: its steps 5–7 are today's 5, 6 and 8. The re-plan of steps 9–12 swapped
+the two steps first numbered 9 and 10, so the C lands before the fade built on
+it.
 
 ## Dependency shape
 
@@ -18,10 +22,12 @@ with: its steps 5–7 are today's 5, 6 and 8.
 0 adventure ─→ 1 input ─→ 7 press gate ────────────────────────────────┐
                2 debug shapes                                          │ a press it saw start
                3 interact + collect ─→ 5 grid + focus ─→ 6 tabs ─→ 8 screens
-               4 push and pull                                         │ hold to skip
-               9 fades + particles ─┬─→ 12 scenes ─→ 13 doors ─→ 14 cutscenes
-               10 blend modes (C) ──┘                  │
-               11 audio transitions ───────────────────┘
+               4 push and pull
+
+               9 blend + opacity (C) ─→ 10 fades + particles ─┐
+               11 audio transitions ──────────────────────────┴─→ 12 scenes ─→ 13 doors ─→ 14 cutscenes
+                                                                                              ↑
+               1 input: a held button skips ──────────────────────────────────────────────────┘
                15 fold back and delete the plan
 ```
 
@@ -30,8 +36,9 @@ Step 0 comes first because every later step adds to it. Input comes next, while
 cutscene in step 14. The press gate comes before the screens, because a bag that
 pauses its hero is where a press first outlives the node that should read it.
 The debug shapes come before pushing, which is far easier
-to watch with the boxes on screen. Fades come before scenes, because a door
-fades.
+to watch with the boxes on screen. The canvas comes before fades, because a fade
+is a rect drawn at an opacity. Fades and audio come before scenes, because a
+scene arrives under a reveal with its music rising.
 
 ## The invariant every step preserves
 
@@ -40,8 +47,8 @@ fades.
 > cutscene waiting — and every one of them accumulates in `update(dt)` and
 > draws from state.
 
-`DebugOverlay`'s Δ/f is the standing check, and each step's driven run is where
-a regression shows.
+`rake drive:allocations` is the standing check, and each step's driven run is
+where a regression shows.
 
 ## What lands early, if the plan is abandoned
 
@@ -54,8 +61,10 @@ a regression shows.
 | 5 | two open menus under one player both move and both confirm, and a bag cannot be a grid |
 | 6 | a list longer than its panel cannot be shown, and a screen cannot have pages |
 | 7 | a press begun while a node was paused, hidden or not yet there reaches it once it runs |
-| 9 | a scene cannot fade, so a transition cannot be written at all |
-| 11 | music cuts rather than fades, and cannot be paused |
+| 9 | nothing can glow, and nothing can fade a sprite, a line of text or a subtree |
+| 10 | a scene cannot fade, so a transition cannot be written at all |
+| 11 | music cuts rather than fades, cannot be paused, and a settings screen has one volume |
+| 12 | every game with more than one scene writes its own deferred switch |
 
 ## Which roadmap item each step serves
 
@@ -1277,7 +1286,7 @@ What the sketch got wrong:
   tree's own entry, exit, sweep and transforms then reach every page with
   nothing overridden. **`SceneStack` has the same gap**: a scene pushed onto a
   host that then moves answers its old `world_x`. Nothing moves a stack's host
-  today. It belongs to [step 12](#step-12--the-scene-stack-that-names-and-defers-rough).
+  today. It belongs to [step 12](#step-12--the-scene-stack-that-names-defers-and-transitions).
 - **The bar is controlled before the pages, and the order does not matter.** A
   page shown is first controlled on the next of the tabs' own passes, counted
   as `FocusGroup` counts its own. That also holds when a page's own button
@@ -1692,64 +1701,733 @@ Documented in [examples.md](../../api/examples.md#equipment), a row in
 `README.md`, an entry in `CHANGELOG.md`, and `--texts` per clip in `CLAUDE.md`
 and the [verify](../../../.claude/skills/verify/SKILL.md) skill.
 
-## Step 9 — fades, and particles *(rough)*
+---
 
-`Engine::ScreenFade` and `Components::Particles`, plus `examples/effects`: a
-fade, a flash, sparkles and a bolt. Everything here is engine-layer Ruby over
-`Engine::Tween` and `Components::Pool`.
+## Re-planning steps 9–12
 
-Watch for: the colour a fade draws with changes every tick, so it is built in
-`_update` and never in `_draw`.
+Steps 9 to 12 were re-planned at `ef1400e`, after step 8 landed. A question
+round settled five things, and reading the code overturned seven the design
+recorded. The two steps first numbered 9 and 10 changed places: the canvas's C
+now comes first, because the fade is built on it.
 
-## Step 10 — a blend mode on a draw command *(rough, and C)*
+### What was measured
 
-`renderer.blended(:add) { ... }`, carried through the draw queue the way a clip
-is. A field on the command and the batch, a comparison in the batch test, a
-`set_blend` entry on the backend table, the recording backend, and
-`glBlendFunc(GL_SRC_ALPHA, GL_ONE)`.
+| | |
+|---|---|
+| `rake spec` | 3530 examples, 0 failures, 28.0 s |
+| Objects one `Util::Color.new` allocates | **1**. A colour built once a tick is 60 a second |
+| `rake drive:allocations`' default budget | 60 objects a second, and 10% of ticks |
+| Objects a particle's step allocates: `rand` over a Range, `Math.cos`, two ivar updates and an Array lookup | **none** beyond the loop's own, over 10,000 steps |
+| GL functions called in `ext/` and `src/` | 23 distinct at 55 call sites, `glBlendFunc` at one of them |
+| Places the canvas writes a vertex's colour | 2: `write_vertex`, and a replay's tint |
+| What a draw command carries | `z`, `order`, `texture`, `clip` and its vertex span |
+| Renderer methods that push and pop | 5: `rotated`, `translated`, `scaled`, `layered`, `clipped` |
+| Where `Node2D#draw` draws a node's children | after `_draw` returns, so no `_draw` can wrap them |
+| `AudioOut#play_music` and `#stop_music` callers | 2 each, in `examples/music` and asteroids |
+| Sound groups in `audio.c` | one per sample, parented to nothing. A song plays straight to the endpoint |
+| miniaudio's `defaultVolumeSmoothTimeInPCMFrames` | 0, so a volume change lands on one sample |
+| `SceneStack` | 87 lines, and no class comment |
+| Scene switches in games | 6: asteroids 1 and `menu_navigation` 3 through a hand-written `@pending`, `tiled_world` 1 and the adventure 1 pushed in `_enter_tree` |
+| Scene switches in specs | 44, in `scene_stack_spec.rb` and `node2d_press_gate_spec.rb` |
+| What the harness hooks to report scenes | `SceneStack#push` and `#pop` |
+| `Game#update`'s order | poll, `control`, `update`, `sweep_freed` |
+| The packed 0.4.0 gem | 1.64 MB, of which `music.ogg` is 93 KB |
 
-Follow [write-c-code](../../../.claude/skills/write-c-code/SKILL.md). The Check
-suite asserts the batching: two additive quads and one alpha quad between them
-are three batches, and the same three in one blend mode are one.
+### What the design got wrong
 
-## Step 11 — audio transitions *(rough)*
+- **A colour built in `_update` still allocates.** Design item 6 moved a fade's
+  colour out of `_draw` and into `_update`. A `Color` is frozen, so each one
+  built is an object: 60 a second for a fade, and 60 a second for each particle
+  whose colour changes with its age. The question round chose two answers.
+  `Util::ColorRamp` builds a particle's colours once and answers one by age.
+  `renderer.faded` multiplies the alpha of everything drawn inside it, so a fade
+  draws one colour at a changing opacity.
+- **No `_draw` can fade a subtree.** `Node2D#draw` draws a node's content and
+  then its children, and `_draw` is only part of the first. A node that wraps
+  its `_draw` in `faded` fades itself and not what it holds. So `Node2D#opacity`
+  wraps both, the way the node's transform already does, and a `ScreenFade` is a
+  rect that sets its own opacity.
+- **An emitter cannot live on the thing it sparkles for.** A coin frees itself
+  as it is taken, and its particles would go with it. A component also draws in
+  its node's slot, so an emitter on the room would draw under the map's
+  canopy. Particles go on a node of their own in the actors slot, and each coin
+  is handed it.
+- **A volume per category needs C.** Multiplied in Ruby, `Song#volume` would
+  read back the product, and `an audio server` pins the volume a caller set.
+  Each sample already plays through a sound group of its own, parented to
+  nothing. A category is a group those groups and every song play through.
+- **Stepping a volume once a tick may be audible, and a number can say.**
+  miniaudio smooths a volume change over `defaultVolumeSmoothTimeInPCMFrames`
+  frames, 0 today. One tick is 735 frames at 44.1 kHz. The offline device reads
+  back what a fade stepped once a tick puts out, with and without smoothing.
+  Decision 14's fallback becomes one line of config, and the example confirms
+  by ear what the number says.
+- **A switch lands in the sweep, not in the stack's `_update`.** The design
+  applied a switch before updating the current scene. A switch asked for during
+  control then landed that tick, and one asked for during update landed the
+  next, so the tick depended on who asked. `queue_free` already answers this
+  question: a change to the tree waits until nothing walks it. `Game#update`
+  sweeps after control and update, and the stack already takes part through
+  `_sweep_freed`. A switch that lands there lands after the whole tick, whoever
+  asked. Both hand-written versions land theirs at the same moment: in the
+  root's `_update`, after the scene's, with nothing left to walk.
+- **One transition for every switch fades a pause menu to black.** The stack
+  keeps a default, and each switch may name its own or none.
 
-`Core::Audio` gains `music_volume`, `pause_music`, `resume_music` and
-`category_volume`; `Song#resume` is the one new C entry point. `AudioOut` gains
-`fade:`, `crossfade`, the pause pair and the category volume, each driven by a
-tween in `_update`.
+The harness needs one change the design did not foresee. It prepends `push` and
+`pop` to report scenes. Both now only record a request, and a named push hands
+the harness a Symbol, so it hooks the step that lands a switch instead.
 
-`examples/audio_transitions` exists to be listened to, and
-[open question 1](README.md#open-questions) — which second track, and whether it
-is worth 90 KB in the gem — is answered before this step starts.
+### Decided in this re-plan
 
-## Step 12 — the scene stack that names and defers *(rough)*
+Settled in a question round, and recorded in the brief as
+[decisions 20 to 24](README.md#decisions-already-taken).
 
-`define`, `carry:`, deferral in `_update`, `on_changed`, and `Scene::Fade` as a
-transition the stack drives. The two hand-written switches in
-`test_projects/asteroids` and `examples/menu_navigation` come out in the same
-step, which is what proves the engine's version covers what they did.
+- **Steps 9–12 are detailed.** Steps 13 and 14 stay rough until scenes can name
+  and carry.
+- **No second music track ships.** `examples/music` grows the fades, pause and
+  resume, and the category volumes on its one track. The adventure, which does
+  not ship, carries a second track from step 13. Its door crossfades between the
+  rooms' music. [Open question 1](README.md#open-questions) is settled.
+- **A colour that changes every tick has two answers.** `Util::ColorRamp` serves
+  a colour that moves from one hue to another. `renderer.faded` and
+  `Node2D#opacity` serve anything that fades as a whole. The second is C, and
+  lands in step 9 beside the blend mode.
+- **No scene reads input during a transition.** The scene leaving stands still
+  under the cover, and the scene arriving runs under the reveal. The press gate
+  then refuses any press begun during either.
+- **A game names its own volume categories.** A song plays under `:music` and a
+  sample under `:effects`, unless registered under another name.
 
-Watch for: the drive harness prepends `push` and `pop` to report scenes, so a
-deferred switch must still go through them. Step 6 found that a scene held off
-its host's child list kept its old `world_x` once the host moved. Branch
-`held-node-transforms` fixed it in `Node2D#parent=`, so a scene follows its host
-and nothing here needs to. Branch `held-nodes-enter-tree` did the same for
-entering and leaving the tree, so every scene on a stack is in the tree exactly
-while its host is.
+### Three piles, for steps 9–12
+
+- **Reuse:** `Engine::Tween` for every fade, the stack's transition and a
+  flash's rise and fall, through its `:arc` ease. `Components::Timer` for the
+  storm. The clip's way of travelling with each draw command, for the blend
+  mode. The canvas's one pop for any push. `RenderedFrame` in `spec_core/`, to
+  read pixels back, and the offline audio device, to read samples back. The
+  sweep, for a switch. A node held off the child list, for the stack's fade. The
+  press gate, for the first press after a transition.
+- **Extend:** the canvas → a blend mode and an opacity on its stacks. The draw
+  command and batch → a blend field. `Node2D#draw` → `opacity`. `Engine::Pool` →
+  `reserve`. The audio device → a table of category groups, and `resume`.
+  `Core::Audio` → categories by name, pause and resume, a song's volume and a
+  stop by id. `AudioOut` → fades and a crossfade. `SceneStack` → names,
+  deferral, `carry:`, transitions and `on_changed`. The harness → scenes
+  reported where a switch lands, and the new audio calls.
+- **Genuinely new:** `Util::ColorRamp`, because nothing maps a fraction to a
+  colour. `Components::Particles`, because a pool of things with a lifetime
+  exists but nothing spawns them along a spread. `Engine::ScreenFade`, which is
+  thin: a tween, a rect and its own opacity. `Scene::Fade`, the value a
+  transition is described by.
+
+---
+
+## Step 9 — blend modes and opacity on the canvas *(C)*
+
+Step 10's sparkles and bolt look like light only when they add to what is behind
+them, and its fade draws one colour at a changing opacity. Both are state on the
+canvas, so both land here, in C, before anything draws with them. Only the blend
+mode is GL state, and that decides how each one travels.
+
+**A blend mode travels with each draw command, as the clip does.** Sorting
+reorders commands, so a mode left current at draw time would land on whichever
+quads sorted next to it. The command and the batch carry it, a batch ends where
+it changes, and the submit loop tells the backend only when it changes.
+
+**Opacity travels with each vertex, as the transform does.** The canvas
+multiplies it into a vertex's alpha as it writes the vertex. Sorting cannot move
+it, and batching never sees it. Nested pushes multiply.
+
+### Sub-steps
+
+- **9a** — a blend mode on the draw command: the canvas's stack, the field on the
+  command and the batch, the batch split, `set_blend` on the backend table, the
+  recording backend, and `glBlendFunc`.
+- **9b** — opacity on the canvas: a stack of multipliers, applied in
+  `write_vertex` and in a replay.
+- **9c** — `renderer.blended` and `renderer.faded`, in the `a renderer` contract,
+  `FakeRenderer` and `QuietRenderer`, with pixels read back in `spec_core/`.
+- **9d** — `Node2D#opacity`.
+
+### Shape
+
+```c
+/* graphics/draw_queue.h */
+typedef enum { RGAME_BLEND_ALPHA = 0, RGAME_BLEND_ADD = 1 } rgame_blend;
+
+typedef struct {
+    double z;
+    unsigned int order;
+    unsigned int texture;
+    rgame_rect clip;
+    rgame_blend blend; /* travels with the command, for the reason the clip does */
+    unsigned int first_vertex, vertex_count;
+} rgame_draw_command;
+
+rgame_vertex *rgame_draw_queue_alloc(rgame_draw_queue *queue, unsigned int count, double z,
+                                     unsigned int texture, rgame_rect clip, rgame_blend blend);
+
+/* graphics/backend.h: a member of rgame_draw_backend, issued only on a change */
+void (*set_blend)(void *ctx, rgame_blend blend);
+
+/* graphics/canvas.h */
+void rgame_canvas_push_blend(rgame_canvas *canvas, rgame_blend blend); /* replaces */
+void rgame_canvas_push_opacity(rgame_canvas *canvas, float opacity);   /* multiplies */
+
+/* include/rgame/core.h: blend returns 0 without pushing while a recording is open */
+int rgame_app_push_blend(rgame_app *app, int blend);
+void rgame_app_push_opacity(rgame_app *app, float opacity);
+```
+
+```ruby
+renderer.blended(:add) { renderer.circle(0, 0, 4, color: SPARK) }   # :alpha outside any block
+renderer.faded(0.4) { renderer.image(:hero, 0, 0) }                 # 0.0 hides it, 1.0 changes nothing
+
+node.opacity = 0.5   # the node and everything under it, at half its alpha
+node.opacity         # 1.0 until set
+```
+
+`glBlendFunc(GL_SRC_ALPHA, GL_ONE)` is `:add`, and `GL_ONE_MINUS_SRC_ALPHA` in
+place of `GL_ONE` is `:alpha`. Both are GL 1.0.
+
+`Node2D#draw` wraps the node's content and its children in `faded` while
+`opacity` is below 1, and draws nothing at 0. The rest of its drawing is as
+today.
+
+### The rules the tests pin
+
+For the canvas:
+
+1. **A batch ends where the blend mode changes**, as it does on a texture or a
+   clip. Two additive quads with an alpha quad between them are three batches.
+   The same three in one mode are one.
+2. **The sort never reads the blend mode.** `z` and call order alone decide
+   what is drawn over what.
+3. **`set_blend` is issued only when the mode changes**, and every frame starts
+   in `:alpha`.
+4. **A blend mode inside another replaces it**, and `pop` restores the outer one.
+5. **Opacity multiplies.** `faded(0.5)` inside `faded(0.5)` draws at a quarter.
+   It scales a vertex's alpha, rounded to the nearest byte, and leaves its
+   colour alone.
+6. **A replay inside `faded` is faded**, and an opacity pushed inside `record`
+   is baked into the recording.
+7. **`blended` inside `record` raises**, as `clipped` does. A recording's batch
+   carries no blend mode.
+8. **`blended` refuses a mode it does not know, and `faded` a number outside
+   0..1 or anything but a number**, in the fake as in the real renderer.
+
+For the node:
+
+9. **`opacity` fades the node's content and every child under it**, and a node
+   at 0 draws nothing. A node at 1 pushes nothing.
+10. **`opacity=` refuses what `faded` refuses.**
+11. **Drawing allocates nothing**, at 1, below 1 and at 0.
+
+### Tests
+
+- `test/test_draw_queue.c`: rules 1 and 2.
+- `test/test_backend.c`: rule 3, through the recording backend.
+- `test/test_canvas.c`: rules 4–6.
+- `spec/support/shared_examples/a_renderer.rb` and `fake_renderer_spec.rb`:
+  `blended` and `faded` yield and pop, and rule 8. `QuietRenderer` gains both.
+- `spec_core/rgame/core/renderer_spec.rb`: the renderer against the same group,
+  rule 7, and the pixels. A quad of (128, 0, 0) drawn `:add` over (0, 0, 128)
+  reads (128, 0, 128), and drawn `:alpha` reads (128, 0, 0). A white quad inside
+  `faded(0.5)` over black reads 128, give or take one.
+- `spec/rgame/engine/node2d_opacity_spec.rb`: rules 9–11, with a
+  `FakeRenderer` recording `faded` around a parent's content and its child.
+
+### Verify
+
+```
+make test
+make ext-core && bundle exec rake spec:core
+bundle exec rake spec
+bundle exec rake drive:allocations
+```
+
+The pixels are what is true afterwards and was not before: a quad that adds to
+what is behind it, and one drawn at half its alpha. Nothing draws with either
+yet, so **every driven example and test project reports what it reported at
+the branch point**, byte for byte, compared as the verify skill describes.
+`Node2D#draw` is on every game's per-frame path, so `rake drive:allocations`
+runs too.
+
+`docs/api/drawing.md` gains both blocks, and `docs/api/scene_graph.md` gains
+`opacity`.
+
+---
+
+## Step 10 — fades, particles, and `examples/effects`
+
+Step 12 fades a scene, step 13 a door and step 14 a cutscene, and each draws
+the same fade. Sparkles and a storm are what the adventure gains. Both are
+engine-layer Ruby over step 9's canvas.
+
+### Sub-steps
+
+- **10a** — `Util::ColorRamp`.
+- **10b** — `Engine::ScreenFade`.
+- **10c** — `Engine::Pool#reserve`, and `Components::Particles`.
+- **10d** — `examples/effects`: a fade, a flash, sparkles and a bolt. Its
+  `locales/en.yml`, its drive script `tools/drive/examples/effects.rb`, an
+  `### effects` entry in `docs/api/examples.md` and a row in `README.md` come
+  with it.
+- **10e** — the adventure: sparkles where a coin was taken, and a storm.
+
+### Shape
+
+```ruby
+# Colours from one to another, built once
+EMBER = RGame::Util::ColorRamp.new(Color.new(255, 240, 160), Color.new(255, 120, 0, 0), steps: 64)
+EMBER.at(0.25)   # the Color a quarter of the way along; t is clamped to 0..1
+EMBER.steps      # 64
+
+# A rect the size of the view, fading
+fade = layer.add_node(RGame::Engine::ScreenFade.new(color: BLACK))   # starts clear, in :overlay
+fade.cover(0.4)                  # to opaque over 0.4 s, from wherever it is
+fade.reveal(0.4)                 # to clear
+fade.flash(0.15, color: GLARE)   # up and back down, in GLARE for this flash
+fade.covered?                    # opaque, and still
+fade.running?
+fade.on_finished { ... }
+
+# Particles, in their node's local space
+sparkles = actors.add_node(RGame::Engine::Node2D.new)
+particles = sparkles.add_component(RGame::Engine::Components::Particles.new(
+  limit: 48, lifetime: 0.4..0.7, speed: 30.0..80.0,
+  direction: -Math::PI / 2, spread: Math::PI, gravity: 90.0,
+  size: 3, ramp: EMBER, blend: :add, rng: rng
+))
+particles.burst(16, x, y)   # 16 at once from (x, y)
+particles.rate = 40         # a stream from the node's origin, per second; 0 stops it
+particles.live              # how many are alive
+
+pool = RGame::Engine::Pool.new { Spark.new }
+pool.reserve(48)            # built now, so the first burst allocates nothing
+```
+
+**A fade sets its own opacity.** `ScreenFade` is a node in the `:overlay` band.
+It steps an `Engine::Tween` in `_update` and writes the value to `opacity`, and
+step 9's `Node2D#draw` does the rest. It draws one rect over
+`view.origin_x, view.origin_y, view.width, view.height`. That covers the whole
+window at the root, one region in a `PlayerLayer`, and the camera's view under a
+`WorldView`. A flash is the tween with the `:arc` ease. A flash's colour carries
+its own alpha, so a storm flashes in a translucent white with no keyword for a
+peak.
+
+**A particle is a plain object, not a node.** `Particles` holds its particles in
+an `Engine::Pool`, reserved to `limit` as it attaches, so a running emitter
+allocates nothing. It moves them in `_update` and draws each as a square of
+`size`, in `ramp.at(age / lifetime)`, inside `renderer.blended(blend)`. `rng:`
+is the game's own, so a seeded run places every particle the same.
+
+### The rules the tests pin
+
+For the ramp:
+
+1. **`at(0)` is `from` and `at(1)` is `to`**, the objects passed. Every channel,
+   alpha included, moves in a straight line between them.
+2. **`at` clamps to 0..1 and allocates nothing.**
+3. **`steps` below 2 raises**, and so does anything but two `Color`s.
+
+For the fade:
+
+4. **A fade starts clear, and a clear fade draws nothing.**
+5. **`cover` and `reveal` start from the opacity the fade has**, so a cover
+   begun during a reveal turns back from where the reveal got to.
+6. **`flash` rises to its colour at half its duration and falls back to clear**,
+   then draws in the fade's own colour again.
+7. **`on_finished` fires once when a cover, a reveal or a flash ends**, and not
+   for one replaced before its end.
+8. **It fills the view it is drawn into**, in each of the three spaces above.
+9. **Stepping and drawing a fade allocate nothing.**
+
+For the particles:
+
+10. **A burst places `count` particles at its point.** Each takes a lifetime and
+    a speed from its range, and a heading within `spread` of `direction`.
+11. **Each tick moves every particle by its velocity** and adds `gravity` to its
+    downward speed. A particle whose age reaches its lifetime is freed.
+12. **A particle draws in `ramp.at(age / lifetime)`**, in its node's local
+    space, inside `blended(blend)`.
+13. **Never more than `limit` are alive.** A burst past it places what fits and
+    drops the rest.
+14. **`rate` streams from the node's origin, and carries the fraction.** 40 a
+    second is 2 in every 3 ticks, and none is lost to rounding.
+15. **Two runs with the same seed place every particle the same.**
+16. **A node leaving the tree takes its particles with it**, and enters again
+    with none.
+17. **Once reserved, bursting, streaming, stepping and drawing allocate
+    nothing.**
+18. **Two viewports draw the same particles**, and a paused node's particles
+    hold still.
+
+### Tests
+
+- `spec/rgame/util/color_ramp_spec.rb`: rules 1–3.
+- `spec/rgame/engine/screen_fade_spec.rb`: rules 4–8, reading `faded` and the
+  rect off a `FakeRenderer`.
+- `spec/rgame/engine/pool_spec.rb`: `reserve` builds that many and hands them
+  out before calling the factory again.
+- `spec/rgame/engine/components/particles_spec.rb`: rules 10–16 and 18.
+- **The caller that uses both**, in the same file: a coin with a `Collectable`
+  bursts a room's `Particles` where it stood as it is taken. The coin is freed
+  that tick, and its sparkles run their lifetime out after it.
+- `spec/rgame/engine/components/particles_allocation_spec.rb`: rules 9 and 17.
+
+### Verify
+
+```
+bundle exec rake spec
+ruby tools/drive_test_project.rb examples/effects/main.rb --ticks 400 --texts
+ruby tools/drive_test_project.rb test_projects/adventure/main.rb --ticks 740 --texts
+bundle exec rake drive:allocations
+```
+
+`examples/effects` is a dark room with a few shapes in it, and a key per
+effect. Enter covers the room and reveals it again, chained on `on_finished`.
+L strikes a bolt: a jagged line from the top of the window, redrawn with a new
+jag every three ticks for a quarter of a second, glowing under `:add`. The bolt
+fades out through its own `opacity`, and the room flashes white with it. Space
+bursts sparkles at the centre. A torch streams embers the whole time. The
+example seeds its own `Random` as `examples/pooling` does, so two runs are
+byte-identical.
+
+The drive script presses each key in turn, and its header gives the
+checkpoints. `faded` appears in the report only while the fade, the flash or the
+bolt runs. `blended` appears every frame, because the torch never stops. The
+`rect` count rises by a burst's sixteen and falls back to the torch's steady
+count as they die. `line` appears only while the bolt shows.
+
+In the adventure, a `Sparkles` node in the actors slot holds one `Particles`,
+and each coin is handed it. The shell holds a `ScreenFade` and a
+`Components::Timer` that flashes it every four seconds. The run shows three
+things:
+
+1. **A coin taken sparkles in both players' views**, which is two `blended`
+   blocks a frame, and none once the burst's lifetime has run out.
+2. **The storm's flash is drawn once a frame across the window**, not once per
+   region, because the shell draws it at the root.
+3. **The first 240 ticks keep step 4's text ticks**, and the rules step 8
+   recorded keep theirs.
+
+`docs/api/` gains `ScreenFade` beside the node types, `Particles` in
+`components.md` and `ColorRamp` in `toolbox.md`.
+
+---
+
+## Step 11 — audio transitions
+
+A door in step 13 fades the music with the picture, and step 12's first room
+arrives with its music rising. Every piece of that is a volume moved over time,
+and a volume a game's settings screen scales. The C comes first, then the
+device, then the engine's clock over it.
+
+### Sub-steps
+
+- **11a** — the device: a table of category groups, `rgame_song_resume`, and the
+  measurement that decides volume smoothing. Check tests on the offline device.
+- **11b** — `Core::Audio`: categories by name, pause and resume, a song's volume
+  and a stop by id. The `an audio server` contract, `FakeAudio`, and the
+  harness's `AudioProbe` reporting the new calls.
+- **11c** — `AudioOut`: fades, a crossfade, pause and resume, and category
+  volumes.
+- **11d** — `examples/music` grows a fade in and out, pause and resume, and a
+  volume per category.
+
+### Shape
+
+```c
+/* include/rgame/core.h */
+#define RGAME_AUDIO_CATEGORIES 16 /* 0 is music and 1 is effects; the rest are a game's */
+
+void rgame_audio_set_category_volume(rgame_audio *audio, int category, float volume);
+float rgame_audio_category_volume(const rgame_audio *audio, int category);
+void rgame_sample_set_category(rgame_sample *sample, int category); /* re-attaches its group */
+void rgame_song_set_category(rgame_song *song, int category);
+void rgame_song_resume(rgame_song *song); /* starts again without seeking */
+```
+
+```ruby
+# RGame::Core::Audio, the device
+audio.register_sound(:line, sample, category: :voice)   # :effects when not given
+audio.register_music(:theme, song)                     # :music when not given
+audio.category_volume(:voice)                          # 1.0 until set
+audio.set_category_volume(:voice, 0.8)                 # KeyError for a name nothing was registered under
+audio.set_music_volume(:theme, 0.4)                    # that song's own volume
+audio.pause_music                                      # the current song keeps its place
+audio.resume_music                                     # and carries on from there
+audio.stop_music(:theme)                               # that song; with no id, the current one, as today
+
+# RGame::Engine::AudioOut, what a node calls
+out = system!(RGame::Engine::AudioOut)
+out.play_music(:theme, fade: 0.8)    # up from silence over 0.8 s; fade: 0 is today's call
+out.stop_music(fade: 0.5)            # down to silence, then stopped
+out.crossfade(:battle, over: 1.2)    # the current song down while :battle comes up
+out.pause_music
+out.resume_music
+out.set_category_volume(:music, 0.7)
+out.category_volume(:music)
+out.fading?
+```
+
+**The groups belong to the device.** A sound keeps its device alive until the
+last sound is freed, so the groups live inside the counted `rgame_audio` and go
+with it. A game's category is built on first use. Past sixteen, registering
+raises before C is reached.
+
+**The engine names songs by id, and holds no song.** `AudioOut` steps a volume
+with `set_music_volume(id, volume)` from `_update`, off two `Engine::Tween`s built
+once. The harness reports every call the device receives, so a fade reads as
+the count of its steps.
+
+**`fade: 0` sends the device exactly what it sends today**, so asteroids, which
+plays its music without a fade, reports what it reported.
+
+### The rules the tests pin
+
+For the device:
+
+1. **A category volume multiplies every sound in it** and leaves each sound's
+   own volume alone. The device's `volume` multiplies over all of them, as
+   today.
+2. **A sample plays under `:effects` and a song under `:music`** unless
+   registered under another name. A sound registered twice plays under the last
+   name.
+3. **A name nothing was registered under raises `KeyError`**, in the fake as in
+   the device, so a mistyped category fails rather than changing nothing.
+4. **A seventeenth category raises `ArgumentError`.**
+5. **`resume_music` carries on where `pause_music` stopped**, and does nothing
+   while nothing is paused. `play_music` after a pause starts from the top, as
+   it does after a stop.
+6. **`stop_music(id)` stops that song**, and `stop_music` with no id is today's.
+
+For the engine:
+
+7. **A song asked for with `fade:` starts at volume 0 and reaches 1.0** after
+   `fade` seconds, one step a tick.
+8. **`stop_music(fade:)` lowers the current song to 0 and stops it** on the tick
+   it arrives. It plays at 1.0 the next time.
+9. **`crossfade` lowers the current song and raises the new one over the same
+   time**, and stops the old one when it is silent. With no current song it is
+   a fade in.
+10. **A second crossfade before the first ends stops the song on its way out**,
+    and brings the one coming in down from where it is.
+11. **Asking for the song that is fading out brings it back up** from where it
+    is, rather than starting it again.
+12. **`pause_music` holds the song and its fade where they are**, and
+    `resume_music` carries both on.
+13. **A fade outlives the node that asked for it.** `AudioOut` is on the root,
+    so a scene that stops its music with a fade on the way out still fades.
+14. **Stepping a fade allocates nothing.**
+
+For the output, measured in 11a:
+
+15. **A fade stepped once a tick puts out no step larger than the smoothing
+    allows**, if the measurement turns smoothing on. It also checks that a
+    sample's first frames are not ramped by it, because a click with a soft
+    attack is a different sound. The landed note records both numbers, with
+    smoothing off and on.
+
+### Tests
+
+- `test/test_audio.c`: rules 1 and 2 as what comes out of the offline device, as
+  the master volume's test reads it. Rule 5 through a cursor query for tests
+  only, in `audio_internal.h` beside `rgame_audio_live_sounds`. Rule 15.
+- `spec/support/shared_examples/an_audio_server.rb`, `fake_audio_spec.rb` and
+  `spec_core/rgame/core/audio_spec.rb`: rules 1–6 at the level each can see.
+- `spec/rgame/engine/audio_out_spec.rb`: rules 7–13, reading a volume at 0.25 s
+  by passing 0.25.
+- `spec/rgame/engine/audio_out_allocation_spec.rb`: rule 14.
+
+### Verify
+
+```
+make test
+make ext-core && bundle exec rake spec:core
+bundle exec rake spec
+ruby tools/drive_test_project.rb examples/music/main.rb --ticks 600 --texts
+```
+
+`examples/music` fades in on Enter and out on Escape, a second each. P pauses and
+resumes. Up and Down move the music's volume, and Left and Right the effects',
+a tenth at a time, with a blip on each press so the effects' volume has
+something to scale. The text shows the state and both volumes. Its report shows
+sixty volume steps for each fade, a pause and a resume, and a blip per press.
+**The one thing the report cannot say is how a fade sounds.** The measured
+number in rule 15 is the check, and a person listening to this example is its
+confirmation.
+
+**Every other driven example and test project reports what it reported at the
+branch point**, byte for byte.
+
+`docs/api/audio.md` gains fades, the crossfade, pause and resume, and
+categories.
+
+---
+
+## Step 12 — the scene stack that names, defers and transitions
+
+Two games hand-write the same deferred switch, and step 13's door needs a switch
+that carries a hero and fades. The deferral is required for correctness, so the
+engine makes it ([decision 5](README.md#decisions-already-taken)). Steps 10 and
+11 are what a transition draws and sounds with.
+
+### Sub-steps
+
+- **12a** — deferral in the sweep, `define`, keywords and `on_changed`. The
+  harness hooks the landing, the 44 switches in specs land through a sweep, and
+  `SceneStack` gets a class comment.
+- **12b** — asteroids and `menu_navigation` lose their hand-written deferral.
+- **12c** — `carry:`.
+- **12d** — transitions: `Scene::Fade`, the stack's `transition` and a switch's
+  `transition:`. `menu_navigation`'s Play fades, and the adventure's room arrives
+  under a reveal with its music rising.
+
+### Shape
+
+```ruby
+stack = root.add_component(RGame::Engine::Scene::SceneStack.new)
+stack.define(:title) { TitleScene.new }
+stack.define(:game_over) { |score:| GameOverScene.new(score:) }
+stack.define(:village) { |hero:, entrance:| VillageScene.new(hero:, entrance:) }
+
+stack.push(:title)                     # a name, or a Node2D as today
+stack.replace(:game_over, score: 12)   # keywords reach the builder
+stack.replace(:village, entrance: :south_gate, carry: { hero: hero })
+stack.pop
+stack.current                          # the top scene, once a switch has landed
+stack.pending?                         # a switch asked for that has not landed
+stack.on_changed { |scene| ... }       # each time a switch lands; nil once the stack is empty
+
+stack.transition = RGame::Engine::Scene::Fade.new(color: BLACK, cover: 0.25, reveal: 0.25)
+stack.push(:pause, transition: nil)    # this switch without one
+stack.transitioning?
+```
+
+`Scene::Fade` is a frozen value: a colour and two durations. The stack builds one
+`ScreenFade` from it and holds it off the host's child list, as it holds its
+scenes, so the fade enters and leaves the tree with the host. The stack draws it
+after every scene, so it covers the host's view in `:overlay`.
+
+**A switch lands in the sweep**, where `queue_free` lands, through the
+`_sweep_freed` the stack already overrides. A replace lands as a pop and then a
+push. Those two private steps are what the harness hooks, and it prints each
+scene's class as it does today.
+
+### The rules the tests pin
+
+1. **A switch lands in the sweep after the tick that asked for it**, whichever
+   node asked. A switch asked for outside a tick lands in the first sweep.
+   `current` changes then, not when asked.
+2. **Two switches asked for before a sweep keep only the last**, as both
+   hand-written versions did.
+3. **A name the stack was not given raises `KeyError` when asked**, not when it
+   would land.
+4. **Keywords reach the builder.** `define` raises for a builder that declares
+   `carry` or `transition`, which the stack keeps for itself.
+5. **`carry:` takes each node from its parent as the switch lands**, before the
+   old scene leaves the tree. It hands each to the builder under its key. The
+   node's components leave the old scene's systems and join the new one's.
+   `carry:` beside a node rather than a name raises.
+6. **`on_changed` fires once per switch that lands**, with the new top scene,
+   after that scene entered the tree.
+7. **With a transition, the fade covers, the switch lands in the sweep after
+   the cover ends, and the fade reveals.**
+8. **During a transition no scene is controlled.** The scene leaving is not
+   updated. The scene arriving is updated from the tick after it lands.
+9. **The first press a scene reads after a transition began after it.** The
+   scene resumes, so the press gate refuses any press begun during the
+   transition.
+10. **A switch asked for during a cover replaces the pending one.** One asked for
+    during a reveal covers again, from where the reveal got to.
+11. **A push onto an empty stack starts covered and reveals**, because there is
+    nothing to cover.
+12. **A switch's `transition:` overrides the stack's for that switch**, and
+    `nil` means none.
+13. **The harness reports each landed switch as `pop` and `push`**, with the
+    scene's class, as today.
+14. **A tick with no switch pending or running allocates nothing.**
+
+### Tests
+
+- `spec/rgame/engine/scene/scene_stack_spec.rb`: its 41 switches land through a
+  helper that sweeps. Rules 1–6, 12 and 14 are new.
+- `spec/rgame/engine/scene/scene_stack_transition_spec.rb`: rules 7–11.
+- `spec/rgame/engine/node2d_press_gate_spec.rb`: its 3 switches sweep.
+- **The caller that uses both**, in `scene_stack_spec.rb`: a hero carried from
+  one scene to another, each with a `TileWorld` and a `CollisionWorld`. Its
+  collider leaves the first index and joins the second, and its
+  `CharacterBody` is stopped by the second map.
+- `spec/rgame/engine/scene/scene_stack_allocation_spec.rb`: rule 14.
+
+### Verify
+
+```
+bundle exec rake spec
+ruby tools/drive_test_project.rb test_projects/asteroids/main.rb --seed 4242 --ticks 240 --texts
+ruby tools/drive_test_project.rb examples/menu_navigation/main.rb --ticks 320 --texts
+ruby tools/drive_test_project.rb test_projects/adventure/main.rb --ticks 780 --texts
+```
+
+**After 12b, asteroids and `menu_navigation` report what they reported at the
+branch point**, byte for byte. That is what proves the engine's switch covers
+what theirs did. Their `@pending` and their `_update` are gone, and
+`menu_navigation`'s header section "Nothing switches scenes while the tree is
+being walked" says the stack defers.
+
+**After 12a, the adventure and `tiled_world` start one tick later.** Each pushes
+its first scene in `_enter_tree`, which used to land at once and now lands in
+the first sweep. So every text tick the adventure's report records moves by
+exactly one, and a tick that moves by any other number is a change the step did
+not intend. `tiled_world` reads `media/` and is compared where that exists.
+
+After 12d, `menu_navigation`'s Play reports `faded` for the cover's and the
+reveal's frames, and nothing for Settings, which is pushed with
+`transition: nil`. No input reaches a scene during a transition, so the drive
+script waits the transition out after Play before it presses Enter, and its
+header says why.
+
+The adventure opens under a half-second reveal. Its `on_changed` asks for
+`music.ogg` with the same fade, so its report shows thirty volume steps beside
+thirty frames of `faded`: the picture and the sound arrive together. The room
+reads no input while it is revealed, and the keyboard's track starts walking at
+tick 10. So each of the script's tracks gains a lead of thirty idle ticks, and
+the run grows by as many. Every text tick then moves by the same number, one
+for the sweep and thirty for the reveal, and the landed note checks that it
+does. The storm's timer is not input, so its flashes keep their ticks.
+
+`docs/api/scene_graph.md`'s scene stack section gains names, the deferral,
+`carry:` and transitions, and `docs/api/examples.md`'s `menu_navigation` entry
+stops describing a hand-written switch.
+
+---
 
 ## Step 13 — doors, entrances, and the teleport example *(rough)*
 
 `examples/doors`: two rooms, a door between them that carries the hero and
 places them at a named entrance, and a warp pad that moves them inside one
 room. The adventure gains its second room. Doors come from a Tiled object layer
-through `Engine::MapObjects`.
+through `Engine::MapObjects`, and a door is a `replace` with `carry:` under the
+stack's transition.
+
+The adventure's door also crossfades between the rooms' music. The second track
+is committed under `test_projects/adventure/` and does not ship
+([decision 21](README.md#decisions-already-taken)). Which track waits on this
+step: [open question 5](README.md#open-questions).
+
+Watch for: `on_changed` fires when a switch lands, which is after the cover.
+A crossfade that should start with the cover wants a signal at the request, or
+the door starts it itself.
 
 ## Step 14 — cutscenes *(rough)*
 
 `Engine::Cutscene::Script`, `Engine::Cutscene` and `Components::Cutscene`, with
 the five step kinds and a skip that finishes the rest. `examples/cutscene`, and
-the adventure's arrival scene, skipped with a held button.
+the adventure's arrival scene, skipped with a held button. A cutscene that fades
+uses step 10's `ScreenFade`.
 
 `test_projects/tiled_world/cutscene.rb` is the 95 lines this replaces: the step
 is done when that file could be written with the script instead.
@@ -1767,17 +2445,22 @@ Move what is still true into the documentation and remove
   `Grab`, `Particles`, `Cutscene`, and `pushes:` on `Mover`.
 - **`docs/api/ui.md`** — the grid, focus groups, tabs and scrolling, and a
   rewritten "What this is not".
-- **`docs/api/scene_graph.md`** — the scene stack's names, `carry:` and
-  transitions; `ScreenFade`.
-- **`docs/api/drawing.md`** — `blended`, `debug_circle`.
-- **`docs/api/audio.md`** — fades, crossfades, pause and resume, categories.
+- **`docs/api/scene_graph.md`** — the scene stack's names, the deferral,
+  `carry:` and transitions; `Node2D#opacity`; `ScreenFade`.
+- **`docs/api/drawing.md`** — `blended`, `faded`, `debug_circle`.
+- **`docs/api/audio.md`** — fades, crossfades, pause and resume, and categories
+  a game names.
 - **`docs/api/examples.md`** — every example this plan added.
-- **`docs/api/toolbox.md`** — `Engine::Cutscene` beside `Tween` and `Timer`.
+- **`docs/api/toolbox.md`** — `Engine::Cutscene` beside `Tween` and `Timer`;
+  `Util::ColorRamp`.
 - **`docs/plans/possible-todos.md`** — new entries with their triggers:
   input sequences and double taps; ducking; a crossfade between two live
   scenes, which needs the render target already recorded there; partial rows in
-  a scrolling menu. And the "connection that ends with its node" entry records
-  that its trigger fired in step 3.
+  a scrolling menu; blend modes beyond `:add`, such as multiply; particles that
+  stay where they were emitted when their node moves, Godot's `local_coords`;
+  and a second music track in the gem, for a crossfade a shipped example can
+  show. And the "connection that ends with its node" entry records that its
+  trigger fired in step 3.
 - **`CHANGELOG.md`** — checked against everything the plan shipped, per
   [update-changelog](../../../.claude/skills/update-changelog/SKILL.md).
 - **`README.md`** — the roadmap loses the nine items and says what is left.

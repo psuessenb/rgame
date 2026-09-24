@@ -365,6 +365,11 @@ what is worn.
 
 ## 6. Fades, sparkles and lightning
 
+Re-planned after step 8, and the roadmap's sketches supersede the ones below
+where they differ. [What that re-plan changed](04-roadmap.md#re-planning-steps-912):
+a fade sets a node's opacity rather than building a colour each tick, a
+particle's colour comes off a `Util::ColorRamp`, and the C step comes first.
+
 ### A fade is a node in the overlay band
 
 ```ruby
@@ -377,9 +382,12 @@ fade.on_finished { ... }
 
 It is an `Engine::Tween` and one rect the size of the view it is drawn into,
 in the `:overlay` band, so it covers the world and the HUD and not the debug
-layer. Its alpha is computed in `_update` and the colour it draws with is built
+layer. ~~Its alpha is computed in `_update` and the colour it draws with is built
 there too — once per tick rather than once per draw, which is what keeps the
-draw path free of allocation with a colour that changes.
+draw path free of allocation with a colour that changes.~~ **Wrong, found in the
+re-plan of steps 9–12:** a `Color` is frozen, so one built each tick is still 60
+objects a second. The fade draws one colour and sets its own `opacity`, which
+`renderer.faded` applies to everything the node draws.
 
 A storm's flash is this class with white and a short `:out` ease. A room
 transition is `cover`, then the switch, then `reveal` — see item 8.
@@ -426,6 +434,11 @@ GL_ONE)` is the whole of the GL side, and it is core 1.0.
 
 ## 7. Audio transitions
 
+Re-planned after step 8, and the roadmap's sketches supersede the ones below
+where they differ. [What that re-plan changed](04-roadmap.md#re-planning-steps-912):
+a category is a sound group in C that a game names, the engine steps a song's
+volume by id, and volume smoothing is the measured fallback.
+
 ### Core gains the knobs; the engine decides when to turn them
 
 ```ruby
@@ -437,10 +450,13 @@ audio.category_volume(:music, 0.7)     # a multiplier over every song
 audio.category_volume(:effects, 0.5)   # ...and over every sample
 ```
 
-Only `resume` needs C: `rgame_song_play` seeks to zero on every play, on
+~~Only `resume` needs C: `rgame_song_play` seeks to zero on every play, on
 purpose, so resuming is a second entry point (`ma_sound_start` with no seek)
 rather than a flag on the first. Everything else multiplies volumes that are
-already there.
+already there.~~ **Wrong, found in the re-plan of steps 9–12:** a category
+multiplied in Ruby makes `Song#volume` read back the product, and the
+`an audio server` contract pins the volume a caller set. A category is a
+miniaudio sound group in C. `resume` is still a second entry point.
 
 Each of these lands in three places in one commit: `Core::Audio`, the
 `an audio server` contract, and `FakeAudio`.
@@ -467,9 +483,19 @@ and stops the old one when its fade ends.
 If 60 volume steps a second are audible, the fallback is miniaudio's own ramp
 between steps — `ma_sound_set_fade_in_milliseconds` with `-1` as the start
 volume — which keeps the decision about *when* in the engine and hands the
-smoothing to C. `examples/audio_transitions` exists to judge that by ear.
+smoothing to C. ~~`examples/audio_transitions` exists to judge that by ear.~~
+**Changed in the re-plan of steps 9–12:** the engine config's
+`defaultVolumeSmoothTimeInPCMFrames` smooths every volume change with one line,
+the offline device measures the step with and without it, and `examples/music`
+confirms it by ear. No `examples/audio_transitions` ships
+([decision 21](README.md#decisions-already-taken)).
 
 ## 8. Scenes, transitions and doors
+
+Re-planned after step 8, and the roadmap's sketches supersede the ones below
+where they differ. [What that re-plan changed](04-roadmap.md#re-planning-steps-912):
+a switch lands in the sweep, as `queue_free` does, and each switch may name its
+own transition or none.
 
 ### The stack names its scenes and defers every switch
 
@@ -484,10 +510,12 @@ stack.pop
 stack.on_changed { |scene| }
 ```
 
-`push`, `pop` and `replace` record a request and return. `_update` applies it
+`push`, `pop` and `replace` record a request and return. ~~`_update` applies it
 before updating the current scene, so a switch asked for during `control` lands
 at the start of the next tick and never takes apart a tree that is being
-walked. Two requests in one tick collapse into one switch, which is what both
+walked.~~ **Wrong, found in the re-plan of steps 9–12:** applied there, a switch
+asked for in `control` lands that tick and one asked for in `update` lands the
+next. It lands in the sweep after the tick instead, whoever asked. Two requests in one tick collapse into one switch, which is what both
 hand-written versions do today.
 
 A `Node2D` may still be pushed directly — `stack.push(PauseScene.new)` — so a
