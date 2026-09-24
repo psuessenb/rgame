@@ -216,6 +216,23 @@ RSpec.describe RGame::Engine::AudioOut do
       expect(theme.volume).to be_within(1e-9).of(0.75)
     end
 
+    it 'holds a fade out where it is, and carries it on' do
+      out.play_music(:theme)
+      out.stop_music(fade: 1.0)
+      tick(0.5)
+      out.pause_music
+      paused = theme.playing?
+      tick(2.0)
+      held = theme.volume
+      out.resume_music
+      tick(0.25)
+
+      expect([paused, held]).to eq([false, 0.5])
+      expect(theme.volume).to be_within(1e-9).of(0.25)
+      tick(0.25)
+      expect(theme).not_to be_playing
+    end
+
     it 'stops the song on its way out of a crossfade' do
       out.play_music(:theme)
       out.crossfade(:battle, over: 1.0)

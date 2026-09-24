@@ -383,8 +383,9 @@ rules follow from that:
 scene that fades its music out as it leaves the tree still fades. For the same
 reason, pausing a scene does not pause its music or a fade.
 
-**`pause_music` holds the current song and its fade where they are**, and
-`resume_music` carries both on. A song on its way out of a crossfade stops at
+**`pause_music` holds the music and its fade where they are**, and
+`resume_music` carries both on. That is the current song, or the song a
+`stop_music(fade:)` is lowering. A song on its way out of a crossfade stops at
 once. Stepping a fade, and holding one, allocates nothing.
 
 **`RGame::Game` mounts it in `start`**, holding `Game#audio`: the device `App`

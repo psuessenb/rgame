@@ -82,10 +82,11 @@ module RGame
         bring_in(id, level, seconds)
       end
 
-      # Holds the current song and its fade where they are. A song on its way
-      # out of a crossfade stops at once.
+      # Holds the music and its fade where they are: the current song, or the
+      # song a `stop_music(fade:)` is lowering. A song on its way out of a
+      # crossfade stops at once.
       def pause_music
-        stop_now(@falling) if @falling
+        stop_now(@falling) if @falling && @current
         @audio.pause_music
         @paused = true
       end
