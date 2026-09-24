@@ -241,6 +241,17 @@ index, not the argument.
   false` turns the development keys off. See
   [docs/api/systems.md](docs/api/systems.md#debug--a-switch-per-channel).
 
+- **`Renderer#text` can draw the start of a string.** `bytes:` draws the
+  string's first `bytes` bytes, cut back to the last whole character, so a line
+  revealed a character at a time needs no String per character. `UI::Label`
+  reveals its pages this way. See
+  [docs/api/text.md](docs/api/text.md#where-text-goes).
+- **`Game/NoBlockExitInHotPath`, a cop against leaving a block on a per-frame
+  path.** A `return` or `break` out of a block allocates an object each time it
+  happens, and the cop names `find`, `any?`, `index` and `while`, which leave
+  for free. It runs where the other allocation cops run, and its
+  `EveryMethodIn:` names files where every method counts.
+
 ### Changed
 
 - **A node reads only the presses it saw start.** In a node's components and
@@ -336,6 +347,11 @@ index, not the argument.
   `RGame::Engine::Components::WorldBounds.resolve_width(node, width)` and
   `resolve_height(node, height)` replace `resolve(node, width, height)`, which
   returned a pair.
+
+- **`Game/NoNeedlessAllocation` flags the iterators that allocate.** In a
+  per-frame method, `each_with_index`, `each_with_object`, `inject` or `reduce`
+  with a block, `min_by`, `max_by`, `minmax`, `minmax_by`, `each_slice` and
+  `each_cons` are flagged, each with the form that allocates nothing.
 
 ### Removed
 

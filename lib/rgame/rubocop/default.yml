@@ -2,7 +2,7 @@
 # class comment, under cop/game/, says what it catches and why.
 #
 # Specs are test code: their draw stubs and fixture arrays are not a per-frame
-# path the game ships, so the two allocation guards skip them. The draw-space
+# path the game ships, so the three allocation guards skip them. The draw-space
 # and translation rules still apply there, because a spec that draws in the
 # wrong place describes a game that does too.
 #
@@ -21,8 +21,17 @@ Game/NoInterpolationInHotPath:
     - '**/spec/**/*'
 
 Game/NoNeedlessAllocation:
-  Description: No throwaway Array or Range literal on a per-frame path.
+  Description: No throwaway literal, and no iterator that allocates, on a per-frame path.
   Enabled: true
+  Exclude:
+    - '**/spec/**/*'
+
+Game/NoBlockExitInHotPath:
+  Description: No return or break out of a block on a per-frame path.
+  Enabled: true
+  # Files where every method counts as per-frame, not only the hooks and the
+  # methods tagged `# hot-path`. For a library a game calls into.
+  EveryMethodIn: []
   Exclude:
     - '**/spec/**/*'
 

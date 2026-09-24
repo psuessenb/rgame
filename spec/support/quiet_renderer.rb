@@ -26,7 +26,7 @@ class QuietRenderer
   def debug_circle(_cx, _cy, _radius, z: 0) = coerce(z, nil)
   def line(_x1, _y1, _x2, _y2, thickness: 1.0, z: 0, color: nil) = coerce(z + thickness, color)
   def nine_slice(_id, _x, _y, _width, _height, z: 0, tint: nil) = coerce(z, tint)
-  def text(_string, _x, _y, z: 0, color: nil, font: nil) = coerce(z, color, font)
+  def text(_string, _x, _y, z: 0, color: nil, font: nil, bytes: nil) = coerce(z, color, font, bytes)
   def image(_image, _cx, _cy, scale: 1, z: 0, color: nil) = coerce(z + scale, color)
 
   def layered(_band) = yield
@@ -39,5 +39,5 @@ class QuietRenderer
 
   private
 
-  def coerce(_z, color, _font = nil) = RGame::Util::Color.coerce(color)
+  def coerce(_z, color, _font = nil, _bytes = nil) = RGame::Util::Color.coerce(color)
 end

@@ -533,6 +533,30 @@ RSpec.shared_examples 'a renderer' do
       end
     end
 
+    # How a line is revealed a character at a time: one String for the whole
+    # line, and a count of how much of it to draw.
+    describe 'bytes:' do
+      it 'draws the start of a string' do
+        expect { render { |renderer, _image, _font| renderer.text('Score: 1200', 10, 20, bytes: 5) } }
+          .not_to raise_error
+      end
+
+      it 'draws all of a string it counts past the end of' do
+        expect { render { |renderer, _image, _font| renderer.text('Score', 10, 20, bytes: 99) } }
+          .not_to raise_error
+      end
+
+      it 'refuses a negative count' do
+        expect { render { |renderer, _image, _font| renderer.text('Score', 10, 20, bytes: -1) } }
+          .to raise_error(ArgumentError, /bytes: must not be negative/)
+      end
+
+      it 'refuses a count that is not a number' do
+        expect { render { |renderer, _image, _font| renderer.text('Score', 10, 20, bytes: '5') } }
+          .to raise_error(TypeError)
+      end
+    end
+
     it 'draws an empty string without complaint' do
       expect { render { |renderer, _image, _font| renderer.text('', 0, 0) } }.not_to raise_error
     end

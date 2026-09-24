@@ -265,11 +265,22 @@ assertion, and it is the part to get right:
   a hang with no failure and no output. A script that goes fullscreen switches
   back before it ends.
 
-**Never measure allocations under the harness.** It records every draw call with
-its arguments, and that recording dwarfs whatever the game itself allocates —
-`examples/pooling` reads 0 to 5 objects a second plainly, pooled, and six figures
-under the harness in both of the modes it exists to compare. Run the example
-directly for any number about the game's own cost.
+**Measure allocations with `--allocations`, never from an ordinary run's
+report.** An ordinary run records every draw call with its arguments, and that
+recording dwarfs whatever the game itself allocates: `examples/pooling` reads
+0 to 5 objects a second plainly, pooled, and six figures under a recording run.
+`--allocations` records nothing. It counts what the game allocates after a
+two-second warm-up, and lists the lines that allocated when the run goes over
+budget:
+
+```
+ruby tools/drive_test_project.rb examples/<name>/main.rb --allocations
+```
+
+The default budget is 60 objects a second, on at most 10% of ticks. A new
+example meets it or its script says why not, in its header, above an
+`allocation_budget` line, as `tools/drive/examples/pooling.rb` does.
+`rake drive:allocations` runs every project this way, and CI runs it.
 
 If the report does not show the thing you need, **extend the harness** rather
 than eyeballing the window. `AudioProbe` did not record `stop_music`, so a game

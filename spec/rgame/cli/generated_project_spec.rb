@@ -80,6 +80,7 @@ RSpec.describe 'a generated project' do # rubocop:disable RSpec/DescribeClass --
         def _draw(renderer, _view)
           renderer.text("Score: \#{@points}", x, 0)
           @size = [4, 4]
+          @digits.each { |digit| return if digit.nil? }
           RGame::Core::Image
         end
       end
@@ -89,7 +90,7 @@ RSpec.describe 'a generated project' do # rubocop:disable RSpec/DescribeClass --
 
     expect(status).not_to be_success
     expect(output).to include('Game/NoInterpolationInHotPath', 'Game/NoLiteralText', 'Game/DrawInLocalSpace',
-                              'Game/NoNeedlessAllocation', 'Game/NoCoreInEngineLayer')
+                              'Game/NoNeedlessAllocation', 'Game/NoBlockExitInHotPath', 'Game/NoCoreInEngineLayer')
     expect(output).to include('must not require rgame/game')
   end
 

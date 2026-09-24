@@ -229,6 +229,19 @@ jobs:
         shell: bash
         run: bundle exec rake docs:coverage
 
+      # Every example and test project, driven by its own script, with what it
+      # allocates once warm held to the script's budget. The one check that
+      # sees a whole game: a spec measures a class with the data it was given,
+      # and a cop reads one method at a time. See tools/drive_allocations.rb.
+      # One leg runs it, since the code that allocates is the same on every
+      # platform. The test projects that read the gitignored media/ are skipped
+      # here, and the output says so.
+      - name: Allocation budgets (driven projects)
+        if: runner.os == 'Linux'
+        continue-on-error: ${{ !matrix.ported }}
+        shell: bash
+        run: bundle exec rake drive:allocations
+
       # A native crash inside the Ruby process (unlike the C suite's own binary)
       # leaves nothing behind but "Process completed with exit code 1" — no
       # backtrace, not even which spec was running. `gdb --args` around the same

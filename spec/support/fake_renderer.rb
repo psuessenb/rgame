@@ -214,9 +214,24 @@ class FakeRenderer
 
   # --- text ---------------------------------------------------------------
 
-  def text(string, x, y, z: 0, color: nil, font: nil)
-    remember(:text, [string(string), number(x), number(y)],
+  # Records the part of the string a real renderer shows, so a spec reads a
+  # revealed line as the prefix on screen, whichever way it was drawn.
+  def text(string, x, y, z: 0, color: nil, font: nil, bytes: nil)
+    remember(:text, [shown(string(string), bytes), number(x), number(y)],
              z: z_arg(z), color: color_arg(color), font: font)
+  end
+
+  # What `bytes:` leaves of `string`: its first `bytes` bytes, shortened to the
+  # last whole character, as the real renderer's C cuts it.
+  def shown(string, bytes)
+    return string if bytes.nil?
+
+    limit = Integer(number(bytes))
+    raise ArgumentError, "bytes: must not be negative, got #{limit}" if limit.negative?
+    return string if limit >= string.bytesize
+
+    limit -= 1 while limit.positive? && (string.getbyte(limit) & 0xC0) == 0x80
+    string.byteslice(0, limit)
   end
 
   # Real metrics: the shipped typeface at the renderer's size, measured by the

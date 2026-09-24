@@ -38,7 +38,7 @@ class GameOverScene < RGame::Engine::Node2D
     centered(renderer, view, TITLE, 90, TITLE_COLOR)
     centered(renderer, view, @score_text, 130, TEXT_COLOR)
     centered(renderer, view, 'High Scores', 180, TEXT_COLOR)
-    @high_lines.each_with_index { |line, i| centered(renderer, view, line, 210 + (i * 24), TEXT_COLOR) }
+    @high_lines.each_index { |i| centered(renderer, view, @high_lines[i], 210 + (i * 24), TEXT_COLOR) }
     centered(renderer, view, HINT, view.height - 40, HINT_COLOR)
   end
 

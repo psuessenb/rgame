@@ -56,6 +56,68 @@ RSpec.describe RuboCop::Cop::Game::NoNeedlessAllocation, :config do
     end
   end
 
+  # Each of these allocates on every call although nothing in the line shows
+  # it, while an Array answers the same question another way for free.
+  describe 'an iterator that allocates, inside a per-frame method' do
+    def hidden_msg(method)
+      format(described_class::MSG_HIDDEN, method: method, instead: described_class::HIDDEN.fetch(method))
+    end
+
+    it 'flags each_with_index' do
+      expect_offense(<<~RUBY, msg: hidden_msg(:each_with_index))
+        def _draw(renderer, _view)
+          ROWS.each_with_index { |row, index| draw_row(renderer, row, index) }
+               ^^^^^^^^^^^^^^^ %{msg}
+        end
+      RUBY
+    end
+
+    it 'flags min_by in a method tagged `# hot-path`' do
+      expect_offense(<<~RUBY, msg: hidden_msg(:min_by))
+        # hot-path
+        def nearest(enemies)
+          enemies.min_by { |enemy| enemy.distance }
+                  ^^^^^^ %{msg}
+        end
+      RUBY
+    end
+
+    it 'flags inject with a block' do
+      expect_offense(<<~RUBY, msg: hidden_msg(:inject))
+        def _update(dt)
+          @weight = @items.inject(0) { |sum, item| sum + item.weight }
+                           ^^^^^^ %{msg}
+        end
+      RUBY
+    end
+
+    it 'flags a safe-navigation call' do
+      expect_offense(<<~RUBY, msg: hidden_msg(:each_with_object))
+        def _update(dt)
+          @items&.each_with_object(@seen) { |item, seen| seen << item }
+                  ^^^^^^^^^^^^^^^^ %{msg}
+        end
+      RUBY
+    end
+
+    # With a Symbol and no block, `inject` allocates nothing.
+    it 'allows inject with a Symbol' do
+      expect_no_offenses(<<~RUBY)
+        def _update(dt)
+          @total = @weights.inject(:+)
+        end
+      RUBY
+    end
+
+    it 'allows one outside a per-frame method' do
+      expect_no_offenses(<<~RUBY)
+        def build_rows
+          ROWS.each_with_index { |row, index| @rows[index] = row }
+        end
+      RUBY
+    end
+  end
+
   describe 'allowed cases' do
     it 'allows an empty array (mutable-state seed)' do
       expect_no_offenses(<<~RUBY)

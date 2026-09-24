@@ -34,6 +34,14 @@
 #
 # The spawn directions come off a seeded RNG, so two runs at one tick budget
 # match; `--seed N` overrides it.
+#
+# Under `--allocations`, about 660 objects a second, on about 38% of ticks: the
+# middle stretch builds a fresh mote on every spawn, on purpose, and that is
+# what both numbers measure. The pooled stretches allocate nothing, and
+# `spec/rgame/engine/components/pool_allocation_spec.rb` is what holds them to
+# it; a budget over the whole run cannot.
+
+allocation_budget objects_per_second: 800, share_of_ticks: 0.45
 
 idle 190
 press controls::KEY_SPACE  # fresh objects

@@ -1,6 +1,6 @@
 ---
 name: write-ruby-code
-description: The rules for Ruby in rgame that RuboCop cannot check — which prefix says a method is a signal, a hook, sealed machinery or none of these, the tense each name takes, what the guards behind them miss, and how a label built from a changing value is written. Use whenever writing or editing Ruby under lib/, examples/, test_projects/ or spec/, naming a method, signal or hook, subclassing Node2D or Component, adding a non-public method to either, answering a Game/NoInterpolationInHotPath offense, or writing a Ruby sketch in a plan.
+description: The rules for Ruby in rgame that RuboCop cannot check — which prefix says a method is a signal, a hook, sealed machinery or none of these, the tense each name takes, what the guards behind them miss, how a label built from a changing value is written, and which Ruby allocates without showing it. Use whenever writing or editing Ruby under lib/, examples/, test_projects/ or spec/, naming a method, signal or hook, subclassing Node2D or Component, adding a non-public method to either, answering a Game/NoInterpolationInHotPath, Game/NoNeedlessAllocation or Game/NoBlockExitInHotPath offense, writing code a game runs every frame, or writing a Ruby sketch in a plan.
 ---
 
 # Writing Ruby for rgame
@@ -118,3 +118,29 @@ Two shapes need no `with` at all:
 - **A value that never changes and is not words** is built once in `initialize`
   and kept in an ivar, as a `Sheep` in `examples/save_load_ids` keeps `id.to_s`.
   A number has nothing to translate.
+
+## What allocates without showing it
+
+A per-frame path allocates nothing, and some Ruby allocates where no literal
+shows it. Measured on this Ruby, per call:
+
+| Shape | Objects | Instead | Caught by |
+|---|---|---|---|
+| `return` or `break` out of a block, `loop { break }`, `return` in a lambda | 1 | `find`, `any?`, `index`, or a `while` loop | `Game/NoBlockExitInHotPath` |
+| `each_with_index`, `each_with_object` | 1 | `each` with a counter, `each_index` | `Game/NoNeedlessAllocation` |
+| `inject` or `min_by` with a block | 2 | `sum`; `min` with a block comparing two | `Game/NoNeedlessAllocation` |
+| `any?`, `find` or `count` on a class that includes Enumerable over its own `each` | 3 | `include Collection.of(:@list)` | `spec/rgame/engine/collection_spec.rb` |
+| `sort` or `sort!` with a block | 2 | sort only when the order changed | nothing |
+| a method returning `[a, b]` that its caller takes apart | 1 | one method per part | `Game/NoNeedlessAllocation`, on a per-frame path |
+| `-0.0`, or any Float outside about 1e-77 to 1e77, which Ruby cannot keep inline | 1 | work it out once, outside the frame | nothing |
+| `*args`, `**opts`, `Symbol#to_s`, `Integer#to_s` | 1 | explicit parameters; build the String once | nothing |
+
+Free: `next`, `each`, `each_index`, `any?`/`all?`/`find`/`count`/`sum` on an
+Array, `min`/`max` with or without a block, `[a, b].min`, destructuring an
+Array that already exists, forwarding with `(...)`, and `Hash#each` with two
+block parameters (with one, it allocates an Array for each entry).
+
+The cops read one method at a time, and a Float's value is invisible to them.
+`rake drive:allocations` measures every driven project whole, and it is what
+catches the rows marked "nothing". See the
+[verify](../verify/SKILL.md) skill, tier 3c.

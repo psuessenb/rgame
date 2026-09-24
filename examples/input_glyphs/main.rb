@@ -144,8 +144,10 @@ class Prompts < RGame::Engine::Node2D
     renderer.rect(0, 0, WIDTH_PX, HEADER_H + (ROWS.size * ROW_H), color: PANEL)
     renderer.text(DEVICE_NAME.fetch(RGame::Util::Controls.gamepad?(device)), PAD, PAD, color: INK)
 
-    ROWS.each_with_index do |(action, label), index|
-      draw_row(renderer, action, label, device, HEADER_H + (index * ROW_H))
+    y = HEADER_H
+    ROWS.each do |action, label|
+      draw_row(renderer, action, label, device, y)
+      y += ROW_H
     end
   end
 

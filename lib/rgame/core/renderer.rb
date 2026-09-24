@@ -297,8 +297,13 @@ module RGame
       #
       # Newlines are not special. A caller wanting two lines draws two, stepping
       # by #text_height.
-      def text(string, x, y, z: DEFAULT_Z, color: nil, font: nil)
-        draw_text(font_for(font), string, x, y, Z.offset(z), packed(color))
+      #
+      # `bytes:` draws only the start of the string: its first `bytes` bytes,
+      # shortened to the last whole character. It is how a line is revealed a
+      # character at a time with one String for the whole line. A count past
+      # the end draws all of it, and a negative one raises ArgumentError.
+      def text(string, x, y, z: DEFAULT_Z, color: nil, font: nil, bytes: nil)
+        draw_text(font_for(font), string, x, y, Z.offset(z), packed(color), bytes)
       end
 
       # What #text would occupy, for centring and layout. Unlike the drawing

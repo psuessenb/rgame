@@ -28,7 +28,7 @@ Every other drawing method uses the same corner. Typography measures from the
 baseline, but a caller placing a label does not have to.
 
 ```ruby
-renderer.text(string, x, y, z: 0, color: nil, font: nil)
+renderer.text(string, x, y, z: 0, color: nil, font: nil, bytes: nil)
 renderer.text_width(string, font: nil)   # => Float — pixels
 renderer.text_height(font: nil)          # => Integer — the line height
 ```
@@ -37,6 +37,12 @@ renderer.text_height(font: nil)          # => Integer — the line height
 [`Engine::Text`](toolbox.md#text--the-string-a-node-draws), which a node passes
 as it is. `text` and `text_width` raise `TypeError` for `nil`, a number, or a
 `to_str` that returns something other than a String.
+
+**`bytes:` draws the start of a string**: its first `bytes` bytes, cut back to
+the last whole character. A line revealed a character at a time is then one
+String and a count, rather than a String for every character shown.
+[`UI::Label`](ui.md#rgameengineuilabel) reveals its pages this way. A count past
+the end draws the whole string, and a negative one raises `ArgumentError`.
 
 **A string is one line.** `text` draws a newline as a glyph, not as a line
 break. Break the string with [`text_lines`](#breaking-text-into-lines), then draw
@@ -221,9 +227,8 @@ same Array and allocates nothing, so a node may read `lines` in `_draw`:
 
 ```ruby
 def _draw(renderer, _view)
-  @notice.lines.each_with_index do |line, i|
-    renderer.text(line, 0, i * renderer.text_height)
-  end
+  lines = @notice.lines
+  lines.each_index { |i| renderer.text(lines[i], 0, i * renderer.text_height) }
 end
 ```
 
