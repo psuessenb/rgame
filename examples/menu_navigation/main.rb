@@ -10,6 +10,7 @@
 # settings screen **left and right change the value under the cursor**. Quit,
 # run it again, and the settings are where you left them. It exercises:
 #   - Scene::SceneStack — push, pop and replace, and the difference between them;
+#   - Scene::Fade — the transition that covers a replace;
 #   - UI::OptionButton — a menu row whose value is chosen from a list;
 #   - Util::SaveFile holding settings rather than a saved game;
 #   - RGame::Game's fullscreen, scale_mode and audio volume, driven from a menu.
@@ -29,14 +30,24 @@
 #
 # ## Nothing switches scenes while the tree is being walked
 #
-# `Shell#go` records a request and `Shell#_update` carries it out. A menu item
-# activates during `control`, which is the middle of a traversal of the very
-# subtree the switch is about to take apart, and unbuilding a tree while walking
-# it is the sort of bug that shows up somewhere else entirely.
+# `push`, `replace` and `pop` only record what was asked, and the stack lands
+# the switch after the tick. A menu item activates during `control`, which is
+# the middle of a traversal of the very subtree the switch is about to take
+# apart, so the stack waits until nothing is walking it.
 #
-# Deferring costs one line and buys a second thing for free: two requests in one
-# tick — the Back item and Escape both firing — collapse into one transition
-# rather than two pops.
+# Two requests in one tick — the Back item and Escape both firing — keep only
+# the last, so they are one pop rather than two.
+#
+# ## Play fades, and Settings does not
+#
+# The stack has a transition, so a replace covers the screen, switches while it
+# is covered, and reveals the new scene. Settings is pushed and popped with
+# `transition: nil`: fading the title out only to draw it again under a panel
+# would hide the very thing pushing keeps.
+#
+# No scene reads input while a transition runs. A press begun under the cover
+# does nothing once the new scene shows, so the next press is the one that
+# counts.
 #
 # ## Settings apply now and persist immediately
 #
@@ -150,44 +161,24 @@ end
 
 # The root: scene navigation, and the settings every screen shares.
 class Shell < RGame::Engine::Node2D
+  FADE = RGame::Engine::Scene::Fade.new(cover: 0.25, reveal: 0.25)
+
   def initialize(settings:)
     super()
-    @settings = settings
     @stack = add_component(RGame::Engine::Scene::SceneStack.new)
-    @pending = nil
+    @stack.transition = FADE
+    @stack.define(:title) { TitleScene.new }
+    @stack.define(:settings) { SettingsScene.new(settings: settings) }
+    @stack.define(:play) { PlayScene.new }
   end
 
   def _enter_tree = show(:title)
 
-  # `push` keeps what is under it; `replace` does not; `pop` returns to it. Each
-  # one records the request and returns, for the reason at the top of this file.
-  def show(name) = @pending = [:push, name]
-  def swap(name) = @pending = [:replace, name]
-  def back = @pending = [:pop, nil]
-
-  # Runs after the active scene's own update has unwound, so the tree being
-  # rebuilt is not one the traversal is standing in.
-  def _update(_dt)
-    return unless @pending
-
-    action, name = @pending
-    @pending = nil
-    case action
-    when :push then @stack.push(build(name))
-    when :replace then @stack.replace(build(name))
-    when :pop then @stack.pop
-    end
-  end
-
-  private
-
-  def build(name)
-    case name
-    when :title then TitleScene.new
-    when :settings then SettingsScene.new(settings: @settings)
-    when :play then PlayScene.new
-    end
-  end
+  # `push` keeps what is under it; `replace` does not; `pop` returns to it.
+  # Only a replace fades. See "Play fades, and Settings does not".
+  def show(name) = @stack.push(name, transition: nil)
+  def swap(name) = @stack.replace(name)
+  def back = @stack.pop(transition: nil)
 end
 
 # The title: a heading and three choices.
@@ -248,8 +239,8 @@ class SettingsScene < RGame::Engine::Node2D
   end
 
   # Escape does what Back does, because that is what every player will try
-  # first. Both go through the same deferred request, so pressing one on the
-  # same tick as the other is still one pop.
+  # first. Pressing one on the same tick as the other is still one pop, because
+  # the stack keeps only the last switch asked for before it lands.
   def _control(actions)
     root.back if actions.pressed?(:ui_cancel)
   end

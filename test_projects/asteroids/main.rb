@@ -17,41 +17,22 @@ MEDIA  = File.join(__dir__, '../../media')
 SEED = ENV.fetch('RGAME_SEED', nil)&.to_i
 
 # Root: owns scene navigation (SceneStack) and program-lifetime state (HighScores,
-# a global/root-scoped system). Scene switches are deferred to #_update so a scene
-# never tears itself down mid-traversal — #go only records the request, and Root's
-# _update (which runs after the active scene's whole update has unwound) applies it.
+# a global/root-scoped system). A scene asks for the next one through #go, and the
+# stack lands the switch after the tick, so a scene never tears itself down
+# mid-traversal.
 class Root < RGame::Engine::Node2D
   def initialize(seed: nil)
     super()
-    @seed = seed
     @stack = add_component(RGame::Engine::Scene::SceneStack.new)
+    @stack.define(:start) { StartScene.new }
+    @stack.define(:play) { PlayScene.new(width: WIDTH, height: HEIGHT, seed: seed) }
+    @stack.define(:game_over) { |score:| GameOverScene.new(score: score) }
     add_component(HighScores.new)
-    @pending = nil
   end
 
   def _enter_tree = go(:start)
 
-  def go(name, **args)
-    @pending = [name, args]
-  end
-
-  def _update(_dt)
-    return unless @pending
-
-    name, args = @pending
-    @pending = nil
-    @stack.replace(build_scene(name, **args))
-  end
-
-  private
-
-  def build_scene(name, score: 0)
-    case name
-    when :start     then StartScene.new
-    when :play      then PlayScene.new(width: WIDTH, height: HEIGHT, seed: @seed)
-    when :game_over then GameOverScene.new(score: score)
-    end
-  end
+  def go(name, **) = @stack.replace(name, **)
 end
 
 game = RGame::Game.new(

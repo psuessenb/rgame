@@ -407,7 +407,8 @@ For a tween that should run on a node's tick and say when it ends, use
 
 **`RGame::Engine::ScreenFade` is a node that draws one colour over the view it
 is drawn into, and fades it in and out.** A scene changes behind it once it is
-covered, and a storm flashes it white.
+covered, and a storm flashes it white. A `SceneStack` covers its switches with
+one; see [Transitions](scene_graph.md#transitions).
 
 ```ruby
 BLACK = RGame::Util::Color::BLACK
@@ -436,6 +437,8 @@ fade draws nothing, and neither stepping nor drawing allocates.
   its duration and falls back to clear. The colour's own alpha is the peak, so
   `GLARE` above never covers the scene. After a flash the fade draws in its own
   `color` again.
+- **`color=`** changes the colour a cover and a reveal draw in, one under way
+  included. A flash under way keeps its own colour until it ends.
 - **Each call replaces whatever was running.** `on_finished` fires once for the
   one that reaches its end, and never for one replaced before it.
 - **`running?`** is true while one runs. **`covered?`** is true when the fade is

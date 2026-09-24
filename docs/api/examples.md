@@ -194,9 +194,11 @@ hero stops while the villagers walk on.
 ### menu_navigation
 
 Several screens (title, settings, back) and settings that change something real
-and survive a restart. It contrasts pushing a scene with replacing one.
+and survive a restart. It contrasts pushing a scene with replacing one, and
+asks for each scene by the name the stack was given. Play fades out and in;
+Settings, pushed over the title, does not.
 
-**Uses:** `Scene::SceneStack`, `UI::OptionButton`, `Util::SaveFile`,
+**Uses:** `Scene::SceneStack` and its `define`, `Scene::Fade`, `UI::OptionButton`, `Util::SaveFile`,
 `RGame::Game`'s fullscreen, scale mode and volume.
 
 ### radial_menu

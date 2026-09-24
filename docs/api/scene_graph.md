@@ -538,8 +538,9 @@ The engine drives this; you never call it. It uses `enter_tree`, `exit_tree` and
   exits the subtree the same way.
 - `add_component` and `remove_component` fire `_attach` and `_detach` at once
   when the host node is live. Otherwise attachment happens when the node enters.
-- `SceneStack#push` enters a scene when its host is in the tree, and `pop` exits
-  it. `RGame::Game#start` enters the root once, at boot.
+- A `SceneStack` switch enters its new scene as it lands, when the stack's host
+  is in the tree, and exits the scene it takes off. `RGame::Game#start` enters
+  the root once, at boot.
 - The cascade reaches every node that names the entering or leaving node as its
   `parent`, on the child list or off it. So the scenes on a `SceneStack` are in
   the tree exactly while its host is, all of them, not only the current one. A
@@ -613,8 +614,150 @@ change a parent's `children` while the traversal iterates that list.
 Any component or hook can therefore call `node.queue_free` from inside `update`
 without corrupting the traversal. A component that holds nodes outside the normal
 child list, such as `SceneStack`, overrides `Component#_sweep_freed` to pass the
-sweep into the subtree it owns.
+sweep into the subtree it owns. A `SceneStack` also lands its switches there.
 
 `enter_tree` clears the freed flag, so a node detached and added again comes back
 alive. Pools rely on this. A despawned node returns to its pool, and acquiring it
 and calling `add_node` revives it cleanly.
+
+## Scenes: `SceneStack`
+
+**A game's scenes sit on a stack**, a component on a host node, usually the
+root. `RGame::Engine::Scene::SceneStack` controls and updates only the top
+scene, and draws every scene from the bottom up. A menu pushed over the world
+therefore keeps the world on screen, frozen.
+
+```ruby
+require 'rgame'
+
+class TitleScene < RGame::Engine::Node2D; end
+
+class GameOverScene < RGame::Engine::Node2D
+  attr_reader :score
+
+  def initialize(score:)
+    super()
+    @score = score
+  end
+end
+
+root = RGame::Engine::Node2D.new
+stack = root.add_component(RGame::Engine::Scene::SceneStack.new)
+stack.define(:title) { TitleScene.new }
+stack.define(:game_over) { |score:| GameOverScene.new(score:) }
+root.enter_tree
+
+stack.push(:title)
+stack.current                          # => nil — asked for, and not landed
+stack.pending?                         # => true
+root.sweep_freed                       # RGame::Game sweeps after every tick
+stack.current                          # => TitleScene
+
+stack.replace(:game_over, score: 12)   # keywords reach the builder
+root.sweep_freed
+stack.current.score                    # => 12
+```
+
+- `push(scene)` puts a scene on top, and the one below stays. `replace(scene)`
+  takes the top scene off first. `pop` takes it off, and a pop on an empty
+  stack changes nothing.
+- A scene is a node, or a name given to `define`. The block builds a new scene
+  each time a switch to that name lands, and takes the keywords the switch
+  passes.
+- `current` is the top scene, or nil on an empty stack.
+- `pending?` answers whether a switch was asked for and has not landed.
+- `on_changed { |scene| ... }` fires once for each switch that lands, after the
+  new top scene entered the tree. It carries that scene, or nil once the stack
+  is empty.
+
+### A switch lands in the sweep
+
+**`push`, `replace` and `pop` only record what was asked.** The switch lands in
+the sweep after the tick, where a `queue_free` lands, whichever node asked and
+in whichever phase. A menu item activates during `control`, in the middle of a
+walk over the scene the switch would take apart. Waiting for the sweep means
+nothing is walking it.
+
+So `current` changes when the switch lands, not when it is asked for. The scene
+leaving still finishes the tick it asked in, and the scene arriving is first
+controlled and updated on the next tick. A scene pushed from a root's
+`_enter_tree` lands in the first sweep, so the first frame shows no scene.
+
+**Two switches asked for before one sweep keep only the last.** A Back item and
+Escape pressed on the same tick are one pop, not two.
+
+### Names and keywords
+
+A name is a Symbol, defined once per stack. The stack checks each switch to a
+name when it is asked for, not when it lands, so a mistake raises where it was
+made:
+
+- a name the stack was not given raises `KeyError`;
+- a keyword the builder requires and the switch leaves out raises
+  `ArgumentError`, and so does a keyword the builder does not take;
+- keywords beside a node, rather than a name, raise `ArgumentError`.
+
+A builder takes keywords only. `define` raises for one that takes positional
+parameters, or that declares `carry` or `transition`, which are the stack's own.
+
+### Carrying a node into the next scene
+
+```ruby
+stack.define(:village) { |hero:, entrance:| VillageScene.new(hero:, entrance:) }
+stack.replace(:village, entrance: :south_gate, carry: { hero: hero })
+```
+
+**`carry:` takes a node from one scene into the next.** As the switch lands,
+the stack takes each node in `carry:` from its parent, before the old scene
+leaves the tree. It hands each to the builder under its key, and the builder
+puts it in the new scene.
+
+The node's components leave the old scene's systems as the stack takes it, and
+join the new scene's as it enters with that scene. A collider leaves one
+`CollisionWorld`'s index and joins the next, and a `CharacterBody` is stopped by
+the new scene's map. The node keeps its `x` and `y`, so the builder places it.
+
+A key in `carry:` is checked against the builder as a keyword is, and a key
+given as a keyword too raises `ArgumentError`. `carry:` beside a node rather
+than a name raises `ArgumentError`, and anything but a Hash of names to nodes
+raises `TypeError`.
+
+### Transitions
+
+```ruby
+stack.transition = RGame::Engine::Scene::Fade.new(cover: 0.25, reveal: 0.25)
+stack.replace(:play)                     # covers, switches, reveals
+stack.push(:settings, transition: nil)   # this switch without one
+stack.transitioning?                     # covering or revealing
+```
+
+**A transition covers the view, switches while it is covered, and reveals the
+new scene.** `RGame::Engine::Scene::Fade` describes one: a `color`, black unless
+given, and `cover` and `reveal` durations in seconds, which must be positive. It
+is a frozen value.
+
+The stack builds one `ScreenFade` the first time a transition runs, and holds it
+off the host's child list as it holds its scenes. It draws the fade after every
+scene, over the host's view, in the `:overlay` band.
+
+- **The switch lands in the sweep after the cover ends.** `on_changed` fires
+  then, under a full cover, and the reveal starts.
+- **No scene is controlled until the reveal ends.** The scene leaving is not
+  updated under the cover, and the scene arriving is updated from the tick after
+  it lands. A scene's first press after a transition therefore began after it:
+  the press gate refuses one begun under the cover, as it refuses any press a
+  node did not see start. See
+  [A node reads only the presses it saw start](input.md#a-node-reads-only-the-presses-it-saw-start).
+- **A push onto an empty stack starts covered**, since there is nothing to
+  cover, lands in the first sweep, and reveals.
+- **A switch asked for during a cover replaces the one waiting**, and the cover
+  goes on. **One asked for during a reveal covers again** from where the reveal
+  got to. Either joins the transition under way when it has none of its own.
+
+`transition` is `nil` until set, and a switch without one lands in the next
+sweep. `transition:` on `push`, `replace` or `pop` runs another `Fade` for that
+switch, and `nil` runs none. Anything but a `Fade` or `nil` raises `TypeError`.
+
+A paused host holds its transition where it is, since time reaches the fade
+through the stack's `update`. A menu pushed over a world usually wants
+`transition: nil`: a fade would hide the world that pushing keeps on screen.

@@ -1,5 +1,5 @@
 on controls::KEYBOARD do
-  idle 10
+  idle 42
   hold controls::KEY_UP, 40
   hold [controls::KEY_UP, controls::KEY_LEFT], 10
   hold [controls::KEY_UP, controls::KEY_LEFT, controls::KEY_F4], 2
@@ -56,7 +56,7 @@ on controls::KEYBOARD do
 end
 
 on controls.gamepad(0) do
-  idle 30
+  idle 62
   press controls::PAD_A
   idle 10
   hold controls::PAD_DPAD_DOWN, 60
