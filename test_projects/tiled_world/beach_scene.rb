@@ -80,7 +80,7 @@ class BeachScene < RGame::Engine::Node2D
   end
 
   def build_player
-    node = RGame::Engine::Node2D.new(x: @map.pixel_width / 2.0, y: @map.pixel_height / 2.0)
+    node = RGame::Engine::Node2D.new(x: (@map.pixel_width / 2.0) + 8, y: (@map.pixel_height / 2.0) + 32)
     node.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: PLAYER_SHEET))
     node.add_component(RGame::Engine::Components::FeetCollider.new(width: 10, height: 8, layer: :hero))
     node.add_component(RGame::Engine::Components::CharacterBody.new(speed: PLAYER_SPEED,
@@ -100,8 +100,8 @@ class BeachScene < RGame::Engine::Node2D
   end
 
   def npc_spawns
-    cx = @map.pixel_width / 2.0
-    cy = @map.pixel_height / 2.0
+    cx = (@map.pixel_width / 2.0) + 16
+    cy = (@map.pixel_height / 2.0) + 32
     NPC_OFFSETS.map { |dx, dy| [cx + dx, cy + dy] }.reject { |x, y| @map.solid_at?(x, y) }
   end
 end

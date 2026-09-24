@@ -23,7 +23,7 @@ class Room < RGame::Engine::Node2D
 
   CELL_SIZE = 64
 
-  STARTS = [[368.0, 240.0], [416.0, 240.0]].freeze
+  STARTS = [[376.0, 262.0], [424.0, 262.0]].freeze
 
   COINS = [[341, 206], [314, 179], [288, 152], [468, 317], [256, 150]].freeze
 

@@ -38,8 +38,7 @@ class Hero < RGame::Engine::Node2D
   FEET_WIDTH  = 12
   FEET_HEIGHT = 6
 
-  CAMERA_OFFSET_X = 8
-  CAMERA_OFFSET_Y = 11
+  CAMERA_OFFSET_Y = -11
 
   REACH = 48.0
   GRIP = 32.0
@@ -58,7 +57,7 @@ class Hero < RGame::Engine::Node2D
                   ))
     add_component(RGame::Engine::Components::PlayerController.new)
     add_component(RGame::Engine::Components::CameraFollow.new(
-                    camera: camera, offset_x: CAMERA_OFFSET_X, offset_y: CAMERA_OFFSET_Y
+                    camera: camera, offset_y: CAMERA_OFFSET_Y
                   ))
     @interactor = add_component(RGame::Engine::Components::Interactor.new(
                                   range: REACH, layer: :interactable
@@ -104,7 +103,7 @@ class Hero < RGame::Engine::Node2D
     hat = @worn[:head]
     return unless hat
 
-    renderer.rect(1, 0, HAT_WIDTH, HAT_HEIGHT, z: 1, color: hat.color)
-    renderer.text(hat.name, 0, -12)
+    renderer.rect(-HAT_WIDTH / 2.0, -height, HAT_WIDTH, HAT_HEIGHT, z: 1, color: hat.color)
+    renderer.text(hat.name, -width / 2.0, -height - 12)
   end
 end
