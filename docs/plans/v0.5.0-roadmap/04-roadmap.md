@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: steps 0 to 12 are implemented.** Eighteen steps. Each is one branch and one
+**Status: steps 0 to 13 are implemented.** Eighteen steps. Each is one branch and one
 pull request, and its sub-steps are one commit each. **Steps 0–16 are detailed.**
 Steps 5–8 were planned after step 4 landed, steps 9–12 after step 8, and steps
 13–16 after step 12. What each re-plan found comes before its steps:
@@ -3054,6 +3054,83 @@ and the caller that uses both decides the step.
 `docs/api/scene_graph.md` gains the rooms beside the stack.
 `docs/api/systems.md` says a system is looked up through each enclosing scene,
 and `docs/api/components.md` that a body starts standing.
+
+**Landed.** Four sub-steps, one commit each. `make test` 412 checks 0 failures,
+as at the branch point, since no C changed. `rake spec` 3819 examples 0 failures
+(3741), `rake spec:core` 517 examples 0 failures (517), `rake docs:coverage`
+nothing undocumented in 200 classes, and `rake drive:allocations` passes all 39
+projects.
+
+**After 13b, and again after 13d, every driven run reports what `main`
+reports.** All 52 scripts ran under `--seed 4242`, 240 ticks and `--texts`
+against two captures of `main`. Run six at a time, a few differed from both
+captures, each by its frame count alone: a loaded machine drops a frame or three,
+and every draw count moves with it. Those were run again one at a time, on `main`
+and on the branch, and matched byte for byte, with one exception. `pooling` draws
+its own allocation count, and its first reading, over the second after
+`_enter_tree`, reads 42620 where `main` reads 42619. Every later reading
+matches, and `drive:allocations` measures 661.2 objects a second on both.
+
+**The caller that uses both passes.** Two players stand in a town 640 px wide
+and a garden 320 px wide, each room with a `TileWorld` and a `CollisionWorld`.
+The second player's hero moves to the garden. Its collider leaves the town's
+index and joins the garden's, and the garden's wall stops it at x = 272. The
+first camera keeps 640 × 192 and the second takes 320 × 192, though each room
+handed its `TileWorld` both cameras. The town's `ticks` counts on, and each room
+draws into its own player's view alone. Rule 15 holds with both rooms drawing
+through a `WorldView` into two views, after a move under a transition has built
+both covers.
+
+What the sketch got wrong:
+
+- **An `_arrive` like the sketch's added a warped node twice.** It ends in
+  `@actors.add_node(node)`, and on a warp the node is still that node's child,
+  so `add_node` appended it a second time. `Node2D#add_node` now leaves a node
+  that is already its child where it is, in the tree, and takes a node from any
+  other parent first. A node added to a second parent used to sit in both child
+  lists. The sketch's `_arrive` is right as written.
+- **A node with no `input_owner` has the primary player, not none.** Rule 2 gave
+  such a node no player. A single-player hero sets no owner, so it would have
+  stood nobody in its room, and the sweep would have freed the room under it. A
+  node's player is now looked up through its parents and falls back to the
+  primary, as input does. A node owned by `Players#everyone` is the one with no
+  player: it moves under no cover and stands nobody anywhere.
+- **A blank `_arrive` raises rather than losing the node.** Rule 4 left the hook
+  blank. A room that forgets to place the node would drop it out of the tree
+  with no error, so a node `_arrive` leaves outside the room raises, naming the
+  room's class.
+- **A move with no transition gives `paused` back as it lands.** Rule 3 counted
+  to the end of the reveal, and such a move has none.
+- **A room is freed in the sweep its last player leaves it**, the sweep the move
+  lands in. Rule 6 read as the sweep after. A room a move is on its way to is
+  kept, and `hold` builds a room that is not running in the next sweep.
+- **A room's builder takes no parameters.** `define` refuses one that takes
+  any, where the stack's builders take keywords.
+- **`Rooms` answers `pending?` and `transitioning?`,** as the stack does. The
+  sketch listed neither.
+- **The curtain draws its fade itself.** `Curtain#draw` is called from wherever
+  the fade belongs. `Rooms` keeps a private `PlayerLayer` subclass per player
+  whose `_draw` draws that player's curtain, so the fade is drawn inside the
+  region's clip.
+- **Standing still broke specs that set an intent before entering.** The shared
+  mover group builds a mover with its heading set, and a `CharacterBody` now
+  clears it on attach. The group gained `enter_mover` and an optional
+  `start_mover(mover, heading)` that runs once the mover is in the tree.
+  `pushable_spec.rb` and the stack's carried hero set their intent after
+  entering.
+- **Each drive run needs a display of its own.** The harness boots Xvfb on
+  `RGAME_SPEC_DISPLAY`, `:97` unless set, so runs made at once must each set
+  one, or they share a server and fail.
+- **The harness reports rooms among the scenes.** Each room built, each node a
+  move landed and each room freed is a line: `build Garden`, `move Hero to
+  Garden`, `free Town`.
+
+Documented in [scene_graph.md](../../api/scene_graph.md#rooms-scenerooms), which
+gains a section for the rooms, and in its stack section for `on_requested`.
+`systems.md` gives the lookup through each enclosing scene, `components.md` says
+a body stands still on attach, and the `WorldView` paragraph says what a room
+changes. `CHANGELOG.md` has one entry under Added, `on_requested` in the named
+scenes' entry, and three under Changed.
 
 ---
 

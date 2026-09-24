@@ -14,6 +14,15 @@ index, not the argument.
 
 ### Added
 
+- **Rooms that players stand apart in.** `RGame::Engine::Scene::Rooms` runs
+  every room a player stands in, each a `Scene::Room` built anew as it starts
+  running. `define(name) { Room.new }` names a room, and `move(hero, to:,
+  entrance:)` moves one node or an Array of them, landing in the sweep under a
+  cover over each moving player's region alone. A room's `_arrive` places what
+  arrives, and a move to a node's own room is a warp. `hold` keeps a room
+  running with nobody in it. A room's `WorldView` draws only into its players'
+  views, and each player's camera takes their room's limits. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md#rooms-scenerooms).
 - **Scenes that fade in and out.** `Scene::SceneStack#transition=` takes a
   `Scene::Fade`, a colour and two durations, and each switch then covers the
   view, lands while covered and reveals the new scene. No scene reads input
@@ -24,8 +33,8 @@ index, not the argument.
 - **Scenes by name.** `Scene::SceneStack#define(name) { |**keywords| ... }`
   names a scene, and `push` and `replace` take the name with the keywords its
   builder takes. A name the stack was not given raises `KeyError` where it is
-  asked for. `on_changed` fires as each switch lands, and `pending?` answers
-  whether one waits. `carry: { hero: hero }` takes a node from one scene into
+  asked for. `on_requested` fires as a switch is asked for, `on_changed` as it
+  lands, and `pending?` answers whether one waits. `carry: { hero: hero }` takes a node from one scene into
   the next, its components leaving the old scene's systems and joining the new
   one's. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md#scenes-scenestack).
@@ -300,6 +309,15 @@ index, not the argument.
 
 ### Changed
 
+- **`Node2D#system` looks through every enclosing scene**, nearest first, and
+  then the root. A node in a scene held inside another finds the outer scene's
+  systems. See [docs/api/systems.md](docs/api/systems.md).
+- **A `CharacterBody` stands still as its node enters the tree.** A node carried
+  into another scene, or taken from a pool again, no longer walks on with the
+  intent it had. Set an intent after placing it.
+- **`Node2D#add_node` takes a node from the parent it had.** A node that is
+  already its child stays where it is, in the tree. A node added to a second
+  parent used to sit in both child lists.
 - **A `SceneStack` switch lands in the sweep after the tick**, not when it is
   asked for. `current` changes then, and two switches asked for before one sweep
   keep only the last. A scene pushed from a root's `_enter_tree` first shows on
