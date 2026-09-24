@@ -199,6 +199,10 @@ module RGame
         # The running room named `name`, or nil.
         def [](name) = @by_name[name]
 
+        # The running rooms, in the order they were built. The rooms keep the
+        # list: read it, and leave it alone.
+        attr_reader :running
+
         # Keeps the room named `name` running with nobody in it, from the next
         # sweep until #release. Builds it then if it is not running.
         def hold(name)

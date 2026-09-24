@@ -457,6 +457,59 @@ it starts.
 
 Time reaches it only through `update`, so a paused fade holds where it is.
 
+## `Cutscene::Script` — a cutscene's steps
+
+**`RGame::Engine::Cutscene::Script` is the recipe for a cutscene: steps that run
+in order, each ending on something the engine already says.**
+[`Components::Cutscene`](components.md#cutscene) runs one on a node, and many
+can run the same script. Each block is called with the cutscene's `context:`,
+so a script holds no game object and can be a constant.
+
+```ruby
+require 'rgame'
+
+OPENING = RGame::Engine::Cutscene::Script.build do
+  wait 0.5
+  hold { |c| c.pan_to('square') }
+  talk { |c| c.say(:mayor) }
+  press
+  run { |c| c.open_gate }
+end
+
+OPENING.steps.map(&:kind)   # => [:wait, :hold, :talk, :press, :run]
+OPENING.steps.first.seconds # => 0.5
+OPENING.frozen?             # => true
+```
+
+| Step | Ends when | A skip |
+|---|---|---|
+| `run { \|c\| ... }` | at once | runs its block |
+| `wait n` | `n` seconds have passed | ends it |
+| `hold { \|c\| ... }` | what its block returns emits `on_finished` | runs the block, then calls `finish` on what it returned |
+| `talk { \|c\| ... }` | the `Engine::Dialogue` its block returns emits `on_ended` | runs the block, then calls the dialogue's `finish` |
+| `press` | the cutscene's player presses `ui_confirm` | ends it |
+
+- **A `hold` waits on anything answering `on_finished` and `finish`:** a
+  [`Components::Tween`](components.md#tween) on a camera's node, a
+  [`PathFollow`](components.md#pathfollow) or `Navigator` walking an actor, a
+  [`ScreenFade`](#screenfade--cover-the-view-and-flash-it). What the block returns
+  otherwise raises `TypeError` as the step starts, naming both methods.
+- **A `talk` block puts up what shows the conversation**, such as a
+  [`UI::DialogueBox`](ui.md#rgameengineuidialoguebox), and returns the
+  `Dialogue`. A block returning anything without `on_ended` and `finish` raises
+  `TypeError`.
+- **A skip leaves the world where watching would have.** Every `run` has run,
+  and each walk and fade stands at its end. A skipped conversation
+  [ends where it stands](dialogue.md#running-one), so no response's `then:`
+  runs. An outcome that must hold either way goes in a `run` after the `talk`.
+- **What `build` refuses:** a script with no steps, a `run`, `hold` or `talk`
+  with no block, and a `press` with one raise `ArgumentError`. A `wait` that is
+  not a number raises `TypeError`, and one that is not positive
+  `ArgumentError`. `Script.new` is private, so every script is checked.
+- **Reading one:** `steps` is a frozen Array of `Script::Step`s, each with its
+  `kind`, one of `Script::KINDS`, the `seconds` of a `wait`, and the `block`.
+  `size` is how many there are.
+
 ## `Camera` — follow a point, clamp to the world
 
 **`RGame::Engine::Camera` (`rgame/engine/camera`) holds the follow-and-clamp maths

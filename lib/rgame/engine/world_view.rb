@@ -46,8 +46,9 @@ module RGame
     #
     # A WorldView inside a Scene::Room draws only into the views of the players
     # who stand in that room, so two players in two rooms each see their own. A
-    # view no player owns, such as a solo view, shows the primary player's
-    # room. A WorldView in no room draws into every view.
+    # solo view shows the room `Viewports#solo!` named, and the primary
+    # player's room when it named none. A WorldView in no room draws into
+    # every view.
     #
     # ## It draws the map's solid cells for the debug layer
     #
@@ -93,7 +94,7 @@ module RGame
       def draw(renderer, _view = nil)
         viewports = system(Viewports)
         viewports.views.each do |world_view|
-          next unless shows?(world_view)
+          next unless shows?(world_view, viewports)
 
           renderer.clipped(world_view.x, world_view.y, world_view.width, world_view.height) do
             renderer.translated(world_view.offset_x, world_view.offset_y) do
@@ -106,8 +107,11 @@ module RGame
       private
 
       # hot-path
-      def shows?(view)
+      def shows?(view, viewports)
         return true unless @room
+
+        room = view.player.nil? && viewports.solo_room
+        return room.equal?(@room) if room
 
         watcher = view.player || @players&.primary
         @room.players.include?(watcher)

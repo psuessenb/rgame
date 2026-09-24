@@ -536,6 +536,74 @@ shape by answering the same few methods.
   end
   ```
 
+### `Cutscene`
+
+**Runs a [`Cutscene::Script`](toolbox.md#cutscenescript--a-cutscenes-steps) on
+its node**, each step in order on the node's update, from the moment the
+component attaches. It takes what it stops and gives it back.
+
+```ruby
+OPENING = RGame::Engine::Cutscene::Script.build do
+  wait 0.5
+  hold { |c| c.pan_to('square') }   # the game's method, returning a Components::Tween
+  talk { |c| c.say(MAYOR) }          # puts up a UI::DialogueBox, returns its Dialogue
+  press
+  run { |c| c.open_gate }
+end
+
+# In a room's _enter_tree, everybody watching:
+cutscene = add_component(RGame::Engine::Components::Cutscene.new(
+  OPENING, context: self, camera: @camera, pause: heroes, skip: :skip
+))
+cutscene.on_ended { |skipped| @log << (skipped ? :skipped : :watched) }
+```
+
+- **Construct:** `Cutscene.new(script, context: nil, camera: nil, pause: [], skip: nil)`.
+  Each step's block is called with `context`. It raises `TypeError` for a
+  `script` that is not a `Cutscene::Script` and a `skip:` that is not a Symbol.
+- **What it stops:** as it starts, it
+  [suspends](scene_graph.md#pausing-a-subtree) each node in `pause:`. With
+  `camera:`, everybody watches: it calls
+  [`solo!`](scene_graph.md#collapsing-the-split) with that camera, onto the
+  `Scene::Room` its node stands in, sets `Players#accepting_joins` to false,
+  and suspends every other room `Scene::Rooms#running` lists. Without `camera:`
+  it does none of those three, so a scene for the one player who walked into it
+  leaves the other players playing.
+- **What it gives back:** when it ends, is skipped, or leaves the tree, it
+  resumes each node and room and puts back the joins and the solo or split as
+  they were. It suspends rather than pauses, so a hero it stopped and a door
+  also moves, or a bag also pauses, runs again once every hold on it has ended.
+  A door taken in its last step, which frees its room, still leaves the game
+  split and running. `pause:` naming the node it rides, or a node above it,
+  raises `ArgumentError`, since the cutscene would never run.
+- **Its player:** it reads its node's player, the primary one unless the game
+  sets `input_owner`. A `press` step waits for that player's `ui_confirm`. A
+  press begun before the cutscene started counts for neither a `press` nor the
+  skip.
+- **Skipping:** `skip:` names an action the game declares with `hold:`, so a
+  tap does not skip. Its press finishes the step under way, runs each remaining
+  step's skip in order, and ends. A skip leaves the world where watching would
+  have: every `run` has run, and each walk, fade and conversation stands at its
+  end. Without `skip:`, only a call to `skip` skips it.
+
+  ```ruby
+  map = RGame::Engine::InputMap.default.merge(
+    skip: { buttons: [RGame::Util::Controls::KEY_TAB, RGame::Util::Controls::PAD_Y], hold: 0.6 }
+  )
+  ```
+- **Signal:** `on_ended` fires once, with true when skipped, after everything is
+  given back. One that leaves the tree before its end gives everything back and
+  fires nothing.
+- **Reading it:** `running?`, `ended?`, and `step_index`, the index of the step
+  under way in `script.steps`, nil when not running. `script`, `context` and
+  `camera` return what it was built with.
+- **Phase:** it reads its player in `_control` and moves on in `_update`. A step
+  that ended before the cutscene's update in a tick starts the next one that
+  tick. A `hold` on a node the tree updates after the cutscene's node is heard
+  as it ends, and the cutscene moves on in its next update. A running cutscene
+  allocates nothing a tick, and a step's block runs the game's own code as the
+  step starts.
+
 ### `DespawnOffscreen`
 
 **Removes the node once its origin passes an edge of the world bounds by more than
@@ -1110,7 +1178,7 @@ to that signal.
   stands. `path` returns the route being walked.
 - **To the end at once:** `finish` places the node on the last waypoint and emits
   `on_finished`, whatever stands in the way, as skipping a
-  cutscene does. It does nothing for a finished or idle follower.
+  [cutscene](#cutscene) does. It does nothing for a finished or idle follower.
   A [`Navigator`](#navigator) finishes the same way, at the end of its route.
 
   ```ruby

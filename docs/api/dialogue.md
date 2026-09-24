@@ -552,7 +552,7 @@ talk.line                          # => nil
 guess what confirm means.
 
 **`finish` ends the conversation where it stands,** as skipping a
-cutscene does. Nobody picks a response, so no
+[cutscene](components.md#cutscene) does. Nobody picks a response, so no
 response's `then:` runs, and `on_ended` fires with the transcript so far. A
 `UI::DialogueBox` showing the dialogue frees itself. A saved conversation
 starts again at its first beat, as one that ended any other way does. Once the

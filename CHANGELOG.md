@@ -32,9 +32,20 @@ index, not the argument.
   entrance:)` moves one node or an Array of them, landing in the sweep under a
   cover over each moving player's region alone. A room's `_arrive` places what
   arrives, and a move to a node's own room is a warp. `hold` keeps a room
-  running with nobody in it. A room's `WorldView` draws only into its players'
-  views, and each player's camera takes their room's limits. See
+  running with nobody in it, and `running` lists the rooms that run. A room's
+  `WorldView` draws only into its players' views, and each player's camera
+  takes their room's limits. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md#rooms-scenerooms).
+- **Cutscenes.** `RGame::Engine::Cutscene::Script.build` lists steps that run,
+  wait, hold on a walk or a fade, talk, and wait for a press.
+  `Components::Cutscene` runs one on a node and takes what it stops: the nodes
+  in `pause:` and, with `camera:`, the window, the joins and the other rooms. It
+  gives them back when it ends, is skipped with a held action, or leaves the
+  tree. See [docs/api/components.md](docs/api/components.md#cutscene).
+- **A solo view can show one room.** `Viewports#solo!` takes `room:`, the
+  `Scene::Room` whose `WorldView` draws into the solo view, and `solo_camera`
+  and `solo_room` answer what it shows. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md#collapsing-the-split).
 - **A node can be suspended by more than one owner.** `Node2D#suspend` stops a
   node as `paused` does until a `resume` for each call, and leaves `paused` to
   the game. `Scene::Rooms` suspends a moving node rather than pausing it. See

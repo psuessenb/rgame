@@ -205,6 +205,22 @@ RSpec.describe RGame::Engine::Viewports do
       expect(viewports).to be_solo
     end
 
+    it 'names the camera and the room it shows, and forgets both on split!' do
+      room = RGame::Engine::Scene::Room.new
+      viewports.solo!(cinematic, room:)
+      before = [viewports.solo_camera, viewports.solo_room]
+      viewports._update(0.016)
+      shown = [viewports.solo_camera, viewports.solo_room]
+      viewports.split!
+      viewports._update(0.016)
+      expect([before, shown, [viewports.solo_camera, viewports.solo_room]])
+        .to eq([[nil, nil], [cinematic, room], [nil, nil]])
+    end
+
+    it 'refuses a room: that is not a Scene::Room' do
+      expect { viewports.solo!(cinematic, room: :garden) }.to raise_error(TypeError, /room:/)
+    end
+
     it 'goes back to a view per player on split!' do
       viewports.solo!(cinematic)
       viewports._update(0.016)
