@@ -1,6 +1,6 @@
 # The rest of the README roadmap
 
-**Status: steps 0 to 11 are implemented.** Steps 0–12 of
+**Status: steps 0 to 12 are implemented.** Steps 0–12 of
 [the roadmap](04-roadmap.md) are detailed: 5–8 planned after step 4 landed, and
 9–12 after step 8. Steps 13–15 are deliberately rough and get re-planned once
 the layer beneath them exists.
@@ -271,3 +271,12 @@ re-planned. See [what that re-plan found](04-roadmap.md#re-planning-steps-912).
    write-example skill lists the names `Node2D` uses. A guard would need to
    see an assignment in a subclass body, which a RuboCop cop could, given the
    list. Found in step 11. Blocks nothing.
+7. **Should a test project's drive script keep its comments?** The pre-commit
+   hook leaves alone any path with an `examples/` directory in it, so every
+   script under `tools/drive/examples/` keeps the header the write-example
+   skill calls the assertion. Scripts under `tools/drive/test_projects/` get no
+   such exemption. All ten hold no comment at all. Step 12 wrote one into the
+   adventure's script, saying why its tracks wait 32 ticks longer, and the hook
+   deleted it. The landed note keeps the reason. Adding `tools/drive` to the
+   stripper's exclusions would keep them, and whether a test project's script
+   owes a header is the question. Found in step 12. Blocks nothing.

@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: steps 0 to 11 are implemented.** Sixteen steps. Each is one branch and one
+**Status: steps 0 to 12 are implemented.** Sixteen steps. Each is one branch and one
 pull request, and its sub-steps are one commit each. **Steps 0–12 are detailed.**
 Steps 5–8 were planned after step 4 landed, and steps 9–12 after step 8. What
 each re-plan found comes before its steps:
@@ -2670,6 +2670,101 @@ does. The storm's timer is not input, so its flashes keep their ticks.
 `docs/api/scene_graph.md`'s scene stack section gains names, the deferral,
 `carry:` and transitions, and `docs/api/examples.md`'s `menu_navigation` entry
 stops describing a hand-written switch.
+
+**Landed.** Four sub-steps, one commit each. `make test` 412 checks 0
+failures, as at the branch point, since no C changed. `rake spec` 3741 examples
+0 failures (3671), `rake spec:core` 517 examples 0 failures (517), `rake
+docs:coverage` nothing undocumented, and `rake drive:allocations` passes all 39
+projects.
+
+**After 12b, asteroids and `menu_navigation` report what they reported at the
+branch point, byte for byte:** asteroids under `--seed 4242` for 240 ticks, and
+`menu_navigation` under `--seed 4242` for 240 ticks and unseeded for 320. The
+stack lands a switch at the moment both hand-written versions landed theirs,
+after the scene that asked had finished its tick, and nothing in either root
+walks the tree after its own `_update`.
+
+**After 12d, `menu_navigation`'s Play and Escape fade, and Settings does not.**
+Each transition draws a rect over the whole view in `:overlay` for 31 frames: 30
+inside `faded`, and one at full cover, on the frame the switch lands. The run
+reads 62 `rect`s and 60 `faded`. A cover of a quarter second takes 16 ticks, so
+the play scene's text starts at tick 211, where it started at 196. The script
+waits 40 ticks after Play before the Enter that blips, and the blip is still
+the run's one sound. Every other count differs only by the frames the fades
+took.
+
+**The adventure opens under a half-second reveal, with its music rising over
+the same ticks.** Over 772 ticks, against `main`'s 740:
+
+- `faded` reads 75, which is 45 for the storm's three flashes and 30 for the
+  reveal, and `:overlay` reads 77. The cover draws opaque on the frame before
+  the first tick and on the frame the room lands.
+- `32 × music volume music.ogg` and `1 × music music.ogg`: a 0 before the play,
+  and 31 steps. Every other sound matches `main`.
+- **Every text that input drives keeps its count and moves by exactly 32
+  ticks**: 39 entries, overall and per clip. The room's own three labels, in
+  the one clip before the second player joins and overall, start at tick 1
+  instead of 0 and draw 31 frames more, since they draw under the reveal.
+
+**Every other driven run reports what `main` reports.** All 51 scripts ran
+under `--seed 4242`, 240 ticks and `--texts`, against a capture of `main`, with
+the extension paths in the header set aside. Asteroids matched byte for byte.
+The two localization runs differ only in their save directory's path. The six
+`tiled_world` scripts differ as the next list says.
+
+What the sketch got wrong:
+
+- **After 12a, only the scene's own texts moved by one tick.** The sketch said
+  every text tick in the adventure's report would move by one. A script's
+  tracks count from tick 0, not from the room, so everything input drives kept
+  its tick. Only the labels the room draws itself moved from tick 0 to tick 1.
+- **`tiled_world` also draws three frames fewer: 236, where `main` draws 239.**
+  Its beach scene used to be built before the loop started. It is now built in
+  the first sweep, and landing it takes 52.8 ms, about three ticks, which the
+  loop catches up on without drawing. The camera ends 0.8 px short, one tick of
+  walking. Every text matches.
+- **A half-second reveal takes 31 ticks, not 30**, for the reason step 11 found
+  with a fade of the same length. The room is first controlled on tick 33, 32
+  ticks after `main`: one for the sweep and 31 for the reveal. So both input
+  tracks gained a lead of 32 ticks, and the run grew from 740 to 772.
+- **The explanation of that lead could not stay in the drive script.** The
+  pre-commit hook deletes every comment under `tools/drive/test_projects/`,
+  while it leaves `tools/drive/examples/` alone, since that path holds an
+  `examples/` directory. None of the ten test-project scripts holds a comment.
+  [Open question 7](README.md#open-questions) asks whether they should.
+- **A switch's own transition can cover in another colour.** The sketch built
+  one `ScreenFade` from the stack's `Fade`. `transition:` on one switch may name
+  a `Fade` of another colour, so `ScreenFade` gained `color=`, and the stack
+  keeps one fade and sets its colour as each cover starts.
+- **A switch with `transition: nil`, asked for during a transition, joins it.**
+  Rule 10 covered a switch that replaces a pending one. One with no transition
+  of its own waits for the cover under way and reveals with it, rather than
+  landing half covered.
+- **Keywords are checked when a switch is asked for, not only names.** Rule 3
+  raised for an unknown name. A missing required keyword, an unknown one, a key
+  given both as a keyword and in `carry:`, and keywords beside a node raise
+  there too. `define` also refuses a builder that takes positional parameters.
+  The stack works each builder's keywords out once, in `define`, so a switch to
+  a name with no keywords builds no arrays to check them.
+- **The first transition in a process allocates 149 objects, and each later one
+  5.** They fill call caches, build the stack's fade, and build the fade's
+  signal on its first emit. `menu_navigation`'s warm-up ends before Play, so it
+  measures that first transition: 77.7 objects a second, where `main` measures
+  56.0, over the default budget of 60. Its script says why, above an
+  `allocation_budget` of 90. A tick while a transition runs allocates nothing,
+  and the transition spec holds it to that.
+- **A pop on an empty stack fires nothing.** Rule 6 said once per switch that
+  lands, and such a pop changes nothing.
+- **`menu_navigation` starts on its title without a fade.** Its title is pushed
+  with `transition: nil`, like Settings, so only a replace fades. The sketch
+  named Play and Settings and left the start open.
+
+Documented in [scene_graph.md](../../api/scene_graph.md#scenes-scenestack),
+which had no section for the stack before, with its names, the deferral,
+`carry:` and transitions. `systems.md` says a push marks its scene as it lands,
+`toolbox.md` gains `ScreenFade#color=`, `examples.md` and `README.md` describe
+`menu_navigation`'s fade, and `CHANGELOG.md` has two entries under Added and one
+under Changed.
 
 ---
 
