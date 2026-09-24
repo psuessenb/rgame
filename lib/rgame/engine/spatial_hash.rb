@@ -18,16 +18,19 @@ module RGame
 
       def initialize(cell_size:)
         @cell_size = cell_size
-        @buckets = Hash.new { |h, key| h[key] = [] }
+        @buckets = {}
+        @spare = []
       end
 
-      # Reuse the bucket arrays across frames (clear contents, keep capacity).
+      # Empties every cell. The emptied Arrays hold the next inserts, whichever
+      # cells those land in, so refilling as many cells allocates nothing.
       def clear
-        @buckets.each_value(&:clear)
+        @buckets.each_value { |bucket| @spare << bucket.clear }
+        @buckets.clear
       end
 
       def insert(item, x, y, w, h)
-        each_cell(x, y, w, h) { |key| @buckets[key] << item }
+        each_cell(x, y, w, h) { |key| bucket_at(key) << item }
       end
 
       # Un-bucket an item from the cells the given box covers — the exact inverse of
@@ -39,12 +42,14 @@ module RGame
       # no-op rather than an error — removing something twice, or removing something that
       # left the tree between two steps, is ordinary rather than a mistake.
       #
-      # Allocation-free: `fetch` sidesteps the bucket Hash's default block, which would
-      # *create* an empty bucket for every cell walked.
+      # A cell it leaves empty gives its Array back for the next insert, so an
+      # item moving into cells it has never been in allocates nothing.
       def remove(item, x, y, w, h)
         each_cell(x, y, w, h) do |key|
-          bucket = @buckets.fetch(key, nil)
-          bucket&.delete(item)
+          bucket = @buckets[key]
+          next unless bucket&.delete(item) && bucket.empty?
+
+          @spare << @buckets.delete(key)
         end
       end
 
@@ -53,10 +58,7 @@ module RGame
       # must already guard with `next if a.dead? || b.dead?` to make hits idempotent,
       # so we skip a per-query visited set and stay allocation-free.
       def query(x, y, w, h, &)
-        each_cell(x, y, w, h) do |key|
-          bucket = @buckets[key]
-          bucket.each(&) unless bucket.empty?
-        end
+        each_cell(x, y, w, h) { |key| @buckets[key]&.each(&) }
       end
 
       # Broadphase a circle: yield every item bucketed in a cell the circle's bounding
@@ -80,16 +82,14 @@ module RGame
       # colliders whose node is queued for removal.
       #
       # Reads whatever the most recent inserts left behind: after `clear` every cell is
-      # empty until something is inserted again. Allocation-free — `fetch` deliberately
-      # sidesteps the bucket Hash's default block, which would *create* the bucket.
-      def cell_empty?(x, y)
-        bucket = @buckets.fetch(cell_key((x / @cell_size).floor, (y / @cell_size).floor), nil)
-        bucket.nil? || bucket.empty?
-      end
+      # empty until something is inserted again.
+      def cell_empty?(x, y) = !@buckets.key?(cell_key((x / @cell_size).floor, (y / @cell_size).floor))
 
       private
 
       def cell_key(col, row) = (col + OFFSET) * STRIDE + (row + OFFSET)
+
+      def bucket_at(key) = @buckets[key] ||= @spare.pop || []
 
       def each_cell(x, y, w, h)
         col0 = (x / @cell_size).floor

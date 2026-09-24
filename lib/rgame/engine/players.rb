@@ -49,7 +49,7 @@ module RGame
 
       Controls = RGame::Util::Controls
 
-      include Enumerable
+      include Collection.of(:@list)
 
       # Fires when a device is seated, with the player who got it. A scene
       # listens to spawn that player's avatar — which is how a game gains a
@@ -78,7 +78,12 @@ module RGame
 
       # Players with a device driving them. An empty seat waiting for a
       # controller is in `list` but not here, so a viewport loop skips it.
-      def each_active(&) = @list.select(&:active?).each(&)
+      def each_active
+        return enum_for(:each_active) unless block_given?
+
+        @list.each { |player| yield player if player.active? }
+        self
+      end
 
       def active_count = @list.count(&:active?)
 

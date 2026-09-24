@@ -214,6 +214,9 @@ RSpec.describe RGame::Engine::Components::Grab do
     expect { scene.add_node(node) }.to raise_error(/needs a RGame::Engine::Components::Mover/)
   end
 
+  # Warmed past the row boundary at y 128, which the pair crosses on the eighth
+  # step. Straddling it, they fill more cells at once than before, and the
+  # spatial hash takes one Array for each cell in use at once.
   it 'allocates nothing on a step that drags a crate' do
     hero = hero_at(100.0, 100.0)
     crate_at(116.0, 100.0)
@@ -221,7 +224,7 @@ RSpec.describe RGame::Engine::Components::Grab do
     tick
     walk(hero, 0, 1)
     tick(5)
-    expect { tick }.to allocate_nothing.over(20)
+    expect { tick }.to allocate_nothing.after_warmup(10).over(20)
   end
 end
 # rubocop:enable RSpec/MultipleMemoizedHelpers

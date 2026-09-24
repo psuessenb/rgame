@@ -668,7 +668,9 @@ language switch, as any `Text` does.
 
 A continue records nothing, since its line is already there. A state with no
 line records nothing either. `each`, `size`, `[]`, `last` and `empty?` read the
-entries and allocate nothing, and the class is `Enumerable`.
+entries and allocate nothing. The class is `Enumerable`, and its Array of
+entries answers every Enumerable method, so `find`, `any?` or `count` with a
+block allocates nothing either.
 
 #### Saving one
 

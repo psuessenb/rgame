@@ -399,6 +399,17 @@ index, not the argument.
   last now leaves them sorted.
 - **`ScreenWrap` and `DespawnOffscreen` allocate nothing per frame.** With
   `margin:` left at its default, each allocated two Floats per node per frame.
+- **`Players` answers a query without allocating.** `players.any? { ... }`,
+  `find` and `count` went through `Enumerable` and cost three objects a call.
+  They now run on the Array of players. `each_active` no longer builds an Array.
+- **A collision world's index keeps only the cells in use.** `SpatialHash` kept
+  an Array for every cell anything had been put in or looked up in, so a
+  `CollisionWorld` grew for as long as its actors explored, and allocated on
+  every new cell. `clear` and a `remove` that empties a cell now keep the Array
+  for the next insert.
+- **`TileMap#solid_tile?` allocates nothing on a solid cell.** It allocated an
+  object each time it answered `true`, and a mover asks it for every cell its
+  box touches.
 
 ## [0.4.0] - 2026-09-16
 

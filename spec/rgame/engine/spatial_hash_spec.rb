@@ -38,6 +38,30 @@ RSpec.describe RGame::Engine::SpatialHash do
     expect(query(0, 0, 5, 5)).to eq([:c])
   end
 
+  # A CollisionWorld clears and refills the hash every frame, and a walker
+  # crossing the map puts itself into a cell it has never been in on most of
+  # them. The Arrays a clear empties hold the next frame's cells, so the index
+  # grows with the cells in use at once rather than with every cell ever used.
+  describe 'a frame that fills new cells' do
+    it 'allocates nothing refilling as many cells as the frame before' do
+      x = 0
+      hash.insert(:a, x, 0, 5, 5)
+      expect do
+        hash.clear
+        x += 10
+        hash.insert(:a, x, 0, 5, 5)
+      end.to allocate_nothing
+    end
+
+    it 'allocates nothing querying cells nothing was put in' do
+      x = 0
+      expect do
+        x += 10
+        hash.query(x, 0, 5, 5) { nil }
+      end.to allocate_nothing
+    end
+  end
+
   describe '#query_circle' do
     def query_circle(cx, cy, r)
       found = []
@@ -158,6 +182,16 @@ RSpec.describe RGame::Engine::SpatialHash do
       expect do
         hash.insert(:a, 0, 0, 25, 25)
         hash.remove(:a, 0, 0, 25, 25)
+      end.to allocate_nothing
+    end
+
+    it 'allocates nothing moving an item into cells it has never been in' do
+      x = 0
+      hash.insert(:a, x, 0, 5, 5)
+      expect do
+        hash.remove(:a, x, 0, 5, 5)
+        x += 10
+        hash.insert(:a, x, 0, 5, 5)
       end.to allocate_nothing
     end
   end
