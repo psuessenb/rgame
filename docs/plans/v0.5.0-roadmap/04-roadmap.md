@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: steps 0 to 7 are implemented.** Sixteen steps. Each is one branch and one
+**Status: steps 0 to 8 are implemented.** Sixteen steps. Each is one branch and one
 pull request, and its sub-steps are one commit each. **Steps 0–8 are detailed**;
 5–8 were planned after step 4 landed, and
 [what that re-plan found](#re-planning-steps-57) comes before them. **Steps 9–15
@@ -1608,6 +1608,89 @@ player's region as a clip a second time each frame. The lever stands more than
 chest's press. After them, the script plays rules 1 to 5 in that order. The
 landed note records each rule with the tick it happened on, read off the report
 at the script's checkpoints, as step 0 read its rules off the translate range.
+
+**Landed.** Three sub-steps, one commit each. `make test` 380 checks 0 failures,
+`rake spec` 3530 examples 0 failures (3526 at the branch point), `rake spec:core`
+483 examples 0 failures, `rake docs:coverage` nothing undocumented, and `rake
+drive:allocations` passes every project: `examples/equipment` at 4.6 objects a
+second on 2.3% of ticks, the adventure at 36.4 on 3.4%. No engine class was
+needed, so the step added no spec beyond the harness's.
+
+`examples/equipment` is one `Tabs` of Gear and Bag over one `Outfit`. Its six
+pieces draw themselves in `hero.png`'s sixteen-by-22 pixels, and the figure and
+each `PieceButton` call that drawing through `renderer.scaled`. A slot is a
+`PanelButton` whose `draw_foreground` names the piece it wears or "Nothing". The
+keyboard run wears the Cloak ("Cloak" from 46), swaps it for the Tunic ("Tunic"
+from 146) and takes that off ("Nothing" rising again from 258). The bag's panel
+reads "Worn" for the Cloak until 110, "In the bag" for it from 167, and "In the
+bag" for the Tunic from 279. "Cloak" stands at 100 from 189 on, so the slot
+really changed. 400 ticks against 400 frames, and the `--gamepad` run reports
+the same a tick later. Frames captured with `xwd` on a private Xvfb show the
+character dressed and the bag's panel.
+
+`--texts` lists each clip's strings under the innermost clip, when a run pushes
+more than one. The adventure's Bag is a node holding a `Tabs` of Carried and
+Worn, in each player's `PlayerLayer`, on I and the pad's Start. `Hero` owns
+`carried`, `worn`, `carry`, `wear` and `take_off`; a coin carries itself onto
+`other.node`, and the chest's search returns a hat. The run is 740 ticks, and
+its first 240 keep step 4's text ticks. Read off the report at its checkpoints:
+
+1. **Player one's region lists "coin x 3" and "hat" from 241, player two's
+   "coin" from 251.** Neither region ever lists the other's.
+2. **Player one's bag is open from 280 to 320, and the sound count holds at 4
+   until 337.** The fifth coin sounds on 338, after the bag closed and the held
+   Down walked the hero onto it. Player two meanwhile drags the crate east:
+   "west" stops at 206 from 291.
+3. **E in the bag at 452 shows "head: empty" from 453, and the lever keeps its
+   word.** A tap begun in the bag at 498 and let go at 510, after I closed it at
+   504, pulls nothing either. "pulled" appears from 532, the next tap. With
+   `PressGate#pressed?` passing every edge through, the same run reads "pulled"
+   from 511.
+4. **Player two's region shows "head: empty" from 581**, the right shoulder
+   pressed at 580 with player one's bag open since 550. Player one's E at 600
+   switches only their own.
+5. **Player two's region draws "hat" from 688**, the frame after player one
+   wore it, once a frame to 740. Overall "hat" rises by 40 between 700 and 720,
+   two a frame.
+
+**Every other driven run reports what it reported at the branch point**, once
+the new per-clip section is set aside: 49 scripts on `main` and 51 on the
+branch, under `--seed 4242`, 240 ticks and `--texts`. Eight at a time dropped
+frames in 16 of them. Run one at a time, 47 match byte for byte. `pooling`'s
+readout differs by 1 to 4 objects a second, because it counts the harness's own
+recording, and the adventure differs by what it grew: the lever, the fifth coin,
+their debug shapes, a `:hud` band and each region clipped twice. Every text tick
+in its first 240 matches.
+
+What the sketch got wrong:
+
+- **"The other walks on" cannot be read off translates.** Player two walked
+  back over ground they had covered in the first 240 ticks, so no clip's count
+  of distinct translates moved. They drag the crate east instead, which turns
+  its word from "west" to "east" and shows in `--texts`.
+- **Rebuilding the bag on every opening cost 55.5 objects a second** against
+  the budget of 60: fourteen openings, each building its buttons again. A
+  test project's drive script cannot say why its budget is raised, because a
+  commit strips its comments. So `Hero#revision` counts changes to what it
+  holds, and the bag rebuilds only when that moved: 36.4, with the report
+  byte-identical.
+- **The run takes 740 ticks, not 600.** Five rules played one after the other,
+  each with a bag opened and closed, need about 500 after the first 240.
+- **The adventure gained `item.rb`**, beside the files the sketch listed. A
+  coin and a hat are the same kind of thing to a bag, and a lever answers
+  `search` with nil, because the hero asks whatever is in reach to search.
+- **"hat" is two strings in one.** Player one's Carried page lists it from 241,
+  so rule 5's evidence is player two's region, which never holds a hat, and the
+  overall rate.
+- **The clothes grid is two columns, a row to a slot**, where the sketch drew
+  three. A crossing from a slot then lands on a piece that fits it. The bag
+  follows the same shape, so a step down from the Straw hat reaches the Cloak.
+- **Per-clip texts are listed only for a run with more than one clip.** With
+  one, the list repeats the overall one line for line.
+
+Documented in [examples.md](../../api/examples.md#equipment), a row in
+`README.md`, an entry in `CHANGELOG.md`, and `--texts` per clip in `CLAUDE.md`
+and the [verify](../../../.claude/skills/verify/SKILL.md) skill.
 
 ## Step 9 — fades, and particles *(rough)*
 
