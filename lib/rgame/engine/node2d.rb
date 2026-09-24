@@ -365,9 +365,19 @@ module RGame
         @context ||= root.context
       end
 
-      # Nearest system of a class: scene scope first, then the global root.
+      # The nearest system of a class: this node's scene first, then each scene
+      # that encloses it, then the root. A room held inside a world scene finds
+      # its own `CollisionWorld`, and the world's `Scene::Rooms` beyond it.
+      # hot-path
       def system(klass)
-        scene&.get_component(klass) || root.get_component(klass)
+        around = scene
+        while around
+          found = around.get_component(klass)
+          return found if found
+
+          around = around.parent&.scene
+        end
+        root.get_component(klass)
       end
 
       # The same lookup, for a caller that cannot work without the system: it
@@ -622,7 +632,7 @@ module RGame
       private
 
       def rgame_missing_system(klass)
-        where = scene ? 'its scene or the root' : 'the root'
+        where = scene ? 'its scenes or the root' : 'the root'
         message = "#{self.class} found no #{klass} system on #{where}"
         if @parent.nil?
           return "#{message}. It has no parent, so it is the root: add it to the tree first, " \

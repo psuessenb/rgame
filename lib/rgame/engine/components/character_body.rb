@@ -27,6 +27,15 @@ module RGame
           @move_y = 0.0
         end
 
+        # Stands the body still as its node enters the tree, so a node carried
+        # into a scene, or taken from a pool again, does not walk on with the
+        # intent it had. A game that wants a walk-in sets one after placing it.
+        def _attach
+          @move_x = 0.0
+          @move_y = 0.0
+          super
+        end
+
         # The heading is the intent as set, blocked or not.
         def heading_x = @move_x
         def heading_y = @move_y

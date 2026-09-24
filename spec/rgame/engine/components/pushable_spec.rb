@@ -18,14 +18,16 @@ RSpec.describe RGame::Engine::Components::Pushable do
 
   def tick(count = 1) = count.times { scene.update(dt) }
 
-  # 60 px/s is one pixel a step on each axis the intent names.
+  # 60 px/s is one pixel a step on each axis the intent names. The intent is set once the
+  # hero is in the scene, since a body stands still as it enters.
   def hero_at(x, y, intent: [1, 0], height: 16)
     node = RGame::Engine::Node2D.new(x:, y:)
     node.add_component(components::BoxCollider.new(width: 16, height:, layer: :hero))
-    node.add_component(components::CharacterBody.new(speed: 60.0, blocked_by: %i[tiles wall crate],
-                                                     pushes: [:crate]))
-        .set_intent(*intent)
+    body = node.add_component(components::CharacterBody.new(speed: 60.0, blocked_by: %i[tiles wall crate],
+                                                            pushes: [:crate]))
     scene.add_node(node)
+    body.set_intent(*intent)
+    node
   end
 
   def crate_at(x, y, height: 16, pushes: [])

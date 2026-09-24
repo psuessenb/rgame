@@ -19,7 +19,12 @@
 #
 #   it_behaves_like 'a mover' do
 #     def build_mover(blocked_by:, pushes: [], heading: [1, 0]) = ...
+#     def start_mover(mover, heading) = ...   # optional
 #   end
+#
+# `start_mover` runs once the mover has entered the tree, with the heading it was built
+# with. A mover that clears on attach what it was told, as a CharacterBody stands still,
+# is told its heading there.
 #
 # A mover, unattached, that carries its node from wherever the node stands — (170, 100) —
 # **in the direction of `heading`**, for at least four seconds: rightwards at 60 px/s for
@@ -64,6 +69,14 @@ RSpec.shared_examples 'a mover' do
     mover
   end
 
+  def enter_mover(heading: [1, 0], **)
+    mover = enter(build_mover(heading:, **))
+    start_mover(mover, heading)
+    mover
+  end
+
+  def start_mover(_mover, _heading); end
+
   # A whole scene tick: the CollisionWorld rebuilds its index, then the nodes move.
   def run_ticks(count) = count.times { mover_scene.update(mover_dt) }
 
@@ -71,13 +84,13 @@ RSpec.shared_examples 'a mover' do
     it 'passes through the wall' do
       mount_collision_world
       add_box
-      enter(build_mover(blocked_by: []))
+      enter_mover(blocked_by: [])
       run_ticks(60)
       expect(mover_node.x).to be_within(1e-6).of(230.0)
     end
 
     it 'needs no collider and no collision system' do
-      enter(build_mover(blocked_by: []))
+      enter_mover(blocked_by: [])
       run_ticks(60)
       expect(mover_node.x).to be_within(1e-6).of(230.0)
     end
@@ -87,7 +100,7 @@ RSpec.shared_examples 'a mover' do
     let!(:mover) do
       mount_collision_world
       add_box
-      enter(build_mover(blocked_by: [:wall]))
+      enter_mover(blocked_by: [:wall])
     end
 
     it 'stops flush against the wall' do
@@ -133,7 +146,7 @@ RSpec.shared_examples 'a mover' do
     def blocked_on(heading, blocked_by)
       mount_collision_world
       add_box
-      mover = enter(build_mover(blocked_by: blocked_by, heading: heading))
+      mover = enter_mover(blocked_by: blocked_by, heading: heading)
       reports = []
       mover.on_blocked { |by, axis| reports << [by, axis] }
       run_ticks(60)
@@ -162,7 +175,7 @@ RSpec.shared_examples 'a mover' do
     it 'allocates nothing on the step that starts a block' do
       mount_collision_world
       add_box
-      mover = enter(build_mover(blocked_by: [:wall]))
+      mover = enter_mover(blocked_by: [:wall])
       started = 0
       mover.on_blocked { started += 1 }
       run_ticks(14)
@@ -178,7 +191,7 @@ RSpec.shared_examples 'a mover' do
     end
 
     it 'stops flush against a wall that is not Pushable, exactly as blocked_by alone does' do
-      mover = enter(build_mover(blocked_by: [:wall], pushes: [:wall]))
+      mover = enter_mover(blocked_by: [:wall], pushes: [:wall])
       reports = []
       mover.on_blocked { |by, axis| reports << [by, axis] }
       run_ticks(60)
@@ -188,13 +201,13 @@ RSpec.shared_examples 'a mover' do
     # Fourteen steps reach the wall and the other forty-six push it, a pixel a step.
     it 'pushes a Pushable wall by what is left of each step, and follows it' do
       wall_node.add_component(RGame::Engine::Components::Pushable.new(blocked_by: []))
-      enter(build_mover(blocked_by: [:wall], pushes: [:wall]))
+      enter_mover(blocked_by: [:wall], pushes: [:wall])
       run_ticks(60)
       expect([mover_node.x, wall_node.x]).to match([be_within(1e-6).of(230.0), be_within(1e-6).of(246.0)])
     end
 
     it 'allocates nothing on a step pressed into a wall it cannot push' do
-      mover = enter(build_mover(blocked_by: [:wall], pushes: [:wall]))
+      mover = enter_mover(blocked_by: [:wall], pushes: [:wall])
       run_ticks(60)
       expect { mover._update(mover_dt) }.to allocate_nothing
     end
@@ -207,14 +220,14 @@ RSpec.shared_examples 'a mover' do
 
     [[1, 0], [0, 1], [1, 1]].each do |heading|
       it "points the way its step goes, for #{heading.inspect}" do
-        mover = enter(build_mover(blocked_by: [], heading: heading))
+        mover = enter_mover(blocked_by: [], heading: heading)
         run_ticks(1)
         expect(heading_signs(mover)).to eq(heading)
       end
     end
 
     it 'stays within -1..1 on each axis' do
-      mover = enter(build_mover(blocked_by: [], heading: [1, 1]))
+      mover = enter_mover(blocked_by: [], heading: [1, 1])
       run_ticks(1)
       expect([mover.heading_x, mover.heading_y]).to all(be_between(-1.0, 1.0))
     end
@@ -222,13 +235,13 @@ RSpec.shared_examples 'a mover' do
     it 'still heads into the wall it is pressed against' do
       mount_collision_world
       add_box
-      mover = enter(build_mover(blocked_by: [:wall]))
+      mover = enter_mover(blocked_by: [:wall])
       run_ticks(60)
       expect(heading_signs(mover)).to eq([1, 0])
     end
 
     it 'allocates nothing to read' do
-      mover = enter(build_mover(blocked_by: []))
+      mover = enter_mover(blocked_by: [])
       run_ticks(1)
       expect { mover.heading_x + mover.heading_y }.to allocate_nothing
     end
@@ -237,7 +250,7 @@ RSpec.shared_examples 'a mover' do
   describe 'what it refuses at attach' do
     it 'refuses a declaration on a node with no BoxCollider' do
       mount_collision_world
-      expect { enter(build_mover(blocked_by: [:wall])) }
+      expect { enter_mover(blocked_by: [:wall]) }
         .to raise_error(/needs a RGame::Engine::Components::BoxCollider/)
     end
 

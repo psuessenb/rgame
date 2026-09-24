@@ -567,7 +567,8 @@ they cannot go stale:
   `SceneStack`. Systems that live as long as a scene belong there.
 
 A *system* is a `Component` on one of those anchor nodes. A node finds one with
-`node.system(SomeSystem)`, which checks the scene first and then the root. See
+`node.system(SomeSystem)`, which checks the nearest scene, then each scene
+around it, and then the root. See
 [Systems & shared resources](systems.md) for the scoping model and worked
 examples.
 

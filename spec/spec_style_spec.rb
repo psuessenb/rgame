@@ -63,7 +63,7 @@ RSpec.describe 'spec style' do # rubocop:disable RSpec/DescribeClass -- the subj
   # The one place the rule loses. `a_mover`'s wall-only groups never read this
   # collider, and a sixth `let` would put them over RuboCop's memoized-helper
   # limit — so it stays a method, and the trade is recorded rather than silent.
-  let(:exempt) { ['spec/support/shared_examples/a_mover.rb:45 — floor'] }
+  let(:exempt) { ['spec/support/shared_examples/a_mover.rb:50 — floor'] }
 
   let(:suite_files) do
     root = File.expand_path('..', __dir__)

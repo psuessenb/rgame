@@ -521,9 +521,12 @@ RSpec.describe RGame::Engine::Scene::SceneStack do
       expect(colliders_in(stack.current)).to eq([collider])
     end
 
-    it 'is stopped by the second room\'s map' do
+    it 'arrives standing, and is stopped by the second room\'s map' do
       stack.replace(:walled, carry: { hero: hero })
       sweep
+      body = hero.get_component(RGame::Engine::Components::CharacterBody)
+      expect(body.heading_x).to eq(0.0)
+      body.set_intent(1, 0)
       tick(40)
       expect(hero.x).to eq(272.0)
     end
