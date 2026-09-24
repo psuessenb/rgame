@@ -26,9 +26,9 @@ mounted: its children would cache the wrong root. Resolving on every access
 cannot go stale.
 
 - `root` is `@parent ? @parent.root : self`. The top-most node is its own root.
-- `scene` is the nearest ancestor marked as a scene boundary. `SceneStack#push`
-  marks the pushed scene with `scene.scene = scene`, and descendants resolve up to
-  it. Outside any scene, `scene` is `nil`.
+- `scene` is the nearest ancestor marked as a scene boundary. A `SceneStack`
+  marks each scene it pushes with `scene.scene = scene` as the push lands, and
+  descendants resolve up to it. Outside any scene, `scene` is `nil`.
 
 ### Looking a system up
 

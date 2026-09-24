@@ -14,6 +14,12 @@ index, not the argument.
 
 ### Added
 
+- **Scenes by name.** `Scene::SceneStack#define(name) { |**keywords| ... }`
+  names a scene, and `push` and `replace` take the name with the keywords its
+  builder takes. A name the stack was not given raises `KeyError` where it is
+  asked for. `on_changed` fires as each switch lands, and `pending?` answers
+  whether one waits. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md#scenes-scenestack).
 - **Music that fades.** `AudioOut#play_music` and `#stop_music` take `fade:`,
   in seconds, and `AudioOut#crossfade(id, over:)` lowers one song while it
   raises the next. `#pause_music` and `#resume_music` hold a song and its fade.
@@ -285,6 +291,11 @@ index, not the argument.
 
 ### Changed
 
+- **A `SceneStack` switch lands in the sweep after the tick**, not when it is
+  asked for. `current` changes then, and two switches asked for before one sweep
+  keep only the last. A scene pushed from a root's `_enter_tree` first shows on
+  the second frame. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md#a-switch-lands-in-the-sweep).
 - **`Audio#play_music` makes the song it is asked for current**, even one
   already playing, so `stop_music` stops the song last asked for rather than
   the one last started. See

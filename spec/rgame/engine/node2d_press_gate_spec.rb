@@ -120,14 +120,17 @@ RSpec.describe RGame::Engine::Node2D do
       host.add_component(stack)
       root.enter_tree
       stack.push(reader)
+      root.sweep_freed
       tick
       stack.push(above)
+      root.sweep_freed
     end
 
     it 'reads no edge of a press begun while a scene was above it' do
       press
       tick
       stack.pop
+      root.sweep_freed
       tick
       release
       tick

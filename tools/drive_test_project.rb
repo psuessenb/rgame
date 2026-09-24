@@ -808,15 +808,17 @@ module DriveTestProject
 
     def scene_probe(report)
       Module.new do
-        define_method(:push) do |scene|
+        define_method(:land_push) do |scene|
           report.record_scene('push', scene)
           super(scene)
         end
 
-        define_method(:pop) do
+        define_method(:land_pop) do
           report.record_scene('pop', current) if current
           super()
         end
+
+        private :land_push, :land_pop
       end
     end
   end
