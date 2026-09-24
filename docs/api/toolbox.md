@@ -440,6 +440,7 @@ fade draws nothing, and neither stepping nor drawing allocates.
   one that reaches its end, and never for one replaced before it.
 - **`running?`** is true while one runs. **`covered?`** is true when the fade is
   opaque and nothing is running.
+- **To start covered**, set `opacity = 1` before the first `reveal`.
 - **Durations** are in seconds and must be positive, as a `Tween`'s are.
 
 It draws over `view.origin_x`, `view.origin_y`, `view.width` and `view.height`,

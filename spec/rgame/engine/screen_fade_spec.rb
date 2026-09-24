@@ -75,6 +75,16 @@ RSpec.describe RGame::Engine::ScreenFade do
   end
 
   describe '#reveal' do
+    it 'reveals from covered when it starts with its opacity set to 1' do
+      fade.opacity = 1
+      covered = fade.covered?
+      fade.reveal(0.4)
+      step(0.2)
+
+      expect(covered).to be(true)
+      expect(fade.opacity).to be_within(1e-9).of(0.5)
+    end
+
     it 'fades back to clear, and a clear fade draws nothing again' do
       fade.cover(0.2)
       step(0.2)
