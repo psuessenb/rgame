@@ -114,6 +114,24 @@ RSpec.describe RGame::Engine::Node2D do
       node.add_node(child)
       expect(node.root).to be(node)
     end
+
+    it 'takes a node from the parent it had' do
+      other = described_class.new
+      other.add_node(child)
+      node.add_node(child)
+      expect([other.children, node.children, child.parent]).to eq([[], [child], node])
+    end
+
+    it 'leaves a node that is already its child where it is, in the tree' do
+      log = []
+      component = SpecLifecycleComponent.new.tap { it.log = log }
+      child.add_component(component)
+      node.enter_tree
+      node.add_node(child)
+      log.clear
+      node.add_node(child)
+      expect([node.children, log]).to eq([[child], []])
+    end
   end
 
   describe '#remove_node' do
@@ -423,6 +441,41 @@ RSpec.describe RGame::Engine::Node2D do
       end
     end
 
+    # Rule 12: a room is a scene held inside a world scene.
+    describe '#system with a scene inside another scene' do
+      let(:outer) { node.add_node(described_class.new).tap { it.scene = it } }
+      let(:inner) { outer.add_node(described_class.new).tap { it.scene = it } }
+      let(:child) { inner.add_node(described_class.new) }
+
+      it 'finds a system on the enclosing scene that the nearest one lacks' do
+        system = outer.add_component(SpecPhysicsComponent.new)
+        expect(child.system(SpecPhysicsComponent)).to be(system)
+      end
+
+      it 'prefers the nearest scene over an enclosing one' do
+        outer.add_component(SpecPhysicsComponent.new)
+        nearest = inner.add_component(SpecPhysicsComponent.new)
+        expect(child.system(SpecPhysicsComponent)).to be(nearest)
+      end
+
+      it 'finds one on a scene held off its host\'s child list' do
+        held = described_class.new
+        held.parent = outer
+        held.scene = held
+        system = outer.add_component(SpecPhysicsComponent.new)
+        expect(held.add_node(described_class.new).system(SpecPhysicsComponent)).to be(system)
+      end
+
+      it 'falls back to the root after every scene' do
+        global = node.add_component(SpecHealthComponent.new)
+        expect(child.system(SpecHealthComponent)).to be(global)
+      end
+
+      it 'answers nil when no scene and not the root has one' do
+        expect(child.system(SpecHealthComponent)).to be_nil
+      end
+    end
+
     describe '#system!' do
       it 'finds what #system finds, scene first' do
         node.add_component(SpecPhysicsComponent.new)
@@ -439,7 +492,7 @@ RSpec.describe RGame::Engine::Node2D do
         child = scene.add_node(described_class.new)
 
         expect { child.system!(SpecPhysicsComponent) }
-          .to raise_error(KeyError, /no SpecPhysicsComponent system on its scene or the root\. Mount one/)
+          .to raise_error(KeyError, /no SpecPhysicsComponent system on its scenes or the root\. Mount one/)
       end
 
       it 'says so when the node has no parent' do

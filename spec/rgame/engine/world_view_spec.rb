@@ -225,4 +225,43 @@ RSpec.describe RGame::Engine::WorldView do
     end
   end
   # rubocop:enable RSpec/MultipleMemoizedHelpers
+
+  # Rule 8: two players in two rooms each see their own.
+  # rubocop:disable RSpec/MultipleMemoizedHelpers -- the shared world and its viewports, and the room around it
+  describe 'in a room' do
+    let(:room) do
+      root.add_node(RGame::Engine::Scene::Room.new).tap { it.scene = it }
+    end
+    let(:world) { room.add_node(described_class.new) }
+
+    before { root.enter_tree }
+
+    it 'draws only into the views of the players who stand in it' do
+      room.players << players.list[1]
+      draw_frame
+      expect(renderer.calls_to(:clipped).map(&:args)).to eq([[0, 240, 640, 240]])
+    end
+
+    it 'draws into no view while nobody stands in it' do
+      draw_frame
+      expect(renderer.calls_to(:clipped)).to be_empty
+    end
+
+    it 'shows a view no player owns the primary player\'s room' do
+      room.players << players.primary
+      viewports.solo!(RGame::Engine::Camera.new)
+      viewports._update(0)
+      draw_frame
+      expect(renderer.calls_to(:clipped).map(&:args)).to eq([[0, 0, 640, 480]])
+    end
+
+    it 'shows that view nothing of a room the primary player is not in' do
+      room.players << players.list[1]
+      viewports.solo!(RGame::Engine::Camera.new)
+      viewports._update(0)
+      draw_frame
+      expect(renderer.calls_to(:clipped)).to be_empty
+    end
+  end
+  # rubocop:enable RSpec/MultipleMemoizedHelpers
 end

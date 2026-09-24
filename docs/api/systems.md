@@ -36,10 +36,12 @@ cannot go stale.
 node.system(CollisionWorld)
 ```
 
-**`Node2D#system(klass)` checks the scene first, then the root.** A scene can
-therefore override a global default, and nodes outside any scene still find
-globals. To mean one scope specifically, use its anchor:
-`node.root.get_component` or `node.scene.get_component`.
+**`Node2D#system(klass)` checks the node's scene first, then each scene that
+encloses it, then the root.** A scene can therefore override a global default,
+and nodes outside any scene still find globals. A scene held inside another
+scene finds its own `CollisionWorld` first, and the outer scene's systems beyond
+it. To mean one scope specifically, use its anchor: `node.root.get_component` or
+`node.scene.get_component`.
 
 **`Node2D#system!(klass)` is the same lookup for a caller that cannot work
 without the system.** Where `system` returns nil, `system!` raises `KeyError`.
@@ -48,7 +50,7 @@ node has no parent:
 
 ```ruby
 system!(RGame::Engine::AudioOut).play_sound(:boom)
-# KeyError: Ship found no RGame::Engine::AudioOut system on its scene or the root.
+# KeyError: Ship found no RGame::Engine::AudioOut system on its scenes or the root.
 #           Mount one there with add_component
 ```
 

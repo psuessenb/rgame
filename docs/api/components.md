@@ -313,6 +313,10 @@ add_component(RGame::Engine::Components::PlayerController.new)
 - **State:** `set_intent(x, y)` writes the step's intent. `move_x` and `move_y`
   read it back, and so do `heading_x` and `heading_y`. A body pressed into a wall
   still heads into it.
+- **Attach:** the body stands still as its node enters the tree, whatever intent
+  it had. A hero carried into another scene or room, or a node taken from a pool
+  again, does not walk on under the reveal. Set an intent after placing the node
+  for one that should walk in.
 - **Phase:** `_update(dt)` applies `intent * speed * dt` through `apply_move`, and
   moves nothing when the intent is zero. That still counts as a step, so a body
   that stops pushing into a wall reports `on_unblocked`.

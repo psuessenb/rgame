@@ -25,6 +25,36 @@ RSpec.describe DriveTestProject::Report do
     end
   end
 
+  describe 'scenes' do
+    let(:root) do
+      RGame::Engine::Node2D.new.tap { it.add_component(RGame::Engine::Players.new([RGame::Engine::Player.new(id: 0)])) }
+    end
+    let(:rooms) do
+      probed = Class.new(RGame::Engine::Scene::Rooms).prepend(DriveTestProject.send(:rooms_probe, report))
+      world = root.add_node(RGame::Engine::Node2D.new).tap { it.scene = it }
+      world.add_component(probed.new)
+    end
+
+    it 'lists each room built, each node a move landed, and each room freed, in order' do
+      rooms.define(:town) { SpecRoom.new }
+      rooms.define(:garden) { SpecRoom.new }
+      root.enter_tree
+      hero = RGame::Engine::Node2D.new
+      rooms.move(hero, to: :town, entrance: 'gate')
+      root.sweep_freed
+      rooms.move(hero, to: :garden, entrance: 'gate')
+      root.sweep_freed
+
+      expect(section('scenes')).to eq(<<~SCENES)
+        \s\sbuild SpecRoom
+        \s\smove RGame::Engine::Node2D to SpecRoom
+        \s\sbuild SpecRoom
+        \s\smove RGame::Engine::Node2D to SpecRoom
+        \s\sfree SpecRoom
+      SCENES
+    end
+  end
+
   describe 'texts drawn per clip' do
     it 'lists each string under the innermost clip it was drawn in' do
       report.within_clip(left) { report.record_text('coin') }

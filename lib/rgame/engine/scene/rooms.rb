@@ -1,0 +1,348 @@
+# frozen_string_literal: true
+
+module RGame
+  module Engine
+    module Scene
+      # The rooms of one world, each running while a player stands in it, so two
+      # players can stand in two rooms at once.
+      #
+      #   class World < RGame::Engine::Node2D     # the scene the stack holds
+      #     def initialize
+      #       super
+      #       @rooms = add_component(RGame::Engine::Scene::Rooms.new)
+      #       @rooms.define(:town) { Town.new }
+      #       @rooms.define(:garden) { Garden.new }
+      #       @rooms.transition = RGame::Engine::Scene::Fade.new(cover: 0.25, reveal: 0.25)
+      #     end
+      #   end
+      #
+      #   rooms.move(hero, to: :garden, entrance: 'gate_in')   # one hero, under its player's cover
+      #   rooms.move(heroes, to: :town, entrance: 'square')    # every hero given, from whichever room
+      #   rooms.room_of(player)                                # => the Room they stand in, or nil
+      #   rooms[:garden]                                       # => the running Room of that name, or nil
+      #   rooms.hold(:garden)                                  # runs with nobody in it, until released
+      #
+      # Each room is a Scene::Room, built by the block given to #define, and
+      # built anew each time it starts running. What should outlast a visit
+      # lives in `Facts`, as a loaded save's state does.
+      #
+      # **A move lands in the sweep**, as a SceneStack's switch does. `move`
+      # records what was asked, pauses each node it names, and covers each
+      # moving player's region. Once a player's cover is complete, the sweep
+      # takes each of their nodes from its parent, builds the room if it is not
+      # running, and hands the node to the room's `_arrive`. Then the cover
+      # reveals, and the node gets back the `paused` it had once the reveal
+      # ends. A move to the room a node stands in is a warp: `_arrive` places
+      # the node again and nothing leaves the tree.
+      #
+      # **A node's player** is the one its `input_owner` names, looked up
+      # through its parents, and the primary player when none does. A move
+      # covers that player's region only, and makes them stand in the room the
+      # node goes to. A node owned by `Players#everyone` has no one player: it
+      # moves under no cover, and stands nobody anywhere.
+      #
+      # **A room runs while a player stands in it, or while #hold holds it.**
+      # The sweep frees one that has neither, and nothing on its way to it.
+      # Each running room is controlled, updated and drawn once a tick, in the
+      # order the rooms were built. The rooms live off the host's child list,
+      # each naming the host as its parent and marked as its own scene.
+      #
+      # **A player's camera takes the limits of the room they stand in.** As a
+      # move lands, each player's camera is bounded by their room's TileWorld,
+      # whichever cameras that room handed its own.
+      class Rooms < Engine::Component
+        # Fired once for each node a move names, as the move is asked for, with
+        # the node and the name of the room it goes to.
+        signal :requested, :node, :name
+
+        # Fired once for each node as its move lands, after the room's
+        # `_arrive` placed it.
+        signal :arrived, :node, :room
+
+        Move = Data.define(:node, :name, :entrance, :player)
+        Paused = Struct.new(:node, :was, :player)
+        private_constant :Move, :Paused
+
+        # One player's region, covered by a curtain of its own.
+        class Cover < Engine::PlayerLayer
+          attr_reader :curtain
+
+          def initialize(player:)
+            super
+            @curtain = Curtain.new(self)
+          end
+
+          def _draw(renderer, view) = @curtain.draw(renderer, view)
+        end
+        private_constant :Cover
+
+        # The Scene::Fade a move runs unless it names its own, or nil, the
+        # default, for none.
+        attr_reader :transition
+
+        def initialize
+          super
+          @builders = {}
+          @running = []
+          @by_name = {}
+          @room_of = {}
+          @holds = {}
+          @moves = []
+          @paused = []
+          @covers = {}
+          @transition = nil
+          @players = nil
+        end
+
+        # Sets the transition every move runs unless it names its own. Anything
+        # but a Scene::Fade or nil raises `TypeError`.
+        def transition=(transition)
+          @transition = checked_transition(transition)
+        end
+
+        # See SceneStack#_attach: the rooms need the input source, not the one
+        # snapshot a component is handed.
+        def _attach = @players = node.system(Engine::Players)
+
+        # Names a room. The block builds a new Scene::Room each time the room
+        # starts running, and takes no parameters. A name is defined once.
+        def define(name, &builder)
+          raise TypeError, "a room's name is a Symbol, not #{name.inspect}" unless name.is_a?(Symbol)
+          raise ArgumentError, "define(#{name.inspect}) needs a block that builds the room" unless builder
+          raise ArgumentError, "a room named #{name.inspect} is already defined" if @builders.key?(name)
+          unless builder.parameters.empty?
+            raise ArgumentError, "the builder for #{name.inspect} takes parameters, and a room's builder takes " \
+                                 'none. What a room needs to know lives in Facts, or reaches it in _arrive'
+          end
+
+          @builders[name] = builder
+          self
+        end
+
+        # Asks for `nodes`, one node or an Array of them, to go to the room named
+        # `to`, at `entrance`, which reaches the room's `_arrive` as it is. A name
+        # the rooms were not given raises `KeyError` here.
+        #
+        # `transition:` is a Scene::Fade for this move in place of the rooms',
+        # or nil for none. A second move asked for a node before its first
+        # lands replaces the first.
+        def move(nodes, to:, entrance: nil, transition: @transition)
+          named_for(to)
+          transition = checked_transition(transition)
+          if nodes.is_a?(Array)
+            nodes.all? { checked_node(it) }
+            nodes.each { ask(it, to, entrance, transition) }
+          else
+            ask(checked_node(nodes), to, entrance, transition)
+          end
+          self
+        end
+
+        # The room `player` stands in, or nil.
+        def room_of(player) = @room_of[player]
+
+        # The running room named `name`, or nil.
+        def [](name) = @by_name[name]
+
+        # Keeps the room named `name` running with nobody in it, from the next
+        # sweep until #release. Builds it then if it is not running.
+        def hold(name)
+          named_for(name)
+          @holds[name] = true
+          self
+        end
+
+        # Ends a #hold. A room nobody stands in is freed in the next sweep.
+        def release(name)
+          @holds.delete(name)
+          self
+        end
+
+        # Whether a move was asked for and has not landed.
+        def pending? = !@moves.empty?
+
+        # Whether any player's cover is covering or revealing.
+        def transitioning? = @covers.any? { |_, cover| cover.curtain.running? }
+
+        # hot-path
+        def _control(actions)
+          input = @players || actions
+          @running.each { it.control(input) }
+        end
+
+        # hot-path
+        def _update(dt)
+          @covers.each_value { it.curtain.update(dt) }
+          restore_paused unless @paused.empty?
+          @running.each { it.update(dt) }
+        end
+
+        # hot-path
+        def _draw(renderer, view)
+          @running.each { it.draw(renderer, view) }
+          @covers.each_value { it.draw(renderer, view) }
+        end
+
+        # The sweep reaches into each running room, lands every move whose
+        # cover is complete, then builds the rooms a hold asks for and frees the
+        # rooms nobody needs.
+        def _sweep_freed
+          @running.each(&:sweep_freed)
+          land_ready unless @moves.empty?
+          settle_rooms if settling?
+        end
+
+        private
+
+        def ask(moving, name, entrance, transition)
+          player = player_of(moving)
+          @moves.delete_if { it.node.equal?(moving) }
+          @moves << Move.new(moving, name, entrance, player)
+          pause(moving, player)
+          cover = transition ? cover_for(player) : @covers[player] if player
+          cover&.curtain&.close(transition, at_once: @room_of[player].nil?)
+          requested_signal.emit(node: moving, name:)
+        end
+
+        def player_of(moving)
+          owner = nil
+          at = moving
+          while at && owner.nil?
+            owner = at.input_owner
+            at = at.parent
+          end
+          owner ||= @players&.primary
+          owner.is_a?(Engine::Players::Everyone) ? nil : owner
+        end
+
+        def cover_for(player)
+          @covers[player] ||= Cover.new(player:).tap do |cover|
+            cover.parent = node
+            cover.enter_tree
+          end
+        end
+
+        def pause(moving, player)
+          return if @paused.any? { it.node.equal?(moving) }
+
+          @paused << Paused.new(moving, moving.paused, player)
+          moving.paused = true
+        end
+
+        def restore_paused
+          @paused.delete_if do |entry|
+            next false if moving?(entry.node) || covered?(entry.player)
+
+            entry.node.paused = entry.was
+            true
+          end
+        end
+
+        def moving?(moving) = @moves.any? { it.node.equal?(moving) }
+
+        def covered?(player) = !player.nil? && @covers[player]&.curtain&.running? == true
+
+        def land_ready
+          @moves.delete_if do |move|
+            next false unless ready?(move)
+
+            land(move)
+            true
+          end
+          bound_cameras
+          @covers.each { |player, cover| cover.curtain.open unless @moves.any? { it.player.equal?(player) } }
+          restore_paused
+        end
+
+        def ready?(move) = move.player.nil? || @covers[move.player].nil? || @covers[move.player].curtain.ready?
+
+        def land(move)
+          room = @by_name[move.name] || build(move.name)
+          moving = move.node
+          moving.parent&.remove_node(moving) unless inside?(moving, room)
+          room._arrive(moving, move.entrance)
+          unless inside?(moving, room)
+            raise "#{room.class}#_arrive left #{moving.class} outside the room. Add it to a node in the room"
+          end
+
+          stand(move.player, room) if move.player
+          arrived_signal.emit(node: moving, room:)
+        end
+
+        def inside?(moving, room)
+          at = moving.parent
+          at = at.parent until at.nil? || at.equal?(room)
+          !at.nil?
+        end
+
+        def stand(player, room)
+          @room_of[player]&.players&.delete(player)
+          room.players << player unless room.players.include?(player)
+          @room_of[player] = room
+        end
+
+        def build(name)
+          room = @builders.fetch(name).call
+          unless room.is_a?(Room)
+            raise TypeError, "the builder for #{name.inspect} built a #{room.class}, and a room is a #{Room}"
+          end
+
+          room.name = name
+          @running << room
+          @by_name[name] = room
+          room.parent = node
+          room.scene = room
+          room.enter_tree
+          room
+        end
+
+        def free(room)
+          @running.delete(room)
+          @by_name.delete(room.name)
+          room.exit_tree
+          room.scene = nil
+          room.parent = nil
+        end
+
+        def settling?
+          @running.any? { |room| !needed?(room) } || @holds.any? { |name, _| !@by_name.key?(name) }
+        end
+
+        def settle_rooms
+          @holds.each_key { |name| build(name) unless @by_name.key?(name) }
+          @running.dup.each { |room| free(room) unless needed?(room) }
+        end
+
+        def needed?(room)
+          !room.players.empty? || @holds.key?(room.name) || @moves.any? { it.name == room.name }
+        end
+
+        def bound_cameras
+          @room_of.each do |player, room|
+            world = room.get_component(Components::TileWorld)
+            world&.bound(player.camera) if player.camera
+          end
+        end
+
+        def named_for(name)
+          @builders.fetch(name) do
+            raise KeyError.new("there is no room named #{name.inspect}. Name it first: " \
+                               "define(#{name.inspect}) { ... }", receiver: @builders, key: name)
+          end
+        end
+
+        def checked_node(moving)
+          return moving if moving.respond_to?(:enter_tree)
+
+          raise TypeError, "a move takes a node or an Array of nodes, not #{moving.inspect}"
+        end
+
+        def checked_transition(transition)
+          return transition if transition.nil? || transition.is_a?(Fade)
+
+          raise TypeError, "a transition is a #{Fade} or nil, not #{transition.inspect}"
+        end
+      end
+    end
+  end
+end

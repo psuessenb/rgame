@@ -47,6 +47,35 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
     parent.enter_tree
   end
 
+  # Rule 13: a hero carried into a room would otherwise walk on under the reveal.
+  describe 'a body entering the tree' do
+    let(:body) { described_class.new(speed: 50.0) }
+
+    before { node.add_component(body) }
+
+    it 'stands still, whatever intent it had' do
+      body.set_intent(1.0, 1.0)
+      enter
+      body._update(0.5)
+      expect([body.heading_x, body.heading_y, node.x, node.y]).to eq([0.0, 0.0, 100.0, 100.0])
+    end
+
+    it 'stands still again once it leaves and comes back, as a pooled node taken again does' do
+      enter
+      body.set_intent(1.0, 0.0)
+      root.remove_node(node)
+      root.add_node(node)
+      expect(body.heading_x).to eq(0.0)
+    end
+
+    it 'walks on an intent set after it entered' do
+      enter
+      body.set_intent(1.0, 0.0)
+      body._update(0.5)
+      expect(node.x).to eq(125.0)
+    end
+  end
+
   describe 'an unblocked body — the default' do
     let(:body) { described_class.new(speed: 50.0) }
 
@@ -103,9 +132,11 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
   end
 
   it_behaves_like 'a mover' do
-    def build_mover(blocked_by:, pushes: [], heading: [1, 0])
-      described_class.new(speed: 60.0, blocked_by:, pushes:).tap { it.set_intent(*heading) }
+    def build_mover(blocked_by:, pushes: [], heading: [1, 0]) # rubocop:disable Lint/UnusedMethodArgument -- start_mover takes it
+      described_class.new(speed: 60.0, blocked_by:, pushes:)
     end
+
+    def start_mover(mover, heading) = mover.set_intent(*heading)
   end
 
   describe 'blocked_by: [:tiles]' do

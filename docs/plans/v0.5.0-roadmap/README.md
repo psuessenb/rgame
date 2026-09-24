@@ -1,6 +1,6 @@
 # The rest of the README roadmap
 
-**Status: steps 0 to 12 are implemented.** Steps 0–16 of
+**Status: steps 0 to 13 are implemented.** Steps 0–16 of
 [the roadmap](04-roadmap.md) are detailed: 5–8 planned after step 4 landed,
 9–12 after step 8, and 13–16 after step 12. Step 17 folds the plan back.
 
