@@ -271,11 +271,16 @@ the audio device, so it calls the `AudioOut` system, which holds it.
 
 ### music
 
-The other kind of sound: one streamed voice. You can stop it and ask whether it
-plays, and starting it again does not restart it.
+The other kind of sound: one streamed voice, faded in and out over a second,
+paused and resumed. Asking for it while it plays does not restart it, and asking
+for it while it fades out brings it back up. Up and Down set the music's
+category volume and Left and Right the effects', with a blip to hear them by.
+It is the example to judge by ear whether a fade stepped once a tick sounds
+smooth.
 
-**Uses:** `Core::Song`, `AudioOut#play_music` / `#stop_music`, `Engine::Tween`
-(`loop: true`, the playhead).
+**Uses:** `Core::Song`, `AudioOut#play_music` / `#stop_music` with `fade:`,
+`AudioOut#pause_music` / `#resume_music`, `AudioOut#set_category_volume`,
+`Engine::Tween` (`loop: true`, the playhead).
 
 ## Players and input
 

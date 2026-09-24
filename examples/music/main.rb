@@ -1,52 +1,55 @@
 # frozen_string_literal: true
 
-# Music — a looping track, started and stopped.
+# Music — a looping track that fades in and out, pauses, and has a volume per
+# category.
 #
 # Run it:
 #
 #   ruby examples/music/main.rb
 #
-# Enter or Space starts it; Escape stops it. Press start again while it is
-# already playing and **nothing happens** — that is deliberate, and the reason
-# is below. It exercises:
-#   - Core::Song — a streamed track with one voice, which can be stopped and
-#     asked whether it is playing, named by its path;
-#   - Engine::AudioOut play_music / stop_music, the system `examples/sound`
-#     plays through, mounted by RGame::Game;
+# **Enter** fades the track in over a second and **Escape** fades it out. **P**
+# pauses it and resumes it, holding a fade where it is. **Up** and **Down** turn
+# the music up and down a tenth at a time, and **Left** and **Right** do the same
+# for the effects, with a blip on each press so there is an effect to hear. It
+# exercises:
+#   - Engine::AudioOut — `play_music` and `stop_music` with `fade:`, pause and
+#     resume, and `set_category_volume`, mounted by RGame::Game;
+#   - Core::Song — a streamed track with one voice, which can be stopped,
+#     resumed and asked whether it is playing, named by its path;
 #   - Engine::Tween with `loop: true` — the playhead, which starts again at the
 #     loop point.
 #
-# ## A Song is not a Sample
+# ## A fade is a volume set once a tick
 #
-# The two types exist so that this distinction is in the type rather than in a
-# convention. A `Sample` (see `examples/sound`) is decoded up front and gets a
-# fresh voice per play, so it layers and `playing?` would be meaningless. A
-# `Song` is *streamed* and has exactly one voice: it can be stopped, and it can
-# be asked whether it is running.
+# `AudioOut` raises the song's own volume a sixtieth at a time, from its
+# `_update`, so a one-second fade is sixty steps. Nothing smooths a step across
+# the frames between two ticks. **Whether you can hear the steps is what this
+# example is for:** listen to a fade with the music turned up, over a quiet
+# passage, and listen for a buzz or a stair-step under it.
 #
-# ## Starting it twice does not restart it
+# A fade in starts the track from the top. Press Escape and then Enter before
+# the fade out ends, and the track comes back up from where it is, without
+# starting again. Press Enter while it plays and nothing happens: a scene that
+# asks for its music every time it is entered never restarts it.
 #
-# `Audio#play_music` returns early when the song is already playing. That is not
-# a nicety — a scene that emits `play_music` from `_enter_tree` every time it is
-# entered would otherwise chop the track back to zero each time the player
-# walked through a door.
+# ## Two volumes that do not touch
 #
-# **You confirm that by ear, not from this window.** Press Enter again while it
-# is playing: the bar below carries on, but that only proves *this scene* did
-# not reset its own timer. Whether the audio restarted is a fact about the
-# device, and the only honest way to check it is to listen for the track
-# jumping back to its opening bar.
+# The track plays under the `:music` category and the blip under `:effects`.
+# Each category's volume multiplies the sounds in it, so turning the music down
+# leaves the blip as loud as it was.
+#
+# ## What it does not show
+#
+# A crossfade needs two tracks, and this example ships one. `docs/api/audio.md`
+# shows `AudioOut#crossfade`.
 #
 # ## The bar is state, not a clock
 #
-# Nothing on a draw path reads a clock — `draw` is not called on a schedule and
-# a wall clock cannot be paused or reproduced (see "`draw` renders state").
-# So the seconds below are accumulated from `dt` in `update`. It is a
-# rough playhead, not a reading off the song: it says how long ago this scene
-# *asked* for music, which is close enough to watch the 24s loop point go past
-# and listen for whether the wrap clicks. `tools/shrink_ogg.c` measures the seam
-# at 2.3% of the music's own largest step *and* the silence at each end at zero
-# — this is where you find out whether those numbers were telling the truth.
+# Nothing on a draw path reads a clock (see "`draw` renders state"). So the bar
+# is a playhead accumulated from `dt` in `update` while the track plays, and it
+# stops while the track is paused. It says how long this scene has played the
+# track, which is close enough to watch the 24 s loop point go past and listen
+# for whether the wrap clicks.
 
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
@@ -57,66 +60,114 @@ ASSETS = File.expand_path('../assets', __dir__)
 LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
 LOOP_SECONDS = 24.05 # the length of music.ogg; see examples/assets/README.md
+TRACK = 'music.ogg'
+BLIP = 'blip.ogg'
+FADE = 1.0 # seconds
 
 class Scene < RGame::Engine::Node2D
   BAR_X = 60
   BAR_Y = 260
   BAR_W = 520
   BAR_H = 26
-  TRACK  = RGame::Util::Color.new(40, 48, 66)
-  FILL   = RGame::Util::Color.new(120, 200, 255)
+  RAIL = RGame::Util::Color.new(40, 48, 66)
+  FILL = RGame::Util::Color.new(120, 200, 255)
+  FILL_PAUSED = RGame::Util::Color.new(90, 110, 140)
+  STATE = {
+    stopped: RGame::Engine::Text.new('status.stopped'),
+    rising: RGame::Engine::Text.new('status.rising'),
+    playing: RGame::Engine::Text.new('status.playing'),
+    falling: RGame::Engine::Text.new('status.falling'),
+    paused: RGame::Engine::Text.new('status.paused')
+  }.freeze
 
   def initialize
     super
-    @playing = false
+    @state = :stopped
+    @held = false
+    @music = 10 # tenths
+    @effects = 10
     @playhead = RGame::Engine::Tween.new(LOOP_SECONDS, loop: true)
     @help = RGame::Engine::Text.new('help.keys')
-    @stopped = RGame::Engine::Text.new('status.stopped')
-    @started = RGame::Engine::Text.new('status.playing')
-    @status = @stopped
+    @help_volume = RGame::Engine::Text.new('help.volume')
+    @volumes = RGame::Engine::Text.new('status.volumes', :music, :effects)
   end
 
   def _control(actions)
-    start if actions.pressed?(:ui_confirm)
-    stop if actions.pressed?(:ui_cancel)
+    if actions.pressed?(:pause)
+      toggle_pause
+    elsif !@held
+      fade_in if actions.pressed?(:ui_confirm)
+      fade_out if actions.pressed?(:ui_cancel)
+    end
+    turn_music(1) if actions.pressed?(:ui_up)
+    turn_music(-1) if actions.pressed?(:ui_down)
+    turn_effects(1) if actions.pressed?(:ui_right)
+    turn_effects(-1) if actions.pressed?(:ui_left)
   end
 
   def _update(dt)
-    @playhead.update(dt) if @playing
+    return if @held || @state == :stopped
+
+    settle unless out.fading?
+    @playhead.update(dt) unless @state == :stopped
   end
 
   def _draw(renderer, _view)
     renderer.text(@help, 12, 12)
-    renderer.text(@status, 12, 34)
+    renderer.text(@help_volume, 12, 34)
+    renderer.text(@held ? STATE[:paused] : STATE[@state], 12, 68)
+    renderer.text(@volumes.with(music: @music * 10, effects: @effects * 10), 12, 90)
 
     # Where the playhead sits inside one pass of the loop. It wraps at
     # LOOP_SECONDS, so the bar resetting is the loop point going past.
-    renderer.rect(BAR_X, BAR_Y, BAR_W, BAR_H, color: TRACK)
-    renderer.rect(BAR_X, BAR_Y, BAR_W * @playhead.progress, BAR_H, color: FILL)
+    renderer.rect(BAR_X, BAR_Y, BAR_W, BAR_H, color: RAIL)
+    renderer.rect(BAR_X, BAR_Y, BAR_W * @playhead.progress, BAR_H, color: @held ? FILL_PAUSED : FILL)
   end
 
   private
 
-  # The play_music call is unconditional on purpose: this node has no idea whether the
-  # track is already going, and does not need one. The guard lives in
-  # Audio#play_music, which owns the state that answers it.
-  #
-  # `@playing` below is *not* that state duplicated — it only drives the bar and
-  # the label, which is why the bar carrying on through a second press proves
-  # nothing about the device.
-  def start
-    system!(RGame::Engine::AudioOut).play_music('music.ogg')
-    return if @playing
+  def out = system!(RGame::Engine::AudioOut)
 
-    @playing = true
-    @status = @started
+  # Unconditional on purpose: AudioOut knows whether the track is already
+  # playing, fading in or on its way out, and does the right thing for each.
+  def fade_in
+    out.play_music(TRACK, fade: FADE)
+    @state = :rising unless @state == :playing
   end
 
-  def stop
-    system!(RGame::Engine::AudioOut).stop_music
-    @playing = false
-    @playhead.restart
-    @status = @stopped
+  def fade_out
+    return if @state == :stopped
+
+    out.stop_music(fade: FADE)
+    @state = :falling
+  end
+
+  # A fade that has run its course: the track is up, or it has stopped.
+  def settle
+    if @state == :falling
+      @state = :stopped
+      @playhead.restart
+    else
+      @state = :playing
+    end
+  end
+
+  def toggle_pause
+    return if @state == :stopped
+
+    @held ? out.resume_music : out.pause_music
+    @held = !@held
+  end
+
+  def turn_music(by)
+    @music = (@music + by).clamp(0, 10)
+    out.set_category_volume(:music, @music / 10.0)
+  end
+
+  def turn_effects(by)
+    @effects = (@effects + by).clamp(0, 10)
+    out.set_category_volume(:effects, @effects / 10.0)
+    out.play_sound(BLIP)
   end
 end
 
@@ -126,7 +177,12 @@ game = RGame::Game.new(
   width: WIDTH,
   height: HEIGHT,
   media_root: ASSETS,
-  locales: LOCALES
+  locales: LOCALES,
+  # P and Start are free in the default map. The arrows also move a hero and a
+  # menu, and nothing here reads either.
+  input_map: RGame::Engine::InputMap.default.merge(
+    pause: { buttons: [RGame::Util::Controls::KEY_P, RGame::Util::Controls::PAD_START] }
+  )
 )
 
 game.start
