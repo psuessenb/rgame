@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status: steps 0 to 9 are implemented.** Sixteen steps. Each is one branch and one
+**Status: steps 0 to 10 are implemented.** Sixteen steps. Each is one branch and one
 pull request, and its sub-steps are one commit each. **Steps 0–12 are detailed.**
 Steps 5–8 were planned after step 4 landed, and steps 9–12 after step 8. What
 each re-plan found comes before its steps:
@@ -2179,6 +2179,101 @@ things:
 
 `docs/api/` gains `ScreenFade` beside the node types, `Particles` in
 `components.md` and `ColorRamp` in `toolbox.md`.
+
+**Landed.** Five sub-steps, one commit each, and a sixth commit that pins a
+fade starting covered for step 12. `make test` 401 checks 0 failures, as at
+the branch point, since no C changed. `rake spec` 3624 examples 0 failures
+(3561), `rake spec:core` 499 examples 0 failures (499), `rake docs:coverage`
+nothing undocumented, and `rake drive:allocations` passes all 39 projects,
+`examples/effects` among them.
+
+**`examples/effects` reports its effects in the stretches they run.** The
+report adds up a whole run, so the drive script's header gives the counts at
+six tick budgets under `--seed 4242`: Enter at tick 30, L at 122, Space at 184,
+and L and Space together at 256.
+
+| `--ticks` | rect | line | blended | faded |
+|---|---|---|---|---|
+| 30 | 360 | 0 | 28 | 0 |
+| 122 | 3124 | 0 | 120 | 70 |
+| 184 | 5063 | 576 | 214 | 103 |
+| 256 | 7929 | 576 | 333 | 103 |
+| 320 | 10519 | 1152 | 476 | 136 |
+| 400 | 13017 | 1152 | 556 | 136 |
+
+The torch's embers open one `blended` a frame, all run long, and the last 80
+ticks read its 80 alone. A bolt or a burst on screen adds one more a frame
+each. `faded` grows only while the cover, the reveal, a flash or a bolt runs:
+70 for the cover and reveal, none after tick 320. `line` grows only while a
+bolt shows, 18 a frame for 32 frames of each strike. `rect` reads about 31 a
+frame with the torch alone and about 40 while a burst lives. Under
+`--allocations` it reads 6.4 objects a second on 6 of 301 ticks.
+
+**The adventure shows the three things the sketch asked for**, in a 740-tick
+run under `--seed 4242` compared with `main`:
+
+1. **A coin taken sparkles in both players' views.** `blended` reads 184 in the
+   first 240 ticks and 254 in 740. The one coin taken after tick 240 adds 70,
+   which is 35 frames of two views.
+2. **The storm's flash is drawn once a frame across the window.** `faded` and
+   the `:overlay` layer both read 45, three flashes of 15 frames, and the rect
+   spans the whole 640 by 480. None falls in the first 240 ticks.
+3. **Every text, clip, translate and sound matches `main`**, at 240 ticks and
+   at 740. Only `rect`, `blended`, `faded` and the world and overlay layer
+   counts differ.
+
+**Every other driven run reports what it reported at the branch point.** 50
+scripts under `--seed 4242`, 240 ticks and `--texts`, one at a time, against a
+capture of `main`, once the extension paths in the header are set aside. 48
+matched on the first capture. `tiled_world` and `tiled_world_inventory` each
+dropped a frame on one tree, 238 frames against 239, and matched byte for byte
+when both trees ran them again.
+
+What the sketch got wrong:
+
+- **`ColorRamp` is a value, so it went beside `Color`.** The sketch put it in
+  `toolbox.md`, but `values.md` holds every `RGame::Util` class and the index
+  says so. `ScreenFade` went in `toolbox.md` beside `Tween`, because no page
+  lists node types.
+- **The emitter reserves its pool when it is built, not when it attaches.** A
+  component is built once, and reserving in `initialize` needs no hook. A
+  fresh emitter's first burst allocates nothing, but the first burst in the
+  process fills Ruby's call caches once: 30 objects. The allocation spec runs
+  the same calls on another emitter before it measures a fresh one.
+- **`spread` is a half-angle.** "Within `spread` of `direction`" read two ways.
+  It follows Godot: each particle heads up to `spread` either side, so
+  `Math::PI` is every way, as the sketch's sparkles meant.
+- **Carrying the fraction needs slack.** Three ticks of 40 a second add up to a
+  hair under 2 in floating point, and a plain `floor` loses a particle. The
+  carry takes 1e-9 of slack, and 600 ticks stream exactly 400.
+- **A flash replaces a cover, so the example holds two fades.** `flash` rises
+  from clear whatever the fade showed, as rule 6 says. A storm flashing over a
+  covered fade would drop the cover, so `examples/effects` flashes a second
+  `ScreenFade` over the room, and the adventure's storm is its own.
+- **A fade can start covered with no new method.** Step 12's rule 11 needs a
+  push onto an empty stack to start covered. `fade.opacity = 1` does it:
+  `covered?` answers true and `reveal` starts from there. A spec pins it, and
+  `toolbox.md` says so. Durations must be positive, as a `Tween`'s are, so
+  `cover(0)` raises.
+- **An empty emitter opens no blend block.** The sketch's "none once the
+  burst's lifetime has run out" depends on it. `Particles#_draw` returns while
+  nothing is alive.
+- **Rule 9's allocation examples went in `screen_fade_spec.rb`,** beside the
+  fade's other rules, rather than in the particles' allocation spec.
+- **The adventure allocates 39.7 objects a second, where `main` allocates
+  36.9.** Listing every site on both trees traces the 29 extra objects to one
+  place each: the call caches at `ScreenFade#flash` and `_update` and at the
+  timer's `_update`, filled on the first flash at tick 240, after the
+  warm-up; the fade's `finished` signal, built when it first emits; and one
+  more node class through `Node2D#draw`. The second and third flashes allocate
+  nothing.
+
+Documented in [values.md](../../api/values.md#rgameutilcolorramp),
+[toolbox.md](../../api/toolbox.md#screenfade--cover-the-view-and-flash-it),
+[components.md](../../api/components.md#particles) and
+[examples.md](../../api/examples.md#effects), with `Pool#reserve` in
+`toolbox.md`, a row in `README.md`, rows in `docs/api/README.md`, and three
+entries in `CHANGELOG.md`.
 
 ---
 
