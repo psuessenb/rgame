@@ -196,8 +196,12 @@ and fourteen more. The seventeenth name raises `ArgumentError`.
 **A name no sound was registered under raises `KeyError`**, from
 `category_volume` and `set_category_volume` alike, so a mistyped category fails
 instead of changing nothing. A category is named by a Symbol; anything else
-raises `TypeError`. A sound played by its path and never registered plays under
-`:music` or `:effects`.
+raises `TypeError`.
+
+**A category belongs to the sound, not to the id.** `play_sound('line.ogg')`
+finds the sample the asset manager already made for `:line` above, so it plays
+under `:voice` too. A sound no registration named plays under `:music` if it is
+a song and `:effects` if it is a sample.
 
 ## Loading and failure
 
@@ -313,8 +317,8 @@ out.fading?                           # a song on its way up or down
 
 `play_sound`, the two category calls, and `play_music` and `stop_music` without
 a fade forward to the device. Ids, looping and what `stop_music` stops work as
-this page describes for `Audio`, and without a fade the device receives exactly
-the one call it would receive from a scene calling it directly. `AudioOut` calls
+this page describes for `Audio`. While no fade runs, a call without a fade sends
+the device exactly the call of the same name, and nothing else. `AudioOut` calls
 the device by method name, so the engine layer never names `RGame::Core::Audio`.
 
 ### Fades
