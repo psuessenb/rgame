@@ -45,4 +45,20 @@ RSpec.describe RGame::Engine::AudioOut do
 
     expect { root.update(1.0 / 60) }.to allocate_nothing
   end
+
+  it 'allocates nothing to step a crossfade a claim started' do
+    root, out = mounted
+    out.claim_music(:room, :town, priority: 1)
+    out.claim_music(:battle, :battle, priority: 10, fade: 600.0)
+
+    expect { root.update(1.0 / 60) }.to allocate_nothing
+  end
+
+  it 'allocates nothing for a tick while claims hold and nothing fades' do
+    root, out = mounted
+    out.claim_music(:room, :town, priority: 1)
+    out.claim_music(:battle, :battle, priority: 10)
+
+    expect { root.update(1.0 / 60) }.to allocate_nothing
+  end
 end

@@ -392,6 +392,69 @@ reason, pausing a scene does not pause its music or a fade.
 `stop_music(fade:)` is lowering. A song on its way out of a crossfade stops at
 once. Stepping a fade, and holding one, allocates nothing.
 
+### Claims
+
+**A claim asks for a song with a priority, and the claim with the highest
+priority plays.** A claim has a key, which may be any object, and claiming the
+same key again replaces its song and priority:
+
+```ruby
+out.claim_music(:room, :town, priority: 1)
+out.claim_music(:battle, :battle, priority: 10, fade: 0.3)   # :battle outranks the room
+out.release_music(:battle, fade: 1.0)                        # back to :town
+out.claimed_music                                            # the song the claims chose, or nil
+```
+
+A game claims for an event, such as a battle over every room, and
+[`Scene::Rooms`](scene_graph.md#rooms-scenerooms) claims the song of each room a
+player stands in. How the claims play:
+
+- **A tie goes to the latest claim.** Claiming a key again makes it the latest.
+- **The song changes only when the winner does.** Then it crossfades over the
+  `fade:` of the call that changed it. A claim or a release that leaves the
+  winning song as it was sends the device nothing, so it never starts a song
+  again.
+- **`release_music` takes several keys**, and changes the song once, to what
+  the claims left choose. Releasing a key that holds no claim changes nothing.
+- **Releasing the last claim** lowers the music to silence over its `fade:` and
+  stops it.
+- **The first claim** fades its song in, or crossfades from a song `play_music`
+  started.
+
+**A game uses claims or the direct calls, not both.** While any claim holds,
+`play_music`, `crossfade` and `stop_music` raise `RuntimeError`, naming each key.
+`pause_music` and `resume_music` still work, so a pause menu holds whatever the
+claims chose. A song claimed with `nil` raises `ArgumentError`, and a priority
+that is not a number raises `TypeError`.
+
+```ruby
+require 'rgame'
+
+# Keeps the volume each song was last given, and plays nothing.
+class Mixer
+  attr_reader :volumes
+
+  def initialize = @volumes = {}
+  def play_music(id) = @volumes[id] ||= 1.0
+  def stop_music(_id = nil) = nil
+  def set_music_volume(id, volume) = @volumes[id] = volume
+end
+
+mixer = Mixer.new
+root = RGame::Engine::Node2D.new
+out = root.add_component(RGame::Engine::AudioOut.new(mixer))
+root.enter_tree
+
+out.claim_music(:room, :town, priority: 1)
+out.claim_music(:battle, :battle, priority: 10, fade: 1.0)
+root.update(0.5)
+mixer.volumes         # => {town: 0.5, battle: 0.5}
+out.claim_music(:forest, :garden, priority: 2)
+out.claimed_music     # => :battle — the battle still outranks both rooms
+out.release_music(:battle)
+out.claimed_music     # => :garden
+```
+
 **`RGame::Game` mounts it in `start`**, holding `Game#audio`: the device `App`
 builds, or the one passed as `audio:`. A node that is not in the tree, or a tree
 with no `AudioOut`, makes `system!` raise `KeyError` naming `AudioOut`. A node
