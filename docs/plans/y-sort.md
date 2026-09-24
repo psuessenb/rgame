@@ -1,6 +1,6 @@
 # Y-sort
 
-**Status: step 1 is implemented.** Four steps. Each is one branch and one pull
+**Status: steps 1 and 2 are implemented.** Four steps. Each is one branch and one pull
 request, and its sub-steps are one commit each. **Steps 1 and 2 are
 detailed.** Step 3 is rough and gets re-planned once step 2 lands. Step 4 folds
 the plan back and deletes it.
@@ -572,6 +572,74 @@ Also `rake spec` and `rake drive:allocations`. `docs/api/components.md`
 (`Sprite`, `AnimatedSprite`, `FeetCollider`, `CameraFollow`) and
 `docs/api/toolbox.md` (`CollisionBox`) say what the code now does. The
 `CHANGELOG.md` entry says the default moved.
+
+**Landed.** `Sprite` and `AnimatedSprite` take `anchor:`, and both default to
+`:bottom`. `Engine::Anchor` holds the arithmetic for both and is tagged
+`@api private`. `FeetCollider` builds its box across the origin at
+construction, and `CollisionBox.bottom_anchored` is gone. It landed on the
+`sprite-anchors` branch in four commits, one per sub-step.
+
+- `rake spec`: 3856 examples, 0 failures: 20 new in 2a, and 3 fewer after 2b
+  removed `bottom_anchored`'s examples and the first-read ones of
+  `FeetCollider`. `rake spec:core`: 517, 0 failures. `make test`: 412 checks,
+  0 failures. `rake drive:allocations`: every project within budget.
+- **A report cannot come out exactly as it was before.** The drive report
+  records each draw in its node's local space. Moving the origin to the feet
+  changes those numbers even when nothing moves on screen, so the plan's
+  `diff before.txt -` check would fail by design. So each seeded run also
+  went through a scratch probe outside the repository. It adds up the
+  translates and scales around every draw and writes where the draw landed
+  on screen. That was compared with the same runs at 2a, which match `main`'s
+  reports except that `Sprite` passes its centre as `0.0` rather than `0`.
+- Of the 18 runs (the eight examples, `examples/sprite`, the spike script,
+  `test_projects/asteroids`, adventure and the six tiled_world scripts), 17
+  draw everything at the same screen positions as before. The one exception
+  is below. Outside it, every count, text and sound in the reports is the
+  same, apart from local coordinates and the number of distinct translates.
+  That number goes up by one in game_menu and in two of the tiled_world
+  runs.
+- **`Targeting` measures reach from the node's origin**, so `Interactor` and
+  `Grab` now reach from the feet. In `examples/collectables` the chest's
+  "Press E" shows 4 ticks sooner: 21 frames from tick 117, against 17 from
+  121. The feet are 8px closer to the chest on the walk right than the
+  sprite's top-left corner was. Adventure's hero uses both components and
+  draws the same frames as before. The prompt was not tuned back: the feet
+  are the right place to reach from. `Navigator` asks the collider where a
+  node stands, and `Targeting` does not. That is a question for whoever next
+  touches `Targeting`, not for this plan.
+- **The camera offsets became one number.** Every `offset_x` went. Two
+  offsets aim at the middle of the feet box, `offset_y: -3` in
+  `collision_tiles` and `jump_topdown`. Two aim at the middle of the sprite,
+  `-11` in `split_screen` and adventure's hero. `pathfinding`'s
+  `FEET_CENTRE_X/Y` became `FEET_CENTRE_Y = -3`. `tiled_world`'s camera
+  already read the feet box, so it needed no change.
+- **Drawing in a hero's local space moved with the origin.** That was
+  `split_screen`'s banner and adventure's hat and its label, now measured
+  from `width` and `height`. The clamps in `walk`, `split_screen`,
+  `game_menu`, `input_glyphs` and `collectables` keep half the width either
+  side and the whole height above. `collectables`' hero carried a
+  `BoxCollider` the size of its body, which now takes
+  `offset_x: -8, offset_y: -22`. `tiled_world`'s NPC spawns now test for a
+  solid tile at the feet instead of the top-left corner. The same NPCs spawn.
+- **Between the 2b and 2c commits the examples draw half a sprite off**,
+  because 2b flips the defaults and 2c moves the examples. The split follows
+  the plan, and only the branch's last commit is meant to run.
+- **Allocations** match `main` for the touched projects that `main`'s worktree
+  can drive. Asteroids and tiled_world read the untracked `media/`, and a
+  worktree has none. That is why step 1's baseline printed no line for
+  tiled_world. The two exceptions:
+  - Collectables allocates 22.5 objects a second against 25.3. The drop was
+    not investigated.
+  - Adventure allocates 440 objects over the run against about 438. Listing
+    every site on both sides shows the difference: three `IMEMO` caches at the
+    hat's draw line, which is new, and one fewer in `actor_blockers.rb`. Each
+    is created once, not every frame, as step 1's were.
+- Documented in `docs/api/components.md` (`Sprite` with an anchor table,
+  `AnimatedSprite`, `FeetCollider`, `BoxCollider`'s `box`, `CameraFollow`) and
+  `docs/api/toolbox.md` (the character recipe and `CollisionBox`). The
+  `examples/sprite` header shows `anchor: :center`. `CHANGELOG.md` has an
+  Added entry for `anchor:`, and Changed entries for the default and for
+  `FeetCollider`. `bottom_anchored` gets a Removed entry.
 
 ### Step 3 — Tiled tile objects as sorted nodes *(rough)*
 
