@@ -274,7 +274,8 @@ was set on that node.
 To fade a node in or out, change `opacity` in `_update`, from a
 [`Tween`](toolbox.md#tween--a-value-that-moves-over-time) for instance. The
 colours it draws with stay the same, so the fade builds no new `Color` in any
-frame.
+frame. [`ScreenFade`](toolbox.md#screenfade--cover-the-view-and-flash-it)
+is a node built this way.
 
 **Only drawing changes.** A node at 0 is not drawn at all, but it still takes
 part in `control` and `update`, and its colliders still collide. Hide something
