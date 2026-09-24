@@ -1,20 +1,24 @@
 # Roadmap
 
-**Status: steps 0 to 12 are implemented.** Sixteen steps. Each is one branch and one
-pull request, and its sub-steps are one commit each. **Steps 0–12 are detailed.**
-Steps 5–8 were planned after step 4 landed, and steps 9–12 after step 8. What
-each re-plan found comes before its steps:
-[steps 5–7](#re-planning-steps-57) and [steps 9–12](#re-planning-steps-912).
-**Steps 13–15 are deliberately rough** and get re-planned once the layer beneath
-them exists.
+**Status: steps 0 to 12 are implemented.** Eighteen steps. Each is one branch and one
+pull request, and its sub-steps are one commit each. **Steps 0–16 are detailed.**
+Steps 5–8 were planned after step 4 landed, steps 9–12 after step 8, and steps
+13–16 after step 12. What each re-plan found comes before its steps:
+[steps 5–7](#re-planning-steps-57), [steps 9–12](#re-planning-steps-912) and
+[steps 13–16](#re-planning-steps-1316). Step 17 folds the plan back.
 
 Step 7 was inserted by a review of the re-plan
 ([decision 19](README.md#decisions-already-taken)). The landed notes of steps
-0–4 were written before that, so "step 13" there means today's step 14, and
-"step 14" means step 15. The re-plan's heading keeps the numbers it was written
+0–4 were written before that, so "step 13" there means cutscenes and "step 14"
+folding the plan back. The re-plan's heading keeps the numbers it was written
 with: its steps 5–7 are today's 5, 6 and 8. The re-plan of steps 9–12 swapped
 the two steps first numbered 9 and 10, so the C lands before the fade built on
 it.
+
+The re-plan of steps 13–16 split the rough step 13, doors, into rooms (13), the
+soundtrack (14) and doors (15). Text written before it that says "step 13" means
+doors, today's 15. Its "step 14" means cutscenes, today's 16, and its "step 15"
+folding the plan back, today's 17.
 
 ## Dependency shape
 
@@ -25,20 +29,23 @@ it.
                4 push and pull
 
                9 blend + opacity (C) ─→ 10 fades + particles ─┐
-               11 audio transitions ──────────────────────────┴─→ 12 scenes ─→ 13 doors ─→ 14 cutscenes
-                                                                                              ↑
-               1 input: a held button skips ──────────────────────────────────────────────────┘
-               15 fold back and delete the plan
+               11 audio transitions ──────────────────────────┴─→ 12 scenes ─→ 13 rooms ─→ 14 music claims ─→ 15 doors ─→ 16 cutscenes
+                                                                                                                             ↑
+               1 input: a held button skips ─────────────────────────────────────────────────────────────────────────────────┘
+               17 fold back and delete the plan
 ```
 
 Step 0 comes first because every later step adds to it. Input comes next, while
 `poll(dt)` touches the fewest callers, and because a held button is what skips a
-cutscene in step 14. The press gate comes before the screens, because a bag that
+cutscene in step 16. The press gate comes before the screens, because a bag that
 pauses its hero is where a press first outlives the node that should read it.
 The debug shapes come before pushing, which is far easier
 to watch with the boxes on screen. The canvas comes before fades, because a fade
 is a rect drawn at an opacity. Fades and audio come before scenes, because a
-scene arrives under a reveal with its music rising.
+scene arrives under a reveal with its music rising. Rooms come before doors,
+because a door moves one player between two rooms that both run. The music
+claims come between them, because each room can want its own song. Cutscenes
+come last, because one everybody watches shows one room and stops the others.
 
 ## The invariant every step preserves
 
@@ -65,6 +72,10 @@ where a regression shows.
 | 10 | a scene cannot fade, so a transition cannot be written at all |
 | 11 | music cuts rather than fades, cannot be paused, and a settings screen has one volume |
 | 12 | every game with more than one scene writes its own deferred switch |
+| 13 | two players cannot stand in two rooms, and a scene cannot find a system one scene out |
+| 14 | music has no owner, so the last call wins whoever made it |
+| 15 | no map carries a door, and `MapObjects` has no caller |
+| 16 | a scripted scene is hand-written state, as `tiled_world`'s 95 lines are |
 
 ## Which roadmap item each step serves
 
@@ -76,9 +87,9 @@ where a regression shows.
 | pushing and pulling objects | 4 |
 | inventory and equipment screens | 5, 6, 8 |
 | visual effects | 9, 10 |
-| audio transitions | 11 |
-| scene manager, teleports and room transitions | 12, 13 |
-| cutscenes | 14 |
+| audio transitions | 11, 14 |
+| scene manager, teleports and room transitions | 12, 13, 15 |
+| cutscenes | 16 |
 
 ---
 
@@ -2768,34 +2779,621 @@ under Changed.
 
 ---
 
-## Step 13 — doors, entrances, and the teleport example *(rough)*
+## Re-planning steps 13–16
 
-`examples/doors`: two rooms, a door between them that carries the hero and
-places them at a named entrance, and a warp pad that moves them inside one
-room. The adventure gains its second room. Doors come from a Tiled object layer
-through `Engine::MapObjects`, and a door is a `replace` with `carry:` under the
-stack's transition.
+Steps 13 and 14 were re-planned at `7d20743`, after step 12 landed. Three
+question rounds settled twelve things, and one answer revised decision 17: two
+players may now stand in two rooms of one world. So the rough step 13 became
+three steps. Rooms come first, because a door moves a player between them. The
+soundtrack comes next, because two rooms at once can each want a song. Doors
+follow, then cutscenes, and the plan now has eighteen steps.
 
-The adventure's door also crossfades between the rooms' music. The second track
-is committed under `test_projects/adventure/` and does not ship
-([decision 21](README.md#decisions-already-taken)). Which track waits on this
-step: [open question 5](README.md#open-questions).
+### What was measured
 
-Watch for: `on_changed` fires when a switch lands, which is after the cover.
-A crossfade that should start with the cover wants a signal at the request, or
-the door starts it itself.
+| | |
+|---|---|
+| `rake spec` | 3741 examples, 0 failures, 27.7 s |
+| What runs each tick under a `SceneStack` | the top scene, alone. It is the only one controlled and updated |
+| What a `WorldView` draws into | every view `Viewports` holds. A `View` names its `player`, and nothing reads that to choose |
+| Where a node finds a system | its scene, then the root. Scenes nested in other scenes today: **0** |
+| Where a camera's limits come from | `TileWorld#bound`, once, for the cameras a scene hands it. Two rooms of different sizes would each set the other's |
+| What `carry:` takes under one key | one node |
+| A carried hero's walking intent | kept. `CharacterBody` holds it until something sets another, and no scene is controlled under the reveal. The hero walks on for 31 ticks, 41 px at 80 px/s |
+| Scenes that connect to `Players#on_joined` in `_enter_tree` | **3**, and none disconnects. A replaced one would spawn a hero for every later join |
+| Callers of `MapObjects` outside its spec | **0**. No map in `examples/assets/` has an object layer |
+| What loads `town.tmx` | 4 examples and the adventure. `spec/fixtures/town_solidity.txt` pins its solid tiles |
+| `puzzle.tmx`, a map a script wrote | 1053 bytes |
+| Songs `AudioOut` tracks | one current, and one on its way out |
+| What moves an `Engine::Dialogue` on | only `UI::DialogueBox`, which frees itself after a move it made. A dialogue ended by another hand leaves its box on screen |
+| `test_projects/tiled_world/cutscene.rb` | 95 lines: a panel Tab toggles, over a solo view, a paused world and closed joins |
+| The adventure, `--seed 4242`, 780 ticks | 779 frames, `push Room`, 32 music volume steps, 5 blips |
 
-## Step 14 — cutscenes *(rough)*
+What a cutscene step could wait on, and whether a skip can take it to its end:
 
-`Engine::Cutscene::Script`, `Engine::Cutscene` and `Components::Cutscene`, with
-the five step kinds and a skip that finishes the rest. `examples/cutscene`, and
-the adventure's arrival scene, skipped with a held button. A cutscene that fades
-uses step 10's `ScreenFade`.
+| | Says it is done with | A public way to its end |
+|---|---|---|
+| `Components::Tween` | `on_finished` | `finish` |
+| `Components::PathFollow`, `Navigator` | `on_finished` | none. `finish` is private and does not place the node |
+| `Engine::ScreenFade` | `on_finished` | none |
+| `Engine::Dialogue` | `on_ended` | none. `finish` is private |
 
-`test_projects/tiled_world/cutscene.rb` is the 95 lines this replaces: the step
-is done when that file could be written with the script instead.
+### What the design got wrong
 
-## Step 15 — fold the plan back and delete it
+- **A door need not take everyone.** Design item 8 made a door a stack
+  `replace` with `carry:`. Once players may stand apart, a door moves one
+  player's hero and leaves the other's room running. A stack runs one scene, so
+  rooms need a host of their own.
+- **`on_changed` comes too late for the music.** Design item 8 put the door's
+  music there, and it fires after the cover. A crossfade over the cover and the
+  reveal starts at the request. The stack and the rooms gain `on_requested`, and
+  a room's claim on the music changes then.
+- **A carried hero walks on under the reveal.** The scene it arrives in updates
+  before anyone controls it. A `CharacterBody` now stands still as its node
+  enters the tree.
+- **A scene that listens to a root system outlives itself.** Each room would
+  connect to `on_joined` again. For now the listener disconnects by hand
+  ([decision 26](README.md#decisions-already-taken)). The rooms themselves stop
+  listening: the world spawns heroes, and it lives as long as the game.
+- **A `talk` step cannot return a bare `Dialogue`.** Only a box moves one on. The
+  step's block puts the box up and returns the dialogue.
+- **Skipping needs an end on everything a step holds,** and only one of the four
+  has one.
+- **A cutscene is a component, not a plain object.** Design item 9 mirrored
+  `Engine::Dialogue` with a plain `Engine::Cutscene` and a component to ride a
+  node. But a cutscene gives back what it stopped when it leaves the tree too,
+  and only a component hears that. So `Components::Cutscene` runs a script, and
+  `Engine::Cutscene::Script` is the recipe.
+- **A script's `run` steps cannot be trusted to undo what earlier ones did.** A
+  switch or a door can cut a cutscene off after its first `run`. The component
+  takes what it stops and gives it back itself.
+
+### Decided in this re-plan
+
+Settled in three question rounds, and recorded in the brief as
+[decisions 25 to 36](README.md#decisions-already-taken).
+
+- **Players may stand in different rooms.** Decision 17 is revised. A
+  `Scene::Rooms` runs every room a player stands in, and draws each into its own
+  players' views. A move takes the hero who triggered it, or every hero.
+- **A room is built anew each time it is entered.** What changed in it lives in
+  `Facts`, as a loaded save's state does.
+- **Music is claimed.** The claim with the highest priority plays. A room claims
+  its song, and a game claims for an event or by a rule of its own.
+- **A cutscene takes what it stops and gives it back.** With a camera everybody
+  watches. Without one, the same parts make a scene for one player.
+- **Skipping ends a conversation where it stands.**
+- **A connection that outlives its node is disconnected by hand for now,** and
+  looked at again once the roadmap is done.
+
+### Three piles, for steps 13–16
+
+- **Reuse:** `Scene::Fade` for every move's cover. `ScreenFade` under a
+  `PlayerLayer` to cover one player's region. The sweep, for a move.
+  `Components::Collectable` with `free: false` for a door and a pad. `MapObjects`
+  and `MapObject` for building them from a map. `Facts` for what a room keeps.
+  `AudioOut#crossfade` under the claims. `Components::Tween` for a `wait` and a
+  camera move. `Navigator` for a walk. `UI::DialogueBox` for a `talk`.
+  `Node2D#paused`, `Players#accepting_joins` and `Viewports#solo!` for what a
+  cutscene stops. The press gate, for its first press.
+- **Extend:** `SceneStack` → its cover moves into `Scene::Curtain`, which the
+  rooms share, and it gains `on_requested`. `Node2D#system` → every enclosing
+  scene. `WorldView` → a room's players' views only. `CharacterBody` → standing
+  still as it enters the tree. `TileMap` → `object_named`. `AudioOut` → claims.
+  `Viewports#solo!` → the room a solo view shows. `PathFollow`, `ScreenFade` and
+  `Dialogue` → a public `finish`. `UI::DialogueBox` → freeing itself when its
+  dialogue ends by another hand. The harness → rooms in its report.
+- **Genuinely new:** `Scene::Rooms` and `Scene::Room`. Nothing runs two scenes
+  at once, and nothing draws a subtree into some views and not others. A stack
+  with a top per player was the alternative: a stack answers what lies over
+  what, and rooms side by side do not lie over each other. `Rooms` shares the
+  stack's curtain rather than copying it, but not its builders' keywords: a
+  move's `entrance:` goes to the room's `_arrive`, not to a builder.
+  `Engine::Cutscene::Script` and `Components::Cutscene` stay new for the reason
+  [the design gives](03-design.md#9-cutscenes): `StateMachine` moves on events
+  and lists choices, and a cutscene has one way forward and waits.
+
+---
+
+## Step 13 — rooms that players stand apart in
+
+Doors in step 15 move one player's hero out of a room the other player stays
+in, so two rooms have to run at once ([decision 34](README.md#decisions-already-taken)).
+A `SceneStack` runs one scene, and it is right for what stacks: a title, the
+world, a pause menu over it. The rooms of one world get a host of their own,
+which the stack holds as the world scene. It uses the stack's curtain, lands a
+move in the sweep as the stack lands a switch, and draws each room only into
+the views of the players inside it.
+
+### Sub-steps
+
+- **13a** — `Scene::Curtain`: the stack's cover, switch and reveal, moved into a
+  class both hosts use. No behaviour changes. The stack gains `on_requested`.
+- **13b** — `Node2D#system` looks through every enclosing scene. A
+  `CharacterBody` stands still as its node enters the tree.
+- **13c** — `Scene::Room` and `Scene::Rooms`: defining, moving, running and
+  freeing rooms, a curtain for each player, and camera limits.
+- **13d** — a room's `WorldView` draws only into its players' views. The harness
+  reports rooms.
+
+### Shape
+
+```ruby
+# The scene the stack holds while the game is played.
+class World < RGame::Engine::Node2D
+  def initialize
+    super
+    @rooms = add_component(RGame::Engine::Scene::Rooms.new)
+    @rooms.define(:town) { Town.new }
+    @rooms.define(:garden) { Garden.new }
+    @rooms.transition = RGame::Engine::Scene::Fade.new(cover: 0.25, reveal: 0.25)
+  end
+end
+
+class Garden < RGame::Engine::Scene::Room
+  MAP = 'garden.tmx'
+
+  def _enter_tree
+    @map = root.context.assets.tilemap(MAP).map
+    add_component(RGame::Engine::Components::TileWorld.new(map: @map, tilemap_id: MAP))
+    add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 64))
+    @actors = RGame::Engine::TileMapLayer.mount(add_node(RGame::Engine::WorldView.new))[:actors]
+  end
+
+  # A blank hook on Room. It places each node that arrives, in a room built for
+  # the move and in one already running alike.
+  def _arrive(node, entrance)
+    spot = @map.object_named(entrance)
+    node.x = spot.x
+    node.y = spot.y
+    @actors.add_node(node)
+  end
+end
+
+rooms.move(hero, to: :garden, entrance: 'gate_in')   # covers that hero's player's region
+rooms.move(heroes, to: :town, entrance: 'square')    # every hero given, from whichever room
+rooms.room_of(player)        # => the Room they stand in, or nil
+rooms[:garden]               # => the running Room of that name, or nil
+room.name                    # => :garden
+room.players                 # => the players in it
+rooms.hold(:garden)          # runs with nobody in it, until released
+rooms.release(:garden)
+rooms.on_requested { |node, name| ... }   # a move was asked for
+rooms.on_arrived { |node, room| ... }     # a move landed
+
+stack.on_requested { |scene, transition| ... }   # a switch was asked for: a name, a node, or nil for a pop
+```
+
+A room's name is a Symbol, because code names it. An entrance is a String,
+because a designer names it on the map and a programmer types the same word.
+
+`Scene::Curtain` is `@api private`. It holds a `ScreenFade` off its host's child
+list, as the stack holds its fade today, and runs one cover, switch and reveal
+from a `Scene::Fade`. The stack keeps one. `Rooms` keeps one for each player,
+under a `PlayerLayer` it holds off its list, so a cover draws over that player's
+region alone.
+
+`hold` and `release` are the seam decision 34's direction asks for. A game may
+keep a room running before anyone reaches it, and loading rooms by nearness is a
+possible-todo that would call them.
+
+### The rules the tests pin
+
+1. **A move lands in the sweep after the covers it started are closed.** With no
+   transition it lands in the next sweep.
+2. **A node's player is the one its `input_owner` names.** A move covers each
+   moving player's region, and nobody else's. A node with no player moves under
+   no cover and makes no room occupied.
+3. **A node that moves stands paused from the request until its player's reveal
+   ends,** and then gets back the `paused` it had.
+4. **As a move lands, each node leaves its parent.** The room it goes to is built
+   if it is not running. The room's `_arrive` places the node, and `arrived`
+   fires.
+5. **A move to the room a node stands in only calls `_arrive` again.** Its
+   components keep their systems. A warp pad and a door are one call.
+6. **A room runs while a player is in it or a hold holds it.** The sweep after
+   its last player leaves frees it. A later move builds it anew.
+7. **Each running room is controlled and updated once a tick,** in the order
+   they were built. A player in no room sees no room.
+8. **A room's `WorldView` draws only into the views of its players.** A view no
+   player owns shows the primary player's room, until step 16 lets `solo!` name
+   one.
+9. **A player's camera takes the limits of the room they stand in,** whatever
+   cameras a room handed its `TileWorld`.
+10. **A second move asked for a node before its first lands replaces it.** One
+    asked for during its player's reveal covers again, from where the reveal got
+    to. The stack's rule 10 says the same of a switch.
+11. **`requested` fires once per node as a move is asked for,** and `arrived`
+    once per node as it lands.
+12. **`system` finds the nearest enclosing scene that has the class, then the
+    root.** A door in a room finds the world's `Rooms`.
+13. **A `CharacterBody` stands still as its node enters the tree,** until
+    something sets an intent. A pooled node taken again starts still too.
+14. **The stack's transitions behave as step 12 pinned them, on the curtain,**
+    and its `on_requested` fires as a switch is asked for, before it lands.
+15. **A tick with no move pending or under way allocates nothing,** with two
+    rooms running and two views.
+
+### Tests
+
+- `spec/rgame/engine/scene/curtain_spec.rb`: the phases moved out of the stack.
+  `scene_stack_transition_spec.rb` passes unchanged, and `scene_stack_spec.rb`
+  gains rule 14's `on_requested`.
+- `spec/rgame/engine/node2d_spec.rb`, under `#system`: rule 12, and the nearest
+  scene winning over an outer one.
+- `spec/rgame/engine/components/character_body_spec.rb`: rule 13.
+- `spec/rgame/engine/scene/rooms_spec.rb`: rules 1, 2 and 4–11.
+- `spec/rgame/engine/scene/rooms_move_spec.rb`: the curtains, rules 3 and 10.
+- `spec/rgame/engine/world_view_spec.rb`: rule 8.
+- **The caller that uses both**, in `rooms_spec.rb`: two players and two rooms,
+  each room with a `TileWorld` and a `CollisionWorld`. The second player's hero
+  moves to the garden while the first stays in town. Its collider leaves the
+  town's index and joins the garden's, and the garden's map stops its body. Its
+  camera takes the garden's limits while the first player's keeps the town's. A
+  timer in the town keeps counting, and the town's `WorldView` draws only into
+  the first player's view.
+- `spec/rgame/engine/scene/rooms_allocation_spec.rb`: rule 15.
+- `spec/tools/drive_test_project/report_spec.rb`: a room built, freed and moved
+  into, in the report.
+
+### Verify
+
+```
+bundle exec rake spec
+bundle exec rake drive:allocations
+```
+
+**After 13b, every driven run reports what it reported at the branch point.**
+The curtain moves code and changes nothing. No scene nests another today, so
+`system` finds what it found, and every hero in a driven project is built
+standing still. Run all 51 scripts under `--seed 4242`, 240 ticks and `--texts`
+against a capture of `main`, as step 12 compared them.
+
+No game has rooms until step 15 builds the first. So the specs hold 13c and 13d,
+and the caller that uses both decides the step.
+
+`docs/api/scene_graph.md` gains the rooms beside the stack.
+`docs/api/systems.md` says a system is looked up through each enclosing scene,
+and `docs/api/components.md` that a body starts standing.
+
+---
+
+## Step 14 — music that a room or an event claims
+
+Two rooms at once can each want a song, and one device plays one. The game
+decides which dominates ([decision 35](README.md#decisions-already-taken)): a
+forest over a town, a battle over every room, or the primary player's room.
+Claims answer all three with one rule, a priority, and step 15's garden is the
+first room to claim.
+
+### Sub-steps
+
+- **14a** — claims on `AudioOut`.
+- **14b** — a room claims its song through `Rooms#define`.
+
+### Shape
+
+```ruby
+out = system!(RGame::Engine::AudioOut)
+out.claim_music(:battle, 'battle.ogg', priority: 10, fade: 0.3)   # any key; the highest priority plays
+out.release_music(:battle, fade: 1.0)
+out.claimed_music                                                 # => the song the claims chose, or nil
+
+rooms.define(:town, music: 'music.ogg', priority: 1) { Town.new }
+rooms.define(:garden, music: GARDEN_SONG, priority: 2) { Garden.new }   # nil claims nothing
+```
+
+### The rules the tests pin
+
+1. **The claim with the highest priority plays.** A tie goes to the latest
+   claim.
+2. **When the winner changes, the song crossfades over the `fade:` of the call
+   that changed it.** A claim or a release that leaves the winner as it was
+   changes nothing, and never starts a song again.
+3. **Claiming a key again replaces its song and priority,** and makes it the
+   latest.
+4. **Releasing the last claim fades to silence and stops.**
+5. **While any claim holds, `play_music`, `crossfade` and `stop_music` raise
+   `RuntimeError`, naming the keys.** Two owners of one song would otherwise
+   fight without a word. `pause_music` and `resume_music` still work, so a pause
+   menu holds whatever plays.
+6. **A room claims its song while a player is in it or on their way to it,**
+   under a key no game can name. So a claim changes as a move is asked for, and
+   the crossfade spans the cover and the reveal, over the move's `cover` plus
+   `reveal`.
+7. **A game that wants the primary player's room** defines its rooms without
+   `music:` and claims one key of its own from `on_arrived`.
+8. **A tick allocates nothing,** with claims or without.
+
+### Tests
+
+- `spec/rgame/engine/audio_out_claims_spec.rb`: rules 1–5, on the fake audio
+  server.
+- `spec/rgame/engine/audio_out_allocation_spec.rb`: rule 8.
+- `spec/rgame/engine/scene/rooms_music_spec.rb`: rules 6 and 7. Two players
+  stand in rooms of priority 1 and 2, and the second room's song plays. Its
+  player leaves, and the first room's song comes back over the move's
+  transition.
+
+### Verify
+
+`bundle exec rake spec`. **Every driven run reports what it reported,** since
+nothing claims yet. The device is not touched, so the 'an audio server'
+contract is unchanged. `docs/api/audio.md` gains claims, and says a game uses
+them or the direct calls, not both.
+
+---
+
+## Step 15 — doors, entrances and warps, and the adventure's garden
+
+Doors are what rooms are for, and `MapObjects` gets its first callers. The
+adventure is where two players first stand apart: one in the town, one in the
+garden, each region drawing its own map, and the town's state surviving a
+visit nobody was there for.
+
+### Sub-steps
+
+- **15a** — `TileMap#object_named`. `town.tmx` gains an object layer, and
+  `garden.tmx` ships beside it.
+- **15b** — `examples/doors`: the town and the garden, a gate each way, and a
+  pair of warp pads.
+- **15c** — the adventure's world. `Shell` pushes a `World` holding the rooms,
+  the bags move to the world, the town keeps its state in `Facts`, and a hero
+  crosses the gate alone.
+- **15d** — the adventure's garden: its pads, a horn that brings every hero to
+  the town square, and its song from `media/`.
+
+### Shape
+
+```ruby
+map.object_named('gate_in')   # => the MapObject of that name
+```
+
+It raises `KeyError`, listing the map's names, for a name it lacks, and
+`ArgumentError` for a name two objects share.
+
+The two maps' objects. A door and a pad each move the hero that touched them,
+and one marked `party` moves every hero.
+
+| Map | Object | Class | Properties |
+|---|---|---|---|
+| `town.tmx` | `start`, `square` | `entrance` | |
+| | `gate_out` | `entrance` | beside the gate, off its box |
+| | `garden_gate` | `door` | `to: garden`, `entrance: gate_in` |
+| `garden.tmx` | `start`, `gate_in` | `entrance` | |
+| | `gate` | `door` | `to: town`, `entrance: gate_out` |
+| | `pad_a`, `pad_b` | `warp` | `entrance: beside_b`, `entrance: beside_a` |
+| | `beside_a`, `beside_b` | `entrance` | |
+| | `horn` | `door` | `to: town`, `entrance: square`, `party: true` |
+
+A door is a node with a box and `Collectable.new(by: :hero, free: false)`, as a
+chest is, and draws itself. A `warp` is a door whose `to` is its own room. The
+room builds both through `MapObjects` and hands each the world, which knows
+every hero:
+
+```ruby
+objects = RGame::Engine::MapObjects.new
+objects.define('door') { |o| Door.new(object: o, world: parent) }
+objects.define('warp') { |o| Door.new(object: o, world: parent, to: name) }
+objects.spawn_into(@actors, @map.objects)
+```
+
+`garden.tmx` is written by a script, as `puzzle.tmx` was, over `tileset.tsx`.
+Neither map changes a tile of `town.tmx`, and a door draws itself, so the
+solidity fixture stands.
+
+The adventure's world holds the `Rooms`, one `PlayerLayer` and `Bag` per
+player, and the listener that spawns a hero when a player joins. It spawns each
+hero into the primary player's room at `start`. The town keeps which coins were
+taken, the chest, the lever and where the crate stands in `Facts`, so a town
+built anew is the town that was left. The garden plays `media/music/garden.ogg`
+at priority 2 when that file exists ([decision 29](README.md#decisions-already-taken)),
+and claims nothing otherwise. The adventure's `main.rb` never names `media/`, so
+CI keeps driving it.
+
+### The rules the tests pin
+
+1. **`object_named` returns the one object with that name,** and raises as the
+   shape says for none or for two.
+2. **Every door's and warp's `entrance` names an entrance on the map its `to`
+   names.**
+3. **Every entrance lies off every door's and pad's box,** so nobody arrives on
+   a door and leaves through it at once.
+4. **The object layer changes no tile of `town.tmx`.**
+
+### Tests
+
+- `spec/rgame/engine/tile_map_spec.rb`: rule 1.
+- `spec/example_assets_spec.rb`: `garden.tmx` loads, and rules 2–4 over both
+  maps. The rules hold the map files themselves, so a designer who moves a door
+  onto an entrance fails `rake spec`.
+
+### What the run proves
+
+`examples/doors` is driven with one player. The hero walks through the gate and
+back and steps on each pad. Its report reads `build Garden`, `free Town`, `build
+Town` and `free Garden` for the gate, and nothing built for either pad. Each
+move draws the cover in `faded` over the frames its transition takes.
+
+The adventure is driven with two players, after everything its script does
+today:
+
+- **The pad's hero walks through the gate alone.** The report reads `build
+  Garden`. From then the second clip draws `garden.tmx` and the first
+  `town.tmx`, only the second clip draws the cover, and the town's storm and
+  coins go on in the first.
+- **It steps on a pad.** Only its region covers, and nothing is built.
+- **The keyboard's hero follows into the garden.** The town has nobody left, and
+  the report reads `free Town`.
+- **One hero sounds the horn.** Both move to the town square under both covers.
+  The report reads `build Town`, and the town is the town they left: the coins
+  taken stay taken, the chest stays searched, the lever pulled and the crate
+  where it was pushed.
+- **With `media/music/garden.ogg` present, the music crossfades to it** as the
+  first hero is asked into the garden, and back as the horn is sounded. Without
+  it, the town's song fades out when the town empties and in when it is built
+  again. The landed note records both reports.
+- **The bags survive every move.** They live in the world, so a bag open while
+  the other hero takes the gate stays open, and its hero stays paused until it
+  closes.
+
+### Verify
+
+```
+bundle exec rake spec
+ruby tools/drive_test_project.rb examples/doors/main.rb --texts
+ruby tools/drive_test_project.rb test_projects/adventure/main.rb --seed 4242 --texts
+bundle exec rake drive:allocations
+```
+
+**`collision_tiles`, `jump_topdown`, `pathfinding` and `scroll_map` report what
+they reported at the branch point,** byte for byte, under `--seed 4242`, 240
+ticks and `--texts`. `TileMapLayer.mount` skips an object layer, so rule 4 is
+all the new layer may change.
+
+Before 15d, find *8BitBattleLoop* again, or any loop licensed for use, and put
+it at `media/music/garden.ogg`. `media/` is gitignored and never shipped, so
+the licence need not be CC0, and the landed note records the source.
+
+`docs/api/tile_maps.md` gains `object_named` and a worked door.
+`docs/api/examples.md` and `README.md` gain `examples/doors`, and
+`scene_graph.md`'s rooms section points at it.
+
+---
+
+## Step 16 — cutscenes, for everybody or for one player
+
+A cutscene is a script of steps, each ending on something the engine already
+says. It takes what it stops and gives it back
+([decision 32](README.md#decisions-already-taken)). With a camera, everybody
+watches. Without one, the same parts make a small scene for the one player who
+walked into it ([decision 36](README.md#decisions-already-taken)). A held button
+skips it, which is step 1's `hold:` put to the use it was built for.
+
+### Sub-steps
+
+- **16a** — an end for everything a step holds. `PathFollow#finish` and
+  `ScreenFade#finish` go public, and `Dialogue#finish` ends a conversation where
+  it stands. A `DialogueBox` frees itself when its dialogue ends by another
+  hand.
+- **16b** — `Engine::Cutscene::Script` and `Components::Cutscene`, and
+  `Viewports#solo!` naming the room a solo view shows.
+- **16c** — `examples/cutscene`, watched to the end and skipped.
+- **16d** — `tiled_world`'s cutscene written as a script. The adventure opens
+  with a cutscene everybody watches, and the garden plays a scene for whoever
+  enters it first.
+
+### Shape
+
+```ruby
+OPENING = RGame::Engine::Cutscene::Script.build do
+  wait 0.5
+  hold { |c| c.pan_to('square') }   # a Components::Tween on the camera
+  talk { |c| c.say(MAYOR) }          # puts a DialogueBox up, returns its Dialogue
+  press
+  run { |c| c.open_gate }
+end
+
+cutscene = add_component(RGame::Engine::Components::Cutscene.new(
+  OPENING, context: self, camera: @camera, pause: heroes, skip: :skip
+))
+cutscene.on_ended { |skipped| ... }
+
+# For one player: no camera, so no solo. Its node answers to that player.
+add_component(RGame::Engine::Components::Cutscene.new(SIGN, context: self, pause: [hero], skip: :skip))
+
+viewports.solo!(camera, room: room)   # the room a solo view shows
+```
+
+| Step | Ends when | A skip |
+|---|---|---|
+| `run` | at once | runs its block |
+| `wait n` | `n` seconds have passed | ends it |
+| `hold` | what its block returns emits `on_finished` | runs the block, then calls `finish` on what it returned |
+| `talk` | the `Dialogue` its block returns emits `on_ended` | runs the block, then calls the dialogue's `finish` |
+| `press` | its node's player presses `ui_confirm` | ends it |
+
+### The rules the tests pin
+
+1. **Steps run in order,** each starting the tick the one before it ended.
+2. **A cutscene starts as its component attaches** and runs on its node's
+   update.
+3. **With `camera:`, everybody watches.** As it starts, it solos the window on
+   that camera, onto its node's room. It stops joins and pauses every other
+   running room. Without `camera:` it does none of these.
+4. **It pauses each node in `pause:` as it starts.**
+5. **It gives back everything rules 3 and 4 took** when it ends, is skipped or
+   leaves the tree: the split, the joins as they were and each `paused` as it
+   was. A door taken in its last step, which frees its room, still leaves the
+   game split and running.
+6. **It reads its node's player** ([decision 33](README.md#decisions-already-taken)),
+   and the press gate refuses a press begun before it started.
+7. **`skip:` names an action the game declares with `hold:`.** Its press
+   finishes the step under way, runs each remaining step's skip in order, and
+   ends. Without `skip:`, nothing skips it.
+8. **Skipping a `talk` ends the conversation where it stands.** Nobody picks a
+   response, no `then:` runs, and the box frees itself.
+9. **What a `hold` block returns answers `on_finished` and `finish`,** or the
+   step raises `TypeError` naming both. The step connects before that thing's
+   next update, so one that finishes in its first update is heard.
+10. **`ended` fires once, with whether it was skipped,** after everything is
+    given back.
+11. **A solo view shows the room `solo!` named,** and only that room's
+    `WorldView` draws into it. A game with no rooms solos as it does today.
+12. **A running cutscene allocates nothing a tick.**
+
+### Tests
+
+- `spec/rgame/engine/components/path_follow_spec.rb` and `navigator_spec.rb`:
+  `finish` places the node on the last waypoint and emits once.
+  `spec/rgame/engine/screen_fade_spec.rb`: `finish` jumps to where it was going.
+  `spec/rgame/engine/dialogue_spec.rb`: `finish` ends where it stands, runs no
+  effect and hands `on_ended` the transcript so far.
+  `spec/rgame/engine/ui/dialogue_box_spec.rb`: the box frees itself.
+- `spec/rgame/engine/cutscene/script_spec.rb`: building the five kinds, and what
+  `build` refuses.
+- `spec/rgame/engine/components/cutscene_spec.rb`: rules 1–10.
+- `spec/rgame/engine/viewports_spec.rb` and `world_view_spec.rb`: rule 11.
+- **The caller that uses both**, in `cutscene_spec.rb`: two players in two
+  rooms. A cutscene with a camera in the garden pauses the town and solos onto
+  the garden, and the town's `WorldView` draws nothing. Its last step moves the
+  garden's hero through a door, the garden is freed, and the split, the joins
+  and the town come back.
+- `spec/rgame/engine/components/cutscene_allocation_spec.rb`: rule 12.
+
+### Verify
+
+```
+bundle exec rake spec
+ruby tools/drive_test_project.rb examples/cutscene/main.rb --texts
+ruby tools/drive_test_project.rb examples/cutscene/main.rb --script tools/drive/examples/cutscene_skip.rb --texts
+ruby tools/drive_test_project.rb test_projects/tiled_world/main.rb --script tools/drive/test_projects/tiled_world_cutscene.rb --texts
+ruby tools/drive_test_project.rb test_projects/adventure/main.rb --seed 4242 --texts
+bundle exec rake drive:allocations
+```
+
+**`examples/cutscene` ends in the same world whether watched or skipped.** The
+skip script holds the skip during the second step. After the cutscene ends,
+both reports draw the same texts in the same places, the walker stands where
+its walk ended, and one clip becomes the split again.
+
+**`tiled_world`'s cutscene reports what it reported,** where `media/` exists,
+from a `cutscene.rb` built on the script. That is what "done" meant in the rough
+step.
+
+**The adventure opens under its cutscene, and its keyboard track holds the skip
+through it.** The report draws one clip until the skip, then the split, and the
+cutscene's texts stop where the skip landed. In the garden, the first hero in
+watches the sign's scene. Only that hero pauses, and the other player's region
+keeps its own map and moves.
+
+`docs/api/components.md` gains `Components::Cutscene`, `docs/api/toolbox.md`
+the script, and `docs/api/dialogue.md` `finish` and the box.
+`scene_graph.md` says what `solo!`'s `room:` shows, and `examples.md` and
+`README.md` gain `examples/cutscene`.
+
+---
+
+## Step 17 — fold the plan back and delete it
 
 Move what is still true into the documentation and remove
 `docs/plans/v0.5.0-roadmap/`.
@@ -2803,27 +3401,32 @@ Move what is still true into the documentation and remove
 - **`docs/api/input.md`** — holds, taps and chords, `held_for`, and the
   presses a node never saw start.
 - **`docs/api/systems.md`** — `Engine::Debug` and its channels; `AudioOut`'s
-  transitions.
+  transitions; a system found through each enclosing scene.
 - **`docs/api/components.md`** — `Interactor`, `Collectable`, `Pushable`,
-  `Grab`, `Particles`, `Cutscene`, and `pushes:` on `Mover`.
+  `Grab`, `Particles`, `Cutscene`, `pushes:` on `Mover`, and a body that starts
+  standing.
 - **`docs/api/ui.md`** — the grid, focus groups, tabs and scrolling, and a
   rewritten "What this is not".
 - **`docs/api/scene_graph.md`** — the scene stack's names, the deferral,
-  `carry:` and transitions; `Node2D#opacity`; `ScreenFade`.
+  `carry:` and transitions; the rooms, moves and `solo!`'s room;
+  `Node2D#opacity`; `ScreenFade`.
 - **`docs/api/drawing.md`** — `blended`, `faded`, `debug_circle`.
-- **`docs/api/audio.md`** — fades, crossfades, pause and resume, and categories
-  a game names.
+- **`docs/api/audio.md`** — fades, crossfades, pause and resume, categories a
+  game names, and claims.
+- **`docs/api/tile_maps.md`** — `object_named`, and doors built from a map.
 - **`docs/api/examples.md`** — every example this plan added.
-- **`docs/api/toolbox.md`** — `Engine::Cutscene` beside `Tween` and `Timer`;
-  `Util::ColorRamp`.
+- **`docs/api/toolbox.md`** — `Engine::Cutscene::Script` beside `Tween` and
+  `Timer`; `Util::ColorRamp`.
 - **`docs/plans/possible-todos.md`** — new entries with their triggers:
   input sequences and double taps; ducking; a crossfade between two live
   scenes, which needs the render target already recorded there; partial rows in
   a scrolling menu; blend modes beyond `:add`, such as multiply; particles that
   stay where they were emitted when their node moves, Godot's `local_coords`;
-  and a second music track in the gem, for a crossfade a shipped example can
-  show. And the "connection that ends with its node" entry records that its
-  trigger fired in step 3.
+  a second music track in the gem, for a crossfade a shipped example can show;
+  and rooms loaded by nearness, with big maps in chunks loaded in the
+  background, which `Rooms#hold` is the seam for. The "connection that ends
+  with its node" entry records that its trigger fired in step 3 and again in
+  step 15, and that decision 26 asks for a closer look now the roadmap is done.
 - **`CHANGELOG.md`** — checked against everything the plan shipped, per
   [update-changelog](../../../.claude/skills/update-changelog/SKILL.md).
 - **`README.md`** — the roadmap loses the nine items and says what is left.

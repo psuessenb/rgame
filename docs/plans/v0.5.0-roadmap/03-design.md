@@ -497,6 +497,11 @@ where they differ. [What that re-plan changed](04-roadmap.md#re-planning-steps-9
 a switch lands in the sweep, as `queue_free` does, and each switch may name its
 own transition or none.
 
+Re-planned again after step 12. [That re-plan](04-roadmap.md#re-planning-steps-1316)
+lets players stand in different rooms, so a door is a move between the rooms a
+`Scene::Rooms` runs, not a stack `replace` with `carry:`. Its music changes when
+the move is asked for, through a claim, not in `on_changed`.
+
 ### The stack names its scenes and defers every switch
 
 ```ruby
@@ -549,6 +554,12 @@ built with. On a map those doors come from an object layer through
 `Engine::MapObjects`, which landed with the Tiled plan.
 
 ## 9. Cutscenes
+
+Re-planned after step 12, and [the roadmap's sketch](04-roadmap.md#step-16--cutscenes-for-everybody-or-for-one-player)
+supersedes the one below. A `talk` block returns the dialogue of a box it put
+up. The runner is `Components::Cutscene`, with no plain `Engine::Cutscene`,
+because it gives back what it stopped when it leaves the tree. It takes
+`camera:` and `pause:` rather than trusting `run` steps to undo themselves.
 
 ```ruby
 ARRIVAL = Engine::Cutscene::Script.build do

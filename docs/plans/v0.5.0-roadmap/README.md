@@ -1,9 +1,8 @@
 # The rest of the README roadmap
 
-**Status: steps 0 to 12 are implemented.** Steps 0–12 of
-[the roadmap](04-roadmap.md) are detailed: 5–8 planned after step 4 landed, and
-9–12 after step 8. Steps 13–15 are deliberately rough and get re-planned once
-the layer beneath them exists.
+**Status: steps 0 to 12 are implemented.** Steps 0–16 of
+[the roadmap](04-roadmap.md) are detailed: 5–8 planned after step 4 landed,
+9–12 after step 8, and 13–16 after step 12. Step 17 folds the plan back.
 
 | File | What it holds |
 |---|---|
@@ -35,9 +34,9 @@ subsystem, and no item is a plan of its own the way dialogue was.
 | Push and pull | `pushes:` on `Mover`, a `Pushable` mover, a `Grab` component | 2 |
 | Inventory | `UI::Grid`, `Stepping` over a grid, `UI::FocusGroup`, `UI::Tabs` over a `Menu`, scrolling | 3 |
 | Visual effects | a fade node, `Components::Particles`, a bolt — plus blend modes and opacity in C | 2 |
-| Audio | fades, a crossfade, pause and resume, a volume per category a game names | 1 |
-| Scenes | `SceneStack` defers and names its scenes; transitions; doors | 2 |
-| Cutscenes | a linear sequencer over `Engine::Tween` | 1 |
+| Audio | fades, a crossfade, pause and resume, a volume per category a game names; music a room or an event claims | 2 |
+| Scenes | `SceneStack` defers and names its scenes; transitions; `Scene::Rooms`, which players stand apart in; doors from a map | 3 |
+| Cutscenes | a linear script over what already says when it is done, in a component that gives back what it stopped | 1 |
 
 **Three things carry more than one item, and each is built once.**
 
@@ -65,6 +64,12 @@ the draw queue: a blend mode has to travel with each command, as the clip does,
 because sorting reorders them. Opacity travels with each vertex, as the
 transform does. Audio needs C too, for a volume per category and for resuming a
 song, and none of it touches GL.
+
+**The re-plan of steps 13–16 added one subsystem.** Players may now stand in
+different rooms ([decision 34](#decisions-already-taken)), and a `SceneStack`
+runs one scene. `Scene::Rooms` runs the rooms of one world side by side, and
+draws each only into its own players' views. It shares the stack's curtain, and
+lands a move in the sweep as the stack lands a switch.
 
 **Where the features meet is a test project, not a spec.** Nine features each
 verified alone is the failure CLAUDE.md names: two systems, both green, that
@@ -169,8 +174,10 @@ re-litigation inside the plan.
     and skipping finishes every remaining step at once.
 17. **Split-screen is in scope throughout.** Holds, chords, interacting,
     pushing and the inventory are per player; a scene change and a cutscene are
-    for everyone. Two players in two rooms at once is out: the engine has one
-    shared world.
+    for everyone. ~~Two players in two rooms at once is out: the engine has one
+    shared world.~~ **Revised when steps 13–16 were re-planned:** the world is
+    shared, but two players may stand in two rooms of it at once. See
+    [decision 34](#decisions-already-taken).
 18. **`examples/equipment` draws its clothes in code.** Taken when steps 5–7
     were re-planned. A hat, a cloak and boots drawn as shapes over `hero.png` add
     nothing to the gem, and constraint 8 allows art drawn here.
@@ -211,6 +218,58 @@ re-planned. See [what that re-plan found](04-roadmap.md#re-planning-steps-912).
     a sample under `:effects`, unless registered under another name. The device
     holds a group per name in C, sixteen at most, and a name nothing was
     registered under raises rather than changing nothing.
+
+Decisions 25 to 36 were taken in three question rounds when steps 13–16 were
+re-planned. See [what that re-plan found](04-roadmap.md#re-planning-steps-1316).
+
+25. **A room is built anew each time it is entered, and what changed in it
+    lives in `Facts`.** A return trip and a loaded save then take one path, as
+    `Components::Identity`'s header argues: a scene is a recipe and a save file
+    is state. Keeping a built room would keep its timers mid-way and its
+    connections alive out of the tree, and a save would still need `Facts`.
+26. **A connection that outlives its node is disconnected by hand, for now.**
+    A scene that listens to a root system in `_enter_tree` ends that in
+    `_exit_tree`. The possible-todo "A connection that ends with its node" gets
+    a closer look once this roadmap is done, and step 17 records that.
+27. **A `CharacterBody` stands still as its node enters the tree.** A carried
+    hero otherwise walks on under the reveal, where no scene is controlled. A
+    game that wants a walk-in sets an intent after placing the hero.
+28. **A game starts a door's music at the request,** itself or on
+    `on_requested`, which the stack and the rooms both emit. `on_changed` fires
+    after the cover, too late for a crossfade over it.
+29. **The adventure's second song lives in `media/`, and the garden plays it
+    only when it is there.** `media/` is gitignored and never shipped, so its
+    licence need not be CC0: *8BitBattleLoop* found again, or any loop licensed
+    for use. The adventure's `main.rb` never names `media/`, so CI keeps
+    driving it. Settles [open question 5](#open-questions).
+30. **Doors come from the map.** `town.tmx` gains an object layer and
+    `garden.tmx` ships beside it, and both examples and the adventure use them.
+    A door draws itself, so no tile changes.
+31. **Skipping ends a conversation where it stands.** Nobody picks a response,
+    so no response's `then:` runs. A script whose outcome must hold either way
+    puts it in a `run` after the `talk`, which the skip runs.
+32. **A cutscene takes what it stops and gives it back:** the solo, the joins
+    and each node it pauses, when it ends, is skipped or leaves the tree. A
+    script's closing `run` could be cut off, and `Viewports` sits on the root,
+    so a lost one would leave the game solo for good.
+33. **A cutscene reads its node's player**, the primary one unless the game
+    sets `input_owner`, through the press gate. The game declares the skip
+    action with `hold:` and hands the cutscene its name. No default binding
+    ships: Escape is `ui_cancel`, and the pad's Start opens the adventure's bag.
+34. **Players may stand in different rooms of one world.** `Scene::Rooms` runs
+    every room a player stands in, and draws each into its own players' views.
+    A move takes the hero who triggered it, or every hero, and one that stays in
+    its room only places the hero, so a warp pad and a door are one call. The
+    direction is rooms loaded by nearness, and big maps in chunks loaded in the
+    background, for open worlds. It is not in this plan: `Rooms#hold` is the
+    seam, and step 17 records the rest as a possible-todo.
+35. **Music is claimed.** A claim has a key, a song and a priority, and the
+    highest priority plays. A room claims its song, and a game claims for an
+    event, such as a battle over every room. A game that wants the primary
+    player's room claims one key of its own as that player moves.
+36. **A cutscene with a camera is for everybody.** It solos the window onto its
+    room and stops the other rooms. Without a camera, the same parts make a
+    small scene for the one player who walked into it.
 
 ## Open questions
 
@@ -257,12 +316,13 @@ re-planned. See [what that re-plan found](04-roadmap.md#re-planning-steps-912).
    bands, so in every driven report exactly one layer a frame moved, and nothing
    else changed. No check catches a HUD under the map: a driven report counts the
    text calls either way.
-5. **Which second track does the adventure carry?** It needs a loop for its
+5. ~~**Which second track does the adventure carry?** It needs a loop for its
    second room. `examples/assets/README.md` measured three more from the CC0
    pack `music.ogg` came from, and each has a flaw: 0.79 s or 1.48 s of silence
    at the end, or a seam of 34.9%. *8BitBattleLoop* measured clean, but its
    source and licence were not recorded. Waits on step 13. Blocks nothing
-   before it.
+   before it.~~ **Settled — a loop in `media/`, played only when it is there.**
+   See [decision 29](#decisions-already-taken).
 6. **Can a subclass be kept from overwriting `Node2D`'s instance variables?**
    Step 11's `examples/music` kept its own pause flag in `@paused`, which is
    the ivar `Node2D#paused` reads. Pausing the music paused the scene, and its
