@@ -2180,9 +2180,10 @@ things:
 `docs/api/` gains `ScreenFade` beside the node types, `Particles` in
 `components.md` and `ColorRamp` in `toolbox.md`.
 
-**Landed.** Five sub-steps, one commit each, and a sixth commit that pins a
-fade starting covered for step 12. `make test` 401 checks 0 failures, as at
-the branch point, since no C changed. `rake spec` 3624 examples 0 failures
+**Landed.** Five sub-steps, one commit each. Two more followed: one pins a
+fade starting covered for step 12, and one fixes the docs reference check,
+which CI failed on. `make test` 401 checks 0 failures, as at
+the branch point, since no C changed. `rake spec` 3626 examples 0 failures
 (3561), `rake spec:core` 499 examples 0 failures (499), `rake docs:coverage`
 nothing undocumented, and `rake drive:allocations` passes all 39 projects,
 `examples/effects` among them.
@@ -2267,6 +2268,14 @@ What the sketch got wrong:
   warm-up; the fade's `finished` signal, built when it first emits; and one
   more node class through `Node2D#draw`. The second and third flashes allocate
   nothing.
+
+- **The docs reference check depended on load order.** `toolbox.md` is the
+  first page to name `Util::Color`, and CI's `spec:core` failed on it on Linux
+  and macOS while it passed locally. `ApiDocs.constant_index` kept a module
+  under the first path its walk met. `Core::Renderer` and `Core::Recording`
+  alias `Util::Color` as `Color`, so a walk that reached Core first indexed it
+  only as `Core::Renderer::Color`. The index now keeps a module under its own
+  name and every alias, and a spec builds the alias-first order to hold it.
 
 Documented in [values.md](../../api/values.md#rgameutilcolorramp),
 [toolbox.md](../../api/toolbox.md#screenfade--cover-the-view-and-flash-it),
