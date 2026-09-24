@@ -345,7 +345,9 @@ def _update(dt) = @fade.update(dt)
 def _draw(renderer, view) = renderer.faded(@fade.value) { renderer.rect(0, 0, view.width, view.height, color: BLACK) }
 ```
 
-`faded(1)` skips the push, as `rotated(0, …)` does.
+`faded(1)` skips the push, as `rotated(0, …)` does. **A scene node rarely
+calls `faded` itself.** `Node2D#opacity` fades a node and everything under it;
+see [Scene graph](scene_graph.md#opacity).
 
 **Neither changes draw order.** The renderer keeps each draw's mode and opacity
 with the draw itself, so `z` alone decides what is drawn over what. An additive

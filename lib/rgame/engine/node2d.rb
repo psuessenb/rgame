@@ -238,10 +238,32 @@ module RGame
       # paused node simply never descends.
       attr_accessor :paused
 
+      # How much of this node and everything under it shows: from 0, which
+      # draws none of it, to 1, the default, which changes nothing.
+      #
+      #   node.opacity = 0.5   # the node, its components and its children, at half their alpha
+      #
+      # `draw` applies it around the node's own drawing and its children's, as
+      # it applies the node's transform, so a `_draw` cannot miss it and a child
+      # cannot escape it. A child's own opacity multiplies with it: 0.5 under
+      # 0.5 draws at a quarter. Each node's reader answers only what was set on
+      # it.
+      #
+      # Only drawing changes. A node at 0 still takes part in `control` and
+      # `update`, and its colliders still collide.
+      attr_reader :opacity
+
+      # Refuses what `renderer.faded` refuses, here rather than at the next
+      # draw: a number outside 0..1, or anything that is not a number.
+      def opacity=(value)
+        @opacity = Util::Blend.opacity(value)
+      end
+
       def initialize(x: 0, y: 0, z: 0, angle: 0, width: 0, height: 0, input_owner: nil,
                      band: nil)
         @input_owner = input_owner
         @paused = false
+        @opacity = 1
         @rel_x = x
         @rel_y = y
         @z = z
@@ -408,10 +430,14 @@ module RGame
       # half of it — and because culling needs it once the world is drawn more
       # than once. Most nodes ignore it and simply draw.
       def draw(renderer, view)
+        return if @opacity.zero?
+
         rgame_resolve_inherited
         rgame_in_local_space(renderer) do
-          renderer.layered(@abs_band) { rgame_draw_content(renderer, view) }
-          draw_children(renderer, view)
+          rgame_at_opacity(renderer) do
+            renderer.layered(@abs_band) { rgame_draw_content(renderer, view) }
+            draw_children(renderer, view)
+          end
         end
       end
 
@@ -505,6 +531,13 @@ module RGame
         end
       end
       # rubocop:enable Style/ExplicitBlockArgument
+
+      # hot-path
+      def rgame_at_opacity(renderer, &)
+        return yield if @opacity == 1
+
+        renderer.faded(@opacity, &)
+      end
 
       # hot-path
       def rgame_draw_content(renderer, view)
