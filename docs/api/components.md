@@ -558,6 +558,9 @@ cutscene = add_component(RGame::Engine::Components::Cutscene.new(
 cutscene.on_ended { |skipped| @log << (skipped ? :skipped : :watched) }
 ```
 
+[`examples/cutscene`](examples.md#cutscene) runs one that everybody watches,
+and ends in the same town whether it is watched or skipped.
+
 - **Construct:** `Cutscene.new(script, context: nil, camera: nil, pause: [], skip: nil)`.
   Each step's block is called with `context`. It raises `TypeError` for a
   `script` that is not a `Cutscene::Script` and a `skip:` that is not a Symbol.

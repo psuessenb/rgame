@@ -410,3 +410,15 @@ script asks the village, and the village fires the quest's events.
 `Engine::Dialogue`, `UI::DialogueBox` and its `_draw_portrait` hook,
 `Components::CollisionWorld#nearest`, `Components::BoxCollider#on_hit`,
 `Util::SaveFile`.
+
+### cutscene
+
+A town crier's news, which everybody watches. The screen becomes one view
+through the cutscene's camera, the heroes stop, and the crier walks to the
+square, speaks, and waits for a press. Holding Tab skips it, and the town ends
+the same either way: the crier in the square, the gate open, and the screen
+split again. The script is a constant, and the component gives back everything
+it stopped.
+
+**Uses:** `Cutscene::Script`, `Components::Cutscene`, `Components::PathFollow`,
+`UI::DialogueBox`, `Viewports#solo!`, `InputMap` with `hold:`.

@@ -74,6 +74,9 @@ index, not the argument.
   in seconds, and `AudioOut#crossfade(id, over:)` lowers one song while it
   raises the next. `#pause_music` and `#resume_music` hold a song and its fade.
   See [docs/api/audio.md](docs/api/audio.md#fades).
+- **A cutscene example.** `examples/cutscene` plays a town crier's news that
+  both players watch, and ends in the same town whether it is watched or
+  skipped. See [docs/api/examples.md](docs/api/examples.md#cutscene).
 - **A doors example.** `examples/doors` walks a hero through a gate between the
   town and a garden, and across a pair of warp pads, each placed in Tiled. See
   [docs/api/examples.md](docs/api/examples.md#doors).
