@@ -35,6 +35,10 @@ index, not the argument.
   running with nobody in it. A room's `WorldView` draws only into its players'
   views, and each player's camera takes their room's limits. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md#rooms-scenerooms).
+- **A node can be suspended by more than one owner.** `Node2D#suspend` stops a
+  node as `paused` does until a `resume` for each call, and leaves `paused` to
+  the game. `Scene::Rooms` suspends a moving node rather than pausing it. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md#pausing-a-subtree).
 - **A player's input can be suspended.** `Player#suspend_input` makes every
   node of that player read nothing held until `#resume_input`, and a press begun
   meanwhile is refused. `Scene::Rooms` suspends a moving player's input until

@@ -634,6 +634,28 @@ character while they browse a menu, without touching everyone else's simulation.
 No `abs_paused` exists to match `abs_input_owner`. A node needs its resolved owner
 even when its parent names nobody. A paused node, by contrast, never descends.
 
+**`paused` is the game's switch, and `suspend` is the engine's.** A node also
+stops while any `suspend` on it has no `resume` yet:
+
+```ruby
+require 'rgame'
+
+hero = RGame::Engine::Node2D.new
+hero.suspend        # a cutscene stops the hero
+hero.suspend        # a door moves the hero under it
+hero.resume         # the cutscene ends
+hero.suspended?     # => true — the move still holds the hero
+hero.resume         # the move's reveal ends
+hero.suspended?     # => false
+hero.paused         # => false — neither touched the game's switch
+```
+
+The calls count, so two owners can each stop one node and give it back in any
+order. A room move and a cutscene stop nodes this way, and neither reads or
+writes `paused`. A bag that pauses its hero keeps the hero paused through a
+move, whenever the move ends. `resume` with no
+`suspend` left to end raises `RuntimeError`.
+
 **A press begun while a node was paused has no edges for it.** It reads the
 button as held once it runs again, but `pressed?` and `released?` stay false
 until the next press. See
@@ -921,16 +943,15 @@ again, and nothing leaves the tree. `Node2D#add_node` leaves a node that is
 already its child where it is, so an `_arrive` that adds the node works for
 both. A warp pad and a door are one call.
 
-**Each node stands paused from the request until its player's reveal ends**, and
-then gets back the `paused` it had. With no transition it gets it back as the
-move lands.
+**Each node is [suspended](#pausing-a-subtree) from the request until its
+player's reveal ends**, and resumes then. With no transition it resumes as the
+move lands. The move leaves the node's own `paused` alone.
 
 **The moving player reads no input anywhere until then**, as no scene does under
 a stack's transition. The rooms [suspend their
 input](input.md#a-players-input-can-be-suspended): a bag or a pause menu of
 theirs outside the rooms reads nothing held, and refuses a press begun under
-the cover. So nothing of theirs can change the `paused` the rooms will give
-back. The other players read their input as before. A `CharacterBody` stands still as its node enters the tree, so a
+the cover. The other players read their input as before. A `CharacterBody` stands still as its node enters the tree, so a
 hero carried into a room does not walk on. Set an intent after placing it for
 one that should walk in.
 

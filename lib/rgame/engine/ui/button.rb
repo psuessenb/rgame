@@ -245,7 +245,7 @@ module RGame
 
         # Counts down the pressed feedback, then does what every node does.
         def update(dt)
-          @feedback -= dt if @feedback.positive? && !@paused
+          @feedback -= dt if @feedback.positive? && !rgame_stopped?
           super
         end
 

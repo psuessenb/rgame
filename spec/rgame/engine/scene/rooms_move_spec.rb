@@ -70,7 +70,7 @@ RSpec.describe RGame::Engine::Scene::Rooms do
   def run(ticks)
     Array.new(ticks) do
       tick
-      block_given? ? yield : [covers, rooms.room_of(first)&.name, hero.paused]
+      block_given? ? yield : [covers, rooms.room_of(first)&.name, hero.suspended?]
     end
   end
 
@@ -92,15 +92,27 @@ RSpec.describe RGame::Engine::Scene::Rooms do
   end
 
   # Rule 3.
-  it 'gives the node back the paused it had' do
+  it 'stops the node with suspend, and leaves its own paused alone' do
     hero.paused = true
     rooms.move(hero, to: :garden, entrance: 'well')
-    expect(run(9).map(&:last).uniq).to eq([true])
+    expect(run(9) { [hero.paused, hero.suspended?] }.uniq).to eq([[true, true], [true, false]])
+  end
+
+  it 'leaves a hold another owner keeps on the node, whichever ends first' do
+    hero.suspend
+    rooms.move(hero, to: :garden, entrance: 'well')
+    run(2)
+    hero.resume
+    held = run(7) { hero.suspended? }
+    rooms.move(hero, to: :town, entrance: 'gate')
+    hero.suspend
+    run(9)
+    expect([held.uniq, hero.suspended?]).to eq([[true, false], true])
   end
 
   it 'leaves the other player\'s hero running' do
     rooms.move(hero, to: :garden, entrance: 'well')
-    expect(run(9) { other_hero.paused }.uniq).to eq([false])
+    expect(run(9) { other_hero.suspended? }.uniq).to eq([false])
   end
 
   it 'covers both regions for a move of both heroes, and lands them together' do

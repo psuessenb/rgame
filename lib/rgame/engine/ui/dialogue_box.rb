@@ -150,7 +150,7 @@ module RGame
         # doing what every node does.
         def update(dt)
           super
-          show_responses if !@paused && !@log_open && ready_for_responses?
+          show_responses if !rgame_stopped? && !@log_open && ready_for_responses?
         end
 
         # Opens and closes the log, and turns its pages.

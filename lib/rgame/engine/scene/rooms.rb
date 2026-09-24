@@ -27,12 +27,14 @@ module RGame
       # lives in `Facts`, as a loaded save's state does.
       #
       # **A move lands in the sweep**, as a SceneStack's switch does. `move`
-      # records what was asked, pauses each node it names, suspends each moving
+      # records what was asked, suspends each node it names and each moving
       # player's input, and covers each moving player's region. Once a player's
       # cover is complete, the sweep takes each of their nodes from its parent,
       # builds the room if it is not running, and hands the node to the room's
-      # `_arrive`. Then the cover reveals. Once the reveal ends, the node gets
-      # back the `paused` it had and its player's input resumes. A move to the
+      # `_arrive`. Then the cover reveals. Once the reveal ends, the node and
+      # its player's input resume. The move never touches a node's `paused`,
+      # so a bag that pauses its hero, or a cutscene that suspends it, keeps
+      # its hold whenever the move ends. A move to the
       # room a node stands in is a warp: `_arrive` places the node again and
       # nothing leaves the tree.
       #
@@ -79,9 +81,9 @@ module RGame
         signal :arrived, :node, :room
 
         Move = Data.define(:node, :name, :entrance, :player)
-        Paused = Struct.new(:node, :was, :player)
+        Held = Data.define(:node, :player)
         Song = Data.define(:key, :id, :priority)
-        private_constant :Move, :Paused, :Song
+        private_constant :Move, :Held, :Song
 
         # The key a room's song is claimed under. No game holds one, so no game
         # can release a room's claim.
@@ -116,7 +118,7 @@ module RGame
           @room_of = {}
           @holds = {}
           @moves = []
-          @paused = []
+          @held = []
           @suspended = {}
           @covers = {}
           @transition = nil
@@ -136,9 +138,11 @@ module RGame
         # snapshot a component is handed.
         def _attach = @players = node.system(Engine::Players)
 
-        # Releases every song the rooms claim, at once, and resumes the input of
-        # every player a move had suspended.
+        # Releases every song the rooms claim, at once, and resumes every node
+        # and every player's input a move had suspended.
         def _detach
+          @held.each { it.node.resume }
+          @held.clear
           @suspended.each_key(&:resume_input)
           @suspended.clear
           @out&.release_music(*@claimed.keys.map { @songs[it].key })
@@ -224,7 +228,7 @@ module RGame
         # hot-path
         def _update(dt)
           @covers.each_value { it.curtain.update(dt) }
-          restore_moved unless @paused.empty? && @suspended.empty?
+          restore_moved unless @held.empty? && @suspended.empty?
           @running.each { it.update(dt) }
         end
 
@@ -249,7 +253,7 @@ module RGame
           player = player_of(moving)
           @moves.delete_if { it.node.equal?(moving) }
           @moves << Move.new(moving, name, entrance, player)
-          pause(moving, player)
+          hold_still(moving, player)
           suspend(player) if player
           at_once = player && @room_of[player].nil?
           cover = transition ? cover_for(player) : @covers[player] if player
@@ -297,11 +301,11 @@ module RGame
           end
         end
 
-        def pause(moving, player)
-          return if @paused.any? { it.node.equal?(moving) }
+        def hold_still(moving, player)
+          return if @held.any? { it.node.equal?(moving) }
 
-          @paused << Paused.new(moving, moving.paused, player)
-          moving.paused = true
+          @held << Held.new(moving, player)
+          moving.suspend
         end
 
         def suspend(player)
@@ -309,10 +313,10 @@ module RGame
         end
 
         def restore_moved
-          @paused.delete_if do |entry|
+          @held.delete_if do |entry|
             next false if moving?(entry.node) || covered?(entry.player)
 
-            entry.node.paused = entry.was
+            entry.node.resume
             true
           end
           @suspended.delete_if do |player, _|

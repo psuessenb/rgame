@@ -103,7 +103,7 @@ module RGame
         # Checks `current` before any menu under the group reads, then does what
         # every node does.
         def control(input)
-          unless @paused
+          unless rgame_stopped?
             @passes += 1
             hand_over unless @current && qualifies?(@current)
           end
