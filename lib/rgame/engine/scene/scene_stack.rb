@@ -8,9 +8,11 @@ module RGame
       #   stack = root.add_component(Engine::Scene::SceneStack.new)
       #   stack.define(:title) { TitleScene.new }
       #   stack.define(:game_over) { |score:| GameOverScene.new(score:) }
+      #   stack.define(:village) { |hero:| VillageScene.new(hero:) }
       #
       #   stack.push(:title)                     # a name, or a Node2D
       #   stack.replace(:game_over, score: 12)   # keywords reach the builder
+      #   stack.replace(:village, carry: { hero: hero })
       #   stack.pop
       #   stack.on_changed { |scene| ... }       # the top scene, once a switch lands
       #
@@ -28,6 +30,12 @@ module RGame
       # `parent`, so it moves with the host and enters and leaves the tree with
       # it. Each is marked as its own `scene`, which is where scene-lifetime
       # systems are found.
+      #
+      # **`carry:` takes a node from one scene to the next.** As the switch
+      # lands, the stack takes each node from its parent, before the old scene
+      # leaves the tree, and hands it to the builder under its key. Its
+      # components leave the old scene's systems as it goes, and join the new
+      # one's when the builder puts it in the new scene.
       class SceneStack < Engine::Component
         # Fired once for each switch that lands, after the new top scene entered
         # the tree. It carries that scene, or nil once the stack is empty.
@@ -37,7 +45,7 @@ module RGame
         POSITIONAL = %i[req opt rest].freeze
         KEYWORDS = %i[key keyreq].freeze
         NONE = {}.freeze
-        Switch = Data.define(:kind, :scene, :keywords)
+        Switch = Data.define(:kind, :scene, :keywords, :carry)
         private_constant :KEPT, :POSITIONAL, :KEYWORDS, :NONE, :Switch
 
         def initialize
@@ -72,14 +80,17 @@ module RGame
         # Asks for `scene` on top of the current one, which stays underneath. A
         # scene is a node, or a name given to #define with the keywords its
         # builder takes. A name the stack was not given raises `KeyError` here.
-        def push(scene, **) = ask(:push, scene, **)
+        #
+        # `carry:` is a Hash of nodes to take into the new scene, each handed to
+        # the builder under its key. It needs a name, not a node.
+        def push(scene, carry: NONE, **) = ask(:push, scene, carry, **)
 
         # Asks for `scene` in place of the current one.
-        def replace(scene, **) = ask(:replace, scene, **)
+        def replace(scene, carry: NONE, **) = ask(:replace, scene, carry, **)
 
         # Asks for the top scene to go. Landing on an empty stack changes nothing.
         def pop
-          @request = Switch.new(:pop, nil, NONE)
+          @request = Switch.new(:pop, nil, NONE, NONE)
           self
         end
 
@@ -136,16 +147,17 @@ module RGame
 
         private
 
-        def ask(kind, scene, **keywords)
+        def ask(kind, scene, carry, **keywords)
           if scene.is_a?(Symbol)
-            check_keywords(scene, keywords.keys)
+            check_carry(carry, keywords)
+            check_keywords(scene, keywords.keys + carry.keys)
           elsif !scene.respond_to?(:enter_tree)
             raise TypeError, "a scene is a node or a name given to define, not #{scene.inspect}"
-          elsif !keywords.empty?
-            raise ArgumentError, "keywords go to a named scene's builder, and #{scene.class} is a node: " \
-                                 "#{keywords.keys.join(', ')}"
+          elsif !keywords.empty? || !carry.empty?
+            raise ArgumentError, "keywords and carry: go to a named scene's builder, and #{scene.class} is a " \
+                                 "node: #{(keywords.keys + carry.keys).join(', ')}"
           end
-          @request = Switch.new(kind, scene, keywords)
+          @request = Switch.new(kind, scene, keywords, carry)
           self
         end
 
@@ -154,6 +166,7 @@ module RGame
           @request = nil
           return if switch.kind == :pop && @stack.empty?
 
+          switch.carry.each_value { |carried| carried.parent&.remove_node(carried) }
           scene = built(switch) unless switch.kind == :pop
           land_pop unless switch.kind == :push
           land_push(scene) if scene
@@ -163,7 +176,7 @@ module RGame
         def built(switch)
           return switch.scene unless switch.scene.is_a?(Symbol)
 
-          @builders.fetch(switch.scene).call(**switch.keywords)
+          @builders.fetch(switch.scene).call(**switch.keywords, **switch.carry)
         end
 
         def land_push(scene)
@@ -200,6 +213,15 @@ module RGame
 
           raise ArgumentError, "the builder for #{name.inspect} declares #{taken.join(' and ')}, which the " \
                                'stack keeps for itself. Give the keyword another name'
+        end
+
+        def check_carry(carry, keywords)
+          unless carry.is_a?(Hash) && carry.all? { |key, carried| key.is_a?(Symbol) && carried.respond_to?(:parent) }
+            raise TypeError, "carry: is a Hash of names to nodes, as in carry: { hero: hero }, not #{carry.inspect}"
+          end
+
+          both = carry.keys & keywords.keys
+          raise ArgumentError, "#{both.join(', ')} given both as a keyword and in carry:" unless both.empty?
         end
 
         def check_keywords(name, given)

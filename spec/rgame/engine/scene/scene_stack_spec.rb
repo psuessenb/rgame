@@ -396,6 +396,139 @@ RSpec.describe RGame::Engine::Scene::SceneStack do
     end
   end
 
+  # Rule 5.
+  describe 'carry:' do
+    let(:root) { RGame::Engine::Node2D.new.tap { it.add_node(host) } }
+    let(:hero) do
+      Class.new(RGame::Engine::Node2D) do
+        attr_accessor :while_leaving
+
+        def _exit_tree = while_leaving&.call
+      end.new
+    end
+    let(:first) { RGame::Engine::Node2D.new.tap { it.add_node(hero) } }
+
+    before do
+      stack.define(:next) do |hero:, entrance: :gate|
+        RGame::Engine::Node2D.new(y: entrance == :gate ? 1 : 2).tap { it.add_node(hero) }
+      end
+      root.enter_tree
+      push(first)
+    end
+
+    it 'leaves the node where it is until the switch lands' do
+      stack.replace(:next, carry: { hero: hero })
+      expect(hero.parent).to be(first)
+    end
+
+    it 'hands the node to the builder under its key' do
+      stack.replace(:next, carry: { hero: hero })
+      sweep
+      expect(hero.parent).to be(stack.current)
+      expect(hero).to be_in_tree
+    end
+
+    it 'takes the node from its parent before the old scene leaves the tree' do
+      seen = []
+      hero.while_leaving = -> { seen << first.in_tree? }
+      stack.replace(:next, carry: { hero: hero })
+      sweep
+      expect(seen).to eq([true])
+      expect(first.children).to be_empty
+    end
+
+    it 'passes keywords beside it' do
+      stack.replace(:next, entrance: :south, carry: { hero: hero })
+      sweep
+      expect(stack.current.y).to eq(2)
+    end
+
+    it 'takes the node out of a scene left underneath, on a push' do
+      stack.push(:next, carry: { hero: hero })
+      sweep
+      expect(first.children).to be_empty
+      expect(stack.current.children).to eq([hero])
+    end
+
+    it 'refuses carry: beside a node' do
+      expect { stack.push(RGame::Engine::Node2D.new, carry: { hero: hero }) }.to raise_error(ArgumentError, /carry/)
+    end
+
+    it 'refuses anything but a Hash of names to nodes' do
+      expect { stack.replace(:next, carry: [hero]) }.to raise_error(TypeError, /Hash/)
+      expect { stack.replace(:next, carry: { hero: :hero }) }.to raise_error(TypeError, /Hash/)
+    end
+
+    it 'refuses a key the builder does not take' do
+      expect { stack.replace(:next, carry: { hero: hero, pet: hero }) }.to raise_error(ArgumentError, /takes no pet/)
+    end
+
+    it 'refuses a key given as a keyword too' do
+      expect { stack.replace(:next, hero: hero, carry: { hero: hero }) }.to raise_error(ArgumentError, /both/)
+    end
+  end
+
+  # The caller that uses both: a hero carried from one room to another, each
+  # with a TileWorld and a CollisionWorld of its own. It must leave the first
+  # room's index, join the second's, and be stopped by the second map.
+  describe 'a hero carried between two rooms' do
+    let(:root) { RGame::Engine::Node2D.new.tap { it.add_node(host) } }
+    let(:room) do
+      Class.new(RGame::Engine::Node2D) do
+        def initialize(rows:, hero: nil)
+          super()
+          components = RGame::Engine::Components
+          add_component(components::TileWorld.new(map: WalledTileMap.build(rows), tilemap_id: :level))
+          add_component(components::CollisionWorld.new(cell_size: 64))
+          add_node(hero) if hero
+        end
+
+        def world = get_component(RGame::Engine::Components::CollisionWorld)
+      end
+    end
+    let(:hero) do
+      components = RGame::Engine::Components
+      RGame::Engine::Node2D.new(x: 256.0, y: 100.0).tap do |node|
+        node.add_component(components::BoxCollider.new(width: 16, height: 16, layer: :hero))
+        node.add_component(components::CharacterBody.new(speed: 60.0, blocked_by: [:tiles])).set_intent(1, 0)
+      end
+    end
+
+    def tick(count) = count.times { root.update(1.0 / 60) && sweep }
+
+    def colliders_in(scene)
+      found = []
+      scene.world.query_box(0, 0, 320, 192) { found << it }
+      found.uniq
+    end
+
+    before do
+      open_rows = Array.new(12) { '.' * 20 }
+      walled_rows = Array.new(12) { "#{'.' * 18}#." }
+      stack.define(:walled) { |hero:| room.new(rows: walled_rows, hero:) }
+      root.enter_tree
+      push(room.new(rows: open_rows).tap { it.add_node(hero) })
+    end
+
+    it 'leaves the first room\'s index and joins the second\'s' do
+      first = stack.current
+      collider = hero.get_component(RGame::Engine::Components::BoxCollider)
+      allow(first.world).to receive(:unregister).and_call_original
+      stack.replace(:walled, carry: { hero: hero })
+      sweep
+      tick(1)
+      expect(first.world).to have_received(:unregister).with(collider)
+      expect(colliders_in(stack.current)).to eq([collider])
+    end
+
+    it 'is stopped by the second room\'s map' do
+      stack.replace(:walled, carry: { hero: hero })
+      sweep
+      tick(40)
+      expect(hero.x).to eq(272.0)
+    end
+  end
+
   # Rule 6.
   describe '#on_changed' do
     let(:root) { RGame::Engine::Node2D.new.tap { it.add_node(host) } }

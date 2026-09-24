@@ -699,3 +699,25 @@ made:
 
 A builder takes keywords only. `define` raises for one that takes positional
 parameters, or that declares `carry` or `transition`, which are the stack's own.
+
+### Carrying a node into the next scene
+
+```ruby
+stack.define(:village) { |hero:, entrance:| VillageScene.new(hero:, entrance:) }
+stack.replace(:village, entrance: :south_gate, carry: { hero: hero })
+```
+
+**`carry:` takes a node from one scene into the next.** As the switch lands,
+the stack takes each node in `carry:` from its parent, before the old scene
+leaves the tree. It hands each to the builder under its key, and the builder
+puts it in the new scene.
+
+The node's components leave the old scene's systems as the stack takes it, and
+join the new scene's as it enters with that scene. A collider leaves one
+`CollisionWorld`'s index and joins the next, and a `CharacterBody` is stopped by
+the new scene's map. The node keeps its `x` and `y`, so the builder places it.
+
+A key in `carry:` is checked against the builder as a keyword is, and a key
+given as a keyword too raises `ArgumentError`. `carry:` beside a node rather
+than a name raises `ArgumentError`, and anything but a Hash of names to nodes
+raises `TypeError`.

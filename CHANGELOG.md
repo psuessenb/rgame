@@ -18,7 +18,9 @@ index, not the argument.
   names a scene, and `push` and `replace` take the name with the keywords its
   builder takes. A name the stack was not given raises `KeyError` where it is
   asked for. `on_changed` fires as each switch lands, and `pending?` answers
-  whether one waits. See
+  whether one waits. `carry: { hero: hero }` takes a node from one scene into
+  the next, its components leaving the old scene's systems and joining the new
+  one's. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md#scenes-scenestack).
 - **Music that fades.** `AudioOut#play_music` and `#stop_music` take `fade:`,
   in seconds, and `AudioOut#crossfade(id, over:)` lowers one song while it
