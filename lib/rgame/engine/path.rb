@@ -11,19 +11,59 @@ module RGame
     # neither construction shape nor traversal leaks per-waypoint Arrays onto the hot path.
     # A follower (see Components::PathFollow) reads segments by index and interpolates
     # itself; Path never returns a coordinate pair.
+    #
+    # **A closed path walks back to its first waypoint from its last**, as a Tiled polygon
+    # does. It stores that first waypoint again at the end, so `count` counts it twice and
+    # the last segment is the one that closes the loop. A follower walks a closed path
+    # exactly as it walks an open one, and arrives where it started.
+    #
+    #   Path.new([[0, 0], [100, 0], [100, 100]], closed: true)   # count 4, length ~341
     class Path
       attr_reader :length, :count
 
       # `points` is an Array of [x, y] waypoint pairs in walk order (construction-time, so
       # the pair Arrays are fine here). At least two are required — a path with one point
       # has nowhere to walk.
-      def initialize(points)
+      def initialize(points, closed: false)
         raise ArgumentError, 'a Path needs at least two waypoints' if points.length < 2
 
+        points += [points.first] if closed
+        @closed = closed
         @coords = points.flatten.freeze
         @count = points.length
         @segment_lengths, @length = build_segments
       end
+
+      # The route a polyline or polygon object on a map describes, in the map's pixels: a
+      # polyline is an open path, and a polygon a closed one. The object's rotation turns
+      # the route about its (x, y), as Tiled draws it. Raises ArgumentError for any other
+      # shape, which has no route to walk.
+      #
+      #   PathFollow.new(speed: 40, path: Path.from_object(object), loop: true)
+      def self.from_object(object)
+        unless %i[polyline polygon].include?(object.shape)
+          raise ArgumentError, "a #{object.shape} object has no route to walk; draw a polyline or a polygon"
+        end
+
+        new(rotated(object), closed: object.shape == :polygon)
+      end
+
+      def self.rotated(object)
+        return object.points if object.rotation.zero?
+
+        radians = object.rotation * Math::PI / 180
+        cos = Math.cos(radians)
+        sin = Math.sin(radians)
+        object.points.map do |px, py|
+          dx = px - object.x
+          dy = py - object.y
+          [object.x + (dx * cos) - (dy * sin), object.y + (dx * sin) + (dy * cos)]
+        end
+      end
+      private_class_method :rotated
+
+      # Whether the path walks back to its first waypoint.
+      def closed? = @closed
 
       # World coordinates of waypoint `i` (0-based), as scalars (no allocation).
       def x_at(index) = @coords[index * 2]

@@ -31,6 +31,66 @@ RSpec.describe RGame::Engine::Path do
     expect { described_class.new([[0.0, 0.0]]) }.to raise_error(ArgumentError)
   end
 
+  it 'is open unless told otherwise' do
+    expect(path).not_to be_closed
+  end
+
+  describe 'closed: true' do
+    subject(:loop) { described_class.new([[0.0, 0.0], [100.0, 0.0], [100.0, 100.0]], closed: true) }
+
+    it 'walks back to the first waypoint from the last' do
+      expect([loop.count, loop.x_at(3), loop.y_at(3), loop.segment_length(2)])
+        .to eq([4, 0.0, 0.0, Math.hypot(100.0, 100.0)])
+    end
+
+    it 'counts the closing segment in its length' do
+      expect(loop.length).to eq(200.0 + Math.hypot(100.0, 100.0))
+    end
+
+    it 'measures the distance to the closing segment too' do
+      expect(loop.distance_to(40.0, 60.0)).to be_within(1e-9).of(Math.hypot(10.0, 10.0))
+    end
+
+    it 'says it is closed' do
+      expect(loop).to be_closed
+    end
+  end
+
+  # From a parsed map, so the route is checked against the objects it will meet.
+  describe '.from_object' do
+    def object(shape_xml, rotation: 0)
+      tmx = <<~TMX
+        <map orientation="orthogonal" width="10" height="10" tilewidth="16" tileheight="16">
+          <objectgroup name="routes">
+            <object id="1" class="route" x="32" y="16" rotation="#{rotation}">#{shape_xml}</object>
+          </objectgroup>
+        </map>
+      TMX
+      RGame::Engine::TileMap.from_tiled(RGame::Engine::Tiled::Map.parse(tmx)).objects.first
+    end
+
+    def corners(route) = Array.new(route.count) { [route.x_at(it), route.y_at(it)] }
+
+    it 'walks a polyline open, in the map’s pixels' do
+      route = described_class.from_object(object('<polyline points="0,0 64,0 64,32"/>'))
+      expect([corners(route), route.closed?]).to eq([[[32.0, 16.0], [96.0, 16.0], [96.0, 48.0]], false])
+    end
+
+    it 'walks a polygon closed' do
+      route = described_class.from_object(object('<polygon points="0,0 64,0 64,32"/>'))
+      expect([route.count, route.closed?]).to eq([4, true])
+    end
+
+    it 'turns the route clockwise about the object’s corner by its rotation' do
+      route = described_class.from_object(object('<polyline points="0,0 64,0"/>', rotation: 90))
+      expect([route.x_at(1), route.y_at(1)]).to match([be_within(1e-9).of(32.0), be_within(1e-9).of(80.0)])
+    end
+
+    it 'refuses a rectangle, which has no route' do
+      expect { described_class.from_object(object('')) }.to raise_error(ArgumentError, /rectangle.*polyline/)
+    end
+  end
+
   describe '#distance_to' do
     it 'is zero for a point on the polyline' do
       expect(path.distance_to(50.0, 0.0)).to eq(0.0)

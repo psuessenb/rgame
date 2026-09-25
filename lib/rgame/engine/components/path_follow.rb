@@ -44,22 +44,37 @@ module RGame
       # finishes again, and one still walking drops its old route at once. `finish` puts
       # the walker at the end of its route at once, as skipping a cutscene does.
       #
-      # Its heading is the unit direction of the segment it is on, worked out when the walk
-      # crosses into a segment rather than on every read.
+      # ## A walk that never ends
+      #
+      # `loop: true` keeps the walker going for good: round and round a closed path, and
+      # back and forth along an open one, turning at each end. A step that overshoots an
+      # end carries on past it, so a loop keeps its pace. A looping walker never finishes,
+      # so `on_finished` never fires and `finish` does nothing. A platform shuttling across
+      # a chasm is one.
+      #
+      #   PathFollow.new(speed: 40, path: Path.from_object(object), loop: true)
+      #
+      # Its heading is the unit direction of the segment it is on, the way it is walking
+      # it, worked out when the walk crosses into a segment or turns rather than on every
+      # read.
       class PathFollow < Mover
         signal :finished
 
         sealed_accessor :speed
         sealed_reader :path, :heading_x, :heading_y
 
-        def initialize(speed:, path: nil, blocked_by: [], pushes: [])
+        def initialize(speed:, path: nil, loop: false, blocked_by: [], pushes: [])
           super(blocked_by:, pushes:)
           @rgame_path = path
           @rgame_speed = speed
+          @rgame_loop = loop
           restart
         end
 
         def finished? = @rgame_finished
+
+        # Whether the walk goes on for good rather than ending at the last waypoint.
+        def looping? = @rgame_loop
 
         # Restart the walk as the node enters the tree — back to the first waypoint, with
         # progress cleared — so a pooled follower reacquired and re-added begins a fresh walk
@@ -79,9 +94,9 @@ module RGame
 
         # Places the node on the last waypoint and emits `on_finished`, as
         # reaching it does, whatever stands in the way. Does nothing when the
-        # walk has finished or there is no route. Returns self.
+        # walk has finished, loops or has no route. Returns self.
         def finish
-          return self if @rgame_finished || @rgame_path.nil?
+          return self if @rgame_finished || @rgame_loop || @rgame_path.nil?
 
           place_at(@rgame_path.count - 1) if node
           arrive
@@ -95,22 +110,72 @@ module RGame
 
           from_segment = @rgame_segment
           from_distance = @rgame_distance
+          from_backward = @rgame_backward
 
-          if advance_to_end?(@rgame_speed * dt)
+          if !@rgame_loop && advance_to_end?(@rgame_speed * dt)
             last = @rgame_path.count - 1
             return arrive if moved_to?(@rgame_path.x_at(last), @rgame_path.y_at(last))
 
-            rewind(from_segment, from_distance)
+            rewind(from_segment, from_distance, from_backward)
           else
+            go_round(@rgame_speed * dt) if @rgame_loop
             seg_len = @rgame_path.segment_length(@rgame_segment)
             t = seg_len.zero? ? 0.0 : @rgame_distance / seg_len
             sx = @rgame_path.x_at(@rgame_segment)
             sy = @rgame_path.y_at(@rgame_segment)
             reached = moved_to?(sx + ((@rgame_path.x_at(@rgame_segment + 1) - sx) * t),
                                 sy + ((@rgame_path.y_at(@rgame_segment + 1) - sy) * t))
-            rewind(from_segment, from_distance) unless reached
+            rewind(from_segment, from_distance, from_backward) unless reached
           end
           aim
+        end
+
+        def go_round(remaining)
+          period = @rgame_path.closed? ? @rgame_path.length : 2 * @rgame_path.length
+          return if period.zero?
+
+          remaining %= period
+          while remaining.positive?
+            if @rgame_backward
+              if remaining < @rgame_distance
+                @rgame_distance -= remaining
+                return
+              end
+              remaining -= @rgame_distance
+              step_back
+            else
+              left = @rgame_path.segment_length(@rgame_segment) - @rgame_distance
+              if remaining < left
+                @rgame_distance += remaining
+                return
+              end
+              remaining -= left
+              step_on
+            end
+          end
+        end
+
+        def step_on
+          if @rgame_segment < @rgame_path.count - 2
+            @rgame_segment += 1
+            @rgame_distance = 0.0
+          elsif @rgame_path.closed?
+            @rgame_segment = 0
+            @rgame_distance = 0.0
+          else
+            @rgame_backward = true
+            @rgame_distance = @rgame_path.segment_length(@rgame_segment)
+          end
+        end
+
+        def step_back
+          if @rgame_segment.positive?
+            @rgame_segment -= 1
+            @rgame_distance = @rgame_path.segment_length(@rgame_segment)
+          else
+            @rgame_backward = false
+            @rgame_distance = 0.0
+          end
         end
 
         def advance_to_end?(remaining)
@@ -139,9 +204,10 @@ module RGame
           !last_move_blocked?
         end
 
-        def rewind(segment, distance)
+        def rewind(segment, distance, backward)
           @rgame_segment = segment
           @rgame_distance = distance
+          @rgame_backward = backward
         end
 
         def arrive
@@ -153,6 +219,7 @@ module RGame
         def restart
           @rgame_segment = 0
           @rgame_distance = 0.0
+          @rgame_backward = false
           @rgame_finished = false
           head_nowhere
           return unless @rgame_path
@@ -162,18 +229,22 @@ module RGame
         end
 
         def aim
-          return if @rgame_segment == @rgame_aimed_segment
+          return if @rgame_segment == @rgame_aimed_segment && @rgame_backward == @rgame_aimed_backward
 
           @rgame_aimed_segment = @rgame_segment
+          @rgame_aimed_backward = @rgame_backward
           length = @rgame_path.segment_length(@rgame_segment)
           return head_nowhere if length.zero?
 
-          @rgame_heading_x = (@rgame_path.x_at(@rgame_segment + 1) - @rgame_path.x_at(@rgame_segment)) / length
-          @rgame_heading_y = (@rgame_path.y_at(@rgame_segment + 1) - @rgame_path.y_at(@rgame_segment)) / length
+          from = @rgame_backward ? @rgame_segment + 1 : @rgame_segment
+          to = @rgame_backward ? @rgame_segment : @rgame_segment + 1
+          @rgame_heading_x = (@rgame_path.x_at(to) - @rgame_path.x_at(from)) / length
+          @rgame_heading_y = (@rgame_path.y_at(to) - @rgame_path.y_at(from)) / length
         end
 
         def head_nowhere
           @rgame_aimed_segment = nil
+          @rgame_aimed_backward = nil
           @rgame_heading_x = 0.0
           @rgame_heading_y = 0.0
         end

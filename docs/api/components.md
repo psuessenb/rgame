@@ -1225,7 +1225,7 @@ show, such as a tile map's actors slot, among the characters.
 and emits `on_finished` at the last waypoint. Hook whatever should happen on arrival
 to that signal.
 
-- **Construct:** `PathFollow.new(speed:, path: nil, blocked_by: [], pushes: [])`.
+- **Construct:** `PathFollow.new(speed:, path: nil, loop: false, blocked_by: [], pushes: [])`.
   [`Mover`](#mover) decides what may stop it. Without a path, the follower is idle:
   it moves nothing, never finishes, and heads nowhere until it receives one.
 - **Lifecycle:** `_attach` restarts the walk. It returns to the first waypoint,
@@ -1247,9 +1247,17 @@ to that signal.
   patrol = RGame::Engine::Components::PathFollow.new(path: out, speed: 40)
   patrol.on_finished { patrol.follow(patrol.path.equal?(out) ? back : out) }
   ```
-- **Heading:** the unit direction of the current segment, computed as the walk
-  enters it. It is `0, 0` while idle, after finishing, and along a zero-length
-  segment.
+- **A walk that never ends:** `loop: true` goes round a closed path for good, and
+  back and forth along an open one. A step that overshoots an end carries on past
+  it, so the pace holds. A looping follower never finishes: `on_finished` never
+  fires and `finish` does nothing. `looping?` says which kind it is.
+
+  ```ruby
+  shuttle = RGame::Engine::Components::PathFollow.new(path: route, speed: 40, loop: true)
+  ```
+- **Heading:** the unit direction of the current segment, the way the walk goes
+  along it. It is computed as the walk enters a segment or turns round. It is
+  `0, 0` while idle, after finishing, and along a zero-length segment.
 - **Signal:** `on_finished` fires once, without payload, at the path's end:
   `follow.on_finished { node.queue_free }`. `finished?` reports the same state.
 - **Phase:** `_update(dt)` advances `speed * dt`, crosses as many segments as one step
