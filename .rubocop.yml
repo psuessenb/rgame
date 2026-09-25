@@ -112,6 +112,13 @@ Naming/MethodParameterName:
 Lint/AmbiguousOperatorPrecedence:
   Enabled: false
 
+# Every ivar of a node or component starts with `rgame_`, so a memo there is
+# `@rgame_context` behind `context`, and this cop's rule and the engine's cannot
+# both hold. The engine's wins: it keeps a game's ivars the game's own.
+Naming/MemoizedInstanceVariableName:
+  Exclude:
+    - 'lib/rgame/engine/**/*.rb'
+
 # Swapping two values through a temporary reads worse but costs nothing; the
 # `a, b = b, a` this cop asks for allocates an Array on every swap. It compiles to
 # `newarray 2` + `expandarray` — for local variables exactly as for instance variables,

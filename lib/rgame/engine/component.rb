@@ -7,10 +7,10 @@ module RGame
       extend SealedPrivates
       extend Hooks
 
-      attr_accessor :node
+      sealed_accessor :node
 
       def context
-        @context ||= node.context
+        @rgame_context ||= node.context
       end
 
       # Tree-lifecycle hooks. _attach fires once the node is in the live tree, so

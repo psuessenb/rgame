@@ -178,6 +178,11 @@ RSpec.describe RGame::Engine::SealedPrivates do
         .to raise_error(NameError, /Node2D#rgame_gate/)
     end
 
+    it "seals the reader behind Node2D's opacity" do
+      expect { Class.new(RGame::Engine::Node2D) { def rgame_opacity = 0 } }
+        .to raise_error(NameError, /Node2D#rgame_opacity/)
+    end
+
     it "leaves Node2D's draw_children open to override" do
       expect { Class.new(RGame::Engine::Node2D) { def draw_children(renderer, view) = (super unless @hidden) } }
         .not_to raise_error

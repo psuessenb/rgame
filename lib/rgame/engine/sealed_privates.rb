@@ -23,8 +23,12 @@ module RGame
     #
     # Only the base class's own methods are sealed. A private hook an engine
     # subclass writes for its own subclasses — Components::Mover's `take_step` —
-    # is not covered, and the prefix convention does not apply outside these
-    # two classes.
+    # is not covered.
+    #
+    # The two classes keep their ivars under the prefix as well, `@rgame_opacity`
+    # rather than `@opacity`, so an ivar a subclass names is its own.
+    # #sealed_reader and its two siblings keep an attribute's public name over
+    # the prefixed ivar.
     #
     # What it cannot see: a method arriving through `include` or `prepend` of a
     # module, which does not pass through `method_added`.

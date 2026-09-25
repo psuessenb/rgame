@@ -17,7 +17,7 @@ module RGame
       # For :changed this generates:
       #   def on_changed(&block) = changed_signal.connect(&block)            # public: connect, returns the handle
       #   def disconnect_changed(handle) = changed_signal.disconnect(handle) # public: end one connection
-      #   def changed_signal = (@changed_signal ||= Signal.define(...).new)  # private: the Signal, to emit on
+      #   def changed_signal = (@rgame_changed_signal ||= Signal.define(...).new)  # private: the Signal, to emit on
       #
       # The disconnect is public because ending a connection belongs to whoever
       # made it, while emitting belongs to the class. A component that connects
@@ -49,7 +49,7 @@ module RGame
           reader = :"#{name}_signal"
           connect = :"on_#{name}"
           disconnect = :"disconnect_#{name}"
-          ivar = :"@#{reader}"
+          ivar = :"@rgame_#{reader}"
 
           define_method(reader) do
             instance_variable_get(ivar) || instance_variable_set(ivar, type.new)
@@ -74,7 +74,7 @@ module RGame
 
         protected
 
-        def signal_methods = (@signal_methods ||= {})
+        def signal_methods = (@rgame_signal_methods ||= {})
       end
 
       def self.define(*fields)

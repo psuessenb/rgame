@@ -89,6 +89,29 @@ RSpec.describe RGame::Engine::Node2D do
     end
   end
 
+  # Each of these ivars a game names for itself, and the first and last were
+  # the engine's. `@paused` once paused examples/music's scene, and `@player`
+  # once handed the input system a Node2D. The engine's own start with rgame_.
+  describe 'an ivar a subclass names for itself' do
+    let(:own) do
+      Class.new(described_class) do
+        def initialize(**)
+          super
+          @paused = true
+          @player = :hero
+          @width = 99
+          @opacity = 0
+        end
+      end
+    end
+
+    { paused: false, input_owner: nil, width: 0, opacity: 1 }.each do |attribute, default|
+      it "leaves #{attribute} alone" do
+        expect(own.new.public_send(attribute)).to eq(default)
+      end
+    end
+  end
+
   describe '#elevation' do
     let(:parent) { described_class.new }
     let(:child) { described_class.new(x: 3, y: 4) }

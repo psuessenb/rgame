@@ -79,6 +79,14 @@ RSpec.describe RGame::Engine::Signal::DSL do
     expect(lever.pulled).to eq(:by_hand)
   end
 
+  # So an ivar a class names after its own signal cannot be the signal.
+  it 'keeps the signal in an ivar starting with rgame_' do
+    lever.instance_variable_set(:@pulled_signal, :mine)
+    lever.on_pulled { nil }
+
+    expect(lever.instance_variables).to include(:@rgame_pulled_signal, :@pulled_signal)
+  end
+
   it 'gives each instance its own signal' do
     heard = []
     lever.on_pulled { heard << :first }
