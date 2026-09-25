@@ -21,6 +21,9 @@ index, not the argument.
   `on_fell` fires as it starts. `Components::Respawn` then puts the node back
   on its respawn point, flashing, and a node without one is freed. See
   [docs/api/components.md](docs/api/components.md#footing).
+- **A pits example.** `examples/pits` drops a hero who walks into a chasm and
+  brings them back flashing, hops trenches, and shows coyote time running out
+  in a bar. See [docs/api/examples.md](docs/api/examples.md#pits).
 - **`Node2D#scale`**, a size a node and everything under it draws at, about its
   origin, applied by `draw` as `opacity` is. Only drawing changes. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md#scale).
@@ -529,6 +532,10 @@ index, not the argument.
 
 ### Fixed
 
+- **A node's own `@footing` survives y-sort.** A y-sorted draw stored the
+  child's sorting collider in `@footing` on every child, so a node subclass
+  keeping something of its own there lost it to its `BoxCollider` without an
+  error. Node2D keeps it under another name.
 - **A scene enters and leaves the tree with its host.** The scenes on a
   `RGame::Engine::Scene::SceneStack` stayed in the tree, and their components
   registered with their systems, after the node holding the stack left it. A

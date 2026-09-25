@@ -101,12 +101,24 @@ spent in `on_blocked`, because a blocked pair ends up touching, not overlapping.
 A hop in a top-down view. "Up" on screen is north, so a jump cannot move the
 character. The sprite rises along `Hop`'s parabola. The feet box, the shadow and
 the camera stay on the ground. A hop at the fence therefore does not clear it,
-because the part that collides never leaves the ground. The game decides what a
-hop may cross, through `airborne?`.
+because the part that collides never leaves the ground. A hop over a gap in the
+floor is [pits](#pits).
 
 **Uses:** `Components::Hop`, `Node2D#elevation`, `Components::AnimatedSprite`,
 `Components::FeetCollider`, `Components::CharacterBody`, `Components::TileWorld`,
 `Components::CameraFollow`, `InputMap.default.merge`.
+
+### pits
+
+Falling into a gap, hopping across one, and coming back. A walk into the chasm
+drops the hero, who shrinks toward their feet and comes back flashing on the
+spot they started from, able to walk at once. A hop crosses a trench, because a
+node in the air never falls. A hop pressed just after walking off an edge still
+counts, and a bar shows that coyote time running out. C turns it off.
+
+**Uses:** `Components::Footing`, `Components::Respawn`, `Components::Hop`,
+`Node2D#scale`, `TileMap#gap_tile?`, `Components::TileWorld`,
+`Components::CharacterBody`, `Components::FeetCollider`.
 
 ### push_pull
 

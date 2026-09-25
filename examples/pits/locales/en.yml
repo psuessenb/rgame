@@ -1,0 +1,9 @@
+# The English table: every string this example draws.
+en:
+  help:
+    walk: Arrows / WASD / gamepad to walk, Space / A to hop
+    fall: Walk into a pit and you fall. Hop a trench to cross it
+    coyote: A hop just past the edge still counts. C / Y turns that off
+  status:
+    coyote_on: Coyote time on
+    coyote_off: Coyote time off
