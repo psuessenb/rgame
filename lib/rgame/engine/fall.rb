@@ -3,8 +3,8 @@
 module RGame
   module Engine
     # The fall of one node, run from beside it: it suspends the node, shrinks it
-    # through Node2D#scale over its Components::Footing's `fall` seconds, then frees
-    # it.
+    # through Node2D#scale over its Components::Footing's `fall` seconds, then
+    # resumes it on its Components::Respawn point, or frees a node with none.
     #
     # A Footing keeps one for its life and adds it to the falling node's parent for
     # each fall, because a suspended node stops its own components. Beside the node,
@@ -50,7 +50,8 @@ module RGame
       def land
         node = end_fall
         node.scale = 1
-        node.queue_free
+        respawn = node.get_component(Components::Respawn)
+        respawn ? respawn.respawn : node.queue_free
       end
 
       def end_fall

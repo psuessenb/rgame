@@ -22,7 +22,8 @@ module RGame
       #
       # **The fall stops the node and shrinks it into the gap** over `fall` seconds,
       # through Node2D#scale, toward the node's origin, where it stands. A node with a
-      # Respawn then comes back on its respawn point; any other node, a crate, is freed.
+      # Respawn then comes back on its respawn point, controllable at once; any other
+      # node is freed.
       # `on_fell` fires as the fall starts, which is where a game takes a life.
       #
       # The fall runs from an Engine::Fall this keeps for its life, lent to the node's

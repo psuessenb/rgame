@@ -17,8 +17,9 @@ index, not the argument.
 - **Falling into a gap, with coyote time.** `Components::Footing` drops a node
   whose box's centre stands off the floor, once it has been off it for more than
   `coyote` seconds, and at once when it lands there from a `Hop`. A node in the
-  air never falls. The fall suspends the node and shrinks it into the gap, then
-  frees it, and `on_fell` fires as it starts. See
+  air never falls. The fall suspends the node and shrinks it into the gap, and
+  `on_fell` fires as it starts. `Components::Respawn` then puts the node back
+  on its respawn point, flashing, and a node without one is freed. See
   [docs/api/components.md](docs/api/components.md#footing).
 - **`Node2D#scale`**, a size a node and everything under it draws at, about its
   origin, applied by `draw` as `opacity` is. Only drawing changes. See

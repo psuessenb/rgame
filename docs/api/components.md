@@ -698,8 +698,8 @@ crosses. `coyote: 0` drops the node on its first tick off the floor.
 
 **A fall stops the node and shrinks it into the gap.** The node is suspended, and
 its [`scale`](scene_graph.md#scale) runs from 1 to 0 over `fall` seconds, toward
-its origin, where it stands. A node without a respawn is then freed, as a crate
-that fell should be. The fall runs from a helper node `Footing` adds beside the
+its origin, where it stands. A node with a [`Respawn`](#respawn) then comes back
+on its respawn point, and any other node is freed. The fall runs from a helper node `Footing` adds beside the
 falling one, so it pauses when the world around the node is paused. A node taken
 out of the tree mid-fall, through a door or freed, stops falling at once, at
 scale 1 and resumed.
@@ -1337,6 +1337,34 @@ while they overlap. Two players pushing side by side move it as far as one would
   updates to the next. A crate held against a wall reports it once, whatever order
   the crate and its pusher update in.
 - **Heading:** `0, 0`. A crate faces nowhere.
+
+### `Respawn`
+
+**Where a node comes back after a fall, and the flash that shows it has.** A
+[`Footing`](#footing) whose node has one calls `respawn` at the end of a fall,
+instead of freeing the node.
+
+```ruby
+hero.add_component(RGame::Engine::Components::Footing.new(coyote: 0.1))
+hero.add_component(RGame::Engine::Components::Respawn.new(flash: 1.0))
+```
+
+- **Construct:** `Respawn.new(flash: 1.0)`, in seconds. It must be 0 or more, or it
+  raises `ArgumentError`. `flash: 0` flashes nothing.
+- **The point:** `point_x` and `point_y`, in world pixels. The first attach records
+  where the node stands. Later attaches, such as a door moving the node to another
+  room, keep the point. `set_point(x, y)` moves it.
+- **`respawn`** places the node on its point and starts the flash. A game may call
+  it with no fall before it.
+- **Signal:** `on_respawned` fires once the node stands on its point, as the flash
+  starts.
+- **Lifecycle:** `_detach` stops a flash and gives the opacity back.
+
+**The node comes back working.** Its controls answer from the tick it lands, and a
+[`CameraFollow`](#camerafollow) cuts to it. The flash only shows where it came back:
+`_update` blinks the node's [`opacity`](scene_graph.md#opacity), shown for
+`Respawn::BLINK` seconds and hidden for as many, until `flash` seconds have passed.
+Then it gives back the opacity it found. `flashing?` says whether one is under way.
 
 ### `ScreenWrap`
 
