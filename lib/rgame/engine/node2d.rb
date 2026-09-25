@@ -295,6 +295,30 @@ module RGame
         @opacity = Util::Blend.opacity(value)
       end
 
+      # How large this node and everything under it draws, about its origin: 0
+      # draws none of it, and 1, the default, changes nothing.
+      #
+      #   node.scale = 0.5   # the node, its components and its children, at half size
+      #
+      # `draw` applies it around the node's own drawing and its children's, as
+      # it applies `opacity`, so a `_draw` cannot miss it and a child cannot
+      # escape it. A child's own scale multiplies with it. A character stands on
+      # its origin, so it shrinks toward its feet.
+      #
+      # Only drawing changes. Positions, colliders and the transform keep their
+      # size, so `world_x` of a child is where it stands, not where it draws.
+      attr_reader :scale
+
+      # Refuses a negative number, NaN or infinity with ArgumentError, and
+      # anything that is not a number with TypeError, here rather than at the
+      # next draw.
+      def scale=(value)
+        raise TypeError, "no implicit conversion of #{value.class} into Float" unless value.is_a?(Numeric)
+        raise ArgumentError, "scale #{value} is not a finite number of 0 or more" unless value >= 0 && value.finite?
+
+        @scale = value
+      end
+
       # Whether this node draws its children by where they stand: by `z` first,
       # then the child standing further down the screen later, then in the order
       # they were added. Off by default. TileMapLayer.mount turns it on for the
@@ -325,6 +349,7 @@ module RGame
         @suspensions = 0
         @stopped = false
         @opacity = 1
+        @scale = 1
         @rel_x = x
         @rel_y = y
         @z = z
@@ -517,11 +542,11 @@ module RGame
       # half of it — and because culling needs it once the world is drawn more
       # than once. Most nodes ignore it and simply draw.
       def draw(renderer, view)
-        return if @opacity.zero?
+        return if @opacity.zero? || @scale.zero?
 
         rgame_resolve_inherited
         rgame_in_local_space(renderer) do
-          rgame_at_opacity(renderer) do
+          rgame_as_shown(renderer) do
             renderer.layered(@abs_band) { rgame_draw_content(renderer, view) }
             draw_children(renderer, view)
           end
@@ -620,11 +645,20 @@ module RGame
       # rubocop:enable Style/ExplicitBlockArgument
 
       # hot-path
-      def rgame_at_opacity(renderer, &)
-        return yield if @opacity == 1
+      # rubocop:disable Style/ExplicitBlockArgument -- as in rgame_in_local_space,
+      # `yield` from the nested block allocates nothing where a captured &block would.
+      def rgame_as_shown(renderer)
+        if @scale == 1
+          return yield if @opacity == 1
 
-        renderer.faded(@opacity, &)
+          renderer.faded(@opacity) { yield }
+        elsif @opacity == 1
+          renderer.scaled(@scale) { yield }
+        else
+          renderer.scaled(@scale) { renderer.faded(@opacity) { yield } }
+        end
       end
+      # rubocop:enable Style/ExplicitBlockArgument
 
       # hot-path
       def rgame_draw_content(renderer, view)

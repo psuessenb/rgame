@@ -73,6 +73,21 @@ RSpec.describe RGame::Engine::Culling do
       node.parent.draw(renderer, world_view)
       expect(renderer.drawn?(:image)).to be(true)
     end
+
+    # Its unscaled footprint ends 20px left of the view; four times the size
+    # about its origin, it reaches 10px in.
+    it 'measures a node scaled past 1 at that size, about its origin' do
+      node = node_at(420, 500)
+      node.scale = 4
+      expect(drew?(node)).to be(true)
+    end
+
+    # 5px of it shows at full size, and none at a quarter.
+    it 'skips a node shrunk out of the view that its full size would reach' do
+      node = node_at(445, 500)
+      node.scale = 0.25
+      expect(drew?(node)).to be(false)
+    end
   end
 
   describe 'an AnimatedSprite, standing on its node' do

@@ -12,9 +12,10 @@
 # over an Array colour allocates a Color per call here exactly as it would in
 # the game, and the matcher sees it.
 #
-# `layered`, `translated`, `clipped`, `blended` and `faded` only yield, so a
+# `layered`, `translated`, `scaled`, `clipped`, `blended` and `faded` only yield, so a
 # whole subtree's `draw` can be measured as well as one node's `_draw` — a
-# WorldView's included, which opens a clip per viewport, and a faded node's.
+# WorldView's included, which opens a clip per viewport, and a faded or scaled
+# node's.
 #
 # It refuses nothing and records nothing, so it says nothing about *what* was
 # drawn. That is FakeRenderer's job, checked against the renderer contract.
@@ -31,6 +32,7 @@ class QuietRenderer
 
   def layered(_band) = yield
   def translated(_dx, _dy) = yield
+  def scaled(_sx, _sy = nil) = yield
   def clipped(_x, _y, _width, _height) = yield
   def blended(_mode) = yield
   def faded(_opacity) = yield

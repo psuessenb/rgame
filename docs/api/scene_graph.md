@@ -326,6 +326,29 @@ Setting `opacity` checks the value at once. A number outside 0..1 raises
 `ArgumentError`, and anything that is not a number raises `TypeError`, as
 [`renderer.faded`](drawing.md#blending-and-fading) does.
 
+### Scale
+
+**`scale` sizes a node and everything under it, about its origin.** At 0 it
+draws none of the subtree, and at 1, the default, it changes nothing:
+
+```ruby
+hero.scale = 0.5   # the hero, its components and its children, at half size
+```
+
+`Node2D#draw` applies it as it applies `opacity`, around the node's components,
+its `_draw` and its children, and a child's own `scale` multiplies with its
+parent's. A character stands on its origin, so a hero shrinking to 0 shrinks
+toward its feet.
+
+**Only drawing changes.** `x`, `world_x`, colliders and children's positions
+keep their size, so a scaled node still stands, collides and is followed by a
+camera where it did at 1. Sprites cull against their scaled footprint, so a
+node scaled past 1 does not vanish at the edge of a view while its picture still
+shows there.
+
+Setting `scale` checks the value at once. A negative number, NaN or infinity
+raises `ArgumentError`, and anything that is not a number raises `TypeError`.
+
 ### Who a node answers to
 
 **`control` receives an input source, not one player's snapshot.** The source is
