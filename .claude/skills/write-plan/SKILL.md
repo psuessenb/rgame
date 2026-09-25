@@ -368,4 +368,4 @@ live in history rather than the tree:
 | `cross-platform-support.md` | single file, findings-led, every finding tagged measured | `git show 549f811:docs/plans/cross-platform-support.md` |
 | `basic-examples.md` | single file, a catalogue rather than a roadmap: one entry per example, each with its landed note | `git show 92e04a5:docs/plans/basic-examples.md` |
 | `i18n/` | brief + current state + prior art + design + roadmap; a step inserted mid-plan, and decisions taken in later question rounds | `git show 92e04a5:docs/plans/i18n/04-roadmap.md` |
-| `tiled-format/` | brief + current state + prior art + design + roadmap; still live at the time of writing. The design is the worked example for [optimising for the game](#optimise-for-the-game-not-for-the-source) | `git show 7efe148:docs/plans/tiled-format/03-design.md` |
+| `tiled-format/` | brief + current state + prior art + design + roadmap; folded back before its authored map arrived, which moved to `docs/plans/research/`. The design is the worked example for [optimising for the game](#optimise-for-the-game-not-for-the-source) | `git show 7efe148:docs/plans/tiled-format/03-design.md` |

@@ -1,18 +1,39 @@
-# Requirements for the acceptance map
+# Requirements for the Tiled acceptance map
+
+**Status: waiting for the map, and for the plan that takes it over.** These
+requirements were step 0 of the Tiled format plan, and the check below was its
+step 8. That plan was folded back before the map arrived. The object-layer plan
+needs an authored map for the same reasons, so the work moved here (see
+[object-layers.md](object-layers.md)). That plan adds its own requirements before
+anyone opens Tiled. R15, R18 and R19 are the likeliest to change: they describe
+objects, which rgame parses today and never draws. Links into the Tiled format
+plan point at it as it stood in `dcb07f8`.
 
 **A map authored in Tiled, saved by Tiled, and never edited by hand.** It is the
-one input the new parser cannot have written itself. `TiledFixture` emits what
-this parser reads, so the parser and its fixtures agree by construction
-([F11](01-current-state.md#f11)). A file Tiled wrote breaks that circle.
+one input the parser cannot have written itself. `TiledFixture` emits what the
+parser reads, so the parser and its fixtures agree by construction
+([F11](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/01-current-state.md#f11)). A file Tiled wrote breaks that circle.
 
 Each requirement below says **what to do in Tiled**, **why the code needs it**,
-and **what step 8 reports when it is missing**. Step 8 turns every requirement
-into one example in `spec/example_assets_spec.rb`, and each failure message
-names what to change in Tiled.
+and **what the check reports when it is missing**.
 
-The map is built while [steps 1–5](04-roadmap.md) are built, and it arrives at
-[step 8](04-roadmap.md#step-8--the-authored-map-checked-and-played-rough).
-Nothing in steps 1–7 waits for it.
+## The check, and the example that plays the map
+
+Two halves, still rough:
+
+- **Checked.** A `describe` block in `spec/example_assets_spec.rb`, one example
+  per requirement, each failing with what to change in Tiled: "R5: layer
+  `orientations` is missing flip-bit combinations [3, 6]; paint the row again
+  from the table". That file is already the precedent. Its `town.tmx` block
+  asserts the fence has exactly one gap, and says in a comment which mistake it
+  caught.
+- **Played.** An example under `examples/` that draws the map, with a drive
+  script under `tools/drive/examples/`, following the
+  [write-example](../../../.claude/skills/write-example/SKILL.md) skill. It is
+  the only tier where all three layers are present at once, and the only one
+  that would catch a map that parses and draws wrong. What it should do depends
+  on what the map contains, and on the nodes the object-layer plan builds from
+  its objects.
 
 ## What to hand over
 
@@ -29,7 +50,7 @@ Everything goes in one new directory, `examples/assets/tiled_tour/`:
 | `*.png` | every image a tileset or image layer names |
 | `tour.tiled-project` | the Tiled project holding the custom class definitions ([R13](#r13)) |
 
-The directory name and the `tour` prefix can change. The step 8 spec takes its
+The directory name and the `tour` prefix can change. The check takes its
 paths from one constant.
 
 **Do not commit the `.tiled-session` file.** It holds window and selection state
@@ -41,15 +62,15 @@ These apply to every file above.
 
 - **Tiled 1.10 or later.** 1.9 wrote a tile's class as `class` and later
   versions write `type`; the parser reads both, but the map should say which
-  Tiled wrote it. Step 8 prints the `tiledversion` attribute it found.
+  Tiled wrote it. The check prints the `tiledversion` attribute it found.
 - **Tiled saves every file, and nobody edits one afterwards.** A hand edit makes
   the file this parser's reading of the format again, which is the circle the
   map exists to break. `town.tmx` carries a hand-written header comment; this map
   does not, and `examples/assets/README.md` carries the explanation instead.
 - **Orthogonal, right-down, 16×16 tiles.** Set these in **File › New › New Map…**.
   Every tileset uses 16×16 tiles too, collections included. Other orientations
-  are refused by design ([decision 1](README.md#decisions-already-taken)), and
-  mixed tile sizes are not in this plan.
+  are refused by design ([decision 1](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/README.md#decisions-already-taken)), and
+  mixed tile sizes are not supported.
 - **Every image is CC0 or drawn here**, with nothing in between.
   `examples/assets/README.md` gets a source, author, licence and modification
   entry for each one. Its opening paragraph says why: this directory ships inside
@@ -72,7 +93,7 @@ Three of the files are copies of the first, so the order matters.
 
 **Save As switches the open document to the new file.** Close each twin once it
 is saved, and reopen `tour.tmx` before changing anything. Any later change to
-the map means redoing steps 2–4, and step 8 catches a twin that has drifted.
+the map means redoing steps 2–4, and the check catches a twin that has drifted.
 
 ---
 
@@ -87,9 +108,9 @@ the map means redoing steps 2–4, and step 8 catches a twin that has drifted.
   `../tileset.tsx`.
 - **Why:** a gid from the second tileset has to resolve through the second
   tileset. Today it resolves through the first and indexes the wrong tile
-  ([F2](01-current-state.md#f2)). Using `../tileset.tsx` also resolves a path
+  ([F2](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/01-current-state.md#f2)). Using `../tileset.tsx` also resolves a path
   that climbs out of the map's directory.
-- **Step 8 reports:** "R1: found N external tilesets, and tileset X has no tile
+- **The check reports:** "R1: found N external tilesets, and tileset X has no tile
   on the map — add a second .tsx with Map › Add External Tileset… and paint with
   it."
 
@@ -103,8 +124,8 @@ drawing offset.**
   `0, 0`, such as `0, -4`.
 - **Why:** an embedded tileset has no `source` attribute and holds its `<image>`
   and `<tile>`s inline — the parser's other branch. The drawing offset is the
-  `<tileoffset>` element [decision 6](README.md#decisions-already-taken) adds.
-- **Step 8 reports:** "R2: no embedded tileset in use — tick Embed in map when
+  `<tileoffset>` element [decision 6](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/README.md#decisions-already-taken) adds.
+- **The check reports:** "R2: no embedded tileset in use — tick Embed in map when
   creating one" or "R2: the embedded tileset has no drawing offset — set Drawing
   Offset in Tileset Properties."
 
@@ -119,10 +140,10 @@ from each other.**
   and record the change in `examples/assets/README.md`. Paint at least one tile
   that sits neither in the sheet's first row nor in its first column.
 - **Why:** `Image#tiles` ignores both today, so such a sheet draws smeared
-  ([F5](01-current-state.md#f5)). The two must differ, or a slicer that swaps
+  ([F5](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/01-current-state.md#f5)). The two must differ, or a slicer that swaps
   them passes. A tile in the first row or column hides an error that
   accumulates per column or per row.
-- **Step 8 reports:** "R3: no tileset has margin > 0 and spacing > 0 with
+- **The check reports:** "R3: no tileset has margin > 0 and spacing > 0 with
   margin ≠ spacing" or "R3: every tile used from tileset X sits in its first row
   or column — paint one further in."
 
@@ -136,8 +157,8 @@ on a tile layer.**
   tile PNGs from *Tiny Town* fit.
 - **Why:** a collection has no sheet to slice. The glue loads one image per tile
   and must hand the renderer the same flat Array a sheet would give
-  ([step 5, rule 3](04-roadmap.md#step-5--the-renderer-and-slicing-a-real-sheet)).
-- **Step 8 reports:** "R4: no collection-of-images tileset" or "R4: collection X
+  ([step 5, rule 3](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/04-roadmap.md#step-5--the-renderer-and-slicing-a-real-sheet)).
+- **The check reports:** "R4: no collection-of-images tileset" or "R4: collection X
   has N tiles on the map, needs 2."
 
 ### R5
@@ -167,10 +188,10 @@ on a tile layer.**
   one by one — a quarter turn sets the diagonal and horizontal bits together —
   which is why the row asks for turns and mirrors rather than for single bits.
   Decoding the bits into turns is the table
-  [step 5](04-roadmap.md#step-5--the-renderer-and-slicing-a-real-sheet) must get
+  [step 5](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/04-roadmap.md#step-5--the-renderer-and-slicing-a-real-sheet) must get
   right, and a wrong entry draws a plausible picture. The reference image
   ([R19](#r19)) says what Tiled drew; the row says where to look.
-- **Step 8 reports:** "R5: layer `orientations` holds flip-bit combinations
+- **The check reports:** "R5: layer `orientations` holds flip-bit combinations
   [0, 5, …] — missing [3, 6]; paint the row again from the table." Or, from the
   pixel check: "R5: cell 6 draws differently from tour_reference.png."
 
@@ -180,8 +201,8 @@ on a tile layer.**
 
 - **In Tiled:** **Map › Map Properties…**, **Tile Layer Format** → **CSV**.
 - **Why:** CSV reaches today's base64 decoder and decodes to garbage
-  ([F1](01-current-state.md#f1)). `town.tmx` already covers base64 + zlib.
-- **Step 8 reports:** "R6: layer X in tour.tmx has encoding Y — set Tile Layer
+  ([F1](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/01-current-state.md#f1)). `town.tmx` already covers base64 + zlib.
+- **The check reports:** "R6: layer X in tour.tmx has encoding Y — set Tile Layer
   Format to CSV."
 
 ### R7
@@ -195,7 +216,7 @@ differs.**
 - **Why:** two encodings of one map must decode to one grid. Generated fixtures
   test each encoding against a grid this parser also wrote; the twins test them
   against each other, as Tiled wrote both.
-- **Step 8 reports:** "R7: tour_gzip.tmx differs from tour.tmx at layer X, cell
+- **The check reports:** "R7: tour_gzip.tmx differs from tour.tmx at layer X, cell
   (c, r) — save the twin again from the current tour.tmx."
 
 ### R8
@@ -208,10 +229,10 @@ group and on one child.**
   say. Give every layer a name that is unique within its group.
 - **Why:** the transform flattens groups depth first, and a child's opacity is
   the product down the tree
-  ([step 4, rule 4](04-roadmap.md#step-4--tilemap-and-the-transform)). Only a
+  ([step 4, rule 4](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/04-roadmap.md#step-4--tilemap-and-the-transform)). Only a
   group and a child that both have one show the product. The names exercise
   `layer_index('Group/child')`.
-- **Step 8 reports:** "R8: no group layer with two tile layers" or "R8: group X
+- **The check reports:** "R8: no group layer with two tile layers" or "R8: group X
   and its children all have opacity 1 — lower the group's and one child's."
 
 ### R9
@@ -224,11 +245,11 @@ opacity below 1.**
   drawing it by mistake shows. For the second, set **Opacity** to 0.5, say, over a
   contrasting layer beneath.
 - **Why:** a hidden layer bakes and draws nothing
-  ([step 5, rule 5](04-roadmap.md#step-5--the-renderer-and-slicing-a-real-sheet))
+  ([step 5, rule 5](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/04-roadmap.md#step-5--the-renderer-and-slicing-a-real-sheet))
   but still counts for collision
-  ([step 4, rule 7](04-roadmap.md#step-4--tilemap-and-the-transform)). The solid
+  ([step 4, rule 7](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/04-roadmap.md#step-4--tilemap-and-the-transform)). The solid
   tile on it is what tests the second half.
-- **Step 8 reports:** "R9: no hidden tile layer", "R9: hidden layer X holds no
+- **The check reports:** "R9: no hidden tile layer", "R9: hidden layer X holds no
   solid tile" or "R9: no visible layer has opacity below 1."
 
 ### R10
@@ -238,11 +259,11 @@ opacity below 1.**
 - **In Tiled:** **Layer › New › Image Layer**, then pick the file with **Image**
   in the Properties panel. Set **Offset** on one; tick **Repeat X** on the other.
 - **Why:** `TileMapRenderer` draws an image layer from
-  [step 6](04-roadmap.md#step-6--the-rest-of-what-tiled-shows-and-a-slot-per-gap)
+  [step 6](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/04-roadmap.md#step-6--the-rest-of-what-tiled-shows-and-a-slot-per-gap)
   on, at its offset and repeated. The
   offset is also one of the coordinates the Infinite twin must shift
   ([R16](#r16)).
-- **Step 8 reports:** "R10: no image layer with an offset" or "R10: no image
+- **The check reports:** "R10: no image layer with an offset" or "R10: no image
   layer with Repeat X."
 
 ### R11
@@ -255,10 +276,10 @@ tileset whose first gid is not 1, painted on the map.**
   different durations — 200 ms and 400 ms, say. Use any tileset listed after
   the first.
 - **Why:** frame durations convert from milliseconds to seconds once, at load
-  ([step 4, rule 9](04-roadmap.md#step-4--tilemap-and-the-transform)). Equal
+  ([step 4, rule 9](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/04-roadmap.md#step-4--tilemap-and-the-transform)). Equal
   durations would hide a frame read with the wrong one's length. A tileset
   after the first catches frame ids resolved against the wrong offset.
-- **Step 8 reports:** "R11: no animated tile on the map from a tileset after the
+- **The check reports:** "R11: no animated tile on the map from a tileset after the
   first" or "R11: tile X's frames all last N ms — give them different
   durations."
 
@@ -271,11 +292,11 @@ shape with a class and a property.**
   Editor** from the toolbar. Draw a rectangle over the whole tile. On one shape,
   set **Class** to `water` and add a property, say `depth` of type `int`.
 - **Why:** solidity stays whole-cell, and a tile is solid when it has any shape
-  ([decision 7](README.md#decisions-already-taken)). Two tilesets check
+  ([decision 7](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/README.md#decisions-already-taken)). Two tilesets check
   solidity survives renumbering into one tile table. The class and property are
   what a game reads to tell water from wall
-  ([F12](01-current-state.md#f12)).
-- **Step 8 reports:** "R12: solid tiles found only in tileset X" or "R12: no
+  ([F12](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/01-current-state.md#f12)).
+- **The check reports:** "R12: solid tiles found only in tileset X" or "R12: no
   collision shape has a class and a property."
 
 ### R13
@@ -304,12 +325,12 @@ the five kinds of element that carry them.**
   which the parser does not read. Save the project as `tour.tiled-project` so the
   next person to open the map has the classes. Also set a **Class** on the map, a
   layer, a tileset and a tile.
-- **Why:** [step 1](04-roadmap.md#step-1--enginetiledproperties-pure) casts each
+- **Why:** [step 1](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/04-roadmap.md#step-1--enginetiledproperties-pure) casts each
   type at parse time. Tiled writes an opaque colour as `#RRGGBB` and a translucent
   one as `#AARRGGBB`, alpha first, so both forms must appear. A `false` bool is
   the one a String `"false"` would get wrong. A `file` in another directory is
   the only way to see which directory it resolves against.
-- **Step 8 reports:** "R13: no property of type X" or "R13: no custom property on
+- **The check reports:** "R13: no property of type X" or "R13: no custom property on
   any Y."
 
 ### R14
@@ -320,8 +341,8 @@ the five kinds of element that carry them.**
   type two or more lines.
 - **Why:** Tiled writes a multi-line value as the element's text instead of its
   `value` attribute
-  ([step 1, rule 4](04-roadmap.md#the-rules-the-tests-pin)).
-- **Step 8 reports:** "R14: no string property spans two lines."
+  ([step 1, rule 4](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/04-roadmap.md#the-rules-the-tests-pin)).
+- **The check reports:** "R14: no string property spans two lines."
 
 ### R15
 
@@ -335,11 +356,11 @@ polyline, a text object and two tile objects — one of them rotated.**
   other with **X**. Give at least one object a name, a class and a property.
 - **Why:** each shape is one branch of the object parse. A tile object's
   position is its **bottom-left** corner, and it rotates about that same corner
-  ([the objects section](03-design.md#objects-one-record-in-the-games-coordinates)).
+  ([the objects section](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/03-design.md#objects-one-record-in-the-games-coordinates)).
   Two traps compose there, and only a rotated tile object shows both. A text
   object is parsed and ignored, and a Tiled-written one checks the parser does
   not stop on it.
-- **Step 8 reports:** "R15: the object layers hold no X" or "R15: no tile object
+- **The check reports:** "R15: the object layers hold no X" or "R15: no tile object
   has a rotation."
 
 ### R16
@@ -355,11 +376,11 @@ tiles west and 16 tiles north.**
 - **Why:** an infinite map stores chunks, and some of them sit at negative
   coordinates. The transform flattens them and shifts every tile, object and
   image offset by one amount, in one place
-  ([step 4, rule 11](04-roadmap.md#step-4--tilemap-and-the-transform)). The
+  ([step 4, rule 11](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/04-roadmap.md#step-4--tilemap-and-the-transform)). The
   twins must then build the same `TileMap`. That holds only if the chunk grid
   lines up with the map's edges — the map's size ([R17](#r17)) and the offset
   are both multiples of 16 for that reason.
-- **Step 8 reports:** "R16: tour_infinite.tmx has no tile at a negative column
+- **The check reports:** "R16: tour_infinite.tmx has no tile at a negative column
   and row — use Map › Offset Map…", or "R16: tour_infinite.tmx builds a
   different TileMap from tour.tmx at X."
 
@@ -370,10 +391,10 @@ tiles west and 16 tiles north.**
 - **In Tiled:** the size in **File › New › New Map…**, or later in **Map › Resize
   Map…**. Paint a ground layer that has a tile in every cell.
 - **Why:** 1024×768 pixels is larger than the 640×480 window on both axes, so the
-  step 8 example has somewhere to scroll. Both sides are multiples of 16, which
+  example that plays it has somewhere to scroll. Both sides are multiples of 16, which
   [R16](#r16) needs, and a full ground layer makes the Infinite twin's chunks
   cover the same rectangle.
-- **Step 8 reports:** "R17: the map is W×H — make it 64×48" or "R17: ground cell
+- **The check reports:** "R17: the map is W×H — make it 64×48" or "R17: ground cell
   (c, r) is empty."
 
 ### R18
@@ -386,9 +407,9 @@ placement.**
   change its name or a property on that placement only.
 - **Why:** the parser resolves a `<template>` against its `.tx`, and the object's
   own attributes win
-  ([step 3, rule 9](04-roadmap.md#step-3--enginetiledmap-and-the-layer-tree-pure)).
+  ([step 3, rule 9](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/04-roadmap.md#step-3--enginetiledmap-and-the-layer-tree-pure)).
   An overridden attribute is the only way to see which side won.
-- **Step 8 reports:** "R18: no object uses a template" or "R18: the templated
+- **The check reports:** "R18: no object uses a template" or "R18: the templated
   object overrides nothing."
 
 ### R19
@@ -400,8 +421,8 @@ placement.**
   tile grid** unticked. Show the object layers again; whether they are visible
   in the saved `.tmx` does not matter.
 - **Why:** step 5's orientation table and opacity are pinned against what Tiled
-  shows, and this file is what Tiled showed. Step 8 draws the map and compares
+  shows, and this file is what Tiled showed. The check draws the map and compares
   pixels, masking the animated tile's cells, whose frame the export does not fix.
   Object layers are hidden because rgame never draws objects.
-- **Step 8 reports:** "R19: the drawn map differs from tour_reference.png at
+- **The check reports:** "R19: the drawn map differs from tour_reference.png at
   pixel (x, y), in cell (c, r) of layer X."
