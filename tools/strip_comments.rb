@@ -23,13 +23,14 @@ require 'prism'
 # included. Comments are found by Prism rather than by pattern, so a `#` inside
 # a string, a heredoc or a regexp is never mistaken for one.
 #
-# Files under any `examples/`, `spec/` or `spec_core/` directory are left alone.
+# Files under any `examples/`, `spec/`, `spec_core/` or `drive/` directory are
+# left alone. A drive script's header says what its report should show.
 #
 #   tools/strip_comments.rb FILE...      rewrite the given files in place
 #   tools/strip_comments.rb --check ...  list the files that would change
 #   tools/strip_comments.rb --staged     strip staged files; the pre-commit hook
 class CommentStripper
-  EXCLUDED_DIRECTORIES = %w[examples spec spec_core].freeze
+  EXCLUDED_DIRECTORIES = %w[examples spec spec_core drive].freeze
 
   DIRECTIVE = /\A#\s*(?:rubocop:(?:disable|enable|todo)\b|hot-path\b)/
   DIRECTIVE_WITH_REASON = /\A#\s*rubocop:\w+\s.*\s--(?:\s|\z)/

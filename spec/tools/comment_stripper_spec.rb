@@ -231,7 +231,8 @@ RSpec.describe CommentStripper do
   end
 
   describe '.excluded?' do
-    %w[examples/a/main.rb spec/x_spec.rb spec_core/y.rb tools/drive/examples/z.rb].each do |path|
+    %w[examples/a/main.rb spec/x_spec.rb spec_core/y.rb tools/drive/examples/z.rb
+       tools/drive/test_projects/w.rb].each do |path|
       it "excludes #{path}" do
         expect(described_class.excluded?(path)).to be(true)
       end
