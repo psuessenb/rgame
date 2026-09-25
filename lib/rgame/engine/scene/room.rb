@@ -32,16 +32,16 @@ module RGame
 
         # The Symbol the room was defined under. Rooms sets it as it builds the
         # room.
-        attr_accessor :name
+        sealed_accessor :name
 
         # The players who stand in this room. Rooms keeps the list: read it,
         # and leave it alone.
-        attr_reader :players
+        sealed_reader :players
 
         def initialize(**)
           super
-          @name = nil
-          @players = []
+          @rgame_name = nil
+          @rgame_players = []
         end
 
         # Places `node`, which a move brought to this room at `entrance`.

@@ -123,9 +123,9 @@ end
 def _detach = @collider.disconnect_hit(@handle)
 ```
 
-The reader builds the signal on first use and keeps it in `@pulled_signal`, so
-the host wires **nothing** in `initialize`. A class keeping `@pulled` of its own
-keeps it. The fields after the name are what `Signal.define` takes, and the
+The reader builds the signal on first use and keeps it in `@rgame_pulled_signal`,
+so the host wires **nothing** in `initialize`. A class keeping `@pulled` or
+`@pulled_signal` of its own keeps it. The fields after the name are what `Signal.define` takes, and the
 payload follows its rule: one field emits positionally, several as keywords.
 
 **Name the signal after its event, a verb in the past tense.** `on_pulled`

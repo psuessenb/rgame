@@ -20,43 +20,43 @@ module RGame
 
         def initialize(rng: Random.new, change_interval: 1.0..3.0, idle_chance: 0.25)
           super()
-          @rng = rng
-          @change_interval = change_interval
-          @idle_chance = idle_chance
-          @timer = 0.0
+          @rgame_rng = rng
+          @rgame_change_interval = change_interval
+          @rgame_idle_chance = idle_chance
+          @rgame_timer = 0.0
         end
 
         def _attach
-          @body = require_sibling(CharacterBody)
-          @last_x = node.x
-          @last_y = node.y
+          @rgame_body = require_sibling(CharacterBody)
+          @rgame_last_x = node.x
+          @rgame_last_y = node.y
         end
 
         def _update(dt)
           blocked = intending_to_move? && !moved_since_last?
-          @last_x = node.x
-          @last_y = node.y
+          @rgame_last_x = node.x
+          @rgame_last_y = node.y
 
-          @timer -= dt
-          reroll if blocked || @timer <= 0.0
+          @rgame_timer -= dt
+          reroll if blocked || @rgame_timer <= 0.0
         end
 
         private
 
-        def intending_to_move? = !@body.move_x.zero? || !@body.move_y.zero?
+        def intending_to_move? = !@rgame_body.move_x.zero? || !@rgame_body.move_y.zero?
 
         def moved_since_last?
-          (node.x - @last_x).abs > MOVED_EPS || (node.y - @last_y).abs > MOVED_EPS
+          (node.x - @rgame_last_x).abs > MOVED_EPS || (node.y - @rgame_last_y).abs > MOVED_EPS
         end
 
         def reroll
-          if @rng.rand < @idle_chance
-            @body.set_intent(0.0, 0.0)
+          if @rgame_rng.rand < @rgame_idle_chance
+            @rgame_body.set_intent(0.0, 0.0)
           else
-            dx, dy = DIRECTIONS.sample(random: @rng)
-            @body.set_intent(dx.to_f, dy.to_f)
+            dx, dy = DIRECTIONS.sample(random: @rgame_rng)
+            @rgame_body.set_intent(dx.to_f, dy.to_f)
           end
-          @timer = @rng.rand(@change_interval)
+          @rgame_timer = @rgame_rng.rand(@rgame_change_interval)
         end
       end
     end

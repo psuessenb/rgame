@@ -24,30 +24,30 @@ module RGame
 
         # radius is writable so a pooled entity (e.g. a multi-tier rock) can retune its
         # shape on reset; CollisionWorld reads it fresh each frame, so no re-registration.
-        attr_accessor :radius
-        attr_reader :layer
+        sealed_accessor :radius
+        sealed_reader :layer
 
         # CollisionWorld's per-collider bookkeeping: who this was touching this step and
         # last. The world owns what goes in it; nothing else should write to it.
-        attr_reader :contacts
+        sealed_reader :contacts
 
         def initialize(radius:, layer: :default)
           super()
-          @radius = radius
-          @layer = layer
-          @contacts = Engine::ContactSet.new
+          @rgame_radius = radius
+          @rgame_layer = layer
+          @rgame_contacts = Engine::ContactSet.new
         end
 
         # A collider is a *shape*; a CollisionWorld is what turns shapes into contacts.
         # A scene with no world mounted therefore leaves this a bare shape rather than
         # raising — BoxCollider#_attach says why, and it is the same trade here.
         def _attach
-          @debug = node.system(Engine::Debug)
+          @rgame_debug = node.system(Engine::Debug)
           node.system(CollisionWorld)&.register(self)
         end
 
         def _detach
-          @debug = nil
+          @rgame_debug = nil
           node.system(CollisionWorld)&.unregister(self)
         end
 
@@ -56,9 +56,9 @@ module RGame
         # the space a component draws in — see BoxCollider#_draw, which is the
         # same shape for a rectangle.
         def _draw(renderer, _view)
-          return unless @debug&.shows?(:shapes)
+          return unless @rgame_debug&.shows?(:shapes)
 
-          renderer.layered(:debug) { renderer.debug_circle(0, 0, @radius) }
+          renderer.layered(:debug) { renderer.debug_circle(0, 0, @rgame_radius) }
         end
 
         # World-space centre — the node's own origin, in world coordinates.
@@ -68,26 +68,26 @@ module RGame
         # The circle's bounding box, one component per call rather than an Array:
         # CollisionWorld reads these for every collider every frame, and that path may
         # not allocate.
-        def aabb_x = cx - @radius
-        def aabb_y = cy - @radius
-        def aabb_w = @radius * 2
-        def aabb_h = @radius * 2
+        def aabb_x = cx - @rgame_radius
+        def aabb_y = cy - @rgame_radius
+        def aabb_w = @rgame_radius * 2
+        def aabb_h = @rgame_radius * 2
 
         # Narrowphase, first half of the double dispatch: hand this shape's numbers to
         # the *other* collider and let it pick the test, so neither side has to ask what
         # kind the other is. BoxCollider#overlap? is the mirror image.
-        def overlap?(other) = other.overlap_circle?(cx, cy, @radius)
+        def overlap?(other) = other.overlap_circle?(cx, cy, @rgame_radius)
 
         # Second half: the two tests another collider dispatches into.
         #
         # @api private
         def overlap_circle?(x, y, r)
-          Engine::CircleCollider.overlap?(cx, cy, @radius, x, y, r)
+          Engine::CircleCollider.overlap?(cx, cy, @rgame_radius, x, y, r)
         end
 
         # @api private
         def overlap_box?(x, y, w, h)
-          Engine::CollisionBox.overlap_circle?(x, y, w, h, cx, cy, @radius)
+          Engine::CollisionBox.overlap_circle?(x, y, w, h, cx, cy, @rgame_radius)
         end
 
         # Called by CollisionWorld on each edge (the signals' emit is otherwise private).

@@ -45,11 +45,11 @@ module RGame
 
       def initialize
         super
-        @flags = { stats: false, shapes: false }
-        @blocks = {}
-        @shown = []
-        @overlay = DebugOverlay.new
-        @fps = 0
+        @rgame_flags = { stats: false, shapes: false }
+        @rgame_blocks = {}
+        @rgame_shown = []
+        @rgame_overlay = DebugOverlay.new
+        @rgame_fps = 0
       end
 
       # The frame rate the `:stats` channel reports, measured by the shell that
@@ -57,13 +57,13 @@ module RGame
       # sets it once per frame.
       #
       # @api private
-      attr_writer :fps
+      sealed_writer :fps
 
       # Is this channel drawing? Raises `KeyError` for a channel nobody
       # declared. This runs once per drawable per frame, so it allocates
       # nothing.
       # hot-path
-      def shows?(name) = @flags.fetch(name) { unknown(name) }
+      def shows?(name) = @rgame_flags.fetch(name) { unknown(name) }
 
       def show(name) = switch(name, true)
       def hide(name) = switch(name, false)
@@ -84,37 +84,37 @@ module RGame
         end
         raise ArgumentError, "a channel is drawn by a block, and #{name.inspect} was given none" if block.nil?
 
-        @flags[name] = false unless @flags.key?(name)
-        @blocks[name] = block
+        @rgame_flags[name] = false unless @rgame_flags.key?(name)
+        @rgame_blocks[name] = block
         refresh_shown
         name
       end
 
       # Every channel's name, the two the engine draws first and the game's own
       # in the order they were defined.
-      def channels = @flags.keys
+      def channels = @rgame_flags.keys
 
       def _update(dt)
-        @overlay.update(dt) if @flags[:stats]
+        @rgame_overlay.update(dt) if @rgame_flags[:stats]
       end
 
       def _draw(renderer, view)
-        @overlay.draw(renderer, view, @fps) if @flags[:stats]
-        @shown.each { |block| renderer.layered(:debug) { block.call(renderer, view) } }
+        @rgame_overlay.draw(renderer, view, @rgame_fps) if @rgame_flags[:stats]
+        @rgame_shown.each { |block| renderer.layered(:debug) { block.call(renderer, view) } }
       end
 
       private
 
       def switch(name, on)
         was = shows?(name)
-        @flags[name] = on
-        @overlay.restart if name == :stats && on && !was
+        @rgame_flags[name] = on
+        @rgame_overlay.restart if name == :stats && on && !was
         refresh_shown
         on
       end
 
       def refresh_shown
-        @shown = @blocks.filter_map { |name, block| block if @flags[name] }
+        @rgame_shown = @rgame_blocks.filter_map { |name, block| block if @rgame_flags[name] }
       end
 
       def unknown(name)

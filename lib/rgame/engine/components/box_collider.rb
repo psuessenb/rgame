@@ -31,18 +31,18 @@ module RGame
 
         # box is writable so a pooled entity can retune its shape on reset — assign any
         # CollisionBox. CollisionWorld reads it fresh each frame, so no re-registration.
-        attr_accessor :box
-        attr_reader :layer
+        sealed_accessor :box
+        sealed_reader :layer
 
         # CollisionWorld's per-collider bookkeeping: who this was touching this step and
         # last. The world owns what goes in it; nothing else should write to it.
-        attr_reader :contacts
+        sealed_reader :contacts
 
         def initialize(width:, height:, offset_x: 0, offset_y: 0, layer: :default)
           super()
-          @box = Engine::CollisionBox.new(width:, height:, offset_x:, offset_y:)
-          @layer = layer
-          @contacts = Engine::ContactSet.new
+          @rgame_box = Engine::CollisionBox.new(width:, height:, offset_x:, offset_y:)
+          @rgame_layer = layer
+          @rgame_contacts = Engine::ContactSet.new
         end
 
         # A collider is a *shape*; a CollisionWorld is what turns shapes into contacts. So
@@ -54,12 +54,12 @@ module RGame
         # so. That is the trade taken deliberately: what declares "I expect to be stopped"
         # is `blocked_by`, and that *does* raise for a system it cannot find.
         def _attach
-          @debug = node.system(Engine::Debug)
+          @rgame_debug = node.system(Engine::Debug)
           node.system(CollisionWorld)&.register(self)
         end
 
         def _detach
-          @debug = nil
+          @rgame_debug = nil
           node.system(CollisionWorld)&.unregister(self)
         end
 
@@ -69,7 +69,7 @@ module RGame
         # scene with no Engine::Debug above it draws nothing — the lookup
         # happens once, on attach, so a frame asks the tree nothing.
         def _draw(renderer, _view)
-          return unless @debug&.shows?(:shapes)
+          return unless @rgame_debug&.shows?(:shapes)
 
           renderer.layered(:debug) { renderer.debug_box(box.offset_x, box.offset_y, box.width, box.height) }
         end
@@ -78,7 +78,7 @@ module RGame
         # CollisionBox#aabb's Array: CollisionWorld reads these for every collider
         # every frame, and that path may not allocate.
         #
-        # These go through `box` rather than @box so a subclass that builds its shape
+        # These go through `box` rather than @rgame_box so a subclass that builds its shape
         # lazily — FeetCollider, which cannot know the node's size until the tree is
         # live — is seen by the broadphase too. An attr_reader call allocates nothing.
         def aabb_x = node.world_x + box.offset_x

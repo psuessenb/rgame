@@ -16,16 +16,16 @@ module RGame
       # `owner` is the Footing that lends it.
       def initialize(owner)
         super()
-        @owner = owner
-        @shrink = Engine::Tween.new(owner.fall, from: 1.0, to: 0.0, ease: :in)
-        @falling_node = nil
+        @rgame_owner = owner
+        @rgame_shrink = Engine::Tween.new(owner.fall, from: 1.0, to: 0.0, ease: :in)
+        @rgame_falling_node = nil
       end
 
       # Suspends `node` and joins its parent, to shrink it from its own next update.
       def start(node)
-        @falling_node = node
-        @shrink.duration = @owner.fall
-        @shrink.restart
+        @rgame_falling_node = node
+        @rgame_shrink.duration = @rgame_owner.fall
+        @rgame_shrink.restart
         node.suspend
         node.parent.add_node(self)
       end
@@ -39,10 +39,10 @@ module RGame
 
       # hot-path
       def _update(dt)
-        return unless @falling_node
+        return unless @rgame_falling_node
 
-        @falling_node.scale = @shrink.update(dt).value
-        land if @shrink.done?
+        @rgame_falling_node.scale = @rgame_shrink.update(dt).value
+        land if @rgame_shrink.done?
       end
 
       private
@@ -55,13 +55,13 @@ module RGame
       end
 
       def end_fall
-        node = @falling_node
+        node = @rgame_falling_node
         return unless node
 
-        @falling_node = nil
+        @rgame_falling_node = nil
         node.resume
         queue_free
-        @owner.fall_ended
+        @rgame_owner.fall_ended
         node
       end
     end

@@ -143,17 +143,17 @@ module RGame
         # `:tiles`, `:bounds` or `:gaps`, which no step can move.
         def initialize(blocked_by: [], pushes: [])
           super()
-          @blocked_by = Array(blocked_by)
-          @pushes = Array(pushes)
+          @rgame_blocked_by = Array(blocked_by)
+          @rgame_pushes = Array(pushes)
           check_pushes
-          @collider = nil
-          @collision = nil
-          @last_move_blocked = false
-          @stopped_by = Engine::ContactSet.new
-          @push_depth = 0
-          @pushed_by = nil
-          @grabbed = nil
-          @actor_source = nil
+          @rgame_collider = nil
+          @rgame_collision = nil
+          @rgame_last_move_blocked = false
+          @rgame_stopped_by = Engine::ContactSet.new
+          @rgame_push_depth = 0
+          @rgame_pushed_by = nil
+          @rgame_grabbed = nil
+          @rgame_actor_source = nil
         end
 
         # Resolve each declared blocker and build the resolver that runs them, once the node
@@ -172,13 +172,13 @@ module RGame
         # A subclass that needs its own attach work calls `super` first — PathFollow does,
         # to place its node before walking.
         def _attach
-          @stopped_by.reset
-          return if @blocked_by.empty?
+          @rgame_stopped_by.reset
+          return if @rgame_blocked_by.empty?
 
           WorldBounds.one_response!(node) if blocked_by?(BOUNDS)
 
-          @collider = require_sibling(BoxCollider)
-          @collision = Engine::CollisionSystem.new(blockers: resolve_blockers)
+          @rgame_collider = require_sibling(BoxCollider)
+          @rgame_collision = Engine::CollisionSystem.new(blockers: resolve_blockers)
         end
 
         # Take this step, then report what stopped being in the way.
@@ -190,7 +190,7 @@ module RGame
         # that resolves a step in several moves, or overrides apply_move, still opens the
         # step once and still reports its edges.
         def _update(dt)
-          return take_step(dt) unless @collision
+          return take_step(dt) unless @rgame_collision
 
           open_step
           take_step(dt)
@@ -205,14 +205,14 @@ module RGame
         def heading_y = 0.0
 
         # Whether `name` is one of the things this mover declared it may be stopped by.
-        def blocked_by?(name) = @blocked_by.include?(name)
+        def blocked_by?(name) = @rgame_blocked_by.include?(name)
 
         # Whether a step moves colliders on layer `name` rather than stopping at them.
-        def pushes?(name) = @pushes.include?(name)
+        def pushes?(name) = @rgame_pushes.include?(name)
 
         # The Pushable this mover drags with every step, or nil. Grab sets it from
         # `_control`, before the step that reads it.
-        attr_accessor :grabbed
+        sealed_accessor :grabbed
 
         # Where a step lands. Public, and kept separate from `take_step`, so a mover that
         # resolves a step some other way — a platformer's CharacterBody, with gravity and a
@@ -222,18 +222,18 @@ module RGame
         # writes straight to the node, and a blocked one hands *itself* to its resolver as
         # the actor being moved (see the adapter below).
         def apply_move(dx, dy)
-          return drag(dx, dy) if @grabbed
+          return drag(dx, dy) if @rgame_grabbed
 
-          unless @collision
+          unless @rgame_collision
             node.x += dx
             node.y += dy
             return
           end
 
-          if @pushes.empty?
-            @collision.move(self, dx, dy)
-            blocked_x = @collision.blocked_x
-            blocked_y = @collision.blocked_y
+          if @rgame_pushes.empty?
+            @rgame_collision.move(self, dx, dy)
+            blocked_x = @rgame_collision.blocked_x
+            blocked_y = @rgame_collision.blocked_y
           else
             blocked_x = push_along_x(dx)
             blocked_y = push_along_y(dy)
@@ -261,7 +261,7 @@ module RGame
         # A mover under a rotated ancestor is still outside what an axis-aligned box supports
         # (docs/api/components.md: a thing that spins wants a circle) — the position it lands
         # at is exact, but the box it was resolved with does not turn with the frame.
-        def collision_box = @collider.box
+        def collision_box = @rgame_collider.box
         def x = node.world_x
         def y = node.world_y
 
@@ -277,15 +277,15 @@ module RGame
 
         def take_step(_dt) = nil
 
-        def blocking? = !@collision.nil?
+        def blocking? = !@rgame_collision.nil?
 
-        def last_move_blocked? = @last_move_blocked
+        def last_move_blocked? = @rgame_last_move_blocked
 
-        def open_step = @stopped_by.begin_frame
+        def open_step = @rgame_stopped_by.begin_frame
 
         def report_blockers(blocked_x, blocked_y)
-          @last_move_blocked = !(blocked_x.nil? && blocked_y.nil?)
-          return unless @collision
+          @rgame_last_move_blocked = !(blocked_x.nil? && blocked_y.nil?)
+          return unless @rgame_collision
 
           if blocked_x.equal?(blocked_y)
             record_blocker(blocked_x, :both)
@@ -302,14 +302,14 @@ module RGame
         def drag_along_x(dx)
           return nil if dx.zero?
 
-          crate = @grabbed
+          crate = @rgame_grabbed
           crate.push(dx, 0.0, by: node)
           went = crate.pushed_x
           cut_short = crate.stopped?
           from = x
-          @actor_source&.passing = crate.node
+          @rgame_actor_source&.passing = crate.node
           by = step_x(went)
-          @actor_source&.passing = nil
+          @rgame_actor_source&.passing = nil
           crate.push(x - from - went, 0.0, by: node) if by
           by || (cut_short ? crate.collider : nil)
         end
@@ -317,51 +317,51 @@ module RGame
         def drag_along_y(dy)
           return nil if dy.zero?
 
-          crate = @grabbed
+          crate = @rgame_grabbed
           crate.push(0.0, dy, by: node)
           went = crate.pushed_y
           cut_short = crate.stopped?
           from = y
-          @actor_source&.passing = crate.node
+          @rgame_actor_source&.passing = crate.node
           by = step_y(went)
-          @actor_source&.passing = nil
+          @rgame_actor_source&.passing = nil
           crate.push(0.0, y - from - went, by: node) if by
           by || (cut_short ? crate.collider : nil)
         end
 
         def step_x(dx)
-          unless @collision
+          unless @rgame_collision
             node.x += dx
             return nil
           end
-          return push_along_x(dx) unless @pushes.empty?
+          return push_along_x(dx) unless @rgame_pushes.empty?
 
-          @collision.move(self, dx, 0.0)
-          @collision.blocked_x
+          @rgame_collision.move(self, dx, 0.0)
+          @rgame_collision.blocked_x
         end
 
         def step_y(dy)
-          unless @collision
+          unless @rgame_collision
             node.y += dy
             return nil
           end
-          return push_along_y(dy) unless @pushes.empty?
+          return push_along_y(dy) unless @rgame_pushes.empty?
 
-          @collision.move(self, 0.0, dy)
-          @collision.blocked_y
+          @rgame_collision.move(self, 0.0, dy)
+          @rgame_collision.blocked_y
         end
 
         def close_step
-          @stopped_by.each_ended { unblocked_signal.emit(it) }
+          @rgame_stopped_by.each_ended { unblocked_signal.emit(it) }
         end
 
         def check_pushes
-          if @pushes.intersect?(RESERVED)
-            raise ArgumentError, "#{mover_name} pushes #{(@pushes & RESERVED).map(&:inspect).join(', ')}, " \
+          if @rgame_pushes.intersect?(RESERVED)
+            raise ArgumentError, "#{mover_name} pushes #{(@rgame_pushes & RESERVED).map(&:inspect).join(', ')}, " \
                                  'and no step can move the map, its gaps or the edge of the world. ' \
                                  '`pushes:` names collider layers.'
           end
-          missing = @pushes - @blocked_by
+          missing = @rgame_pushes - @rgame_blocked_by
           return if missing.empty?
 
           raise ArgumentError, "#{mover_name} pushes #{missing.map(&:inspect).join(', ')} and is not " \
@@ -371,18 +371,18 @@ module RGame
 
         def push_along_x(dx)
           from = x
-          @collision.move(self, dx, 0.0)
-          by = @collision.blocked_x
+          @rgame_collision.move(self, dx, 0.0)
+          by = @rgame_collision.blocked_x
           pushed = nil
           tries = 0
           while by && !by.equal?(pushed) && tries < PUSH_DEPTH && (crate = pushable(by))
             left = dx - (x - from)
             break unless dx.positive? ? left.positive? : left.negative?
 
-            crate.push(left, 0.0, by: node, depth: @push_depth + 1)
-            @collision.move(self, left, 0.0)
+            crate.push(left, 0.0, by: node, depth: @rgame_push_depth + 1)
+            @rgame_collision.move(self, left, 0.0)
             pushed = by
-            by = @collision.blocked_x
+            by = @rgame_collision.blocked_x
             by = nil if by.equal?(pushed) && !crate.stopped?
             tries += 1
           end
@@ -391,18 +391,18 @@ module RGame
 
         def push_along_y(dy)
           from = y
-          @collision.move(self, 0.0, dy)
-          by = @collision.blocked_y
+          @rgame_collision.move(self, 0.0, dy)
+          by = @rgame_collision.blocked_y
           pushed = nil
           tries = 0
           while by && !by.equal?(pushed) && tries < PUSH_DEPTH && (crate = pushable(by))
             left = dy - (y - from)
             break unless dy.positive? ? left.positive? : left.negative?
 
-            crate.push(0.0, left, by: node, depth: @push_depth + 1)
-            @collision.move(self, 0.0, left)
+            crate.push(0.0, left, by: node, depth: @rgame_push_depth + 1)
+            @rgame_collision.move(self, 0.0, left)
             pushed = by
-            by = @collision.blocked_y
+            by = @rgame_collision.blocked_y
             by = nil if by.equal?(pushed) && !crate.stopped?
             tries += 1
           end
@@ -410,28 +410,28 @@ module RGame
         end
 
         def pushable(by)
-          return nil if @push_depth >= PUSH_DEPTH || !@pushes.include?(by.layer)
+          return nil if @rgame_push_depth >= PUSH_DEPTH || !@rgame_pushes.include?(by.layer)
 
           other = by.node
-          return nil if other.nil? || other.equal?(@pushed_by)
+          return nil if other.nil? || other.equal?(@rgame_pushed_by)
 
           other.get_component(Pushable)
         end
 
         def record_blocker(by, axis)
-          return if by.nil? || @stopped_by.touching?(by)
+          return if by.nil? || @rgame_stopped_by.touching?(by)
 
-          started = @stopped_by.started?(by)
-          @stopped_by.add(by)
+          started = @rgame_stopped_by.started?(by)
+          @rgame_stopped_by.add(by)
           blocked_signal.emit(by:, axis:) if started
         end
 
         def resolve_blockers
           sources = []
-          sources << tile_blockers if @blocked_by.include?(TILES)
-          sources << bounds_blockers if @blocked_by.include?(BOUNDS)
-          sources << gap_blockers if @blocked_by.include?(GAPS)
-          layers = @blocked_by.reject { RESERVED.include?(it) }
+          sources << tile_blockers if @rgame_blocked_by.include?(TILES)
+          sources << bounds_blockers if @rgame_blocked_by.include?(BOUNDS)
+          sources << gap_blockers if @rgame_blocked_by.include?(GAPS)
+          layers = @rgame_blocked_by.reject { RESERVED.include?(it) }
           sources << actor_blockers(layers) unless layers.empty?
           sources
         end
@@ -465,7 +465,7 @@ module RGame
                         'names collider layers, and the scene has no CollisionWorld system to ' \
                         'find them in. Mount one, or drop those names for a mover that only ' \
                         'the map stops.')
-          @actor_source = Engine::ActorBlockers.new(world: world, owner: @collider, layers: layers)
+          @rgame_actor_source = Engine::ActorBlockers.new(world: world, owner: @rgame_collider, layers: layers)
         end
 
         def mover_name = self.class.name&.split('::')&.last || self.class.inspect

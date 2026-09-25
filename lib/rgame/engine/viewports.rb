@@ -30,21 +30,21 @@ module RGame
     class Viewports < Component
       # `views` is the list drawn through this frame — one per active player
       # while split, exactly one while solo. Reused, like the Views in it.
-      attr_reader :screen, :width, :height, :views
+      sealed_reader :screen, :width, :height, :views
 
       def initialize(players, width: 0, height: 0)
         super()
-        @players = players
-        @width = width
-        @height = height
-        @solo_camera = nil
-        @solo_room = nil
-        @pending = nil
-        @pending_room = nil
-        @pool = []
-        @screen_pool = []
-        @views = []
-        @screen = View.new
+        @rgame_players = players
+        @rgame_width = width
+        @rgame_height = height
+        @rgame_solo_camera = nil
+        @rgame_solo_room = nil
+        @rgame_pending = nil
+        @rgame_pending_room = nil
+        @rgame_pool = []
+        @rgame_screen_pool = []
+        @rgame_views = []
+        @rgame_screen = View.new
         refresh
       end
 
@@ -52,19 +52,19 @@ module RGame
       # refresh, and every camera reclamps against its new rect — which is why
       # a camera does not carry one.
       def resize(width, height)
-        @width = width
-        @height = height
+        @rgame_width = width
+        @rgame_height = height
         refresh
       end
 
-      def solo? = !@solo_camera.nil?
+      def solo? = !@rgame_solo_camera.nil?
 
       # The camera the solo view looks through, nil while split.
-      attr_reader :solo_camera
+      sealed_reader :solo_camera
 
       # The Scene::Room the solo view shows, nil while split or when `solo!`
       # named none.
-      attr_reader :solo_room
+      sealed_reader :solo_room
 
       # The screen-space region belonging to `player`: the same rectangle their
       # world view is drawn into, with **no camera**, so its contents are laid
@@ -82,12 +82,12 @@ module RGame
       # the one caller that needs it beats every caller relying on a zero-sized
       # clip happening to draw nothing.
       def screen_for(player)
-        return nil if player.nil? || @solo_camera
+        return nil if player.nil? || @rgame_solo_camera
 
-        world = @views.find { |view| view.player.equal?(player) }
+        world = @rgame_views.find { |view| view.player.equal?(player) }
         return nil if world.nil?
 
-        pooled_screen(@players.list.index(player))
+        pooled_screen(@rgame_players.list.index(player))
           .set(world.x, world.y, world.width, world.height, player: player)
       end
 
@@ -109,13 +109,13 @@ module RGame
           raise TypeError, "solo!'s room: is a #{Scene::Room} or nil, not #{room.inspect}"
         end
 
-        @pending = camera
-        @pending_room = room
+        @rgame_pending = camera
+        @rgame_pending_room = room
         self
       end
 
       # Back to one view per player.
-      def split! = @pending = :split
+      def split! = @rgame_pending = :split
 
       # Applies a pending mode change, then rebuilds the rects. Runs in the
       # root's component phase, so a change requested during a tick lands on the
@@ -133,37 +133,37 @@ module RGame
       #
       # @api private
       def refresh
-        @screen.set(0, 0, @width, @height)
-        @solo_camera ? refresh_solo : refresh_split
-        @views.each { |view| view.camera&.resolve(view.width, view.height) }
+        @rgame_screen.set(0, 0, @rgame_width, @rgame_height)
+        @rgame_solo_camera ? refresh_solo : refresh_split
+        @rgame_views.each { |view| view.camera&.resolve(view.width, view.height) }
         self
       end
 
       private
 
       def apply_pending
-        return if @pending.nil?
+        return if @rgame_pending.nil?
 
-        @solo_camera = @pending == :split ? nil : @pending
-        @solo_room = @solo_camera && @pending_room
-        @pending = nil
-        @pending_room = nil
+        @rgame_solo_camera = @rgame_pending == :split ? nil : @rgame_pending
+        @rgame_solo_room = @rgame_solo_camera && @rgame_pending_room
+        @rgame_pending = nil
+        @rgame_pending_room = nil
       end
 
       def refresh_solo
-        @views.clear
-        @views << pooled(0).set(0, 0, @width, @height, camera: @solo_camera)
+        @rgame_views.clear
+        @rgame_views << pooled(0).set(0, 0, @rgame_width, @rgame_height, camera: @rgame_solo_camera)
       end
 
       def refresh_split
-        @views.clear
-        count = @players.active_count
+        @rgame_views.clear
+        count = @rgame_players.active_count
         return if count.zero?
 
         index = 0
-        Layout.each_rect(count, @width, @height) do |i, x, y, w, h|
+        Layout.each_rect(count, @rgame_width, @rgame_height) do |i, x, y, w, h|
           player = active_at(i)
-          @views << pooled(index).set(x, y, w, h, camera: player.camera, player: player)
+          @rgame_views << pooled(index).set(x, y, w, h, camera: player.camera, player: player)
           index += 1
         end
       end
@@ -171,7 +171,7 @@ module RGame
       def active_at(index)
         found = nil
         i = 0
-        @players.each do |player|
+        @rgame_players.each do |player|
           next unless player.active?
 
           found = player if i == index
@@ -181,11 +181,11 @@ module RGame
       end
 
       def pooled(index)
-        @pool[index] ||= View.new
+        @rgame_pool[index] ||= View.new
       end
 
       def pooled_screen(index)
-        @screen_pool[index] ||= View.new
+        @rgame_screen_pool[index] ||= View.new
       end
     end
   end

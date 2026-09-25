@@ -49,53 +49,53 @@ module RGame
 
       Controls = RGame::Util::Controls
 
-      include Collection.of(:@list)
+      include Collection.of(:@rgame_list)
 
       # Fires when a device is seated, with the player who got it. A scene
       # listens to spawn that player's avatar — which is how a game gains a
       # second character mid-session without polling for one.
       signal :joined, :player
 
-      attr_reader :list
-      attr_accessor :on_unassigned_input, :accepting_joins
+      sealed_reader :list
+      sealed_accessor :on_unassigned_input, :accepting_joins
 
       def initialize(players = [])
         super()
-        @list = players
-        @on_unassigned_input = players.size > 1 ? :join : :takeover
-        @accepting_joins = true
-        @connected = []
-        @confirm_held = {}
-        @everyone = Everyone.new(self)
+        @rgame_list = players
+        @rgame_on_unassigned_input = players.size > 1 ? :join : :takeover
+        @rgame_accepting_joins = true
+        @rgame_connected = []
+        @rgame_confirm_held = {}
+        @rgame_everyone = Everyone.new(self)
       end
 
       # The player a single-player game means, and the one an unowned node reads
       # from. Always present: a game with no players declared still has this one,
       # which is what keeps single-player free of ceremony.
-      def primary = @list.first
+      def primary = @rgame_list.first
 
-      def each(&) = @list.each(&)
+      def each(&) = @rgame_list.each(&)
 
       # Players with a device driving them. An empty seat waiting for a
       # controller is in `list` but not here, so a viewport loop skips it.
       def each_active
         return enum_for(:each_active) unless block_given?
 
-        @list.each { |player| yield player if player.active? }
+        @rgame_list.each { |player| yield player if player.active? }
         self
       end
 
-      def active_count = @list.count(&:active?)
+      def active_count = @rgame_list.count(&:active?)
 
-      def [](id) = @list.find { |player| player.id == id }
+      def [](id) = @rgame_list.find { |player| player.id == id }
 
       # An input owner standing for every active player: one controller whose
       # buttons are the OR of theirs. For a node no one player owns, such as a
       # dialogue box or a pause menu during `solo!`. See Players::Everyone.
-      attr_reader :everyone
+      sealed_reader :everyone
 
       def add(player)
-        @list << player
+        @rgame_list << player
         player
       end
 
@@ -123,8 +123,8 @@ module RGame
       # idea, and this is the one place that already has the backend and runs
       # once a tick.
       def poll(backend, dt)
-        @list.each { |player| player.poll(backend, dt) }
-        @everyone.poll
+        @rgame_list.each { |player| player.poll(backend, dt) }
+        @rgame_everyone.poll
         admit(backend)
         self
       end
@@ -134,7 +134,7 @@ module RGame
       #
       # @api private
       def device_connected(slot)
-        @connected << slot unless @connected.include?(slot)
+        @rgame_connected << slot unless @rgame_connected.include?(slot)
         self
       end
 
@@ -147,10 +147,10 @@ module RGame
       #
       # @api private
       def device_disconnected(slot)
-        @connected.delete(slot)
+        @rgame_connected.delete(slot)
         device = Controls.gamepad(slot)
-        seated = @list.find { |player| player.device == device }
-        seated&.device = @on_unassigned_input == :takeover ? Controls::KEYBOARD : nil
+        seated = @rgame_list.find { |player| player.device == device }
+        seated&.device = @rgame_on_unassigned_input == :takeover ? Controls::KEYBOARD : nil
         seated
       end
 
@@ -161,7 +161,7 @@ module RGame
       # Refused while `accepting_joins` is false — which covers taking over as
       # well as joining, since both change who is holding what.
       def seat(device)
-        return nil unless @accepting_joins
+        return nil unless @rgame_accepting_joins
 
         player = candidate
         return nil if player.nil?
@@ -174,20 +174,20 @@ module RGame
       private
 
       def admit(backend)
-        return if @on_unassigned_input == :ignore || candidate.nil?
+        return if @rgame_on_unassigned_input == :ignore || candidate.nil?
 
         each_unassigned_device do |device|
           down = confirm_down?(backend, device)
-          was_down = @confirm_held[device]
-          @confirm_held[device] = down
+          was_down = @rgame_confirm_held[device]
+          @rgame_confirm_held[device] = down
           seat(device) if down && !was_down
         end
       end
 
       def candidate
-        return primary if @on_unassigned_input == :takeover
+        return primary if @rgame_on_unassigned_input == :takeover
 
-        @list.find { |player| !player.active? }
+        @rgame_list.find { |player| !player.active? }
       end
 
       # hot-path
@@ -202,17 +202,17 @@ module RGame
       end
 
       def each_unassigned_device
-        @connected.each do |slot|
+        @rgame_connected.each do |slot|
           device = Controls.gamepad(slot)
           yield device unless assigned?(device)
         end
-        return unless @on_unassigned_input == :takeover && !assigned?(Controls::KEYBOARD)
+        return unless @rgame_on_unassigned_input == :takeover && !assigned?(Controls::KEYBOARD)
 
         yield Controls::KEYBOARD
       end
 
       # hot-path
-      def assigned?(device) = @list.any? { |player| player.device == device }
+      def assigned?(device) = @rgame_list.any? { |player| player.device == device }
     end
   end
 end

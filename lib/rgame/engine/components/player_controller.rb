@@ -12,14 +12,14 @@ module RGame
       class PlayerController < Engine::Component
         def initialize(x_axis: :move_x, y_axis: :move_y)
           super()
-          @x_axis = x_axis
-          @y_axis = y_axis
+          @rgame_x_axis = x_axis
+          @rgame_y_axis = y_axis
         end
 
-        def _attach = @body = require_sibling(CharacterBody)
+        def _attach = @rgame_body = require_sibling(CharacterBody)
 
         def _control(actions)
-          @body.set_intent(actions.axis(@x_axis), actions.axis(@y_axis))
+          @rgame_body.set_intent(actions.axis(@rgame_x_axis), actions.axis(@rgame_y_axis))
         end
       end
     end

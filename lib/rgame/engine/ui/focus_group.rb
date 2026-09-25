@@ -63,20 +63,20 @@ module RGame
 
         # `menus` holds every menu in the group, in the order they joined.
         # `current` is the one that reads input, or nil.
-        attr_reader :menus, :current
+        sealed_reader :menus, :current
 
         def initialize(**)
           super
-          @menus = []
-          @current = nil
-          @passes = 0
-          @entered_on = 0
+          @rgame_menus = []
+          @rgame_current = nil
+          @rgame_passes = 0
+          @rgame_entered_on = 0
         end
 
         # Makes `menu` current, from the next tick. Raises ArgumentError for a
         # menu that is not in the group.
         def current=(menu)
-          raise ArgumentError, "#{menu.inspect} is not a menu in this FocusGroup" unless @menus.include?(menu)
+          raise ArgumentError, "#{menu.inspect} is not a menu in this FocusGroup" unless @rgame_menus.include?(menu)
 
           change_current(menu)
         end
@@ -92,7 +92,7 @@ module RGame
             raise ArgumentError, "direction must be one of #{DIRECTIONS.inspect}, not #{direction.inspect}"
           end
 
-          neighbour = @current && neighbour_of(@current, direction)
+          neighbour = @rgame_current && neighbour_of(@rgame_current, direction)
           return false if neighbour.nil?
 
           change_current(neighbour)
@@ -104,8 +104,8 @@ module RGame
         # every node does.
         def control(input)
           unless rgame_stopped?
-            @passes += 1
-            hand_over unless @current && qualifies?(@current)
+            @rgame_passes += 1
+            hand_over unless @rgame_current && qualifies?(@rgame_current)
           end
           super
         end
@@ -116,8 +116,8 @@ module RGame
         # @api private
         def join(menu)
           refuse(menu)
-          @menus << menu
-          if @current.nil? && qualifies?(menu)
+          @rgame_menus << menu
+          if @rgame_current.nil? && qualifies?(menu)
             change_current(menu)
           else
             menu.focus(nil)
@@ -128,33 +128,33 @@ module RGame
         #
         # @api private
         def leave(menu)
-          @menus.delete(menu)
-          change_current(nil) if menu.equal?(@current)
+          @rgame_menus.delete(menu)
+          change_current(nil) if menu.equal?(@rgame_current)
         end
 
         # Whether `menu` reads input on this tick: it is current, and was
         # already current when the tick began.
         #
         # @api private
-        def reading?(menu) = menu.equal?(@current) && @entered_on < @passes
+        def reading?(menu) = menu.equal?(@rgame_current) && @rgame_entered_on < @rgame_passes
 
         private
 
         def change_current(menu)
-          return if menu.equal?(@current)
+          return if menu.equal?(@rgame_current)
 
-          left = @current
+          left = @rgame_current
           from = left&.focused
-          @current = menu
-          @entered_on = @passes
+          @rgame_current = menu
+          @rgame_entered_on = @rgame_passes
           left&.focus(nil)
           menu&.enter_from(from)
         end
 
         def hand_over
           index = 0
-          while index < @menus.size
-            menu = @menus[index]
+          while index < @rgame_menus.size
+            menu = @rgame_menus[index]
             return change_current(menu) if qualifies?(menu)
 
             index += 1
@@ -179,8 +179,8 @@ module RGame
           best = nil
           best_gap = best_offset = Float::INFINITY
           index = 0
-          while index < @menus.size
-            menu = @menus[index]
+          while index < @rgame_menus.size
+            menu = @rgame_menus[index]
             index += 1
             next if menu.equal?(from) || !qualifies?(menu)
 

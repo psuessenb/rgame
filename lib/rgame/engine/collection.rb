@@ -6,7 +6,7 @@ module RGame
     # that Array rather than through the class's own `each`.
     #
     #   class Players < Component
-    #     include Collection.of(:@list)
+    #     include Collection.of(:@rgame_list)
     #   end
     #
     # `include Enumerable` answers `any?`, `find` or `count` by calling `each`

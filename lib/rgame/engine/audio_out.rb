@@ -48,18 +48,18 @@ module RGame
       # as RGame::Core::Audio does.
       def initialize(audio)
         super()
-        @audio = audio
-        @rise = Engine::Tween.new(1.0, to: 1.0)
-        @fall = Engine::Tween.new(1.0, to: 0.0)
-        @rising = nil
-        @falling = nil
-        @current = nil
-        @paused = false
-        @claims = {}
-        @claimed = nil
+        @rgame_audio = audio
+        @rgame_rise = Engine::Tween.new(1.0, to: 1.0)
+        @rgame_fall = Engine::Tween.new(1.0, to: 0.0)
+        @rgame_rising = nil
+        @rgame_falling = nil
+        @rgame_current = nil
+        @rgame_paused = false
+        @rgame_claims = {}
+        @rgame_claimed = nil
       end
 
-      def play_sound(id) = @audio.play_sound(id)
+      def play_sound(id) = @rgame_audio.play_sound(id)
 
       # Plays a song looping and makes it the current one. With `fade:` it
       # comes up from silence over that many seconds; with none, the device is
@@ -98,8 +98,8 @@ module RGame
         raise TypeError, "a claim's priority is a number, not #{priority.inspect}" unless priority.is_a?(Numeric)
 
         seconds = seconds!(:fade, fade)
-        @claims.delete(key)
-        @claims[key] = Claim.new(id, priority)
+        @rgame_claims.delete(key)
+        @rgame_claims[key] = Claim.new(id, priority)
         follow_claims(seconds)
         self
       end
@@ -112,102 +112,102 @@ module RGame
       def release_music(*keys, fade: 0)
         seconds = seconds!(:fade, fade)
         released = false
-        keys.each { released = true if @claims.delete(it) }
+        keys.each { released = true if @rgame_claims.delete(it) }
         follow_claims(seconds) if released
         self
       end
 
       # The song the claims chose, or nil while nothing claims the music.
-      def claimed_music = @claimed
+      def claimed_music = @rgame_claimed
 
       # Holds the music and its fade where they are: the current song, or the
       # song a `stop_music(fade:)` is lowering. A song on its way out of a
       # crossfade stops at once.
       def pause_music
-        stop_now(@falling) if @falling && @current
-        @audio.pause_music
-        @paused = true
+        stop_now(@rgame_falling) if @rgame_falling && @rgame_current
+        @rgame_audio.pause_music
+        @rgame_paused = true
       end
 
       # Carries the song and its fade on from where #pause_music held them.
       def resume_music
-        @audio.resume_music
-        @paused = false
+        @rgame_audio.resume_music
+        @rgame_paused = false
       end
 
-      def category_volume(name) = @audio.category_volume(name)
-      def set_category_volume(name, volume) = @audio.set_category_volume(name, volume)
+      def category_volume(name) = @rgame_audio.category_volume(name)
+      def set_category_volume(name, volume) = @rgame_audio.set_category_volume(name, volume)
 
       # Whether a song is on its way up or down.
-      def fading? = !(@rising.nil? && @falling.nil?)
+      def fading? = !(@rgame_rising.nil? && @rgame_falling.nil?)
 
       def _update(dt)
-        return if @paused
+        return if @rgame_paused
 
-        step_rise(dt) if @rising
-        step_fall(dt) if @falling
+        step_rise(dt) if @rgame_rising
+        step_fall(dt) if @rgame_falling
       end
 
       private
 
       def start_music(id, seconds)
         level = level_of(id)
-        @falling = nil if @falling == id
+        @rgame_falling = nil if @rgame_falling == id
         bring_in(id, level, seconds)
       end
 
       def end_music(seconds)
         if seconds.zero?
           stop_at_once
-        elsif @current
-          fade_out(@current, seconds)
+        elsif @rgame_current
+          fade_out(@rgame_current, seconds)
         end
       end
 
       def cross_to(id, seconds)
-        return start_music(id, seconds) if @current.nil? || @current == id
+        return start_music(id, seconds) if @rgame_current.nil? || @rgame_current == id
 
         level = level_of(id)
-        @falling = nil if @falling == id
-        fade_out(@current, seconds)
+        @rgame_falling = nil if @rgame_falling == id
+        fade_out(@rgame_current, seconds)
         bring_in(id, level, seconds)
       end
 
       def follow_claims(seconds)
         winner = winning_song
-        return if winner == @claimed
+        return if winner == @rgame_claimed
 
-        @claimed = winner
+        @rgame_claimed = winner
         winner.nil? ? end_music(seconds) : cross_to(winner, seconds)
       end
 
       def winning_song
         best = nil
-        @claims.each_value { |claim| best = claim if best.nil? || claim.priority >= best.priority }
+        @rgame_claims.each_value { |claim| best = claim if best.nil? || claim.priority >= best.priority }
         best&.song
       end
 
       def unclaimed!(call)
-        return if @claims.empty?
+        return if @rgame_claims.empty?
 
-        raise "#{call} while the music is claimed by #{@claims.keys.map(&:inspect).join(', ')}. " \
+        raise "#{call} while the music is claimed by #{@rgame_claims.keys.map(&:inspect).join(', ')}. " \
               'A game uses claims or the direct calls, not both: claim_music the song instead'
       end
 
       def level_of(id)
         return nil if id.nil?
-        return @rise.value if id == @rising
-        return @fall.value if id == @falling
+        return @rgame_rise.value if id == @rgame_rising
+        return @rgame_fall.value if id == @rgame_falling
 
-        1.0 if id == @current
+        1.0 if id == @rgame_current
       end
 
       def bring_in(id, level, seconds)
-        settle_rise unless @rising == id
-        @audio.set_music_volume(id, 0.0) if level.nil? && seconds.positive?
-        @audio.play_music(id)
-        @current = id
-        @paused = false
+        settle_rise unless @rgame_rising == id
+        @rgame_audio.set_music_volume(id, 0.0) if level.nil? && seconds.positive?
+        @rgame_audio.play_music(id)
+        @rgame_current = id
+        @rgame_paused = false
         level ||= seconds.positive? ? 0.0 : 1.0
         return if level >= 1.0
 
@@ -216,57 +216,57 @@ module RGame
 
       def fade_out(id, seconds)
         level = level_of(id)
-        stop_now(@falling) if @falling
-        @rising = nil if @rising == id
-        @current = nil
+        stop_now(@rgame_falling) if @rgame_falling
+        @rgame_rising = nil if @rgame_rising == id
+        @rgame_current = nil
         return stop_now(id) if seconds.zero?
 
-        @falling = id
-        @fall.from = level
-        @fall.duration = seconds
-        @fall.restart
+        @rgame_falling = id
+        @rgame_fall.from = level
+        @rgame_fall.duration = seconds
+        @rgame_fall.restart
       end
 
       def start_rise(id, level, seconds)
-        @rising = id
-        @rise.from = level
-        @rise.duration = seconds
-        @rise.restart
+        @rgame_rising = id
+        @rgame_rise.from = level
+        @rgame_rise.duration = seconds
+        @rgame_rise.restart
       end
 
       def settle(id)
-        @rising = nil if @rising == id
-        @audio.set_music_volume(id, 1.0)
+        @rgame_rising = nil if @rgame_rising == id
+        @rgame_audio.set_music_volume(id, 1.0)
       end
 
       def settle_rise
-        settle(@rising) if @rising
+        settle(@rgame_rising) if @rgame_rising
       end
 
       def stop_now(id)
-        @falling = nil if @falling == id
-        @audio.stop_music(id)
-        @audio.set_music_volume(id, 1.0)
+        @rgame_falling = nil if @rgame_falling == id
+        @rgame_audio.stop_music(id)
+        @rgame_audio.set_music_volume(id, 1.0)
       end
 
       def stop_at_once
-        stop_now(@falling) if @falling
-        level = level_of(@current)
-        @audio.stop_music
-        @audio.set_music_volume(@current, 1.0) if level && level < 1.0
-        @rising = nil
-        @current = nil
-        @paused = false
+        stop_now(@rgame_falling) if @rgame_falling
+        level = level_of(@rgame_current)
+        @rgame_audio.stop_music
+        @rgame_audio.set_music_volume(@rgame_current, 1.0) if level && level < 1.0
+        @rgame_rising = nil
+        @rgame_current = nil
+        @rgame_paused = false
       end
 
       def step_rise(dt)
-        @audio.set_music_volume(@rising, @rise.update(dt).value)
-        @rising = nil if @rise.done?
+        @rgame_audio.set_music_volume(@rgame_rising, @rgame_rise.update(dt).value)
+        @rgame_rising = nil if @rgame_rise.done?
       end
 
       def step_fall(dt)
-        @audio.set_music_volume(@falling, @fall.update(dt).value)
-        stop_now(@falling) if @fall.done?
+        @rgame_audio.set_music_volume(@rgame_falling, @rgame_fall.update(dt).value)
+        stop_now(@rgame_falling) if @rgame_fall.done?
       end
 
       def seconds!(name, value)

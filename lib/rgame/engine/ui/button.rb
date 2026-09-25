@@ -99,13 +99,13 @@ module RGame
         ACTIVATE_ON = %i[release press].freeze
         SOURCES = %i[confirm hotkey].freeze
 
-        attr_accessor :enabled
+        sealed_accessor :enabled
         # The Engine::Text drawn for this button, or nil.
-        attr_reader :label
+        sealed_reader :label
         # The scope a label given as a key resolves under, or nil.
-        attr_reader :label_scope
+        sealed_reader :label_scope
         # `hotkey` is an action name, or nil.
-        attr_reader :activate_on, :hotkey
+        sealed_reader :activate_on, :hotkey
 
         def initialize(label: nil, enabled: true, activate_on: :release, hotkey: nil, **)
           super(**)
@@ -113,44 +113,44 @@ module RGame
             raise ArgumentError, "activate_on: must be :release or :press, not #{activate_on.inspect}"
           end
 
-          @label_scope = nil
+          @rgame_label_scope = nil
           self.label = label
-          @enabled = enabled
-          @activate_on = activate_on
-          @hotkey = hotkey
-          @focused = false
-          @holder = nil
-          @feedback = 0.0
+          @rgame_enabled = enabled
+          @rgame_activate_on = activate_on
+          @rgame_hotkey = hotkey
+          @rgame_focused = false
+          @rgame_holder = nil
+          @rgame_feedback = 0.0
         end
 
         # Sets the label: a key String or Symbol, which the button makes an
         # Engine::Text of under `label_scope`; a `Text`, used as it is; or nil.
         def label=(label)
-          @label = label && text_for(label)
-          @label_from_key = !(label.nil? || label.is_a?(Text))
+          @rgame_label = label && text_for(label)
+          @rgame_label_from_key = !(label.nil? || label.is_a?(Text))
         end
 
         # Sets the scope a label given as a key resolves under — `'title_menu'`
         # makes the key `'play'` read `'title_menu.play'` — and resolves it again
         # on the next draw.
         def label_scope=(scope)
-          @label_scope = scope&.to_s
-          @label.scope = @label_scope if @label_from_key
+          @rgame_label_scope = scope&.to_s
+          @rgame_label.scope = @rgame_label_scope if @rgame_label_from_key
         end
 
-        def enabled? = @enabled
-        def focused? = @focused
-        def pressed? = !@holder.nil? || @feedback.positive?
+        def enabled? = @rgame_enabled
+        def focused? = @rgame_focused
+        def pressed? = !@rgame_holder.nil? || @rgame_feedback.positive?
 
         # What to draw: `:disabled` whenever the button is disabled, whatever
         # else is true; then `:pressed`, `:focused`, and otherwise `:idle`.
         # Pressed does not require focus: a press can outlast the focus that
         # started it by its `PRESS_FEEDBACK`.
         def state
-          return :disabled unless @enabled
+          return :disabled unless @rgame_enabled
           return :pressed if pressed?
 
-          @focused ? :focused : :idle
+          @rgame_focused ? :focused : :idle
         end
 
         # Called by the Menu. Calls `_gain_focus` or `_lose_focus` when the value actually
@@ -159,10 +159,10 @@ module RGame
         # focus lets go of a confirm press without activating it; a hotkey press
         # was never about focus, and is kept.
         def focused=(value)
-          return if @focused == value
+          return if @rgame_focused == value
 
-          @focused = value
-          @holder = nil if !value && @holder == :confirm
+          @rgame_focused = value
+          @rgame_holder = nil if !value && @rgame_holder == :confirm
           value ? _gain_focus : _lose_focus
         end
 
@@ -175,10 +175,10 @@ module RGame
           unless SOURCES.include?(source)
             raise ArgumentError, "source must be :confirm or :hotkey, not #{source.inspect}"
           end
-          return nil unless @enabled && @holder.nil?
+          return nil unless @rgame_enabled && @rgame_holder.nil?
 
-          @holder = source
-          return nil unless source == :hotkey || @activate_on == :press
+          @rgame_holder = source
+          return nil unless source == :hotkey || @rgame_activate_on == :press
 
           activate_with_feedback
         end
@@ -187,19 +187,19 @@ module RGame
         # a confirm press under `activate_on: :release`, and returns what
         # `activate` did; ends nothing another source started.
         def release(source = :confirm)
-          return nil unless @holder == source
+          return nil unless @rgame_holder == source
 
-          @holder = nil
-          activate if source == :confirm && @activate_on == :release
+          @rgame_holder = nil
+          activate if source == :confirm && @rgame_activate_on == :release
         end
 
         # Called by the Menu for a press from `source` whose release this button
         # never saw. Drops it, and the feedback with it, activating nothing.
         def cancel_press(source = :confirm)
-          return unless @holder == source
+          return unless @rgame_holder == source
 
-          @holder = nil
-          @feedback = 0.0
+          @rgame_holder = nil
+          @rgame_feedback = 0.0
         end
 
         # The instant press: activates, and shows pressed for `PRESS_FEEDBACK`
@@ -207,9 +207,9 @@ module RGame
         # `:press` confirm do, available on its own for a press that ends
         # somewhere other than on this button. Returns what `activate` did.
         def activate_with_feedback
-          return nil unless @enabled
+          return nil unless @rgame_enabled
 
-          @feedback = PRESS_FEEDBACK
+          @rgame_feedback = PRESS_FEEDBACK
           activate
         end
 
@@ -229,15 +229,15 @@ module RGame
         # The same question asked of a class, worked out once per class. A
         # subclass therefore needs nothing more than the `adjust` it writes.
         def self.adjustable?
-          @adjustable = !instance_method(:adjust).owner.equal?(Button) if @adjustable.nil?
-          @adjustable
+          @rgame_adjustable = !instance_method(:adjust).owner.equal?(Button) if @rgame_adjustable.nil?
+          @rgame_adjustable
         end
 
         # Fires the signal and returns the button, or nil if it is disabled — so
         # a caller never has to check first, and a disabled button cannot be
         # activated by any route.
         def activate
-          return nil unless @enabled
+          return nil unless @rgame_enabled
 
           activated_signal.emit
           self
@@ -245,7 +245,7 @@ module RGame
 
         # Counts down the pressed feedback, then does what every node does.
         def update(dt)
-          @feedback -= dt if @feedback.positive? && !rgame_stopped?
+          @rgame_feedback -= dt if @rgame_feedback.positive? && !rgame_stopped?
           super
         end
 
@@ -258,7 +258,7 @@ module RGame
 
         private
 
-        def text_for(shown) = shown.is_a?(Text) ? shown : Text.new(shown, scope: @label_scope)
+        def text_for(shown) = shown.is_a?(Text) ? shown : Text.new(shown, scope: @rgame_label_scope)
       end
     end
   end

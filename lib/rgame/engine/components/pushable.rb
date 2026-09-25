@@ -30,22 +30,22 @@ module RGame
       class Pushable < Mover
         def initialize(blocked_by:, pushes: [])
           super
-          @pushed_x = 0.0
-          @pushed_y = 0.0
+          @rgame_pushed_x = 0.0
+          @rgame_pushed_y = 0.0
         end
 
         # How far the last #push moved the node, on each axis, in world pixels.
-        attr_reader :pushed_x, :pushed_y
+        sealed_reader :pushed_x, :pushed_y
 
         # The BoxCollider a pusher runs into.
-        attr_reader :collider
+        sealed_reader :collider
 
         def _attach
           super
-          @collider ||= require_sibling(BoxCollider)
-          @world = node.system(CollisionWorld) ||
-                   raise('Pushable is found by the movers that push it through the scene\'s ' \
-                         'CollisionWorld, and the scene has none. Mount one.')
+          @rgame_collider ||= require_sibling(BoxCollider)
+          @rgame_world = node.system(CollisionWorld) ||
+                         raise('Pushable is found by the movers that push it through the scene\'s ' \
+                               'CollisionWorld, and the scene has none. Mount one.')
         end
 
         # A pushed crate has no step of its own. Its pushes arrive during other movers'
@@ -70,19 +70,19 @@ module RGame
         def push(dx, dy, by: nil, depth: 1)
           from_x = x
           from_y = y
-          box_x = @collider.aabb_x
-          box_y = @collider.aabb_y
-          @pushed_by = by
-          @push_depth = depth
-          @actor_source&.passing = by
+          box_x = @rgame_collider.aabb_x
+          box_y = @rgame_collider.aabb_y
+          @rgame_pushed_by = by
+          @rgame_push_depth = depth
+          @rgame_actor_source&.passing = by
           apply_move(dx, dy)
-          @world.reindex(@collider, box_x, box_y, @collider.aabb_w, @collider.aabb_h)
-          @pushed_x = x - from_x
-          @pushed_y = y - from_y
+          @rgame_world.reindex(@rgame_collider, box_x, box_y, @rgame_collider.aabb_w, @rgame_collider.aabb_h)
+          @rgame_pushed_x = x - from_x
+          @rgame_pushed_y = y - from_y
         ensure
-          @actor_source&.passing = nil
-          @pushed_by = nil
-          @push_depth = 0
+          @rgame_actor_source&.passing = nil
+          @rgame_pushed_by = nil
+          @rgame_push_depth = 0
         end
 
         # Whether the last #push was cut short by something in the way.

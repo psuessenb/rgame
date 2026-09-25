@@ -25,8 +25,9 @@ module RGame
     # subclass writes for its own subclasses — Components::Mover's `take_step` —
     # is not covered.
     #
-    # The two classes keep their ivars under the prefix as well, `@rgame_opacity`
-    # rather than `@opacity`, so an ivar a subclass names is its own.
+    # Every node and component in RGame::Engine keeps its ivars under the prefix
+    # as well, `@rgame_opacity` rather than `@opacity`, so an ivar a game's
+    # subclass names is its own.
     # #sealed_reader and its two siblings keep an attribute's public name over
     # the prefixed ivar.
     #

@@ -18,19 +18,19 @@ module RGame
 
         def initialize(cooldowns)
           super()
-          @cooldowns = cooldowns
-          @timers = cooldowns.transform_values { 0.0 }
+          @rgame_cooldowns = cooldowns
+          @rgame_timers = cooldowns.transform_values { 0.0 }
         end
 
         def _update(dt)
-          @timers.each { |action, remaining| @timers[action] = remaining - dt if remaining.positive? }
+          @rgame_timers.each { |action, remaining| @rgame_timers[action] = remaining - dt if remaining.positive? }
         end
 
         def _control(actions)
-          @cooldowns.each_key do |action|
-            next unless actions.held?(action) && @timers[action] <= 0.0
+          @rgame_cooldowns.each_key do |action|
+            next unless actions.held?(action) && @rgame_timers[action] <= 0.0
 
-            @timers[action] = @cooldowns[action]
+            @rgame_timers[action] = @rgame_cooldowns[action]
             triggered_signal.emit(action)
           end
         end

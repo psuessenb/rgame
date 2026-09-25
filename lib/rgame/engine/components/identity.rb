@@ -48,13 +48,13 @@ module RGame
       # the next id alongside the objects and restore it too — it is one number,
       # and forgetting it is the classic way this goes wrong.
       class Identity < Engine::Component
-        attr_reader :id
+        sealed_reader :id
 
         def initialize(id:)
           super()
           raise ArgumentError, 'an identity needs an id' if id.nil?
 
-          @id = id
+          @rgame_id = id
         end
 
         # The id of a node, or nil for one that carries no identity.

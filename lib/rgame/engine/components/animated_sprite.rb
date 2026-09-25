@@ -18,7 +18,7 @@ module RGame
       # position of its own: (0, 0) is what
       # Node2D#draw has already made mean "at this node, correctly rotated", and a
       # WorldView ancestor has already made mean "through the camera". `z` is the
-      # render layer (kept as @layer, distinct from the node's transform z); it must
+      # render layer (kept as @rgame_layer, distinct from the node's transform z); it must
       # sit between the tile map's ground and canopy z bands, so canopies draw in
       # front.
       #
@@ -32,34 +32,34 @@ module RGame
 
         def initialize(sheet:, z: 0, anchor: :bottom)
           super()
-          @sheet = sheet
-          @layer = z
-          @anchor = Engine::Anchor.check!(anchor)
+          @rgame_sheet = sheet
+          @rgame_layer = z
+          @rgame_anchor = Engine::Anchor.check!(anchor)
         end
 
         def _attach
-          sheet = context.assets.sheet(@sheet)
-          @animator = Engine::Animator.new(Engine::AnimationSet.new(sheet.animations))
+          sheet = context.assets.sheet(@rgame_sheet)
+          @rgame_animator = Engine::Animator.new(Engine::AnimationSet.new(sheet.animations))
           node.width = sheet.frame_width
           node.height = sheet.frame_height
-          @mover = require_sibling(Mover)
+          @rgame_mover = require_sibling(Mover)
         end
 
         def _update(dt)
-          @animator.play(walk_animation(@mover.heading_x, @mover.heading_y))
-          @animator.update(dt)
+          @rgame_animator.play(walk_animation(@rgame_mover.heading_x, @rgame_mover.heading_y))
+          @rgame_animator.update(dt)
         end
 
         # Placed by the anchor, sized by the sheet's frame and lifted by the node's
         # elevation — so the footprint to cull against is the node's box, moved and
         # raised the same way the picture is.
         def _draw(renderer, view)
-          left = Engine::Anchor.left(@anchor, node.width)
-          top = Engine::Anchor.top(@anchor, node.height) - node.elevation
+          left = Engine::Anchor.left(@rgame_anchor, node.width)
+          top = Engine::Anchor.top(@rgame_anchor, node.height) - node.elevation
           return if culled?(view, node.world_x + left, node.world_y + top, node.width, node.height)
 
-          renderer.sprite(@sheet, @animator.row, @animator.col, left, top,
-                          flip_x: @animator.flip_x, z: @layer)
+          renderer.sprite(@rgame_sheet, @rgame_animator.row, @rgame_animator.col, left, top,
+                          flip_x: @rgame_animator.flip_x, z: @rgame_layer)
         end
 
         private

@@ -18,24 +18,24 @@ module RGame
       class DespawnOffscreen < Engine::Component
         def initialize(width: nil, height: nil, margin: 0.0)
           super()
-          @given_width = width
-          @given_height = height
-          @margin = margin
-          @left = @top = -margin
+          @rgame_given_width = width
+          @rgame_given_height = height
+          @rgame_margin = margin
+          @rgame_left = @rgame_top = -margin
         end
 
         # See ScreenWrap#_attach: resolved per entry, so a recycled node is correct
         # after a scene change.
         def _attach
           WorldBounds.one_response!(node)
-          @right = WorldBounds.resolve_width(node, @given_width) + @margin
-          @bottom = WorldBounds.resolve_height(node, @given_height) + @margin
+          @rgame_right = WorldBounds.resolve_width(node, @rgame_given_width) + @rgame_margin
+          @rgame_bottom = WorldBounds.resolve_height(node, @rgame_given_height) + @rgame_margin
         end
 
         def _update(_dt)
           x = node.world_x
           y = node.world_y
-          node.queue_free if x < @left || x > @right || y < @top || y > @bottom
+          node.queue_free if x < @rgame_left || x > @rgame_right || y < @rgame_top || y > @rgame_bottom
         end
       end
     end

@@ -18,40 +18,40 @@ module RGame
       #   CharacterBody.new(speed: 80)                             # walks wherever the intent points
       #   CharacterBody.new(speed: 80, blocked_by: %i[tiles npc])   # stopped by the map and by NPCs
       class CharacterBody < Mover
-        attr_reader :move_x, :move_y
+        sealed_reader :move_x, :move_y
 
         def initialize(speed:, blocked_by: [], pushes: [])
           super(blocked_by:, pushes:)
-          @speed = speed
-          @move_x = 0.0
-          @move_y = 0.0
+          @rgame_speed = speed
+          @rgame_move_x = 0.0
+          @rgame_move_y = 0.0
         end
 
         # Stands the body still as its node enters the tree, so a node carried
         # into a scene, or taken from a pool again, does not walk on with the
         # intent it had. A game that wants a walk-in sets one after placing it.
         def _attach
-          @move_x = 0.0
-          @move_y = 0.0
+          @rgame_move_x = 0.0
+          @rgame_move_y = 0.0
           super
         end
 
         # The heading is the intent as set, blocked or not.
-        def heading_x = @move_x
-        def heading_y = @move_y
+        def heading_x = @rgame_move_x
+        def heading_y = @rgame_move_y
 
         # Set this step's movement intent; each axis is in -1..1.
         def set_intent(intent_x, intent_y)
-          @move_x = intent_x
-          @move_y = intent_y
+          @rgame_move_x = intent_x
+          @rgame_move_y = intent_y
         end
 
         private
 
         def take_step(dt)
-          return if @move_x.zero? && @move_y.zero?
+          return if @rgame_move_x.zero? && @rgame_move_y.zero?
 
-          apply_move(@move_x * @speed * dt, @move_y * @speed * dt)
+          apply_move(@rgame_move_x * @rgame_speed * dt, @rgame_move_y * @rgame_speed * dt)
         end
       end
     end

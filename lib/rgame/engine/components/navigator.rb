@@ -44,19 +44,19 @@ module RGame
         # The cells of the last route `go_to` planned, start to target, before smoothing —
         # `[[col, row], ...]`, or nil before the first one. For drawing; `path` is what is
         # walked.
-        attr_reader :cells
+        sealed_reader :cells
 
         def initialize(speed:, blocked_by: [], pushes: [])
           super
-          @cells = nil
+          @rgame_cells = nil
         end
 
         def _attach
           super
-          @world = node.system(TileWorld) ||
-                   raise("#{mover_name} plans routes over the scene's TileWorld, and the scene " \
-                         'has none. Mount one, or use a PathFollow and hand it a path.')
-          @anchor = node.get_component(BoxCollider)
+          @rgame_world = node.system(TileWorld) ||
+                         raise("#{mover_name} plans routes over the scene's TileWorld, and the scene " \
+                               'has none. Mount one, or use a PathFollow and hand it a path.')
+          @rgame_anchor = node.get_component(BoxCollider)
         end
 
         # Plan from where the node stands to the cell containing (world_x, world_y), and
@@ -72,18 +72,18 @@ module RGame
         # rubocop:disable Naming/PredicateMethod -- a command that reports whether it could be
         # carried out, not a question; `go_to?` would read as "may I go there?".
         def go_to(world_x, world_y)
-          unless @world
+          unless @rgame_world
             raise "#{mover_name}#go_to plans over the scene's TileWorld, so the node has to be " \
                   'in the tree first.'
           end
 
           measure_anchor
           refuse_a_box_larger_than_a_tile
-          cells = @world.nav_grid.find(@world.col_at(@anchor_x), @world.row_at(@anchor_y),
-                                       @world.col_at(world_x), @world.row_at(world_y))
+          cells = @rgame_world.nav_grid.find(@rgame_world.col_at(@rgame_anchor_x), @rgame_world.row_at(@rgame_anchor_y),
+                                             @rgame_world.col_at(world_x), @rgame_world.row_at(world_y))
           return false unless cells
 
-          @cells = cells
+          @rgame_cells = cells
           follow(Engine::Path.new(waypoints(corners(cells))))
           true
         end
@@ -92,26 +92,26 @@ module RGame
         private
 
         def measure_anchor
-          box = @anchor&.box
-          @box_w = box ? box.width : 0
-          @box_h = box ? box.height : 0
-          @anchor_x = node.world_x + (box ? box.offset_x + (@box_w / 2.0) : 0.0)
-          @anchor_y = node.world_y + (box ? box.offset_y + (@box_h / 2.0) : 0.0)
+          box = @rgame_anchor&.box
+          @rgame_box_w = box ? box.width : 0
+          @rgame_box_h = box ? box.height : 0
+          @rgame_anchor_x = node.world_x + (box ? box.offset_x + (@rgame_box_w / 2.0) : 0.0)
+          @rgame_anchor_y = node.world_y + (box ? box.offset_y + (@rgame_box_h / 2.0) : 0.0)
         end
 
         def refuse_a_box_larger_than_a_tile
-          return if @box_w <= @world.tile_width && @box_h <= @world.tile_height
+          return if @rgame_box_w <= @rgame_world.tile_width && @rgame_box_h <= @rgame_world.tile_height
 
           raise ArgumentError, "#{mover_name}#go_to plans for a collider no larger than a tile, and this " \
-                               "node's is #{@box_w}x#{@box_h} over #{@world.tile_width}x" \
-                               "#{@world.tile_height} tiles. Pathfinding for a larger collider is not supported."
+                               "node's is #{@rgame_box_w}x#{@rgame_box_h} over #{@rgame_world.tile_width}x" \
+                               "#{@rgame_world.tile_height} tiles. Pathfinding for a larger collider is not supported."
         end
 
-        def centre_x(cell) = @world.cell_centre_x(cell[0])
-        def centre_y(cell) = @world.cell_centre_y(cell[1])
+        def centre_x(cell) = @rgame_world.cell_centre_x(cell[0])
+        def centre_y(cell) = @rgame_world.cell_centre_y(cell[1])
 
         def corners(cells)
-          corners = [[@anchor_x, @anchor_y]]
+          corners = [[@rgame_anchor_x, @rgame_anchor_y]]
           turn = -1
           while turn < cells.length - 1
             turn = furthest_clear(*corners.last, cells, turn + 1)
@@ -127,13 +127,13 @@ module RGame
         end
 
         def box_travels?(from_x, from_y, to_x, to_y)
-          @world.blockers.travel?(from_x - (@box_w / 2.0), from_y - (@box_h / 2.0), @box_w, @box_h,
-                                  to_x - from_x, to_y - from_y)
+          @rgame_world.blockers.travel?(from_x - (@rgame_box_w / 2.0), from_y - (@rgame_box_h / 2.0),
+                                        @rgame_box_w, @rgame_box_h, to_x - from_x, to_y - from_y)
         end
 
         def waypoints(corners)
-          shift_x = node.x - @anchor_x
-          shift_y = node.y - @anchor_y
+          shift_x = node.x - @rgame_anchor_x
+          shift_y = node.y - @rgame_anchor_y
           points = corners.map { |(x, y)| [x + shift_x, y + shift_y] }
           points[0] = [node.x, node.y]
           points

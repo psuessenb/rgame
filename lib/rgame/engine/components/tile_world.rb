@@ -44,16 +44,16 @@ module RGame
       class TileWorld < Engine::Component
         include WorldBounds
 
-        attr_reader :tilemap_id, :elapsed
+        sealed_reader :tilemap_id, :elapsed
 
         # `cameras` are the cameras this map bounds — every player's, normally.
         # A camera may not show past the world's edges, and this is what knows
         # how big the world is; the cameras themselves are owned by players.
         def initialize(map:, tilemap_id:, cameras: [])
           super()
-          @map = map
-          @tilemap_id = tilemap_id
-          @elapsed = 0.0
+          @rgame_map = map
+          @rgame_tilemap_id = tilemap_id
+          @rgame_elapsed = 0.0
           Array(cameras).each { |camera| bound(camera) }
         end
 
@@ -61,38 +61,38 @@ module RGame
         # `blocked_by: [:tiles]`. The same source every time, so every body on the map
         # shares one.
         def blockers
-          @blockers ||= Engine::TileBlockers.new(grid: solid_grid, tile_width: @map.tile_width,
-                                                 tile_height: @map.tile_height)
+          @rgame_blockers ||= Engine::TileBlockers.new(grid: solid_grid, tile_width: @rgame_map.tile_width,
+                                                       tile_height: @rgame_map.tile_height)
         end
 
-        def world_width = @map.pixel_width
-        def world_height = @map.pixel_height
+        def world_width = @rgame_map.pixel_width
+        def world_height = @rgame_map.pixel_height
 
         # The size of one cell, in pixels.
-        def tile_width = @map.tile_width
-        def tile_height = @map.tile_height
+        def tile_width = @rgame_map.tile_width
+        def tile_height = @rgame_map.tile_height
 
         # A cell's left and top edges in world pixels, and the cell holding a world
         # position, as TileMap#cell_x, #cell_y, #col_at and #row_at answer them. The
         # cells are the ones #nav_grid plans over and #solid? answers for.
-        def cell_x(col) = @map.cell_x(col)
-        def cell_y(row) = @map.cell_y(row)
-        def col_at(world_x) = @map.col_at(world_x)
-        def row_at(world_y) = @map.row_at(world_y)
+        def cell_x(col) = @rgame_map.cell_x(col)
+        def cell_y(row) = @rgame_map.cell_y(row)
+        def col_at(world_x) = @rgame_map.col_at(world_x)
+        def row_at(world_y) = @rgame_map.row_at(world_y)
 
         # The middle of a cell in world pixels: where a Navigator steers to, and where
         # a thing standing on the cell stands. Two methods rather than one pair, so
         # reading one allocates nothing.
-        def cell_centre_x(col) = (@map.cell_x(col) + @map.cell_x(col + 1)) / 2.0
-        def cell_centre_y(row) = (@map.cell_y(row) + @map.cell_y(row + 1)) / 2.0
+        def cell_centre_x(col) = (@rgame_map.cell_x(col) + @rgame_map.cell_x(col + 1)) / 2.0
+        def cell_centre_y(row) = (@rgame_map.cell_y(row) + @rgame_map.cell_y(row + 1)) / 2.0
 
-        def layer_count = @map.layer_count
+        def layer_count = @rgame_map.layer_count
 
         # The map's layer at `index`, and the index of the layer a name or
         # `'Group/layer'` path names, as `TileMap#layer` and `#layer_index`
         # answer them.
-        def layer(index) = @map.layer(index)
-        def layer_index(name_or_path) = @map.layer_index(name_or_path)
+        def layer(index) = @rgame_map.layer(index)
+        def layer_index(name_or_path) = @rgame_map.layer_index(name_or_path)
 
         # The first layer Tiled flags `above`, or the layer count if none is —
         # which is where TileMapLayer.mount leaves the slot for the actors, so a
@@ -100,14 +100,14 @@ module RGame
         # than per frame: which layers cover the actors is a fact about the
         # scene's arrangement, and the arrangement is made once.
         def first_above_layer
-          layer_count.times.find { |index| @map.layer(index).above? } || layer_count
+          layer_count.times.find { |index| @rgame_map.layer(index).above? } || layer_count
         end
 
         # Clamp a camera to this map's edges. Called for each camera the scene
         # hands over, and again for one that arrives later (a player joining).
         def bound(camera)
-          camera.world_width = @map.pixel_width
-          camera.world_height = @map.pixel_height
+          camera.world_width = @rgame_map.pixel_width
+          camera.world_height = @rgame_map.pixel_height
           camera
         end
 
@@ -116,7 +116,7 @@ module RGame
         # The floor's edge as a blocker source, for a mover that declared
         # `blocked_by: [:gaps]`: an Engine::GapBlockers over this world. The same source
         # every time, so every mover on the map shares one.
-        def gap_blockers = @gap_blockers ||= Engine::GapBlockers.new(world: self)
+        def gap_blockers = @rgame_gap_blockers ||= Engine::GapBlockers.new(world: self)
 
         # How far short of a gap's edge #floor_reach_x and #floor_reach_y stop a point, in
         # pixels: the margin Util::TileSweep keeps against a wall. A point stopped exactly on
@@ -130,7 +130,7 @@ module RGame
         # a cell's left or top edge is in that cell, and a point off the map is on the floor.
         #
         # hot-path
-        def floor_at?(x, y) = !gap?(@map.col_at(x), @map.row_at(y))
+        def floor_at?(x, y) = !gap?(@rgame_map.col_at(x), @rgame_map.row_at(y))
 
         # How far the point (x, y) can move `dx` along x and stay on the floor: `dx` itself,
         # or as far as FLOOR_EDGE short of the first gap on the way. A point already off
@@ -140,17 +140,17 @@ module RGame
         def floor_reach_x(x, y, dx)
           return dx if dx.zero? || !floor_at?(x, y)
 
-          row = @map.row_at(y)
-          from = @map.col_at(x)
-          to = @map.col_at(x + dx)
+          row = @rgame_map.row_at(y)
+          from = @rgame_map.col_at(x)
+          to = @rgame_map.col_at(x + dx)
           if dx.positive?
             col = from + 1
             col += 1 while col <= to && !gap?(col, row)
-            col > to ? dx : [@map.cell_x(col) - FLOOR_EDGE - x, 0.0].max
+            col > to ? dx : [@rgame_map.cell_x(col) - FLOOR_EDGE - x, 0.0].max
           else
             col = from - 1
             col -= 1 while col >= to && !gap?(col, row)
-            col < to ? dx : [@map.cell_x(col + 1) + FLOOR_EDGE - x, 0.0].min
+            col < to ? dx : [@rgame_map.cell_x(col + 1) + FLOOR_EDGE - x, 0.0].min
           end
         end
 
@@ -160,17 +160,17 @@ module RGame
         def floor_reach_y(x, y, dy)
           return dy if dy.zero? || !floor_at?(x, y)
 
-          col = @map.col_at(x)
-          from = @map.row_at(y)
-          to = @map.row_at(y + dy)
+          col = @rgame_map.col_at(x)
+          from = @rgame_map.row_at(y)
+          to = @rgame_map.row_at(y + dy)
           if dy.positive?
             row = from + 1
             row += 1 while row <= to && !gap?(col, row)
-            row > to ? dy : [@map.cell_y(row) - FLOOR_EDGE - y, 0.0].max
+            row > to ? dy : [@rgame_map.cell_y(row) - FLOOR_EDGE - y, 0.0].max
           else
             row = from - 1
             row -= 1 while row >= to && !gap?(col, row)
-            row < to ? dy : [@map.cell_y(row + 1) + FLOOR_EDGE - y, 0.0].min
+            row < to ? dy : [@rgame_map.cell_y(row + 1) + FLOOR_EDGE - y, 0.0].min
           end
         end
 
@@ -178,7 +178,7 @@ module RGame
         # resolving a step — over the same store #blockers reads, as a second view. Built on
         # first ask, and the same grid every time after.
         def nav_grid
-          @nav_grid ||= Engine::NavGrid.new(grid: solid_grid)
+          @rgame_nav_grid ||= Engine::NavGrid.new(grid: solid_grid)
         end
 
         # A cell that something on the map now blocks, as OccupiesCell reports it. The
@@ -200,33 +200,33 @@ module RGame
           raise ArgumentError, "nothing occupies cell (#{col}, #{row})" if occupants[index].zero?
 
           occupants[index] -= 1
-          solid_grid.set_solid(col, row, @map.solid_tile?(col, row)) if occupants[index].zero?
+          solid_grid.set_solid(col, row, @rgame_map.solid_tile?(col, row)) if occupants[index].zero?
         end
 
         # Advances the tile animations. Seconds, like every other duration here.
         def _update(dt)
-          @elapsed += dt
+          @rgame_elapsed += dt
         end
 
         private
 
-        def occupants = @occupants ||= Array.new(@map.width * @map.height, 0)
+        def occupants = @rgame_occupants ||= Array.new(@rgame_map.width * @rgame_map.height, 0)
 
         def occupancy_index(col, row)
-          unless @map.in_bounds?(col, row)
+          unless @rgame_map.in_bounds?(col, row)
             raise ArgumentError, "cell (#{col}, #{row}) is outside the map, which is " \
-                                 "#{@map.width}x#{@map.height} cells"
+                                 "#{@rgame_map.width}x#{@rgame_map.height} cells"
           end
 
-          (row * @map.width) + col
+          (row * @rgame_map.width) + col
         end
 
         def solid_grid
-          @solid_grid ||= Util::SolidGrid.build(@map.width, @map.height) { |col, row| @map.solid_tile?(col, row) }
+          @rgame_solid_grid ||= Util::SolidGrid.build(@rgame_map.width, @rgame_map.height) { |col, row| @rgame_map.solid_tile?(col, row) }
         end
 
         def gap_grid
-          @gap_grid ||= Util::SolidGrid.build(@map.width, @map.height) { |col, row| @map.gap_tile?(col, row) }
+          @rgame_gap_grid ||= Util::SolidGrid.build(@rgame_map.width, @rgame_map.height) { |col, row| @rgame_map.gap_tile?(col, row) }
         end
       end
     end

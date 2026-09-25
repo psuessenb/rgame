@@ -33,15 +33,15 @@ module RGame
 
         def initialize(range:, layer: :interactable, action: :interact, policy: :nearest)
           super(range: range, layer: layer, policy: policy)
-          @action = action
+          @rgame_action = action
         end
 
         # The action this reads, so a game can show the button that presses it:
         # `player.input_map.button_for(interactor.action, player.device)`.
-        attr_reader :action
+        sealed_reader :action
 
         def _control(actions)
-          return if target.nil? || !actions.pressed?(@action)
+          return if target.nil? || !actions.pressed?(@rgame_action)
 
           interacted_signal.emit(target)
         end
