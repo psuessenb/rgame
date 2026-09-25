@@ -1,9 +1,9 @@
 # Top-down platforming
 
-**Status: steps 1 to 3 are implemented.** Five steps. Each is one branch and
-one pull request, and each sub-step is one commit. **Steps 1 to 3 are
-detailed.** Step 4, the test project, is rough and is re-planned next. Step 5
-folds the plan back and deletes it.
+**Status: steps 1 to 3 are implemented, and step 4 is detailed.** Five steps.
+Each is one branch and one pull request, and each sub-step is one commit.
+**Steps 1 to 4 are detailed.** Step 4 was re-planned after step 3 landed, with
+a second round of questions. Step 5 folds the plan back and deletes it.
 
 ## Verdict
 
@@ -108,19 +108,44 @@ this plan.
 13. **This plan does not wait for y-sort's step 3.** Nothing here needs its
     one-tile draw.
 
+Four more were settled in a second round, before step 4 was detailed:
+
+14. **A respawn point stands on ground.** `Respawn` raises for a point in a gap
+    cell, under a platform or not, at its first attach and in `set_point`. A
+    `Checkpoint` over a gap raises as it attaches. Measured, a node whose point
+    is over a gap falls every 0.5 s for as long as the game runs, with no error.
+    A raise names the point as the scene loads.
+15. **A checkpoint touched by a node with no `Respawn` raises.** A game still
+    decides at each fall whether the node comes back. The fall looks the
+    `Respawn` up as it ends, so a game that takes the last life in `on_fell`
+    removes the `Respawn` there, and the node is freed instead. Game over stays
+    a game's choice. Only a node on the `by` layer that has no `Respawn` when
+    it touches a checkpoint raises.
+16. **A player who joins stands on the primary hero's respawn point**, which
+    becomes their own. That point is ground by decision 14, so a join never puts
+    a hero over a gap, and a late joiner starts at the last checkpoint the first
+    player reached.
+17. **The test project is `test_projects/topdownplatformer`.**
+    `spec/game_references_spec.rb` refuses a test project's name as a word in
+    `lib/`, `docs/api/`, `examples/` and `spec/`. "chasms" is a word that
+    prose about gaps would use, and this name is not.
+
 ## Open questions
 
-None blocks steps 1 to 3.
+None blocks steps 1 to 4.
 
 1. **Platforms that wait at their ends.** A platform that pauses at a dock is
    easier to board. *Waits on step 4's map. Add it if a hop onto a platform
-   that never stops proves too hard to time.*
+   that never stops proves too hard to time.* Measured on step 3's raft, a hop
+   from the bank's edge boards it on 1.37 s of every 8.4 s round trip. Step 4
+   leaves waiting out, as decided in its question round: it can come later if a
+   game needs it. Step 5 moves the question to `possible-todos.md`.
 2. **Momentum on leaving a platform.** Godot adds the platform's last velocity
    to a body that leaves it. Here a hop off a platform keeps only the node's
    own walk. *Waits on step 3's example. Add it if a hop off a moving platform
    feels wrong without it.* Step 3's example leaves its raft without it, and
-   its drive lands on the far bank. Whether that feels wrong is for someone to
-   judge by playing it, so the question stays open.
+   its drive lands on the far bank. Step 4 leaves it out too, as decided in its
+   question round, and step 5 moves the question to `possible-todos.md`.
 3. **A pushed platform.** `Pushable` replaces `Mover#_update`, so a raft that a
    hero pushes carries nobody. *Waits on a game with a raft.*
 4. **Routes around gaps.** `NavGrid` plans over solidity only. A `Navigator`
@@ -301,6 +326,10 @@ the platforms under the actors:
    step that starts off the floor is free.
 8. **Add order moves a result by at most one tick.** Nothing depends on which
    component was added first.
+9. **A respawn point stands on ground**, never in a gap cell, whether a
+   platform covers the cell or not.
+10. **A checkpoint moves the respawn point of whoever touches it**, and nobody
+    else's.
 
 ## Prior art
 
@@ -371,6 +400,17 @@ blocking and riding one question about the floor.
 - **Holes in a floor layer** (question 4, B), **falling on the whole box**
   (question 6, B) and **the last ground stood on as the respawn point**
   (question 8, C).
+- **The first ground stood on as the respawn point** (step 4's question 1, B).
+  A hero added on a platform would get the dock it first steps onto, with no
+  error. But a fall before it reaches ground has no point to come back to, and
+  it is the twin of the rule above.
+- **A checkpoint that passes over a node with no `Respawn`** (step 4's
+  question 2, B). A hero built without one would get no error from the
+  checkpoint, and vanish at its first fall.
+- **A player who joins on the map's `start`, or beside the primary hero**
+  (step 4's question 3, B and C). The first leaves the two views the whole map
+  apart. The second puts the joiner over a gap while the primary hero rides a
+  platform.
 
 ## What this does not deliver
 
@@ -391,9 +431,11 @@ blocking and riding one question about the floor.
 ### Dependency shape
 
 ```
-1 floor and gaps ─→ 2 fall and respawn ─→ 3 moving platforms ─→ 4 test project (rough) ─→ 5 fold back
-                          │                       │
-                          └─ examples/pits        └─ examples/moving_platforms
+1 floor and gaps ─→ 2 fall and respawn ─→ 3 moving platforms ─→ 4 checkpoints and the test project ─→ 5 fold back
+                          │                       │                     │
+                          │                       │                     └─ test_projects/topdownplatformer
+                          │                       └─ examples/moving_platforms
+                          └─ examples/pits
 ```
 
 Step 1 comes first because every later step asks `floor_at?`. Platforms come
@@ -414,6 +456,7 @@ Each detailed step is worth landing alone:
 | 1 | A map cannot say where its floor ends, and an NPC walks into a chasm with nothing to stop it |
 | 2 | A hop crosses nothing. `examples/jump_topdown` leaves crossing a chasm to every game |
 | 3 | Nothing can carry a node, and a route is walked once |
+| 4 | A fallen node always comes back where it first stood, and a respawn point over a gap drops it again every half second |
 
 ### Step 1 — the floor: gaps in the map, and the `:gaps` blocker *(pure)*
 
@@ -1188,28 +1231,340 @@ hero placed on a platform comes back over the gap and falls again. A
 checkpoint on a platform has the same trap. A mover kept on the floor by
 `:gaps` now needs a `Footing`.
 
-### Step 4 — the test project *(rough)*
+### Step 4 — checkpoints, and `test_projects/topdownplatformer` *(pure, with the test project)*
 
-`test_projects/chasms`, on a map of its own that composes everything. Re-plan
-after step 3 lands.
+The engine gains the last part the goal names, the checkpoint. It also closes
+the trap step 3 found: a respawn point over a gap. Then one test project plays
+every part on one map, with two players, and its drive script is the
+acceptance test for the whole plan.
 
-- **`Components::Checkpoint`**, Collectable-shaped. Touched by a collider on
-  its `by` layer, it calls that node's `Respawn#set_point` with its own
-  position and emits `reached`. Whether a `by` node without `Respawn` raises
-  is for the re-plan.
-- **The map** lives in the project's directory and does not ship. It names
-  `examples/assets`' tilesets by relative path, and the game loads it by
-  absolute path while `media_root` stays `examples/assets`.
-  `AssetManager#resolve` expands a path against the root, so an absolute one
-  passes through *(read, not run)*.
-- **The course**: one-tile gaps to hop, a shuttle platform to board with a
-  timed hop, and a checkpoint. Then a looping platform in the middle of a
-  chasm, never touching a bank, with the NPC walking around on it. A crate
-  stands beside a gap, and a last checkpoint ends the course.
-- **Two players**, the second joining by using a device. The drive script plays
-  two devices: both ride one platform, and one falls while the other rides on.
-- An allocation budget in the drive script, with a reason if it goes over the
-  default.
+The rough sketch this replaces named the project `test_projects/chasms` and
+left open whether a checkpoint raises for a node with no `Respawn`. Decisions
+14 to 17 settle both, and the trap.
+
+#### What was measured before re-planning
+
+At `e3e7130`, with step 3 merged. The timings and counts come from scratch
+scripts outside the repository.
+
+| What | Result |
+|---|---|
+| A respawn point over a gap | 20 falls in 10 s, and no error. The node lands, its coyote time runs out, and it falls again every 0.5 s |
+| A game that takes the last life in `on_fell` | Works today, in both add orders: removing the `Respawn` there frees the node as the fall ends, since `Fall#land` looks it up then. No spec pins it |
+| Boarding step 3's raft | A hop from the bank's edge boards it on 1.37 s of every 8.4 s round trip, in two windows as the raft comes and goes. From 12 px back, 0.80 s. From 32 px back, never |
+| A map kept outside `examples/assets` | Loads and draws. A copy of `platforms.tmx` in the scratchpad named the tilesets by relative path. A copy of the example loaded it by absolute path, with `media_root` still `examples/assets`, and drew 1560 `tilemap` calls in 520 driven ticks. The rough sketch's "read, not run" holds |
+| `spec/game_references_spec.rb` | Refuses a test project's name as a whole word outside `test_projects/`, their drive scripts, plans and `CHANGELOG.md`. So no spec under `spec/` can check the project's map, and neither `docs/api/` nor `README.md` can list the project |
+| "topdownplatformer" as a word outside those | 0 |
+| How two players share the window | Two rows of 640×240 (`Engine::Layout`), so each view scrolls on both axes over a 480 px tall map |
+| `Respawn` in the specs | 4 files. `platforming_spec.rb` adds both heroes over the chasm and moves their points after `enter_tree` |
+| Where `test_projects/adventure` stands a player who joins | Beside the primary hero. It has no gaps |
+| How `rake drive:allocations` finds projects | A glob over `{examples,test_projects}/*/main.rb`. A project that reads only `examples/assets` runs on CI too |
+| How long an allocation run drives | The script's own length, and at least 420 ticks: the 120-tick warm-up and 300 more |
+| Tiny Town tiles for a checkpoint | A signpost at row 6, column 11, and a red and white banner at row 7, column 11 |
+
+#### 4a — a respawn point stands on ground
+
+A `Respawn` records its point on the first attach, or takes one from
+`set_point`, and nothing checks it. A hero added on a platform, or a checkpoint
+placed over a gap, gives a point that drops the node again each time it lands.
+
+`TileWorld` gains the question both `Respawn` and `Checkpoint` ask. It is
+`floor_at?` with the platforms left out:
+
+```ruby
+# TileWorld
+
+# Whether the cell under the world point (x, y) is ground: no layer has a gap
+# tile there. A platform over a gap does not make it ground.
+def ground_at?(x, y) = !gap?(col_at(x), row_at(y))
+```
+
+`Respawn` asks it wherever its point is set, once it knows the scene:
+
+```ruby
+# Respawn
+
+# The first attach records where the node stands as its point. Raises
+# ArgumentError when the scene's TileWorld has no ground under the point.
+def _attach
+  @rgame_world = node.system(TileWorld)
+  unless @rgame_point_x
+    @rgame_point_x = node.world_x
+    @rgame_point_y = node.world_y
+  end
+  refuse_gap(@rgame_point_x, @rgame_point_y)
+end
+
+# A new respawn point, in world pixels. Returns self. Once attached, raises
+# ArgumentError for a point with no ground under it. A point set before the
+# first attach is checked by that attach.
+def set_point(x, y)
+  refuse_gap(x, y)
+  @rgame_point_x = x
+  @rgame_point_y = y
+  self
+end
+
+def _detach
+  stop_flash if @rgame_flashing
+  @rgame_world = nil
+end
+
+private
+
+def refuse_gap(x, y)
+  return if @rgame_world.nil? || @rgame_world.ground_at?(x, y)
+
+  raise ArgumentError, "#{node.class}'s respawn point (#{x}, #{y}) is over a gap, so it would fall " \
+                       'again as it came back. Stand it on ground, or call set_point before adding it.'
+end
+```
+
+**The choice at each fall needs no code.** `Fall#land` looks the `Respawn` up
+as the fall ends, so a game that ends on a fall removes it in `on_fell`. This
+sub-step pins that with a spec and documents it, because decision 15 rests on
+it:
+
+```ruby
+footing.on_fell do
+  @lives -= 1
+  hero.remove_component(RGame::Engine::Components::Respawn) if @lives.zero?
+end
+```
+
+#### 4b — `Components::Checkpoint`
+
+The goal's "respawn at the last checkpoint". It takes `Collectable`'s shape: it
+listens to its own node's collider, and acts on a touch from one layer.
+
+```ruby
+module RGame
+  module Engine
+    module Components
+      # A place a node comes back to after a fall, once it has touched it ...
+      #
+      #   flag.add_component(BoxCollider.new(width: 16, height: 16, offset_x: -8, offset_y: -16,
+      #                                      layer: :checkpoint))
+      #   flag.add_component(Checkpoint.new(by: :hero))
+      class Checkpoint < Engine::Component
+        # The collider that touched it. Emitted once its node's Respawn has the
+        # new point.
+        signal :reached, :other
+
+        # The layer whose colliders reach it.
+        sealed_reader :by
+
+        def initialize(by:)
+
+        # Raises without a Collider on the node, and when the scene's TileWorld
+        # has no ground under the node.
+        def _attach
+
+        # Ends the connection to the collider, as Collectable does.
+        def _detach
+      end
+    end
+  end
+end
+```
+
+A touch moves the toucher's point to the checkpoint's node, as a `Respawn`'s
+first point is its node's origin:
+
+```ruby
+def reach(other)
+  respawn = other.node.get_component(Respawn) ||
+            raise("#{other.node.class} on :#{@rgame_by} touched a Checkpoint, and has no Respawn to " \
+                  'set. A game that ends on a fall removes the Respawn in Footing#on_fell instead.')
+  respawn.set_point(node.world_x, node.world_y)
+  reached_signal.emit(other)
+end
+```
+
+`Checkpoint` has no `_update`, so it costs nothing per frame, and a touch is an
+event.
+
+#### 4c — `test_projects/topdownplatformer`
+
+One map, crossed west to east. It lives in the project's directory and does not
+ship. It names `examples/assets`' tilesets by relative path
+(`../../examples/assets/tileset.tsx` and `pits.tsx`), and the game loads it by
+absolute path while `media_root` stays `examples/assets`. A scratch Ruby script
+writes it, as it wrote `platforms.tmx`, in base64 and zlib.
+
+The map is 100×30 tiles, 1600×480 px, walled with trees (tile 16). Every gap
+runs the full height between the walls, rows 1 to 28, so nothing walks around
+one. The heroes cross along row 15, at y 248.
+
+| Columns | x (px) | What |
+|---|---|---|
+| 1–15 | 16–256 | the start meadow, with `start` at (96, 248) |
+| 16, 20, 24 | 256, 320, 384 | three trenches one tile wide, to hop |
+| 25–33 | 400–544 | a meadow with the checkpoint `first` at (472, 248), and the crate at (520, 168) beside the chasm |
+| 34–49 | 544–800 | a chasm 256 px wide, crossed by the `shuttle` |
+| 50–57 | 800–928 | a meadow with the checkpoint `second` at (872, 248) |
+| 58–81 | 928–1312 | a chasm 384 px wide, with the `ring` in its middle |
+| 82–98 | 1312–1584 | the far meadow, with the checkpoint `last` at (1448, 248) |
+
+The objects:
+
+| Object | Class | Shape | What |
+|---|---|---|---|
+| `start` | | point | where the first hero stands, and so its first respawn point (decision 8) |
+| `first`, `second`, `last` | `checkpoint` | point | a flag each |
+| `crate` | `crate` | point | a crate a hero pushes into the first chasm |
+| `walker` | `walker` | point | the NPC, on the ring's first waypoint |
+| `shuttle` | `platform` | polyline, (588, 248) to (756, 248) | 64×32, back and forth at 40 px/s, as step 3's raft: 12 px short of each bank |
+| `ring` | `platform` | polygon, (988, 200), (1252, 200), (1252, 296), (988, 296) | 96×64, round at 40 px/s, 18 s a lap. It never touches a bank |
+
+**The ring is boarded on a leg along a bank.** Its west and east legs run
+north and south with the box 12 px from the bank, so a hop from the bank lands
+on it for as long as the box covers the heroes' row: 1.6 s on each leg. The
+walker wanders on it, blocked by `%i[tiles gaps hero]`, and stands in the way.
+
+The files, each a class with a header saying what it is, as the adventure's are:
+
+| File | What |
+|---|---|
+| `main.rb` | `Game.new(players: 2, media_root: examples/assets)`, with `jump` on Space and the pad's A |
+| `course.rb` | the scene: the map, both worlds, the slots, the objects and a hero for each player |
+| `hero.rb` | `examples/moving_platforms`' hero on the `:hero` layer, with `pushes: [:crate]`. It keeps two status lines, `Falls: 0` and `Checkpoint: start`, each rebuilt as it changes |
+| `raft.rb` | a `Platform` in Tiny Town planks, built from a `platform` object of either shape, with `loop: true` |
+| `flag.rb` | a `Checkpoint` by `:hero`, drawn as the signpost until a hero reaches it and as the banner after |
+| `walker.rb` | the NPC: `hero.json`, with the word `NPC` above it |
+| `crate.rb` | `Pushable`, `Footing.new(coyote: 0)` and `Respawn`, drawn as a rect as the adventure's crate is |
+| `hud.rb` | the hero's status lines, in its player's `PlayerLayer` |
+
+The scene, with the `Components::` prefix shortened:
+
+```ruby
+class Course < RGame::Engine::Node2D
+  MAP = File.expand_path('course.tmx', __dir__)
+
+  CELL_SIZE = 64
+
+  def _enter_tree
+    @map = root.context.assets.tilemap(MAP).map
+    @players = system!(RGame::Engine::Players)
+    add_component(TileWorld.new(map: @map, tilemap_id: MAP, cameras: @players.map(&:camera)))
+    add_component(CollisionWorld.new(cell_size: CELL_SIZE))
+    slots = RGame::Engine::TileMapLayer.mount(add_node(RGame::Engine::WorldView.new),
+                                              slots: { platforms: nil, actors: nil })
+    @actors = slots[:actors]
+    rafts.spawn_into(slots[:platforms], @map.objects)
+    things.spawn_into(@actors, @map.objects) # the flags, the walker and the crate
+    @heroes = {}
+    @players.each_active { spawn(it) }
+    @joining = @players.on_joined { spawn(it) }
+  end
+
+  def _exit_tree = @players.disconnect_joined(@joining)
+
+  private
+
+  # The primary player's hero stands on `start`. A hero who joins stands on
+  # the primary hero's respawn point, which its first attach makes its own.
+  def spawn(player)
+    point = @heroes[@players.primary]&.get_component(Respawn)
+    start = @map.object_named('start')
+    hero = Hero.new(camera: player.camera, x: point ? point.point_x : start.x,
+                    y: point ? point.point_y : start.y)
+    hero.input_owner = player
+    @heroes[player] = @actors.add_node(hero)
+    add_node(RGame::Engine::PlayerLayer.new(player:)).add_node(Hud.new(hero:))
+  end
+end
+```
+
+**Its drive script is its test.** `tools/drive/test_projects/topdownplatformer.rb`
+plays two devices. The pad joins before tick 120, so its hero is built during
+the warm-up of an allocation run. Both heroes hop the trenches and reach
+`first`. The keyboard's hero pushes the crate into the chasm. Both board the
+shuttle with a hop each. Halfway across, the pad's hero walks off its north
+edge and falls, while the keyboard's hero rides on. The keyboard's hero then
+reaches `second`, rides the ring from its west leg to its east leg, and reaches
+`last`. The ticks are read off real runs.
+
+#### Rules the tests pin
+
+1. `ground_at?` is false exactly where `gap?` is true for the cell holding the
+   point, whatever platform covers it.
+2. With a `TileWorld` on the scene, a `Respawn` whose first attach finds no
+   ground under its point raises `ArgumentError`, naming the node's class and
+   the point. A point under a platform raises too.
+3. `set_point` on an attached `Respawn` raises for a point with no ground under
+   it, and keeps the point it had. A point set before the first attach
+   survives it, and that attach checks it.
+4. With no `TileWorld`, a `Respawn` checks nothing.
+5. A `Respawn` removed in `on_fell` ends that fall with the node freed, in
+   either add order. One left in place brings the node back.
+6. A collider on `by` that starts to overlap a `Checkpoint` moves its node's
+   respawn point to the checkpoint's world position, then `on_reached` fires
+   once with that collider. A collider on any other layer does nothing.
+7. A touch moves only the toucher's point. Two heroes fall, and each comes back
+   on its own point.
+8. The last checkpoint touched wins, an earlier one touched again included.
+9. A node on `by` with no `Respawn` raises at the touch, naming its class and
+   the layer.
+10. A `Checkpoint` raises at attach with no ground under it, and with no
+    `Collider` on its node.
+11. A `Checkpoint` taken out of the tree and added again fires once per touch.
+
+#### Tests
+
+- `spec/rgame/engine/components/tile_world_spec.rb`: rule 1.
+- `spec/rgame/engine/components/respawn_spec.rb`: rules 2–4, on a scene with a
+  `TileWorld` over a gap and a `Platform` over part of it.
+- `spec/rgame/engine/components/footing_spec.rb`: rule 5, as a game with two
+  lives: the first fall brings the hero back, and the second frees it.
+- `spec/rgame/engine/components/checkpoint_spec.rb`, new: rules 6–11, on a
+  scene with a `TileWorld` and a `CollisionWorld`. Its heroes have a
+  `FeetCollider`, a `CharacterBody`, a `Footing` and a `Respawn`, and walk into
+  a checkpoint and then into a gap.
+- `spec/rgame/engine/components/platforming_spec.rb`: the heroes, added over
+  the chasm on the shuttle, take their points from `set_point` before
+  `enter_tree`.
+- Nothing under `spec/` checks the project: `game_references_spec.rb` refuses
+  its name there. As the scene loads, rules 2 and 10 check that the start, every
+  checkpoint and the crate stand on ground. The drive script checks the rest.
+
+#### Verify
+
+Two heroes cross the course. Both ride the shuttle, and one falls and comes
+back at the last checkpoint it touched while the other rides on. An NPC walks
+around on the ring and never leaves it.
+
+- `rake spec`, `rake spec:core`, `make test`, and `rake drive:allocations`,
+  which drives the new project on CI too. The script declares a budget only if
+  the default does not hold, and says why.
+- `ruby tools/drive_test_project.rb test_projects/topdownplatformer/main.rb
+  --seed 1 --texts` shows, and the script's header says so, read off a real
+  run:
+  1. one clip of the whole window until the pad joins, then two rows of
+     640×240;
+  2. `Checkpoint: first` in both clips;
+  3. the crate's fall before either hero's, as a run of `scaled` calls toward
+     0, and its rect back at its start after;
+  4. both clips' cameras travelling east together over the shuttle ride;
+  5. `Falls: 1` in the pad's clip only, with the pad's hero back at `first`
+     while the keyboard's rides on;
+  6. `Checkpoint: last` in the keyboard's clip, after a ride on the ring;
+  7. `NPC` drawn once in each view on every frame: the walker never left the
+     ring.
+- `docs/api/components.md` has `Checkpoint`, `TileWorld#ground_at?`, the ground
+  rule under `Respawn`, and the choice at each fall under `Footing`.
+  `CHANGELOG.md` has a `Checkpoint` entry, and its entry on falling says a
+  respawn point stands on ground. Nothing outside the project and its script
+  names it.
+
+#### What step 4 does not deliver
+
+- Platforms that wait at their ends, and momentum on leaving one (open
+  questions 1 and 2).
+- Lives or a game over in the project. `footing_spec.rb` pins the choice, and
+  `docs/api/components.md` shows it.
+- Translated text. The project draws Strings, as the other test projects do.
+- A check that a respawn point is clear of walls. Only gaps are checked.
 
 ### Step 5 — fold the plan back and delete it
 
