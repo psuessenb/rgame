@@ -235,6 +235,27 @@ RSpec.describe RGame::Engine::TileMap do
     end
   end
 
+  describe 'gaps' do
+    let(:map) do
+      tiles = '<tile id="0" class="gap"/><tile id="1" class="Chest"/>'
+      build(layer([2, 1, 0, 0]) + layer([0, 0, 1, 0], name: 'pits', attributes: 'visible="0"'),
+            tilesets: [sheet(tiles: tiles)])
+    end
+
+    it 'is a tile whose class is gap' do
+      expect([map.gap?(0), map.gap?(1), map.gap?(2), map.gap?(3)]).to eq([false, true, false, false])
+    end
+
+    it 'opens its cell on any layer, a hidden one included' do
+      expect([map.gap_tile?(1, 0), map.gap_tile?(0, 1)]).to eq([true, true])
+    end
+
+    it 'is not a cell with a tile of another class, an empty cell, or a cell off the map' do
+      expect([map.gap_tile?(0, 0), map.gap_tile?(1, 1), map.gap_tile?(2, 0), map.gap_tile?(-1, 0)])
+        .to eq([false, false, false, false])
+    end
+  end
+
   describe 'what a tile is' do
     let(:map) do
       tiles = '<tile id="1" type="Chest"><properties><property name="gold" type="int" value="5"/></properties></tile>'
