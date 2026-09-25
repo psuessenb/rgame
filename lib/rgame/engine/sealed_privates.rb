@@ -27,7 +27,8 @@ module RGame
     #
     # Every node and component in RGame::Engine keeps its ivars under the prefix
     # as well, `@rgame_opacity` rather than `@opacity`, so an ivar a game's
-    # subclass names is its own.
+    # subclass names is its own. `spec/rgame/engine/prefixed_ivars_spec.rb`
+    # fails on one that does not.
     # #sealed_reader and its two siblings keep an attribute's public name over
     # the prefixed ivar.
     #
