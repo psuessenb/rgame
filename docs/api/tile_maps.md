@@ -231,7 +231,10 @@ constant `TileMap::GAP` is that class. A cell off the map is not a gap, as it is
 not solid. Build a bridge by painting a floor tile where the gap tile was, or
 move one over the gap with a [`Platform`](components.md#platform).
 A [`Footing`](components.md#footing) drops a node that walks into a gap, and
-`blocked_by: [:gaps]` keeps a [mover](components.md#mover) out of one.
+`blocked_by: [:gaps]` keeps a [mover](components.md#mover) out of one. A
+[`Respawn`](components.md#respawn) point and a
+[`Checkpoint`](components.md#checkpoint) stand on ground: each raises over a
+gap, even one a platform covers.
 
 ### Layers
 

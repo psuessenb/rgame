@@ -338,6 +338,42 @@ add_component(RGame::Engine::Components::PlayerController.new)
   collides. A crowd adds more names: walkers that each declare
   `%i[tiles hero npc]` are stopped by the map and by one another.
 
+### `Checkpoint`
+
+**A place a node comes back to after a fall, once it has touched it.** It
+listens to its own node's collider, as [`Collectable`](#collectable) does. On the
+step a collider on the `by` layer starts overlapping it, it moves that node's
+[`Respawn`](#respawn) point to its own node's world position.
+
+```ruby
+flag.add_component(RGame::Engine::Components::BoxCollider.new(width: 16, height: 16, offset_x: -8,
+                                                              offset_y: -16, layer: :checkpoint))
+flag.add_component(RGame::Engine::Components::Checkpoint.new(by: :hero))
+    .on_reached { |_other| @raised = true }
+```
+
+- **Construct:** `Checkpoint.new(by:)`. `by` is the layer whose colliders reach
+  it, readable as `by`; every other layer is ignored.
+- **Signal:** `on_reached(other)` fires with the collider that touched it, once
+  its node's `Respawn` has the new point. `on_hit` is an edge, so a node standing
+  on a checkpoint reaches it once.
+- **Lifecycle:** `_attach` needs a [`Collider`](#collider) on the same node and
+  connects to it. `_detach` ends that connection, so a checkpoint taken out of the
+  tree and added again fires once per touch.
+
+**A touch moves only the toucher's point.** Two heroes each come back at the last
+checkpoint they touched, an earlier one touched again included.
+
+**A node on `by` with no `Respawn` raises at the touch**, naming its class and the
+layer. A game that ends on a fall decides at the fall instead, and removes the
+`Respawn` in [`Footing`](#footing)'s `on_fell`.
+
+**It stands on ground.** With a [`TileWorld`](#tileworld) on the scene, `_attach`
+raises `ArgumentError` where the node's cell is a gap, under a platform or not. A
+checkpoint placed over a gap fails as the scene loads.
+
+`Checkpoint` has no `_update`, so it costs nothing per frame.
+
 ### `CircleCollider`
 
 **A circular collision shape in a scene's [`CollisionWorld`](#collisionworld).** It
@@ -1445,7 +1481,8 @@ hero.add_component(RGame::Engine::Components::Respawn.new(flash: 1.0))
   raises `ArgumentError`. `flash: 0` flashes nothing.
 - **The point:** `point_x` and `point_y`, in world pixels. The first attach records
   where the node stands. Later attaches, such as a door moving the node to another
-  room, keep the point. `set_point(x, y)` moves it and returns the `Respawn`.
+  room, keep the point. `set_point(x, y)` moves it and returns the `Respawn`, and a
+  [`Checkpoint`](#checkpoint) calls it.
 - **`respawn`** places the node on its point and starts the flash. A game may call
   it with no fall before it.
 - **Signal:** `on_respawned` fires once the node stands on its point, as the flash

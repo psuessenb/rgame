@@ -14,6 +14,10 @@ index, not the argument.
 
 ### Added
 
+- **Checkpoints.** `Components::Checkpoint` moves the respawn point of a node
+  on its `by` layer to itself when that node's collider touches it, and emits
+  `on_reached`. It raises over a gap, and for a toucher with no `Respawn`. See
+  [docs/api/components.md](docs/api/components.md#checkpoint).
 - **Moving platforms.** `Components::Platform` makes its node's box floor over
   the map's gaps, and `TileWorld#platform_under` names the one a point stands
   on. A node with a `Footing` boards the platform under it, and the mover that
