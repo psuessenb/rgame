@@ -83,7 +83,13 @@ reproduces byte-identically on a re-run — so re-run a lone odd report before
 believing it, and take a baseline twice, because the capture you are comparing
 *against* can be the run that was wrong.
 
-Three more things a comparison needs, each of which has produced a false result:
+Four more things a comparison needs, each of which has produced a false result:
+
+- **A report cannot match across a change to draw order or to a node's origin.**
+  It lists draws in call order and in each node's local coordinates, so either
+  change alters it with nothing moved on screen. Y-sort hit both: the sort
+  moved the order, and the sprite anchors moved the origins. Compare where each draw lands instead, by adding up the translates and
+  scales around it.
 
 - **A worktree of `main` has no `media/`.** It is git-ignored, so the test projects
   crash loading assets there. Symlink the checkout's `media/` into the worktree.
