@@ -717,6 +717,17 @@ falling one, so it pauses when the world around the node is paused. A node taken
 out of the tree mid-fall, through a door or freed, stops falling at once, at
 scale 1 and resumed.
 
+**A game decides at each fall whether the node comes back.** The fall looks the
+node's `Respawn` up as it ends, not as it starts. So a game that ends on a fall
+removes the `Respawn` in `on_fell`, and the node is freed instead:
+
+```ruby
+footing.on_fell do
+  @lives -= 1
+  hero.remove_component(RGame::Engine::Components::Respawn) if @lives.zero?
+end
+```
+
 ### `Grab`
 
 **Holds a [`Pushable`](#pushable) while a button is held, so the node's mover drags
@@ -1434,12 +1445,27 @@ hero.add_component(RGame::Engine::Components::Respawn.new(flash: 1.0))
   raises `ArgumentError`. `flash: 0` flashes nothing.
 - **The point:** `point_x` and `point_y`, in world pixels. The first attach records
   where the node stands. Later attaches, such as a door moving the node to another
-  room, keep the point. `set_point(x, y)` moves it.
+  room, keep the point. `set_point(x, y)` moves it and returns the `Respawn`.
 - **`respawn`** places the node on its point and starts the flash. A game may call
   it with no fall before it.
 - **Signal:** `on_respawned` fires once the node stands on its point, as the flash
   starts.
-- **Lifecycle:** `_detach` stops a flash and gives the opacity back.
+- **Lifecycle:** `_attach` checks the point, as below. `_detach` stops a flash and
+  gives the opacity back.
+
+**The point stands on ground.** With a [`TileWorld`](#tileworld) on the scene,
+each attach raises `ArgumentError` for a point whose cell is a gap, and so does
+`set_point` once attached. A gap under a [`Platform`](#platform) counts: the platform
+moves on, and a node brought back there would fall again as soon as it stood. A
+refused `set_point` keeps the point it had. A node that starts on a platform takes
+a point on ground before it is added, and its first attach checks that point
+instead:
+
+```ruby
+hero.add_component(RGame::Engine::Components::Respawn.new.set_point(96.0, 248.0))
+```
+
+With no `TileWorld`, a `Respawn` checks nothing.
 
 **The node comes back working.** Its controls answer from the tick it lands, and a
 [`CameraFollow`](#camerafollow) cuts to it. The flash only shows where it came back:
@@ -1585,6 +1611,9 @@ data to another, depends on a sibling's add order, or names a layer it may not n
     floor: its cell is not a gap, or a [`Platform`](#platform) covers it. A point
     on a cell's left or top edge is in that cell, and a point off the map is on
     the floor.
+  - `ground_at?(x, y)`, whether the point's cell is not a gap. A platform does
+    not make a gap ground, so this is where a thing may stand and stay, such as a
+    [`Respawn`](#respawn)'s point.
   - `platform_under(x, y)`, the platform a node standing at the point rides: the
     first one registered that covers the point, where the cell is a gap. It is
     `nil` wherever the cell is ground, whatever covers it.

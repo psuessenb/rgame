@@ -239,6 +239,26 @@ RSpec.describe RGame::Engine::Components::Footing do
         expect([took, state]).to match([be_between(29, 31), [40.0, 27.0, 1, false, [node]]])
         expect([node.get_component(parts::Respawn).flashing?, node.world_x]).to eq([true, 41.0])
       end
+
+      # The game's choice at each fall: it takes a life in on_fell, and removes the
+      # Respawn with the last one.
+      it "brings a node back from its first fall and frees it after its second, added as #{order.join(', ')}" do
+        node = hero(order: order, coyote: 0, fall: 0.5)
+        lives = 2
+        respawns = 0
+        node.get_component(parts::Respawn).on_respawned { respawns += 1 }
+        footing(node).on_fell do
+          lives -= 1
+          node.remove_component(parts::Respawn) if lives.zero?
+        end
+        walk_off(node)
+        ticks(40)
+        back = world.children.include?(node)
+        walk_off(node)
+        ticks(40)
+
+        expect([back, respawns, world.children.empty?, lives]).to eq([true, 1, true, 0])
+      end
     end
 
     it 'holds mid-shrink while the world around it is paused' do

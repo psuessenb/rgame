@@ -35,7 +35,8 @@ index, not the argument.
   `coyote` seconds, and at once when it lands there from a `Hop`. A node in the
   air never falls. The fall suspends the node and shrinks it into the gap, and
   `on_fell` fires as it starts. `Components::Respawn` then puts the node back
-  on its respawn point, flashing, and a node without one is freed. See
+  on its respawn point, flashing, and a node without one is freed. A respawn
+  point stands on ground: `Respawn` raises for one over a gap. See
   [docs/api/components.md](docs/api/components.md#footing).
 - **A pits example.** `examples/pits` drops a hero who walks into a chasm and
   brings them back flashing, hops trenches, and shows coyote time running out
@@ -45,9 +46,10 @@ index, not the argument.
   [docs/api/scene_graph.md](docs/api/scene_graph.md#scale).
 - **Gaps in a tile map, and a floor to stay on.** A tile whose Tiled class is
   `gap` makes its cell a gap, and `TileMap#gap_tile?` answers for a cell.
-  `TileWorld#floor_at?` answers whether a point stands on the floor, and a
-  mover declaring `blocked_by: [:gaps]` keeps the centre of its box there,
-  stopped by `Engine::GapBlockers`, and needs a `Components::Footing`. See
+  `TileWorld#floor_at?` answers whether a point stands on the floor, and
+  `TileWorld#ground_at?` whether its cell is not a gap. A mover declaring
+  `blocked_by: [:gaps]` keeps the centre of its box on the floor, stopped by
+  `Engine::GapBlockers`, and needs a `Components::Footing`. See
   [docs/api/tile_maps.md](docs/api/tile_maps.md#gaps) and
   [docs/api/components.md](docs/api/components.md#mover).
 - **Y-sorted drawing.** A `Node2D` built with `y_sort: true`, or given

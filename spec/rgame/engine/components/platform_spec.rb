@@ -84,6 +84,12 @@ RSpec.describe RGame::Engine::Components::Platform do
         .to eq([true, false, false])
     end
 
+    it 'is not ground where the box covers a gap' do
+      platform_at(80.0, 24.0)
+      expect([world.floor_at?(70.0, 24.0), world.ground_at?(70.0, 24.0), world.ground_at?(40.0, 24.0)])
+        .to eq([true, false, true])
+    end
+
     it 'is the platform a point over the gap stands on' do
       platform = platform_at(80.0, 24.0)
       expect([world.platform_under(70.0, 24.0), world.platform_under(100.0, 24.0)]).to eq([platform, nil])
