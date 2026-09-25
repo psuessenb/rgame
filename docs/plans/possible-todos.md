@@ -733,7 +733,7 @@ Five things the top-down platforming plan found and left. `Footing`, `Platform`,
   new room raises there. **Trigger:** a game with gaps in two rooms.
 - **Platforms as Tiled tile objects.** A platform draws its own tiles in code.
   Once a tile object draws as a node, a platform could draw the one a designer
-  placed. [research/object-layers.md](research/object-layers.md) collects what
+  placed. [object-layers/](object-layers/README.md) collects what
   that waits on. **Trigger:** tile objects drawing as nodes.
 
 ---
@@ -748,7 +748,7 @@ nodes. Tall scenery is split in two: a trunk below the actors' slot, and a
 canopy in a layer marked `above` that covers an actor wherever they stand. Tiled
 tile objects are the other answer: one picture at one position, sorting like an
 actor. They do not draw yet, and
-[research/object-layers.md](research/object-layers.md) says what they wait on.
+[object-layers/](object-layers/README.md) says what they wait on.
 
 **Why not now.** `Core::TileMapRenderer` would draw a layer a row at a time,
 interleaved with the nodes of the slot. That changes how a layer and a slot
@@ -784,7 +784,7 @@ Three things the y-sort plan left open. The sort is in
 
 What the Tiled format plan chose not to read, and two measurements it left open.
 What rgame reads and draws is in `docs/api/tile_maps.md`. Object layers have
-their own research in [research/object-layers.md](research/object-layers.md).
+their own plan in [object-layers/](object-layers/README.md).
 
 - **Isometric, staggered and hexagonal maps.** Each raises `Tiled::FormatError`.
   Every conversion between cells and pixels goes through `TileMap`'s seam

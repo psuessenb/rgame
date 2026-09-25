@@ -1,0 +1,454 @@
+# Roadmap
+
+**Nothing is implemented yet.** Steps 0–3 are detailed. Steps 4–8 are rough and
+get re-planned once the steps before them land.
+
+## Dependency shape
+
+```
+0 tour.tmx requirements ───────────────────────────────────────────────────────────┐  authoring runs in parallel
+                                                                                   │
+1 parse + transform ─→ 3 map settings + builder ─┐                                 │
+                       4 one tile drawn ─────────┴─→ 5 mount builds ─┐             │
+2 random source ─────────────────────────────────────────────────────┴─→ 6 migrate ─→ 7 export ─→ 8 checked + played ─→ 9 fold back
+```
+
+Steps 1, 2 and 4 depend on nothing in this plan and can land in any order. Step 3
+needs step 1, because a component's values are the class properties step 1 stops
+dropping. Step 6 needs step 2, because a `Walker` built from a map finds its
+random source in the tree. Step 8 needs step 7: the level's designer picks
+classes from the exported types, rather than typing them.
+
+## The invariant every step preserves
+
+> **Every driven project enters the same scenes, plays the same sounds, and
+> draws the same things at the same screen positions**, except where a step names
+> what moves and why.
+
+A report cannot match byte for byte across a step that moves a node's origin,
+because it records each draw in local coordinates (see
+[verify](../../../.claude/skills/verify/SKILL.md)). Steps 5 and 6 move origins,
+so they compare where each draw lands on screen.
+
+And the standing one from the Tiled format plan:
+`spec/example_assets_spec.rb` still parses `town.tmx` to the same grid.
+
+## What lands early, if the plan is abandoned
+
+| Step | Defect it closes |
+|---|---|
+| 1 | A capsule reads as a rectangle; a tile object loses its tile's class; `objectalignment` places objects where Tiled does not |
+| 2 | `Particles` and `WanderController` draw from an unseeded `Random`; 9 projects each read `RGAME_SEED` themselves |
+| 4 | Nothing can draw one tile of a map outside a tile layer |
+
+Step 3 has no caller until step 5, so it lands for step 5 rather than alone.
+
+---
+
+## Step 0 — the requirements for `tour.tmx`
+
+Authoring is half done, and step 1 changes what the parser reads. So the
+requirements settle first, and you keep authoring against them while steps 1–7
+are built. The level map gets its own requirements in step 8, once the exported
+types exist to author it with.
+
+### Shape
+
+Changes to [map-requirements.md](map-requirements.md):
+
+- **Carry over the done marks.** R1, R2, R4, R5, R6, R8, R9, R11, R12 and R15,
+  as the authoring branch marks them.
+- **R15 names the capsule** among the shapes.
+- **R13's check reads the class names** of the class property and of its class
+  member, now that `Properties#class_name` keeps them.
+- **R17 stays at 64×48.** The map is 40×40, and 640 pixels is no wider than the
+  window, so the example would have nowhere to scroll sideways. **Map › Resize
+  Map…** in Tiled.
+- **R19's check compares tile and image layers only.** Object layers stay hidden
+  in the export, because Tiled's export draws shapes that rgame does not. Tile
+  objects are checked where they are played, in the level.
+- **`.tiled-session` goes into `.gitignore`.** The ground rules said to leave it
+  out, and the branch commits one. An ignore entry replaces the rule.
+
+New requirements, each with what to do in Tiled, why, and what the check reports:
+
+| | Requirement | For step |
+|---|---|---|
+| R20 | A tile object with no class of its own, placed from a tile whose class is set in its tileset | 1b: a tile object takes its tile's class |
+| R21 | A tileset whose object alignment is not *Unspecified*, with a tile object placed from it | 1b: `objectalignment` |
+| R22 | Two object layers, one drawn *Top Down* and one *Manual* | 1c: `y_sort?` |
+| R23 | One object layer with a bool property `actors` set to `true` | 1c: `actors?` |
+
+Use lower-case classes in `tour.tmx`, such as `tree`. The format checklist then
+builds nothing when a scene mounts it.
+
+### Verify
+
+`map-requirements.md` lists R1–R23, marks the ten done, and each new
+requirement says what the check reports when it is missing.
+`git check-ignore examples/assets/tiled_tour/tour.tiled-session` succeeds.
+
+---
+
+## Step 1 — the parse and the transform *(`Engine::Tiled` and `TileMap`, pure)*
+
+Six silent gaps, closed where the data enters, so nothing later in the plan
+builds on a wrong reading. Each sub-step is useful alone.
+
+### Sub-steps
+
+- **1a** — `Tiled::Object` reads a capsule, and refuses a shape it does not know.
+- **1b** — a class property keeps its class; a tile object takes its tile's class;
+  `objectalignment` is read and applied.
+- **1c** — `TileMap::ObjectLayer`, answering `y_sort?` and `actors?`, and
+  `TileMap#actors_layer`, forwarded by `TileWorld`.
+
+### Shape
+
+```ruby
+# 1a — Engine::Tiled::Object
+object.shape                              # => :capsule
+
+# 1b — Engine::Properties
+RGame::Engine::Properties.new(values, class_name: nil)
+bag['collider'].class_name                # => 'BoxCollider'
+map.objects.find { it.id == 9 }.class_name   # => 'tree', from its tile
+tileset.object_alignment                  # => :bottom_left, :center, ... — Tiled's nine, and :unspecified
+
+# 1c — Engine::TileMap
+class ObjectLayer < Layer
+  def initialize(y_sort:, actors:, **)
+  def y_sort? = @y_sort
+  def actors? = @actors
+end
+map.actors_layer                          # => an index, or nil
+world.actors_layer                        # TileWorld forwards it, as it does first_above_layer
+```
+
+### The rules the tests pin
+
+**1a**
+
+1. **A `<capsule/>` reads as `:capsule`**, with its width and height, as an
+   ellipse does.
+2. **A child element other than `properties` and the six shapes raises
+   `Tiled::FormatError`**, naming the element, the object and the file.
+
+**1b**
+
+3. **A class property's value answers `class_name`** with its `propertytype`, at
+   every depth. A bag that is not a class value answers `nil`.
+4. **Two bags with the same values and different classes are not equal.**
+5. **A tile object with no class takes its tile's class.** Its own class wins.
+   A shape object is unaffected.
+6. **Each of the nine alignments puts the object's top-left corner where Tiled
+   draws it**, with and without rotation. `:unspecified` means bottom-left, as
+   today.
+
+**1c**
+
+7. **An object layer answers `y_sort?`**: `true` for `topdown` or no
+   `draworder`, `false` for `index`.
+8. **`actors?` is `true` for a bool property `actors` set to `true`.** A value
+   that is not a bool, a mark on a layer that is not an object layer, and marks
+   on two layers each raise `Tiled::FormatError`, naming the layers.
+9. **`actors_layer` is the marked layer's index, or `nil`**, answered by
+   `TileMap`, by `TileWorld`, and by `StubTileMap` through the `a tile map`
+   contract.
+10. **`town.tmx` parses to the same grid** (the standing invariant).
+
+### Tests
+
+- `spec/rgame/engine/tiled/object_spec.rb`: rules 1 and 2.
+- `spec/rgame/engine/tiled/properties_spec.rb`: rules 3 and 4, a class inside a
+  class included.
+- `spec/rgame/engine/tiled/tileset_spec.rb`: reading `objectalignment`.
+- `spec/rgame/engine/tile_map_spec.rb`: rules 5–9, from `.tmx` strings through
+  `TiledFixture`.
+- `spec/support/shared_examples/a_tile_map.rb` and `stub_tile_map.rb`:
+  `actors_layer`.
+
+### Verify
+
+- `rake spec`.
+- `tour.tmx` from the authoring branch loads, with object 4 as `:capsule`:
+
+  ```
+  git archive origin/build-step-8-tiled-map examples/assets | tar -x -C /tmp/tour
+  ruby -Ilib -e 'require "rgame"; p RGame::Engine::TileMap.from_tiled(RGame::Engine::Tiled::Map.load("/tmp/tour/examples/assets/tiled_tour/tour.tmx")).objects.map(&:shape)'
+  ```
+
+- `docs/api/tile_maps.md` documents the capsule, `class_name` on a class value,
+  inherited tile classes and the alignment. `CHANGELOG.md` has a Fixed entry for
+  the capsule, and an Added entry for the rest.
+
+---
+
+## Step 2 — `Components::RandomSource`, and every project on it
+
+The walker cannot move onto the map until it can find a random source without
+its scene. The source is worth having alone: 9 projects repeat the same line, and
+two engine components draw from an unseeded `Random` without saying so.
+
+### Sub-steps
+
+- **2a** — `Components::RandomSource`; `RGame::Game` mounts one and answers
+  `random_source`; `Particles` and `WanderController` default to it.
+- **2b** — the 9 projects and the 3 call sites that relied on the unseeded
+  default move onto it.
+
+### Shape
+
+```ruby
+# 2a — Engine
+module RGame::Engine::Components
+  # A system on the root, as Facts is: one seeded source of random numbers
+  # that every node finds without being handed it.
+  class RandomSource < Engine::Component
+    sealed_reader :seed
+
+    def initialize(seed:)
+      super()
+      @rgame_seed = seed
+      @rgame_random = Random.new(seed)
+    end
+
+    def rand(...) = @rgame_random.rand(...)
+  end
+end
+
+# 2a — glue
+RGame::Game.new(seed: DEFAULT_SEED)   # RGAME_SEED wins when set; with neither, Random.new_seed
+game.random_source
+
+# 2a — the two engine defaults
+WanderController.new(rng: nil, ...)   # nil: the root's RandomSource, found at _attach
+Particles.new(rng: nil, ...)
+
+# 2b — a project, before and after
+@rng = Random.new(ENV.fetch('RGAME_SEED', DEFAULT_SEED).to_i)
+@rng = system!(RGame::Engine::Components::RandomSource)
+```
+
+### The rules the tests pin
+
+1. **Two sources with one seed give one sequence.** `rand` takes what
+   `Random#rand` takes.
+2. **`RGAME_SEED` wins over `seed:`**, and with neither the game picks a fresh
+   seed. `seed` reads back what was used, so a run can be repeated.
+3. **`WanderController` and `Particles` with no `rng:` use the root's source.**
+   With no source on the root, `_attach` raises, naming `RandomSource`.
+4. **An `rng:` passed explicitly still wins.**
+5. **`rand` allocates nothing** beyond what `Random#rand` allocates.
+
+### Tests
+
+- `spec/rgame/engine/components/random_source_spec.rb`: rules 1 and 5.
+- `spec_core/rgame/game_spec.rb`, or the spec that covers `game.facts`: rule 2.
+- `wander_controller_spec.rb` and `particles_spec.rb`: rules 3 and 4.
+
+### Verify
+
+- `rake spec`, `rake spec:core`, `rake drive:allocations`.
+- **Each of the 9 projects, driven with `--seed 1 --texts` before and after,
+  reports the same.** One source per game can differ from one per scene in two
+  ways, and each difference found gets named in the landed note:
+  - something draws from the source before the scene that used to own one;
+  - a scene entered twice used to start its sequence again, and now continues
+    it.
+- `docs/api/` documents `RandomSource` and `game.random_source`, and the pages
+  for `WanderController` and `Particles` say where `rng:` comes from.
+  `CHANGELOG.md` has an Added entry, and a Changed entry for the two defaults.
+
+---
+
+## Step 3 — `map_settings`, and building a node from an object *(Engine, pure)*
+
+The mechanism, with no caller yet: step 5 wires it into `mount`. Building it
+first, against records parsed from `.tmx` strings, lets its rules be pinned
+without a scene.
+
+### Sub-steps
+
+- **3a** — `map_settings` on `Node2D` and `Component`, the types, and the check
+  against `initialize`. `BoxCollider` and `FeetCollider` declare theirs.
+- **3b** — `Node2D` takes `map_object:` and `fact_key:`, and component values
+  apply while a node builds its components.
+- **3c** — `Engine::MapBuilder`: class resolution, property checks and casts,
+  the origin, the key in `Facts`, and the check that every value was taken.
+
+### Shape
+
+```ruby
+# 3a — a class macro on Node2D and Component
+class Chest < RGame::Engine::Node2D
+  map_settings contents: :string, locked: :bool
+end
+Chest.map_settings                  # => { contents: :string, locked: :bool }, frozen
+
+# 3b — Node2D
+Node2D.new(map_object: nil, fact_key: nil, **)   # alongside the keywords it takes today
+node.map_object                     # sealed_reader; nil for a node built in code
+node.fact_key                       # sealed_reader
+
+# 3c — @api private; step 5's mount is its caller
+builder = RGame::Engine::MapBuilder.new(tilemap_id: 'map/town.tmx')
+builder.build(object)               # => a Chest, or nil for an object whose class is data
+```
+
+### The rules the tests pin
+
+**3a**
+
+1. **A declared name must be a keyword of the class's own `initialize`.** The
+   check runs the first time the class is built, and raises naming the class,
+   the name and the keywords `initialize` takes.
+2. **An unknown type, and a reserved name, raise at the declaration.** The
+   reserved names are `Node2D`'s own keywords, `map_object`, `fact_key` and
+   `fact`.
+3. **A declaration is not inherited.** A subclass with none declares nothing.
+4. **Every engine class that declares settings passes the check**, run by a spec
+   over all of them.
+
+**3b**
+
+5. **A component built by a node's `initialize` takes the map's values for its
+   class**, and they win over the keywords the code passed.
+6. **The class must match exactly.** A value for `BoxCollider` does not reach a
+   `FeetCollider`.
+7. **A child node built inside that `initialize` takes nothing** from its
+   parent's values, and a component built after `initialize` returns takes
+   nothing either.
+8. **With no build in progress, `Node2D.new` and `Component.new` allocate what
+   they allocate today**, measured per call.
+
+**3c**
+
+9. **A class starting with a capital resolves to a constant**, `Town::Chest`
+   included. No such constant raises `NameError`, and a constant that is not a
+   `Node2D` subclass raises `TypeError`. Each message names the tilemap id, the
+   object's id and name, and the class.
+10. **Any other class, or none, builds nothing.** `build` returns `nil`.
+11. **A flat property must be a declared setting of the class, of its type**,
+    and arrives cast, a String becoming a Symbol for `:symbol`. Anything else
+    raises, listing what the class declares.
+12. **A class property must name a component class that declares settings, and
+    each member must be one of them.** The raise names the object and the member.
+13. **The origin is the bottom centre of the object's box, turned with it.** A
+    point object's origin is its point, and a polygon's or polyline's is its own
+    corner. `angle` is the object's rotation, and `width` and `height` its size.
+14. **`fact_key` is the `fact` property as a Symbol**, and otherwise
+    `:"<tilemap id>#<object id>"`. `map_object` is the record it was built from.
+15. **Every component value is taken exactly once.** None taken raises,
+    "`Chest` built no `FeetCollider`", and two taken raises too.
+
+### Tests
+
+- `spec/rgame/engine/map_settings_spec.rb`: rules 1–4.
+- `spec/rgame/engine/node2d_spec.rb` and a new
+  `spec/rgame/engine/map_settings_construction_spec.rb`: rules 5–7.
+- An allocation example beside `node2d_control_allocation_spec.rb`: rule 8.
+- `spec/rgame/engine/map_builder_spec.rb`: rules 9–15, its records parsed from
+  `.tmx` strings through `TiledFixture` rather than built with `MapObject.new`.
+- **The caller that uses both**, in the same file: a node class that builds a
+  `FeetCollider` and a child node with its own `BoxCollider`, from an object
+  whose properties set both. The node's collider takes its value, the child's
+  keeps its own, and the `BoxCollider` value raises as never taken.
+
+### Verify
+
+- `rake spec`.
+- `rake drive:allocations`: no project allocates more, because rule 8 holds for
+  every node and component a game builds.
+- `docs/api/scene_graph.md` or `components.md` documents `map_settings`,
+  `map_object` and `fact_key`. `MapBuilder` is `@api private`, and nothing uses
+  it yet, so `CHANGELOG.md` waits for step 5.
+
+---
+
+## Step 4 — one tile, drawn anywhere *(rough)*
+
+`renderer.map_tile(tilemap_id, tile, left, top, width, height, orientation,
+elapsed:)` in `Core::Renderer`, forwarded to the registered map as `tilemap` is,
+through `TileMapRenderer`'s single-tile path opened to a position and a size.
+The fake answers it, and `a renderer` checks both. `Components::MapTile` draws a
+tile with its bottom centre on the node's origin, culled as a sprite is, with the
+clock from `TileWorld#elapsed`.
+
+To settle in the re-plan: whether a tileset's drawing offset applies to a tile
+object as it does in a layer, what Tiled does with a tile object scaled to a
+size its tile does not have, and what `map_tile` allocates per call.
+
+## Step 5 — `mount` builds the object layers *(rough)*
+
+`TileMapLayer.mount` gives each object layer a node in its place, y-sorted as
+`y_sort?` says and at the layer's opacity, and calls `MapBuilder` for each
+object. A tile object gets a `MapTile`. `slots[:actors]` becomes the marked
+layer's node. The composition test goes here: a hero spawned into the marked
+layer, a tree placed as a tile object, two viewports, the hero walking round the
+tree.
+
+To settle in the re-plan: open question 4, hidden object layers. Whether
+`TileWorld` owns the `MapBuilder`, since it holds the tilemap id. What
+`tiled_world`, whose `Objects` layer sits above the canopy, draws after this
+step.
+
+## Step 6 — every map and project on the new path *(rough)*
+
+13 objects in 4 maps take a Ruby class's name. `Door` ×2, `Raft` ×2, `Flag`,
+`Crate` and `Walker` declare their settings, put their origin at the bottom
+centre, and find their room or random source in the tree. `Warp` joins `examples/doors` and
+`test_projects/adventure`. The 5 scenes lose `MapObjects` and `spawn_into`, and
+`MapObjects` goes, with a Removed entry in `CHANGELOG.md`.
+
+To settle in the re-plan: open question 3, the leftover slots. Whether
+`Warp` subclasses `Door`. The screen-position comparison for every driven
+project these maps reach.
+
+## Step 7 — Tiled's custom types, written from Ruby *(rough)*
+
+`RGame::Engine::MapTypes.write(path)` writes a Tiled class for each `Node2D` and
+`Component` subclass that declares `map_settings` into a `.tiled-project`. It
+replaces the classes it owns and keeps the designer's. An Array of Symbols
+becomes a Tiled enum.
+
+To settle in the re-plan: open questions 2 and 5, where it runs and what default
+a member shows. Whether the generated project gains the task, and
+`spec/rgame/cli/generated_project_spec.rb` with it.
+
+## Step 8 — the maps checked, and the level played *(rough)*
+
+Two halves, as [map-requirements.md](map-requirements.md#the-check-and-the-example-that-plays-the-map)
+sketches:
+
+- `spec/example_assets_spec.rb` checks `tour.tmx` against R1–R23, and its
+  gzip and infinite twins.
+- A second map, designed as a level, is played by a new example with a drive
+  script. Its requirements are written at this step's re-plan, against the
+  exported types: trees as tile objects in the marked layer, a chest whose state
+  survives leaving the room, a component value set from the map.
+
+`puzzle.tmx`, which has no object layer, covers the fallback slot.
+
+## Step 9 — fold the plan back and delete it
+
+- **`docs/api/tile_maps.md`** says what a map builds and how: the class rule,
+  data classes, `map_settings`, component values, tile objects, the `actors`
+  mark, `fact_key`. "Building nodes from objects" is rewritten for the new path.
+- **`docs/api/components.md`** covers `MapTile` and `RandomSource`.
+- **`docs/api/scene_graph.md`** covers what `mount` builds for an object layer.
+- **`docs/plans/possible-todos.md`**:
+  - "Platforms as Tiled tile objects" is answered, or its trigger updated.
+  - Open questions still open move here.
+  - So do the plan's "does not deliver" items that have a trigger.
+- Run [learn-from-mistakes](../../../.claude/skills/learn-from-mistakes/SKILL.md)
+  over every step's "What proved wrong".
+- Delete `docs/plans/object-layers/`.
+
+### Verify
+
+`CHANGELOG.md` covers everything steps 1–8 shipped, per
+[update-changelog](../../../.claude/skills/update-changelog/SKILL.md): the
+capsule fix, the random source, map-built nodes, `map_settings`, `map_tile`, and
+the removal of `MapObjects`. `rake` passes. `docs/plans/object-layers/` is gone,
+and `grep -r object-layers docs/ .claude/` finds nothing.

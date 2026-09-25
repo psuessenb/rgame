@@ -6,12 +6,10 @@ result in the object's own layer, so Tiled's layer order stays the draw order.
 They differ most in how a property reaches the component that uses it. None of
 them has a good answer for an actor the map does not contain.
 
-This is research, not a plan. It follows [object-layers.md](object-layers.md) and
-its direction: the map parses an object layer, the layer gets a node, and that
-node's children are built from the objects. Each object's class and properties
-decide what it becomes, including properties that belong to one of its
-components. Sources were read on 2026-09-25. Claims about rgame are read off
-`dcb07f8`.
+How Tiled's own documentation and example maps, and eleven engines and loaders,
+answer the questions this plan answers. Sources were read on 2026-09-25. What
+the plan took from each is at [the end](#what-the-plan-takes-from-it). What rgame
+does today is in [01-current-state.md](01-current-state.md).
 
 ## At a glance
 
@@ -226,51 +224,20 @@ object layer's node to sort against the trees in it.
   ([object-layer.ts](https://github.com/excaliburjs/excalibur-tiled/blob/main/src/resource/object-layer.ts)).
   A chest drawn from its tile then draws itself.
 
-## What this means for rgame's loader today
+## What the plan takes from it
 
-*(Measured.)* Three gaps against the Tiled behaviour above, and a fourth below:
+| Question | Settled in the [brief](README.md#decisions-already-taken) | Prior art behind it |
+|---|---|---|
+| Who builds from an object | the loader, into the object's own layer (decision 1) | bevy_ecs_tiled, YATI, SuperTiled2Unity, ponytiled |
+| What an object's class names | a Ruby class, by its constant's name (decision 4) | YATI's `godot_node_type` |
+| How a value reaches a component | one class-typed property per component (decision 3) | bevy_ecs_tiled, and Tiled's own `Body` and `Fixture` classes |
+| A name nothing declares | raises at load (decisions 5 and 8) | none of them |
+| The types a designer picks from | written from Ruby (decision 8) | bevy_ecs_tiled's `tiled_types_export.json` |
+| An object nothing builds | data; a tile object still draws its tile (decision 6) | Excalibur, YATI and STI draw a tile object by default |
+| A node class's own picture | draws over the tile rather than replacing it (decision 6) | against Excalibur, where a factory replaces the default |
+| Actors spawned in code | the layer the designer marks (decision 7) | SuperTiled2Unity's `unity:SortingLayer`, Excalibur's `zindex` |
 
-- **`draworder` is read and then dropped.** `Tiled::ObjectLayer#draw_order` is
-  `:topdown` or `:index` ([map.rb:230](../../../lib/rgame/engine/tiled/map.rb#L230)).
-  `TileMap::Layer` does not carry it, and nothing outside `lib/rgame/engine/tiled/`
-  reads it. It maps onto `y_sort: true` and `false`.
-- **A tile object does not inherit its tile's class.** `MapObject#class_name`
-  comes from the object alone
-  ([from_tiled.rb:154](../../../lib/rgame/engine/tile_map/from_tiled.rb#L154)),
-  though the map keeps a class per tile
-  ([from_tiled.rb:78](../../../lib/rgame/engine/tile_map/from_tiled.rb#L78)).
-- **A class-typed property carries only the members set in the map.**
-  `Tiled::Properties` reads it as a nested bag
-  ([properties.rb:53](../../../lib/rgame/engine/tiled/properties.rb#L53)).
-  Tiled saves only the members set on that element, and rgame reads no project
-  file, so the defaults are missing. A component's own defaults could fill them
-  if the Tiled types were exported from the components, as bevy_ecs_tiled does.
-
-A fourth gap matters once a tile object draws. **A tileset's `objectalignment`
-is not read.** It says which point of a tile object its position names, from
-`topleft` to `bottomright`. Left `unspecified`, the default, a tile object on an
-orthogonal map is placed by its bottom-left corner, which is all the loader
-assumes.
-
-Templates are already resolved, the instance's properties winning
-([template.rb](../../../lib/rgame/engine/tiled/template.rb)).
-
-*(Measured.)* Of the seven maps the examples and test projects load, six have an
-object layer. The one without is `examples/assets/puzzle.tmx`, which
-`examples/block_puzzle` loads. In `beach_large.tmx`, `Objects` sits above `Over`,
-the layer marked `above`, as in Tiled's `island.tmx`.
-
-## Questions for the plan
-
-1. How a property reaches a component: the bag, a name matched on every
-   component, reserved names, or one Tiled class per component.
-2. Whether rgame exports its components as Tiled custom types, and whether an
-   unknown property raises.
-3. Where an actor spawned in code goes: the object layer when the map has one,
-   `slots:` when it does not, or a layer the designer names.
-4. What an object with no builder becomes: nothing, or a picture for a tile
-   object.
-5. Whether a builder replaces the default picture, as in Excalibur, or adds to
-   it.
-6. How properties reach a component without the fault the Tiled format plan
-   found in matching by name: a failure that names a field, not the map.
+The Tiled format plan's objection to matching by name holds, and decision 3 is
+what answers it. The component is named by the Tiled class of the property that
+carries its values, so nothing is matched by string, and a failure names the map,
+the object and the member.
