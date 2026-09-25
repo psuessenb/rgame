@@ -1,9 +1,11 @@
 # Y-sort
 
-**Status: steps 1 and 2 are implemented.** Four steps. Each is one branch and one pull
-request, and its sub-steps are one commit each. **Steps 1 and 2 are
-detailed.** Step 3 is rough and gets re-planned once step 2 lands. Step 4 folds
-the plan back and deletes it.
+**Status: steps 1 and 2 are implemented.** Three steps. Each is one branch and
+one pull request, and its sub-steps are one commit each. **Steps 1 and 2 are
+detailed.** Step 3 folds the plan back and deletes it. Tiled tile objects as
+sorted nodes, once a rough step 3, moved to
+[research/object-layers.md](research/object-layers.md): they need an
+engine-wide answer about object layers first.
 
 ## Verdict
 
@@ -22,9 +24,7 @@ today's order, so a run does not depend on how often it was drawn.
 top-down projects lose their hand-written offsets, and every feet box stays
 where it was.
 
-**Tiles do not sort with actors.** The `above` canopy layer stays the answer. A
-rough third step turns Tiled tile objects into nodes, and those sort like
-actors.
+**Tiles do not sort with actors.** The `above` canopy layer stays the answer.
 
 ## Goal
 
@@ -33,8 +33,7 @@ and in front of whatever stands behind them. The game adds no code for it.
 
 ## Hard constraints
 
-1. **The engine layer may not name `RGame::Core`.** Step 3's single-tile draw is
-   a renderer method, called by name.
+1. **The engine layer may not name `RGame::Core`.**
 2. **A per-frame path allocates nothing.** The sort runs every frame, and
    `rake drive:allocations` decides whether it allocates.
 3. **`draw` renders state.** Sorting for a draw may not change the order
@@ -83,8 +82,9 @@ reopened inside this plan.
    something unexpected. With `:bottom` as the default, a top-down game is right
    without passing anything. The ship that forgets `anchor: :center` spins about
    its tail, which shows at once. A wrong sort point would not.
-9. **Tiles keep the canopy layer.** Tiled tile objects become sorted nodes in a
-   rough step 3. Sorting tile layers row by row goes to
+9. **Tiles keep the canopy layer.** Tiled tile objects as sorted nodes moved to
+   [research/object-layers.md](research/object-layers.md). Sorting tile layers
+   row by row goes to
    `docs/plans/possible-todos.md` with a trigger.
 10. **This is a plan of its own**, independent of the 0.5.0 roadmap. Y-sort
     touches none of that roadmap's remaining steps.
@@ -101,9 +101,6 @@ None blocks step 1 or step 2.
 2. **A sorted container inside a sorted container.** Under decision 3 the inner
    one sorts as one unit at its own footing. Merging the two into one sort is
    the alternative. *Waits on a scene that needs it.*
-3. **How step 3 draws one tile.** The renderer has `tilemap` for a whole layer,
-   and no call for one tile of a tileset. *Waits on step 2; settled in step 3's
-   re-plan.*
 
 ## What was measured before planning
 
@@ -156,7 +153,6 @@ sorts again, but the order is already right, so it only compares.
 
 - **A second order of a node's children.** Nothing keeps one today. Hard
   constraint 3 needs it: the draw may not reorder the update.
-- **A draw of one tile**, in step 3.
 
 ## Prior art
 
@@ -234,11 +230,8 @@ carries a feet box, and the feet box is exactly where the actor stands.
 ### Dependency shape
 
 ```
-1 y-sort ─→ 2 sprite anchors ─→ 3 tile objects (rough) ─→ 4 fold back
+1 y-sort ─→ 2 sprite anchors ─→ 3 fold back
 ```
-
-Step 3 comes after step 2 because a tile object anchors at its feet, as step 2
-makes the sprites do.
 
 > **Only drawing follows the sort.** `control` and `update` visit a sorted
 > node's children in the order they would without the sort, however those
@@ -641,21 +634,7 @@ construction, and `CollisionBox.bottom_anchored` is gone. It landed on the
   Added entry for `anchor:`, and Changed entries for the default and for
   `FeetCollider`. `bottom_anchored` gets a Removed entry.
 
-### Step 3 — Tiled tile objects as sorted nodes *(rough)*
-
-A designer places a tree as a tile object, and it sorts like an actor. `mount`
-builds a node for each tile object in an object layer and adds it to the slot
-above that layer. The node draws its tile anchored at the feet, as step 2 made
-the sprites do. `MapObject` already carries the tile and its top-left corner,
-and an object layer gets no node today.
-
-This needs a renderer call that draws one tile of a tileset, which is Core work
-the engine reaches by name (hard constraint 1). `test_projects/tiled_world`
-gains a tree placed as a tile object, and the drive script walks behind it.
-
-Re-plan after step 2 lands.
-
-### Step 4 — fold the plan back and delete it
+### Step 3 — fold the plan back and delete it
 
 - Read `docs/api/` for anything this plan says that the pages do not: the
   footing rule, the invariant, the anchor values. Add what is missing.
@@ -667,6 +646,6 @@ Re-plan after step 2 lands.
 
 #### Verify
 
-`CHANGELOG.md` covers everything steps 1–3 shipped, per
+`CHANGELOG.md` covers everything steps 1 and 2 shipped, per
 [update-changelog](../../.claude/skills/update-changelog/SKILL.md). `rake spec`
 passes, including the docs link checks. `docs/plans/y-sort.md` is gone.
