@@ -76,6 +76,10 @@ A component may define a `_` method only if it is one of these hooks, or one an
 ancestor declared with `hook`. Anything else raises `NameError` when the class
 loads; see [the tick](scene_graph.md#the-tick-control--update--draw).
 
+**A component names its instance variables freely.** Every component in
+`RGame::Engine`, `Component` itself included, keeps its own under `@rgame_`:
+`node` reads `@rgame_node`. So a subclass's `@node` or `@timer` is its own.
+
 **`require_sibling(klass)` opens the `_attach` of a component that drives a
 sibling**: `@body = require_sibling(CharacterBody)`. It returns the component, or
 raises naming both. A plain `nil` would stay silent until the first frame called a

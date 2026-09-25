@@ -377,6 +377,10 @@ index, not the argument.
   happens, and the cop names `find`, `any?`, `index` and `while`, which leave
   for free. It runs where the other allocation cops run, and its
   `EveryMethodIn:` names files where every method counts.
+- **`Game/NoEngineIvar`, a cop against the engine's ivars in a game.** It
+  flags an ivar starting with `@rgame_`, read or written, and a literal name
+  starting with it given to `instance_variable_get` and its siblings. See
+  [docs/api/cli.md](docs/api/cli.md#the-generated-rubocop-configuration).
 
 ### Changed
 
@@ -458,6 +462,11 @@ index, not the argument.
   methods raises `NameError` where the class is defined. A method starting
   with `_` is a hook, as the entries above say. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md).
+- **Every engine node and component keeps its ivars under `@rgame_`.** A
+  subclass's `@paused`, `@player`, `@width` or `@opacity` is its own, and no
+  longer changes the node. Code that read one of the engine's ivars calls its
+  public method instead: `label`, not `@label`. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md#the-tick-control--update--draw).
 - **`Game/NoInterpolationInHotPath` names `RGame::Engine::Text`.** Its message
   asked for a string built once and cached. It now says to build a `Text` and
   read it with `with`. See
@@ -532,10 +541,6 @@ index, not the argument.
 
 ### Fixed
 
-- **A node's own `@footing` survives y-sort.** A y-sorted draw stored the
-  child's sorting collider in `@footing` on every child, so a node subclass
-  keeping something of its own there lost it to its `BoxCollider` without an
-  error. Node2D keeps it under another name.
 - **A scene enters and leaves the tree with its host.** The scenes on a
   `RGame::Engine::Scene::SceneStack` stayed in the tree, and their components
   registered with their systems, after the node holding the stack left it. A

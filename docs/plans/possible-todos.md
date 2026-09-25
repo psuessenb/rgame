@@ -638,25 +638,6 @@ big to load at once. `Rooms#hold` is the seam a nearness policy calls.
 
 ---
 
-## A guard for `Node2D`'s instance variables
-
-**What.** A check that fails when a `Node2D` or `Component` subclass assigns an
-instance variable its base class owns, such as `@paused`.
-
-**What exists instead.** `examples/music` once kept its own pause flag in
-`@paused`, which is the ivar `Node2D#paused` reads. Pausing the music paused the
-scene, its next press never arrived, and nothing raised. `Engine::SealedPrivates`
-checks method names when they are defined, and an ivar is set, not defined. The
-write-example skill lists the names `Node2D` uses.
-
-**Why not now.** It has happened once. A RuboCop cop could see an assignment in
-a subclass body, given the list of names, but the list would have to track
-`Node2D` and `Component` or drift from them.
-
-**Trigger.** A second subclass that overwrites one of its base class's ivars.
-
----
-
 ## Loose ends from cutscenes and interacting
 
 Four things the v0.5.0 roadmap found and left, each small:

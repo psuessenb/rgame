@@ -227,6 +227,7 @@ lint. An existing project gets the cops by adding those three lines.
 | `Game/NoNeedlessAllocation` | a throwaway Array or Range literal on a per-frame path | everywhere but `spec/` |
 | `Game/DrawInLocalSpace` | a node's draw method reading its own `x`, `y` or `world_x` | everywhere |
 | `Game/NoLiteralText` | a String literal passed to `text`, `text_width` or `text_lines` | everywhere |
+| `Game/NoEngineIvar` | an ivar starting with `@rgame_`, read, written or named to `instance_variable_get` | everywhere |
 | `Game/NoCoreInEngineLayer` | naming `RGame::Core`, or requiring `rgame/core` or `rgame/game` | `nodes/` and `spec/` |
 
 A per-frame method is `update`, `control`, `draw`, `_update`, `_control` or
@@ -238,6 +239,11 @@ A per-frame method is `update`, `control`, `draw`, `_update`, `_control` or
 spec that names `RGame::Core` already fails when it runs, but the cop also
 catches a branch no spec reaches. A bare `Core` counts only inside
 `module RGame`, so a game's own `Core` module passes.
+
+`Game/NoEngineIvar` keeps a game's ivars apart from the engine's. Every node and
+component in `RGame::Engine` keeps its ivars under `@rgame_`, so one a game names
+with that prefix can only be the engine's. The cop sees a literal name only:
+`instance_variable_get(:"@rgame_#{name}")` passes.
 
 `Game/NoEngineInCoreLayer` ships too, switched off. It guards the engine's own
 repository, and a game has no layer for it to guard.

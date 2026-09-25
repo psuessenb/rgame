@@ -124,6 +124,13 @@ non-public method *without* the prefix is a seam, meant to be overridden with
 [View transforms and the camera](#view-transforms-and-the-camera). Only these
 two classes guard prefixed methods; engine subclasses do not.
 
+**A subclass names its instance variables freely.** Every node and component in
+`RGame::Engine` keeps its own under `@rgame_`: `opacity` reads `@rgame_opacity`.
+So a subclass's `@opacity`, `@paused` or `@width` is its own, and changes nothing
+about the node. Reach the node's state through its methods. The
+[`Game/NoEngineIvar`](cli.md#the-generated-rubocop-configuration) cop flags an `@rgame_` ivar in a
+game's code.
+
 ### The two spaces
 
 **`x`, `y` and `angle` are relative to the parent.** They are the only position a
@@ -378,8 +385,8 @@ in one traversal can thus read two different controllers, while each component
 still receives a plain `control(actions)`.
 
 > The attribute is `input_owner`, not `player`, because a game's scene usually
-> calls its hero node `@player`. It is not `controller` either, because a
-> controller is the component that produces movement intent.
+> has a `player` of its own, its hero node. It is not `controller` either,
+> because a controller is the component that produces movement intent.
 
 ### View transforms and the camera
 
