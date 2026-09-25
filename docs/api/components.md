@@ -949,8 +949,9 @@ entities wrap or despawn at the edge gives their movers no `:bounds`.
 `blocked_by?(name)` answers whether a mover declared a name.
 
 **`:gaps` keeps a mover on the floor.** A cell holding a
-[gap tile](tile_maps.md#gaps) has no floor, and a step may not take the centre of
-the mover's box into one. The box may overlap a gap, so a walker stands right at
+[gap tile](tile_maps.md#gaps) has no floor, except where a
+[`Platform`](#platform) covers it, and a step may not take the centre of the
+mover's box off the floor. The box may overlap a gap, so a walker stands right at
 the edge. A step that starts with the centre off the floor is free, so a node that
 lands in a gap is not held there. [`Engine::GapBlockers`](internals.md#gapblockers--the-edge-of-the-floor-as-a-blocker-source)
 does the resolving, over [`TileWorld#floor_at?`](#tileworld).
@@ -1273,6 +1274,31 @@ to that signal.
   wall comes to rest, unlike a [`Velocity`](#velocity), which slides. To get around
   an obstacle, replan the path.
 
+### `Platform`
+
+**Makes its node's box floor over the map's gaps**, for a raft, a lift or a slab of
+stone over a chasm.
+
+```ruby
+raft.add_component(RGame::Engine::Components::BoxCollider.new(width: 32, height: 16, layer: :platform))
+raft.add_component(RGame::Engine::Components::Platform.new)
+raft.add_component(RGame::Engine::Components::PathFollow.new(speed: 40, path: route, loop: true))
+```
+
+- **Construct:** `Platform.new`.
+- **Lifecycle:** `_attach` registers with the scene's [`TileWorld`](#tileworld),
+  and raises when the node has no [`BoxCollider`](#boxcollider) or the scene no
+  `TileWorld`. `_detach` leaves it, so the cells under the box are gaps again.
+- **The floor:** wherever the box covers a gap cell, `TileWorld#floor_at?` is
+  true. A [`Footing`](#footing) stands there instead of falling, and a
+  [`Mover`](#mover) declaring `:gaps` walks onto the box from the ground and stops
+  at its edge. `covers?(x, y)` says whether a world point is on the box: its left
+  and top edges are, its right and bottom edges are not, as with a cell.
+- **It moves with its node.** `TileWorld` reads the box each time it asks, so a
+  platform a [`PathFollow`](#pathfollow) walks takes its floor with it.
+- **State:** `collider`, the box, and `left`, `top`, `right` and `bottom`, its
+  edges in world pixels.
+
 ### `PlayerController`
 
 **Drives a `CharacterBody` sibling from two input axes**: direct 8-way walking, no
@@ -1513,12 +1539,18 @@ data to another, depends on a sibling's add order, or names a layer it may not n
   - `solid?(col, row)`, `world_width` and `world_height`.
   - `gap?(col, row)`, whether any layer holds a [gap tile](tile_maps.md#gaps) at
     that cell, and `floor_at?(x, y)`, whether the world point stands on the
-    floor: its cell is not a gap. A point on a cell's left or top edge is in that
-    cell, and a point off the map is on the floor.
+    floor: its cell is not a gap, or a [`Platform`](#platform) covers it. A point
+    on a cell's left or top edge is in that cell, and a point off the map is on
+    the floor.
+  - `platform_under(x, y)`, the platform a node standing at the point rides: the
+    first one registered that covers the point, where the cell is a gap. It is
+    `nil` wherever the cell is ground, whatever covers it.
   - `floor_reach_x(x, y, dx)` and `floor_reach_y(x, y, dy)`, how far a point can
     move along one axis and stay on the floor. The answer is the whole step, or
-    as far as `TileWorld::FLOOR_EDGE` (a billionth of a pixel) short of the first
-    gap on the way. A point already off the floor moves the whole way.
+    as far as `TileWorld::FLOOR_EDGE` (a billionth of a pixel) short of where the
+    floor ends on the way. Ground and platforms make one floor, so a point walks
+    from one onto the other wherever they meet or overlap. A point already off
+    the floor moves the whole way.
   - `tilemap_id` and `elapsed`, which the layers read.
   - `layer_count`, `layer(index)`, `layer_index(name_or_path)` and
     `first_above_layer`, which `TileMapLayer.mount` reads to decide where its slots
@@ -1532,7 +1564,7 @@ data to another, depends on a sibling's add order, or names a layer it may not n
   `TileWorld` does not hand the store out. A game changes a cell's solidity at
   runtime only through [`OccupiesCell`](#occupiescell).
   The gaps are read the same way, into a second grid that `gap?` and `floor_at?`
-  read.
+  read. Platforms move, so `floor_at?` asks each of them every time.
 - **It does not resolve a step.** Tiles, other actors, the world's edge, or any
   combination may stop a mover, and only the mover knows which. The resolver
   therefore belongs to the mover, and the grid to this system.

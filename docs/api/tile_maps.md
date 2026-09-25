@@ -228,7 +228,8 @@ map.gap_tile?(12, 7)            # any layer holds a gap tile at that cell?
 and a hop crosses. Give a tile the class `gap` in Tiled's tileset editor, and
 every cell holding it is a gap, on any layer, a hidden one included. The
 constant `TileMap::GAP` is that class. A cell off the map is not a gap, as it is
-not solid. Build a bridge by painting a floor tile where the gap tile was.
+not solid. Build a bridge by painting a floor tile where the gap tile was, or
+move one over the gap with a [`Platform`](components.md#platform).
 A [`Footing`](components.md#footing) drops a node that walks into a gap, and
 `blocked_by: [:gaps]` keeps a [mover](components.md#mover) out of one.
 
