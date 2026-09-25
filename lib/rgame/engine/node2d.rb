@@ -322,7 +322,7 @@ module RGame
       # Whether this node draws its children by where they stand: by `z` first,
       # then the child standing further down the screen later, then in the order
       # they were added. Off by default. TileMapLayer.mount turns it on for the
-      # gaps it leaves between tile layers, which is where a top-down game's
+      # slots it leaves between tile layers, which is where a top-down game's
       # actors live.
       #
       #   actors = Node2D.new(y_sort: true)   # whoever is lower on screen draws in front

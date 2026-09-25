@@ -37,15 +37,15 @@ RSpec.describe RGame::Engine::TileMapLayer do
   end
 
   # The layer indices and marks reached, in draw order, with a node in each
-  # gap `marks` names drawing its mark.
+  # slot `marks` names drawing its mark.
   def drawn_with(marks)
     scene.enter_tree
     order = []
     allow(renderer).to receive(:tilemap) { |_id, layer, *| order << layer }
-    marks.each do |gap, mark|
+    marks.each do |slot, mark|
       marker = RGame::Engine::Node2D.new
       marker.define_singleton_method(:_draw) { |*| order << mark }
-      gap.add_node(marker)
+      slot.add_node(marker)
     end
     scene.draw(renderer, view)
     order
@@ -62,7 +62,7 @@ RSpec.describe RGame::Engine::TileMapLayer do
       expect(drawn_layers).to eq([0, 1, 2])
     end
 
-    it 'returns the gaps as slots, with one for the actors' do
+    it 'returns the slots, with one for the actors' do
       actors = mount[:actors]
 
       expect(mount.names).to eq([:actors])
@@ -93,56 +93,56 @@ RSpec.describe RGame::Engine::TileMapLayer do
       end
     end
 
-    it 'puts a gap under the layer an index names' do
-      slots = described_class.mount(scene, gaps: { actors: 1 })
+    it 'puts a slot under the layer an index names' do
+      slots = described_class.mount(scene, slots: { actors: 1 })
 
       expect(drawn_with(slots[:actors] => :actors)).to eq([0, :actors, 1, 2])
     end
 
-    it 'puts a gap under the layer a name names' do
-      slots = described_class.mount(scene, gaps: { boats: 'layer1' })
+    it 'puts a slot under the layer a name names' do
+      slots = described_class.mount(scene, slots: { boats: 'layer1' })
 
       expect(drawn_with(slots[:boats] => :boats)).to eq([0, :boats, 1, 2])
     end
 
-    it 'puts a gap over every layer at layer_count' do
-      slots = described_class.mount(scene, gaps: { sky: 3 })
+    it 'puts a slot over every layer at layer_count' do
+      slots = described_class.mount(scene, slots: { sky: 3 })
 
       expect(drawn_with(slots[:sky] => :sky)).to eq([0, 1, 2, :sky])
     end
 
-    it 'draws two gaps under one layer in the order they were declared' do
-      slots = described_class.mount(scene, gaps: { shadows: nil, actors: nil, boats: 1 })
+    it 'draws two slots under one layer in the order they were declared' do
+      slots = described_class.mount(scene, slots: { shadows: nil, actors: nil, boats: 1 })
 
       expect(slots.names).to eq(%i[shadows actors boats])
       expect(drawn_with(slots[:shadows] => :shadows, slots[:actors] => :actors, slots[:boats] => :boats))
         .to eq([0, :boats, 1, :shadows, :actors, 2])
     end
 
-    it 'y-sorts every gap, so actors in one draw by where they stand' do
-      slots = described_class.mount(scene, gaps: { shadows: nil, actors: nil })
+    it 'y-sorts every slot, so actors in one draw by where they stand' do
+      slots = described_class.mount(scene, slots: { shadows: nil, actors: nil })
 
       expect(slots.names.map { slots[it].y_sort }).to all(be(true))
     end
 
-    it 'leaves the gaps unsorted when told to, for a side-view game' do
-      slots = described_class.mount(scene, gaps: { shadows: nil, actors: nil }, y_sort: false)
+    it 'leaves the slots unsorted when told to, for a side-view game' do
+      slots = described_class.mount(scene, slots: { shadows: nil, actors: nil }, y_sort: false)
 
       expect(slots.names.map { slots[it].y_sort }).to all(be(false))
     end
 
     it 'raises at mount for a layer name the map lacks, listing its layers' do
-      expect { described_class.mount(scene, gaps: { actors: 'canopy' }) }
+      expect { described_class.mount(scene, slots: { actors: 'canopy' }) }
         .to raise_error(KeyError, /no layer 'canopy'.*layer0, layer1, layer2/)
     end
 
     it 'raises for a layer index past the last' do
-      expect { described_class.mount(scene, gaps: { actors: 4 }) }
+      expect { described_class.mount(scene, slots: { actors: 4 }) }
         .to raise_error(ArgumentError, /from 0 to 3.*got 4/)
     end
 
-    it 'raises naming the gaps for a slot that was not mounted' do
-      expect { mount[:actorz] }.to raise_error(KeyError, /no gap :actorz was mounted \(the gaps are :actors\)/)
+    it 'raises naming the slots for one that was not mounted' do
+      expect { mount[:actorz] }.to raise_error(KeyError, /no slot :actorz was mounted \(the slots are :actors\)/)
     end
 
     context 'when a layer is an object layer' do

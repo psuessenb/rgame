@@ -644,7 +644,7 @@ construction, and `CollisionBox.bottom_anchored` is gone. It landed on the
 ### Step 3 — Tiled tile objects as sorted nodes *(rough)*
 
 A designer places a tree as a tile object, and it sorts like an actor. `mount`
-builds a node for each tile object in an object layer and adds it to the gap
+builds a node for each tile object in an object layer and adds it to the slot
 above that layer. The node draws its tile anchored at the feet, as step 2 made
 the sprites do. `MapObject` already carries the tile and its top-left corner,
 and an object layer gets no node today.

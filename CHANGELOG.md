@@ -38,7 +38,7 @@ index, not the argument.
   `node.y_sort = true`, draws its children by `z`, then lower on the screen
   later, then in the order added. A child stands at the bottom edge of its
   `BoxCollider` box, or at its `y` if it has none. `control` and `update` keep
-  the order they had. `TileMapLayer.mount` y-sorts every gap it leaves, and
+  the order they had. `TileMapLayer.mount` y-sorts every slot it leaves, and
   `mount(..., y_sort: false)` does not. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md#y-sort).
 - **Sprites take an anchor.** `Components::Sprite` and
@@ -483,10 +483,10 @@ index, not the argument.
 - **`TileMapRenderer.new(map, tiles, layer_images: [])` takes images indexed by
   tile id**, with nothing at 0, rather than one tileset sliced by local id, and
   the image of each image layer.
-- **`TileMapLayer.mount` returns slots, and takes `gaps:` rather than
+- **`TileMapLayer.mount` returns slots, and takes `slots:` rather than
   `under:`.** Write `mount(world)[:actors]` for the node it used to return, and
-  `gaps: { actors: index }` for `under: index`. A gap may also be named by a
-  layer's name or path, several gaps may be declared, and an object layer gets
+  `slots: { actors: index }` for `under: index`. A slot may also be named by a
+  layer's name or path, several slots may be declared, and an object layer gets
   no node. See [docs/api/components.md](docs/api/components.md#tileworld).
 
 - **`Game/NoLiteralText` also checks `text_lines`.** A String literal as the

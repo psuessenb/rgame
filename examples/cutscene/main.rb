@@ -140,7 +140,7 @@ class Town < RGame::Engine::Node2D
     world = add_component(RGame::Engine::Components::TileWorld.new(map:, tilemap_id: 'town.tmx'))
     add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 32))
     @actors = RGame::Engine::TileMapLayer.mount(add_node(RGame::Engine::WorldView.new),
-                                                gaps: { actors: nil })[:actors]
+                                                slots: { actors: nil })[:actors]
     @gate = @actors.add_node(Gate.new)
     @crier = @actors.add_node(Crier.new(camera: @camera))
     players = system!(RGame::Engine::Players)

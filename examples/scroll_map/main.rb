@@ -108,7 +108,7 @@ class Scene < RGame::Engine::Node2D
     # World space begins here. Everything under it is drawn in world
     # coordinates, once per viewport, through that viewport's camera.
     view = add_node(RGame::Engine::WorldView.new)
-    # One node per Tiled layer. The :actors slot is the gap between the
+    # One node per Tiled layer. The :actors slot sits between the
     # ground layers and any layer Tiled flags `above`, which is where things
     # that walk around go — the rig included, so a canopy layer would pass over
     # it without this file choosing a single z.

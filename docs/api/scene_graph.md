@@ -294,7 +294,7 @@ allocates nothing.
 
 `y_sort` is off by default, and a node can turn it on or off at any time with
 `node.y_sort = true`. [`TileMapLayer.mount`](components.md#tileworld) turns it
-on for the gaps it leaves between tile layers. UI does not use it, because its order is structural: a
+on for the slots it leaves between tile layers. UI does not use it, because its order is structural: a
 list opens over the buttons below it.
 
 ### Opacity

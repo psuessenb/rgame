@@ -243,7 +243,7 @@ class Scene < RGame::Engine::Node2D
     add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 32))
 
     view = add_node(RGame::Engine::WorldView.new)
-    # The :actors slot is the gap between the ground layers and anything
+    # The :actors slot sits between the ground layers and anything
     # Tiled flags `above` — where things that walk around belong.
     actors = RGame::Engine::TileMapLayer.mount(view)[:actors]
     actors.add_node(SpikyBall.new(x: BALL_X, y: BALL_Y))
