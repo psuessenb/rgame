@@ -10,8 +10,8 @@ module RGame
     #
     # A node per layer that draws, and the layers Tiled lists are the layers you
     # get. The scene tree is then what says what covers what: everything mounted
-    # before a gap draws under what the scene puts in it, everything after draws
-    # over it, and each gap `mount` leaves is a node the scene hangs things on.
+    # before a slot draws under what the scene puts in it, everything after draws
+    # over it, and each slot `mount` leaves is a node the scene hangs things on.
     #
     # It belongs **inside a WorldView**, which is the whole point of it existing
     # separately from Components::TileWorld. The map is world content: it
@@ -33,49 +33,49 @@ module RGame
     # layers in Tiled and can see the result there; content can go between *any*
     # two of them rather than at one flagged boundary; and the `above` property
     # stops being something to remember on every layer — it is read once, by
-    # `mount`, to decide where the gap goes.
+    # `mount`, to decide where the slot goes.
     class TileMapLayer < Node2D
-      # The gaps `mount` left between the layers, by the names the scene gave
+      # The slots `mount` left between the layers, by the names the scene gave
       # them. Each is an empty node for the scene to add to.
       class Slots
-        def initialize(gaps)
-          @gaps = gaps.freeze
+        def initialize(slots)
+          @slots = slots.freeze
           freeze
         end
 
-        # The node in the gap called `name`. Raises `KeyError` naming the gaps
+        # The node in the slot called `name`. Raises `KeyError` naming the slots
         # there are when there is none of that name.
         def [](name)
-          @gaps.fetch(name) do
-            raise KeyError.new("no gap #{name.inspect} was mounted (the gaps are #{names.map(&:inspect).join(', ')})",
+          @slots.fetch(name) do
+            raise KeyError.new("no slot #{name.inspect} was mounted (the slots are #{names.map(&:inspect).join(', ')})",
                                receiver: self, key: name)
           end
         end
 
-        # The gaps' names, in the order the scene declared them.
-        def names = @gaps.keys
+        # The slots' names, in the order the scene declared them.
+        def names = @slots.keys
       end
 
       # Mounts one node per layer of the scene's map under `parent`, leaves an
-      # empty node in each gap `gaps` names, and returns them as `Slots`.
+      # empty node in each slot `slots` names, and returns them as `Slots`.
       # Nothing here picks a z by hand, and neither does the caller.
       #
-      # Each gap's value names the layer that covers it: an index, or a name or
+      # Each slot's value names the layer that covers it: an index, or a name or
       # `'Group/layer'` path as `TileMap#layer_index` takes them. `nil` means
       # the first layer marked `above` in Tiled, and `layer_count` means over
-      # every layer. With no `gaps:`, the one gap is `:actors`, under the first
+      # every layer. With no `slots:`, the one slot is `:actors`, under the first
       # layer marked `above`, so a map that already marks its canopies needs
-      # nothing said. Gaps under the same layer draw in the order declared.
+      # nothing said. Slots under the same layer draw in the order declared.
       #
-      # Every gap is y-sorted (see Node2D#y_sort), so actors in one draw by
+      # Every slot is y-sorted (see Node2D#y_sort), so actors in one draw by
       # where they stand. `y_sort: false` leaves them in the order added, for a
       # side-view game.
       #
       # An object layer gets no node, since it has nothing to draw. `parent`
       # must be inside a WorldView, like the nodes themselves.
-      def self.mount(parent, gaps: { actors: nil }, y_sort: true)
+      def self.mount(parent, slots: { actors: nil }, y_sort: true)
         world = parent.system(Components::TileWorld)
-        under = gaps.transform_values { covering_layer(world, it) }
+        under = slots.transform_values { covering_layer(world, it) }
         z = -1
         nodes = {}
 
@@ -85,7 +85,7 @@ module RGame
 
           parent.add_node(new(layer: index, z: z += 1))
         end
-        Slots.new(gaps.keys.to_h { [it, nodes.fetch(it)] })
+        Slots.new(slots.keys.to_h { [it, nodes.fetch(it)] })
       end
 
       def self.covering_layer(world, layer)
@@ -93,7 +93,7 @@ module RGame
         when nil then world.first_above_layer
         when String then world.layer_index(layer)
         when 0..world.layer_count then layer
-        else raise ArgumentError, "a gap goes under a layer index from 0 to #{world.layer_count}, a layer's " \
+        else raise ArgumentError, "a slot goes under a layer index from 0 to #{world.layer_count}, a layer's " \
                                   "name or path, or nil for the first layer marked above; got #{layer.inspect}"
         end
       end

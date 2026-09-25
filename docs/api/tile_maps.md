@@ -232,10 +232,6 @@ not solid. Build a bridge by painting a floor tile where the gap tile was.
 A [`Footing`](components.md#footing) drops a node that walks into a gap, and
 `blocked_by: [:gaps]` keeps a [mover](components.md#mover) out of one.
 
-A gap tile is not a gap between layers, where
-[`TileMapLayer.mount`](components.md#tileworld) draws actors. The two share a
-word and nothing else.
-
 ### Layers
 
 ```ruby
@@ -269,10 +265,10 @@ bare name matches layers in two groups.
 roofs: add a custom **bool** property named `above` and tick it. A layer without
 the property draws below, and an `above` property of any other type raises.
 `TileWorld#first_above_layer` returns the first flagged layer, and
-[`TileMapLayer.mount`](components.md#tileworld) leaves the actors' gap below it,
-unless the scene names another layer with `gaps:`. Tiles do not sort with the
+[`TileMapLayer.mount`](components.md#tileworld) leaves the actors' slot below it,
+unless the scene names another layer with `slots:`. Tiles do not sort with the
 actors, so a tree whose canopy a character walks under is two layers: a trunk
-below the gap and a canopy in an `above` layer.
+below the slot and a canopy in an `above` layer.
 
 `map.image_layers` lists the image layers, each a `TileMap::ImageLayer`: a
 `Layer` that adds `image` (the image's path, or `nil`), `offset_x` and `offset_y`
@@ -354,7 +350,7 @@ class Grounds < RGame::Engine::Scene::Room
     add_component(RGame::Engine::Components::TileWorld.new(map: @map, tilemap_id: @map_id))
     add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 32))
     slots = RGame::Engine::TileMapLayer.mount(add_node(RGame::Engine::WorldView.new),
-                                              gaps: { doors: nil, actors: nil })
+                                              slots: { doors: nil, actors: nil })
     @actors = slots[:actors]
 
     doors = RGame::Engine::MapObjects.new

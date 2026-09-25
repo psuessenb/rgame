@@ -35,7 +35,7 @@ class Garden < RGame::Engine::Scene::Room
     add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
 
     slots = RGame::Engine::TileMapLayer.mount(add_node(RGame::Engine::WorldView.new),
-                                              gaps: { doors: nil, actors: nil })
+                                              slots: { doors: nil, actors: nil })
     @actors = slots[:actors]
 
     doors = RGame::Engine::MapObjects.new

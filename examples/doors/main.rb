@@ -118,7 +118,7 @@ class Grounds < RGame::Engine::Scene::Room
     add_component(RGame::Engine::Components::TileWorld.new(map: @map, tilemap_id: @map_id))
     add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 32))
     slots = RGame::Engine::TileMapLayer.mount(add_node(RGame::Engine::WorldView.new),
-                                              gaps: { doors: nil, actors: nil })
+                                              slots: { doors: nil, actors: nil })
     @actors = slots[:actors]
 
     doors = RGame::Engine::MapObjects.new

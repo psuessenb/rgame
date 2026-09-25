@@ -218,7 +218,7 @@ RSpec.describe RGame::Engine::Node2D do
     end
 
     # Everything at once: a feet box on a hero mid-hop, a crate's body box and
-    # a coin with none, in one sorted gap drawn through two viewports. The
+    # a coin with none, in one sorted slot drawn through two viewports. The
     # hero has no size: a feet box sits on the origin and needs none.
     it 'sorts a hero mid-hop, a crate and a coin the same way in both viewports' do
       components = RGame::Engine::Components

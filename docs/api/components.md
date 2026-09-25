@@ -1509,7 +1509,7 @@ data to another, depends on a sibling's add order, or names a layer it may not n
     gap on the way. A point already off the floor moves the whole way.
   - `tilemap_id` and `elapsed`, which the layers read.
   - `layer_count`, `layer(index)`, `layer_index(name_or_path)` and
-    `first_above_layer`, which `TileMapLayer.mount` reads to decide where its gaps
+    `first_above_layer`, which `TileMapLayer.mount` reads to decide where its slots
     go. The first three answer as [`TileMap`](tile_maps.md#layers) does.
 - **Solidity is read from the map once.** On the first request, `TileWorld` reads
   the map's `solid_tile?` once per cell into one
@@ -1533,31 +1533,31 @@ data to another, depends on a sibling's add order, or names a layer it may not n
 ```ruby
 world = scene.add_node(RGame::Engine::WorldView.new)
 slots = RGame::Engine::TileMapLayer.mount(world)   # a node per Tiled layer
-slots[:actors].add_node(player)                    # in the gap between them
+slots[:actors].add_node(player)                    # in the slot between them
 ```
 
-**`mount` returns a `TileMapLayer::Slots`: the gaps it left between the layers.**
-Each gap is an empty node to add to. With no `gaps:` there is one, `:actors`,
+**`mount` returns a `TileMapLayer::Slots`: the slots it left between the layers.**
+Each slot is an empty node to add to. With no `slots:` there is one, `:actors`,
 below the first layer Tiled flags `above`, so trunks draw under the walker and
-canopies over it. `slots[name]` raises `KeyError` naming the gaps for a name that
+canopies over it. `slots[name]` raises `KeyError` naming the slots for a name that
 was not mounted, and `slots.names` lists them in the order declared.
 
-**`gaps:` names the gaps and the layer that covers each:**
+**`slots:` names the slots and the layer that covers each:**
 
 ```ruby
-slots = RGame::Engine::TileMapLayer.mount(world, gaps: { actors: nil, boats: 'Water/bridge' })
+slots = RGame::Engine::TileMapLayer.mount(world, slots: { actors: nil, boats: 'Water/bridge' })
 slots[:boats].add_node(ferry)   # under the bridge, over the water
 ```
 
-A gap's value is a layer index, a layer's name or `'Group/layer'` path, `nil` for
+A slot's value is a layer index, a layer's name or `'Group/layer'` path, `nil` for
 the first layer flagged `above`, or `layer_count` for over every layer. A name the
-map lacks raises `KeyError` listing its layers, when `mount` runs. Gaps under the
+map lacks raises `KeyError` listing its layers, when `mount` runs. Slots under the
 same layer draw in the order declared. An object layer gets no node, since it has
 nothing to draw. Nothing here picks a `z`.
 
-**Every gap is [y-sorted](scene_graph.md#y-sort)**, so actors in one gap draw by
+**Every slot is [y-sorted](scene_graph.md#y-sort)**, so actors in one slot draw by
 where they stand: a hero walking below a chest draws in front of it. A side-view
-game passes `y_sort: false`, and its gaps draw their children in `z` order and
+game passes `y_sort: false`, and its slots draw their children in `z` order and
 then in the order added:
 
 ```ruby

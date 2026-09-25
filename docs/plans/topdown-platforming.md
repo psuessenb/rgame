@@ -132,10 +132,9 @@ None blocks steps 1 to 3.
    step 3.*
 7. ~~**"Gap" names two things.**~~ **Settled during step 2: the tile keeps
    `gap`, and `TileMapLayer.mount`'s `gaps:` becomes `slots:`.** A slot is
-   also the better word for a place where actors draw. The rename gets its own
-   branch, off `main` after step 2, so step 4's scene reads
-   `TileMapLayer.mount(view, slots: { platforms: nil, actors: nil })`. Until
-   then, `docs/api/tile_maps.md` says the two share only a word.
+   also the better word for a place where actors draw. The rename landed on
+   its own branch, `mount-slots`, after step 2, so step 4's scene reads
+   `TileMapLayer.mount(view, slots: { platforms: nil, actors: nil })`.
 8. **A guard for a subclass's ivar that is `Node2D`'s.** `SealedPrivates`
    guards method names, not ivars, and step 2 met the gap: a game keeping its
    `Footing` in `@footing` lost it to y-sort, which kept its sorting collider
@@ -276,7 +275,7 @@ end
 
 The scene mounts a `TileWorld` and a `CollisionWorld`, and leaves a slot for
 the platforms under the actors:
-`TileMapLayer.mount(view, gaps: { platforms: nil, actors: nil })`.
+`TileMapLayer.mount(view, slots: { platforms: nil, actors: nil })`.
 
 ### The rules, in one place
 
