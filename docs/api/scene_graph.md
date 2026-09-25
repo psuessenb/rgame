@@ -338,7 +338,8 @@ hero.scale = 0.5   # the hero, its components and its children, at half size
 `Node2D#draw` applies it as it applies `opacity`, around the node's components,
 its `_draw` and its children, and a child's own `scale` multiplies with its
 parent's. A character stands on its origin, so a hero shrinking to 0 shrinks
-toward its feet.
+toward its feet. That is the fall into a gap that
+[`Footing`](components.md#footing) draws.
 
 **Only drawing changes.** `x`, `world_x`, colliders and children's positions
 keep their size, so a scaled node still stands, collides and is followed by a

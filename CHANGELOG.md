@@ -14,6 +14,15 @@ index, not the argument.
 
 ### Added
 
+- **Falling into a gap, with coyote time.** `Components::Footing` drops a node
+  whose box's centre stands off the floor, once it has been off it for more than
+  `coyote` seconds, and at once when it lands there from a `Hop`. A node in the
+  air never falls. The fall suspends the node and shrinks it into the gap, then
+  frees it, and `on_fell` fires as it starts. See
+  [docs/api/components.md](docs/api/components.md#footing).
+- **`Node2D#scale`**, a size a node and everything under it draws at, about its
+  origin, applied by `draw` as `opacity` is. Only drawing changes. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md#scale).
 - **Gaps in a tile map, and a floor to stay on.** A tile whose Tiled class is
   `gap` makes its cell a gap, and `TileMap#gap_tile?` answers for a cell.
   `TileWorld#floor_at?` answers whether a point stands on the floor, and a
