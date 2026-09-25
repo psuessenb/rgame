@@ -293,6 +293,29 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
   # The doors between the town and the garden live in the maps, so a designer
   # who moves one in Tiled can break a room nobody has walked into yet. These
   # hold the files themselves, before any example runs.
+  # A gap is a tile's class in Tiled, and nothing else says so: a pit tile that
+  # lost its class draws a hole the hero walks straight over.
+  describe 'pits.tsx and pits.tmx' do
+    let(:map) { RGame::Engine::TileMap.from_tiled(RGame::Engine::Tiled::Map.load(File.join(assets, 'pits.tmx'))) }
+
+    it 'makes every tile in pits.tsx a gap' do
+      tileset = RGame::Engine::Tiled::Tileset.load(File.join(assets, 'pits.tsx'))
+
+      classes = (0...tileset.tile_count).map { tileset.tile(it)&.class_name }
+
+      expect(classes).to all(eq(RGame::Engine::TileMap::GAP))
+    end
+
+    it 'has gaps, and a start standing on floor' do
+      start = map.object_named('start')
+      col = map.col_at(start.x)
+      row = map.row_at(start.y - 1)
+
+      expect(map.gap_tile?(12, 10)).to be(true)
+      expect([map.gap_tile?(col, row), map.solid_tile?(col, row)]).to eq([false, false])
+    end
+  end
+
   describe 'the doors in town.tmx and garden.tmx' do
     let(:maps) do
       %w[town garden].to_h do |name|

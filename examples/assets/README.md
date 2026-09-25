@@ -1,7 +1,7 @@
 # Example assets
 
-Everything the examples draw and play. Seventeen files besides this one, about
-128 KB in total — of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
+Everything the examples draw and play. Twenty files besides this one, about
+131 KB in total — of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
 
 ## Why these files and not the ones in `media/`
 
@@ -119,6 +119,33 @@ their squares are nodes the example places, not part of the map.
 Written by a short Ruby script rather than in Tiled, in the same base64 + zlib
 format as `town.tmx`, over the same `tileset.tsx`. Edit it in Tiled like the
 other.
+
+### `pits.png` + `pits.tsx` — ours
+
+Two 16x16 tiles for a pit in Tiny Town, side by side, drawn by
+`tools/draw_pit_tiles.rb` rather than by hand, so they can be drawn again. Run
+it and it writes the same bytes. Tile 0 is the pit, near-black and flecked. Tile
+1 is its north edge, for a gap cell with floor north of it: Tiny Town's dark
+outline, then a striped face of earth in the tileset's dirt colours, darkening
+into the pit. The colours are read off `tileset.png`.
+
+`pits.tsx` is the Tiled tileset over it, and gives both tiles the class `gap`.
+That class is what makes a cell a gap to `RGame::Engine::TileMap`: no floor, so
+a walker falls in and a hop crosses. `spec/example_assets_spec.rb` holds every
+tile in it to that class.
+
+### `pits.tmx` — ours
+
+40x30 tiles = 640x480 pixels, the window exactly, for `examples/pits`. A meadow
+walled with trees (tile 16). Three trenches one tile wide run south from the
+trees at x = 12, 18 and 24 tiles, close enough to hop, into a chasm eight tiles
+deep across the south of the map. The gaps are on their own layer, `pits`, over
+`pits.tsx`. The point object `start` in the `spawns` layer is where the hero
+first stands, and `spec/example_assets_spec.rb` holds it to standing on floor.
+
+Written by a short Ruby script rather than in Tiled, as `puzzle.tmx` was, in the
+same base64 + zlib format over `tileset.tsx` and `pits.tsx`. Edit it in Tiled
+like the others.
 
 ### `ui.png` + `ui.json` — Kenney, *UI Pack - Pixel Adventure*
 

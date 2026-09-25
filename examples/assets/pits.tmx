@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Authored for examples/pits; edit it in Tiled. See README.md.
+
+     40x30 tiles at 16px = 640x480 pixels, the window exactly, so the camera
+     never scrolls. A meadow walled with trees. Three trenches one tile wide
+     run south from the trees at x = 12, 18 and 24 tiles, close enough to hop
+     and too wide to step over, into a chasm eight tiles deep across the
+     south of the map. The trenches and the chasm are on the `pits` layer, in
+     tiles of class `gap` from pits.tsx. `start` is where the hero stands
+     first, and comes back to after a fall. -->
+<map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="40" height="30" tilewidth="16" tileheight="16" infinite="0" nextlayerid="5" nextobjectid="2">
+ <tileset firstgid="1" source="tileset.tsx"/>
+ <tileset firstgid="133" source="pits.tsx"/>
+ <layer id="1" name="ground" width="40" height="30">
+  <data encoding="base64" compression="zlib">eJzlV9EOgCAINPn/f+6pzTlRvEOi9cByanAch5mUUi5nq+S6vIDJikMW69ltxENVxjKYR3hEeM5onrmzPeIRZ1RftGaaPnb9rvR5ipOTGjzRM6hJk6uGKxPer9eB0VWPl+lXT1xf4p/lZIbZ42zLkuczj+iiTnJDc259WnxY9kj31Naj62rhPIt2WFyV4PmvZj2DLGMmXvR/2apfrX6ia9Jj9vxuR+TLnNmRNdjBomlo1VtoTp73PvQdBgN6D9jdj8Rp7yk30LAFOA==</data>
+ </layer>
+ <layer id="2" name="pits" width="40" height="30">
+  <data encoding="base64" compression="zlib">eJztzzEKACAMxdBeXs/tKrgoqVAlgb90eo34q550v1VLut9KH0sfSx9LH0sfSx9LH0sfS99aP1hLuu9s/rHi9OnT976vcgMi+b1D</data>
+ </layer>
+ <layer id="3" name="obstacles" width="40" height="30">
+  <data encoding="base64" compression="zlib">eJztzjENADAMwLBSKH+yA5Gnk2wpf3Zm9nhX+Wv8Nf4af42/xl/jr/HX+Gv8Nf4af42/5pe/yz3UvAkJ</data>
+ </layer>
+ <objectgroup id="4" name="spawns">
+  <object id="1" name="start" x="88" y="168">
+   <point/>
+  </object>
+ </objectgroup>
+</map>
