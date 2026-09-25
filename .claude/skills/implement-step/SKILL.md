@@ -26,7 +26,10 @@ this is what happens once a step exists and it is time to build it.
 5. **Verify.** The step ends green.
 6. **Write the landed note** into the plan.
 7. **Open the pull request** — see
-   [create-pull-request](../create-pull-request/SKILL.md).
+   [create-pull-request](../create-pull-request/SKILL.md). A request to
+   implement a step already approves the push and the pull request, so do not
+   stop after the last commit to ask; one step did, and the user had to ask for
+   it. Merging still waits for the user.
 
 Do not start the next step in the same branch. If step 3's pull request is still
 open and step 4 is unblocked, branch step 4 from step 3's branch and say so in
