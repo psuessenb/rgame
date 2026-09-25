@@ -110,4 +110,45 @@ RSpec.describe RGame::Engine::Node2D do
     root.control(actions)
     expect { root.control(actions) }.to allocate_nothing
   end
+
+  describe 'a suspended node' do
+    before { child }
+
+    it 'stops as a paused one does, and keeps drawing' do
+      node.suspend
+      tick
+      expect([node.updates, node.controls, child.updates, node.draws]).to eq([0, 0, 0, 1])
+    end
+
+    it 'runs again once every suspend has its resume, in any order of owners' do
+      node.suspend.suspend
+      node.resume
+      tick
+      node.resume
+      tick
+      expect([node.updates, node.suspended?]).to eq([1, false])
+    end
+
+    it 'leaves the game\'s paused alone, and stays stopped while either holds' do
+      node.paused = true
+      node.suspend
+      node.paused = false
+      tick
+      node.resume
+      tick
+      expect([node.updates, node.paused]).to eq([1, false])
+    end
+
+    it 'stays paused when a suspend ends under a pause' do
+      node.suspend
+      node.paused = true
+      node.resume
+      tick
+      expect([node.updates, node.paused, node.suspended?]).to eq([0, true, false])
+    end
+
+    it 'refuses a resume with no suspend to end' do
+      expect { node.resume }.to raise_error(RuntimeError, /no suspend to end/)
+    end
+  end
 end

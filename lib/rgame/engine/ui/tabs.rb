@@ -123,7 +123,7 @@ module RGame
         def control(input)
           return unless @open
 
-          @passes += 1 unless @paused
+          @passes += 1 unless rgame_stopped?
           super
         end
 

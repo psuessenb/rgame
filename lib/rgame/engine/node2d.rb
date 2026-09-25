@@ -236,7 +236,43 @@ module RGame
       # be resolved because a node needs to know whose input it reads even when
       # its parent claims nobody; pausing needs no resolution at all, because a
       # paused node simply never descends.
-      attr_accessor :paused
+      #
+      # `paused` is the game's own switch. The engine stops a node with
+      # `suspend` instead, so neither undoes the other.
+      attr_reader :paused
+
+      def paused=(value)
+        @paused = value
+        @stopped = value || @suspensions.positive?
+      end
+
+      # Stops the node as `paused` does, until a `resume` for each `suspend`.
+      # The calls count, so two owners can each stop the same node and give it
+      # back in any order, and the game's own `paused` is left alone. A door's
+      # move and a cutscene stop a node this way. Returns self.
+      #
+      #   hero.suspend    # a cutscene starts
+      #   hero.suspend    # a door moves the hero under it
+      #   hero.resume     # the cutscene ends; the move still holds the hero
+      #   hero.resume     # the move's reveal ends, and the hero walks
+      def suspend
+        @suspensions += 1
+        @stopped = true
+        self
+      end
+
+      # Ends one `suspend`. Raises `RuntimeError` when none is left to end.
+      # Returns self.
+      def resume
+        raise 'resume called with no suspend to end' if @suspensions.zero?
+
+        @suspensions -= 1
+        @stopped = @paused || @suspensions.positive?
+        self
+      end
+
+      # Whether a `suspend` holds the node.
+      def suspended? = @suspensions.positive?
 
       # How much of this node and everything under it shows: from 0, which
       # draws none of it, to 1, the default, which changes nothing.
@@ -286,6 +322,8 @@ module RGame
                      band: nil, y_sort: false)
         @input_owner = input_owner
         @paused = false
+        @suspensions = 0
+        @stopped = false
         @opacity = 1
         @rel_x = x
         @rel_y = y
@@ -450,7 +488,7 @@ module RGame
       # a snapshot built by hand, which has no `poll_count`, is handed on as it
       # is.
       def control(input)
-        return if @paused
+        return if @stopped
 
         rgame_resolve_inherited
         actions = rgame_gate(input.actions_for(@abs_input_owner))
@@ -463,7 +501,7 @@ module RGame
       # time, but for now works in one step). This runs second in a
       # game tick
       def update(dt)
-        return if @paused
+        return if @stopped
 
         @components.each { it._update(dt) }
         _update(dt)
@@ -717,6 +755,9 @@ module RGame
       end
 
       private
+
+      # hot-path
+      def rgame_stopped? = @stopped
 
       def rgame_missing_system(klass)
         where = scene ? 'its scenes or the root' : 'the root'

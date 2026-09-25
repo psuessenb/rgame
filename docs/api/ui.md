@@ -1280,6 +1280,10 @@ layer.add_node(UI::DialogueBox.new(dialogue: talk, unavailable: :disable, width:
 It is one way to draw a conversation. A game that draws its own drives the
 `Dialogue` itself, and nothing in `Dialogue` depends on the box.
 
+**The box frees itself when the conversation ends,** whether its own confirm
+ended it or another hand called [`Dialogue#finish`](dialogue.md#running-one).
+The game hears the end from `on_ended`.
+
 [`examples/dialogue`](examples.md#dialogue) shows the box with nothing else on
 screen. [`examples/quests_and_dialogue`](examples.md#quests_and_dialogue) adds a
 portrait and the log.

@@ -511,6 +511,7 @@ or any player while the split is collapsed.
 
 ```ruby
 node.system(RGame::Engine::Viewports).solo!(cutscene_camera)
+node.system(RGame::Engine::Viewports).solo!(cutscene_camera, room: rooms[:garden])
 node.system(RGame::Engine::Viewports).split!
 ```
 
@@ -520,6 +521,16 @@ camera is required.** Promoting one player's camera would silently give everyone
 that player's view, and choosing what is on screen is a cutscene's whole job.
 Point an ordinary `Camera` however you like, for example with a `CameraFollow` on
 a cutscene actor, and pass it in.
+
+**`room:` names the [room](#rooms-scenerooms) the view shows.** Only a
+`WorldView` inside that `Scene::Room` draws into the solo view, so a cutscene in
+the garden shows the garden while the primary player stands in the town.
+Without `room:` the view shows the primary player's room, and a game with no
+rooms draws every `WorldView` into it. Anything but a `Scene::Room` or nil
+raises `TypeError`. `solo_camera` and `solo_room` answer what the solo view
+shows, and both are nil while split. A
+[`Components::Cutscene`](components.md#cutscene) with a camera calls `solo!`
+itself, onto its own room.
 
 **Both calls are deferred**, like `queue_free`. They record a request that takes
 effect on the next tick. `solo?` answers for the mode in effect, so it changes on
@@ -633,6 +644,28 @@ character while they browse a menu, without touching everyone else's simulation.
 
 No `abs_paused` exists to match `abs_input_owner`. A node needs its resolved owner
 even when its parent names nobody. A paused node, by contrast, never descends.
+
+**`paused` is the game's switch, and `suspend` is the engine's.** A node also
+stops while any `suspend` on it has no `resume` yet:
+
+```ruby
+require 'rgame'
+
+hero = RGame::Engine::Node2D.new
+hero.suspend        # a cutscene stops the hero
+hero.suspend        # a door moves the hero under it
+hero.resume         # the cutscene ends
+hero.suspended?     # => true — the move still holds the hero
+hero.resume         # the move's reveal ends
+hero.suspended?     # => false
+hero.paused         # => false — neither touched the game's switch
+```
+
+The calls count, so two owners can each stop one node and give it back in any
+order. A room move and a cutscene stop nodes this way, and neither reads or
+writes `paused`. A bag that pauses its hero keeps the hero paused through a
+move, whenever the move ends. `resume` with no
+`suspend` left to end raises `RuntimeError`.
 
 **A press begun while a node was paused has no edges for it.** It reads the
 button as held once it runs again, but `pressed?` and `released?` stay false
@@ -879,8 +912,10 @@ world.rooms[:town]                          # => nil — nobody stands in it, so
   String, since a designer names it on the map and a programmer types the same
   word. A name the rooms were not given raises `KeyError` when asked.
 - `room_of(player)` is the room a player stands in, or nil. `rooms[name]` is the
-  running room of that name, or nil. `Room#players` lists who stands in a room,
-  and `Room#name` is the name it was defined under.
+  running room of that name, or nil, and `running` lists the running rooms in
+  the order they were built. `Room#players` lists who stands in a room, and
+  `Room#name` is the name it was defined under. The rooms keep both lists: read
+  them, and leave them alone.
 - `pending?` answers whether a move was asked for and has not landed, and
   `transitioning?` whether any player's cover is covering or revealing.
 - `on_requested { |node, name| ... }` fires once for each node a move names, as
@@ -921,16 +956,15 @@ again, and nothing leaves the tree. `Node2D#add_node` leaves a node that is
 already its child where it is, so an `_arrive` that adds the node works for
 both. A warp pad and a door are one call.
 
-**Each node stands paused from the request until its player's reveal ends**, and
-then gets back the `paused` it had. With no transition it gets it back as the
-move lands.
+**Each node is [suspended](#pausing-a-subtree) from the request until its
+player's reveal ends**, and resumes then. With no transition it resumes as the
+move lands. The move leaves the node's own `paused` alone.
 
 **The moving player reads no input anywhere until then**, as no scene does under
 a stack's transition. The rooms [suspend their
 input](input.md#a-players-input-can-be-suspended): a bag or a pause menu of
 theirs outside the rooms reads nothing held, and refuses a press begun under
-the cover. So nothing of theirs can change the `paused` the rooms will give
-back. The other players read their input as before. A `CharacterBody` stands still as its node enters the tree, so a
+the cover. The other players read their input as before. A `CharacterBody` stands still as its node enters the tree, so a
 hero carried into a room does not walk on. Set an intent after placing it for
 one that should walk in.
 
@@ -978,9 +1012,10 @@ where the reveal got to, as a stack's switch does. `transition:` on one move
 runs another `Fade` for it, and `nil` none.
 
 **A room's `WorldView` draws only into the views of the players who stand in
-it**, so two players in two rooms each see their own. A view no player owns,
-such as a solo view, shows the primary player's room. A player in no room sees
-no room, and a `WorldView` in no room draws into every view.
+it**, so two players in two rooms each see their own. A solo view shows the room
+[`solo!`](#collapsing-the-split) named, and the primary player's room when it
+named none. A player in no room sees no room, and a `WorldView` in no room draws
+into every view.
 
 **A player's camera takes the limits of the room they stand in.** As a move
 lands, each player's camera is bounded by their room's `TileWorld`, whichever

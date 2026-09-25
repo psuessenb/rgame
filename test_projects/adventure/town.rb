@@ -26,6 +26,16 @@
 # The heroes are not the town's. The world spawns them and the rooms move them
 # in, and `_arrive` stands each one on the entrance the move named, a second
 # player's hero a step to the east of the first's.
+#
+# ## The opening
+#
+# The first time the town is built, it plays a cutscene everybody watches: a
+# caption, the view carried from the start to the square, a second caption, and
+# a press. The cutscene has a camera of its own, which follows a lookout walked
+# along that line, so the window shows one view of the town, and it pauses every
+# hero and stops joins until it ends. Holding `skip` ends it at once, and the
+# town is left the same. Facts remember it was played, so a town built again on
+# the way back from the garden plays nothing.
 class Town < RGame::Engine::Scene::Room
   MAP = 'town.tmx'
 
@@ -42,6 +52,17 @@ class Town < RGame::Engine::Scene::Room
   CRATE = [440, 304].freeze
 
   DEFAULT_SEED = 0xAD7E
+
+  OPENING = RGame::Engine::Cutscene::Script.build do
+    run { it.caption.text = 'Morning in the town' }
+    wait 1.0
+    hold(&:look_at_square)
+    run { it.caption.text = 'The gate to the garden stands open' }
+    press
+    run { it.caption.text = nil }
+  end
+
+  attr_reader :caption
 
   def _enter_tree
     @map = root.context.assets.tilemap(MAP).map
@@ -69,6 +90,16 @@ class Town < RGame::Engine::Scene::Room
     doors = RGame::Engine::MapObjects.new
     doors.define('door') { |o| Door.new(object: o, world: parent) }
     doors.spawn_into(slots[:doors], @map.objects)
+
+    open_the_town(facts) unless facts[:opened]
+  end
+
+  # Walks the lookout from the start to the square, and hands the walk to the
+  # step that waits on it.
+  def look_at_square
+    from = @map.object_named('start')
+    to = @map.object_named('square')
+    @look.tap { it.follow(RGame::Engine::Path.new([[from.x, from.y], [to.x, to.y]])) }
   end
 
   def _arrive(hero, entrance)
@@ -76,5 +107,20 @@ class Town < RGame::Engine::Scene::Room
     hero.x = spot.x + (SPACING * hero.input_owner.id)
     hero.y = spot.y
     @actors.add_node(hero)
+  end
+
+  private
+
+  def open_the_town(facts)
+    facts[:opened] = true
+    @caption = add_node(Caption.new)
+    camera = RGame::Engine::Camera.new
+    get_component(RGame::Engine::Components::TileWorld).bound(camera)
+    start = @map.object_named('start')
+    lookout = @actors.add_node(RGame::Engine::Node2D.new(x: start.x, y: start.y))
+    lookout.add_component(RGame::Engine::Components::CameraFollow.new(camera:))
+    @look = lookout.add_component(RGame::Engine::Components::PathFollow.new(speed: 60.0))
+    add_component(RGame::Engine::Components::Cutscene.new(OPENING, context: self, camera:, pause: parent.heroes,
+                                                                   skip: :skip))
   end
 end

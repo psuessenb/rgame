@@ -32,9 +32,24 @@ index, not the argument.
   entrance:)` moves one node or an Array of them, landing in the sweep under a
   cover over each moving player's region alone. A room's `_arrive` places what
   arrives, and a move to a node's own room is a warp. `hold` keeps a room
-  running with nobody in it. A room's `WorldView` draws only into its players'
-  views, and each player's camera takes their room's limits. See
+  running with nobody in it, and `running` lists the rooms that run. A room's
+  `WorldView` draws only into its players' views, and each player's camera
+  takes their room's limits. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md#rooms-scenerooms).
+- **Cutscenes.** `RGame::Engine::Cutscene::Script.build` lists steps that run,
+  wait, hold on a walk or a fade, talk, and wait for a press.
+  `Components::Cutscene` runs one on a node and takes what it stops: the nodes
+  in `pause:` and, with `camera:`, the window, the joins and the other rooms. It
+  gives them back when it ends, is skipped with a held action, or leaves the
+  tree. See [docs/api/components.md](docs/api/components.md#cutscene).
+- **A solo view can show one room.** `Viewports#solo!` takes `room:`, the
+  `Scene::Room` whose `WorldView` draws into the solo view, and `solo_camera`
+  and `solo_room` answer what it shows. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md#collapsing-the-split).
+- **A node can be suspended by more than one owner.** `Node2D#suspend` stops a
+  node as `paused` does until a `resume` for each call, and leaves `paused` to
+  the game. `Scene::Rooms` suspends a moving node rather than pausing it. See
+  [docs/api/scene_graph.md](docs/api/scene_graph.md#pausing-a-subtree).
 - **A player's input can be suspended.** `Player#suspend_input` makes every
   node of that player read nothing held until `#resume_input`, and a press begun
   meanwhile is refused. `Scene::Rooms` suspends a moving player's input until
@@ -59,6 +74,9 @@ index, not the argument.
   in seconds, and `AudioOut#crossfade(id, over:)` lowers one song while it
   raises the next. `#pause_music` and `#resume_music` hold a song and its fade.
   See [docs/api/audio.md](docs/api/audio.md#fades).
+- **A cutscene example.** `examples/cutscene` plays a town crier's news that
+  both players watch, and ends in the same town whether it is watched or
+  skipped. See [docs/api/examples.md](docs/api/examples.md#cutscene).
 - **A doors example.** `examples/doors` walks a hero through a gate between the
   town and a garden, and across a pair of warp pads, each placed in Tiled. See
   [docs/api/examples.md](docs/api/examples.md#doors).
@@ -75,9 +93,13 @@ index, not the argument.
   also answers `pause_music`, `resume_music`, `set_music_volume(id, volume)` and
   `stop_music(id)`, and `Song#resume` carries on where `stop` left it. See
   [docs/api/audio.md](docs/api/audio.md#categories).
+- **A walker can be put at the end of its route.**
+  `Components::PathFollow#finish` places its node on the last waypoint and
+  emits `on_finished`, and so does a `Navigator`'s. See
+  [docs/api/components.md](docs/api/components.md#pathfollow).
 - **A fade over the screen.** `RGame::Engine::ScreenFade` covers the view it is
   drawn into in one colour, reveals it again, and flashes it, emitting
-  `on_finished` at the end of each. See
+  `on_finished` at the end of each. `finish` jumps to the end at once. See
   [docs/api/toolbox.md](docs/api/toolbox.md#screenfade--cover-the-view-and-flash-it).
 - **Particles.** `RGame::Engine::Components::Particles` bursts and streams
   small squares that fall, change colour with age and vanish, allocating
@@ -235,8 +257,8 @@ index, not the argument.
 - **A game can hold a branching conversation.**
   `RGame::Engine::Dialogue::Script.build` declares beats, each a speaker saying
   a translated line, and responses that conditions can make unavailable.
-  `RGame::Engine::Dialogue` runs one and saves by `name:` like a quest. It
-  draws nothing itself. See
+  `RGame::Engine::Dialogue` runs one and saves by `name:` like a quest, and
+  `finish` ends it where it stands. It draws nothing itself. See
   [docs/api/dialogue.md](docs/api/dialogue.md#dialogue).
 - **A conversation keeps a transcript and hands it over when it ends.**
   `RGame::Engine::Dialogue::Transcript` records each line with the values it
@@ -248,8 +270,8 @@ index, not the argument.
   responses. Confirm shows the rest of a page, turns it, or moves on.
   `unavailable:` hides or disables a response the player cannot pick. The box
   answers to its player, so two players can talk in two halves of the screen,
-  and it frees itself when the conversation ends. A subclass draws a portrait
-  beside the line in `_draw_portrait`. See
+  and it frees itself when the conversation ends, however it ends. A subclass
+  draws a portrait beside the line in `_draw_portrait`. See
   [docs/api/ui.md](docs/api/ui.md#rgameengineuidialoguebox).
 - **A dialogue box can show its log.** `log:` on `UI::DialogueBox` names an
   action that opens the transcript as a paged label in place of the line, and

@@ -7,6 +7,7 @@ module RGame
     #   node.system(Viewports).views       # one View per active player
     #   node.system(Viewports).screen      # the whole window, no camera
     #   node.system(Viewports).solo!(cam)  # collapse to one view — cutscene
+    #   node.system(Viewports).solo!(cam, room: garden)   # onto one room of a Scene::Rooms
     #
     # It holds the mutable half of the question — which mode is current, who is
     # playing, how big the window is — while Layout holds the arithmetic. That
@@ -37,7 +38,9 @@ module RGame
         @width = width
         @height = height
         @solo_camera = nil
+        @solo_room = nil
         @pending = nil
+        @pending_room = nil
         @pool = []
         @screen_pool = []
         @views = []
@@ -55,6 +58,13 @@ module RGame
       end
 
       def solo? = !@solo_camera.nil?
+
+      # The camera the solo view looks through, nil while split.
+      attr_reader :solo_camera
+
+      # The Scene::Room the solo view shows, nil while split or when `solo!`
+      # named none.
+      attr_reader :solo_room
 
       # The screen-space region belonging to `player`: the same rectangle their
       # world view is drawn into, with **no camera**, so its contents are laid
@@ -88,10 +98,19 @@ module RGame
       # cutscene is for. A game points an ordinary Camera wherever it likes —
       # with a CameraFollow on a cutscene actor, or its own component framing
       # every player at once — and hands it here.
-      def solo!(camera)
+      #
+      # `room:` is the Scene::Room the view shows: only a WorldView inside that
+      # room draws into it. Without one, the solo view shows the primary
+      # player's room, and a game with no rooms draws every WorldView into it.
+      # Anything but a Scene::Room or nil raises `TypeError`.
+      def solo!(camera, room: nil)
         raise ArgumentError, 'solo! needs a camera to look through' if camera.nil?
+        unless room.nil? || room.is_a?(Scene::Room)
+          raise TypeError, "solo!'s room: is a #{Scene::Room} or nil, not #{room.inspect}"
+        end
 
         @pending = camera
+        @pending_room = room
         self
       end
 
@@ -126,7 +145,9 @@ module RGame
         return if @pending.nil?
 
         @solo_camera = @pending == :split ? nil : @pending
+        @solo_room = @solo_camera && @pending_room
         @pending = nil
+        @pending_room = nil
       end
 
       def refresh_solo

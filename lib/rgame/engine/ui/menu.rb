@@ -331,7 +331,7 @@ module RGame
 
         # Lets the navigation count time, then does what every node does.
         def update(dt)
-          @navigation&.update(dt) unless @paused
+          @navigation&.update(dt) unless rgame_stopped?
           super
         end
 

@@ -5,13 +5,16 @@
 # It lives *outside* the WorldView, so it draws once across the whole window in
 # screen space, and it keeps ticking while the world it covers is frozen. It is
 # in the `:overlay` band, which is above both the world and either player's HUD
-# — the one thing on screen during a cutscene. Three things happen together when
-# it opens, and they are separate mechanisms doing separate jobs:
+# — the one thing on screen during a cutscene.
 #
-#   viewports.solo!(camera)     collapse the split to one screen-wide view
-#   world_view.paused = true    stop the world; this node is not under it, so it
-#                               carries on and can animate
-#   players.accepting_joins = false   nobody joins mid-scene
+# The scene is a `Cutscene::Script` run by a `Components::Cutscene` with a
+# camera, so everybody watches: the component collapses the split onto that
+# camera, suspends the world it is handed in `pause:`, and stops joins, then
+# gives all three back as the script ends. The script only shows the panel and
+# the hint, and waits for Tab.
+#
+# The node is owned by `Players#everyone`, so either player starts it and either
+# carries on.
 #
 # A real game would trigger this from a trigger volume or a script beat rather
 # than a key. It reads a key here so the test project can be driven.
@@ -24,32 +27,29 @@ class Cutscene < RGame::Engine::Node2D
   HINT_COLOR  = RGame::Util::Color.new(90, 78, 62)
   HINT_DELAY = 0.4
 
+  SCENE = RGame::Engine::Cutscene::Script.build do
+    run(&:show_panel)
+    wait HINT_DELAY
+    run(&:show_hint)
+    press :cutscene
+  end
+
   def initialize(world_view:)
     super(band: :overlay)
     @world_view = world_view
     @open = false
+    @hint = false
     @camera = RGame::Engine::Camera.new
-    @hint_delay = RGame::Engine::Tween.new(HINT_DELAY)
   end
 
   def _enter_tree
     @players = root.system(RGame::Engine::Players)
-    @viewports = root.system(RGame::Engine::Viewports)
+    self.input_owner = @players.everyone
     system(RGame::Engine::Components::TileWorld).bound(@camera)
   end
 
-  # Either player can start or end it, so this reads every seat rather than
-  # whichever one happens to own this node.
-  def _control(_actions)
-    return unless @players.any? { |player| player.actions.pressed?(:cutscene) }
-
-    @open ? close : open
-  end
-
-  # It animates while the world does not — which is the whole point of pausing a
-  # subtree rather than the tick.
-  def _update(dt)
-    @hint_delay.update(dt) if @open
+  def _control(actions)
+    start if !@open && actions.pressed?(:cutscene)
   end
 
   def _draw(renderer, view)
@@ -59,8 +59,11 @@ class Cutscene < RGame::Engine::Node2D
     y = view.y + ((view.height - PANEL_H) / 2)
     renderer.nine_slice(:panel, x, y, PANEL_W, PANEL_H)
     centered(renderer, TITLE, view, y + 34, TITLE_COLOR)
-    centered(renderer, HINT, view, y + 74, HINT_COLOR) if @hint_delay.done?
+    centered(renderer, HINT, view, y + 74, HINT_COLOR) if @hint
   end
+
+  def show_panel = @open = true
+  def show_hint = @hint = true
 
   private
 
@@ -69,20 +72,17 @@ class Cutscene < RGame::Engine::Node2D
     renderer.text(text, x, y, z: 1, color: color)
   end
 
-  def open
-    @open = true
-    @hint_delay.restart
+  def start
+    remove_component(RGame::Engine::Components::Cutscene)
     @camera.center_on(*midpoint)
-    @viewports.solo!(@camera)
-    @world_view.paused = true
-    @players.accepting_joins = false
+    scene = RGame::Engine::Components::Cutscene.new(SCENE, context: self, camera: @camera, pause: [@world_view])
+    scene.on_ended { close }
+    add_component(scene)
   end
 
   def close
     @open = false
-    @viewports.split!
-    @world_view.paused = false
-    @players.accepting_joins = true
+    @hint = false
   end
 
   def midpoint

@@ -26,7 +26,7 @@
 #     after it, a quarter of a second of cover and a quarter of reveal;
 #   - **no audio.** A door touched plays nothing, since it was given no sound.
 #
-# Each move pauses the hero from the request until its reveal ends, so every
+# Each move stops the hero from the request until its reveal ends, so every
 # hold that reaches a door is followed by an idle long enough for the cover and
 # the reveal. A key still held once the reveal ends walks the hero on.
 

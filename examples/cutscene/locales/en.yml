@@ -1,0 +1,12 @@
+# The English table: every string this example draws.
+en:
+  help:
+    keys: "Walk: arrows / WASD / pad. E: hear the crier. Hold Tab to skip. A on a pad joins"
+  gate:
+    shut: The garden gate is shut
+    open: The garden gate is open
+  speakers:
+    crier: Town crier
+  crier:
+    news: "Hear ye! The garden has been swept, the fountain mended, and the hedges trimmed."
+    gate: "By order of the mayor, the garden gate is open to all!"

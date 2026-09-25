@@ -273,6 +273,15 @@ RSpec.describe RGame::Engine::UI::DialogueBox do
       choose(shown, 'bye')
       expect([shown.parent, heard.map(&:size), heard.first&.frozen?]).to eq([nil, [2], true])
     end
+
+    it 'frees the box when another hand finishes the dialogue' do
+      dialogue = talk
+      shown = box(dialogue:)
+      tick
+      dialogue.finish
+      tick
+      expect([shown.parent, dialogue.ended?]).to eq([nil, true])
+    end
   end
 
   describe 'drawing' do

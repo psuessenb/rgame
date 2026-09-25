@@ -38,7 +38,8 @@ module RGame
     # conversation.
     #
     # It keeps a `Dialogue::Transcript` of what was said, and `on_ended` hands
-    # it to the game, frozen. The game decides whether to keep it.
+    # it to the game, frozen. The game decides whether to keep it. `finish`
+    # ends a conversation where it stands, and `on_ended` fires then too.
     class Dialogue
       extend Signal::DSL
 
@@ -137,6 +138,18 @@ module RGame
 
       def ended? = @machine.ended?
 
+      # Ends the conversation where it stands, as skipping a cutscene does.
+      # Nobody picks a response, so no response's `then:` runs, and `on_ended`
+      # hands over the transcript so far. A saved conversation starts again at
+      # its first beat. Does nothing once ended. Returns self.
+      def finish
+        return self if ended?
+
+        @machine.stop
+        conclude
+        self
+      end
+
       # What the conversation has said so far: a `Dialogue::Transcript`,
       # recording until the conversation ends and frozen after.
       attr_reader :transcript
@@ -192,7 +205,7 @@ module RGame
       def settle
         passed = nil
         passed = pass(passed) until ended? || current
-        ended? ? finish : arrive
+        ended? ? conclude : arrive
       end
 
       def pass(passed)
@@ -220,7 +233,7 @@ module RGame
         beat_entered_signal.emit(beat)
       end
 
-      def finish
+      def conclude
         @transcript.freeze
         ended_signal.emit(@transcript)
       end

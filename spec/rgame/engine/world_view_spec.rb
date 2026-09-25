@@ -262,6 +262,34 @@ RSpec.describe RGame::Engine::WorldView do
       draw_frame
       expect(renderer.calls_to(:clipped)).to be_empty
     end
+
+    # Rule 11 of step 16.
+    describe 'under a solo view that names a room' do
+      let(:other) do
+        root.add_node(RGame::Engine::Scene::Room.new).tap { it.scene = it }
+      end
+      let(:other_world) { other.add_node(described_class.new) }
+
+      before do
+        room.players << players.primary
+        other.players << players.list[1]
+        other_world
+      end
+
+      def solo_onto(shown)
+        viewports.solo!(RGame::Engine::Camera.new, room: shown)
+        viewports._update(0)
+        [world, other_world].map do |drawn|
+          renderer.clear
+          drawn.draw(renderer, screen_view)
+          renderer.calls_to(:clipped).size
+        end
+      end
+
+      it 'draws only the named room into it, even one the primary player is not in' do
+        expect([solo_onto(other), solo_onto(room)]).to eq([[0, 1], [1, 0]])
+      end
+    end
   end
   # rubocop:enable RSpec/MultipleMemoizedHelpers
 end
