@@ -460,3 +460,222 @@ to every signal the engine has, not to facts alone, so it is a change to
 
 **Trigger.** A bug traced to a connection that outlived its node, or a second
 component that has to write the same `_exit_tree`.
+
+**The trigger has fired, three times.** The v0.5.0 roadmap wrote the same
+disconnect in three places and kept doing it by hand (its decision 26, in git
+at `b765de3`):
+
+- `Components::Collectable` disconnects from its collider's `on_hit` as it
+  detaches. That needed a public `disconnect_hit`, so `signal :name` now
+  generates `disconnect_<name>` for every signal. The disconnect is possible,
+  not automatic.
+- `test_projects/adventure`'s world connects to `Players#on_joined` in
+  `_enter_tree` and disconnects in `_exit_tree`. Before rooms, three scenes
+  connected there and none disconnected, so a replaced one would have spawned a
+  hero for every later join.
+- `Components::Cutscene` disconnects from what each `hold` or `talk` step
+  handed it, as the step ends.
+
+The next change to `Signal` should start here.
+
+---
+
+## Input sequences and double taps
+
+**What.** An action that presses on buttons pressed in order, such as a
+fighting game's down, forward, punch, or on the same button pressed twice
+within a window, such as a double tap that dashes.
+
+**What exists instead.** An `InputMap` entry declares `hold:`, `tap:` and
+`all:`: a press after a hold, a press on a short release, and a chord of buttons
+down together. `ActionMapper#held_for` answers how long an action has been down.
+A game can count a double tap itself from `pressed?` and its own timer.
+
+**Why not now.** No game here asks for either. A sequence needs a buffer of
+recent presses per player, and a double tap has to decide whether the first tap
+also presses, so both are designs rather than a keyword.
+
+**Trigger.** A game that dashes on a double tap, or reads a sequence, and
+writes its own timer for it.
+
+---
+
+## Ducking
+
+**What.** Music that drops while something else plays over it, a voiced line
+or a loud effect, and comes back up after.
+
+**What exists instead.** `AudioOut` fades, crossfades, pauses and resumes music,
+and sets a volume per category a game names. A game can lower its `:music`
+category when a line starts and raise it when the line ends, by hand and without
+a fade.
+
+**Why not now.** Nothing in the engine plays a voice, and the dialogue system
+draws text. Ducking needs to know when a sound ends, which a fire-and-forget
+`play_sound` does not report.
+
+**Trigger.** A game with voiced dialogue, or an effect that has to be heard over
+the music.
+
+---
+
+## A crossfade between two live scenes
+
+**What.** A scene transition that dissolves one scene into the next, both
+drawn at once, rather than covering the first and revealing the second.
+
+**What exists instead.** A `SceneStack` or `Scene::Rooms` transition shows one
+scene at a time: it covers the screen with a `ScreenFade`, switches while
+covered, and reveals. Drawing two scenes into one frame, each at part opacity,
+blends their overlapping sprites into each other rather than into the picture
+behind.
+
+**Why not now.** A dissolve draws each scene into a texture of its own and
+blends the two textures. That needs the render target in
+[A low-resolution render target](#a-low-resolution-render-target-and-the-gl-loader-it-needs),
+and nothing else wants one yet.
+
+**Trigger.** The render target landing, or a game whose design needs a
+dissolve.
+
+---
+
+## Partial rows in a scrolling menu
+
+**What.** A menu over a layout with `visible_rows` that scrolls smoothly, with
+the rows at its edges drawn in part and clipped to the menu's window.
+
+**What exists instead.** Whole rows scroll, by the fewest rows that bring focus
+into view, and nothing is clipped. `rows_above` and `rows_below` say what a
+game draws a scroll arrow from.
+
+**Why not now.** Every scrolling menu so far is a bag or a list of short rows,
+and a jump of one row reads as a step through a list.
+
+**Trigger.** A list of rows tall enough that a whole-row jump reads badly, or a
+game that wants the list to glide.
+
+---
+
+## Blend modes beyond `:add`
+
+**What.** More modes for `renderer.blended` and `Components::Particles`'
+`blend:`, starting with multiply, which darkens what it draws over: shadows,
+tints, a night filter.
+
+**What exists instead.** `:alpha`, the default, and `:add`. The canvas carries
+the mode with each draw command, so the queue already sorts and batches by
+mode.
+
+**Why not now.** Nothing asks for it. Multiply is `glBlendFunc(GL_DST_COLOR,
+GL_ZERO)`, core GL 1.0, so it needs no loader: one more `rgame_blend` value,
+one case in the backend, and one symbol in the renderer and its shared
+contract.
+
+**Trigger.** A game that draws a shadow or a tint and fakes it with a dark rect
+at part alpha.
+
+---
+
+## Particles that stay where they were emitted
+
+**What.** A particle that keeps its place in the world when its emitter moves,
+so a moving node leaves a trail. Godot calls the switch `local_coords`.
+
+**What exists instead.** `Components::Particles` places its particles in its
+node's local space, and they move with the node. An emitter that must outlive
+its node already goes on a node of its own. A trail can be faked by moving a
+separate emitter node and bursting at the mover's position each tick.
+
+**Why not now.** Every emitter so far sparkles from a node that stands still, a
+coin, a chest or a spell. A world-space particle needs its emitter's world
+position at emit time and must draw outside its node's transform, which
+`Node2D#draw` has already pushed.
+
+**Trigger.** An exhaust, a dust cloud behind a runner, or any trail behind a
+moving node.
+
+---
+
+## A second music track in the gem
+
+**What.** A second loop under `examples/assets/`, so a shipped example can play
+a crossfade between two songs.
+
+**What exists instead.** One track ships, `music.ogg`. `examples/music` shows
+fades, pause and resume and category volumes on it, and `docs/api/audio.md`
+shows a crossfade in prose and code. `test_projects/adventure` crossfades
+between two rooms' songs when `media/music/garden.ogg` exists, and `media/` is
+never shipped. `examples/assets/README.md` measured the candidates for seam and
+tail silence.
+
+**Why not now.** A second loop adds about 6.5% to a 1.64 MB gem, for an effect
+the documentation already shows.
+
+**Trigger.** A shipped example that cannot make its point without a crossfade,
+or a CC0 loop small enough that the size stops mattering.
+
+---
+
+## Rooms loaded by nearness, and big maps in chunks
+
+**What.** Rooms built before a player reaches them, because they are near, and
+a map too big to load at once split into chunks loaded in the background. This
+is what an open world needs.
+
+**What exists instead.** `Scene::Rooms` runs every room a player stands in, and
+builds a room as the first player moves into it, under that player's cover.
+`Rooms#hold` keeps a room running with nobody in it and `release` ends that, so
+a game can build a room early by hand. Each room loads its whole map as one
+`TileMap`.
+
+**Why not now.** Every map here loads under a door's cover without a visible
+wait, and no game is an open world. Loading in the background needs a thread
+or a slice of each tick, and the tile map loader does neither.
+
+**Trigger.** A room whose build shows as a hitch under the cover, or a map too
+big to load at once. `Rooms#hold` is the seam a nearness policy calls.
+
+---
+
+## A guard for `Node2D`'s instance variables
+
+**What.** A check that fails when a `Node2D` or `Component` subclass assigns an
+instance variable its base class owns, such as `@paused`.
+
+**What exists instead.** `examples/music` once kept its own pause flag in
+`@paused`, which is the ivar `Node2D#paused` reads. Pausing the music paused the
+scene, its next press never arrived, and nothing raised. `Engine::SealedPrivates`
+checks method names when they are defined, and an ivar is set, not defined. The
+write-example skill lists the names `Node2D` uses.
+
+**Why not now.** It has happened once. A RuboCop cop could see an assignment in
+a subclass body, given the list of names, but the list would have to track
+`Node2D` and `Component` or drift from them.
+
+**Trigger.** A second subclass that overwrites one of its base class's ivars.
+
+---
+
+## Loose ends from cutscenes and interacting
+
+Four things the v0.5.0 roadmap found and left, each small:
+
+- **Nothing refuses a skip action without `hold:`.** `Components::Cutscene`'s
+  `skip:` names an action the game should declare with `hold:`, so a tap does
+  not skip. `docs/api/components.md` says so, and no code checks the binding.
+  **Trigger:** a cutscene skipped by an accidental tap, or the next change to
+  `Cutscene`'s constructor.
+- **A cutscene that leaves the tree fires no `ended`.** It gives back
+  everything it took, and did not end, so nothing fires. A game listening for
+  the end to move on hears nothing. **Trigger:** a game that frees a scene
+  under a running cutscene and waits for `ended`.
+- **`Viewports#solo_camera` reads the applied mode.** A `solo!` asked for in
+  the tick a cutscene with a camera starts is not seen, so the cutscene gives
+  back the split rather than that solo. Nothing does that today. **Trigger:**
+  a game that solos and starts a cutscene in the same tick.
+- **`Interactor` takes one action.** One component per class per node, so a
+  target that answers a tap and a hold reads the second action in the node's
+  own `_control`, off `interactor.target`. The adventure's hero searches a
+  chest that way. **Trigger:** a second game
+  with several verbs on one target.

@@ -184,14 +184,18 @@ packages both and is published on RubyGems.
 **Split-screen, and the input layer with it.** A game has *seats*
 (`Game.new(players: 2)`); an `RGame::Engine::Player` owns a device, a binding
 table, a camera and a region of the screen; the shared world is updated once and
-drawn once per viewport by a `WorldView`; and which player a node answers to is
+drawn once per viewport by a `WorldView`; players may stand in different rooms
+of it, which `Scene::Rooms` runs side by side, each drawn only into its own
+players' views; and which player a node answers to is
 inherited down the tree like its transform. A device is seated when somebody uses
 it, not when it is plugged in. See `docs/api/scene_graph.md`, `input.md`, `ui.md`.
 
-**The UI package is a beginning, not a toolkit.** `PlayerLayer` and `UI::Menu`
-cover a region per player, focus and activation — the minimum for
-keyboard-and-controller navigation. Layout, nesting, scrolling lists and text
-entry are all still open, and `docs/api/ui.md` says so under "What this is not".
+**The UI package is menus, not a toolkit.** `PlayerLayer` and `UI::Menu`
+cover a region per player, focus and activation. A menu lays its buttons out in
+a column, a row, a grid or a ring and scrolls whole rows, a `UI::FocusGroup`
+moves focus between menus, and `UI::Tabs` shows one page at a time. General
+layout, nesting, smooth scrolling and text entry are still open, and
+`docs/api/ui.md` says so under "What this is not".
 
 **Text on screen is translated by default.** `RGame::Game` loads every
 `locales/**/*.yml` and picks the player's language from the OS; a node draws an
