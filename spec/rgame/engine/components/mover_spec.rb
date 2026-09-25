@@ -134,6 +134,11 @@ RSpec.describe RGame::Engine::Components::Mover do
         .to raise_error(ArgumentError, /Velocity pushes :tiles, :bounds/)
     end
 
+    it 'refuses the gaps' do
+      expect { RGame::Engine::Components::Velocity.new(blocked_by: [:gaps], pushes: [:gaps]) }
+        .to raise_error(ArgumentError, /Velocity pushes :gaps, and no step can move the map, its gaps/)
+    end
+
     it 'answers pushes? for what it declared' do
       body = RGame::Engine::Components::CharacterBody.new(speed: 1.0, blocked_by: [:crate], pushes: [:crate])
       expect([body.pushes?(:crate), body.pushes?(:wall)]).to eq([true, false])

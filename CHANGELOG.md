@@ -14,6 +14,13 @@ index, not the argument.
 
 ### Added
 
+- **Gaps in a tile map, and a floor to stay on.** A tile whose Tiled class is
+  `gap` makes its cell a gap, and `TileMap#gap_tile?` answers for a cell.
+  `TileWorld#floor_at?` answers whether a point stands on the floor, and a
+  mover declaring `blocked_by: [:gaps]` keeps the centre of its box there,
+  stopped by `Engine::GapBlockers`. See
+  [docs/api/tile_maps.md](docs/api/tile_maps.md#gaps) and
+  [docs/api/components.md](docs/api/components.md#mover).
 - **Y-sorted drawing.** A `Node2D` built with `y_sort: true`, or given
   `node.y_sort = true`, draws its children by `z`, then lower on the screen
   later, then in the order added. A child stands at the bottom edge of its

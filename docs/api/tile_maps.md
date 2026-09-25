@@ -164,6 +164,7 @@ turned with the rotate and flip buttons of the tile stamp.
 
 ```ruby
 map.solid?(tile)             # whether it blocks movement
+map.gap?(tile)               # whether its cell is a gap: its class is `gap`
 map.tile_class(tile)         # the class set in Tiled, or nil
 map.tile_properties(tile)    # its custom properties
 map.animated_tiles           # the tiles that animate
@@ -216,6 +217,22 @@ Actors do not call these per step. [`TileWorld`](components.md#tileworld) reads
 `solid_tile?` once per cell into a
 [`Util::SolidGrid`](values.md#rgameutilsolidgrid), and collision and pathfinding
 read that grid.
+
+### Gaps
+
+```ruby
+map.gap_tile?(12, 7)            # any layer holds a gap tile at that cell?
+```
+
+**A gap is a cell with no floor**: a chasm or a pit, which a walker falls into
+and a hop crosses. Give a tile the class `gap` in Tiled's tileset editor, and
+every cell holding it is a gap, on any layer, a hidden one included. The
+constant `TileMap::GAP` is that class. A cell off the map is not a gap, as it is
+not solid. Build a bridge by painting a floor tile where the gap tile was.
+
+A gap tile is not a gap between layers, where
+[`TileMapLayer.mount`](components.md#tileworld) draws actors. The two share a
+word and nothing else.
 
 ### Layers
 

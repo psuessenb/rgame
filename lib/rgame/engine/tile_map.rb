@@ -12,6 +12,7 @@ module RGame
     #   map = RGame::Engine::TileMap.from_tiled(parsed)
     #   map.tile(0, 12, 7)     # => the tile in layer 0 at column 12, row 7
     #   map.solid_tile?(12, 7) # => whether any layer blocks that cell
+    #   map.gap_tile?(12, 7)   # => whether any layer opens a gap there
     #   map.cell_x(12)         # => 192, the column's left edge in pixels
     #
     # **A cell holds a tile id.** Ids are dense and start at 1, across every
@@ -55,6 +56,10 @@ module RGame
 
       NO_OFFSET = [0, 0].freeze
       private_constant :NO_OFFSET
+
+      # The class a designer gives a tile in Tiled to make its cell a gap: a
+      # chasm or a pit, which a walker falls into and a hop crosses.
+      GAP = 'gap'
 
       # Where a tile id came from: the index of its tileset, in the order the
       # map lists them by first gid, and the tile's index in that tileset.
@@ -141,6 +146,7 @@ module RGame
         @tile_table = tile_table.dup.freeze
         @solid = solid.dup.freeze
         @tile_classes = tile_classes.dup.freeze
+        @gap = @tile_classes.map { it == GAP }.freeze
         @tile_properties = tile_properties.dup.freeze
         @tile_offsets = (tile_offsets || Array.new(@tile_table.size, NO_OFFSET)).map(&:freeze).freeze
         @frames = frames.map { it&.map { |pair| pair.dup.freeze }&.freeze }.freeze
@@ -220,6 +226,10 @@ module RGame
       # Tile 0, the empty cell, never does.
       def solid?(tile) = @solid.fetch(tile)
 
+      # Whether `tile` is a gap: its class in Tiled is `gap`. Tile 0, the
+      # empty cell, never is.
+      def gap?(tile) = @gap.fetch(tile)
+
       # The class the designer gave `tile` in Tiled, or `nil`.
       def tile_class(tile) = @tile_classes.fetch(tile)
 
@@ -256,6 +266,17 @@ module RGame
       end
 
       def solid_at?(world_x, world_y) = solid_tile?(col_at(world_x), row_at(world_y))
+
+      # A gap if any layer has a gap tile at (col, row), counted as
+      # `solid_tile?` counts solidity: hidden layers too. Out of bounds is not
+      # a gap.
+      def gap_tile?(col, row)
+        return false unless in_bounds?(col, row)
+
+        plane = 0
+        plane += 1 while plane < @tiles.depth && !@gap[@tiles[col, row, plane]]
+        plane < @tiles.depth
+      end
 
       # The left edge of column `col`, in world pixels. Any column, inside the
       # map or not: `cell_x(width)` is the map's right edge.

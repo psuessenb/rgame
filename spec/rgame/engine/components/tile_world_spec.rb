@@ -165,6 +165,70 @@ RSpec.describe RGame::Engine::Components::TileWorld do
     end
   end
 
+  # Two gap cells, columns 1 and 2 of row 1: x 16 to 48, y 16 to 32.
+  describe 'the floor' do
+    let(:world) { described_class.new(map: WalledTileMap.build(['....', '.~~.', '....']), tilemap_id: :level) }
+
+    it 'has a gap where the map has a gap tile' do
+      expect([world.gap?(1, 1), world.gap?(2, 1), world.gap?(0, 1), world.gap?(-1, 1)])
+        .to eq([true, true, false, false])
+    end
+
+    it 'is not under a point in a gap cell, a point on its left or top edge included' do
+      expect([world.floor_at?(20.0, 20.0), world.floor_at?(16.0, 16.0)]).to eq([false, false])
+    end
+
+    it 'is under a point beside a gap, on its right edge, and off the map' do
+      expect([world.floor_at?(15.5, 20.0), world.floor_at?(48.0, 20.0), world.floor_at?(-5.0, -5.0)])
+        .to eq([true, true, true])
+    end
+
+    describe '#floor_reach_x' do
+      it 'stops a point moving right just short of the gap' do
+        reach = world.floor_reach_x(10.0, 20.0, 10.0)
+        expect([reach, world.floor_at?(10.0 + reach, 20.0)]).to match([be_within(1e-6).of(6.0), true])
+      end
+
+      it 'stops a point moving left just short of the gap' do
+        reach = world.floor_reach_x(54.0, 20.0, -10.0)
+        expect([reach, world.floor_at?(54.0 + reach, 20.0)]).to match([be_within(1e-6).of(-6.0), true])
+      end
+
+      it 'stops at the first gap on the way, however long the step' do
+        expect(world.floor_reach_x(10.0, 20.0, 40.0)).to be_within(1e-6).of(6.0)
+      end
+
+      it 'moves the whole way where the floor goes on' do
+        expect([world.floor_reach_x(10.0, 20.0, 3.0), world.floor_reach_x(10.0, 8.0, 30.0)]).to eq([3.0, 30.0])
+      end
+
+      it 'moves a point that starts in a gap the whole way' do
+        expect(world.floor_reach_x(20.0, 20.0, 30.0)).to eq(30.0)
+      end
+
+      it 'keeps a point pressed against the edge where it is' do
+        edge = 10.0 + world.floor_reach_x(10.0, 20.0, 10.0)
+        expect(world.floor_reach_x(edge, 20.0, 2.0)).to eq(0.0)
+      end
+    end
+
+    describe '#floor_reach_y' do
+      it 'stops a point moving down just short of the gap' do
+        reach = world.floor_reach_y(20.0, 10.0, 10.0)
+        expect([reach, world.floor_at?(20.0, 10.0 + reach)]).to match([be_within(1e-6).of(6.0), true])
+      end
+
+      it 'stops a point moving up just short of the gap' do
+        reach = world.floor_reach_y(20.0, 38.0, -10.0)
+        expect([reach, world.floor_at?(20.0, 38.0 + reach)]).to match([be_within(1e-6).of(-6.0), true])
+      end
+
+      it 'moves the whole way along a column with no gap, or from inside one' do
+        expect([world.floor_reach_y(8.0, 10.0, 10.0), world.floor_reach_y(20.0, 20.0, -30.0)]).to eq([10.0, -30.0])
+      end
+    end
+  end
+
   # #blockers, #nav_grid and #solid? are three views of one store, read from the map once.
   describe 'one store of solidity' do
     let(:solid_map) do

@@ -196,6 +196,25 @@ Stopping at the edge is one of three responses to it. `ScreenWrap` and
 ([`WorldBounds.one_response!`](components.md#world)). A mover that did not ask is
 not held.
 
+## `GapBlockers` — the edge of the floor as a blocker source
+
+**`RGame::Engine::GapBlockers` (`rgame/engine/gap_blockers`) stops the centre of a
+box at the edge of the floor** that
+[`TileWorld#floor_at?`](components.md#tileworld) describes: every cell without a
+[gap tile](tile_maps.md#gaps). `TileWorld#gap_blockers` builds one over its world
+and hands the same one to every mover declaring `:gaps`.
+
+```ruby
+gaps = world.gap_blockers
+gaps.resolve_x(10.0, 30.0, 12, 6, 20.0)   # => 26.0 less a billionth: the centre stops short of x 32
+```
+
+It asks `TileWorld#floor_reach_x` and `#floor_reach_y` about the centre of the box,
+so a box may overlap a gap while its centre stands on the floor. A box whose centre
+starts off the floor moves the whole way. Its `blocker` is the sentinel
+`GapBlockers::GAPS`, answering `layer` → `:gaps` and `node` → `nil`. It holds no
+per-step state, and a gap does not move, so its `moved` does nothing.
+
 ## `CollisionSystem` — move an actor against its blockers
 
 **`RGame::Engine::CollisionSystem` (`rgame/engine/collision_system`) holds a list of
@@ -224,7 +243,7 @@ source.blocker                            # -> what produced that edge, or nil
 source.moved(actor, from_x, from_y, w, h) # -> the step has been written back
 ```
 
-A fifth is optional. Of the three sources, only `TileBlockers` answers it:
+A fifth is optional. Of the four sources, only `TileBlockers` answers it:
 
 ```ruby
 source.travel?(x, y, w, h, dx, dy)        # -> can the box move (dx, dy) without being stopped?
@@ -238,7 +257,8 @@ one alone. The shared example group `a blocker source answering travel?`
 (`spec/support/shared_examples/`) states that meaning. It checks a source's answer
 against a walker stepping through the source's own resolves.
 
-The three sources are `TileBlockers`, `ActorBlockers` and `BoundsBlockers`. **The
+The four sources are `TileBlockers`, `ActorBlockers`, `BoundsBlockers` and
+`GapBlockers`. **The
 system asks each source and takes the most restrictive answer on each axis**: the
 smallest landing for a rightward or downward step, the largest for a leftward or
 upward one. No source needs to know the others exist, and `blockers: []` means free

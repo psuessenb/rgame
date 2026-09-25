@@ -18,6 +18,12 @@ module RGame
       # The same solidity, viewed as a graph for planning routes, is #nav_grid. A thing
       # standing on the map adds to it through Components::OccupiesCell.
       #
+      # **It also knows where the floor is.** A cell holding a tile of class `gap` has no
+      # floor (TileMap#gap_tile?). #floor_at? answers for a point, and #floor_reach_x and
+      # #floor_reach_y say how far a point on the floor can move and stay on it, which is
+      # what #gap_blockers stops a step with. The gaps are read once, into a second
+      # Util::SolidGrid, as solidity is.
+      #
       # **Solidity is read from the map once**, into one Util::SolidGrid, the first time
       # anything asks — and #blockers, #nav_grid and #solid? all read that store, never the
       # map. So they cannot disagree about a cell, and a resolve costs a byte lookup rather
@@ -107,6 +113,67 @@ module RGame
 
         def solid?(col, row) = solid_grid.solid?(col, row)
 
+        # The floor's edge as a blocker source, for a mover that declared
+        # `blocked_by: [:gaps]`: an Engine::GapBlockers over this world. The same source
+        # every time, so every mover on the map shares one.
+        def gap_blockers = @gap_blockers ||= Engine::GapBlockers.new(world: self)
+
+        # How far short of a gap's edge #floor_reach_x and #floor_reach_y stop a point, in
+        # pixels: the margin Util::TileSweep keeps against a wall. A point stopped exactly on
+        # the edge could cross it by rounding, on its way from a box to a node and back.
+        FLOOR_EDGE = 1e-9
+
+        # Whether any layer holds a gap tile at (col, row). A cell off the map is not a gap.
+        def gap?(col, row) = gap_grid.solid?(col, row)
+
+        # Whether the world point (x, y) is on the floor: its cell is not a gap. A point on
+        # a cell's left or top edge is in that cell, and a point off the map is on the floor.
+        #
+        # hot-path
+        def floor_at?(x, y) = !gap?(@map.col_at(x), @map.row_at(y))
+
+        # How far the point (x, y) can move `dx` along x and stay on the floor: `dx` itself,
+        # or as far as FLOOR_EDGE short of the first gap on the way. A point already off
+        # the floor moves the whole way, so a node standing in a gap is never held there.
+        #
+        # hot-path
+        def floor_reach_x(x, y, dx)
+          return dx if dx.zero? || !floor_at?(x, y)
+
+          row = @map.row_at(y)
+          from = @map.col_at(x)
+          to = @map.col_at(x + dx)
+          if dx.positive?
+            col = from + 1
+            col += 1 while col <= to && !gap?(col, row)
+            col > to ? dx : [@map.cell_x(col) - FLOOR_EDGE - x, 0.0].max
+          else
+            col = from - 1
+            col -= 1 while col >= to && !gap?(col, row)
+            col < to ? dx : [@map.cell_x(col + 1) + FLOOR_EDGE - x, 0.0].min
+          end
+        end
+
+        # The same as #floor_reach_x, along y.
+        #
+        # hot-path
+        def floor_reach_y(x, y, dy)
+          return dy if dy.zero? || !floor_at?(x, y)
+
+          col = @map.col_at(x)
+          from = @map.row_at(y)
+          to = @map.row_at(y + dy)
+          if dy.positive?
+            row = from + 1
+            row += 1 while row <= to && !gap?(col, row)
+            row > to ? dy : [@map.cell_y(row) - FLOOR_EDGE - y, 0.0].max
+          else
+            row = from - 1
+            row -= 1 while row >= to && !gap?(col, row)
+            row < to ? dy : [@map.cell_y(row + 1) + FLOOR_EDGE - y, 0.0].min
+          end
+        end
+
         # The map's solid tiles as an Engine::NavGrid, for planning a route rather than
         # resolving a step — over the same store #blockers reads, as a second view. Built on
         # first ask, and the same grid every time after.
@@ -156,6 +223,10 @@ module RGame
 
         def solid_grid
           @solid_grid ||= Util::SolidGrid.build(@map.width, @map.height) { |col, row| @map.solid_tile?(col, row) }
+        end
+
+        def gap_grid
+          @gap_grid ||= Util::SolidGrid.build(@map.width, @map.height) { |col, row| @map.gap_tile?(col, row) }
         end
       end
     end

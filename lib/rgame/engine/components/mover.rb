@@ -40,11 +40,13 @@ module RGame
       #   CharacterBody.new(speed: 80, blocked_by: %i[tiles npc])   # ...and does not walk through NPCs
       #   CharacterBody.new(speed: 80, blocked_by: %i[npc bounds])  # ...and cannot leave the world
       #
-      # Two names are reserved: **`:tiles`** is the scene's TileWorld, and **`:bounds`** is the
-      # edge of the region the scene's WorldBounds describes. **Every other name is a collider
-      # layer**, resolved against the scene's CollisionWorld: a mover declaring `:npc` is
-      # stopped by any BoxCollider whose `layer` is `:npc`, flush against its edge, exactly the
-      # way a solid tile stops it. A layer that is empty, or whose colliders all leave, is not
+      # Three names are reserved: **`:tiles`** is the scene's TileWorld, **`:bounds`** is the
+      # edge of the region the scene's WorldBounds describes, and **`:gaps`** is the edge of
+      # the TileWorld's floor, which keeps the centre of the mover's box off the map's gap
+      # tiles (Engine::GapBlockers). **Every other name is a collider layer**, resolved
+      # against the scene's CollisionWorld: a mover declaring `:npc` is stopped by any
+      # BoxCollider whose `layer` is `:npc`, flush against its edge, exactly the way a solid
+      # tile stops it. A layer that is empty, or whose colliders all leave, is not
       # an error — the declaration says what *may* stop this mover, not what does.
       #
       # `:bounds` is declared rather than automatic, and a mover that does not declare it
@@ -117,7 +119,7 @@ module RGame
         # The listener gets whatever stopped the step and reads its #layer and #node, so
         # one handler covers every kind: a collider answers its own layer and its owning
         # node, the map's solid tiles answer :tiles and nil (Engine::TileBlockers::TILES),
-        # and the world's edge answers :bounds and nil.
+        # the world's edge answers :bounds and nil, and the floor's edge :gaps and nil.
         #
         # on_blocked also says which axis of the step it stopped — :x, :y, or :both when one
         # blocker stopped the two at once — which is what a bounce branches on. A listener
@@ -132,12 +134,13 @@ module RGame
 
         TILES  = :tiles
         BOUNDS = :bounds
-        RESERVED = [TILES, BOUNDS].freeze
+        GAPS   = :gaps
+        RESERVED = [TILES, BOUNDS, GAPS].freeze
 
         PUSH_DEPTH = 4
 
         # `pushes:` raises ArgumentError for a layer missing from `blocked_by:`, and for
-        # `:tiles` or `:bounds`, which no step can move.
+        # `:tiles`, `:bounds` or `:gaps`, which no step can move.
         def initialize(blocked_by: [], pushes: [])
           super()
           @blocked_by = Array(blocked_by)
@@ -355,7 +358,7 @@ module RGame
         def check_pushes
           if @pushes.intersect?(RESERVED)
             raise ArgumentError, "#{mover_name} pushes #{(@pushes & RESERVED).map(&:inspect).join(', ')}, " \
-                                 'and no step can move the map or the edge of the world. ' \
+                                 'and no step can move the map, its gaps or the edge of the world. ' \
                                  '`pushes:` names collider layers.'
           end
           missing = @pushes - @blocked_by
@@ -427,6 +430,7 @@ module RGame
           sources = []
           sources << tile_blockers if @blocked_by.include?(TILES)
           sources << bounds_blockers if @blocked_by.include?(BOUNDS)
+          sources << gap_blockers if @blocked_by.include?(GAPS)
           layers = @blocked_by.reject { RESERVED.include?(it) }
           sources << actor_blockers(layers) unless layers.empty?
           sources
@@ -438,6 +442,13 @@ module RGame
                         'system to resolve a step against. Mount one, or drop blocked_by for ' \
                         'a mover with nothing to collide with.')
           world.blockers
+        end
+
+        def gap_blockers
+          world = node.system(TileWorld) ||
+                  raise("#{mover_name} is blocked_by :gaps, and the scene has no TileWorld to " \
+                        'read the gaps from. Mount one, or drop :gaps.')
+          world.gap_blockers
         end
 
         def bounds_blockers

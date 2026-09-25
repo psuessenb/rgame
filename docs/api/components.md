@@ -822,12 +822,13 @@ add_component(RGame::Engine::Components::BoxCollider.new(width: 12, height: 12, 
 add_component(RGame::Engine::Components::Velocity.new(vx: 90, vy: 40, blocked_by: [:wall]))
 ```
 
-Two names are reserved, and every other name is a collider layer:
+Three names are reserved, and every other name is a collider layer:
 
 | Name | Resolved against | Stops the step at |
 |---|---|---|
 | `:tiles` | the scene's [`TileWorld`](#tileworld) | the edge of a solid tile |
 | `:bounds` | the scene's [`WorldBounds`](#world) | the edge of the world |
+| `:gaps` | the scene's [`TileWorld`](#tileworld) | the edge of the floor, with the centre of the box on the last of it |
 | anything else | the scene's [`CollisionWorld`](#collisionworld) | the edge of any `BoxCollider` wearing that layer |
 
 **Each step resolves one axis at a time and takes the most restrictive answer.** A
@@ -877,8 +878,8 @@ mover.on_blocked { |by| take_damage if by.layer == :spike }
 
 The listener receives the blocker and reads `by.layer` and `by.node`, whatever kind
 stopped the step. A collider answers its own layer and owning node. The map's solid
-tiles answer `:tiles` and `nil`. The world's edge answers `:bounds` and `nil`. The
-second argument is the stopped axis: `:x`, `:y` or `:both`. A listener that names
+tiles answer `:tiles` and `nil`. The world's edge answers `:bounds` and `nil`, and
+the floor's edge `:gaps` and `nil`. The second argument is the stopped axis: `:x`, `:y` or `:both`. A listener that names
 only the blocker never sees it. Three details matter:
 
 - **Standing still counts as unblocking.** The set of blockers advances once per
@@ -902,11 +903,22 @@ may carry only one. Declaring `:bounds` beside either raises at attach. A game w
 entities wrap or despawn at the edge gives their movers no `:bounds`.
 `blocked_by?(name)` answers whether a mover declared a name.
 
+**`:gaps` keeps a mover on the floor.** A cell holding a
+[gap tile](tile_maps.md#gaps) has no floor, and a step may not take the centre of
+the mover's box into one. The box may overlap a gap, so a walker stands right at
+the edge. A step that starts with the centre off the floor is free, so a node that
+lands in a gap is not held there. [`Engine::GapBlockers`](internals.md#gapblockers--the-edge-of-the-floor-as-a-blocker-source)
+does the resolving, over [`TileWorld#floor_at?`](#tileworld).
+
+```ruby
+add_component(RGame::Engine::Components::CharacterBody.new(speed: 30, blocked_by: %i[tiles gaps]))
+```
+
 **A mover declares what it pushes, beside what stops it.** `pushes:` names collider
 layers a step moves instead of stopping at. Every layer in it must also be in
 `blocked_by:`, since a step passes through anything else and would push nothing; the
-constructor raises `ArgumentError` for one that is not, and for `:tiles` or
-`:bounds`.
+constructor raises `ArgumentError` for one that is not, and for `:tiles`,
+`:bounds` or `:gaps`.
 
 ```ruby
 add_component(RGame::Engine::Components::CharacterBody.new(speed: 80, blocked_by: %i[tiles crate],
@@ -957,8 +969,8 @@ another.
 - **Lifecycle:** `_attach` resolves the declarations and builds the mover's own
   [`CollisionSystem`](internals.md#collisionsystem--move-an-actor-against-its-blockers)
   from the sources it finds. It **raises** for anything missing. It checks the
-  node's collider first, then the scene's `TileWorld` for `:tiles`, its `WorldBounds`
-  for `:bounds`, and its `CollisionWorld` for any layer name. Falling back to free
+  node's collider first, then the scene's `TileWorld` for `:tiles` and `:gaps`, its
+  `WorldBounds` for `:bounds`, and its `CollisionWorld` for any layer name. Falling back to free
   movement would look like a collision bug, caused by a scene three files away that
   never mounted the system.
 - **Signals:** `on_blocked` fires with what stopped the step and the stopped axis.
@@ -1406,6 +1418,9 @@ data to another, depends on a sibling's add order, or names a layer it may not n
     [`Engine::TileBlockers`](internals.md#tileblockers--the-tile-grid-as-a-blocker-source),
     the same object every time. A [`Mover`](#mover) declaring `:tiles` borrows it
     and resolves its own steps against it.
+  - `gap_blockers` returns the edge of the floor as an
+    [`Engine::GapBlockers`](internals.md#gapblockers--the-edge-of-the-floor-as-a-blocker-source),
+    the same object every time, for a mover declaring `:gaps`.
   - `nav_grid` returns the same solidity as an
     [`Engine::NavGrid`](toolbox.md#navgrid--routes-over-a-tile-grid), for planning a
     route instead of resolving a step. It is built on first request and reused.
@@ -1415,6 +1430,14 @@ data to another, depends on a sibling's add order, or names a layer it may not n
     does. `cell_centre_x(col)` and `cell_centre_y(row)` answer the middle of a
     cell, which is where a [`Navigator`](#navigator) steers to.
   - `solid?(col, row)`, `world_width` and `world_height`.
+  - `gap?(col, row)`, whether any layer holds a [gap tile](tile_maps.md#gaps) at
+    that cell, and `floor_at?(x, y)`, whether the world point stands on the
+    floor: its cell is not a gap. A point on a cell's left or top edge is in that
+    cell, and a point off the map is on the floor.
+  - `floor_reach_x(x, y, dx)` and `floor_reach_y(x, y, dy)`, how far a point can
+    move along one axis and stay on the floor. The answer is the whole step, or
+    as far as `TileWorld::FLOOR_EDGE` (a billionth of a pixel) short of the first
+    gap on the way. A point already off the floor moves the whole way.
   - `tilemap_id` and `elapsed`, which the layers read.
   - `layer_count`, `layer(index)`, `layer_index(name_or_path)` and
     `first_above_layer`, which `TileMapLayer.mount` reads to decide where its gaps
@@ -1427,6 +1450,8 @@ data to another, depends on a sibling's add order, or names a layer it may not n
   walk through the map's layers and tileset. Everything past the map's edges is open.
   `TileWorld` does not hand the store out. A game changes a cell's solidity at
   runtime only through [`OccupiesCell`](#occupiescell).
+  The gaps are read the same way, into a second grid that `gap?` and `floor_at?`
+  read.
 - **It does not resolve a step.** Tiles, other actors, the world's edge, or any
   combination may stop a mover, and only the mover knows which. The resolver
   therefore belongs to the mover, and the grid to this system.

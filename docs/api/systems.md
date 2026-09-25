@@ -229,12 +229,13 @@ Baking tile shapes into the broadphase would rebuild an index the grid already
 is. It would also cost time every frame on a map of tens of thousands of tiles.
 
 **The unification happens one level up.** A **blocker source** answers one
-question over plain numbers: where does this box land when it moves `dx`? Three
+question over plain numbers: where does this box land when it moves `dx`? Four
 sources exist:
 
 - `TileBlockers`, over the grid;
 - `ActorBlockers`, over the broadphase;
-- `BoundsBlockers`, over the world's edges.
+- `BoundsBlockers`, over the world's edges;
+- `GapBlockers`, over the edge of the map's floor.
 
 A blocked mover builds a
 [`CollisionSystem`](internals.md#collisionsystem--move-an-actor-against-its-blockers)
@@ -250,6 +251,7 @@ it to check a route against the same resolver that will stop its walk.
 | | Mounted on the scene | Owned by the node |
 |---|---|---|
 | Tiles | [`TileWorld`](components.md#tileworld), which hands out one shared `TileBlockers` | — |
+| Gaps | [`TileWorld`](components.md#tileworld), which hands out one shared `GapBlockers` | — |
 | Actors | [`CollisionWorld`](components.md#collisionworld), the broadphase | an `ActorBlockers` per mover, holding its own collider and layer list |
 | The world's edge | any [`WorldBounds`](components.md#world) | a `BoundsBlockers` |
 | The step | — | one `CollisionSystem`, built at attach from the names above |
