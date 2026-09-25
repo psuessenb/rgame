@@ -36,6 +36,50 @@ module RGame
         base.singleton_class.send(:private, :sealed_base)
       end
 
+      # A public reader `name` over the ivar `@rgame_<name>`, as fast as an
+      # `attr_reader`: it is an alias of a private reader `rgame_<name>`, which
+      # the seal covers in Node2D and Component. Returns the names.
+      #
+      #   sealed_reader :opacity   # node.opacity reads @rgame_opacity
+      #
+      # The reader is public even below a bare `private`, which sets the
+      # visibility of methods the class body defines and does not reach into a
+      # macro. A private attribute needs no macro: its methods read the ivar.
+      #
+      # @api private
+      def sealed_reader(*names)
+        names.each do |name|
+          reader = :"#{PREFIX}#{name}"
+          attr_reader reader
+          alias_method name, reader
+          public name
+          private reader
+        end
+      end
+
+      # A public writer `name=` over `@rgame_<name>`, for an attribute with no
+      # check to run, built as #sealed_reader builds a reader. Returns the
+      # names.
+      #
+      # @api private
+      def sealed_writer(*names)
+        names.each do |name|
+          writer = :"#{PREFIX}#{name}="
+          attr_writer :"#{PREFIX}#{name}"
+          alias_method :"#{name}=", writer
+          public :"#{name}="
+          private writer
+        end
+      end
+
+      # Both #sealed_reader and #sealed_writer. Returns the names.
+      #
+      # @api private
+      def sealed_accessor(*names)
+        sealed_reader(*names)
+        sealed_writer(*names)
+      end
+
       # Every method a subclass may not define: the base's non-public methods
       # whose names start with PREFIX.
       def sealed_methods

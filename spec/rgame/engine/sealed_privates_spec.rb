@@ -87,6 +87,81 @@ RSpec.describe RGame::Engine::SealedPrivates do
     end
   end
 
+  describe 'the attribute macros' do
+    let(:node_class) do
+      Class.new(RGame::Engine::Node2D) do
+        sealed_reader :shade
+        sealed_writer :tint
+        sealed_accessor :glow
+
+        def fill(shade:, tint:, glow:)
+          @rgame_shade = shade
+          @rgame_tint = tint
+          @rgame_glow = glow
+          self
+        end
+      end
+    end
+
+    it 'reads the prefixed ivar with sealed_reader' do
+      expect(node_class.new.fill(shade: 1, tint: 2, glow: 3).shade).to eq(1)
+    end
+
+    it 'writes the prefixed ivar with sealed_writer' do
+      node = node_class.new
+      node.tint = 4
+      expect(node.instance_variable_get(:@rgame_tint)).to eq(4)
+    end
+
+    it 'reads and writes the prefixed ivar with sealed_accessor' do
+      node = node_class.new
+      node.glow = 5
+      expect([node.glow, node.instance_variable_get(:@rgame_glow)]).to eq([5, 5])
+    end
+
+    it 'makes the attribute public and its prefixed methods private' do
+      expect([node_class.public_method_defined?(:shade), node_class.public_method_defined?(:tint=),
+              node_class.private_method_defined?(:rgame_shade), node_class.private_method_defined?(:rgame_tint=)])
+        .to eq([true, true, true, true])
+    end
+
+    # A bare `private` sets the visibility of what the class body defines, and
+    # the macro defines its methods from inside a method of its own.
+    it 'makes the attribute public below a bare private' do
+      below_private = Class.new(RGame::Engine::Node2D) do
+        private # rubocop:disable Lint/UselessAccessModifier -- the modifier the example shows has no effect
+
+        sealed_reader :shade
+      end
+      expect(below_private.public_method_defined?(:shade)).to be(true)
+    end
+
+    it 'returns the names' do
+      names = nil
+      Class.new(RGame::Engine::Node2D) { names = sealed_accessor(:shade, :tint) }
+      expect(names).to eq(%i[shade tint])
+    end
+
+    describe 'on the base class' do
+      let(:attributed_base) do
+        Class.new do
+          extend RGame::Engine::SealedPrivates
+
+          sealed_reader :shade
+          sealed_writer :tint
+          sealed_accessor :glow
+        end
+      end
+
+      { sealed_reader: :rgame_shade, sealed_writer: :rgame_tint=, sealed_accessor: :rgame_glow }.each do |macro, sealed|
+        it "seals the private method #{macro} makes" do
+          expect { Class.new(attributed_base) { define_method(sealed) { |*| nil } } }
+            .to raise_error(NameError, /##{Regexp.escape(sealed)} would replace/)
+        end
+      end
+    end
+  end
+
   it 'lists what it seals' do
     expect(base.sealed_methods).to contain_exactly(:rgame_machinery, :rgame_shared)
   end
