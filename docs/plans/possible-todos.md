@@ -261,14 +261,18 @@ The pathfinding plan built `Util::SolidGrid`, `Util::RouteSearch`, `Util::TileSw
 checked the design against five additions it did not build. What each would start
 from:
 
-- **Maps that change at runtime.** `SolidGrid#set_solid`, `revision`, and region
-  labels that relabel lazily all exist and are tested, and `TileWorld`'s
-  `blockers`, `nav_grid` and `solid?` share one store. Missing: an engine-level API
-  on `TileWorld`, deliberately not a bare reader of the store — a solidity change
-  without the drawn tile is an invisible wall — and a decision about what a walking
-  `Navigator` does when `revision` moves under its route (today it stands at the
-  new wall, `on_blocked` by `:tiles`, with nothing saying why). **Trigger:** a door,
-  a destructible wall, or a bridge a game wants.
+- **Maps that change at runtime.** `Components::OccupiesCell` makes a cell solid
+  while its node is in the tree, so a crate or a closed door blocks without an
+  invisible wall. Two things are still missing. One is a decision about what a
+  walking `Navigator` does when a cell turns solid under its route: today it
+  stands at the new wall, `on_blocked` by `:tiles`, with nothing saying why. The
+  other is changing which tile *types* are solid, such as "all water is now
+  walkable". `Tileset#solid_ids=` did that until the Tiled format plan removed
+  it. `TileWorld` keeps no bare `set_solid`, because a solid cell with nothing
+  drawn on it is an invisible wall. A switch per tile type would not be
+  invisible, since the designer drew the tile. **Trigger:** a door, a
+  destructible wall, or a bridge a game wants, or a game that wants a tile type
+  to change.
 - **Replanning around moving actors.** The search state lives in `RouteSearch`,
   separate from the grid, so a per-query overlay of blocked cells is a parameter of
   `find`, not a second grid. **Trigger:** a game whose navigator must go around
@@ -773,3 +777,42 @@ Three things the y-sort plan left open. The sort is in
   where it stands. Sprites now stand on the origin, so the two differ only for a
   node whose box does not end there. **Trigger:** a reach that looks wrong on
   such a node.
+
+---
+
+## Loose ends from the Tiled format plan
+
+What the Tiled format plan chose not to read, and two measurements it left open.
+What rgame reads and draws is in `docs/api/tile_maps.md`. Object layers have
+their own research in [research/object-layers.md](research/object-layers.md).
+
+- **Isometric, staggered and hexagonal maps.** Each raises `Tiled::FormatError`.
+  Every conversion between cells and pixels goes through `TileMap`'s seam
+  (`cell_x`, `col_at` and the rest), so a later plan fills the seam rather than
+  sweeping for copies. `Util::SolidGrid`, `Util::TileSweep` and
+  `Util::RouteSearch` are square-grid C, and a diamond grid rewrites all three.
+  **Trigger:** a game on an isometric or hexagonal map.
+- **Collision shapes smaller than a tile.** A tile is solid when it has any
+  collision shape, and the shape's geometry is discarded. `SolidGrid` keeps a byte
+  per cell, which is what makes collision and A* fast. **Trigger:** a game with
+  a slope or a half-height ledge.
+- **Per-layer parallax, offset and tint.** None is read. Parallax needs the draw
+  path to know the camera, and the other two were not worth opening that door
+  alone. **Trigger:** a parallax background.
+- **World files.** A `.world` lays several maps out side by side. `Scene::Rooms`
+  runs rooms side by side, but each builds its own map. **Trigger:** a game that
+  lays its rooms out in a Tiled world.
+- **A collection tile's sub-rectangle.** Tiled can cut one tile out of part of a
+  collection image, and rgame draws the whole image. Of the attributes the parser
+  skips, it is the one that would change what rgame draws today. **Trigger:** a
+  tileset that uses it.
+- **The orientation plane.** `Util::Tensor` holds a Ruby value per cell, so a
+  layer's orientations cost 8 bytes a cell. Building that plane was 11.6 ms of
+  the 29.5 ms a 250×250×6 map spent on its transform, measured while designing
+  it. A map with no turned tile builds none. **Trigger:** a map big enough for
+  either number to matter.
+- **Built maps cached across runs.** `AssetManager` already transforms a map
+  once per process. A cache across runs needs a format, a location and a rule
+  for what invalidates it, for a transform that took about 35 ms on a
+  250×250×6 map. A bulk fill of `Util::Tensor` in C comes first: it halves the
+  dominant cost. **Trigger:** a scene load where building the map shows.

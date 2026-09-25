@@ -159,6 +159,13 @@ child, prefix the name with two underscores"
 ([Reference](https://github.com/Kiamo2/YATI/blob/main/Reference.md)). Every name
 it does not know goes into metadata.
 
+**rgame has rejected matching by name once already.** The Tiled format plan's
+prior art took SuperTiled2Unity's key, the object's class, and turned down the
+rest: "Its property-to-field auto-assignment is the part to reject. Setting
+fields by string name is invisible to every tool and fails at import with a
+message about a field, not about a map." A plan that sets component properties
+from a map has to answer that objection, not repeat the design it rejected.
+
 **Godot's own editor has no such problem.** A level is a scene, and a designer
 places a gameplay object by instancing its scene. Each instance shows its
 exported properties in the inspector, and "Editable Children" opens the
@@ -221,7 +228,7 @@ object layer's node to sort against the trees in it.
 
 ## What this means for rgame's loader today
 
-*(Measured.)* Three gaps against the Tiled behaviour above:
+*(Measured.)* Three gaps against the Tiled behaviour above, and a fourth below:
 
 - **`draworder` is read and then dropped.** `Tiled::ObjectLayer#draw_order` is
   `:topdown` or `:index` ([map.rb:230](../../../lib/rgame/engine/tiled/map.rb#L230)).
@@ -239,13 +246,19 @@ object layer's node to sort against the trees in it.
   file, so the defaults are missing. A component's own defaults could fill them
   if the Tiled types were exported from the components, as bevy_ecs_tiled does.
 
+A fourth gap matters once a tile object draws. **A tileset's `objectalignment`
+is not read.** It says which point of a tile object its position names, from
+`topleft` to `bottomright`. Left `unspecified`, the default, a tile object on an
+orthogonal map is placed by its bottom-left corner, which is all the loader
+assumes.
+
 Templates are already resolved, the instance's properties winning
 ([template.rb](../../../lib/rgame/engine/tiled/template.rb)).
 
 *(Measured.)* Of the seven maps the examples and test projects load, six have an
 object layer. The one without is `examples/assets/puzzle.tmx`, which
-`examples/block_puzzle` loads. In `beach_large.tmx`, `Objects` sits above `Over`, the layer marked `above`, as
-in Tiled's `island.tmx`.
+`examples/block_puzzle` loads. In `beach_large.tmx`, `Objects` sits above `Over`,
+the layer marked `above`, as in Tiled's `island.tmx`.
 
 ## Questions for the plan
 
@@ -259,3 +272,5 @@ in Tiled's `island.tmx`.
    object.
 5. Whether a builder replaces the default picture, as in Excalibur, or adds to
    it.
+6. How properties reach a component without the fault the Tiled format plan
+   found in matching by name: a failure that names a field, not the map.

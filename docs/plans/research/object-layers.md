@@ -201,12 +201,34 @@ collects how other engines and Tiled itself answer these questions.
 - **A tracked map for the acceptance test.** `test_projects/tiled_world` loads
   `media/map/beach_large.tmx`, and `.gitignore` excludes `/media/`. A tree placed
   there would reach neither the repository nor CI. The test needs a map the
-  repository tracks, such as `examples/assets/` or a test project's own folder
-  like `topdownplatformer/course.tmx`.
+  repository tracks. The Tiled format plan's authored map is that map, and its
+  requirements already ask for tile objects, a template and a class property:
+  see [tiled-acceptance-map.md](tiled-acceptance-map.md).
+
+## What the Tiled format plan left open
+
+The Tiled format plan parsed object layers into records and stopped there, on
+purpose: "No node is ever built from a map." Its design named three questions
+and left them for a game to answer:
+
+- **Which slot an object belongs in.** "Its own object layer's position in the
+  layer order is the obvious answer, and it is probably right — but it makes
+  every object layer a slot, and nothing has built a map that wants that yet."
+- **What happens on a scene reload.** "A chest that was opened must not come
+  back full. That is `Components::Identity` and the save format's problem."
+- **Whether an object's class maps to a node or to a component.** "Both are
+  defensible, and the answer will be obvious once two games have wanted it."
+
+Its reason for stopping was CLAUDE.md's composition test: nothing in the
+repository had yet built a scene that wanted objects from a map. Five scenes now
+spawn nodes from `map.objects`, in the table above.
 
 ## Open for the plan
 
 1. Answer A, answer B, or another.
 2. What a tile object whose class has a block builds. A platform is the first
    case.
-3. Which tracked map carries the acceptance test.
+3. What the acceptance map adds to
+   [tiled-acceptance-map.md](tiled-acceptance-map.md)'s requirements.
+4. What a reloaded scene rebuilds from the map, and what it restores from a
+   save.
