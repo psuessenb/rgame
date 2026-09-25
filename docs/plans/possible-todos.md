@@ -292,6 +292,11 @@ from:
   only up to one tile, so `go_to` raises. Needs a search over cells the box fits
   (clearance per cell) and a smoothing that tests every step. **Trigger:** a large
   creature that must path.
+- **Routes around gaps.** `NavGrid` plans over solidity only, so a `Navigator`
+  routes straight through a gap, and a `:gaps` blocker stops it at the edge.
+  `TileWorld` already keeps the gaps in a second `SolidGrid`, so the search could
+  read both. Platforms move, and a route across one is a timing question the
+  search cannot answer. **Trigger:** an NPC that plans routes near gaps.
 
 ---
 
@@ -500,6 +505,26 @@ writes its own timer for it.
 
 ---
 
+## Buffered input
+
+**What.** A press remembered for a moment, so an action refused now happens as
+soon as it can. A hop pressed a few ticks before a landing is one case, and an
+attack pressed during another attack is a second.
+
+**What exists instead.** Nothing in the engine buffers input. `Components::Hop`
+reads `pressed?` on the tick it could start, so a hop pressed in the air is lost.
+Coyote time in `Components::Footing` covers the opposite case, a hop pressed just
+too late.
+
+**Why not now.** It belongs to input, not to `Hop`: every action refused for a
+few ticks at a time wants it, and each would otherwise grow its own. So it needs
+a design first, per player and per action, and no game here has asked.
+
+**Trigger.** A game whose players press early, and whose actions are refused
+for a few ticks at a time.
+
+---
+
 ## Ducking
 
 **What.** Music that drops while something else plays over it, a voiced line
@@ -679,3 +704,29 @@ the two base classes. No collision on such a method has happened yet.
 **Trigger.** A game's subclass that replaces a private method of an engine
 descendant by accident. Or a game that names an attribute `rgame_` in one,
 which `Game/NoEngineIvar` cannot see either.
+
+---
+
+## Loose ends from top-down platforming
+
+Five things the top-down platforming plan found and left. `Footing`, `Platform`,
+`Respawn` and `Checkpoint` are in `docs/api/components.md`:
+
+- **Platforms that wait at their ends.** A platform that pauses at a dock is
+  easier to board. `PathFollow` with `loop: true` never stops. On
+  `examples/moving_platforms`' raft, a hop from the bank's edge boards it on
+  1.37 s of every 8.4 s round trip. **Trigger:** a game whose players find a
+  platform that never stops too hard to board.
+- **Momentum on leaving a platform.** A hop off a platform keeps only the node's
+  own walk, not the platform's last step. Godot adds the platform's velocity by
+  default. **Trigger:** a hop off a moving platform that feels wrong without it,
+  to someone playing it.
+- **A pushed platform.** `Pushable` replaces `Mover#_update`, so a raft a hero
+  pushes carries nobody. **Trigger:** a game with a raft to push.
+- **A respawn point in a room left behind.** A `Rooms` move does not touch
+  `Respawn`, so a hero who walks through a door keeps the old room's point.
+  `Respawn` checks its point at every attach, so a gap under that point in the
+  new room raises there. **Trigger:** a game with gaps in two rooms.
+- **Platforms as Tiled tile objects.** A platform draws its own tiles in code.
+  Once y-sort's step 3 draws a tile object as a node, a platform could draw the
+  one a designer placed. **Trigger:** y-sort's step 3 landing.

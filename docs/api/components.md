@@ -735,7 +735,9 @@ finds the node's `Hop` on its first update, so a `Hop` added after it still coun
 **Coyote time lets a hop start just past the edge.** A node that walks off the
 floor falls once it has been off it for more than `coyote` seconds. At 0.1 s and
 60 ticks a second, a hop pressed in any of the six ticks after the step off still
-crosses. `coyote: 0` drops the node on its first tick off the floor.
+crosses. That holds with the `Footing` added after the node's mover. Added before
+it, the `Footing` sees the step off a tick later, and the window runs seven ticks.
+`coyote: 0` drops the node on its first tick off the floor.
 
 **A node rides the [`Platform`](#platform) under it.** Where the centre of the box
 stands on a platform over a gap, the node boards it, in the air or not. The platform

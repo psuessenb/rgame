@@ -230,11 +230,32 @@ every cell holding it is a gap, on any layer, a hidden one included. The
 constant `TileMap::GAP` is that class. A cell off the map is not a gap, as it is
 not solid. Build a bridge by painting a floor tile where the gap tile was, or
 move one over the gap with a [`Platform`](components.md#platform).
-A [`Footing`](components.md#footing) drops a node that walks into a gap, and
-`blocked_by: [:gaps]` keeps a [mover](components.md#mover) out of one. A
-[`Respawn`](components.md#respawn) point and a
-[`Checkpoint`](components.md#checkpoint) stand on ground: each raises over a
-gap, even one a platform covers.
+
+**Five components play on gaps, and each asks the scene's
+[`TileWorld`](components.md#tileworld) where the floor is.** The floor is every
+cell without a gap tile, plus the box of every `Platform` over a gap.
+`TileWorld#floor_at?` answers for a world point, and the rules follow from it:
+
+- **A node stands at the centre of its [`BoxCollider`](components.md#boxcollider)
+  box.** For a character, that box is its
+  [`FeetCollider`](components.md#feetcollider).
+- **A [`Footing`](components.md#footing) drops a node off the floor**, once it
+  has been off for more than `coyote` seconds. A node that lands on a gap falls on
+  the tick it lands, and a node in the air never falls. The fall shrinks the node
+  over `fall` seconds, then brings it back or frees it.
+- **A node rides the `Platform` under its centre**, where the cell is a gap. The
+  platform's mover carries it through the rider's own mover, so a wall still stops
+  it.
+- **`blocked_by: [:gaps]` keeps the centre of a [mover](components.md#mover)'s
+  box on the floor**, platforms included. A step that starts off the floor is free.
+- **A [`Respawn`](components.md#respawn) point and a
+  [`Checkpoint`](components.md#checkpoint) stand on ground.** Each raises over a
+  gap, even one a platform covers. A checkpoint moves only the point of the node
+  that touches it.
+
+Add order changes a result by one tick at most. `Footing` finds the node's `Hop`
+and mover on its first update, and a mover finds its `Platform` the same way, so
+those may go on in any order.
 
 ### Layers
 
