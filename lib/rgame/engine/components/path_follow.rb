@@ -201,7 +201,7 @@ module RGame
           end
 
           apply_move(x - node.x, y - node.y)
-          !last_move_blocked?
+          !stopped?
         end
 
         def rewind(segment, distance, backward)

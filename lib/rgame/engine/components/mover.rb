@@ -103,6 +103,22 @@ module RGame
       # chain stops at PUSH_DEPTH, and a pushed node never pushes the node that pushed it, so
       # a ring of crates ends rather than recursing.
       #
+      # ## A platform's mover carries its riders
+      #
+      # A mover whose node is a Platform carries every node standing on it by the step it
+      # just took. It measures the node's world position around `take_step` and hands the
+      # difference to the platform, so a PathFollow that places its node carries as well as
+      # a Velocity that integrates one. It finds the Platform on its first update, so either
+      # may be added first. A mover with no Platform pays one check a step.
+      #
+      # The rider moves through #ride, as far as its own `blocked_by:` lets it. A wall
+      # therefore scrapes a rider off a platform. Being carried is not a step of the
+      # rider's own, so it fires no `on_blocked` and leaves `stopped?` as it was.
+      #
+      # **`:gaps` needs a Footing.** The floor moves under a mover on a platform, and a
+      # Footing is what rides it. A mover declaring `:gaps` on a node with no Footing
+      # raises at attach, rather than being left behind by its platform and walking free.
+      #
       # ## The shape has one owner, and it is not this
       #
       # A blocked step is resolved against the node's **collider** box, read from the
@@ -154,6 +170,8 @@ module RGame
           @rgame_pushed_by = nil
           @rgame_grabbed = nil
           @rgame_actor_source = nil
+          @rgame_platform = nil
+          @rgame_platform_known = false
         end
 
         # Resolve each declared blocker and build the resolver that runs them, once the node
@@ -173,6 +191,7 @@ module RGame
         # to place its node before walking.
         def _attach
           @rgame_stopped_by.reset
+          @rgame_platform_known = false
           return if @rgame_blocked_by.empty?
 
           WorldBounds.one_response!(node) if blocked_by?(BOUNDS)
@@ -190,6 +209,8 @@ module RGame
         # that resolves a step in several moves, or overrides apply_move, still opens the
         # step once and still reports its edges.
         def _update(dt)
+          find_platform unless @rgame_platform_known
+          return step_and_carry(dt) if @rgame_platform
           return take_step(dt) unless @rgame_collision
 
           open_step
@@ -203,6 +224,26 @@ module RGame
         # standing. Each subclass answers from what its step is computed out of.
         def heading_x = 0.0
         def heading_y = 0.0
+
+        # Whether this update's step was cut short by something in the way, on either axis.
+        # An update that took no step was not, and neither is a mover with nothing
+        # declared. Being carried by a platform changes nothing here.
+        def stopped? = @rgame_last_move_blocked
+
+        # Moves the node by (dx, dy) as far as `blocked_by:` allows, and reports nothing:
+        # being carried is not a step of this mover's. A Footing calls it for the platform
+        # its node rides.
+        #
+        # @api private
+        def ride(dx, dy)
+          unless @rgame_collision
+            node.world_x += dx
+            node.world_y += dy
+            return
+          end
+
+          @rgame_collision.move(self, dx, dy)
+        end
 
         # Whether `name` is one of the things this mover declared it may be stopped by.
         def blocked_by?(name) = @rgame_blocked_by.include?(name)
@@ -277,11 +318,30 @@ module RGame
 
         def take_step(_dt) = nil
 
+        def step_and_carry(dt)
+          from_x = node.world_x
+          from_y = node.world_y
+          if @rgame_collision
+            open_step
+            take_step(dt)
+            close_step
+          else
+            take_step(dt)
+          end
+          @rgame_platform.carry(node.world_x - from_x, node.world_y - from_y)
+        end
+
+        def find_platform
+          @rgame_platform_known = true
+          @rgame_platform = node.get_component(Platform)
+        end
+
         def blocking? = !@rgame_collision.nil?
 
-        def last_move_blocked? = @rgame_last_move_blocked
-
-        def open_step = @rgame_stopped_by.begin_frame
+        def open_step
+          @rgame_last_move_blocked = false
+          @rgame_stopped_by.begin_frame
+        end
 
         def report_blockers(blocked_x, blocked_y)
           @rgame_last_move_blocked = !(blocked_x.nil? && blocked_y.nil?)
@@ -448,6 +508,10 @@ module RGame
           world = node.system(TileWorld) ||
                   raise("#{mover_name} is blocked_by :gaps, and the scene has no TileWorld to " \
                         'read the gaps from. Mount one, or drop :gaps.')
+          if node.components.none?(Footing)
+            raise "#{mover_name} is blocked_by :gaps, and its node has no Footing to ride a " \
+                  'platform with, so a platform would leave it behind. Add a Footing before it.'
+          end
           world.gap_blockers
         end
 

@@ -41,26 +41,87 @@ RSpec.describe RGame::Engine::Components::WanderController do
       expect([body_b.move_x, body_b.move_y]).to eq([body.move_x, body.move_y])
     end
 
-    it 're-rolls early when a wall blocks it, ignoring the timer' do
-      # Long interval so the timer alone would never re-roll within these two ticks.
-      node, controller = build(rng: Random.new(7), idle_chance: 0.0, change_interval: 100.0..100.0)
+    it 'does not re-roll a body that nothing can stop before its timer runs out' do
+      _node, controller = build(rng: Random.new(7), idle_chance: 0.0, change_interval: 100.0..100.0)
       allow(body).to receive(:set_intent).and_call_original
 
-      controller._update(0.016)        # first roll (timer was 0)
-      controller._update(0.016)        # node never moved while intending → blocked → re-roll
-      expect(body).to have_received(:set_intent).twice
+      30.times do
+        body._update(0.016)
+        controller._update(0.016)
+      end
+      expect(body).to have_received(:set_intent).once
+    end
+  end
 
-      node # silence unused
+  # A walker boxed in by walls on every side, so whichever way it rolls, a step stops.
+  describe 'blocked' do
+    let(:scene) { RGame::Engine::Node2D.new.tap { it.scene = it } }
+    let(:walker) { RGame::Engine::Node2D.new(x: 100.0, y: 100.0) }
+    let(:boxed) { RGame::Engine::Components::CharacterBody.new(speed: 60.0, blocked_by: [:wall]) }
+
+    def wall(x, y, width, height)
+      RGame::Engine::Node2D.new(x: x, y: y).tap do |node|
+        node.add_component(RGame::Engine::Components::BoxCollider.new(width: width, height: height, layer: :wall))
+      end
     end
 
-    it 'does not re-roll while it is making progress' do
-      node, controller = build(rng: Random.new(7), idle_chance: 0.0, change_interval: 100.0..100.0)
-      allow(body).to receive(:set_intent).and_call_original
+    before do
+      scene.add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 64))
+      [wall(84, 84, 48, 16), wall(84, 116, 48, 16), wall(84, 100, 16, 16), wall(116, 100, 16, 16)]
+        .each { scene.add_node(it) }
+      walker.add_component(RGame::Engine::Components::BoxCollider.new(width: 16, height: 16))
+      walker.add_component(boxed)
+      scene.add_node(walker)
+    end
 
-      controller._update(0.016) # first roll, timer set to 100
-      node.x += 5.0             # progress: it moved since last tick
-      controller._update(0.016) # not blocked, timer still ~100 → no re-roll
-      expect(body).to have_received(:set_intent).once
+    it 're-rolls on the tick a wall stops it, ignoring the timer' do
+      walker.add_component(described_class.new(rng: Random.new(7), idle_chance: 0.0,
+                                               change_interval: 100.0..100.0))
+      scene.enter_tree
+      allow(boxed).to receive(:set_intent).and_call_original
+
+      3.times { scene.update(0.016) }
+      expect(boxed).to have_received(:set_intent).exactly(3).times
+    end
+  end
+
+  # A chasm under a 48x48 platform shuttling east and west, and an NPC on it kept on the
+  # floor by :gaps. The platform moves every tick, so the NPC always moves; only its body
+  # can say it was stopped at the edge.
+  describe 'carried on a platform' do
+    let(:scene) do
+      RGame::Engine::Node2D.new.tap do |root|
+        root.scene = root
+        map = WalledTileMap.build(Array.new(12) { '~' * 20 })
+        root.add_component(RGame::Engine::Components::TileWorld.new(map: map, tilemap_id: :map))
+      end
+    end
+    let(:raft) do
+      RGame::Engine::Node2D.new.tap do |node|
+        node.add_component(RGame::Engine::Components::BoxCollider.new(width: 48, height: 48,
+                                                                      offset_x: -24, offset_y: -24))
+        node.add_component(RGame::Engine::Components::Platform.new)
+        route = RGame::Engine::Path.new([[100.0, 100.0], [220.0, 100.0]])
+        node.add_component(RGame::Engine::Components::PathFollow.new(path: route, speed: 30, loop: true))
+      end
+    end
+    let(:stopper) { RGame::Engine::Components::CharacterBody.new(speed: 90.0, blocked_by: [:gaps]) }
+
+    it 're-rolls against the edge of the platform, and never walks off it' do
+      npc = RGame::Engine::Node2D.new(x: 100.0, y: 100.0)
+      npc.add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height: 6))
+      npc.add_component(RGame::Engine::Components::Footing.new)
+      npc.add_component(stopper)
+      npc.add_component(described_class.new(rng: Random.new(3), idle_chance: 0.0, change_interval: 100.0..100.0))
+      scene.add_node(raft)
+      scene.add_node(npc)
+      scene.enter_tree
+      allow(stopper).to receive(:set_intent).and_call_original
+
+      600.times { scene.update(1.0 / 60) }
+      footing = npc.get_component(RGame::Engine::Components::Footing)
+      expect([footing.falling?, footing.platform]).to eq([false, raft.get_component(RGame::Engine::Components::Platform)])
+      expect(stopper).to have_received(:set_intent).at_least(5).times
     end
   end
 end

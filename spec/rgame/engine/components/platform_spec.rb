@@ -15,14 +15,38 @@ RSpec.describe RGame::Engine::Components::Platform do
   def engine = RGame::Engine
   def parts = RGame::Engine::Components
 
-  def platform_at(x, y, width: 32)
+  def platform_at(x, y, width: 32, vx: nil)
     node = engine::Node2D.new(x: x, y: y)
-    node.add_component(parts::BoxCollider.new(width: width, height: 16, offset_x: -width / 2.0, offset_y: -8))
+    node.add_component(parts::BoxCollider.new(width: width, height: 16, offset_x: -width / 2.0, offset_y: -8,
+                                              layer: :platform))
     platform = node.add_component(described_class.new)
+    node.add_component(parts::Velocity.new(vx: vx)) if vx
     root.add_node(node)
     root.enter_tree
     platform
   end
+
+  # An 8x8 box centred on the node, so the node stands where its box's centre is.
+  def rider_at(x, y, body: true, blocked_by: [], hop: false)
+    node = engine::Node2D.new(x: x, y: y)
+    node.add_component(parts::BoxCollider.new(width: 8, height: 8, offset_x: -4, offset_y: -4, layer: :rider))
+    node.add_component(parts::Footing.new)
+    node.add_component(parts::CharacterBody.new(speed: 60, blocked_by:)) if body
+    node.add_component(parts::Hop.new(peak: 10, duration: 0.5, action: nil)) if hop
+    root.add_node(node)
+    root.enter_tree
+    node
+  end
+
+  def footing(node) = node.get_component(parts::Footing)
+  def dt = 1.0 / 60
+
+  def tick
+    root.update(dt)
+    root.sweep_freed
+  end
+
+  def ticks(count) = count.times { tick }
 
   describe 'attaching' do
     it 'raises without a BoxCollider on the node' do
@@ -92,6 +116,105 @@ RSpec.describe RGame::Engine::Components::Platform do
     it 'refuses a platform registered twice' do
       platform = platform_at(80.0, 24.0)
       expect { world.bridge(platform) }.to raise_error(ArgumentError, /already/)
+    end
+  end
+
+  describe 'riding' do
+    it 'boards the platform under the centre of a node over a gap' do
+      platform = platform_at(80.0, 24.0)
+      node = rider_at(70.0, 24.0)
+      tick
+      expect([footing(node).platform, platform.riders]).to eq([platform, [footing(node)]])
+    end
+
+    # The platform updates before the rider, so the rider boards at the end of the first
+    # tick and is carried from the second.
+    it 'rides in the air too' do
+      platform = platform_at(80.0, 24.0, vx: 60)
+      node = rider_at(80.0, 24.0, hop: true)
+      node.get_component(parts::Hop).jump
+      tick
+      ticks(10)
+      expect([footing(node).platform, node.x - platform.node.x]).to match([platform, be_within(1e-9).of(-1.0)])
+    end
+
+    it 'does not ride where the ground is under it, though the box covers it' do
+      platform = platform_at(48.0, 24.0, vx: 60) # box 32..64: ground to 48
+      node = rider_at(40.0, 24.0)
+      tick
+      expect([footing(node).platform, platform.riders, node.x]).to eq([nil, [], 40.0])
+    end
+
+    it 'carries a rider with no Mover straight by its step' do
+      platform = platform_at(80.0, 24.0, vx: 60)
+      node = rider_at(76.0, 24.0, body: false)
+      tick
+      ticks(20)
+      expect(node.x - platform.node.x).to be_within(1e-9).of(-5.0)
+    end
+
+    it 'leaves the platform as the node steps off it onto the ground' do
+      platform = platform_at(64.0, 24.0) # box 48..80, flush with the ground's edge at 48
+      node = rider_at(52.0, 24.0)
+      tick
+      node.get_component(parts::CharacterBody).set_intent(-1, 0)
+      ticks(10)
+      expect([footing(node).platform, platform.riders]).to eq([nil, []])
+    end
+  end
+
+  # A 48 px platform under two riders, flush against each other and each blocked by the
+  # other, so a carry that moved the one behind first would leave it where it was.
+  describe 'riders flush against each other' do
+    before { root.add_component(parts::CollisionWorld.new(cell_size: 64)) }
+
+    [[:front, 60], [:front, -60], [:back, 60], [:back, -60]].each do |first, vx|
+      it "stay flush, with the #{first} one aboard first, carried at #{vx} px/s" do
+        platform_at(96.0, 24.0, width: 48, vx: vx)
+        ahead_x, behind_x = vx.positive? ? [98.0, 90.0] : [90.0, 98.0]
+        order = first == :front ? [ahead_x, behind_x] : [behind_x, ahead_x]
+        riders = order.map { rider_at(it, 24.0, blocked_by: [:rider]) }
+        ticks(20)
+        expect((riders[0].x - riders[1].x).abs).to be_within(1e-9).of(8.0)
+      end
+    end
+  end
+
+  # A wall standing in the chasm, its left edge at x = 120, that stops a rider and not
+  # the platform carrying it.
+  describe 'a wall in the way' do
+    before do
+      root.add_component(parts::CollisionWorld.new(cell_size: 64))
+      wall = engine::Node2D.new(x: 120.0, y: 0.0)
+      wall.add_component(parts::BoxCollider.new(width: 8, height: 64, layer: :wall))
+      root.add_node(wall)
+    end
+
+    it 'stops the rider and not the platform, and the rider falls once it is off' do
+      platform = platform_at(80.0, 24.0, width: 48, vx: 60)
+      node = rider_at(80.0, 24.0, blocked_by: [:wall])
+      ticks(80)
+      expect([node.x, platform.node.x, footing(node).falling?]).to match([116.0, be_within(1e-9).of(160.0), true])
+    end
+  end
+
+  describe 'leaving the tree' do
+    it 'lets every rider go as the platform leaves' do
+      platform = platform_at(80.0, 24.0)
+      node = rider_at(80.0, 24.0)
+      tick
+      platform.node.queue_free
+      root.sweep_freed
+      expect([footing(node).platform, platform.riders]).to eq([nil, []])
+    end
+
+    it 'leaves the platform as the rider leaves' do
+      platform = platform_at(80.0, 24.0)
+      node = rider_at(80.0, 24.0)
+      tick
+      node.queue_free
+      root.sweep_freed
+      expect(platform.riders).to eq([])
     end
   end
 
