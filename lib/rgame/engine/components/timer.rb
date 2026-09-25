@@ -25,13 +25,13 @@ module RGame
 
         def initialize(interval)
           super()
-          @timer = Engine::Timer.new(interval)
+          @rgame_timer = Engine::Timer.new(interval)
         end
 
-        def interval = @timer.interval
+        def interval = @rgame_timer.interval
 
         def interval=(seconds)
-          @timer.interval = seconds
+          @rgame_timer.interval = seconds
         end
 
         # Start the countdown fresh whenever the node (re-)enters the tree, so a pooled node
@@ -41,9 +41,9 @@ module RGame
         # Advance one step and fire on_elapsed once per whole interval that elapsed — so a
         # single long step still emits the right number of times (catch-up, not drift).
         def _update(dt)
-          @timer.update(dt)
-          while @timer.ready?
-            @timer.consume
+          @rgame_timer.update(dt)
+          while @rgame_timer.ready?
+            @rgame_timer.consume
             elapsed_signal.emit
           end
         end
@@ -51,7 +51,7 @@ module RGame
         # Back to a fresh timer: drop accumulated time (e.g. after retuning the interval,
         # or when a pooled node is reused). Returns self.
         def reset
-          @timer.reset
+          @rgame_timer.reset
           self
         end
       end

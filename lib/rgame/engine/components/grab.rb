@@ -28,32 +28,32 @@ module RGame
       class Grab < Targeting
         def initialize(range:, layer:, action: :grab, policy: :nearest)
           super(range:, layer:, policy:)
-          @action = action
-          @held = nil
+          @rgame_action = action
+          @rgame_held = nil
         end
 
         # The action this reads, so a game can show the button that holds it.
-        attr_reader :action
+        sealed_reader :action
 
         # The node being held, or nil.
-        def holding = @held&.node
+        def holding = @rgame_held&.node
 
         def _attach
           super
-          @mover = require_sibling(Mover)
+          @rgame_mover = require_sibling(Mover)
         end
 
         def _detach
           release
-          @mover = nil
+          @rgame_mover = nil
         end
 
         def _control(actions)
-          return release unless actions.held?(@action)
+          return release unless actions.held?(@rgame_action)
 
-          @held = nil if @held && gone?(@held.node)
-          @held ||= pushable_on(target)
-          @mover.grabbed = @held
+          @rgame_held = nil if @rgame_held && gone?(@rgame_held.node)
+          @rgame_held ||= pushable_on(target)
+          @rgame_mover.grabbed = @rgame_held
         end
 
         private
@@ -67,8 +67,8 @@ module RGame
         def gone?(candidate) = candidate.freed? || !candidate.in_tree?
 
         def release
-          @held = nil
-          @mover&.grabbed = nil
+          @rgame_held = nil
+          @rgame_mover&.grabbed = nil
         end
       end
     end

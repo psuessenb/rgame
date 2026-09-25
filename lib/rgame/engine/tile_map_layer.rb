@@ -101,10 +101,10 @@ module RGame
 
       def initialize(layer:, **)
         super(**)
-        @layer = layer
+        @rgame_layer = layer
       end
 
-      def _enter_tree = @world = system(Components::TileWorld)
+      def _enter_tree = @rgame_world = system(Components::TileWorld)
 
       # The view supplies the cull rect: which part of the world this viewport
       # can see. The map draws in world coordinates and the WorldView's
@@ -118,8 +118,8 @@ module RGame
         camera = view.camera
         raise 'TileMapLayer must be inside a WorldView — this view has no camera' if camera.nil?
 
-        renderer.tilemap(@world.tilemap_id, @layer, camera.x, camera.y,
-                         view.width, view.height, elapsed: @world.elapsed)
+        renderer.tilemap(@rgame_world.tilemap_id, @rgame_layer, camera.x, camera.y,
+                         view.width, view.height, elapsed: @rgame_world.elapsed)
       end
     end
   end

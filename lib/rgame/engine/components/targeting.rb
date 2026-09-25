@@ -22,28 +22,28 @@ module RGame
           super()
           raise ArgumentError, "unknown targeting policy #{policy.inspect}" unless POLICIES.include?(policy)
 
-          @range = range
-          @policy = policy
-          @layer = layer
-          @target = nil
+          @rgame_range = range
+          @rgame_policy = policy
+          @rgame_layer = layer
+          @rgame_target = nil
         end
 
         # The chosen node, or nil when nothing is in range. Refreshed every update.
-        attr_reader :target
+        sealed_reader :target
 
         # Pull the broadphase once it's reachable (scene scope, resolved up the tree).
-        def _attach = @world = node.system(CollisionWorld)
+        def _attach = @rgame_world = node.system(CollisionWorld)
 
         def _update(_dt)
           collider = pick
-          @target = collider&.node
+          @rgame_target = collider&.node
         end
 
         private
 
         def pick
-          case @policy
-          when :nearest then @world.nearest(node.world_x, node.world_y, @range, layer: @layer)
+          case @rgame_policy
+          when :nearest then @rgame_world.nearest(node.world_x, node.world_y, @rgame_range, layer: @rgame_layer)
           end
         end
       end

@@ -24,9 +24,9 @@ module RGame
       class CameraFollow < Engine::Component
         def initialize(camera:, offset_x: 0.0, offset_y: 0.0)
           super()
-          @camera = camera
-          @offset_x = offset_x
-          @offset_y = offset_y
+          @rgame_camera = camera
+          @rgame_offset_x = offset_x
+          @rgame_offset_y = offset_y
         end
 
         # A node runs its components before its own `_update`, so this reads
@@ -37,7 +37,7 @@ module RGame
         # screen. Reading it later — from the node's own hook, say — would put
         # this component's ordering among its siblings on show instead.
         def _update(_dt)
-          @camera.center_on(node.world_x + @offset_x, node.world_y + @offset_y)
+          @rgame_camera.center_on(node.world_x + @rgame_offset_x, node.world_y + @rgame_offset_y)
         end
       end
     end

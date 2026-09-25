@@ -18,17 +18,17 @@ module RGame
       #
       # The buttons are children, so they draw over the panel without a `z`.
       class PanelMenu < Menu
-        attr_reader :panel, :padding
+        sealed_reader :panel, :padding
 
         def initialize(panel: :panel, padding: 16, **)
           super(**)
-          @panel = panel
-          @padding = padding
+          @rgame_panel = panel
+          @rgame_padding = padding
         end
 
         def _draw(renderer, _view)
-          renderer.nine_slice(@panel, bounds_x - @padding, bounds_y - @padding,
-                              bounds_width + (@padding * 2), bounds_height + (@padding * 2))
+          renderer.nine_slice(@rgame_panel, bounds_x - @rgame_padding, bounds_y - @rgame_padding,
+                              bounds_width + (@rgame_padding * 2), bounds_height + (@rgame_padding * 2))
         end
       end
     end

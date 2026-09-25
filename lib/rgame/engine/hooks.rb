@@ -63,7 +63,7 @@ module RGame
       private
 
       def hook_name?(name) = name.start_with?(PREFIX) && !name.start_with?('__')
-      def declared_hooks = (@declared_hooks ||= [])
+      def declared_hooks = (@rgame_declared_hooks ||= [])
     end
   end
 end

@@ -227,7 +227,7 @@ class SlotButton < RGame::Engine::UI::PanelButton
   def draw_foreground(renderer)
     y = label_y(renderer)
     color = current_label_color
-    renderer.text(@label, NAME_X, y, z: 1, color: color)
+    renderer.text(label, NAME_X, y, z: 1, color: color)
     renderer.text(@outfit.on(@slot)&.name || @empty, WORN_X, y, z: 1, color: color)
   end
 end

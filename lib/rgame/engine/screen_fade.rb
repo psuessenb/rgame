@@ -38,24 +38,24 @@ module RGame
 
       # The colour it covers in, and the colour a flash uses unless told
       # otherwise.
-      attr_reader :color
+      sealed_reader :color
 
       # Changes the colour a cover and a reveal draw in, one under way
       # included. A flash under way keeps its own colour until it ends. Anything
       # but a Util::Color raises `TypeError`.
       def color=(color)
-        @color = checked_color(color)
-        @drawn = @color unless @running.equal?(@flash)
+        @rgame_color = checked_color(color)
+        @rgame_drawn = @rgame_color unless @rgame_running.equal?(@rgame_flash)
       end
 
       # `color:` must be a Util::Color. Every other keyword is Node2D's.
       def initialize(color: Util::Color::BLACK, band: :overlay, **)
         super(band:, **)
-        @color = checked_color(color)
-        @drawn = @color
-        @fade = Engine::Tween.new(1.0)
-        @flash = Engine::Tween.new(1.0, ease: :arc)
-        @running = nil
+        @rgame_color = checked_color(color)
+        @rgame_drawn = @rgame_color
+        @rgame_fade = Engine::Tween.new(1.0)
+        @rgame_flash = Engine::Tween.new(1.0, ease: :arc)
+        @rgame_running = nil
         self.opacity = 0
       end
 
@@ -68,58 +68,58 @@ module RGame
       # Rises from clear to `color` at half of `duration`, then falls back to
       # clear. The colour's own alpha is the flash's peak, so a translucent
       # white flashes without covering.
-      def flash(duration, color: @color)
-        @flash.duration = duration
-        @drawn = checked_color(color)
-        run(@flash.restart)
+      def flash(duration, color: @rgame_color)
+        @rgame_flash.duration = duration
+        @rgame_drawn = checked_color(color)
+        run(@rgame_flash.restart)
       end
 
       # Jumps to where the cover, reveal or flash under way was going, and
       # emits `on_finished`, as its end does. A flash ends clear. Does nothing
       # when nothing is running. Returns self.
       def finish
-        return self unless @running
+        return self unless @rgame_running
 
-        self.opacity = @running.finish.value.clamp(0.0, 1.0)
+        self.opacity = @rgame_running.finish.value.clamp(0.0, 1.0)
         complete
         self
       end
 
       # Whether a cover, a reveal or a flash is under way.
-      def running? = !@running.nil?
+      def running? = !@rgame_running.nil?
 
       # Opaque, with nothing running: what a scene can change behind.
-      def covered? = @running.nil? && opacity == 1
+      def covered? = @rgame_running.nil? && opacity == 1
 
       def _update(dt)
-        return unless @running
+        return unless @rgame_running
 
-        self.opacity = @running.update(dt).value.clamp(0.0, 1.0)
-        complete if @running.done?
+        self.opacity = @rgame_running.update(dt).value.clamp(0.0, 1.0)
+        complete if @rgame_running.done?
       end
 
       def _draw(renderer, view)
-        renderer.rect(view.origin_x, view.origin_y, view.width, view.height, color: @drawn)
+        renderer.rect(view.origin_x, view.origin_y, view.width, view.height, color: @rgame_drawn)
       end
 
       private
 
       def complete
-        @running = nil
-        @drawn = @color
+        @rgame_running = nil
+        @rgame_drawn = @rgame_color
         finished_signal.emit
       end
 
       def fade_to(target, duration)
-        @fade.duration = duration
-        @fade.from = opacity
-        @fade.to = target
-        @drawn = @color
-        run(@fade.restart)
+        @rgame_fade.duration = duration
+        @rgame_fade.from = opacity
+        @rgame_fade.to = target
+        @rgame_drawn = @rgame_color
+        run(@rgame_fade.restart)
       end
 
       def run(tween)
-        @running = tween
+        @rgame_running = tween
         self
       end
 

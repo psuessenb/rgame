@@ -50,28 +50,28 @@ module RGame
         # false` keeps the node, for something that is opened rather than taken.
         def initialize(by:, sound: nil, free: true)
           super()
-          @by = by
-          @sound = sound
-          @free = free
+          @rgame_by = by
+          @rgame_sound = sound
+          @rgame_free = free
         end
 
         def _attach
-          @collider = require_sibling(Collider)
-          @handle = @collider.on_hit { |other| take(other) if other.layer == @by }
+          @rgame_collider = require_sibling(Collider)
+          @rgame_handle = @rgame_collider.on_hit { |other| take(other) if other.layer == @rgame_by }
         end
 
         def _detach
-          @collider&.disconnect_hit(@handle)
-          @collider = nil
-          @handle = nil
+          @rgame_collider&.disconnect_hit(@rgame_handle)
+          @rgame_collider = nil
+          @rgame_handle = nil
         end
 
         private
 
         def take(other)
           collected_signal.emit(other)
-          node.system!(AudioOut).play_sound(@sound) if @sound
-          node.queue_free if @free
+          node.system!(AudioOut).play_sound(@rgame_sound) if @rgame_sound
+          node.queue_free if @rgame_free
         end
       end
     end

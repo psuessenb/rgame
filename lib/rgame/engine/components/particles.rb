@@ -56,11 +56,11 @@ module RGame
         CARRY_SLACK = 1e-9
         private_constant :CARRY_SLACK
 
-        attr_reader :limit, :blend
+        sealed_reader :limit, :blend
 
         # Particles a second, streamed from the node's origin. 0, the default,
         # streams none.
-        attr_reader :rate
+        sealed_reader :rate
 
         # `limit` is how many can be alive at once. `lifetime` in seconds and
         # `speed` in pixels a second are each a number or a Range to draw one
@@ -71,20 +71,20 @@ module RGame
         def initialize(limit:, lifetime:, speed:, ramp:, direction: -Math::PI / 2, spread: Math::PI,
                        gravity: 0.0, size: 2, blend: :alpha, rng: Random.new)
           super()
-          @limit = positive(limit, 'limit', integer: true)
-          @lifetime = float_range(lifetime, 'lifetime', above_zero: true)
-          @speed = float_range(speed, 'speed')
-          @ramp = ramp!(ramp)
-          @direction = direction.to_f
-          @spread = spread.to_f
-          @gravity = gravity.to_f
-          @size = positive(size, 'size')
-          @half = @size / 2.0
-          @blend = Util::Blend.mode!(blend)
-          @rng = rng
-          @rate = 0
-          @carry = 0.0
-          @pool = Engine::Pool.new { Particle.new }.reserve(limit)
+          @rgame_limit = positive(limit, 'limit', integer: true)
+          @rgame_lifetime = float_range(lifetime, 'lifetime', above_zero: true)
+          @rgame_speed = float_range(speed, 'speed')
+          @rgame_ramp = ramp!(ramp)
+          @rgame_direction = direction.to_f
+          @rgame_spread = spread.to_f
+          @rgame_gravity = gravity.to_f
+          @rgame_size = positive(size, 'size')
+          @rgame_half = @rgame_size / 2.0
+          @rgame_blend = Util::Blend.mode!(blend)
+          @rgame_rng = rng
+          @rgame_rate = 0
+          @rgame_carry = 0.0
+          @rgame_pool = Engine::Pool.new { Particle.new }.reserve(limit)
         end
 
         # Changes the stream's rate. Must be a number of 0 or more.
@@ -93,19 +93,19 @@ module RGame
             raise ArgumentError, "rate must be a number of particles a second, 0 or more, not #{per_second.inspect}"
           end
 
-          @carry = 0.0 if per_second.zero?
-          @rate = per_second
+          @rgame_carry = 0.0 if per_second.zero?
+          @rgame_rate = per_second
         end
 
         # How many are alive.
-        def live = @pool.size
+        def live = @rgame_pool.size
 
         # Places `count` particles at (x, y) in the node's local space, or as
         # many as the limit leaves room for. `count` is an Integer. Returns how
         # many it placed.
         # hot-path
         def burst(count, x = 0.0, y = 0.0)
-          placed = [count, @limit - @pool.size].min
+          placed = [count, @rgame_limit - @rgame_pool.size].min
           placed = 0 if placed.negative?
           i = 0
           while i < placed
@@ -116,51 +116,52 @@ module RGame
         end
 
         def _update(dt)
-          @pool.each { step(it, dt) }
-          @pool.reclaim_if { it.age >= it.lifetime }
-          stream(dt) if @rate.positive?
+          @rgame_pool.each { step(it, dt) }
+          @rgame_pool.reclaim_if { it.age >= it.lifetime }
+          stream(dt) if @rgame_rate.positive?
         end
 
         def _draw(renderer, _view)
-          return if @pool.empty?
+          return if @rgame_pool.empty?
 
-          renderer.blended(@blend) do
-            @pool.each { draw_particle(renderer, it) }
+          renderer.blended(@rgame_blend) do
+            @rgame_pool.each { draw_particle(renderer, it) }
           end
         end
 
         def _detach
-          @pool.reclaim_if { true }
-          @carry = 0.0
+          @rgame_pool.reclaim_if { true }
+          @rgame_carry = 0.0
         end
 
         private
 
         def step(particle, dt)
-          particle.vy += @gravity * dt
+          particle.vy += @rgame_gravity * dt
           particle.x += particle.vx * dt
           particle.y += particle.vy * dt
           particle.age += dt
         end
 
         def stream(dt)
-          @carry += @rate * dt
-          whole = (@carry + CARRY_SLACK).floor
+          @rgame_carry += @rgame_rate * dt
+          whole = (@rgame_carry + CARRY_SLACK).floor
           return if whole.zero?
 
-          @carry -= whole
+          @rgame_carry -= whole
           burst(whole)
         end
 
         def emit(x, y)
-          heading = @direction + (@spread * ((2.0 * @rng.rand) - 1.0))
-          speed = @rng.rand(@speed)
-          @pool.acquire.place(x, y, Math.cos(heading) * speed, Math.sin(heading) * speed, @rng.rand(@lifetime))
+          heading = @rgame_direction + (@rgame_spread * ((2.0 * @rgame_rng.rand) - 1.0))
+          speed = @rgame_rng.rand(@rgame_speed)
+          @rgame_pool.acquire.place(x, y, Math.cos(heading) * speed, Math.sin(heading) * speed,
+                                    @rgame_rng.rand(@rgame_lifetime))
         end
 
         def draw_particle(renderer, particle)
-          renderer.rect(particle.x - @half, particle.y - @half, @size, @size,
-                        color: @ramp.at(particle.age / particle.lifetime))
+          renderer.rect(particle.x - @rgame_half, particle.y - @rgame_half, @rgame_size, @rgame_size,
+                        color: @rgame_ramp.at(particle.age / particle.lifetime))
         end
 
         def ramp!(ramp)

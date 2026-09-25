@@ -26,13 +26,13 @@ module RGame
       # **The cell is fixed.** Something that walks from cell to cell is a body, and a
       # mover declaring its layer in `blocked_by` already stops against it.
       class OccupiesCell < Engine::Component
-        attr_reader :col, :row
+        sealed_reader :col, :row
 
         def initialize(col:, row:)
           super()
-          @col = col
-          @row = row
-          @world = nil
+          @rgame_col = col
+          @rgame_row = row
+          @rgame_world = nil
         end
 
         # Raises when the scene has no TileWorld, and ArgumentError when the cell is
@@ -41,14 +41,14 @@ module RGame
         def _attach
           world = node.system(TileWorld) ||
                   raise("OccupiesCell makes a cell of the scene's TileWorld solid, and the " \
-                        "scene has none. Mount one before adding a node that occupies (#{@col}, #{@row}).")
-          world.occupy(@col, @row)
-          @world = world
+                        "scene has none. Mount one before adding a node that occupies (#{@rgame_col}, #{@rgame_row}).")
+          world.occupy(@rgame_col, @rgame_row)
+          @rgame_world = world
         end
 
         def _detach
-          @world&.vacate(@col, @row)
-          @world = nil
+          @rgame_world&.vacate(@rgame_col, @rgame_row)
+          @rgame_world = nil
         end
       end
     end

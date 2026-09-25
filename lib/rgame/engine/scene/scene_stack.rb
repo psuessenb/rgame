@@ -73,27 +73,27 @@ module RGame
 
         # The Scene::Fade a switch runs unless it names its own, or nil, the
         # default, for none.
-        attr_reader :transition
+        sealed_reader :transition
 
         def initialize
           super
-          @stack = []
-          @players = nil
-          @builders = {}
-          @request = nil
-          @transition = nil
-          @curtain = nil
+          @rgame_stack = []
+          @rgame_players = nil
+          @rgame_builders = {}
+          @rgame_request = nil
+          @rgame_transition = nil
+          @rgame_curtain = nil
         end
 
         # Sets the transition every switch runs unless it names its own. Anything
         # but a Scene::Fade or nil raises `TypeError`.
         def transition=(transition)
-          @transition = checked_transition(transition)
+          @rgame_transition = checked_transition(transition)
         end
 
         # See #control: the scenes this holds need the input source, and a
         # component is only handed one player's snapshot.
-        def _attach = @players = node.system(Engine::Players)
+        def _attach = @rgame_players = node.system(Engine::Players)
 
         # Names a scene, so a switch can ask for it by name. The block builds a
         # new scene each time a switch to it lands, and takes the keywords that
@@ -105,9 +105,11 @@ module RGame
         def define(name, &builder)
           raise TypeError, "a scene's name is a Symbol, not #{name.inspect}" unless name.is_a?(Symbol)
           raise ArgumentError, "define(#{name.inspect}) needs a block that builds the scene" unless builder
-          raise ArgumentError, "a scene named #{name.inspect} is already defined on this stack" if @builders.key?(name)
+          if @rgame_builders.key?(name)
+            raise ArgumentError, "a scene named #{name.inspect} is already defined on this stack"
+          end
 
-          @builders[name] = named(name, builder)
+          @rgame_builders[name] = named(name, builder)
           self
         end
 
@@ -120,31 +122,31 @@ module RGame
         #
         # `transition:` is a Scene::Fade for this switch in place of the
         # stack's, or nil for none.
-        def push(scene, carry: NONE, transition: @transition, **)
+        def push(scene, carry: NONE, transition: @rgame_transition, **)
           ask(:push, scene, carry, transition, **)
         end
 
         # Asks for `scene` in place of the current one.
-        def replace(scene, carry: NONE, transition: @transition, **)
+        def replace(scene, carry: NONE, transition: @rgame_transition, **)
           ask(:replace, scene, carry, transition, **)
         end
 
         # Asks for the top scene to go. Landing on an empty stack changes nothing.
-        def pop(transition: @transition)
+        def pop(transition: @rgame_transition)
           transition = checked_transition(transition)
           start(transition)
-          @request = Switch.new(:pop, nil, NONE, NONE)
+          @rgame_request = Switch.new(:pop, nil, NONE, NONE)
           requested_signal.emit(scene: nil, transition:)
           self
         end
 
         # The top scene, once a switch has landed: nil on an empty stack.
         def current
-          @stack.last
+          @rgame_stack.last
         end
 
         # Whether a switch was asked for and has not landed.
-        def pending? = !@request.nil?
+        def pending? = !@rgame_request.nil?
 
         # Whether a transition is covering or revealing.
         def transitioning? = curtain.running?
@@ -167,7 +169,7 @@ module RGame
           return if curtain.running?
           return unless (current_scene = current)
 
-          current_scene.control(@players || actions)
+          current_scene.control(@rgame_players || actions)
         end
 
         def _update(dt)
@@ -182,18 +184,18 @@ module RGame
         # visible underneath while freezing it. A transition's fade draws over
         # them all.
         def _draw(renderer, view)
-          @stack.each do |scene|
+          @rgame_stack.each do |scene|
             scene.draw(renderer, view)
           end
           curtain.draw(renderer, view)
         end
 
-        # Scenes live in @stack, off the host's child list, so the host's
+        # Scenes live in @rgame_stack, off the host's child list, so the host's
         # #sweep_freed cannot reach them. The sweep goes into the top scene's
         # subtree, and then the switch asked for lands, once any cover is done.
         def _sweep_freed
           current&.sweep_freed
-          return unless @request && curtain.ready?
+          return unless @rgame_request && curtain.ready?
 
           land
           curtain.open
@@ -213,14 +215,14 @@ module RGame
           end
           transition = checked_transition(transition)
           start(transition)
-          @request = Switch.new(kind, scene, keywords, carry)
+          @rgame_request = Switch.new(kind, scene, keywords, carry)
           requested_signal.emit(scene:, transition:)
           self
         end
 
         def start(transition) = curtain.close(transition, at_once: current.nil?)
 
-        def curtain = @curtain ||= Curtain.new(node)
+        def curtain = @rgame_curtain ||= Curtain.new(node)
 
         def checked_transition(transition)
           return transition if transition.nil? || transition.is_a?(Fade)
@@ -229,9 +231,9 @@ module RGame
         end
 
         def land
-          switch = @request
-          @request = nil
-          return if switch.kind == :pop && @stack.empty?
+          switch = @rgame_request
+          @rgame_request = nil
+          return if switch.kind == :pop && @rgame_stack.empty?
 
           switch.carry.each_value { |carried| carried.parent&.remove_node(carried) }
           scene = built(switch) unless switch.kind == :pop
@@ -243,18 +245,18 @@ module RGame
         def built(switch)
           return switch.scene unless switch.scene.is_a?(Symbol)
 
-          @builders.fetch(switch.scene).builder.call(**switch.keywords, **switch.carry)
+          @rgame_builders.fetch(switch.scene).builder.call(**switch.keywords, **switch.carry)
         end
 
         def land_push(scene)
-          @stack.push(scene)
+          @rgame_stack.push(scene)
           scene.parent = node
           scene.scene = scene
           scene.enter_tree
         end
 
         def land_pop
-          scene = @stack.pop
+          scene = @rgame_stack.pop
           return unless scene
 
           scene.exit_tree
@@ -263,9 +265,9 @@ module RGame
         end
 
         def named_for(name)
-          @builders.fetch(name) do
+          @rgame_builders.fetch(name) do
             raise KeyError.new("this stack has no scene named #{name.inspect}. Name it first: " \
-                               "define(#{name.inspect}) { ... }", receiver: @builders, key: name)
+                               "define(#{name.inspect}) { ... }", receiver: @rgame_builders, key: name)
           end
         end
 

@@ -21,52 +21,52 @@ module RGame
       # It starts on the action's press edge, so holding the button hops once.
       # `action: nil` leaves only #jump, for something that is not a player.
       class Hop < Engine::Component
-        attr_reader :height
+        sealed_reader :height
 
         def initialize(peak:, duration:, action: :jump)
           super()
           raise ArgumentError, "peak must be positive, got #{peak.inspect}" unless peak.positive?
           raise ArgumentError, "duration must be positive, got #{duration.inspect}" unless duration.positive?
 
-          @arc = Engine::Tween.new(duration, to: peak, ease: :arc)
-          @action = action
-          @height = 0.0
-          @airborne = false
+          @rgame_arc = Engine::Tween.new(duration, to: peak, ease: :arc)
+          @rgame_action = action
+          @rgame_height = 0.0
+          @rgame_airborne = false
         end
 
-        def peak = @arc.to
-        def duration = @arc.duration
+        def peak = @rgame_arc.to
+        def duration = @rgame_arc.duration
 
         # Attaching lands the node, so a pooled node reused mid-hop starts on the ground.
         def _attach = land
 
-        def airborne? = @airborne
+        def airborne? = @rgame_airborne
 
         # Leave the ground. Does nothing while already off it; `airborne?` says which.
         def jump
-          return if @airborne
+          return if @rgame_airborne
 
-          @airborne = true
-          @arc.restart
+          @rgame_airborne = true
+          @rgame_arc.restart
         end
 
         def _control(actions)
-          jump if @action && actions.pressed?(@action)
+          jump if @rgame_action && actions.pressed?(@rgame_action)
         end
 
         def _update(dt)
-          return unless @airborne
-          return land if @arc.update(dt).done?
+          return unless @rgame_airborne
+          return land if @rgame_arc.update(dt).done?
 
-          @height = @arc.value
-          node.elevation = @height
+          @rgame_height = @rgame_arc.value
+          node.elevation = @rgame_height
         end
 
         private
 
         def land
-          @airborne = false
-          @height = 0.0
+          @rgame_airborne = false
+          @rgame_height = 0.0
           node.elevation = 0
         end
       end

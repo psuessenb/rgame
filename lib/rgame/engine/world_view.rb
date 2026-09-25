@@ -72,14 +72,14 @@ module RGame
       end
 
       def _enter_tree
-        @debug = system(Debug)
-        @world = system(Components::TileWorld)
-        @room = scene.is_a?(Scene::Room) ? scene : nil
-        @players = system(Players)
+        @rgame_debug = system(Debug)
+        @rgame_world = system(Components::TileWorld)
+        @rgame_room = scene.is_a?(Scene::Room) ? scene : nil
+        @rgame_players = system(Players)
       end
 
       def _draw(renderer, view)
-        return unless @debug&.shows?(:shapes) && @world
+        return unless @rgame_debug&.shows?(:shapes) && @rgame_world
 
         renderer.layered(:debug) { draw_solid_cells(renderer, view) }
       end
@@ -108,25 +108,25 @@ module RGame
 
       # hot-path
       def shows?(view, viewports)
-        return true unless @room
+        return true unless @rgame_room
 
         room = view.player.nil? && viewports.solo_room
-        return room.equal?(@room) if room
+        return room.equal?(@rgame_room) if room
 
-        watcher = view.player || @players&.primary
-        @room.players.include?(watcher)
+        watcher = view.player || @rgame_players&.primary
+        @rgame_room.players.include?(watcher)
       end
 
       # hot-path
       def draw_solid_cells(renderer, view)
         left = view.origin_x
         top = view.origin_y
-        @world.col_at(left).upto(@world.col_at(left + view.width)) do |col|
-          @world.row_at(top).upto(@world.row_at(top + view.height)) do |row|
-            next unless @world.solid?(col, row)
+        @rgame_world.col_at(left).upto(@rgame_world.col_at(left + view.width)) do |col|
+          @rgame_world.row_at(top).upto(@rgame_world.row_at(top + view.height)) do |row|
+            next unless @rgame_world.solid?(col, row)
 
-            renderer.debug_box(@world.cell_x(col), @world.cell_y(row),
-                               @world.tile_width, @world.tile_height)
+            renderer.debug_box(@rgame_world.cell_x(col), @rgame_world.cell_y(row),
+                               @rgame_world.tile_width, @rgame_world.tile_height)
           end
         end
       end

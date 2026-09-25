@@ -58,20 +58,20 @@ module RGame
 
         # `pages` holds every page, in the order their tabs were added.
         # `current` is the page shown, or nil before the first tab.
-        attr_reader :pages, :current
+        sealed_reader :pages, :current
 
         # `layout` places the tabs; `scope` scopes their labels' keys.
         def initialize(layout:, scope: nil, **)
           super(**)
-          @pages = []
-          @sheets = []
-          @current = nil
-          @shown = nil
-          @open = true
-          @passes = 0
-          @shown_on = 0
-          @bar = add_node(Bar.new(self, layout: layout, scope: scope, confirm: nil,
-                                        navigation: Stepping.new(actions: ACTIONS)))
+          @rgame_pages = []
+          @rgame_sheets = []
+          @rgame_current = nil
+          @rgame_shown = nil
+          @rgame_open = true
+          @rgame_passes = 0
+          @rgame_shown_on = 0
+          @rgame_bar = add_node(Bar.new(self, layout: layout, scope: scope, confirm: nil,
+                                              navigation: Stepping.new(actions: ACTIONS)))
         end
 
         # Puts `button` in the bar and `page` under it, and returns the page.
@@ -79,13 +79,13 @@ module RGame
         # for one the tabs already hold.
         def add(button, page)
           raise TypeError, "a page is a Node2D, not #{page.class}" unless page.is_a?(Node2D)
-          raise ArgumentError, "#{page.inspect} is already a page of these tabs" if @pages.include?(page)
+          raise ArgumentError, "#{page.inspect} is already a page of these tabs" if @rgame_pages.include?(page)
 
           sheet = add_node(Sheet.new(self))
           sheet.add_node(page)
-          @pages << page
-          @sheets << sheet
-          @bar.add(button).on_activated { self.current = page }
+          @rgame_pages << page
+          @rgame_sheets << sheet
+          @rgame_bar.add(button).on_activated { self.current = page }
           place_sheets
           page
         end
@@ -94,42 +94,42 @@ module RGame
         # when the page shown changes. Raises ArgumentError for a page the tabs
         # do not hold.
         def current=(page)
-          index = @pages.index(page)
+          index = @rgame_pages.index(page)
           raise ArgumentError, "#{page.inspect} is not a page of these tabs" if index.nil?
 
-          @bar.focus(index)
+          @rgame_bar.focus(index)
         end
 
-        def open? = @open
+        def open? = @rgame_open
 
         # Opens the tabs and emits `on_opened`. Nothing if already open.
         def open
-          return if @open
+          return if @rgame_open
 
-          @open = true
+          @rgame_open = true
           opened_signal.emit
         end
 
         # Closes the tabs and emits `on_closed`. Nothing if already closed.
         def close
-          return unless @open
+          return unless @rgame_open
 
-          @open = false
+          @rgame_open = false
           closed_signal.emit
         end
 
         # Counts the pass, so a page shown on it reads from the next, then does
         # what every node does. Nothing while closed.
         def control(input)
-          return unless @open
+          return unless @rgame_open
 
-          @passes += 1 unless rgame_stopped?
+          @rgame_passes += 1 unless rgame_stopped?
           super
         end
 
         # Draws nothing while closed.
         def draw(renderer, view)
-          super if @open
+          super if @rgame_open
         end
 
         # Refuses to enter the tree inside another `Tabs`, then enters it.
@@ -145,32 +145,32 @@ module RGame
         #
         # @api private
         def tab_focused
-          index = @bar.focused_index
-          sheet = index && @sheets[index]
-          return if sheet.nil? || sheet.equal?(@shown)
+          index = @rgame_bar.focused_index
+          sheet = index && @rgame_sheets[index]
+          return if sheet.nil? || sheet.equal?(@rgame_shown)
 
-          @shown = sheet
-          @current = @pages[index]
-          @shown_on = @passes
-          changed_signal.emit(@current)
+          @rgame_shown = sheet
+          @rgame_current = @rgame_pages[index]
+          @rgame_shown_on = @rgame_passes
+          changed_signal.emit(@rgame_current)
         end
 
         # Whether `sheet` holds the page shown.
         #
         # @api private
-        def shows?(sheet) = sheet.equal?(@shown)
+        def shows?(sheet) = sheet.equal?(@rgame_shown)
 
         # Whether `sheet` holds the page shown, and already did when this pass
         # began.
         #
         # @api private
-        def reading?(sheet) = sheet.equal?(@shown) && @shown_on < @passes
+        def reading?(sheet) = sheet.equal?(@rgame_shown) && @rgame_shown_on < @rgame_passes
 
         private
 
         def place_sheets
-          top = @bar.bounds_y + @bar.bounds_height
-          @sheets.each { it.y = top }
+          top = @rgame_bar.bounds_y + @rgame_bar.bounds_height
+          @rgame_sheets.each { it.y = top }
         end
 
         def refuse_nesting
@@ -188,14 +188,14 @@ module RGame
         # The bar: a Menu that tells its tabs each time its focus moves.
         class Bar < Menu
           def initialize(tabs, **)
-            @tabs = tabs
+            @rgame_tabs = tabs
             super(**)
           end
 
           # Focuses as every menu does, then shows the focused tab's page.
           def focus(index)
             super
-            @tabs.tab_focused
+            @rgame_tabs.tab_focused
           end
         end
 
@@ -204,15 +204,15 @@ module RGame
         class Sheet < Node2D
           def initialize(tabs)
             super()
-            @tabs = tabs
+            @rgame_tabs = tabs
           end
 
           def control(input)
-            super if @tabs.reading?(self)
+            super if @rgame_tabs.reading?(self)
           end
 
           def draw(renderer, view)
-            super if @tabs.shows?(self)
+            super if @rgame_tabs.shows?(self)
           end
         end
 

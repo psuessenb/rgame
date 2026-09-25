@@ -95,59 +95,59 @@ module RGame
 
         # One player's region, covered by a curtain of its own.
         class Cover < Engine::PlayerLayer
-          attr_reader :curtain
+          sealed_reader :curtain
 
           def initialize(player:)
             super
-            @curtain = Curtain.new(self)
+            @rgame_curtain = Curtain.new(self)
           end
 
-          def _draw(renderer, view) = @curtain.draw(renderer, view)
+          def _draw(renderer, view) = @rgame_curtain.draw(renderer, view)
         end
         private_constant :Cover
 
         # The Scene::Fade a move runs unless it names its own, or nil, the
         # default, for none.
-        attr_reader :transition
+        sealed_reader :transition
 
         def initialize
           super
-          @builders = {}
-          @running = []
-          @by_name = {}
-          @room_of = {}
-          @holds = {}
-          @moves = []
-          @held = []
-          @suspended = {}
-          @covers = {}
-          @transition = nil
-          @players = nil
-          @songs = {}
-          @claimed = {}
-          @out = nil
+          @rgame_builders = {}
+          @rgame_running = []
+          @rgame_by_name = {}
+          @rgame_room_of = {}
+          @rgame_holds = {}
+          @rgame_moves = []
+          @rgame_held = []
+          @rgame_suspended = {}
+          @rgame_covers = {}
+          @rgame_transition = nil
+          @rgame_players = nil
+          @rgame_songs = {}
+          @rgame_claimed = {}
+          @rgame_out = nil
         end
 
         # Sets the transition every move runs unless it names its own. Anything
         # but a Scene::Fade or nil raises `TypeError`.
         def transition=(transition)
-          @transition = checked_transition(transition)
+          @rgame_transition = checked_transition(transition)
         end
 
         # See SceneStack#_attach: the rooms need the input source, not the one
         # snapshot a component is handed.
-        def _attach = @players = node.system(Engine::Players)
+        def _attach = @rgame_players = node.system(Engine::Players)
 
         # Releases every song the rooms claim, at once, and resumes every node
         # and every player's input a move had suspended.
         def _detach
-          @held.each { it.node.resume }
-          @held.clear
-          @suspended.each_key(&:resume_input)
-          @suspended.clear
-          @out&.release_music(*@claimed.keys.map { @songs[it].key })
-          @claimed.clear
-          @out = nil
+          @rgame_held.each { it.node.resume }
+          @rgame_held.clear
+          @rgame_suspended.each_key(&:resume_input)
+          @rgame_suspended.clear
+          @rgame_out&.release_music(*@rgame_claimed.keys.map { @rgame_songs[it].key })
+          @rgame_claimed.clear
+          @rgame_out = nil
         end
 
         # Names a room. The block builds a new Scene::Room each time the room
@@ -159,7 +159,7 @@ module RGame
         def define(name, music: nil, priority: 0, &builder)
           raise TypeError, "a room's name is a Symbol, not #{name.inspect}" unless name.is_a?(Symbol)
           raise ArgumentError, "define(#{name.inspect}) needs a block that builds the room" unless builder
-          raise ArgumentError, "a room named #{name.inspect} is already defined" if @builders.key?(name)
+          raise ArgumentError, "a room named #{name.inspect} is already defined" if @rgame_builders.key?(name)
           unless builder.parameters.empty?
             raise ArgumentError, "the builder for #{name.inspect} takes parameters, and a room's builder takes " \
                                  'none. What a room needs to know lives in Facts, or reaches it in _arrive'
@@ -167,8 +167,8 @@ module RGame
 
           raise TypeError, "a room's priority is a number, not #{priority.inspect}" unless priority.is_a?(Numeric)
 
-          @builders[name] = builder
-          @songs[name] = Song.new(Claim.new(name), music, priority) if music
+          @rgame_builders[name] = builder
+          @rgame_songs[name] = Song.new(Claim.new(name), music, priority) if music
           self
         end
 
@@ -179,7 +179,7 @@ module RGame
         # `transition:` is a Scene::Fade for this move in place of the rooms',
         # or nil for none. A second move asked for a node before its first
         # lands replaces the first.
-        def move(nodes, to:, entrance: nil, transition: @transition)
+        def move(nodes, to:, entrance: nil, transition: @rgame_transition)
           named_for(to)
           transition = checked_transition(transition)
           if nodes.is_a?(Array)
@@ -194,60 +194,60 @@ module RGame
         end
 
         # The room `player` stands in, or nil.
-        def room_of(player) = @room_of[player]
+        def room_of(player) = @rgame_room_of[player]
 
         # The running room named `name`, or nil.
-        def [](name) = @by_name[name]
+        def [](name) = @rgame_by_name[name]
 
         # The running rooms, in the order they were built. The rooms keep the
         # list: read it, and leave it alone.
-        attr_reader :running
+        sealed_reader :running
 
         # Keeps the room named `name` running with nobody in it, from the next
         # sweep until #release. Builds it then if it is not running.
         def hold(name)
           named_for(name)
-          @holds[name] = true
+          @rgame_holds[name] = true
           self
         end
 
         # Ends a #hold. A room nobody stands in is freed in the next sweep.
         def release(name)
-          @holds.delete(name)
+          @rgame_holds.delete(name)
           self
         end
 
         # Whether a move was asked for and has not landed.
-        def pending? = !@moves.empty?
+        def pending? = !@rgame_moves.empty?
 
         # Whether any player's cover is covering or revealing.
-        def transitioning? = @covers.any? { |_, cover| cover.curtain.running? }
+        def transitioning? = @rgame_covers.any? { |_, cover| cover.curtain.running? }
 
         # hot-path
         def _control(actions)
-          input = @players || actions
-          @running.each { it.control(input) }
+          input = @rgame_players || actions
+          @rgame_running.each { it.control(input) }
         end
 
         # hot-path
         def _update(dt)
-          @covers.each_value { it.curtain.update(dt) }
-          restore_moved unless @held.empty? && @suspended.empty?
-          @running.each { it.update(dt) }
+          @rgame_covers.each_value { it.curtain.update(dt) }
+          restore_moved unless @rgame_held.empty? && @rgame_suspended.empty?
+          @rgame_running.each { it.update(dt) }
         end
 
         # hot-path
         def _draw(renderer, view)
-          @running.each { it.draw(renderer, view) }
-          @covers.each_value { it.draw(renderer, view) }
+          @rgame_running.each { it.draw(renderer, view) }
+          @rgame_covers.each_value { it.draw(renderer, view) }
         end
 
         # The sweep reaches into each running room, lands every move whose
         # cover is complete, then builds the rooms a hold asks for and frees the
         # rooms nobody needs.
         def _sweep_freed
-          @running.each(&:sweep_freed)
-          land_ready unless @moves.empty?
+          @rgame_running.each(&:sweep_freed)
+          land_ready unless @rgame_moves.empty?
           settle_rooms if settling?
         end
 
@@ -255,12 +255,12 @@ module RGame
 
         def ask(moving, name, entrance, transition)
           player = player_of(moving)
-          @moves.delete_if { it.node.equal?(moving) }
-          @moves << Move.new(moving, name, entrance, player)
+          @rgame_moves.delete_if { it.node.equal?(moving) }
+          @rgame_moves << Move.new(moving, name, entrance, player)
           hold_still(moving, player)
           suspend(player) if player
-          at_once = player && @room_of[player].nil?
-          cover = transition ? cover_for(player) : @covers[player] if player
+          at_once = player && @rgame_room_of[player].nil?
+          cover = transition ? cover_for(player) : @rgame_covers[player] if player
           cover&.curtain&.close(transition, at_once:)
           return 0 unless transition
 
@@ -268,23 +268,23 @@ module RGame
         end
 
         def claim_songs(fade)
-          return if @songs.empty?
+          return if @rgame_songs.empty?
 
-          @out ||= node.system!(Engine::AudioOut)
-          @songs.each do |name, song|
-            next if @claimed.key?(name) || !wanted?(name)
+          @rgame_out ||= node.system!(Engine::AudioOut)
+          @rgame_songs.each do |name, song|
+            next if @rgame_claimed.key?(name) || !wanted?(name)
 
-            @claimed[name] = true
-            @out.claim_music(song.key, song.id, priority: song.priority, fade:)
+            @rgame_claimed[name] = true
+            @rgame_out.claim_music(song.key, song.id, priority: song.priority, fade:)
           end
-          left = @claimed.keys.reject { wanted?(it) }
-          left.each { @claimed.delete(it) }
-          @out.release_music(*left.map { @songs[it].key }, fade:) unless left.empty?
+          left = @rgame_claimed.keys.reject { wanted?(it) }
+          left.each { @rgame_claimed.delete(it) }
+          @rgame_out.release_music(*left.map { @rgame_songs[it].key }, fade:) unless left.empty?
         end
 
         def wanted?(name)
-          @moves.any? { |move| move.player && move.name == name } ||
-            @room_of.any? { |player, room| room.name == name && @moves.none? { it.player.equal?(player) } }
+          @rgame_moves.any? { |move| move.player && move.name == name } ||
+            @rgame_room_of.any? { |player, room| room.name == name && @rgame_moves.none? { it.player.equal?(player) } }
         end
 
         def player_of(moving)
@@ -294,63 +294,67 @@ module RGame
             owner = at.input_owner
             at = at.parent
           end
-          owner ||= @players&.primary
+          owner ||= @rgame_players&.primary
           owner.is_a?(Engine::Players::Everyone) ? nil : owner
         end
 
         def cover_for(player)
-          @covers[player] ||= Cover.new(player:).tap do |cover|
+          @rgame_covers[player] ||= Cover.new(player:).tap do |cover|
             cover.parent = node
             cover.enter_tree
           end
         end
 
         def hold_still(moving, player)
-          return if @held.any? { it.node.equal?(moving) }
+          return if @rgame_held.any? { it.node.equal?(moving) }
 
-          @held << Held.new(moving, player)
+          @rgame_held << Held.new(moving, player)
           moving.suspend
         end
 
         def suspend(player)
-          @suspended[player] = player.suspend_input unless @suspended.key?(player)
+          @rgame_suspended[player] = player.suspend_input unless @rgame_suspended.key?(player)
         end
 
         def restore_moved
-          @held.delete_if do |entry|
+          @rgame_held.delete_if do |entry|
             next false if moving?(entry.node) || covered?(entry.player)
 
             entry.node.resume
             true
           end
-          @suspended.delete_if do |player, _|
-            next false if @moves.any? { it.player.equal?(player) } || covered?(player)
+          @rgame_suspended.delete_if do |player, _|
+            next false if @rgame_moves.any? { it.player.equal?(player) } || covered?(player)
 
             player.resume_input
             true
           end
         end
 
-        def moving?(moving) = @moves.any? { it.node.equal?(moving) }
+        def moving?(moving) = @rgame_moves.any? { it.node.equal?(moving) }
 
-        def covered?(player) = !player.nil? && @covers[player]&.curtain&.running? == true
+        def covered?(player) = !player.nil? && @rgame_covers[player]&.curtain&.running? == true
 
         def land_ready
-          @moves.delete_if do |move|
+          @rgame_moves.delete_if do |move|
             next false unless ready?(move)
 
             land(move)
             true
           end
           bound_cameras
-          @covers.each { |player, cover| cover.curtain.open unless @moves.any? { it.player.equal?(player) } }
+          @rgame_covers.each do |player, cover|
+            cover.curtain.open unless @rgame_moves.any? { it.player.equal?(player) }
+          end
           restore_moved
         end
 
-        def ready?(move) = move.player.nil? || @covers[move.player].nil? || @covers[move.player].curtain.ready?
+        def ready?(move)
+          move.player.nil? || @rgame_covers[move.player].nil? || @rgame_covers[move.player].curtain.ready?
+        end
 
         def land(move)
-          room = @by_name[move.name] || build(move.name)
+          room = @rgame_by_name[move.name] || build(move.name)
           moving = move.node
           moving.parent&.remove_node(moving) unless inside?(moving, room)
           room._arrive(moving, move.entrance)
@@ -369,20 +373,20 @@ module RGame
         end
 
         def stand(player, room)
-          @room_of[player]&.players&.delete(player)
+          @rgame_room_of[player]&.players&.delete(player)
           room.players << player unless room.players.include?(player)
-          @room_of[player] = room
+          @rgame_room_of[player] = room
         end
 
         def build(name)
-          room = @builders.fetch(name).call
+          room = @rgame_builders.fetch(name).call
           unless room.is_a?(Room)
             raise TypeError, "the builder for #{name.inspect} built a #{room.class}, and a room is a #{Room}"
           end
 
           room.name = name
-          @running << room
-          @by_name[name] = room
+          @rgame_running << room
+          @rgame_by_name[name] = room
           room.parent = node
           room.scene = room
           room.enter_tree
@@ -390,37 +394,37 @@ module RGame
         end
 
         def free(room)
-          @running.delete(room)
-          @by_name.delete(room.name)
+          @rgame_running.delete(room)
+          @rgame_by_name.delete(room.name)
           room.exit_tree
           room.scene = nil
           room.parent = nil
         end
 
         def settling?
-          @running.any? { |room| !needed?(room) } || @holds.any? { |name, _| !@by_name.key?(name) }
+          @rgame_running.any? { |room| !needed?(room) } || @rgame_holds.any? { |name, _| !@rgame_by_name.key?(name) }
         end
 
         def settle_rooms
-          @holds.each_key { |name| build(name) unless @by_name.key?(name) }
-          @running.dup.each { |room| free(room) unless needed?(room) }
+          @rgame_holds.each_key { |name| build(name) unless @rgame_by_name.key?(name) }
+          @rgame_running.dup.each { |room| free(room) unless needed?(room) }
         end
 
         def needed?(room)
-          !room.players.empty? || @holds.key?(room.name) || @moves.any? { it.name == room.name }
+          !room.players.empty? || @rgame_holds.key?(room.name) || @rgame_moves.any? { it.name == room.name }
         end
 
         def bound_cameras
-          @room_of.each do |player, room|
+          @rgame_room_of.each do |player, room|
             world = room.get_component(Components::TileWorld)
             world&.bound(player.camera) if player.camera
           end
         end
 
         def named_for(name)
-          @builders.fetch(name) do
+          @rgame_builders.fetch(name) do
             raise KeyError.new("there is no room named #{name.inspect}. Name it first: " \
-                               "define(#{name.inspect}) { ... }", receiver: @builders, key: name)
+                               "define(#{name.inspect}) { ... }", receiver: @rgame_builders, key: name)
           end
         end
 

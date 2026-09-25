@@ -121,12 +121,12 @@ module RGame
       class World < Engine::Component
         include WorldBounds
 
-        attr_reader :world_width, :world_height
+        sealed_reader :world_width, :world_height
 
         def initialize(width:, height:)
           super()
-          @world_width = width
-          @world_height = height
+          @rgame_world_width = width
+          @rgame_world_height = height
         end
       end
     end

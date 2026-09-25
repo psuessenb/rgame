@@ -52,10 +52,10 @@ module RGame
         ALIGNS = %i[left center right].freeze
         GRAPHEME = /\X/
 
-        attr_reader :typeface, :align, :color
+        sealed_reader :typeface, :align, :color
 
         # Characters a second the page is revealed at, or nil for none.
-        attr_reader :reveal
+        sealed_reader :reveal
 
         # `text:` is a translation key, as a String or Symbol, or an
         # Engine::Text. `width:` must be positive. `align:` is `:left`,
@@ -72,17 +72,17 @@ module RGame
             raise ArgumentError, "reveal: must be a positive number of characters a second, not #{reveal.inspect}"
           end
 
-          @paragraph = Paragraph.new(text, width: width, typeface: typeface, lines_per_page: lines_per_page)
+          @rgame_paragraph = Paragraph.new(text, width: width, typeface: typeface, lines_per_page: lines_per_page)
           super(width: width, **)
-          @typeface = typeface
-          @align = align
-          @color = Util::Color.coerce(color)
-          @page = 0
-          @reveal = reveal
-          @built = nil
-          @shown = 0.0
-          @total = 0
-          @scanner = StringScanner.new('')
+          @rgame_typeface = typeface
+          @rgame_align = align
+          @rgame_color = Util::Color.coerce(color)
+          @rgame_page = 0
+          @rgame_reveal = reveal
+          @rgame_built = nil
+          @rgame_shown = 0.0
+          @rgame_total = 0
+          @rgame_scanner = StringScanner.new('')
         end
 
         # Changes the text: a translation key or an Engine::Text, as `new`
@@ -90,18 +90,18 @@ module RGame
         # the `Text` it already shows. A label in the tree with a reveal builds
         # the new page at once, as `page=` does.
         def text=(text)
-          @paragraph.text = text
-          @page = 0
-          return unless @built
+          @rgame_paragraph.text = text
+          @rgame_page = 0
+          return unless @rgame_built
 
-          @built = nil
+          @rgame_built = nil
           build_page
         end
 
         # Gives the text its variables, as Engine::Text#with does, and returns
         # the label.
         def with(...)
-          @paragraph.with(...)
+          @rgame_paragraph.with(...)
           follow_page
           self
         end
@@ -109,61 +109,62 @@ module RGame
         # Changes the width the text breaks at and aligns against. The next
         # draw breaks it again. A width of zero or less raises ArgumentError.
         def width=(width)
-          @paragraph.width = width
+          @rgame_paragraph.width = width
           super
           follow_page
         end
 
         # The page drawn, counted from 0. It reads as the last page when a
         # language switch has left fewer pages than the one set.
-        def page = @page.clamp(0, page_count - 1)
+        def page = @rgame_page.clamp(0, page_count - 1)
 
         # Sets the page drawn, clamped to the pages there are, so `page += 1`
         # on the last page stays there.
         def page=(index)
-          @page = index.clamp(0, page_count - 1)
+          @rgame_page = index.clamp(0, page_count - 1)
           follow_page
         end
 
         # How many pages the text fills: at least 1.
-        def page_count = @paragraph.page_count
+        def page_count = @rgame_paragraph.page_count
 
         def last_page? = page == page_count - 1
 
         # How many characters the page drawn holds, counted in grapheme clusters
         # as the reveal counts them: for sizing how long a page stays up. It
         # counts afresh on every call.
-        def page_length = @paragraph.page(@page).sum { characters_in(it) }
+        def page_length = @rgame_paragraph.page(@rgame_page).sum { characters_in(it) }
 
         # Whether the whole page is shown: always without `reveal:`, and for a
         # page the label has not yet started revealing, which it draws whole.
-        def revealed? = !@paragraph.page(@page).equal?(@built) || @shown >= @total
+        def revealed? = !@rgame_paragraph.page(@rgame_page).equal?(@rgame_built) || @rgame_shown >= @rgame_total
 
         # Shows the rest of the page at once.
         def reveal_all
-          @shown = @total
+          @rgame_shown = @rgame_total
           self
         end
 
         def _enter_tree
-          build_page if @reveal
+          build_page if @rgame_reveal
         end
 
         def _update(dt)
-          return unless @reveal
+          return unless @rgame_reveal
 
           build_page
-          @shown = (@shown + (@reveal * dt)).clamp(0, @total)
+          @rgame_shown = (@rgame_shown + (@rgame_reveal * dt)).clamp(0, @rgame_total)
         end
 
         def _draw(renderer, _view)
-          lines = @paragraph.page(@page)
-          return draw_revealing(renderer, lines) if lines.equal?(@built)
+          lines = @rgame_paragraph.page(@rgame_page)
+          return draw_revealing(renderer, lines) if lines.equal?(@rgame_built)
 
           index = 0
           while index < lines.size
             line = lines[index]
-            renderer.text(line, line_x(line), index * @typeface.height, font: @typeface, color: @color)
+            renderer.text(line, line_x(line), index * @rgame_typeface.height, font: @rgame_typeface,
+                                                                              color: @rgame_color)
             index += 1
           end
         end
@@ -171,15 +172,15 @@ module RGame
         private
 
         def draw_revealing(renderer, lines)
-          left = @shown.floor
+          left = @rgame_shown.floor
           index = 0
           while index < lines.size && left.positive?
-            ends = @built_ends[index]
+            ends = @rgame_built_ends[index]
             shown = left.clamp(0, ends.size - 1)
             line = lines[index]
             if shown.positive?
-              renderer.text(line, line_x(line), index * @typeface.height, font: @typeface, color: @color,
-                                                                          bytes: ends[shown])
+              renderer.text(line, line_x(line), index * @rgame_typeface.height,
+                            font: @rgame_typeface, color: @rgame_color, bytes: ends[shown])
             end
             left -= shown
             index += 1
@@ -187,38 +188,38 @@ module RGame
         end
 
         def follow_page
-          build_page if @built
+          build_page if @rgame_built
         end
 
         def build_page
-          lines = @paragraph.page(@page)
-          return if lines.equal?(@built)
+          lines = @rgame_paragraph.page(@rgame_page)
+          return if lines.equal?(@rgame_built)
 
-          @built_ends = lines.map { character_ends(it) }.freeze
-          @total = @built_ends.sum { it.size - 1 }
-          @built = lines
-          @shown = 0.0
+          @rgame_built_ends = lines.map { character_ends(it) }.freeze
+          @rgame_total = @rgame_built_ends.sum { it.size - 1 }
+          @rgame_built = lines
+          @rgame_shown = 0.0
         end
 
         def character_ends(line)
-          @scanner.string = line
+          @rgame_scanner.string = line
           ends = [0]
-          ends << @scanner.pos while @scanner.skip(GRAPHEME)
+          ends << @rgame_scanner.pos while @rgame_scanner.skip(GRAPHEME)
           ends.freeze
         end
 
         def characters_in(line)
-          @scanner.string = line
+          @rgame_scanner.string = line
           count = 0
-          count += 1 while @scanner.skip(GRAPHEME)
+          count += 1 while @rgame_scanner.skip(GRAPHEME)
           count
         end
 
         def line_x(line)
-          case @align
+          case @rgame_align
           when :left then 0
-          when :center then (width - @typeface.text_width(line)) / 2
-          else width - @typeface.text_width(line)
+          when :center then (width - @rgame_typeface.text_width(line)) / 2
+          else width - @rgame_typeface.text_width(line)
           end
         end
       end

@@ -35,7 +35,7 @@ module RGame
         POINTER_THICKNESS = 3.0
         POINTER_TIP_RADIUS = 6
 
-        attr_reader :padding, :backdrop, :dead_zone_color, :pointer
+        sealed_reader :padding, :backdrop, :dead_zone_color, :pointer
 
         def initialize(radius:, button_width:, button_height: button_width, dead_zone: Pointing::DEAD_ZONE,
                        grace: nil, padding: 16, backdrop: BACKDROP, dead_zone_color: DEAD_ZONE, pointer: POINTER,
@@ -43,23 +43,23 @@ module RGame
           refuse_preset_keywords(options)
           super(layout: Ring.new(radius: radius, item_width: button_width, item_height: button_height),
                 navigation: Pointing.new(dead_zone: dead_zone, grace: grace), **options)
-          @padding = padding
-          @backdrop = backdrop&.then { Util::Color.coerce(it) }
-          @dead_zone_color = dead_zone_color&.then { Util::Color.coerce(it) }
-          @pointer = pointer&.then { Util::Color.coerce(it) }
+          @rgame_padding = padding
+          @rgame_backdrop = backdrop&.then { Util::Color.coerce(it) }
+          @rgame_dead_zone_color = dead_zone_color&.then { Util::Color.coerce(it) }
+          @rgame_pointer = pointer&.then { Util::Color.coerce(it) }
         end
 
         def _draw(renderer, _view)
           radius = layout.radius
-          renderer.circle(0, 0, backdrop_radius, color: @backdrop) if @backdrop
-          renderer.circle(0, 0, navigation.dead_zone * radius, color: @dead_zone_color) if @dead_zone_color
-          draw_pointer(renderer, radius) if @pointer
+          renderer.circle(0, 0, backdrop_radius, color: @rgame_backdrop) if @rgame_backdrop
+          renderer.circle(0, 0, navigation.dead_zone * radius, color: @rgame_dead_zone_color) if @rgame_dead_zone_color
+          draw_pointer(renderer, radius) if @rgame_pointer
         end
 
         # The radius of the disc drawn behind the ring: half the larger side of
         # the bounds, plus `padding`.
         def backdrop_radius
-          ([bounds_width, bounds_height].max / 2.0) + @padding
+          ([bounds_width, bounds_height].max / 2.0) + @rgame_padding
         end
 
         private
@@ -76,8 +76,8 @@ module RGame
           reach = radius / [Math.hypot(aim_x, aim_y), 1.0].max
           tip_x = aim_x * reach
           tip_y = aim_y * reach
-          renderer.line(0, 0, tip_x, tip_y, thickness: POINTER_THICKNESS, color: @pointer)
-          renderer.circle(tip_x, tip_y, POINTER_TIP_RADIUS, color: @pointer)
+          renderer.line(0, 0, tip_x, tip_y, thickness: POINTER_THICKNESS, color: @rgame_pointer)
+          renderer.circle(tip_x, tip_y, POINTER_TIP_RADIUS, color: @rgame_pointer)
         end
       end
     end

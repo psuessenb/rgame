@@ -44,10 +44,10 @@ module RGame
         # would change the rule by a tick with the step size.
         SLACK = 1e-9
 
-        attr_reader :coyote
+        sealed_reader :coyote
 
         # Seconds the fall takes, from the drop to the respawn.
-        attr_reader :fall
+        sealed_reader :fall
 
         # `coyote` and `fall` are in seconds. `coyote: 0` drops the node on the first
         # tick off the floor, and `fall` must be positive.
@@ -58,13 +58,13 @@ module RGame
             raise ArgumentError, "fall must be a positive number of seconds, not #{fall.inspect}"
           end
 
-          @fall = fall
-          @fall_node = Engine::Fall.new(self)
-          @left = @coyote
-          @airborne = false
-          @falling = false
-          @hop = nil
-          @hop_known = false
+          @rgame_fall = fall
+          @rgame_fall_node = Engine::Fall.new(self)
+          @rgame_left = @rgame_coyote
+          @rgame_airborne = false
+          @rgame_falling = false
+          @rgame_hop = nil
+          @rgame_hop_known = false
         end
 
         # Seconds the node may stand off the floor after walking off it, and still hop.
@@ -74,53 +74,53 @@ module RGame
             raise ArgumentError, "coyote must be a number of seconds, 0 or more, not #{seconds.inspect}"
           end
 
-          @coyote = seconds
+          @rgame_coyote = seconds
         end
 
         # Raises when the node has no BoxCollider, or the scene no TileWorld.
         def _attach
-          @collider = require_sibling(BoxCollider)
-          @world = node.system(TileWorld) ||
-                   raise("#{self.class} reads the floor from the scene's TileWorld, and the scene has none. " \
-                         'Mount one.')
-          @hop_known = false
-          @left = @coyote
-          @airborne = false
+          @rgame_collider = require_sibling(BoxCollider)
+          @rgame_world = node.system(TileWorld) ||
+                         raise("#{self.class} reads the floor from the scene's TileWorld, and the scene has none. " \
+                               'Mount one.')
+          @rgame_hop_known = false
+          @rgame_left = @rgame_coyote
+          @rgame_airborne = false
         end
 
         # Ends a fall under way, so a node taken out of the tree mid-fall leaves it
         # unscaled and resumed.
         def _detach
-          @fall_node.stop if @falling
+          @rgame_fall_node.stop if @rgame_falling
         end
 
         # Whether the centre of the node's box is on the floor.
-        def standing? = @world.floor_at?(@collider.cx, @collider.cy)
+        def standing? = @rgame_world.floor_at?(@rgame_collider.cx, @rgame_collider.cy)
 
         # Seconds of coyote time left: `coyote` while standing, counting down off the
         # floor, 0 in the air and while falling.
         def coyote_left
-          return 0.0 if @falling || @airborne
+          return 0.0 if @rgame_falling || @rgame_airborne
 
-          @left.clamp(0.0, @coyote)
+          @rgame_left.clamp(0.0, @rgame_coyote)
         end
 
-        def falling? = @falling
+        def falling? = @rgame_falling
 
         # hot-path
         def _update(dt)
-          find_hop unless @hop_known
-          landed = @airborne
-          @airborne = @hop ? @hop.airborne? : false
-          return if @airborne
+          find_hop unless @rgame_hop_known
+          landed = @rgame_airborne
+          @rgame_airborne = @rgame_hop ? @rgame_hop.airborne? : false
+          return if @rgame_airborne
 
           if standing?
-            @left = @coyote
+            @rgame_left = @rgame_coyote
           elsif landed
             drop
           else
-            @left -= dt
-            drop if @left < -SLACK
+            @rgame_left -= dt
+            drop if @rgame_left < -SLACK
           end
         end
 
@@ -128,22 +128,22 @@ module RGame
         #
         # @api private
         def fall_ended
-          @falling = false
-          @left = @coyote
-          @airborne = false
+          @rgame_falling = false
+          @rgame_left = @rgame_coyote
+          @rgame_airborne = false
         end
 
         private
 
         def find_hop
-          @hop_known = true
-          @hop = node.get_component(Hop)
+          @rgame_hop_known = true
+          @rgame_hop = node.get_component(Hop)
         end
 
         def drop
-          @falling = true
+          @rgame_falling = true
           fell_signal.emit
-          @fall_node.start(node)
+          @rgame_fall_node.start(node)
         end
       end
     end

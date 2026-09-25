@@ -26,31 +26,34 @@ module RGame
         LABEL_COLOR = Util::Color.new(240, 236, 224)
         DISABLED_LABEL_COLOR = Util::Color.new(120, 116, 128)
 
-        attr_reader :style, :label_color, :disabled_label_color
+        sealed_reader :style, :label_color, :disabled_label_color
 
         def initialize(label:, style: ShapeStyle::DEFAULT, label_color: LABEL_COLOR,
                        disabled_label_color: DISABLED_LABEL_COLOR, **)
           super(label: label, **)
-          @style = style
-          @style_names_content = style.respond_to?(:content_color)
-          @label_color = Util::Color.coerce(label_color)
-          @disabled_label_color = Util::Color.coerce(disabled_label_color)
+          @rgame_style = style
+          @rgame_style_names_content = style.respond_to?(:content_color)
+          @rgame_label_color = Util::Color.coerce(label_color)
+          @rgame_disabled_label_color = Util::Color.coerce(disabled_label_color)
         end
 
         def _draw(renderer, _view)
-          @style&.draw(renderer, state, width, height)
+          @rgame_style&.draw(renderer, state, width, height)
           draw_foreground(renderer)
         end
 
         private
 
         def draw_foreground(renderer)
-          text = @label.to_s
+          text = @rgame_label.to_s
           renderer.text(text, centred_x(renderer, text), label_y(renderer), z: 1, color: current_label_color)
         end
 
-        def current_label_color = style_content_color || (@enabled ? @label_color : @disabled_label_color)
-        def style_content_color = @style_names_content ? @style.content_color(state) : nil
+        def current_label_color
+          style_content_color || (@rgame_enabled ? @rgame_label_color : @rgame_disabled_label_color)
+        end
+
+        def style_content_color = @rgame_style_names_content ? @rgame_style.content_color(state) : nil
         def centred_x(renderer, text) = (width - renderer.text_width(text)) / 2
         def label_y(renderer) = (height - renderer.text_height) / 2
       end

@@ -33,21 +33,21 @@ module RGame
       class CollisionWorld < Engine::Component
         def initialize(cell_size:)
           super()
-          @hash = Engine::SpatialHash.new(cell_size: cell_size)
-          @colliders = []
+          @rgame_hash = Engine::SpatialHash.new(cell_size: cell_size)
+          @rgame_colliders = []
         end
 
         # Reset rather than merely add: the collider may be a pooled one coming back
         # from the dead, still carrying the contacts it held when it was freed.
         def register(collider)
           collider.contacts.reset
-          @colliders << collider
+          @rgame_colliders << collider
         end
 
         # The partners of a collider that leaves are told on their next step, by the
         # ordinary separation pass — it is gone from the index, so the pair no longer
         # overlaps. Nothing has to be emitted here.
-        def unregister(collider) = @colliders.delete(collider)
+        def unregister(collider) = @rgame_colliders.delete(collider)
 
         # Yield every registered collider whose centre lies within `r` of (x, y), using
         # the spatial index built by the most recent #update. The narrowphase is a
@@ -59,7 +59,7 @@ module RGame
         # block. Allocation-free.
         def query_circle(x, y, r)
           r2 = r * r
-          @hash.query_circle(x, y, r) do |collider|
+          @rgame_hash.query_circle(x, y, r) do |collider|
             next if collider.node.freed?
 
             dx = collider.cx - x
@@ -80,7 +80,7 @@ module RGame
         # answer, and refining it is the caller's business. Layer-agnostic; filter by
         # `collider.layer` in the block. Allocation-free.
         def query_box(x, y, w, h)
-          @hash.query(x, y, w, h) do |collider|
+          @rgame_hash.query(x, y, w, h) do |collider|
             next if collider.node.freed?
 
             yield collider
@@ -103,7 +103,7 @@ module RGame
         #
         # Allocation-free, so a resolver may call it every step.
         def reindex(collider, from_x, from_y, from_w, from_h)
-          @hash.remove(collider, from_x, from_y, from_w, from_h)
+          @rgame_hash.remove(collider, from_x, from_y, from_w, from_h)
           insert(collider)
         end
 
@@ -157,10 +157,10 @@ module RGame
         # it, and a caller scanning a board for a free square asks mostly about empty
         # ones.
         def cell_empty?(x, y)
-          return true if @hash.cell_empty?(x, y)
+          return true if @rgame_hash.cell_empty?(x, y)
 
           free = true
-          @hash.query(x, y, 0, 0) { |collider| free &&= collider.node.freed? }
+          @rgame_hash.query(x, y, 0, 0) { |collider| free &&= collider.node.freed? }
           free
         end
 
@@ -169,8 +169,8 @@ module RGame
         # ending one, because a separation is only knowable once every pair has been
         # looked at.
         def _update(_dt)
-          @hash.clear
-          @colliders.each do |collider|
+          @rgame_hash.clear
+          @rgame_colliders.each do |collider|
             collider.contacts.begin_frame
             insert(collider)
           end
@@ -182,14 +182,14 @@ module RGame
         private
 
         def insert(collider)
-          @hash.insert(collider, collider.aabb_x, collider.aabb_y, collider.aabb_w, collider.aabb_h)
+          @rgame_hash.insert(collider, collider.aabb_x, collider.aabb_y, collider.aabb_w, collider.aabb_h)
         end
 
         def report_contacts
-          count = @colliders.size
+          count = @rgame_colliders.size
           i = 0
           while i < count
-            a = @colliders[i]
+            a = @rgame_colliders[i]
             i += 1
             next if a.node.freed?
 
@@ -199,7 +199,7 @@ module RGame
 
         def pair_up(a)
           contacts = a.contacts
-          @hash.query(a.aabb_x, a.aabb_y, a.aabb_w, a.aabb_h) do |b|
+          @rgame_hash.query(a.aabb_x, a.aabb_y, a.aabb_w, a.aabb_h) do |b|
             next if a.node.freed? || b.node.freed? || a.object_id >= b.object_id
             next if contacts.touching?(b)
             next unless a.overlap?(b)
@@ -215,10 +215,10 @@ module RGame
         end
 
         def report_separations
-          count = @colliders.size
+          count = @rgame_colliders.size
           i = 0
           while i < count
-            collider = @colliders[i]
+            collider = @rgame_colliders[i]
             i += 1
             next if collider.node.freed?
 

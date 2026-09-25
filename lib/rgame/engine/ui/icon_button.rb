@@ -49,43 +49,43 @@ module RGame
         }.freeze
         SCALES = { idle: 1, focused: 1, pressed: 1, disabled: 1 }.freeze
 
-        attr_reader :image, :style, :tints, :scales, :label_color, :disabled_label_color
+        sealed_reader :image, :style, :tints, :scales, :label_color, :disabled_label_color
 
         def initialize(image:, style: nil, tints: TINTS, scales: SCALES,
                        label_color: TextButton::LABEL_COLOR,
                        disabled_label_color: TextButton::DISABLED_LABEL_COLOR, **)
           super(**)
-          @image = image
-          @style = style
-          @style_names_content = style.respond_to?(:content_color)
-          @tints = STATES.to_h { |state| [state, Util::Color.coerce(tints.fetch(state))] }.freeze
-          @scales = STATES.to_h { |state| [state, scales.fetch(state)] }.freeze
-          @label_color = Util::Color.coerce(label_color)
-          @disabled_label_color = Util::Color.coerce(disabled_label_color)
+          @rgame_image = image
+          @rgame_style = style
+          @rgame_style_names_content = style.respond_to?(:content_color)
+          @rgame_tints = STATES.to_h { |state| [state, Util::Color.coerce(tints.fetch(state))] }.freeze
+          @rgame_scales = STATES.to_h { |state| [state, scales.fetch(state)] }.freeze
+          @rgame_label_color = Util::Color.coerce(label_color)
+          @rgame_disabled_label_color = Util::Color.coerce(disabled_label_color)
         end
 
         def _draw(renderer, _view)
           current = state
-          caption_height = @label ? renderer.text_height : 0
-          @style&.draw(renderer, current, width, height - caption_height)
-          content = @style_names_content ? @style.content_color(current) : nil
+          caption_height = @rgame_label ? renderer.text_height : 0
+          @rgame_style&.draw(renderer, current, width, height - caption_height)
+          content = @rgame_style_names_content ? @rgame_style.content_color(current) : nil
           draw_image(renderer, current, content, (height - caption_height) / 2.0)
-          draw_caption(renderer, caption_height) if @label
+          draw_caption(renderer, caption_height) if @rgame_label
         end
 
         private
 
         def draw_image(renderer, current, content, cy)
-          return unless @image
+          return unless @rgame_image
 
-          renderer.image(@image, width / 2.0, cy,
-                         scale: @scales.fetch(current), z: 1, color: content || @tints.fetch(current))
+          renderer.image(@rgame_image, width / 2.0, cy,
+                         scale: @rgame_scales.fetch(current), z: 1, color: content || @rgame_tints.fetch(current))
         end
 
         def draw_caption(renderer, caption_height)
-          text = @label.to_s
+          text = @rgame_label.to_s
           renderer.text(text, (width - renderer.text_width(text)) / 2, height - caption_height,
-                        z: 1, color: @enabled ? @label_color : @disabled_label_color)
+                        z: 1, color: @rgame_enabled ? @rgame_label_color : @rgame_disabled_label_color)
         end
       end
     end

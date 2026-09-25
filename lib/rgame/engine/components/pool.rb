@@ -19,13 +19,13 @@ module RGame
       class Pool < Engine::Component
         def initialize(&)
           super()
-          @pool = Engine::Pool.new(&)
+          @rgame_pool = Engine::Pool.new(&)
         end
 
         # Take a node from the pool, let the caller re-initialise it before it goes live
         # (optional block — runs before _attach), and add it as a child of the owner.
         def spawn
-          child = @pool.acquire
+          child = @rgame_pool.acquire
           yield child if block_given?
           node.add_node(child)
           child
@@ -34,7 +34,7 @@ module RGame
         # Ride the tick: return every freed pooled node to the free list, detaching any that
         # are still in the tree — so a queue_free elsewhere recycles with no game-side wiring.
         def _update(_dt)
-          @pool.reclaim_if do |child|
+          @rgame_pool.reclaim_if do |child|
             next false unless child.freed?
 
             node.remove_node(child)
@@ -42,11 +42,11 @@ module RGame
           end
         end
 
-        def size = @pool.size
+        def size = @rgame_pool.size
 
         # True when no spawned node is currently live (all reclaimed) — a scene reads this to
         # tell when a wave/round has been fully cleared.
-        def empty? = @pool.empty?
+        def empty? = @rgame_pool.empty?
       end
     end
   end

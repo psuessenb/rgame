@@ -23,8 +23,14 @@ module RGame
     #
     # Only the base class's own methods are sealed. A private hook an engine
     # subclass writes for its own subclasses — Components::Mover's `take_step` —
-    # is not covered, and the prefix convention does not apply outside these
-    # two classes.
+    # is not covered.
+    #
+    # Every node and component in RGame::Engine keeps its ivars under the prefix
+    # as well, `@rgame_opacity` rather than `@opacity`, so an ivar a game's
+    # subclass names is its own. `spec/rgame/engine/prefixed_ivars_spec.rb`
+    # fails on one that does not.
+    # #sealed_reader and its two siblings keep an attribute's public name over
+    # the prefixed ivar.
     #
     # What it cannot see: a method arriving through `include` or `prepend` of a
     # module, which does not pass through `method_added`.
@@ -34,6 +40,50 @@ module RGame
       def self.extended(base)
         base.define_singleton_method(:sealed_base) { base }
         base.singleton_class.send(:private, :sealed_base)
+      end
+
+      # A public reader `name` over the ivar `@rgame_<name>`, as fast as an
+      # `attr_reader`: it is an alias of a private reader `rgame_<name>`, which
+      # the seal covers in Node2D and Component. Returns the names.
+      #
+      #   sealed_reader :opacity   # node.opacity reads @rgame_opacity
+      #
+      # The reader is public even below a bare `private`, which sets the
+      # visibility of methods the class body defines and does not reach into a
+      # macro. A private attribute needs no macro: its methods read the ivar.
+      #
+      # @api private
+      def sealed_reader(*names)
+        names.each do |name|
+          reader = :"#{PREFIX}#{name}"
+          attr_reader reader
+          alias_method name, reader
+          public name
+          private reader
+        end
+      end
+
+      # A public writer `name=` over `@rgame_<name>`, for an attribute with no
+      # check to run, built as #sealed_reader builds a reader. Returns the
+      # names.
+      #
+      # @api private
+      def sealed_writer(*names)
+        names.each do |name|
+          writer = :"#{PREFIX}#{name}="
+          attr_writer :"#{PREFIX}#{name}"
+          alias_method :"#{name}=", writer
+          public :"#{name}="
+          private writer
+        end
+      end
+
+      # Both #sealed_reader and #sealed_writer. Returns the names.
+      #
+      # @api private
+      def sealed_accessor(*names)
+        sealed_reader(*names)
+        sealed_writer(*names)
       end
 
       # Every method a subclass may not define: the base's non-public methods

@@ -23,16 +23,15 @@ module RGame
       # offsets by this node's own position a second time. `Game/DrawInLocalSpace`
       # says so.
       #
-      # The ivar carries the longer name so that `@x` does not exist. Reaching
-      # for a parent-relative coordinate where a world one was meant is the
-      # mistake this whole design is arranged against, and the spelling that used
-      # to make it silent is simply not there any more.
-      attr_reader :rel_x, :rel_y, :rel_angle
+      # `@x` is not the position. The ivar is `@rgame_rel_x`, as every ivar the
+      # engine keeps on a node starts with `rgame_`, so a subclass's `@x` is its
+      # own.
+      sealed_reader :rel_x, :rel_y, :rel_angle
       alias x rel_x
       alias y rel_y
       alias angle rel_angle
 
-      attr_accessor :width, :height
+      sealed_accessor :width, :height
 
       # Height above the ground in pixels, for a top-down view: how far this
       # node's picture is drawn above the spot it stands on. Positive is up.
@@ -42,8 +41,8 @@ module RGame
       # ground without its feet box leaving too. Components::Sprite and
       # Components::AnimatedSprite draw lifted by it, in the node's local space;
       # Components::Hop is one thing that writes it.
-      attr_accessor :elevation
-      attr_writer :scene, :context
+      sealed_accessor :elevation
+      sealed_writer :scene, :context
 
       # The other way a node moves, and the only one that does not go through a
       # coordinate writer: its `x`/`y` do not change, but they are now an offset
@@ -58,8 +57,8 @@ module RGame
       # parent, child or not. A node keeps that list from the first node that
       # names it, so a leaf a game spawns allocates nothing for it.
       def parent=(value)
-        @parent&.rgame_unplace(self)
-        @parent = value
+        @rgame_parent&.rgame_unplace(self)
+        @rgame_parent = value
         value&.rgame_place(self)
         rgame_soil
       end
@@ -72,17 +71,17 @@ module RGame
       # is two writes and so two invalidations, which is why #rgame_soil returns
       # immediately on a subtree that is already stale.
       def rel_x=(value)
-        @rel_x = value
+        @rgame_rel_x = value
         rgame_soil
       end
 
       def rel_y=(value)
-        @rel_y = value
+        @rgame_rel_y = value
         rgame_soil
       end
 
       def rel_angle=(value)
-        @rel_angle = value
+        @rgame_rel_angle = value
         rgame_soil
       end
 
@@ -115,14 +114,14 @@ module RGame
       #   phase whether or not anything had moved.
       # hot-path
       def world_x
-        rgame_resolve_transform unless @world_current
-        @world_x
+        rgame_resolve_transform unless @rgame_world_current
+        @rgame_world_x
       end
 
       # hot-path
       def world_y
-        rgame_resolve_transform unless @world_current
-        @world_y
+        rgame_resolve_transform unless @rgame_world_current
+        @rgame_world_y
       end
 
       # Place the node at a world coordinate, leaving the other one where it is.
@@ -139,35 +138,35 @@ module RGame
       # changes nothing.
       # hot-path
       def world_x=(value)
-        return if @parent.nil?
+        return if @rgame_parent.nil?
 
-        pa = @parent.world_angle
+        pa = @rgame_parent.world_angle
         if pa.zero?
-          self.rel_x = value - @parent.world_x
+          self.rel_x = value - @rgame_parent.world_x
         else
-          rgame_place_in_rotated_parent(value - @parent.world_x, world_y - @parent.world_y, pa)
+          rgame_place_in_rotated_parent(value - @rgame_parent.world_x, world_y - @rgame_parent.world_y, pa)
         end
       end
 
       # hot-path
       def world_y=(value)
-        return if @parent.nil?
+        return if @rgame_parent.nil?
 
-        pa = @parent.world_angle
+        pa = @rgame_parent.world_angle
         if pa.zero?
-          self.rel_y = value - @parent.world_y
+          self.rel_y = value - @rgame_parent.world_y
         else
-          rgame_place_in_rotated_parent(world_x - @parent.world_x, value - @parent.world_y, pa)
+          rgame_place_in_rotated_parent(world_x - @rgame_parent.world_x, value - @rgame_parent.world_y, pa)
         end
       end
 
       # hot-path
       def world_angle
-        rgame_resolve_transform unless @world_current
-        @world_angle
+        rgame_resolve_transform unless @rgame_world_current
+        @rgame_world_angle
       end
 
-      attr_reader :children, :components, :parent, :abs_input_owner, :z, :band, :abs_band
+      sealed_reader :children, :components, :parent, :abs_input_owner, :z, :band, :abs_band
 
       # Where this node sits among its **siblings**, and nowhere else.
       #
@@ -187,8 +186,8 @@ module RGame
       # resolved to 7 and overtook a sibling at 4 — some of a node's parts in
       # front of something the node itself was behind. See RGame::Util::Z.
       def z=(value)
-        @z = value
-        @parent&.rgame_children_unsorted!
+        @rgame_z = value
+        @rgame_parent&.rgame_children_unsorted!
       end
 
       # Which band this node and everything under it draws in — `:world` (the
@@ -203,7 +202,7 @@ module RGame
       # difference from the Integer bases this replaces.
       def band=(value)
         Util::Z.band!(value) unless value.nil?
-        @band = value
+        @rgame_band = value
       end
 
       # Whose input drives this node: an RGame::Engine::Player, or nil.
@@ -223,7 +222,7 @@ module RGame
       # a controller is the component that produces movement intent — see
       # Components::PlayerController — which is a different idea entirely. This
       # name says exactly what it decides and collides with neither.
-      attr_accessor :input_owner
+      sealed_accessor :input_owner
 
       # A paused node skips `control` and `update` — and so does everything
       # under it, because a subtree is only ever reached through its parent.
@@ -239,11 +238,11 @@ module RGame
       #
       # `paused` is the game's own switch. The engine stops a node with
       # `suspend` instead, so neither undoes the other.
-      attr_reader :paused
+      sealed_reader :paused
 
       def paused=(value)
-        @paused = value
-        @stopped = value || @suspensions.positive?
+        @rgame_paused = value
+        @rgame_stopped = value || @rgame_suspensions.positive?
       end
 
       # Stops the node as `paused` does, until a `resume` for each `suspend`.
@@ -256,23 +255,23 @@ module RGame
       #   hero.resume     # the cutscene ends; the move still holds the hero
       #   hero.resume     # the move's reveal ends, and the hero walks
       def suspend
-        @suspensions += 1
-        @stopped = true
+        @rgame_suspensions += 1
+        @rgame_stopped = true
         self
       end
 
       # Ends one `suspend`. Raises `RuntimeError` when none is left to end.
       # Returns self.
       def resume
-        raise 'resume called with no suspend to end' if @suspensions.zero?
+        raise 'resume called with no suspend to end' if @rgame_suspensions.zero?
 
-        @suspensions -= 1
-        @stopped = @paused || @suspensions.positive?
+        @rgame_suspensions -= 1
+        @rgame_stopped = @rgame_paused || @rgame_suspensions.positive?
         self
       end
 
       # Whether a `suspend` holds the node.
-      def suspended? = @suspensions.positive?
+      def suspended? = @rgame_suspensions.positive?
 
       # How much of this node and everything under it shows: from 0, which
       # draws none of it, to 1, the default, which changes nothing.
@@ -287,12 +286,12 @@ module RGame
       #
       # Only drawing changes. A node at 0 still takes part in `control` and
       # `update`, and its colliders still collide.
-      attr_reader :opacity
+      sealed_reader :opacity
 
       # Refuses what `renderer.faded` refuses, here rather than at the next
       # draw: a number outside 0..1, or anything that is not a number.
       def opacity=(value)
-        @opacity = Util::Blend.opacity(value)
+        @rgame_opacity = Util::Blend.opacity(value)
       end
 
       # How large this node and everything under it draws, about its origin: 0
@@ -307,7 +306,7 @@ module RGame
       #
       # Only drawing changes. Positions, colliders and the transform keep their
       # size, so `world_x` of a child is where it stands, not where it draws.
-      attr_reader :scale
+      sealed_reader :scale
 
       # Refuses a negative number, NaN or infinity with ArgumentError, and
       # anything that is not a number with TypeError, here rather than at the
@@ -316,7 +315,7 @@ module RGame
         raise TypeError, "no implicit conversion of #{value.class} into Float" unless value.is_a?(Numeric)
         raise ArgumentError, "scale #{value} is not a finite number of 0 or more" unless value >= 0 && value.finite?
 
-        @scale = value
+        @rgame_scale = value
       end
 
       # Whether this node draws its children by where they stand: by `z` first,
@@ -335,46 +334,46 @@ module RGame
       # **Only drawing follows it.** `control` and `update` visit the children in
       # the order they would without it, so an actor walking north never changes
       # who moves first, and a run does not depend on how often it was drawn.
-      attr_reader :y_sort
+      sealed_reader :y_sort
 
       def y_sort=(value)
-        @y_sort = value
-        @draw_order = value ? @children.dup : nil
+        @rgame_y_sort = value
+        @rgame_draw_order = value ? @rgame_children.dup : nil
       end
 
       def initialize(x: 0, y: 0, z: 0, angle: 0, width: 0, height: 0, input_owner: nil,
                      band: nil, y_sort: false)
-        @input_owner = input_owner
-        @paused = false
-        @suspensions = 0
-        @stopped = false
-        @opacity = 1
-        @scale = 1
-        @rel_x = x
-        @rel_y = y
-        @z = z
+        @rgame_input_owner = input_owner
+        @rgame_paused = false
+        @rgame_suspensions = 0
+        @rgame_stopped = false
+        @rgame_opacity = 1
+        @rgame_scale = 1
+        @rgame_rel_x = x
+        @rgame_rel_y = y
+        @rgame_z = z
         self.band = band
-        @rel_angle = angle
-        @width = width
-        @height = height
-        @elevation = 0
-        @world_current = false
-        @world_x = @world_y = @world_angle = 0
-        @abs_input_owner = @input_owner
-        @abs_band = @band || Util::Z::DEFAULT
-        @children = []
-        @placed = nil
-        @child_seq = 0
-        @children_sorted = true
-        @components = []
-        @component_slots = {}
-        @parent = nil
-        @scene = nil
-        @in_tree = false
-        @freed = false
-        @press_gate = nil
-        @sort_box = nil
-        @sort_box_known = false
+        @rgame_rel_angle = angle
+        @rgame_width = width
+        @rgame_height = height
+        @rgame_elevation = 0
+        @rgame_world_current = false
+        @rgame_world_x = @rgame_world_y = @rgame_world_angle = 0
+        @rgame_abs_input_owner = @rgame_input_owner
+        @rgame_abs_band = @rgame_band || Util::Z::DEFAULT
+        @rgame_children = []
+        @rgame_placed = nil
+        @rgame_child_seq = 0
+        @rgame_children_sorted = true
+        @rgame_components = []
+        @rgame_component_slots = {}
+        @rgame_parent = nil
+        @rgame_scene = nil
+        @rgame_in_tree = false
+        @rgame_freed = false
+        @rgame_press_gate = nil
+        @rgame_sort_box = nil
+        @rgame_sort_box_known = false
         self.y_sort = y_sort
       end
 
@@ -384,23 +383,23 @@ module RGame
       # tree, and its components keep their systems.
       def add_node(node)
         if (old = node.parent)
-          return node if old.equal?(self) && @children.include?(node)
+          return node if old.equal?(self) && @rgame_children.include?(node)
 
           old.remove_node(node)
         end
-        @children_sorted = false unless rgame_sorts_last?(node)
-        @children << node
-        @draw_order&.push(node)
+        @rgame_children_sorted = false unless rgame_sorts_last?(node)
+        @rgame_children << node
+        @rgame_draw_order&.push(node)
         node.parent = self
-        node.rgame_sibling_order = (@child_seq += 1)
-        node.enter_tree if @in_tree
+        node.rgame_sibling_order = (@rgame_child_seq += 1)
+        node.enter_tree if @rgame_in_tree
         node
       end
 
       def remove_node(node)
-        node.exit_tree if @in_tree
-        @children.delete(node)
-        @draw_order&.delete(node)
+        node.exit_tree if @rgame_in_tree
+        @rgame_children.delete(node)
+        @rgame_draw_order&.delete(node)
         node.parent = nil
         node
       end
@@ -411,10 +410,10 @@ module RGame
       # components share that type — so the caller reaches for the name instead. The scan is
       # allocation-free, so it's safe to call on the per-frame path.
       def get_component(key)
-        return @component_slots[key] unless key.is_a?(Module)
+        return @rgame_component_slots[key] unless key.is_a?(Module)
 
         found = nil
-        @components.each do |component|
+        @rgame_components.each do |component|
           next unless component.is_a?(key)
           raise ArgumentError, "Multiple components match #{key}; look one up by name" if found
 
@@ -429,13 +428,13 @@ module RGame
       # A taken slot raises, so an accidental duplicate is still caught.
       def add_component(component, as: nil)
         slot = as || component.class
-        raise ArgumentError, "Node already has a component in slot #{slot.inspect}" if @component_slots.key?(slot)
+        raise ArgumentError, "Node already has a component in slot #{slot.inspect}" if @rgame_component_slots.key?(slot)
 
-        @components << component
-        @component_slots[slot] = component
+        @rgame_components << component
+        @rgame_component_slots[slot] = component
         component.node = self
-        @sort_box_known = false
-        component._attach if @in_tree
+        @rgame_sort_box_known = false
+        component._attach if @rgame_in_tree
         component
       end
 
@@ -443,28 +442,28 @@ module RGame
         component = get_component(key)
         return nil unless component
 
-        component._detach if @in_tree
-        @components.delete(component)
-        @component_slots.delete(@component_slots.key(component))
+        component._detach if @rgame_in_tree
+        @rgame_components.delete(component)
+        @rgame_component_slots.delete(@rgame_component_slots.key(component))
         component.node = nil
-        @sort_box_known = false
+        @rgame_sort_box_known = false
         component
       end
 
       # The top-most node — a node with no parent is its own root. Global,
       # program-lifetime systems live here as components.
       def root
-        @parent ? @parent.root : self
+        @rgame_parent ? @rgame_parent.root : self
       end
 
       # The nearest enclosing scene node, marked as a boundary by SceneStack
       # (#scene= self). Scene-lifetime systems live on it as components.
       def scene
-        @scene || @parent&.scene
+        @rgame_scene || @rgame_parent&.scene
       end
 
       def context
-        @context ||= root.context
+        @rgame_context ||= root.context
       end
 
       # The nearest system of a class: this node's scene first, then each scene
@@ -513,11 +512,11 @@ module RGame
       # a snapshot built by hand, which has no `poll_count`, is handed on as it
       # is.
       def control(input)
-        return if @stopped
+        return if @rgame_stopped
 
         rgame_resolve_inherited
-        actions = rgame_gate(input.actions_for(@abs_input_owner))
-        @components.each { it._control(actions) }
+        actions = rgame_gate(input.actions_for(@rgame_abs_input_owner))
+        @rgame_components.each { it._control(actions) }
         _control(actions)
         rgame_children_in_order.each { it.control(input) }
       end
@@ -526,9 +525,9 @@ module RGame
       # time, but for now works in one step). This runs second in a
       # game tick
       def update(dt)
-        return if @stopped
+        return if @rgame_stopped
 
-        @components.each { it._update(dt) }
+        @rgame_components.each { it._update(dt) }
         _update(dt)
         rgame_children_in_order.each { it.update(dt) }
       end
@@ -542,35 +541,35 @@ module RGame
       # half of it — and because culling needs it once the world is drawn more
       # than once. Most nodes ignore it and simply draw.
       def draw(renderer, view)
-        return if @opacity.zero? || @scale.zero?
+        return if @rgame_opacity.zero? || @rgame_scale.zero?
 
         rgame_resolve_inherited
         rgame_in_local_space(renderer) do
           rgame_as_shown(renderer) do
-            renderer.layered(@abs_band) { rgame_draw_content(renderer, view) }
+            renderer.layered(@rgame_abs_band) { rgame_draw_content(renderer, view) }
             draw_children(renderer, view)
           end
         end
       end
 
-      def in_tree? = @in_tree
+      def in_tree? = @rgame_in_tree
 
       # Deferred removal (à la Godot's queue_free): mark this node for removal
       # instead of detaching it now. A node that removes itself or a sibling
-      # mid-traversal would mutate the parent's @children while it's being iterated;
+      # mid-traversal would change the parent's child list while it's being iterated;
       # marking instead and sweeping once after the tick (see #sweep_freed, flushed by
       # the platform loop) keeps removal safe and allocation-free.
-      def queue_free = @freed = true
-      def freed? = @freed
+      def queue_free = @rgame_freed = true
+      def freed? = @rgame_freed
 
       # Detach every node marked by #queue_free, depth-first, from a point outside the
       # update traversal. Components get a hook too, so a container-style component
       # (e.g. SceneStack) can flush the subtree it owns off the normal child list.
       def sweep_freed
-        @components.each(&:_sweep_freed)
+        @rgame_components.each(&:_sweep_freed)
         i = 0
-        while i < @children.size
-          child = @children[i]
+        while i < @rgame_children.size
+          child = @rgame_children[i]
           if child.freed?
             remove_node(child)
           else
@@ -591,26 +590,26 @@ module RGame
       # Scene::SceneStack holds its scenes, enters and leaves with the
       # container.
       def enter_tree
-        return if @in_tree || (@parent && !@parent.in_tree?)
+        return if @rgame_in_tree || (@rgame_parent && !@rgame_parent.in_tree?)
 
-        @in_tree = true
-        @freed = false
-        @components.each(&:_attach)
+        @rgame_in_tree = true
+        @rgame_freed = false
+        @rgame_components.each(&:_attach)
         _enter_tree
         rgame_children_in_order.each(&:enter_tree)
-        @placed&.each(&:enter_tree)
+        @rgame_placed&.each(&:enter_tree)
       end
 
       # Leaving-tree cascade: mirror of #enter_tree (children first, then this
       # node's _exit_tree, then component _detach to release registrations).
       def exit_tree
-        return unless @in_tree
+        return unless @rgame_in_tree
 
         rgame_children_in_order.each(&:exit_tree)
-        @placed&.each(&:exit_tree)
+        @rgame_placed&.each(&:exit_tree)
         _exit_tree
-        @components.each(&:_detach)
-        @in_tree = false
+        @rgame_components.each(&:_detach)
+        @rgame_in_tree = false
       end
 
       # The hooks a subclass overrides, each empty here and named after the step
@@ -631,14 +630,14 @@ module RGame
       # allocate a Proc for every node, every frame, per viewport. `yield` is
       # what keeps this path allocation-free, which culling_spec asserts.
       def rgame_in_local_space(renderer)
-        return yield if @parent.nil?
-        return yield if @rel_x.zero? && @rel_y.zero? && @rel_angle.zero?
+        return yield if @rgame_parent.nil?
+        return yield if @rgame_rel_x.zero? && @rgame_rel_y.zero? && @rgame_rel_angle.zero?
 
-        renderer.translated(@rel_x, @rel_y) do
-          if @rel_angle.zero?
+        renderer.translated(@rgame_rel_x, @rgame_rel_y) do
+          if @rgame_rel_angle.zero?
             yield
           else
-            renderer.rotated(@rel_angle * 180.0 / Math::PI, 0, 0) { yield }
+            renderer.rotated(@rgame_rel_angle * 180.0 / Math::PI, 0, 0) { yield }
           end
         end
       end
@@ -648,21 +647,21 @@ module RGame
       # rubocop:disable Style/ExplicitBlockArgument -- as in rgame_in_local_space,
       # `yield` from the nested block allocates nothing where a captured &block would.
       def rgame_as_shown(renderer)
-        if @scale == 1
-          return yield if @opacity == 1
+        if @rgame_scale == 1
+          return yield if @rgame_opacity == 1
 
-          renderer.faded(@opacity) { yield }
-        elsif @opacity == 1
-          renderer.scaled(@scale) { yield }
+          renderer.faded(@rgame_opacity) { yield }
+        elsif @rgame_opacity == 1
+          renderer.scaled(@rgame_scale) { yield }
         else
-          renderer.scaled(@scale) { renderer.faded(@opacity) { yield } }
+          renderer.scaled(@rgame_scale) { renderer.faded(@rgame_opacity) { yield } }
         end
       end
       # rubocop:enable Style/ExplicitBlockArgument
 
       # hot-path
       def rgame_draw_content(renderer, view)
-        @components.each { it._draw(renderer, view) }
+        @rgame_components.each { it._draw(renderer, view) }
         _draw(renderer, view)
       end
 
@@ -673,10 +672,10 @@ module RGame
 
       # hot-path
       def rgame_children_in_draw_order
-        return rgame_children_in_order unless @draw_order
+        return rgame_children_in_order unless @rgame_draw_order
 
-        rgame_sort_by_y(@draw_order)
-        @draw_order
+        rgame_sort_by_y(@rgame_draw_order)
+        @rgame_draw_order
       end
 
       # hot-path
@@ -706,23 +705,23 @@ module RGame
       end
 
       def rgame_find_sort_box
-        @sort_box_known = true
-        @sort_box = get_component(Components::BoxCollider)
+        @rgame_sort_box_known = true
+        @rgame_sort_box = get_component(Components::BoxCollider)
       end
 
       # hot-path
       def rgame_children_in_order
-        rgame_sort_children unless @children_sorted
-        @children
+        rgame_sort_children unless @rgame_children_sorted
+        @rgame_children
       end
 
-      def rgame_sorts_last?(node) = @children.empty? || @children.last.z <= node.z
+      def rgame_sorts_last?(node) = @rgame_children.empty? || @rgame_children.last.z <= node.z
 
       def rgame_sort_children
-        @children_sorted = true
-        return if @children.size < 2
+        @rgame_children_sorted = true
+        return if @rgame_children.size < 2
 
-        @children.sort! do |a, b|
+        @rgame_children.sort! do |a, b|
           order = a.z <=> b.z
           order.zero? ? a.rgame_sibling_order <=> b.rgame_sibling_order : order
         end
@@ -730,24 +729,24 @@ module RGame
 
       # hot-path
       def rgame_resolve_transform
-        @world_current = true
-        if @parent.nil?
-          @world_x = @world_y = 0
-          @world_angle = 0
+        @rgame_world_current = true
+        if @rgame_parent.nil?
+          @rgame_world_x = @rgame_world_y = 0
+          @rgame_world_angle = 0
           return
         end
 
-        pa = @parent.world_angle
+        pa = @rgame_parent.world_angle
         if pa.zero?
-          @world_x = @parent.world_x + @rel_x
-          @world_y = @parent.world_y + @rel_y
+          @rgame_world_x = @rgame_parent.world_x + @rgame_rel_x
+          @rgame_world_y = @rgame_parent.world_y + @rgame_rel_y
         else
           cos = Math.cos(pa)
           sin = Math.sin(pa)
-          @world_x = @parent.world_x + (@rel_x * cos) - (@rel_y * sin)
-          @world_y = @parent.world_y + (@rel_x * sin) + (@rel_y * cos)
+          @rgame_world_x = @rgame_parent.world_x + (@rgame_rel_x * cos) - (@rgame_rel_y * sin)
+          @rgame_world_y = @rgame_parent.world_y + (@rgame_rel_x * sin) + (@rgame_rel_y * cos)
         end
-        @world_angle = pa + @rel_angle
+        @rgame_world_angle = pa + @rgame_rel_angle
       end
 
       def rgame_place_in_rotated_parent(offset_x, offset_y, pa)
@@ -761,42 +760,42 @@ module RGame
 
       attr_accessor :rgame_sibling_order
 
-      def rgame_place(node) = (@placed ||= []) << node
-      def rgame_unplace(node) = @placed&.delete(node)
+      def rgame_place(node) = (@rgame_placed ||= []) << node
+      def rgame_unplace(node) = @rgame_placed&.delete(node)
 
-      def rgame_children_unsorted! = @children_sorted = false
+      def rgame_children_unsorted! = @rgame_children_sorted = false
 
       # hot-path
       def rgame_sort_y
-        rgame_find_sort_box unless @sort_box_known
-        return @rel_y unless @sort_box
+        rgame_find_sort_box unless @rgame_sort_box_known
+        return @rgame_rel_y unless @rgame_sort_box
 
-        box = @sort_box.box
-        @rel_y + box.offset_y + box.height
+        box = @rgame_sort_box.box
+        @rgame_rel_y + box.offset_y + box.height
       end
 
       # hot-path
       def rgame_soil
-        return unless @world_current
+        return unless @rgame_world_current
 
-        @world_current = false
+        @rgame_world_current = false
         # rubocop:disable Style/SymbolProc -- `&:rgame_soil` would call through
         # Symbol#to_proc, which dispatches publicly and so cannot reach a
         # protected method. An explicit receiver is the only form that works
         # here, and it allocates no more than the symbol would.
-        @placed&.each { it.rgame_soil }
+        @rgame_placed&.each { it.rgame_soil }
         # rubocop:enable Style/SymbolProc
       end
 
       private
 
       # hot-path
-      def rgame_stopped? = @stopped
+      def rgame_stopped? = @rgame_stopped
 
       def rgame_missing_system(klass)
         where = scene ? 'its scenes or the root' : 'the root'
         message = "#{self.class} found no #{klass} system on #{where}"
-        if @parent.nil?
+        if @rgame_parent.nil?
           return "#{message}. It has no parent, so it is the root: add it to the tree first, " \
                  'or mount the system on it'
         end
@@ -809,19 +808,19 @@ module RGame
         poll = actions.poll_count
         return actions if poll.nil?
 
-        (@press_gate ||= PressGate.new).read(actions, poll)
+        (@rgame_press_gate ||= PressGate.new).read(actions, poll)
       end
 
       # hot-path
       def rgame_resolve_inherited
-        if @parent.nil?
-          @abs_input_owner = @input_owner
-          @abs_band = @band || Util::Z::DEFAULT
+        if @rgame_parent.nil?
+          @rgame_abs_input_owner = @rgame_input_owner
+          @rgame_abs_band = @rgame_band || Util::Z::DEFAULT
           return
         end
 
-        @abs_input_owner = @input_owner || @parent.abs_input_owner
-        @abs_band = @band || @parent.abs_band
+        @rgame_abs_input_owner = @rgame_input_owner || @rgame_parent.abs_input_owner
+        @rgame_abs_band = @rgame_band || @rgame_parent.abs_band
       end
     end
   end

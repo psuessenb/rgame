@@ -32,10 +32,10 @@ module RGame
         SLACK = 1e-9
 
         # The respawn point, in world pixels, nil until the node first attaches.
-        attr_reader :point_x, :point_y
+        sealed_reader :point_x, :point_y
 
         # Seconds the flash lasts.
-        attr_reader :flash
+        sealed_reader :flash
 
         # `flash` is in seconds. 0 flashes nothing.
         def initialize(flash: 1.0)
@@ -44,65 +44,65 @@ module RGame
             raise ArgumentError, "flash must be a number of seconds, 0 or more, not #{flash.inspect}"
           end
 
-          @flash = flash
-          @point_x = nil
-          @point_y = nil
-          @flashing = false
-          @elapsed = 0.0
-          @found = 1
+          @rgame_flash = flash
+          @rgame_point_x = nil
+          @rgame_point_y = nil
+          @rgame_flashing = false
+          @rgame_elapsed = 0.0
+          @rgame_found = 1
         end
 
         # The first attach records where the node stands as its point.
         def _attach
-          return if @point_x
+          return if @rgame_point_x
 
-          @point_x = node.world_x
-          @point_y = node.world_y
+          @rgame_point_x = node.world_x
+          @rgame_point_y = node.world_y
         end
 
         # A new respawn point, in world pixels. Returns self.
         def set_point(x, y)
-          @point_x = x
-          @point_y = y
+          @rgame_point_x = x
+          @rgame_point_y = y
           self
         end
 
         # Places the node on its point and starts the flash. A flash already under way
         # starts again, and still gives back the opacity it found first.
         def respawn
-          node.world_x = @point_x
-          node.world_y = @point_y
-          @found = node.opacity unless @flashing
-          @elapsed = 0.0
-          @flashing = @flash.positive?
+          node.world_x = @rgame_point_x
+          node.world_y = @rgame_point_y
+          @rgame_found = node.opacity unless @rgame_flashing
+          @rgame_elapsed = 0.0
+          @rgame_flashing = @rgame_flash.positive?
           respawned_signal.emit
         end
 
-        def flashing? = @flashing
+        def flashing? = @rgame_flashing
 
         # Blinks `opacity`, shown first, until `flash` has passed, then gives back the
         # opacity it found.
         #
         # hot-path
         def _update(dt)
-          return unless @flashing
+          return unless @rgame_flashing
 
-          @elapsed += dt
-          return stop_flash if @elapsed + SLACK >= @flash
+          @rgame_elapsed += dt
+          return stop_flash if @rgame_elapsed + SLACK >= @rgame_flash
 
-          node.opacity = ((@elapsed + SLACK) / BLINK).floor.even? ? @found : 0
+          node.opacity = ((@rgame_elapsed + SLACK) / BLINK).floor.even? ? @rgame_found : 0
         end
 
         # Stops a flash and gives the opacity back.
         def _detach
-          stop_flash if @flashing
+          stop_flash if @rgame_flashing
         end
 
         private
 
         def stop_flash
-          @flashing = false
-          node.opacity = @found
+          @rgame_flashing = false
+          node.opacity = @rgame_found
         end
       end
     end

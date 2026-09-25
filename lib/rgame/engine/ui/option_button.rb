@@ -62,25 +62,25 @@ module RGame
 
         def initialize(label:, values:, index: 0, display: DISPLAY, **)
           super(label: label, **)
-          @values = values.to_a.freeze
-          shown = @values.map { |value| display.call(value) }
-          @captions = shown.map { |caption| text_for(caption) }.freeze
-          @keyed_captions = @captions.reject.with_index { |_caption, at| shown[at].is_a?(Text) }.freeze
-          @measured = Array.new(@captions.size)
-          @index = @values.empty? ? 0 : index.clamp(0, @values.size - 1)
+          @rgame_values = values.to_a.freeze
+          shown = @rgame_values.map { |value| display.call(value) }
+          @rgame_captions = shown.map { |caption| text_for(caption) }.freeze
+          @rgame_keyed_captions = @rgame_captions.reject.with_index { |_caption, at| shown[at].is_a?(Text) }.freeze
+          @rgame_measured = Array.new(@rgame_captions.size)
+          @rgame_index = @rgame_values.empty? ? 0 : index.clamp(0, @rgame_values.size - 1)
         end
 
-        attr_reader :values, :index
+        sealed_reader :values, :index
 
-        def value = @values[@index]
+        def value = @rgame_values[@rgame_index]
 
         # The Engine::Text drawn for the current value, or nil for an empty list.
-        def caption = @captions[@index]
+        def caption = @rgame_captions[@rgame_index]
 
         # Scopes the captions `display` gave as keys along with the label.
         def label_scope=(scope)
           super
-          @keyed_captions.each { |caption| caption.scope = label_scope }
+          @rgame_keyed_captions.each { |caption| caption.scope = label_scope }
         end
 
         # Selects `value` if the list holds it, and says whether it did. A game
@@ -89,8 +89,8 @@ module RGame
         # changed between versions — leaves the button where it was rather than
         # raising.
         def value=(value)
-          found = @values.index(value)
-          @index = found if found
+          found = @rgame_values.index(value)
+          @rgame_index = found if found
         end
 
         # Moves the selection by `delta`, clamped. Returns the button when it
@@ -101,12 +101,12 @@ module RGame
         # a caller never has to check first.
         def adjust(delta)
           return nil unless enabled?
-          return nil if @values.empty?
+          return nil if @rgame_values.empty?
 
-          moved = (@index + delta).clamp(0, @values.size - 1)
-          return nil if moved == @index
+          moved = (@rgame_index + delta).clamp(0, @rgame_values.size - 1)
+          return nil if moved == @rgame_index
 
-          @index = moved
+          @rgame_index = moved
           changed_signal.emit(value)
           self
         end
@@ -116,20 +116,20 @@ module RGame
         def draw_foreground(renderer)
           y = label_y(renderer)
           color = current_label_color
-          renderer.text(@label, PADDING, y, z: 1, color: color) if @label
+          renderer.text(@rgame_label, PADDING, y, z: 1, color: color) if @rgame_label
           draw_value(renderer, y, color)
         end
 
         def draw_value(renderer, y, color)
-          return if @values.empty?
+          return if @rgame_values.empty?
 
           chevron = renderer.text_width(RIGHT_CHEVRON)
           right = width - PADDING - chevron
           column = column_width(renderer)
           left = right - GAP - column - GAP - chevron
 
-          renderer.text(LEFT_CHEVRON, left, y, z: 1, color: color) if @index.positive?
-          renderer.text(RIGHT_CHEVRON, right, y, z: 1, color: color) if @index < @values.size - 1
+          renderer.text(LEFT_CHEVRON, left, y, z: 1, color: color) if @rgame_index.positive?
+          renderer.text(RIGHT_CHEVRON, right, y, z: 1, color: color) if @rgame_index < @rgame_values.size - 1
 
           text = caption.to_s
           centred = left + chevron + GAP + ((column - renderer.text_width(text)) / 2)
@@ -137,21 +137,21 @@ module RGame
         end
 
         def column_width(renderer)
-          return @column_width if captions_measured?
+          return @rgame_column_width if captions_measured?
 
-          @column_width = 0
-          @captions.each_with_index do |caption, at|
-            @measured[at] = caption.to_s
-            width = renderer.text_width(@measured[at])
-            @column_width = width if width > @column_width
+          @rgame_column_width = 0
+          @rgame_captions.each_with_index do |caption, at|
+            @rgame_measured[at] = caption.to_s
+            width = renderer.text_width(@rgame_measured[at])
+            @rgame_column_width = width if width > @rgame_column_width
           end
-          @column_width
+          @rgame_column_width
         end
 
         def captions_measured?
           at = 0
-          while at < @captions.size
-            return false unless @captions[at].to_s.equal?(@measured[at])
+          while at < @rgame_captions.size
+            return false unless @rgame_captions[at].to_s.equal?(@rgame_measured[at])
 
             at += 1
           end

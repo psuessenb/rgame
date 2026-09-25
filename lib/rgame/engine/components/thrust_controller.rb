@@ -16,48 +16,48 @@ module RGame
         def initialize(turn_speed:, accel:, max_speed:, drag: 0.0,
                        turn_action: :turn, thrust_action: :thrust)
           super()
-          @turn_speed = turn_speed
-          @accel = accel
-          @max_speed = max_speed
-          @drag = drag
-          @turn_action = turn_action
-          @thrust_action = thrust_action
-          @thrust = 0.0
+          @rgame_turn_speed = turn_speed
+          @rgame_accel = accel
+          @rgame_max_speed = max_speed
+          @rgame_drag = drag
+          @rgame_turn_action = turn_action
+          @rgame_thrust_action = thrust_action
+          @rgame_thrust = 0.0
         end
 
         # The Velocity sibling is only guaranteed present once attached to a node.
-        def _attach = @velocity = require_sibling(Velocity)
+        def _attach = @rgame_velocity = require_sibling(Velocity)
 
         def _control(actions)
-          @velocity.spin = actions.axis(@turn_action) * @turn_speed
-          @thrust = actions.axis(@thrust_action)
+          @rgame_velocity.spin = actions.axis(@rgame_turn_action) * @rgame_turn_speed
+          @rgame_thrust = actions.axis(@rgame_thrust_action)
         end
 
         def _update(dt)
-          if @thrust != 0.0
-            @velocity.vx += Math.cos(node.angle) * @accel * @thrust * dt
-            @velocity.vy += Math.sin(node.angle) * @accel * @thrust * dt
+          if @rgame_thrust != 0.0
+            @rgame_velocity.vx += Math.cos(node.angle) * @rgame_accel * @rgame_thrust * dt
+            @rgame_velocity.vy += Math.sin(node.angle) * @rgame_accel * @rgame_thrust * dt
           end
-          apply_drag(dt) if @drag.positive?
+          apply_drag(dt) if @rgame_drag.positive?
           clamp_speed
         end
 
         private
 
         def apply_drag(dt)
-          factor = 1.0 - (@drag * dt)
+          factor = 1.0 - (@rgame_drag * dt)
           factor = 0.0 if factor.negative?
-          @velocity.vx *= factor
-          @velocity.vy *= factor
+          @rgame_velocity.vx *= factor
+          @rgame_velocity.vy *= factor
         end
 
         def clamp_speed
-          speed = Math.hypot(@velocity.vx, @velocity.vy)
-          return unless speed > @max_speed
+          speed = Math.hypot(@rgame_velocity.vx, @rgame_velocity.vy)
+          return unless speed > @rgame_max_speed
 
-          scale = @max_speed / speed
-          @velocity.vx *= scale
-          @velocity.vy *= scale
+          scale = @rgame_max_speed / speed
+          @rgame_velocity.vx *= scale
+          @rgame_velocity.vy *= scale
         end
       end
     end

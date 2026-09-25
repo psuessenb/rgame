@@ -60,34 +60,34 @@ module RGame
 
         def initialize
           super
-          @values = {}
-          @entries = {}
-          @machines = {}
-          @watchers = {}
+          @rgame_values = {}
+          @rgame_entries = {}
+          @rgame_machines = {}
+          @rgame_watchers = {}
         end
 
         # The value of `key`, or nil for a key never set.
-        def [](key) = @values[checked_key(key)]
+        def [](key) = @rgame_values[checked_key(key)]
 
         # Sets `key`, and emits `on_changed` and calls its watchers when the value
         # differs from the one held.
         def []=(key, value)
           checked_key(key)
           checked_value(key, value)
-          previous = @values[key]
-          @values[key] = value.is_a?(String) ? -value : value
+          previous = @rgame_values[key]
+          @rgame_values[key] = value.is_a?(String) ? -value : value
           report_change(key, previous)
         end
 
         # As `Hash#fetch`: a default, a block, or `KeyError` for a key never set.
-        def fetch(key, ...) = @values.fetch(checked_key(key), ...)
+        def fetch(key, ...) = @rgame_values.fetch(checked_key(key), ...)
 
-        def key?(key) = @values.key?(checked_key(key))
+        def key?(key) = @rgame_values.key?(checked_key(key))
 
         # Removes `key` and returns its value. Reads nil afterwards, so it emits
         # and calls watchers when the value was not already nil.
         def delete(key)
-          previous = @values.delete(checked_key(key))
+          previous = @rgame_values.delete(checked_key(key))
           report_change(key, previous)
           previous
         end
@@ -95,14 +95,14 @@ module RGame
         # Calls the block with the value of `key` now, then with every value that
         # differs, restores included. Returns a handle for `unwatch`.
         def watch(key, &block)
-          (@watchers[checked_key(key)] ||= []) << block
-          yield @values[key]
+          (@rgame_watchers[checked_key(key)] ||= []) << block
+          yield @rgame_values[key]
           block
         end
 
         # Stops calling the block `watch` returned.
         def unwatch(handle)
-          @watchers.each_value { it.delete(handle) }
+          @rgame_watchers.each_value { it.delete(handle) }
           nil
         end
 
@@ -110,8 +110,8 @@ module RGame
         # `Util::SaveFile#write` takes. A machine a restore brought back but no
         # live machine has claimed is saved as it was.
         def to_h
-          machines = @entries.merge(@machines.transform_values(&:to_h))
-          { values: @values.dup.freeze, machines: machines.freeze }.freeze
+          machines = @rgame_entries.merge(@rgame_machines.transform_values(&:to_h))
+          { values: @rgame_values.dup.freeze, machines: machines.freeze }.freeze
         end
 
         # Replaces every fact and every named machine with those in `saved`,
@@ -125,10 +125,10 @@ module RGame
         # back, calls the watchers of each key whose value differs.
         def restore(saved)
           values, entries = parse(saved)
-          placed = @machines.to_h { |name, machine| [machine, machine.parse_saved(entries[name])] }
-          previous = @values
-          @values = values
-          @entries = entries
+          placed = @rgame_machines.to_h { |name, machine| [machine, machine.parse_saved(entries[name])] }
+          previous = @rgame_values
+          @rgame_values = values
+          @rgame_entries = entries
           placed.each { |machine, parsed| machine.place(parsed) }
           (previous.keys | values.keys).each do |key|
             notify_watchers(key) unless previous[key].eql?(values[key])
@@ -142,10 +142,10 @@ module RGame
         #
         # @api private
         def register(machine)
-          current = @machines[machine.name]
-          yield current ? current.to_h : @entries[machine.name]
+          current = @rgame_machines[machine.name]
+          yield current ? current.to_h : @rgame_entries[machine.name]
           current&.retire
-          @machines[machine.name] = machine
+          @rgame_machines[machine.name] = machine
         end
 
         private
@@ -170,7 +170,7 @@ module RGame
         end
 
         def report_change(key, previous)
-          value = @values[key]
+          value = @rgame_values[key]
           return if previous.eql?(value)
 
           changed_signal.emit(key:, value:)
@@ -178,7 +178,7 @@ module RGame
         end
 
         def notify_watchers(key)
-          @watchers[key]&.each { it.call(@values[key]) }
+          @rgame_watchers[key]&.each { it.call(@rgame_values[key]) }
         end
       end
     end
