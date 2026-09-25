@@ -40,6 +40,12 @@ a tile object is one picture at one position. The y-sort from the plan's step 1
 could order it against the actors by its base. The canopy layer stays the answer
 for scenery that always covers actors.
 
+**Platforms want tile objects too.** The rafts in `examples/moving_platforms` and
+`test_projects/topdownplatformer` draw their planks tile by tile in code. Placed
+as a tile object, a platform would carry both a class,
+`platform`, and a tile for the registry's block to draw. `possible-todos.md`
+lists it under "Loose ends from top-down platforming".
+
 ## How the engine treats object layers today
 
 ### The loader keeps every object, and the layer it sat in
@@ -198,5 +204,6 @@ order of object layers in Tiled to matter. This is a judgement, not a decision.
 ## Open for the plan
 
 1. Answer A, answer B, or another.
-2. What a tile object whose class has a block builds.
+2. What a tile object whose class has a block builds. A platform is the first
+   case.
 3. Which tracked map carries the acceptance test.

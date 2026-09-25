@@ -728,5 +728,48 @@ Five things the top-down platforming plan found and left. `Footing`, `Platform`,
   `Respawn` checks its point at every attach, so a gap under that point in the
   new room raises there. **Trigger:** a game with gaps in two rooms.
 - **Platforms as Tiled tile objects.** A platform draws its own tiles in code.
-  Once y-sort's step 3 draws a tile object as a node, a platform could draw the
-  one a designer placed. **Trigger:** y-sort's step 3 landing.
+  Once a tile object draws as a node, a platform could draw the one a designer
+  placed. [research/object-layers.md](research/object-layers.md) collects what
+  that waits on. **Trigger:** tile objects drawing as nodes.
+
+---
+
+## Tile layers sorted row by row with the actors
+
+**What.** Tiles that sort against actors by where they stand, as Godot 4's
+`TileMapLayer` does with `y_sort_enabled` and a per-tile `y_sort_origin`.
+
+**What exists instead.** A tile layer draws in one go, and y-sort orders only
+nodes. Tall scenery is split in two: a trunk below the actors' slot, and a
+canopy in a layer marked `above` that covers an actor wherever they stand. Tiled
+tile objects are the other answer: one picture at one position, sorting like an
+actor. They do not draw yet, and
+[research/object-layers.md](research/object-layers.md) says what they wait on.
+
+**Why not now.** `Core::TileMapRenderer` would draw a layer a row at a time,
+interleaved with the nodes of the slot. That changes how a layer and a slot
+relate, and no map here asks for it.
+
+**Trigger.** A map whose tall scenery neither the canopy layer nor tile objects
+can express, such as a wall a character walks both in front of and behind.
+
+---
+
+## Loose ends from y-sort
+
+Three things the y-sort plan left open. The sort is in
+`docs/api/scene_graph.md`, and the anchors in `docs/api/components.md`:
+
+- **A node with a feet box and a second box.** The sort finds where a node
+  stands with `get_component(BoxCollider)`, which raises when two components
+  match. So such a node raises at its first sorted draw. No node in the
+  repository has two. The likely answer is that a `FeetCollider` wins.
+  **Trigger:** a game that needs a hitbox beside a feet box.
+- **A sorted node inside a sorted node.** The inner one sorts as one unit, at
+  its own footing. Merging the two into one sort is the alternative.
+  **Trigger:** a scene that needs it.
+- **`Targeting` reaches from the origin.** `Interactor` and `Grab` measure reach
+  from the node's origin, while the sort and `Navigator` ask its `BoxCollider`
+  where it stands. Sprites now stand on the origin, so the two differ only for a
+  node whose box does not end there. **Trigger:** a reach that looks wrong on
+  such a node.
