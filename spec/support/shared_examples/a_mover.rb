@@ -9,6 +9,9 @@
 # its own spec and still be the one thing in a scene that walks through a wall, so the
 # promise is checked here rather than trusted to the base class.
 #
+# The :gaps group states that each of them stops at the edge of a map's floor, alone and
+# beside the map's solid tiles.
+#
 # The pushes: group states that each of them can push, and that declaring it changes nothing
 # about a wall that cannot be pushed.
 #
@@ -139,6 +142,52 @@ RSpec.shared_examples 'a mover' do
     end
   end
 
+  # A map with a gap one tile wide, whose cell starts at x = `gap` * 16, and a solid tile at
+  # x = `wall` * 16, in every row the box crosses. The box's centre starts at x = 178.
+  describe 'blocked_by: [:gaps]' do
+    def mount_tile_world(gap:, wall: nil)
+      rows = Array.new(10) { Array.new(15) { |col| { gap => '~', wall => '#' }.fetch(col, '.') }.join }
+      mover_scene.add_component(
+        RGame::Engine::Components::TileWorld.new(map: WalledTileMap.build(rows), tilemap_id: :map)
+      )
+    end
+
+    before do
+      mount_collision_world
+      add_box
+    end
+
+    it 'stops the centre of the box short of the gap, and says the gaps stopped it once' do
+      mount_tile_world(gap: 13)
+      mover = enter_mover(blocked_by: [:gaps])
+      reports = []
+      mover.on_blocked { |by, axis| reports << [by.layer, by.node, axis] }
+      run_ticks(60)
+      expect([mover_node.x, reports]).to match([be_within(1e-6).of(200.0), [[:gaps, nil, :x]]])
+    end
+
+    it 'stops at a solid tile nearer than the gap, beside :tiles' do
+      mount_tile_world(gap: 13, wall: 12)
+      enter_mover(blocked_by: %i[tiles gaps])
+      run_ticks(60)
+      expect(mover_node.x).to eq(176.0)
+    end
+
+    it 'stops at a gap nearer than a solid tile, beside :tiles' do
+      mount_tile_world(gap: 12, wall: 13)
+      enter_mover(blocked_by: %i[tiles gaps])
+      run_ticks(60)
+      expect(mover_node.x).to be_within(1e-6).of(184.0)
+    end
+
+    it 'allocates nothing on a step pressed against the gap' do
+      mount_tile_world(gap: 13)
+      mover = enter_mover(blocked_by: [:gaps])
+      run_ticks(60)
+      expect { mover._update(mover_dt) }.to allocate_nothing
+    end
+  end
+
   # on_blocked's second argument. A single collider stops one axis a step — CollisionSystem
   # snaps x flush before it resolves y, so the box no longer overlaps on the far axis — and
   # :both is the map's, pinned in character_body_spec where a scene has tiles.
@@ -259,6 +308,13 @@ RSpec.shared_examples 'a mover' do
       mover = build_mover(blocked_by: [:wall])
       name = mover.class.name.split('::').last
       expect { enter(mover) }.to raise_error(/#{name} is blocked_by :wall.*no CollisionWorld/m)
+    end
+
+    it 'refuses :gaps on a scene with no TileWorld, naming the mover' do
+      add_box
+      mover = build_mover(blocked_by: [:gaps])
+      name = mover.class.name.split('::').last
+      expect { enter(mover) }.to raise_error(/#{name} is blocked_by :gaps, and the scene has no TileWorld/)
     end
   end
 end

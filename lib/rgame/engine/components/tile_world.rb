@@ -21,7 +21,7 @@ module RGame
       # **It also knows where the floor is.** A cell holding a tile of class `gap` has no
       # floor (TileMap#gap_tile?). #floor_at? answers for a point, and #floor_reach_x and
       # #floor_reach_y say how far a point on the floor can move and stay on it, which is
-      # what the `:gaps` blocker stops a step with. The gaps are read once, into a second
+      # what #gap_blockers stops a step with. The gaps are read once, into a second
       # Util::SolidGrid, as solidity is.
       #
       # **Solidity is read from the map once**, into one Util::SolidGrid, the first time
@@ -113,6 +113,11 @@ module RGame
 
         def solid?(col, row) = solid_grid.solid?(col, row)
 
+        # The floor's edge as a blocker source, for a mover that declared
+        # `blocked_by: [:gaps]`: an Engine::GapBlockers over this world. The same source
+        # every time, so every mover on the map shares one.
+        def gap_blockers = @gap_blockers ||= Engine::GapBlockers.new(world: self)
+
         FLOOR_EDGE = 1e-9
 
         # Whether any layer holds a gap tile at (col, row). A cell off the map is not a gap.
@@ -127,6 +132,10 @@ module RGame
         # How far the point (x, y) can move `dx` along x and stay on the floor: `dx` itself,
         # or as far as FLOOR_EDGE short of the first gap on the way. A point already off
         # the floor moves the whole way, so a node standing in a gap is never held there.
+        #
+        # FLOOR_EDGE is a billionth of a pixel, the margin Util::TileSweep keeps against a
+        # wall. A point stopped exactly on the edge could cross it by rounding, on its way
+        # from a box to a node and back.
         #
         # hot-path
         def floor_reach_x(x, y, dx)
