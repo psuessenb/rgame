@@ -169,11 +169,14 @@ default to the same.
 - A slot could then be named two ways: by `mount`'s `slots:` keyword, or by an
   object layer.
 
-### Leaning
+### Direction
 
-A is smaller, keeps the documented rule, and lets the scene name the one parent
-the sort needs. B is its own decision, and waits for a designer who expects the
-order of object layers in Tiled to matter. This is a judgement, not a decision.
+**The loader builds, not the scene.** An object layer becomes a node in the map,
+and its objects become nodes inside it. Each object's class and properties
+decide what it becomes, including properties that belong to one of its
+components. That is B, with a registry to build from. It leaves open where an
+actor goes on a map with no object layer. [object-layers-prior-art.md](object-layers-prior-art.md)
+collects how other engines and Tiled itself answer these questions.
 
 ## What a tile object needs, whichever answer is taken
 
