@@ -56,14 +56,15 @@ RSpec.describe 'spec style' do # rubocop:disable RSpec/DescribeClass -- the subj
       next if helper.nil?
       next if helper.each_ancestor.any? { |ancestor| class_scope?(ancestor) }
 
-      "#{path}:#{helper.loc.line} — #{helper.method_name}"
+      [path, helper.method_name, helper.loc.line]
     end
   end
 
   # The one place the rule loses. `a_mover`'s wall-only groups never read this
   # collider, and a sixth `let` would put them over RuboCop's memoized-helper
   # limit — so it stays a method, and the trade is recorded rather than silent.
-  let(:exempt) { ['spec/support/shared_examples/a_mover.rb:57 — floor'] }
+  # Named by file and method, not line, so an edit above it does not fail this.
+  let(:exempt) { [['spec/support/shared_examples/a_mover.rb', :floor]] }
 
   let(:suite_files) do
     root = File.expand_path('..', __dir__)
@@ -72,6 +73,8 @@ RSpec.describe 'spec style' do # rubocop:disable RSpec/DescribeClass -- the subj
   end
 
   it 'has no helper that memoizes into an instance variable, which is a let' do
-    expect(suite_files.flat_map { |path| memoized_helpers(path) } - exempt).to eq([])
+    offenders = suite_files.flat_map { |path| memoized_helpers(path) }
+                           .reject { |path, name, _line| exempt.include?([path, name]) }
+    expect(offenders.map { |path, name, line| "#{path}:#{line} — #{name}" }).to eq([])
   end
 end
