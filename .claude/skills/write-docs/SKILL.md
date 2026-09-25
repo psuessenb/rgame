@@ -135,7 +135,7 @@ Four checks run without anyone remembering them:
 | Check | Fails when |
 |---|---|
 | `spec/api_docs/examples_spec.rb` (`rake spec`) | a headless example raises or returns something its `# =>` comment does not say; a windowed example does not parse |
-| `spec/api_docs/index_spec.rb` (`rake spec`) | a page is missing from the index, an example is missing from `examples.md` or described but absent, or a link or heading anchor is broken |
+| `spec/api_docs/index_spec.rb` (`rake spec`) | a page is missing from the index, an example is missing from `examples.md` or described but absent, a cop in `lib/rgame/rubocop/default.yml` is missing from `cli.md`, or a link or heading anchor is broken |
 | `spec_core/api_docs/references_spec.rb` (`rake spec:core`) | prose names a class, constant or method that does not exist |
 | `spec_core/api_docs/coverage_spec.rb` (`rake spec:core`) | a public class or method is named on no page and not tagged `@api private`; `rake docs:coverage` prints the list |
 

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-# Every documentation page is reachable, every example is described, and every
-# link lands somewhere.
+# Every documentation page is reachable, every example and every house cop is
+# described, and every link lands somewhere.
 #
 # These are the entries a new page, a new example or a renamed heading leaves
 # stale. The lists are derived from the tree, not written down, so a new page or
@@ -30,6 +30,13 @@ RSpec.describe 'docs/api index and links' do # rubocop:disable RSpec/DescribeCla
     it 'describes no example that does not exist' do
       expect(described - examples).to be_empty
     end
+  end
+
+  it 'names every cop the RuboCop plugin ships on the CLI page' do
+    cops = YAML.load_file(File.join(ApiDocs::ROOT, 'lib', 'rgame', 'rubocop', 'default.yml')).keys
+    page = File.read(File.join(ApiDocs::DIR, 'cli.md'))
+
+    expect(cops.reject { page.include?("`#{it}`") }).to be_empty
   end
 
   it 'has no link to a missing page or heading' do
