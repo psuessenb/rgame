@@ -88,6 +88,7 @@ You can learn more about how it works in the [documentation](docs/api/README.md)
 | [collision_tiles](docs/api/examples.md#collision_tiles) | Walking into a wall of solid tiles, and sliding along it |
 | [jump_topdown](docs/api/examples.md#jump_topdown) | A hop in a top-down view, where the sprite rises and the feet stay on the ground |
 | [pits](docs/api/examples.md#pits) | Falling into a gap, hopping across one, and coming back flashing |
+| [moving_platforms](docs/api/examples.md#moving_platforms) | A raft shuttling across a chasm, boarded with a timed hop |
 | [push_pull](docs/api/examples.md#push_pull) | Crates pushed by walking into them, and pulled with a held button |
 | [block_puzzle](docs/api/examples.md#block_puzzle) | Blocks shoved a cell at a time onto their squares |
 | [signals](docs/api/examples.md#signals) | A node announcing something happened, to nobody in particular |

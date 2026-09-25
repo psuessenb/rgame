@@ -1,7 +1,7 @@
 # Example assets
 
-Everything the examples draw and play. Twenty files besides this one, about
-131 KB in total — of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
+Everything the examples draw and play. Twenty-two files besides this one, about
+133 KB in total — of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
 
 ## Why these files and not the ones in `media/`
 
@@ -146,6 +146,30 @@ first stands, and `spec/example_assets_spec.rb` holds it to standing on floor.
 Written by a short Ruby script rather than in Tiled, as `puzzle.tmx` was, in the
 same base64 + zlib format over `tileset.tsx` and `pits.tsx`. Edit it in Tiled
 like the others.
+
+### `platforms.tmx` — ours
+
+60x30 tiles = 960x480 pixels, for `examples/moving_platforms`: wider than the
+window, so the camera follows the hero across. A meadow walled with trees
+(tile 16), and a chasm sixteen tiles wide, x = 352 to 608, on the `pits` layer
+over `pits.tsx`. The object `raft` in the `platforms` layer is a polyline of
+class `platform`: the route the raft's centre shuttles along, from x = 396 to
+564 at y = 240, with the raft's size in its `width` and `height` properties.
+Each end stops 12 px short of a bank, less than the 40 px a hop carries. The
+point `start` in the `spawns` layer is where the hero first stands.
+`spec/example_assets_spec.rb` holds the start to standing on floor, and the
+route's ends to a hop from each bank.
+
+Written by a short Ruby script rather than in Tiled, as `pits.tmx` was, in the
+same base64 + zlib format over `tileset.tsx` and `pits.tsx`. Edit it in Tiled
+like the others.
+
+### `tiles.json` — ours
+
+A sprite-sheet descriptor over `tileset.png`: 16x16 frames and no animations,
+so `renderer.sprite('tiles.json', row, col, x, y)` draws any one Tiny Town tile.
+`examples/moving_platforms` draws its raft's planks from row 6, columns 0, 1
+and 3.
 
 ### `ui.png` + `ui.json` — Kenney, *UI Pack - Pixel Adventure*
 

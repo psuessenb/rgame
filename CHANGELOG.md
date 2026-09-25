@@ -14,6 +14,22 @@ index, not the argument.
 
 ### Added
 
+- **Moving platforms.** `Components::Platform` makes its node's box floor over
+  the map's gaps, and `TileWorld#platform_under` names the one a point stands
+  on. A node with a `Footing` boards the platform under it, and the mover that
+  moves the platform carries every rider by its own step, through each rider's
+  own `blocked_by:`. See
+  [docs/api/components.md](docs/api/components.md#platform).
+- **Routes that loop.** `Components::PathFollow` takes `loop: true`, and goes
+  round a closed path or back and forth along an open one for good. `Path`
+  takes `closed: true`, and `Path.from_object` reads a route from a map's
+  polyline or polygon object. See
+  [docs/api/toolbox.md](docs/api/toolbox.md#path--a-walkable-polyline).
+- **`Mover#stopped?`** says whether a mover's step this update was cut short.
+  See [docs/api/components.md](docs/api/components.md#mover).
+- **A moving platforms example.** `examples/moving_platforms` shuttles a raft
+  across a chasm, boarded with a timed hop. See
+  [docs/api/examples.md](docs/api/examples.md#moving_platforms).
 - **Falling into a gap, with coyote time.** `Components::Footing` drops a node
   whose box's centre stands off the floor, once it has been off it for more than
   `coyote` seconds, and at once when it lands there from a `Hop`. A node in the
@@ -31,7 +47,7 @@ index, not the argument.
   `gap` makes its cell a gap, and `TileMap#gap_tile?` answers for a cell.
   `TileWorld#floor_at?` answers whether a point stands on the floor, and a
   mover declaring `blocked_by: [:gaps]` keeps the centre of its box there,
-  stopped by `Engine::GapBlockers`. See
+  stopped by `Engine::GapBlockers`, and needs a `Components::Footing`. See
   [docs/api/tile_maps.md](docs/api/tile_maps.md#gaps) and
   [docs/api/components.md](docs/api/components.md#mover).
 - **Y-sorted drawing.** A `Node2D` built with `y_sort: true`, or given
@@ -384,6 +400,11 @@ index, not the argument.
 
 ### Changed
 
+- **`WanderController` re-rolls when its body's step was cut short**, as
+  `Mover#stopped?` says, rather than when the node did not move. A body
+  sliding along a wall now re-rolls, and a body with nothing in `blocked_by:`
+  never re-rolls early. See
+  [docs/api/components.md](docs/api/components.md#wandercontroller).
 - **`Sprite` and `AnimatedSprite` stand on the node's origin by default.** Both
   take `anchor: :bottom` unless told otherwise, so the picture's bottom centre
   is on the origin. A `Sprite` that rotates passes `anchor: :center` to keep

@@ -1338,6 +1338,8 @@ raft.add_component(RGame::Engine::Components::PathFollow.new(speed: 40, path: ro
   that boards on a tick the platform has already moved rides from the next one.
 - **State:** `riders`, the `Footing`s standing on it now. `collider`, the box, and
   `left`, `top`, `right` and `bottom`, its edges in world pixels.
+- **Example:** `examples/moving_platforms` shuttles a raft across a chasm, read
+  from a polyline object on the map.
 
 ### `PlayerController`
 

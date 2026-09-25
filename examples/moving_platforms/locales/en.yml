@@ -1,0 +1,5 @@
+# The English table: every string this example draws.
+en:
+  help:
+    walk: Arrows / WASD / gamepad to walk, Space / A to hop
+    board: Hop onto the raft as it comes close. Walk off it and you fall

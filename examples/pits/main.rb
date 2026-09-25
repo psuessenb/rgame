@@ -41,7 +41,8 @@
 # ## What this does not solve
 #
 # **A fall costs nothing.** `Footing#on_fell` is where a game takes a life, and
-# this one takes none. **The spot never moves.** `Respawn#set_point` moves it,
+# this one takes none. **The floor stands still.** `examples/moving_platforms`
+# carries the hero across a chasm on a raft. **The spot never moves.** `Respawn#set_point` moves it,
 # which is what a checkpoint would call. **The pit's edges are drawn on one
 # side only.** Its north edge has a tile of its own, and the other three meet
 # the grass directly.
