@@ -76,6 +76,16 @@ Game/NoLiteralText:
     - 'examples/**/*.rb'
     - 'lib/**/*.rb'
 
+# The engine keeps every ivar of a node or component under `rgame_`, and the
+# cop keeps a game off that prefix, so it cannot run where the prefix is the
+# rule. Two specs write an engine ivar on purpose: one checks the reader macros
+# against the ivar they keep, the other checks that the ivar spec passes one.
+Game/NoEngineIvar:
+  Exclude:
+    - 'lib/rgame/engine/**/*.rb'
+    - 'spec/rgame/engine/sealed_privates_spec.rb'
+    - 'spec/rgame/engine/prefixed_ivars_spec.rb'
+
 # tools/drive/ holds input scripts for the test-project driver: Ruby syntax, but
 # data rather than source. Each is read and `instance_eval`'d by
 # tools/drive_test_project.rb, never required — so a file-level

@@ -39,6 +39,10 @@ Game/NoLiteralText:
   Description: Draw text from a translation key, not a String literal.
   Enabled: true
 
+Game/NoEngineIvar:
+  Description: No ivar starting with @rgame_, which only the engine's classes keep.
+  Enabled: true
+
 Game/NoCoreInEngineLayer:
   Description: Headless code must not name or require RGame::Core.
   Enabled: false
