@@ -12,6 +12,10 @@
 # The :gaps group states that each of them stops at the edge of a map's floor, alone and
 # beside the map's solid tiles.
 #
+# The platform group states that each of them, moving a Platform, carries a rider by exactly
+# its own step, in either update order, and that the carry is none of the rider's business
+# when a wall stops it.
+#
 # The pushes: group states that each of them can push, and that declaring it changes nothing
 # about a wall that cannot be pushed.
 #
@@ -155,6 +159,7 @@ RSpec.shared_examples 'a mover' do
     before do
       mount_collision_world
       add_box
+      mover_node.add_component(RGame::Engine::Components::Footing.new)
     end
 
     it 'stops the centre of the box short of the gap, and says the gaps stopped it once' do
@@ -185,6 +190,67 @@ RSpec.shared_examples 'a mover' do
       mover = enter_mover(blocked_by: [:gaps])
       run_ticks(60)
       expect { mover._update(mover_dt) }.to allocate_nothing
+    end
+  end
+
+  # The whole map is a chasm, so the mover's own 16x16 box is the only floor. The rider's
+  # 8x8 box starts 4 px inside it, and a :wall rider meets the wall's left edge at x = 200
+  # once the platform has gone 18 px.
+  describe 'moving a Platform' do
+    def mount_chasm
+      rows = Array.new(10) { '~' * 20 }
+      mover_scene.add_component(
+        RGame::Engine::Components::TileWorld.new(map: WalledTileMap.build(rows), tilemap_id: :map)
+      )
+    end
+
+    def rider(blocked_by: [])
+      RGame::Engine::Node2D.new(x: 174.0, y: 104.0).tap do |node|
+        node.add_component(RGame::Engine::Components::BoxCollider.new(width: 8, height: 8, layer: :rider))
+        node.add_component(RGame::Engine::Components::Footing.new)
+        node.add_component(RGame::Engine::Components::CharacterBody.new(speed: 60, blocked_by:))
+      end
+    end
+
+    before do
+      mount_chasm
+      mount_collision_world
+      add_box
+      mover_node.add_component(RGame::Engine::Components::Platform.new)
+    end
+
+    %i[before after].each do |order|
+      it "carries a rider by exactly its own step, with the rider updating #{order} it" do
+        passenger = rider
+        mover_scene.add_node(passenger) if order == :before
+        enter_mover(blocked_by: [])
+        mover_scene.add_node(passenger) if order == :after
+        run_ticks(1) # the tick the rider boards
+        gap_x = passenger.x - mover_node.x
+        gap_y = passenger.y - mover_node.y
+        run_ticks(30)
+        expect([passenger.x - mover_node.x, passenger.y - mover_node.y])
+          .to match([be_within(1e-9).of(gap_x), be_within(1e-9).of(gap_y)])
+      end
+    end
+
+    it 'fires no on_blocked and changes no stopped? on a rider a wall stops' do
+      passenger = rider(blocked_by: [:wall])
+      mover_scene.add_node(passenger)
+      enter_mover(blocked_by: [])
+      body = passenger.get_component(RGame::Engine::Components::CharacterBody)
+      blocked = 0
+      body.on_blocked { blocked += 1 }
+      run_ticks(24)
+      expect([passenger.x, blocked, body.stopped?]).to eq([192.0, 0, false])
+    end
+
+    # Two hundred steps, which a PathFollow walks well short of its road's end.
+    it 'allocates nothing carrying a rider' do
+      mover_scene.add_node(rider)
+      mover = enter_mover(blocked_by: [])
+      run_ticks(2)
+      expect { mover._update(mover_dt) }.to allocate_nothing.over(200)
     end
   end
 
@@ -308,6 +374,16 @@ RSpec.shared_examples 'a mover' do
       mover = build_mover(blocked_by: [:wall])
       name = mover.class.name.split('::').last
       expect { enter(mover) }.to raise_error(/#{name} is blocked_by :wall.*no CollisionWorld/m)
+    end
+
+    it 'refuses :gaps on a node with no Footing, naming the mover' do
+      add_box
+      mover_scene.add_component(
+        RGame::Engine::Components::TileWorld.new(map: WalledTileMap.build(['..']), tilemap_id: :map)
+      )
+      mover = build_mover(blocked_by: [:gaps])
+      name = mover.class.name.split('::').last
+      expect { enter(mover) }.to raise_error(/#{name} is blocked_by :gaps, and its node has no Footing/)
     end
 
     it 'refuses :gaps on a scene with no TileWorld, naming the mover' do

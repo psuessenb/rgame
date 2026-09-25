@@ -201,7 +201,8 @@ not held.
 **`RGame::Engine::GapBlockers` (`rgame/engine/gap_blockers`) stops the centre of a
 box at the edge of the floor** that
 [`TileWorld#floor_at?`](components.md#tileworld) describes: every cell without a
-[gap tile](tile_maps.md#gaps). `TileWorld#gap_blockers` builds one over its world
+[gap tile](tile_maps.md#gaps), and the box of every
+[`Platform`](components.md#platform) over one. `TileWorld#gap_blockers` builds one over its world
 and hands the same one to every mover declaring `:gaps`.
 
 ```ruby
@@ -213,7 +214,7 @@ It asks `TileWorld#floor_reach_x` and `#floor_reach_y` about the centre of the b
 so a box may overlap a gap while its centre stands on the floor. A box whose centre
 starts off the floor moves the whole way. Its `blocker` is the sentinel
 `GapBlockers::GAPS`, answering `layer` → `:gaps` and `node` → `nil`. It holds no
-per-step state, and a gap does not move, so its `moved` does nothing.
+per-step state, and it indexes nothing, so its `moved` does nothing.
 
 ## `CollisionSystem` — move an actor against its blockers
 

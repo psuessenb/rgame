@@ -120,6 +120,19 @@ counts, and a bar shows that coyote time running out. C turns it off.
 `Node2D#scale`, `TileMap#gap_tile?`, `Components::TileWorld`,
 `Components::CharacterBody`, `Components::FeetCollider`.
 
+### moving_platforms
+
+A raft shuttling across a chasm, boarded with a timed hop. The raft stops 12 px
+short of each bank and a hop carries 40 px, so a hop timed for when it comes
+close lands on it. On board, the raft carries the hero and the camera follows.
+Walking off its edge, or a hop that misses, falls into the chasm. The raft and
+its route are a polyline object on the map, and it draws its planks from a sheet
+over Tiny Town's tiles.
+
+**Uses:** `Components::Platform`, `Components::PathFollow` with `loop: true`,
+`Path.from_object`, `MapObjects`, `Components::Footing`, `Components::Respawn`,
+`Components::Hop`, `Components::CameraFollow`, `TileMapLayer.mount` with `slots:`.
+
 ### push_pull
 
 Crates pushed by walking into them, and one pulled back out with a held button.

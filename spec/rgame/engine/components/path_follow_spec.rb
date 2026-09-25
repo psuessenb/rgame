@@ -200,6 +200,50 @@ RSpec.describe RGame::Engine::Components::PathFollow do
     end
   end
 
+  describe 'loop: true' do
+    let(:walker) { RGame::Engine::Node2D.new }
+
+    def looping(route)
+      follow = walker.add_component(described_class.new(path: route, speed: 50.0, loop: true))
+      walker.enter_tree
+      follow
+    end
+
+    it 'goes round a closed path without stopping, carrying the overshoot past the start' do
+      square = RGame::Engine::Path.new([[0.0, 0.0], [100.0, 0.0], [100.0, 100.0], [0.0, 100.0]], closed: true)
+      round = looping(square)
+      round._update(9.0) # 450 px: once round the 400 px square, and 50 px on
+      expect([walker.x, walker.y, round.heading_x]).to eq([50.0, 0.0, 1.0])
+    end
+
+    it 'goes back along an open path from its end, and forward again from its start' do
+      shuttle = looping(path)
+      shuttle._update(5.0) # 250 px: to the end at 200, and 50 back up the second leg
+      expect([walker.x, walker.y, shuttle.heading_x, shuttle.heading_y]).to eq([100.0, 50.0, 0.0, -1.0])
+
+      shuttle._update(4.0) # 150 back to the start, then 50 forward again
+      expect([walker.x, walker.y, shuttle.heading_x, shuttle.heading_y]).to eq([50.0, 0.0, 1.0, 0.0])
+    end
+
+    it 'never finishes, and finish does nothing' do
+      shuttle = looping(path)
+      finishes = 0
+      shuttle.on_finished { finishes += 1 }
+      61.times { shuttle._update(1.0) } # 3050 px: seven and a half trips there and back, and 50 on
+      shuttle.finish
+      expect([shuttle.finished?, finishes, walker.x, walker.y]).to eq([false, 0, 100.0, 50.0])
+    end
+
+    it 'says it loops' do
+      expect(described_class.new(speed: 1.0, loop: true)).to be_looping
+    end
+
+    it 'stays on its start when the path has no length' do
+      looping(RGame::Engine::Path.new([[5.0, 5.0], [5.0, 5.0]]))._update(1.0)
+      expect([walker.x, walker.y]).to eq([5.0, 5.0])
+    end
+  end
+
   it_behaves_like 'a mover' do
     def build_mover(blocked_by:, pushes: [], heading: [1, 0])
       road = RGame::Engine::Path.new([[170.0, 100.0], [170.0 + (830.0 * heading[0]), 100.0 + (830.0 * heading[1])]])
@@ -261,6 +305,22 @@ RSpec.describe RGame::Engine::Components::PathFollow do
         tick
       end
       expect(finished_on).to eq(130) # 100 ticks of walking, plus the 30 it stood at the gate
+    end
+
+    # Out from 60 to 100 over forty ticks, and twenty back. The gate then moves behind it,
+    # and the box's left edge meets the gate's right edge at 64 sixteen ticks later.
+    it 'waits at the gate on its way back, when it loops' do
+      rover = RGame::Engine::Node2D.new
+      rover.add_component(RGame::Engine::Components::BoxCollider.new(width: 16, height: 16))
+      shuttle = rover.add_component(
+        described_class.new(path: RGame::Engine::Path.new([[60.0, 0.0], [100.0, 0.0]]), speed: 1.0,
+                            loop: true, blocked_by: [:gate])
+      )
+      scene.add_node(rover)
+      60.times { tick }
+      gate.x = 60.0
+      40.times { tick }
+      expect([rover.x, shuttle.heading_x]).to eq([64.0, -1.0])
     end
 
     it 'does not finish while stopped short of the last waypoint' do

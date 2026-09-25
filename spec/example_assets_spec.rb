@@ -316,6 +316,44 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
     end
   end
 
+  # The raft never touches a bank, and a hop from either bank reaches it at the
+  # end of its route: that gap is the whole point of examples/moving_platforms.
+  describe 'platforms.tmx' do
+    let(:map) { RGame::Engine::TileMap.from_tiled(RGame::Engine::Tiled::Map.load(File.join(assets, 'platforms.tmx'))) }
+    let(:raft) { map.objects.find { it.class_name == 'platform' } }
+    let(:hop) { 40 }
+
+    # Where the chasm's floor ends on each side of the raft's row, in pixels.
+    def banks
+      row = map.row_at(raft.y)
+      gaps = (0...map.width).select { map.gap_tile?(it, row) }
+      [map.cell_x(gaps.min), map.cell_x(gaps.max + 1)]
+    end
+
+    it 'has a start standing on floor' do
+      start = map.object_named('start')
+      expect(map.gap_tile?(map.col_at(start.x), map.row_at(start.y - 1))).to be(false)
+    end
+
+    it 'stops each end of the raft’s route short of its bank by less than a hop' do
+      route = RGame::Engine::Path.from_object(raft)
+      half = raft.properties.fetch('width') / 2.0
+      west, east = banks
+      gaps = [route.x_at(0) - half - west, east - (route.x_at(1) + half)]
+      expect(gaps).to all(be_between(1, hop - 1))
+    end
+  end
+
+  describe 'tiles.json' do
+    let(:descriptor) { JSON.parse(File.read(File.join(assets, 'tiles.json')), symbolize_names: true) }
+
+    it 'cuts tileset.png into whole 16x16 tiles, with no animations' do
+      width, height = png_size(File.join(assets, descriptor[:image]))
+      expect([width % descriptor[:frame_width], height % descriptor[:frame_height], descriptor[:animations]])
+        .to eq([0, 0, nil])
+    end
+  end
+
   describe 'the doors in town.tmx and garden.tmx' do
     let(:maps) do
       %w[town garden].to_h do |name|

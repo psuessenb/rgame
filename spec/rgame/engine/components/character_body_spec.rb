@@ -179,6 +179,30 @@ RSpec.describe RGame::Engine::Components::CharacterBody do
       expect([node.x, node.y]).to eq([100.0, 100.0])
     end
 
+    describe '#stopped?' do
+      it 'is true after a step the wall cut short' do
+        body.set_intent(1.0, 0.0)
+        body._update(0.2)
+        expect(body).to be_stopped
+      end
+
+      it 'is false after a step that went the whole way' do
+        body.set_intent(0.0, 1.0)
+        body._update(0.2)
+        expect(body).not_to be_stopped
+      end
+
+      # A controller that rolls idle against a wall reads it on the next update, and
+      # must not take the step before for this one.
+      it 'is false on an update that takes no step, after one the wall cut short' do
+        body.set_intent(1.0, 0.0)
+        body._update(0.2)
+        body.set_intent(0.0, 0.0)
+        body._update(0.2)
+        expect(body).not_to be_stopped
+      end
+    end
+
     it 'takes a bare symbol as readily as a list' do
       bare = RGame::Engine::Node2D.new
       allow(bare).to receive(:system) { |klass| klass == RGame::Engine::Components::TileWorld ? world : nil }

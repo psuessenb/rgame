@@ -8,11 +8,11 @@ module RGame
       # wall blocks it, at which point it re-rolls early instead of pushing into the wall.
       # The RNG is injected so behaviour is deterministic in tests.
       #
-      # "Blocked" is measured as *the node did not move while intending to*, not asked of
-      # a collision world — so this works over any CharacterBody, and simply never fires
-      # for one whose steps always land.
+      # "Blocked" is the body's Mover#stopped?: its last step was cut short, on either
+      # axis, while it meant to move. So a body declaring no `blocked_by:` is never
+      # blocked, and one riding a Components::Platform re-rolls at the platform's edge
+      # although the platform carries it every tick.
       class WanderController < Engine::Component
-        MOVED_EPS = 1e-6
         DIRECTIONS = [
           [-1, 0], [1, 0], [0, -1], [0, 1],
           [-1, -1], [1, -1], [-1, 1], [1, 1]
@@ -28,15 +28,10 @@ module RGame
 
         def _attach
           @rgame_body = require_sibling(CharacterBody)
-          @rgame_last_x = node.x
-          @rgame_last_y = node.y
         end
 
         def _update(dt)
-          blocked = intending_to_move? && !moved_since_last?
-          @rgame_last_x = node.x
-          @rgame_last_y = node.y
-
+          blocked = intending_to_move? && @rgame_body.stopped?
           @rgame_timer -= dt
           reroll if blocked || @rgame_timer <= 0.0
         end
@@ -44,10 +39,6 @@ module RGame
         private
 
         def intending_to_move? = !@rgame_body.move_x.zero? || !@rgame_body.move_y.zero?
-
-        def moved_since_last?
-          (node.x - @rgame_last_x).abs > MOVED_EPS || (node.y - @rgame_last_y).abs > MOVED_EPS
-        end
 
         def reroll
           if @rgame_rng.rand < @rgame_idle_chance

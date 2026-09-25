@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Authored for examples/moving_platforms; edit it in Tiled. See README.md.
+
+     60x30 tiles at 16px = 960x480 pixels, wider than the window so the camera
+     follows the hero across. A meadow walled with trees, and a chasm sixteen
+     tiles wide, x = 352 to 608, on the `pits` layer in tiles of class `gap`
+     from pits.tsx. `raft` in the `platforms` layer is a polyline of class
+     `platform`: the route its centre shuttles along, with its size in its
+     width and height properties. Each end stops 12 px short of a bank, less
+     than a hop. `start` is where the hero stands first. -->
+<map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="60" height="30" tilewidth="16" tileheight="16" infinite="0" nextlayerid="6" nextobjectid="3">
+ <tileset firstgid="1" source="tileset.tsx"/>
+ <tileset firstgid="133" source="pits.tsx"/>
+ <layer id="1" name="ground" width="60" height="30">
+  <data encoding="base64" compression="zlib">eJzNWMsOwzAI65r//+dph0kRysM2pukhmtRmwRiXAPd1XZ/Juk3PT60fnvYyrDu7zHvVB4fvEccdnqM2FD5YG6M104WLL+Q/EQODSfEL1U4D8bO8jPa3gLnXUgu/WQ0w/O7yBmofjYcr/kpc3Ev1g+HqFEb03F3eirqvwp65q+N3yeJkc3v8pnZ6mOWTiriyfqv3fMS/yjMz/tj4IHhXNly+Zjl37VNqrKd1x+jixGJyB6LjKj+ZM0Y4q7h21CrqeW/QzykcLE9M/be7i0f6muFh8427D3bnbkdfW4kRwat8h855AIJb9Vc5a9W3obbcungip8QeIGOTuQvR2man1xHubC/gjknFXOjPjaLbipi6eFrFDtVC1kflHFVzq7mRan+1B+lDXZiycWDqkdkex+zL5Q9iL5NfnupR3zC3UOdvM424fXL1MNU1b58T+lqgsh5VOELWF5QuCCg=</data>
+ </layer>
+ <layer id="2" name="pits" width="60" height="30">
+  <data encoding="base64" compression="zlib">eJztz8ENABAAwEDLM7cheGhckw5wY+hG6/Ba8/BavLy8vJV4eXl5K/Hy8vJW4uXl5a3Ey8vLW+k376ttZUPo0Q==</data>
+ </layer>
+ <layer id="3" name="obstacles" width="60" height="30">
+  <data encoding="base64" compression="zlib">eJztzwENADAQhLC3MP9m56NHEwTw7u6NtaJfW7+2fm392vq19Wvr19avrV9bv7Z+bf3a+rWt/i71AZgcC7E=</data>
+ </layer>
+ <objectgroup id="4" name="spawns">
+  <object id="1" name="start" x="300" y="248">
+   <point/>
+  </object>
+ </objectgroup>
+ <objectgroup id="5" name="platforms">
+  <object id="2" name="raft" class="platform" x="396" y="240">
+   <properties>
+    <property name="height" type="int" value="32"/>
+    <property name="width" type="int" value="64"/>
+   </properties>
+   <polyline points="0,0 168,0"/>
+  </object>
+ </objectgroup>
+</map>

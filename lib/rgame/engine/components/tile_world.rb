@@ -19,10 +19,12 @@ module RGame
       # standing on the map adds to it through Components::OccupiesCell.
       #
       # **It also knows where the floor is.** A cell holding a tile of class `gap` has no
-      # floor (TileMap#gap_tile?). #floor_at? answers for a point, and #floor_reach_x and
-      # #floor_reach_y say how far a point on the floor can move and stay on it, which is
-      # what #gap_blockers stops a step with. The gaps are read once, into a second
-      # Util::SolidGrid, as solidity is.
+      # floor (TileMap#gap_tile?), except where a Components::Platform's box covers it.
+      # #floor_at? answers for a point, and #floor_reach_x and #floor_reach_y say how far
+      # a point on the floor can move and stay on it, which is what #gap_blockers stops a
+      # step with. #platform_under says which platform a point over a gap stands on. The
+      # gaps are read once, into a second Util::SolidGrid, as solidity is; the platforms
+      # move, so they are asked every time.
       #
       # **Solidity is read from the map once**, into one Util::SolidGrid, the first time
       # anything asks — and #blockers, #nav_grid and #solid? all read that store, never the
@@ -54,6 +56,7 @@ module RGame
           @rgame_map = map
           @rgame_tilemap_id = tilemap_id
           @rgame_elapsed = 0.0
+          @rgame_platforms = []
           Array(cameras).each { |camera| bound(camera) }
         end
 
@@ -126,32 +129,63 @@ module RGame
         # Whether any layer holds a gap tile at (col, row). A cell off the map is not a gap.
         def gap?(col, row) = gap_grid.solid?(col, row)
 
-        # Whether the world point (x, y) is on the floor: its cell is not a gap. A point on
-        # a cell's left or top edge is in that cell, and a point off the map is on the floor.
+        # Whether the world point (x, y) is on the floor: its cell is not a gap, or a
+        # platform covers it. A point on a cell's left or top edge is in that cell, and a
+        # point off the map is on the floor.
         #
         # hot-path
-        def floor_at?(x, y) = !gap?(@rgame_map.col_at(x), @rgame_map.row_at(y))
+        def floor_at?(x, y) = !gap?(@rgame_map.col_at(x), @rgame_map.row_at(y)) || !platform_covering(x, y).nil?
+
+        # The platform a node standing at the world point (x, y) rides: the first one
+        # registered whose box covers the point, where the cell is a gap. nil wherever the
+        # cell is ground, whatever covers it.
+        #
+        # hot-path
+        def platform_under(x, y)
+          return nil unless gap?(@rgame_map.col_at(x), @rgame_map.row_at(y))
+
+          platform_covering(x, y)
+        end
 
         # How far the point (x, y) can move `dx` along x and stay on the floor: `dx` itself,
-        # or as far as FLOOR_EDGE short of the first gap on the way. A point already off
-        # the floor moves the whole way, so a node standing in a gap is never held there.
+        # or as far as FLOOR_EDGE short of where the floor ends on the way. Ground and
+        # platforms make one floor, so a point walks from one onto the other wherever they
+        # meet or overlap. A point already off the floor moves the whole way, so a node
+        # standing in a gap is never held there.
         #
         # hot-path
         def floor_reach_x(x, y, dx)
           return dx if dx.zero? || !floor_at?(x, y)
 
+          target = x + dx
+          to = @rgame_map.col_at(target)
           row = @rgame_map.row_at(y)
-          from = @rgame_map.col_at(x)
-          to = @rgame_map.col_at(x + dx)
+          at = x
+          reach = nil
           if dx.positive?
-            col = from + 1
-            col += 1 while col <= to && !gap?(col, row)
-            col > to ? dx : [@rgame_map.cell_x(col) - FLOOR_EDGE - x, 0.0].max
+            while reach.nil?
+              far = floor_end_x(at, y, row, to)
+              if far > target
+                reach = dx
+              elsif floor_at?(far, y)
+                at = far
+              else
+                reach = [far - FLOOR_EDGE - x, 0.0].max
+              end
+            end
           else
-            col = from - 1
-            col -= 1 while col >= to && !gap?(col, row)
-            col < to ? dx : [@rgame_map.cell_x(col + 1) + FLOOR_EDGE - x, 0.0].min
+            while reach.nil?
+              near = floor_start_x(at, y, row, to)
+              if near <= target
+                reach = dx
+              elsif floor_at?(near - FLOOR_EDGE, y)
+                at = near - FLOOR_EDGE
+              else
+                reach = [near + FLOOR_EDGE - x, 0.0].min
+              end
+            end
           end
+          reach
         end
 
         # The same as #floor_reach_x, along y.
@@ -160,19 +194,51 @@ module RGame
         def floor_reach_y(x, y, dy)
           return dy if dy.zero? || !floor_at?(x, y)
 
+          target = y + dy
+          to = @rgame_map.row_at(target)
           col = @rgame_map.col_at(x)
-          from = @rgame_map.row_at(y)
-          to = @rgame_map.row_at(y + dy)
+          at = y
+          reach = nil
           if dy.positive?
-            row = from + 1
-            row += 1 while row <= to && !gap?(col, row)
-            row > to ? dy : [@rgame_map.cell_y(row) - FLOOR_EDGE - y, 0.0].max
+            while reach.nil?
+              far = floor_end_y(x, at, col, to)
+              if far > target
+                reach = dy
+              elsif floor_at?(x, far)
+                at = far
+              else
+                reach = [far - FLOOR_EDGE - y, 0.0].max
+              end
+            end
           else
-            row = from - 1
-            row -= 1 while row >= to && !gap?(col, row)
-            row < to ? dy : [@rgame_map.cell_y(row + 1) + FLOOR_EDGE - y, 0.0].min
+            while reach.nil?
+              near = floor_start_y(x, at, col, to)
+              if near <= target
+                reach = dy
+              elsif floor_at?(x, near - FLOOR_EDGE)
+                at = near - FLOOR_EDGE
+              else
+                reach = [near + FLOOR_EDGE - y, 0.0].min
+              end
+            end
           end
+          reach
         end
+
+        # A platform whose box is now floor over the gaps, as Platform reports it on
+        # attaching. Raises ArgumentError for one already registered.
+        #
+        # @api private
+        def bridge(platform)
+          raise ArgumentError, 'that platform is already bridging this world' if @rgame_platforms.include?(platform)
+
+          @rgame_platforms << platform
+        end
+
+        # A platform that has left.
+        #
+        # @api private
+        def unbridge(platform) = @rgame_platforms.delete(platform)
 
         # The map's solid tiles as an Engine::NavGrid, for planning a route rather than
         # resolving a step — over the same store #blockers reads, as a second view. Built on
@@ -209,6 +275,85 @@ module RGame
         end
 
         private
+
+        def platform_covering(x, y)
+          i = 0
+          while i < @rgame_platforms.size
+            platform = @rgame_platforms[i]
+            return platform if platform.covers?(x, y)
+
+            i += 1
+          end
+          nil
+        end
+
+        def floor_end_x(at, y, row, to)
+          far = at
+          col = @rgame_map.col_at(at)
+          unless gap?(col, row)
+            col += 1
+            col += 1 while col <= to && !gap?(col, row)
+            far = @rgame_map.cell_x(col)
+          end
+          i = 0
+          while i < @rgame_platforms.size
+            platform = @rgame_platforms[i]
+            far = platform.right if platform.covers?(at, y) && platform.right > far
+            i += 1
+          end
+          far
+        end
+
+        def floor_start_x(at, y, row, to)
+          near = at
+          col = @rgame_map.col_at(at)
+          unless gap?(col, row)
+            col -= 1
+            col -= 1 while col >= to && !gap?(col, row)
+            near = @rgame_map.cell_x(col + 1)
+          end
+          i = 0
+          while i < @rgame_platforms.size
+            platform = @rgame_platforms[i]
+            near = platform.left if platform.covers?(at, y) && platform.left < near
+            i += 1
+          end
+          near
+        end
+
+        def floor_end_y(x, at, col, to)
+          far = at
+          row = @rgame_map.row_at(at)
+          unless gap?(col, row)
+            row += 1
+            row += 1 while row <= to && !gap?(col, row)
+            far = @rgame_map.cell_y(row)
+          end
+          i = 0
+          while i < @rgame_platforms.size
+            platform = @rgame_platforms[i]
+            far = platform.bottom if platform.covers?(x, at) && platform.bottom > far
+            i += 1
+          end
+          far
+        end
+
+        def floor_start_y(x, at, col, to)
+          near = at
+          row = @rgame_map.row_at(at)
+          unless gap?(col, row)
+            row -= 1
+            row -= 1 while row >= to && !gap?(col, row)
+            near = @rgame_map.cell_y(row + 1)
+          end
+          i = 0
+          while i < @rgame_platforms.size
+            platform = @rgame_platforms[i]
+            near = platform.top if platform.covers?(x, at) && platform.top < near
+            i += 1
+          end
+          near
+        end
 
         def occupants = @rgame_occupants ||= Array.new(@rgame_map.width * @rgame_map.height, 0)
 

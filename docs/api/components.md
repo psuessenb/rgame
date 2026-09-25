@@ -683,11 +683,12 @@ hero.add_component(RGame::Engine::Components::Footing.new(coyote: 0.1))
 - **Construct:** `Footing.new(coyote: 0.1, fall: 0.4)`, both in seconds. `coyote`
   must be 0 or more, and `fall` positive, or it raises `ArgumentError`.
 - **Lifecycle:** `_attach` raises when the node has no `BoxCollider` or the scene
-  no `TileWorld`. `_detach` ends a fall under way.
+  no `TileWorld`. `_detach` leaves the node's platform and ends a fall under way.
 - **State:** `standing?` says whether the centre of the box is on the floor.
   `coyote_left` is the coyote time left: `coyote` while standing, counting down off
   the floor, and 0 in the air or falling. `falling?`, and `coyote` and `fall`.
-  `coyote=` changes the coyote time, and refuses a negative number.
+  `coyote=` changes the coyote time, and refuses a negative number. `platform` is
+  the [`Platform`](#platform) the node rides, or `nil`.
 - **Signal:** `on_fell` fires once as the node starts to fall, before it shrinks.
   That is where a game takes a life.
 
@@ -699,6 +700,14 @@ finds the node's `Hop` on its first update, so a `Hop` added after it still coun
 floor falls once it has been off it for more than `coyote` seconds. At 0.1 s and
 60 ticks a second, a hop pressed in any of the six ticks after the step off still
 crosses. `coyote: 0` drops the node on its first tick off the floor.
+
+**A node rides the [`Platform`](#platform) under it.** Where the centre of the box
+stands on a platform over a gap, the node boards it, in the air or not. The platform
+then carries it by every step it takes. The carry goes through the node's
+[`Mover`](#mover), so its own `blocked_by:` still stops it, or straight onto the
+node when it has none. The node leaves as its centre leaves the platform, as it
+falls, and as it leaves the tree. `platform` is the one it rides, or `nil`.
+`Footing` finds the node's `Mover` on its first update, as it finds the `Hop`.
 
 **A fall stops the node and shrinks it into the gap.** The node is suspended, and
 its [`scale`](scene_graph.md#scale) runs from 1 to 0 over `fall` seconds, toward
@@ -949,15 +958,22 @@ entities wrap or despawn at the edge gives their movers no `:bounds`.
 `blocked_by?(name)` answers whether a mover declared a name.
 
 **`:gaps` keeps a mover on the floor.** A cell holding a
-[gap tile](tile_maps.md#gaps) has no floor, and a step may not take the centre of
-the mover's box into one. The box may overlap a gap, so a walker stands right at
+[gap tile](tile_maps.md#gaps) has no floor, except where a
+[`Platform`](#platform) covers it, and a step may not take the centre of the
+mover's box off the floor. The box may overlap a gap, so a walker stands right at
 the edge. A step that starts with the centre off the floor is free, so a node that
 lands in a gap is not held there. [`Engine::GapBlockers`](internals.md#gapblockers--the-edge-of-the-floor-as-a-blocker-source)
 does the resolving, over [`TileWorld#floor_at?`](#tileworld).
 
 ```ruby
+add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height: 6, layer: :npc))
 add_component(RGame::Engine::Components::CharacterBody.new(speed: 30, blocked_by: %i[tiles gaps]))
+add_component(RGame::Engine::Components::Footing.new)
 ```
+
+**`:gaps` needs a [`Footing`](#footing).** A platform moves the floor under a
+mover, and the `Footing` is what rides it. A mover declaring `:gaps` on a node with
+no `Footing` raises at attach, instead of being left behind and walking free.
 
 **A mover declares what it pushes, beside what stops it.** `pushes:` names collider
 layers a step moves instead of stopping at. Every layer in it must also be in
@@ -1002,6 +1018,18 @@ two always move together:
   crate's collider. A mover backed into a wall holds the crate still, and reports
   the wall.
 
+**A platform's mover carries its riders.** A mover whose node holds a
+[`Platform`](#platform) measures the node's world position around each step, and
+hands the difference to the platform. The platform moves every node standing on it
+by that much. So a `PathFollow` that places its node carries as well as a
+`Velocity`. The mover finds the `Platform` on its first update, so either may be
+added first.
+
+A rider moves through its own mover's `ride(dx, dy)`, as far as its own
+`blocked_by:` allows. A wall therefore scrapes a rider off a platform. Being carried
+is not a step of the rider's: it fires no `on_blocked` and leaves `stopped?` as it
+was.
+
 **The shape has one owner, and it is not the mover.** A blocked step resolves
 against the sibling [`BoxCollider`](#boxcollider)'s rectangle;
 [`FeetCollider`](#feetcollider) suits a walking character. You give the box once,
@@ -1014,16 +1042,21 @@ another.
 - **Lifecycle:** `_attach` resolves the declarations and builds the mover's own
   [`CollisionSystem`](internals.md#collisionsystem--move-an-actor-against-its-blockers)
   from the sources it finds. It **raises** for anything missing. It checks the
-  node's collider first, then the scene's `TileWorld` for `:tiles` and `:gaps`, its
-  `WorldBounds` for `:bounds`, and its `CollisionWorld` for any layer name. Falling back to free
+  node's collider first, then the scene's `TileWorld` for `:tiles` and `:gaps` and the
+  node's `Footing` for `:gaps`, its `WorldBounds` for `:bounds`, and its
+  `CollisionWorld` for any layer name. Falling back to free
   movement would look like a collision bug, caused by a scene three files away that
   never mounted the system.
 - **Signals:** `on_blocked` fires with what stopped the step and the stopped axis.
   `on_unblocked` fires with what stopped stopping it:
   `mover.on_blocked { |by, axis| ... }`, `mover.on_unblocked { |by| ... }`.
 - **Phase:** `_update(dt)` opens the step, calls the subclass's private
-  `take_step(dt)`, and reports the edges. Do not override it; it guarantees that no
-  mover forgets an edge. `Pushable` replaces it, because it has no step of its own.
+  `take_step(dt)`, reports the edges, and carries a platform's riders. Do not
+  override it; it guarantees that no mover forgets an edge. `Pushable` replaces it,
+  because it has no step of its own, so a pushed platform carries nobody.
+- **State:** `stopped?` is true when something cut this update's step short, on
+  either axis. It is false after an update that took no step, and always false for
+  a mover with nothing declared.
 - **Heading:** `heading_x` and `heading_y` give the step's direction, each axis in
   -1..1, and `0, 0` when the mover is not trying to move.
   [`AnimatedSprite`](#animatedsprite) faces by it. It is a facing, not a velocity: a
@@ -1225,7 +1258,7 @@ show, such as a tile map's actors slot, among the characters.
 and emits `on_finished` at the last waypoint. Hook whatever should happen on arrival
 to that signal.
 
-- **Construct:** `PathFollow.new(speed:, path: nil, blocked_by: [], pushes: [])`.
+- **Construct:** `PathFollow.new(speed:, path: nil, loop: false, blocked_by: [], pushes: [])`.
   [`Mover`](#mover) decides what may stop it. Without a path, the follower is idle:
   it moves nothing, never finishes, and heads nowhere until it receives one.
 - **Lifecycle:** `_attach` restarts the walk. It returns to the first waypoint,
@@ -1247,9 +1280,18 @@ to that signal.
   patrol = RGame::Engine::Components::PathFollow.new(path: out, speed: 40)
   patrol.on_finished { patrol.follow(patrol.path.equal?(out) ? back : out) }
   ```
-- **Heading:** the unit direction of the current segment, computed as the walk
-  enters it. It is `0, 0` while idle, after finishing, and along a zero-length
-  segment.
+- **A walk that never ends:** `loop: true` goes round a closed path for good, and
+  back and forth along an open one. A step that overshoots an end carries on past
+  it, so the pace holds. A looping follower never finishes: `on_finished` never
+  fires and `finish` does nothing. `looping?` says which kind it is. A
+  [`Platform`](#platform) shuttling across a chasm walks this way.
+
+  ```ruby
+  shuttle = RGame::Engine::Components::PathFollow.new(path: route, speed: 40, loop: true)
+  ```
+- **Heading:** the unit direction of the current segment, the way the walk goes
+  along it. It is computed as the walk enters a segment or turns round. It is
+  `0, 0` while idle, after finishing, and along a zero-length segment.
 - **Signal:** `on_finished` fires once, without payload, at the path's end:
   `follow.on_finished { node.queue_free }`. `finished?` reports the same state.
 - **Phase:** `_update(dt)` advances `speed * dt`, crosses as many segments as one step
@@ -1264,6 +1306,40 @@ to that signal.
   step aims at the same path point again. A follower pressed diagonally against a
   wall comes to rest, unlike a [`Velocity`](#velocity), which slides. To get around
   an obstacle, replan the path.
+
+### `Platform`
+
+**Makes its node's box floor over the map's gaps**, for a raft, a lift or a slab of
+stone over a chasm.
+
+```ruby
+raft.add_component(RGame::Engine::Components::BoxCollider.new(width: 32, height: 16, layer: :platform))
+raft.add_component(RGame::Engine::Components::Platform.new)
+raft.add_component(RGame::Engine::Components::PathFollow.new(speed: 40, path: route, loop: true))
+```
+
+- **Construct:** `Platform.new`.
+- **Lifecycle:** `_attach` registers with the scene's [`TileWorld`](#tileworld),
+  and raises when the node has no [`BoxCollider`](#boxcollider) or the scene no
+  `TileWorld`. `_detach` lets every rider go and leaves the `TileWorld`, so the
+  cells under the box are gaps again.
+- **The floor:** wherever the box covers a gap cell, `TileWorld#floor_at?` is
+  true. A [`Footing`](#footing) stands there instead of falling, and a
+  [`Mover`](#mover) declaring `:gaps` walks onto the box from the ground and stops
+  at its edge. `covers?(x, y)` says whether a world point is on the box: its left
+  and top edges are, its right and bottom edges are not, as with a cell.
+- **It moves with its node.** `TileWorld` reads the box each time it asks, so a
+  platform a [`PathFollow`](#pathfollow) walks takes its floor with it.
+- **It carries whoever stands on it.** Boarding is the rider's question: a node with
+  a [`Footing`](#footing) boards the platform under the centre of its box. Carrying
+  is the platform's: the [`Mover`](#mover) that moves its node carries every rider
+  by exactly its own step, front first along the step, so no rider runs into one not
+  yet moved. A rider moves by that step whichever of the two updates first. A node
+  that boards on a tick the platform has already moved rides from the next one.
+- **State:** `riders`, the `Footing`s standing on it now. `collider`, the box, and
+  `left`, `top`, `right` and `bottom`, its edges in world pixels.
+- **Example:** `examples/moving_platforms` shuttles a raft across a chasm, read
+  from a polyline object on the map.
 
 ### `PlayerController`
 
@@ -1334,8 +1410,9 @@ while they overlap. Two players pushing side by side move it as far as one would
   It re-indexes the collider at once, so a mover resolving later in the same step
   meets the crate where it now is.
 - **State:** `pushed_x` and `pushed_y` say how far the last push moved the node, in
-  world pixels. `stopped?` is true when something cut the last push short.
-  `collider` is the `BoxCollider` a pusher runs into.
+  world pixels. [`Mover#stopped?`](#mover) is true when something cut the last push
+  short, until the crate's next update. `collider` is the `BoxCollider` a pusher
+  runs into.
 - **Signals:** `on_blocked` and `on_unblocked`, as for any mover. A crate's pushes
   arrive during other movers' updates, so it counts blockers from one of its own
   updates to the next. A crate held against a wall reports it once, whatever order
@@ -1505,12 +1582,18 @@ data to another, depends on a sibling's add order, or names a layer it may not n
   - `solid?(col, row)`, `world_width` and `world_height`.
   - `gap?(col, row)`, whether any layer holds a [gap tile](tile_maps.md#gaps) at
     that cell, and `floor_at?(x, y)`, whether the world point stands on the
-    floor: its cell is not a gap. A point on a cell's left or top edge is in that
-    cell, and a point off the map is on the floor.
+    floor: its cell is not a gap, or a [`Platform`](#platform) covers it. A point
+    on a cell's left or top edge is in that cell, and a point off the map is on
+    the floor.
+  - `platform_under(x, y)`, the platform a node standing at the point rides: the
+    first one registered that covers the point, where the cell is a gap. It is
+    `nil` wherever the cell is ground, whatever covers it.
   - `floor_reach_x(x, y, dx)` and `floor_reach_y(x, y, dy)`, how far a point can
     move along one axis and stay on the floor. The answer is the whole step, or
-    as far as `TileWorld::FLOOR_EDGE` (a billionth of a pixel) short of the first
-    gap on the way. A point already off the floor moves the whole way.
+    as far as `TileWorld::FLOOR_EDGE` (a billionth of a pixel) short of where the
+    floor ends on the way. Ground and platforms make one floor, so a point walks
+    from one onto the other wherever they meet or overlap. A point already off
+    the floor moves the whole way.
   - `tilemap_id` and `elapsed`, which the layers read.
   - `layer_count`, `layer(index)`, `layer_index(name_or_path)` and
     `first_above_layer`, which `TileMapLayer.mount` reads to decide where its slots
@@ -1524,7 +1607,7 @@ data to another, depends on a sibling's add order, or names a layer it may not n
   `TileWorld` does not hand the store out. A game changes a cell's solidity at
   runtime only through [`OccupiesCell`](#occupiescell).
   The gaps are read the same way, into a second grid that `gap?` and `floor_at?`
-  read.
+  read. Platforms move, so `floor_at?` asks each of them every time.
 - **It does not resolve a step.** Tiles, other actors, the world's edge, or any
   combination may stop a mover, and only the mover knows which. The resolver
   therefore belongs to the mover, and the grid to this system.
@@ -1657,9 +1740,10 @@ The RNG is injected, so tests get deterministic behaviour.
 - **Lifecycle:** `_attach` looks up the node's `CharacterBody` with
   `require_sibling`.
 - **Phase:** `_update(dt)` counts down and re-rolls on timeout or when blocked.
-  "Blocked" means *the node did not move while intending to*. The controller measures
-  that instead of asking a collision world. It therefore works over a plain
-  `CharacterBody` too, and never re-rolls early for a body whose steps always land.
+  "Blocked" means the body meant to move and its [`stopped?`](#mover) is true: its
+  step was cut short on either axis. A body with nothing declared is never blocked.
+  One riding a [`Platform`](#platform) re-rolls at the platform's edge, though the
+  platform moves it every tick.
 - **Example:** `examples/save_load`.
 
 ### `World`

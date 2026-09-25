@@ -22,7 +22,8 @@ module RGame
       # into the one on the far side, and an overlap that already exists stops nobody.
       #
       # `pushes:` makes this crate push the crates behind it, up to Mover::PUSH_DEPTH in a
-      # row. Its `on_blocked` and `on_unblocked` fire as any mover's do.
+      # row. Its `on_blocked` and `on_unblocked` fire as any mover's do, and Mover#stopped?
+      # says whether the last #push was cut short.
       #
       # It needs a BoxCollider, because that is what a pusher runs into, and the scene's
       # CollisionWorld, because that is where a pusher finds it. Both raise at attach when
@@ -84,9 +85,6 @@ module RGame
           @rgame_pushed_by = nil
           @rgame_push_depth = 0
         end
-
-        # Whether the last #push was cut short by something in the way.
-        def stopped? = last_move_blocked?
       end
     end
   end

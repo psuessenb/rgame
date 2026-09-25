@@ -212,6 +212,24 @@ by index and interpolates itself; `Path` never returns a coordinate pair.
 `distance_to` answers "how far is this point from the road" with scalar maths and
 no allocation. A level can use it to keep objects off or away from the road.
 
+**`closed: true` walks back to the first waypoint from the last**, as a Tiled
+polygon does. The path stores the first waypoint again at the end, so `count`
+counts it twice. The last segment closes the loop, and `length` and `distance_to`
+include it. `closed?` says which kind a path is.
+
+```ruby
+require 'rgame'
+
+ring = RGame::Engine::Path.new([[0, 0], [30, 0], [30, 40]], closed: true)
+ring.count  # => 4
+ring.length # => 120.0
+```
+
+**`Path.from_object(object)` reads a route from a map.** It takes a polyline or
+polygon [`MapObject`](tile_maps.md#objects), in the map's pixels. A polyline gives an open
+path and a polygon a closed one. The object's `rotation` turns the route about its
+`(x, y)`, as Tiled draws it. Any other shape raises `ArgumentError`.
+
 ## `NavGrid` — routes over a tile grid
 
 **`RGame::Engine::NavGrid` (`rgame/engine/nav_grid`) finds the cheapest route from

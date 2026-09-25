@@ -1,9 +1,9 @@
 # Top-down platforming
 
-**Status: steps 1 and 2 are implemented.** Five steps. Each is one branch and
+**Status: steps 1 to 3 are implemented.** Five steps. Each is one branch and
 one pull request, and each sub-step is one commit. **Steps 1 to 3 are
-detailed.** Step 4, the test project, is rough and gets re-planned once step 3
-lands. Step 5 folds the plan back and deletes it.
+detailed.** Step 4, the test project, is rough and is re-planned next. Step 5
+folds the plan back and deletes it.
 
 ## Verdict
 
@@ -118,7 +118,9 @@ None blocks steps 1 to 3.
 2. **Momentum on leaving a platform.** Godot adds the platform's last velocity
    to a body that leaves it. Here a hop off a platform keeps only the node's
    own walk. *Waits on step 3's example. Add it if a hop off a moving platform
-   feels wrong without it.*
+   feels wrong without it.* Step 3's example leaves its raft without it, and
+   its drive lands on the far bank. Whether that feels wrong is for someone to
+   judge by playing it, so the question stays open.
 3. **A pushed platform.** `Pushable` replaces `Mover#_update`, so a raft that a
    hero pushes carries nobody. *Waits on a game with a raft.*
 4. **Routes around gaps.** `NavGrid` plans over solidity only. A `Navigator`
@@ -1114,6 +1116,77 @@ walking off.
   `docs/api/toolbox.md` has `Path`'s `closed:` and `from_object`.
   `docs/api/examples.md` and `README.md` list the example, and `CHANGELOG.md`
   has an entry.
+
+**Landed.** Five commits on `moving-platforms`: 3a to 3d as sketched, then a
+refactor of the footing's check. `rake spec` 4225 examples, 0 failures (4140
+before, 85 new). `rake spec:core` 517, 0 failures. `make test` 412 checks.
+`rake drive:allocations` ok for all 42 projects, `examples/moving_platforms`
+at 7.5 objects a second on 1.6% of ticks. Driven for 1020 ticks, the hero hops
+on tick 475 and lands on the raft on 493, rides it east, hops off on 742 and
+lands on the far bank on 772. A hop back on 833 lands in the chasm on 863, and
+the hero comes back on the west bank. The camera's x runs from 0 to 305.3 and
+the report shows 24 fall `scaled` calls. `platforming_spec.rb` holds the
+composition in both add orders, and the floor invariant at 2,562 points across
+ground, a dock, the chasm and a shuttle. Seeded drives of `pits`, `cutscene`,
+`save_load` and `game_menu` match `main` byte for byte. With two platforms, a
+footing's check costs 0.95 µs on the ground and 1.3 µs aboard, and a carried
+rider with `:gaps` 3.4 µs a ride. 200 actors on the ground cost 190 µs a tick,
+1.1% of a frame.
+
+Where the sketch was wrong:
+
+- **A closed `Path` stores its first waypoint again at the end**, so `count`
+  counts it twice and a follower walks it with no special case. `finish` does
+  nothing on a looping follower, and `Path.from_object` turns the route by the
+  object's `rotation`.
+- **A backward heading of 0.0 read as -0.0 and allocated.** Dividing by a
+  negated length gave `-0.0`, which Ruby cannot keep inline. The heading
+  subtracts the waypoints the other way round instead.
+- **`floor_reach_x` and `_y` walk runs of floor, not cells.** Ground and
+  platforms make one floor, so each step of the loop finds where the piece
+  under the point ends, and goes on if ground or another platform continues
+  it. `Platform` answers `left`, `top`, `right`, `bottom` and `collider` for
+  it, and `TileWorld#bridge` refuses a platform twice.
+- **`stopped?` goes false at the start of every update's step**, not only when
+  the next step lands. An update that takes no step, such as an idle body's,
+  was otherwise stopped by the step before it. Its spec is in
+  `character_body_spec.rb`, since a wander spec could not tell the two apart.
+- **`WanderController` re-rolls on a slide too.** A body sliding along a wall
+  is `stopped?`, where before it moved. A seeded drive of
+  `test_projects/tiled_world` differs from `main` for that reason: its NPCs
+  walk elsewhere, and the camera ends 3 px away. No drive script pins it.
+- **Riders are ordered by the corner that leads along the step**
+  (`Footing#lead`), in an insertion sort with no block, so a carry allocates
+  nothing. A rider leaves through `Footing#ride_ended` when its platform
+  leaves the tree.
+- **A rider boards a tick late when its platform updates first.** Rule 4
+  holds for a rider already aboard. The specs measure from the tick after
+  boarding.
+- **The first carry each way fills a call's caches once**, 4 objects.
+  `platform_allocation_spec.rb` warms up past both ends of the route.
+- **A failure comparing nodes with `eq` hung RSpec for minutes**, printing the
+  scene graph. The composition spec compares identities as booleans.
+- **The 16-platform benchmark cost more than planned**: `floor_at?` over a gap
+  asks each platform in turn at about 350 ns each, where the planning figure
+  inlined the arithmetic. With 16 overlapping, a footing aboard measured
+  9.6 µs until the refactor read the box's centre once and made `covers?`
+  give up on x first: 3.6 µs.
+- **`platforms.tmx` is 60 tiles wide**, so the camera has somewhere to travel.
+  The raft is 64x32 in planks 72, 73 and 75, and each end of its route stops
+  12 px short of a bank, so a hop's 40 px leaves 28 px of timing.
+- `spec/spec_style_spec.rb` pins `a_mover.rb`'s exempted helper by line number,
+  and the number moved again.
+
+Documented in `docs/api/components.md` (`Platform`, `PathFollow`'s `loop:`,
+the carry and `stopped?` under `Mover`, riding under `Footing`, and
+`WanderController`'s measure), `docs/api/toolbox.md` (`closed:` and
+`from_object`), `tile_maps.md` and `internals.md` (the floor over a platform),
+`examples.md`, `README.md`, `examples/assets/README.md` and `CHANGELOG.md`.
+
+For step 4's re-plan: a `Respawn` records its point on the first attach, so a
+hero placed on a platform comes back over the gap and falls again. A
+checkpoint on a platform has the same trap. A mover kept on the floor by
+`:gaps` now needs a `Footing`.
 
 ### Step 4 — the test project *(rough)*
 

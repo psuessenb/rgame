@@ -32,8 +32,14 @@ module RGame
       # tree mid-fall, through a door or freed, stops falling at once, unscaled and
       # resumed.
       #
-      # It finds the node's Hop on its first update rather than at attach, so a Hop
-      # added after it, from an `_enter_tree`, still keeps the node up.
+      # **It rides the platform under it.** Where the centre of the box stands on a
+      # Components::Platform over a gap, in the air or not, the node boards it, and the
+      # platform carries it by every step it takes: through the node's Mover, so its own
+      # `blocked_by:` still stops it, or straight onto the node when it has none. The node
+      # leaves as the centre leaves the platform, as it falls, and as it leaves the tree.
+      #
+      # It finds the node's Hop and Mover on its first update rather than at attach, so
+      # either added after it, from an `_enter_tree`, still counts.
       class Footing < Engine::Component
         # Fired once as the node starts to fall, before it shrinks.
         signal :fell
@@ -48,6 +54,9 @@ module RGame
 
         # Seconds the fall takes, from the drop to the respawn.
         sealed_reader :fall
+
+        # The Components::Platform the node rides, or nil.
+        sealed_reader :platform
 
         # `coyote` and `fall` are in seconds. `coyote: 0` drops the node on the first
         # tick off the floor, and `fall` must be positive.
@@ -64,7 +73,9 @@ module RGame
           @rgame_airborne = false
           @rgame_falling = false
           @rgame_hop = nil
-          @rgame_hop_known = false
+          @rgame_mover = nil
+          @rgame_siblings_known = false
+          @rgame_platform = nil
         end
 
         # Seconds the node may stand off the floor after walking off it, and still hop.
@@ -83,14 +94,15 @@ module RGame
           @rgame_world = node.system(TileWorld) ||
                          raise("#{self.class} reads the floor from the scene's TileWorld, and the scene has none. " \
                                'Mount one.')
-          @rgame_hop_known = false
+          @rgame_siblings_known = false
           @rgame_left = @rgame_coyote
           @rgame_airborne = false
         end
 
-        # Ends a fall under way, so a node taken out of the tree mid-fall leaves it
-        # unscaled and resumed.
+        # Leaves its platform, and ends a fall under way, so a node taken out of the tree
+        # mid-fall leaves it unscaled and resumed.
         def _detach
+          board(nil)
           @rgame_fall_node.stop if @rgame_falling
         end
 
@@ -109,12 +121,16 @@ module RGame
 
         # hot-path
         def _update(dt)
-          find_hop unless @rgame_hop_known
+          find_siblings unless @rgame_siblings_known
+          x = @rgame_collider.cx
+          y = @rgame_collider.cy
+          platform = @rgame_world.platform_under(x, y)
+          board(platform)
           landed = @rgame_airborne
           @rgame_airborne = @rgame_hop ? @rgame_hop.airborne? : false
           return if @rgame_airborne
 
-          if standing?
+          if platform || @rgame_world.floor_at?(x, y)
             @rgame_left = @rgame_coyote
           elsif landed
             drop
@@ -133,14 +149,54 @@ module RGame
           @rgame_airborne = false
         end
 
+        # Moves the node by what its platform moved: through its Mover when it has one,
+        # directly when it has not.
+        #
+        # @api private
+        def ride(dx, dy)
+          if @rgame_mover
+            @rgame_mover.ride(dx, dy)
+          else
+            node.world_x += dx
+            node.world_y += dy
+          end
+        end
+
+        # How far the corner of the box that leads along (dx, dy) lies along it, which is
+        # the order a platform carries its riders in.
+        #
+        # @api private
+        def lead(dx, dy)
+          x = dx.positive? ? @rgame_collider.aabb_x + @rgame_collider.aabb_w : @rgame_collider.aabb_x
+          y = dy.positive? ? @rgame_collider.aabb_y + @rgame_collider.aabb_h : @rgame_collider.aabb_y
+          (x * dx) + (y * dy)
+        end
+
+        # Its platform let it go, as the platform left the tree.
+        #
+        # @api private
+        def ride_ended
+          @rgame_platform = nil
+        end
+
         private
 
-        def find_hop
-          @rgame_hop_known = true
+        def find_siblings
+          @rgame_siblings_known = true
           @rgame_hop = node.get_component(Hop)
+          @rgame_mover = node.get_component(Mover)
+        end
+
+        def board(platform)
+          return if platform.equal?(@rgame_platform)
+
+          @rgame_platform&.leave(self)
+          @rgame_platform = platform
+          platform&.board(self)
         end
 
         def drop
+          board(nil)
           @rgame_falling = true
           fell_signal.emit
           @rgame_fall_node.start(node)

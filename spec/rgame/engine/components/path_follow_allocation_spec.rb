@@ -27,6 +27,22 @@ RSpec.describe RGame::Engine::Components::PathFollow do
     expect { follow.heading_x + follow.heading_y }.to allocate_nothing
   end
 
+  # A looping walk turns round at each end of a short route, many times a measurement.
+  it 'goes back and forth without allocating' do
+    shuttle = described_class.new(path: RGame::Engine::Path.new([[0.0, 0.0], [10.0, 0.0]]), speed: 50.0, loop: true)
+    RGame::Engine::Node2D.new.tap { it.add_component(shuttle) }.enter_tree
+    shuttle._update(0.1)
+    expect { shuttle._update(0.3) }.to allocate_nothing
+  end
+
+  it 'goes round a closed path without allocating' do
+    square = RGame::Engine::Path.new([[0.0, 0.0], [10.0, 0.0], [10.0, 10.0]], closed: true)
+    round = described_class.new(path: square, speed: 50.0, loop: true)
+    RGame::Engine::Node2D.new.tap { it.add_component(round) }.enter_tree
+    round._update(0.1)
+    expect { round._update(0.3) }.to allocate_nothing
+  end
+
   # A step that crosses into the next segment is the one that works the heading out again.
   it 'turns a corner without allocating' do
     zigzag = RGame::Engine::Path.new(Array.new(20_000) { |i| [i * 10.0, i.even? ? 0.0 : 10.0] })
