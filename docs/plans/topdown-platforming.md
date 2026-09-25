@@ -1,6 +1,6 @@
 # Top-down platforming
 
-**Status: planned, nothing implemented.** Five steps. Each is one branch and
+**Status: step 1 is implemented.** Five steps. Each is one branch and
 one pull request, and each sub-step is one commit. **Steps 1 to 3 are
 detailed.** Step 4, the test project, is rough and gets re-planned once step 3
 lands. Step 5 folds the plan back and deletes it.
@@ -130,6 +130,13 @@ None blocks steps 1 to 3.
 6. **Platforms as Tiled tile objects.** Once y-sort's step 3 draws one tile, a
    platform could draw the tile object a designer placed. *Waits on y-sort's
    step 3.*
+7. **"Gap" names two things.** A gap tile is a cell with no floor, and
+   `TileMapLayer.mount`'s `gaps:` are the slots between layers where actors
+   draw. Step 4's scene uses both in one line:
+   `TileMapLayer.mount(view, gaps: { platforms: nil, actors: nil })`.
+   `docs/api/tile_maps.md` says the two share only a word. Renaming either one
+   (`pit`, `chasm`, or `slots:` for mount) is cheap while rgame has no users.
+   *Blocks nothing. Decide before step 2 names `examples/pits` and its tiles.*
 
 ## What was measured before planning
 
@@ -574,6 +581,42 @@ the centre of its box on the floor, and slides along the edge.
   `docs/api/systems.md` gives `TileWorld`'s new methods, per
   [write-docs](../../.claude/skills/write-docs/SKILL.md). `CHANGELOG.md` has an
   entry.
+
+**Landed.** Four commits on `floor-and-gaps`: the plan, then 1a, 1b and 1c
+as sketched. `rake spec` 4024 examples, 0 failures (3980 before, 44 new).
+`rake spec:core` 517, 0 failures. `make test` 412 checks. `rake
+drive:allocations` ok for every project. A scratch `CharacterBody` with
+`blocked_by: [:gaps]`, walking diagonally for 1 s into a gap column at
+x = 80, ends with its centre at 79.999999999, on the floor, having slid
+80 px down the edge.
+
+Where the sketch was wrong:
+
+- **Stopping exactly at the edge does not survive rounding.** The sketch
+  stopped a point at `prev_float` moving right and on the edge moving left.
+  But a landing travels from centre to box to node and back, and a point one
+  ulp from the edge can land across it. The point then starts off the floor
+  next step, and walks free into the gap. `floor_reach_x` and `_y` stop
+  `TileWorld::FLOOR_EDGE` (1e-9 px, `TileSweep`'s `EDGE_EPS`) short of the
+  gap, in both directions.
+- **The reach walks every cell of the step**, instead of assuming it
+  crosses one edge. It costs a loop over at most one cell at walking speeds,
+  and a step longer than a tile still stops at the first gap.
+- **`gap_blockers` landed in 1c, not 1b**, beside the class it builds.
+- **`TileWorld` is documented in `docs/api/components.md`**, not
+  `systems.md`. `systems.md` got the fourth blocker source and a row in its
+  table, `internals.md` a `GapBlockers` section.
+- **`floor_at?` measures about 225 ns**, not 126. The planning benchmark
+  inlined the arithmetic, and the method makes four calls: `gap?`,
+  `col_at`, `row_at` and the grid. 200 actors cost 45 µs a tick, 0.3% of a
+  frame. `resolve_x` into a gap measures about 700 ns.
+- **The commit hook strips a comment above a constant.** `FLOOR_EDGE`'s
+  explanation lives in `floor_reach_x`'s comment.
+- `spec/support/walled_tile_map.rb` draws a gap tile as `~`.
+  `spec/spec_style_spec.rb` pins an exempted helper in `a_mover.rb` by line
+  number, and the number moved.
+
+Open question 7 is new: "gap" now names a tile and a draw slot.
 
 ### Step 2 — falling, and coming back *(pure, with the pit art and `examples/pits`)*
 
