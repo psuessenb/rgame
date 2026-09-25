@@ -183,6 +183,11 @@ RSpec.describe RGame::Engine::Components::TileWorld do
         .to eq([true, true, true])
     end
 
+    it 'is ground wherever the cell holding the point is not a gap' do
+      expect([world.ground_at?(20.0, 20.0), world.ground_at?(16.0, 16.0), world.ground_at?(15.5, 20.0),
+              world.ground_at?(48.0, 20.0), world.ground_at?(-5.0, -5.0)]).to eq([false, false, true, true, true])
+    end
+
     describe '#floor_reach_x' do
       it 'stops a point moving right just short of the gap' do
         reach = world.floor_reach_x(10.0, 20.0, 10.0)

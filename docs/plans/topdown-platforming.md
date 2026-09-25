@@ -1,9 +1,9 @@
 # Top-down platforming
 
-**Status: steps 1 to 3 are implemented, and step 4 is detailed.** Five steps.
-Each is one branch and one pull request, and each sub-step is one commit.
-**Steps 1 to 4 are detailed.** Step 4 was re-planned after step 3 landed, with
-a second round of questions. Step 5 folds the plan back and deletes it.
+**Status: steps 1 to 4 are implemented.** Five steps. Each is one branch and
+one pull request, and each sub-step is one commit. Step 4 was re-planned after
+step 3 landed, with a second round of questions. Step 5 folds the plan back and
+deletes it.
 
 ## Verdict
 
@@ -1565,6 +1565,60 @@ around on the ring and never leaves it.
   `docs/api/components.md` shows it.
 - Translated text. The project draws Strings, as the other test projects do.
 - A check that a respawn point is clear of walls. Only gaps are checked.
+
+**Landed.** Three commits on `checkpoints`, 4a to 4c as sketched. `rake spec`
+4245 examples, 0 failures (4225 before, 20 new). `rake spec:core` 517, 0
+failures. `make test` 412 checks. `rake drive:allocations` ok for all 43
+projects, the new one at 6.8 objects a second on 2.1% of ticks.
+
+Driven with `--seed 1 --texts --ticks 1654`, the report shows all seven things
+Verify names. The pad joins on tick 10, so the whole window is one clip for 11
+ticks and two rows after. Both rows show `Checkpoint: first` from tick 303. The
+crate goes over the edge on tick 414, and the pad's hero steps off the shuttle
+on 611 and falls on 617. Together they make 96 `scaled` calls toward 0, and the
+crate is back at its start on 438. `Falls: 1` shows in the pad's row only, from
+tick 617. The keyboard's row shows `Checkpoint: second` from 798 and
+`Checkpoint: last` from 1618. `NPC` is drawn 3297 times: once in the whole
+window on 11 ticks, then once in each row on all 1643 ticks after. Seeds 1 to 5
+all reach `last` on tick 1618. Two seeded runs match byte for byte.
+
+Where the sketch was wrong, or said too little:
+
+- **`Respawn` checks its point at every attach**, not only the first, as the
+  sketch's `_attach` does. The ground rule is decision 14's. A hero moved
+  through a door keeps the old room's point, so a new room with a gap under it
+  raises there. That is open question 5, now loud rather than a fall on
+  arrival.
+- **A checkpoint over a gap raises `ArgumentError`, and a toucher with no
+  `Respawn` raises `RuntimeError`**, as `require_sibling` does for a missing
+  sibling. `Checkpoint` checks the ground before it connects to its collider,
+  so a refused attach leaves no connection behind.
+- **The two-lives spec compares booleans.** `world.children` is the live
+  array, so a value taken between the two falls changed under the spec.
+- **Verify's fourth item needed a weaker reading.** The report keeps only the
+  first and last arguments of each call, and it has no camera per clip. It
+  shows `tilemap`'s camera x spanning 0.0 to 960.0, the map's whole width, and
+  thousands of distinct translates in each row's clip. The trace showed both
+  heroes riding the shuttle together from tick 512 until the pad's hero
+  stepped off on 611.
+- **The hero is blocked by `%i[tiles crate npc]`.** The sketch named only
+  `pushes: [:crate]`. The walker stands in the way because both block each
+  other.
+- **The crate's box is centred on its node**, where the adventure's crate
+  stands on its top-left corner. So its respawn point is its centre, and the
+  footing watches that same point.
+- **The walker's wandering needs a seeded RNG.** The course reads
+  `RGAME_SEED`, as `test_projects/tiled_world` does.
+- **The drive's timings came from a traced copy of `main.rb`**, deleted
+  afterwards. The hop onto the ring's west leg lands 30 ticks into its 96-tick
+  window, with the walker 35 px east of the landing point.
+
+Documented in `docs/api/components.md` (`Checkpoint`, `TileWorld#ground_at?`,
+the ground rule under `Respawn`, and the choice at each fall under `Footing`),
+`docs/api/tile_maps.md` (a respawn point and a checkpoint stand on ground) and
+`CHANGELOG.md` (a `Checkpoint` entry, and the ground rule in the falling and
+gaps entries). Nothing outside the project, its drive script and this plan
+names the project.
 
 ### Step 5 — fold the plan back and delete it
 

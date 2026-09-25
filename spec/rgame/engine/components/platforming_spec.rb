@@ -37,12 +37,14 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
     node_of(components, order, x:, y:).get_component(parts::Platform)
   end
 
+  # A hero stands on the shuttle over the chasm, so its respawn point is on the near
+  # bank, set before it attaches.
   def hero(x, y, order)
     node_of([parts::FeetCollider.new(width: 12, height: 6, layer: :hero),
              parts::CharacterBody.new(speed: 60, blocked_by: %i[tiles npc]),
              parts::Hop.new(peak: 10, duration: 0.5, action: nil),
              parts::Footing.new(coyote: 0.1),
-             parts::Respawn.new(flash: 0.5)], order, x:, y:)
+             parts::Respawn.new(flash: 0.5).set_point(60.0, 96.0)], order, x:, y:)
   end
 
   def npc(x, y, order)
@@ -84,7 +86,6 @@ RSpec.describe 'Top-down platforming' do # rubocop:disable RSpec/DescribeClass -
         wanderer
         box
         root.enter_tree
-        heroes.each { it.get_component(parts::Respawn).set_point(60.0, 96.0) }
       end
 
       it 'carries both heroes and the NPC across the chasm and back, and drops none of them' do

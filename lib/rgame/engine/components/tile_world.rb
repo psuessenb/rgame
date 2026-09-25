@@ -20,11 +20,11 @@ module RGame
       #
       # **It also knows where the floor is.** A cell holding a tile of class `gap` has no
       # floor (TileMap#gap_tile?), except where a Components::Platform's box covers it.
-      # #floor_at? answers for a point, and #floor_reach_x and #floor_reach_y say how far
-      # a point on the floor can move and stay on it, which is what #gap_blockers stops a
-      # step with. #platform_under says which platform a point over a gap stands on. The
-      # gaps are read once, into a second Util::SolidGrid, as solidity is; the platforms
-      # move, so they are asked every time.
+      # #floor_at? answers for a point, and #ground_at? the same without the platforms.
+      # #floor_reach_x and #floor_reach_y say how far a point on the floor can move and
+      # stay on it, which is what #gap_blockers stops a step with. #platform_under says
+      # which platform a point over a gap stands on. The gaps are read once, into a second
+      # Util::SolidGrid, as solidity is; the platforms move, so they are asked every time.
       #
       # **Solidity is read from the map once**, into one Util::SolidGrid, the first time
       # anything asks — and #blockers, #nav_grid and #solid? all read that store, never the
@@ -135,6 +135,12 @@ module RGame
         #
         # hot-path
         def floor_at?(x, y) = !gap?(@rgame_map.col_at(x), @rgame_map.row_at(y)) || !platform_covering(x, y).nil?
+
+        # Whether the cell holding the world point (x, y) is ground: no layer has a gap
+        # tile there. A platform over a gap does not make it ground, so this is #floor_at?
+        # with the platforms left out: where a thing may stand and stay, such as a
+        # Respawn's point.
+        def ground_at?(x, y) = !gap?(@rgame_map.col_at(x), @rgame_map.row_at(y))
 
         # The platform a node standing at the world point (x, y) rides: the first one
         # registered whose box covers the point, where the cell is a gap. nil wherever the
