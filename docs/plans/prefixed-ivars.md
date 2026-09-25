@@ -1,8 +1,8 @@
 # Prefixed ivars for the classes a game subclasses
 
-**Status: step 1 is implemented.** Three steps, each one branch and one pull
-request. All three are detailed; the plan is small enough that nothing waits on
-a re-plan.
+**Status: steps 1 and 2 are implemented.** Three steps, each one branch and
+one pull request. All three are detailed; the plan is small enough that
+nothing waits on a re-plan.
 
 ## Verdict
 
@@ -406,6 +406,56 @@ A game that writes `@rgame_opacity` hears about it from RuboCop.
 
 - `rake spec`, and `bundle exec rubocop` over the whole repository reports no
   new offence.
+
+**Landed.** `Game/NoEngineIvar` flags an `@rgame_` ivar read, written, assigned
+with `+=`, `||=` or `&&=`, tested with `defined?` or named in a multiple
+assignment. It also flags a literal Symbol or String starting with `@rgame_`
+given to `instance_variable_get`, `instance_variable_set`,
+`instance_variable_defined?` or `remove_instance_variable`, safe navigation
+included. `default.yml` turns it on for every game, and the generated project's
+node now trips it. The docs, CLAUDE.md and both skills say the rule, and
+`Node2D#input_owner` explains its name in two sentences. Two commits, one for
+each sub-step.
+
+*What proved wrong:*
+
+- **The engine exclusion is `lib/rgame/engine/**`, not `lib/rgame/**`.**
+  Nothing else under `lib/` keeps a prefixed ivar. If `RGame::Game`, the glue
+  class, reached into one, that would be the bug the cop exists for.
+- **Two specs need the exclusion, not three.** `dsl_spec.rb` passes
+  `:@rgame_pulled_signal` to `include`, which the cop leaves alone.
+  `sealed_privates_spec.rb` and `prefixed_ivars_spec.rb` write the ivar, and
+  `.rubocop.yml` names both with the reason.
+- **`on_ivasgn` covers every compound assignment.** `+=`, `||=` and `&&=` each
+  hold their target as an `ivasgn`, and so does each target of `@a, @b = ...`.
+  The cop needs no `on_op_asgn` or `on_or_asgn`.
+- **The cop cannot see an attr macro.** `attr_accessor :rgame_label` in a game's
+  `UI::Button` subclass writes the engine's ivar, and passes. The seal raises
+  for it only on a name the two base classes keep. A Symbol given to `attr_*`
+  is one more `on_send` if a game ever does it.
+- **Two more places asked for this guard.** `docs/plans/possible-todos.md` kept
+  "A guard for `Node2D`'s instance variables", which is gone.
+  `topdown-platforming.md`'s open question 8 is marked settled.
+- **The `@footing` fix left the changelog.** Y-sort has not been released, so
+  its Fixed entry described a fix no one upgrading saw. The Changed entry for
+  the prefix covers it.
+- **For step 3:** the changelog covers both steps now, the prefix under Changed
+  and the cop under Added. `docs/api/cli.md`'s table of cops leaves out
+  `Game/NoBlockExitInHotPath`, which predates this plan.
+
+*Verification.* `rake spec` 4139 examples, 0 failures: step 1's 4127 plus the
+cop's 12. `rake spec:core` 517 examples, 0 failures, docs coverage included.
+`make test` 412 checks, 0 failures. `bundle exec rubocop` over the whole
+repository finds one offence, `Layout/ExtraSpacing` in
+`tools/drive/examples/split_screen.rb`, and `main` finds the same one. Without
+its two spec exclusions the cop reports six offences, all in those files.
+Three mutations were caught. Dropping the `ivasgn` check fails 3 of the cop's
+examples. A prefix of `@rgame` fails 1. Switching the cop off in `default.yml`
+fails the generated project's example. `rake drive:allocations` was not run:
+the step changes a comment in `node2d.rb` and no code a game runs.
+
+*Documented in* CLAUDE.md, the write-ruby-code and write-example skills,
+`docs/api/scene_graph.md`, `components.md` and `cli.md`, and `CHANGELOG.md`.
 
 ### Step 3 — fold the plan back and delete it
 
