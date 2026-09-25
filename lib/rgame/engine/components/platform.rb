@@ -90,8 +90,10 @@ module RGame
         # hot-path
         def covers?(x, y)
           left = @rgame_collider.aabb_x
+          return false if x < left || x >= left + @rgame_collider.aabb_w
+
           top = @rgame_collider.aabb_y
-          x >= left && x < left + @rgame_collider.aabb_w && y >= top && y < top + @rgame_collider.aabb_h
+          y >= top && y < top + @rgame_collider.aabb_h
         end
 
         # The box's edges, in world pixels.

@@ -122,12 +122,15 @@ module RGame
         # hot-path
         def _update(dt)
           find_siblings unless @rgame_siblings_known
-          board(@rgame_world.platform_under(@rgame_collider.cx, @rgame_collider.cy))
+          x = @rgame_collider.cx
+          y = @rgame_collider.cy
+          platform = @rgame_world.platform_under(x, y)
+          board(platform)
           landed = @rgame_airborne
           @rgame_airborne = @rgame_hop ? @rgame_hop.airborne? : false
           return if @rgame_airborne
 
-          if standing?
+          if platform || @rgame_world.floor_at?(x, y)
             @rgame_left = @rgame_coyote
           elsif landed
             drop
