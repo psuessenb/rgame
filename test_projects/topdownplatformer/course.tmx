@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Authored for test_projects/topdownplatformer; edit it in Tiled.
+
+     100x30 tiles at 16px = 1600x480 pixels, a meadow walled with trees and
+     crossed west to east along row 15, y 248. Every gap runs from row 1 to row
+     28, on the `pits` layer in tiles of class `gap` from pits.tsx: trenches one
+     tile wide in columns 16, 20 and 24, a chasm in columns 34 to 49 (x 544 to
+     800), and one in columns 58 to 81 (x 928 to 1312).
+
+     `start` is where the first hero stands. `first`, `second` and `last` are
+     points of class `checkpoint`, `crate` of class `crate` and `walker` of
+     class `walker`. In the `platforms` layer, `shuttle` is a polyline of class
+     `platform` that its centre walks back and forth, stopping 12 px short of
+     each bank, and `ring` a polygon it walks round, never touching a bank. The
+     ring's west and east legs run 12 px from a bank. Each carries its size in
+     its width and height properties. -->
+<map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="100" height="30" tilewidth="16" tileheight="16" infinite="0" nextlayerid="6" nextobjectid="9">
+ <tileset firstgid="1" source="../../examples/assets/tileset.tsx"/>
+ <tileset firstgid="133" source="../../examples/assets/pits.tsx"/>
+ <layer id="1" name="ground" width="100" height="30">
+  <data encoding="base64" compression="zlib">eJy1WNFuAzEI63r//8/bwypFCBvbpA+nW3dJCLYhkOf1ev38Pc//+wf8/jxv8u0p7zcYN9lIHmTrDd7n92luuhdmU12nw0jFteNUxVwZh/ZR5yIcunWew2/GVepH1Wa3p04TKmcM++on40Sxx8Y8YNxW0+pYFlcVj3RPnUY2T8Xs1Eoa026OU7Wg/C/VVYdxjZtubXZmuDpz4m2rI3cfru8o/qp+O52xv1Wsb2LU6b7GTfUD7ak7J1S8kX2UE6Y12JrTfDQmrW/UeVPO6bjZcM/2sD2vlDFqHryB8Y1ctuUX1UApR9/gXu0FUv87H5y4SuK25i70/Zu1dM1pKUdKzZ/GHKvzUO3u9D7d29HDY9pk3CX1HZuLNKXaQnWDohekLQWnqadkPV7CQ6L9DndmX72v6Naa1pzij2ljqimncdUGquHP30gbm15COUuVnJrk8u57cteV1N1MN65fCC/1cXz51jPlKEVj6llV+9YUN4cfRRfoXFS5dvI1iikFQ5bH1bETFhu8HR4n3SOOUnyrbTVuk5iu7xv3Ta5WbtjY5CRnbldnK+e5aie5B5rWd+vmG+ekorVkHZezjz9uH+zmJra/TS5mfV1qe7tm8mzuQ9L9ufU7s+XUslttf+Zu5jO+J//S893pj1j95t6PO/WJymO981ZyiIr39j6IYT/112jMxGdyT6dyOK2LanGFb6YT9XG0Xvev5nXGg4ud4g+zo/B+o7ZV7Hcxpd5PnRwkeUvlVjkzTt86nlkOc3JfHc/8nritODpcsly5uRNJuFLXOfHc9KkJRkqNeMum28c6WKs+nnNqD8VqH7R/RUtKH91hr9SHW/63894vzi2bn97r3YqH5IzoOFH1m94RM9yUnkrNI1OtcuuOhsUEq0UUfNS5rh03d6H/szzffU/OQiefqj2SU08qmtvm/Lq+08PUOgXFdFJ/nOuy2GS51MF5+l77ScVO2td+fk/nllK3qvpge7t5zik6QDkF9ZHMx186pg8i</data>
+ </layer>
+ <layer id="2" name="pits" width="100" height="30">
+  <data encoding="base64" compression="zlib">eJzt0bEJwDAMAEEvn8ydCd5gjF2Ee1ChRipuDP2pd3Gf3dmZ0/d3/9/qWdxnd3bm9P3d/7fiwYNHx4MHj44HDx4dDx48Oh48eHQ8ePDoePDg0fHgwaPjwYNHx4MHj44HDx4dDx48Oh48eOhWH4K4cc4=</data>
+ </layer>
+ <layer id="3" name="obstacles" width="100" height="30">
+  <data encoding="base64" compression="zlib">eJzt2jERADAMA7FQCH+yBRAA/UG6M4JfvTOzlhoNerTo0aJHix4terTo0aJHix4terTo0aJHix4terTo0aJHix4terTo0aJHix4terTo0aJHix4terTo0aJHy+/fsN092DIRAQ==</data>
+ </layer>
+ <objectgroup id="4" name="spawns">
+  <object id="1" name="start" x="96" y="248">
+   <point/>
+  </object>
+  <object id="2" name="first" class="checkpoint" x="472" y="248">
+   <point/>
+  </object>
+  <object id="3" name="second" class="checkpoint" x="872" y="248">
+   <point/>
+  </object>
+  <object id="4" name="last" class="checkpoint" x="1448" y="248">
+   <point/>
+  </object>
+  <object id="5" name="crate" class="crate" x="520" y="168">
+   <point/>
+  </object>
+  <object id="6" name="walker" class="walker" x="988" y="200">
+   <point/>
+  </object>
+ </objectgroup>
+ <objectgroup id="5" name="platforms">
+  <object id="7" name="shuttle" class="platform" x="588" y="248">
+   <properties>
+    <property name="height" type="int" value="32"/>
+    <property name="width" type="int" value="64"/>
+   </properties>
+   <polyline points="0,0 168,0"/>
+  </object>
+  <object id="8" name="ring" class="platform" x="988" y="200">
+   <properties>
+    <property name="height" type="int" value="64"/>
+    <property name="width" type="int" value="96"/>
+   </properties>
+   <polygon points="0,0 264,0 264,96 0,96"/>
+  </object>
+ </objectgroup>
+</map>
