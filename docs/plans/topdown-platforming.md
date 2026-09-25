@@ -135,11 +135,12 @@ None blocks steps 1 to 3.
    also the better word for a place where actors draw. The rename landed on
    its own branch, `mount-slots`, after step 2, so step 4's scene reads
    `TileMapLayer.mount(view, slots: { platforms: nil, actors: nil })`.
-8. **A guard for a subclass's ivar that is `Node2D`'s.** `SealedPrivates`
-   guards method names, not ivars, and step 2 met the gap: a game keeping its
-   `Footing` in `@footing` lost it to y-sort, which kept its sorting collider
-   under that name. The ivar is renamed, and the write-example skill lists the
-   rest, but nothing raises for the next one. *Blocks nothing.*
+8. ~~**A guard for a subclass's ivar that is `Node2D`'s.**~~ **Settled: every
+   ivar of an engine node or component starts with `rgame_`, and
+   `Game/NoEngineIvar` flags one in a game's code.** Step 2 met the gap: a game
+   keeping its `Footing` in `@footing` lost it to y-sort, which kept its
+   sorting collider under that name. A game's ivars can no longer share a name
+   with the engine's.
 
 ## What was measured before planning
 
