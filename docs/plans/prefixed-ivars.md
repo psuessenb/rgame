@@ -1,7 +1,8 @@
 # Prefixed ivars for the classes a game subclasses
 
-**Status: planned.** Three steps, each one branch and one pull request. All
-three are detailed; the plan is small enough that nothing waits on a re-plan.
+**Status: step 1 is implemented.** Three steps, each one branch and one pull
+request. All three are detailed; the plan is small enough that nothing waits on
+a re-plan.
 
 ## Verdict
 
@@ -273,6 +274,78 @@ could write by accident.
 - `examples/pathfinding`, `examples/push_pull` and `test_projects/asteroids`
   driven with `--seed 1` before and after: the same draw calls, in the same
   numbers.
+
+**Landed.** All 66 classes and the three modules keep their ivars under
+`rgame_`, behind the same public readers and writers. `SealedPrivates` gained
+`sealed_reader`, `sealed_writer` and `sealed_accessor`, each tagged
+`@api private`. They replace all 73 public attr lines in the swept classes,
+Node2D's 20 attributes and Component's `node` among them. The Signal DSL keeps a signal in
+`@rgame_<name>_signal`, and `spec/rgame/engine/prefixed_ivars_spec.rb` fails on
+any unprefixed ivar, naming the class, the method, the line and the ivar. Four
+commits, one for each sub-step. 1b renamed only the base classes' own ivar
+names across every file, so each commit stayed green.
+
+*What proved wrong:*
+
+- **`Players` is a Component.** The plan listed it as neither. Its
+  `Collection.of(:@list)` became `:@rgame_list`.
+- **A fourth game read an engine ivar.** `examples/equipment`'s `SlotButton`
+  drew `@label`, which is `UI::Button`'s. The plan's count covered only games
+  writing a Node2D ivar. It reads the public `label` now. A Prism scan of every
+  example, test project, spec, template and `docs/api` code block found no
+  other.
+- **The macros cannot follow a bare `private`.** Ruby's default visibility
+  does not reach into a method call, so `sealed_reader` below `private` still
+  makes a public reader. The macros set public explicitly and say so. No
+  engine attr needed otherwise: the one non-public attr, `rgame_sibling_order`,
+  was already prefixed.
+- **Class-level ivars collide too.** `UI::Button.adjustable?` memoised into
+  the class's `@adjustable`, and a game's button subclass owns that ivar as
+  well. It became `@rgame_adjustable`, and so did the DSL's `@signal_methods`
+  and Hooks' `@declared_hooks`. The spec covers each class's singleton methods,
+  and the modules the base classes extend.
+- **The spec reads instruction sequences, not Prism.** A method's
+  `RubyVM::InstructionSequence` names every ivar it gets, sets or tests with
+  `defined?`, blocks and `define_method` bodies included. An attr method has
+  none, and its ivar is its original name. That needs no mapping from a
+  method back to its `def` node. The classes come from `ObjectSpace`:
+  `Module#constants` leaves out a private constant such as
+  `Scene::Rooms::Cover`.
+- **The three mixed-in modules hold no ivars.** Collider, WorldBounds and
+  Culling read their host through methods, so rule 2 bites only on the
+  extended modules. A mutation there was caught.
+- **`Cutscene` keeps a `@context` of its own.** It overrides
+  `Component#context` with a reader for the object its steps are called with.
+  Both now live in `@rgame_context`, as both lived in `@context` before.
+- **`Naming/MemoizedInstanceVariableName` fights the prefix.** It wants
+  `@context` behind `context`. `.rubocop.yml` excludes `lib/rgame/engine/`
+  from it and says why.
+- **`rubocop -a` changed behaviour once.** The prefix pushed `rooms.rb` over
+  the line limit. The autocorrect turned `unless @moves.any? { ... }` into a
+  `do ... end` block, which binds to `open` instead of `any?`. A comparison of
+  every file with the prefix and whitespace taken out found it, and it was
+  rewritten by hand.
+- **For step 2:** `sealed_privates_spec.rb`, `prefixed_ivars_spec.rb` and
+  `dsl_spec.rb` name `@rgame_` ivars on purpose. `Game/NoEngineIvar` runs over
+  `spec/` in a generated project, so this repository's own `spec/` needs an
+  exclusion beside the one for `lib/rgame/**`.
+
+The plan counted 313 ivar names and 1914 occurrences across whole files.
+Inside the node and component classes there were 298 and 1859.
+
+*Verification.* `rake spec` 4127 examples, 0 failures (4105 on `11b00ae`, and
+4114 on `d716dc2` before this step). `rake spec:core` 517 examples, 0 failures,
+none skipped, docs coverage included. `make test` 412 checks, 0 failures.
+`rake drive:allocations` passes all 41 projects. `examples/pathfinding`,
+`examples/push_pull`, `test_projects/asteroids` and `examples/equipment`,
+driven with `--seed 1 --texts`: each report is byte-identical to `main`'s. A
+y-sorted node of 200 walking children, half with a box collider, drawn 3000
+times: the best frame took 218.1 µs on `main` and 218.6 µs here, over three
+alternating runs. An alias of an attr reader measured 24 ns a call, the same as
+the reader.
+
+*Documented in* the header of `SealedPrivates`, the macros' own comments, and
+`docs/api/signals.md`, which named `@pulled_signal`.
 
 ### Step 2 — `Game/NoEngineIvar`, and the rule in the docs *(the RuboCop plugin)*
 
