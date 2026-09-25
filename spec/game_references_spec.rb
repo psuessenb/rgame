@@ -62,10 +62,9 @@ RSpec.describe 'references to games' do # rubocop:disable RSpec/DescribeClass --
   # Strings that contain a game's name without naming that game. They are cut out
   # before the pattern runs, so each one is a decision and says why.
   #
-  # - `snake_case` is an ordinary word that starts with a game's name.
   # - *UI Pack - Pixel Adventure* is the title of a Kenney asset pack, and
   #   `examples/assets/README.md` records the title it was published under.
-  let(:not_a_game) { Regexp.union(/snake_cas\w*/i, /pixel[- ]adventure/i) }
+  let(:not_a_game) { /pixel[- ]adventure/i }
 
   def scanned_files
     listing, status = Open3.capture2('git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z', chdir: root)
@@ -103,7 +102,7 @@ RSpec.describe 'references to games' do # rubocop:disable RSpec/DescribeClass --
     game = game_names.first
     expect(["see #{game} for this", "test_projects/#{game}/main.rb", "#{game}_2p.rb", 'a tower-defense level'])
       .to all(match(pattern))
-    innocent = ["un#{game}ed", 'use snake_case here', 'the pixel-adventure pack']
+    innocent = ["un#{game}ed", 'the pixel-adventure pack']
     expect(innocent.map { |line| line.gsub(not_a_game, '') }).not_to include(match(pattern))
   end
 end
