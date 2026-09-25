@@ -660,3 +660,22 @@ Four things the v0.5.0 roadmap found and left, each small:
   own `_control`, off `interactor.target`. The adventure's hero searches a
   chest that way. **Trigger:** a second game
   with several verbs on one target.
+
+---
+
+## A seal on the private methods of every engine node
+
+**What.** `Engine::SealedPrivates` refuses a subclass method that would replace
+a private `rgame_` method of `Node2D` or `Component`. It covers those two
+classes only. A private method of `UI::Button` or `Components::Mover` is still
+an ordinary name, so a game's subclass can replace one without a word.
+
+**Why not now.** Every ivar of every engine node and component starts with
+`rgame_`, so the ivar rule is wider than the method rule. Widening the seal
+means deciding, in each of 66 classes, which private methods are machinery and
+which are seams, as `spec/rgame/engine/sealed_privates_spec.rb` already does for
+the two base classes. No collision on such a method has happened yet.
+
+**Trigger.** A game's subclass that replaces a private method of an engine
+descendant by accident. Or a game that names an attribute `rgame_` in one,
+which `Game/NoEngineIvar` cannot see either.

@@ -224,7 +224,8 @@ lint. An existing project gets the cops by adding those three lines.
 | Cop | Refuses | Where |
 |---|---|---|
 | `Game/NoInterpolationInHotPath` | string interpolation in a per-frame method | everywhere but `spec/` |
-| `Game/NoNeedlessAllocation` | a throwaway Array or Range literal on a per-frame path | everywhere but `spec/` |
+| `Game/NoNeedlessAllocation` | a throwaway Array or Range literal, or an iterator that allocates, such as `each_with_index`, on a per-frame path | everywhere but `spec/` |
+| `Game/NoBlockExitInHotPath` | `return` or `break` out of a block on a per-frame path | everywhere but `spec/` |
 | `Game/DrawInLocalSpace` | a node's draw method reading its own `x`, `y` or `world_x` | everywhere |
 | `Game/NoLiteralText` | a String literal passed to `text`, `text_width` or `text_lines` | everywhere |
 | `Game/NoEngineIvar` | an ivar starting with `@rgame_`, read, written or named to `instance_variable_get` | everywhere |
@@ -232,7 +233,9 @@ lint. An existing project gets the cops by adding those three lines.
 
 A per-frame method is `update`, `control`, `draw`, `_update`, `_control` or
 `_draw`, or any method with a `# hot-path` comment on the line above its
-`def`. For a label that changes, the answer to the first cop is an
+`def`. `Game/NoBlockExitInHotPath` also takes `EveryMethodIn:`, a list of files
+where every method counts, for a library a game calls every frame. For a label
+that changes, the answer to the first cop is an
 [`Engine::Text`](toolbox.md#text--the-string-a-node-draws).
 
 `Game/NoCoreInEngineLayer` guards the headless line the layout above draws. A

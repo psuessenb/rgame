@@ -104,6 +104,11 @@ A game's own ivars need no prefix and no check against a list of taken names.
 `include` or `prepend`. A module mixed into a subclass can still replace a
 signal's connect method or define a misspelled hook, and nothing raises.
 
+`Game/NoEngineIvar` reads the ivars a game writes out, and literal names given to
+`instance_variable_get` and its siblings. It passes `attr_accessor :rgame_label`
+in a `UI::Button` subclass, which writes the button's own `@rgame_label`. The
+seal would refuse it only for a name `Node2D` or `Component` keeps.
+
 ## A label built from a changing value
 
 `Game/NoInterpolationInHotPath` refuses `renderer.text("Score: #{@score}", ...)`,
