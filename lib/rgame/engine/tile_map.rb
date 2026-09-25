@@ -57,6 +57,8 @@ module RGame
       NO_OFFSET = [0, 0].freeze
       private_constant :NO_OFFSET
 
+      # The class a designer gives a tile in Tiled to make its cell a gap: a
+      # chasm or a pit, which a walker falls into and a hop crosses.
       GAP = 'gap'
 
       # Where a tile id came from: the index of its tileset, in the order the

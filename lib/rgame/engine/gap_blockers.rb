@@ -30,6 +30,8 @@ module RGame
         def node = nil
       end
 
+      # The one Gaps every GapBlockers reports. It holds no state, so every mover on
+      # every map can share it.
       GAPS = Gaps.new.freeze
 
       # `world` is the Components::TileWorld whose floor this stops a step at.

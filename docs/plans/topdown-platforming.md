@@ -610,8 +610,10 @@ Where the sketch was wrong:
   inlined the arithmetic, and the method makes four calls: `gap?`,
   `col_at`, `row_at` and the grid. 200 actors cost 45 µs a tick, 0.3% of a
   frame. `resolve_x` into a gap measures about 700 ns.
-- **The commit hook strips a comment above a constant.** `FLOOR_EDGE`'s
-  explanation lives in `floor_reach_x`'s comment.
+- **The commit hook stripped the comments above constants**, keeping only
+  one above a constant that builds a class. `FLOOR_EDGE`, `TileMap::GAP` and
+  `GapBlockers::GAPS` lost theirs. `tools/strip_comments.rb` now keeps the
+  comment above every constant, and the three are back.
 - `spec/support/walled_tile_map.rb` draws a gap tile as `~`.
   `spec/spec_style_spec.rb` pins an exempted helper in `a_mover.rb` by line
   number, and the number moved.

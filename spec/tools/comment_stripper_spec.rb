@@ -32,6 +32,24 @@ RSpec.describe CommentStripper do
       expect(strip(source)).to eq(source)
     end
 
+    it 'keeps the description above a constant, a private one included' do
+      source = <<~RUBY
+        class Thing
+          # How far short of an edge a point stops, in pixels.
+          EDGE = 1e-9
+
+          # What a gap reports as having stopped a step.
+          Thing::GAPS = Object.new.freeze
+
+          # An offset nothing outside needs.
+          NO_OFFSET = [0, 0].freeze
+          private_constant :NO_OFFSET
+        end
+      RUBY
+
+      expect(strip(source)).to eq(source)
+    end
+
     it 'keeps the description above public methods of every kind' do
       source = <<~RUBY
         class Thing

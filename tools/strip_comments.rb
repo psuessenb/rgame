@@ -10,8 +10,9 @@ require 'prism'
 #   - magic comments (`# frozen_string_literal: true`) and the shebang
 #   - directives: `# rubocop:disable/enable/todo` (with every comment line that
 #     continues its `-- reason`) and the engine's `# hot-path` tag
-#   - the description directly above a `class`, a `module`, or a constant that
-#     builds one (`Point = Data.define(:x, :y)`)
+#   - the description directly above a `class`, a `module`, or a constant,
+#     private ones included: a constant's comment says what its value means
+#     (`FLOOR_EDGE = 1e-9`) or what it builds (`Point = Data.define(:x, :y)`)
 #   - the description directly above a public method: a `def`, an `attr_*`,
 #     a `define_method`, an alias, or a declaration like `signal :hit` in a
 #     class body, when it is public at that point
@@ -38,7 +39,7 @@ class CommentStripper
   KEYWORD_OPENER = /\A(?:else|rescue|ensure)\b/
 
   # Collects the lines a comment block may sit directly above and survive:
-  # namespaces, public method definitions and dynamic-eval calls. It also
+  # namespaces, constants, public method definitions and dynamic-eval calls. It also
   # collects the lines that open a body, which the blank-line cleanup needs.
   class Anchors < Prism::Visitor
     VISIBILITIES = %i[public protected private].freeze
@@ -114,12 +115,12 @@ class CommentStripper
     end
 
     def visit_constant_write_node(node)
-      @lines << node.location.start_line if class_builder?(node.value)
+      @lines << node.location.start_line
       super
     end
 
     def visit_constant_path_write_node(node)
-      @lines << node.location.start_line if class_builder?(node.value)
+      @lines << node.location.start_line
       super
     end
 

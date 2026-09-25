@@ -118,6 +118,9 @@ module RGame
         # every time, so every mover on the map shares one.
         def gap_blockers = @gap_blockers ||= Engine::GapBlockers.new(world: self)
 
+        # How far short of a gap's edge #floor_reach_x and #floor_reach_y stop a point, in
+        # pixels: the margin Util::TileSweep keeps against a wall. A point stopped exactly on
+        # the edge could cross it by rounding, on its way from a box to a node and back.
         FLOOR_EDGE = 1e-9
 
         # Whether any layer holds a gap tile at (col, row). A cell off the map is not a gap.
@@ -132,10 +135,6 @@ module RGame
         # How far the point (x, y) can move `dx` along x and stay on the floor: `dx` itself,
         # or as far as FLOOR_EDGE short of the first gap on the way. A point already off
         # the floor moves the whole way, so a node standing in a gap is never held there.
-        #
-        # FLOOR_EDGE is a billionth of a pixel, the margin Util::TileSweep keeps against a
-        # wall. A point stopped exactly on the edge could cross it by rounding, on its way
-        # from a box to a node and back.
         #
         # hot-path
         def floor_reach_x(x, y, dx)
