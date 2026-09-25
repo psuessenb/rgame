@@ -84,6 +84,27 @@ RSpec.describe RGame::Engine::Components::Footing do
     end
   end
 
+  # `@footing` is what a game names the ivar holding one, and y-sort once kept
+  # its own sorting collider in an ivar of that name on every node.
+  it 'stays in a node that keeps it in @footing, under a y-sorted parent' do
+    keeper = Class.new(engine::Node2D) do
+      attr_reader :footing
+
+      def initialize(**)
+        super
+        add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height: 6))
+        @footing = add_component(RGame::Engine::Components::Footing.new)
+      end
+    end
+    sorted = world.add_node(engine::Node2D.new(y_sort: true))
+    node = sorted.add_node(keeper.new(x: 40.0, y: 27.0))
+    sorted.add_node(keeper.new(x: 40.0, y: 60.0))
+    root.enter_tree
+    root.draw(FakeRenderer.new, screen_view)
+
+    expect(node.footing).to be_a(described_class)
+  end
+
   describe 'on the floor' do
     it 'never falls, however long it stands' do
       node = hero

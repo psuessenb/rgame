@@ -156,7 +156,7 @@ A `UI::Menu` does not need that: `menu.close` hides it and stops its input, and
 pausing the music paused the scene. Its next press never reached `_control`,
 and the driven run showed the state line stuck. Nothing raises:
 `SealedPrivates` guards method names, not ivars. Before naming one, check it is
-not among `Node2D`'s: `@paused`, `@opacity`, `@scene`, `@parent`, `@children`,
+not among `Node2D`'s: `@paused`, `@opacity`, `@scale`, `@scene`, `@parent`, `@children`,
 `@components`, `@band`, `@z`, `@width`, `@height`, `@input_owner` and the
 `@rel_*` and `@world_*` family are all taken.
 

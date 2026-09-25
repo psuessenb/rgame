@@ -173,7 +173,7 @@ RSpec.describe RGame::Engine::Node2D do
       expect(draw_and_read).to eq(%i[rock hero])
     end
 
-    it "sorts a child's subtree as one unit, at the child's footing" do
+    it "sorts a child's subtree as one unit, where the child stands" do
       hero = sorted.add_node(tagged(:hero, y: 10))
       hero.add_node(tagged(:shadow, y: 100))
       sorted.add_node(tagged(:post, y: 30))

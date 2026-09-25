@@ -282,7 +282,7 @@ from the next frame on. A node with two `BoxCollider`s raises, because
 `get_component` cannot choose between them.
 
 `elevation` plays no part, so a character mid-hop sorts by the spot they left.
-A child's subtree sorts as one unit, at the child's footing: a shadow or a name
+A child's subtree sorts as one unit, where the child stands: a shadow or a name
 tag under a hero draws with the hero. A y-sorted child of a y-sorted node sorts
 the same way, as one unit.
 

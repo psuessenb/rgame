@@ -13,7 +13,7 @@ module RGame
     #
     # @api private
     class Fall < Node2D
-      # `owner` is the Footing that lends it. Not `@footing`: that ivar is Node2D's.
+      # `owner` is the Footing that lends it.
       def initialize(owner)
         super()
         @owner = owner

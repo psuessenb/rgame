@@ -373,8 +373,8 @@ module RGame
         @in_tree = false
         @freed = false
         @press_gate = nil
-        @footing = nil
-        @footing_known = false
+        @sort_box = nil
+        @sort_box_known = false
         self.y_sort = y_sort
       end
 
@@ -434,7 +434,7 @@ module RGame
         @components << component
         @component_slots[slot] = component
         component.node = self
-        @footing_known = false
+        @sort_box_known = false
         component._attach if @in_tree
         component
       end
@@ -447,7 +447,7 @@ module RGame
         @components.delete(component)
         @component_slots.delete(@component_slots.key(component))
         component.node = nil
-        @footing_known = false
+        @sort_box_known = false
         component
       end
 
@@ -675,12 +675,12 @@ module RGame
       def rgame_children_in_draw_order
         return rgame_children_in_order unless @draw_order
 
-        rgame_sort_by_footing(@draw_order)
+        rgame_sort_by_y(@draw_order)
         @draw_order
       end
 
       # hot-path
-      def rgame_sort_by_footing(order)
+      def rgame_sort_by_y(order)
         i = 1
         while i < order.size
           node = order[i]
@@ -698,16 +698,16 @@ module RGame
       def rgame_draws_after?(one, other)
         return one.z > other.z unless one.z == other.z
 
-        one_y = one.rgame_footing_y
-        other_y = other.rgame_footing_y
+        one_y = one.rgame_sort_y
+        other_y = other.rgame_sort_y
         return one_y > other_y unless one_y == other_y
 
         one.rgame_sibling_order > other.rgame_sibling_order
       end
 
-      def rgame_find_footing
-        @footing_known = true
-        @footing = get_component(Components::BoxCollider)
+      def rgame_find_sort_box
+        @sort_box_known = true
+        @sort_box = get_component(Components::BoxCollider)
       end
 
       # hot-path
@@ -767,11 +767,11 @@ module RGame
       def rgame_children_unsorted! = @children_sorted = false
 
       # hot-path
-      def rgame_footing_y
-        rgame_find_footing unless @footing_known
-        return @rel_y unless @footing
+      def rgame_sort_y
+        rgame_find_sort_box unless @sort_box_known
+        return @rel_y unless @sort_box
 
-        box = @footing.box
+        box = @sort_box.box
         @rel_y + box.offset_y + box.height
       end
 

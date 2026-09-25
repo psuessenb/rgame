@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # A y-sorted node sorts its children on every draw, and a top-down game draws
-# one every frame, per viewport. The sort, the footing it reads and the
+# one every frame, per viewport. The sort, the y it reads for each child and the
 # collider lookup behind that may not allocate, or every walking actor is a
 # little GC pressure.
 RSpec.describe RGame::Engine::Node2D do

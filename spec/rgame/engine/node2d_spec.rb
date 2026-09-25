@@ -1163,7 +1163,7 @@ RSpec.describe RGame::Engine::Node2D do
       expect(runs.last).to eq(runs.first)
     end
 
-    it 'draws by footing while update keeps the order added' do
+    it 'draws by where each child stands while update keeps the order added' do
       parent = described_class.new(y_sort: true)
       walkers(parent)
       parent.update(0.016)
