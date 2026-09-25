@@ -73,7 +73,8 @@ index, not the argument.
 - **Music that fades.** `AudioOut#play_music` and `#stop_music` take `fade:`,
   in seconds, and `AudioOut#crossfade(id, over:)` lowers one song while it
   raises the next. `#pause_music` and `#resume_music` hold a song and its fade.
-  See [docs/api/audio.md](docs/api/audio.md#fades).
+  `examples/music` fades, pauses and sets category volumes on its track. See
+  [docs/api/audio.md](docs/api/audio.md#fades).
 - **A cutscene example.** `examples/cutscene` plays a town crier's news that
   both players watch, and ends in the same town whether it is watched or
   skipped. See [docs/api/examples.md](docs/api/examples.md#cutscene).
