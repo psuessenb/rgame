@@ -18,7 +18,7 @@ module RGame
     # ## Conservative on purpose
     #
     # Culling one frame too eagerly is a sprite popping in at the edge of the
-    # screen, which is worse than the draw it saved. So two rules:
+    # screen, which is worse than the draw it saved. So three rules:
     #
     # - **No size means no culling.** `node.width`/`height` are what a drawable's
     #   footprint is measured from, and a node that never set them (nothing
@@ -29,12 +29,24 @@ module RGame
     #   box in any direction. The margin is `width + height`, which is always at
     #   least the diagonal `hypot(width, height)` and costs no square root on a
     #   path that runs once per drawable per viewport.
+    # - **A scaled node is measured scaled.** `Node2D#draw` scales about the
+    #   node's origin, so the footprint shrinks or grows about that point too,
+    #   and a node scaled past 1 is not culled while its picture still shows.
+    #   Only the node's own `scale` counts, not an ancestor's.
     module Culling
       private
 
       # hot-path
       def culled?(view, x, y, width, height)
         return false if width.zero? || height.zero?
+
+        scale = node.scale
+        unless scale == 1
+          x = node.world_x + ((x - node.world_x) * scale)
+          y = node.world_y + ((y - node.world_y) * scale)
+          width *= scale
+          height *= scale
+        end
         return !view.visible?(x, y, width, height) if node.world_angle.zero?
 
         margin = width + height

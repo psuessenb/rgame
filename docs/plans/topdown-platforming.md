@@ -1,6 +1,6 @@
 # Top-down platforming
 
-**Status: step 1 is implemented.** Five steps. Each is one branch and
+**Status: steps 1 and 2 are implemented.** Five steps. Each is one branch and
 one pull request, and each sub-step is one commit. **Steps 1 to 3 are
 detailed.** Step 4, the test project, is rough and gets re-planned once step 3
 lands. Step 5 folds the plan back and deletes it.
@@ -130,13 +130,17 @@ None blocks steps 1 to 3.
 6. **Platforms as Tiled tile objects.** Once y-sort's step 3 draws one tile, a
    platform could draw the tile object a designer placed. *Waits on y-sort's
    step 3.*
-7. **"Gap" names two things.** A gap tile is a cell with no floor, and
-   `TileMapLayer.mount`'s `gaps:` are the slots between layers where actors
-   draw. Step 4's scene uses both in one line:
-   `TileMapLayer.mount(view, gaps: { platforms: nil, actors: nil })`.
-   `docs/api/tile_maps.md` says the two share only a word. Renaming either one
-   (`pit`, `chasm`, or `slots:` for mount) is cheap while rgame has no users.
-   *Blocks nothing. Decide before step 2 names `examples/pits` and its tiles.*
+7. ~~**"Gap" names two things.**~~ **Settled during step 2: the tile keeps
+   `gap`, and `TileMapLayer.mount`'s `gaps:` becomes `slots:`.** A slot is
+   also the better word for a place where actors draw. The rename gets its own
+   branch, off `main` after step 2, so step 4's scene reads
+   `TileMapLayer.mount(view, slots: { platforms: nil, actors: nil })`. Until
+   then, `docs/api/tile_maps.md` says the two share only a word.
+8. **A guard for a subclass's ivar that is `Node2D`'s.** `SealedPrivates`
+   guards method names, not ivars, and step 2 met the gap: a game keeping its
+   `Footing` in `@footing` lost it to y-sort, which kept its sorting collider
+   under that name. The ivar is renamed, and the write-example skill lists the
+   rest, but nothing raises for the next one. *Blocks nothing.*
 
 ## What was measured before planning
 
@@ -871,6 +875,54 @@ the spot they started from.
   `examples/jump_topdown`'s "What this does not solve" names `examples/pits`.
   `docs/api/examples.md` and `README.md` list the example, and `CHANGELOG.md`
   has an entry.
+
+**Landed.** Six commits on `fall-and-respawn`: 2a to 2d as sketched, then a
+rename 2e needed, then 2e. `rake spec` 4105 examples, 0 failures (4025
+before, 80 new). `rake spec:core` 517, 0 failures. `make test` 412 checks.
+`rake drive:allocations` ok for all 41 projects, `examples/pits` at 12.6
+objects a second on 2.2% of ticks, every one a first call's inline cache or a
+signal's first listener list. Driven for 650 ticks, `examples/pits` falls into
+the chasm and comes back flashing. It hops the first trench, and crosses the
+second with a hop four ticks after the step off (ticks 389 and 393). With
+coyote time off, it falls into the third on the step off (tick 474). The report
+shows 590 `sprite` draws for 650 frames, the two flashes' 60 hidden ticks, and
+48 fall `scaled` calls running toward 0. `Footing#_update` on the floor costs
+about 650 ns, so 200 actors cost 130 µs a tick, 0.8% of a frame. An empty
+node's `draw` at scale 1 costs 340 ns, as on `main`.
+
+Where the sketch was wrong:
+
+- **`@footing` was `Node2D`'s.** The sketch kept `Fall` off that ivar, which
+  y-sort used for its sorting collider, but a game names one the same.
+  `examples/pits` kept its `Footing` in `@footing`, and the first y-sorted draw
+  replaced it with its `FeetCollider`, with no error. `Node2D` calls it
+  `@sort_box` now, in a commit of its own, and `footing_spec.rb` pins it. The
+  write-example skill lists `@scale` among `Node2D`'s ivars. Open question 8
+  is the missing guard.
+- **The flash draws no `faded`.** A node at opacity 0 is not drawn at all, so
+  the Verify's `faded` calls show as missing `sprite` draws instead.
+- **`Footing` reads no `Mover`**, only the `Hop`. Step 3's carry may need it.
+- **Seconds counted in ticks need slack.** Six ticks of 1/60 sum to
+  0.09999999999999999, so coyote time and the blink compare with 1e-9 s of
+  slack (`Footing::SLACK`, `Respawn::SLACK`). `Tween#done?` has the same edge:
+  a 0.5 s fall ends on its 31st tick. `Tween` is unchanged.
+- **The fall ends through `Footing#_detach`**, not through `Fall` watching the
+  node's parent. Leaving the tree, by a door or freed, is what ends one.
+- **`Fall` frees itself with `queue_free`**, and joins the parent's child list
+  mid-walk, so it shrinks from the tick it starts. A fall started again before
+  the sweep would be swept away. The loop sweeps every tick, and so do the
+  specs.
+- **Culling scales by the node's own `scale` only**, in `Culling#culled?`
+  rather than in each sprite. `scale=` refuses NaN and infinity too.
+- **The coyote window is six ticks with `Footing` after the body, and seven
+  before it**, inside rule 12's tick.
+- **The pre-commit hook deleted `tools/draw_pit_tiles.rb`'s header**, which sat
+  above its `require`. It now sits above the module.
+- `pits.tmx` has three one-tile trenches and a chasm, and its `start` is a
+  point object in a `spawns` layer. The pad's Y toggles coyote time.
+
+Open question 7 is settled: `mount`'s `gaps:` becomes `slots:`, on its own
+branch. Open question 8 is new.
 
 ### Step 3 — moving platforms *(pure, with `examples/moving_platforms`)*
 

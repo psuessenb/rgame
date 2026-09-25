@@ -663,6 +663,47 @@ feet = add_component(RGame::Engine::Components::FeetCollider.new(
 feet.on_hit { |other| take_damage if other.layer == :spike }
 ```
 
+### `Footing`
+
+**What the node stands on, and the fall when that is nothing.** It watches the
+centre of the node's [`BoxCollider`](#boxcollider) box against the floor the
+scene's [`TileWorld`](#tileworld) describes, and drops the node into a gap it walked
+into. A tile of class `gap` makes a gap ([Gaps](tile_maps.md#gaps)).
+
+```ruby
+hero.add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height: 6))
+hero.add_component(RGame::Engine::Components::Hop.new(peak: 18, duration: 0.5))
+hero.add_component(RGame::Engine::Components::Footing.new(coyote: 0.1))
+```
+
+- **Construct:** `Footing.new(coyote: 0.1, fall: 0.4)`, both in seconds. `coyote`
+  must be 0 or more, and `fall` positive, or it raises `ArgumentError`.
+- **Lifecycle:** `_attach` raises when the node has no `BoxCollider` or the scene
+  no `TileWorld`. `_detach` ends a fall under way.
+- **State:** `standing?` says whether the centre of the box is on the floor.
+  `coyote_left` is the coyote time left: `coyote` while standing, counting down off
+  the floor, and 0 in the air or falling. `falling?`, and `coyote` and `fall`.
+  `coyote=` changes the coyote time, and refuses a negative number.
+- **Signal:** `on_fell` fires once as the node starts to fall, before it shrinks.
+  That is where a game takes a life.
+
+**A node in the air never falls.** A node whose [`Hop`](#hop) is `airborne?`
+crosses a gap, and one that lands on a gap falls on the tick it lands. `Footing`
+finds the node's `Hop` on its first update, so a `Hop` added after it still counts.
+
+**Coyote time lets a hop start just past the edge.** A node that walks off the
+floor falls once it has been off it for more than `coyote` seconds. At 0.1 s and
+60 ticks a second, a hop pressed in any of the six ticks after the step off still
+crosses. `coyote: 0` drops the node on its first tick off the floor.
+
+**A fall stops the node and shrinks it into the gap.** The node is suspended, and
+its [`scale`](scene_graph.md#scale) runs from 1 to 0 over `fall` seconds, toward
+its origin, where it stands. A node with a [`Respawn`](#respawn) then comes back
+on its respawn point, and any other node is freed. The fall runs from a helper node `Footing` adds beside the
+falling one, so it pauses when the world around the node is paused. A node taken
+out of the tree mid-fall, through a door or freed, stops falling at once, at
+scale 1 and resumed.
+
 ### `Grab`
 
 **Holds a [`Pushable`](#pushable) while a button is held, so the node's mover drags
@@ -724,8 +765,8 @@ and child that reads its position.
 
 **The game decides what a hop crosses.** `Hop` knows nothing about tiles or
 colliders. A [`CharacterBody`](#characterbody) blocked by a wall stays blocked while
-its node is in the air. A game whose chasm tiles should be passable mid-hop reads
-`airborne?` where it decides what is solid.
+its node is in the air. A [`Footing`](#footing) reads `airborne?`, so a node with
+both crosses a gap in the map mid-hop and falls into one it walks into.
 
 ```ruby
 hop = add_component(RGame::Engine::Components::Hop.new(peak: 18, duration: 0.5))
@@ -1296,6 +1337,34 @@ while they overlap. Two players pushing side by side move it as far as one would
   updates to the next. A crate held against a wall reports it once, whatever order
   the crate and its pusher update in.
 - **Heading:** `0, 0`. A crate faces nowhere.
+
+### `Respawn`
+
+**Where a node comes back after a fall, and the flash that shows it has.** A
+[`Footing`](#footing) whose node has one calls `respawn` at the end of a fall,
+instead of freeing the node.
+
+```ruby
+hero.add_component(RGame::Engine::Components::Footing.new(coyote: 0.1))
+hero.add_component(RGame::Engine::Components::Respawn.new(flash: 1.0))
+```
+
+- **Construct:** `Respawn.new(flash: 1.0)`, in seconds. It must be 0 or more, or it
+  raises `ArgumentError`. `flash: 0` flashes nothing.
+- **The point:** `point_x` and `point_y`, in world pixels. The first attach records
+  where the node stands. Later attaches, such as a door moving the node to another
+  room, keep the point. `set_point(x, y)` moves it.
+- **`respawn`** places the node on its point and starts the flash. A game may call
+  it with no fall before it.
+- **Signal:** `on_respawned` fires once the node stands on its point, as the flash
+  starts.
+- **Lifecycle:** `_detach` stops a flash and gives the opacity back.
+
+**The node comes back working.** Its controls answer from the tick it lands, and a
+[`CameraFollow`](#camerafollow) cuts to it. The flash only shows where it came back:
+`_update` blinks the node's [`opacity`](scene_graph.md#opacity), shown for
+`Respawn::BLINK` seconds and hidden for as many, until `flash` seconds have passed.
+Then it gives back the opacity it found. `flashing?` says whether one is under way.
 
 ### `ScreenWrap`
 

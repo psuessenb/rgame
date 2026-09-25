@@ -282,7 +282,7 @@ from the next frame on. A node with two `BoxCollider`s raises, because
 `get_component` cannot choose between them.
 
 `elevation` plays no part, so a character mid-hop sorts by the spot they left.
-A child's subtree sorts as one unit, at the child's footing: a shadow or a name
+A child's subtree sorts as one unit, where the child stands: a shadow or a name
 tag under a hero draws with the hero. A y-sorted child of a y-sorted node sorts
 the same way, as one unit.
 
@@ -325,6 +325,30 @@ that should also stop with `paused` as well, or remove it.
 Setting `opacity` checks the value at once. A number outside 0..1 raises
 `ArgumentError`, and anything that is not a number raises `TypeError`, as
 [`renderer.faded`](drawing.md#blending-and-fading) does.
+
+### Scale
+
+**`scale` sizes a node and everything under it, about its origin.** At 0 it
+draws none of the subtree, and at 1, the default, it changes nothing:
+
+```ruby
+hero.scale = 0.5   # the hero, its components and its children, at half size
+```
+
+`Node2D#draw` applies it as it applies `opacity`, around the node's components,
+its `_draw` and its children, and a child's own `scale` multiplies with its
+parent's. A character stands on its origin, so a hero shrinking to 0 shrinks
+toward its feet. That is the fall into a gap that
+[`Footing`](components.md#footing) draws.
+
+**Only drawing changes.** `x`, `world_x`, colliders and children's positions
+keep their size, so a scaled node still stands, collides and is followed by a
+camera where it did at 1. Sprites cull against their scaled footprint, so a
+node scaled past 1 does not vanish at the edge of a view while its picture still
+shows there.
+
+Setting `scale` checks the value at once. A negative number, NaN or infinity
+raises `ArgumentError`, and anything that is not a number raises `TypeError`.
 
 ### Who a node answers to
 
