@@ -91,10 +91,15 @@ module RGame
     # player's OS preferences — so a game writes no i18n setup, and a language
     # the player saved is set after `new` and before `start`. A directory that
     # does not exist loads nothing, and every key shows as itself.
+    #
+    # `seed:` seeds the game's random source, so a run with nothing saved plays
+    # the same each time. `RGAME_SEED` wins when it is set, which is how
+    # `tools/drive_test_project.rb --seed N` repeats a run. With neither, the
+    # game picks a fresh seed, and `random_source.seed` reads it back.
     def initialize(root:, width: WIDTH, height: HEIGHT, caption: 'RGame',
                    media_root: 'media', input_map: nil, device: Controls::KEYBOARD,
                    players: 1, input: nil, audio: nil, fullscreen: false, scale_mode: :letterbox,
-                   locales: 'locales')
+                   locales: 'locales', seed: nil)
       super(width: width, height: height, caption: caption, media_root: media_root,
             fullscreen: fullscreen)
 
@@ -115,6 +120,7 @@ module RGame
       @viewports = RGame::Engine::Viewports.new(@players, width: @presentation.width,
                                                           height: @presentation.height)
       @facts = RGame::Engine::Components::Facts.new
+      @random_source = RGame::Engine::Components::RandomSource.new(seed: chosen_seed(seed))
       @debug = RGame::Engine::Debug.new
       @debug_keys = true
       @dirty = true
@@ -142,6 +148,11 @@ module RGame
     # in a scene registers with the same store the save code writes.
     attr_reader :facts
 
+    # The seeded random numbers every node draws from. Reachable as
+    # `node.system!(RGame::Engine::Components::RandomSource)`, so a walker deep in
+    # a scene rolls from the same sequence as everything else.
+    attr_reader :random_source
+
     # The development layer: the channels F1 and F3 switch, and the ones a game
     # defines. Reachable as `node.system(RGame::Engine::Debug)` from anywhere in
     # the tree, which is how a scene turns its own channel on.
@@ -167,6 +178,7 @@ module RGame
       @root.add_component(@players)
       @root.add_component(@viewports)
       @root.add_component(@facts)
+      @root.add_component(@random_source)
       @root.add_component(@debug)
       @root.add_component(RGame::Engine::AudioOut.new(audio))
       @root.enter_tree
@@ -268,6 +280,13 @@ module RGame
     end
 
     private
+
+    def chosen_seed(seed)
+      from_env = ENV.fetch('RGAME_SEED', nil)
+      return Integer(from_env) if from_env
+
+      seed || Random.new_seed
+    end
 
     def draw_tree
       @debug.fps = fps

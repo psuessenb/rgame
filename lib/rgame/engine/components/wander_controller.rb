@@ -6,7 +6,11 @@ module RGame
       # A simple AI driver for a CharacterBody sibling: every so often it rolls a new
       # direction (one of eight, or idle) and holds it until a timer elapses — or until a
       # wall blocks it, at which point it re-rolls early instead of pushing into the wall.
-      # The RNG is injected so behaviour is deterministic in tests.
+      #
+      # It rolls with the root's RandomSource, found when it attaches, so a seeded
+      # game wanders the same way every run. An `rng:` passed in wins, as a spec
+      # does to pin one walker's rolls; it is anything answering `rand` as
+      # `Random#rand` does.
       #
       # "Blocked" is the body's Mover#stopped?: its last step was cut short, on either
       # axis, while it meant to move. So a body declaring no `blocked_by:` is never
@@ -18,9 +22,9 @@ module RGame
           [-1, -1], [1, -1], [-1, 1], [1, 1]
         ].freeze
 
-        def initialize(rng: Random.new, change_interval: 1.0..3.0, idle_chance: 0.25)
+        def initialize(rng: nil, change_interval: 1.0..3.0, idle_chance: 0.25)
           super()
-          @rgame_rng = rng
+          @rgame_given_rng = rng
           @rgame_change_interval = change_interval
           @rgame_idle_chance = idle_chance
           @rgame_timer = 0.0
@@ -28,6 +32,7 @@ module RGame
 
         def _attach
           @rgame_body = require_sibling(CharacterBody)
+          @rgame_rng = @rgame_given_rng || node.system!(RandomSource)
         end
 
         def _update(dt)

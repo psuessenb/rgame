@@ -22,7 +22,7 @@ layer.
 RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
                 media_root: 'media', input_map: nil, device: Controls::KEYBOARD,
                 players: 1, input: nil, audio: nil, fullscreen: false,
-                scale_mode: :letterbox, locales: 'locales')
+                scale_mode: :letterbox, locales: 'locales', seed: nil)
 ```
 
 | Reader | |
@@ -32,14 +32,22 @@ RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
 | `players` | who is playing: their devices, bindings and cameras |
 | `viewports` | how the screen is divided between players |
 | `facts` | the flags and named state machines a game saves; see [Facts](dialogue.md#facts) |
+| `random_source` | the seeded random numbers every node draws from; see [`RandomSource`](components.md#randomsource) |
 | `scale_mode`, `scale_mode=` | how the logical size maps onto the window; switchable while the game runs |
 | `audio` | the sound device: the one passed as `audio:`, or the one [App](app.md) builds on first use |
 | `assets`, `media_root`, `width`, `height`, `fps` | inherited from [App](app.md) |
 
-A node reaches the first three as systems: `node.system(RGame::Engine::Players)`,
-`node.system(RGame::Engine::Viewports)` and
-`node.system(RGame::Engine::Components::Facts)`. It plays sound through a fourth,
-`RGame::Engine::AudioOut`, which holds `audio`; see [Audio](audio.md).
+A node reaches the first four as systems: `node.system(RGame::Engine::Players)`,
+`node.system(RGame::Engine::Viewports)`,
+`node.system(RGame::Engine::Components::Facts)` and
+`node.system!(RGame::Engine::Components::RandomSource)`. It plays sound through a
+fifth, `RGame::Engine::AudioOut`, which holds `audio`; see [Audio](audio.md).
+
+`seed:` seeds `random_source`, so a run with nothing saved plays the same each
+time. The environment variable `RGAME_SEED` wins when it is set, and must hold an
+Integer: `Game.new` raises `ArgumentError` on anything else. With neither, `Game`
+picks a fresh seed, and `random_source.seed` reads back which.
+`tools/drive_test_project.rb --seed N`, in a checkout, sets `RGAME_SEED`.
 
 `input:` replaces the input backend, and `audio:` the sound device. A test
 harness passes a scripted backend and a recording device here, to drive a game
@@ -95,8 +103,8 @@ the game offers a way back. See [Fullscreen](app.md#fullscreen) and
 `examples/fullscreen`.
 
 `start` brings the tree live. It hands the game to the root as its `context`,
-mounts `Players`, `Viewports`, `Components::Facts`, `Debug` and `AudioOut` on the
-root. It then calls `enter_tree` and runs the loop until the window closes.
+mounts `Players`, `Viewports`, `Components::Facts`, `Components::RandomSource`,
+`Debug` and `AudioOut` on the root. It then calls `enter_tree` and runs the loop until the window closes.
 
 Each tick, `Game` polls input, runs `control` and `update` on the tree, and sweeps
 freed nodes. It redraws only when a tick ran or the `:stats` channel is on.

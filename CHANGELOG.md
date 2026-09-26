@@ -146,7 +146,8 @@ index, not the argument.
   [docs/api/toolbox.md](docs/api/toolbox.md#screenfade--cover-the-view-and-flash-it).
 - **Particles.** `RGame::Engine::Components::Particles` bursts and streams
   small squares that fall, change colour with age and vanish, allocating
-  nothing once built. `RGame::Util::ColorRamp` answers a colour by how far
+  nothing once built. They draw from the game's `Components::RandomSource`
+  unless handed an `rng:`. `RGame::Util::ColorRamp` answers a colour by how far
   along it is, and `Engine::Pool#reserve` builds a pool's objects ahead of
   time. See [docs/api/components.md](docs/api/components.md#particles).
 - **`examples/effects`**: a fade, a flash, sparkles, embers and a lightning bolt.
@@ -303,6 +304,12 @@ index, not the argument.
   `StateMachine` built with `name:` registers with it, so
   `facts.to_h` saves every named quest too and `facts.restore` puts all of them
   back. See [docs/api/dialogue.md](docs/api/dialogue.md#facts).
+- **A game has one seeded source of random numbers.**
+  `RGame::Engine::Components::RandomSource` answers `rand` as `Random#rand`
+  does, and `RGame::Game` mounts one as `game.random_source`, seeded from
+  `seed:` or, when it is set, `RGAME_SEED`. With neither, the game picks a seed,
+  and `random_source.seed` reads it back. See
+  [docs/api/components.md](docs/api/components.md#randomsource).
 - **A game can hold a branching conversation.**
   `RGame::Engine::Dialogue::Script.build` declares beats, each a speaker saying
   a translated line, and responses that conditions can make unavailable.
@@ -412,6 +419,10 @@ index, not the argument.
 
 ### Changed
 
+- **`WanderController` rolls from the game's `RandomSource` by default.** Its
+  `rng:` defaults to `nil`, and it finds the root's source when it attaches,
+  raising `KeyError` when the root has none. An `rng:` passed in still wins.
+  See [docs/api/components.md](docs/api/components.md#wandercontroller).
 - **`WanderController` re-rolls when its body's step was cut short**, as
   `Mover#stopped?` says, rather than when the node did not move. A body
   sliding along a wall now re-rolls, and a body with nothing in `blocked_by:`
