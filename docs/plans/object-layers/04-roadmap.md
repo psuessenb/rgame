@@ -14,8 +14,7 @@ get re-planned once the steps before them land.
 ```
 
 Steps 1, 2 and 4 depend on nothing in this plan and can land in any order. Step 3
-needs step 1, because a component's values are the class properties step 1 stops
-dropping. Step 6 needs step 2, because a `Walker` built from a map finds its
+needs step 1, because the class it resolves may come from the object's tile. Step 6 needs step 2, because a `Walker` built from a map finds its
 random source in the tree. Step 8 needs step 7: the level's designer picks
 classes from the exported types, rather than typing them.
 
@@ -271,12 +270,10 @@ without a scene.
 ### Sub-steps
 
 - **3a** — `Engine::MapSettings` reads the `@param` tags above a class's
-  `initialize`: the types, the allow-list and the checks. `BoxCollider` and
-  `FeetCollider` get their tags.
-- **3b** — `Node2D` takes `map_object:` and `fact_key:`, and component values
-  apply while a node builds its components.
+  `initialize`: the types, the allow-list and the checks.
+- **3b** — `Node2D` takes `map_object:` and `fact_key:`.
 - **3c** — `Engine::MapBuilder`: class resolution, property checks and casts,
-  the origin, the key in `Facts`, and the check that every value was taken.
+  the origin, and the key in `Facts`.
 
 ### Shape
 
@@ -316,72 +313,55 @@ builder.build(object)                  # => a Chest, or nil for an object whose 
    naming a reserved name: `Node2D`'s own keywords, `map_object`, `fact_key` or
    `fact`.
 4. **A subclass without its own `initialize` reads its parent's tags.** One with
-   its own reads only its own: `FeetCollider` has three settable keywords, not
-   `BoxCollider`'s five.
+   its own reads only its own.
 5. **A class with no source location raises when it is read**, naming the class.
 6. **A class's tags are read once and cached.**
-7. **Every engine class with tags reads without raising**, checked by a spec over
-   all of them.
-8. **The comment stripper keeps the tag block above a `def initialize`.**
+7. **The comment stripper keeps the tag block above a `def initialize`.**
 
 **3b**
 
-9. **A component built by a node's `initialize` takes the map's values for its
-   class**, and they win over the keywords the code passed.
-10. **The class must match exactly.** A value for `BoxCollider` does not reach a
-    `FeetCollider`.
-11. **A child node built inside that `initialize` takes nothing** from its
-    parent's values, and a component built after `initialize` returns takes
-    nothing either.
-12. **With no build in progress, `Node2D.new` and `Component.new` allocate what
-    they allocate today**, measured per call.
+8. **`map_object` and `fact_key` are `nil` on a node built in code**, and read
+   back what was passed.
 
 **3c**
 
-13. **A class starting with a capital resolves to a constant**, `Town::Chest`
-    included. No such constant raises `NameError`, and a constant that is not a
-    `Node2D` subclass raises `TypeError`. Each message names the tilemap id, the
-    object's id and name, and the class.
-14. **Any other class, or none, builds nothing.** `build` returns `nil`.
-15. **A flat property must be a keyword the class's tags make settable, of the
+9. **A class starting with a capital resolves to a constant**, `Town::Chest`
+   included. No such constant raises `NameError`, and a constant that is not a
+   `Node2D` subclass raises `TypeError`. Each message names the tilemap id, the
+   object's id and name, and the class.
+10. **Any other class, or none, builds nothing.** `build` returns `nil`.
+11. **Every property must be a keyword the class's tags make settable, of the
     tagged type**, and arrives as the design's table says, a String becoming a
     Symbol for `[Symbol]`. Anything else raises, listing the settable keywords.
-16. **A class property's members must be keywords its component's tags make
-    settable.** The raise names the object, the component and the member.
-17. **The origin is the bottom centre of the object's box, turned with it.** A
+    A class-typed property is no exception.
+12. **The origin is the bottom centre of the object's box, turned with it.** A
     point object's origin is its point, and a polygon's or polyline's is its own
     corner. `angle` is the object's rotation, and `width` and `height` its size.
-18. **`fact_key` is the `fact` property as a Symbol**, and otherwise
+13. **`fact_key` is the `fact` property as a Symbol**, and otherwise
     `:"<tilemap id>#<object id>"`. `map_object` is the record it was built from.
-19. **Every component value is taken exactly once.** None taken raises,
-    "`Chest` built no `FeetCollider`", and two taken raises too.
 
 ### Tests
 
-- `spec/rgame/engine/map_settings_spec.rb`: rules 1–7, with its classes defined
+- `spec/rgame/engine/map_settings_spec.rb`: rules 1–6, with its classes defined
   in the spec itself, and one built by `eval` for rule 5.
-- `spec/tools/comment_stripper_spec.rb`: rule 8.
-- `spec/rgame/engine/node2d_spec.rb` and a new
-  `spec/rgame/engine/map_settings_construction_spec.rb`: rules 9–11.
-- An allocation example beside `node2d_control_allocation_spec.rb`: rule 12.
-- `spec/rgame/engine/map_builder_spec.rb`: rules 13–19, its records parsed from
+- `spec/tools/comment_stripper_spec.rb`: rule 7.
+- `spec/rgame/engine/node2d_spec.rb`: rule 8.
+- `spec/rgame/engine/map_builder_spec.rb`: rules 9–13, its records parsed from
   `.tmx` strings through `TiledFixture` rather than built with `MapObject.new`.
-- **The caller that uses both**, in the same file: a node class that builds a
-  `FeetCollider` and a child node with its own `BoxCollider`, from an object
-  whose properties set both. The node's collider takes its value, the child's
-  keeps its own, and the `BoxCollider` value raises as never taken.
+- **The caller that uses both**, in the same file: a node class whose tagged
+  `size:` it passes to a `BoxCollider`, deriving the offsets, built from a
+  rotated rectangle object. Its box matches the object's box on the map.
 
 ### Verify
 
 - `rake spec`.
-- `rake drive:allocations`: no project allocates more, because rule 12 holds for
-  every node and component a game builds.
 - `docs/api/` documents the `@param` convention, `map_object` and `fact_key`.
   `MapSettings` and `MapBuilder` are `@api private`, and nothing uses them yet,
   so `CHANGELOG.md` waits for step 5.
 - [write-ruby-code](../../../.claude/skills/write-ruby-code/SKILL.md) says that
-  a constructor a map builds documents its settable keywords with `@param`, and
-  that the tags are what the map may set.
+  a constructor a map builds documents its settable keywords with `@param`, that
+  the tags are what the map may set, and that a node passes a designer's value on
+  to its components itself.
 
 ---
 
@@ -446,14 +426,14 @@ sketches:
 - A second map, designed as a level, is played by a new example with a drive
   script. Its requirements are written at this step's re-plan, against the
   exported types: trees as tile objects in the marked layer, a chest whose state
-  survives leaving the room, a component value set from the map.
+  survives leaving the room, a value a node passes on to its component.
 
 `puzzle.tmx`, which has no object layer, covers the fallback slot.
 
 ## Step 9 — fold the plan back and delete it
 
 - **`docs/api/tile_maps.md`** says what a map builds and how: the class rule,
-  data classes, the `@param` tags, component values, tile objects, the `actors`
+  data classes, the `@param` tags, tile objects, the `actors`
   mark, `fact_key`. "Building nodes from objects" is rewritten for the new path.
 - **`docs/api/components.md`** covers `MapTile` and `RandomSource`.
 - **`docs/api/scene_graph.md`** covers what `mount` builds for an object layer.

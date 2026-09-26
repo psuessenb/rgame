@@ -230,14 +230,13 @@ object layer's node to sort against the trees in it.
 |---|---|---|
 | Who builds from an object | the loader, into the object's own layer (decision 1) | bevy_ecs_tiled, YATI, SuperTiled2Unity, ponytiled |
 | What an object's class names | a Ruby class, by its constant's name (decision 4) | YATI's `godot_node_type` |
-| How a value reaches a component | one class-typed property per component (decision 3) | bevy_ecs_tiled, and Tiled's own `Body` and `Fixture` classes |
+| How a value reaches a component | through the node, which takes it as its own keyword (decision 3) | none: setting a component directly, as bevy_ecs_tiled and SuperTiled2Unity do, waits in `possible-todos.md` |
 | A name nothing declares | raises at load (decisions 5 and 8) | none of them |
 | The types a designer picks from | written from Ruby (decision 8) | bevy_ecs_tiled's `tiled_types_export.json` |
 | An object nothing builds | data; a tile object still draws its tile (decision 6) | Excalibur, YATI and STI draw a tile object by default |
 | A node class's own picture | draws over the tile rather than replacing it (decision 6) | against Excalibur, where a factory replaces the default |
 | Actors spawned in code | the layer the designer marks (decision 7) | SuperTiled2Unity's `unity:SortingLayer`, Excalibur's `zindex` |
 
-The Tiled format plan's objection to matching by name holds, and decision 3 is
-what answers it. The component is named by the Tiled class of the property that
-carries its values, so nothing is matched by string, and a failure names the map,
-the object and the member.
+The Tiled format plan's objection to matching by name holds. The plan sets only
+the keywords a class's own tags name, so nothing is matched across components,
+and a failure names the map, the object and the property.

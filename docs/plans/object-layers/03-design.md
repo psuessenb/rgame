@@ -12,8 +12,8 @@ Five stages, each owned by one piece:
 3. **`TileMapLayer.mount` builds the tree.** An object layer becomes a node in
    its place among the layers, and each object in it goes to `MapBuilder`.
 4. **`MapBuilder` builds one node.** It resolves the class, checks every property
-   against the `@param` tags above the class's `initialize`, constructs the node
-   with its component values applied, and gives a tile object its picture.
+   against the `@param` tags above the class's `initialize`, constructs the
+   node, and gives a tile object its picture.
 5. **The node finds the rest in the tree.** Its room, its facts and its random
    source are systems, reached with `system!` in `_enter_tree`.
 
@@ -90,19 +90,6 @@ class Chest < RGame::Engine::Node2D
                   ))
   end
 end
-
-module RGame::Engine::Components
-  class BoxCollider < Collider
-    # @param width [Float] the box's width, in pixels
-    # @param height [Float] its height
-    # @param offset_x [Float] how far the box's left edge sits from the origin
-    # @param offset_y [Float] how far its top edge sits from the origin
-    # @param layer [Symbol] the collision layer it is found on
-    def initialize(width:, height:, offset_x: 0, offset_y: 0, layer: :default)
-      # ...as today
-    end
-  end
-end
 ```
 
 | Tag type | Tiled type | Ruby value |
@@ -135,8 +122,8 @@ end
   `fact_key`, and the property `fact`. The map sets the first six, and the
   builder the next three.
 - **The tags come with the constructor.** A subclass without an `initialize` of
-  its own uses its parent's, comment and all. `FeetCollider` has its own
-  `initialize`, so only its own three tags count, not `BoxCollider`'s five.
+  its own, such as `class LockedChest < Chest; end`, uses its parent's, comment
+  and all. A subclass with its own `initialize` uses only its own tags.
 - **A class needs its source.** A class defined by `eval`, or in C, has no source
   location, and building one from a map raises, naming it.
 - **The pre-commit hook keeps the block.** `tools/strip_comments.rb` treats a
@@ -150,15 +137,13 @@ end
 
 ## Building one node
 
-For object 7, a `Chest` tile object in `map/town.tmx` with the properties
-`contents: 'key'` and `collider` of class `BoxCollider` holding `width: 20.0`,
-`MapBuilder` does the equivalent of:
+For object 7, a `Chest` tile object in `map/town.tmx` with the property
+`contents: 'key'`, `MapBuilder` does the equivalent of:
 
 ```ruby
 Chest.new(x: 184.0, y: 312.0, width: 16.0, height: 16.0, angle: 0.0,
           map_object: object, fact_key: :"map/town.tmx#7",
           contents: 'key')
-# ...and while that runs, the BoxCollider Chest builds gets width: 20.0
 node.add_component(Components::MapTile.new(tile: object.tile, orientation: object.orientation))
 ```
 
@@ -179,23 +164,26 @@ with `angle` in radians and `(x, y)` the `MapObject`'s top-left corner. A point
 object's origin is its point. A polygon or polyline has no box in Tiled, so its
 origin is its own `(x, y)` and its points stay relative to it.
 
-**A component's values apply while the node builds it.** Each class property
-names a component class, and its members must be keywords that component's own
-tags make settable. While the node's `initialize` runs, a component of that class
-built by that `initialize` takes the map's values as keywords, the map's winning
-over the ones the code passed:
+**A component's values come through the node.** A node that lets a designer
+tune one of its components takes the value as a tagged keyword of its own, and
+passes it on together with what it derives from it:
 
-- **A component has no writers to add.** It is built once, with its final
-  values, so a `FeetCollider` derives its box and a `Particles` checks its
-  limits exactly as when code builds it.
-- **Only the node's own `initialize` counts.** A child node built inside it opens
-  a scope of its own, so a child's `BoxCollider` never takes its parent's value.
-  A component built later, in `_enter_tree`, takes nothing.
-- **Every value is taken exactly once.** A class the node never builds raises,
-  "Chest built no FeetCollider; object 7 in map/town.tmx sets one". A class it
-  builds twice raises too, because the map cannot say which.
-- **Nothing changes when no map node is building.** `Node2D.new` and
-  `Component.new` forward with `(...)` and allocate nothing extra.
+```ruby
+class Crate < RGame::Engine::Node2D
+  # @param size [Float] the crate's side, in pixels
+  def initialize(size: 16.0, **)
+    super(**)
+    add_component(RGame::Engine::Components::BoxCollider.new(
+                    width: size, height: size, offset_x: -size / 2, offset_y: -size, layer: :crate
+                  ))
+  end
+end
+```
+
+The map never sets a component's keywords itself (decision 3). An override of
+`width` would leave behind the offsets the code derived from it, and no node
+class built from a map today wants one. `docs/plans/possible-todos.md` keeps the
+design this plan drafted for it.
 
 **The key in `Facts`** is the object's `fact` property as a Symbol when it has
 one, and `:"<tilemap id>#<object id>"` otherwise. The tilemap id is the asset key
@@ -285,9 +273,8 @@ node.system!(RGame::Engine::Components::RandomSource).rand(3)
 RGame::Engine::MapTypes.write('examples/assets/tiled_tour/tour.tiled-project')
 ```
 
-It walks the `Node2D` and `Component` subclasses whose tags make any keyword
-settable, and writes a Tiled class for each: `useAs` object for a node class, `useAs`
-property for a component. It replaces the classes it owns and keeps the ones the
+It walks the `Node2D` subclasses whose tags make any keyword settable, and
+writes a Tiled class with `useAs` object for each. It replaces the classes it owns and keeps the ones the
 designer wrote, such as `entrance`. Where it runs from, and what default each
 member shows, are open questions [2](README.md#open-questions) and
 [5](README.md#open-questions).
@@ -314,22 +301,15 @@ member shows, are open questions [2](README.md#open-questions) and
   signature. But required keywords such as `width:` and `contents:` have no
   default, a default like `-Math::PI / 2` has no literal type, and changing a
   default's literal would quietly change an exported type.
-
-- **Writers on each component**, so the builder sets values after construction.
-  It needs up to 29 writers, and each must re-derive what the constructor
-  derived: a `FeetCollider`'s box, a `Particles`' checked limits. A writer that
-  forgets one leaves a component that looks configured and is not.
-- **Running `initialize` again with the map's values.** It rebuilds whatever the
-  first run set up, signals included, and a component would have to remember its
-  arguments.
-- **The node passes component values on itself** (Q2 D). Every node class would
-  repeat the same code, and the one that forgets drops the designer's value.
+- **Setting a component's values from the map** (Q2 A). A class-typed property
+  named after a component would set its keywords while the node builds it. No
+  node class built from a map today sets a component value per object. In 4 of
+  the 7, the code derives several of a component's values from one, which an
+  override would bypass without a word. The drafted design, and why its
+  alternatives failed, moved to `docs/plans/possible-todos.md`.
 - **A registry per scene, or a list of classes per game** (Q3 A and B). Both are
   bookkeeping someone forgets, and a registry per scene keeps the scene deciding
   what a map may contain.
-- **Matching property names on every component** (Q2 C). Rejected once already
-  by the Tiled format plan: nothing checks the name, and two components with the
-  same attribute both receive the value.
 - **A map that adds components** (Q1 B and C). It moves what a chest is out of
   its class and into data nothing checks until the map loads.
 - **The engine picking the only object layer for actors** (Q6 C). It would move

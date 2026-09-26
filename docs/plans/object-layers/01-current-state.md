@@ -101,26 +101,22 @@ result there." For object layers it means nothing.
 `Scene::Rooms` is a component, so a door built without its scene can reach it
 with `system(Scene::Rooms)`.
 
-## Components a map could configure
+## What the node classes built from maps take
 
-*(Measured, from the constructor signatures.)* Of 39 components, 29 take only
-keywords whose values Tiled can express: numbers, strings, booleans, a Symbol as
-a string or an enum. The other 10:
+*(Measured.)* What varies from one placed object to the next, and where it goes:
 
-| Component | Why a map cannot build its arguments |
-|---|---|
-| `ActionTrigger` | a positional Hash |
-| `CameraFollow` | a camera |
-| `Collider` | abstract |
-| `Cutscene` | a script |
-| `Pool` | a block |
-| `TileWorld` | a map |
-| `Timer`, `Tween` | positional arguments |
-| `WanderController` | an RNG and a Range |
-| `Mover` | abstract |
+| Class | Varies per object | Goes to |
+|---|---|---|
+| `Door` ×2 | its size, `to`, `entrance`, `party` | the node; its box is built from the object's size |
+| `Raft` ×2 | its route, `width`, `height` | the box and its offsets, both derived from width and height |
+| `Flag` | its name | the node; its box comes from the constant `SIZE` |
+| `Crate` | nothing | constants |
+| `Walker` | the RNG | its `WanderController` |
 
-Lists of Symbols, such as `blocked_by: [:tiles, :actors]`, count among the 29
-through their other keywords only. Tiled has no list type.
+Every value a map sets today belongs to the node, and the node derives its
+components from it. None of the 7 classes sets a component value per object. In
+4 of them, the rafts, `Flag` and `Crate`, the code derives several of a
+component's values from one, such as a box's offsets from its width.
 
 ## Randomness
 
@@ -172,6 +168,4 @@ without the variable. Two engine components default to an unseeded `Random.new`:
 
 - **Building a node on the game's behalf, from a class name.** `Pool` builds
   nodes, but from a block the game gives it.
-- **Applying map values to the components a node builds.** No component has
-  writers for its settings, and 29 would need them.
 - **Writing Tiled custom types from Ruby.**

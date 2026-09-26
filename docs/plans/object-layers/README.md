@@ -30,10 +30,10 @@ gave it. A scene that shows the map writes no line for it.
 as an instance of the Ruby class its Tiled class names.** The class `Chest`
 builds a `Chest`. A class starting with a lower-case letter, or none, is data and
 builds nothing, except that a tile object always draws its tile. A node's own
-properties arrive as keywords of its constructor. A property whose Tiled type is
-a component's class sets that component's keywords while the node's own
-`initialize` builds it. What a map may set is what the `@param` tags above a
-class's `initialize` document, with a type Tiled can hold. It is checked at
+properties arrive as keywords of its constructor, and a node that lets a
+designer tune one of its components takes the value as its own keyword and
+passes it on. What a map may set is what the `@param` tags above a class's
+`initialize` document, with a type Tiled can hold. It is checked at
 load, and written out as Tiled custom types, so the designer picks from the
 game's real names.
 
@@ -78,10 +78,14 @@ plan.
 1. **The loader builds, not the scene.** An object layer becomes a node in the
    map, and its objects become nodes inside it. Scenes stop calling `spawn_into`.
 2. **An object's class names a node class, and the map only configures it**
-   (Q1). The node class decides which components it has. A value for a component
-   the node does not build raises at load, naming the object.
-3. **A component's values arrive as one class-typed property per component**
-   (Q2). The property's Tiled class names the component, and its name is free.
+   (Q1). The node class decides which components it has.
+3. **The map sets a node's own keywords, never a component's.** Q2 chose one
+   class-typed property per component, and review took it out of the plan. None
+   of the 7 node classes built from maps sets a component value per object. In
+   4 of them, the code derives several component values from one, which an
+   override would bypass without a word. A node that lets a designer tune a
+   component takes the value itself and passes it on. Setting a component's
+   values from the map waits in `docs/plans/possible-todos.md`.
 4. **The Tiled class is the Ruby constant's name, resolved at load** (Q3). It
    must name a `Node2D` subclass. There is no registry and no list. A map-built
    node finds what else it needs in the tree, such as `Scene::Rooms` or the
@@ -132,7 +136,8 @@ Taken at `abb91ad`, and on `origin/build-step-8-tiled-map` for `tour.tmx`.
 | Objects whose class becomes a Ruby class | 13, in 4 maps |
 | Objects of a data class | 8: `entrance` ×7, `start` ×1 |
 | Maps with a terrain tile class | 3, all `gap` |
-| Components whose arguments Tiled can express | 29 of 39 |
+| Map-built node classes that set a component value per object | 0 of 7 |
+| Map-built node classes that derive component values from one they take | 4 of 7 |
 | Projects seeding their own `Random` from `RGAME_SEED` | 9 |
 | Engine components defaulting to an unseeded `Random` | 2: `Particles`, `WanderController` |
 | Silent gaps in the parse and the transform | 6 |
@@ -142,6 +147,8 @@ Taken at `abb91ad`, and on `origin/build-step-8-tiled-map` for `tour.tmx`.
 ## What this plan does not deliver
 
 - **A map adding components a node class lacks.** See decision 2.
+- **A map setting a component's values directly.** See decision 3, and
+  `docs/plans/possible-todos.md`.
 - **Lists in map settings.** Tiled has no list type, so
   `blocked_by: [:tiles, :actors]` stays in code. A flags enum could carry it
   later.
