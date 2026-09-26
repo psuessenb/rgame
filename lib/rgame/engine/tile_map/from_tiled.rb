@@ -20,6 +20,8 @@ module RGame
     #   cell `(0, 0)` is the map's top-left;
     # - a tile object with no class takes its tile's, and its tile's
     #   properties sit under its own, as Tiled shows them;
+    # - an object layer's draw order becomes `y_sort?`, and the bool properties
+    #   `above` and `actors` become `above?` and `actors?`, each checked once;
     # - a tileset's drawing offset becomes each of its tiles' `tile_offset`.
     class TileMap
       # Builds a map from a `Tiled::Map`. The only way one is built.
@@ -108,8 +110,7 @@ module RGame
           gid = raw_gid & Tiled::GID_MASK
           return 0 if gid.zero?
 
-          @gids[gid] or raise Tiled::FormatError,
-                              "#{yield} names gid #{gid}, which no tileset in #{@tiled.source_path || 'the map'} covers"
+          @gids[gid] or raise Tiled::FormatError, "#{yield} names gid #{gid}, which no tileset in #{file} covers"
         end
 
         def orientation_of(raw_gid)
@@ -118,12 +119,14 @@ module RGame
 
         def flatten(layers, groups)
           layers.each do |layer|
-            next flatten(layer.layers, groups + [layer.name]) if layer.is_a?(Tiled::GroupLayer)
+            path = groups + [layer.name]
+            actors = actors?(layer, path)
+            next flatten(layer.layers, path) if layer.is_a?(Tiled::GroupLayer)
 
-            common = { index: @layers.size, path: groups + [layer.name], class_name: layer.class_name,
+            common = { index: @layers.size, path: path, class_name: layer.class_name,
                        visible: layer.effective_visible?, opacity: layer.effective_opacity,
-                       above: above?(layer), properties: layer.properties }
-            @layers << runtime_layer(layer, common)
+                       above: mark(layer, 'above'), properties: layer.properties }
+            @layers << runtime_layer(layer, common, actors)
             tiles = layer.is_a?(Tiled::TileLayer)
             @cells << (layer.gids.each_with_index.map { |raw, cell| tile_of(raw) { cell_name(layer, cell) } } if tiles)
             @orientations << (layer.gids.map { orientation_of(it) } if tiles)
@@ -131,10 +134,10 @@ module RGame
           end
         end
 
-        def runtime_layer(layer, common)
+        def runtime_layer(layer, common, actors)
           case layer
           when Tiled::TileLayer then Layer.new(kind: :tile, **common)
-          when Tiled::ObjectLayer then Layer.new(kind: :object, **common)
+          when Tiled::ObjectLayer then ObjectLayer.new(y_sort: layer.draw_order == :topdown, actors: actors, **common)
           when Tiled::ImageLayer
             ImageLayer.new(image: layer.image&.source,
                            offset_x: layer.offset_x - @shift_x, offset_y: layer.offset_y - @shift_y,
@@ -142,13 +145,31 @@ module RGame
           end
         end
 
-        def above?(layer)
-          above = layer.properties.fetch('above', false)
-          return above if [true, false].include?(above)
+        def mark(layer, name)
+          value = layer.properties.fetch(name, false)
+          return value if [true, false].include?(value)
 
-          raise Tiled::FormatError, "layer '#{layer.name}' in #{@tiled.source_path || 'the map'} has an " \
-                                    "'above' property of #{above.inspect}; make it a bool property in Tiled"
+          raise Tiled::FormatError, "layer '#{layer.name}' in #{file} has an '#{name}' property of " \
+                                    "#{value.inspect}; make it a bool property in Tiled"
         end
+
+        def actors?(layer, path)
+          return false unless mark(layer, 'actors')
+
+          marked = path.join('/')
+          unless layer.is_a?(Tiled::ObjectLayer)
+            raise Tiled::FormatError, "layer '#{marked}' in #{file} is marked 'actors', and only an object layer " \
+                                      'holds actors; move the mark to one'
+          end
+          if @actors
+            raise Tiled::FormatError, "layers '#{@actors}' and '#{marked}' in #{file} are both marked 'actors'; " \
+                                      'keep the mark on one'
+          end
+          @actors = marked
+          true
+        end
+
+        def file = @tiled.source_path || 'the map'
 
         def cell_name(layer, cell)
           row, col = cell.divmod(layer.width)

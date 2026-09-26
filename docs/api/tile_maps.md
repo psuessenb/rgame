@@ -297,6 +297,16 @@ unless the scene names another layer with `slots:`. Tiles do not sort with the
 actors, so a tree whose canopy a character walks under is two layers: a trunk
 below the slot and a canopy in an `above` layer.
 
+**An object layer is a `TileMap::ObjectLayer`**, a `Layer` that adds two
+answers. `y_sort?` is true for Tiled's *Top Down* draw order, the default, and
+false for *Manual*, which keeps the order Tiled lists the objects in. `actors?`
+is true for the layer marked for the actors: an object layer with a custom
+**bool** property named `actors`, ticked. `map.actors_layer` is that layer's
+index, or `nil` when no layer is marked, and `TileWorld#actors_layer` answers the
+same. A map may mark one object layer. A mark on a tile layer, an image layer or
+a group, marks on two layers, and an `actors` property that is not a bool each
+raise `Tiled::FormatError`, naming the layers.
+
 `map.image_layers` lists the image layers, each a `TileMap::ImageLayer`: a
 `Layer` that adds `image` (the image's path, or `nil`), `offset_x` and `offset_y`
 in the map's pixels, and `repeat_x?` and `repeat_y?`. The asset loader loads each
@@ -464,9 +474,9 @@ are values of the same class. "No properties" is `Properties::EMPTY`, never
 names `TileMap`. rgame's own suite states that contract in
 `spec/support/shared_examples/a_tile_map.rb`. It checks both `TileMap` and the
 spec stand-in `StubTileMap` against it. The contract covers `layer_count`,
-`layer`, `layer_index`, `width`, `height`, `tile_width`, `tile_height`, `cell_x`,
-`cell_y`, `col_at`, `row_at`, `tile`, `orientation`, `solid?`, `tile_offset`,
-`animated_tiles` and `frame_tile`.
+`layer`, `layer_index`, `actors_layer`, `width`, `height`, `tile_width`,
+`tile_height`, `cell_x`, `cell_y`, `col_at`, `row_at`, `tile`, `orientation`,
+`solid?`, `tile_offset`, `animated_tiles` and `frame_tile`.
 
 A spec that needs a map but no files parses a `.tmx` String with its tilesets
 embedded, as [above](#loading-a-map).

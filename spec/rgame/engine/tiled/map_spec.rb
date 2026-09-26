@@ -391,6 +391,11 @@ RSpec.describe RGame::Engine::Tiled::Map do
       expect(parse('<objectgroup id="1"/>').layers.first.draw_order).to eq(:topdown)
     end
 
+    it 'raises on a draw order that is neither topdown nor index' do
+      expect { parse('<objectgroup id="1" draworder="random"/>') }
+        .to raise_error(RGame::Engine::Tiled::FormatError, /draworder="random", which is neither topdown nor index/)
+    end
+
     it 'keeps a tile object at the bottom-left origin the file states' do
       expect([layer.objects[0].gid, layer.objects[0].x, layer.objects[0].y]).to eq([5, 32.0, 48.0])
     end

@@ -21,7 +21,8 @@
 # `tile_offsets` is `{ tile => [x, y] }` for the tiles drawn off their cell.
 # `image_layers` is `{ layer => { offset_x:, offset_y:, repeat_x:, repeat_y: } }`,
 # every key optional, and such a layer's entry in `layers` is `nil`, as is an
-# object layer's, whose index `object_layers` lists. `names` are the layers'
+# object layer's, whose index `object_layers` lists. `actors_layer` is the
+# index of the one marked for the actors, or `nil`. `names` are the layers'
 # names, `layer0`, `layer1` and so on when not given.
 #
 # It names no Engine class, because the Core suite loads it too.
@@ -43,11 +44,11 @@ class StubTileMap
   IDENTITY = Orientation.new(quarter_turns: 0, mirrored: false)
   NO_OFFSET = [0, 0].freeze
 
-  attr_reader :width, :height, :tile_width, :tile_height
+  attr_reader :width, :height, :tile_width, :tile_height, :actors_layer
 
   def initialize(layers:, width: 2, height: 2, tile_width: 16, tile_height: 16,
                  above: [], visible: [], opacity: [], solid: [], animations: {}, orientations: {},
-                 tile_offsets: {}, image_layers: {}, object_layers: [], names: [])
+                 tile_offsets: {}, image_layers: {}, object_layers: [], actors_layer: nil, names: [])
     @cells = layers
     @layers = Array.new(layers.length) do |index|
       image = image_layers[index]
@@ -59,6 +60,7 @@ class StubTileMap
                 visible: visible.fetch(index, true), opacity: opacity.fetch(index, 1.0),
                 **placement(image || {}))
     end
+    @actors_layer = actors_layer
     @width = width
     @height = height
     @tile_width = tile_width
