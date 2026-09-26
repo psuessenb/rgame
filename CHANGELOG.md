@@ -314,7 +314,9 @@ index, not the argument.
   object, and `RGame::Game` mounts one as `game.facts`. `on_changed` reports
   changes in play, and `watch` keeps something in step, loads included. A
   `StateMachine` built with `name:` registers with it, so `facts.to_h` saves
-  every named quest too and `facts.restore` puts all of them back. See
+  every named quest too and `facts.restore` puts all of them back. A value may
+  be a record, a Hash of fields that follow the same rules, and
+  `facts[key, field]` reads or writes one field without allocating. See
   [docs/api/dialogue.md](docs/api/dialogue.md#facts).
 - **A game has one seeded source of random numbers.**
   `RGame::Engine::Components::RandomSource` answers `rand` as `Random#rand`

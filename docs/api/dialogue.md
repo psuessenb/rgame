@@ -264,12 +264,14 @@ facts.key?(:bridge_down)  # => false
 
 | Method | Does |
 |---|---|
-| `facts[key]` | the value, or nil for a key never set |
+| `facts[key]` | the value, or nil for a key never set; a record comes as a frozen copy |
 | `facts[key] = value` | sets it |
+| `facts[key, field]` | one field of the record `key` holds, or nil |
+| `facts[key, field] = value` | sets one field, making the record when the key has none |
 | `fetch(key, ...)` | as `Hash#fetch`: a default, a block, or `KeyError` |
-| `key?(key)` | whether the key was set |
-| `delete(key)` | removes the key, and returns its value |
-| `on_changed` | connects a listener, called with the key and the new value |
+| `key?(key)`, `key?(key, field)` | whether the key, or the field, was set |
+| `delete(key)`, `delete(key, field)` | removes the key, or the field, and returns its value |
+| `on_changed` | connects a listener, called with the key, the new value and the field, nil for a whole value |
 | `watch(key)` | calls its block with the value now, then with every value that differs; returns a handle |
 | `unwatch(handle)` | stops calling a block `watch` returned |
 | `to_h` | every fact and every named machine, frozen |
@@ -282,8 +284,32 @@ A state machine built with `facts:` reads them in its conditions as `m.facts`.
 opened once, or a lever pulled. A room built again finds it.
 
 **The store takes only what a save brings back unchanged.** Keys are Symbols.
-Values are nil, true, false, an Integer, a Float or a String. Anything else
-raises `TypeError`, naming the key and the class, and so does a String key.
+Values are nil, true, false, an Integer, a Float, a String, or a record of
+those. Anything else raises `TypeError`, naming the key and the class, and so
+does a String key.
+
+**A record keeps the facts of one thing under one key**: a Hash whose fields
+are Symbols and whose values follow the same rule, records included.
+
+```ruby
+require 'rgame'
+
+facts = RGame::Engine::Components::FactsDatabase.new
+facts[:crate, :x] = 48
+facts[:crate, :way] = 'east'
+
+facts[:crate, :x]        # => 48
+facts[:crate]            # => {x: 48, way: "east"}
+facts[:crate].frozen?    # => true
+facts[:crate, :lid]      # => nil — never set
+```
+
+Reading or writing one field allocates nothing, so a node may write its record
+every frame. The whole record comes out as a frozen copy, and a Hash written
+whole goes in as a copy, so neither side changes the other's. A field write or
+read on a key that holds a plain value raises `TypeError`, and deleting a
+record's last field deletes the key. A save file brings a record back with
+Symbol fields at every depth.
 
 **A Symbol value is refused.** JSON brings `:open` back as `"open"`, so a
 condition comparing against `:open` would fail after every load. The error says
@@ -300,6 +326,9 @@ second boss.
 value at once, nil for a key never set. It then calls it with every value that
 differs, restores included. A gate that opens when the bridge is down uses
 `watch`, so it opens after a load too.
+
+**A field write reports the field.** `on_changed` hears the key, the field's new
+value and the field, and the key's watchers hear the whole record.
 
 A value that differs counts `1` and `1.0` as different, as a save would write
 them.

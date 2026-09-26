@@ -36,6 +36,105 @@ RSpec.describe RGame::Engine::Components::FactsDatabase do
     end
   end
 
+  describe 'records' do
+    it 'holds a Hash of fields written whole, and hands out a frozen copy' do
+      facts[:crate] = { x: 3, way: 'east' }
+
+      expect([facts[:crate], facts[:crate].frozen?]).to eq([{ x: 3, way: 'east' }, true])
+    end
+
+    it 'writes one field, making the record when the key has none' do
+      facts[:crate, :x] = 3
+      facts[:crate, :y] = 4
+
+      expect([facts[:crate, :x], facts[:crate]]).to eq([3, { x: 3, y: 4 }])
+    end
+
+    it 'reads nil for a field never set, and for a key never set' do
+      facts[:crate, :x] = 3
+
+      expect([facts[:crate, :y], facts[:never, :x], facts.key?(:crate, :y), facts.key?(:crate, :x)])
+        .to eq([nil, nil, false, true])
+    end
+
+    it 'keeps a copy of a record written whole, so changing the Hash afterwards changes nothing' do
+      record = { x: 3, name: +'crate' }
+      facts[:crate] = record
+      record[:x] = 9
+      record[:name] << 's'
+
+      expect([facts[:crate, :x], facts[:crate, :name]]).to eq([3, 'crate'])
+    end
+
+    it 'holds a record inside a field, frozen' do
+      facts[:oasis, :chest] = { state: 'open' }
+
+      expect([facts[:oasis], facts[:oasis, :chest].frozen?]).to eq([{ chest: { state: 'open' } }, true])
+    end
+
+    it "refuses a field write or read on a key that holds no record, naming the key's value" do
+      facts[:chest] = 'open'
+
+      expect { facts[:chest, :state] = 'shut' }.to raise_error(TypeError, /facts\[:chest\] holds "open", not a record/)
+      expect { facts[:chest, :state] }.to raise_error(TypeError, /not a record of fields/)
+    end
+
+    it 'refuses a field that is not a Symbol, in a write and in a record' do
+      expect { facts[:crate, 'x'] = 3 }.to raise_error(TypeError, /field is a Symbol, got "x" \(String\)/)
+      expect { facts[:crate] = { 'x' => 3 } }
+        .to raise_error(TypeError, /facts\[:crate\] is a record, whose fields are Symbols, got "x"/)
+    end
+
+    it 'refuses a value inside a record as it would refuse it alone, naming where it sits' do
+      expect { facts[:crate] = { way: :east } }
+        .to raise_error(TypeError, /facts\[:crate\]\[:way\] cannot hold the Symbol :east/)
+      expect { facts[:crate, :spot] = [1, 2] }.to raise_error(TypeError, /facts\[:crate, :spot\].*Array/)
+    end
+
+    it 'deletes a field and returns its value, and deletes the key with its last field' do
+      facts[:crate] = { x: 3, y: 4 }
+      removed = [facts.delete(:crate, :x), facts[:crate]]
+
+      expect([removed, facts.delete(:crate, :y), facts.key?(:crate)]).to eq([[3, { y: 4 }], 4, false])
+    end
+
+    it 'reports a field write with the key, the value and the field, and not a value already held' do
+      heard = []
+      facts.on_changed { |key, value, field| heard << [key, value, field] }
+      facts[:crate, :x] = 3
+      facts[:crate, :x] = 3
+      facts[:wolves] = 1
+
+      expect(heard).to eq([[:crate, 3, :x], [:wolves, 1, nil]])
+    end
+
+    it "calls a key's watchers with the record when one of its fields changes" do
+      heard = []
+      facts.watch(:crate) { heard << it }
+      facts[:crate, :x] = 3
+
+      expect(heard).to eq([nil, { x: 3 }])
+    end
+
+    it 'survives a save file, fields and nested records included' do
+      facts[:crate] = { x: 3, way: 'east', lid: { open: true } }
+      other = described_class.new
+      other.restore(round_trip(facts.to_h))
+
+      expect([other[:crate], other[:crate, :x]]).to eq([{ x: 3, way: 'east', lid: { open: true } }, 3])
+    end
+
+    it 'reads and writes a field without allocating' do
+      facts[:crate, :x] = 0
+      i = 0
+
+      expect do
+        facts[:crate, :x]
+        facts[:crate, :x] = (i += 1)
+      end.to allocate_nothing
+    end
+  end
+
   describe 'keys' do
     it 'refuses a String key on every read and write' do
       facts[:met_smith] = true
