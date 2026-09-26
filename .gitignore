@@ -54,3 +54,6 @@ ext/**/NUL
 *.swp
 compile_commands.json
 /.ruby-lsp/
+# Tiled's session: one person's open files and window state, with absolute
+# paths. The .tiled-project beside it is shared and stays tracked.
+*.tiled-session
