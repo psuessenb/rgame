@@ -149,8 +149,7 @@ module CutsceneExample
       map = root.context.assets.tilemap('town.tmx').map
       world = add_component(Components::TileWorld.new(map:, tilemap_id: 'town.tmx'))
       add_component(Components::CollisionWorld.new(cell_size: 32))
-      @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new),
-                                           slots: { actors: nil })[:actors]
+      @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))[:actors]
       @gate = @actors.add_node(Gate.new)
       @crier = @actors.add_node(Crier.new(camera: @camera))
       players = system!(Engine::Players)

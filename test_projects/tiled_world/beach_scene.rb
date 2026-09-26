@@ -6,7 +6,7 @@ module TiledWorld
   # them to the screen). It resolves everything it needs from the game's asset manager
   # (node.root.context.assets) by relative path — nothing is passed into its constructor.
   #
-  # Actors live in the :actors slot TileMapLayer.mount hands back, which sits between the
+  # Actors live in the :actors place TileMapLayer.mount hands back, which sits between the
   # map's ground layers and the layers Tiled flags `above` — so palm canopies
   # render in front of a walker and trunks behind. No z is picked anywhere here.
   #

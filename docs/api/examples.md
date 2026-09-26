@@ -131,7 +131,8 @@ over Tiny Town's tiles.
 
 **Uses:** `Components::Platform`, `Components::PathFollow` with `loop: true`,
 `Path.from_object`, `MapObjects`, `Components::Footing`, `Components::Respawn`,
-`Components::Hop`, `Components::CameraFollow`, `TileMapLayer.mount` with `slots:`.
+`Components::Hop`, `Components::CameraFollow`, `TileMapLayer.mount` and an object
+layer as a place.
 
 ### push_pull
 

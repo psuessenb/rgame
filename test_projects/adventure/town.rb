@@ -5,11 +5,11 @@ module Adventure
   # the gate to the garden.
   #
   # It mounts a TileWorld over the town map, puts a WorldView under itself and
-  # lets TileMapLayer.mount lay the map's layers out around two slots. The heroes
-  # go in `:actors`, so a tree's canopy draws in front of whoever walks under it.
+  # lets TileMapLayer.mount lay the map's layers out. The heroes go in the
+  # actors' place, so a tree's canopy draws in front of whoever walks under it.
   # The coins, the chest, the lever and the crate go there too, for the same
   # reason, and so do the sparkles every coin bursts as it is taken. The gate goes
-  # in `:doors`, under them, so a hero walks over it.
+  # in the map's `doors` layer, under them, so a hero walks over it.
   #
   # It also mounts a CollisionWorld. The map alone stops a hero, and that needed
   # no broadphase — but a coin is a contact, a chest is a range query, a crate is a
@@ -70,9 +70,8 @@ module Adventure
       add_component(Components::TileWorld.new(map: @map, tilemap_id: MAP))
       add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
 
-      slots = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new),
-                                         slots: { doors: nil, actors: nil })
-      @actors = slots[:actors]
+      places = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))
+      @actors = places[:actors]
 
       sparkles = @actors.add_node(Sparkles.new)
       COINS.each_with_index do |(x, y), index|
@@ -87,7 +86,7 @@ module Adventure
 
       doors = Engine::MapObjects.new
       doors.define('door') { |o| Door.new(object: o, world: parent) }
-      doors.spawn_into(slots[:doors], @map.objects)
+      doors.spawn_into(places['doors'], @map.objects)
 
       open_the_town(facts) unless facts[:opened]
     end

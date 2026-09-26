@@ -43,8 +43,9 @@ RSpec.describe RGame::Engine::TileMapLayer do
   end
 
   def tile_layer(name, gids = [1, 2, 0, 3], above: false)
+    side = Integer.sqrt(gids.size)
     marks = above ? '<properties><property name="above" type="bool" value="true"/></properties>' : ''
-    %(<layer name="#{name}" width="2" height="2">#{marks}#{TiledFixture.data(gids, encoding: :csv)}</layer>)
+    %(<layer name="#{name}" width="#{side}" height="#{side}">#{marks}#{TiledFixture.data(gids, encoding: :csv)}</layer>)
   end
 
   def object_layer(name, objects = '', attributes: '', actors: false)
@@ -55,10 +56,10 @@ RSpec.describe RGame::Engine::TileMapLayer do
   # A point object of class Marker, which draws its name.
   def marker(id, name, y: 0) = %(<object id="#{id}" name="#{name}" type="Marker" x="0" y="#{y}"><point/></object>)
 
-  def tile_map(*layers)
+  def tile_map(*layers, size: 2)
     RGame::Engine::TileMap.from_tiled(RGame::Engine::Tiled::Map.parse(
-                                        '<map orientation="orthogonal" width="2" height="2" tilewidth="16" ' \
-                                        "tileheight=\"16\">#{tileset}#{layers.join}</map>"
+                                        %(<map orientation="orthogonal" width="#{size}" height="#{size}" ) +
+                                        %(tilewidth="16" tileheight="16">#{tileset}#{layers.join}</map>)
                                       ))
   end
 
@@ -106,10 +107,9 @@ RSpec.describe RGame::Engine::TileMapLayer do
       expect(drawn_layers).to eq([0, 1, 2])
     end
 
-    it 'returns the slots, with one for the actors' do
+    it "returns the places, the actors' node among them" do
       actors = mount[:actors]
 
-      expect(mount.names).to eq([:actors])
       expect(actors).to be_a(RGame::Engine::Node2D)
       expect(actors).not_to be_a(described_class)
       expect(scene.children).to include(actors)
@@ -137,56 +137,17 @@ RSpec.describe RGame::Engine::TileMapLayer do
       end
     end
 
-    it 'puts a slot under the layer an index names' do
-      slots = described_class.mount(scene, slots: { actors: 1 })
-
-      expect(drawn_with(slots[:actors] => :actors)).to eq([0, :actors, 1, 2])
+    it "y-sorts the actors' node, so actors in it draw by where they stand" do
+      expect(mount[:actors].y_sort).to be(true)
     end
 
-    it 'puts a slot under the layer a name names' do
-      slots = described_class.mount(scene, slots: { boats: 'layer1' })
-
-      expect(drawn_with(slots[:boats] => :boats)).to eq([0, :boats, 1, 2])
+    it "leaves the actors' node unsorted when told to, for a side-view game" do
+      expect(described_class.mount(scene, y_sort: false)[:actors].y_sort).to be(false)
     end
 
-    it 'puts a slot over every layer at layer_count' do
-      slots = described_class.mount(scene, slots: { sky: 3 })
-
-      expect(drawn_with(slots[:sky] => :sky)).to eq([0, 1, 2, :sky])
-    end
-
-    it 'draws two slots under one layer in the order they were declared' do
-      slots = described_class.mount(scene, slots: { shadows: nil, actors: nil, boats: 1 })
-
-      expect(slots.names).to eq(%i[shadows actors boats])
-      expect(drawn_with(slots[:shadows] => :shadows, slots[:actors] => :actors, slots[:boats] => :boats))
-        .to eq([0, :boats, 1, :shadows, :actors, 2])
-    end
-
-    it 'y-sorts every slot, so actors in one draw by where they stand' do
-      slots = described_class.mount(scene, slots: { shadows: nil, actors: nil })
-
-      expect(slots.names.map { slots[it].y_sort }).to all(be(true))
-    end
-
-    it 'leaves the slots unsorted when told to, for a side-view game' do
-      slots = described_class.mount(scene, slots: { shadows: nil, actors: nil }, y_sort: false)
-
-      expect(slots.names.map { slots[it].y_sort }).to all(be(false))
-    end
-
-    it 'raises at mount for a layer name the map lacks, listing its layers' do
-      expect { described_class.mount(scene, slots: { actors: 'canopy' }) }
-        .to raise_error(KeyError, /no layer 'canopy'.*layer0, layer1, layer2/)
-    end
-
-    it 'raises for a layer index past the last' do
-      expect { described_class.mount(scene, slots: { actors: 4 }) }
-        .to raise_error(ArgumentError, /from 0 to 3.*got 4/)
-    end
-
-    it 'raises naming the slots for one that was not mounted' do
-      expect { mount[:actorz] }.to raise_error(KeyError, /no slot :actorz was mounted \(the slots are :actors\)/)
+    it 'takes no slots:, since object layers are the places' do
+      expect { described_class.mount(scene, slots: { actors: nil }) }
+        .to raise_error(ArgumentError, /unknown keyword: :slots/)
     end
 
     it 'raises for a second mount over the same TileWorld, naming its node' do
@@ -197,13 +158,53 @@ RSpec.describe RGame::Engine::TileMapLayer do
     end
   end
 
+  # Object layers placed where a scene used to name a slot: one under a tile
+  # layer, one over every layer, and one beside the actors under the canopy.
+  describe 'places' do
+    let(:map) do
+      tile_map(tile_layer('layer0'), object_layer('boats'), tile_layer('layer1', [0, 0, 0, 0]),
+               "<group name=\"Shade\">#{object_layer('shadows')}</group>",
+               tile_layer('layer2', [4, 0, 0, 0], above: true), object_layer('sky'))
+    end
+
+    # The tile layers are 0, 2 and 4: an object layer takes an index too.
+    it 'finds an object layer by its name, in its place among the layers' do
+      expect(drawn_with(mount['boats'] => :boats, mount['sky'] => :sky)).to eq([0, :boats, 2, 4, :sky])
+    end
+
+    it "finds one by its 'Group/layer' path, as TileMap#layer_index takes it" do
+      expect(mount['Shade/shadows']).to equal(mount['shadows'])
+    end
+
+    it 'draws an object layer under the canopy before the actors placed after it' do
+      places = mount
+
+      expect(drawn_with(places['shadows'] => :shadows, places[:actors] => :actors))
+        .to eq([0, 2, :shadows, :actors, 4])
+    end
+
+    it "raises for a tile layer's name, saying only an object layer holds nodes" do
+      expect { mount['layer1'] }
+        .to raise_error(ArgumentError, %r{'layer1' is a tile layer, and only an object layer holds nodes.*Shade/})
+    end
+
+    it 'raises for a name no layer has, listing the object layers' do
+      expect { mount['boots'] }
+        .to raise_error(KeyError, %r{'boots' names no one layer of this map.*boats, Shade/shadows, sky})
+    end
+
+    it 'raises for any other key' do
+      expect { mount[:boats] }.to raise_error(ArgumentError, /a place is :actors, or the name.*got :boats/)
+    end
+  end
+
   describe 'an object layer' do
     let(:map) do
       tile_map(tile_layer('ground'), object_layer('things', marker(1, 'north', y: 4) + marker(2, 'south', y: 12)),
                tile_layer('canopy', [4, 0, 0, 0], above: true))
     end
 
-    def things = mount[:actors].parent.children[1]
+    def things = mount['things']
 
     it 'is a node in its place among the layers, holding what its objects build' do
       expect(drawn_with(mount[:actors] => :actors)).to eq([0, 'north', 'south', :actors, 2])
@@ -274,14 +275,69 @@ RSpec.describe RGame::Engine::TileMapLayer do
                tile_layer('canopy', [4, 0, 0, 0], above: true))
     end
 
-    it 'makes the marked layer the actors’ node' do
-      actors = mount[:actors]
+    it "makes the marked layer the actors' place" do
+      places = mount
 
-      expect(actors.children.map(&:map_object_id)).to eq([1])
+      expect([places[:actors], places[:actors].children.map(&:map_object_id)]).to eq([places['spawns'], [1]])
     end
 
     it 'draws the actors among its objects, under the canopy' do
       expect(drawn_with(mount[:actors] => :actors)).to eq([0, 'north', :actors, 2])
+    end
+
+    it 'leaves no node of its own for the actors' do
+      mount
+
+      expect(scene.children.size).to eq(3)
+    end
+  end
+
+  # The caller that uses all of it: a tree placed in Tiled as a tile object of
+  # the data class `tree`, in the layer marked for the actors, under a canopy.
+  # A hero the scene spawns sorts against the tree in both halves of a split
+  # screen, as one actor sorts against another.
+  describe 'a hero walking past a tree placed in Tiled, in two views' do
+    let(:map) do
+      tree = '<object id="5" gid="4" x="16" y="48" width="16" height="32"/>'
+      tile_map(tile_layer('ground', [1] * 16), object_layer('trees', tree, actors: true),
+               tile_layer('canopy', [0] * 15 + [4], above: true), size: 4)
+    end
+    let(:players) { RGame::Engine::Players.new([player(0), player(1)]) }
+    let(:viewports) { RGame::Engine::Viewports.new(players, width: 640, height: 480) }
+    let(:hero) { RGame::Engine::Node2D.new(x: 24) }
+
+    before do
+      scene.add_component(players)
+      scene.add_component(viewports)
+      described_class.mount(scene.add_node(RGame::Engine::WorldView.new))[:actors].add_node(hero)
+      viewports.refresh
+      scene.enter_tree
+    end
+
+    def player(id) = RGame::Engine::Player.new(id: id, device: RGame::Util::Controls.gamepad(id))
+
+    # What each view drew, in order: a layer by its index, the tree's tile and
+    # the hero.
+    def drawn
+      order = []
+      allow(renderer).to receive(:clipped).and_yield
+      allow(renderer).to receive(:tilemap) { |_id, layer, *| order << layer }
+      allow(renderer).to receive(:map_tile) { order << :tree }
+      hero.define_singleton_method(:_draw) { |*| order << :hero }
+      scene.draw(renderer, viewports.screen)
+      order
+    end
+
+    it "draws the hero behind the tree while standing north of the tree's origin" do
+      hero.y = 40
+
+      expect(drawn).to eq([0, :hero, :tree, 2] * 2)
+    end
+
+    it 'draws the hero in front of the tree once south of it' do
+      hero.y = 56
+
+      expect(drawn).to eq([0, :tree, :hero, 2] * 2)
     end
   end
 

@@ -99,8 +99,8 @@ module RGame
         def layer_index(name_or_path) = @rgame_map.layer_index(name_or_path)
 
         # The first layer Tiled flags `above`, or the layer count if none is —
-        # which is where TileMapLayer.mount leaves the slot for the actors, so a
-        # map with no flag puts them over everything. Read once at mount rather
+        # which is where TileMapLayer.mount puts the actors on a map that marks
+        # no layer for them, so a map with neither puts them over everything. Read once at mount rather
         # than per frame: which layers cover the actors is a fact about the
         # scene's arrangement, and the arrangement is made once.
         def first_above_layer

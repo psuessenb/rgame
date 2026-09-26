@@ -253,7 +253,7 @@ module CollisionTilesExample
       add_component(Components::CollisionWorld.new(cell_size: 32))
 
       view = add_node(Engine::WorldView.new)
-      # The :actors slot sits between the ground layers and anything
+      # The :actors place sits between the ground layers and anything
       # Tiled flags `above` — where things that walk around belong.
       actors = Engine::TileMapLayer.mount(view)[:actors]
       actors.add_node(SpikyBall.new(x: BALL_X, y: BALL_Y))

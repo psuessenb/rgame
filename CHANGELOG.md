@@ -60,7 +60,7 @@ index, not the argument.
   `node.y_sort = true`, draws its children by `z`, then lower on the screen
   later, then in the order added. A child stands at the bottom edge of its
   `BoxCollider` box, or at its `y` if it has none. `control` and `update` keep
-  the order they had. `TileMapLayer.mount` y-sorts every slot it leaves, and
+  the order they had. `TileMapLayer.mount` y-sorts the actors' place, and
   `mount(..., y_sort: false)` does not. See
   [docs/api/scene_graph.md](docs/api/scene_graph.md#y-sort).
 - **Sprites take an anchor.** `Components::Sprite` and
@@ -299,10 +299,17 @@ index, not the argument.
   one cell of the scene's `TileWorld` solid while its node is in the tree, for
   collision and route planning alike. See
   [docs/api/components.md](docs/api/components.md#occupiescell).
-- **A map's objects become nodes.** `RGame::Engine::MapObjects` takes a block
-  per Tiled class and builds a node from each object of that class.
-  `spawn_into` adds them under a parent. See
+- **A map builds its own nodes.** `TileMapLayer.mount` builds each object layer
+  as a node in its place, and each object whose Tiled class starts with a
+  capital letter as the `Node2D` class of that name, looked up from the
+  scene's module. The `@param` tags above the class's `initialize` say which
+  properties a map may set, and a property they do not allow raises. Every tile
+  object draws its tile, and a hidden object builds and draws nothing. See
   [docs/api/tile_maps.md](docs/api/tile_maps.md#building-nodes-from-objects).
+- **A map's objects become nodes by block.** `RGame::Engine::MapObjects` takes a
+  block per Tiled class and builds a node from each object of that class.
+  `spawn_into` adds them under a parent. See
+  [docs/api/tile_maps.md](docs/api/tile_maps.md#building-from-data-classes-with-mapobjects).
 - **`Image#tiles` cuts a sheet with gaps.** It takes `margin:`, `spacing:`,
   `columns:` and `count:`. See [docs/api/images.md](docs/api/images.md).
 - **A quest can be a state machine.** `RGame::Engine::StateGraph.build`
@@ -571,11 +578,12 @@ index, not the argument.
 - **`TileMapRenderer.new(map, tiles, layer_images: [])` takes images indexed by
   tile id**, with nothing at 0, rather than one tileset sliced by local id, and
   the image of each image layer.
-- **`TileMapLayer.mount` returns slots, and takes `slots:` rather than
-  `under:`.** Write `mount(world)[:actors]` for the node it used to return, and
-  `slots: { actors: index }` for `under: index`. A slot may also be named by a
-  layer's name or path, several slots may be declared, and an object layer gets
-  no node. See [docs/api/components.md](docs/api/components.md#tileworld).
+- **`TileMapLayer.mount` returns places, and takes no `under:`.** Write
+  `mount(world)[:actors]` for the node it used to return. The actors go in the
+  object layer a designer marks `actors` in Tiled, or below the first `above`
+  layer on a map with no mark. `places['name']` is an object layer's node, for
+  what a scene adds itself, so a layer placed in Tiled replaces `under:`. See
+  [docs/api/components.md](docs/api/components.md#tileworld).
 
 - **`Game/NoLiteralText` also checks `text_lines`.** A String literal as the
   first argument of `text_lines` is an offense, as it is for `text` and
