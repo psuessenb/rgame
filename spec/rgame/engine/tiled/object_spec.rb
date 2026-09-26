@@ -40,6 +40,30 @@ RSpec.describe RGame::Engine::Tiled::Object do
     end
   end
 
+  it 'reads a capsule with its width and height, as it reads an ellipse' do
+    # Tiled 1.12 added the capsule. Before rgame knew it, a capsule read as a
+    # rectangle of the same size, and nothing said so.
+    object = parse('<object id="4" x="153" y="193" width="56" height="25"><capsule/></object>')
+
+    expect([object.shape, object.width, object.height, object.points]).to eq([:capsule, 56.0, 25.0, []])
+  end
+
+  it 'reads a rectangle with properties as a rectangle' do
+    object = parse('<object id="1" width="8" height="8"><properties><property name="p"/></properties></object>')
+
+    expect(object.shape).to eq(:rectangle)
+  end
+
+  it 'reads the shape that follows its properties' do
+    expect(parse('<object id="1"><properties><property name="p"/></properties><point/></object>').shape)
+      .to eq(:point)
+  end
+
+  it 'raises on a child that is no shape it knows, naming the element, the object and the file' do
+    expect { parse('<object id="4" width="8" height="8"><banana/></object>', source_path: 'level.tmx') }
+      .to raise_error(RGame::Engine::Tiled::FormatError, /object 4 in level\.tmx has a <banana>/)
+  end
+
   it 'reads a polyline as pairs relative to the object' do
     expect(parse('<object id="1" x="10" y="10"><polyline points="0,0 -4,6.5"/></object>').points)
       .to eq([[0.0, 0.0], [-4.0, 6.5]])

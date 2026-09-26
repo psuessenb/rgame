@@ -90,6 +90,7 @@ element:
 | Map size | fixed or infinite |
 | Custom properties | on the map, layers, tiles and objects, with Tiled's types |
 | Object templates | an object placed from a `.tx` gets the template's values, and its own win |
+| Object shapes | rectangle, ellipse, capsule, point, polygon, polyline, text and tile; any other raises |
 
 ### How the map is drawn
 
@@ -325,7 +326,7 @@ cells report the same corner.
 | `id`, `name`, `class_name` | as set in Tiled |
 | `layer` | the index of the layer it sits in |
 | `x`, `y`, `width`, `height`, `rotation` | its box, as above |
-| `shape` | `:rectangle`, `:ellipse`, `:point`, `:polygon`, `:polyline` or `:text` |
+| `shape` | `:rectangle`, `:ellipse`, `:capsule`, `:point`, `:polygon`, `:polyline` or `:text` |
 | `points` | a polygon's or polyline's corners, in the same coordinates, before `rotation` |
 | `tile`, `orientation` | a tile object's tile id and how it is turned; `nil` and the identity for a shape |
 | `visible?` | false when the designer hid it |
