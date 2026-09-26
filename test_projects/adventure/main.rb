@@ -30,6 +30,7 @@ require_relative 'sign'
 require_relative 'sparkles'
 require_relative 'storm'
 require_relative 'town'
+require_relative 'warp'
 require_relative 'world'
 
 module Adventure

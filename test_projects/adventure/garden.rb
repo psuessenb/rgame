@@ -8,11 +8,11 @@ module Adventure
   # nobody is left in it. The first hero ever to arrive reads its Sign, a scene
   # for that player alone, and the facts database remembers it was read.
   #
-  # Its doors come from the map. The gate leads back to the town. A pad is a
-  # `warp`, a door into this same room, so it hands over its own name: stepping
-  # on one only places the hero again, beside the other pad, and nothing is built
-  # or freed. The horn is a door marked `party`, which moves every hero the world
-  # holds to the town square, from whichever room they stand in.
+  # The map builds its doors. The gate leads back to the town. A pad is a Warp,
+  # a door into this same room: stepping on one only places the hero again,
+  # beside the other pad, and nothing is built or freed. The horn is a Door
+  # marked `party`, which moves every hero the world holds to the town square,
+  # from whichever room they stand in.
   #
   # ## Its song, when there is one
   #
@@ -35,13 +35,7 @@ module Adventure
       add_component(Components::TileWorld.new(map: @map, tilemap_id: MAP))
       add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
 
-      places = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))
-      @actors = places[:actors]
-
-      doors = Engine::MapObjects.new
-      doors.define('door') { |o| Door.new(object: o, world: parent) }
-      doors.define('warp') { |o| Door.new(object: o, world: parent, to: name) }
-      doors.spawn_into(places['doors'], @map.objects)
+      @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))[:actors]
     end
 
     def _arrive(hero, entrance)

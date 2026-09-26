@@ -31,7 +31,7 @@ Headless, as in a spec, read the file and build the map in two calls:
 ```ruby
 require 'rgame'
 
-parsed = RGame::Engine::Tiled::Map.load('examples/assets/town.tmx')
+parsed = RGame::Engine::Tiled::Map.load('examples/assets/town_with_gate.tmx')
 map = RGame::Engine::TileMap.from_tiled(parsed)
 
 map.width         # => 60 — in tiles
@@ -468,11 +468,12 @@ objects.spawn_into(places[:actors], map.objects) # => the traps it added
 
 ### A door from the map
 
-**A door is an object whose properties say where it leads.** In `town.tmx`, the
-object `garden_gate` has the class `door` and the properties `to: garden` and
-`entrance: gate_in`. `gate_in` is a point object in `garden.tmx`, with the class
-`entrance`. A room built over each map turns the doors into nodes and places
-whatever arrives on the entrance named:
+**A door is an object of the class `Door`, whose properties say where it
+leads.** In `town_with_gate.tmx`, the object `garden_gate` has the class `Door`
+and the properties `to: garden` and `entrance: gate_in`. `gate_in` is a point
+object in `garden.tmx`. Its class, `entrance`, starts with a lower-case letter,
+so it stays data. A room built over each map mounts it, and the map builds the
+doors:
 
 ```ruby
 # A Scene::Room of a world whose Scene::Rooms defines :town and :garden.
@@ -481,13 +482,7 @@ class Grounds < RGame::Engine::Scene::Room
     @map = root.context.assets.tilemap(@map_id).map
     add_component(RGame::Engine::Components::TileWorld.new(map: @map, tilemap_id: @map_id))
     add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 32))
-    places = RGame::Engine::TileMapLayer.mount(add_node(RGame::Engine::WorldView.new))
-    @actors = places[:actors]
-
-    doors = RGame::Engine::MapObjects.new
-    doors.define('door') { |o| Door.new(object: o, world: parent) }
-    doors.define('warp') { |o| Door.new(object: o, world: parent, to: name) }
-    doors.spawn_into(places['doors'], @map.objects)
+    @actors = RGame::Engine::TileMapLayer.mount(add_node(RGame::Engine::WorldView.new))[:actors]
   end
 
   def _arrive(node, entrance)
@@ -500,25 +495,46 @@ end
 
 # A box that asks the world's rooms for a move when a hero's feet touch it.
 class Door < RGame::Engine::Node2D
-  def initialize(object:, world:, to: object.properties.fetch('to').to_sym)
-    super(x: object.x, y: object.y, width: object.width, height: object.height)
-    entrance = object.properties.fetch('entrance')
-    add_component(RGame::Engine::Components::BoxCollider.new(width: object.width, height: object.height,
-                                                             layer: :door))
+  # @param to [Symbol] the room the door leads to
+  # @param entrance [String] the entrance in that room where the hero arrives
+  def initialize(to:, entrance:, **)
+    super(**)
+    @to = to
+    @entrance = entrance
+    add_component(RGame::Engine::Components::BoxCollider.new(width:, height:, offset_x: -width / 2.0,
+                                                             offset_y: -height, layer: :door))
     add_component(RGame::Engine::Components::Collectable.new(by: :hero, free: false))
-      .on_collected { |other| world.rooms.move(other.node, to:, entrance:) }
+      .on_collected { |other| @rooms.move(other.node, to: destination, entrance: @entrance) }
   end
+
+  def _enter_tree = @rooms = system!(RGame::Engine::Scene::Rooms)
+
+  private
+
+  def destination = @to
+end
+
+# A door into the room it stands in.
+class Warp < Door
+  # @param entrance [String] the entrance in this room where the hero arrives
+  def initialize(entrance:, **) = super(to: nil, entrance:, **)
+
+  private
+
+  def destination = scene.name
 end
 ```
 
-- **A `warp` is a door into its own room**, so the room hands over its own
-  `name` as `to`, and the map names only the entrance. A move into the room a
-  node stands in only places it again.
+- **The box goes back over the object.** A map-built node stands at the bottom
+  centre of its object, so the collider's offsets are half the width to the left
+  and the whole height up.
+- **A `Warp` is a door into its own room**, so the map names only the entrance.
+  A room is its own `scene`, and a move into the room a node stands in only
+  places it again.
+- **A door finds the rooms in the tree**, with `system!`, as any map-built node
+  finds what it needs. The map passes it nothing but its object's settings.
 - **An entrance lies off every door's box.** A hero arriving on a door would
   leave through it on its next step.
-- **The world passes itself to each door**, as `parent` of the room, so a door
-  reaches the rooms without looking them up. A door that moves every hero asks
-  the world for them.
 
 `examples/doors` is this code with a hero walking it, and
 [Rooms](scene_graph.md#rooms-scenerooms) says how a move runs.

@@ -43,7 +43,7 @@ module Adventure
 
     MAPS = [Town::MAP, Garden::MAP].freeze
 
-    attr_reader :rooms, :heroes
+    attr_reader :heroes
 
     def initialize
       super
