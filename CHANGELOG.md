@@ -260,7 +260,9 @@ index, not the argument.
   object layers, an infinite size, objects of every shape Tiled 1.12 draws, and
   objects placed from templates. A tile object sits where its tileset's object
   alignment puts it, and has its tile's class and properties under its own. A
-  map rgame cannot read raises `RGame::Engine::Tiled::FormatError` naming the
+  tileset set to draw its tiles at the grid's size, or to keep a tile object's
+  tile in proportion, raises, since rgame would draw it differently from Tiled.
+  A map rgame cannot read raises `RGame::Engine::Tiled::FormatError` naming the
   file.
   See [docs/api/tile_maps.md](docs/api/tile_maps.md#what-rgame-reads-from-tiled).
 - **A tile map says what its tiles, layers and objects are.** `TileMap` answers

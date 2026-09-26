@@ -92,6 +92,7 @@ element:
 | Object templates | an object placed from a `.tx` gets the template's values, and its own win |
 | Object shapes | rectangle, ellipse, capsule, point, polygon, polyline, text and tile; any other raises |
 | Tile objects | placed by their tileset's object alignment, and given their tile's class and properties |
+| Tileset drawing | `tilerendersize="tile"` and `fillmode="stretch"`, Tiled's defaults; `grid` and `preserve-aspect-fit` raise, since rgame draws neither |
 
 ### How the map is drawn
 
