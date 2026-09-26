@@ -383,6 +383,62 @@ RSpec.describe RGame::Engine::MapBuilder do
     end
   end
 
+  describe 'a tile object' do
+    let(:map_tile) { RGame::Engine::Components::MapTile }
+
+    # Tile 1 of the tileset is a tree; gid 0x80000001 places it mirrored.
+    def placed(attributes, gid: 1)
+      tiles = tileset('<tile id="0" type="tree"/>')
+      builder.build(object(%(gid="#{gid}" x="100" y="200" width="16" height="32" #{attributes}), tilesets: [tiles]))
+    end
+
+    it 'gives the node its class builds a MapTile of its tile and orientation' do
+      tile = placed('type="SpecMapBarrel"', gid: 0x80000001).get_component(map_tile)
+
+      expect([tile.tile, tile.orientation.mirrored?, tile.orientation.quarter_turns]).to eq([1, true, 0])
+    end
+
+    it "adds the MapTile after the class's own components" do
+      node = placed('type="Crate"')
+
+      expect(node.components.map(&:class)).to eq([RGame::Engine::Components::BoxCollider, map_tile])
+    end
+
+    it 'builds a plain Node2D carrying its tile when its class is data' do
+      node = placed('')
+
+      expect([node.class, node.get_component(map_tile).tile]).to eq([RGame::Engine::Node2D, 1])
+    end
+
+    it 'places the plain node as any node, and gives it the object id' do
+      node = placed('')
+
+      expect([node.x, node.y, node.width, node.height, node.map_object_id]).to eq([108.0, 200.0, 16.0, 32.0, 7])
+    end
+
+    it 'still builds nothing for a shape object whose class is data' do
+      expect(builder.build(object('type="tree" x="0" y="0" width="16" height="16"'))).to be_nil
+    end
+  end
+
+  describe 'an object hidden in Tiled' do
+    it 'builds at opacity 0, so it updates and collides and draws nothing' do
+      node = builder.build(object('type="Crate" x="0" y="0" width="16" height="16" visible="0"'))
+
+      expect([node.opacity, node.get_component(RGame::Engine::Components::BoxCollider)]).to match([0, be])
+    end
+
+    it 'builds a data tile object at opacity 0 too' do
+      node = builder.build(object('gid="1" x="0" y="16" width="16" height="16" visible="0"'))
+
+      expect([node.class, node.opacity]).to eq([RGame::Engine::Node2D, 0])
+    end
+
+    it 'leaves a shown object at full opacity' do
+      expect(builder.build(object('type="Crate" x="0" y="0" width="16" height="16"')).opacity).to eq(1)
+    end
+  end
+
   # The caller that uses both: a crate the map sizes, whose collider the crate
   # derives from that size. Its box has to land where the designer drew it.
   describe 'a node that passes a map setting on to its collider' do
