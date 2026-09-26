@@ -21,6 +21,11 @@ module RGame
       # `:unspecified` when the file leaves it out, which an orthogonal map
       # places as `:bottom_left`.
       #
+      # A tileset must draw its tiles as rgame draws them: at their own size in
+      # a layer, and stretched to a tile object's box. A `tilerendersize` or
+      # `fillmode` saying otherwise raises, rather than reading as a picture
+      # Tiled does not show.
+      #
       # It has no `firstgid`: that pairing belongs to the map that uses the
       # tileset, and one `.tsx` can sit at a different `firstgid` in each map.
       class Tileset
@@ -42,7 +47,13 @@ module RGame
                        'topleft' => :top_left, 'top' => :top, 'topright' => :top_right,
                        'left' => :left, 'center' => :center, 'right' => :right,
                        'bottomleft' => :bottom_left, 'bottom' => :bottom, 'bottomright' => :bottom_right }.freeze
-        private_constant :ALIGNMENTS
+        # What rgame draws for each of Tiled's drawing attributes: the value, the
+        # setting in Tiled's tileset properties that writes it, and how it draws.
+        DRAWN = {
+          'tilerendersize' => ['tile', 'Tile Render Size to Tile', "draws a layer's tiles at their own size"],
+          'fillmode' => ['stretch', 'Fill Mode to Stretch', "stretches a tile object's tile to its box"]
+        }.freeze
+        private_constant :ALIGNMENTS, :DRAWN
 
         attr_reader :name, :class_name, :tile_width, :tile_height,
                     :spacing, :margin, :tile_count, :columns,
@@ -61,6 +72,7 @@ module RGame
         # Parses a `<tileset>` REXML element: a `.tsx`'s root, or a tileset
         # embedded in a `.tmx`, in which case `source_path` is the map.
         def self.from_element(element, source_path: nil)
+          check_drawing(element, source_path)
           image = element.elements['image']
           offset = element.elements['tileoffset']
           new(name: element.attributes['name'].to_s,
@@ -90,7 +102,19 @@ module RGame
                               "is none of Tiled's alignments (#{ALIGNMENTS.keys.join(', ')})")
           end
         end
-        private_class_method :alignment
+
+        def self.check_drawing(element, source_path)
+          DRAWN.each do |name, (drawn, setting, how)|
+            value = element.attributes[name] or next
+            next if value == drawn
+
+            tileset = element.attributes['name'].to_s
+            on = tileset.empty? ? '' : " on tileset '#{tileset}'"
+            Attributes.refuse(element, name, source_path,
+                              "rgame does not draw: it #{how}. Set #{setting}#{on} in Tiled")
+          end
+        end
+        private_class_method :alignment, :check_drawing
 
         def initialize(name:, class_name:, tile_width:, tile_height:, spacing:, margin:, tile_count:, columns:,
                        image:, offset_x:, offset_y:, object_alignment:, tiles:, properties:, source_path: nil)

@@ -260,7 +260,9 @@ index, not the argument.
   object layers, an infinite size, objects of every shape Tiled 1.12 draws, and
   objects placed from templates. A tile object sits where its tileset's object
   alignment puts it, and has its tile's class and properties under its own. A
-  map rgame cannot read raises `RGame::Engine::Tiled::FormatError` naming the
+  tileset set to draw its tiles at the grid's size, or to keep a tile object's
+  tile in proportion, raises, since rgame would draw it differently from Tiled.
+  A map rgame cannot read raises `RGame::Engine::Tiled::FormatError` naming the
   file.
   See [docs/api/tile_maps.md](docs/api/tile_maps.md#what-rgame-reads-from-tiled).
 - **A tile map says what its tiles, layers and objects are.** `TileMap` answers
@@ -278,6 +280,11 @@ index, not the argument.
   draw, a tileset's drawing offset moves its tiles, and an image layer draws its
   image, repeated if Tiled says so. `TileMap#tile_offset`
   answers it. See [docs/api/tile_maps.md](docs/api/tile_maps.md#how-the-map-is-drawn).
+- **One tile of a map draws anywhere.** `Components::MapTile` draws a tile of
+  the scene's map with its bottom centre on its node's origin, stretched to the
+  node's size and turned as a tile object is in Tiled, under everything else
+  the node draws. `renderer.map_tile` is the draw it calls. See
+  [docs/api/components.md](docs/api/components.md#maptile).
 - **A tile map converts between cells and pixels.** `TileMap` and
   `Components::TileWorld` answer `cell_x`, `cell_y`, `col_at` and `row_at`, and
   `TileWorld` answers `cell_centre_x` and `cell_centre_y`. See

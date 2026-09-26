@@ -905,6 +905,40 @@ name, which is what `add_component` returns.
 control traversal hands each node the actions of its owner, so two heroes either
 side of one chest each press their own button and each reach it.
 
+### `MapTile`
+
+**Draws one tile of the scene's tile map with its bottom centre on the node's
+origin, stretched to the node's width and height.** That is how Tiled draws a
+tile object, so a tree placed in Tiled can stand in the world as a node and sort
+against the actors.
+
+```ruby
+# In a scene whose TileWorld holds the map; `actors` is the :actors slot.
+tree = actors.add_node(RGame::Engine::Node2D.new(x: 184, y: 312, width: 16, height: 32))
+tree.add_component(RGame::Engine::Components::MapTile.new(tile: object.tile, orientation: object.orientation))
+```
+
+- **Construct:** `MapTile.new(tile:, orientation: TileMap::Orientation::IDENTITY)`.
+  `tile` is the map's own id for the tile and `orientation` how it is turned, as a
+  [`MapObject`](tile_maps.md#objects) gives both. `tile` and `orientation` read
+  them back.
+- **Lifecycle:** `_attach` finds the scene's [`TileWorld`](#tileworld), and raises
+  `KeyError` naming it when there is none. The map id comes from it, and so does
+  the clock an animated tile shows its frame by, so the tile stops animating when
+  the world stops updating.
+- **Phase:** `_draw(renderer, view)` calls
+  [`renderer.map_tile`](drawing.md#drawing-by-id) with the box standing on the
+  origin, and **no angle**: `Node2D#draw` already pushed the node's rotation, so
+  the tile turns with its node. A turned or mirrored tile turns inside the box, as
+  in Tiled. [`node.elevation`](scene_graph.md#elevation) lifts it, as it lifts a
+  [`Sprite`](#sprite).
+- **Under the node's other drawing.** It draws at the lowest `z` in the node's
+  slot, so a `Sprite` or a `_draw` on the same node draws over the tile, whichever
+  was added first.
+- **Culled like a `Sprite`.** It skips the draw when the view cannot show its box,
+  and a node that never set a size is never culled. The tileset's drawing offset
+  can move the tile a few pixels off its box, and the cull does not count it.
+
 ### `Mover`
 
 **The base class of every component that moves its node**:

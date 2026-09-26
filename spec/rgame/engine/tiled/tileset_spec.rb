@@ -116,6 +116,28 @@ RSpec.describe RGame::Engine::Tiled::Tileset do
     end
   end
 
+  # Tiled draws a tile object's tile at its box's size, and a layer's tiles at
+  # their own, unless a tileset says otherwise. rgame draws only those two.
+  describe 'how the tiles draw' do
+    def with(attribute) = %(tilewidth="16" tileheight="16" name="things" #{attribute})
+
+    it 'reads fillmode="stretch" and tilerendersize="tile", which are how rgame draws' do
+      expect { parse(sheet, attributes: with('fillmode="stretch" tilerendersize="tile"')) }.not_to raise_error
+    end
+
+    it 'raises on fillmode="preserve-aspect-fit", naming the tileset, the file and the setting' do
+      expect { parse(sheet, attributes: with('fillmode="preserve-aspect-fit"'), source_path: 't.tsx') }
+        .to raise_error(RGame::Engine::Tiled::FormatError,
+                        /t\.tsx has fillmode="preserve-aspect-fit".*box\. Set Fill Mode to Stretch on tileset 'things'/)
+    end
+
+    it 'raises on tilerendersize="grid", naming the tileset, the file and the setting' do
+      expect { parse(sheet, attributes: with('tilerendersize="grid"'), source_path: 't.tsx') }
+        .to raise_error(RGame::Engine::Tiled::FormatError,
+                        /t\.tsx has tilerendersize="grid".*own size\. Set Tile Render Size to Tile on tileset 'things'/)
+    end
+  end
+
   describe 'a tile' do
     it 'is nil where the file says nothing about it' do
       expect(parse(sheet).tile(7)).to be_nil

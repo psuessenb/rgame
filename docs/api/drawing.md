@@ -203,8 +203,16 @@ renderer.sprite('hero.json', row, col, x, y, flip_x: false, z: 0)
 renderer.image('space.png', cx, cy, angle: 0, scale: 1)
 renderer.background('space.png')
 renderer.tilemap('map/island.tmx', layer, cull_x, cull_y, cull_w, cull_h, elapsed: 0.0)  # draws in world coordinates
+renderer.map_tile('map/island.tmx', tile, left, top, width, height, orientation, elapsed: 0.0, z: 0)
 renderer.nine_slice(:panel, x, y, width, height, z: 0, tint: nil)
 ```
+
+`map_tile` draws one tile of a map stretched to fill the box
+`(left, top, width, height)`, turned and mirrored inside it as `orientation`
+says, which is how Tiled draws a tile object. `tile` and `orientation` are a
+`MapObject`'s `tile` and `orientation`. A tile turned a quarter keeps the box's
+bottom-left corner. [`Components::MapTile`](components.md#maptile) calls it for
+a node.
 
 Paths need no setup. `Renderer.new(app)` uses the app's own manager.
 `Renderer.new(app, assets: other)` uses a different one.

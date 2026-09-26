@@ -99,16 +99,22 @@ class StubTileMap
   # RGame::Engine::TileMap's own arithmetic, each frame ending where the
   # durations before it add up to: a stand-in that rounded differently would
   # send the renderer's spec chasing a frame the game never shows.
+  #
+  # It allocates nothing, so a renderer's allocation spec measures the
+  # renderer rather than this.
   def frame_tile(tile, elapsed)
     frames = @animations[tile] or return tile
 
-    ends = 0.0
     into = elapsed % frames.sum { |_tile, seconds| seconds }
-    frames.each do |shown, seconds|
-      ends += seconds
-      return shown if into < ends
+    ends = 0.0
+    index = 0
+    while index < frames.size - 1
+      ends += frames[index].last
+      break if into < ends
+
+      index += 1
     end
-    frames.last.first
+    frames[index].first
   end
 
   def pixel_width = @width * @tile_width

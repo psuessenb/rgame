@@ -106,6 +106,13 @@ class FakeRenderer
                                     cull_height, elapsed: number(elapsed))
   end
 
+  # The box is in the caller's coordinates, and the map stretches its tile to
+  # fill it.
+  def map_tile(id, tile, left, top, width, height, orientation, elapsed: 0.0, z: 0)
+    lookup(:tilemap, id).draw_tile(self, number(tile), number(left), number(top), number(width), number(height),
+                                   orientation, elapsed: number(elapsed), z: z_arg(z))
+  end
+
   # --- refusing what the real renderer refuses ------------------------------
   #
   # The real renderer's arguments cross into C through NUM2DBL, StringValue and

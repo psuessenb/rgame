@@ -332,6 +332,31 @@ RSpec.shared_examples 'a renderer' do
       end
     end
 
+    it 'asks a registered tile map for one tile stretched to a box' do
+      # A tile object, as Tiled draws one: the map's own id for the tile, the
+      # box it fills, and how it is turned. The orientation is whatever the map
+      # handed out, passed straight back, so any object stands in for it here.
+      render do |renderer, _image|
+        map = recorder
+        orientation = Object.new
+        renderer.register_tilemap(:level1, map)
+        renderer.map_tile(:level1, 5, -8, -16, 16, 16, orientation, elapsed: 1.5, z: -3)
+
+        expect(map.received)
+          .to eq([[:draw_tile, [renderer, 5, -8, -16, 16, 16, orientation], { elapsed: 1.5, z: -3 }]])
+      end
+    end
+
+    it 'resolves the tile map for one tile through the asset manager, as for a layer' do
+      render do |renderer, _image|
+        map = recorder
+        renderer.assets = Class.new { define_method(:tilemap) { |_path| map } }.new
+        renderer.map_tile('town.tmx', 5, 0, 0, 16, 16, Object.new)
+
+        expect(map.received.map(&:first)).to eq(%i[draw_tile])
+      end
+    end
+
     it 'registers every element of a UI atlas under its own name' do
       # A nine-slice id names an element of an atlas, not a file, which is why
       # this is the one asset kind with no path form at all.

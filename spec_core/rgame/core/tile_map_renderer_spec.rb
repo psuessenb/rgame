@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative '../../../spec/support/allocate_nothing_matcher'
+
 # Driven entirely by StubTileMap and FakeRenderer. What a tile map renderer gets
 # wrong is which tiles it draws and where — a layer mixed up, a tile one column
 # off, a bake repeated every frame — and recorded calls state that exactly,
@@ -510,6 +512,107 @@ RSpec.describe RGame::Core::TileMapRenderer do
       expect(frame.about?(4, 4, [255, 255, 255, 255])).to be(true)
       expect(frame.about?(28, 36, [255, 255, 255, 255])).to be(true)
       expect(frame.about?(4, 36, [26, 26, 38, 255])).to be(true)
+    end
+  end
+
+  # A tile object, as Tiled's CellRenderer draws one: the tile stretched to its
+  # box, turned and mirrored inside it.
+  describe '#draw_tile' do
+    let(:map) { StubTileMap.new(layers: [[1, 0, 0, 0]], tile_offsets: { 3 => [2, -4] }) }
+    let(:tile_map) { described_class.new(map, tiles) }
+
+    def orientation(turns, mirrored: false) = StubTileMap::Orientation.new(turns, mirrored)
+
+    # A 16x16 tile in a 32x48 box at (10, 20): twice as wide, three times as tall.
+    def draw(tile = 1, turned = orientation(0), **)
+      tile_map.draw_tile(renderer, tile, 10, 20, 32, 48, turned, **)
+      renderer.calls_to(:image_at).last
+    end
+
+    it 'stretches the tile to fill its box' do
+      drawn = draw
+
+      expect([drawn.args[1..], drawn.options.values_at(:scale_x, :scale_y)]).to eq([[10, 20], [2.0, 3.0]])
+    end
+
+    it 'mirrors a tile inside its box' do
+      drawn = draw(1, orientation(0, mirrored: true))
+
+      expect([drawn.args[1..], drawn.options[:scale_x]]).to eq([[10, 20], -2.0])
+    end
+
+    it "turns a tile twice about its box's centre" do
+      draw(1, orientation(2))
+
+      expect(renderer.calls_to(:rotated).last.args).to eq([180, 26.0, 44.0])
+    end
+
+    it "turns a tile a quarter keeping its box's bottom-left corner, stretched before it turns" do
+      # Drawn 32x48 about (34, 52), the turned picture is 48 wide and 32 tall:
+      # from x 10 to 58 and y 36 to 68, on the box's bottom edge at 20 + 48.
+      drawn = draw(1, orientation(1))
+
+      expect([renderer.calls_to(:rotated).last.args, drawn.args[1..], drawn.options.values_at(:scale_x, :scale_y)])
+        .to eq([[90, 34.0, 52.0], [18.0, 28.0], [2.0, 3.0]])
+    end
+
+    it "moves the tile by its tileset's drawing offset, stretched as the tile is" do
+      expect(draw(3).args[1..]).to eq([14.0, 8.0])
+    end
+
+    it 'draws the frame an animated tile shows after elapsed seconds' do
+      animated = StubTileMap.new(layers: [[1, 0, 0, 0]], animations: { 1 => [[1, 0.1], [2, 0.1]] })
+      described_class.new(animated, tiles).draw_tile(renderer, 1, 0, 0, 16, 16, orientation(0), elapsed: 0.15)
+
+      expect(drawn_ids).to eq([2])
+    end
+
+    it 'places a still tile and a turned one at the z it was given' do
+      draw(1, orientation(0), z: -5)
+      draw(1, orientation(1), z: -5)
+
+      expect(renderer.calls_to(:image_at).map { it.options[:z] }).to eq([-5, -5])
+    end
+
+    describe 'what it allocates' do
+      # Answers what draw_tile calls and records nothing, since a recording
+      # renderer allocates a call for every draw and would be what was measured.
+      let(:quiet) do
+        Class.new do
+          # rubocop:disable Lint/UnusedMethodArgument -- named keywords, since `**` would allocate a Hash per call
+          def image_at(_image, _x, _y, scale_x: 1, scale_y: 1, z: 0, color: nil) = nil
+          # rubocop:enable Lint/UnusedMethodArgument
+          def rotated(_angle, _pivot_x, _pivot_y) = yield
+        end.new
+      end
+
+      # Everything the block reads is built before it, since a `let` or a new
+      # orientation inside it would be measured too.
+      it 'allocates nothing for a still tile, a mirrored one or a turned one' do
+        renderer = quiet
+        drawn = tile_map
+        still = orientation(0)
+        mirrored = orientation(0, mirrored: true)
+        turned = orientation(1)
+
+        expect do
+          drawn.draw_tile(renderer, 1, 10, 20, 32, 48, still)
+          drawn.draw_tile(renderer, 1, 10, 20, 32, 48, mirrored)
+          drawn.draw_tile(renderer, 3, 10, 20, 32, 48, turned)
+        end.to allocate_nothing
+      end
+
+      it 'allocates nothing for either frame of an animated tile' do
+        renderer = quiet
+        drawn = described_class.new(StubTileMap.new(layers: [[1, 0, 0, 0]], animations: { 1 => [[1, 0.1], [2, 0.1]] },
+                                                    tile_offsets: { 2 => [2, -4] }), tiles)
+        still = orientation(0)
+
+        expect do
+          drawn.draw_tile(renderer, 1, 10, 20, 32, 48, still, elapsed: 0.05)
+          drawn.draw_tile(renderer, 1, 10, 20, 32, 48, still, elapsed: 0.15)
+        end.to allocate_nothing
+      end
     end
   end
 
