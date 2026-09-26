@@ -13,6 +13,9 @@ module RGame
     # or a nested `Properties` for a property of a custom class. A `file`
     # property is a path resolved against the file that states it.
     #
+    #   props['stats'].class_name # => 'Stats', the custom class a value is of
+    #   props.class_name          # => nil, for a bag that is no class's value
+    #
     # A class member left at its default is absent, because Tiled writes only
     # the members that differ from the class's defaults. Read one with
     # `fetch(name, default)`.
@@ -21,13 +24,17 @@ module RGame
     class Properties
       include Enumerable
 
-      # Wraps `values`, a Hash from name to value.
-      def initialize(values)
+      # Wraps `values`, a Hash from name to value. `class_name` names the
+      # custom class the bag is a value of, or is `nil` for a bag that is none.
+      def initialize(values, class_name: nil)
         @values = values.dup.freeze
+        @class_name = class_name
         freeze
       end
 
       EMPTY = new({})
+
+      attr_reader :class_name
 
       def [](name) = @values[name]
 
@@ -49,11 +56,12 @@ module RGame
 
       def empty? = @values.empty?
 
-      # Equal when both hold the same names and values.
-      def ==(other) = other.is_a?(Properties) && to_h == other.to_h
+      # Equal when both hold the same names and values, and are values of the
+      # same class.
+      def ==(other) = other.is_a?(Properties) && to_h == other.to_h && class_name == other.class_name
       alias eql? ==
 
-      def hash = @values.hash
+      def hash = [@values, @class_name].hash
     end
   end
 end

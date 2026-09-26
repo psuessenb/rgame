@@ -11,6 +11,18 @@ RSpec.describe RGame::Engine::Components::TileWorld do
     instance_double(RGame::Engine::Camera, :world_width= => nil, :world_height= => nil)
   end
 
+  describe '#actors_layer' do
+    it "answers the map's layer marked for the actors" do
+      map = StubTileMap.new(layers: [[1, 2, 0, 3], nil], object_layers: [1], actors_layer: 1)
+
+      expect(described_class.new(map: map, tilemap_id: :level).actors_layer).to eq(1)
+    end
+
+    it 'is nil for a map with no mark' do
+      expect(world.actors_layer).to be_nil
+    end
+  end
+
   # It is a system, not a drawer — RGame::Engine::TileMapLayer draws the map,
   # inside the world band, so that it is drawn once per viewport like the rest
   # of the world. What is left here is what actors ask about.

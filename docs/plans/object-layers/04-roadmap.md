@@ -1,7 +1,7 @@
 # Roadmap
 
-**Step 0 is implemented.** Steps 1–3 are detailed. Steps 4–8 are rough and get
-re-planned once the steps before them land.
+**Steps 0 and 1 are implemented.** Steps 2 and 3 are detailed. Steps 4–8 are
+rough and get re-planned once the steps before them land.
 
 ## Dependency shape
 
@@ -230,6 +230,52 @@ world.actors_layer                        # TileWorld forwards it, as it does fi
 - `docs/api/tile_maps.md` documents the capsule, `class_name` on a class value,
   inherited tile classes and the alignment. `CHANGELOG.md` has a Fixed entry for
   the capsule, and an Added entry for the rest.
+
+**Landed.** Three commits on `object-layer-parse`, 1a to 1c as sketched.
+`rake spec` 4292 examples, 0 failures (4245 before, 47 new). `rake spec:core`
+517, 0 failures. `rake docs:coverage`: 0 of 214 modules and classes with an
+undocumented name. `make test` and `rake drive:allocations` were not run: the
+step changes no C and no per-frame path.
+
+`tour.tmx` from the authoring branch loads, with object 4 as `:capsule`. Its
+`Object Layer 1` is an `ObjectLayer` with `y_sort?` true, and `actors_layer` is
+`nil`, as nothing is marked yet. The two tile objects keep the corners they had.
+Every map in the repository, and the two untracked ones under `media/`, loads
+the same on `main` and on the branch. A dump of every layer, every object and a
+checksum of every cell matched line for line, 73 lines across 8 maps. That
+includes `town.tmx`, the standing invariant.
+
+Where the sketch was wrong, or said too little:
+
+- **A tile object inherits its tile's properties, not only its class.** Tiled's
+  manual calls it "Tile Property Inheritance", and `Object::inheritedProperties`
+  in Tiled's source merges by name, lowest first: the class's members, the
+  tile's properties, the template's, the object's own. The parser already merges
+  template and own, so the transform puts the tile's properties under that bag,
+  which is Tiled's order. **For step 3:** a map-built node from a tile object
+  sees its tile's properties as its own, so its class must tag every property
+  the tile carries, or rule 11 raises.
+- **`CHANGELOG.md` has no Fixed entry.** The Tiled parser has not been released:
+  v0.4.0 has no `lib/rgame/engine/tiled/`. The
+  [update-changelog](../../../.claude/skills/update-changelog/SKILL.md) skill
+  says a fix to an unreleased feature is not a fix, so the two Unreleased
+  entries on Tiled maps describe the capsule, the alignment, the tile's class
+  and properties, `class_name` and the object layers. **For steps 6 and 9:**
+  `MapObjects` is unreleased too. Unless a release ships it first, step 6
+  deletes its Added entry rather than adding a Removed one.
+- **A class value with every member at its default is no longer `EMPTY`.** It
+  keeps its class's name, so it is an empty bag answering `class_name`. The
+  spec that pinned `EMPTY` changed with it.
+- **The tile map contract gained a fourth layer.** `actors_layer` answering
+  `nil` would pass for a stub that always answers `nil`. The contract's map now
+  ends with an object layer marked for the actors, and both hosts build it.
+- **Two guards the sketch did not name.** A `draworder` other than `topdown` or
+  `index` raises at parse, where it would have read as *Manual*. An `actors`
+  mark on a group raises, as one on a tile or image layer does.
+- **A template instance's shape now goes through the same lookup.**
+  `Template#apply` found an instance's shape with the old list of five, so an
+  instance's capsule would have kept the template's shape. It now asks
+  `Object.shape_element`, and an unknown child on an instance raises too.
 
 ---
 

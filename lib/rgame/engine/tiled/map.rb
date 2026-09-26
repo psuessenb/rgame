@@ -227,8 +227,11 @@ module RGame
           end
 
           def objects(element)
-            { draw_order: (element.attributes['draworder'] || 'topdown').to_sym,
-              objects: element.get_elements('object').map { object(it) } }
+            order = element.attributes['draworder'] || 'topdown'
+            unless %w[topdown index].include?(order)
+              Attributes.refuse(element, 'draworder', @source_path, 'is neither topdown nor index')
+            end
+            { draw_order: order.to_sym, objects: element.get_elements('object').map { object(it) } }
           end
 
           def object(element)

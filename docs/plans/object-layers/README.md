@@ -1,7 +1,7 @@
 # Object layers
 
-**Status: step 0 is implemented.** Steps 1–3 of [the roadmap](04-roadmap.md)
-are detailed. Steps 4–8 are rough and get re-planned as the steps before them
+**Status: steps 0 and 1 are implemented.** Steps 2 and 3 of
+[the roadmap](04-roadmap.md) are detailed. Steps 4–8 are rough and get re-planned as the steps before them
 land. Step 9 folds the plan back and deletes it.
 
 ## The request

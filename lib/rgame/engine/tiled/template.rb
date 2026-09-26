@@ -48,9 +48,9 @@ module RGame
         private
 
         def replace_shape(merged, instance)
-          shape = instance.elements[SHAPES] or return
+          shape = Object.shape_element(instance) or return
 
-          merged.elements[SHAPES]&.then { merged.delete_element(it) }
+          Object.shape_element(merged)&.then { merged.delete_element(it) }
           merged.add_element(shape.deep_clone)
         end
 

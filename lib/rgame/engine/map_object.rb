@@ -11,9 +11,13 @@ module RGame
     # same coordinates, before `rotation`, and empty for any other shape.
     #
     # `tile` is the map's own id for a tile object, or `nil` for a shape, and
-    # `orientation` says how that tile is turned. `shape` is `:rectangle`,
-    # `:ellipse`, `:point`, `:polygon`, `:polyline` or `:text`. `layer` is the
-    # index of the layer the object sits in, as `TileMap#layer` counts them.
+    # `orientation` says how that tile is turned. A tile object with no class of
+    # its own has its tile's, and its `properties` hold its tile's under its
+    # own, which win.
+    #
+    # `shape` is `:rectangle`, `:ellipse`, `:capsule`, `:point`, `:polygon`,
+    # `:polyline` or `:text`. `layer` is the index of the layer the object sits
+    # in, as `TileMap#layer` counts them.
     MapObject = Data.define(:id, :name, :class_name, :layer, :x, :y, :width, :height, :rotation,
                             :tile, :orientation, :visible, :shape, :points, :properties) do
       # False when the designer hid the object in Tiled.

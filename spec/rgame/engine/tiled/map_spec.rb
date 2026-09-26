@@ -299,6 +299,7 @@ RSpec.describe RGame::Engine::Tiled::Map do
             <properties><property name="contents" value="gold"/></properties>
           </object>
           <object id="3" template="templates/zone.tx" x="0" y="0"><ellipse/></object>
+          <object id="4" template="templates/zone.tx" x="0" y="0"><capsule/></object>
         </objectgroup>
       XML
            'tiles/props.tsx' => tsx(name: 'props'), 'tiles/items.tsx' => tsx(name: 'items'),
@@ -340,6 +341,10 @@ RSpec.describe RGame::Engine::Tiled::Map do
 
     it "keeps the object's own shape over the template's" do
       expect([objects[2].shape, objects[2].class_name]).to eq([:ellipse, 'Zone'])
+    end
+
+    it "keeps the object's own capsule over the template's shape" do
+      expect([objects[3].shape, objects[3].points]).to eq([:capsule, []])
     end
 
     it 'raises when the map does not name the tileset the template draws from' do
@@ -384,6 +389,11 @@ RSpec.describe RGame::Engine::Tiled::Map do
 
     it 'defaults the draw order to topdown' do
       expect(parse('<objectgroup id="1"/>').layers.first.draw_order).to eq(:topdown)
+    end
+
+    it 'raises on a draw order that is neither topdown nor index' do
+      expect { parse('<objectgroup id="1" draworder="random"/>') }
+        .to raise_error(RGame::Engine::Tiled::FormatError, /draworder="random", which is neither topdown nor index/)
     end
 
     it 'keeps a tile object at the bottom-left origin the file states' do

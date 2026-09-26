@@ -106,6 +106,10 @@ module RGame
           layer_count.times.find { |index| @rgame_map.layer(index).above? } || layer_count
         end
 
+        # The index of the object layer the designer marked `actors`, or `nil`
+        # when none is, as `TileMap#actors_layer` answers it.
+        def actors_layer = @rgame_map.actors_layer
+
         # Clamp a camera to this map's edges. Called for each camera the scene
         # hands over, and again for one that arrives later (a player joining).
         def bound(camera)

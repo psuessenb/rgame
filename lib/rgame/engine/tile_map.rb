@@ -71,8 +71,9 @@ module RGame
 
       # One layer of the flat list. `path` is the names of the groups around
       # it and its own, outermost first. `kind` is `:tile`, `:image` or
-      # `:object`. `visible?` and `opacity` already include every group around
-      # the layer.
+      # `:object`, and an image or object layer is an `ImageLayer` or an
+      # `ObjectLayer`. `visible?` and `opacity` already include every group
+      # around the layer.
       class Layer
         attr_reader :index, :name, :path, :kind, :class_name, :opacity, :properties
 
@@ -116,9 +117,32 @@ module RGame
         def repeat_y? = @repeat_y
       end
 
+      # A layer that holds objects. Their records are in `TileMap#objects`,
+      # each naming this layer's index.
+      class ObjectLayer < Layer
+        def initialize(y_sort:, actors:, **)
+          @y_sort = y_sort
+          @actors = actors
+          super(kind: :object, **)
+        end
+
+        # Whether the layer orders its objects by their y, as Tiled's *Top
+        # Down* draw order does. False for *Manual*, which keeps the order
+        # Tiled lists them in.
+        def y_sort? = @y_sort
+
+        # Whether the designer marked the layer for the actors, with a bool
+        # property named `actors`. At most one layer of a map is marked.
+        def actors? = @actors
+      end
+
       attr_reader :width, :height, :tile_width, :tile_height,
                   :pixel_width, :pixel_height, :tile_table,
                   :image_layers, :objects, :properties, :source
+
+      # The index of the object layer the designer marked `actors`, or `nil`
+      # when no layer is marked.
+      attr_reader :actors_layer
 
       # A map from already-built data. `layers` is the flat list of `Layer`s.
       # `cells` has one entry per layer: a flat Array of `width * height` tile
@@ -143,6 +167,7 @@ module RGame
         @pixel_height = height * tile_height
         @layers = layers.dup.freeze
         @image_layers = @layers.grep(ImageLayer).freeze
+        @actors_layer = @layers.find { it.is_a?(ObjectLayer) && it.actors? }&.index
         @tile_table = tile_table.dup.freeze
         @solid = solid.dup.freeze
         @tile_classes = tile_classes.dup.freeze

@@ -90,6 +90,8 @@ element:
 | Map size | fixed or infinite |
 | Custom properties | on the map, layers, tiles and objects, with Tiled's types |
 | Object templates | an object placed from a `.tx` gets the template's values, and its own win |
+| Object shapes | rectangle, ellipse, capsule, point, polygon, polyline, text and tile; any other raises |
+| Tile objects | placed by their tileset's object alignment, and given their tile's class and properties |
 
 ### How the map is drawn
 
@@ -295,6 +297,16 @@ unless the scene names another layer with `slots:`. Tiles do not sort with the
 actors, so a tree whose canopy a character walks under is two layers: a trunk
 below the slot and a canopy in an `above` layer.
 
+**An object layer is a `TileMap::ObjectLayer`**, a `Layer` that adds two
+answers. `y_sort?` is true for Tiled's *Top Down* draw order, the default, and
+false for *Manual*, which keeps the order Tiled lists the objects in. `actors?`
+is true for the layer marked for the actors: an object layer with a custom
+**bool** property named `actors`, ticked. `map.actors_layer` is that layer's
+index, or `nil` when no layer is marked, and `TileWorld#actors_layer` answers the
+same. A map may mark one object layer. A mark on a tile layer, an image layer or
+a group, marks on two layers, and an `actors` property that is not a bool each
+raise `Tiled::FormatError`, naming the layers.
+
 `map.image_layers` lists the image layers, each a `TileMap::ImageLayer`: a
 `Layer` that adds `image` (the image's path, or `nil`), `offset_x` and `offset_y`
 in the map's pixels, and `repeat_x?` and `repeat_y?`. The asset loader loads each
@@ -316,20 +328,25 @@ unnamed in Tiled has the name `''`.
 
 **A `RGame::Engine::MapObject` is in the game's coordinates.** `x` and `y` are its
 top-left corner in pixels, for every shape, and `rotation` turns it clockwise, in
-degrees, about that corner. Tiled measures a tile object from its bottom-left
-corner; `from_tiled` moves it, so a tile object and a rectangle over the same
+degrees, about that corner. Tiled places a tile object by the point its tileset's
+**Object Alignment** names, and by its bottom-left corner when the tileset leaves
+that unset. `from_tiled` moves it, so a tile object and a rectangle over the same
 cells report the same corner.
+
+**A tile object inherits from its tile,** as Tiled shows it. With no class of
+its own, it has its tile's. Its properties hold its tile's, and its own win
+over them by name.
 
 | | |
 |---|---|
-| `id`, `name`, `class_name` | as set in Tiled |
+| `id`, `name`, `class_name` | as set in Tiled; a tile object with no class has its tile's |
 | `layer` | the index of the layer it sits in |
 | `x`, `y`, `width`, `height`, `rotation` | its box, as above |
-| `shape` | `:rectangle`, `:ellipse`, `:point`, `:polygon`, `:polyline` or `:text` |
+| `shape` | `:rectangle`, `:ellipse`, `:capsule`, `:point`, `:polygon`, `:polyline` or `:text` |
 | `points` | a polygon's or polyline's corners, in the same coordinates, before `rotation` |
 | `tile`, `orientation` | a tile object's tile id and how it is turned; `nil` and the identity for a shape |
 | `visible?` | false when the designer hid it |
-| `properties` | its custom properties |
+| `properties` | its custom properties, over its tile's for a tile object |
 
 ### Building nodes from objects
 
@@ -429,6 +446,8 @@ props.key?('speed')
 props.each { |name, value| }
 props.to_h
 props.empty?
+props['stats'].class_name   # => 'Stats', the custom class of a class property's value
+props.class_name            # => nil, for a bag that is no class's value
 ```
 
 | Tiled type | Ruby |
@@ -439,14 +458,15 @@ props.empty?
 | `bool` | `true` or `false` |
 | `color` | `RGame::Util::Color`, or `nil` when Tiled has no colour to write |
 | `file` | `String`, resolved against the file that states it |
-| `class` | a nested `Properties` |
+| `class` | a nested `Properties`, answering `class_name` |
 
 **A class member left at its default is absent.** Tiled writes only the members
 that differ from the class's defaults, and keeps the defaults in the project file,
 which rgame does not read. Read such a member with `fetch(name, default)`.
 
-A `Properties` is frozen and compares by its contents. "No properties" is
-`Properties::EMPTY`, never `nil`.
+A `Properties` is frozen, and two are equal when they hold the same values and
+are values of the same class. "No properties" is `Properties::EMPTY`, never
+`nil`.
 
 ## Testing against a map
 
@@ -454,9 +474,9 @@ A `Properties` is frozen and compares by its contents. "No properties" is
 names `TileMap`. rgame's own suite states that contract in
 `spec/support/shared_examples/a_tile_map.rb`. It checks both `TileMap` and the
 spec stand-in `StubTileMap` against it. The contract covers `layer_count`,
-`layer`, `layer_index`, `width`, `height`, `tile_width`, `tile_height`, `cell_x`,
-`cell_y`, `col_at`, `row_at`, `tile`, `orientation`, `solid?`, `tile_offset`,
-`animated_tiles` and `frame_tile`.
+`layer`, `layer_index`, `actors_layer`, `width`, `height`, `tile_width`,
+`tile_height`, `cell_x`, `cell_y`, `col_at`, `row_at`, `tile`, `orientation`,
+`solid?`, `tile_offset`, `animated_tiles` and `frame_tile`.
 
 A spec that needs a map but no files parses a `.tmx` String with its tilesets
 embedded, as [above](#loading-a-map).

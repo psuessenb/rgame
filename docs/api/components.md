@@ -1665,7 +1665,9 @@ data to another, depends on a sibling's add order, or names a layer it may not n
   - `tilemap_id` and `elapsed`, which the layers read.
   - `layer_count`, `layer(index)`, `layer_index(name_or_path)` and
     `first_above_layer`, which `TileMapLayer.mount` reads to decide where its slots
-    go. The first three answer as [`TileMap`](tile_maps.md#layers) does.
+    go. The first three answer as [`TileMap`](tile_maps.md#layers) does, and so
+    does `actors_layer`, the index of the object layer marked for the actors, or
+    `nil`.
 - **Solidity is read from the map once.** On the first request, `TileWorld` reads
   the map's `solid_tile?` once per cell into one
   [`Util::SolidGrid`](values.md#rgameutilsolidgrid). From then on, `blockers`,
