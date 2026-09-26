@@ -323,8 +323,9 @@ frame 0.
 
 **`RGame::Engine::MapBuilder` (`rgame/engine/map_builder`) builds the node a
 map's object names.** It finds the node class, sets it up from the object's
-properties, and stands it on the object. No engine class calls it. A scene
-builds nodes from a map's objects with `MapObjects`, as
+properties, and stands it on the object. `TileMapLayer.mount` calls it for each
+object of each object layer, with the class of the node the scene's `TileWorld`
+is attached to as the scope, as
 [Building nodes from objects](tile_maps.md#building-nodes-from-objects) shows.
 
 ```ruby

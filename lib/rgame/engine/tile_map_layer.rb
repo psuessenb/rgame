@@ -71,22 +71,56 @@ module RGame
       # where they stand. `y_sort: false` leaves them in the order added, for a
       # side-view game.
       #
-      # An object layer gets no node, since it has nothing to draw. `parent`
-      # must be inside a WorldView, like the nodes themselves.
+      # **An object layer becomes a node in its place**, and each of its objects
+      # a node under it, built by MapBuilder in the layer's order. Their classes
+      # resolve in the class of the node the scene's TileWorld is attached to.
+      # The layer's node is y-sorted when the layer draws *Top Down* in Tiled,
+      # at the layer's opacity, or 0 when it is hidden. On a map with a layer
+      # marked `actors`, the `:actors` slot is that layer's node, unless
+      # `slots:` places it under a layer of its own.
+      #
+      # `parent` must be inside a WorldView, like the nodes themselves. A
+      # second mount over the same TileWorld raises, since it would build every
+      # object twice.
       def self.mount(parent, slots: { actors: nil }, y_sort: true)
-        world = parent.system(Components::TileWorld)
+        world = parent.system!(Components::TileWorld)
+        world.record_mount
+        marked = world.actors_layer if slots.key?(:actors) && slots[:actors].nil?
         under = slots.transform_values { covering_layer(world, it) }
+        under.delete(:actors) if marked
+        builder = MapBuilder.new(tilemap_id: world.tilemap_id, scope: world.node.class)
+        objects = world.objects.group_by(&:layer)
         z = -1
         nodes = {}
 
         (world.layer_count + 1).times do |index|
           under.each { |name, layer| nodes[name] = parent.add_node(Node2D.new(z: z += 1, y_sort:)) if layer == index }
-          next if index == world.layer_count || world.layer(index).kind == :object
+          next if index == world.layer_count
 
-          parent.add_node(new(layer: index, z: z += 1))
+          layer = world.layer(index)
+          if layer.kind == :object
+            node = parent.add_node(object_layer(layer, objects.fetch(index, NONE), builder, z += 1))
+            nodes[:actors] = node if index == marked
+          else
+            parent.add_node(new(layer: index, z: z += 1))
+          end
         end
         Slots.new(slots.keys.to_h { [it, nodes.fetch(it)] })
       end
+
+      NONE = [].freeze
+      private_constant :NONE
+
+      def self.object_layer(layer, objects, builder, z)
+        node = Node2D.new(z:, y_sort: layer.y_sort?)
+        node.opacity = layer.visible? ? layer.opacity : 0
+        objects.each do |object|
+          built = builder.build(object)
+          node.add_node(built) if built
+        end
+        node
+      end
+      private_class_method :object_layer
 
       def self.covering_layer(world, layer)
         case layer

@@ -266,6 +266,18 @@ RSpec.describe RGame::Engine::TileMap do
       expect { build(%(<group name="Near">#{spawns}</group>#{spawns('far')})) }
         .to raise_error(tiled::FormatError, %r{layers 'Near/spawns' and 'far' in the map are both marked 'actors'})
     end
+
+    it 'raises for a hidden layer marked, naming it, since no actor spawned into it would draw' do
+      hidden = %(<objectgroup name="spawns" visible="0">#{bool_property('actors', true)}</objectgroup>)
+
+      expect { build(hidden) }
+        .to raise_error(tiled::FormatError, /layer 'spawns' in the map is marked 'actors' and hidden/)
+    end
+
+    it 'raises for a marked layer in a hidden group' do
+      expect { build(%(<group name="Near" visible="0">#{spawns}</group>)) }
+        .to raise_error(tiled::FormatError, %r{layer 'Near/spawns' in the map is marked 'actors' and hidden})
+    end
   end
 
   describe 'solidity' do

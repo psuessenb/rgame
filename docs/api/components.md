@@ -1785,7 +1785,8 @@ data to another, depends on a sibling's add order, or names a layer it may not n
     `first_above_layer`, which `TileMapLayer.mount` reads to decide where its slots
     go. The first three answer as [`TileMap`](tile_maps.md#layers) does, and so
     does `actors_layer`, the index of the object layer marked for the actors, or
-    `nil`.
+    `nil`. `objects` lists the map's objects, as `TileMap#objects` does, and
+    `mount` builds from it.
 - **Solidity is read from the map once.** On the first request, `TileWorld` reads
   the map's `solid_tile?` once per cell into one
   [`Util::SolidGrid`](values.md#rgameutilsolidgrid). From then on, `blockers`,
@@ -1827,8 +1828,12 @@ slots[:boats].add_node(ferry)   # under the bridge, over the water
 A slot's value is a layer index, a layer's name or `'Group/layer'` path, `nil` for
 the first layer flagged `above`, or `layer_count` for over every layer. A name the
 map lacks raises `KeyError` listing its layers, when `mount` runs. Slots under the
-same layer draw in the order declared. An object layer gets no node, since it has
-nothing to draw. Nothing here picks a `z`.
+same layer draw in the order declared. Nothing here picks a `z`.
+
+**An object layer becomes a node in its place**, and each of its objects a node
+under it, as [`MapBuilder`](internals.md#mapbuilder--a-node-from-a-maps-object)
+builds it. On a map with a layer marked `actors`, the `:actors` slot is that
+layer's node. A second `mount` over the same `TileWorld` raises.
 
 **Every slot is [y-sorted](scene_graph.md#y-sort)**, so actors in one slot draw by
 where they stand: a hero walking below a chest draws in front of it. A side-view
