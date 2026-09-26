@@ -115,8 +115,8 @@ module DoorsExample
   end
 
   # One room: the map, the world it makes solid, and a door for each door object
-  # on it. The doors go in a slot of their own, under the actors, so a hero walks
-  # over them rather than behind them.
+  # on it. The doors go in the map's `doors` layer, which draws under the actors,
+  # so a hero walks over them rather than behind them.
   class Grounds < Engine::Scene::Room
     def initialize(map_id)
       super()
@@ -127,14 +127,13 @@ module DoorsExample
       @map = root.context.assets.tilemap(@map_id).map
       add_component(Components::TileWorld.new(map: @map, tilemap_id: @map_id))
       add_component(Components::CollisionWorld.new(cell_size: 32))
-      slots = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new),
-                                         slots: { doors: nil, actors: nil })
-      @actors = slots[:actors]
+      places = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))
+      @actors = places[:actors]
 
       doors = Engine::MapObjects.new
       doors.define('door') { |o| Door.new(object: o, world: parent) }
       doors.define('warp') { |o| Door.new(object: o, world: parent, to: name) }
-      doors.spawn_into(slots[:doors], @map.objects)
+      doors.spawn_into(places['doors'], @map.objects)
     end
 
     # A hero arrives standing on the entrance the move named.

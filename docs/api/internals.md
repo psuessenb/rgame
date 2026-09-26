@@ -323,8 +323,9 @@ frame 0.
 
 **`RGame::Engine::MapBuilder` (`rgame/engine/map_builder`) builds the node a
 map's object names.** It finds the node class, sets it up from the object's
-properties, and stands it on the object. No engine class calls it. A scene
-builds nodes from a map's objects with `MapObjects`, as
+properties, and stands it on the object. `TileMapLayer.mount` calls it for each
+object of each object layer, with the class of the node the scene's `TileWorld`
+is attached to as the scope, as
 [Building nodes from objects](tile_maps.md#building-nodes-from-objects) shows.
 
 ```ruby
@@ -354,8 +355,8 @@ chest.map_object_id             # => 7
 ```
 
 **A class starting with a capital letter names the node class.** Any other
-class, and none, is data: `build` returns `nil`, and the object stays a record in
-`map.objects`. The name resolves as Ruby would resolve it inside the class
+class, and none, is data: `build` returns `nil` for a shape object, and the
+object stays a record in `map.objects`. The name resolves as Ruby would resolve it inside the class
 `scope`. `Chest` is `MyGame::Town::Chest`, then
 `MyGame::Chest`, then a constant `MyGame::Town` inherits, then `::Chest`. A
 path such as `Town::Chest` resolves the same way. So a map names no module, and
@@ -409,6 +410,15 @@ polygon, as `Path.from_object` builds it, turned with the object. One that
 names `name:` gets the object's name, or `''` when the designer gave none. A
 class that requires `route:` raises `ArgumentError` when built from another
 shape, and a class that names neither gets neither.
+
+**Every tile object draws its tile.** The builder adds a
+[`Components::MapTile`](components.md#maptile) of the object's tile and
+orientation after the class's `initialize` has run, so it draws under whatever
+the class draws. A tile object whose class is data builds a plain `Node2D` to
+carry the tile. It stands where any node stands, and keeps its `map_object_id`.
+
+**An object the designer hid builds at opacity 0.** It updates and collides,
+and draws nothing, as Tiled shows it.
 
 **A node passes a designer's value on to its components itself.** The map sets
 only the node's own keywords, so a node that lets a designer tune a collider

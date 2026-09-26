@@ -57,6 +57,7 @@ module RGame
           @rgame_tilemap_id = tilemap_id
           @rgame_elapsed = 0.0
           @rgame_platforms = []
+          @rgame_mounted = false
           Array(cameras).each { |camera| bound(camera) }
         end
 
@@ -98,8 +99,8 @@ module RGame
         def layer_index(name_or_path) = @rgame_map.layer_index(name_or_path)
 
         # The first layer Tiled flags `above`, or the layer count if none is —
-        # which is where TileMapLayer.mount leaves the slot for the actors, so a
-        # map with no flag puts them over everything. Read once at mount rather
+        # which is where TileMapLayer.mount puts the actors on a map that marks
+        # no layer for them, so a map with neither puts them over everything. Read once at mount rather
         # than per frame: which layers cover the actors is a fact about the
         # scene's arrangement, and the arrangement is made once.
         def first_above_layer
@@ -109,6 +110,21 @@ module RGame
         # The index of the object layer the designer marked `actors`, or `nil`
         # when none is, as `TileMap#actors_layer` answers it.
         def actors_layer = @rgame_map.actors_layer
+
+        # The map's objects, as `TileMap#objects` lists them: each a MapObject
+        # naming the layer it sits in.
+        def objects = @rgame_map.objects
+
+        # Records that TileMapLayer.mount has built this map's nodes. Raises
+        # RuntimeError naming this world's node when it already has, since a
+        # second mount would build every object twice.
+        #
+        # @api private
+        def record_mount
+          raise "the map of #{node.class}'s TileWorld is already mounted; mount it once" if @rgame_mounted
+
+          @rgame_mounted = true
+        end
 
         # Clamp a camera to this map's edges. Called for each camera the scene
         # hands over, and again for one that arrives later (a player joining).

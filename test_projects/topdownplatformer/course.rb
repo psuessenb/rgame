@@ -17,8 +17,8 @@ module TopDownPlatformer
   # point: the last checkpoint that hero reached. That point is ground, since a
   # Respawn refuses any other, so a join never puts a hero over a gap.
   #
-  # The platforms have a slot of their own under the actors', so a hero draws over
-  # the raft they ride. The course listens to `Players#on_joined` for as long as it
+  # The platforms go in the map's `platforms` layer, under the actors', so a hero
+  # draws over the raft they ride. The course listens to `Players#on_joined` for as long as it
   # is in the tree, and ends that as it leaves.
   class Course < Engine::Node2D
     MAP = File.expand_path('course.tmx', __dir__)
@@ -32,10 +32,9 @@ module TopDownPlatformer
                       map: @map, tilemap_id: MAP, cameras: @players.map(&:camera)
                     ))
       add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
-      slots = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new),
-                                         slots: { platforms: nil, actors: nil })
-      @actors = slots[:actors]
-      rafts.spawn_into(slots[:platforms], @map.objects)
+      places = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))
+      @actors = places[:actors]
+      rafts.spawn_into(places['platforms'], @map.objects)
       things.spawn_into(@actors, @map.objects)
       @heroes = {}
       @players.each_active { spawn(it) }

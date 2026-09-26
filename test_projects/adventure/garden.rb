@@ -35,14 +35,13 @@ module Adventure
       add_component(Components::TileWorld.new(map: @map, tilemap_id: MAP))
       add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
 
-      slots = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new),
-                                         slots: { doors: nil, actors: nil })
-      @actors = slots[:actors]
+      places = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))
+      @actors = places[:actors]
 
       doors = Engine::MapObjects.new
       doors.define('door') { |o| Door.new(object: o, world: parent) }
       doors.define('warp') { |o| Door.new(object: o, world: parent, to: name) }
-      doors.spawn_into(slots[:doors], @map.objects)
+      doors.spawn_into(places['doors'], @map.objects)
     end
 
     def _arrive(hero, entrance)

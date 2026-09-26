@@ -7,7 +7,7 @@ module RGame
     #
     #   objects = RGame::Engine::MapObjects.new
     #   objects.define('chest') { |o| Chest.new(x: o.x, y: o.y, contents: o.properties.fetch('contents')) }
-    #   objects.spawn_into(slots[:actors], map.objects)   # => the chests it added
+    #   objects.spawn_into(places[:actors], map.objects)   # => the chests it added
     #
     # **An object of a class nobody defined builds nothing.** A map carries objects a
     # scene has no use for: spawn points another scene reads, notes for the designer,

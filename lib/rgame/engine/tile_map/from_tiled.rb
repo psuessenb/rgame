@@ -165,6 +165,10 @@ module RGame
             raise Tiled::FormatError, "layers '#{@actors}' and '#{marked}' in #{file} are both marked 'actors'; " \
                                       'keep the mark on one'
           end
+          unless layer.effective_visible?
+            raise Tiled::FormatError, "layer '#{marked}' in #{file} is marked 'actors' and hidden, so no actor " \
+                                      'spawned into it would draw; show the layer, or move the mark to one shown'
+          end
           @actors = marked
           true
         end

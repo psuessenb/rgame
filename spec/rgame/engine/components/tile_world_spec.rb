@@ -23,6 +23,18 @@ RSpec.describe RGame::Engine::Components::TileWorld do
     end
   end
 
+  describe '#objects' do
+    it "lists the map's objects, as the map does" do
+      map = RGame::Engine::TileMap.from_tiled(RGame::Engine::Tiled::Map.parse(
+                                                '<map orientation="orthogonal" width="2" height="2" tilewidth="16" ' \
+                                                'tileheight="16"><objectgroup name="things">' \
+                                                '<object id="3" name="gate" x="0" y="0"/></objectgroup></map>'
+                                              ))
+
+      expect(described_class.new(map: map, tilemap_id: :level).objects.map(&:name)).to eq(['gate'])
+    end
+  end
+
   # It is a system, not a drawer — RGame::Engine::TileMapLayer draws the map,
   # inside the world band, so that it is drawn once per viewport like the rest
   # of the world. What is left here is what actors ask about.

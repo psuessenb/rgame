@@ -10,9 +10,9 @@ A game rarely builds one itself. The pieces that use it are:
 | | Uses the map to |
 |---|---|
 | [`TileWorld`](components.md#tileworld) | answer solidity and world-size questions for actors |
-| [`TileMapLayer`](components.md#tileworld) | draw one layer per node |
+| [`TileMapLayer`](components.md#tileworld) | draw one layer per node, and [build a node from each object](#building-nodes-from-objects) |
 | [`TileMapRenderer`](assets.md#tile-maps) | bake and draw the tiles |
-| [`MapObjects`](#building-nodes-from-objects) | build a node from each of its objects |
+| [`MapObjects`](#building-from-data-classes-with-mapobjects) | build nodes from objects of a data class, for a scene that does so itself |
 | `RGame::Game`'s `:tilemap` asset loader | read a `.tmx`, build the map and slice its tileset images |
 
 Read on when a scene queries the map itself, or when you author maps for rgame.
@@ -292,11 +292,12 @@ bare name matches layers in two groups.
 **Mark a layer `above` in Tiled** to draw it over the actors, for tree canopies or
 roofs: add a custom **bool** property named `above` and tick it. A layer without
 the property draws below, and an `above` property of any other type raises.
-`TileWorld#first_above_layer` returns the first flagged layer, and
-[`TileMapLayer.mount`](components.md#tileworld) leaves the actors' slot below it,
-unless the scene names another layer with `slots:`. Tiles do not sort with the
-actors, so a tree whose canopy a character walks under is two layers: a trunk
-below the slot and a canopy in an `above` layer.
+`TileWorld#first_above_layer` returns the first flagged layer. On a map that
+marks no layer `actors`, [`TileMapLayer.mount`](components.md#tileworld) puts
+the actors' place below it. Tiles in a tile layer do not sort with the actors, so
+a tree whose canopy a character walks under is two layers: a trunk below the
+actors and a canopy in an `above` layer. A tree placed as a tile object in the
+actors' layer sorts with them instead.
 
 **An object layer is a `TileMap::ObjectLayer`**, a `Layer` that adds two
 answers. `y_sort?` is true for Tiled's *Top Down* draw order, the default, and
@@ -305,8 +306,9 @@ is true for the layer marked for the actors: an object layer with a custom
 **bool** property named `actors`, ticked. `map.actors_layer` is that layer's
 index, or `nil` when no layer is marked, and `TileWorld#actors_layer` answers the
 same. A map may mark one object layer. A mark on a tile layer, an image layer or
-a group, marks on two layers, and an `actors` property that is not a bool each
-raise `Tiled::FormatError`, naming the layers.
+a group, marks on two layers, a mark on a hidden layer, and an `actors` property
+that is not a bool each raise `Tiled::FormatError`, naming the layers. No actor
+spawned into a hidden layer would draw.
 
 `map.image_layers` lists the image layers, each a `TileMap::ImageLayer`: a
 `Layer` that adds `image` (the image's path, or `nil`), `offset_x` and `offset_y`
@@ -351,35 +353,118 @@ over them by name.
 
 ### Building nodes from objects
 
-**`RGame::Engine::MapObjects` builds a node from each object whose class has a
-block.** The class is the Class field Tiled shows in an object's properties.
+**[`TileMapLayer.mount`](components.md#tileworld) builds a node for each object
+whose class starts with a capital letter.** The class is the Class field Tiled
+shows in an object's properties, and it names a `Node2D` subclass of the game's.
+The scene that mounts the map writes no line for its objects:
 
 ```ruby
-# In a scene's _enter_tree, with `map` loaded and `slots` from TileMapLayer.mount.
-objects = RGame::Engine::MapObjects.new
-objects.define('chest') { |o| Chest.new(x: o.x, y: o.y, contents: o.properties.fetch('contents')) }
-objects.define('trap')  { |o| Trap.new(x: o.x, y: o.y) }
+module MyGame
+  Engine = RGame::Engine
+  Components = Engine::Components
 
-objects.spawn_into(slots[:actors], map.objects) # => the chests and traps it added
+  class Chest < Engine::Node2D
+    # A chest the hero opens once.
+    #
+    # @param contents [String] the item inside
+    # @param locked [Boolean] whether it takes a key to open
+    def initialize(contents:, locked: false, **)
+      super(**)
+      @contents = contents
+      @locked = locked
+      @facts = add_component(Components::Facts.new(state: 'closed'))
+    end
+  end
+
+  class Town < Engine::Node2D
+    def _enter_tree
+      map = root.context.assets.tilemap('map/town.tmx').map
+      add_component(Components::TileWorld.new(map:, tilemap_id: 'map/town.tmx'))
+      @places = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))
+    end
+  end
+end
+```
+
+An object of the class `Chest` with the property `contents: key` builds a
+`MyGame::Chest`, standing on the object, under its layer's node.
+
+- **The name resolves outward from the scene's class**, the class of the node
+  the scene's `TileWorld` is attached to: `MyGame::Town::Chest`, then
+  `MyGame::Chest`, then `::Chest`. A path such as `Town::Chest` resolves the
+  same way. A map names no module, so one map serves two games that each define a
+  `Chest`. A name that resolves to no constant raises `NameError`, and a constant
+  that is not a `Node2D` class raises `TypeError`. Each names the map, the object
+  and the class.
+- **Any other class is data.** `entrance`, `start`, a terrain class such as
+  `gap`, and no class at all build nothing from a shape. The object stays a
+  record in `map.objects`, and `object_named` finds it.
+- **The `@param` tags above `initialize` say what a map may set.** Each property
+  sets the keyword of its name, cast to its tag's type. A property no tag makes
+  settable, and a required keyword no property sets, each raise listing what a
+  map may set. A value of the wrong type raises naming the Tiled type to use.
+  [`MapBuilder`](internals.md#mapbuilder--a-node-from-a-maps-object) has the
+  table of types and the rest of the rules.
+- **The node stands at the bottom centre of the object's box**, turned with it.
+  `angle` is the object's rotation, and `width` and `height` are its size. A
+  point object's node stands on its point, and a polygon's or polyline's on its
+  own corner.
+- **A class receives `route:` and `name:` by naming them.** A class whose
+  `initialize` names `route:` gets a polyline's or a polygon's route, as
+  `Path.from_object` builds it. One that names `name:` gets the object's name,
+  or `''` when the designer gave none. Neither needs a tag.
+- **The node keeps its object's id** as `Node2D#map_object_id`, and nothing
+  else of it. [`Components::Facts`](components.md#facts) keys the node's record
+  by it, so the chest above, opened once, stays open when its room is built
+  again. A node built in code has no id, and passes `key:` to its `Facts`.
+- **Every tile object draws its tile.** Its node gets a
+  [`Components::MapTile`](components.md#maptile), which draws under whatever the
+  class draws. A tile object whose class is data builds a plain `Node2D` to
+  carry the tile, so a tree placed from a tileset stands in the world and sorts
+  against the actors.
+- **A hidden object builds at opacity 0.** It updates and collides, and draws
+  nothing, as Tiled shows it. The objects of a hidden layer build too, and the
+  layer's node draws none of them.
+
+**Each object layer is a node in its place among the layers**, holding the nodes
+its objects build, in the layer's order. It sorts them by where they stand when
+Tiled draws the layer *Top Down*, and keeps Tiled's order for *Manual*. It
+draws at the layer's opacity.
+
+**Mark the layer the actors walk in.** Add a custom **bool** property named
+`actors` to an object layer and tick it. `places[:actors]` is then that layer's
+node, so a hero the scene spawns sorts against the trees placed there. On a map
+with no mark, the actors get a node of their own below the first `above` layer.
+
+**An object layer is also a place for what a scene adds itself.**
+`places['doors']` is the object layer named `doors`, and a `'Group/layer'` path
+names one inside a group. An empty object layer in Tiled marks a place in the
+layer order. [`TileWorld`](components.md#tileworld) lists what `places` answers
+and what it raises.
+
+#### Building from data classes with `MapObjects`
+
+**`RGame::Engine::MapObjects` builds a node from each object whose class has a
+block**, for a scene that builds from data classes itself.
+
+```ruby
+# In a scene's _enter_tree, with `map` loaded and `places` from TileMapLayer.mount.
+objects = RGame::Engine::MapObjects.new
+objects.define('trap') { |o| Trap.new(x: o.x, y: o.y) }
+
+objects.spawn_into(places[:actors], map.objects) # => the traps it added
 ```
 
 - **`define(class_name) { |object| ... }`** registers the block for one class and
   returns the registry. It raises `ArgumentError` for a class defined twice, a
   name that is not a String, or a missing block.
 - **`build(object)`** returns what the block for `object.class_name` returns, or
-  `nil` when no block was defined for that class. A map may carry objects a scene
-  has no use for.
+  `nil` when no block was defined for that class.
 - **`spawn_into(parent, objects)`** builds each object in the order given, adds
   every node that comes back under `parent`, and returns those nodes. A hidden
   object is built too, so the block can read `visible?` itself.
 - **The block places the node.** An object's `(x, y)` is its top-left corner, and
-  where a node's origin sits is up to its class. The registry moves nothing.
-- **A node can keep its object's id.** `Node2D.new` takes `map_object_id:`, and
-  `Node2D#map_object_id` reads it back. It is `nil` unless passed.
-  [`Components::Facts`](components.md#facts) keys a node's record by it, so a
-  chest opened once stays open when its room is built again.
-- **Nothing spawns a map's objects unless the scene asks.** The scene calls
-  `spawn_into` and chooses the parent.
+  the registry moves nothing.
 
 ### A door from the map
 
@@ -396,14 +481,13 @@ class Grounds < RGame::Engine::Scene::Room
     @map = root.context.assets.tilemap(@map_id).map
     add_component(RGame::Engine::Components::TileWorld.new(map: @map, tilemap_id: @map_id))
     add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 32))
-    slots = RGame::Engine::TileMapLayer.mount(add_node(RGame::Engine::WorldView.new),
-                                              slots: { doors: nil, actors: nil })
-    @actors = slots[:actors]
+    places = RGame::Engine::TileMapLayer.mount(add_node(RGame::Engine::WorldView.new))
+    @actors = places[:actors]
 
     doors = RGame::Engine::MapObjects.new
     doors.define('door') { |o| Door.new(object: o, world: parent) }
     doors.define('warp') { |o| Door.new(object: o, world: parent, to: name) }
-    doors.spawn_into(slots[:doors], @map.objects)
+    doors.spawn_into(places['doors'], @map.objects)
   end
 
   def _arrive(node, entrance)

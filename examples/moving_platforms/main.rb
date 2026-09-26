@@ -132,8 +132,8 @@ module MovingPlatformsExample
   end
 
   # The map, the raft its `platform` object describes, and the hero on its
-  # `start` point. The raft has a slot of its own under the actors', so the
-  # hero draws over it. The help draws in the `:overlay` band, over the world.
+  # `start` point. The raft goes in the map's `platforms` layer, under the
+  # actors', so the hero draws over it. The help draws in the `:overlay` band, over the world.
   class Scene < Engine::Node2D
     def initialize
       super(band: :overlay)
@@ -149,10 +149,10 @@ module MovingPlatformsExample
                     ))
 
       view = add_node(Engine::WorldView.new)
-      slots = Engine::TileMapLayer.mount(view, slots: { platforms: nil, actors: nil })
-      rafts.spawn_into(slots[:platforms], map.objects)
+      places = Engine::TileMapLayer.mount(view)
+      rafts.spawn_into(places['platforms'], map.objects)
       start = map.object_named('start')
-      slots[:actors].add_node(Hero.new(camera: players.primary.camera, x: start.x, y: start.y))
+      places[:actors].add_node(Hero.new(camera: players.primary.camera, x: start.x, y: start.y))
     end
 
     def _draw(renderer, _view)

@@ -127,7 +127,7 @@ module PathfindingExample
   # that tile can be stood on; what confirming *means* is the scene's business, so it
   # only reports the tile's centre. Every size and position it draws at comes from the
   # world, which is what knows how big a tile is. Its `z: 1` keeps it over the hero,
-  # wherever the two stand in the y-sorted actors' slot.
+  # wherever the two stand in the y-sorted actors' place.
   class Cursor < Engine::Node2D
     WALKABLE = Util::Color.rgba(120, 230, 120, 255)
     SOLID = Util::Color.rgba(240, 90, 90, 255)

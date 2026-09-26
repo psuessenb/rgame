@@ -5,13 +5,15 @@ module RGame
     # One layer of the scene's tile map, drawn in world space, once per viewport.
     #
     #   world = scene.add_node(WorldView.new)
-    #   slots = TileMapLayer.mount(world)
-    #   slots[:actors].add_node(player)
+    #   places = TileMapLayer.mount(world)
+    #   places[:actors].add_node(player)
+    #   places['doors'].add_node(door)
     #
     # A node per layer that draws, and the layers Tiled lists are the layers you
     # get. The scene tree is then what says what covers what: everything mounted
-    # before a slot draws under what the scene puts in it, everything after draws
-    # over it, and each slot `mount` leaves is a node the scene hangs things on.
+    # before a place draws under what the scene puts in it, and everything after
+    # draws over it. An object layer is a place: its node holds the nodes its
+    # objects build, and whatever a scene adds to it.
     #
     # It belongs **inside a WorldView**, which is the whole point of it existing
     # separately from Components::TileWorld. The map is world content: it
@@ -22,82 +24,121 @@ module RGame
     # It carries no state. The map id and the animation clock come from the
     # scene's TileWorld system, and the region worth drawing comes from the view.
     #
-    # ## Why a node per layer, rather than two passes
+    # ## Why a node per layer
     #
-    # There used to be one of these, drawing a "below" band and an "above" band
-    # in one go and relying on a global z to slot the actors between them. Draw
-    # order is tree order now (see RGame::Util::Z), so a node's drawing is
-    # contiguous and "between them" has to mean "between two nodes".
-    #
-    # That turned out to be the better shape anyway. A designer already orders
-    # layers in Tiled and can see the result there; content can go between *any*
-    # two of them rather than at one flagged boundary; and the `above` property
-    # stops being something to remember on every layer — it is read once, by
-    # `mount`, to decide where the slot goes.
+    # Draw order is tree order (see RGame::Util::Z), so a node's drawing is
+    # contiguous, and "between two layers" means between two nodes. A designer
+    # orders the layers in Tiled and sees the result there. Content goes in any
+    # object layer, wherever the designer put it, and the `above` property is
+    # read once, by `mount`, to place the actors on a map that marks no layer
+    # for them.
     class TileMapLayer < Node2D
-      # The slots `mount` left between the layers, by the names the scene gave
-      # them. Each is an empty node for the scene to add to.
-      class Slots
-        def initialize(slots)
-          @slots = slots.freeze
+      # The places `mount` made for what a scene adds itself: the actors', and
+      # each object layer's node.
+      class Places
+        def initialize(world, actors, object_layers)
+          @world = world
+          @actors = actors
+          @object_layers = object_layers.freeze
           freeze
         end
 
-        # The node in the slot called `name`. Raises `KeyError` naming the slots
-        # there are when there is none of that name.
-        def [](name)
-          @slots.fetch(name) do
-            raise KeyError.new("no slot #{name.inspect} was mounted (the slots are #{names.map(&:inspect).join(', ')})",
-                               receiver: self, key: name)
+        # The node for `place`. `:actors` is where the scene's actors go: the
+        # layer marked `actors`, or on a map with no mark, a node under the
+        # first layer marked `above`. A String is the object layer that name or
+        # `'Group/layer'` path names, as `TileMap#layer_index` takes them.
+        #
+        # Raises `KeyError` listing the object layers for a String that names
+        # no one layer, and `ArgumentError` for a tile or image layer's name and
+        # for any other key.
+        def [](place)
+          return @actors if place == :actors
+
+          unless place.is_a?(String)
+            raise ArgumentError, "a place is :actors, or the name or 'Group/layer' path of an object layer; " \
+                                 "got #{place.inspect}"
+          end
+
+          index = layer_index(place)
+          @object_layers.fetch(index) do
+            raise ArgumentError, "layer '#{place}' is a #{@world.layer(index).kind} layer, and only an object " \
+                                 "layer holds nodes (the object layers are #{object_layer_paths})"
           end
         end
 
-        # The slots' names, in the order the scene declared them.
-        def names = @slots.keys
+        private
+
+        def layer_index(place)
+          @world.layer_index(place)
+        rescue KeyError
+          raise KeyError.new("'#{place}' names no one layer of this map; name an object layer, or give its " \
+                             "'Group/layer' path (the object layers are #{object_layer_paths})",
+                             receiver: self, key: place)
+        end
+
+        def object_layer_paths
+          return 'none' if @object_layers.empty?
+
+          @object_layers.keys.map { @world.layer(it).path.join('/') }.join(', ')
+        end
       end
 
-      # Mounts one node per layer of the scene's map under `parent`, leaves an
-      # empty node in each slot `slots` names, and returns them as `Slots`.
-      # Nothing here picks a z by hand, and neither does the caller.
+      # Mounts one node per layer of the scene's map under `parent`, and returns
+      # the `Places` a scene adds to. Nothing here picks a z by hand, and
+      # neither does the caller.
       #
-      # Each slot's value names the layer that covers it: an index, or a name or
-      # `'Group/layer'` path as `TileMap#layer_index` takes them. `nil` means
-      # the first layer marked `above` in Tiled, and `layer_count` means over
-      # every layer. With no `slots:`, the one slot is `:actors`, under the first
-      # layer marked `above`, so a map that already marks its canopies needs
-      # nothing said. Slots under the same layer draw in the order declared.
+      # **An object layer becomes a node in its place**, and each of its objects
+      # a node under it, built by MapBuilder in the layer's order. Their classes
+      # resolve in the class of the node the scene's TileWorld is attached to.
+      # The layer's node is y-sorted when the layer draws *Top Down* in Tiled,
+      # at the layer's opacity, or 0 when it is hidden.
       #
-      # Every slot is y-sorted (see Node2D#y_sort), so actors in one draw by
-      # where they stand. `y_sort: false` leaves them in the order added, for a
-      # side-view game.
+      # **The actors go in the layer marked `actors`.** On a map with no mark,
+      # they go in a node of their own, under the first layer marked `above`,
+      # or over every layer when none is. That node is y-sorted (see
+      # Node2D#y_sort), so actors in it draw by where they stand, and
+      # `y_sort: false` leaves them in the order added, for a side-view game.
       #
-      # An object layer gets no node, since it has nothing to draw. `parent`
-      # must be inside a WorldView, like the nodes themselves.
-      def self.mount(parent, slots: { actors: nil }, y_sort: true)
-        world = parent.system(Components::TileWorld)
-        under = slots.transform_values { covering_layer(world, it) }
+      # `parent` must be inside a WorldView, like the nodes themselves. A
+      # second mount over the same TileWorld raises, since it would build every
+      # object twice.
+      def self.mount(parent, y_sort: true)
+        world = parent.system!(Components::TileWorld)
+        world.record_mount
+        builder = MapBuilder.new(tilemap_id: world.tilemap_id, scope: world.node.class)
+        objects = world.objects.group_by(&:layer)
+        actors_under = world.first_above_layer unless world.actors_layer
         z = -1
-        nodes = {}
+        actors = nil
+        object_layers = {}
 
         (world.layer_count + 1).times do |index|
-          under.each { |name, layer| nodes[name] = parent.add_node(Node2D.new(z: z += 1, y_sort:)) if layer == index }
-          next if index == world.layer_count || world.layer(index).kind == :object
+          actors = parent.add_node(Node2D.new(z: z += 1, y_sort:)) if index == actors_under
+          next if index == world.layer_count
 
-          parent.add_node(new(layer: index, z: z += 1))
+          layer = world.layer(index)
+          if layer.kind == :object
+            object_layers[index] = parent.add_node(object_layer(layer, objects.fetch(index, NONE), builder, z += 1))
+          else
+            parent.add_node(new(layer: index, z: z += 1))
+          end
         end
-        Slots.new(slots.keys.to_h { [it, nodes.fetch(it)] })
+        Places.new(world, actors || object_layers.fetch(world.actors_layer), object_layers)
       end
 
-      def self.covering_layer(world, layer)
-        case layer
-        when nil then world.first_above_layer
-        when String then world.layer_index(layer)
-        when 0..world.layer_count then layer
-        else raise ArgumentError, "a slot goes under a layer index from 0 to #{world.layer_count}, a layer's " \
-                                  "name or path, or nil for the first layer marked above; got #{layer.inspect}"
+      NONE = [].freeze
+      private_constant :NONE
+
+      def self.object_layer(layer, objects, builder, z)
+        node = Node2D.new(z:, y_sort: layer.y_sort?)
+        node.opacity = layer.visible? ? layer.opacity : 0
+        objects.each do |object|
+          built = builder.build(object)
+          node.add_node(built) if built
         end
+        node
       end
-      private_class_method :covering_layer
+      private_class_method :object_layer
 
       def initialize(layer:, **)
         super(**)

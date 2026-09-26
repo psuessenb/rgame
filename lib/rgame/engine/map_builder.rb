@@ -15,6 +15,12 @@ module RGame
     # names no module, and one map serves two games that each define a `Door`.
     # Any other class, and none, is data and builds nothing.
     #
+    # **Every tile object draws its tile.** Its node gets a
+    # Components::MapTile after its class's `initialize` has run, and a tile
+    # object whose class is data builds a plain Node2D to carry one. An object
+    # the designer hid builds all the same, at opacity 0: it updates and
+    # collides, and draws nothing, as Tiled shows it.
+    #
     # **Each property sets a keyword** that MapSettings says the class takes,
     # cast to its type.
     #
@@ -53,10 +59,21 @@ module RGame
       end
 
       # The node `object` names, placed and set up, or `nil` when its class is
-      # data.
+      # data and it is no tile object.
       def build(object)
-        return unless object.class_name.match?(BUILDS)
+        node = if object.class_name.match?(BUILDS) then built(object)
+               elsif object.tile then Node2D.new(**placement(object), map_object_id: object.id)
+               end
+        return unless node
 
+        node.add_component(Components::MapTile.new(tile: object.tile, orientation: object.orientation)) if object.tile
+        node.opacity = 0 unless object.visible?
+        node
+      end
+
+      private
+
+      def built(object)
         node_class = resolve(object)
         parameters = node_class.instance_method(:initialize).parameters
         keywords = { **placement(object), map_object_id: object.id }
@@ -65,8 +82,6 @@ module RGame
         check_required(object, node_class, keywords, parameters)
         node_class.new(**keywords)
       end
-
-      private
 
       def nesting_of(scope)
         names = scope.name&.split('::') or return [scope]
