@@ -431,10 +431,10 @@ which hold the quest and the smith's conversation, with the hero's gold; F9
 loads them. The quest and the conversation never name each other: the smith's
 script asks the village, and the village fires the quest's events.
 
-**Uses:** `StateGraph`, `StateMachine`, `Components::Facts`, `Dialogue::Script`,
-`Engine::Dialogue`, `UI::DialogueBox` and its `_draw_portrait` hook,
-`Components::CollisionWorld#nearest`, `Components::BoxCollider#on_hit`,
-`Util::SaveFile`.
+**Uses:** `StateGraph`, `StateMachine`, `Components::FactsDatabase`,
+`Dialogue::Script`, `Engine::Dialogue`, `UI::DialogueBox` and its
+`_draw_portrait` hook, `Components::CollisionWorld#nearest`,
+`Components::BoxCollider#on_hit`, `Util::SaveFile`.
 
 ### cutscene
 

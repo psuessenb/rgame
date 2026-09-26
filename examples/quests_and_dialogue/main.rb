@@ -13,8 +13,8 @@
 # and **L** opens the log of what was said, Up and Down turning its pages. **F5**
 # saves and **F9** loads. It exercises:
 #   - StateGraph and StateMachine — the hammer quest, its stages and events;
-#   - Components::Facts — flags that belong to no object, and the one save
-#     entry holding every flag and every named machine;
+#   - Components::FactsDatabase — flags that belong to no object, and the one
+#     save entry holding every flag and every named machine;
 #   - Dialogue::Script and Engine::Dialogue — the smith's conversation, with
 #     conditions, effects, `once:` and a line with a variable;
 #   - UI::DialogueBox — the box, with a portrait drawn in `_draw_portrait` and
@@ -57,17 +57,17 @@
 #
 # The quest writes `hammer_on_ground` as it moves: true when the work is
 # accepted, false when the hammer is picked up. The hammer draws itself while
-# the fact is true, and learns it from `Facts#watch`. A watch calls its block at
-# once and again on every change, a restored save included, so after F9 the
-# hammer is where the loaded quest says without anyone telling it.
+# the fact is true, and learns it from `FactsDatabase#watch`. A watch calls its
+# block at once and again on every change, a restored save included, so after F9
+# the hammer is where the loaded quest says without anyone telling it.
 #
 # ## One save entry for the whole world
 #
 # F5 writes `world: facts.to_h`, the hero's gold and the hero's position. The
 # first entry holds every flag and every machine built with a `name:`: the
 # quest, the smith's conversation and its visits. F9 hands it to
-# `Facts#restore`. The gold is the hero's own, so the game saves it, as it
-# would save anything else a node owns.
+# `FactsDatabase#restore`. The gold is the hero's own, so the game saves it, as
+# it would save anything else a node owns.
 #
 # ## Two ways to start a conversation
 #
@@ -144,7 +144,7 @@ module QuestsAndDialogueExample
       add_component(Components::PlayerController.new)
     end
 
-    def _enter_tree = @facts = system(Components::Facts)
+    def _enter_tree = @facts = system(Components::FactsDatabase)
 
     def _update(_dt)
       self.x = x.clamp(12, WIDTH - 12)
@@ -167,7 +167,7 @@ module QuestsAndDialogueExample
     end
 
     def _enter_tree
-      @facts = system(Components::Facts)
+      @facts = system(Components::FactsDatabase)
       @watch = @facts.watch(:hammer_on_ground) { |on_ground| @on_ground = on_ground == true }
     end
 
@@ -250,7 +250,7 @@ module QuestsAndDialogueExample
     end
 
     def _enter_tree
-      @facts = system(Components::Facts)
+      @facts = system(Components::FactsDatabase)
       build_village
       @hero = add_node(Hero.new(x: 320, y: 400))
       @quest = Engine::StateMachine.new(HAMMER, context: @hero, facts: @facts, name: :hammer)

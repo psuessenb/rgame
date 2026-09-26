@@ -668,49 +668,55 @@ margin reaches half its extent.
   or a mover declaring `blocked_by: [:bounds]`; see
   [`WorldBounds.one_response!`](#world).
 
-### `Fact`
+### `Facts`
 
-**Keeps one of its node's values in the root's [`Facts`](dialogue.md#facts), so
-it outlives the room the node stands in.** A chest opened once stays open when
-its room is built again, and a save keeps it with every other fact.
+**Keeps its node's own facts, a record of named fields, in the root's
+[`FactsDatabase`](dialogue.md#facts), so they outlive the room the node stands
+in.** A chest opened once stays open when its room is built again, and a save
+keeps it with every other fact.
 
 ```ruby
 # A node class in a game's module, where Components is RGame::Engine::Components.
-class Chest < Engine::Node2D
-  def initialize(key: nil, **)
-    super(**)
-    @kept = add_component(Components::Fact.new(key:, default: 'closed'))
+class Crate < Engine::Node2D
+  def initialize(key: nil, x: 0, y: 0, **)
+    super(x:, y:, **)
+    @facts = add_component(Components::Facts.new(key:, x:, y:, way: 'still'))
   end
 
-  def _enter_tree = @state = @kept.value.to_sym
+  def _enter_tree
+    self.x = @facts[:x]
+    self.y = @facts[:y]
+  end
 
-  def open = @kept.value = 'open'
+  def _update(_dt)
+    @facts[:x] = x
+    @facts[:y] = y
+  end
 end
 ```
 
-- **Construct:** `Fact.new(default: nil, key: nil, part: nil)`. `default` is
-  what `value` reads for a fact never set. It must be a value `Facts` holds, so a
-  Symbol raises `TypeError`, and so does a `key:` or a `part:` that is not a
-  Symbol.
+- **Construct:** `Facts.new(key: nil, **fields)`. Every keyword but `key:` names
+  a field, and its value is the field's default. A default must be a value the
+  database holds, so a Symbol raises `TypeError`, and so does a `key:` that is
+  not a Symbol. A `Facts` with no fields raises `ArgumentError`.
+- **`facts[field]`** is the field's value, or its default while it was never
+  set. **`facts[field] = value`** writes it into the node's record, as
+  `database[key, field] = value` does, so the database emits `on_changed` and
+  calls its watchers. Neither allocates, so a node may write every frame. A
+  field the node did not name raises `KeyError`, listing the fields it did.
 - **The key** is `key:` when the node passes one, as a node built in code does.
   A node a map built passes none. Its key is then `:"<tilemap id>#<object id>"`,
   made from its [`Node2D#map_object_id`](internals.md#mapbuilder--a-node-from-a-maps-object)
-  and the scene's [`TileWorld`](#tileworld), such as `:"map/town.tmx#7"`. A
-  `part:` joins the key after a dot: `:"map/town.tmx#7.x"`, or `:"crate.x"`.
-- **Several values take one `Fact` each**, each with its own `part:` and a slot
-  of its own: `add_component(Fact.new(part: :x, default: x), as: :x)`.
-- **Lifecycle:** `_attach` finds the root's `Facts` and makes the key, once, so a
-  node moved into another room keeps its key. It raises `ArgumentError` for a
-  node with neither a `key:` nor a `map_object_id`. It raises `KeyError` when
-  there is no `Facts`, or no `TileWorld` to make a map's key from.
-- **`key`, `value` and `value=`.** `value` is the fact, or `default` for a fact
-  never set. `value=` writes the fact as `facts[key] = value` does, so `Facts`
-  emits `on_changed` and calls its watchers. All three raise before the node
-  first enters a tree: read the value in `_enter_tree` or later.
+  and the scene's [`TileWorld`](#tileworld), such as `:"map/town.tmx#7"`. The
+  database holds the record under it, `{ x: 48, y: 96, way: "east" }`.
+- **Lifecycle:** `_attach` finds the root's `FactsDatabase` and makes the key,
+  once, so a node moved into another room keeps its key. It raises
+  `ArgumentError` for a node with neither a `key:` nor a `map_object_id`. It
+  raises `KeyError` when there is no `FactsDatabase`, or no `TileWorld` to make
+  a map's key from. `key`, `[]` and `[]=` raise before the node first enters a
+  tree: read the fields in `_enter_tree` or later.
 - **A designer's key comes through the node**, as any value for a component
   does. The class tags `@param fact [Symbol]` and passes it on as `key:`.
-- **A read allocates nothing**, and neither does writing the value a fact holds
-  already.
 
 ### `FeetCollider`
 

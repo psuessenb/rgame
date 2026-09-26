@@ -85,7 +85,7 @@ module RGame
         # without variables saves only its beat, and a response the index it
         # has among its beat's responses. Raises `TypeError`, naming the entry
         # and the variable, for a value a save would not bring back as it was,
-        # by the rule `Components::Facts` holds its values to.
+        # by the rule `Components::FactsDatabase` holds its values to.
         def to_h
           entries = @entries.each_with_index.map { |entry, index| save_entry(entry, index) }
           { entries: entries.freeze }.freeze
@@ -142,7 +142,7 @@ module RGame
             { beat: entry.beat, response: @script.graph.transitions(entry.beat).index(entry.response) }.freeze
           elsif entry.vars
             entry.vars.each do |key, value|
-              Components::Facts.check_value(value) do
+              Components::FactsDatabase.check_value(value) do
                 "the variable #{key.inspect} of transcript entry #{index} (#{entry.beat.inspect})"
               end
             end

@@ -10,8 +10,9 @@ module RGame
     #   debug.define(:routes) { |renderer, view| ... }
     #
     # RGame::Game mounts one on the root, beside `Players`, `Viewports` and
-    # `Facts`, so anything in the tree reaches it. It holds a flag per channel
-    # and draws in the `:debug` band, over every other thing in the frame.
+    # `FactsDatabase`, so anything in the tree reaches it. It holds a flag per
+    # channel and draws in the `:debug` band, over every other thing in the
+    # frame.
     #
     # ## Two channels ship, and a game adds its own
     #

@@ -16,8 +16,9 @@ Five stages, each owned by one piece:
    node, and gives a tile object its picture. It hands the node values and keeps
    the record: the node keeps only its object's id (decision 19).
 5. **The node finds the rest in the tree.** Its room, its facts and its random
-   source are systems, reached with `system!` in `_enter_tree`. A
-   `Components::Fact` keeps its state in the facts (decision 20).
+   source are systems, reached with `system!` in `_enter_tree`. Its
+   `Components::Facts` keeps its own record in the facts database (decision
+   20).
 
 Stages 1 and 2 are pure and game-agnostic: a `TileMap` knows no game class.
 Classes resolve in stage 4, when the scene mounts the map and the game's code is
@@ -208,8 +209,9 @@ The map never sets a component's keywords itself (decision 3). An override of
 class built from a map today wants one. `docs/plans/possible-todos.md` keeps the
 design this plan drafted for it.
 
-**A node keeps its state in `Facts` through a `Components::Fact`** (decision
-20). Its key is `key:` when the node passes one, and otherwise
+**A node keeps its facts in the `FactsDatabase` through `Components::Facts`**
+(decision 20), one record of named fields under one key. Its key is `key:` when
+the node passes one, and otherwise
 `:"<tilemap id>#<object id>"`, derived at the component's first `_attach`. The
 tilemap id is the asset key `TileWorld` was given, `'map/town.tmx'`, not the
 file path, which is absolute in a game and differs between machines.
@@ -219,12 +221,12 @@ file path, which is absolute in a game and differs between machines.
 class Chest < Engine::Node2D
   def initialize(**)
     super
-    @kept = add_component(Components::Fact.new(default: 'closed'))
+    @facts = add_component(Components::Facts.new(state: 'closed'))
   end
 
-  def _enter_tree = @state = @kept.value.to_sym
+  def _enter_tree = @state = @facts[:state].to_sym
 
-  def open = @kept.value = 'open'
+  def open = @facts[:state] = 'open'
 end
 ```
 
@@ -327,7 +329,7 @@ member shows, are open questions [2](README.md#open-questions) and
   step 7 no project passes a slot other than `:actors`.
 - **`Random.new(ENV.fetch('RGAME_SEED', DEFAULT_SEED).to_i)`**, in 9 projects.
 - **`Node2D`'s `map_object:` and `fact_key:`**, which step 3 added. The id stays
-  as `map_object_id`, and `Components::Fact` makes the key.
+  as `map_object_id`, and `Components::Facts` makes the key.
 - **The `facts:` that adventure's `Chest`, `Lever` and `Crate` take from their
   room**, and the keys `Crate` derives by hand.
 
@@ -366,10 +368,18 @@ member shows, are open questions [2](README.md#open-questions) and
   read it once a node was built. The three classes that would read it wanted a
   route or a name, while building, and the builder now passes those.
 - **The id only for a class that asks** (step 5's Q1 B). `Node2D` would hold
-  nothing of the map, but a class adding a `Fact` would have to remember to
+  nothing of the map, but a class adding a `Facts` would have to remember to
   take the id and pass it on.
 - **A component holding only the key** (step 5's Q2 B). Every node would repeat
-  the lookup in `Facts`, and `Crate` would still build its three keys by hand.
+  the lookup in the database, and `Crate` would still build its three keys by
+  hand.
+- **One component per value, with a `part:` each** (what step 5 shipped). A
+  crate needed three, each in a slot of its own, for values that are always
+  there together. One record of named fields replaced them.
+- **Keys that nest in their names**, such as `:"crate.x"`, rather than a record.
+  RPG Maker keys its self switches `"3,7,A"`, and Ink its visit counts by path.
+  A record keeps a node's fields together in the save, and lets the database
+  hand out the whole record.
 - **The origin at the top-left corner** (Q11 B). A tree with no collider would
   sort by its top edge.
 - **A `Random` per node** (Q12 B). Seeded, every walker draws the same sequence.

@@ -240,20 +240,20 @@ See [Saving the world](#saving-the-world).
 
 ## Facts
 
-**`Components::Facts` holds the flags that belong to no object**: "met the
-smith", "the bridge is down", "wolves killed". It is a system on the root, so
-every node reaches the same store with `node.system`. `RGame::Game` mounts one
-when it starts, and `game.facts` returns it. Outside a `Game`, as in a spec,
+**`Components::FactsDatabase` holds the flags that belong to no object**: "met
+the smith", "the bridge is down", "wolves killed". It is a system on the root,
+so every node reaches the same store with `node.system`. `RGame::Game` mounts
+one when it starts, and `game.facts` returns it. Outside a `Game`, as in a spec,
 mount it yourself:
 
 ```ruby
 require 'rgame'
 
 root = RGame::Engine::Node2D.new
-root.add_component(RGame::Engine::Components::Facts.new)
+root.add_component(RGame::Engine::Components::FactsDatabase.new)
 smithy = root.add_node(RGame::Engine::Node2D.new)
 
-facts = smithy.system(RGame::Engine::Components::Facts)
+facts = smithy.system(RGame::Engine::Components::FactsDatabase)
 facts[:met_smith] = true
 facts[:wolves] = facts.fetch(:wolves, 0) + 1
 
@@ -264,12 +264,14 @@ facts.key?(:bridge_down)  # => false
 
 | Method | Does |
 |---|---|
-| `facts[key]` | the value, or nil for a key never set |
+| `facts[key]` | the value, or nil for a key never set; a record comes as a frozen copy |
 | `facts[key] = value` | sets it |
+| `facts[key, field]` | one field of the record `key` holds, or nil |
+| `facts[key, field] = value` | sets one field, making the record when the key has none |
 | `fetch(key, ...)` | as `Hash#fetch`: a default, a block, or `KeyError` |
-| `key?(key)` | whether the key was set |
-| `delete(key)` | removes the key, and returns its value |
-| `on_changed` | connects a listener, called with the key and the new value |
+| `key?(key)`, `key?(key, field)` | whether the key, or the field, was set |
+| `delete(key)`, `delete(key, field)` | removes the key, or the field, and returns its value |
+| `on_changed` | connects a listener, called with the key, the new value and the field, nil for a whole value |
 | `watch(key)` | calls its block with the value now, then with every value that differs; returns a handle |
 | `unwatch(handle)` | stops calling a block `watch` returned |
 | `to_h` | every fact and every named machine, frozen |
@@ -277,13 +279,38 @@ facts.key?(:bridge_down)  # => false
 
 A state machine built with `facts:` reads them in its conditions as `m.facts`.
 
-**A node keeps its own state here through
-[`Components::Fact`](components.md#fact)**, under a key of its own: a chest
-opened once, or a lever pulled. A room built again finds it.
+**A node keeps its own facts here through
+[`Components::Facts`](components.md#facts)**, as one record under a key of its
+own: a chest opened once, a lever pulled, where a crate was left. A room built
+again finds them.
 
 **The store takes only what a save brings back unchanged.** Keys are Symbols.
-Values are nil, true, false, an Integer, a Float or a String. Anything else
-raises `TypeError`, naming the key and the class, and so does a String key.
+Values are nil, true, false, an Integer, a Float, a String, or a record of
+those. Anything else raises `TypeError`, naming the key and the class, and so
+does a String key.
+
+**A record keeps the facts of one thing under one key**: a Hash whose fields
+are Symbols and whose values follow the same rule, records included.
+
+```ruby
+require 'rgame'
+
+facts = RGame::Engine::Components::FactsDatabase.new
+facts[:crate, :x] = 48
+facts[:crate, :way] = 'east'
+
+facts[:crate, :x]        # => 48
+facts[:crate]            # => {x: 48, way: "east"}
+facts[:crate].frozen?    # => true
+facts[:crate, :lid]      # => nil — never set
+```
+
+Reading or writing one field allocates nothing, so a node may write its record
+every frame. The whole record comes out as a frozen copy, and a Hash written
+whole goes in as a copy, so neither side changes the other's. A field write or
+read on a key that holds a plain value raises `TypeError`, and deleting a
+record's last field deletes the key. A save file brings a record back with
+Symbol fields at every depth.
 
 **A Symbol value is refused.** JSON brings `:open` back as `"open"`, so a
 condition comparing against `:open` would fail after every load. The error says
@@ -300,6 +327,9 @@ second boss.
 value at once, nil for a key never set. It then calls it with every value that
 differs, restores included. A gate that opens when the bridge is down uses
 `watch`, so it opens after a load too.
+
+**A field write reports the field.** `on_changed` hears the key, the field's new
+value and the field, and the key's watchers hear the whole record.
 
 A value that differs counts `1` and `1.0` as different, as a save would write
 them.
@@ -320,7 +350,7 @@ HAMMER = RGame::Engine::StateGraph.build(start: :not_started) do
   state :found
 end
 
-facts = RGame::Engine::Components::Facts.new
+facts = RGame::Engine::Components::FactsDatabase.new
 quest = RGame::Engine::StateMachine.new(HAMMER, facts:, name: :hammer)
 facts[:met_smith] = true
 quest.fire(:accepted)
@@ -331,7 +361,7 @@ Dir.mktmpdir do |dir|
   save = RGame::Util::SaveFile.new('slot1.json', dir: dir)
   save.write(world: facts.to_h)
 
-  loaded = RGame::Engine::Components::Facts.new
+  loaded = RGame::Engine::Components::FactsDatabase.new
   loaded.restore(save.read[:world])
   again = RGame::Engine::StateMachine.new(HAMMER, facts: loaded, name: :hammer)
   again.state         # => :searching
@@ -389,7 +419,7 @@ class Gate < RGame::Engine::Node2D
   end
 
   def _enter_tree
-    @facts = system(RGame::Engine::Components::Facts)
+    @facts = system(RGame::Engine::Components::FactsDatabase)
     @machine = RGame::Engine::StateMachine.new(GRAPH, facts: @facts, name: :gate)
     @bridge = @facts.watch(:bridge_down) { |down| @machine.fire(:lower) if down }
   end
@@ -399,11 +429,11 @@ end
 ```
 
 **A second store is for a second lifetime.** A roguelike keeps unlocks that
-outlast every run beside flags that reset with each one. Mount a second `Facts`
-on the run's scene node. `node.system` looks at the scene before the root, so
-the run's nodes and quests find the run's store, and the game saves both
-entries. Code inside the run reaches the root store with
-`node.root.get_component(RGame::Engine::Components::Facts)`.
+outlast every run beside flags that reset with each one. Mount a second
+`FactsDatabase` on the run's scene node. `node.system` looks at the scene before
+the root, so the run's nodes and quests find the run's store, and the game saves
+both entries. Code inside the run reaches the root store with
+`node.root.get_component(RGame::Engine::Components::FactsDatabase)`.
 
 **Settings are not facts.** Volume, key bindings and language belong to the
 player, not to a save slot. Keep them in a `Util::SaveFile` of their own.
@@ -605,7 +635,7 @@ SMITH = RGame::Engine::Dialogue::Script.build(start: :greeting, scope: 'smith') 
   beat :work, speaker: :smith, line: 'work', to: :greeting
 end
 
-facts = RGame::Engine::Components::Facts.new
+facts = RGame::Engine::Components::FactsDatabase.new
 talk = RGame::Engine::Dialogue.new(SMITH, facts:, name: :smith)
 talk.respond(talk.responses.first)
 talk.continue
@@ -760,7 +790,7 @@ SHUT = RGame::Engine::Dialogue::Script.build(start: :greeting, scope: 'guard') d
 end
 
 report = RGame::Engine::Exploration.run do
-  facts = RGame::Engine::Components::Facts.new
+  facts = RGame::Engine::Components::FactsDatabase.new
   facts[:pass] = true
   RGame::Engine::Dialogue.new(SHUT, facts:)
 end

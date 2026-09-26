@@ -1132,6 +1132,14 @@ write-ruby-code skill ("A node class a map builds", and the allocation table).
 `CHANGELOG.md` has an Added entry for `Components::Fact` and
 `Node2D#map_object_id`.
 
+**Changed after landing**, on `nested-facts`. `Components::Fact` became
+`Components::Facts`: one record of named fields per node, each with its default,
+in place of one component per value with a `part:` and a slot each. The store
+became `Components::FactsDatabase`, which holds a record as a Hash and writes
+one field of it in place, `facts[key, field] = value`, allocating nothing. A
+crate keeps `{ x:, y:, way: }` under `:crate`. `game.facts`, the `facts:`
+keyword and `m.facts` kept their names. Decision 20 records why.
+
 ---
 
 ## Step 6 — `mount` builds the object layers, and they replace named slots *(Engine, pure)*
@@ -1255,7 +1263,7 @@ nothing changes place on screen.
 - `docs/api/tile_maps.md` rewrites "Building nodes from objects" for the new
   path. That covers the class rule, data classes, the `@param` tags (linking
   `internals.md` for the table), tile objects, the `actors` mark, hidden layers
-  and objects, `route:` and `name:`, `map_object_id` and `Components::Fact`, and
+  and objects, `route:` and `name:`, `map_object_id` and `Components::Facts`, and
   `places[name]`. `MapObjects` keeps a short section
   until step 7 removes it. `docs/api/scene_graph.md` and `internals.md` follow.
 - `CHANGELOG.md` has an Added entry for map-built nodes. The Unreleased entry
@@ -1449,9 +1457,9 @@ place `mount` leaves for the actors on a map with no mark.
 - **`docs/api/tile_maps.md`** says what a map builds and how: the class rule,
   data classes, the `@param` tags, tile objects, the `actors`
   mark, hidden layers and objects, `route:` and `name:`, `map_object_id` and
-  `Components::Fact`, and `places[name]`. Step 6 rewrote
+  `Components::Facts`, and `places[name]`. Step 6 rewrote
   "Building nodes from objects"; this step checks it against the code.
-- **`docs/api/components.md`** covers `Fact`, `MapTile` and `RandomSource`.
+- **`docs/api/components.md`** covers `Facts`, `MapTile` and `RandomSource`.
 - **`docs/api/scene_graph.md`** covers what `mount` builds for an object layer.
 - **`docs/plans/possible-todos.md`**:
   - "Platforms as Tiled tile objects" is answered, or its trigger updated.
@@ -1466,7 +1474,7 @@ place `mount` leaves for the actors on a map with no mark.
 `CHANGELOG.md` covers everything steps 1–9 shipped, per
 [update-changelog](../../../.claude/skills/update-changelog/SKILL.md): what the
 Tiled parser gained, the random source, map-built nodes and `places[name]`, the
-`@param` convention, `map_tile` and `MapTile`, and `Components::Fact` with
+`@param` convention, `map_tile` and `MapTile`, and `Components::Facts` with
 `map_object_id`. It has no entry for `MapObjects`, `slots:`, `map_object:` or
 `fact_key:`, which never shipped. `rake` passes. `docs/plans/object-layers/` is gone,
 and `grep -r object-layers docs/ .claude/` finds nothing.

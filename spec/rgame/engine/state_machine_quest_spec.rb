@@ -16,7 +16,7 @@ RSpec.describe RGame::Engine::StateMachine do
       end)
 
       def _enter_tree
-        @facts = system(RGame::Engine::Components::Facts)
+        @facts = system(RGame::Engine::Components::FactsDatabase)
         @machine = RGame::Engine::StateMachine.new(self.class::GRAPH, facts: @facts, name: :gate)
         @bridge = @facts.watch(:bridge_down) { |down| @machine.fire(:lower) if down }
       end
@@ -44,7 +44,7 @@ RSpec.describe RGame::Engine::StateMachine do
       end
 
       def _enter_tree
-        facts = system(RGame::Engine::Components::Facts)
+        facts = system(RGame::Engine::Components::FactsDatabase)
         @hammer = RGame::Engine::StateMachine.new(self.class::HAMMER, context: self, facts:, name: :hammer)
       end
 
@@ -55,12 +55,12 @@ RSpec.describe RGame::Engine::StateMachine do
 
   def world
     root = engine::Node2D.new
-    root.add_component(engine::Components::Facts.new)
+    root.add_component(engine::Components::FactsDatabase.new)
     root.enter_tree
     root
   end
 
-  def facts_of(root) = root.system(engine::Components::Facts)
+  def facts_of(root) = root.system(engine::Components::FactsDatabase)
 
   def save_and_read(root, village)
     Dir.mktmpdir do |dir|

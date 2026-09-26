@@ -376,8 +376,8 @@ objects.spawn_into(slots[:actors], map.objects) # => the chests and traps it add
   where a node's origin sits is up to its class. The registry moves nothing.
 - **A node can keep its object's id.** `Node2D.new` takes `map_object_id:`, and
   `Node2D#map_object_id` reads it back. It is `nil` unless passed.
-  [`Components::Fact`](components.md#fact) keys a node's state by it, so a chest
-  opened once stays open when its room is built again.
+  [`Components::Facts`](components.md#facts) keys a node's record by it, so a
+  chest opened once stays open when its room is built again.
 - **Nothing spawns a map's objects unless the scene asks.** The scene calls
   `spawn_into` and chooses the parent.
 

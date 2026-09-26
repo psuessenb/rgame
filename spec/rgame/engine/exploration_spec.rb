@@ -125,7 +125,7 @@ RSpec.describe RGame::Engine::Exploration do
     end
 
     it 'tells positions apart by their facts, and stops at the limit' do
-      report = described_class.run(max_moves: 5) { talk(counting, facts: engine::Components::Facts.new) }
+      report = described_class.run(max_moves: 5) { talk(counting, facts: engine::Components::FactsDatabase.new) }
       expect([report.truncated?,
               report.problems.last]).to eq([true, 'stopped with positions unexplored, at 5 moves or 10000 positions'])
     end
@@ -134,7 +134,7 @@ RSpec.describe RGame::Engine::Exploration do
       builds = 0
       expect do
         described_class.run do
-          facts = engine::Components::Facts.new
+          facts = engine::Components::FactsDatabase.new
           facts[:build] = builds += 1
           talk(counting, facts:)
         end

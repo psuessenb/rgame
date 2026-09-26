@@ -4,7 +4,7 @@ module RGame
   module Engine
     module Components
       # The game's one seeded source of random numbers, a system on the root as
-      # `Facts` is. Every node finds it without being handed it:
+      # `FactsDatabase` is. Every node finds it without being handed it:
       #
       #   random = node.system!(Engine::Components::RandomSource)
       #   random.rand(3)          # => 0, 1 or 2

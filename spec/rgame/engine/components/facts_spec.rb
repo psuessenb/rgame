@@ -1,163 +1,178 @@
 # frozen_string_literal: true
 
-require 'tmpdir'
+# A game whose chest keeps whether it is open, under the key its map or its
+# code gives it. MapBuilder resolves `Chest` in `Room`, and reads the chest's
+# tags from this file.
+module SpecFactsGame
+  # The scene class a map's names resolve in.
+  class Room < RGame::Engine::Node2D; end
+
+  # A chest the hero opens once.
+  class Chest < RGame::Engine::Node2D
+    def initialize(key: nil, **)
+      super(**)
+      @facts = add_component(RGame::Engine::Components::Facts.new(key:, state: 'closed'))
+    end
+
+    def state = @facts[:state]
+
+    def open = @facts[:state] = 'open'
+  end
+end
 
 RSpec.describe RGame::Engine::Components::Facts do
-  subject(:facts) { described_class.new }
+  let(:database) { RGame::Engine::Components::FactsDatabase.new }
+  let(:root) { RGame::Engine::Node2D.new.tap { it.add_component(database) }.tap(&:enter_tree) }
 
-  def round_trip(state)
-    Dir.mktmpdir do |dir|
-      save = RGame::Util::SaveFile.new('slot.json', dir:)
-      save.write(world: state)
-      save.read[:world]
+  # A room built over a map: a scene whose TileWorld names the map.
+  def room(tilemap_id = 'map/town.tmx')
+    world = RGame::Engine::Components::TileWorld.new(map: StubTileMap.new(layers: [[1, 0, 0, 0]]), tilemap_id:)
+    scene = RGame::Engine::Node2D.new.tap { it.scene = it }
+    scene.add_component(world)
+    root.add_node(scene)
+  end
+
+  def kept(facts = described_class.new(state: 'closed'), map_object_id: nil, under: room)
+    under.add_node(RGame::Engine::Node2D.new(map_object_id:)).add_component(facts)
+  end
+
+  describe '#key' do
+    it 'is the key: the node passes' do
+      expect(kept(described_class.new(key: :chest, state: 'closed')).key).to eq(:chest)
+    end
+
+    it "is the map's id and the object's id for a node a map built" do
+      expect(kept(map_object_id: 7).key).to eq(:'map/town.tmx#7')
+    end
+
+    it "takes the key: the node passes over the object's id" do
+      expect(kept(described_class.new(key: :chest, state: 'closed'), map_object_id: 7).key).to eq(:chest)
+    end
+
+    it "raises as its node enters a tree with neither, naming the node's class" do
+      expect { kept }
+        .to raise_error(ArgumentError, /RGame::Engine::Node2D has a Components::Facts with no key: pass key:/)
+    end
+
+    it 'is made once, so a node moved into another room keeps it' do
+      facts = kept(map_object_id: 7)
+      node = facts.node
+      node.parent.remove_node(node)
+      room('map/garden.tmx').add_node(node)
+
+      expect(facts.key).to eq(:'map/town.tmx#7')
     end
   end
 
-  describe 'values' do
-    it 'holds nil, true, false, an Integer, a Float and a String' do
-      values = [nil, true, false, 3, 2.5, 'north']
-      values.each_with_index { |value, i| facts[:"k#{i}"] = value }
-      expect(values.each_index.map { facts[:"k#{it}"] }).to eq(values)
+  describe 'the fields' do
+    let(:facts) { kept(described_class.new(key: :crate, x: 16, y: 32, way: 'still')) }
+
+    it 'reads each default while the field was never set' do
+      expect([facts[:x], facts[:y], facts[:way]]).to eq([16, 32, 'still'])
     end
 
-    it 'refuses anything else, naming the key and the class' do
-      expect { facts[:where] = [1, 2] }.to raise_error(TypeError, /facts\[:where\].*Array/)
+    it 'writes each field into the record under its key' do
+      facts[:x] = 48
+      facts[:way] = 'east'
+
+      expect([facts[:x], database[:crate]]).to eq([48, { x: 48, way: 'east' }])
     end
 
-    it 'refuses a Symbol, saying a save would bring it back a String' do
-      expect { facts[:door] = :open }.to raise_error(TypeError, /save brings it back as the String "open"/)
+    it 'reads a record the database already held' do
+      database[:crate] = { y: 64 }
+
+      expect([facts[:x], facts[:y]]).to eq([16, 64])
     end
 
-    it 'keeps a frozen copy of a String' do
-      name = +'Bram'
-      facts[:smith] = name
-      name << 'well'
-      expect([facts[:smith], facts[:smith]]).to all(eq('Bram').and(be_frozen))
-    end
-  end
-
-  describe 'keys' do
-    it 'refuses a String key on every read and write' do
-      facts[:met_smith] = true
-      [-> { facts['met_smith'] }, -> { facts['met_smith'] = true }, -> { facts.fetch('met_smith') },
-       -> { facts.key?('met_smith') }, -> { facts.delete('met_smith') }, -> { facts.watch('met_smith') { nil } }]
-        .each { expect(&it).to raise_error(TypeError, /"met_smith" \(String\)/) }
-    end
-
-    it 'reads nil for a key never set, and fetches as a Hash does' do
-      expect([facts[:never], facts.key?(:never), facts.fetch(:never, 0)]).to eq([nil, false, 0])
-      expect { facts.fetch(:never) }.to raise_error(KeyError)
-    end
-
-    it 'deletes a key and returns its value' do
-      facts[:wolves] = 2
-      expect([facts.delete(:wolves), facts.key?(:wolves)]).to eq([2, false])
-    end
-  end
-
-  describe '#on_changed' do
-    it 'fires once per change, not for a value already held' do
+    it 'reports a write as the database reports any field write' do
       heard = []
-      facts.on_changed { |key, value| heard << [key, value] }
-      facts[:wolves] = 1
-      facts[:wolves] = 1
-      facts[:wolves] = 2
-      facts.delete(:wolves)
-      facts.delete(:wolves)
-      expect(heard).to eq([[:wolves, 1], [:wolves, 2], [:wolves, nil]])
+      facts
+      database.on_changed { |key, value, field| heard << [key, value, field] }
+      facts[:way] = 'east'
+
+      expect(heard).to eq([[:crate, 'east', :way]])
     end
 
-    it 'counts an Integer and a Float of the same size as different' do
-      facts[:gold] = 1
-      heard = []
-      facts.on_changed { |_, value| heard << value }
-      facts[:gold] = 1.0
-      expect(heard).to eq([1.0])
-    end
-  end
-
-  describe '#watch' do
-    it 'calls now with the value, nil for a key never set, then on every change' do
-      heard = []
-      facts.watch(:bridge_down) { heard << it }
-      facts[:bridge_down] = true
-      facts[:bridge_down] = true
-      facts[:bridge_down] = false
-      expect(heard).to eq([nil, true, false])
+    it 'refuses a field the node did not name, listing those it did' do
+      expect { facts[:wya] }.to raise_error(KeyError, /has no field :wya \(fields: x, y, way\)/)
+      expect { facts[:wya] = 'east' }.to raise_error(KeyError, /has no field :wya/)
     end
 
-    it 'stops calling a block after unwatch' do
-      heard = []
-      handle = facts.watch(:bridge_down) { heard << it }
-      facts.unwatch(handle)
-      facts[:bridge_down] = true
-      expect(heard).to eq([nil])
+    it 'reads and writes a field without allocating' do
+      facts[:x] = 0
+      i = 0
+
+      expect do
+        facts[:x]
+        facts[:x] = (i += 1)
+      end.to allocate_nothing
     end
   end
 
-  describe '#to_h' do
-    it 'is frozen, and a copy' do
-      facts[:wolves] = 1
-      saved = facts.to_h
-      facts[:wolves] = 2
-      expect(saved).to eq(values: { wolves: 1 }, machines: {})
-      expect([saved, saved[:values], saved[:machines]]).to all(be_frozen)
+  describe 'before its node enters a tree' do
+    let(:facts) { RGame::Engine::Node2D.new.add_component(described_class.new(key: :chest, state: 'closed')) }
+
+    it 'raises for the key, saying when it can be read' do
+      expect { facts.key }.to raise_error(RuntimeError, /found as its node enters the tree.*_enter_tree on/)
+    end
+
+    it 'raises for a field' do
+      expect { facts[:state] }.to raise_error(RuntimeError, /keeps its record in the root's FactsDatabase/)
+    end
+
+    it 'raises for a write' do
+      expect { facts[:state] = 'open' }.to raise_error(RuntimeError, /keeps its record/)
     end
   end
 
-  describe '#restore' do
-    before do
-      facts[:met_smith] = true
-      facts[:wolves] = 10
+  describe 'what it refuses as it is built' do
+    it 'no fields' do
+      expect { described_class.new(key: :chest) }.to raise_error(ArgumentError, /pass each with its default/)
     end
 
-    it 'puts back what to_h saved, through a SaveFile' do
-      saved = round_trip(facts.to_h)
-      other = described_class.new
-      other.restore(saved)
-      expect(other.to_h).to eq(facts.to_h)
+    it 'a default the database cannot hold, naming the field' do
+      expect { described_class.new(state: :closed) }
+        .to raise_error(TypeError, /the default of state cannot hold the Symbol :closed/)
     end
 
-    it 'fires no on_changed, and calls the watchers of each key that differs' do
-      changed = []
-      watched = []
-      facts.on_changed { |key, _| changed << key }
-      %i[met_smith wolves bridge_down].each { |key| facts.watch(key) { watched << [key, it] } }
-      watched.clear
-      facts.restore(values: { wolves: 10, bridge_down: true })
-      expect([changed, watched]).to eq([[], [[:met_smith, nil], [:bridge_down, true]]])
-    end
-
-    it 'clears everything from nil' do
-      facts.restore(nil)
-      expect(facts.to_h).to eq(values: {}, machines: {})
-    end
-
-    it 'changes nothing when a value is refused' do
-      before = facts.to_h
-      expect { facts.restore(values: { wolves: 3, where: [1, 2] }) }.to raise_error(TypeError, /:where/)
-      expect(facts.to_h).to eq(before)
-    end
-
-    it 'keeps machine entries it was handed, and saves them again' do
-      entry = { state: 'searching', visits: { not_started: 1, searching: 1 } }
-      facts.restore(values: {}, machines: { hammer: entry })
-      expect(round_trip(facts.to_h)[:machines]).to eq(hammer: entry)
+    it 'a key that is not a Symbol' do
+      expect { described_class.new(key: 'chest', state: 'closed') }
+        .to raise_error(TypeError, /key: is a Symbol, got "chest"/)
     end
   end
 
-  it 'is found with node.system from a descendant' do
-    root = RGame::Engine::Node2D.new
-    root.add_component(facts)
-    child = RGame::Engine::Node2D.new
-    root.add_node(child)
-    grandchild = RGame::Engine::Node2D.new
-    child.add_node(grandchild)
-    expect(grandchild.system(described_class)).to be(facts)
-  end
+  # The caller that uses both: one chest built from a map and one built in
+  # code, in a room that is left and built again.
+  describe 'a chest from a map beside a chest from code' do
+    let(:object) do
+      map = '<map orientation="orthogonal" width="4" height="4" tilewidth="16" tileheight="16">' \
+            '<objectgroup name="things"><object id="7" type="Chest" x="0" y="0" width="16" height="16"/>' \
+            '</objectgroup></map>'
+      RGame::Engine::TileMap.from_tiled(RGame::Engine::Tiled::Map.parse(map)).objects.first
+    end
 
-  it 'reads a value without allocating' do
-    facts[:wolves] = 3
-    expect { facts[:wolves] }.to allocate_nothing
+    def town
+      scene = room
+      builder = RGame::Engine::MapBuilder.new(tilemap_id: 'map/town.tmx', scope: SpecFactsGame::Room)
+      [scene, scene.add_node(builder.build(object)), scene.add_node(SpecFactsGame::Chest.new(key: :chest))]
+    end
+
+    it 'keeps each record under its own key: the map object, and what the code passed' do
+      _, from_map, in_code = town
+      from_map.open
+      in_code.open
+
+      expect(database.to_h[:values]).to eq('map/town.tmx#7': { state: 'open' }, chest: { state: 'open' })
+    end
+
+    it 'finds both open when the room is built again' do
+      scene, from_map, in_code = town
+      from_map.open
+      in_code.open
+      root.remove_node(scene)
+      _, again_from_map, again_in_code = town
+
+      expect([again_from_map.state, again_in_code.state]).to eq(%w[open open])
+    end
   end
 end

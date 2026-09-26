@@ -41,7 +41,7 @@ RSpec.describe RGame::Engine::Dialogue do
     end
 
     it 'makes that response available when its condition holds' do
-      facts = engine::Components::Facts.new
+      facts = engine::Components::FactsDatabase.new
       facts[:trusted] = true
       talk = described_class.new(smith, facts:)
       expect(talk.available?(talk.responses[1])).to be(true)
@@ -234,7 +234,7 @@ RSpec.describe RGame::Engine::Dialogue do
     end
 
     it 'starts a saved conversation again at its first beat' do
-      facts = engine::Components::Facts.new
+      facts = engine::Components::FactsDatabase.new
       talk = described_class.new(smith, facts:, name: :smith)
       respond_to_label(talk, 'ask_work')
       talk.finish
@@ -310,7 +310,7 @@ RSpec.describe RGame::Engine::Dialogue do
     end
 
     it 'keeps a once: question hidden when a named dialogue is talked to twice' do
-      facts = engine::Components::Facts.new
+      facts = engine::Components::FactsDatabase.new
       first = described_class.new(smith, facts:, name: :smith)
       respond_to_label(first, 'ask_work')
       first.continue
@@ -320,12 +320,12 @@ RSpec.describe RGame::Engine::Dialogue do
     end
 
     it 'keeps it hidden across a save of the facts' do
-      facts = engine::Components::Facts.new
+      facts = engine::Components::FactsDatabase.new
       talk = described_class.new(smith, facts:, name: :smith)
       respond_to_label(talk, 'ask_work')
       talk.continue
       respond_to_label(talk, 'bye')
-      loaded = engine::Components::Facts.new
+      loaded = engine::Components::FactsDatabase.new
       loaded.restore(save_and_read(facts.to_h))
       again = described_class.new(smith, facts: loaded, name: :smith)
       expect(again.available?(again.responses.first)).to be(false)

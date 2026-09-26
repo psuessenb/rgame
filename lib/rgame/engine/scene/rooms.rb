@@ -24,7 +24,7 @@ module RGame
       #
       # Each room is a Scene::Room, built by the block given to #define, and
       # built anew each time it starts running. What should outlast a visit
-      # lives in `Facts`, as a loaded save's state does.
+      # lives in `FactsDatabase`, as a loaded save's state does.
       #
       # **A move lands in the sweep**, as a SceneStack's switch does. `move`
       # records what was asked, suspends each node it names and each moving
@@ -162,7 +162,7 @@ module RGame
           raise ArgumentError, "a room named #{name.inspect} is already defined" if @rgame_builders.key?(name)
           unless builder.parameters.empty?
             raise ArgumentError, "the builder for #{name.inspect} takes parameters, and a room's builder takes " \
-                                 'none. What a room needs to know lives in Facts, or reaches it in _arrive'
+                                 'none. What a room needs to know lives in the facts database, or reaches it in _arrive'
           end
 
           raise TypeError, "a room's priority is a number, not #{priority.inspect}" unless priority.is_a?(Numeric)

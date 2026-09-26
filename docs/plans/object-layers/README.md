@@ -52,7 +52,8 @@ layer also marks a place for anything else a scene spawns, which replaces
   object's inherited class, and `objectalignment`.
 - The renderer draws one tile.
 - A node keeps its object's id and nothing else of it, and
-  `Components::Fact` keeps a node's state in `Facts`.
+  `Components::Facts` keeps a node's record of named fields in the
+  `FactsDatabase`.
 - The root gains a seeded random source that map-built nodes find without being
   handed it.
 - Every map, node and scene that builds from objects today moves onto the new
@@ -113,7 +114,7 @@ inside this plan.
 9. ~~**A map-built node's key in `Facts`** is its object's `fact` property when
    set, and `:"<tilemap id>#<object id>"` otherwise (Q8).~~ **Amended by
    [decision 20](#decisions-already-taken).** The default key stays
-   `:"<tilemap id>#<object id>"`, now as `Components::Fact`'s rule. A designer's
+   `:"<tilemap id>#<object id>"`, now as `Components::Facts`' rule. A designer's
    `fact` reaches it only through a class that takes one. The tilemap id is the
    asset key, because the file path is absolute in a game.
 10. **A map-built node's origin is the bottom centre of its object's box**, for
@@ -166,16 +167,23 @@ inside this plan.
     while building. Also rejected: passing the id only to a class that asks,
     which each class would have to remember, and an `Identity` the builder adds
     to every node. `object_id` is Ruby's own, and redefining it warns.
-20. **A node keeps its state in `Facts` through `Components::Fact`** (step 5's
-    Q2 and Q3). In the user's words: "Giving _every_ node a facts key because
+20. **A node keeps its facts in the `FactsDatabase` through
+    `Components::Facts`** (step 5's Q2 and Q3, and a change after step 5
+    landed). In the user's words: "Giving _every_ node a facts key because
     _some_ nodes might need it is bad design. That's what components are for."
     The key is `key:` when the node passes one, and otherwise
-    `:"<tilemap id>#<object id>"`. A node keeping several values gives each
-    `Fact` a `part:`. The property `fact` becomes a keyword like any other, which
-    a class tags and passes on as `key:`, as decision 3 has it for any value a
-    component takes. Adventure's `Chest`, `Lever` and `Crate` move onto it in
-    step 5. A component holding only the key was rejected: every node would
-    repeat the lookup in `Facts`, and `Crate` would still build its keys by hand.
+    `:"<tilemap id>#<object id>"`. The node names its fields with their
+    defaults, and the database holds them as one record under the key, a Hash
+    it writes one field of in place. Step 5 shipped one `Components::Fact` per
+    value, each with a `part:` and a slot of its own. The user asked for one
+    record per node instead, since a crate's three values are always there
+    together, and nesting will be needed as facts grow. The store took the name
+    `FactsDatabase` to free `Facts` for the node's record. The property `fact`
+    is a keyword like any other, which a class tags and passes on as `key:`, as
+    decision 3 has it for any value a component takes. Adventure's `Chest`,
+    `Lever` and `Crate` use it. A component holding only the key was rejected:
+    every node would repeat the lookup in the database, and `Crate` would still
+    build its keys by hand.
 
 ## What was measured before planning
 
@@ -207,8 +215,9 @@ Taken at `abb91ad`, and on `origin/build-step-8-tiled-map` for `tour.tmx`.
 - **Lists in map settings.** Tiled has no list type, so
   `blocked_by: [:tiles, :actors]` stays in code. A flags enum could carry it
   later.
-- **Restoring state beyond `Facts`.** A node that keeps state writes it to
-  `Facts` through a `Components::Fact`. The engine restores nothing else.
+- **Restoring state beyond the `FactsDatabase`.** A node that keeps state
+  writes it there through `Components::Facts`. The engine restores nothing
+  else.
 - **Tiles in a tile layer sorting with actors.** That stays in
   `docs/plans/possible-todos.md`.
 - **Object references.** Tiled's `object` property type still arrives as an

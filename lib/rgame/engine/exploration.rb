@@ -7,7 +7,7 @@ module RGame
     # while they play; this finds it first.
     #
     #   report = Engine::Exploration.run do
-    #     Engine::Dialogue.new(SMITH, context: Hero.new, facts: Engine::Components::Facts.new)
+    #     Engine::Dialogue.new(SMITH, context: Hero.new, facts: Engine::Components::FactsDatabase.new)
     #   end
     #   expect(report.problems).to eq([])
     #
@@ -190,7 +190,7 @@ module RGame
       end
 
       def facts_of(facts)
-        return unless facts.is_a?(Components::Facts)
+        return unless facts.is_a?(Components::FactsDatabase)
 
         saved = facts.to_h
         [saved[:values], saved[:machines].transform_values { [it[:state], visited(it[:visits] || {})] }]
