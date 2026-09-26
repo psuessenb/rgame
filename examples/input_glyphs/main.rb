@@ -87,131 +87,144 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module InputGlyphsExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-SPEED = 90.0
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-# The glyph sheet: one row of 64x64 frames, in the order examples/assets/README.md
-# lists them.
-SHEET  = 'glyphs.json'
-GLYPH  = 64
+  SPEED = 90.0
 
-# A prompt is a picture of a button, so the table is keyed by button id. These
-# five are what this example's three actions resolve to on the two kinds of
-# device.
-GLYPH_COLUMN = {
-  RGame::Util::Controls::KEY_SPACE => 0,
-  RGame::Util::Controls::KEY_RETURN => 1,
-  RGame::Util::Controls::KEY_ESCAPE => 2,
-  RGame::Util::Controls::PAD_A => 3,
-  RGame::Util::Controls::PAD_B => 4
-}.freeze
+  # The glyph sheet: one row of 64x64 frames, in the order examples/assets/README.md
+  # lists them.
+  SHEET  = 'glyphs.json'
+  GLYPH  = 64
 
-# The panel: three actions, and the button each one is on for the device the
-# player is holding right now.
-class Prompts < RGame::Engine::Node2D
-  PANEL = RGame::Util::Color.new(18, 22, 30, 220)
-  INK   = RGame::Util::Color.new(228, 232, 240)
-  DIM   = RGame::Util::Color.new(150, 158, 172)
+  # A prompt is a picture of a button, so the table is keyed by button id. These
+  # five are what this example's three actions resolve to on the two kinds of
+  # device.
+  GLYPH_COLUMN = {
+    Util::Controls::KEY_SPACE => 0,
+    Util::Controls::KEY_RETURN => 1,
+    Util::Controls::KEY_ESCAPE => 2,
+    Util::Controls::PAD_A => 3,
+    Util::Controls::PAD_B => 4
+  }.freeze
 
-  # The action to ask about, and what this game calls it. Both fixed: the label
-  # is the game's word for the action, and the button is what changes.
-  ROWS = { ui_confirm: RGame::Engine::Text.new('actions.ui_confirm'),
-           ui_cancel: RGame::Engine::Text.new('actions.ui_cancel'),
-           fire: RGame::Engine::Text.new('actions.fire') }.freeze
+  # The panel: three actions, and the button each one is on for the device the
+  # player is holding right now.
+  class Prompts < Engine::Node2D
+    PANEL = Util::Color.new(18, 22, 30, 220)
+    INK   = Util::Color.new(228, 232, 240)
+    DIM   = Util::Color.new(150, 158, 172)
 
-  # A text chosen by state rather than built from it: one Text per state, so there
-  # is nothing to render again but a language switch.
-  DEVICE_NAME = { false => RGame::Engine::Text.new('devices.keyboard'),
-                  true => RGame::Engine::Text.new('devices.controller') }.freeze
+    # The action to ask about, and what this game calls it. Both fixed: the label
+    # is the game's word for the action, and the button is what changes.
+    ROWS = { ui_confirm: Engine::Text.new('actions.ui_confirm'),
+             ui_cancel: Engine::Text.new('actions.ui_cancel'),
+             fire: Engine::Text.new('actions.fire') }.freeze
 
-  WIDTH_PX = 300
-  ROW_H    = 72
-  PAD      = 14
-  HEADER_H = 34
+    # A text chosen by state rather than built from it: one Text per state, so there
+    # is nothing to render again but a language switch.
+    DEVICE_NAME = { false => Engine::Text.new('devices.keyboard'),
+                    true => Engine::Text.new('devices.controller') }.freeze
 
-  def _enter_tree
-    # One seat, so the player is the primary one. Held rather than looked up per
-    # frame: which player this is cannot change, while the device they hold can.
-    @player = system(RGame::Engine::Players).primary
-  end
+    WIDTH_PX = 300
+    ROW_H    = 72
+    PAD      = 14
+    HEADER_H = 34
 
-  def _draw(renderer, _view)
-    device = @player.device
-    renderer.rect(0, 0, WIDTH_PX, HEADER_H + (ROWS.size * ROW_H), color: PANEL)
-    renderer.text(DEVICE_NAME.fetch(RGame::Util::Controls.gamepad?(device)), PAD, PAD, color: INK)
+    def _enter_tree
+      # One seat, so the player is the primary one. Held rather than looked up per
+      # frame: which player this is cannot change, while the device they hold can.
+      @player = system(Engine::Players).primary
+    end
 
-    y = HEADER_H
-    ROWS.each do |action, label|
-      draw_row(renderer, action, label, device, y)
-      y += ROW_H
+    def _draw(renderer, _view)
+      device = @player.device
+      renderer.rect(0, 0, WIDTH_PX, HEADER_H + (ROWS.size * ROW_H), color: PANEL)
+      renderer.text(DEVICE_NAME.fetch(Util::Controls.gamepad?(device)), PAD, PAD, color: INK)
+
+      y = HEADER_H
+      ROWS.each do |action, label|
+        draw_row(renderer, action, label, device, y)
+        y += ROW_H
+      end
+    end
+
+    private
+
+    # hot-path
+    def draw_row(renderer, action, label, device, y)
+      id = @player.input_map.button_for(action, device)
+      column = GLYPH_COLUMN[id]
+      renderer.sprite(SHEET, 0, column, PAD, y) unless column.nil?
+      renderer.text(label, PAD + GLYPH + PAD, y + ((GLYPH - 16) / 2), color: id.nil? ? DIM : INK)
     end
   end
 
-  private
+  # Something to walk, so that picking up a controller has a reason to happen.
+  # `examples/walk`'s hero, kept inside the window.
+  class Hero < Engine::Node2D
+    def initialize(**)
+      super
+      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Engine::Components::CharacterBody.new(speed: SPEED))
+      add_component(Engine::Components::PlayerController.new)
+    end
 
-  # hot-path
-  def draw_row(renderer, action, label, device, y)
-    id = @player.input_map.button_for(action, device)
-    column = GLYPH_COLUMN[id]
-    renderer.sprite(SHEET, 0, column, PAD, y) unless column.nil?
-    renderer.text(label, PAD + GLYPH + PAD, y + ((GLYPH - 16) / 2), color: id.nil? ? DIM : INK)
+    # The hero stands on its origin, so the picture reaches half its width to
+    # either side and its whole height above.
+    def _update(_dt)
+      self.x = x.clamp(width / 2.0, WIDTH - (width / 2.0))
+      self.y = y.clamp(height, HEIGHT)
+    end
+  end
+
+  class Scene < Engine::Node2D
+    BACKDROP = Util::Color.new(30, 36, 46)
+    MARGIN   = 16
+
+    # The hero first, so the panel is drawn over them rather than under: a node
+    # draws before its later siblings, and the two do overlap once the hero is
+    # walked into the corner.
+    def initialize
+      super
+      @help_seat = Engine::Text.new('help.seat')
+      @help_back = Engine::Text.new('help.back')
+    end
+
+    def _enter_tree
+      add_node(Hero.new(x: 478, y: 322))
+      add_node(Prompts.new(x: MARGIN, y: MARGIN))
+    end
+
+    def _draw(renderer, view)
+      renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
+      renderer.text(@help_seat, MARGIN, view.height - 52)
+      renderer.text(@help_back, MARGIN, view.height - 30)
+    end
+  end
+
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Scene.new,
+      caption: 'Input glyphs',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES
+    )
+
+    game.start
   end
 end
 
-# Something to walk, so that picking up a controller has a reason to happen.
-# `examples/walk`'s hero, kept inside the window.
-class Hero < RGame::Engine::Node2D
-  def initialize(**)
-    super
-    add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-    add_component(RGame::Engine::Components::CharacterBody.new(speed: SPEED))
-    add_component(RGame::Engine::Components::PlayerController.new)
-  end
-
-  # The hero stands on its origin, so the picture reaches half its width to
-  # either side and its whole height above.
-  def _update(_dt)
-    self.x = x.clamp(width / 2.0, WIDTH - (width / 2.0))
-    self.y = y.clamp(height, HEIGHT)
-  end
-end
-
-class Scene < RGame::Engine::Node2D
-  BACKDROP = RGame::Util::Color.new(30, 36, 46)
-  MARGIN   = 16
-
-  # The hero first, so the panel is drawn over them rather than under: a node
-  # draws before its later siblings, and the two do overlap once the hero is
-  # walked into the corner.
-  def initialize
-    super
-    @help_seat = RGame::Engine::Text.new('help.seat')
-    @help_back = RGame::Engine::Text.new('help.back')
-  end
-
-  def _enter_tree
-    add_node(Hero.new(x: 478, y: 322))
-    add_node(Prompts.new(x: MARGIN, y: MARGIN))
-  end
-
-  def _draw(renderer, view)
-    renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
-    renderer.text(@help_seat, MARGIN, view.height - 52)
-    renderer.text(@help_back, MARGIN, view.height - 30)
-  end
-end
-
-game = RGame::Game.new(
-  root: Scene.new,
-  caption: 'Input glyphs',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES
-)
-
-game.start
+InputGlyphsExample.start

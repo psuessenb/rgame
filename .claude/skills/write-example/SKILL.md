@@ -37,9 +37,32 @@ Every example is `examples/<name>/main.rb`, and they all open the same way:
 
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
+
+module <Name>Example
+  Engine = RGame::Engine
+  Util = RGame::Util
+
+  # <constants and classes>
+
+  def self.start
+    game = RGame::Game.new(...)
+    # <any registration>
+    game.start
+  end
+end
+
+<Name>Example.start
 ```
 
 `examples/walk/main.rb` is the shortest one filled in.
+
+- **The module is `<Name>Example`**, from the directory's name. `Timer`,
+  `Cutscene` and `Dialogue` are engine names, and `examples/quick_wheel` defines
+  a `QuickWheel` class. The suffix keeps every example clear of both. The two
+  constants follow [write-ruby-code](../write-ruby-code/SKILL.md#game-code-names-the-engine-through-its-own-module).
+- **The wiring is `start`, at the bottom of the module.** `game` is then a local
+  of a method, which no block elsewhere in the file can capture. See the trap
+  below.
 
 Four rules for the header:
 
@@ -57,9 +80,6 @@ Four rules for the header:
 The header and every explaining comment in the file follow the style rules in
 [write-prose](../write-prose/SKILL.md).
 
-The end of the file is the wiring: `RGame::Game.new(...)`, any registration, and
-`game.start`.
-
 ---
 
 ## The trap that costs a day: a top-level proc pins the window
@@ -68,30 +88,24 @@ The end of the file is the wiring: `RGame::Game.new(...)`, any registration, and
 is fine when run by hand. Sometimes `X connection to :97 broken` appears too,
 sometimes not.
 
-**Cause:** a block written at the **top level of the script** captures that
-script's local variable scope — including `game`, further down the file, because
-Ruby builds the scope's variable table at compile time. Assign that block to a
-constant and it lives for the life of the process, so the `App` is never freed,
-so it is torn down after the harness has already killed Xvfb, and the process
-dies through a C-level `exit` that never flushes Ruby's buffered stdout. The
-report is written and then thrown away.
+**Cause:** a block captures the whole local variable scope it is written in —
+including `game`, further down the file, because Ruby builds the scope's
+variable table at compile time. Assign that block to a constant and it lives for
+the life of the process, so the `App` is never freed, so it is torn down after
+the harness has already killed Xvfb, and the process dies through a C-level
+`exit` that never flushes Ruby's buffered stdout. The report is written and then
+thrown away.
 
 ```ruby
-# Wrong — VOLUME_LABEL pins `game` for ever.
+# Wrong — the wiring at the top level, so VOLUME_LABEL pins `game` for ever.
 VOLUME_LABEL = ->(percent) { "#{percent}%" }
 # ...
 game = RGame::Game.new(...)
 ```
 
-```ruby
-# Right — a class body has no local scope to capture.
-class Settings
-  ROWS = { volume: { display: ->(percent) { "#{percent}%" } } }.freeze
-end
-```
-
-It applies to any long-lived proc made at the top level, not just a lambda in a
-constant. Anything a script needs a proc for belongs in a class.
+The file shape above is the fix: `game` is a local of `start`, and no block
+outside that method can reach it. Wiring moved out of `start` brings the trap
+back.
 
 **To confirm a leak of this kind**, count live apps at exit:
 

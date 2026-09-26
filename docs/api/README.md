@@ -7,7 +7,7 @@ or write C.
 
 | Page | Covers |
 |---|---|
-| This page | Loading the library, the three namespaces, a working program, testing |
+| This page | Loading the library, the three namespaces, a working program, a game's own module, testing |
 | [The `rgame` command](cli.md) | `rgame new NAME` — starting a project, and the layout it gives you |
 | [App](app.md) | `RGame::Core::App` — the window and the frame loop |
 | [Game](game.md) | `RGame::Game` — the entry point that wires both halves together |
@@ -120,49 +120,57 @@ A game is a tree of nodes, run by `RGame::Game`.
 ```ruby
 require 'rgame/game'
 
-# One game object: a square the player walks around. Pure Engine — it names no
-# graphics class, so it runs unchanged in a spec with no window.
-class Hero < RGame::Engine::Node2D
-  SPEED = 200.0
+# The game's own module. `Engine` and `Util` inside it are short for the two
+# layers a game is written against; see "A game's own module" below.
+module MyGame
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-  def initialize
-    super(x: 400, y: 300, width: 16, height: 16)
-    @vx = 0.0
-    @vy = 0.0
+  # One game object: a square the player walks around. Pure Engine — it names no
+  # graphics class, so it runs unchanged in a spec with no window.
+  class Hero < Engine::Node2D
+    SPEED = 200.0
+    TINT = Util::Color.new(240, 200, 80)
+
+    def initialize
+      super(x: 400, y: 300, width: 16, height: 16)
+      @vx = 0.0
+      @vy = 0.0
+    end
+
+    # Intent, read once per simulation tick. Never a key: `move_x` is whatever
+    # this player's input map binds it to — arrows, WASD or a stick.
+    def _control(actions)
+      @vx = actions.axis(:move_x) * SPEED
+      @vy = actions.axis(:move_y) * SPEED
+    end
+
+    # `dt` is always the same fixed step, never wall-clock frame time, so
+    # movement is deterministic. `x`/`y` are relative to the parent.
+    def _update(dt)
+      self.x += @vx * dt
+      self.y += @vy * dt
+    end
+
+    # The renderer is handed in and never stored; `view` is the viewport being
+    # drawn into, which most nodes ignore. Draw in the node's own space: the
+    # traversal has already put the renderer on this node, so (0, 0) is here.
+    # See docs/api/scene_graph.md, "Drawing happens in local space".
+    def _draw(renderer, _view)
+      renderer.rect(0, 0, width, height, color: TINT)
+    end
   end
 
-  # Intent, read once per simulation tick. Never a key: `move_x` is whatever
-  # this player's input map binds it to — arrows, WASD or a stick.
-  def _control(actions)
-    @vx = actions.axis(:move_x) * SPEED
-    @vy = actions.axis(:move_y) * SPEED
-  end
-
-  # `dt` is always the same fixed step, never wall-clock frame time, so
-  # movement is deterministic. `x`/`y` are relative to the parent.
-  def _update(dt)
-    self.x += @vx * dt
-    self.y += @vy * dt
-  end
-
-  # The renderer is handed in and never stored; `view` is the viewport being
-  # drawn into, which most nodes ignore. Draw in the node's own space: the
-  # traversal has already put the renderer on this node, so (0, 0) is here.
-  # See docs/api/scene_graph.md, "Drawing happens in local space".
-  def _draw(renderer, _view)
-    renderer.rect(0, 0, width, height)
+  # The root of the tree. Children are added in `_enter_tree`, once the node is in a
+  # tree and can reach the game around it.
+  class Scene < Engine::Node2D
+    def _enter_tree
+      add_node(Hero.new)
+    end
   end
 end
 
-# The root of the tree. Children are added in `_enter_tree`, once the node is in a
-# tree and can reach the game around it.
-class Scene < RGame::Engine::Node2D
-  def _enter_tree
-    add_node(Hero.new)
-  end
-end
-
-RGame::Game.new(root: Scene.new, width: 800, height: 600, caption: 'My Game').start
+RGame::Game.new(root: MyGame::Scene.new, width: 800, height: 600, caption: 'My Game').start
 ```
 
 Subclass `Node2D` and override the hooks you need: `_control`, `_update`,
@@ -178,6 +186,46 @@ Without an `input_map:`, `Game` uses the default map shown above. It binds
 eight-way `move_x` / `move_y` to the arrows, WASD, the d-pad and the left stick,
 and adds `fire`. See [Input](input.md).
 
+## A game's own module
+
+**A game keeps its classes in a module of its own, and names the two layers it
+uses at the top of it:**
+
+```ruby
+module MyGame
+  Engine = RGame::Engine
+  Util = RGame::Util
+end
+```
+
+Inside `MyGame`, and inside every class written within it, `Engine::Node2D`
+means `RGame::Engine::Node2D` and `Util::Color` means `RGame::Util::Color`. The
+game's own names stay off the top level, where Ruby's and every gem's live.
+
+A game's class may share a name with an engine class. `MyGame::Scene` is the
+game's, and `Engine::Scene` is the engine's module beside it. A module may add
+shorthands of its own the same way, such as `UI = Engine::UI`.
+
+The shorter spellings each break somewhere:
+
+| Spelling | What goes wrong |
+|---|---|
+| `include RGame::Engine` in the module | `Text` inside `class Hero` raises `NameError`. Ruby looks a constant up in the modules written around the code, then in the ancestors of the innermost class, and an enclosing module's includes are in neither. |
+| every engine name assigned at the top level | `Signal` replaces Ruby's own. A game's `class Scene < Node2D` raises `TypeError`, since `Scene` is the engine's module. A game's `class Timer` with no superclass adds its methods to the engine's `Timer`, and nothing warns. |
+| every engine name copied into the game's module | the same collisions, one level down |
+
+**Assign the two constants once.** Ruby warns when a constant is assigned again.
+A game in several files defines the module and its constants in one file, and
+every other file requires that file first. `rgame new` writes it and names it
+after the game; see [the `rgame` command](cli.md#what-rgame-new-tictactoe-writes).
+
+**Write each class inside `module MyGame`, not as `class MyGame::Hero`.** The
+compact form leaves `MyGame` out of the modules written around the class, so
+`Engine` does not resolve in its superclass or its body.
+
+The programs under `examples/` follow the same shape, each in a module named
+after its directory, such as `WalkExample`.
+
 ## Testing a game built on this
 
 `require 'rgame'` loads `Util` and the whole scene graph with no SDL and no
@@ -188,9 +236,9 @@ their phases directly, so a simulated hour takes milliseconds:
 ```ruby
 require 'rgame'
 
-RSpec.describe Hero do
+RSpec.describe MyGame::Hero do
   it 'walks right at 200 units a second' do
-    hero = Hero.new
+    hero = MyGame::Hero.new
     # The same snapshot object the input mapper hands a node at runtime, built
     # by hand with the stick pushed fully right.
     actions = RGame::Engine::Actions.new(axes: { move_x: 1.0, move_y: 0.0 })

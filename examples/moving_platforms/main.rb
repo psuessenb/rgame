@@ -43,135 +43,148 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module MovingPlatformsExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-MAP   = 'platforms.tmx'
-TILES = 'tiles.json' # tileset.png cut into 16x16 frames
-SPEED = 80.0 # px/s
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-# The raft's speed along its route, in px/s: 168 px there and 168 back.
-RAFT_SPEED = 40.0
+  MAP   = 'platforms.tmx'
+  TILES = 'tiles.json' # tileset.png cut into 16x16 frames
+  SPEED = 80.0 # px/s
 
-# The hop from `examples/pits`: 40 px at walking speed.
-HOP_PEAK = 18.0
-HOP_DURATION = 0.5
+  # The raft's speed along its route, in px/s: 168 px there and 168 back.
+  RAFT_SPEED = 40.0
 
-FEET_WIDTH  = 12
-FEET_HEIGHT = 6
+  # The hop from `examples/pits`: 40 px at walking speed.
+  HOP_PEAK = 18.0
+  HOP_DURATION = 0.5
 
-# The feet sit at the bottom of the sprite, so look at the hero's middle.
-CAMERA_OFFSET_Y = -11
+  FEET_WIDTH  = 12
+  FEET_HEIGHT = 6
 
-Controls = RGame::Util::Controls
+  # The feet sit at the bottom of the sprite, so look at the hero's middle.
+  CAMERA_OFFSET_Y = -11
 
-# A walker that hops, falls and comes back, and rides what it stands on.
-class Hero < RGame::Engine::Node2D
-  def initialize(camera:, **)
-    super(**)
-    add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-    add_component(RGame::Engine::Components::FeetCollider.new(width: FEET_WIDTH, height: FEET_HEIGHT))
-    add_component(RGame::Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
-    add_component(RGame::Engine::Components::PlayerController.new)
-    add_component(RGame::Engine::Components::Hop.new(peak: HOP_PEAK, duration: HOP_DURATION))
-    add_component(RGame::Engine::Components::Footing.new)
-    add_component(RGame::Engine::Components::Respawn.new(flash: 1.0))
-    add_component(RGame::Engine::Components::CameraFollow.new(camera: camera, offset_y: CAMERA_OFFSET_Y))
-  end
-end
+  Controls = Util::Controls
 
-# A raft of Tiny Town planks, centred on its node, that walks its route for good.
-# Its box is the floor, and its `PathFollow` is what carries its riders.
-class Raft < RGame::Engine::Node2D
-  TILE = 16
-  PLANK_ROW = 6
-  LEFT = 0
-  MIDDLE = 1
-  RIGHT = 3
-
-  def initialize(route:, width:, height:)
-    super(x: route.x_at(0), y: route.y_at(0))
-    add_component(RGame::Engine::Components::BoxCollider.new(
-                    width: width, height: height, offset_x: -width / 2.0, offset_y: -height / 2.0
-                  ))
-    add_component(RGame::Engine::Components::Platform.new)
-    add_component(RGame::Engine::Components::PathFollow.new(speed: RAFT_SPEED, path: route, loop: true))
-    @columns = width / TILE
-    @rows = height / TILE
-    @left = -width / 2.0
-    @top = -height / 2.0
+  # A walker that hops, falls and comes back, and rides what it stands on.
+  class Hero < Engine::Node2D
+    def initialize(camera:, **)
+      super(**)
+      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Engine::Components::FeetCollider.new(width: FEET_WIDTH, height: FEET_HEIGHT))
+      add_component(Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
+      add_component(Engine::Components::PlayerController.new)
+      add_component(Engine::Components::Hop.new(peak: HOP_PEAK, duration: HOP_DURATION))
+      add_component(Engine::Components::Footing.new)
+      add_component(Engine::Components::Respawn.new(flash: 1.0))
+      add_component(Engine::Components::CameraFollow.new(camera: camera, offset_y: CAMERA_OFFSET_Y))
+    end
   end
 
-  def _draw(renderer, _view)
-    @rows.times do |row|
-      @columns.times do |column|
-        renderer.sprite(TILES, PLANK_ROW, plank(column), @left + (column * TILE), @top + (row * TILE))
+  # A raft of Tiny Town planks, centred on its node, that walks its route for good.
+  # Its box is the floor, and its `PathFollow` is what carries its riders.
+  class Raft < Engine::Node2D
+    TILE = 16
+    PLANK_ROW = 6
+    LEFT = 0
+    MIDDLE = 1
+    RIGHT = 3
+
+    def initialize(route:, width:, height:)
+      super(x: route.x_at(0), y: route.y_at(0))
+      add_component(Engine::Components::BoxCollider.new(
+                      width: width, height: height, offset_x: -width / 2.0, offset_y: -height / 2.0
+                    ))
+      add_component(Engine::Components::Platform.new)
+      add_component(Engine::Components::PathFollow.new(speed: RAFT_SPEED, path: route, loop: true))
+      @columns = width / TILE
+      @rows = height / TILE
+      @left = -width / 2.0
+      @top = -height / 2.0
+    end
+
+    def _draw(renderer, _view)
+      @rows.times do |row|
+        @columns.times do |column|
+          renderer.sprite(TILES, PLANK_ROW, plank(column), @left + (column * TILE), @top + (row * TILE))
+        end
+      end
+    end
+
+    private
+
+    def plank(column)
+      return LEFT if column.zero?
+
+      column == @columns - 1 ? RIGHT : MIDDLE
+    end
+  end
+
+  # The map, the raft its `platform` object describes, and the hero on its
+  # `start` point. The raft has a slot of its own under the actors', so the
+  # hero draws over it. The help draws in the `:overlay` band, over the world.
+  class Scene < Engine::Node2D
+    def initialize
+      super(band: :overlay)
+      @help_walk = Engine::Text.new('help.walk')
+      @help_board = Engine::Text.new('help.board')
+    end
+
+    def _enter_tree
+      map = root.context.assets.tilemap(MAP).map
+      players = root.system(Engine::Players)
+      add_component(Engine::Components::TileWorld.new(
+                      map: map, tilemap_id: MAP, cameras: players.map(&:camera)
+                    ))
+
+      view = add_node(Engine::WorldView.new)
+      slots = Engine::TileMapLayer.mount(view, slots: { platforms: nil, actors: nil })
+      rafts.spawn_into(slots[:platforms], map.objects)
+      start = map.object_named('start')
+      slots[:actors].add_node(Hero.new(camera: players.primary.camera, x: start.x, y: start.y))
+    end
+
+    def _draw(renderer, _view)
+      renderer.text(@help_walk, 12, 12)
+      renderer.text(@help_board, 12, 34)
+    end
+
+    private
+
+    def rafts
+      Engine::MapObjects.new.define('platform') do |object|
+        Raft.new(route: Engine::Path.from_object(object),
+                 width: object.properties.fetch('width'), height: object.properties.fetch('height'))
       end
     end
   end
 
-  private
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Scene.new,
+      caption: 'Moving platforms',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES,
+      # :jump is this game's own action. Space is also in the default map as :fire
+      # and :ui_confirm, which nothing here reads.
+      input_map: Engine::InputMap.default.merge(
+        jump: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] }
+      )
+    )
 
-  def plank(column)
-    return LEFT if column.zero?
-
-    column == @columns - 1 ? RIGHT : MIDDLE
+    game.start
   end
 end
 
-# The map, the raft its `platform` object describes, and the hero on its
-# `start` point. The raft has a slot of its own under the actors', so the
-# hero draws over it. The help draws in the `:overlay` band, over the world.
-class Scene < RGame::Engine::Node2D
-  def initialize
-    super(band: :overlay)
-    @help_walk = RGame::Engine::Text.new('help.walk')
-    @help_board = RGame::Engine::Text.new('help.board')
-  end
-
-  def _enter_tree
-    map = root.context.assets.tilemap(MAP).map
-    players = root.system(RGame::Engine::Players)
-    add_component(RGame::Engine::Components::TileWorld.new(
-                    map: map, tilemap_id: MAP, cameras: players.map(&:camera)
-                  ))
-
-    view = add_node(RGame::Engine::WorldView.new)
-    slots = RGame::Engine::TileMapLayer.mount(view, slots: { platforms: nil, actors: nil })
-    rafts.spawn_into(slots[:platforms], map.objects)
-    start = map.object_named('start')
-    slots[:actors].add_node(Hero.new(camera: players.primary.camera, x: start.x, y: start.y))
-  end
-
-  def _draw(renderer, _view)
-    renderer.text(@help_walk, 12, 12)
-    renderer.text(@help_board, 12, 34)
-  end
-
-  private
-
-  def rafts
-    RGame::Engine::MapObjects.new.define('platform') do |object|
-      Raft.new(route: RGame::Engine::Path.from_object(object),
-               width: object.properties.fetch('width'), height: object.properties.fetch('height'))
-    end
-  end
-end
-
-game = RGame::Game.new(
-  root: Scene.new,
-  caption: 'Moving platforms',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES,
-  # :jump is this game's own action. Space is also in the default map as :fire
-  # and :ui_confirm, which nothing here reads.
-  input_map: RGame::Engine::InputMap.default.merge(
-    jump: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] }
-  )
-)
-
-game.start
+MovingPlatformsExample.start

@@ -49,71 +49,84 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module SoundExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-class Scene < RGame::Engine::Node2D
-  RING = RGame::Util::Color.new(120, 200, 255)
-  FADE = 1.0 / 3.0  # seconds the flash takes to fade out
-  MIN_R = 18.0      # radius at rest
-  GROW  = 90.0      # extra radius at full flash
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-  def initialize
-    super
-    @flash = RGame::Engine::Tween.new(FADE, from: 1.0, to: 0.0).finish
-    @plays = 0
-    # Built once, here, and that is the whole trick: the key's text renders when
-    # the count changes rather than when a frame is drawn. See the note above
-    # _draw.
-    @plays_label = RGame::Engine::Text.new('hud.plays', :plays)
-    @help = RGame::Engine::Text.new('help.press')
+  class Scene < Engine::Node2D
+    RING = Util::Color.new(120, 200, 255)
+    FADE = 1.0 / 3.0  # seconds the flash takes to fade out
+    MIN_R = 18.0      # radius at rest
+    GROW  = 90.0      # extra radius at full flash
+
+    def initialize
+      super
+      @flash = Engine::Tween.new(FADE, from: 1.0, to: 0.0).finish
+      @plays = 0
+      # Built once, here, and that is the whole trick: the key's text renders when
+      # the count changes rather than when a frame is drawn. See the note above
+      # _draw.
+      @plays_label = Engine::Text.new('hud.plays', :plays)
+      @help = Engine::Text.new('help.press')
+    end
+
+    def _control(actions)
+      return unless actions.pressed?(:fire)
+
+      # The whole of "make a noise". Nothing here knows what device plays it.
+      system!(Engine::AudioOut).play_sound('blip.ogg')
+
+      @flash.restart
+      @plays += 1
+    end
+
+    # The flash is state, advanced by dt — not a clock read at draw time. That is
+    # the standing rule (see "`draw` renders state"), and it is why pausing
+    # this node would freeze the ring mid-fade instead of letting it run on.
+    def _update(dt)
+      @flash.update(dt)
+    end
+
+    # A count, drawn as text, allocating nothing.
+    #
+    # `"plays: #{@plays}"` written here would build a String on every frame
+    # forever, and `Game/NoInterpolationInHotPath` is right to refuse it: a steady
+    # 60fps frame that allocates is a GC pause waiting to happen.
+    # `Engine::Text` holds the last string and renders `plays: %{plays}` from the
+    # table again only when the value changes, so pressing the key costs one
+    # allocation and the thousand frames between presses cost none.
+    #
+    # **Reach for it rather than inventing a way round the rule.** A label built
+    # from something that changes is common enough that the engine owns the
+    # answer — see "`Text` — the string a node draws" in docs/api/toolbox.md.
+    def _draw(renderer, _view)
+      renderer.circle(WIDTH / 2, HEIGHT / 2, MIN_R + (GROW * @flash.value), color: RING)
+      renderer.text(@help, 12, 12)
+      renderer.text(@plays_label.with(plays: @plays), 12, 44)
+    end
   end
 
-  def _control(actions)
-    return unless actions.pressed?(:fire)
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Scene.new,
+      caption: 'Sound',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES
+    )
 
-    # The whole of "make a noise". Nothing here knows what device plays it.
-    system!(RGame::Engine::AudioOut).play_sound('blip.ogg')
-
-    @flash.restart
-    @plays += 1
-  end
-
-  # The flash is state, advanced by dt — not a clock read at draw time. That is
-  # the standing rule (see "`draw` renders state"), and it is why pausing
-  # this node would freeze the ring mid-fade instead of letting it run on.
-  def _update(dt)
-    @flash.update(dt)
-  end
-
-  # A count, drawn as text, allocating nothing.
-  #
-  # `"plays: #{@plays}"` written here would build a String on every frame
-  # forever, and `Game/NoInterpolationInHotPath` is right to refuse it: a steady
-  # 60fps frame that allocates is a GC pause waiting to happen.
-  # `Engine::Text` holds the last string and renders `plays: %{plays}` from the
-  # table again only when the value changes, so pressing the key costs one
-  # allocation and the thousand frames between presses cost none.
-  #
-  # **Reach for it rather than inventing a way round the rule.** A label built
-  # from something that changes is common enough that the engine owns the
-  # answer — see "`Text` — the string a node draws" in docs/api/toolbox.md.
-  def _draw(renderer, _view)
-    renderer.circle(WIDTH / 2, HEIGHT / 2, MIN_R + (GROW * @flash.value), color: RING)
-    renderer.text(@help, 12, 12)
-    renderer.text(@plays_label.with(plays: @plays), 12, 44)
+    game.start
   end
 end
 
-game = RGame::Game.new(
-  root: Scene.new,
-  caption: 'Sound',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES
-)
-
-game.start
+SoundExample.start

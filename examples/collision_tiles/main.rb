@@ -118,162 +118,175 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module CollisionTilesExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-MAP   = 'town.tmx'
-SPEED = 80.0 # px/s
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-# The feet: twelve wide and six tall, centred at the bottom of the 16x22 sprite.
-FEET_WIDTH  = 12
-FEET_HEIGHT = 6
+  MAP   = 'town.tmx'
+  SPEED = 80.0 # px/s
 
-# Where the camera looks: the middle of that box, three pixels above the node's
-# origin at the hero's feet.
-CAMERA_OFFSET_Y = -3
+  # The feet: twelve wide and six tall, centred at the bottom of the 16x22 sprite.
+  FEET_WIDTH  = 12
+  FEET_HEIGHT = 6
 
-# North of the fence and a few tiles east of its gap, so that holding a diagonal
-# into it arrives there.
-START_X = 392.0
-START_Y = 294.0
+  # Where the camera looks: the middle of that box, three pixels above the node's
+  # origin at the hero's feet.
+  CAMERA_OFFSET_Y = -3
 
-# The spiky ball: three tiles east of the hero, on the open ground between the
-# trees, and low enough that its box sits across the hero's feet.
-BALL_X = 434.0
-BALL_Y = 284.0
-BALL_SIZE = 12
+  # North of the fence and a few tiles east of its gap, so that holding a diagonal
+  # into it arrives there.
+  START_X = 392.0
+  START_Y = 294.0
 
-LIVES = 3
+  # The spiky ball: three tiles east of the hero, on the open ground between the
+  # trees, and low enough that its box sits across the hero's feet.
+  BALL_X = 434.0
+  BALL_Y = 284.0
+  BALL_SIZE = 12
 
-# A sprite, a feet box, a body that knows about walls, and a camera. The only
-# thing this class writes itself is the drawing of that box, so what collides is
-# visible.
-class Hero < RGame::Engine::Node2D
-  FEET = RGame::Util::Color.rgba(255, 110, 110, 120)
+  LIVES = 3
 
-  attr_reader :lives
+  # A sprite, a feet box, a body that knows about walls, and a camera. The only
+  # thing this class writes itself is the drawing of that box, so what collides is
+  # visible.
+  class Hero < Engine::Node2D
+    FEET = Util::Color.rgba(255, 110, 110, 120)
 
-  def initialize(camera:, **)
-    super(**)
-    @lives = LIVES
-    add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-    # The two lines that differ from `examples/walk`: a shape, and a body told
-    # what that shape may not pass through. Everything about the intent — the
-    # controller writing it, the sprite reading it back as a facing, the speed it
-    # is scaled by — is the same CharacterBody as there.
-    @collider = add_component(RGame::Engine::Components::FeetCollider.new(
-                                width: FEET_WIDTH, height: FEET_HEIGHT
-                              ))
-    body = add_component(RGame::Engine::Components::CharacterBody.new(
-                           speed: SPEED, blocked_by: %i[tiles spike]
-                         ))
-    # One handler for everything that can stop a step, because everything that
-    # can stop a step reports the same two things. The fence arrives here too, as
-    # :tiles with no node behind it, and is ignored.
-    body.on_blocked { |by| @lives = [@lives - 1, 0].max if by.layer == :spike }
-    add_component(RGame::Engine::Components::PlayerController.new)
-    add_component(RGame::Engine::Components::CameraFollow.new(
-                    camera: camera, offset_y: CAMERA_OFFSET_Y
-                  ))
+    attr_reader :lives
+
+    def initialize(camera:, **)
+      super(**)
+      @lives = LIVES
+      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+      # The two lines that differ from `examples/walk`: a shape, and a body told
+      # what that shape may not pass through. Everything about the intent — the
+      # controller writing it, the sprite reading it back as a facing, the speed it
+      # is scaled by — is the same CharacterBody as there.
+      @collider = add_component(Engine::Components::FeetCollider.new(
+                                  width: FEET_WIDTH, height: FEET_HEIGHT
+                                ))
+      body = add_component(Engine::Components::CharacterBody.new(
+                             speed: SPEED, blocked_by: %i[tiles spike]
+                           ))
+      # One handler for everything that can stop a step, because everything that
+      # can stop a step reports the same two things. The fence arrives here too, as
+      # :tiles with no node behind it, and is ignored.
+      body.on_blocked { |by| @lives = [@lives - 1, 0].max if by.layer == :spike }
+      add_component(Engine::Components::PlayerController.new)
+      add_component(Engine::Components::CameraFollow.new(
+                      camera: camera, offset_y: CAMERA_OFFSET_Y
+                    ))
+    end
+
+    # Components draw first, so this lands over the sprite. The box's offsets are
+    # relative to the node's origin, which is exactly where the renderer already
+    # is — a collision box and local space agree about what (0, 0) means.
+    def _draw(renderer, _view)
+      box = @collider.box
+      renderer.rect(box.offset_x, box.offset_y, box.width, box.height, color: FEET)
+    end
   end
 
-  # Components draw first, so this lands over the sprite. The box's offsets are
-  # relative to the node's origin, which is exactly where the renderer already
-  # is — a collision box and local space agree about what (0, 0) means.
-  def _draw(renderer, _view)
-    box = @collider.box
-    renderer.rect(box.offset_x, box.offset_y, box.width, box.height, color: FEET)
+  # The hazard: a box on the `:spike` layer, and a drawing of a ball with spikes on
+  # it. It has no body and no controller — it never moves — so the only thing it
+  # contributes to a step is its rectangle, sitting in the broadphase waiting to be
+  # found.
+  class SpikyBall < Engine::Node2D
+    BODY = Util::Color.rgba(190, 90, 210, 255)
+    SPIKE = Util::Color.rgba(120, 40, 140, 255)
+    RADIUS = BALL_SIZE / 2.0
+    SPIKE_LENGTH = 5
+
+    def initialize(**)
+      super
+      add_component(Engine::Components::BoxCollider.new(
+                      width: BALL_SIZE, height: BALL_SIZE, layer: :spike
+                    ))
+    end
+
+    # Local space, like every other _draw: the node's transform is already
+    # pushed, so the ball is drawn around its own origin and lands wherever the
+    # node is.
+    def _draw(renderer, _view)
+      renderer.line(RADIUS, -SPIKE_LENGTH, RADIUS, BALL_SIZE + SPIKE_LENGTH, thickness: 2.0, color: SPIKE)
+      renderer.line(-SPIKE_LENGTH, RADIUS, BALL_SIZE + SPIKE_LENGTH, RADIUS, thickness: 2.0, color: SPIKE)
+      renderer.circle(RADIUS, RADIUS, RADIUS, color: BODY)
+    end
+  end
+
+  # The scene: mount the map, mount the world, put the hero in it. The same three
+  # steps as `examples/scroll_map`, with an actor that collides instead of a rig
+  # that does not.
+  #
+  # It draws the help lines and the lives itself, so it sits in the `:overlay` band, once across
+  # the window over everything else. In the default `:world` band the map, which
+  # draws after it, would cover them. The WorldView below it declares `:world` for
+  # its own subtree, so nothing in the world moves band.
+  class Scene < Engine::Node2D
+    def initialize = super(band: :overlay)
+
+    def _enter_tree
+      map = root.context.assets.tilemap(MAP).map
+      players = root.system(Engine::Players)
+
+      # Solidity and the world's size come from the same system, because they are
+      # the same fact about the same map. Handing it the cameras bounds them to
+      # the map's edges.
+      add_component(Engine::Components::TileWorld.new(
+                      map: map, tilemap_id: MAP, cameras: players.map(&:camera)
+                    ))
+      # The second index, for the things the map knows nothing about. Its cells are
+      # sized to the actors rather than to the 16px tiles: a broadphase cell wants
+      # to hold a handful of the things it buckets, and these are a dozen pixels
+      # across.
+      add_component(Engine::Components::CollisionWorld.new(cell_size: 32))
+
+      view = add_node(Engine::WorldView.new)
+      # The :actors slot sits between the ground layers and anything
+      # Tiled flags `above` — where things that walk around belong.
+      actors = Engine::TileMapLayer.mount(view)[:actors]
+      actors.add_node(SpikyBall.new(x: BALL_X, y: BALL_Y))
+      @hero = actors.add_node(Hero.new(camera: players.primary.camera, x: START_X, y: START_Y))
+      # Built here rather than in _draw: the text renders once per change of the
+      # count, and the frames in between read the string it kept.
+      @lives_label = Engine::Text.new('hud.lives', :lives)
+      @help_walk = Engine::Text.new('help.walk')
+      @help_slide = Engine::Text.new('help.slide')
+      @help_box = Engine::Text.new('help.box')
+      @help_ball = Engine::Text.new('help.ball')
+    end
+
+    # Screen space: outside the WorldView, so it stays put while the map scrolls.
+    def _draw(renderer, _view)
+      renderer.text(@help_walk, 12, 12)
+      renderer.text(@help_slide, 12, 34)
+      renderer.text(@help_box, 12, 56)
+      renderer.text(@help_ball, 12, 78)
+      renderer.text(@lives_label.with(lives: @hero.lives), 12, 100)
+    end
+  end
+
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Scene.new,
+      caption: 'Collision tiles',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES
+    )
+
+    game.start
   end
 end
 
-# The hazard: a box on the `:spike` layer, and a drawing of a ball with spikes on
-# it. It has no body and no controller — it never moves — so the only thing it
-# contributes to a step is its rectangle, sitting in the broadphase waiting to be
-# found.
-class SpikyBall < RGame::Engine::Node2D
-  BODY = RGame::Util::Color.rgba(190, 90, 210, 255)
-  SPIKE = RGame::Util::Color.rgba(120, 40, 140, 255)
-  RADIUS = BALL_SIZE / 2.0
-  SPIKE_LENGTH = 5
-
-  def initialize(**)
-    super
-    add_component(RGame::Engine::Components::BoxCollider.new(
-                    width: BALL_SIZE, height: BALL_SIZE, layer: :spike
-                  ))
-  end
-
-  # Local space, like every other _draw: the node's transform is already
-  # pushed, so the ball is drawn around its own origin and lands wherever the
-  # node is.
-  def _draw(renderer, _view)
-    renderer.line(RADIUS, -SPIKE_LENGTH, RADIUS, BALL_SIZE + SPIKE_LENGTH, thickness: 2.0, color: SPIKE)
-    renderer.line(-SPIKE_LENGTH, RADIUS, BALL_SIZE + SPIKE_LENGTH, RADIUS, thickness: 2.0, color: SPIKE)
-    renderer.circle(RADIUS, RADIUS, RADIUS, color: BODY)
-  end
-end
-
-# The scene: mount the map, mount the world, put the hero in it. The same three
-# steps as `examples/scroll_map`, with an actor that collides instead of a rig
-# that does not.
-#
-# It draws the help lines and the lives itself, so it sits in the `:overlay` band, once across
-# the window over everything else. In the default `:world` band the map, which
-# draws after it, would cover them. The WorldView below it declares `:world` for
-# its own subtree, so nothing in the world moves band.
-class Scene < RGame::Engine::Node2D
-  def initialize = super(band: :overlay)
-
-  def _enter_tree
-    map = root.context.assets.tilemap(MAP).map
-    players = root.system(RGame::Engine::Players)
-
-    # Solidity and the world's size come from the same system, because they are
-    # the same fact about the same map. Handing it the cameras bounds them to
-    # the map's edges.
-    add_component(RGame::Engine::Components::TileWorld.new(
-                    map: map, tilemap_id: MAP, cameras: players.map(&:camera)
-                  ))
-    # The second index, for the things the map knows nothing about. Its cells are
-    # sized to the actors rather than to the 16px tiles: a broadphase cell wants
-    # to hold a handful of the things it buckets, and these are a dozen pixels
-    # across.
-    add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 32))
-
-    view = add_node(RGame::Engine::WorldView.new)
-    # The :actors slot sits between the ground layers and anything
-    # Tiled flags `above` — where things that walk around belong.
-    actors = RGame::Engine::TileMapLayer.mount(view)[:actors]
-    actors.add_node(SpikyBall.new(x: BALL_X, y: BALL_Y))
-    @hero = actors.add_node(Hero.new(camera: players.primary.camera, x: START_X, y: START_Y))
-    # Built here rather than in _draw: the text renders once per change of the
-    # count, and the frames in between read the string it kept.
-    @lives_label = RGame::Engine::Text.new('hud.lives', :lives)
-    @help_walk = RGame::Engine::Text.new('help.walk')
-    @help_slide = RGame::Engine::Text.new('help.slide')
-    @help_box = RGame::Engine::Text.new('help.box')
-    @help_ball = RGame::Engine::Text.new('help.ball')
-  end
-
-  # Screen space: outside the WorldView, so it stays put while the map scrolls.
-  def _draw(renderer, _view)
-    renderer.text(@help_walk, 12, 12)
-    renderer.text(@help_slide, 12, 34)
-    renderer.text(@help_box, 12, 56)
-    renderer.text(@help_ball, 12, 78)
-    renderer.text(@lives_label.with(lives: @hero.lives), 12, 100)
-  end
-end
-
-game = RGame::Game.new(
-  root: Scene.new,
-  caption: 'Collision tiles',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES
-)
-
-game.start
+CollisionTilesExample.start

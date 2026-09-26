@@ -27,7 +27,7 @@
 #
 # ## Declaring one is a single line
 #
-#     class Plate < RGame::Engine::Node2D
+#     class Plate < Engine::Node2D
 #       signal :pressed
 #     end
 #
@@ -78,194 +78,207 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-Controls = RGame::Util::Controls
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module SignalsExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+  Controls = Util::Controls
 
-# A plate that announces presses. It has no idea anything is listening, and
-# nothing below it in this file is named anywhere inside it.
-class Plate < RGame::Engine::Node2D
-  signal :pressed
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-  PLATE_W = 150
-  PLATE_H = 34
-  UP   = RGame::Util::Color.new(110, 120, 140)
-  DOWN = RGame::Util::Color.new(210, 190, 110)
+  # A plate that announces presses. It has no idea anything is listening, and
+  # nothing below it in this file is named anywhere inside it.
+  class Plate < Engine::Node2D
+    signal :pressed
 
-  def initialize(**)
-    super(width: PLATE_W, height: PLATE_H, **)
-    @down = false
-  end
+    PLATE_W = 150
+    PLATE_H = 34
+    UP   = Util::Color.new(110, 120, 140)
+    DOWN = Util::Color.new(210, 190, 110)
 
-  def _control(actions)
-    @down = actions.held?(:stand_on_plate)
-    # An edge, not the held state: one press is one event, however long the key
-    # stays down. The Signal has no opinion on that — deciding when a thing has
-    # happened is the emitter's job.
-    pressed_signal.emit if actions.pressed?(:stand_on_plate)
-  end
+    def initialize(**)
+      super(width: PLATE_W, height: PLATE_H, **)
+      @down = false
+    end
 
-  def _draw(renderer, _view)
-    renderer.rect(0, 0, PLATE_W, PLATE_H, color: @down ? DOWN : UP)
-  end
-end
+    def _control(actions)
+      @down = actions.held?(:stand_on_plate)
+      # An edge, not the held state: one press is one event, however long the key
+      # stays down. The Signal has no opinion on that — deciding when a thing has
+      # happened is the emitter's job.
+      pressed_signal.emit if actions.pressed?(:stand_on_plate)
+    end
 
-# Reacts by opening. It knows about the plate; the plate does not know about it.
-class Door < RGame::Engine::Node2D
-  FRAME = RGame::Util::Color.new(70, 78, 96)
-  LEAF  = RGame::Util::Color.new(180, 140, 96)
-  DOOR_W = 64
-  DOOR_H = 96
-  SPEED = 2.2 # fractions of the doorway per second
-
-  def initialize(plate:, **)
-    super(width: DOOR_W, height: DOOR_H, **)
-    @plate = plate
-    @open = false
-    @openness = 0.0
-  end
-
-  # Connecting is the whole of the wiring, and it happens here rather than in
-  # `initialize` because the plate has to exist first — which in this scene it
-  # does, but a listener built outside the tree would not be able to rely on it.
-  def _enter_tree = @plate.on_pressed { @open = !@open }
-
-  def _update(dt)
-    target = @open ? 1.0 : 0.0
-    step = SPEED * dt
-    @openness += (target - @openness).clamp(-step, step)
-  end
-
-  def _draw(renderer, _view)
-    renderer.rect(0, 0, DOOR_W, DOOR_H, color: FRAME)
-    # The leaf slides up into the frame, so an open door is a short one.
-    leaf = DOOR_H * (1.0 - @openness)
-    renderer.rect(0, DOOR_H - leaf, DOOR_W, leaf, color: LEAF) if leaf > 1.0
-  end
-end
-
-# Reacts by lighting, and knows nothing about the door reacting to the same
-# thing. Two listeners on one signal, neither aware of the other.
-class Lamp < RGame::Engine::Node2D
-  OFF = RGame::Util::Color.new(64, 62, 56)
-  ON  = RGame::Util::Color.new(255, 226, 130)
-  RADIUS = 22
-  FADE = 1.6
-
-  def initialize(plate:, **)
-    super(width: RADIUS * 2, height: RADIUS * 2, **)
-    @plate = plate
-    @glow = 0.0
-  end
-
-  def _enter_tree = @plate.on_pressed { @glow = 1.0 }
-
-  # The glow is state advanced by dt, not a clock read while drawing — the
-  # standing rule, and the reason pausing this node would freeze it mid-fade.
-  def _update(dt)
-    @glow -= dt * FADE
-    @glow = 0.0 if @glow.negative?
-  end
-
-  def _draw(renderer, _view)
-    renderer.circle(0, 0, RADIUS, color: @glow.positive? ? ON : OFF)
-    renderer.circle(0, 0, RADIUS * @glow, color: ON) if @glow.positive?
-  end
-end
-
-# One component, two actions, one signal carrying which. The counters are
-# separate so the two cooldowns are visible as different rates rather than
-# described as them.
-class Repeater < RGame::Engine::Node2D
-  FIRE_COOLDOWN = 0.20
-  POKE_COOLDOWN = 0.55
-  PIP = 12
-  GAP = 5
-  ROW = 26
-  FIRE_COLOR = RGame::Util::Color.new(235, 120, 100)
-  POKE_COLOR = RGame::Util::Color.new(120, 200, 255)
-  MAX_PIPS = 28
-
-  def initialize(**)
-    super
-    @counts = { fire: 0, poke: 0 }
-  end
-
-  def _enter_tree
-    trigger = add_component(
-      RGame::Engine::Components::ActionTrigger.new(fire: FIRE_COOLDOWN, poke: POKE_COOLDOWN)
-    )
-    # The payload is what makes one listener enough. Without it this would need
-    # a signal per action, and the component is allowed only one of itself per
-    # node to hang them on.
-    trigger.on_triggered { |action| @counts[action] += 1 }
-  end
-
-  def _draw(renderer, _view)
-    draw_row(renderer, @counts[:fire], 0, FIRE_COLOR)
-    draw_row(renderer, @counts[:poke], ROW, POKE_COLOR)
-  end
-
-  private
-
-  # Counted in rectangles rather than in text, because a row makes two rates
-  # comparable at a glance in a way two numbers do not.
-  # hot-path
-  def draw_row(renderer, count, y, color)
-    [count, MAX_PIPS].min.times do |i|
-      renderer.rect(i * (PIP + GAP), y, PIP, PIP, color: color)
+    def _draw(renderer, _view)
+      renderer.rect(0, 0, PLATE_W, PLATE_H, color: @down ? DOWN : UP)
     end
   end
+
+  # Reacts by opening. It knows about the plate; the plate does not know about it.
+  class Door < Engine::Node2D
+    FRAME = Util::Color.new(70, 78, 96)
+    LEAF  = Util::Color.new(180, 140, 96)
+    DOOR_W = 64
+    DOOR_H = 96
+    SPEED = 2.2 # fractions of the doorway per second
+
+    def initialize(plate:, **)
+      super(width: DOOR_W, height: DOOR_H, **)
+      @plate = plate
+      @open = false
+      @openness = 0.0
+    end
+
+    # Connecting is the whole of the wiring, and it happens here rather than in
+    # `initialize` because the plate has to exist first — which in this scene it
+    # does, but a listener built outside the tree would not be able to rely on it.
+    def _enter_tree = @plate.on_pressed { @open = !@open }
+
+    def _update(dt)
+      target = @open ? 1.0 : 0.0
+      step = SPEED * dt
+      @openness += (target - @openness).clamp(-step, step)
+    end
+
+    def _draw(renderer, _view)
+      renderer.rect(0, 0, DOOR_W, DOOR_H, color: FRAME)
+      # The leaf slides up into the frame, so an open door is a short one.
+      leaf = DOOR_H * (1.0 - @openness)
+      renderer.rect(0, DOOR_H - leaf, DOOR_W, leaf, color: LEAF) if leaf > 1.0
+    end
+  end
+
+  # Reacts by lighting, and knows nothing about the door reacting to the same
+  # thing. Two listeners on one signal, neither aware of the other.
+  class Lamp < Engine::Node2D
+    OFF = Util::Color.new(64, 62, 56)
+    ON  = Util::Color.new(255, 226, 130)
+    RADIUS = 22
+    FADE = 1.6
+
+    def initialize(plate:, **)
+      super(width: RADIUS * 2, height: RADIUS * 2, **)
+      @plate = plate
+      @glow = 0.0
+    end
+
+    def _enter_tree = @plate.on_pressed { @glow = 1.0 }
+
+    # The glow is state advanced by dt, not a clock read while drawing — the
+    # standing rule, and the reason pausing this node would freeze it mid-fade.
+    def _update(dt)
+      @glow -= dt * FADE
+      @glow = 0.0 if @glow.negative?
+    end
+
+    def _draw(renderer, _view)
+      renderer.circle(0, 0, RADIUS, color: @glow.positive? ? ON : OFF)
+      renderer.circle(0, 0, RADIUS * @glow, color: ON) if @glow.positive?
+    end
+  end
+
+  # One component, two actions, one signal carrying which. The counters are
+  # separate so the two cooldowns are visible as different rates rather than
+  # described as them.
+  class Repeater < Engine::Node2D
+    FIRE_COOLDOWN = 0.20
+    POKE_COOLDOWN = 0.55
+    PIP = 12
+    GAP = 5
+    ROW = 26
+    FIRE_COLOR = Util::Color.new(235, 120, 100)
+    POKE_COLOR = Util::Color.new(120, 200, 255)
+    MAX_PIPS = 28
+
+    def initialize(**)
+      super
+      @counts = { fire: 0, poke: 0 }
+    end
+
+    def _enter_tree
+      trigger = add_component(
+        Engine::Components::ActionTrigger.new(fire: FIRE_COOLDOWN, poke: POKE_COOLDOWN)
+      )
+      # The payload is what makes one listener enough. Without it this would need
+      # a signal per action, and the component is allowed only one of itself per
+      # node to hang them on.
+      trigger.on_triggered { |action| @counts[action] += 1 }
+    end
+
+    def _draw(renderer, _view)
+      draw_row(renderer, @counts[:fire], 0, FIRE_COLOR)
+      draw_row(renderer, @counts[:poke], ROW, POKE_COLOR)
+    end
+
+    private
+
+    # Counted in rectangles rather than in text, because a row makes two rates
+    # comparable at a glance in a way two numbers do not.
+    # hot-path
+    def draw_row(renderer, count, y, color)
+      [count, MAX_PIPS].min.times do |i|
+        renderer.rect(i * (PIP + GAP), y, PIP, PIP, color: color)
+      end
+    end
+  end
+
+  class Scene < Engine::Node2D
+    BACKDROP = Util::Color.new(30, 34, 44)
+
+    def initialize
+      super
+      @help_plate = Engine::Text.new('help.plate')
+      @help_unnamed = Engine::Text.new('help.unnamed')
+      @help_cooldowns = Engine::Text.new('help.cooldowns')
+    end
+
+    def _enter_tree
+      plate = add_node(Plate.new(x: 60, y: 150))
+      # Both are handed the plate and connect themselves. The plate is handed
+      # nothing at all.
+      add_node(Door.new(plate: plate, x: 300, y: 110))
+      add_node(Lamp.new(plate: plate, x: 480, y: 158))
+      add_node(Repeater.new(x: 60, y: 330))
+    end
+
+    def _draw(renderer, view)
+      renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
+
+      renderer.text(@help_plate, 12, 12)
+      renderer.text(@help_unnamed, 12, 34)
+      renderer.text(@help_cooldowns, 12, 290)
+    end
+  end
+
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Scene.new,
+      caption: 'Signals',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES,
+      # `stand_on_plate` rather than reading `ui_confirm` directly, and the reason is
+      # the trap that costs an afternoon: **a key already in the default map keeps
+      # doing its old job too.** `ui_confirm` is Enter *and* Space, and Space is
+      # `fire`, which the ActionTrigger below reads — so a plate on `ui_confirm`
+      # would also be pressed by the key that is supposed to only feed the repeater.
+      # Two actions may read one key, both fire, and nothing warns.
+      input_map: Engine::InputMap.default.merge(
+        stand_on_plate: { buttons: [Controls::KEY_RETURN] },
+        poke: { buttons: [Controls::KEY_E] }
+      )
+    )
+
+    game.start
+  end
 end
 
-class Scene < RGame::Engine::Node2D
-  BACKDROP = RGame::Util::Color.new(30, 34, 44)
-
-  def initialize
-    super
-    @help_plate = RGame::Engine::Text.new('help.plate')
-    @help_unnamed = RGame::Engine::Text.new('help.unnamed')
-    @help_cooldowns = RGame::Engine::Text.new('help.cooldowns')
-  end
-
-  def _enter_tree
-    plate = add_node(Plate.new(x: 60, y: 150))
-    # Both are handed the plate and connect themselves. The plate is handed
-    # nothing at all.
-    add_node(Door.new(plate: plate, x: 300, y: 110))
-    add_node(Lamp.new(plate: plate, x: 480, y: 158))
-    add_node(Repeater.new(x: 60, y: 330))
-  end
-
-  def _draw(renderer, view)
-    renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
-
-    renderer.text(@help_plate, 12, 12)
-    renderer.text(@help_unnamed, 12, 34)
-    renderer.text(@help_cooldowns, 12, 290)
-  end
-end
-
-game = RGame::Game.new(
-  root: Scene.new,
-  caption: 'Signals',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES,
-  # `stand_on_plate` rather than reading `ui_confirm` directly, and the reason is
-  # the trap that costs an afternoon: **a key already in the default map keeps
-  # doing its old job too.** `ui_confirm` is Enter *and* Space, and Space is
-  # `fire`, which the ActionTrigger below reads — so a plate on `ui_confirm`
-  # would also be pressed by the key that is supposed to only feed the repeater.
-  # Two actions may read one key, both fire, and nothing warns.
-  input_map: RGame::Engine::InputMap.default.merge(
-    stand_on_plate: { buttons: [Controls::KEY_RETURN] },
-    poke: { buttons: [Controls::KEY_E] }
-  )
-)
-
-game.start
+SignalsExample.start

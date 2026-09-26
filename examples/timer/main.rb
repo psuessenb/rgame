@@ -84,198 +84,211 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module TimerExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-# 4.2 frames at a fixed sixtieth of a second, chosen so that rounding it up to a
-# whole frame is a mistake with a visible size.
-BEAT = 0.07
-CHIME = 1.5
-FUSE = 1.2 # how long the one-shot banner stays
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-TRACK_X = 60
-TRACK_W = 480
-LAP = 70 # beats to the end of the track
+  # 4.2 frames at a fixed sixtieth of a second, chosen so that rounding it up to a
+  # whole frame is a mistake with a visible size.
+  BEAT = 0.07
+  CHIME = 1.5
+  FUSE = 1.2 # how long the one-shot banner stays
 
-# The two runners share this, so the only difference between them is how each
-# decides a beat has happened.
-module Runner
-  BAR_H = 26
-  TRACK = RGame::Util::Color.new(44, 50, 64)
+  TRACK_X = 60
+  TRACK_W = 480
+  LAP = 70 # beats to the end of the track
 
-  def beats = @beats ||= 0
+  # The two runners share this, so the only difference between them is how each
+  # decides a beat has happened.
+  module Runner
+    BAR_H = 26
+    TRACK = Util::Color.new(44, 50, 64)
 
-  def draw_track(renderer, color)
-    renderer.rect(0, 0, TRACK_W, BAR_H, color: TRACK)
-    renderer.rect(0, 0, TRACK_W * (beats.to_f / LAP), BAR_H, color: color)
+    def beats = @beats ||= 0
+
+    def draw_track(renderer, color)
+      renderer.rect(0, 0, TRACK_W, BAR_H, color: TRACK)
+      renderer.rect(0, 0, TRACK_W * (beats.to_f / LAP), BAR_H, color: color)
+    end
+  end
+
+  # Beats on a Components::Timer, which carries the remainder forward.
+  class TrueRunner < Engine::Node2D
+    include Runner
+
+    BAR = Util::Color.new(120, 210, 150)
+    MARK_ON = Util::Color.new(255, 226, 130)
+    MARK_OFF = Util::Color.new(70, 78, 96)
+    MARK = 18
+
+    def initialize(**)
+      super
+      @beats = 0
+      @chimed = false
+    end
+
+    # Two timers, two slots. Without the names the second would be refused, and
+    # `get_component(Components::Timer)` would have no single answer to give.
+    def _enter_tree
+      add_component(Engine::Components::Timer.new(BEAT), as: :beat)
+        .on_elapsed { @beats += 1 }
+      add_component(Engine::Components::Timer.new(CHIME), as: :chime)
+        .on_elapsed { @chimed = !@chimed }
+    end
+
+    # Resetting the lap is this node's business rather than the timer's: the timer
+    # counts time and the owner decides what a count means.
+    def lap? = @beats >= LAP
+
+    def restart = @beats = 0
+
+    def _draw(renderer, _view)
+      draw_track(renderer, BAR)
+      renderer.rect(TRACK_W + 14, 4, MARK, MARK, color: @chimed ? MARK_ON : MARK_OFF)
+    end
+  end
+
+  # The same cadence, written the way it comes out first. It is slower, and the
+  # only reason is the line that throws the overshoot away.
+  class NaiveRunner < Engine::Node2D
+    include Runner
+
+    BAR = Util::Color.new(235, 120, 100)
+    MARK = Util::Color.new(255, 255, 255)
+    MARK_W = 3
+
+    def initialize(**)
+      super
+      @beats = 0
+      @elapsed = 0.0
+      @shortfall = 0
+    end
+
+    def _update(dt)
+      @elapsed += dt
+      return if @elapsed < BEAT
+
+      # Discarding the overshoot is the bug. `@elapsed -= BEAT` here and the two
+      # bars finish level.
+      @elapsed = 0.0
+      @beats += 1
+    end
+
+    # Remembered before it is cleared, because how far this bar had got when the
+    # other one finished *is* the size of the error. The marker lands in the same
+    # place every lap, which is the other half of the point: the gap is a steady
+    # rate, not a one-off stumble.
+    def restart
+      @shortfall = @beats
+      @beats = 0
+      @elapsed = 0.0
+    end
+
+    def _draw(renderer, _view)
+      draw_track(renderer, BAR)
+      return if @shortfall.zero?
+
+      renderer.rect(TRACK_W * (@shortfall.to_f / LAP), 0, MARK_W, BAR_H, color: MARK)
+    end
+  end
+
+  # A banner that takes itself away when its fuse has burnt down. Nothing
+  # removes it from outside.
+  class Fuse < Engine::Node2D
+    BANNER = Util::Color.new(120, 200, 255)
+    INK = Util::Color.new(20, 26, 34)
+    SPARK = Util::Color.new(255, 226, 130)
+    BANNER_W = 260
+    BANNER_H = 30
+    FUSE_H = 4
+
+    def initialize(**)
+      super
+      @label = Engine::Text.new('fuse.banner')
+    end
+
+    def _enter_tree
+      @fuse = add_component(Engine::Components::Tween.new(FUSE, from: BANNER_W, to: 0))
+      @fuse.on_finished { queue_free }
+    end
+
+    def _draw(renderer, _view)
+      renderer.rect(0, 0, BANNER_W, BANNER_H, color: BANNER)
+      renderer.rect(0, BANNER_H, @fuse.value, FUSE_H, color: SPARK)
+      renderer.text(@label, 10, 8, z: 1, color: INK)
+    end
+  end
+
+  class Scene < Engine::Node2D
+    BACKDROP = Util::Color.new(28, 32, 42)
+    FUSE_X = 60
+    FUSE_Y = 370
+
+    def initialize
+      super
+      @help = Engine::Text.new('help.beat')
+      @true_caption = Engine::Text.new('captions.timer')
+      @naive_caption = Engine::Text.new('captions.naive')
+      @mark_caption = Engine::Text.new('captions.mark')
+      @blink_caption = Engine::Text.new('captions.blink')
+      @fuse_caption = Engine::Text.new('captions.fuse')
+    end
+
+    def _enter_tree
+      @truth = add_node(TrueRunner.new(x: TRACK_X, y: 150))
+      @naive = add_node(NaiveRunner.new(x: TRACK_X, y: 210))
+    end
+
+    # The lap is settled here, where both runners are visible, so that neither of
+    # them needs to know the other exists.
+    def _update(_dt)
+      return unless @truth.lap?
+
+      @truth.restart
+      @naive.restart
+    end
+
+    def _control(actions)
+      return unless actions.pressed?(:fire)
+      # One at a time: a second banner would sit exactly on top of the first.
+      return if @fuse&.in_tree?
+
+      @fuse = add_node(Fuse.new(x: FUSE_X, y: FUSE_Y))
+    end
+
+    def _draw(renderer, view)
+      renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
+
+      renderer.text(@help, 12, 12)
+      renderer.text(@true_caption, TRACK_X, 126)
+      renderer.text(@naive_caption, TRACK_X, 244)
+      renderer.text(@mark_caption, TRACK_X, 264)
+      renderer.text(@blink_caption, TRACK_X, 296)
+      renderer.text(@fuse_caption, TRACK_X, 336)
+    end
+  end
+
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Scene.new,
+      caption: 'Timer',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES
+    )
+
+    game.start
   end
 end
 
-# Beats on a Components::Timer, which carries the remainder forward.
-class TrueRunner < RGame::Engine::Node2D
-  include Runner
-
-  BAR = RGame::Util::Color.new(120, 210, 150)
-  MARK_ON = RGame::Util::Color.new(255, 226, 130)
-  MARK_OFF = RGame::Util::Color.new(70, 78, 96)
-  MARK = 18
-
-  def initialize(**)
-    super
-    @beats = 0
-    @chimed = false
-  end
-
-  # Two timers, two slots. Without the names the second would be refused, and
-  # `get_component(Components::Timer)` would have no single answer to give.
-  def _enter_tree
-    add_component(RGame::Engine::Components::Timer.new(BEAT), as: :beat)
-      .on_elapsed { @beats += 1 }
-    add_component(RGame::Engine::Components::Timer.new(CHIME), as: :chime)
-      .on_elapsed { @chimed = !@chimed }
-  end
-
-  # Resetting the lap is this node's business rather than the timer's: the timer
-  # counts time and the owner decides what a count means.
-  def lap? = @beats >= LAP
-
-  def restart = @beats = 0
-
-  def _draw(renderer, _view)
-    draw_track(renderer, BAR)
-    renderer.rect(TRACK_W + 14, 4, MARK, MARK, color: @chimed ? MARK_ON : MARK_OFF)
-  end
-end
-
-# The same cadence, written the way it comes out first. It is slower, and the
-# only reason is the line that throws the overshoot away.
-class NaiveRunner < RGame::Engine::Node2D
-  include Runner
-
-  BAR = RGame::Util::Color.new(235, 120, 100)
-  MARK = RGame::Util::Color.new(255, 255, 255)
-  MARK_W = 3
-
-  def initialize(**)
-    super
-    @beats = 0
-    @elapsed = 0.0
-    @shortfall = 0
-  end
-
-  def _update(dt)
-    @elapsed += dt
-    return if @elapsed < BEAT
-
-    # Discarding the overshoot is the bug. `@elapsed -= BEAT` here and the two
-    # bars finish level.
-    @elapsed = 0.0
-    @beats += 1
-  end
-
-  # Remembered before it is cleared, because how far this bar had got when the
-  # other one finished *is* the size of the error. The marker lands in the same
-  # place every lap, which is the other half of the point: the gap is a steady
-  # rate, not a one-off stumble.
-  def restart
-    @shortfall = @beats
-    @beats = 0
-    @elapsed = 0.0
-  end
-
-  def _draw(renderer, _view)
-    draw_track(renderer, BAR)
-    return if @shortfall.zero?
-
-    renderer.rect(TRACK_W * (@shortfall.to_f / LAP), 0, MARK_W, BAR_H, color: MARK)
-  end
-end
-
-# A banner that takes itself away when its fuse has burnt down. Nothing
-# removes it from outside.
-class Fuse < RGame::Engine::Node2D
-  BANNER = RGame::Util::Color.new(120, 200, 255)
-  INK = RGame::Util::Color.new(20, 26, 34)
-  SPARK = RGame::Util::Color.new(255, 226, 130)
-  BANNER_W = 260
-  BANNER_H = 30
-  FUSE_H = 4
-
-  def initialize(**)
-    super
-    @label = RGame::Engine::Text.new('fuse.banner')
-  end
-
-  def _enter_tree
-    @fuse = add_component(RGame::Engine::Components::Tween.new(FUSE, from: BANNER_W, to: 0))
-    @fuse.on_finished { queue_free }
-  end
-
-  def _draw(renderer, _view)
-    renderer.rect(0, 0, BANNER_W, BANNER_H, color: BANNER)
-    renderer.rect(0, BANNER_H, @fuse.value, FUSE_H, color: SPARK)
-    renderer.text(@label, 10, 8, z: 1, color: INK)
-  end
-end
-
-class Scene < RGame::Engine::Node2D
-  BACKDROP = RGame::Util::Color.new(28, 32, 42)
-  FUSE_X = 60
-  FUSE_Y = 370
-
-  def initialize
-    super
-    @help = RGame::Engine::Text.new('help.beat')
-    @true_caption = RGame::Engine::Text.new('captions.timer')
-    @naive_caption = RGame::Engine::Text.new('captions.naive')
-    @mark_caption = RGame::Engine::Text.new('captions.mark')
-    @blink_caption = RGame::Engine::Text.new('captions.blink')
-    @fuse_caption = RGame::Engine::Text.new('captions.fuse')
-  end
-
-  def _enter_tree
-    @truth = add_node(TrueRunner.new(x: TRACK_X, y: 150))
-    @naive = add_node(NaiveRunner.new(x: TRACK_X, y: 210))
-  end
-
-  # The lap is settled here, where both runners are visible, so that neither of
-  # them needs to know the other exists.
-  def _update(_dt)
-    return unless @truth.lap?
-
-    @truth.restart
-    @naive.restart
-  end
-
-  def _control(actions)
-    return unless actions.pressed?(:fire)
-    # One at a time: a second banner would sit exactly on top of the first.
-    return if @fuse&.in_tree?
-
-    @fuse = add_node(Fuse.new(x: FUSE_X, y: FUSE_Y))
-  end
-
-  def _draw(renderer, view)
-    renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
-
-    renderer.text(@help, 12, 12)
-    renderer.text(@true_caption, TRACK_X, 126)
-    renderer.text(@naive_caption, TRACK_X, 244)
-    renderer.text(@mark_caption, TRACK_X, 264)
-    renderer.text(@blink_caption, TRACK_X, 296)
-    renderer.text(@fuse_caption, TRACK_X, 336)
-  end
-end
-
-game = RGame::Game.new(
-  root: Scene.new,
-  caption: 'Timer',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES
-)
-
-game.start
+TimerExample.start

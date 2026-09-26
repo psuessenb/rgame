@@ -37,6 +37,7 @@ bundle exec rake        # both of the above
 main.rb           boots the game and nothing else
 game.rb           the window, its size, its caption — and the ONLY file that
                   loads SDL and OpenGL
+<%= (module_file + '.rb').ljust(17) %> the game's module, which every other Ruby file requires
 nodes/            the scene tree: game logic, graphics-free
   root.rb         the root node, drawn every frame
 assets/           images, sounds, maps — RGame::Game's media_root
@@ -64,14 +65,25 @@ spy standing in for the renderer, on a machine with no display.
 Keep new game logic under `nodes/`. When something there needs to draw, give it
 an `_draw(renderer, view)` and call the renderer by name.
 
+### The game's module
+
+Every class the game defines lives in `<%= game_module %>`, which
+`<%= module_file %>.rb` defines. Inside it, `Engine` and `Util` stand for
+`RGame::Engine` and `RGame::Util`, so a node writes `Engine::Node2D` rather than
+`RGame::Engine::Node2D`. A new file under `nodes/` starts the way `root.rb` does:
+it requires `<%= module_file %>.rb` and opens `module <%= game_module %>`.
+
+The [rgame API guide](https://github.com/psuessenb/rgame/blob/main/docs/api/README.md#a-games-own-module)
+says why the engine's names are not simply included or put at the top level.
+
 ## Text on screen
 
 Text the game draws lives in `assets/locales/en.yml`, not in the code. A node
-builds an `RGame::Engine::Text` from a key once and draws it every frame:
+builds an `Engine::Text` from a key once and draws it every frame:
 
 ```ruby
-@greeting = RGame::Engine::Text.new('root.greeting')   # in initialize
-renderer.text(@greeting, 20, 20)                       # in _draw
+@greeting = Engine::Text.new('root.greeting')   # in initialize
+renderer.text(@greeting, 20, 20)                # in _draw
 ```
 
 - **To add text,** add a key to `en.yml`.

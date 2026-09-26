@@ -92,256 +92,269 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-Controls = RGame::Util::Controls
-Components = RGame::Engine::Components
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module QuestsAndDialogueExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-WIDTH  = 640
-HEIGHT = 480
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+  Controls = Util::Controls
+  Components = Engine::Components
 
-CELL_SIZE = 64
-WALK_SPEED = 150.0
-TALK_RANGE = 56 # pixels from the hero's centre to the smith's
-START_GOLD = 20
-REWARD = 40
-LANTERN_PRICE = 50
-MARGIN = 20 # between the dialogue box and the window's edges
+  WIDTH  = 640
+  HEIGHT = 480
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-# A square with a collider round its centre, the shape of everything here.
-class Thing < RGame::Engine::Node2D
-  def initialize(size:, layer:, color:, **)
-    super(width: size, height: size, **)
-    @color = color
-    @collider = add_component(Components::BoxCollider.new(width: size, height: size, offset_x: -size / 2,
-                                                          offset_y: -size / 2, layer:))
-  end
+  CELL_SIZE = 64
+  WALK_SPEED = 150.0
+  TALK_RANGE = 56 # pixels from the hero's centre to the smith's
+  START_GOLD = 20
+  REWARD = 40
+  LANTERN_PRICE = 50
+  MARGIN = 20 # between the dialogue box and the window's edges
 
-  attr_reader :collider
-
-  def _draw(renderer, _view) = renderer.rect(-width / 2, -height / 2, width, height, color: @color)
-end
-
-# The one the player walks. Its gold is what the smith's conditions read.
-class Hero < Thing
-  BODY = RGame::Util::Color.new(90, 140, 230)
-  LANTERN = RGame::Util::Color.new(255, 214, 92)
-
-  attr_accessor :gold
-
-  def initialize(**)
-    super(size: 24, layer: :hero, color: BODY, **)
-    @gold = START_GOLD
-    add_component(Components::CharacterBody.new(speed: WALK_SPEED, blocked_by: %i[npc wall]))
-    add_component(Components::PlayerController.new)
-  end
-
-  def _enter_tree = @facts = system(Components::Facts)
-
-  def _update(_dt)
-    self.x = x.clamp(12, WIDTH - 12)
-    self.y = y.clamp(12, HEIGHT - 12)
-  end
-
-  def _draw(renderer, view)
-    super
-    renderer.circle(16, -12, 5, color: LANTERN) if @facts[:lantern]
-  end
-end
-
-# Lies by the well while the quest says it does.
-class Hammer < Thing
-  IRON = RGame::Util::Color.new(70, 70, 80)
-
-  def initialize(**)
-    super(size: 16, layer: :item, color: IRON, **)
-    @on_ground = false
-  end
-
-  def _enter_tree
-    @facts = system(Components::Facts)
-    @watch = @facts.watch(:hammer_on_ground) { |on_ground| @on_ground = on_ground == true }
-  end
-
-  def _exit_tree = @facts.unwatch(@watch)
-
-  def _draw(renderer, view)
-    super if @on_ground
-  end
-end
-
-# The dialogue box, with a square of the speaker's colour as a portrait.
-class PortraitBox < RGame::Engine::UI::DialogueBox
-  PADDING = 12
-  SIZE = 48
-  PORTRAITS = { smith: RGame::Util::Color.new(200, 90, 50),
-                sign: RGame::Util::Color.new(150, 110, 60) }.freeze
-
-  def initialize(**) = super(padding: PADDING, portrait_width: SIZE, **)
-
-  def _draw_portrait(renderer, speaker)
-    renderer.rect(PADDING, PADDING, SIZE, SIZE, color: PORTRAITS.fetch(speaker))
-  end
-end
-
-# The village: the ground, the people and things on it, the quest, and the
-# conversations. It is also the context both conversations ask.
-class Village < RGame::Engine::Node2D
-  GRASS = RGame::Util::Color.new(96, 140, 84)
-  FORGE = RGame::Util::Color.new(110, 100, 96)
-  STONE = RGame::Util::Color.new(150, 150, 160)
-  SMITH_COLOR = RGame::Util::Color.new(200, 90, 50)
-  POST = RGame::Util::Color.new(150, 110, 60)
-  INK = RGame::Util::Color.new(20, 30, 20)
-
-  HAMMER = RGame::Engine::StateGraph.build(start: :not_started) do
-    state(:not_started) { on :accepted, to: :searching, then: ->(m) { m.facts[:hammer_on_ground] = true } }
-    state(:searching) { on :picked_up, to: :carried, then: ->(m) { m.facts[:hammer_on_ground] = false } }
-    state(:carried) { on :returned, to: :done, then: ->(m) { m.context.gold += REWARD } }
-    state :done
-  end
-
-  SMITH = RGame::Engine::Dialogue::Script.build(start: :greeting, scope: 'smith') do
-    beat :greeting, speaker: :smith, line: 'greeting' do
-      respond 'ask_work', to: :work, once: true
-      respond 'hammer', to: :thanks, if: :hammer_in_hand?, then: :hand_over_hammer
-      respond 'buy', to: :sold, if: :can_buy_lantern?, then: :buy_lantern, once: true
-      respond 'bye'
+  # A square with a collider round its centre, the shape of everything here.
+  class Thing < Engine::Node2D
+    def initialize(size:, layer:, color:, **)
+      super(width: size, height: size, **)
+      @color = color
+      @collider = add_component(Components::BoxCollider.new(width: size, height: size, offset_x: -size / 2,
+                                                            offset_y: -size / 2, layer:))
     end
 
-    beat :work, speaker: :smith, line: 'work', to: :greeting, enter: :accept_work
-    beat :thanks, speaker: :smith, line: RGame::Engine::Text.new('smith.thanks', :reward), vars: :reward_vars,
-                  to: :greeting
-    beat :sold, speaker: :smith, line: 'sold', to: :greeting
+    attr_reader :collider
+
+    def _draw(renderer, _view) = renderer.rect(-width / 2, -height / 2, width, height, color: @color)
   end
 
-  SIGN = RGame::Engine::Dialogue::Script.build(start: :read, scope: 'sign') do
-    beat :read, speaker: :sign, line: 'read'
+  # The one the player walks. Its gold is what the smith's conditions read.
+  class Hero < Thing
+    BODY = Util::Color.new(90, 140, 230)
+    LANTERN = Util::Color.new(255, 214, 92)
+
+    attr_accessor :gold
+
+    def initialize(**)
+      super(size: 24, layer: :hero, color: BODY, **)
+      @gold = START_GOLD
+      add_component(Components::CharacterBody.new(speed: WALK_SPEED, blocked_by: %i[npc wall]))
+      add_component(Components::PlayerController.new)
+    end
+
+    def _enter_tree = @facts = system(Components::Facts)
+
+    def _update(_dt)
+      self.x = x.clamp(12, WIDTH - 12)
+      self.y = y.clamp(12, HEIGHT - 12)
+    end
+
+    def _draw(renderer, view)
+      super
+      renderer.circle(16, -12, 5, color: LANTERN) if @facts[:lantern]
+    end
   end
 
-  STAGE = { not_started: RGame::Engine::Text.new('quest.not_started'),
-            searching: RGame::Engine::Text.new('quest.searching'),
-            carried: RGame::Engine::Text.new('quest.carried'),
-            done: RGame::Engine::Text.new('quest.done') }.freeze
+  # Lies by the well while the quest says it does.
+  class Hammer < Thing
+    IRON = Util::Color.new(70, 70, 80)
 
-  STATUS = { ready: RGame::Engine::Text.new('status.ready'),
-             saved: RGame::Engine::Text.new('status.saved'),
-             loaded: RGame::Engine::Text.new('status.loaded'),
-             empty: RGame::Engine::Text.new('status.empty') }.freeze
+    def initialize(**)
+      super(size: 16, layer: :item, color: IRON, **)
+      @on_ground = false
+    end
 
-  def initialize(save:)
-    super()
-    @save = save
-    @collision = add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
-    @gold = RGame::Engine::Text.new('hud.gold', :gold)
-    @help_walk = RGame::Engine::Text.new('help.walk')
-    @help_talk = RGame::Engine::Text.new('help.talk')
-    @help_save = RGame::Engine::Text.new('help.save')
-    @status = :ready
-    @talk = nil
+    def _enter_tree
+      @facts = system(Components::Facts)
+      @watch = @facts.watch(:hammer_on_ground) { |on_ground| @on_ground = on_ground == true }
+    end
+
+    def _exit_tree = @facts.unwatch(@watch)
+
+    def _draw(renderer, view)
+      super if @on_ground
+    end
   end
 
-  def _enter_tree
-    @facts = system(Components::Facts)
-    build_village
-    @hero = add_node(Hero.new(x: 320, y: 400))
-    @quest = RGame::Engine::StateMachine.new(HAMMER, context: @hero, facts: @facts, name: :hammer)
+  # The dialogue box, with a square of the speaker's colour as a portrait.
+  class PortraitBox < Engine::UI::DialogueBox
+    PADDING = 12
+    SIZE = 48
+    PORTRAITS = { smith: Util::Color.new(200, 90, 50),
+                  sign: Util::Color.new(150, 110, 60) }.freeze
+
+    def initialize(**) = super(padding: PADDING, portrait_width: SIZE, **)
+
+    def _draw_portrait(renderer, speaker)
+      renderer.rect(PADDING, PADDING, SIZE, SIZE, color: PORTRAITS.fetch(speaker))
+    end
   end
 
-  def _control(actions)
-    return if @talk
+  # The village: the ground, the people and things on it, the quest, and the
+  # conversations. It is also the context both conversations ask.
+  class Village < Engine::Node2D
+    GRASS = Util::Color.new(96, 140, 84)
+    FORGE = Util::Color.new(110, 100, 96)
+    STONE = Util::Color.new(150, 150, 160)
+    SMITH_COLOR = Util::Color.new(200, 90, 50)
+    POST = Util::Color.new(150, 110, 60)
+    INK = Util::Color.new(20, 30, 20)
 
-    talk_to_smith if actions.pressed?(:ui_confirm) && @collision.nearest(@hero.x, @hero.y, TALK_RANGE, layer: :npc)
-    save_game if actions.pressed?(:save)
-    load_game if actions.pressed?(:load)
-  end
+    HAMMER = Engine::StateGraph.build(start: :not_started) do
+      state(:not_started) { on :accepted, to: :searching, then: ->(m) { m.facts[:hammer_on_ground] = true } }
+      state(:searching) { on :picked_up, to: :carried, then: ->(m) { m.facts[:hammer_on_ground] = false } }
+      state(:carried) { on :returned, to: :done, then: ->(m) { m.context.gold += REWARD } }
+      state :done
+    end
 
-  def _draw(renderer, view)
-    renderer.rect(0, 0, view.width, view.height, color: GRASS)
-    renderer.text(@gold.with(gold: @hero.gold), 12, 12, color: INK)
-    renderer.text(STAGE.fetch(@quest.state), 12, 34, color: INK)
-    renderer.text(STATUS.fetch(@status), 452, 12, color: INK)
-    renderer.text(@help_walk, 12, view.height - 66, color: INK)
-    renderer.text(@help_talk, 12, view.height - 44, color: INK)
-    renderer.text(@help_save, 12, view.height - 22, color: INK)
-  end
+    SMITH = Engine::Dialogue::Script.build(start: :greeting, scope: 'smith') do
+      beat :greeting, speaker: :smith, line: 'greeting' do
+        respond 'ask_work', to: :work, once: true
+        respond 'hammer', to: :thanks, if: :hammer_in_hand?, then: :hand_over_hammer
+        respond 'buy', to: :sold, if: :can_buy_lantern?, then: :buy_lantern, once: true
+        respond 'bye'
+      end
 
-  # What the smith's conversation asks and does. The script names each of
-  # these as a Symbol, and the dialogue sends it here.
+      beat :work, speaker: :smith, line: 'work', to: :greeting, enter: :accept_work
+      beat :thanks, speaker: :smith, line: Engine::Text.new('smith.thanks', :reward), vars: :reward_vars,
+                    to: :greeting
+      beat :sold, speaker: :smith, line: 'sold', to: :greeting
+    end
 
-  def hammer_in_hand? = @quest.state == :carried
-  def hand_over_hammer = @quest.fire(:returned)
-  def accept_work = @quest.fire(:accepted)
-  def can_buy_lantern? = @hero.gold >= LANTERN_PRICE
-  def reward_vars = { reward: REWARD }
+    SIGN = Engine::Dialogue::Script.build(start: :read, scope: 'sign') do
+      beat :read, speaker: :sign, line: 'read'
+    end
 
-  def buy_lantern
-    @hero.gold -= LANTERN_PRICE
-    @facts[:lantern] = true
-  end
+    STAGE = { not_started: Engine::Text.new('quest.not_started'),
+              searching: Engine::Text.new('quest.searching'),
+              carried: Engine::Text.new('quest.carried'),
+              done: Engine::Text.new('quest.done') }.freeze
 
-  private
+    STATUS = { ready: Engine::Text.new('status.ready'),
+               saved: Engine::Text.new('status.saved'),
+               loaded: Engine::Text.new('status.loaded'),
+               empty: Engine::Text.new('status.empty') }.freeze
 
-  def build_village
-    add_node(Thing.new(size: 80, layer: :wall, color: FORGE, x: 320, y: 80))
-    add_node(Thing.new(size: 40, layer: :wall, color: STONE, x: 530, y: 250))
-    add_node(Thing.new(size: 24, layer: :npc, color: SMITH_COLOR, x: 320, y: 150))
-    post = add_node(Thing.new(size: 20, layer: :sign, color: POST, x: 110, y: 310))
-    post.collider.on_hit { |other| read_sign if other.layer == :hero }
-    hammer = add_node(Hammer.new(x: 530, y: 310))
-    hammer.collider.on_hit { |other| @quest.fire(:picked_up) if other.layer == :hero }
-  end
-
-  def talk_to_smith
-    converse(RGame::Engine::Dialogue.new(SMITH, context: self, facts: @facts, name: :smith))
-  end
-
-  def read_sign
-    converse(RGame::Engine::Dialogue.new(SIGN)) unless @talk
-  end
-
-  def converse(dialogue)
-    @talk = dialogue
-    @hero.paused = true
-    dialogue.on_ended do
+    def initialize(save:)
+      super()
+      @save = save
+      @collision = add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
+      @gold = Engine::Text.new('hud.gold', :gold)
+      @help_walk = Engine::Text.new('help.walk')
+      @help_talk = Engine::Text.new('help.talk')
+      @help_save = Engine::Text.new('help.save')
+      @status = :ready
       @talk = nil
-      @hero.paused = false
     end
-    box = add_node(PortraitBox.new(dialogue:, unavailable: :hide, width: WIDTH - (2 * MARGIN), x: MARGIN, log: :log))
-    box.y = HEIGHT - box.height - MARGIN
+
+    def _enter_tree
+      @facts = system(Components::Facts)
+      build_village
+      @hero = add_node(Hero.new(x: 320, y: 400))
+      @quest = Engine::StateMachine.new(HAMMER, context: @hero, facts: @facts, name: :hammer)
+    end
+
+    def _control(actions)
+      return if @talk
+
+      talk_to_smith if actions.pressed?(:ui_confirm) && @collision.nearest(@hero.x, @hero.y, TALK_RANGE, layer: :npc)
+      save_game if actions.pressed?(:save)
+      load_game if actions.pressed?(:load)
+    end
+
+    def _draw(renderer, view)
+      renderer.rect(0, 0, view.width, view.height, color: GRASS)
+      renderer.text(@gold.with(gold: @hero.gold), 12, 12, color: INK)
+      renderer.text(STAGE.fetch(@quest.state), 12, 34, color: INK)
+      renderer.text(STATUS.fetch(@status), 452, 12, color: INK)
+      renderer.text(@help_walk, 12, view.height - 66, color: INK)
+      renderer.text(@help_talk, 12, view.height - 44, color: INK)
+      renderer.text(@help_save, 12, view.height - 22, color: INK)
+    end
+
+    # What the smith's conversation asks and does. The script names each of
+    # these as a Symbol, and the dialogue sends it here.
+
+    def hammer_in_hand? = @quest.state == :carried
+    def hand_over_hammer = @quest.fire(:returned)
+    def accept_work = @quest.fire(:accepted)
+    def can_buy_lantern? = @hero.gold >= LANTERN_PRICE
+    def reward_vars = { reward: REWARD }
+
+    def buy_lantern
+      @hero.gold -= LANTERN_PRICE
+      @facts[:lantern] = true
+    end
+
+    private
+
+    def build_village
+      add_node(Thing.new(size: 80, layer: :wall, color: FORGE, x: 320, y: 80))
+      add_node(Thing.new(size: 40, layer: :wall, color: STONE, x: 530, y: 250))
+      add_node(Thing.new(size: 24, layer: :npc, color: SMITH_COLOR, x: 320, y: 150))
+      post = add_node(Thing.new(size: 20, layer: :sign, color: POST, x: 110, y: 310))
+      post.collider.on_hit { |other| read_sign if other.layer == :hero }
+      hammer = add_node(Hammer.new(x: 530, y: 310))
+      hammer.collider.on_hit { |other| @quest.fire(:picked_up) if other.layer == :hero }
+    end
+
+    def talk_to_smith
+      converse(Engine::Dialogue.new(SMITH, context: self, facts: @facts, name: :smith))
+    end
+
+    def read_sign
+      converse(Engine::Dialogue.new(SIGN)) unless @talk
+    end
+
+    def converse(dialogue)
+      @talk = dialogue
+      @hero.paused = true
+      dialogue.on_ended do
+        @talk = nil
+        @hero.paused = false
+      end
+      box = add_node(PortraitBox.new(dialogue:, unavailable: :hide, width: WIDTH - (2 * MARGIN), x: MARGIN, log: :log))
+      box.y = HEIGHT - box.height - MARGIN
+    end
+
+    def save_game
+      @save.write(world: @facts.to_h, gold: @hero.gold, hero: [@hero.x, @hero.y])
+      @status = :saved
+    end
+
+    def load_game
+      saved = @save.read
+      return @status = :empty if saved.empty?
+
+      @facts.restore(saved[:world])
+      @hero.gold = saved.fetch(:gold)
+      @hero.x, @hero.y = saved.fetch(:hero)
+      @status = :loaded
+    end
   end
 
-  def save_game
-    @save.write(world: @facts.to_h, gold: @hero.gold, hero: [@hero.x, @hero.y])
-    @status = :saved
-  end
+  # Builds the game and runs it until the window closes.
+  def self.start
+    save = Util::SaveFile.new('village.json', game: 'rgame-examples', dir: ENV.fetch('RGAME_SAVE_DIR', nil))
 
-  def load_game
-    saved = @save.read
-    return @status = :empty if saved.empty?
+    game = RGame::Game.new(
+      root: Village.new(save:),
+      caption: 'Quests and dialogue',
+      width: WIDTH,
+      height: HEIGHT,
+      locales: LOCALES,
+      # L and F5/F9 are free in the default map. The arrows are not: they walk the
+      # hero and move a menu's focus both, which is why the hero pauses while a
+      # conversation runs.
+      input_map: Engine::InputMap.default.merge(
+        log: { buttons: [Controls::KEY_L, Controls::PAD_Y] },
+        save: { buttons: [Controls::KEY_F5] },
+        load: { buttons: [Controls::KEY_F9] }
+      )
+    )
 
-    @facts.restore(saved[:world])
-    @hero.gold = saved.fetch(:gold)
-    @hero.x, @hero.y = saved.fetch(:hero)
-    @status = :loaded
+    game.start
   end
 end
 
-save = RGame::Util::SaveFile.new('village.json', game: 'rgame-examples', dir: ENV.fetch('RGAME_SAVE_DIR', nil))
-
-game = RGame::Game.new(
-  root: Village.new(save:),
-  caption: 'Quests and dialogue',
-  width: WIDTH,
-  height: HEIGHT,
-  locales: LOCALES,
-  # L and F5/F9 are free in the default map. The arrows are not: they walk the
-  # hero and move a menu's focus both, which is why the hero pauses while a
-  # conversation runs.
-  input_map: RGame::Engine::InputMap.default.merge(
-    log: { buttons: [Controls::KEY_L, Controls::PAD_Y] },
-    save: { buttons: [Controls::KEY_F5] },
-    load: { buttons: [Controls::KEY_F9] }
-  )
-)
-
-game.start
+QuestsAndDialogueExample.start

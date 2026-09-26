@@ -38,12 +38,14 @@ Naming/MethodParameterName:
 Lint/AmbiguousOperatorPrecedence:
   Enabled: false
 
-# nodes/ and spec/ run with no window, and only game.rb loads one. This keeps it
-# so: naming RGame::Core, or requiring rgame/core or rgame/game, fails the lint
-# rather than the spec run on a machine without a display.
+# <%= module_file %>.rb, nodes/ and spec/ run with no window, and only game.rb
+# loads one. This keeps it so: naming RGame::Core, or requiring rgame/core or
+# rgame/game, fails the lint rather than the spec run on a machine without a
+# display.
 Game/NoCoreInEngineLayer:
   Enabled: true
   Include:
+    - '<%= module_file %>.rb'
     - 'nodes/**/*.rb'
     - 'spec/**/*.rb'
 
@@ -64,10 +66,13 @@ RSpec/MultipleExpectations:
 RSpec/VerifiedDoubles:
   Enabled: false
 
-# Spec paths mirror the source tree, and a class with a trailing dimension maps
-# to node2d_spec.rb rather than the cop's default node2_d_spec.rb.
+# Spec paths mirror the source tree. The game's classes live in nodes/, so a
+# spec of <%= game_module %>::Root is spec/nodes/root_spec.rb, and a class with a
+# trailing dimension maps to node2d_spec.rb rather than the cop's default
+# node2_d_spec.rb.
 RSpec/SpecFilePathFormat:
   CustomTransform:
+    <%= game_module %>: nodes
     Node2D: node2d
   # It checks the tables in assets/locales/, and describes I18n only because
   # that is what it asks, so there is no source file for its path to mirror.

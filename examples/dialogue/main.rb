@@ -52,81 +52,94 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module DialogueExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-MARGIN = 20 # between the box and the window's edges
+  WIDTH  = 640
+  HEIGHT = 480
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-# The conversation, from the first line to the last.
-INN = RGame::Engine::Dialogue::Script.build(start: :greeting, scope: 'inn') do
-  beat :greeting, speaker: :keeper, line: 'greeting', to: :hub
+  MARGIN = 20 # between the box and the window's edges
 
-  beat :hub, speaker: :keeper, line: 'hub' do
-    respond 'ask_room', to: :room
-    respond 'ask_road', to: :road
-    respond 'ask_news', to: :news
-    respond 'leave', to: :farewell
+  # The conversation, from the first line to the last.
+  INN = Engine::Dialogue::Script.build(start: :greeting, scope: 'inn') do
+    beat :greeting, speaker: :keeper, line: 'greeting', to: :hub
+
+    beat :hub, speaker: :keeper, line: 'hub' do
+      respond 'ask_room', to: :room
+      respond 'ask_road', to: :road
+      respond 'ask_news', to: :news
+      respond 'leave', to: :farewell
+    end
+
+    beat :room, speaker: :keeper, line: 'room', to: :hub
+    beat :road, speaker: :keeper, line: 'road', to: :hub
+
+    beat :news, speaker: :keeper, line: 'news' do
+      respond 'news_more', to: :wolves
+      respond 'news_enough', to: :hub
+    end
+    beat :wolves, speaker: :keeper, line: 'wolves', to: :hub
+
+    beat :farewell, speaker: :keeper, line: 'farewell'
   end
 
-  beat :room, speaker: :keeper, line: 'room', to: :hub
-  beat :road, speaker: :keeper, line: 'road', to: :hub
+  # A black screen with a prompt, and a dialogue box while a conversation runs.
+  class Inn < Engine::Node2D
+    BLACK = Util::Color.new(0, 0, 0)
+    PROMPT_COLOR = Util::Color.new(200, 196, 208)
 
-  beat :news, speaker: :keeper, line: 'news' do
-    respond 'news_more', to: :wolves
-    respond 'news_enough', to: :hub
+    def initialize
+      super
+      @prompt = Engine::Text.new('prompt.begin')
+      @talk = nil
+    end
+
+    def _control(actions)
+      return if @talk || !actions.pressed?(:ui_confirm)
+
+      begin_dialogue
+    end
+
+    def _draw(renderer, view)
+      renderer.rect(0, 0, view.width, view.height, color: BLACK)
+      return if @talk
+
+      renderer.text(@prompt, (view.width - renderer.text_width(@prompt)) / 2, view.height / 2, color: PROMPT_COLOR)
+    end
+
+    private
+
+    # The Enter that began it is still held when the box arrives. The box's menu
+    # takes no Enter until it has seen Enter let go, so the first line types out
+    # rather than being skipped. The Enter that ends it cannot begin the next
+    # one either: this node reads its input before the box does, so it has
+    # already looked at that tick when `on_ended` clears `@talk`.
+    def begin_dialogue
+      @talk = Engine::Dialogue.new(INN)
+      @talk.on_ended { @talk = nil }
+      box = add_node(Engine::UI::DialogueBox.new(dialogue: @talk, unavailable: :hide,
+                                                 width: WIDTH - (2 * MARGIN), x: MARGIN))
+      box.y = HEIGHT - box.height - MARGIN
+    end
   end
-  beat :wolves, speaker: :keeper, line: 'wolves', to: :hub
 
-  beat :farewell, speaker: :keeper, line: 'farewell'
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Inn.new,
+      caption: 'Dialogue',
+      width: WIDTH,
+      height: HEIGHT,
+      locales: LOCALES
+    )
+
+    game.start
+  end
 end
 
-# A black screen with a prompt, and a dialogue box while a conversation runs.
-class Inn < RGame::Engine::Node2D
-  BLACK = RGame::Util::Color.new(0, 0, 0)
-  PROMPT_COLOR = RGame::Util::Color.new(200, 196, 208)
-
-  def initialize
-    super
-    @prompt = RGame::Engine::Text.new('prompt.begin')
-    @talk = nil
-  end
-
-  def _control(actions)
-    return if @talk || !actions.pressed?(:ui_confirm)
-
-    begin_dialogue
-  end
-
-  def _draw(renderer, view)
-    renderer.rect(0, 0, view.width, view.height, color: BLACK)
-    return if @talk
-
-    renderer.text(@prompt, (view.width - renderer.text_width(@prompt)) / 2, view.height / 2, color: PROMPT_COLOR)
-  end
-
-  private
-
-  # The Enter that began it is still held when the box arrives. The box's menu
-  # takes no Enter until it has seen Enter let go, so the first line types out
-  # rather than being skipped. The Enter that ends it cannot begin the next
-  # one either: this node reads its input before the box does, so it has
-  # already looked at that tick when `on_ended` clears `@talk`.
-  def begin_dialogue
-    @talk = RGame::Engine::Dialogue.new(INN)
-    @talk.on_ended { @talk = nil }
-    box = add_node(RGame::Engine::UI::DialogueBox.new(dialogue: @talk, unavailable: :hide,
-                                                      width: WIDTH - (2 * MARGIN), x: MARGIN))
-    box.y = HEIGHT - box.height - MARGIN
-  end
-end
-
-game = RGame::Game.new(
-  root: Inn.new,
-  caption: 'Dialogue',
-  width: WIDTH,
-  height: HEIGHT,
-  locales: LOCALES
-)
-
-game.start
+DialogueExample.start

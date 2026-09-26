@@ -116,201 +116,214 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module CollisionExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-# The broadphase cell, and the grid drawn on the backdrop. Everything bucketed
-# here is 32 to 96 pixels across, so the cell is one of those.
-CELL_SIZE = 64
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-WALK_SPEED = 150.0
+  # The broadphase cell, and the grid drawn on the backdrop. Everything bucketed
+  # here is 32 to 96 pixels across, so the cell is one of those.
+  CELL_SIZE = 64
 
-# How long a crate stays lit after a circle arrives. Long enough to see at a
-# glance, short enough that two arrivals read as two.
-FLASH_TIME = 0.3
+  WALK_SPEED = 150.0
 
-# A round thing that lights up while it is inside a crate. Its two subclasses
-# differ only in what moves them — the shape, the layer and the rule are the same
-# for both.
-#
-# `@touching` is the balanced pair of edges, kept as a count rather than a flag
-# because a circle can be inside two crates at once: the two in the middle of the
-# field overlap, and driving into the pair is two `on_hit` calls before either
-# `on_separated` arrives. A flag would go dark on leaving the first of them.
-class Mover < RGame::Engine::Node2D
-  RADIUS = 16
-  BODY  = RGame::Util::Color.new(236, 233, 220)
-  HIT   = RGame::Util::Color.new(255, 214, 92)
-  SPOKE = RGame::Util::Color.new(60, 66, 82)
+  # How long a crate stays lit after a circle arrives. Long enough to see at a
+  # glance, short enough that two arrivals read as two.
+  FLASH_TIME = 0.3
 
-  def initialize(**)
-    super(width: RADIUS * 2, height: RADIUS * 2, **)
-    @touching = 0
-    collider = add_component(RGame::Engine::Components::CircleCollider.new(radius: RADIUS, layer: :mover))
-    # Both edges are reported to both colliders, each handed the other, so this is
-    # written entirely from this node's side. The guard is the example's subject:
-    # same-layer pairs are reported and these lines drop them. It has to be the
-    # same guard on both, or the count would not come back to zero.
-    collider.on_hit { |other| @touching += 1 unless other.layer == :mover }
-    collider.on_separated { |other| @touching -= 1 unless other.layer == :mover }
-  end
-
-  # The centre is where the traversal has already put the renderer, and the
-  # circle's collision centre is the node's origin — the same point.
-  def _draw(renderer, _view)
-    renderer.circle(0, 0, RADIUS, color: @touching.positive? ? HIT : BODY)
-    # Drawn at the node's own angle, which is what makes the spin visible at all:
-    # a spinning circle looks like a still one without a mark on it.
-    renderer.line(0, 0, RADIUS, 0, thickness: 3, color: SPOKE)
-  end
-end
-
-# Moves because it was given a velocity, and for no other reason.
-class Drifter < Mover
-  def initialize(vx:, vy:, spin: 0.0, **)
-    super(**)
-    add_component(RGame::Engine::Components::Velocity.new(vx: vx, vy: vy, spin: spin))
-    add_component(RGame::Engine::Components::ScreenWrap.new(margin: RADIUS))
-  end
-end
-
-# The one with a hand on it. Same shape, same layer, same rule.
-class Walker < Mover
-  def initialize(**)
-    super
-    add_component(RGame::Engine::Components::CharacterBody.new(speed: WALK_SPEED))
-    add_component(RGame::Engine::Components::PlayerController.new)
-    add_component(RGame::Engine::Components::ScreenWrap.new(margin: RADIUS))
-  end
-end
-
-# A rectangle that never moves and counts the circles that have arrived.
-#
-# Two of them overlap on purpose, in the middle of the field. That pair is in
-# contact from the first step to the last, the system reports it exactly once,
-# and neither counter moves — which is the same one-line rule `Mover` uses, seen
-# from the other side.
-#
-# A visit is one circle arriving, and it is counted by adding one in the handler,
-# because `on_hit` is the arrival rather than the overlap. Two circles standing
-# in this crate at once is two visits: the edges are per pair, so each of them
-# announced itself.
-class Crate < RGame::Engine::Node2D
-  BODY = RGame::Util::Color.new(88, 104, 136)
-  HIT  = RGame::Util::Color.new(150, 196, 255)
-  INK  = RGame::Util::Color.new(180, 190, 210)
-
-  def initialize(width:, height:, **)
-    super
-    @flash = 0.0
-    @touches = 0
-    @label = RGame::Engine::Text.new('hud.visits', :count)
-    # The box is offset to sit around the node's origin, which is where a circle's
-    # centre already is — so both shapes here are drawn and collide about the
-    # same point. A sprite that wants a small box at its feet moves the offset
-    # instead; nothing says the box has to be centred.
-    collider = add_component(RGame::Engine::Components::BoxCollider.new(
-                               width: width, height: height,
-                               offset_x: -width / 2, offset_y: -height / 2, layer: :wall
-                             ))
-    collider.on_hit do |other|
-      next if other.layer == :wall
-
-      @touches += 1
-      @flash = FLASH_TIME
-    end
-  end
-
-  # Only the flash, which is a cosmetic timer and the one thing here that has to
-  # be advanced rather than announced. The counter is not touched: it moves on the
-  # edge, in the handler above.
-  def _update(dt) = @flash -= dt
-
-  def _draw(renderer, _view)
-    renderer.rect(-width / 2, -height / 2, width, height, color: @flash.positive? ? HIT : BODY)
-    renderer.text(@label.with(count: @touches), -width / 2, (-height / 2) - 22, color: INK)
-  end
-end
-
-class Scene < RGame::Engine::Node2D
-  BACKDROP = RGame::Util::Color.new(26, 30, 38)
-  GRID     = RGame::Util::Color.new(38, 44, 56)
-
-  # Centre x, centre y, width, height. The first two overlap.
-  CRATES = [
-    [300, 200, 96, 40],
-    [336, 244, 40, 96],
-    [520, 140, 72, 56],
-    [150, 340, 64, 64]
-  ].freeze
-
-  # Centre x, centre y, vx, vy, spin in degrees per second. Fixed rather than
-  # random, so two runs of this example can be compared without a seed.
-  DRIFTERS = [
-    [40, 200, 120.0, 0.0, 90.0],
-    [600, 140, -95.0, 0.0, -140.0],
-    [150, 104, 0.0, 105.0, 0.0]
-  ].freeze
-
-  # Both systems are mounted here rather than in `_enter_tree`, so they exist before
-  # any child's collider attaches and goes looking for them.
-  def initialize
-    super
-    @help_walk = RGame::Engine::Text.new('help.walk')
-    @help_crate = RGame::Engine::Text.new('help.crate')
-    @help_circles = RGame::Engine::Text.new('help.circles')
-    add_component(RGame::Engine::Components::World.new(width: WIDTH, height: HEIGHT))
-    add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
-  end
-
-  def _enter_tree
-    CRATES.each { |x, y, w, h| add_node(Crate.new(x: x, y: y, width: w, height: h)) }
-    DRIFTERS.each do |x, y, vx, vy, spin|
-      add_node(Drifter.new(x: x, y: y, vx: vx, vy: vy, spin: spin))
-    end
-    add_node(Walker.new(x: 80, y: 430))
-  end
-
-  def _draw(renderer, view)
-    renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
-    draw_cells(renderer, view)
-
-    renderer.text(@help_walk, 12, 12)
-    renderer.text(@help_crate, 12, 34)
-    renderer.text(@help_circles, 12, 56)
-  end
-
-  private
-
-  # The broadphase's own lattice, so `cell_size` is something you can look at.
-  # A while loop rather than a Range: this runs every frame, and a fresh Range
-  # every frame is the allocation the hot-path cops exist to refuse.
+  # A round thing that lights up while it is inside a crate. Its two subclasses
+  # differ only in what moves them — the shape, the layer and the rule are the same
+  # for both.
   #
-  # hot-path
-  def draw_cells(renderer, view)
-    x = CELL_SIZE
-    while x < view.width
-      renderer.rect(x, 0, 1, view.height, color: GRID)
-      x += CELL_SIZE
+  # `@touching` is the balanced pair of edges, kept as a count rather than a flag
+  # because a circle can be inside two crates at once: the two in the middle of the
+  # field overlap, and driving into the pair is two `on_hit` calls before either
+  # `on_separated` arrives. A flag would go dark on leaving the first of them.
+  class Mover < Engine::Node2D
+    RADIUS = 16
+    BODY  = Util::Color.new(236, 233, 220)
+    HIT   = Util::Color.new(255, 214, 92)
+    SPOKE = Util::Color.new(60, 66, 82)
+
+    def initialize(**)
+      super(width: RADIUS * 2, height: RADIUS * 2, **)
+      @touching = 0
+      collider = add_component(Engine::Components::CircleCollider.new(radius: RADIUS, layer: :mover))
+      # Both edges are reported to both colliders, each handed the other, so this is
+      # written entirely from this node's side. The guard is the example's subject:
+      # same-layer pairs are reported and these lines drop them. It has to be the
+      # same guard on both, or the count would not come back to zero.
+      collider.on_hit { |other| @touching += 1 unless other.layer == :mover }
+      collider.on_separated { |other| @touching -= 1 unless other.layer == :mover }
     end
 
-    y = CELL_SIZE
-    while y < view.height
-      renderer.rect(0, y, view.width, 1, color: GRID)
-      y += CELL_SIZE
+    # The centre is where the traversal has already put the renderer, and the
+    # circle's collision centre is the node's origin — the same point.
+    def _draw(renderer, _view)
+      renderer.circle(0, 0, RADIUS, color: @touching.positive? ? HIT : BODY)
+      # Drawn at the node's own angle, which is what makes the spin visible at all:
+      # a spinning circle looks like a still one without a mark on it.
+      renderer.line(0, 0, RADIUS, 0, thickness: 3, color: SPOKE)
     end
+  end
+
+  # Moves because it was given a velocity, and for no other reason.
+  class Drifter < Mover
+    def initialize(vx:, vy:, spin: 0.0, **)
+      super(**)
+      add_component(Engine::Components::Velocity.new(vx: vx, vy: vy, spin: spin))
+      add_component(Engine::Components::ScreenWrap.new(margin: RADIUS))
+    end
+  end
+
+  # The one with a hand on it. Same shape, same layer, same rule.
+  class Walker < Mover
+    def initialize(**)
+      super
+      add_component(Engine::Components::CharacterBody.new(speed: WALK_SPEED))
+      add_component(Engine::Components::PlayerController.new)
+      add_component(Engine::Components::ScreenWrap.new(margin: RADIUS))
+    end
+  end
+
+  # A rectangle that never moves and counts the circles that have arrived.
+  #
+  # Two of them overlap on purpose, in the middle of the field. That pair is in
+  # contact from the first step to the last, the system reports it exactly once,
+  # and neither counter moves — which is the same one-line rule `Mover` uses, seen
+  # from the other side.
+  #
+  # A visit is one circle arriving, and it is counted by adding one in the handler,
+  # because `on_hit` is the arrival rather than the overlap. Two circles standing
+  # in this crate at once is two visits: the edges are per pair, so each of them
+  # announced itself.
+  class Crate < Engine::Node2D
+    BODY = Util::Color.new(88, 104, 136)
+    HIT  = Util::Color.new(150, 196, 255)
+    INK  = Util::Color.new(180, 190, 210)
+
+    def initialize(width:, height:, **)
+      super
+      @flash = 0.0
+      @touches = 0
+      @label = Engine::Text.new('hud.visits', :count)
+      # The box is offset to sit around the node's origin, which is where a circle's
+      # centre already is — so both shapes here are drawn and collide about the
+      # same point. A sprite that wants a small box at its feet moves the offset
+      # instead; nothing says the box has to be centred.
+      collider = add_component(Engine::Components::BoxCollider.new(
+                                 width: width, height: height,
+                                 offset_x: -width / 2, offset_y: -height / 2, layer: :wall
+                               ))
+      collider.on_hit do |other|
+        next if other.layer == :wall
+
+        @touches += 1
+        @flash = FLASH_TIME
+      end
+    end
+
+    # Only the flash, which is a cosmetic timer and the one thing here that has to
+    # be advanced rather than announced. The counter is not touched: it moves on the
+    # edge, in the handler above.
+    def _update(dt) = @flash -= dt
+
+    def _draw(renderer, _view)
+      renderer.rect(-width / 2, -height / 2, width, height, color: @flash.positive? ? HIT : BODY)
+      renderer.text(@label.with(count: @touches), -width / 2, (-height / 2) - 22, color: INK)
+    end
+  end
+
+  class Scene < Engine::Node2D
+    BACKDROP = Util::Color.new(26, 30, 38)
+    GRID     = Util::Color.new(38, 44, 56)
+
+    # Centre x, centre y, width, height. The first two overlap.
+    CRATES = [
+      [300, 200, 96, 40],
+      [336, 244, 40, 96],
+      [520, 140, 72, 56],
+      [150, 340, 64, 64]
+    ].freeze
+
+    # Centre x, centre y, vx, vy, spin in degrees per second. Fixed rather than
+    # random, so two runs of this example can be compared without a seed.
+    DRIFTERS = [
+      [40, 200, 120.0, 0.0, 90.0],
+      [600, 140, -95.0, 0.0, -140.0],
+      [150, 104, 0.0, 105.0, 0.0]
+    ].freeze
+
+    # Both systems are mounted here rather than in `_enter_tree`, so they exist before
+    # any child's collider attaches and goes looking for them.
+    def initialize
+      super
+      @help_walk = Engine::Text.new('help.walk')
+      @help_crate = Engine::Text.new('help.crate')
+      @help_circles = Engine::Text.new('help.circles')
+      add_component(Engine::Components::World.new(width: WIDTH, height: HEIGHT))
+      add_component(Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
+    end
+
+    def _enter_tree
+      CRATES.each { |x, y, w, h| add_node(Crate.new(x: x, y: y, width: w, height: h)) }
+      DRIFTERS.each do |x, y, vx, vy, spin|
+        add_node(Drifter.new(x: x, y: y, vx: vx, vy: vy, spin: spin))
+      end
+      add_node(Walker.new(x: 80, y: 430))
+    end
+
+    def _draw(renderer, view)
+      renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
+      draw_cells(renderer, view)
+
+      renderer.text(@help_walk, 12, 12)
+      renderer.text(@help_crate, 12, 34)
+      renderer.text(@help_circles, 12, 56)
+    end
+
+    private
+
+    # The broadphase's own lattice, so `cell_size` is something you can look at.
+    # A while loop rather than a Range: this runs every frame, and a fresh Range
+    # every frame is the allocation the hot-path cops exist to refuse.
+    #
+    # hot-path
+    def draw_cells(renderer, view)
+      x = CELL_SIZE
+      while x < view.width
+        renderer.rect(x, 0, 1, view.height, color: GRID)
+        x += CELL_SIZE
+      end
+
+      y = CELL_SIZE
+      while y < view.height
+        renderer.rect(0, y, view.width, 1, color: GRID)
+        y += CELL_SIZE
+      end
+    end
+  end
+
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Scene.new,
+      caption: 'Collision',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES
+    )
+
+    game.start
   end
 end
 
-game = RGame::Game.new(
-  root: Scene.new,
-  caption: 'Collision',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES
-)
-
-game.start
+CollisionExample.start

@@ -33,114 +33,127 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module ScrollMapExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-MAP   = 'town.tmx'
-SPEED = 220.0 # px/s — a camera pans faster than a character walks
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-# The node the camera follows: no sprite, no collision, just a position that
-# input moves and a camera that trails it.
-#
-# It draws a crosshair so the centre of the view is visible, which is the only
-# reason it is a class rather than a bare Node2D with three components on it.
-class Rig < RGame::Engine::Node2D
-  ARM = 7
-  # A Color rather than an array literal, and a constant rather than either: a
-  # drawing call coerces `nil`, `[r, g, b]` or a Color, and building the array
-  # inline would allocate one every frame. RGame::Util::Color is a value type —
-  # frozen, comparable, and safe to share.
-  TINT = RGame::Util::Color.new(250, 250, 255)
+  MAP   = 'town.tmx'
+  SPEED = 220.0 # px/s — a camera pans faster than a character walks
 
-  def initialize(world_width:, world_height:, **)
-    super(**)
-    @world_width = world_width
-    @world_height = world_height
+  # The node the camera follows: no sprite, no collision, just a position that
+  # input moves and a camera that trails it.
+  #
+  # It draws a crosshair so the centre of the view is visible, which is the only
+  # reason it is a class rather than a bare Node2D with three components on it.
+  class Rig < Engine::Node2D
+    ARM = 7
+    # A Color rather than an array literal, and a constant rather than either: a
+    # drawing call coerces `nil`, `[r, g, b]` or a Color, and building the array
+    # inline would allocate one every frame. Util::Color is a value type —
+    # frozen, comparable, and safe to share.
+    TINT = Util::Color.new(250, 250, 255)
+
+    def initialize(world_width:, world_height:, **)
+      super(**)
+      @world_width = world_width
+      @world_height = world_height
+    end
+
+    # Keep the rig on the map. The camera already refuses to show past the world's
+    # edges, but the rig is not the camera: without this it walks off into
+    # nothing, the view stays pinned to the edge, and the player is left pushing a
+    # key that does nothing visible. Clamping both to the same bounds keeps the
+    # crosshair and the view agreeing.
+    def _update(_dt)
+      self.x = x.clamp(0, @world_width)
+      self.y = y.clamp(0, @world_height)
+    end
+
+    # (0, 0) is this node: Node2D#draw has already pushed its transform, and the
+    # WorldView above has already applied the camera. Reading `x` or `world_x`
+    # here would apply one of those a second time.
+    def _draw(renderer, _view)
+      renderer.line(-ARM, 0, ARM, 0, color: TINT)
+      renderer.line(0, -ARM, 0, ARM, color: TINT)
+    end
   end
 
-  # Keep the rig on the map. The camera already refuses to show past the world's
-  # edges, but the rig is not the camera: without this it walks off into
-  # nothing, the view stays pinned to the edge, and the player is left pushing a
-  # key that does nothing visible. Clamping both to the same bounds keeps the
-  # crosshair and the view agreeing.
-  def _update(_dt)
-    self.x = x.clamp(0, @world_width)
-    self.y = y.clamp(0, @world_height)
+  # The scene: mount the map, mount the world, put the rig in it.
+  #
+  # It draws the help line itself, so it sits in the `:overlay` band, once across
+  # the window over everything else. In the default `:world` band the map, which
+  # draws after it, would cover them. The WorldView below it declares `:world` for
+  # its own subtree, so nothing in the world moves band.
+  class Scene < Engine::Node2D
+    def initialize
+      super(band: :overlay)
+      @help = Engine::Text.new('help.scroll')
+    end
+
+    def _enter_tree
+      # `.tilemap` is a loader RGame::Game installs, because building one needs
+      # both layers at once: Engine::TileMap reads the .tmx, and the renderer that
+      # draws it is Core. What comes back holds both; `.map` is the grid half.
+      map = root.context.assets.tilemap(MAP).map
+      players = root.system(Engine::Players)
+
+      # The system every actor asks about the world: how big it is, what is solid.
+      # Handing it the cameras is what bounds them — a camera left unbounded
+      # follows its target exactly and will happily show the void past the edge.
+      add_component(Engine::Components::TileWorld.new(
+                      map: map, tilemap_id: MAP, cameras: players.map(&:camera)
+                    ))
+
+      # World space begins here. Everything under it is drawn in world
+      # coordinates, once per viewport, through that viewport's camera.
+      view = add_node(Engine::WorldView.new)
+      # One node per Tiled layer. The :actors slot sits between the
+      # ground layers and any layer Tiled flags `above`, which is where things
+      # that walk around go — the rig included, so a canopy layer would pass over
+      # it without this file choosing a single z.
+      actors = Engine::TileMapLayer.mount(view)[:actors]
+      actors.add_node(build_rig(map, players.primary.camera))
+    end
+
+    def _draw(renderer, _view)
+      # Outside the WorldView, so this is screen space: it stays put while the
+      # world scrolls under it.
+      renderer.text(@help, 12, 12)
+    end
+
+    private
+
+    def build_rig(map, camera)
+      rig = Rig.new(x: map.pixel_width / 2.0, y: map.pixel_height / 2.0,
+                    world_width: map.pixel_width, world_height: map.pixel_height)
+      rig.add_component(Engine::Components::CharacterBody.new(speed: SPEED))
+      rig.add_component(Engine::Components::PlayerController.new)
+      rig.add_component(Engine::Components::CameraFollow.new(camera: camera))
+      rig
+    end
   end
 
-  # (0, 0) is this node: Node2D#draw has already pushed its transform, and the
-  # WorldView above has already applied the camera. Reading `x` or `world_x`
-  # here would apply one of those a second time.
-  def _draw(renderer, _view)
-    renderer.line(-ARM, 0, ARM, 0, color: TINT)
-    renderer.line(0, -ARM, 0, ARM, color: TINT)
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Scene.new,
+      caption: 'Scroll map',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES
+    )
+
+    game.start
   end
 end
 
-# The scene: mount the map, mount the world, put the rig in it.
-#
-# It draws the help line itself, so it sits in the `:overlay` band, once across
-# the window over everything else. In the default `:world` band the map, which
-# draws after it, would cover them. The WorldView below it declares `:world` for
-# its own subtree, so nothing in the world moves band.
-class Scene < RGame::Engine::Node2D
-  def initialize
-    super(band: :overlay)
-    @help = RGame::Engine::Text.new('help.scroll')
-  end
-
-  def _enter_tree
-    # `.tilemap` is a loader RGame::Game installs, because building one needs
-    # both layers at once: Engine::TileMap reads the .tmx, and the renderer that
-    # draws it is Core. What comes back holds both; `.map` is the grid half.
-    map = root.context.assets.tilemap(MAP).map
-    players = root.system(RGame::Engine::Players)
-
-    # The system every actor asks about the world: how big it is, what is solid.
-    # Handing it the cameras is what bounds them — a camera left unbounded
-    # follows its target exactly and will happily show the void past the edge.
-    add_component(RGame::Engine::Components::TileWorld.new(
-                    map: map, tilemap_id: MAP, cameras: players.map(&:camera)
-                  ))
-
-    # World space begins here. Everything under it is drawn in world
-    # coordinates, once per viewport, through that viewport's camera.
-    view = add_node(RGame::Engine::WorldView.new)
-    # One node per Tiled layer. The :actors slot sits between the
-    # ground layers and any layer Tiled flags `above`, which is where things
-    # that walk around go — the rig included, so a canopy layer would pass over
-    # it without this file choosing a single z.
-    actors = RGame::Engine::TileMapLayer.mount(view)[:actors]
-    actors.add_node(build_rig(map, players.primary.camera))
-  end
-
-  def _draw(renderer, _view)
-    # Outside the WorldView, so this is screen space: it stays put while the
-    # world scrolls under it.
-    renderer.text(@help, 12, 12)
-  end
-
-  private
-
-  def build_rig(map, camera)
-    rig = Rig.new(x: map.pixel_width / 2.0, y: map.pixel_height / 2.0,
-                  world_width: map.pixel_width, world_height: map.pixel_height)
-    rig.add_component(RGame::Engine::Components::CharacterBody.new(speed: SPEED))
-    rig.add_component(RGame::Engine::Components::PlayerController.new)
-    rig.add_component(RGame::Engine::Components::CameraFollow.new(camera: camera))
-    rig
-  end
-end
-
-game = RGame::Game.new(
-  root: Scene.new,
-  caption: 'Scroll map',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES
-)
-
-game.start
+ScrollMapExample.start

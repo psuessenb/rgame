@@ -55,105 +55,118 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
-Controls = RGame::Util::Controls
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module SkillBarExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-# The bar, and what was last used from it.
-class SkillBar < RGame::Engine::Node2D
-  UI = RGame::Engine::UI
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+  Controls = Util::Controls
 
-  SLOT_WIDTH = 100
-  SLOT_HEIGHT = 104
+  # The bar, and what was last used from it.
+  class SkillBar < Engine::Node2D
+    UI = Engine::UI
 
-  # Left to right, with the action that uses each without moving focus. Each
-  # image names an entry of skills.json's `images`.
-  SKILLS = [
-    %i[wand wand skill1],
-    %i[wrench wrench skill2],
-    %i[torch torch skill3],
-    %i[hammer hammer skill4],
-    %i[watering_can watering_can skill5]
-  ].freeze
+    SLOT_WIDTH = 100
+    SLOT_HEIGHT = 104
 
-  DISC = UI::ShapeStyle.new(shape: :disc)
-  CLICK = 'blip.ogg'
+    # Left to right, with the action that uses each without moving focus. Each
+    # image names an entry of skills.json's `images`.
+    SKILLS = [
+      %i[wand wand skill1],
+      %i[wrench wrench skill2],
+      %i[torch torch skill3],
+      %i[hammer hammer skill4],
+      %i[watering_can watering_can skill5]
+    ].freeze
 
-  attr_reader :menu, :used
+    DISC = UI::ShapeStyle.new(shape: :disc)
+    CLICK = 'blip.ogg'
 
-  def initialize(**)
-    super
-    @used = nil
-    @menu = add_node(UI::Menu.new(layout: UI::Row.new(item_width: SLOT_WIDTH, item_height: SLOT_HEIGHT),
-                                  scope: 'skills'))
-    SKILLS.each { |key, image, hotkey| add_skill(key, image, hotkey) }
-  end
+    attr_reader :menu, :used
 
-  # The name of the focused tool, as its button draws it.
-  def focused_name = @menu.focused.label
+    def initialize(**)
+      super
+      @used = nil
+      @menu = add_node(UI::Menu.new(layout: UI::Row.new(item_width: SLOT_WIDTH, item_height: SLOT_HEIGHT),
+                                    scope: 'skills'))
+      SKILLS.each { |key, image, hotkey| add_skill(key, image, hotkey) }
+    end
 
-  private
+    # The name of the focused tool, as its button draws it.
+    def focused_name = @menu.focused.label
 
-  def add_skill(key, image, hotkey)
-    button = UI::IconButton.new(image: image, label: key, hotkey: hotkey, activate_on: :press, style: DISC)
-    @menu.add(button).on_activated do
-      @used = button.label
-      system!(RGame::Engine::AudioOut).play_sound(CLICK)
+    private
+
+    def add_skill(key, image, hotkey)
+      button = UI::IconButton.new(image: image, label: key, hotkey: hotkey, activate_on: :press, style: DISC)
+      @menu.add(button).on_activated do
+        @used = button.label
+        system!(Engine::AudioOut).play_sound(CLICK)
+      end
     end
   end
-end
 
-# The captions. Added after the bar, so its last line is the last text of every
-# frame — which is what the drive script reads. Each sentence is one key with the
-# tool's name as a variable, and the name is the button's own label, so a
-# translator writes each name once and drawing an unchanged caption allocates
-# nothing.
-class Caption < RGame::Engine::Node2D
-  def initialize(bar:, **)
-    super(**)
-    @bar = bar
-    @help = RGame::Engine::Text.new('help.bar')
-    @focused = RGame::Engine::Text.new('status.focused', :skill)
-    @used = RGame::Engine::Text.new('status.used', :skill)
-    @nothing_used = RGame::Engine::Text.new('status.nothing_used')
+  # The captions. Added after the bar, so its last line is the last text of every
+  # frame — which is what the drive script reads. Each sentence is one key with the
+  # tool's name as a variable, and the name is the button's own label, so a
+  # translator writes each name once and drawing an unchanged caption allocates
+  # nothing.
+  class Caption < Engine::Node2D
+    def initialize(bar:, **)
+      super(**)
+      @bar = bar
+      @help = Engine::Text.new('help.bar')
+      @focused = Engine::Text.new('status.focused', :skill)
+      @used = Engine::Text.new('status.used', :skill)
+      @nothing_used = Engine::Text.new('status.nothing_used')
+    end
+
+    def _draw(renderer, _view)
+      renderer.text(@help, 12, 12)
+      renderer.text(@focused.with(skill: @bar.focused_name.to_s), 12, HEIGHT - 52)
+      used = @bar.used
+      renderer.text(used ? @used.with(skill: used.to_s) : @nothing_used, 12, HEIGHT - 30)
+    end
   end
 
-  def _draw(renderer, _view)
-    renderer.text(@help, 12, 12)
-    renderer.text(@focused.with(skill: @bar.focused_name.to_s), 12, HEIGHT - 52)
-    used = @bar.used
-    renderer.text(used ? @used.with(skill: used.to_s) : @nothing_used, 12, HEIGHT - 30)
+  class Scene < Engine::Node2D
+    def _enter_tree
+      bar = add_node(SkillBar.new(y: 300))
+      bar.x = (WIDTH - bar.menu.bounds_width) / 2
+      add_node(Caption.new(bar: bar))
+    end
+  end
+
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Scene.new,
+      caption: 'Skill bar',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES,
+      input_map: Engine::InputMap.default.merge(
+        skill1: { buttons: [Controls::KEY_1] },
+        skill2: { buttons: [Controls::KEY_2] },
+        skill3: { buttons: [Controls::KEY_3] },
+        skill4: { buttons: [Controls::KEY_4] },
+        skill5: { buttons: [Controls::KEY_5] }
+      )
+    )
+
+    # An image id that is a Symbol is a name rather than a path, so the tools are
+    # registered once: the atlas cuts each from the strip and registers it by name.
+    game.renderer.register_ui_atlas(game.assets.ui_atlas('skills.json'))
+
+    game.start
   end
 end
 
-class Scene < RGame::Engine::Node2D
-  def _enter_tree
-    bar = add_node(SkillBar.new(y: 300))
-    bar.x = (WIDTH - bar.menu.bounds_width) / 2
-    add_node(Caption.new(bar: bar))
-  end
-end
-
-game = RGame::Game.new(
-  root: Scene.new,
-  caption: 'Skill bar',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES,
-  input_map: RGame::Engine::InputMap.default.merge(
-    skill1: { buttons: [Controls::KEY_1] },
-    skill2: { buttons: [Controls::KEY_2] },
-    skill3: { buttons: [Controls::KEY_3] },
-    skill4: { buttons: [Controls::KEY_4] },
-    skill5: { buttons: [Controls::KEY_5] }
-  )
-)
-
-# An image id that is a Symbol is a name rather than a path, so the tools are
-# registered once: the atlas cuts each from the strip and registers it by name.
-game.renderer.register_ui_atlas(game.assets.ui_atlas('skills.json'))
-
-game.start
+SkillBarExample.start

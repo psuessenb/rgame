@@ -16,7 +16,9 @@ module RGame
     #   - `game.rb` is the only file that requires `rgame/game`, so it is the
     #     only one that loads SDL and OpenGL. It is the game's glue class, the
     #     local counterpart of RGame::Game.
-    #   - `nodes/` requires `rgame` and names only RGame::Engine, so every node
+    #   - `<name>.rb` defines the game's module, where `Engine` and `Util` stand
+    #     for RGame::Engine and RGame::Util, and requires only `rgame`.
+    #   - `nodes/` requires that file and names only RGame::Engine, so every node
     #     runs with no window.
     #   - `spec/` therefore loads `rgame` too, and the whole suite runs headless.
     #
@@ -39,6 +41,10 @@ module RGame
         'rubocop.yml' => '.rubocop.yml'
       }.freeze
 
+      # The template written to the file named after the game, which defines its
+      # module.
+      MODULE_TEMPLATE = 'game_module.rb'
+
       NAME_PATTERN = /\A[a-z][a-z0-9_-]*\z/i
 
       def initialize(name, out: $stdout, root: Dir.pwd)
@@ -58,10 +64,15 @@ module RGame
       end
 
       # `tic_tac_toe` and `tic-tac-toe` both give `TicTacToe`. Used for the
-      # window caption and, with `Game` appended, for the game class.
+      # window caption and for the game's module.
       def caption = @name.split(/[_-]+/).map(&:capitalize).join
 
-      def game_class = "#{caption}Game"
+      def game_module = caption
+
+      # `tic_tac_toe` for `tic-tac-toe` too: the file, less its `.rb`, that
+      # defines the game's module and that every other Ruby file of the project
+      # requires first.
+      def module_file = @name.downcase.tr('-', '_')
 
       def app_name = @name
 
@@ -88,7 +99,7 @@ module RGame
       def destination_for(source)
         dir = File.dirname(source)
         base = File.basename(source, '.tt')
-        base = DOTFILES.fetch(base, base)
+        base = base == MODULE_TEMPLATE ? "#{module_file}.rb" : DOTFILES.fetch(base, base)
 
         dir == '.' ? base : File.join(dir, base)
       end
@@ -109,10 +120,18 @@ module RGame
       end
 
       def validate_name!
-        return if @name.is_a?(String) && @name.match?(NAME_PATTERN)
+        unless @name.is_a?(String) && @name.match?(NAME_PATTERN)
+          raise Error, "#{@name.inspect} is not a valid project name — use letters, digits, " \
+                       'underscores and dashes, starting with a letter'
+        end
+        if Object.const_defined?(game_module)
+          raise Error, "#{@name} would name the game's module #{game_module}, which Ruby already defines " \
+                       '— choose another name'
+        end
+        return unless templates.count { |_source, destination| destination == "#{module_file}.rb" } > 1
 
-        raise Error, "#{@name.inspect} is not a valid project name — use letters, digits, " \
-                     'underscores and dashes, starting with a letter'
+        raise Error, "#{@name} would write the game's module to #{module_file}.rb, which the project uses " \
+                     'for something else — choose another name'
       end
 
       def check_target!

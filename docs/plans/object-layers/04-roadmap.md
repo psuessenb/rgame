@@ -435,8 +435,8 @@ without a scene.
 ### Shape
 
 ```ruby
-# 3a — @api private; read from the comment above Chest#initialize
-class Chest < RGame::Engine::Node2D
+# 3a — @api private; read from the comment above Chest#initialize, in a game's module
+class Chest < Engine::Node2D
   # @param contents [String] the item inside
   # @param locked [Boolean] whether it takes a key to open
   def initialize(contents:, locked: false, **)
@@ -483,9 +483,10 @@ builder.build(object)                  # => a Chest, or nil for an object whose 
 **3c**
 
 9. **A class starting with a capital resolves to a constant**, `Town::Chest`
-   included. No such constant raises `NameError`, and a constant that is not a
-   `Node2D` subclass raises `TypeError`. Each message names the tilemap id, the
-   object's id and name, and the class.
+   included, in the scope [open question 6](README.md#open-questions) settles.
+   No such constant raises `NameError`, and a constant that is not a `Node2D`
+   subclass raises `TypeError`. Each message names the tilemap id, the object's
+   id and name, and the class.
 10. **Any other class, or none, builds nothing.** `build` returns `nil`.
 11. **Every property must be a keyword the class's tags make settable, of the
     tagged type**, and arrives as the design's table says, a String becoming a
@@ -570,7 +571,8 @@ replaces the classes it owns and keeps the designer's. An Array of Symbols
 becomes a Tiled enum.
 
 To settle in the re-plan: open questions 2 and 5, where it runs and what default
-a member shows. Whether the generated project gains the task, and
+a member shows. The name it writes for a class inside a game's module, which
+follows from open question 6. Whether the generated project gains the task, and
 `spec/rgame/cli/generated_project_spec.rb` with it. Whether its `.gitignore`
 leaves out `*.tiled-session`, as this repository's does since step 0.
 

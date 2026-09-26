@@ -52,163 +52,176 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__)
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module CollectablesExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-Color = RGame::Util::Color
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__)
 
-SPEED = 110.0
-CELL_SIZE = 64
+  Color = Util::Color
 
-BACKDROP   = Color.new(28, 30, 38)
-COIN       = Color.new(240, 200, 96)
-CHEST      = Color.new(150, 104, 56)
-CHEST_OPEN = Color.new(86, 70, 52)
-PROMPT     = Color.new(240, 236, 224)
-HUD        = Color.new(200, 210, 230)
+  SPEED = 110.0
+  CELL_SIZE = 64
 
-COIN_RADIUS = 7
-CHEST_SIZE = 28
-REACH = 44.0
+  BACKDROP   = Color.new(28, 30, 38)
+  COIN       = Color.new(240, 200, 96)
+  CHEST      = Color.new(150, 104, 56)
+  CHEST_OPEN = Color.new(86, 70, 52)
+  PROMPT     = Color.new(240, 236, 224)
+  HUD        = Color.new(200, 210, 230)
 
-# A coin: a shape, and a Collectable that takes it.
-#
-# The component does everything. `by: :hero` is the layer whose colliders count,
-# `sound:` is played through the tree's AudioOut, and the node is freed by
-# default — so the whole of "a coin disappears when you walk into it" is the one
-# `add_component` below, and `on_collected` is the game's half.
-class Coin < RGame::Engine::Node2D
-  def initialize(**)
-    super
-    add_component(RGame::Engine::Components::CircleCollider.new(radius: COIN_RADIUS, layer: :pickup))
-    add_component(RGame::Engine::Components::Collectable.new(by: :hero, sound: 'blip.ogg'))
+  COIN_RADIUS = 7
+  CHEST_SIZE = 28
+  REACH = 44.0
+
+  # A coin: a shape, and a Collectable that takes it.
+  #
+  # The component does everything. `by: :hero` is the layer whose colliders count,
+  # `sound:` is played through the tree's AudioOut, and the node is freed by
+  # default — so the whole of "a coin disappears when you walk into it" is the one
+  # `add_component` below, and `on_collected` is the game's half.
+  class Coin < Engine::Node2D
+    def initialize(**)
+      super
+      add_component(Engine::Components::CircleCollider.new(radius: COIN_RADIUS, layer: :pickup))
+      add_component(Engine::Components::Collectable.new(by: :hero, sound: 'blip.ogg'))
+    end
+
+    # The Collectable, so the room can connect its counter to it. `add_component`
+    # returns what it was given, which is the usual way to hold one by name.
+    def collectable = get_component(Engine::Components::Collectable)
+
+    def _draw(renderer, _view) = renderer.circle(0, 0, COIN_RADIUS, color: COIN)
   end
 
-  # The Collectable, so the room can connect its counter to it. `add_component`
-  # returns what it was given, which is the usual way to hold one by name.
-  def collectable = get_component(RGame::Engine::Components::Collectable)
+  # A chest: a shape on the `:interactable` layer, and a lid.
+  #
+  # It carries no component of its own for the opening — an Interactor on the hero
+  # finds it by layer and emits it, and `open` is an ordinary method that whatever
+  # listened calls. Nothing here reads input.
+  class Chest < Engine::Node2D
+    SPILL = [[-40, 0], [0, -44], [40, 0]].freeze
 
-  def _draw(renderer, _view) = renderer.circle(0, 0, COIN_RADIUS, color: COIN)
+    def initialize(**)
+      super
+      add_component(Engine::Components::BoxCollider.new(width: CHEST_SIZE, height: CHEST_SIZE,
+                                                        layer: :interactable))
+      @open = false
+    end
+
+    def open? = @open
+
+    # Opening spills the coins it held. They are added to this node's parent
+    # rather than to the chest, so taking one is the same contact as taking any
+    # other coin — a coin does not care who put it there.
+    def open
+      return if @open
+
+      @open = true
+      SPILL.each { |dx, dy| parent.spill(x + dx, y + dy) }
+    end
+
+    def _draw(renderer, _view)
+      renderer.rect(0, 0, CHEST_SIZE, CHEST_SIZE, color: @open ? CHEST_OPEN : CHEST)
+    end
+  end
+
+  # The hero: the walker from `examples/walk`, plus the two things this example
+  # is about — a collider on the `:hero` layer, which is what a coin waits for,
+  # and an Interactor, which is what finds the chest.
+  class Hero < Engine::Node2D
+    def initialize(**)
+      super
+      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Engine::Components::CharacterBody.new(speed: SPEED,
+                                                          blocked_by: [:interactable]))
+      add_component(Engine::Components::PlayerController.new)
+      add_component(Engine::Components::BoxCollider.new(width: 16, height: 22, offset_x: -8, offset_y: -22,
+                                                        layer: :hero))
+      @interactor = add_component(Engine::Components::Interactor.new(range: REACH,
+                                                                     layer: :interactable))
+    end
+
+    # What the hero would act on, or nil. The room draws the prompt over it.
+    def target = @interactor.target
+
+    def on_interacted(&) = @interactor.on_interacted(&)
+
+    # The 16x22 hero stands on its origin, so it reaches 8px to either side and
+    # 22px above.
+    def _update(_dt)
+      self.x = x.clamp(8, WIDTH - 8)
+      self.y = y.clamp(22, HEIGHT)
+    end
+  end
+
+  # The room. It mounts the broadphase, builds everything, and keeps the count.
+  class Room < Engine::Node2D
+    COINS = [[150, 250], [230, 250], [470, 250], [180, 400], [430, 120], [560, 380]].freeze
+
+    def initialize
+      super
+      @taken = 0
+      @count = Engine::Text.new('hud.coins', :count)
+      @help = Engine::Text.new('help.walk')
+      @prompt = Engine::Text.new('help.open')
+      add_component(Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
+    end
+
+    def _enter_tree
+      COINS.each { |x, y| spill(x, y) }
+      add_node(Chest.new(x: 300, y: 236))
+      @hero = add_node(Hero.new(x: 68, y: 262))
+      @hero.on_interacted(&:open)
+    end
+
+    # One coin, counted when it is taken. Called for the coins the room starts
+    # with and for the ones the chest spills, so both are the same coin.
+    def spill(x, y)
+      coin = add_node(Coin.new(x: x, y: y))
+      coin.collectable.on_collected { @taken += 1 }
+      coin
+    end
+
+    def _draw(renderer, view)
+      renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
+      renderer.text(@help, 12, 12, color: HUD)
+      renderer.text(@count.with(count: @taken), 12, 34, color: HUD)
+      draw_prompt(renderer)
+    end
+
+    private
+
+    # Over whatever is in reach, in world coordinates — the room draws it rather
+    # than the chest, because a prompt is about the hero's state and not the
+    # chest's, and every interactable would otherwise need the same code.
+    def draw_prompt(renderer)
+      target = @hero.target
+      return if target.nil? || target.open?
+
+      renderer.text(@prompt, target.x - 24, target.y - 24, color: PROMPT)
+    end
+  end
+
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Room.new,
+      caption: 'Collectables',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES
+    )
+
+    game.start
+  end
 end
 
-# A chest: a shape on the `:interactable` layer, and a lid.
-#
-# It carries no component of its own for the opening — an Interactor on the hero
-# finds it by layer and emits it, and `open` is an ordinary method that whatever
-# listened calls. Nothing here reads input.
-class Chest < RGame::Engine::Node2D
-  SPILL = [[-40, 0], [0, -44], [40, 0]].freeze
-
-  def initialize(**)
-    super
-    add_component(RGame::Engine::Components::BoxCollider.new(width: CHEST_SIZE, height: CHEST_SIZE,
-                                                             layer: :interactable))
-    @open = false
-  end
-
-  def open? = @open
-
-  # Opening spills the coins it held. They are added to this node's parent
-  # rather than to the chest, so taking one is the same contact as taking any
-  # other coin — a coin does not care who put it there.
-  def open
-    return if @open
-
-    @open = true
-    SPILL.each { |dx, dy| parent.spill(x + dx, y + dy) }
-  end
-
-  def _draw(renderer, _view)
-    renderer.rect(0, 0, CHEST_SIZE, CHEST_SIZE, color: @open ? CHEST_OPEN : CHEST)
-  end
-end
-
-# The hero: the walker from `examples/walk`, plus the two things this example
-# is about — a collider on the `:hero` layer, which is what a coin waits for,
-# and an Interactor, which is what finds the chest.
-class Hero < RGame::Engine::Node2D
-  def initialize(**)
-    super
-    add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-    add_component(RGame::Engine::Components::CharacterBody.new(speed: SPEED,
-                                                               blocked_by: [:interactable]))
-    add_component(RGame::Engine::Components::PlayerController.new)
-    add_component(RGame::Engine::Components::BoxCollider.new(width: 16, height: 22, offset_x: -8, offset_y: -22,
-                                                             layer: :hero))
-    @interactor = add_component(RGame::Engine::Components::Interactor.new(range: REACH,
-                                                                          layer: :interactable))
-  end
-
-  # What the hero would act on, or nil. The room draws the prompt over it.
-  def target = @interactor.target
-
-  def on_interacted(&) = @interactor.on_interacted(&)
-
-  # The 16x22 hero stands on its origin, so it reaches 8px to either side and
-  # 22px above.
-  def _update(_dt)
-    self.x = x.clamp(8, WIDTH - 8)
-    self.y = y.clamp(22, HEIGHT)
-  end
-end
-
-# The room. It mounts the broadphase, builds everything, and keeps the count.
-class Room < RGame::Engine::Node2D
-  COINS = [[150, 250], [230, 250], [470, 250], [180, 400], [430, 120], [560, 380]].freeze
-
-  def initialize
-    super
-    @taken = 0
-    @count = RGame::Engine::Text.new('hud.coins', :count)
-    @help = RGame::Engine::Text.new('help.walk')
-    @prompt = RGame::Engine::Text.new('help.open')
-    add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
-  end
-
-  def _enter_tree
-    COINS.each { |x, y| spill(x, y) }
-    add_node(Chest.new(x: 300, y: 236))
-    @hero = add_node(Hero.new(x: 68, y: 262))
-    @hero.on_interacted(&:open)
-  end
-
-  # One coin, counted when it is taken. Called for the coins the room starts
-  # with and for the ones the chest spills, so both are the same coin.
-  def spill(x, y)
-    coin = add_node(Coin.new(x: x, y: y))
-    coin.collectable.on_collected { @taken += 1 }
-    coin
-  end
-
-  def _draw(renderer, view)
-    renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
-    renderer.text(@help, 12, 12, color: HUD)
-    renderer.text(@count.with(count: @taken), 12, 34, color: HUD)
-    draw_prompt(renderer)
-  end
-
-  private
-
-  # Over whatever is in reach, in world coordinates — the room draws it rather
-  # than the chest, because a prompt is about the hero's state and not the
-  # chest's, and every interactable would otherwise need the same code.
-  def draw_prompt(renderer)
-    target = @hero.target
-    return if target.nil? || target.open?
-
-    renderer.text(@prompt, target.x - 24, target.y - 24, color: PROMPT)
-  end
-end
-
-game = RGame::Game.new(
-  root: Room.new,
-  caption: 'Collectables',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES
-)
-
-game.start
+CollectablesExample.start

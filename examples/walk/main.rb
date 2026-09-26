@@ -32,70 +32,83 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module WalkExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-SPEED = 90.0 # pixels per second
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-# A Node2D that stays inside the window.
-#
-# Clamping is not something the engine does for you here: a plain CharacterBody
-# moves the node wherever the intent points, because it is meant for an actor in
-# a world with nothing to bump into. Giving it edges is one `_update` — and in
-# a real game it is usually Components::TileWorld doing it instead, which is
-# what `examples/scroll_map` shows.
-class Hero < RGame::Engine::Node2D
-  # `_update` is the blank hook: Node2D#update does the bookkeeping and calls
-  # this, so there is no `super` to forget. The sprite stands on the node's
-  # origin, so the picture reaches half its width to either side and its whole
-  # height above.
-  def _update(_dt)
-    self.x = x.clamp(width / 2.0, WIDTH - (width / 2.0))
-    self.y = y.clamp(height, HEIGHT)
+  SPEED = 90.0 # pixels per second
+
+  # A Node2D that stays inside the window.
+  #
+  # Clamping is not something the engine does for you here: a plain CharacterBody
+  # moves the node wherever the intent points, because it is meant for an actor in
+  # a world with nothing to bump into. Giving it edges is one `_update` — and in
+  # a real game it is usually Components::TileWorld doing it instead, which is
+  # what `examples/scroll_map` shows.
+  class Hero < Engine::Node2D
+    # `_update` is the blank hook: Node2D#update does the bookkeeping and calls
+    # this, so there is no `super` to forget. The sprite stands on the node's
+    # origin, so the picture reaches half its width to either side and its whole
+    # height above.
+    def _update(_dt)
+      self.x = x.clamp(width / 2.0, WIDTH - (width / 2.0))
+      self.y = y.clamp(height, HEIGHT)
+    end
+  end
+
+  # The root. It builds the hero in `initialize`, before anything is in the tree.
+  #
+  # That matters and is easy to get wrong the other way round: `add_component`
+  # attaches immediately once its node is live, and AnimatedSprite's attach looks
+  # for a CharacterBody sibling. Build the node whole, then add it — then the
+  # order components go on in cannot matter.
+  class Root < Engine::Node2D
+    def initialize
+      super
+      @help = Engine::Text.new('help.walk')
+      add_node(build_hero)
+    end
+
+    def _draw(renderer, _view)
+      renderer.text(@help, 12, 12)
+    end
+
+    private
+
+    def build_hero
+      hero = Hero.new(x: WIDTH / 2, y: (HEIGHT + 22) / 2) # the 16x22 hero, centred
+      # The sheet is a path relative to the asset manager's root, resolved on
+      # attach — nothing is loaded or registered by hand. hero.json names its own
+      # image and its animations; AnimatedSprite picks between them by reading the
+      # body's intent, so :walk_left and friends are looked up by name.
+      hero.add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+      hero.add_component(Engine::Components::CharacterBody.new(speed: SPEED))
+      hero.add_component(Engine::Components::PlayerController.new)
+      hero
+    end
+  end
+
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Root.new,
+      caption: 'Walk',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES
+    )
+
+    game.start
   end
 end
 
-# The root. It builds the hero in `initialize`, before anything is in the tree.
-#
-# That matters and is easy to get wrong the other way round: `add_component`
-# attaches immediately once its node is live, and AnimatedSprite's attach looks
-# for a CharacterBody sibling. Build the node whole, then add it — then the
-# order components go on in cannot matter.
-class Root < RGame::Engine::Node2D
-  def initialize
-    super
-    @help = RGame::Engine::Text.new('help.walk')
-    add_node(build_hero)
-  end
-
-  def _draw(renderer, _view)
-    renderer.text(@help, 12, 12)
-  end
-
-  private
-
-  def build_hero
-    hero = Hero.new(x: WIDTH / 2, y: (HEIGHT + 22) / 2) # the 16x22 hero, centred
-    # The sheet is a path relative to the asset manager's root, resolved on
-    # attach — nothing is loaded or registered by hand. hero.json names its own
-    # image and its animations; AnimatedSprite picks between them by reading the
-    # body's intent, so :walk_left and friends are looked up by name.
-    hero.add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-    hero.add_component(RGame::Engine::Components::CharacterBody.new(speed: SPEED))
-    hero.add_component(RGame::Engine::Components::PlayerController.new)
-    hero
-  end
-end
-
-game = RGame::Game.new(
-  root: Root.new,
-  caption: 'Walk',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES
-)
-
-game.start
+WalkExample.start

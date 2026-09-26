@@ -1,47 +1,49 @@
 # frozen_string_literal: true
 
-# A second thing to press, which a hero pulls with the tap that opens the chest.
-#
-# It carries a collider on the `:interactable` layer, as the chest does, so a
-# hero's Interactor finds whichever of the two is nearer. It stands far enough
-# from the chest that a hero in reach of one is out of reach of the other.
-#
-# It draws its state as a word, "lever" or "pulled", so a driven run can say
-# which press reached it and which did not. A hold searches it and finds
-# nothing.
-#
-# Like the chest, it keeps its state in Facts under the key the room names.
-class Lever < RGame::Engine::Node2D
-  WIDTH = 12
-  HEIGHT = 20
+module Adventure
+  # A second thing to press, which a hero pulls with the tap that opens the chest.
+  #
+  # It carries a collider on the `:interactable` layer, as the chest does, so a
+  # hero's Interactor finds whichever of the two is nearer. It stands far enough
+  # from the chest that a hero in reach of one is out of reach of the other.
+  #
+  # It draws its state as a word, "lever" or "pulled", so a driven run can say
+  # which press reached it and which did not. A hold searches it and finds
+  # nothing.
+  #
+  # Like the chest, it keeps its state in Facts under the key the room names.
+  class Lever < Engine::Node2D
+    WIDTH = 12
+    HEIGHT = 20
 
-  BASE = RGame::Util::Color.new(96, 96, 112)
-  HANDLE = RGame::Util::Color.new(200, 64, 56)
+    BASE = Util::Color.new(96, 96, 112)
+    HANDLE = Util::Color.new(200, 64, 56)
 
-  LABELS = { up: 'lever', down: 'pulled' }.freeze
+    LABELS = { up: 'lever', down: 'pulled' }.freeze
 
-  def initialize(facts:, key:, **)
-    super(**)
-    add_component(RGame::Engine::Components::BoxCollider.new(width: WIDTH, height: HEIGHT,
-                                                             layer: :interactable))
-    @facts = facts
-    @key = key
-    @state = facts.fetch(key, 'up').to_sym
-  end
+    def initialize(facts:, key:, **)
+      super(**)
+      add_component(Engine::Components::BoxCollider.new(width: WIDTH, height: HEIGHT,
+                                                        layer: :interactable))
+      @facts = facts
+      @key = key
+      @state = facts.fetch(key, 'up').to_sym
+    end
 
-  attr_reader :state
+    attr_reader :state
 
-  def open
-    @state = @state == :up ? :down : :up
-    @facts[@key] = @state.name
-  end
+    def open
+      @state = @state == :up ? :down : :up
+      @facts[@key] = @state.name
+    end
 
-  def search = nil
+    def search = nil
 
-  def _draw(renderer, _view)
-    renderer.rect(0, HEIGHT - 6, WIDTH, 6, color: BASE)
-    tip_y = @state == :up ? 0 : HEIGHT - 4
-    renderer.line(WIDTH / 2, HEIGHT - 6, WIDTH / 2, tip_y, thickness: 2, color: HANDLE)
-    renderer.text(LABELS.fetch(@state), 0, -12)
+    def _draw(renderer, _view)
+      renderer.rect(0, HEIGHT - 6, WIDTH, 6, color: BASE)
+      tip_y = @state == :up ? 0 : HEIGHT - 4
+      renderer.line(WIDTH / 2, HEIGHT - 6, WIDTH / 2, tip_y, thickness: 2, color: HANDLE)
+      renderer.text(LABELS.fetch(@state), 0, -12)
+    end
   end
 end
