@@ -1,7 +1,7 @@
 # Roadmap
 
-**Nothing is implemented yet.** Steps 0–3 are detailed. Steps 4–8 are rough and
-get re-planned once the steps before them land.
+**Step 0 is implemented.** Steps 1–3 are detailed. Steps 4–8 are rough and get
+re-planned once the steps before them land.
 
 ## Dependency shape
 
@@ -86,6 +86,56 @@ builds nothing when a scene mounts it.
 `map-requirements.md` lists R1–R23, marks the ten done, and each new
 requirement says what the check reports when it is missing.
 `git check-ignore examples/assets/tiled_tour/tour.tiled-session` succeeds.
+
+**Landed.** One commit on `tour-map-requirements`, as the step has no
+sub-steps. `map-requirements.md` has 23 requirement headings, a table marking
+the ten done, and a line saying what the check reports under each of R20–R23.
+`git check-ignore` matches the session against `.gitignore:59`, and
+`tour.tiled-project` stays tracked. `rake spec` 4245 examples, 0 failures, as
+before: the step changes no code.
+
+Where the sketch was wrong, or said too little:
+
+- **R17's reason was stale.** The sketch kept 64×48 so the example could
+  scroll sideways, but decision 12 has the example play the level, not
+  `tour.tmx`. The size stays, for two other reasons. R16 needs both sides a
+  multiple of 16, and 40 is not one. And R19's check then draws the map in more
+  than one view, where the renderer culls animated tiles and repeated image
+  layers.
+- **The capsule needs Tiled 1.12.** The ground rule said 1.10 or later. Tiled's
+  manual marks **Insert Capsule** "New in Tiled 1.12", so the rule now says
+  1.12. The branch's map was saved by 1.12.2.
+- **The done marks moved into a table.** The branch marks a heading
+  `### R1 (done)`, which changes its anchor, and R1, R12 and R15 are linked from
+  other requirements.
+- **R20 asks for a second tile object**, with a class of its own. The sketch
+  asked only for one that inherits. Step 1's rule 5 says the object's own class
+  wins, and only an override shows which side won, as R18 does for templates.
+- **R21 rules out *Bottom Left* as well**, which reads the same as
+  *Unspecified*, and asks for a rotated object, since Tiled turns an object
+  about the point its alignment names. R23 puts the mark on R22's *Top Down*
+  layer.
+- **The lower-case rule covers every class**, custom types included, rather
+  than objects alone. One rule with no exceptions is easier to follow while
+  authoring.
+- **The ignore entry does not untrack the branch's session.**
+  `build-step-8-tiled-map` committed one, and needs
+  `git rm --cached examples/assets/tiled_tour/tour.tiled-session` once.
+- **A game made by `rgame new` would still commit its session.** The generated
+  `.gitignore` has no entry. Step 7 decides the generated project's Tiled
+  workflow, so the question moved there.
+
+Found on the authoring branch while checking the marks, and left for the
+author:
+
+- **R10 and R14 look met, and are not marked.** The map has an image layer
+  with an offset and one with Repeat X. Object 1's `long string` spans three
+  lines.
+- **The embedded `dungeon` tileset slices a spaced sheet as if it were
+  packed.** `dungeon.png` is 203×186 pixels, which is 12×11 tiles with 1 pixel
+  between them, and the tileset sets no spacing. So tiles 36–38 on the map are
+  cut up to 3 pixels off, in Tiled as well. Setting the spacing to 1 fixes it.
+  With a margin added, it would also answer R3.
 
 ---
 
@@ -414,7 +464,8 @@ becomes a Tiled enum.
 
 To settle in the re-plan: open questions 2 and 5, where it runs and what default
 a member shows. Whether the generated project gains the task, and
-`spec/rgame/cli/generated_project_spec.rb` with it.
+`spec/rgame/cli/generated_project_spec.rb` with it. Whether its `.gitignore`
+leaves out `*.tiled-session`, as this repository's does since step 0.
 
 ## Step 8 — the maps checked, and the level played *(rough)*
 
