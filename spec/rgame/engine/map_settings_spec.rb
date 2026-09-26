@@ -151,6 +151,28 @@ RSpec.describe RGame::Engine::MapSettings do
         .to raise_error(ArgumentError, /BasicObject#initialize has no source file/)
     end
 
+    # The first room to build a class reads its tags, and a game may enter that
+    # room long after it started. Splitting the file into lines cost a String
+    # for every line above the class, in the middle of play.
+    it 'allocates for the comment above initialize, not for each line of the file above it' do
+      Dir.mktmpdir do |dir|
+        path = File.join(dir, 'far_down_chest.rb')
+        File.write(path, "# filler\n\n" * 150 + <<~RUBY)
+          class SpecMapFarDownChest < RGame::Engine::Node2D
+            # @param contents [String] the item inside
+            def initialize(contents: '', **) = super(**)
+          end
+        RUBY
+        load path
+        described_class.of(SpecMapChest)
+        before = GC.stat(:total_allocated_objects)
+        settings = described_class.of(SpecMapFarDownChest)
+        allocated = GC.stat(:total_allocated_objects) - before
+
+        expect([settings, allocated]).to match([{ contents: :string }, be < 40])
+      end
+    end
+
     it 'reads every engine node class, so no engine comment drifts from its constructor' do
       classes = descendants(RGame::Engine::Node2D).select { it.name&.start_with?('RGame::Engine::') }
 

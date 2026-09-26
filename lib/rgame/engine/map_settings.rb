@@ -98,8 +98,19 @@ module RGame
       end
 
       def self.tags(file, line)
-        comment = File.readlines(file, chomp: true).first(line - 1).reverse.take_while { it.match?(COMMENT) }
-        comment.reverse.filter_map { TAG.match(it) }.map { [it[1].to_sym, type_of(it[2])] }
+        source = File.read(file)
+        start = 0
+        (line - 1).times { start = source.index("\n", start) + 1 }
+        comment = []
+        while start.positive?
+          from = start < 2 ? 0 : (source.rindex("\n", start - 2) || -1) + 1
+          text = source[from, start - 1 - from]
+          break unless text.match?(COMMENT)
+
+          comment.unshift(text)
+          start = from
+        end
+        comment.filter_map { TAG.match(it) }.map { [it[1].to_sym, type_of(it[2])] }
       end
 
       def self.type_of(text)
