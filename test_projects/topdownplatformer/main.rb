@@ -3,6 +3,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
+# The game's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`. Every file below opens the module again, so
+# it is defined here, before the first of them loads.
+module TopDownPlatformer
+  Engine = RGame::Engine
+  Util = RGame::Util
+  Controls = Util::Controls
+end
+
 require_relative 'crate'
 require_relative 'flag'
 require_relative 'hero'
@@ -11,24 +20,29 @@ require_relative 'raft'
 require_relative 'walker'
 require_relative 'course'
 
-WIDTH  = 640
-HEIGHT = 480
-DEFAULT_SEED = 0xC0
+module TopDownPlatformer
+  WIDTH  = 640
+  HEIGHT = 480
+  DEFAULT_SEED = 0xC0
 
-ASSETS = File.expand_path('../../examples/assets', __dir__)
-Controls = RGame::Util::Controls
+  ASSETS = File.expand_path('../../examples/assets', __dir__)
 
-game = RGame::Game.new(
-  root: Course.new,
-  caption: 'Top-down platformer',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  seed: DEFAULT_SEED,
-  players: 2,
-  input_map: RGame::Engine::InputMap.default.merge(
-    jump: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] }
-  )
-)
+  def self.start
+    game = RGame::Game.new(
+      root: Course.new,
+      caption: 'Top-down platformer',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      seed: DEFAULT_SEED,
+      players: 2,
+      input_map: Engine::InputMap.default.merge(
+        jump: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] }
+      )
+    )
 
-game.start
+    game.start
+  end
+end
+
+TopDownPlatformer.start

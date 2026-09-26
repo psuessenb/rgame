@@ -1,65 +1,67 @@
 # frozen_string_literal: true
 
-# Something to press. It carries a collider on the `:interactable` layer and
-# nothing else — no input, no range, no knowledge of a hero.
-#
-# A Hero's Interactor finds it by that layer and calls `open`; the same hero's
-# own `_control` calls `search` while the button is held. Which of the two
-# happened is the input map's answer, not this class's: `interact` is a tap and
-# `search` is a hold, both on E and the pad's X.
-#
-# It draws its state as a word so a driven run can tell a tap from a hold. A
-# test project draws Strings; an example would draw a translation key.
-#
-# Its state is kept in Facts under the key the room names, so a room built anew
-# holds the chest as it was left. It reads the fact as it is built, and writes
-# it at each change.
-class Chest < RGame::Engine::Node2D
-  SIZE = 20
+module Adventure
+  # Something to press. It carries a collider on the `:interactable` layer and
+  # nothing else — no input, no range, no knowledge of a hero.
+  #
+  # A Hero's Interactor finds it by that layer and calls `open`; the same hero's
+  # own `_control` calls `search` while the button is held. Which of the two
+  # happened is the input map's answer, not this class's: `interact` is a tap and
+  # `search` is a hold, both on E and the pad's X.
+  #
+  # It draws its state as a word so a driven run can tell a tap from a hold. A
+  # test project draws Strings; an example would draw a translation key.
+  #
+  # Its state is kept in Facts under the key the room names, so a room built anew
+  # holds the chest as it was left. It reads the fact as it is built, and writes
+  # it at each change.
+  class Chest < Engine::Node2D
+    SIZE = 20
 
-  CLOSED = RGame::Util::Color.new(150, 104, 56)
-  OPEN = RGame::Util::Color.new(96, 78, 56)
-  SEARCHED = RGame::Util::Color.new(72, 96, 78)
+    CLOSED = Util::Color.new(150, 104, 56)
+    OPEN = Util::Color.new(96, 78, 56)
+    SEARCHED = Util::Color.new(72, 96, 78)
 
-  LABELS = { closed: 'chest', open: 'open', searched: 'searched' }.freeze
+    LABELS = { closed: 'chest', open: 'open', searched: 'searched' }.freeze
 
-  STRAW = RGame::Util::Color.new(232, 200, 112)
-  COLORS = { closed: CLOSED, open: OPEN, searched: SEARCHED }.freeze
+    STRAW = Util::Color.new(232, 200, 112)
+    COLORS = { closed: CLOSED, open: OPEN, searched: SEARCHED }.freeze
 
-  def initialize(facts:, key:, **)
-    super(**)
-    add_component(RGame::Engine::Components::BoxCollider.new(width: SIZE, height: SIZE,
-                                                             layer: :interactable))
-    @facts = facts
-    @key = key
-    @state = facts.fetch(key, 'closed').to_sym
-  end
+    def initialize(facts:, key:, **)
+      super(**)
+      add_component(Engine::Components::BoxCollider.new(width: SIZE, height: SIZE,
+                                                        layer: :interactable))
+      @facts = facts
+      @key = key
+      @state = facts.fetch(key, 'closed').to_sym
+    end
 
-  attr_reader :state
+    attr_reader :state
 
-  def open
-    change(:open) if @state == :closed
-  end
+    def open
+      change(:open) if @state == :closed
+    end
 
-  # Returns the hat inside, once. Only an open chest has anything to search, so
-  # a hold on a closed one finds nothing — which is what makes the two actions
-  # distinguishable in a report rather than merely both firing.
-  def search
-    return unless @state == :open
+    # Returns the hat inside, once. Only an open chest has anything to search, so
+    # a hold on a closed one finds nothing — which is what makes the two actions
+    # distinguishable in a report rather than merely both firing.
+    def search
+      return unless @state == :open
 
-    change(:searched)
-    Item.new('hat', slot: :head, color: STRAW)
-  end
+      change(:searched)
+      Item.new('hat', slot: :head, color: STRAW)
+    end
 
-  def _draw(renderer, _view)
-    renderer.rect(0, 0, SIZE, SIZE, color: COLORS.fetch(@state))
-    renderer.text(LABELS.fetch(@state), 0, -12)
-  end
+    def _draw(renderer, _view)
+      renderer.rect(0, 0, SIZE, SIZE, color: COLORS.fetch(@state))
+      renderer.text(LABELS.fetch(@state), 0, -12)
+    end
 
-  private
+    private
 
-  def change(state)
-    @state = state
-    @facts[@key] = state.name
+    def change(state)
+      @state = state
+      @facts[@key] = state.name
+    end
   end
 end
