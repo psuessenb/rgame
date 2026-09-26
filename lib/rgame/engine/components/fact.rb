@@ -3,7 +3,7 @@
 module RGame
   module Engine
     module Components
-      # One value of its node's, kept in the root's Facts, so it outlives the
+      # One value of its node's, kept in the root's FactsDatabase, so it outlives the
       # room the node stands in. A chest opened once stays open when its room is
       # built again, and a save keeps it with every other fact.
       #
@@ -35,23 +35,23 @@ module RGame
       # `map_object_id`.
       #
       # `value` is the fact, or `default` for a fact never set. `value=` writes
-      # it through `Facts#[]=`, which checks it, emits `on_changed` and calls the
+      # it through `FactsDatabase#[]=`, which checks it, emits `on_changed` and calls the
       # watchers. A `default` a fact cannot hold, and a `key:` or `part:` that
       # is not a Symbol, raise TypeError as the component is built.
       class Fact < Engine::Component
         def initialize(default: nil, key: nil, part: nil)
           super()
-          @rgame_default = Facts.check_value(default) { 'a Fact default' }
+          @rgame_default = FactsDatabase.check_value(default) { 'a Fact default' }
           @rgame_given = symbol(key, :key)
           @rgame_part = symbol(part, :part)
         end
 
         def _attach
-          @rgame_facts = node.system!(Facts)
+          @rgame_facts = node.system!(FactsDatabase)
           @rgame_key ||= derived_key
         end
 
-        # The Symbol the value is kept under in Facts.
+        # The Symbol the value is kept under in the FactsDatabase.
         def key
           attached
           @rgame_key
@@ -91,8 +91,8 @@ module RGame
         end
 
         def attached
-          @rgame_facts or raise "Components::Fact keeps its value in the root's Facts, found as its node enters " \
-                                'the tree. Read or write it from _enter_tree on.'
+          @rgame_facts or raise "Components::Fact keeps its value in the root's FactsDatabase, found as its node " \
+                                'enters the tree. Read or write it from _enter_tree on.'
         end
       end
     end

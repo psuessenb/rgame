@@ -12,10 +12,10 @@ module Adventure
   # It draws which way the last push moved it, as a word, so a driven run can tell
   # a push from a pull: "crate" until something moves it, then "east" or "west".
   #
-  # Where it stands and which way it last moved are kept in Facts, through one
-  # Components::Fact for each, under parts of the key the room names. It reads
-  # them as it enters the tree, and writes them on each tick it has moved, so a
-  # room built anew puts the crate back where it was left.
+  # Where it stands and which way it last moved are kept in the facts database,
+  # through one Components::Fact for each, under parts of the key the room names.
+  # It reads them as it enters the tree, and writes them on each tick it has
+  # moved, so a room built anew puts the crate back where it was left.
   class Crate < Engine::Node2D
     SIZE = 16
 

@@ -30,11 +30,11 @@
 # ## One room class for both maps
 #
 # `Grounds` is every room here: a map, the world it makes solid, and its doors.
-# `define` takes a block that builds a room each time one is needed, so the
-# town and the garden are the same class built over two maps. A room is built
-# anew each time it is entered, and nothing it held survives the trip. A game
-# that must remember a taken coin keeps it in `Facts`, where a loaded save puts
-# it too.
+# `define` takes a block that builds a room each time one is needed, so the town
+# and the garden are the same class built over two maps. A room is built anew
+# each time it is entered, and nothing it held survives the trip. A game that
+# must remember a taken coin keeps it in the `FactsDatabase`, where a loaded
+# save puts it too.
 #
 # ## A warp and a door are the same call
 #

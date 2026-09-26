@@ -33,8 +33,9 @@ module RGame
     #   save.write(hammer: quest.to_h)
     #   quest = Engine::StateMachine.new(HAMMER, context: hero, from: save.read[:hammer])
     #
-    # A game's quests normally take a `name:` instead, and `Components::Facts`
-    # saves and restores every named machine with its flags.
+    # A game's quests normally take a `name:` instead, and
+    # `Components::FactsDatabase` saves and restores every named machine with
+    # its flags.
     class StateMachine
       extend Signal::DSL
 
@@ -124,8 +125,8 @@ module RGame
       def to_h = { state: @state, visits: @visits.dup }
 
       # The state and visits a saved Hash names, checked against the graph; the
-      # start state visited once for nil. `Facts#restore` checks every machine
-      # with this before it changes any.
+      # start state visited once for nil. `FactsDatabase#restore` checks every
+      # machine with this before it changes any.
       #
       # @api private
       def parse_saved(saved)

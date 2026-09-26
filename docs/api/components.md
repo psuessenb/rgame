@@ -670,7 +670,7 @@ margin reaches half its extent.
 
 ### `Fact`
 
-**Keeps one of its node's values in the root's [`Facts`](dialogue.md#facts), so
+**Keeps one of its node's values in the root's [`FactsDatabase`](dialogue.md#facts), so
 it outlives the room the node stands in.** A chest opened once stays open when
 its room is built again, and a save keeps it with every other fact.
 
@@ -689,7 +689,7 @@ end
 ```
 
 - **Construct:** `Fact.new(default: nil, key: nil, part: nil)`. `default` is
-  what `value` reads for a fact never set. It must be a value `Facts` holds, so a
+  what `value` reads for a fact never set. It must be a value `FactsDatabase` holds, so a
   Symbol raises `TypeError`, and so does a `key:` or a `part:` that is not a
   Symbol.
 - **The key** is `key:` when the node passes one, as a node built in code does.
@@ -699,12 +699,12 @@ end
   `part:` joins the key after a dot: `:"map/town.tmx#7.x"`, or `:"crate.x"`.
 - **Several values take one `Fact` each**, each with its own `part:` and a slot
   of its own: `add_component(Fact.new(part: :x, default: x), as: :x)`.
-- **Lifecycle:** `_attach` finds the root's `Facts` and makes the key, once, so a
+- **Lifecycle:** `_attach` finds the root's `FactsDatabase` and makes the key, once, so a
   node moved into another room keeps its key. It raises `ArgumentError` for a
   node with neither a `key:` nor a `map_object_id`. It raises `KeyError` when
-  there is no `Facts`, or no `TileWorld` to make a map's key from.
+  there is no `FactsDatabase`, or no `TileWorld` to make a map's key from.
 - **`key`, `value` and `value=`.** `value` is the fact, or `default` for a fact
-  never set. `value=` writes the fact as `facts[key] = value` does, so `Facts`
+  never set. `value=` writes the fact as `facts[key] = value` does, so `FactsDatabase`
   emits `on_changed` and calls its watchers. All three raise before the node
   first enters a tree: read the value in `_enter_tree` or later.
 - **A designer's key comes through the node**, as any value for a component

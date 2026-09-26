@@ -8,9 +8,9 @@ module RGame
       # value, such as whether a chest is open, is kept here too, through
       # Components::Fact.
       #
-      #   root.add_component(Engine::Components::Facts.new)
+      #   root.add_component(Engine::Components::FactsDatabase.new)
       #
-      #   facts = node.system(Engine::Components::Facts)
+      #   facts = node.system(Engine::Components::FactsDatabase)
       #   facts[:met_smith] = true
       #   facts[:wolves] = facts.fetch(:wolves, 0) + 1
       #
@@ -37,7 +37,7 @@ module RGame
       # play, so a listener may act on it, and a restore never fires it. `watch`
       # keeps something in step with one fact: it hears the value at once, then
       # every value that differs, restores included.
-      class Facts < Engine::Component
+      class FactsDatabase < Engine::Component
         signal :changed, :key, :value
 
         VALUE_TYPES = [NilClass, TrueClass, FalseClass, Integer, Float, String].freeze
@@ -158,7 +158,7 @@ module RGame
           raise TypeError, "a fact's key is a Symbol, got #{key.inspect} (#{key.class})"
         end
 
-        def checked_value(key, value) = Facts.check_value(value) { "facts[#{key.inspect}]" }
+        def checked_value(key, value) = FactsDatabase.check_value(value) { "facts[#{key.inspect}]" }
 
         def parse(saved)
           return [{}, {}] if saved.nil?

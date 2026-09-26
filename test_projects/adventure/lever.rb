@@ -11,8 +11,8 @@ module Adventure
   # which press reached it and which did not. A hold searches it and finds
   # nothing.
   #
-  # Like the chest, it keeps its state in Facts, through a Components::Fact under
-  # the key the room names.
+  # Like the chest, it keeps its state in the facts database, through a
+  # Components::Fact under the key the room names.
   class Lever < Engine::Node2D
     WIDTH = 12
     HEIGHT = 20

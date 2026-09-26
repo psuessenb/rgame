@@ -19,10 +19,10 @@ module Adventure
   # ## The town that was left
   #
   # The rooms build the town anew each time a hero walks into it, so nothing it
-  # holds survives the garden. What changes in it is kept in Facts: each coin
-  # taken, the chest's state, the lever's, and where the crate stands. A town
-  # built again reads them back, so it is the town that was left — as a loaded
-  # save's town would be.
+  # holds survives the garden. What changes in it is kept in the facts database:
+  # each coin taken, the chest's state, the lever's, and where the crate stands. A
+  # town built again reads them back, so it is the town that was left — as a
+  # loaded save's town would be.
   #
   # The heroes are not the town's. The world spawns them and the rooms move them
   # in, and `_arrive` stands each one on the entrance the move named, a second
@@ -35,8 +35,8 @@ module Adventure
   # a press. The cutscene has a camera of its own, which follows a lookout walked
   # along that line, so the window shows one view of the town, and it pauses every
   # hero and stops joins until it ends. Holding `skip` ends it at once, and the
-  # town is left the same. Facts remember it was played, so a town built again on
-  # the way back from the garden plays nothing.
+  # town is left the same. The facts database remembers it was played, so a town
+  # built again on the way back from the garden plays nothing.
   class Town < Engine::Scene::Room
     MAP = 'town.tmx'
 
@@ -65,7 +65,7 @@ module Adventure
 
     def _enter_tree
       @map = root.context.assets.tilemap(MAP).map
-      facts = system!(Components::Facts)
+      facts = system!(Components::FactsDatabase)
 
       add_component(Components::TileWorld.new(map: @map, tilemap_id: MAP))
       add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))

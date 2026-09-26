@@ -51,13 +51,13 @@ RSpec.describe RGame::Engine::Dialogue do
 
       private
 
-      def facts = system(RGame::Engine::Components::Facts)
+      def facts = system(RGame::Engine::Components::FactsDatabase)
     end)
   end
 
   def hero_in_new_world
     root = engine::Node2D.new
-    root.add_component(engine::Components::Facts.new)
+    root.add_component(engine::Components::FactsDatabase.new)
     root.enter_tree
     root.add_node(Hero.new)
   end

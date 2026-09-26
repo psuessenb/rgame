@@ -2,7 +2,7 @@
 
 require 'tmpdir'
 
-RSpec.describe RGame::Engine::Components::Facts do
+RSpec.describe RGame::Engine::Components::FactsDatabase do
   let(:facts) { described_class.new }
   let(:trail) { [] }
 

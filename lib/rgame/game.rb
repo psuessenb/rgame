@@ -119,7 +119,7 @@ module RGame
       @presentation.fit(self.width, self.height)
       @viewports = RGame::Engine::Viewports.new(@players, width: @presentation.width,
                                                           height: @presentation.height)
-      @facts = RGame::Engine::Components::Facts.new
+      @facts = RGame::Engine::Components::FactsDatabase.new
       @random_source = RGame::Engine::Components::RandomSource.new(seed: chosen_seed(seed))
       @debug = RGame::Engine::Debug.new
       @debug_keys = true
@@ -143,9 +143,9 @@ module RGame
     # anything being handed to it.
     attr_reader :viewports
 
-    # The flags and named state machines a game saves as one entry. Reachable
-    # as `node.system(RGame::Engine::Components::Facts)`, so a quest built deep
-    # in a scene registers with the same store the save code writes.
+    # The flags and named state machines a game saves as one entry. Reachable as
+    # `node.system(RGame::Engine::Components::FactsDatabase)`, so a quest built
+    # deep in a scene registers with the same store the save code writes.
     attr_reader :facts
 
     # The seeded random numbers every node draws from. Reachable as

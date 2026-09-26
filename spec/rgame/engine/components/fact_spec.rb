@@ -21,7 +21,7 @@ module SpecFactGame
 end
 
 RSpec.describe RGame::Engine::Components::Fact do
-  let(:facts) { RGame::Engine::Components::Facts.new }
+  let(:facts) { RGame::Engine::Components::FactsDatabase.new }
   let(:root) { RGame::Engine::Node2D.new.tap { it.add_component(facts) }.tap(&:enter_tree) }
 
   # A room built over a map: a scene whose TileWorld names the map.
@@ -85,13 +85,13 @@ RSpec.describe RGame::Engine::Components::Fact do
       expect(fact.value).to eq('open')
     end
 
-    it "writes the fact to the root's Facts" do
+    it "writes the fact to the root's FactsDatabase" do
       fact.value = 'open'
 
       expect(facts[:chest]).to eq('open')
     end
 
-    it 'reports a write as Facts reports any write' do
+    it 'reports a write as the FactsDatabase reports any write' do
       heard = []
       fact
       facts.on_changed { |key, value| heard << [key, value] }
@@ -128,7 +128,7 @@ RSpec.describe RGame::Engine::Components::Fact do
     end
 
     it 'raises for the value' do
-      expect { fact.value }.to raise_error(RuntimeError, /Components::Fact keeps its value in the root's Facts/)
+      expect { fact.value }.to raise_error(RuntimeError, /Components::Fact keeps its value in the root's FactsDatabase/)
     end
 
     it 'raises for a write' do

@@ -12,9 +12,9 @@ module Adventure
   # It draws its state as a word so a driven run can tell a tap from a hold. A
   # test project draws Strings; an example would draw a translation key.
   #
-  # Its state is kept in Facts, through a Components::Fact under the key the room
-  # names, so a room built anew holds the chest as it was left. It reads the fact
-  # as it enters the tree, and writes it at each change.
+  # Its state is kept in the facts database, through a Components::Fact under the
+  # key the room names, so a room built anew holds the chest as it was left. It
+  # reads the fact as it enters the tree, and writes it at each change.
   class Chest < Engine::Node2D
     SIZE = 20
 

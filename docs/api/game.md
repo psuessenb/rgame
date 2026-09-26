@@ -39,7 +39,7 @@ RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
 
 A node reaches the first four as systems: `node.system(RGame::Engine::Players)`,
 `node.system(RGame::Engine::Viewports)`,
-`node.system(RGame::Engine::Components::Facts)` and
+`node.system(RGame::Engine::Components::FactsDatabase)` and
 `node.system!(RGame::Engine::Components::RandomSource)`. It plays sound through a
 fifth, `RGame::Engine::AudioOut`, which holds `audio`; see [Audio](audio.md).
 
@@ -103,8 +103,9 @@ the game offers a way back. See [Fullscreen](app.md#fullscreen) and
 `examples/fullscreen`.
 
 `start` brings the tree live. It hands the game to the root as its `context`,
-mounts `Players`, `Viewports`, `Components::Facts`, `Components::RandomSource`,
-`Debug` and `AudioOut` on the root. It then calls `enter_tree` and runs the loop until the window closes.
+mounts `Players`, `Viewports`, `Components::FactsDatabase`,
+`Components::RandomSource`, `Debug` and `AudioOut` on the root. It then calls
+`enter_tree` and runs the loop until the window closes.
 
 Each tick, `Game` polls input, runs `control` and `update` on the tree, and sweeps
 freed nodes. It redraws only when a tick ran or the `:stats` channel is on.

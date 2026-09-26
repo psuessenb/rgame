@@ -285,7 +285,7 @@ index, not the argument.
   node's size and turned as a tile object is in Tiled, under everything else
   the node draws. `renderer.map_tile` is the draw it calls. See
   [docs/api/components.md](docs/api/components.md#maptile).
-- **A node keeps its own state in `Facts`.** `Components::Fact` holds one of
+- **A node keeps its own state in `FactsDatabase`.** `Components::Fact` holds one of
   its node's values under the key the node passes, or under one made from the
   map object the node was built from. So a chest opened once stays open when its
   room is built again. `Node2D#map_object_id` is that object's id. See
@@ -310,12 +310,12 @@ index, not the argument.
   saves with `to_h` and resumes with `from:`. See
   [docs/api/dialogue.md](docs/api/dialogue.md#state-machines).
 - **A game saves its flags and quests as one entry.**
-  `RGame::Engine::Components::Facts` holds flags that belong to no object, and
-  `RGame::Game` mounts one as `game.facts`. `on_changed` reports changes in
-  play, and `watch` keeps something in step, loads included. A
-  `StateMachine` built with `name:` registers with it, so
-  `facts.to_h` saves every named quest too and `facts.restore` puts all of them
-  back. See [docs/api/dialogue.md](docs/api/dialogue.md#facts).
+  `RGame::Engine::Components::FactsDatabase` holds flags that belong to no
+  object, and `RGame::Game` mounts one as `game.facts`. `on_changed` reports
+  changes in play, and `watch` keeps something in step, loads included. A
+  `StateMachine` built with `name:` registers with it, so `facts.to_h` saves
+  every named quest too and `facts.restore` puts all of them back. See
+  [docs/api/dialogue.md](docs/api/dialogue.md#facts).
 - **A game has one seeded source of random numbers.**
   `RGame::Engine::Components::RandomSource` answers `rand` as `Random#rand`
   does, and `RGame::Game` mounts one as `game.random_source`, seeded from

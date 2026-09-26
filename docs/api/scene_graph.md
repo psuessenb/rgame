@@ -972,8 +972,8 @@ is the code, and `examples/doors` walks a hero through a gate and two warp pads.
 
 **A room is built anew each time it starts running.** A room left and entered
 again is a new object, with new timers. What should outlast a visit, a chest
-opened or a coin taken, lives in `Facts`, where a loaded save puts it too. See
-[Facts](dialogue.md#facts).
+opened or a coin taken, lives in the `FactsDatabase`, where a loaded save puts
+it too. See [Facts](dialogue.md#facts).
 
 ### A move lands in the sweep
 

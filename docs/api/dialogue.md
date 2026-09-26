@@ -240,20 +240,20 @@ See [Saving the world](#saving-the-world).
 
 ## Facts
 
-**`Components::Facts` holds the flags that belong to no object**: "met the
-smith", "the bridge is down", "wolves killed". It is a system on the root, so
-every node reaches the same store with `node.system`. `RGame::Game` mounts one
-when it starts, and `game.facts` returns it. Outside a `Game`, as in a spec,
+**`Components::FactsDatabase` holds the flags that belong to no object**: "met
+the smith", "the bridge is down", "wolves killed". It is a system on the root,
+so every node reaches the same store with `node.system`. `RGame::Game` mounts
+one when it starts, and `game.facts` returns it. Outside a `Game`, as in a spec,
 mount it yourself:
 
 ```ruby
 require 'rgame'
 
 root = RGame::Engine::Node2D.new
-root.add_component(RGame::Engine::Components::Facts.new)
+root.add_component(RGame::Engine::Components::FactsDatabase.new)
 smithy = root.add_node(RGame::Engine::Node2D.new)
 
-facts = smithy.system(RGame::Engine::Components::Facts)
+facts = smithy.system(RGame::Engine::Components::FactsDatabase)
 facts[:met_smith] = true
 facts[:wolves] = facts.fetch(:wolves, 0) + 1
 
@@ -320,7 +320,7 @@ HAMMER = RGame::Engine::StateGraph.build(start: :not_started) do
   state :found
 end
 
-facts = RGame::Engine::Components::Facts.new
+facts = RGame::Engine::Components::FactsDatabase.new
 quest = RGame::Engine::StateMachine.new(HAMMER, facts:, name: :hammer)
 facts[:met_smith] = true
 quest.fire(:accepted)
@@ -331,7 +331,7 @@ Dir.mktmpdir do |dir|
   save = RGame::Util::SaveFile.new('slot1.json', dir: dir)
   save.write(world: facts.to_h)
 
-  loaded = RGame::Engine::Components::Facts.new
+  loaded = RGame::Engine::Components::FactsDatabase.new
   loaded.restore(save.read[:world])
   again = RGame::Engine::StateMachine.new(HAMMER, facts: loaded, name: :hammer)
   again.state         # => :searching
@@ -389,7 +389,7 @@ class Gate < RGame::Engine::Node2D
   end
 
   def _enter_tree
-    @facts = system(RGame::Engine::Components::Facts)
+    @facts = system(RGame::Engine::Components::FactsDatabase)
     @machine = RGame::Engine::StateMachine.new(GRAPH, facts: @facts, name: :gate)
     @bridge = @facts.watch(:bridge_down) { |down| @machine.fire(:lower) if down }
   end
@@ -399,11 +399,11 @@ end
 ```
 
 **A second store is for a second lifetime.** A roguelike keeps unlocks that
-outlast every run beside flags that reset with each one. Mount a second `Facts`
-on the run's scene node. `node.system` looks at the scene before the root, so
-the run's nodes and quests find the run's store, and the game saves both
-entries. Code inside the run reaches the root store with
-`node.root.get_component(RGame::Engine::Components::Facts)`.
+outlast every run beside flags that reset with each one. Mount a second
+`FactsDatabase` on the run's scene node. `node.system` looks at the scene before
+the root, so the run's nodes and quests find the run's store, and the game saves
+both entries. Code inside the run reaches the root store with
+`node.root.get_component(RGame::Engine::Components::FactsDatabase)`.
 
 **Settings are not facts.** Volume, key bindings and language belong to the
 player, not to a save slot. Keep them in a `Util::SaveFile` of their own.
@@ -605,7 +605,7 @@ SMITH = RGame::Engine::Dialogue::Script.build(start: :greeting, scope: 'smith') 
   beat :work, speaker: :smith, line: 'work', to: :greeting
 end
 
-facts = RGame::Engine::Components::Facts.new
+facts = RGame::Engine::Components::FactsDatabase.new
 talk = RGame::Engine::Dialogue.new(SMITH, facts:, name: :smith)
 talk.respond(talk.responses.first)
 talk.continue
@@ -760,7 +760,7 @@ SHUT = RGame::Engine::Dialogue::Script.build(start: :greeting, scope: 'guard') d
 end
 
 report = RGame::Engine::Exploration.run do
-  facts = RGame::Engine::Components::Facts.new
+  facts = RGame::Engine::Components::FactsDatabase.new
   facts[:pass] = true
   RGame::Engine::Dialogue.new(SHUT, facts:)
 end
