@@ -11,6 +11,10 @@ require 'rgame'
 # name with the engine's: `<%= game_module %>::Scene` is the game's,
 # `Engine::Scene` the engine's.
 #
+# The four names are rgame's, so the game keeps no module of its own under them:
+# `module UI` in here would reopen the engine's, and rgame raises on the first
+# thing written inside it.
+#
 # Ruby warns when a constant is assigned twice, so this is the one file that
 # assigns them. Every other Ruby file of the game requires it first.
 module <%= game_module %>

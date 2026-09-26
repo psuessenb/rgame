@@ -216,6 +216,16 @@ meant: a node's own code advances an `Engine::Timer`, while a
 are `CircleCollider`, `Cutscene`, `Pool` and `Tween`. A module may add shorthands of its own the same
 way, such as `Controls = Util::Controls`.
 
+**rgame's own classes and modules are closed to the `class` and `module`
+keywords.** Inside `MyGame`, `UI` and `Components` are rgame's, so a module of the
+game's own with one of those names reopens rgame's rather than making a new one.
+A class inside it named like one of rgame's, such as `Timer`, would replace
+rgame's methods. So a constant, method or singleton method written in a class or
+module body outside rgame, onto a class or module under `RGame::Engine` or
+`RGame::Util`, raises `NameError` naming the file and the line. Give the game's
+module another name, such as `Hud`. Subclassing is unaffected, and so are a spec
+that stubs a method on an rgame module, `define_method` and `class_eval`.
+
 The shorter spellings each break somewhere:
 
 | Spelling | What goes wrong |

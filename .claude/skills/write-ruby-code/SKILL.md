@@ -129,8 +129,8 @@ A game's own ivars need no prefix and no check against a list of taken names.
 
 ### What the guards cannot see
 
-`Signal::DSL`, `Engine::Hooks` and `Engine::SealedPrivates` all check in
-`method_added`, which Ruby does not call for a method that arrives through
+`Signal::DSL`, `Engine::Hooks`, `Engine::SealedPrivates` and `Engine::Closed`
+all check in `method_added`, which Ruby does not call for a method that arrives through
 `include` or `prepend`. A module mixed into a subclass can still replace a
 signal's connect method or define a misspelled hook, and nothing raises.
 

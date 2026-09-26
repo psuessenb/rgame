@@ -127,3 +127,7 @@ require_relative 'engine/components/wander_controller'
 require_relative 'engine/components/animated_sprite'
 require_relative 'engine/components/camera_follow'
 require_relative 'engine/tile_map_layer'
+require_relative 'engine/closed'
+
+RGame::Engine::Closed.close(RGame::Engine)
+RGame::Engine::Closed.close(RGame::Util)
