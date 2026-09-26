@@ -1,9 +1,9 @@
 # Roadmap
 
-**Steps 0–4 are implemented.** Step 5 is detailed, inserted after step 4
-landed, and so are steps 6 and 7, re-planned after step 3 landed. Steps 8 and 9
-are rough and get re-planned once the steps before them land. Every step from 5
-on moved up by one, landed notes included, so a number in this document is
+**Steps 0–5 are implemented.** Steps 6 and 7 are detailed, re-planned after
+step 3 landed. Steps 8 and 9 are rough and get re-planned once the steps before
+them land. Step 5 was inserted after step 4 landed, and every step from 5 on
+moved up by one, landed notes included, so a number in this document is
 today's.
 
 ## Dependency shape
@@ -1088,6 +1088,49 @@ end
 - `CHANGELOG.md` has an Added entry for `Components::Fact` and
   `Node2D#map_object_id`. `map_object:` and `fact_key:` have no entry to remove,
   since step 3 left the changelog to step 6.
+
+**Landed.** Three commits on `fact-component`, 5a to 5c as sketched.
+`rake spec` 4412 examples, 0 failures (4385 before, 27 new). `rake spec:core`
+533, 0 failures. `rake docs:coverage`: 0 of 220 modules and classes with an
+undocumented name. `rake drive:allocations`: all 43 projects within budget.
+Adventure allocates 74.6 objects a second against 73.9 on `main`: 16 more
+objects over the run, on the same 57 ticks, where the town built again makes its
+five `Fact`s. `make test` was not run, as the step changes no C.
+
+Adventure, driven for 1640 ticks with `--seed 1 --texts`, reports byte for byte
+what `main` reports. With `--seed 4242` it differs by one frame drawn in the
+full-window clip, 1640 against 1639, the variance step 2 found. Every count in
+the split screen, every span and every translate match. At both seeds, `chest`,
+`lever` and `crate` draw 119, 501 and 80 times in each half of the split screen,
+and none of them after the town is built again. With `Fact#value` changed to
+answer its default always, the three counts grow by 138 each, the frames drawn
+after that rebuild, so the drive catches a lost state.
+`grep -rnw -e fact_key -e map_object lib spec examples test_projects docs/api .claude`
+finds only `tile_map.rb`'s `require_relative 'map_object'`.
+
+Where the sketch was wrong, or said too little:
+
+- **Two `Fact`s on one node need slots of their own.** `add_component` keeps one
+  component per class unless given `as:`, and raises for a second. The sketch's
+  crate added three with no slot. Each now takes one, `as: :x`, `as: :y` and
+  `as: :way`, and `Fact`'s class comment and `components.md` show it.
+- **`Facts#fetch` allocates an object for each call**, so `Fact#value` reads
+  through `key?` and `[]` instead. On this Ruby, forwarding `(...)` costs
+  nothing, and a parameter before it, as in `fetch(key, ...)`, costs an object.
+  The first allocation spec caught it, and write-ruby-code's table gained the
+  row. `Facts#fetch` itself is unchanged, since no per-frame path calls it.
+  **For step 10:** it could take explicit parameters, and the note belongs in
+  `docs/plans/possible-todos.md` if no step fixes it.
+- **The step touched `Components::Facts`' class comment**, which said the store
+  holds only flags that belong to no object. It now names `Fact` as the way a
+  node keeps its own value there.
+
+Documented in `docs/api/components.md` (`Fact`), `docs/api/dialogue.md` (the
+Facts section points to it), `docs/api/internals.md` (`map_object_id`, `route:`
+and `name:`), `docs/api/tile_maps.md` (`map_object_id:`), and the
+write-ruby-code skill ("A node class a map builds", and the allocation table).
+`CHANGELOG.md` has an Added entry for `Components::Fact` and
+`Node2D#map_object_id`.
 
 ---
 
