@@ -308,17 +308,92 @@ node.system!(RGame::Engine::Components::RandomSource).rand(3)
   they do today.
 - **`RGAME_SEED` is read in one place**, `RGame::Game`, instead of in 9 projects.
 
-## Writing Tiled's custom types *(rough)*
+## Writing Tiled's custom types
 
 ```ruby
-RGame::Engine::MapTypes.write('examples/assets/tiled_tour/tour.tiled-project')
+module MyGame
+  class Chest < Engine::Node2D
+    # A chest the hero opens once.
+    #
+    # @placeable
+    # @param contents [String] the item inside
+    # @param locked [Boolean] whether it takes a key to open
+    # @param lid [:flat, :round] the shape of its lid
+    def initialize(contents:, locked: false, lid: :flat, **)
 ```
 
-It walks the `Node2D` subclasses whose tags make any keyword settable, and
-writes a Tiled class with `useAs` object for each. It replaces the classes it owns and keeps the ones the
-designer wrote, such as `entrance`. Where it runs from, and what default each
-member shows, are open questions [2](README.md#open-questions) and
-[5](README.md#open-questions).
+```ruby
+report = RGame::Engine::MapTypes.new(MyGame).write('assets/my_game.tiled-project')
+puts report
+# assets/my_game.tiled-project
+#   added      Chest   contents, lid, locked
+#   unchanged  Door    entrance, party, to
+#   removed    Barrel
+# Tiled shows the change once the project is reopened.
+# A class is written when the comment above its initialize carries @placeable.
+```
+
+**A class the designer may place carries `@placeable`** (decision 21). The
+export walks the game's module, and every module and class defined under it,
+and writes each placeable `Node2D` class. The tag is read as the `@param` tags
+are: from the comment above the `initialize` the class uses. Nothing else reads
+it. A map still builds a class without it (hard constraint 7).
+
+**Each placeable class becomes a Tiled class**, named by its path under the
+module, such as `Door` or `Town::Chest`. That is a name `MapBuilder` resolves
+from any scene in the module. It is used as an object's class and a tile's,
+since a tile object takes its tile's class. Its members are the keywords its
+tags make settable:
+
+| Tag | Member |
+|---|---|
+| `[String]`, `[Symbol]` | `string` |
+| `[Integer]` | `int` |
+| `[Float]` | `float` |
+| `[Boolean]` | `bool` |
+| `[Util::Color]` | `color`, written `#aarrggbb` as Tiled writes it |
+| `[:flat, :round]` | `string`, of a string enum `Chest.lid` holding `flat` and `round` |
+
+`name:` and `route:` are no members, since the builder fills them from the
+object.
+
+**A member shows its keyword's default** (decision 23). Tiled saves no member
+the designer leaves at its default, so a map then gives the game Ruby's default.
+The export shows the same value:
+
+- A literal default shows itself: `locked: false` shows `false`.
+- A constant shows its value, looked up outward from the class as `MapBuilder`
+  resolves a class name.
+- A required keyword shows Tiled's empty value for its type. A map that leaves
+  it unset raises at load, as it does today.
+- `nil` shows as empty for a String, a Symbol and a colour.
+- Anything else raises at export, naming the class, the keyword and what to
+  write instead. That covers a default the export cannot read, a default of
+  another type than the tag's, and `nil` for any other type.
+
+Prism reads the defaults, and loads only when the export runs. It takes about
+35 ms to load, against about 120 ms for `require 'rgame'`, so loading it with
+the engine would slow every game's start.
+
+**The export owns every type whose name starts with a capital letter**
+(decision 22). It replaces those the game defines, and keeps the id, colour and
+fill Tiled holds for each. It removes the other capitalised types, and adds new
+ones after the rest. The designer's lower-case types, such as `entrance`, stay
+as they are, and so does every other key of the project.
+
+**It writes the file as Tiled writes it.** Keys and members are sorted, the
+indent is four spaces, an empty array spans two lines, and a float with no
+fraction is written bare. A project in that format comes back byte for byte when
+Tiled saves it again. A project that already holds the types is left untouched.
+
+**Nothing at load reads the project** (hard constraint 7). The project only
+helps the designer pick classes and fill in members. A map typed by hand, a map
+beside a stale project, and a map with no project at all build the same.
+
+**A generated project writes its types with `bundle exec rake tiled`**
+(decision 24). `spec/tiled_project_spec.rb` fails when the project no longer
+holds what the task writes, and names the command. `rgame new --no-tiled` leaves
+out the project and the spec.
 
 ## What it replaces
 
@@ -389,3 +464,23 @@ member shows, are open questions [2](README.md#open-questions) and
 - **Resolving classes in the transform.** A `TileMap` is plain data built
   before a scene exists, and may be built in a process with none of the game's
   classes loaded. `mount` is the first point where they must be.
+- **Exporting every class with a `@param` tag** (step 8's Q1 B). A tag must
+  name a keyword a map sets. So a class with nothing to set, such as `Flag`,
+  `Crate` or `Walker`, could never be exported.
+- **Exporting every class a map can build** (step 8's Q1 A). The projects hold
+  58 such classes, and the maps build 9. The designer would pick from scenes,
+  rooms and heroes.
+- **A marker module for placeable classes.** A tag keeps everything a map reads
+  in the one comment `MapSettings` already reads.
+- **The builder refusing a class without `@placeable`.** Hard constraint 7: a
+  map typed by hand builds whatever fits, whether or not any export has run.
+- **`rgame tiled-export`** (step 8's Q4). A command in the gem would reach games
+  made before step 8. But it would fix the project's layout inside the gem. It
+  would also require `rgame` from a CLI that requires only the standard library,
+  and need `bundle exec` to load the game against its own engine.
+- **`RGame::Game` writing the types when the game starts.** `RGame::Game.new`
+  opens the window, and a shipped game would write into its own assets. Tiled
+  would not see the file until the project is reopened.
+- **One Tiled project for `examples/assets/`** (step 8's Q5 B). The export would
+  merge several games' modules and refuse a class two of them define
+  differently. No spec can load an example's classes to check the file.

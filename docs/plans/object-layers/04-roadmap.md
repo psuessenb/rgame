@@ -1,9 +1,9 @@
 # Roadmap
 
-**Steps 0–7 are implemented.** Steps 8 and 9 are rough and get re-planned
-once the steps before them land. Step 5 was inserted after step 4 landed, and
-every step from 5 on moved up by one, landed notes included, so a number in
-this document is today's.
+**Steps 0–7 are implemented, and step 8 is planned in detail.** Step 9 is
+rough and gets re-planned once step 8 lands. Step 5 was inserted after step 4
+landed, and every step from 5 on moved up by one, landed notes included, so a
+number in this document is today's.
 
 ## Dependency shape
 
@@ -1558,20 +1558,267 @@ properties each map names) and the headers of `examples/doors/main.rb` and
 
 ---
 
-## Step 8 — Tiled's custom types, written from Ruby *(rough)*
+## What was measured before planning step 8
 
-`RGame::Engine::MapTypes.write(path)` writes a Tiled class into a
-`.tiled-project` for each `Node2D` subclass whose tags make any keyword
-settable. It replaces the classes it owns and keeps the designer's. An Array of
-Symbols becomes a Tiled enum.
+Taken at `40d6e0d`, after step 7 landed. Tiled 1.12.2 ran from its AppImage
+under Xvfb, and Tiled's source was read at `221be20`.
 
-To settle in the re-plan: open questions 2 and 5, where it runs and what default
-a member shows. Which classes it writes, now that open question 6 resolves a
-name from the scene's class: a project's maps may serve two games, as
-`garden.tmx` serves `DoorsExample` and `Adventure`, and each game has its own
-`Door` with its own tags. Whether the generated project gains the task, and
-`spec/rgame/cli/generated_project_spec.rb` with it. Whether its `.gitignore`
-leaves out `*.tiled-session`, as this repository's does since step 0.
+| | |
+|---|---|
+| Tiled's project file | JSON. `propertyTypes` holds each class with `id`, `name`, `type`, `members`, `color`, `drawFill` and `useAs`, and each enum with `storageType`, `values` and `valuesAsFlags`. A member is `name`, `type` and `value`, plus `propertyType` for an enum (`propertytype.cpp`) |
+| A project written outside Tiled | Tiled loads it. A trial `Door` held a string, a bool, an int, a float, a colour and an enum. `garden.tmx`, exported with `--resolve-types-and-properties`, gives each door every member, at its default where the map sets none *(measured)* |
+| A class named `Town::Chest`, and an enum `Town::Chest.lid` | Tiled loads both, and an enum member whose value is `""` *(measured)* |
+| What Tiled saves for a member left at its default | nothing. `garden.tmx` saved again under the trial types gains no property. So rgame reads no member the designer left alone, and the game takes Ruby's default *(measured)* |
+| When Tiled reads the project | when it opens it. Nothing watches the file. A project written while Tiled has it open shows only after reopening, and Tiled's next save of the project overwrites it (`mainwindow.cpp`, `project.cpp`) |
+| Tiled importing a type it has | replaces it by name and keeps its id (`PropertyTypes::merge`) |
+| How Tiled writes the file | keys sorted, a class's members sorted by name, a four-space indent, an empty array over two lines, a float with no fraction bare. Written that way, a project comes back byte for byte when Tiled saves it again, through its scripting API *(measured)* |
+| Ruby's `JSON.pretty_generate` with a four-space indent | differs from Tiled's file only in empty arrays, on `tour.tiled-project` *(measured)* |
+| Classes the maps build | 9: `Door` ×2, `Warp` ×2, `Raft` ×2, `Flag`, `Crate` and `Walker` |
+| Of those, with a `@param` tag | 6. `Flag`, `Crate` and `Walker` take nothing a map sets |
+| Node classes in the 43 driven projects | 155, in the games' own modules. A map could build 58 of them: their `initialize` takes the builder's keywords and requires nothing a map cannot give. Beyond the 9, those are scenes, rooms, heroes, HUD pieces and effects |
+| Two games on one map | `garden.tmx` serves `DoorsExample` and `Adventure`. Their `Door`s have the same three tags, and the two `Raft`s have the same two |
+| Keyword defaults of `def initialize` in `lib/rgame/engine/`, `examples/` and `test_projects/` | 209: 151 literals, 30 constants, 28 other. 26 of the 28 are Arrays, Hashes, Ranges and objects Tiled cannot hold. 2 compute a number: `-Math::PI / 2` and `button_width` |
+| Prism | a default gem, 1.8.1 in Ruby 4.0.5. `require 'prism'` takes 34–39 ms, where `require 'rgame'` takes 114–131 ms *(measured)* |
+| `RGame::Game.new` | opens the window, since its `super` is `Core::App`'s |
+| A generated project's `spec_helper.rb` | requires every file under `nodes/` already, with no SDL |
+| `generated_project_spec.rb` | 8 examples in 4.8 s. An example that runs the project's `rspec` costs about 0.35 s |
+
+---
+
+## Step 8 — Tiled's custom types, written from Ruby *(`MapTypes`, pure, and `rgame new`)*
+
+Decision 8 has rgame write Tiled's custom types. A designer then picks a class
+from a list and fills in its members, rather than typing both. Step 7 moved
+every map onto the builder and tagged each constructor the maps name, so the
+export has real classes to write. Step 9's level is the first map authored
+against them. The export only helps: nothing at load reads what it writes
+(hard constraint 7).
+
+What it resembles:
+
+- **Reused.** `MapSettings.of` gives each member and its type, and its walk
+  over the comment above `initialize` finds `@placeable` too. `json`, a default
+  gem, writes the file, as it does for `Util::SaveFile`.
+- **Extended.** `MapSettings` reads each settable keyword's default beside its
+  tag. `MapBuilder`'s nesting moves into `MapSettings.nesting`, so a default's
+  constant and a map's class name resolve the same way. The generated
+  project's `locales_spec.rb` is the shape of its `tiled_project_spec.rb`: a
+  spec that fails when two files the game keeps drift apart.
+- **Genuinely new.** Writing a file another program reads and saves again.
+  rgame writes only its own saves and a new project's templates today.
+
+### Sub-steps
+
+- **8a** — `MapTypes#types`: which classes are placeable, and the Tiled types
+  each becomes. `MapSettings` reads `@placeable` and the defaults.
+- **8b** — `MapTypes#write` and `#changes`: the types written into a project,
+  the designer's kept, and a report. `docs/api/tile_maps.md` and
+  `CHANGELOG.md`.
+- **8c** — the nine classes the maps build carry `@placeable`. The header of
+  `examples/doors/main.rb` and the
+  [write-ruby-code](../../../.claude/skills/write-ruby-code/SKILL.md) skill say
+  what it does.
+- **8d** — `rgame new` writes the Tiled project and its spec, adds
+  `rake tiled` and the `.gitignore` entry, and takes `--no-tiled`.
+
+### Shape
+
+```ruby
+# 8a and 8b — Engine, pure. `require 'rgame'` loads it, and Prism only when a default is read.
+module RGame
+  module Engine
+    class MapTypes
+      # What a write changed, or would change, in one project. The first three lists hold
+      # types as `types` gives them, and `removed` holds names.
+      Report = Data.define(:path, :added, :changed, :unchanged, :removed) do
+        def current? = added.empty? && changed.empty? && removed.empty?
+
+        def to_s   # a line per class written, with its members; a line per type removed; the @placeable rule
+      end
+
+      # `scope` is the game's module.
+      def initialize(scope)
+
+      # Each placeable class under `scope` as a Tiled class, and each enum its members name,
+      # as Hashes in the shape of Tiled's project file, sorted by name.
+      def types
+
+      # Writes the types into the Tiled project at `path`, creating the project if it is
+      # missing. A project that already holds them stays untouched.
+      def write(path)     # => a Report
+
+      # The Report `write` would return, writing nothing.
+      def changes(path)
+    end
+
+    module MapSettings
+      def self.placeable?(node_class)   # the comment above the initialize it uses carries @placeable
+      def self.defaults(node_class)     # => { party: false }; a required keyword is absent. Loads Prism.
+      def self.nesting(scope)           # the modules a name resolves in, innermost first; MapBuilder's today
+    end
+  end
+end
+```
+
+```ruby
+# 8c — each of the nine classes, in its game's module
+class Flag < Engine::Node2D
+  # A flag the hero reaches. The map builds it from a point and passes the point's name.
+  #
+  # @placeable
+  def initialize(name:, **)
+```
+
+```ruby
+# 8d — the generated Rakefile gains a task, with or without --no-tiled
+desc 'Write the node classes a map may place into assets/<%= module_file %>.tiled-project, for Tiled'
+task :tiled do
+  require 'rgame'
+  Dir[File.join(__dir__, 'nodes/**/*.rb')].each { require it }
+  project = File.join(__dir__, 'assets/<%= module_file %>.tiled-project')
+  puts RGame::Engine::MapTypes.new(<%= game_module %>).write(project)
+end
+
+# 8d — spec/tiled_project_spec.rb, which --no-tiled leaves out
+RSpec.describe RGame::Engine::MapTypes do
+  it 'finds every placeable node class in assets/<%= module_file %>.tiled-project, as rake tiled writes it' do
+    project = File.expand_path('../assets/<%= module_file %>.tiled-project', __dir__)
+    changes = described_class.new(<%= game_module %>).changes(project)
+
+    expect(changes).to be_current, "#{changes}\nRun `bundle exec rake tiled` to write them."
+  end
+end
+```
+
+What `rgame new` writes:
+
+| File | By default | With `--no-tiled` |
+|---|---|---|
+| `assets/<name>.tiled-project` | Tiled's empty project, with `folders: ["."]` | left out |
+| `spec/tiled_project_spec.rb` | written | left out |
+| `Rakefile` | gains `tiled` | gains `tiled`, which creates the project if it runs |
+| `.gitignore` | gains `*.tiled-session` | the same |
+| `README.md` | a "Maps" section | the same, less the spec |
+
+### The rules the tests pin
+
+1. **A class is placeable when the comment above the `initialize` it uses
+   carries `@placeable`.** It is read from the same block as the `@param` tags.
+   A subclass with no `initialize` of its own is placeable when its parent is,
+   and one with its own carries its own tag.
+2. **The export walks `scope`, and every module and class defined under it.**
+   It follows no constant naming a module defined elsewhere, such as a game's
+   `Engine = RGame::Engine`.
+3. **A placeable class becomes a Tiled class named by its path under `scope`**,
+   `Door` or `Town::Chest`. It is used as an object's class and a tile's. Its
+   members are the keywords `MapSettings.of` makes settable, sorted by name.
+   `name:` and `route:` are no members.
+4. **Each tag becomes Tiled's type**, as the design's table gives it. A list of
+   Symbols becomes a string member of a string enum named `<class>.<keyword>`,
+   such as `Door.lid`, holding the Symbols as Strings.
+5. **A member shows its keyword's default.** A literal shows itself. A constant
+   shows its value, looked up from the class through `MapSettings.nesting`. A
+   required keyword shows Tiled's empty value: `""`, `0`, `0.0`, `false`, an
+   unset colour, or `""` for an enum. `nil` shows as `""` for a String, a
+   Symbol and a colour.
+6. **Any other default raises at export**, naming the class, the keyword and
+   what to write instead. That covers a default the export cannot read, one of
+   another type than the tag's, and `nil` for any other type.
+7. **A placeable class no map could build raises at export.** Its
+   `initialize` requires a keyword no map sets, such as a hero's `camera:`. Or
+   it does not take the keywords the builder always passes.
+8. **`write` owns every type whose name starts with a capital letter.** It
+   keeps every other type, and every key of the project besides
+   `propertyTypes`. It replaces a capitalised type the game defines in its
+   place, keeping its id, colour and fill. It removes a capitalised type the
+   game does not define. It appends new types, with ids above the highest.
+9. **`write` creates a missing project**, holding what Tiled's own new project
+   holds.
+10. **`write` writes the file as Tiled does**: keys and members sorted, a
+    four-space indent, an empty array over two lines, a float with no fraction
+    bare. A project Tiled saved comes back byte for byte when nothing changed.
+    A project that already holds the types is not written at all.
+11. **`changes` gives the report `write` would**, writing nothing. It is
+    `current?` when the project holds the types already, whatever id, colour,
+    fill or formatting Tiled gave them.
+12. **The report lists every class written**, with its members and whether it
+    was added, changed or unchanged, and every type removed. When the file
+    changed, a line says that Tiled shows the change once the project is
+    reopened. The last line says that a class is written when the comment above
+    its `initialize` carries `@placeable`. With no placeable class, the report
+    says only that.
+13. **Nothing at load reads a `.tiled-project`** (hard constraint 7). A map
+    mounted beside a project whose defaults differ from Ruby's builds each node
+    with Ruby's defaults, as it does with no project. A class without
+    `@placeable` builds as one with it.
+14. **`require 'rgame'` loads no Prism.** Reading a default loads it.
+15. **`rgame new` writes the Tiled project and its spec, and `--no-tiled`
+    writes neither.** Both add `rake tiled` and the `.gitignore` entry. A fresh
+    project's spec passes. A placeable class added under `nodes/` fails it until
+    `rake tiled` runs.
+
+### Tests
+
+- `spec/rgame/engine/map_settings_spec.rb`: `placeable?`, `defaults` and
+  `nesting` (rules 1 and 5), with classes defined in the file as today.
+- `spec/rgame/engine/map_types_spec.rb`, new: rules 2–12 and 14. A game module
+  defined in the file holds a placeable class of every tag type, a nested
+  class, a subclass with and without its own `initialize`, a class without the
+  tag, a placeable class requiring `camera:`, and a constant naming
+  `RGame::Engine`. Rule 14 runs `require 'rgame'` in a subprocess.
+- `spec/fixtures/saved.tiled-project`, new: a project Tiled 1.12.2 saved through
+  its scripting API (`tiled --project … --evaluate`). It holds a class of every
+  member type, an enum and a lower-case class, and the spec's comment gives the
+  script. `map_types_spec.rb` writes over it the types it already holds, and no
+  byte changes (rule 10).
+- `spec/rgame/engine/tile_map_layer_spec.rb`: rule 13.
+- `spec/rgame/cli_spec.rb`: what `rgame new` writes, with and without
+  `--no-tiled`, and that `new` refuses an option it does not know (rule 15).
+- `spec/rgame/cli/generated_project_spec.rb`: a fresh project passes its
+  `rspec`, as today. A `@placeable` node added under `nodes/` fails it, naming
+  `rake tiled`. `bundle exec rake tiled` prints the class and the `@placeable`
+  line, and `rspec` then passes. A `--no-tiled` project passes its `rspec` and
+  RuboCop. About 2 s more, at 0.35 s a subprocess.
+
+### Verify
+
+- `rake spec`, `rake spec:core`, `rake docs:coverage` and
+  `rake drive:allocations`. 8c changes only comments, and the builder reads one
+  more comment line per class the first time it builds it.
+- **Driven with `--seed 1 --texts` on `main` and after 8c**: `doors` for 900
+  ticks, adventure for 1640, `moving_platforms`, and topdownplatformer for 1654.
+  The reports match byte for byte. Run alone, since a run beside the suites
+  can drop a frame (step 7).
+- **Tiled reads what the export writes.** By hand, with Tiled 1.12.2 from its
+  AppImage under Xvfb, since CI has no Tiled:
+  - A scratch script loads `examples/doors/main.rb` with `RGame::Game#initialize`
+    stubbed, as the driver loads a project. It writes `DoorsExample`'s types
+    into a scratch project and reports `Door` and `Warp` added.
+  - `tiled --project <scratch> --resolve-types-and-properties --export-map json garden.tmx out.json`
+    gives each door `to`, `entrance` and `party`, with `party` `false` where the
+    map sets none, and each warp `entrance`.
+  - A Tiled script that adds and removes a type saves the project again, and no
+    byte changes.
+- `grep -rln '@placeable' examples test_projects` finds the eight files that
+  define the nine classes. `examples/doors/main.rb` and
+  `examples/moving_platforms/main.rb` define three. Adventure's `door.rb` and
+  `warp.rb`, and topdownplatformer's `raft.rb`, `flag.rb`, `crate.rb` and
+  `walker.rb`, define the other six.
+- `docs/api/tile_maps.md` has a section on Tiled's custom types: `@placeable`,
+  `MapTypes`, `rake tiled`, what a member shows, and what the export owns. It
+  says that a map builds the same without a project. `docs/api/internals.md`
+  names `@placeable` and `MapSettings.nesting`. `CHANGELOG.md`'s Unreleased
+  section has the export, and the Tiled project `rgame new` writes, with
+  `--no-tiled`.
+
+### What this step does not deliver
+
+- **A Tiled project in this repository.** Step 9's level brings the first
+  (decision 25).
+- **A project shared by two games**, such as one for `examples/assets/`.
+- **Tiled seeing an export while it has the project open.** The designer
+  reopens the project, and the task's report says so.
+- **`rgame tiled-export`**, a command in the gem (decision 24).
 
 ## Step 9 — the maps checked, and the level played *(rough)*
 
@@ -1584,6 +1831,11 @@ sketches:
   script. Its requirements are written at this step's re-plan, against the
   exported types: trees as tile objects in the marked layer, a chest whose state
   survives leaving the room, a value a node passes on to its component.
+- The level's Tiled project is the first this repository keeps (decision 25).
+  An example's `main.rb` starts its game when required, so no spec can load its
+  classes, and `rake tiled` is a generated project's task. The re-plan decides
+  how the project is written and what checks it stays current, such as a drive
+  script naming the project.
 
 This is the first driven project with a tile object, so its
 `rake drive:allocations` budget is where `map_tile` is measured in a whole game.
@@ -1598,8 +1850,10 @@ place `mount` leaves for the actors on a map with no mark.
 - **`docs/api/tile_maps.md`** says what a map builds and how: the class rule,
   data classes, the `@param` tags, tile objects, the `actors`
   mark, hidden layers and objects, `route:` and `name:`, `map_object_id` and
-  `Components::Facts`, and `places[name]`. Step 6 rewrote
-  "Building nodes from objects"; this step checks it against the code.
+  `Components::Facts`, and `places[name]`. It also covers `@placeable`,
+  `MapTypes` and `rake tiled`, and says that a map needs no Tiled project. Step
+  6 rewrote "Building nodes from objects"; this step checks it against the
+  code.
 - **`docs/api/components.md`** covers `Facts`, `MapTile` and `RandomSource`.
 - **`docs/api/scene_graph.md`** covers what `mount` builds for an object layer.
 - **`docs/plans/possible-todos.md`**:
@@ -1616,6 +1870,7 @@ place `mount` leaves for the actors on a map with no mark.
 [update-changelog](../../../.claude/skills/update-changelog/SKILL.md): what the
 Tiled parser gained, the random source, map-built nodes and `places[name]`, the
 `@param` convention, `map_tile` and `MapTile`, and `Components::Facts` with
-`map_object_id`. It has no entry for `MapObjects`, `slots:`, `map_object:` or
+`map_object_id`. It also covers `@placeable` and `MapTypes`, and the Tiled
+project `rgame new` writes, with `--no-tiled`. It has no entry for `MapObjects`, `slots:`, `map_object:` or
 `fact_key:`, which never shipped. `rake` passes. `docs/plans/object-layers/` is gone,
 and `grep -r object-layers docs/ .claude/` finds nothing.
