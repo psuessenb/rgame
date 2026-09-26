@@ -1,7 +1,7 @@
 # Object layers
 
-**Status: steps 0–5 are implemented.** Steps 6 and 7 of
-[the roadmap](04-roadmap.md) are detailed. Step 5 was inserted after step 4
+**Status: steps 0–6 are implemented.** Step 7 of
+[the roadmap](04-roadmap.md) is detailed. Step 5 was inserted after step 4
 landed, and the steps after it moved up by one. Steps 8 and 9 are rough and get
 re-planned as the steps before them land. Step 10 folds the plan back and
 deletes it.

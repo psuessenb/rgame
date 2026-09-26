@@ -1,7 +1,7 @@
 # Roadmap
 
-**Steps 0–5 are implemented.** Steps 6 and 7 are detailed, re-planned after
-step 3 landed. Steps 8 and 9 are rough and get re-planned once the steps before
+**Steps 0–6 are implemented.** Step 7 is detailed, re-planned after step 3
+landed. Steps 8 and 9 are rough and get re-planned once the steps before
 them land. Step 5 was inserted after step 4 landed, and every step from 5 on
 moved up by one, landed notes included, so a number in this document is
 today's.
@@ -1268,6 +1268,68 @@ nothing changes place on screen.
   until step 7 removes it. `docs/api/scene_graph.md` and `internals.md` follow.
 - `CHANGELOG.md` has an Added entry for map-built nodes. The Unreleased entry
   on `slots:` becomes one on `places[name]`, since `slots:` never shipped.
+
+**Landed.** Three commits on `mount-object-layers`, 6a to 6c as sketched.
+`rake spec` 4448 examples, 0 failures (4424 before, 24 new). `rake spec:core`
+533, 0 failures. `rake docs:coverage`: 0 of 220 modules and classes with an
+undocumented name. `rake drive:allocations`: all 43 projects within budget. On
+the same ticks as `main`, 57 of adventure's 1458 and 16 of `doors`' 764,
+adventure allocates 1843 objects where `main` allocates 1821, and `doors` 514
+where it allocates 494. Each is a room built, whose `mount` now groups the
+map's objects and builds `Places`. `make test` was not run, as the step changes
+no C.
+
+The 12 projects that draw a map were driven with `--seed 1 --texts`, on `main`
+and on the branch, one run after another: 22 runs, with every tiled_world
+script, both cutscene scripts, both collision_tiles scripts, adventure for 1640
+ticks and topdownplatformer for 1654. `doors`, adventure and `block_puzzle`
+report byte for byte what `main` reports. The other 9 differ in one line, their
+`world` band count, and topdownplatformer also in its map id, the map's absolute
+path in each checkout. Each count grew by exactly the viewports drawn: the
+tilemap calls over the map's tile layers. collision_tiles grew by 240 in 240
+frames, cutscene by 280, tiled_world_2p by 454, and topdownplatformer by 3297
+over 1654 ticks. `tour.tmx` from the authoring branch mounts headless. Its tile
+objects 9 and 10 build plain `Node2D`s with a `MapTile` of tile 399, one turned
+90°, and its seven shape objects build nothing.
+
+Where the sketch was wrong, or said too little:
+
+- **`mount` needed somewhere to remember it ran.** Rule 9 said a second mount
+  raises, and nothing in the sketch held the fact. `TileWorld#record_mount`,
+  `@api private`, keeps it and raises `RuntimeError` naming the world's node.
+- **The mount spec left `StubTileMap`.** An object layer needs real
+  `MapObject`s, and the stub names no Engine class, since `spec_core/` loads it
+  too. `tile_map_layer_spec.rb` now parses `.tmx` strings, as the builder's spec
+  does, and the stub and the `a tile map` contract are unchanged: the renderer
+  never reads objects.
+- **An ambiguous name raises `KeyError` too.** Rule 10 named a name no layer
+  has. `places['doors']` resolves through `TileMap#layer_index`, which also
+  refuses a bare name two groups share, so both list the object layers.
+- **The caller that uses all of it draws one `WorldView` into two viewports.**
+  The sketch said two `WorldView`s side by side. A split screen is one
+  `WorldView` drawn once per viewport, and `Viewports` stacks two players top
+  and bottom.
+- **Five more projects called the actors' node a slot**, in comments:
+  collision_tiles, scroll_map, pathfinding, tiled_world and adventure's
+  `Sparkles`. They say place now, and so do `Node2D#y_sort`'s and
+  `TileWorld#first_above_layer`'s comments.
+- **6b kept `slots:` working for one commit.** On a map with a mark, the
+  `:actors` slot with no layer named was the marked layer's node. 6c took
+  `slots:` out with the rest.
+- **The Unreleased y-sort entry named slots too.** It says the actors' place
+  now. The `MapObjects` entry kept its place, renamed "A map's objects become
+  nodes by block", and links the new subsection. **For step 7:** that entry and
+  the subsection "Building from data classes with `MapObjects`" in
+  `tile_maps.md` go with the class.
+
+Documented in `docs/api/tile_maps.md` ("Building nodes from objects" rewritten,
+`MapObjects` in a subsection, the door example on `places['doors']`, and the
+hidden marked layer), `docs/api/components.md` (`mount`, `Places` and
+`TileWorld#objects`, and `MapTile` naming the builder), `docs/api/internals.md`
+(tile objects and hidden objects, and `mount` as the builder's caller),
+`docs/api/scene_graph.md` (what `mount` y-sorts) and `docs/api/examples.md`.
+`CHANGELOG.md` has an Added entry for map-built nodes, and the Changed entry on
+`mount` is stated against v0.4.0's `under:`.
 
 ---
 
