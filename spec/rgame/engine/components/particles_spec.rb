@@ -211,6 +211,7 @@ RSpec.describe RGame::Engine::Components::Particles do
       world = root.add_node(RGame::Engine::WorldView.new)
       particles = emitter
       mount(particles, parent: world)
+      root.enter_tree
       particles.burst(3, 50, 50)
       viewports.refresh
       renderer = FakeRenderer.new
@@ -234,6 +235,42 @@ RSpec.describe RGame::Engine::Components::Particles do
     3.times { node.update(0.1) }
 
     expect(rects_of(node).map(&:args)).to eq(before)
+  end
+
+  describe 'rng:' do
+    let(:root) { RGame::Engine::Node2D.new }
+    let(:source) { RGame::Engine::Components::RandomSource.new(seed: 9) }
+
+    it "draws from the root's RandomSource when given none" do
+      root.add_component(source)
+      allow(source).to receive(:rand).and_call_original
+      particles = emitter(rng: nil)
+      mount(particles, parent: root)
+      particles.burst(3)
+
+      expect(source).to have_received(:rand).exactly(9).times
+    end
+
+    it 'raises at attach, naming RandomSource, when the root has none' do
+      expect { mount(emitter(rng: nil), parent: root) }.to raise_error(KeyError, /RandomSource/)
+    end
+
+    it 'refuses to burst before its node is in the tree' do
+      particles = emitter(rng: nil)
+      RGame::Engine::Node2D.new.add_component(particles)
+
+      expect { particles.burst(3) }.to raise_error(RuntimeError, /in the tree/)
+    end
+
+    it "draws from an rng: passed in, and leaves the root's source alone" do
+      root.add_component(source)
+      allow(source).to receive(:rand).and_call_original
+      particles = emitter(rng: Random.new(9))
+      mount(particles, parent: root)
+      particles.burst(3)
+
+      expect(source).not_to have_received(:rand)
+    end
   end
 
   describe 'what it refuses' do

@@ -14,18 +14,16 @@ WIDTH  = 640
 HEIGHT = 480
 MEDIA  = File.join(__dir__, '../../media')
 
-SEED = ENV.fetch('RGAME_SEED', nil)&.to_i
-
 # Root: owns scene navigation (SceneStack) and program-lifetime state (HighScores,
 # a global/root-scoped system). A scene asks for the next one through #go, and the
 # stack lands the switch after the tick, so a scene never tears itself down
 # mid-traversal.
 class Root < RGame::Engine::Node2D
-  def initialize(seed: nil)
-    super()
+  def initialize
+    super
     @stack = add_component(RGame::Engine::Scene::SceneStack.new)
     @stack.define(:start) { StartScene.new }
-    @stack.define(:play) { PlayScene.new(width: WIDTH, height: HEIGHT, seed: seed) }
+    @stack.define(:play) { PlayScene.new(width: WIDTH, height: HEIGHT) }
     @stack.define(:game_over) { |score:| GameOverScene.new(score: score) }
     add_component(HighScores.new)
   end
@@ -36,7 +34,7 @@ class Root < RGame::Engine::Node2D
 end
 
 game = RGame::Game.new(
-  root: Root.new(seed: SEED),
+  root: Root.new,
   caption: 'Asteroids',
   width: WIDTH,
   height: HEIGHT,

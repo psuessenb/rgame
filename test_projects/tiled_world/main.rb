@@ -11,6 +11,7 @@ require_relative 'beach_scene'
 WIDTH  = 640
 HEIGHT = 480
 MEDIA  = File.join(__dir__, '../../media')
+DEFAULT_SEED = 0xBEAC4
 
 # Minimal root: a SceneStack with the single beach scene pushed once it's live.
 class Root < RGame::Engine::Node2D
@@ -28,6 +29,7 @@ game = RGame::Game.new(
   width: WIDTH,
   height: HEIGHT,
   media_root: MEDIA,
+  seed: DEFAULT_SEED,
   input_map: RGame::Engine::InputMap.default.merge(
     cutscene: { buttons: [Controls::KEY_TAB, Controls::PAD_START] }
   ),

@@ -108,9 +108,9 @@ and nothing reports it. Weigh that deliberately. A client that is useless withou
 its system raises instead: with `system!`, or with a message of its own, as a
 mover's `blocked_by:` does.
 
-## The five systems `Game` mounts
+## The six systems `Game` mounts
 
-**`RGame::Game` puts five systems on the root before the tree goes live.** Any
+**`RGame::Game` puts six systems on the root before the tree goes live.** Any
 node can reach them without the game wiring anything:
 
 | | |
@@ -118,6 +118,7 @@ node can reach them without the game wiring anything:
 | `node.system(RGame::Engine::Players)` | who is playing — devices, bindings, cameras, and who a newly used controller belongs to |
 | `node.system(RGame::Engine::Viewports)` | how the screen is divided — one `View` per active player, and collapsing the split |
 | `node.system(RGame::Engine::Components::Facts)` | the flags and named state machines a game saves as one entry |
+| `node.system!(RGame::Engine::Components::RandomSource)` | the game's seeded random numbers, which `WanderController` and `Particles` draw from |
 | `node.system(RGame::Engine::Debug)` | the development layer — a switch per channel, drawn over the frame |
 | `node.system!(RGame::Engine::AudioOut)` | the sound device: `play_sound`, `play_music`, `stop_music`, and fades, a crossfade, claims on the music, pause and category volumes |
 
@@ -125,13 +126,14 @@ They are ordinary root-scoped systems, mounted the way a game mounts its own. A
 scene that needs a camera to follow asks `Players` (`players.primary.camera`). A
 cutscene that collapses the split asks `Viewports` (`viewports.solo!(camera)`).
 A quest built in a scene registers with `Facts`, which the save code writes. A
-collider asks `Debug` whether to draw its shape. A node plays a sound through
-`AudioOut`. All five work from anywhere in the tree, with nothing passed in. That
+walker rolls its next direction from `RandomSource`. A collider asks `Debug`
+whether to draw its shape. A node plays a sound through `AudioOut`. All six work from anywhere in the tree, with nothing passed in. That
 reach is why they are systems and not objects `Game` hands down.
 
 See [Input](input.md#players-seats-and-joining),
 [Scene graph](scene_graph.md#viewports-and-views),
 [Facts](dialogue.md#facts),
+[`RandomSource`](components.md#randomsource),
 [Debug](#debug--a-switch-per-channel) and
 [Audio](audio.md#audioout--the-system-a-node-plays-sound-through).
 

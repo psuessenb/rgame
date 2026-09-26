@@ -37,7 +37,7 @@
 # land aboard on 507 and 512. The pad's hero steps off on 611 and is back at
 # `first` on 641. The keyboard's hero hops off the shuttle on 732 and lands on
 # 762, hops for the ring on 982 and lands aboard on 1012, and hops off it on
-# 1462, landing on 1492. The walker wanders by the course's seeded RNG, and
+# 1462, landing on 1492. The walker wanders by the game's RandomSource, and
 # runs with seeds 1 to 5 reach `last` on the same tick.
 
 on controls::KEYBOARD do

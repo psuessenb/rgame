@@ -1,7 +1,7 @@
 # Roadmap
 
-**Steps 0 and 1 are implemented.** Steps 2 and 3 are detailed. Steps 4–8 are
-rough and get re-planned once the steps before them land.
+**Steps 0–2 are implemented.** Step 3 is detailed. Steps 4–8 are rough and get
+re-planned once the steps before them land.
 
 ## Dependency shape
 
@@ -354,6 +354,67 @@ Particles.new(rng: nil, ...)
 - `docs/api/` documents `RandomSource` and `game.random_source`, and the pages
   for `WanderController` and `Particles` say where `rng:` comes from.
   `CHANGELOG.md` has an Added entry, and a Changed entry for the two defaults.
+
+**Landed.** Two commits on `random-source`, 2a and 2b as sketched.
+`rake spec` 4306 examples, 0 failures, 13 of them new. `rake spec:core` 522,
+0 failures, 5 of them new. `rake docs:coverage`: 0 of 215 modules and classes
+with an undocumented name. `rake drive:allocations`: all 43 projects within
+budget. `make test` was not run, as the step changes no C.
+
+`rand` allocates nothing with no argument, an Integer or a Range. Each of the 9
+projects was driven with `--seed 1 --texts` for 240 ticks, before and after, and
+tiled_world with each of its 6 scripts. The same runs went again at the lengths
+the scripts are written for: adventure for 1640 ticks under seeds 1 and 4242,
+topdownplatformer for 1654 under seeds 1 and 3, asteroids for 3000, effects for
+400, and pooling and save_load_ids for 600. Of the plan's two predicted
+differences:
+
+- **Nothing draws from the source before the scene that used to own one.** At
+  240 ticks, 11 of the 14 reports match byte for byte.
+- **A scene entered twice now continues its sequence.** Adventure frees the
+  town and builds it again at 1640 ticks, and the second town's sparkles land
+  elsewhere: the rects' x span ends at 488.0 rather than 488.7 under seed 4242.
+  Scenes entered and sounds played match. Asteroids enters `PlayScene` once in
+  3000 ticks, so its replay never comes up in a driven run.
+
+Where the sketch was wrong, or said too little:
+
+- **Adventure and topdownplatformer never report byte for byte**, not even on
+  `main`. Two runs of adventure there drew 238 and 239 frames, and its first
+  text appears at tick 3 in one run and tick 4 in another. The comparison drops
+  the counts and the first-drawn tick, and compares every `first`, `last` and
+  `spans` field. Those match, apart from the second town above and a `faded`
+  whose first frame depends on which frames were drawn.
+- **Pooling's report differs in one line, and it is not a draw position.** The
+  example draws its own allocation count, and the first second reads 42,623
+  where it read 42,633. The seconds after it match.
+- **No call site relied on the unseeded default.** The three the current state
+  counted all passed their scene's seeded `Random` to `Particles`. They now pass
+  nothing.
+- **A burst before the node is in the tree had to be refused.** The default
+  resolves at `_attach`, so `Particles#burst` before then failed on `nil`. It
+  now raises and says why. The two-viewport spec burst before its root entered
+  the tree, and now enters it first.
+- **The raise for a missing source names the node, not the component.** It is
+  `system!`'s `KeyError`: "Node2D found no
+  RGame::Engine::Components::RandomSource system on the root".
+- **`RGAME_SEED` is read with `Integer()`, not `to_i`.** A value that is not an
+  Integer raises `ArgumentError` rather than seeding 0.
+- **The seed moved to `main.rb`.** Three projects kept `DEFAULT_SEED` on the
+  scene class, and it is now the game's setting. Asteroids no longer threads
+  a seed through `Root` into `PlayScene`: with no `RGAME_SEED` the game picks
+  one, as `Random.new` did.
+- **The API reference check needed `RGAME_SEED` on its allow-list.** It reads
+  a backticked upper-case word as a constant.
+- **For step 6:** topdownplatformer's `Walker` already finds its random source
+  in the tree, through `WanderController`'s default, and takes no `rng:`.
+
+Documented in `docs/api/components.md` (`RandomSource`, and `rng:` on
+`Particles` and `WanderController`), `docs/api/game.md` (`seed:`,
+`random_source`) and `docs/api/systems.md` (six systems, not five).
+`CHANGELOG.md` has an Added entry, a Changed entry for `WanderController`, and
+the unreleased `Particles` entry names its default. The write-example skill
+and CLAUDE.md's `--seed` row say where the seed goes.
 
 ---
 

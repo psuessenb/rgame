@@ -595,7 +595,7 @@ Five flags change what a run proves:
 | | |
 |---|---|
 | `--allocations` | records nothing, and counts what the game allocates once warm: objects a second, and the share of ticks allocating anything. Fails over the script's `allocation_budget`. `rake drive:allocations` runs it for every project, and CI runs that on Linux |
-| `--seed N` | seeds the project's own RNG through `RGAME_SEED`, so two runs are byte-identical. **Exact draw counts are comparable only with it**; otherwise assert on structure — scenes entered, sounds fired, clip and translate counts |
+| `--seed N` | seeds the game's `RandomSource` through `RGAME_SEED`, so two runs are byte-identical. **Exact draw counts are comparable only with it**; otherwise assert on structure — scenes entered, sounds fired, clip and translate counts |
 | `--texts` | every distinct string drawn with `text`, which is how two runs are compared string for string. With more than one clip, also per clip, which is what ties a string to one player's region |
 | `--gamepad` | a synthetic SDL controller instead of the scripted backend, exercising the real device path |
 | `--installed` | leaves the load path alone, so `rgame` resolves to whatever is installed — how CI's `smoke` job plays the examples out of a platform gem |

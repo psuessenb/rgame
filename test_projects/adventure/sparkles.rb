@@ -12,11 +12,11 @@ class Sparkles < RGame::Engine::Node2D
   COUNT = 12
   RAMP = RGame::Util::ColorRamp.new(RGame::Util::Color.new(255, 250, 200), RGame::Util::Color.new(255, 190, 60, 0))
 
-  def initialize(rng:, **)
+  def initialize(**)
     super(z: 1, **)
     @particles = add_component(RGame::Engine::Components::Particles.new(
                                  limit: 48, lifetime: 0.3..0.6, speed: 20.0..60.0, spread: Math::PI,
-                                 gravity: 60.0, size: 2, ramp: RAMP, blend: :add, rng: rng
+                                 gravity: 60.0, size: 2, ramp: RAMP, blend: :add
                                ))
   end
 

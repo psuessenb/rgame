@@ -22,8 +22,8 @@
 #     it is the number to watch if pausing ever starts pausing too much.
 #
 # Run it with `--seed N` if you want two runs to be comparable: the villagers
-# wander off a seeded RNG, and without a seed the example still fixes its own
-# so a plain run is reproducible too.
+# wander off the game's seeded RandomSource, and without `--seed` the example's
+# `seed:` fixes it, so a plain run is reproducible too.
 
 idle 5
 hold controls::KEY_RIGHT, 25

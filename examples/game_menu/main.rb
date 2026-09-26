@@ -120,7 +120,6 @@ class Scene < RGame::Engine::Node2D
 
   def initialize
     super
-    @rng = Random.new(ENV.fetch('RGAME_SEED', DEFAULT_SEED).to_i)
     @help = RGame::Engine::Text.new('help.walk')
   end
 
@@ -129,7 +128,7 @@ class Scene < RGame::Engine::Node2D
     hero = add_node(walker(RGame::Engine::Components::PlayerController.new,
                            HERO_SPEED, (WIDTH / 2) + 8, (HEIGHT / 2) + 22))
     NPC_SPAWNS.each do |x, y|
-      add_node(walker(RGame::Engine::Components::WanderController.new(rng: @rng), NPC_SPEED, x, y))
+      add_node(walker(RGame::Engine::Components::WanderController.new, NPC_SPEED, x, y))
     end
 
     # The player's own layer, and the menu inside it. With one seat this covers
@@ -161,7 +160,8 @@ game = RGame::Game.new(
   width: WIDTH,
   height: HEIGHT,
   media_root: ASSETS,
-  locales: LOCALES
+  locales: LOCALES,
+  seed: DEFAULT_SEED
 )
 
 # The one thing that has to be registered by hand: a nine-slice id names an

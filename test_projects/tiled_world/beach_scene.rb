@@ -24,11 +24,8 @@ class BeachScene < RGame::Engine::Node2D
   WALKER_SPACING = 48
   UI_MARGIN      = 20
 
-  DEFAULT_SEED = 0xBEAC4
-
   def initialize
     super
-    @rng = Random.new(ENV.fetch('RGAME_SEED', DEFAULT_SEED).to_i)
     @walkers = {}
   end
 
@@ -95,7 +92,7 @@ class BeachScene < RGame::Engine::Node2D
     node.add_component(RGame::Engine::Components::FeetCollider.new(width: 14, height: 10, layer: :npc))
     node.add_component(RGame::Engine::Components::CharacterBody.new(speed: NPC_SPEED,
                                                                     blocked_by: BLOCKED_BY))
-    node.add_component(RGame::Engine::Components::WanderController.new(rng: @rng))
+    node.add_component(RGame::Engine::Components::WanderController.new)
     node
   end
 

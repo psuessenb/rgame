@@ -11,7 +11,7 @@ module RGame
       #   sparkles = actors.add_node(Engine::Node2D.new)
       #   particles = sparkles.add_component(Engine::Components::Particles.new(
       #     limit: 48, lifetime: 0.4..0.7, speed: 30.0..80.0, spread: Math::PI,
-      #     gravity: 90.0, size: 3, ramp: EMBER, blend: :add, rng: rng
+      #     gravity: 90.0, size: 3, ramp: EMBER, blend: :add
       #   ))
       #   particles.burst(16, x, y)   # 16 at once
       #   particles.rate = 40         # a stream from the node's origin, per second
@@ -32,9 +32,11 @@ module RGame
       # An emitter that must outlive what it sparkles for, as a coin that frees
       # itself when taken, goes on a node of its own, and the coin is handed it.
       #
-      # `rng:` should be the game's own seeded Random, so two runs place every
-      # particle the same. Time reaches particles only through `update`, so a
-      # paused node's particles hold still. A node that leaves the tree takes
+      # They draw from the root's RandomSource, found when the component
+      # attaches, so a seeded game places every particle the same each run. An
+      # `rng:` passed in wins; it is anything answering `rand` as `Random#rand`
+      # does. Time reaches particles only through `update`, so a paused node's
+      # particles hold still. A node that leaves the tree takes
       # its particles with it.
       class Particles < Engine::Component
         # One particle's state, rewritten each time the pool hands it out.
@@ -69,7 +71,7 @@ module RGame
         # pixels a second added to the downward speed each second. `ramp` is a
         # Util::ColorRamp, and `blend` a mode `renderer.blended` takes.
         def initialize(limit:, lifetime:, speed:, ramp:, direction: -Math::PI / 2, spread: Math::PI,
-                       gravity: 0.0, size: 2, blend: :alpha, rng: Random.new)
+                       gravity: 0.0, size: 2, blend: :alpha, rng: nil)
           super()
           @rgame_limit = positive(limit, 'limit', integer: true)
           @rgame_lifetime = float_range(lifetime, 'lifetime', above_zero: true)
@@ -81,7 +83,7 @@ module RGame
           @rgame_size = positive(size, 'size')
           @rgame_half = @rgame_size / 2.0
           @rgame_blend = Util::Blend.mode!(blend)
-          @rgame_rng = rng
+          @rgame_given_rng = rng
           @rgame_rate = 0
           @rgame_carry = 0.0
           @rgame_pool = Engine::Pool.new { Particle.new }.reserve(limit)
@@ -102,9 +104,15 @@ module RGame
 
         # Places `count` particles at (x, y) in the node's local space, or as
         # many as the limit leaves room for. `count` is an Integer. Returns how
-        # many it placed.
+        # many it placed. With no `rng:`, it raises until the node is in the
+        # tree, where it finds the RandomSource.
         # hot-path
         def burst(count, x = 0.0, y = 0.0)
+          unless @rgame_rng
+            raise 'Particles#burst draws from the root\'s RandomSource, found once its node is in the ' \
+                  'tree. Burst after the node enters the tree, or pass an rng: to Particles.new.'
+          end
+
           placed = [count, @rgame_limit - @rgame_pool.size].min
           placed = 0 if placed.negative?
           i = 0
@@ -127,6 +135,10 @@ module RGame
           renderer.blended(@rgame_blend) do
             @rgame_pool.each { draw_particle(renderer, it) }
           end
+        end
+
+        def _attach
+          @rgame_rng = @rgame_given_rng || node.system!(RandomSource)
         end
 
         def _detach

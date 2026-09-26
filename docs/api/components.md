@@ -1234,12 +1234,12 @@ change colour as they age, and vanish.**
 EMBER = RGame::Util::ColorRamp.new(RGame::Util::Color.new(255, 240, 160),
                                    RGame::Util::Color.new(255, 120, 0, 0))
 
-# In a scene's initialize. @rng is the scene's own seeded Random.
+# In a scene's initialize.
 sparkles = add_node(RGame::Engine::Node2D.new)
 @sparks = sparkles.add_component(RGame::Engine::Components::Particles.new(
   limit: 48, lifetime: 0.4..0.7, speed: 30.0..80.0,
   direction: -Math::PI / 2, spread: Math::PI, gravity: 90.0,
-  size: 3, ramp: EMBER, blend: :add, rng: @rng
+  size: 3, ramp: EMBER, blend: :add
 ))
 
 @sparks.burst(16, x, y)   # 16 at once from (x, y)
@@ -1251,7 +1251,7 @@ not a node. The component builds `limit` of them when it is made, so bursting,
 streaming, stepping and drawing allocate nothing after that.
 
 - **Construct:** `Particles.new(limit:, lifetime:, speed:, ramp:, direction: -Math::PI / 2,
-  spread: Math::PI, gravity: 0.0, size: 2, blend: :alpha, rng: Random.new)`.
+  spread: Math::PI, gravity: 0.0, size: 2, blend: :alpha, rng: nil)`.
   - `limit` is how many can be alive at once, a positive Integer.
   - `lifetime`, in seconds, and `speed`, in pixels a second, are each a number
     or a Range to draw one from. A lifetime must be above 0, and a speed at
@@ -1266,14 +1266,17 @@ streaming, stepping and drawing allocate nothing after that.
     draws in `ramp.at(age / lifetime)`, so a ramp to alpha 0 fades it out.
   - `blend` is a mode [`renderer.blended`](drawing.md#blending-and-fading)
     takes. `:add` makes sparks glow over what is behind them.
-  - `rng` is the Random the particles draw from. Pass the game's own seeded
-    one, and two runs place every particle the same.
+  - `rng` is what the particles draw from: anything answering `rand` as
+    `Random#rand` does. With none, they draw from the root's
+    [`RandomSource`](#randomsource), so a seeded game places every particle the
+    same each run.
 
   A bad value raises `ArgumentError`, and a `ramp` that is not a `ColorRamp`
   raises `TypeError`.
 - **`burst(count, x = 0.0, y = 0.0)`** places `count` particles at (x, y), in
   the node's local space. Past `limit` it places what fits, drops the rest, and
-  returns how many it placed.
+  returns how many it placed. With no `rng:`, it raises until the node is in the
+  tree, where the component finds the root's `RandomSource`.
 - **`rate=`** streams that many a second from the node's origin. It carries the
   fraction from tick to tick, so 40 a second at 60 ticks is 2 in every 3. 0, the
   default, streams none. A negative rate raises `ArgumentError`.
@@ -1283,8 +1286,9 @@ streaming, stepping and drawing allocate nothing after that.
   moves it, and frees it once its age reaches its lifetime. Then it streams.
   `_draw` draws every particle as a square centred on it, inside
   `renderer.blended(blend)`, and draws nothing while none is alive.
-- **Lifecycle:** `_detach` frees every particle, so a node that leaves the tree
-  enters again with none.
+- **Lifecycle:** with no `rng:`, `_attach` finds the root's `RandomSource`, and
+  raises `KeyError` naming it when the root has none. `_detach` frees every
+  particle, so a node that leaves the tree enters again with none.
 
 Particles live in the node's local space and move with it. An emitter that
 must outlive what it sparkles for goes on a node of its own. A coin that frees
@@ -1467,6 +1471,36 @@ while they overlap. Two players pushing side by side move it as far as one would
   updates to the next. A crate held against a wall reports it once, whatever order
   the crate and its pusher update in.
 - **Heading:** `0, 0`. A crate faces nowhere.
+
+### `RandomSource`
+
+**The game's one seeded source of random numbers**, a system on the root.
+`RGame::Game` mounts one, seeded from `seed:` or `RGAME_SEED`; see
+[`seed:`](game.md). Every node finds it without being handed it:
+
+```ruby
+require 'rgame'
+
+root = RGame::Engine::Node2D.new
+root.add_component(RGame::Engine::Components::RandomSource.new(seed: 42))
+walker = root.add_node(RGame::Engine::Node2D.new)
+root.enter_tree
+
+random = walker.system!(RGame::Engine::Components::RandomSource)
+random.seed                                    # => 42
+random.rand(3) == Random.new(42).rand(3)       # => true — the sequence Random.new(42) gives
+```
+
+- **Construct:** `RandomSource.new(seed:)`, with an Integer seed.
+- **`rand(...)`** takes what `Random#rand` takes: nothing for a Float in
+  [0, 1), an Integer for one below it, or a Range. It allocates nothing beyond
+  what `Random#rand` allocates. `Array#sample(random:)` and
+  `Array#shuffle(random:)` take the source as it is.
+- **`seed`** reads back the seed it was built with, so a run can be repeated.
+
+`WanderController` and `Particles` draw from it unless they are handed an
+`rng:`. One source serves the whole game, so a scene entered a second time
+continues the sequence rather than starting it again.
 
 ### `Respawn`
 
@@ -1804,11 +1838,14 @@ velocity.on_blocked { queue_free }
 
 **A simple AI driver for a `CharacterBody`.** At intervals it rolls a new direction,
 one of eight or idle, and holds it. A wall that blocks it triggers an early re-roll.
-The RNG is injected, so tests get deterministic behaviour.
 
-- **Construct:** `WanderController.new(rng: Random.new, change_interval: 1.0..3.0, idle_chance: 0.25)`.
+- **Construct:** `WanderController.new(rng: nil, change_interval: 1.0..3.0, idle_chance: 0.25)`.
+  With no `rng:`, it rolls from the root's [`RandomSource`](#randomsource), so a
+  seeded game wanders the same way each run. A spec passes `Random.new(seed)` to
+  pin one walker's rolls; anything answering `rand` as `Random#rand` does will do.
 - **Lifecycle:** `_attach` looks up the node's `CharacterBody` with
-  `require_sibling`.
+  `require_sibling`. With no `rng:`, it finds the root's `RandomSource`, and
+  raises `KeyError` naming it when the root has none.
 - **Phase:** `_update(dt)` counts down and re-rolls on timeout or when blocked.
   "Blocked" means the body meant to move and its [`stopped?`](#mover) is true: its
   step was cut short on either axis. A body with nothing declared is never blocked.

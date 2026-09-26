@@ -53,6 +53,39 @@ RSpec.describe RGame::Engine::Components::WanderController do
     end
   end
 
+  describe 'rng:' do
+    let(:root) { RGame::Engine::Node2D.new }
+    let(:source) { RGame::Engine::Components::RandomSource.new(seed: 9) }
+
+    def wander(**)
+      node = root.add_node(RGame::Engine::Node2D.new)
+      node.add_component(RGame::Engine::Components::CharacterBody.new(speed: 60.0))
+      controller = node.add_component(described_class.new(idle_chance: 0.0, **))
+      root.enter_tree
+      controller
+    end
+
+    it "rolls from the root's RandomSource when given none" do
+      root.add_component(source)
+      allow(source).to receive(:rand).and_call_original
+      wander._update(0.016)
+
+      expect(source).to have_received(:rand).at_least(:once)
+    end
+
+    it 'raises at attach, naming RandomSource, when the root has none' do
+      expect { wander }.to raise_error(KeyError, /RandomSource/)
+    end
+
+    it "rolls from an rng: passed in, and leaves the root's source alone" do
+      root.add_component(source)
+      allow(source).to receive(:rand).and_call_original
+      wander(rng: Random.new(9))._update(0.016)
+
+      expect(source).not_to have_received(:rand)
+    end
+  end
+
   # A walker boxed in by walls on every side, so whichever way it rolls, a step stops.
   describe 'blocked' do
     let(:scene) { RGame::Engine::Node2D.new.tap { it.scene = it } }
