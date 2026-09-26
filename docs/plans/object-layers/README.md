@@ -1,7 +1,8 @@
 # Object layers
 
 **Status: steps 0–2 are implemented.** Step 3 of
-[the roadmap](04-roadmap.md) is detailed. Steps 4–8 are rough and get re-planned as the steps before them
+[the roadmap](04-roadmap.md) is detailed, and its class resolution waits on
+[open question 6](#open-questions). Steps 4–8 are rough and get re-planned as the steps before them
 land. Step 9 folds the plan back and deletes it.
 
 ## The request
@@ -87,7 +88,8 @@ plan.
    component takes the value itself and passes it on. Setting a component's
    values from the map waits in `docs/plans/possible-todos.md`.
 4. **The Tiled class is the Ruby constant's name, resolved at load** (Q3). It
-   must name a `Node2D` subclass. There is no registry and no list. A map-built
+   must name a `Node2D` subclass. There is no registry and no list. Which module
+   the name resolves in is [open question 6](#open-questions). A map-built
    node finds what else it needs in the tree, such as `Scene::Rooms` or the
    random source.
 5. **A class starting with a capital letter builds a node, and any other class
@@ -178,6 +180,25 @@ Taken at `abb91ad`, and on `origin/build-step-8-tiled-map` for `tour.tmx`.
    keyword's default. Prism, a default gem, can read a literal one from the
    signature, such as `locked: false`. A computed default, such as
    `-Math::PI / 2`, would show as unset. *Waits on step 7's re-plan.*
+6. **Which module does a Tiled class resolve in?** *Blocks step 3's rule 9.*
+   Every example and test project keeps its classes in a module of its own, as
+   [A game's own module](../../api/README.md#a-games-own-module) recommends, so
+   a map's `Door` names no top-level constant. `garden.tmx` and `town.tmx` serve
+   both `examples/doors` and `test_projects/adventure`, and each game has a `Door`
+   of its own: `DoorsExample::Door` and `Adventure::Door`.
+   - **A — outward from the module of the scene that mounts the map**
+     *(recommended)*. A map mounted by `Adventure::Town` resolves `Door` as Ruby
+     resolves it inside that class: `Adventure::Town::Door`, then
+     `Adventure::Door`, then `::Door`. A map names no module, one map serves
+     both games, and nothing is configured. `MapBuilder.new` takes the class of
+     the node `TileWorld` is attached to, beside `tilemap_id:`, and step 5's
+     `mount` passes it.
+   - **B — the map names the module**, `Adventure::Door`. Explicit, but a map
+     two games share can serve only one of them, and renaming the module breaks
+     every map.
+   - **C — `RGame::Game.new(namespace: Adventure)`.** One place, but a game that
+     leaves it out gets a `NameError` for a class it defined, and a game whose
+     classes span several modules still needs B's spelling.
 
 ## Reading order
 
