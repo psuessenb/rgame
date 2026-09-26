@@ -102,12 +102,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module SplitScreenExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -188,10 +191,10 @@ module SplitScreenExample
     def initialize(tint:, camera:, **)
       super(**)
       @tint = tint
-      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-      add_component(Engine::Components::CharacterBody.new(speed: SPEED))
-      add_component(Engine::Components::PlayerController.new)
-      add_component(Engine::Components::CameraFollow.new(
+      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::CharacterBody.new(speed: SPEED))
+      add_component(Components::PlayerController.new)
+      add_component(Components::CameraFollow.new(
                       camera: camera, offset_y: CAMERA_OFFSET_Y
                     ))
     end

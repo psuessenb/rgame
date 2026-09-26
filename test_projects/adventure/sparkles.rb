@@ -15,7 +15,7 @@ module Adventure
 
     def initialize(**)
       super(z: 1, **)
-      @particles = add_component(Engine::Components::Particles.new(
+      @particles = add_component(Components::Particles.new(
                                    limit: 48, lifetime: 0.3..0.6, speed: 20.0..60.0, spread: Math::PI,
                                    gravity: 60.0, size: 2, ramp: RAMP, blend: :add
                                  ))

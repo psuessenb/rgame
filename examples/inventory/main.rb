@@ -51,12 +51,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module InventoryExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -116,8 +119,6 @@ module InventoryExample
 
   # The tabs, the two pages under them, and the status line.
   class Inventory < Engine::Node2D
-    UI = Engine::UI
-
     SLOT = 64
     ITEMS = {
       wand: :wand, wrench: :wrench, torch: :torch, hammer: :hammer,

@@ -21,15 +21,15 @@ module Asteroids
 
     def initialize
       super
-      add_component(Engine::Components::Velocity.new)
-      add_component(Engine::Components::ThrustController.new(
+      add_component(Components::Velocity.new)
+      add_component(Components::ThrustController.new(
                       turn_speed: TURN_SPEED, accel: ACCEL, max_speed: MAX_SPEED, drag: DRAG
                     ))
-      add_component(Engine::Components::ScreenWrap.new(margin: RADIUS))
-      add_component(Engine::Components::Sprite.new(id: :ship, anchor: :center))
-      trigger = add_component(Engine::Components::ActionTrigger.new(fire: FIRE_COOLDOWN))
+      add_component(Components::ScreenWrap.new(margin: RADIUS))
+      add_component(Components::Sprite.new(id: :ship, anchor: :center))
+      trigger = add_component(Components::ActionTrigger.new(fire: FIRE_COOLDOWN))
       trigger.on_triggered { |action| fire if action == :fire }
-      collider = add_component(Engine::Components::CircleCollider.new(radius: RADIUS, layer: :ship))
+      collider = add_component(Components::CircleCollider.new(radius: RADIUS, layer: :ship))
       collider.on_hit { |other| destroyed_signal.emit if other.layer == :rock }
     end
 
@@ -37,7 +37,7 @@ module Asteroids
     # constructor argument, because the scene's world system is only reachable once
     # this node is in the tree — see docs/api/systems.md.
     def _enter_tree
-      world = system(Engine::Components::WorldBounds)
+      world = system(Components::WorldBounds)
       self.x = world.world_width / 2.0
       self.y = world.world_height / 2.0
     end

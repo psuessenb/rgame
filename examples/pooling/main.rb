@@ -91,12 +91,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module PoolingExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -122,8 +125,8 @@ module PoolingExample
 
     def initialize
       super(width: SIZE, height: SIZE)
-      @velocity = add_component(Engine::Components::Velocity.new)
-      add_component(Engine::Components::DespawnOffscreen.new(margin: DESPAWN_MARGIN))
+      @velocity = add_component(Components::Velocity.new)
+      add_component(Components::DespawnOffscreen.new(margin: DESPAWN_MARGIN))
       @color = Util::Color.new(255, 255, 255)
     end
 
@@ -161,9 +164,9 @@ module PoolingExample
     def live = children.size
 
     def _enter_tree
-      @rng = system!(Engine::Components::RandomSource)
-      @pool = add_component(Engine::Components::Pool.new { Mote.new })
-      add_component(Engine::Components::Timer.new(SPAWN_EVERY))
+      @rng = system!(Components::RandomSource)
+      @pool = add_component(Components::Pool.new { Mote.new })
+      add_component(Components::Timer.new(SPAWN_EVERY))
         .on_elapsed { PER_BURST.times { emit } }
     end
 
@@ -208,7 +211,7 @@ module PoolingExample
 
     def _enter_tree
       @last = GC.stat(:total_allocated_objects)
-      add_component(Engine::Components::Timer.new(SAMPLE)).on_elapsed { sample }
+      add_component(Components::Timer.new(SAMPLE)).on_elapsed { sample }
     end
 
     def _draw(renderer, _view) = renderer.text(@label.with(count: @count), 0, 0, color: INK)
@@ -237,7 +240,7 @@ module PoolingExample
       super
       # Mounted outside the tree, so every DespawnOffscreen that attaches later
       # finds it — the same ordering the wrap in `examples/velocity` depends on.
-      add_component(Engine::Components::World.new(width: WIDTH, height: HEIGHT))
+      add_component(Components::World.new(width: WIDTH, height: HEIGHT))
     end
 
     def _enter_tree

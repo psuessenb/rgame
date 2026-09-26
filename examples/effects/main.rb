@@ -42,12 +42,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module EffectsExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -65,7 +68,7 @@ module EffectsExample
 
     def initialize(**)
       super
-      embers = add_component(Engine::Components::Particles.new(
+      embers = add_component(Components::Particles.new(
                                limit: 64, lifetime: 0.6..1.1, speed: 20.0..45.0, spread: 0.35,
                                gravity: -30.0, size: 3, ramp: EMBER, blend: :add
                              ))
@@ -97,7 +100,7 @@ module EffectsExample
     end
 
     def _enter_tree
-      @rng = system!(Engine::Components::RandomSource)
+      @rng = system!(Components::RandomSource)
     end
 
     def strike
@@ -159,7 +162,7 @@ module EffectsExample
       add_node(Torch.new(x: 90, y: FLOOR_Y - 40))
       @bolt = add_node(Bolt.new(length: FLOOR_Y, x: 440))
       sparkle_node = add_node(Engine::Node2D.new(x: WIDTH / 2, y: FLOOR_Y - 80))
-      @sparkles = sparkle_node.add_component(Engine::Components::Particles.new(
+      @sparkles = sparkle_node.add_component(Components::Particles.new(
                                                limit: 48, lifetime: 0.4..0.8, speed: 40.0..120.0,
                                                spread: Math::PI, gravity: 120.0, size: 3, ramp: SPARK,
                                                blend: :add

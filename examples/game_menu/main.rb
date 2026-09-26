@@ -38,12 +38,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module GameMenuExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -88,16 +91,16 @@ module GameMenuExample
     end
 
     def _enter_tree
-      column = Engine::UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT, spacing: SPACING)
+      column = UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT, spacing: SPACING)
       # The panel reaches PADDING beyond the buttons, so placing the menu PADDING
       # in puts the panel's corner at this node's origin.
-      @menu = add_node(Engine::UI::PanelMenu.new(x: PADDING, y: PADDING, padding: PADDING, layout: column,
-                                                 scope: 'menu'))
-      @menu.add(Engine::UI::PanelButton.new(label: 'resume')).on_activated { close }
+      @menu = add_node(UI::PanelMenu.new(x: PADDING, y: PADDING, padding: PADDING, layout: column,
+                                         scope: 'menu'))
+      @menu.add(UI::PanelButton.new(label: 'resume')).on_activated { close }
       # Disabled, so the example shows that state of the art — and because saving
       # is `examples/save_load`'s subject rather than this one's.
-      @menu.add(Engine::UI::PanelButton.new(label: 'save', enabled: false))
-      @menu.add(Engine::UI::PanelButton.new(label: 'quit')).on_activated { root.context.close }
+      @menu.add(UI::PanelButton.new(label: 'save', enabled: false))
+      @menu.add(UI::PanelButton.new(label: 'quit')).on_activated { root.context.close }
       @menu.close # built once, shown when Escape asks for it
     end
 
@@ -132,10 +135,10 @@ module GameMenuExample
 
     def _enter_tree
       # The hero's 16x22 picture starts with its top-left corner on the window's centre.
-      hero = add_node(walker(Engine::Components::PlayerController.new,
+      hero = add_node(walker(Components::PlayerController.new,
                              HERO_SPEED, (WIDTH / 2) + 8, (HEIGHT / 2) + 22))
       NPC_SPAWNS.each do |x, y|
-        add_node(walker(Engine::Components::WanderController.new, NPC_SPEED, x, y))
+        add_node(walker(Components::WanderController.new, NPC_SPEED, x, y))
       end
 
       # The player's own layer, and the menu inside it. With one seat this covers
@@ -154,8 +157,8 @@ module GameMenuExample
 
     def walker(controller, speed, x, y)
       node = Walker.new(x: x, y: y)
-      node.add_component(Engine::Components::AnimatedSprite.new(sheet: SHEET))
-      node.add_component(Engine::Components::CharacterBody.new(speed: speed))
+      node.add_component(Components::AnimatedSprite.new(sheet: SHEET))
+      node.add_component(Components::CharacterBody.new(speed: speed))
       node.add_component(controller)
       node
     end

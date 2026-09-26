@@ -23,10 +23,10 @@ module Asteroids
 
     def initialize
       super
-      @velocity = add_component(Engine::Components::Velocity.new)
-      @sprite   = add_component(Engine::Components::Sprite.new(id: :rock, anchor: :center))
-      add_component(Engine::Components::ScreenWrap.new(margin: RADII.first))
-      @collider = add_component(Engine::Components::CircleCollider.new(radius: RADII.first, layer: :rock))
+      @velocity = add_component(Components::Velocity.new)
+      @sprite   = add_component(Components::Sprite.new(id: :rock, anchor: :center))
+      add_component(Components::ScreenWrap.new(margin: RADII.first))
+      @collider = add_component(Components::CircleCollider.new(radius: RADII.first, layer: :rock))
       @collider.on_hit { |other| scene.destroy_rock(self) if other.layer == :bullet }
     end
 

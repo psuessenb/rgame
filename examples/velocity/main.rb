@@ -70,12 +70,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module VelocityExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -110,8 +113,8 @@ module VelocityExample
     end
 
     def _enter_tree
-      add_component(Engine::Components::Velocity.new(vx: @vx, vy: @vy, spin: @spin))
-      add_component(Engine::Components::ScreenWrap.new(margin: WRAP_MARGIN))
+      add_component(Components::Velocity.new(vx: @vx, vy: @vy, spin: @spin))
+      add_component(Components::ScreenWrap.new(margin: WRAP_MARGIN))
     end
 
     # Centred on the node's own origin, which is where the traversal has already
@@ -135,9 +138,9 @@ module VelocityExample
     # by class when it attaches, and a component added from `_enter_tree` can only see
     # the ones already there.
     def _enter_tree
-      add_component(Engine::Components::CharacterBody.new(speed: WALK_SPEED))
-      add_component(Engine::Components::PlayerController.new)
-      add_component(Engine::Components::ScreenWrap.new(margin: RADIUS))
+      add_component(Components::CharacterBody.new(speed: WALK_SPEED))
+      add_component(Components::PlayerController.new)
+      add_component(Components::ScreenWrap.new(margin: RADIUS))
     end
 
     def _draw(renderer, _view) = renderer.circle(0, 0, RADIUS, color: BODY)
@@ -169,7 +172,7 @@ module VelocityExample
       @help_walk = Engine::Text.new('help.walk')
       @help_wrap = Engine::Text.new('help.wrap')
       @help_spin = Engine::Text.new('help.spin')
-      add_component(Engine::Components::World.new(width: WORLD_W, height: WORLD_H))
+      add_component(Components::World.new(width: WORLD_W, height: WORLD_H))
     end
 
     def _enter_tree

@@ -25,9 +25,9 @@ module TiledWorld
     end
 
     def _enter_tree
-      column = Engine::UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT, spacing: SPACING)
-      @menu = add_node(Engine::UI::PanelMenu.new(x: PADDING, y: PADDING, padding: PADDING, layout: column))
-      ITEMS.each { |label| @menu.add(Engine::UI::PanelButton.new(label: label)).on_activated { toggle } }
+      column = UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT, spacing: SPACING)
+      @menu = add_node(UI::PanelMenu.new(x: PADDING, y: PADDING, padding: PADDING, layout: column))
+      ITEMS.each { |label| @menu.add(UI::PanelButton.new(label: label)).on_activated { toggle } }
       @menu.close
     end
 

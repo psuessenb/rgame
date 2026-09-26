@@ -22,7 +22,7 @@ module Adventure
     def initialize(hero:)
       super(x: hero.x, y: hero.y - 40, input_owner: hero.input_owner)
       @text = nil
-      add_component(Engine::Components::Cutscene.new(SCENE, context: self, pause: [hero]))
+      add_component(Components::Cutscene.new(SCENE, context: self, pause: [hero]))
     end
 
     def _draw(renderer, _view)

@@ -76,14 +76,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module MenuNavigationExample
   Engine = RGame::Engine
   Util = RGame::Util
-
   UI = Engine::UI
+  Components = Engine::Components
 
   # The same 8:5 `examples/fullscreen` uses, and for the same reason: this screen
   # offers a scale mode as a setting, so the four choices have to look like four
@@ -126,7 +127,7 @@ module MenuNavigationExample
                     display: ->(on) { on ? 'on' : 'off' } },
       scale: { label: 'scale', default: :letterbox,
                values: Engine::Presentation::MODES,
-               display: Engine::UI::OptionButton::DISPLAY },
+               display: UI::OptionButton::DISPLAY },
       volume: { label: 'volume', default: 75,
                 values: [0, 25, 50, 75, 100].freeze,
                 display: ->(percent) { Engine::Text.literal("#{percent}%") } }

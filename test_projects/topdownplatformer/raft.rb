@@ -16,11 +16,11 @@ module TopDownPlatformer
 
     def initialize(route:, width:, height:)
       super(x: route.x_at(0), y: route.y_at(0))
-      add_component(Engine::Components::BoxCollider.new(
+      add_component(Components::BoxCollider.new(
                       width: width, height: height, offset_x: -width / 2.0, offset_y: -height / 2.0
                     ))
-      add_component(Engine::Components::Platform.new)
-      add_component(Engine::Components::PathFollow.new(speed: SPEED, path: route, loop: true))
+      add_component(Components::Platform.new)
+      add_component(Components::PathFollow.new(speed: SPEED, path: route, loop: true))
       @columns = width / TILE
       @rows = height / TILE
       @left = -width / 2.0

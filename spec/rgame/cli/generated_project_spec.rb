@@ -96,6 +96,30 @@ RSpec.describe 'a generated project' do # rubocop:disable RSpec/DescribeClass --
     expect(output).to include('must not require rgame/game')
   end
 
+  # Inside the game's module, UI is rgame's, so a node file that opens a
+  # `module UI` of its own reopens rgame's. The suite that loads it fails on
+  # the first class written there, naming the file.
+  it "fails to load a node that writes into rgame's UI through the game's module" do
+    File.write(File.join(project, 'nodes', 'hud.rb'), <<~RUBY)
+      # frozen_string_literal: true
+
+      require_relative '../tictactoe'
+
+      module Tictactoe
+        module UI
+          class Hud < Engine::Node2D
+            def _draw(renderer, _view) = renderer.rect(0, 0, 8, 8)
+          end
+        end
+      end
+    RUBY
+
+    output, status = run_in_project('rspec')
+
+    expect(status).not_to be_success
+    expect(output).to include('nodes/hud.rb:7 would change RGame::Engine::UI::Hud')
+  end
+
   # The translation setup the generator promises: specs read the tables in
   # assets/locales/, fail on a key a language lacks, and fail on a key no table
   # has. Each example edits the generated project and runs its suite.

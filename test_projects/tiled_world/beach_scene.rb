@@ -33,10 +33,10 @@ module TiledWorld
     def _enter_tree
       @map = node_context.assets.tilemap(MAP_KEY).map
       @players = root.system(Engine::Players)
-      add_component(Engine::Components::TileWorld.new(
+      add_component(Components::TileWorld.new(
                       map: @map, tilemap_id: MAP_KEY, cameras: @players.map(&:camera)
                     ))
-      add_component(Engine::Components::CollisionWorld.new(cell_size: ACTOR_CELL))
+      add_component(Components::CollisionWorld.new(cell_size: ACTOR_CELL))
 
       @view = add_node(Engine::WorldView.new)
       @actors = Engine::TileMapLayer.mount(@view)[:actors]
@@ -69,8 +69,8 @@ module TiledWorld
     end
 
     def follow_camera(node, camera)
-      box = node.get_component(Engine::Components::BoxCollider).box
-      node.add_component(Engine::Components::CameraFollow.new(
+      box = node.get_component(Components::BoxCollider).box
+      node.add_component(Components::CameraFollow.new(
                            camera: camera,
                            offset_x: box.offset_x + (box.width / 2.0),
                            offset_y: box.offset_y + (box.height / 2.0)
@@ -79,21 +79,21 @@ module TiledWorld
 
     def build_player
       node = Engine::Node2D.new(x: (@map.pixel_width / 2.0) + 8, y: (@map.pixel_height / 2.0) + 32)
-      node.add_component(Engine::Components::AnimatedSprite.new(sheet: PLAYER_SHEET))
-      node.add_component(Engine::Components::FeetCollider.new(width: 10, height: 8, layer: :hero))
-      node.add_component(Engine::Components::CharacterBody.new(speed: PLAYER_SPEED,
-                                                               blocked_by: BLOCKED_BY))
-      node.add_component(Engine::Components::PlayerController.new)
+      node.add_component(Components::AnimatedSprite.new(sheet: PLAYER_SHEET))
+      node.add_component(Components::FeetCollider.new(width: 10, height: 8, layer: :hero))
+      node.add_component(Components::CharacterBody.new(speed: PLAYER_SPEED,
+                                                       blocked_by: BLOCKED_BY))
+      node.add_component(Components::PlayerController.new)
       node
     end
 
     def build_npc(x, y)
       node = Engine::Node2D.new(x: x, y: y)
-      node.add_component(Engine::Components::AnimatedSprite.new(sheet: NPC_SHEET))
-      node.add_component(Engine::Components::FeetCollider.new(width: 14, height: 10, layer: :npc))
-      node.add_component(Engine::Components::CharacterBody.new(speed: NPC_SPEED,
-                                                               blocked_by: BLOCKED_BY))
-      node.add_component(Engine::Components::WanderController.new)
+      node.add_component(Components::AnimatedSprite.new(sheet: NPC_SHEET))
+      node.add_component(Components::FeetCollider.new(width: 14, height: 10, layer: :npc))
+      node.add_component(Components::CharacterBody.new(speed: NPC_SPEED,
+                                                       blocked_by: BLOCKED_BY))
+      node.add_component(Components::WanderController.new)
       node
     end
 

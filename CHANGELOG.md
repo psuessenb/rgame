@@ -421,13 +421,22 @@ index, not the argument.
 
 - **`rgame new` writes the game's classes into a module of its own.**
   `rgame new tic_tac_toe` defines `module TicTacToe` in `tic_tac_toe.rb`, where
-  `Engine` and `Util` stand for `RGame::Engine` and `RGame::Util`. The game class
+  `Engine`, `Util`, `UI` and `Components` stand for `RGame::Engine`,
+  `RGame::Util`, `RGame::Engine::UI` and `RGame::Engine::Components`. The game class
   is `TicTacToe::Game` rather than `TicTacToeGame`, and the root node is
   `TicTacToe::Root`. A name whose module Ruby already defines, such as `signal`,
   is refused, and so are `game` and `main`. See
   [docs/api/cli.md](docs/api/cli.md).
+- **rgame's classes and modules are closed to the `class` and `module`
+  keywords.** A constant, method or singleton method written in a class or
+  module body outside rgame, onto a class or module under `RGame::Engine` or
+  `RGame::Util`, raises `NameError` naming the file and the line. A game's own
+  `module UI` inside its module, which would reopen rgame's, fails where it is
+  written. Subclassing, stubbing in a spec, `define_method` and `class_eval` are
+  unaffected. See [A game's own module](docs/api/README.md#a-games-own-module).
 - **The examples keep their classes in a module each**, such as `WalkExample`,
-  and write `Engine::Node2D` and `Util::Color` inside it. That is the shape
+  and write `Engine::Node2D`, `Util::Color`, `UI::Menu` and `Components::Sprite`
+  inside it. That is the shape
   [A game's own module](docs/api/README.md#a-games-own-module) recommends for
   every game.
 - **`WanderController` rolls from the game's `RandomSource` by default.** Its

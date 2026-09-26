@@ -21,8 +21,6 @@ module Adventure
   # choosing a slot takes its piece off. Both pages are rebuilt when the bag opens
   # on a hero whose `revision` moved since the last rebuild, and after a choice.
   class Bag < Engine::Node2D
-    UI = Engine::UI
-
     WIDTH = 216
     HEIGHT = 136
     BACKDROP = Util::Color.new(24, 20, 32, 220)

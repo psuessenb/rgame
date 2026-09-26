@@ -3,12 +3,14 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The game's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`. Every file below opens the module again, so
-# it is defined here, before the first of them loads.
+# The game's own module. `Engine`, `Util`, `UI` and `Components` inside it stand
+# for rgame's namespaces of the same names. Every file below opens the module
+# again, so it is defined here, before the first of them loads.
 module Adventure
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
   Controls = Util::Controls
 end
 

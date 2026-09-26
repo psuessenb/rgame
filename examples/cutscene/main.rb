@@ -47,12 +47,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module CutsceneExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -68,11 +71,11 @@ module CutsceneExample
   class Hero < Engine::Node2D
     def initialize(camera:, **)
       super(**)
-      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-      add_component(Engine::Components::FeetCollider.new(width: 12, height: 6))
-      add_component(Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
-      add_component(Engine::Components::PlayerController.new)
-      add_component(Engine::Components::CameraFollow.new(camera: camera))
+      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::FeetCollider.new(width: 12, height: 6))
+      add_component(Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
+      add_component(Components::PlayerController.new)
+      add_component(Components::CameraFollow.new(camera: camera))
     end
   end
 
@@ -86,9 +89,9 @@ module CutsceneExample
 
     def initialize(camera:)
       super(x: 552, y: 128)
-      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-      add_component(Engine::Components::CameraFollow.new(camera: camera))
-      @walk = add_component(Engine::Components::PathFollow.new(speed: 40.0))
+      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::CameraFollow.new(camera: camera))
+      @walk = add_component(Components::PathFollow.new(speed: 40.0))
     end
 
     # Walks to the square, and hands the walk to the step that waits on it.
@@ -144,8 +147,8 @@ module CutsceneExample
 
     def _enter_tree
       map = root.context.assets.tilemap('town.tmx').map
-      world = add_component(Engine::Components::TileWorld.new(map:, tilemap_id: 'town.tmx'))
-      add_component(Engine::Components::CollisionWorld.new(cell_size: 32))
+      world = add_component(Components::TileWorld.new(map:, tilemap_id: 'town.tmx'))
+      add_component(Components::CollisionWorld.new(cell_size: 32))
       @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new),
                                            slots: { actors: nil })[:actors]
       @gate = @actors.add_node(Gate.new)
@@ -161,7 +164,7 @@ module CutsceneExample
     def _control(actions)
       return unless @cutscene.nil? && actions.pressed?(:interact)
 
-      @cutscene = add_component(Engine::Components::Cutscene.new(
+      @cutscene = add_component(Components::Cutscene.new(
                                   NEWS, context: self, camera: @camera, pause: @heroes, skip: :skip
                                 ))
     end
@@ -179,8 +182,8 @@ module CutsceneExample
     # on it.
     def say(script)
       dialogue = Engine::Dialogue.new(script)
-      add_node(Engine::UI::DialogueBox.new(dialogue:, unavailable: :hide, width: 480, reveal: nil, x: 80,
-                                           y: 330))
+      add_node(UI::DialogueBox.new(dialogue:, unavailable: :hide, width: 480, reveal: nil, x: 80,
+                                   y: 330))
       dialogue
     end
 

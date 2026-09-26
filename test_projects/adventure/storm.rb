@@ -14,7 +14,7 @@ module Adventure
 
     def initialize
       super(color: GLARE)
-      add_component(Engine::Components::Timer.new(EVERY)).on_elapsed { flash(FLASH) }
+      add_component(Components::Timer.new(EVERY)).on_elapsed { flash(FLASH) }
     end
   end
 end

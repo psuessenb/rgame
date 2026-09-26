@@ -50,12 +50,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module IntroExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -75,13 +78,13 @@ module IntroExample
 
     def initialize
       super
-      @story = add_node(Engine::UI::Label.new(
+      @story = add_node(UI::Label.new(
                           text: 'intro.story', x: (WIDTH - TEXT_WIDTH) / 2,
                           y: (HEIGHT - (LINES_PER_PAGE * FACE.height)) / 2, width: TEXT_WIDTH,
                           typeface: FACE, lines_per_page: LINES_PER_PAGE, align: :center, reveal: REVEAL
                         ))
       @hint = Engine::Text.new('hint.next')
-      @turn = add_component(Engine::Components::Tween.new(HOLD_SECONDS))
+      @turn = add_component(Components::Tween.new(HOLD_SECONDS))
       @turn.on_finished { turn_page }
     end
 

@@ -28,10 +28,10 @@ module TopDownPlatformer
     def _enter_tree
       @map = root.context.assets.tilemap(MAP).map
       @players = system!(Engine::Players)
-      add_component(Engine::Components::TileWorld.new(
+      add_component(Components::TileWorld.new(
                       map: @map, tilemap_id: MAP, cameras: @players.map(&:camera)
                     ))
-      add_component(Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
+      add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
       slots = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new),
                                          slots: { platforms: nil, actors: nil })
       @actors = slots[:actors]
@@ -61,7 +61,7 @@ module TopDownPlatformer
     end
 
     def spawn(player)
-      point = @heroes[@players.primary]&.get_component(Engine::Components::Respawn)
+      point = @heroes[@players.primary]&.get_component(Components::Respawn)
       start = @map.object_named('start')
       hero = Hero.new(camera: player.camera, x: point ? point.point_x : start.x, y: point ? point.point_y : start.y)
       hero.input_owner = player

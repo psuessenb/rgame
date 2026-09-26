@@ -23,8 +23,8 @@ module Adventure
 
     def initialize(facts:, key:, **)
       super(**)
-      add_component(Engine::Components::BoxCollider.new(width: WIDTH, height: HEIGHT,
-                                                        layer: :interactable))
+      add_component(Components::BoxCollider.new(width: WIDTH, height: HEIGHT,
+                                                layer: :interactable))
       @facts = facts
       @key = key
       @state = facts.fetch(key, 'up').to_sym

@@ -75,7 +75,7 @@ and the class, and says the rule.
 A map may set a keyword of a class's `initialize` when the comment directly above
 the `def` documents it with a type Tiled can hold. The sketches of game code in
 this document sit inside the game's own module, where `Engine` stands for
-`RGame::Engine`; see
+`RGame::Engine` and `Components` for `RGame::Engine::Components`; see
 [A game's own module](../../api/README.md#a-games-own-module).
 
 ```ruby
@@ -88,7 +88,7 @@ class Chest < Engine::Node2D
     super(**)
     @contents = contents
     @locked = locked
-    add_component(Engine::Components::BoxCollider.new(
+    add_component(Components::BoxCollider.new(
                     width: 14, height: 10, offset_x: -7, offset_y: -10, layer: :interactable
                   ))
   end
@@ -176,7 +176,7 @@ class Crate < Engine::Node2D
   # @param size [Float] the crate's side, in pixels
   def initialize(size: 16.0, **)
     super(**)
-    add_component(Engine::Components::BoxCollider.new(
+    add_component(Components::BoxCollider.new(
                     width: size, height: size, offset_x: -size / 2, offset_y: -size, layer: :crate
                   ))
   end
@@ -197,7 +197,7 @@ node built in code.
 ```ruby
 class Chest < Engine::Node2D
   def _enter_tree
-    @facts = system!(Engine::Components::Facts)
+    @facts = system!(Components::Facts)
     @state = @facts.fetch(fact_key, 'closed').to_sym
   end
 end

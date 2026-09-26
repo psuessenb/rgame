@@ -118,12 +118,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module CollisionTilesExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -165,23 +168,23 @@ module CollisionTilesExample
     def initialize(camera:, **)
       super(**)
       @lives = LIVES
-      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
       # The two lines that differ from `examples/walk`: a shape, and a body told
       # what that shape may not pass through. Everything about the intent — the
       # controller writing it, the sprite reading it back as a facing, the speed it
       # is scaled by — is the same CharacterBody as there.
-      @collider = add_component(Engine::Components::FeetCollider.new(
+      @collider = add_component(Components::FeetCollider.new(
                                   width: FEET_WIDTH, height: FEET_HEIGHT
                                 ))
-      body = add_component(Engine::Components::CharacterBody.new(
+      body = add_component(Components::CharacterBody.new(
                              speed: SPEED, blocked_by: %i[tiles spike]
                            ))
       # One handler for everything that can stop a step, because everything that
       # can stop a step reports the same two things. The fence arrives here too, as
       # :tiles with no node behind it, and is ignored.
       body.on_blocked { |by| @lives = [@lives - 1, 0].max if by.layer == :spike }
-      add_component(Engine::Components::PlayerController.new)
-      add_component(Engine::Components::CameraFollow.new(
+      add_component(Components::PlayerController.new)
+      add_component(Components::CameraFollow.new(
                       camera: camera, offset_y: CAMERA_OFFSET_Y
                     ))
     end
@@ -207,7 +210,7 @@ module CollisionTilesExample
 
     def initialize(**)
       super
-      add_component(Engine::Components::BoxCollider.new(
+      add_component(Components::BoxCollider.new(
                       width: BALL_SIZE, height: BALL_SIZE, layer: :spike
                     ))
     end
@@ -240,14 +243,14 @@ module CollisionTilesExample
       # Solidity and the world's size come from the same system, because they are
       # the same fact about the same map. Handing it the cameras bounds them to
       # the map's edges.
-      add_component(Engine::Components::TileWorld.new(
+      add_component(Components::TileWorld.new(
                       map: map, tilemap_id: MAP, cameras: players.map(&:camera)
                     ))
       # The second index, for the things the map knows nothing about. Its cells are
       # sized to the actors rather than to the 16px tiles: a broadphase cell wants
       # to hold a handful of the things it buckets, and these are a dozen pixels
       # across.
-      add_component(Engine::Components::CollisionWorld.new(cell_size: 32))
+      add_component(Components::CollisionWorld.new(cell_size: 32))
 
       view = add_node(Engine::WorldView.new)
       # The :actors slot sits between the ground layers and anything

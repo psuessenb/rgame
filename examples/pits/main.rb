@@ -50,12 +50,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module PitsExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -85,13 +88,13 @@ module PitsExample
 
     def initialize(**)
       super
-      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-      add_component(Engine::Components::FeetCollider.new(width: FEET_WIDTH, height: FEET_HEIGHT))
-      add_component(Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
-      add_component(Engine::Components::PlayerController.new)
-      add_component(Engine::Components::Hop.new(peak: HOP_PEAK, duration: HOP_DURATION))
-      @footing = add_component(Engine::Components::Footing.new(coyote: COYOTE))
-      add_component(Engine::Components::Respawn.new(flash: 1.0))
+      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::FeetCollider.new(width: FEET_WIDTH, height: FEET_HEIGHT))
+      add_component(Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
+      add_component(Components::PlayerController.new)
+      add_component(Components::Hop.new(peak: HOP_PEAK, duration: HOP_DURATION))
+      @footing = add_component(Components::Footing.new(coyote: COYOTE))
+      add_component(Components::Respawn.new(flash: 1.0))
     end
 
     def _control(actions)
@@ -123,7 +126,7 @@ module PitsExample
     def _enter_tree
       map = root.context.assets.tilemap(MAP).map
       players = root.system(Engine::Players)
-      add_component(Engine::Components::TileWorld.new(
+      add_component(Components::TileWorld.new(
                       map: map, tilemap_id: MAP, cameras: players.map(&:camera)
                     ))
 

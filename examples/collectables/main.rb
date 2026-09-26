@@ -52,12 +52,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module CollectablesExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -89,13 +92,13 @@ module CollectablesExample
   class Coin < Engine::Node2D
     def initialize(**)
       super
-      add_component(Engine::Components::CircleCollider.new(radius: COIN_RADIUS, layer: :pickup))
-      add_component(Engine::Components::Collectable.new(by: :hero, sound: 'blip.ogg'))
+      add_component(Components::CircleCollider.new(radius: COIN_RADIUS, layer: :pickup))
+      add_component(Components::Collectable.new(by: :hero, sound: 'blip.ogg'))
     end
 
     # The Collectable, so the room can connect its counter to it. `add_component`
     # returns what it was given, which is the usual way to hold one by name.
-    def collectable = get_component(Engine::Components::Collectable)
+    def collectable = get_component(Components::Collectable)
 
     def _draw(renderer, _view) = renderer.circle(0, 0, COIN_RADIUS, color: COIN)
   end
@@ -110,8 +113,8 @@ module CollectablesExample
 
     def initialize(**)
       super
-      add_component(Engine::Components::BoxCollider.new(width: CHEST_SIZE, height: CHEST_SIZE,
-                                                        layer: :interactable))
+      add_component(Components::BoxCollider.new(width: CHEST_SIZE, height: CHEST_SIZE,
+                                                layer: :interactable))
       @open = false
     end
 
@@ -138,14 +141,14 @@ module CollectablesExample
   class Hero < Engine::Node2D
     def initialize(**)
       super
-      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-      add_component(Engine::Components::CharacterBody.new(speed: SPEED,
-                                                          blocked_by: [:interactable]))
-      add_component(Engine::Components::PlayerController.new)
-      add_component(Engine::Components::BoxCollider.new(width: 16, height: 22, offset_x: -8, offset_y: -22,
-                                                        layer: :hero))
-      @interactor = add_component(Engine::Components::Interactor.new(range: REACH,
-                                                                     layer: :interactable))
+      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::CharacterBody.new(speed: SPEED,
+                                                  blocked_by: [:interactable]))
+      add_component(Components::PlayerController.new)
+      add_component(Components::BoxCollider.new(width: 16, height: 22, offset_x: -8, offset_y: -22,
+                                                layer: :hero))
+      @interactor = add_component(Components::Interactor.new(range: REACH,
+                                                             layer: :interactable))
     end
 
     # What the hero would act on, or nil. The room draws the prompt over it.
@@ -171,7 +174,7 @@ module CollectablesExample
       @count = Engine::Text.new('hud.coins', :count)
       @help = Engine::Text.new('help.walk')
       @prompt = Engine::Text.new('help.open')
-      add_component(Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
+      add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
     end
 
     def _enter_tree

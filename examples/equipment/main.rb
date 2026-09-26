@@ -43,12 +43,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module EquipmentExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -194,8 +197,8 @@ module EquipmentExample
 
   # A piece in a grid: the piece itself, centred and three times its size, and a
   # dot in the corner while it is worn.
-  class PieceButton < Engine::UI::Button
-    STYLE = Engine::UI::ShapeStyle.new
+  class PieceButton < UI::Button
+    STYLE = UI::ShapeStyle.new
     SCALE = 3
     WORN = Color.new(240, 200, 96)
 
@@ -218,7 +221,7 @@ module EquipmentExample
 
   # A slot in the column: its own name, then the name of the piece it wears, or
   # the empty slot's word.
-  class SlotButton < Engine::UI::PanelButton
+  class SlotButton < UI::PanelButton
     NAME_X = 16
     WORN_X = 80
 
@@ -265,8 +268,6 @@ module EquipmentExample
 
   # The tabs, and the two pages under them.
   class Wardrobe < Engine::Node2D
-    UI = Engine::UI
-
     SLOT = 64
     SPACING = 6
 

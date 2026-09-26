@@ -25,16 +25,16 @@ module TopDownPlatformer
 
     def initialize(camera:, **)
       super(**)
-      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-      add_component(Engine::Components::FeetCollider.new(width: FEET_WIDTH, height: FEET_HEIGHT,
-                                                         layer: :hero))
-      add_component(Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: %i[tiles crate npc],
-                                                          pushes: [:crate]))
-      add_component(Engine::Components::PlayerController.new)
-      add_component(Engine::Components::Hop.new(peak: HOP_PEAK, duration: HOP_DURATION))
-      add_component(Engine::Components::Footing.new).on_fell { fell }
-      add_component(Engine::Components::Respawn.new(flash: 1.0))
-      add_component(Engine::Components::CameraFollow.new(camera: camera, offset_y: CAMERA_OFFSET_Y))
+      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::FeetCollider.new(width: FEET_WIDTH, height: FEET_HEIGHT,
+                                                 layer: :hero))
+      add_component(Components::CharacterBody.new(speed: SPEED, blocked_by: %i[tiles crate npc],
+                                                  pushes: [:crate]))
+      add_component(Components::PlayerController.new)
+      add_component(Components::Hop.new(peak: HOP_PEAK, duration: HOP_DURATION))
+      add_component(Components::Footing.new).on_fell { fell }
+      add_component(Components::Respawn.new(flash: 1.0))
+      add_component(Components::CameraFollow.new(camera: camera, offset_y: CAMERA_OFFSET_Y))
       @falls = 0
       @falls_line = 'Falls: 0'
       @checkpoint_line = 'Checkpoint: start'

@@ -60,12 +60,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module SpriteExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -98,7 +101,7 @@ module SpriteExample
     end
 
     def _enter_tree
-      @sprite = add_component(Engine::Components::Sprite.new(id: STILL, scale: START_SCALE, anchor: :center))
+      @sprite = add_component(Components::Sprite.new(id: STILL, scale: START_SCALE, anchor: :center))
     end
 
     # Axes, not buttons: `move_x` and `move_y` come from the default map already
@@ -130,7 +133,7 @@ module SpriteExample
     end
 
     def _enter_tree
-      add_component(Engine::Components::Sprite.new(id: STILL, scale: SCALE, z: ABOVE_PANEL, anchor: :center))
+      add_component(Components::Sprite.new(id: STILL, scale: SCALE, z: ABOVE_PANEL, anchor: :center))
     end
 
     # Centred on this node's own origin, which is where the traversal has already

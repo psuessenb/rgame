@@ -68,10 +68,11 @@ an `_draw(renderer, view)` and call the renderer by name.
 ### The game's module
 
 Every class the game defines lives in `<%= game_module %>`, which
-`<%= module_file %>.rb` defines. Inside it, `Engine` and `Util` stand for
-`RGame::Engine` and `RGame::Util`, so a node writes `Engine::Node2D` rather than
-`RGame::Engine::Node2D`. A new file under `nodes/` starts the way `root.rb` does:
-it requires `<%= module_file %>.rb` and opens `module <%= game_module %>`.
+`<%= module_file %>.rb` defines. Inside it, `Engine`, `Util`, `UI` and
+`Components` stand for rgame's namespaces of the same names, so a node writes
+`Engine::Node2D` rather than `RGame::Engine::Node2D`, and `UI::Menu` rather than
+`RGame::Engine::UI::Menu`. A new file under `nodes/` starts the way `root.rb`
+does: it requires `<%= module_file %>.rb` and opens `module <%= game_module %>`.
 
 The [rgame API guide](https://github.com/psuessenb/rgame/blob/main/docs/api/README.md#a-games-own-module)
 says why the engine's names are not simply included or put at the top level.

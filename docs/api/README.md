@@ -120,11 +120,13 @@ A game is a tree of nodes, run by `RGame::Game`.
 ```ruby
 require 'rgame/game'
 
-# The game's own module. `Engine` and `Util` inside it are short for the two
-# layers a game is written against; see "A game's own module" below.
+# The game's own module. `Engine`, `Util`, `UI` and `Components` inside it stand
+# for rgame's namespaces of the same names; see "A game's own module" below.
 module MyGame
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   # One game object: a square the player walks around. Pure Engine — it names no
   # graphics class, so it runs unchanged in a spec with no window.
@@ -188,23 +190,41 @@ and adds `fire`. See [Input](input.md).
 
 ## A game's own module
 
-**A game keeps its classes in a module of its own, and names the two layers it
-uses at the top of it:**
+**A game keeps its classes in a module of its own, and names rgame's namespaces
+at the top of it:**
 
 ```ruby
 module MyGame
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 end
 ```
 
 Inside `MyGame`, and inside every class written within it, `Engine::Node2D`
-means `RGame::Engine::Node2D` and `Util::Color` means `RGame::Util::Color`. The
-game's own names stay off the top level, where Ruby's and every gem's live.
+means `RGame::Engine::Node2D`, `Util::Color` means `RGame::Util::Color`,
+`UI::Menu` means `RGame::Engine::UI::Menu` and `Components::Sprite` means
+`RGame::Engine::Components::Sprite`. The game's own names stay off the top level,
+where Ruby's and every gem's live.
 
 A game's class may share a name with an engine class. `MyGame::Scene` is the
-game's, and `Engine::Scene` is the engine's module beside it. A module may add
-shorthands of its own the same way, such as `UI = Engine::UI`.
+game's, and `Engine::Scene` is the engine's module beside it. Five names exist
+both directly under `Engine` and under `Components`, and the prefix says which is
+meant: a node's own code advances an `Engine::Timer`, while a
+`Components::Timer` rides the node's update and emits `on_elapsed`. The other four
+are `CircleCollider`, `Cutscene`, `Pool` and `Tween`. A module may add shorthands of its own the same
+way, such as `Controls = Util::Controls`.
+
+**rgame's own classes and modules are closed to the `class` and `module`
+keywords.** Inside `MyGame`, `UI` and `Components` are rgame's, so a module of the
+game's own with one of those names reopens rgame's rather than making a new one.
+A class inside it named like one of rgame's, such as `Timer`, would replace
+rgame's methods. So a constant, method or singleton method written in a class or
+module body outside rgame, onto a class or module under `RGame::Engine` or
+`RGame::Util`, raises `NameError` naming the file and the line. Give the game's
+module another name, such as `Hud`. Subclassing is unaffected, and so are a spec
+that stubs a method on an rgame module, `define_method` and `class_eval`.
 
 The shorter spellings each break somewhere:
 
@@ -214,7 +234,7 @@ The shorter spellings each break somewhere:
 | every engine name assigned at the top level | `Signal` replaces Ruby's own. A game's `class Scene < Node2D` raises `TypeError`, since `Scene` is the engine's module. A game's `class Timer` with no superclass adds its methods to the engine's `Timer`, and nothing warns. |
 | every engine name copied into the game's module | the same collisions, one level down |
 
-**Assign the two constants once.** Ruby warns when a constant is assigned again.
+**Assign the four constants once.** Ruby warns when a constant is assigned again.
 A game in several files defines the module and its constants in one file, and
 every other file requires that file first. `rgame new` writes it and names it
 after the game; see [the `rgame` command](cli.md#what-rgame-new-tictactoe-writes).

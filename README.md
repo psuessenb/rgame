@@ -60,6 +60,8 @@ require 'rgame/game'
 module HelloWorld
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   class Scene < Engine::Node2D
     def _draw(renderer, _view)
@@ -76,9 +78,10 @@ game = RGame::Game.new(
 game.start
 ```
 
-The game keeps its classes in a module of its own. `Engine` and `Util` inside it
-are short for `RGame::Engine` and `RGame::Util`, the two layers a game is written
-against. [A game's own module](docs/api/README.md#a-games-own-module) says why
+The game keeps its classes in a module of its own. `Engine`, `Util`, `UI` and
+`Components` inside it stand for rgame's namespaces of the same names: the two
+layers a game is written against, and the engine's menus and components.
+[A game's own module](docs/api/README.md#a-games-own-module) says why
 it takes this shape. You can learn more about how it works in the
 [documentation](docs/api/README.md).
 

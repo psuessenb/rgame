@@ -60,12 +60,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module SaveLoadExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   Controls = Util::Controls
 
@@ -105,14 +108,14 @@ module SaveLoadExample
     end
 
     def _enter_tree
-      rng = system!(Engine::Components::RandomSource)
+      rng = system!(Components::RandomSource)
       # Built first, always, and identically. The save does not decide what exists
       # — only where it is.
-      @dog = add_node(build_walker(Engine::Components::PlayerController.new,
+      @dog = add_node(build_walker(Components::PlayerController.new,
                                    DOG_SPEED, WIDTH / 2, HEIGHT / 2))
       SHEEP_COUNT.times do
         @flock << add_node(build_walker(
-                             Engine::Components::WanderController.new,
+                             Components::WanderController.new,
                              SHEEP_SPEED, rng.rand(WIDTH - 40) + 20, rng.rand(HEIGHT - 80) + 60
                            ))
       end
@@ -175,7 +178,7 @@ module SaveLoadExample
 
     def build_walker(controller, speed, x, y)
       node = Engine::Node2D.new(x: x, y: y)
-      node.add_component(Engine::Components::CharacterBody.new(speed: speed))
+      node.add_component(Components::CharacterBody.new(speed: speed))
       node.add_component(controller)
       node
     end

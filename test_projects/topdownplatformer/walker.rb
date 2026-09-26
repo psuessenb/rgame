@@ -13,12 +13,12 @@ module TopDownPlatformer
 
     def initialize(**)
       super
-      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-      add_component(Engine::Components::FeetCollider.new(width: Hero::FEET_WIDTH, height: Hero::FEET_HEIGHT,
-                                                         layer: :npc))
-      add_component(Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: %i[tiles gaps hero]))
-      add_component(Engine::Components::WanderController.new)
-      add_component(Engine::Components::Footing.new)
+      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::FeetCollider.new(width: Hero::FEET_WIDTH, height: Hero::FEET_HEIGHT,
+                                                 layer: :npc))
+      add_component(Components::CharacterBody.new(speed: SPEED, blocked_by: %i[tiles gaps hero]))
+      add_component(Components::WanderController.new)
+      add_component(Components::Footing.new)
     end
 
     def _draw(renderer, _view)

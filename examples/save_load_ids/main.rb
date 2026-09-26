@@ -88,15 +88,18 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module SaveLoadIdsExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   Controls = Util::Controls
-  Identity = Engine::Components::Identity
+  Identity = Components::Identity
 
   WIDTH  = 640
   HEIGHT = 480
@@ -170,7 +173,7 @@ module SaveLoadIdsExample
     end
 
     def _enter_tree
-      @rng = system!(Engine::Components::RandomSource)
+      @rng = system!(Components::RandomSource)
       @dog = add_node(build_dog)
       STARTING_FLOCK.times { spawn_sheep }
       @target = @flock.first
@@ -285,15 +288,15 @@ module SaveLoadIdsExample
 
     def build_sheep(id, x, y, wool: 0.0)
       sheep = Sheep.new(id: id, wool: wool, x: x, y: y)
-      sheep.add_component(Engine::Components::CharacterBody.new(speed: SHEEP_SPEED))
-      sheep.add_component(Engine::Components::WanderController.new)
+      sheep.add_component(Components::CharacterBody.new(speed: SHEEP_SPEED))
+      sheep.add_component(Components::WanderController.new)
       sheep
     end
 
     def build_dog
       dog = Engine::Node2D.new(x: WIDTH / 2, y: HEIGHT / 2)
-      dog.add_component(Engine::Components::CharacterBody.new(speed: DOG_SPEED))
-      dog.add_component(Engine::Components::PlayerController.new)
+      dog.add_component(Components::CharacterBody.new(speed: DOG_SPEED))
+      dog.add_component(Components::PlayerController.new)
       dog
     end
   end
