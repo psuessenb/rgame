@@ -162,8 +162,9 @@ like the others.
 window, so the camera follows the hero across. A meadow walled with trees
 (tile 16), and a chasm sixteen tiles wide, x = 352 to 608, on the `pits` layer
 over `pits.tsx`. The object `raft` in the `platforms` layer is a polyline of
-class `platform`: the route the raft's centre shuttles along, from x = 396 to
-564 at y = 240, with the raft's size in its `width` and `height` properties.
+class `Raft`: the route the raft's centre shuttles along, from x = 396 to
+564 at y = 240, with the raft's size in its `deck_width` and `deck_height`
+properties.
 Each end stops 12 px short of a bank, less than the 40 px a hop carries. The
 point `start` in the `spawns` layer is where the hero first stands.
 `spec/example_assets_spec.rb` holds the start to standing on floor, and the

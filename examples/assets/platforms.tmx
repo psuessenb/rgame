@@ -5,8 +5,8 @@
      follows the hero across. A meadow walled with trees, and a chasm sixteen
      tiles wide, x = 352 to 608, on the `pits` layer in tiles of class `gap`
      from pits.tsx. `raft` in the `platforms` layer is a polyline of class
-     `platform`: the route its centre shuttles along, with its size in its
-     width and height properties. Each end stops 12 px short of a bank, less
+     `Raft`: the route its centre shuttles along, with its size in its
+     deck_width and deck_height properties. Each end stops 12 px short of a bank, less
      than a hop. `start` is where the hero stands first. -->
 <map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="60" height="30" tilewidth="16" tileheight="16" infinite="0" nextlayerid="6" nextobjectid="3">
  <tileset firstgid="1" source="tileset.tsx"/>
@@ -26,10 +26,10 @@
   </object>
  </objectgroup>
  <objectgroup id="5" name="platforms">
-  <object id="2" name="raft" class="platform" x="396" y="240">
+  <object id="2" name="raft" class="Raft" x="396" y="240">
    <properties>
-    <property name="height" type="int" value="32"/>
-    <property name="width" type="int" value="64"/>
+    <property name="deck_height" type="int" value="32"/>
+    <property name="deck_width" type="int" value="64"/>
    </properties>
    <polyline points="0,0 168,0"/>
   </object>

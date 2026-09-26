@@ -317,7 +317,7 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
   # end of its route: that gap is the whole point of examples/moving_platforms.
   describe 'platforms.tmx' do
     let(:map) { RGame::Engine::TileMap.from_tiled(RGame::Engine::Tiled::Map.load(File.join(assets, 'platforms.tmx'))) }
-    let(:raft) { map.objects.find { it.class_name == 'platform' } }
+    let(:raft) { map.objects.find { it.class_name == 'Raft' } }
     let(:hop) { 40 }
 
     # Where the chasm's floor ends on each side of the raft's row, in pixels.
@@ -334,7 +334,7 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
 
     it 'stops each end of the raft’s route short of its bank by less than a hop' do
       route = RGame::Engine::Path.from_object(raft)
-      half = raft.properties.fetch('width') / 2.0
+      half = raft.properties.fetch('deck_width') / 2.0
       west, east = banks
       gaps = [route.x_at(0) - half - west, east - (route.x_at(1) + half)]
       expect(gaps).to all(be_between(1, hop - 1))

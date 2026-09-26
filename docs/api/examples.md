@@ -126,13 +126,13 @@ A raft shuttling across a chasm, boarded with a timed hop. The raft stops 12 px
 short of each bank and a hop carries 40 px, so a hop timed for when it comes
 close lands on it. On board, the raft carries the hero and the camera follows.
 Walking off its edge, or a hop that misses, falls into the chasm. The raft and
-its route are a polyline object on the map, and it draws its planks from a sheet
-over Tiny Town's tiles.
+its route are a polyline object of the class `Raft` on the map, which builds it,
+and it draws its planks from a sheet over Tiny Town's tiles.
 
 **Uses:** `Components::Platform`, `Components::PathFollow` with `loop: true`,
-`Path.from_object`, `MapObjects`, `Components::Footing`, `Components::Respawn`,
-`Components::Hop`, `Components::CameraFollow`, `TileMapLayer.mount` and an object
-layer as a place.
+`Components::Footing`, `Components::Respawn`, `Components::Hop`,
+`Components::CameraFollow`, `TileMapLayer.mount` with a map-built node and its
+`route:`.
 
 ### push_pull
 
