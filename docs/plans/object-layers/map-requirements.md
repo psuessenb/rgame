@@ -1,10 +1,10 @@
 # Requirements for the Tiled acceptance map
 
-**Status: being authored on `build-step-8-tiled-map`; step 0 revises it.**
-These requirements were step 0 of the Tiled format plan, and the check below was
-its step 8. [Step 0 of this plan](04-roadmap.md#step-0--the-requirements-for-tourtmx)
-adds what building nodes from objects needs, and carries over which requirements
-the authoring branch marks done. Links into the Tiled format plan point at it as
+**Status: being authored on `build-step-8-tiled-map`, 10 of 23 done.** These
+requirements were step 0 of the Tiled format plan, and the check below was its
+step 8. [Step 0 of this plan](04-roadmap.md#step-0--the-requirements-for-tourtmx)
+added R20–R23, which building nodes from objects needs, and carried over the done
+marks from the authoring branch. Links into the Tiled format plan point at it as
 it stood in `dcb07f8`.
 
 **A map authored in Tiled, saved by Tiled, and never edited by hand.** It is the
@@ -14,6 +14,36 @@ parser reads, so the parser and its fixtures agree by construction
 
 Each requirement below says **what to do in Tiled**, **why the code needs it**,
 and **what the check reports when it is missing**.
+
+## Where the map stands
+
+A mark is the author's word. The check confirms it once it exists.
+
+| | Requirement | Done |
+|---|---|---|
+| [R1](#r1) | two external tilesets | done |
+| [R2](#r2) | an embedded tileset with a drawing offset | done |
+| [R3](#r3) | a sheet with a margin and a spacing | |
+| [R4](#r4) | a collection of images | done |
+| [R5](#r5) | one tile in all eight orientations | done |
+| [R6](#r6) | tile layers stored as CSV | done |
+| [R7](#r7) | the gzip twin | |
+| [R8](#r8) | a group layer, with opacity on it and on a child | done |
+| [R9](#r9) | a hidden layer, and a translucent one | done |
+| [R10](#r10) | two image layers | |
+| [R11](#r11) | an animated tile | done |
+| [R12](#r12) | solid tiles from two tilesets | done |
+| [R13](#r13) | properties of all eight types | |
+| [R14](#r14) | a multi-line string | |
+| [R15](#r15) | every object shape | done |
+| [R16](#r16) | the Infinite twin | |
+| [R17](#r17) | 64×48, the ground filled | |
+| [R18](#r18) | an object from a template | |
+| [R19](#r19) | Tiled's own picture | |
+| [R20](#r20) | a tile object that takes its tile's class | |
+| [R21](#r21) | a tileset with an object alignment | |
+| [R22](#r22) | both draw orders | |
+| [R23](#r23) | the `actors` mark | |
 
 ## The check, and the example that plays the map
 
@@ -52,16 +82,24 @@ Everything goes in one new directory, `examples/assets/tiled_tour/`:
 The directory name and the `tour` prefix can change. The check takes its
 paths from one constant.
 
-**Do not commit the `.tiled-session` file.** It holds window and selection state
-for one person's editor.
+**`.gitignore` leaves out `*.tiled-session`.** Tiled writes one beside the
+project, holding one person's open files, window state and absolute paths. A
+session committed before the entry existed stays tracked until
+`git rm --cached` removes it.
 
 ## Ground rules
 
 These apply to every file above.
 
-- **Tiled 1.10 or later.** 1.9 wrote a tile's class as `class` and later
-  versions write `type`; the parser reads both, but the map should say which
-  Tiled wrote it. The check prints the `tiledversion` attribute it found.
+- **Tiled 1.12 or later.** 1.12 added the capsule [R15](#r15) asks for. And
+  1.9 wrote a tile's class as `class` where later versions write `type`; the
+  parser reads both, but the map should say which Tiled wrote it. The check
+  prints the `tiledversion` attribute it found.
+- **Every class starts with a lower-case letter**, such as `tree`: on the map,
+  a layer, a tileset, a tile or an object, and in the Custom Types Editor. From
+  [step 5](04-roadmap.md#step-5--mount-builds-the-object-layers-rough) on, a
+  scene that mounts a map builds a node for each object whose class starts with
+  a capital letter. This map is a format checklist, and it should build nothing.
 - **Tiled saves every file, and nobody edits one afterwards.** A hand edit makes
   the file this parser's reading of the format again, which is the circle the
   map exists to break. `town.tmx` carries a hand-written header comment; this map
@@ -84,7 +122,7 @@ These apply to every file above.
 
 Three of the files are copies of the first, so the order matters.
 
-1. Build `tour.tmx` until it meets R1–R15, R17 and R18. Save it.
+1. Build `tour.tmx` until it meets R1–R15, R17, R18 and R20–R23. Save it.
 2. Export `tour_reference.png` from it ([R19](#r19)).
 3. Change the layer format and **Save As** `tour_gzip.tmx` ([R7](#r7)).
 4. Reopen `tour.tmx`, make it Infinite, shift it, and **Save As**
@@ -318,19 +356,23 @@ the five kinds of element that carry them.**
   | `object` | an object from [R15](#r15) |
   | `class` | a class with a member that is itself a class |
 
-  Define the classes in **View › Custom Types Editor**. **Set every member of a
-  class property to a non-default value.** Tiled writes only the members that
-  differ from the class's defaults, and the defaults live in the project file,
-  which the parser does not read. Save the project as `tour.tiled-project` so the
-  next person to open the map has the classes. Also set a **Class** on the map, a
-  layer, a tileset and a tile.
+  Define the classes in **View › Custom Types Editor**, and name them in lower
+  case. **Set every member of a class property to a non-default value.** Tiled
+  writes only the members that differ from the class's defaults, and the
+  defaults live in the project file, which the parser does not read. Save the
+  project as `tour.tiled-project` so the next person to open the map has the
+  classes. Also set a **Class** on the map, a layer, a tileset and a tile.
 - **Why:** [step 1](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/04-roadmap.md#step-1--enginetiledproperties-pure) casts each
   type at parse time. Tiled writes an opaque colour as `#RRGGBB` and a translucent
   one as `#AARRGGBB`, alpha first, so both forms must appear. A `false` bool is
   the one a String `"false"` would get wrong. A `file` in another directory is
-  the only way to see which directory it resolves against.
-- **The check reports:** "R13: no property of type X" or "R13: no custom property on
-  any Y."
+  the only way to see which directory it resolves against. From
+  [step 1b](04-roadmap.md#step-1--the-parse-and-the-transform-enginetiled-and-tilemap-pure)
+  of this plan, a class value keeps its class's name, and so does a member that
+  is itself a class. The check reads both names.
+- **The check reports:** "R13: no property of type X", "R13: no custom property on
+  any Y", or "R13: class property X (class `y`) has no member that is itself a
+  class."
 
 ### R14
 
@@ -345,16 +387,21 @@ the five kinds of element that carry them.**
 
 ### R15
 
-**An object layer holding a rectangle, a point, an ellipse, a polygon, a
-polyline, a text object and two tile objects — one of them rotated.**
+**An object layer holding a rectangle, a point, an ellipse, a capsule, a
+polygon, a polyline, a text object and two tile objects — one of them rotated.**
 
 - **In Tiled:** **Layer › New › Object Layer**, then the **Insert Rectangle**,
-  **Insert Point**, **Insert Ellipse**, **Insert Polygon**, **Insert Text** and
-  **Insert Tile** tools. A polyline is the polygon tool finished without closing
-  the shape. Rotate one tile object by 90° in the Properties panel, and flip the
-  other with **X**. Give at least one object a name, a class and a property.
-- **Why:** each shape is one branch of the object parse. A tile object's
-  position is its **bottom-left** corner, and it rotates about that same corner
+  **Insert Point**, **Insert Ellipse**, **Insert Capsule**, **Insert Polygon**,
+  **Insert Text** and **Insert Tile** tools. A polyline is the polygon tool
+  finished without closing the shape. Rotate one tile object by 90° in the
+  Properties panel, and flip the other with **X**. Give at least one object a
+  name, a class and a property.
+- **Why:** each shape is one branch of the object parse. The capsule is the
+  branch this map found missing: rgame read it as a rectangle of the same size,
+  which [step 1a](04-roadmap.md#step-1--the-parse-and-the-transform-enginetiled-and-tilemap-pure)
+  of this plan fixes. From a tileset whose object alignment is *Unspecified*, a
+  tile object's position is its **bottom-left** corner, and it rotates about
+  that same corner
   ([the objects section](https://github.com/psuessenb/rgame/blob/dcb07f837d8f0c1861aa12832bdc91663d392374/docs/plans/tiled-format/03-design.md#objects-one-record-in-the-games-coordinates)).
   Two traps compose there, and only a rotated tile object shows both. A text
   object is parsed and ignored, and a Tiled-written one checks the parser does
@@ -389,10 +436,12 @@ tiles west and 16 tiles north.**
 
 - **In Tiled:** the size in **File › New › New Map…**, or later in **Map › Resize
   Map…**. Paint a ground layer that has a tile in every cell.
-- **Why:** 1024×768 pixels is larger than the 640×480 window on both axes, so the
-  example that plays it has somewhere to scroll. Both sides are multiples of 16, which
-  [R16](#r16) needs, and a full ground layer makes the Infinite twin's chunks
-  cover the same rectangle.
+- **Why:** both sides are multiples of 16, which [R16](#r16) needs, and a full
+  ground layer makes the Infinite twin's chunks cover the same rectangle. And
+  1024×768 pixels is larger than the 640×480 window on both axes, so
+  [R19](#r19)'s check draws the map in more than one view. The renderer culls
+  animated tiles and repeated image layers to the view, and a map that fits one
+  window never tests that.
 - **The check reports:** "R17: the map is W×H — make it 64×48" or "R17: ground cell
   (c, r) is empty."
 
@@ -419,9 +468,87 @@ placement.**
   **Only include visible layers** ticked, **Use current zoom level** and **Draw
   tile grid** unticked. Show the object layers again; whether they are visible
   in the saved `.tmx` does not matter.
-- **Why:** step 5's orientation table and opacity are pinned against what Tiled
-  shows, and this file is what Tiled showed. The check draws the map and compares
-  pixels, masking the animated tile's cells, whose frame the export does not fix.
-  Object layers are hidden because rgame never draws objects.
+- **Why:** the Tiled format plan pinned its orientation table and opacity
+  against what Tiled shows, and this file is what Tiled showed. The check draws
+  the tile and image layers and compares pixels, masking the animated tile's
+  cells, whose frame the export does not fix. It leaves the object layers out,
+  as the export does: Tiled draws every shape, and rgame draws none. rgame draws
+  tile objects from
+  [step 5](04-roadmap.md#step-5--mount-builds-the-object-layers-rough) of this
+  plan on, and they are checked where they are played, in the level.
 - **The check reports:** "R19: the drawn map differs from tour_reference.png at
   pixel (x, y), in cell (c, r) of layer X."
+
+### R20
+
+**A tile object with no class of its own, placed from a tile whose class is set
+in its tileset, and a second tile object from the same tile with a class of its
+own.**
+
+- **In Tiled:** select a tile in the tileset editor and set its **Class** in the
+  Properties panel, such as `tree`. Place it twice with **Insert Tile**. Leave
+  the first object's **Class** empty, and give the second a different one, such
+  as `stump`. R15's two tile objects will do, once their tile has a class.
+- **Why:** Tiled says a tile's class "is inherited by tile objects", but writes
+  the class only on the tile. A loader that reads the object alone finds none.
+  [Step 1b](04-roadmap.md#step-1--the-parse-and-the-transform-enginetiled-and-tilemap-pure)
+  gives such an object its tile's class, and from
+  [step 5](04-roadmap.md#step-5--mount-builds-the-object-layers-rough) on the class
+  decides what the object builds. The object's own class wins, and only the second
+  object shows which side won, as the override does in [R18](#r18).
+- **The check reports:** "R20: no tile object without a class comes from a tile
+  with one — set Class on the tile in the tileset editor" or "R20: no tile object
+  overrides its tile's class."
+
+### R21
+
+**A tileset whose Object Alignment is neither *Unspecified* nor *Bottom Left*,
+with two tile objects placed from it, one of them rotated.**
+
+- **In Tiled:** pick a tileset other than `../tileset.tsx`, which stays as it
+  is, and other than the one R15's tile objects come from. In its **Tileset
+  Properties**, set **Object Alignment**, such as *Center*. Place two tile
+  objects from it, and rotate one by 90° in the Properties panel.
+- **Why:** the alignment says which point of a tile object its position names.
+  [Step 1b](04-roadmap.md#step-1--the-parse-and-the-transform-enginetiled-and-tilemap-pure)
+  turns each of Tiled's nine into the top-left corner rgame uses. *Unspecified*
+  means bottom-left on an orthogonal map, so *Bottom Left* would read right even
+  if the alignment were ignored. Tiled turns an object about its position, so
+  only a rotated object shows whether the corner moved before the turn or after
+  it. R15's tileset stays *Unspecified*, and the map keeps both paths.
+- **The check reports:** "R21: no tileset sets an object alignment other than
+  bottom-left" or "R21: no tile object from tileset X has a rotation."
+
+### R22
+
+**Two object layers, one drawn *Top Down* and one *Manual*, each holding an
+object.**
+
+- **In Tiled:** select an object layer and set **Draw Order** in the Properties
+  panel. *Top Down* is the default.
+- **Why:** Tiled writes *Manual* as `draworder="index"` and leaves the attribute
+  out for *Top Down*, so each layer takes a different branch of the parse.
+  [Step 1c](04-roadmap.md#step-1--the-parse-and-the-transform-enginetiled-and-tilemap-pure)
+  reads the order as `y_sort?`. From
+  [step 5](04-roadmap.md#step-5--mount-builds-the-object-layers-rough) on, a *Top Down*
+  layer sorts its nodes by y, and a *Manual* one keeps Tiled's list order.
+- **The check reports:** "R22: no object layer is drawn Manual" or "R22: no object
+  layer is drawn Top Down."
+
+### R23
+
+**The *Top Down* object layer from [R22](#r22) carries a bool property `actors`
+set to `true`, and no other layer does.**
+
+- **In Tiled:** select the layer and add a property with the **+** in the
+  Properties panel. Name it `actors`, choose `bool`, and tick it.
+- **Why:** the mark says where the heroes a scene spawns in code go. From
+  [step 5](04-roadmap.md#step-5--mount-builds-the-object-layers-rough) on,
+  `slots[:actors]` is the marked layer's node, so the heroes sort by y
+  against the objects placed in it. That is why the mark belongs on a *Top Down*
+  layer.
+  [Step 1c](04-roadmap.md#step-1--the-parse-and-the-transform-enginetiled-and-tilemap-pure)
+  reads the mark once, as it reads `above`.
+- **The check reports:** "R23: no object layer carries a bool `actors` set to
+  true." A mark that is not a bool, a mark on a layer that is not an object layer,
+  and marks on two layers each fail the load, and the check reports that error.
