@@ -211,7 +211,8 @@ renderer.nine_slice(:panel, x, y, width, height, z: 0, tint: nil)
 `(left, top, width, height)`, turned and mirrored inside it as `orientation`
 says, which is how Tiled draws a tile object. `tile` and `orientation` are a
 `MapObject`'s `tile` and `orientation`. A tile turned a quarter keeps the box's
-bottom-left corner.
+bottom-left corner. [`Components::MapTile`](components.md#maptile) calls it for
+a node.
 
 Paths need no setup. `Renderer.new(app)` uses the app's own manager.
 `Renderer.new(app, assets: other)` uses a different one.

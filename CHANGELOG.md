@@ -280,6 +280,11 @@ index, not the argument.
   draw, a tileset's drawing offset moves its tiles, and an image layer draws its
   image, repeated if Tiled says so. `TileMap#tile_offset`
   answers it. See [docs/api/tile_maps.md](docs/api/tile_maps.md#how-the-map-is-drawn).
+- **One tile of a map draws anywhere.** `Components::MapTile` draws a tile of
+  the scene's map with its bottom centre on its node's origin, stretched to the
+  node's size and turned as a tile object is in Tiled, under everything else
+  the node draws. `renderer.map_tile` is the draw it calls. See
+  [docs/api/components.md](docs/api/components.md#maptile).
 - **A tile map converts between cells and pixels.** `TileMap` and
   `Components::TileWorld` answer `cell_x`, `cell_y`, `col_at` and `row_at`, and
   `TileWorld` answers `cell_centre_x` and `cell_centre_y`. See

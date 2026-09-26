@@ -345,7 +345,7 @@ over them by name.
 | `x`, `y`, `width`, `height`, `rotation` | its box, as above |
 | `shape` | `:rectangle`, `:ellipse`, `:capsule`, `:point`, `:polygon`, `:polyline` or `:text` |
 | `points` | a polygon's or polyline's corners, in the same coordinates, before `rotation` |
-| `tile`, `orientation` | a tile object's tile id and how it is turned; `nil` and the identity for a shape |
+| `tile`, `orientation` | a tile object's tile id and how it is turned; `nil` and the identity for a shape. [`Components::MapTile`](components.md#maptile) draws that tile |
 | `visible?` | false when the designer hid it |
 | `properties` | its custom properties, over its tile's for a tile object |
 
