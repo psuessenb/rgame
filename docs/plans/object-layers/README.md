@@ -1,9 +1,9 @@
 # Object layers
 
-**Status: steps 0–7 are implemented.** Steps 8 and 9 of
-[the roadmap](04-roadmap.md) are rough and get re-planned as the steps before
-them land. Step 5 was inserted after step 4 landed, and the steps after it
-moved up by one. Step 10 folds the plan back and deletes it.
+**Status: steps 0–7 are implemented, and step 8 is planned in detail.** Step 9
+of [the roadmap](04-roadmap.md) is rough and gets re-planned once step 8 lands.
+Step 5 was inserted after step 4 landed, and the steps after it moved up by
+one. Step 10 folds the plan back and deletes it.
 
 ## The request
 
@@ -75,12 +75,18 @@ layer also marks a place for anything else a scene spawns, which replaces
 6. **The runtime view speaks none of Tiled's words.** `draworder` arrives as
    `y_sort?`, `propertytype` as `class_name`, and a gid as a tile id, as the
    Tiled format plan's decision 12 set out.
+7. **Nothing at load reads a `.tiled-project`.** In the user's words: "The
+   `.tiled-project` should be a help for anyone working on maps to place
+   objects, but it should not be a restrictive list or a feature you _have_ to
+   use." So a map builds the same with a project, with a stale one, and with
+   none. A class and its properties typed by hand build as they would if picked
+   from the exported types. Every project in this repository runs with none.
 
 ## Decisions already taken
 
 Settled in conversation, in two question rounds, in a third before steps 4, 6
-and 7 were re-planned, and in a fourth before step 5 was inserted. Not reopened
-inside this plan.
+and 7 were re-planned, in a fourth before step 5 was inserted, and in a fifth
+before step 8 was planned in detail. Not reopened inside this plan.
 
 1. **The loader builds, not the scene.** An object layer becomes a node in the
    map, and its objects become nodes inside it. Scenes stop calling `spawn_into`.
@@ -183,6 +189,50 @@ inside this plan.
     `Lever` and `Crate` use it. A component holding only the key was rejected:
     every node would repeat the lookup in the database, and `Crate` would still
     build its keys by hand.
+21. **A class says a designer may place it with `@placeable`** (step 8's Q1).
+    The tag sits in the comment above `initialize`, beside the `@param` tags,
+    and follows `initialize` as they do. A subclass with no `initialize` of its
+    own is placeable when its parent is. The export writes each
+    placeable class, and nothing else reads the tag. The builder still builds
+    any class whose constructor fits, tagged or not (hard constraint 7). Three
+    alternatives were rejected:
+    - **Every class with a `@param` tag.** A class with nothing to set could
+      never be exported. `Flag`, `Crate` and `Walker` are three that
+      `course.tmx` builds.
+    - **Every class a map can build.** The projects hold 58, and the maps build
+      9. The rest are scenes, rooms, heroes and HUD pieces.
+    - **A marker module.** The tag keeps everything a map reads in one comment,
+      which `MapSettings` already reads.
+22. **The export owns every type whose name starts with a capital letter**
+    (step 8's Q2). It mirrors decision 5: a capital letter is the code's, and
+    lower case is the designer's. The export replaces the types the game defines
+    and removes the other capitalised ones, since a map naming a class the game
+    does not define raises anyway. Owning only the types it writes was rejected:
+    a renamed class would stay in the designer's list.
+23. **A member shows its keyword's default, which Prism reads** (step 8's Q3).
+    A literal shows itself, and a constant shows its value. Any other default
+    raises at export. Tiled saves no member left at its default, so the game
+    then takes Ruby's. A default the export could not read would show one value
+    and play another. Two alternatives were rejected. Literals alone would show
+    `speed: SPEED` as 0 without a word. With no defaults, every member would
+    show Tiled's empty value.
+24. **A generated project writes its types with `rake tiled`, and a spec keeps
+    them current** (step 8's Q4). `rgame new` writes
+    `assets/<name>.tiled-project` and `spec/tiled_project_spec.rb`. The spec
+    fails when the project no longer holds what the task writes, as
+    `locales_spec.rb` fails on a key one language lacks. The task prints a line
+    for each class it writes. It also says that only a class carrying
+    `@placeable` is written. `rgame new --no-tiled` writes neither file, for a
+    game without maps. Its `rake tiled` stays, and creates the project if it
+    runs. `rgame tiled-export`, a command in the gem, was rejected. It would
+    reach games made before step 8 on the next upgrade. But it would fix the
+    project's layout inside the gem, require `rgame` from a CLI that requires
+    only the standard library, and need `bundle exec` to load the game against
+    its own engine.
+25. **This repository keeps no Tiled project before step 9** (step 8's Q5). A
+    project belongs to one game, and the export writes one module's classes.
+    `examples/assets/` serves many examples, and a project there would need a
+    merge no game needs. Step 9's level brings the first.
 
 ## What was measured before planning
 
@@ -221,7 +271,12 @@ Taken at `abb91ad`, and on `origin/build-step-8-tiled-map` for `tour.tmx`.
   `docs/plans/possible-todos.md`.
 - **Object references.** Tiled's `object` property type still arrives as an
   Integer, not a node.
-- **Reading the designer's own `.tiled-project`.** Defaults come from Ruby.
+- **Reading the designer's own `.tiled-project`.** Defaults come from Ruby, and
+  nothing at load reads a project (hard constraint 7).
+- **A Tiled project shared by two games.** The export writes one game's module,
+  and `examples/assets/` keeps no project (decision 25).
+- **Tiled seeing an export while it has the project open.** Tiled reads a
+  project when it opens it, so the designer reopens it.
 - **A tileset that preserves its tiles' aspect, or draws them at the grid's
   size.** Step 4 refuses `fillmode="preserve-aspect-fit"` and
   `tilerendersize="grid"` rather than drawing them. No map uses either.
@@ -235,19 +290,19 @@ Taken at `abb91ad`, and on `origin/build-step-8-tiled-map` for `tour.tmx`.
    constructor.** A subclass without an `initialize` of its own uses its
    parent's, comment and all, and one with its own uses only its own tags. See
    [the design](03-design.md#what-a-map-may-set-the-constructors-param-tags).
-2. **Where does the export run?** `exe/rgame` may not require `rgame`, so it
-   cannot load a game's classes. A rake task in the generated project, or a
-   method on `RGame::Game`, are the candidates. *Waits on step 8's re-plan.*
+2. ~~**Where does the export run?**~~ **Settled in step 8's re-plan — in a
+   rake task of the generated project, `rake tiled`**, and a spec there fails
+   when the project is stale. See decision 24.
 3. ~~**Do `mount`'s other named slots survive?**~~ **Settled in the re-plan —
    no.** After step 7 no project passes a slot other than `:actors`. Object
    layers take their place. See decision 17.
 4. ~~**Does a hidden object layer build its objects?**~~ **Settled in the
    re-plan — yes, and draws none of them.** So does a hidden object. See
    decision 16.
-5. **What default does the export show for a member?** Ruby cannot report a
-   keyword's default. Prism, a default gem, can read a literal one from the
-   signature, such as `locked: false`. A computed default, such as
-   `-Math::PI / 2`, would show as unset. *Waits on step 8's re-plan.*
+5. ~~**What default does the export show for a member?**~~ **Settled in step
+   8's re-plan — the keyword's own, read with Prism.** A literal shows itself
+   and a constant its value, and the export refuses any other default. See
+   decision 23.
 6. ~~**Which module does a Tiled class resolve in?**~~ **Settled before step 3
    — A.** `MapBuilder.new(tilemap_id:, scope:)` resolves a name in each module
    of the scope's name, innermost first, then in what the scope inherits and at
