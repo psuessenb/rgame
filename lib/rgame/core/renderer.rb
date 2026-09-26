@@ -135,6 +135,15 @@ module RGame
           .draw_layer(self, layer, cull_x, cull_y, cull_width, cull_height, elapsed: elapsed)
       end
 
+      # One tile of a registered or resolvable tile map, stretched to fill the
+      # box `(left, top, width, height)`: a tile object, as Tiled draws one.
+      # `tile` is the map's own id for it, and `orientation` how it is turned,
+      # as the map's `MapObject` gives both. `elapsed` picks an animated tile's
+      # frame, and `z:` places it among what else its node draws.
+      def map_tile(id, tile, left, top, width, height, orientation, elapsed: 0.0, z: DEFAULT_Z)
+        lookup(:tilemap, id).draw_tile(self, tile, left, top, width, height, orientation, elapsed: elapsed, z: z)
+      end
+
       # A filled axis-aligned rectangle.
       def rect(x, y, width, height, z: DEFAULT_Z, color: nil)
         draw_rect(x, y, width, height, Z.offset(z), packed(color))

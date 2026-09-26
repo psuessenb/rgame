@@ -50,6 +50,13 @@ module RGame
     # more recordings, not more vertices: the partition changed, the contents
     # did not.
     #
+    # ## One tile, in a box of its own
+    #
+    # `draw_tile` draws one tile stretched to fill a box, which is how Tiled
+    # draws a tile object. A layer draws each of its tiles the same way, in a
+    # box the size of the tile's image standing on its cell's bottom-left
+    # corner, so a turned tile turns alike in both.
+    #
     # ## Image layers are drawn every frame
     #
     # An image layer draws its one image at its offset, and again every image's
@@ -64,7 +71,8 @@ module RGame
     # tint. A turned tile is baked inside a rotation about its own centre,
     # mirrored within its rectangle first when it is flipped. Every tile stands
     # on its cell's bottom-left corner, as Tiled draws one taller than the grid,
-    # moved by its tileset's drawing offset, which does not turn with it.
+    # moved by its tileset's drawing offset, which does not turn with it. A tile
+    # turned a quarter keeps its box's bottom-left corner.
     #
     # ## It loads nothing and holds no clock
     #
@@ -145,6 +153,17 @@ module RGame
                       cull_width, cull_height, elapsed)
       end
 
+      # The tile `tile` stretched to fill the box `(left, top, width, height)`,
+      # turned and mirrored inside it as `orientation` says, as Tiled draws a
+      # tile object. The tileset's drawing offset moves it, stretched as the
+      # tile is. An animated tile shows the frame `elapsed` seconds select, and
+      # `z:` places it among what else its node draws.
+      #
+      # @api private
+      def draw_tile(renderer, tile, left, top, width, height, orientation, elapsed: 0.0, z: 0)
+        draw_boxed(renderer, @map.frame_tile(tile, elapsed), left, top, width, height, orientation, z, nil)
+      end
+
       private
 
       def draw_image_layer(renderer, layer, index, cull_x, cull_y, cull_width, cull_height)
@@ -201,7 +220,7 @@ module RGame
             next unless layer == index
             next if @animates.include?(tile)
 
-            draw_tile(renderer, tile, col, row, @map.orientation(layer, col, row), nil)
+            draw_cell(renderer, tile, col, row, @map.orientation(layer, col, row), nil)
           end
         end
       end
@@ -215,22 +234,31 @@ module RGame
         tiles.each do |col, row, tile, orientation|
           next if col < col_first || row < row_first || @map.cell_x(col) >= far_x || @map.cell_y(row) >= far_y
 
-          draw_tile(renderer, @map.frame_tile(tile, elapsed), col, row, orientation, tint)
+          draw_cell(renderer, @map.frame_tile(tile, elapsed), col, row, orientation, tint)
         end
       end
 
-      def draw_tile(renderer, tile, col, row, orientation, tint)
+      def draw_cell(renderer, tile, col, row, orientation, tint)
+        image = @tiles[tile]
+        draw_boxed(renderer, tile, @map.cell_x(col), @map.cell_y(row + 1) - image.height, image.width, image.height,
+                   orientation, 0, tint)
+      end
+
+      def draw_boxed(renderer, tile, left, top, width, height, orientation, z, tint)
         image = @tiles[tile]
         offset_x, offset_y = @map.tile_offset(tile)
-        x = @map.cell_x(col) + offset_x
-        y = @map.cell_y(row + 1) - image.height + offset_y
-        return renderer.image_at(image, x, y, color: tint) if orientation.identity?
+        scale_x = width.fdiv(image.width)
+        scale_y = height.fdiv(image.height)
+        x = left + (offset_x * scale_x)
+        y = top + (offset_y * scale_y)
+        return renderer.image_at(image, x, y, scale_x:, scale_y:, z:, color: tint) if orientation.identity?
 
         turns = orientation.quarter_turns
-        shift = turns.odd? ? (image.height - image.width) / 2.0 : 0
+        shift = turns.odd? ? (height - width) / 2.0 : 0
         angle = orientation.mirrored? ? -90 * turns : 90 * turns
-        renderer.rotated(angle, x + shift + (image.width / 2.0), y + shift + (image.height / 2.0)) do
-          renderer.image_at(image, x + shift, y + shift, scale_x: orientation.mirrored? ? -1 : 1, color: tint)
+        renderer.rotated(angle, x + shift + (width / 2.0), y + shift + (height / 2.0)) do
+          renderer.image_at(image, x + shift, y + shift, scale_x: orientation.mirrored? ? -scale_x : scale_x, scale_y:,
+                                                         z:, color: tint)
         end
       end
 
