@@ -185,8 +185,13 @@ reads them at runtime, so this comment is code. A keyword with no tag, or with a
 type outside [the
 table](../../../docs/api/internals.md#mapbuilder--a-node-from-a-maps-object),
 stays out of every map's reach, and a blank line above the `def` detaches the
-whole block. Do not tag `x`, `width` or another `Node2D` keyword: the object's
-box sets them, and the tag raises.
+whole block. Do not tag `x`, `width`, another `Node2D` keyword, `route` or
+`name`: the builder sets them, and the tag raises.
+
+**Name `route:` or `name:` in `initialize` to receive them.** The builder passes
+a polyline's or a polygon's route, and the object's name, only to a class whose
+`initialize` names them. A node keeps nothing else of its object but
+`map_object_id`.
 
 **A designer's value for a component comes through the node.** Tag it on the
 node's own `initialize` and build the component from it, deriving what follows,

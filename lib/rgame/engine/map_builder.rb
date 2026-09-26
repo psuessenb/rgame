@@ -16,8 +16,14 @@ module RGame
     # Any other class, and none, is data and builds nothing.
     #
     # **Each property sets a keyword** that MapSettings says the class takes,
-    # cast to its type. The property `fact` is the exception: it becomes the
-    # node's `fact_key`, which is `:"<tilemap id>#<object id>"` without one.
+    # cast to its type.
+    #
+    # **The builder hands the node values and keeps the object.** Every node
+    # gets its object's id as `map_object_id`. A class whose `initialize` names
+    # `route:` gets a polyline's or a polygon's route, as Path.from_object
+    # builds it, and one that names `name:` gets the object's name, `''` when
+    # the designer gave none. A class that names neither gets neither, since
+    # Node2D takes neither.
     #
     # **The node stands at the bottom centre of the object's box**, turned with
     # it. A point object's node stands on its point, and a polygon's or
@@ -27,16 +33,19 @@ module RGame
     # Each refusal names the tilemap id, the object and its class. A class that
     # names no constant raises NameError. A constant that is no Node2D class,
     # and a property of the wrong type, raise TypeError. A property no keyword
-    # takes, and a required keyword no property sets, raise ArgumentError.
+    # takes, a required keyword no property sets, and a required `route:` for
+    # an object of another shape raise ArgumentError.
     #
     # @api private
     class MapBuilder
       BUILDS = /\A[[:upper:]]/
       UNBOXED = %i[point polygon polyline].freeze
-      private_constant :BUILDS, :UNBOXED
+      ROUTED = %i[polygon polyline].freeze
+      NAMED = %i[key keyreq].freeze
+      private_constant :BUILDS, :UNBOXED, :ROUTED, :NAMED
 
-      # `tilemap_id` is the map's asset key, which the fact keys start with.
-      # `scope` is the class the map's class names resolve in.
+      # `tilemap_id` is the map's asset key, which each refusal names. `scope`
+      # is the class the map's class names resolve in.
       def initialize(tilemap_id:, scope:)
         @tilemap_id = tilemap_id
         @scope = scope
@@ -49,9 +58,11 @@ module RGame
         return unless object.class_name.match?(BUILDS)
 
         node_class = resolve(object)
-        keywords = { **placement(object), map_object: object, fact_key: fact_key(object) }
+        parameters = node_class.instance_method(:initialize).parameters
+        keywords = { **placement(object), map_object_id: object.id }
         keywords.merge!(settings(object, node_class))
-        check_required(object, node_class, keywords)
+        keywords.merge!(asked_for(object, node_class, parameters))
+        check_required(object, node_class, keywords, parameters)
         node_class.new(**keywords)
       end
 
@@ -97,25 +108,32 @@ module RGame
         object.y + (object.width / 2.0 * Math.sin(angle)) + (object.height * Math.cos(angle))
       end
 
-      def fact_key(object)
-        return :"#{@tilemap_id}##{object.id}" unless object.properties.key?('fact')
-
-        fact = object.properties['fact']
-        return fact.to_sym if fact.is_a?(String) && !fact.empty?
-
-        raise TypeError, "#{where(object)} sets 'fact' to #{shown(fact)}; make it a string property " \
-                         'naming the key the node keeps its state under'
-      end
-
       def settings(object, node_class)
         settable = MapSettings.of(node_class)
         keywords = {}
         object.properties.each do |name, value|
-          next if name == 'fact'
-
           keywords[name.to_sym] = setting(object, node_class, settable, name, value)
         end
         keywords
+      end
+
+      def asked_for(object, node_class, parameters)
+        keywords = {}
+        parameters.each do |kind, name|
+          next unless NAMED.include?(kind)
+
+          keywords[:name] = object.name if name == :name
+          keywords[:route] = route(object, node_class, kind) if name == :route
+        end
+        keywords.compact
+      end
+
+      def route(object, node_class, kind)
+        return Path.from_object(object) if ROUTED.include?(object.shape)
+        return unless kind == :keyreq
+
+        raise ArgumentError, "#{where(object)} is a #{object.shape}, and #{node_class}#initialize requires " \
+                             'route:, which only a polyline or a polygon gives; draw the object as one of those'
       end
 
       def setting(object, node_class, settable, name, value)
@@ -131,8 +149,7 @@ module RGame
         end
       end
 
-      def check_required(object, node_class, keywords)
-        parameters = node_class.instance_method(:initialize).parameters
+      def check_required(object, node_class, keywords, parameters)
         missing = parameters.filter_map { |kind, name| name if kind == :keyreq && !keywords.key?(name) }
         return if missing.empty?
 

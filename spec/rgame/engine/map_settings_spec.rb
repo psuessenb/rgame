@@ -64,7 +64,7 @@ class SpecMapWideChest < RGame::Engine::Node2D
   end
 end
 
-# Tags `fact`, which becomes the node's fact_key.
+# Tags `fact`, which is a property like any other.
 class SpecMapFactChest < RGame::Engine::Node2D
   # @param fact [String] where it keeps its state
   def initialize(fact: nil, **)
@@ -72,11 +72,11 @@ class SpecMapFactChest < RGame::Engine::Node2D
   end
 end
 
-# Tags `fact_key`, which the builder sets.
-class SpecMapKeyedChest < RGame::Engine::Node2D
-  # @param fact_key [Symbol] where it keeps its state
-  def initialize(fact_key: nil, **)
-    super
+# Tags `route`, which the builder sets from the object's shape.
+class SpecMapRoutedChest < RGame::Engine::Node2D
+  # @param route [String] where it floats
+  def initialize(route: nil, **)
+    super(**)
   end
 end
 
@@ -128,14 +128,13 @@ RSpec.describe RGame::Engine::MapSettings do
         .to raise_error(ArgumentError, /SpecMapWideChest#initialize tags @param width, a name no property may set/)
     end
 
-    it 'refuses a tag naming map_object or fact_key, which the builder sets' do
-      expect { described_class.of(SpecMapKeyedChest) }
-        .to raise_error(ArgumentError, /@param fact_key, a name no property may set.*map_object, fact_key, fact\)/)
+    it 'refuses a tag naming route or name, which the builder sets, listing every reserved name' do
+      expect { described_class.of(SpecMapRoutedChest) }
+        .to raise_error(ArgumentError, /@param route, a name no property may set.*map_object_id, route, name\)/)
     end
 
-    it 'refuses a tag naming fact, which becomes the fact_key' do
-      expect { described_class.of(SpecMapFactChest) }
-        .to raise_error(ArgumentError, /@param fact, a name no property may set.*reserved: x, y, .*, fact\)/)
+    it 'reads a tag naming fact, which is a property like any other' do
+      expect(described_class.of(SpecMapFactChest)).to eq(fact: :string)
     end
 
     it 'refuses a class whose initialize was defined from a String, naming it' do

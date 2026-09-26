@@ -58,6 +58,48 @@ module SpecMapGame
     end
   end
 
+  # A ferry that sails the route its object draws, and needs one.
+  class Ferry < RGame::Engine::Node2D
+    def initialize(route:, **)
+      super(**)
+      @route = route
+    end
+
+    attr_reader :route
+  end
+
+  # A buoy that drifts along a route when its object draws one, and floats in
+  # place otherwise.
+  class Buoy < RGame::Engine::Node2D
+    def initialize(route: nil, **)
+      super(**)
+      @route = route
+    end
+
+    attr_reader :route
+  end
+
+  # A flag that shows its object's name.
+  class Flag < RGame::Engine::Node2D
+    def initialize(name:, **)
+      super(**)
+      @name = name
+    end
+
+    attr_reader :name
+  end
+
+  # A lever whose designer may name the key it keeps its state under.
+  class Lever < RGame::Engine::Node2D
+    # @param fact [Symbol] the key it keeps its state under
+    def initialize(fact: nil, **)
+      super(**)
+      @fact = fact
+    end
+
+    attr_reader :fact
+  end
+
   # A crate sharing its name with one at the top level.
   class SpecMapCrate < RGame::Engine::Node2D; end
 
@@ -273,29 +315,71 @@ RSpec.describe RGame::Engine::MapBuilder do
     end
   end
 
-  describe 'the fact key and the record' do
-    it "keys the node by the map's id and the object's id" do
-      expect(builder.build(chest).fact_key).to eq(:'map/town.tmx#7')
+  describe 'the object id' do
+    it "gives the node its object's id" do
+      expect(builder.build(chest).map_object_id).to eq(7)
     end
 
-    it 'keys the node by its fact property when the designer set one' do
-      expect(builder.build(chest(['fact', nil, 'town_chest'])).fact_key).to eq(:town_chest)
+    it 'passes a fact property on as the keyword it sets, like any other' do
+      lever = object('type="Lever" x="0" y="0"', properties(%w[fact string town_lever]))
+
+      expect(builder.build(lever).fact).to eq(:town_lever)
     end
 
-    it 'refuses a fact that is no String' do
-      expect { builder.build(chest(['fact', 'int', 3])) }
-        .to raise_error(TypeError, /sets 'fact' to 3; make it a string property/)
+    it 'refuses a fact property the class does not tag, as any other' do
+      expect { builder.build(chest(['fact', nil, 'town_chest'])) }
+        .to raise_error(ArgumentError, /sets 'fact', which SpecMapGame::Chest does not let a map set/)
+    end
+  end
+
+  describe 'the route and the name' do
+    def ferry(shape, attributes = '')
+      builder.build(object(%(type="Ferry" x="10" y="20" #{attributes}), shape))
     end
 
-    it 'refuses an empty fact' do
-      expect { builder.build(chest(['fact', nil, ''])) }
-        .to raise_error(TypeError, /sets 'fact' to ""; make it a string property/)
+    def waypoints(route) = Array.new(route.count) { [route.x_at(it).round(9), route.y_at(it).round(9)] }
+
+    it "gives a polyline's route, open, to a class that names route:" do
+      route = ferry('<polyline points="0,0 16,0 16,8"/>').route
+
+      expect([route.closed?, waypoints(route)]).to eq([false, [[10.0, 20.0], [26.0, 20.0], [26.0, 28.0]]])
     end
 
-    it 'keeps the record it was built from' do
-      record = chest
+    it "gives a polygon's route, closed" do
+      route = ferry('<polygon points="0,0 16,0 16,8"/>').route
 
-      expect(builder.build(record).map_object).to equal(record)
+      expect([route.closed?, waypoints(route).last]).to eq([true, [10.0, 20.0]])
+    end
+
+    it 'turns the route with its object' do
+      # Turned 90° clockwise about (10, 20), a leg running east runs south.
+      route = ferry('<polyline points="0,0 16,0"/>', 'rotation="90"').route
+
+      expect(waypoints(route)).to eq([[10.0, 20.0], [10.0, 36.0]])
+    end
+
+    it 'refuses a shape with no route for a class that requires route:, naming the object and its shape' do
+      expect { ferry('', 'width="16" height="16"') }.to raise_error(
+        ArgumentError, %r{object 7 of class 'Ferry' in map/town.tmx is a rectangle, and SpecMapGame::Ferry#initialize}
+      )
+    end
+
+    it 'gives no route to a class whose route: is optional, for a shape with none' do
+      expect(builder.build(object('type="Buoy" x="0" y="0" width="16" height="16"')).route).to be_nil
+    end
+
+    it "gives the object's name to a class that names name:" do
+      expect(builder.build(object('name="north" type="Flag" x="0" y="0"', '<point/>')).name).to eq('north')
+    end
+
+    it 'gives an empty name for an object the designer left unnamed' do
+      expect(builder.build(object('type="Flag" x="0" y="0"', '<point/>')).name).to eq('')
+    end
+
+    it 'gives neither to a class that names neither, though it forwards the rest to Node2D' do
+      named = object('name="north" type="SpecMapBarrel" x="0" y="0"', '<polyline points="0,0 16,0"/>')
+
+      expect(builder.build(named)).to be_a(SpecMapBarrel)
     end
   end
 
