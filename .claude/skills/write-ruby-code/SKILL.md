@@ -185,8 +185,13 @@ reads them at runtime, so this comment is code. A keyword with no tag, or with a
 type outside [the
 table](../../../docs/api/internals.md#mapbuilder--a-node-from-a-maps-object),
 stays out of every map's reach, and a blank line above the `def` detaches the
-whole block. Do not tag `x`, `width` or another `Node2D` keyword: the object's
-box sets them, and the tag raises.
+whole block. Do not tag `x`, `width`, another `Node2D` keyword, `route` or
+`name`: the builder sets them, and the tag raises.
+
+**Name `route:` or `name:` in `initialize` to receive them.** The builder passes
+a polyline's or a polygon's route, and the object's name, only to a class whose
+`initialize` names them. A node keeps nothing else of its object but
+`map_object_id`.
 
 **A designer's value for a component comes through the node.** Tag it on the
 node's own `initialize` and build the component from it, deriving what follows,
@@ -207,6 +212,7 @@ shows it. Measured on this Ruby, per call:
 | a method returning `[a, b]` that its caller takes apart | 1 | one method per part | `Game/NoNeedlessAllocation`, on a per-frame path |
 | `-0.0`, or any Float outside about 1e-77 to 1e77, which Ruby cannot keep inline | 1 | work it out once, outside the frame | nothing |
 | `*args`, `**opts`, `Symbol#to_s`, `Integer#to_s` | 1 | explicit parameters; build the String once | nothing |
+| `def fetch(key, ...)`: a parameter before `...` | 1 | `(...)` alone, or explicit parameters | nothing |
 
 Free: `next`, `each`, `each_index`, `any?`/`all?`/`find`/`count`/`sum` on an
 Array, `min`/`max` with or without a block, `[a, b].min`, destructuring an

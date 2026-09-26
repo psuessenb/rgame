@@ -11,7 +11,8 @@ module Adventure
   # which press reached it and which did not. A hold searches it and finds
   # nothing.
   #
-  # Like the chest, it keeps its state in Facts under the key the room names.
+  # Like the chest, it keeps its state in Facts, through a Components::Fact under
+  # the key the room names.
   class Lever < Engine::Node2D
     WIDTH = 12
     HEIGHT = 20
@@ -21,20 +22,20 @@ module Adventure
 
     LABELS = { up: 'lever', down: 'pulled' }.freeze
 
-    def initialize(facts:, key:, **)
+    def initialize(key:, **)
       super(**)
       add_component(Components::BoxCollider.new(width: WIDTH, height: HEIGHT,
                                                 layer: :interactable))
-      @facts = facts
-      @key = key
-      @state = facts.fetch(key, 'up').to_sym
+      @kept = add_component(Components::Fact.new(key:, default: 'up'))
     end
 
     attr_reader :state
 
+    def _enter_tree = @state = @kept.value.to_sym
+
     def open
       @state = @state == :up ? :down : :up
-      @facts[@key] = @state.name
+      @kept.value = @state.name
     end
 
     def search = nil

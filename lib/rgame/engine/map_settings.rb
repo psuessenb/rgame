@@ -47,7 +47,10 @@ module RGame
       COMMENT = /\A\s*#/
       TAG = /\A\s*#\s*@param\s+(\w+)(?:\s+\[([^\]]*)\])?/
       SYMBOL = /\A:\w+\z/
-      private_constant :TYPES, :EXPECTED, :COMMENT, :TAG, :SYMBOL
+
+      # What the builder passes a class that names it, beside Node2D's own.
+      BUILT = %i[route name].freeze
+      private_constant :TYPES, :EXPECTED, :COMMENT, :TAG, :SYMBOL, :BUILT
 
       @cache = {}.compare_by_identity
 
@@ -77,7 +80,7 @@ module RGame
         "a string property holding #{type.join(', ')}"
       end
 
-      def self.reserved = @reserved ||= [*Node2D.instance_method(:initialize).parameters.map(&:last), :fact].freeze
+      def self.reserved = @reserved ||= [*Node2D.instance_method(:initialize).parameters.map(&:last), *BUILT].freeze
 
       def self.read(method)
         owner = method.owner
@@ -111,9 +114,9 @@ module RGame
 
       def self.check(owner, name, keywords)
         if reserved.include?(name)
-          raise ArgumentError, "#{owner}#initialize tags @param #{name}, a name no property may set: the object's " \
-                               "box and the builder fill Node2D's own keywords, and 'fact' becomes fact_key " \
-                               "(reserved: #{reserved.join(', ')})"
+          raise ArgumentError, "#{owner}#initialize tags @param #{name}, a name no property may set: the builder " \
+                               "fills Node2D's own keywords from the object's box and id, and route and name " \
+                               "from its shape and its name (reserved: #{reserved.join(', ')})"
         end
         return if keywords.include?(name)
 

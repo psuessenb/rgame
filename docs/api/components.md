@@ -668,6 +668,50 @@ margin reaches half its extent.
   or a mover declaring `blocked_by: [:bounds]`; see
   [`WorldBounds.one_response!`](#world).
 
+### `Fact`
+
+**Keeps one of its node's values in the root's [`Facts`](dialogue.md#facts), so
+it outlives the room the node stands in.** A chest opened once stays open when
+its room is built again, and a save keeps it with every other fact.
+
+```ruby
+# A node class in a game's module, where Components is RGame::Engine::Components.
+class Chest < Engine::Node2D
+  def initialize(key: nil, **)
+    super(**)
+    @kept = add_component(Components::Fact.new(key:, default: 'closed'))
+  end
+
+  def _enter_tree = @state = @kept.value.to_sym
+
+  def open = @kept.value = 'open'
+end
+```
+
+- **Construct:** `Fact.new(default: nil, key: nil, part: nil)`. `default` is
+  what `value` reads for a fact never set. It must be a value `Facts` holds, so a
+  Symbol raises `TypeError`, and so does a `key:` or a `part:` that is not a
+  Symbol.
+- **The key** is `key:` when the node passes one, as a node built in code does.
+  A node a map built passes none. Its key is then `:"<tilemap id>#<object id>"`,
+  made from its [`Node2D#map_object_id`](internals.md#mapbuilder--a-node-from-a-maps-object)
+  and the scene's [`TileWorld`](#tileworld), such as `:"map/town.tmx#7"`. A
+  `part:` joins the key after a dot: `:"map/town.tmx#7.x"`, or `:"crate.x"`.
+- **Several values take one `Fact` each**, each with its own `part:` and a slot
+  of its own: `add_component(Fact.new(part: :x, default: x), as: :x)`.
+- **Lifecycle:** `_attach` finds the root's `Facts` and makes the key, once, so a
+  node moved into another room keeps its key. It raises `ArgumentError` for a
+  node with neither a `key:` nor a `map_object_id`. It raises `KeyError` when
+  there is no `Facts`, or no `TileWorld` to make a map's key from.
+- **`key`, `value` and `value=`.** `value` is the fact, or `default` for a fact
+  never set. `value=` writes the fact as `facts[key] = value` does, so `Facts`
+  emits `on_changed` and calls its watchers. All three raise before the node
+  first enters a tree: read the value in `_enter_tree` or later.
+- **A designer's key comes through the node**, as any value for a component
+  does. The class tags `@param fact [Symbol]` and passes it on as `key:`.
+- **A read allocates nothing**, and neither does writing the value a fact holds
+  already.
+
 ### `FeetCollider`
 
 **A [`BoxCollider`](#boxcollider) whose rectangle is the node's feet**: centred

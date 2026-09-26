@@ -350,8 +350,7 @@ end
 # `object` is object 7 of map/town.tmx: class Chest, property contents: 'key'.
 builder = RGame::Engine::MapBuilder.new(tilemap_id: 'map/town.tmx', scope: MyGame::Town)
 chest = builder.build(object)   # => a MyGame::Chest, standing at the bottom centre of the object
-chest.fact_key                  # => :"map/town.tmx#7"
-chest.map_object                # => object
+chest.map_object_id             # => 7
 ```
 
 **A class starting with a capital letter names the node class.** Any other
@@ -385,8 +384,8 @@ tag of a type from this table:
   parent's tags, and one with its own reads only its own.
 - **A tag must name a keyword `initialize` takes.** Reading one that names
   another raises `ArgumentError`, listing the keywords. So does a tag naming one
-  of `Node2D`'s own keywords, `map_object` and `fact_key` among them, or `fact`.
-  The object's box and the builder set those.
+  of `Node2D`'s own keywords, `map_object_id` among them, or `route` or `name`.
+  The builder sets those.
 - **A class needs a source file.** A class defined by `eval`, in IRB or with
   `ruby -e` has none, and building it raises `ArgumentError`.
 
@@ -402,10 +401,14 @@ class tags those too.
 size. A point object's node stands on its point, and a polygon's or polyline's
 on its own `(x, y)`.
 
-**`fact_key` is the object's `fact` property as a Symbol**, and
-`:"<tilemap id>#<object id>"` when the designer set none. An empty `fact`, or one
-that is not a String, raises `TypeError`. `map_object` is the record the node was
-built from.
+**The builder hands the node values, and keeps the object.** Every node gets
+its object's id as `map_object_id`, which is `nil` on a node built in code.
+[`Components::Fact`](components.md#fact) keys a node's state by it. A
+class whose `initialize` names `route:` gets the route of a polyline or a
+polygon, as `Path.from_object` builds it, turned with the object. One that
+names `name:` gets the object's name, or `''` when the designer gave none. A
+class that requires `route:` raises `ArgumentError` when built from another
+shape, and a class that names neither gets neither.
 
 **A node passes a designer's value on to its components itself.** The map sets
 only the node's own keywords, so a node that lets a designer tune a collider
