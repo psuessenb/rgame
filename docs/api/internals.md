@@ -318,3 +318,113 @@ animator.frame             # => [row, col, flip_x] — for the current animation
 `play` resets elapsed time only when the animation changes. Calling it
 every frame with the current intent keeps a walk smooth instead of stuttering on
 frame 0.
+
+## `MapBuilder` — a node from a map's object
+
+**`RGame::Engine::MapBuilder` (`rgame/engine/map_builder`) builds the node a
+map's object names.** It finds the node class, sets it up from the object's
+properties, and stands it on the object. No engine class calls it. A scene
+builds nodes from a map's objects with `MapObjects`, as
+[Building nodes from objects](tile_maps.md#building-nodes-from-objects) shows.
+
+```ruby
+module MyGame
+  Engine = RGame::Engine
+  Components = Engine::Components
+
+  class Town < Engine::Node2D; end
+
+  class Chest < Engine::Node2D
+    # A chest the hero opens once.
+    #
+    # @param contents [String] the item inside
+    # @param locked [Boolean] whether it takes a key to open
+    def initialize(contents:, locked: false, **)
+      super(**)
+      @contents = contents
+      @locked = locked
+    end
+  end
+end
+
+# `object` is object 7 of map/town.tmx: class Chest, property contents: 'key'.
+builder = RGame::Engine::MapBuilder.new(tilemap_id: 'map/town.tmx', scope: MyGame::Town)
+chest = builder.build(object)   # => a MyGame::Chest, standing at the bottom centre of the object
+chest.fact_key                  # => :"map/town.tmx#7"
+chest.map_object                # => object
+```
+
+**A class starting with a capital letter names the node class.** Any other
+class, and none, is data: `build` returns `nil`, and the object stays a record in
+`map.objects`. The name resolves as Ruby would resolve it inside the class
+`scope`. `Chest` is `MyGame::Town::Chest`, then
+`MyGame::Chest`, then a constant `MyGame::Town` inherits, then `::Chest`. A
+path such as `Town::Chest` resolves the same way. So a map names no module, and
+two games can share one map, each with a `Chest` of its own. A name that
+resolves to no constant raises `NameError`, and a constant that is not
+`Node2D` or a subclass of it raises `TypeError`.
+
+**The tags above `initialize` say what a map may set.** A keyword is settable
+when the comment directly above the `def` documents it with a YARD `@param`
+tag of a type from this table:
+
+| Tag | Tiled property | The keyword receives |
+|---|---|---|
+| `[String]` | string | a String |
+| `[Integer]` | int | an Integer |
+| `[Float]` | float, or int | a Float |
+| `[Boolean]` | bool | `true` or `false` |
+| `[Symbol]` | string | a Symbol |
+| a list of Symbols, such as `[:flat, :round]` | string, holding one of them | a Symbol |
+| `[Util::Color]` | color | a `Util::Color` |
+
+- **A keyword with no tag, or a tag of another type, stays out of a map's
+  reach.** `@param rng [Random]` documents a keyword no map can set.
+- **The tags are the unbroken run of comment lines above the `def`.** A blank
+  line detaches them. A subclass without an `initialize` of its own reads its
+  parent's tags, and one with its own reads only its own.
+- **A tag must name a keyword `initialize` takes.** Reading one that names
+  another raises `ArgumentError`, listing the keywords. So does a tag naming one
+  of `Node2D`'s own keywords, `map_object` and `fact_key` among them, or `fact`.
+  The object's box and the builder set those.
+- **A class needs a source file.** A class defined by `eval`, in IRB or with
+  `ruby -e` has none, and building it raises `ArgumentError`.
+
+**Each property sets the keyword of its name.** A property no tag makes
+settable raises `ArgumentError`, listing the keywords that are. A property of
+the wrong type raises `TypeError`, naming the Tiled type to use, and a class
+property is refused like any other value. A required keyword no property sets
+raises `ArgumentError`. A tile object's properties include its tile's, so the
+class tags those too.
+
+**The node stands at the bottom centre of the object's box**, turned with it.
+`angle` is the object's rotation in radians, and `width` and `height` are its
+size. A point object's node stands on its point, and a polygon's or polyline's
+on its own `(x, y)`.
+
+**`fact_key` is the object's `fact` property as a Symbol**, and
+`:"<tilemap id>#<object id>"` when the designer set none. An empty `fact`, or one
+that is not a String, raises `TypeError`. `map_object` is the record the node was
+built from.
+
+**A node passes a designer's value on to its components itself.** The map sets
+only the node's own keywords, so a node that lets a designer tune a collider
+takes the value and derives the collider from it:
+
+```ruby
+module MyGame
+  class Crate < Engine::Node2D
+    # @param size [Float] the crate's side, in pixels
+    def initialize(size: 16.0, **)
+      super(**)
+      add_component(Components::BoxCollider.new(width: size, height: size,
+                                                offset_x: -size / 2, offset_y: -size))
+    end
+  end
+end
+```
+
+The offsets put the collider on the object's box, since the node stands at its
+bottom centre. On a turned object, the node's frame turns with the box Tiled
+draws, and the collider does not: a `BoxCollider` stays axis-aligned in the
+world.

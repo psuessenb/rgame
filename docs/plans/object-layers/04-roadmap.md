@@ -1,7 +1,7 @@
 # Roadmap
 
-**Steps 0–2 are implemented.** Step 3 is detailed. Steps 4–8 are rough and get
-re-planned once the steps before them land.
+**Steps 0–3 are implemented.** Steps 4–8 are rough and get re-planned once the
+steps before them land.
 
 ## Dependency shape
 
@@ -520,6 +520,69 @@ builder.build(object)                  # => a Chest, or nil for an object whose 
   a constructor a map builds documents its settable keywords with `@param`, that
   the tags are what the map may set, and that a node passes a designer's value on
   to its components itself.
+
+**Landed.** Three commits on `map-builder`, 3a to 3c as sketched. `rake spec`
+4369 examples, 0 failures (4318 before, 51 new). `rake spec:core` 522,
+0 failures. `rake docs:coverage`: 0 of 218 modules and classes with an
+undocumented name. `rake drive:allocations`: all 43 projects within budget, run
+because `Node2D#initialize` sets two more ivars. `make test` was not run, as the
+step changes no C.
+
+Open question 6 was settled before the step, as option A. A map's `Chest`
+builds a `SpecMapGame::Chest` under the scope `SpecMapGame::Room`, and the same
+map builds a `SpecMapOtherGame::Chest` under `SpecMapOtherGame::Room`. The
+caller that uses both builds a `Crate` whose tagged `size:` sizes its collider.
+On an unturned 24×24 object at (100, 200), the collider's box is
+(100, 200, 24, 24). On the same object turned 30°, the collider's four corners,
+carried through the node's frame, land on the four corners Tiled draws.
+
+Where the sketch was wrong, or said too little:
+
+- **A turned object's collider does not turn.** The sketch said the crate's box
+  matches a turned rectangle's box. Only the node's frame turns: a
+  `BoxCollider` stays axis-aligned in the world, by design. So the spec checks
+  the collider's box on an unturned object, and its corners through the node's
+  frame on a turned one. No object in the repository's maps is turned, and
+  `tour.tmx`'s one turned object is R21's tile object. **For steps 5 and 6:** a
+  map-built node on a turned object collides as if unturned.
+- **A required keyword no property sets raises**, naming the map, the object and
+  the keyword. Ruby's own "missing keyword" names neither the map nor the
+  object. The first version counted only the properties, so it refused a class
+  that requires `width:`, which the object's box sets. A spec with a `Raft` of
+  that shape pins the fix. **For step 6:** `Raft` may require `width:` and
+  `height:`, and may not tag them.
+- **The name resolves along the scope's name, not where the class was
+  written.** Ruby, inside `class Adventure::Town`, does not look in
+  `Adventure`. The builder does, because the name says the class belongs there.
+  Between the game's module and the top level it also looks in what the scope
+  inherits, as Ruby does.
+- **A class written with `ruby -e` or in IRB has no source file either**, not
+  only one from `eval` or C. `spec/api_docs/examples_spec.rb` runs a complete
+  example with `ruby -e`, so the internals page shows a tagged class as a
+  fragment.
+- **A `@param` tag with no type, or written `@param [String] contents`, reads as
+  no tag.** It is not refused. A property it was meant for raises at build
+  instead, listing the settable keywords and naming the `@param` rule.
+- **The reserved names are read from `Node2D#initialize`**, plus `fact`, so 3b's
+  two keywords joined them without a list. A tag naming one raises whatever its
+  type.
+- **`[RGame::Util::Color]` reads as `[Util::Color]`.** Engine code may write the
+  long form, and a tag of it would otherwise leave the keyword unsettable
+  without a word.
+- **The documentation went to `internals.md`, not `tile_maps.md`.** Nothing calls
+  `MapBuilder` until step 5, and `tile_maps.md` documents what a game does today,
+  with `MapObjects`. It gained `map_object:` and `fact_key:`, which a
+  `MapObjects` block may pass. **For step 5:** "Building nodes from objects"
+  moves onto the new path, and so does what `internals.md` says a game author
+  writes.
+
+`spec/rgame/engine/map_settings_spec.rb` also reads every engine `Node2D` class,
+as the design asks. None has a tag yet, so it guards the first.
+
+Documented in `docs/api/internals.md` (`MapBuilder`, the tag table and its
+rules), `docs/api/tile_maps.md` (`map_object:` and `fact_key:`) and the
+write-ruby-code skill (a node class a map builds). `CHANGELOG.md` waits for
+step 5, as planned.
 
 ---
 

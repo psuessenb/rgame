@@ -373,6 +373,11 @@ objects.spawn_into(slots[:actors], map.objects) # => the chests and traps it add
   object is built too, so the block can read `visible?` itself.
 - **The block places the node.** An object's `(x, y)` is its top-left corner, and
   where a node's origin sits is up to its class. The registry moves nothing.
+- **A node can keep its object, and a key for its state.** `Node2D.new` takes
+  `map_object:` and `fact_key:`, and `Node2D#map_object` and `Node2D#fact_key`
+  read them back. Both are `nil` unless passed. A node that keeps state in
+  [Facts](dialogue.md#facts), such as a chest opened once, can keep it under its
+  `fact_key`, where a room built again finds it.
 - **Nothing spawns a map's objects unless the scene asks.** The scene calls
   `spawn_into` and chooses the parent.
 

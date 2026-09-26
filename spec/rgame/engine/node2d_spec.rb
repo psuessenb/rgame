@@ -128,6 +128,19 @@ RSpec.describe RGame::Engine::Node2D do
     end
   end
 
+  describe '#map_object and #fact_key' do
+    it 'are nil on a node built in code' do
+      expect([node.map_object, node.fact_key]).to eq([nil, nil])
+    end
+
+    it 'read back what was passed' do
+      object = instance_double(RGame::Engine::MapObject)
+      built = described_class.new(map_object: object, fact_key: :'map/town.tmx#7')
+
+      expect([built.map_object, built.fact_key]).to eq([object, :'map/town.tmx#7'])
+    end
+  end
+
   describe '#add_node' do
     let(:child) { described_class.new }
 

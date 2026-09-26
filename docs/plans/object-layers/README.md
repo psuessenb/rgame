@@ -1,9 +1,8 @@
 # Object layers
 
-**Status: steps 0–2 are implemented.** Step 3 of
-[the roadmap](04-roadmap.md) is detailed, and its class resolution waits on
-[open question 6](#open-questions). Steps 4–8 are rough and get re-planned as the steps before them
-land. Step 9 folds the plan back and deletes it.
+**Status: steps 0–3 are implemented.** Steps 4–8 of
+[the roadmap](04-roadmap.md) are rough and get re-planned as the steps before
+them land. Step 9 folds the plan back and deletes it.
 
 ## The request
 
@@ -180,8 +179,11 @@ Taken at `abb91ad`, and on `origin/build-step-8-tiled-map` for `tour.tmx`.
    keyword's default. Prism, a default gem, can read a literal one from the
    signature, such as `locked: false`. A computed default, such as
    `-Math::PI / 2`, would show as unset. *Waits on step 7's re-plan.*
-6. **Which module does a Tiled class resolve in?** *Blocks step 3's rule 9.*
-   Every example and test project keeps its classes in a module of its own, as
+6. ~~**Which module does a Tiled class resolve in?**~~ **Settled before step 3
+   — A.** `MapBuilder.new(tilemap_id:, scope:)` resolves a name in each module
+   of the scope's name, innermost first, then in what the scope inherits and at
+   the top level. Step 5's `mount` passes the class of the node `TileWorld` is
+   attached to. Every example and test project keeps its classes in a module of its own, as
    [A game's own module](../../api/README.md#a-games-own-module) recommends, so
    a map's `Door` names no top-level constant. `garden.tmx` and `town.tmx` serve
    both `examples/doors` and `test_projects/adventure`, and each game has a `Door`
