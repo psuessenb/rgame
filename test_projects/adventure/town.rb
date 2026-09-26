@@ -51,8 +51,6 @@ class Town < RGame::Engine::Scene::Room
 
   CRATE = [440, 304].freeze
 
-  DEFAULT_SEED = 0xAD7E
-
   OPENING = RGame::Engine::Cutscene::Script.build do
     run { it.caption.text = 'Morning in the town' }
     wait 1.0
@@ -75,8 +73,7 @@ class Town < RGame::Engine::Scene::Room
                                               slots: { doors: nil, actors: nil })
     @actors = slots[:actors]
 
-    rng = Random.new(ENV.fetch('RGAME_SEED', DEFAULT_SEED).to_i)
-    sparkles = @actors.add_node(Sparkles.new(rng: rng))
+    sparkles = @actors.add_node(Sparkles.new)
     COINS.each_with_index do |(x, y), index|
       taken = :"coin_#{index}"
       next if facts[taken]

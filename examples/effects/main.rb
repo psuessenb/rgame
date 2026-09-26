@@ -56,11 +56,11 @@ class Torch < RGame::Engine::Node2D
   STICK = Color.new(96, 64, 40)
   EMBER = RGame::Util::ColorRamp.new(Color.new(255, 230, 140), Color.new(200, 40, 0, 0))
 
-  def initialize(rng:, **)
-    super(**)
+  def initialize(**)
+    super
     embers = add_component(RGame::Engine::Components::Particles.new(
                              limit: 64, lifetime: 0.6..1.1, speed: 20.0..45.0, spread: 0.35,
-                             gravity: -30.0, size: 3, ramp: EMBER, blend: :add, rng: rng
+                             gravity: -30.0, size: 3, ramp: EMBER, blend: :add
                            ))
     embers.rate = 30
   end
@@ -80,14 +80,17 @@ class Bolt < RGame::Engine::Node2D
   GLOW = Color.new(110, 130, 255, 170)
   CORE = Color.new(230, 235, 255)
 
-  def initialize(rng:, length:, **)
+  def initialize(length:, **)
     super(**)
-    @rng = rng
     @length = length
     @points = Array.new((SEGMENTS + 1) * 2, 0.0)
     @age = SHOW + FADE
     @ticks = 0
     self.opacity = 0
+  end
+
+  def _enter_tree
+    @rng = system!(RGame::Engine::Components::RandomSource)
   end
 
   def strike
@@ -145,15 +148,14 @@ class Room < RGame::Engine::Node2D
 
   def initialize
     super
-    rng = Random.new(ENV.fetch('RGAME_SEED', DEFAULT_SEED).to_i)
     @help = RGame::Engine::Text.new('help.keys')
-    add_node(Torch.new(rng:, x: 90, y: FLOOR_Y - 40))
-    @bolt = add_node(Bolt.new(rng:, length: FLOOR_Y, x: 440))
+    add_node(Torch.new(x: 90, y: FLOOR_Y - 40))
+    @bolt = add_node(Bolt.new(length: FLOOR_Y, x: 440))
     sparkle_node = add_node(RGame::Engine::Node2D.new(x: WIDTH / 2, y: FLOOR_Y - 80))
     @sparkles = sparkle_node.add_component(RGame::Engine::Components::Particles.new(
                                              limit: 48, lifetime: 0.4..0.8, speed: 40.0..120.0,
                                              spread: Math::PI, gravity: 120.0, size: 3, ramp: SPARK,
-                                             blend: :add, rng: rng
+                                             blend: :add
                                            ))
     @glare = add_node(RGame::Engine::ScreenFade.new(color: GLARE))
     @curtain = add_node(RGame::Engine::ScreenFade.new(color: Color::BLACK))
@@ -188,6 +190,7 @@ game = RGame::Game.new(
   width: WIDTH,
   height: HEIGHT,
   locales: LOCALES,
+  seed: DEFAULT_SEED,
   # Space is `fire` in the default map, and nothing else here reads it. Enter
   # is also `ui_confirm` and L is free; there is no menu to confirm.
   input_map: RGame::Engine::InputMap.default.merge(

@@ -13,6 +13,7 @@ require_relative 'course'
 
 WIDTH  = 640
 HEIGHT = 480
+DEFAULT_SEED = 0xC0
 
 ASSETS = File.expand_path('../../examples/assets', __dir__)
 Controls = RGame::Util::Controls
@@ -23,6 +24,7 @@ game = RGame::Game.new(
   width: WIDTH,
   height: HEIGHT,
   media_root: ASSETS,
+  seed: DEFAULT_SEED,
   players: 2,
   input_map: RGame::Engine::InputMap.default.merge(
     jump: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] }

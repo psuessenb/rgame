@@ -13,7 +13,7 @@
 #   - Util::SaveFile — one JSON file, written atomically, read forgivingly;
 #   - the same Node2D + CharacterBody + controller composition as
 #     `examples/walk`, with the flock on a WanderController instead;
-#   - `RGAME_SEED`, so a run without a save is reproducible.
+#   - the game's seeded `RandomSource`, so a run without a save is reproducible.
 #
 # ## The tree is not saved, and nothing here tries
 #
@@ -93,20 +93,20 @@ class Pasture < RGame::Engine::Node2D
     @save = save
     @help = RGame::Engine::Text.new('help.walk')
     @keys = RGame::Engine::Text.new('help.keys')
-    @rng = Random.new(ENV.fetch('RGAME_SEED', DEFAULT_SEED).to_i)
     @flock = []
     @status = :fresh
   end
 
   def _enter_tree
+    rng = system!(RGame::Engine::Components::RandomSource)
     # Built first, always, and identically. The save does not decide what exists
     # — only where it is.
     @dog = add_node(build_walker(RGame::Engine::Components::PlayerController.new,
                                  DOG_SPEED, WIDTH / 2, HEIGHT / 2))
     SHEEP_COUNT.times do
       @flock << add_node(build_walker(
-                           RGame::Engine::Components::WanderController.new(rng: @rng),
-                           SHEEP_SPEED, @rng.rand(WIDTH - 40) + 20, @rng.rand(HEIGHT - 80) + 60
+                           RGame::Engine::Components::WanderController.new,
+                           SHEEP_SPEED, rng.rand(WIDTH - 40) + 20, rng.rand(HEIGHT - 80) + 60
                          ))
     end
 
@@ -188,6 +188,7 @@ game = RGame::Game.new(
   height: HEIGHT,
   media_root: ASSETS,
   locales: LOCALES,
+  seed: DEFAULT_SEED,
   # F5 and F9 rather than S and L, and the reason is worth knowing: **a key
   # already in the default map keeps doing its default job too.** `move_y` is
   # bound to W and S, so an action added on S saves *and* walks the dog

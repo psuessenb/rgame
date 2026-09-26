@@ -251,8 +251,9 @@ assertion, and it is the part to get right:
   nor reads a file an earlier run left. Set it yourself only to keep a save
   across two runs, as `tools/drive/examples/localization_saved.rb` does. Do not
   override `XDG_DATA_HOME` instead: that breaks mise's Ruby.
-- **Seed the example's own RNG** from `ENV.fetch('RGAME_SEED', DEFAULT_SEED)`, so
-  a run with nothing saved is reproducible and `--seed N` can override it.
+- **Draw from the game's `RandomSource`**, not a `Random` of the example's own,
+  and pass `seed: DEFAULT_SEED` to `RGame::Game.new`. A run with nothing saved is
+  then reproducible, and `--seed N` overrides it through `RGAME_SEED`.
 - **Time a dialogue box's presses from a trace, not from the text.** A Down
   pressed while a line still types does nothing: the box shows only its ▼
   marker until the responses appear, and the next Enter picks the first one.

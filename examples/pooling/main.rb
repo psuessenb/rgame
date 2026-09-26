@@ -141,9 +141,8 @@ class Spawner < RGame::Engine::Node2D
   POOLED = RGame::Util::Color.new(120, 210, 150)
   FRESH  = RGame::Util::Color.new(235, 120, 100)
 
-  def initialize(rng:, **)
-    super(**)
-    @rng = rng
+  def initialize(**)
+    super
     @pooled = true
   end
 
@@ -155,6 +154,7 @@ class Spawner < RGame::Engine::Node2D
   def live = children.size
 
   def _enter_tree
+    @rng = system!(RGame::Engine::Components::RandomSource)
     @pool = add_component(RGame::Engine::Components::Pool.new { Mote.new })
     add_component(RGame::Engine::Components::Timer.new(SPAWN_EVERY))
       .on_elapsed { PER_BURST.times { emit } }
@@ -228,14 +228,13 @@ class Scene < RGame::Engine::Node2D
 
   def initialize
     super
-    @rng = Random.new(ENV.fetch('RGAME_SEED', DEFAULT_SEED).to_i)
     # Mounted outside the tree, so every DespawnOffscreen that attaches later
     # finds it — the same ordering the wrap in `examples/velocity` depends on.
     add_component(RGame::Engine::Components::World.new(width: WIDTH, height: HEIGHT))
   end
 
   def _enter_tree
-    @spawner = add_node(Spawner.new(rng: @rng, x: WIDTH / 2, y: HEIGHT / 2))
+    @spawner = add_node(Spawner.new(x: WIDTH / 2, y: HEIGHT / 2))
     @meter = add_node(Meter.new(x: 12, y: 34))
   end
 
@@ -258,7 +257,8 @@ game = RGame::Game.new(
   width: WIDTH,
   height: HEIGHT,
   media_root: ASSETS,
-  locales: LOCALES
+  locales: LOCALES,
+  seed: DEFAULT_SEED
 )
 
 game.start

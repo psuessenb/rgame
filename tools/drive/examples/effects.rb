@@ -28,7 +28,7 @@
 #     stick, and some 26 embers. It reads about 40 a frame while a burst of 16
 #     sparkles lives, from 184 to 256.
 #
-# The example seeds its own Random, so two runs at one budget match.
+# The example passes `seed:` to its game, so two runs at one budget match.
 #
 # Under `--allocations`, 6.4 objects a second, on 6 of 301 ticks, within the
 # default budget. `particles_allocation_spec.rb` and `screen_fade_spec.rb` hold

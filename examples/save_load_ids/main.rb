@@ -157,13 +157,13 @@ class Pasture < RGame::Engine::Node2D
     @save = save
     @help = RGame::Engine::Text.new('help.keys')
     @save_keys = RGame::Engine::Text.new('help.save')
-    @rng = Random.new(ENV.fetch('RGAME_SEED', DEFAULT_SEED).to_i)
     @flock = []
     @next_id = 1
     @status = :fresh
   end
 
   def _enter_tree
+    @rng = system!(RGame::Engine::Components::RandomSource)
     @dog = add_node(build_dog)
     STARTING_FLOCK.times { spawn_sheep }
     @target = @flock.first
@@ -279,7 +279,7 @@ class Pasture < RGame::Engine::Node2D
   def build_sheep(id, x, y, wool: 0.0)
     sheep = Sheep.new(id: id, wool: wool, x: x, y: y)
     sheep.add_component(RGame::Engine::Components::CharacterBody.new(speed: SHEEP_SPEED))
-    sheep.add_component(RGame::Engine::Components::WanderController.new(rng: @rng))
+    sheep.add_component(RGame::Engine::Components::WanderController.new)
     sheep
   end
 
@@ -301,6 +301,7 @@ game = RGame::Game.new(
   height: HEIGHT,
   media_root: ASSETS,
   locales: LOCALES,
+  seed: DEFAULT_SEED,
   # F5 and F9 rather than S and L: **a key already in the default map keeps
   # doing its default job too.** `move_y` is bound to W and S, so a save action
   # on S would save *and* walk the dog downwards — two actions may read one key,

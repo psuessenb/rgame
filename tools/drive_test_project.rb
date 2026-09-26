@@ -857,7 +857,7 @@ if $PROGRAM_NAME == __FILE__
     end
     o.on('--script PATH', 'Input script (default: tools/drive/<project path>.rb)') { options[:script] = it }
     o.on('--gamepad', 'Drive a synthetic SDL controller instead of the input backend') { options[:gamepad] = true }
-    o.on('--seed N', Integer, 'Seed the project RNG, so two runs can be compared') { options[:seed] = it }
+    o.on('--seed N', Integer, "Seed the game's RandomSource, so two runs can be compared") { options[:seed] = it }
     o.on('--texts', 'List every distinct string drawn with text, overall and per clip') { options[:texts] = true }
     o.on('--installed', 'Load rgame as installed, instead of from this checkout') { options[:installed] = true }
     o.on('--allocations', 'Count what the run allocates once warm, and fail over its budget') do

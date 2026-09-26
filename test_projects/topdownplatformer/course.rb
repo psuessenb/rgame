@@ -24,8 +24,6 @@ class Course < RGame::Engine::Node2D
 
   CELL_SIZE = 64
 
-  DEFAULT_SEED = 0xC0
-
   def _enter_tree
     @map = root.context.assets.tilemap(MAP).map
     @players = system!(RGame::Engine::Players)
@@ -55,11 +53,10 @@ class Course < RGame::Engine::Node2D
   end
 
   def things
-    rng = Random.new(ENV.fetch('RGAME_SEED', DEFAULT_SEED).to_i)
     RGame::Engine::MapObjects.new
                              .define('checkpoint') { Flag.new(name: it.name, x: it.x, y: it.y) }
                              .define('crate') { Crate.new(x: it.x, y: it.y) }
-                             .define('walker') { Walker.new(rng: rng, x: it.x, y: it.y) }
+                             .define('walker') { Walker.new(x: it.x, y: it.y) }
   end
 
   def spawn(player)

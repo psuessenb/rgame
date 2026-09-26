@@ -10,13 +10,13 @@ class Walker < RGame::Engine::Node2D
 
   LABEL = 'NPC'
 
-  def initialize(rng:, **)
-    super(**)
+  def initialize(**)
+    super
     add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
     add_component(RGame::Engine::Components::FeetCollider.new(width: Hero::FEET_WIDTH, height: Hero::FEET_HEIGHT,
                                                               layer: :npc))
     add_component(RGame::Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: %i[tiles gaps hero]))
-    add_component(RGame::Engine::Components::WanderController.new(rng: rng))
+    add_component(RGame::Engine::Components::WanderController.new)
     add_component(RGame::Engine::Components::Footing.new)
   end
 
