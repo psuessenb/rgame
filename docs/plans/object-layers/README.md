@@ -1,8 +1,9 @@
 # Object layers
 
-**Status: steps 0–3 are implemented.** Steps 4–8 of
-[the roadmap](04-roadmap.md) are rough and get re-planned as the steps before
-them land. Step 9 folds the plan back and deletes it.
+**Status: steps 0–3 are implemented.** Steps 4–6 of
+[the roadmap](04-roadmap.md) are detailed. Steps 7 and 8 are rough and get
+re-planned as the steps before them land. Step 9 folds the plan back and
+deletes it.
 
 ## The request
 
@@ -39,8 +40,10 @@ game's real names.
 
 **An object layer is a y-sorted node in the place Tiled draws it**, so a tree
 placed as a tile object sorts against the actors in its layer. The layer a
-designer marks `actors` is where `slots[:actors]` puts the heroes that code
-spawns. A map without the mark keeps today's slot.
+designer marks `actors` is where `mount(view)[:actors]` puts the heroes that
+code spawns. A map without the mark keeps today's place for them. An object
+layer also marks a place for anything else a scene spawns, which replaces
+`mount`'s named slots.
 
 **Around that:**
 
@@ -72,8 +75,8 @@ spawns. A map without the mark keeps today's slot.
 
 ## Decisions already taken
 
-Settled in conversation and in two question rounds. Not reopened inside this
-plan.
+Settled in conversation, in two question rounds, and in a third before steps
+4–6 were re-planned. Not reopened inside this plan.
 
 1. **The loader builds, not the scene.** An object layer becomes a node in the
    map, and its objects become nodes inside it. Scenes stop calling `spawn_into`.
@@ -122,6 +125,28 @@ plan.
     Tiled can hold. The comment is found through `source_location`, and the
     pre-commit hook keeps it. An earlier draft declared the same thing with
     `map_settings`, and the conversation rejected the second list.
+15. **The two games with rooms get a town map of their own** (re-plan Q1). Seven
+    scenes mount `town.tmx`, and five of them define no `Door`, so a `Door` in
+    it would raise in each. `town_with_gate.tmx` carries the gate, and a spec
+    keeps its tile layers equal to `town.tmx`'s. A `mount(build: false)` was
+    rejected: five teaching examples would each carry a keyword that exists
+    because another example shares their map.
+16. **A hidden object layer, and a hidden object, build and draw nothing**
+    (re-plan Q2). Their nodes get opacity 0, and still update and collide, as a
+    hidden tile layer still blocks. That is what Tiled shows. A hidden layer
+    marked `actors` raises at load. Building nothing was rejected, since the
+    same checkbox would then mean different things for two kinds of layer.
+17. **Object layers replace `mount`'s named slots** (re-plan Q3). A scene adds
+    what it spawns to an object layer's node, found by the layer's name or path,
+    and an empty object layer marks a place the way a named slot did. A child
+    takes on its layer's draw order, opacity and visibility, and sorts with the
+    objects built there. `places[:actors]` stays: the marked layer, or today's
+    place on a map with no mark. After step 6 no project passes a slot other
+    than `:actors`, and `slots:` never shipped.
+18. **A raft's size is `deck_width` and `deck_height`** (re-plan Q4). A raft is
+    a polyline or a polygon, its route, whose box is 0×0, and step 3 reserves
+    `width` and `height` for the box. Letting a property set the box for a shape
+    without one was rejected: a size would have two sources.
 
 ## What was measured before planning
 
@@ -160,6 +185,12 @@ Taken at `abb91ad`, and on `origin/build-step-8-tiled-map` for `tour.tmx`.
 - **Object references.** Tiled's `object` property type still arrives as an
   Integer, not a node.
 - **Reading the designer's own `.tiled-project`.** Defaults come from Ruby.
+- **A tileset that preserves its tiles' aspect, or draws them at the grid's
+  size.** Step 4 refuses `fillmode="preserve-aspect-fit"` and
+  `tilerendersize="grid"` rather than drawing them. No map uses either.
+- **A turned object's collider turning with it.** A `BoxCollider` stays
+  axis-aligned in the world, as step 3 found, so a map-built node on a turned
+  object collides as if unturned.
 
 ## Open questions
 
@@ -170,11 +201,12 @@ Taken at `abb91ad`, and on `origin/build-step-8-tiled-map` for `tour.tmx`.
 2. **Where does the export run?** `exe/rgame` may not require `rgame`, so it
    cannot load a game's classes. A rake task in the generated project, or a
    method on `RGame::Game`, are the candidates. *Waits on step 7's re-plan.*
-3. **Do `mount`'s other named slots survive?** Once objects build into their own
-   layers, `:doors` and `:platforms` may have no caller. *Waits on step 6, which
-   counts the scenes still passing `slots:`.*
-4. **Does a hidden object layer build its objects?** The design says yes, and
-   draws none of them, as a hidden tile layer still blocks. *Settled in step 5.*
+3. ~~**Do `mount`'s other named slots survive?**~~ **Settled in the re-plan —
+   no.** After step 6 no project passes a slot other than `:actors`. Object
+   layers take their place. See decision 17.
+4. ~~**Does a hidden object layer build its objects?**~~ **Settled in the
+   re-plan — yes, and draws none of them.** So does a hidden object. See
+   decision 16.
 5. **What default does the export show for a member?** Ruby cannot report a
    keyword's default. Prism, a default gem, can read a literal one from the
    signature, such as `locked: false`. A computed default, such as

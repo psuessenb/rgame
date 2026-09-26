@@ -58,7 +58,7 @@ map.actors_layer                     # => 3, or nil when no layer is marked
 
 | Tiled class | Builds |
 |---|---|
-| `Chest` | a `Chest`, which must be a `Node2D` subclass. Which module it is found in waits on [open question 6](README.md#open-questions) |
+| `Chest` | a `Chest`, which must be a `Node2D` subclass, resolved outward from the class of the scene that mounts the map ([open question 6](README.md#open-questions)) |
 | `Town::Chest` | a `Town::Chest` |
 | `entrance`, `start`, `gap`, or none | nothing: the object is data, read through `map.objects` and `object_named`. A tile object still draws its tile |
 | `Chset` | raises `NameError`: no such constant |
@@ -207,22 +207,24 @@ end
 
 **Every tile object draws its tile** (decision 6). `MapBuilder` adds a
 `Components::MapTile` to the node it built, or to a plain `Node2D` for a tile
-object whose class is data. A node class's own drawing comes after the tile,
-as any component's drawing precedes `_draw`.
+object whose class is data. The tile draws under everything else its node
+draws, at the lowest `z:` in the node's slot. Components draw in the order they
+were added, and the `MapTile` comes after the class's own.
 
 ```ruby
 # Engine — draws the map's tile with its bottom centre on the origin
 Components::MapTile.new(tile: 399, orientation: object.orientation)
 
 # Core — the renderer grows one call, and the fake answers it too
-renderer.map_tile(tilemap_id, tile, left, top, width, height, orientation, elapsed: world.elapsed)
+renderer.map_tile(tilemap_id, tile, left, top, width, height, orientation, elapsed: world.elapsed, z: Z_MIN)
 ```
 
 - **`map_tile` forwards to the registered map**, as `tilemap` does. It draws
   through `TileMapRenderer`'s existing single-tile path, opened to a position
   and a size, so a turned tile and an animated one draw as they do in a layer.
 - **The tile fills the object's box.** Tiled scales a tile object to its width
-  and height, and so does `map_tile`.
+  and height, and so does `map_tile`. A tileset whose `fillmode` preserves the
+  tile's aspect, or whose `tilerendersize` is the grid, raises at load instead.
 - **The clock is `TileWorld#elapsed`**, handed over at draw time (hard
   constraint 3).
 - **A tile object outside the view draws nothing**, through `Engine::Culling` as
@@ -231,20 +233,25 @@ renderer.map_tile(tilemap_id, tile, left, top, width, height, orientation, elaps
 ## Object layers in `mount`
 
 ```ruby
-slots = TileMapLayer.mount(world)   # as today; object layers now become nodes and build their objects
-slots[:actors]                      # the layer marked `actors`; on a map with no mark, the slot under the first `above` layer
+places = TileMapLayer.mount(view)   # object layers become nodes and build their objects
+places[:actors]                     # the layer marked `actors`; on a map with no mark, a node under the first `above` layer
+places['doors']                     # the object layer named 'doors', for what a scene spawns itself
 ```
 
 - **Each object layer is a node in its place among the layers.** It is a plain
   `Node2D`, y-sorted when `y_sort?` says so, at the layer's opacity. A hidden
   layer still builds its objects and draws none of them, as a hidden tile layer
-  still blocks. See [open question 4](README.md#open-questions).
+  still blocks, and so does a hidden object (decision 16).
 - **Objects are added in the layer's order**, which is the y-sort's tie-break.
-- **`mount(y_sort:)` covers slots only.** An object layer follows the draw order
-  the designer set in Tiled, where they can see it.
-- **The marked layer is the `:actors` slot.** A scene that leaves `:actors` at
-  its default gets that layer's node, so a hero it spawns sorts against the trees
-  placed there. A map with no mark keeps today's rule.
+- **An object layer replaces a named slot** (decision 17). A scene adds what it
+  spawns to `places[name]`, and it takes on the layer's draw order, opacity and
+  visibility. An empty object layer in Tiled marks a place in the layer order.
+- **`mount(y_sort:)` covers only the actors' place on a map with no mark.** An
+  object layer follows the draw order the designer set in Tiled, where they can
+  see it.
+- **The marked layer is `places[:actors]`**, so a hero a scene spawns sorts
+  against the trees placed there. A map with no mark keeps today's place.
+- **`mount` builds once.** A second `mount` over the same `TileWorld` raises.
 
 ## The random source
 
@@ -285,10 +292,10 @@ member shows, are open questions [2](README.md#open-questions) and
 ## What it replaces
 
 - **`MapObjects` and `spawn_into`.** 5 scenes and 10 builder blocks move onto
-  the map. `CHANGELOG.md` gets a Removed entry.
-- **The slots scenes declared for objects**, `:doors` and `:platforms`, where
-  the objects now build into their own layers. See
-  [open question 3](README.md#open-questions).
+  the map. `MapObjects` never shipped, so its Unreleased `CHANGELOG.md` entry
+  goes rather than gaining a Removed one.
+- **`mount`'s named slots**, which object layers replace (decision 17). After
+  step 6 no project passes a slot other than `:actors`.
 - **`Random.new(ENV.fetch('RGAME_SEED', DEFAULT_SEED).to_i)`**, in 9 projects.
 
 ## Considered and rejected

@@ -1,7 +1,8 @@
 # Roadmap
 
-**Steps 0–3 are implemented.** Steps 4–8 are rough and get re-planned once the
-steps before them land.
+**Steps 0–3 are implemented.** Steps 4–6 are detailed, re-planned after step 3
+landed. Steps 7 and 8 are rough and get re-planned once the steps before them
+land.
 
 ## Dependency shape
 
@@ -38,7 +39,7 @@ And the standing one from the Tiled format plan:
 |---|---|
 | 1 | A capsule reads as a rectangle; a tile object loses its tile's class; `objectalignment` places objects where Tiled does not |
 | 2 | `Particles` and `WanderController` draw from an unseeded `Random`; 9 projects each read `RGAME_SEED` themselves |
-| 4 | Nothing can draw one tile of a map outside a tile layer |
+| 4 | Nothing can draw one tile of a map outside a tile layer; a tileset that preserves its tiles' aspect, or draws them at the grid's size, draws differently from Tiled without a word |
 
 Step 3 has no caller until step 5, so it lands for step 5 rather than alone.
 
@@ -586,56 +587,478 @@ step 5, as planned.
 
 ---
 
-## Step 4 — one tile, drawn anywhere *(rough)*
+## What was measured before re-planning steps 4–6
 
-`renderer.map_tile(tilemap_id, tile, left, top, width, height, orientation,
-elapsed:)` in `Core::Renderer`, forwarded to the registered map as `tilemap` is,
-through `TileMapRenderer`'s single-tile path opened to a position and a size.
-The fake answers it, and `a renderer` checks both. `Components::MapTile` draws a
-tile with its bottom centre on the node's origin, culled as a sprite is, with the
-clock from `TileWorld#elapsed`.
+Taken at `f116a92`, after step 3 landed, and on
+`origin/build-step-8-tiled-map` at `e9726f1` for `tour.tmx`.
 
-To settle in the re-plan: whether a tileset's drawing offset applies to a tile
-object as it does in a layer, what Tiled does with a tile object scaled to a
-size its tile does not have, and what `map_tile` allocates per call.
+| | |
+|---|---|
+| Scenes mounting `town.tmx` | 7; 2 of them define a `Door` (`examples/doors`, adventure) |
+| Those 5 others reading `town.tmx`'s objects | 0 |
+| Scenes passing `slots:` to `mount` | 6: `doors`, adventure's `Town` and `Garden`, `moving_platforms`, `Course`, `cutscene` |
+| Scenes passing a slot other than `:actors`, once step 6 lands | 0 |
+| Projects passing `mount(y_sort: false)` | 0 |
+| Object layers in tracked maps | 7 in 5 maps: `town`, `garden` and `pits` 1 each, `platforms` and `course` 2 each |
+| Tracked maps with an `above` layer, among those with an object layer | 0, so every slot sits over every layer |
+| Tracked maps with a hidden layer | 0 |
+| Tile objects in tracked maps | 0. `tour.tmx` has 2: one turned 90°, one flipped horizontally |
+| Tilesets setting `fillmode` or `tilerendersize` | 0, tracked or on the authoring branch |
+| Raft objects | 3: 2 polylines and 1 polygon, sized by `width` and `height` properties that step 3 refuses |
+| Map-built node classes whose origin moves at step 6 | 1, `Door` ×2. The flags, the crate and the walker stand on points; a raft's origin is its route's first point, as today |
+| `MapObjects` in a release | none: its `CHANGELOG.md` entry is under Unreleased |
+| `slots:` in a release | none: v0.4.0 had `under:` |
 
-## Step 5 — `mount` builds the object layers *(rough)*
+**What Tiled does with a tile object** *(measured, in Tiled's `maprenderer.cpp`
+and `orthogonalrenderer.cpp`, and its TMX reference)*:
 
-`TileMapLayer.mount` gives each object layer a node in its place, y-sorted as
-`y_sort?` says and at the layer's opacity, and calls `MapBuilder` for each
-object. A tile object gets a `MapTile`. `slots[:actors]` becomes the marked
-layer's node. The composition test goes here: a hero spawned into the marked
-layer, a tree placed as a tile object, two viewports, the hero walking round the
-tree.
+- **The tile fills the object's box.** `CellRenderer::render` scales it by the
+  box's size over the image's, unless the tileset's `fillmode` is
+  `preserve-aspect-fit`, which scales both axes by the smaller factor.
+- **The tileset's drawing offset applies**, multiplied by the same scale.
+- **A horizontal or vertical flip negates that axis's scale**, inside the box.
+  An anti-diagonal flip turns the tile a quarter and swaps the flips.
+- **`tilerendersize="grid"`** draws a tileset's layer tiles at the map's grid
+  size. rgame reads neither attribute.
 
-To settle in the re-plan: open question 4, hidden object layers. Whether
-`TileWorld` owns the `MapBuilder`, since it holds the tilemap id. What
-`tiled_world`, whose `Objects` layer sits above the canopy, draws after this
-step.
+---
 
-## Step 6 — every map and project on the new path *(rough)*
+## Step 4 — one tile, drawn anywhere *(`Core::TileMapRenderer`, `Components::MapTile`)*
 
-13 objects in 4 maps take a Ruby class's name. `Door` ×2, `Raft` ×2, `Flag`,
-`Crate` and `Walker` tag their settable keywords, put their origin at the bottom
-centre, and find their room or random source in the tree. `Warp` joins `examples/doors` and
-`test_projects/adventure`. The 5 scenes lose `MapObjects` and `spawn_into`, and
-`MapObjects` goes, with a Removed entry in `CHANGELOG.md`.
+A tile object is one picture of a map's tile at one position, and nothing can
+draw that today. `TileMapRenderer` draws a whole layer, and its one-tile draw is
+private and bound to a cell. Step 5 gives every tile object a `MapTile`, so the
+drawing comes first. The step depends on nothing earlier in the plan.
 
-To settle in the re-plan: open question 3, the leftover slots. Whether
-`Warp` subclasses `Door`. The screen-position comparison for every driven
-project these maps reach.
+It also closes two silent gaps the research found. A tileset that preserves its
+tiles' aspect, or draws them at the grid's size, draws differently from Tiled
+without a word.
+
+### Sub-steps
+
+- **4a** — `Tiled::Tileset` refuses a `fillmode` other than `stretch` and a
+  `tilerendersize` other than `tile`.
+- **4b** — `TileMapRenderer#draw_tile` draws one tile into a box, and a layer's
+  cells draw through it. `Renderer#map_tile` forwards to it, as `#tilemap`
+  forwards to `draw_layer`, and so does `FakeRenderer#map_tile`.
+- **4c** — `Components::MapTile`.
+
+### Shape
+
+```ruby
+# 4b — Core, @api private: the registered map's own draw, as draw_layer is
+tiles.draw_tile(renderer, tile, left, top, width, height, orientation, elapsed: 0.0, z: 0)
+
+# 4b — Core::Renderer, and FakeRenderer alike
+renderer.map_tile(tilemap_id, tile, left, top, width, height, orientation, elapsed: 0.0, z: DEFAULT_Z)
+
+# 4c — Engine
+module RGame
+  module Engine
+    module Components
+      # Draws one tile of the scene's map with its bottom centre on its node's
+      # origin, stretched to the node's width and height.
+      class MapTile < Engine::Component
+        include Engine::Culling
+
+        sealed_reader :tile, :orientation
+
+        def initialize(tile:, orientation: TileMap::Orientation::IDENTITY)
+          super()
+          @rgame_tile = tile
+          @rgame_orientation = orientation
+        end
+
+        def _attach = @rgame_world = node.system!(TileWorld)
+
+        def _draw(renderer, view)
+          width = node.width
+          height = node.height
+          left = Engine::Anchor.left(:bottom, width)
+          top = Engine::Anchor.top(:bottom, height)
+          return if culled?(view, node.world_x + left, node.world_y + top, width, height)
+
+          renderer.map_tile(@rgame_world.tilemap_id, @rgame_tile, left, top, width, height, @rgame_orientation,
+                            elapsed: @rgame_world.elapsed, z: Util::Z::Z_MIN)
+        end
+      end
+    end
+  end
+end
+```
+
+- **One drawing path for a turned tile.** The private cell draw becomes a call
+  to `draw_tile`, with the tile's own footprint as the box: its image's size,
+  standing on the cell's bottom-left corner, moved by the drawing offset. A box
+  the size of the image scales by 1, so a layer draws the calls it draws today.
+- **`MapTile` resembles `Sprite`, and stays a component of its own.** Both put
+  a picture's bottom centre on the origin and cull against the node's box, and
+  `MapTile` reuses `Engine::Anchor` and `Engine::Culling` for exactly that. What
+  differs is the part `Sprite` does not have: a map id, a clock from the
+  `TileWorld`, an orientation and a stretch to the box.
+- **The tile draws under everything else its node draws**, at `Z_MIN` in the
+  node's slot. Components draw in the order they were added, and step 5 adds a
+  `MapTile` after the class's `initialize`, so it would otherwise cover the
+  class's own `Sprite`.
+
+### The rules the tests pin
+
+**4a**
+
+1. **A tileset with `fillmode="preserve-aspect-fit"` raises
+   `Tiled::FormatError`**, naming the attribute, the tileset and the file, and
+   saying rgame stretches a tile object's tile. `stretch`, and no attribute, read
+   as today.
+2. **A tileset with `tilerendersize="grid"` raises the same way.** `tile`, and no
+   attribute, read as today.
+
+**4b**
+
+3. **`draw_tile` stretches the tile to the box.** Its `image_at` has the box's
+   top-left corner, and scales by the box's width and height over the image's.
+4. **An orientation turns and mirrors the tile inside its box**, as Tiled's
+   `CellRenderer` does. A mirrored tile mirrors in place. A tile turned twice
+   turns about the box's centre. A tile turned a quarter turns about the box's
+   centre, its image scaled to the box's height by its width.
+5. **The tileset's drawing offset moves the tile**, scaled as the tile is.
+6. **An animated tile draws the frame `elapsed` selects**, as `frame_tile`
+   answers it.
+7. **`z:` reaches every `image_at`.**
+8. **Every example in `tile_map_renderer_spec.rb` passes unchanged**, though a
+   layer's cells now draw through `draw_tile`.
+9. **`renderer.map_tile` forwards to the registered map's `draw_tile`**, in the
+   live renderer and in the fake, and `a renderer` checks both. An id no one
+   registered resolves through the asset manager, as `tilemap` does.
+10. **`draw_tile` allocates nothing** for a still tile, a mirrored one, a turned
+    one, and each frame of an animated one.
+
+**4c**
+
+11. **`MapTile` draws its tile with its bottom centre on the node's origin**, the
+    node's width and height, and passes no angle: `Node2D#draw` has already
+    pushed the node's rotation.
+12. **The map id and the clock come from the scene's `TileWorld`.** With none,
+    `_attach` raises `system!`'s `KeyError`.
+13. **It is culled against its box, as `Sprite` is against its own**, and a node
+    with no size is never culled. The drawing offset is left out of the cull
+    rect: it is a few pixels, and the most a missing edge can be.
+14. **It draws at `Z_MIN`.**
+15. **`_draw` allocates nothing.**
+
+### Tests
+
+- `spec/rgame/engine/tiled/tileset_spec.rb`: rules 1 and 2.
+- `spec_core/rgame/core/tile_map_renderer_spec.rb`: rules 3–8 and 10. For rule 10
+  it requires `spec/support/allocate_nothing_matcher.rb`, which names no layer,
+  and hands `draw_tile` a plain object answering `image_at` and `rotated`, never
+  a double.
+- `spec/support/shared_examples/a_renderer.rb` and `spec/support/fake_renderer.rb`:
+  rule 9, through the recorder the `tilemap` example uses. The orientation it
+  passes is any object, since the contract runs in `spec_core/` too, where
+  `Engine` is not loaded.
+- `spec/rgame/engine/components/map_tile_spec.rb`: rules 11–15.
+
+### Verify
+
+- `rake spec`, `rake spec:core`, and `rake drive:allocations`, because a layer's
+  animated tiles now draw through `draw_tile` every frame.
+- **Every driven project reports the same under `--seed 1`, before and after.**
+  No project draws a tile object yet, and a layer draws the calls it drew.
+- No driven project reaches `map_tile` until step 8, so rules 10 and 15 are what
+  decide its allocations.
+- `docs/api/drawing.md` documents `map_tile` beside `tilemap`, and
+  `docs/api/components.md` documents `MapTile`. `CHANGELOG.md` has an Added entry
+  for both. The Unreleased entry on Tiled maps names the two refusals.
+
+---
+
+## Step 5 — `mount` builds the object layers, and they replace named slots *(Engine, pure)*
+
+Step 3 built one node from one object, and step 4 drew one tile. This step joins
+them to the tree: a map's object layers become nodes in their place, and a scene
+writes no line for what they hold. An object layer also marks a place in the
+layer order, so named slots go (decision 17).
+
+Nothing in a tracked map builds yet. Every class there stays lower-case until
+step 6, so the step can land, and be driven, against projects that do not change.
+
+### Sub-steps
+
+- **5a** — `MapBuilder` gives a tile object its tile, and a hidden object
+  opacity 0.
+- **5b** — `mount` builds each object layer as a node in its place, and the
+  layer marked `actors` is where the actors go.
+- **5c** — object layers replace named slots: `mount` returns
+  `TileMapLayer::Places`, `slots:` goes, and the six scenes that pass it move
+  off it.
+
+### Shape
+
+```ruby
+# 5a — MapBuilder, as step 3 left it, and:
+builder.build(tile_object)     # its class's node with a MapTile added, or a plain Node2D with one for a data class
+builder.build(hidden_object)   # the node it would build, at opacity 0
+
+# 5b — Engine
+world.objects                  # TileWorld forwards TileMap#objects, as it forwards #layer
+
+# 5c — Engine
+places = RGame::Engine::TileMapLayer.mount(view)  # y_sort: true, as today
+places[:actors]    # the layer marked `actors`; on a map with none, a node under the first `above` layer
+places['doors']    # the object layer named 'doors', or a 'Group/layer' path, as TileMap#layer_index takes them
+```
+
+The six scenes, before and after:
+
+```ruby
+# examples/doors, adventure's Town and Garden
+slots = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new), slots: { doors: nil, actors: nil })
+doors.spawn_into(slots[:doors], @map.objects)
+
+places = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))
+doors.spawn_into(places['doors'], @map.objects)   # until step 6 lets the map build them
+```
+
+`moving_platforms` and `Course` spawn their rafts into `places['platforms']`,
+and `cutscene` drops a `slots:` equal to the default. Each object layer stands
+where its scene's slot stood: after every tile layer, before the actors. So
+nothing changes place on screen.
+
+### The rules the tests pin
+
+**5a**
+
+1. **A tile object whose class builds a node gets a `MapTile`** of its tile and
+   orientation, added after the class's `initialize`.
+2. **A tile object whose class is data builds a plain `Node2D`**, placed as step
+   3's rule 12 places any node, with its `map_object`, its `fact_key` and a
+   `MapTile`.
+3. **A shape object whose class is data still builds nothing.**
+4. **An object hidden in Tiled builds, at opacity 0** (decision 16). It updates
+   and collides, and draws nothing.
+
+**5b**
+
+5. **Each object layer becomes a `Node2D` in its place among the layers**,
+   y-sorted when `y_sort?` says so. Its opacity is the layer's, and 0 when the
+   layer is hidden.
+6. **Its objects build in the layer's order, and are added under it.** Their
+   classes resolve in the class of the node the scene's `TileWorld` is attached
+   to, as open question 6 settled.
+7. **The marked layer's node is where the actors go.** A map with no mark keeps
+   today's place: a node under the first `above` layer, or over every layer,
+   y-sorted unless `y_sort: false`.
+8. **A hidden layer marked `actors` raises `Tiled::FormatError` at load**, naming
+   the layer. Every actor spawned into it would draw nothing.
+9. **A second `mount` over the same `TileWorld` raises**, naming its node. It
+   would build every object twice.
+
+**5c**
+
+10. **`places[:actors]` answers rule 7's node, and `places[name]` the object
+    layer a name or path names.** A tile or image layer's name raises
+    `ArgumentError`, saying only an object layer holds nodes. A name no layer
+    has raises `KeyError` listing the object layers. Any other key raises.
+11. **`mount` takes no `slots:`.** A scene that passes one gets Ruby's
+    `ArgumentError` for an unknown keyword.
+
+### Tests
+
+- `spec/rgame/engine/map_builder_spec.rb`: rules 1–4, from `.tmx` strings with a
+  tileset, through `TiledFixture`.
+- `spec/rgame/engine/tile_map_spec.rb`: rule 8.
+- `spec/rgame/engine/components/tile_world_spec.rb`: `objects`.
+- `spec/rgame/engine/tile_map_layer_spec.rb`: rules 5–7 and 9–11. The examples
+  that name slots (`boats:`, `shadows:`, `sky:`) are rewritten against object
+  layers placed where those slots were.
+- **The caller that uses all of it**, in `tile_map_layer_spec.rb`: a map whose
+  *Top Down* object layer is marked `actors` holds a tree placed as a tile
+  object of class `tree`, under a tile layer marked `above`. The scene adds a
+  hero to `places[:actors]` and draws through two `WorldView`s side by side.
+  In both views, the hero draws before the tree while standing north of the
+  tree's origin, and after it once south of it. Both draw under the `above`
+  layer.
+
+### Verify
+
+- `rake spec`, `rake spec:core`, `rake drive:allocations`.
+- **Every driven project reports the same under `--seed 1 --texts`, before and
+  after, except for its `world` band count.** Each object layer's node calls
+  `layered` once per drawn viewport. Where it replaces a slot node, the count
+  stays; where it does not, it grows by one. So the count grows by one per frame
+  and viewport for `collision_tiles`, `scroll_map`, `cutscene`, `pathfinding`,
+  `jump_topdown`, `pits`, `moving_platforms`, topdownplatformer and tiled_world,
+  and stays for `doors` and adventure. The landed note names any other difference.
+- **`tour.tmx` from the authoring branch mounts headless.** Its two tile objects
+  build plain nodes with a `MapTile`, and nothing else builds.
+- `docs/api/tile_maps.md` rewrites "Building nodes from objects" for the new
+  path. That covers the class rule, data classes, the `@param` tags (linking
+  `internals.md` for the table), tile objects, the `actors` mark, hidden layers
+  and objects, `fact_key` and `places[name]`. `MapObjects` keeps a short section
+  until step 6 removes it. `docs/api/scene_graph.md` and `internals.md` follow.
+- `CHANGELOG.md` has an Added entry for map-built nodes. The Unreleased entry
+  on `slots:` becomes one on `places[name]`, since `slots:` never shipped.
+
+---
+
+## Step 6 — every map and project on the new path
+
+Step 5 built the path, and nothing uses it yet. This step renames the classes in
+four maps, tags the constructors they name, and deletes `MapObjects`. Its
+sub-steps follow the projects, because two games share `garden.tmx` and must
+move together.
+
+### Sub-steps
+
+- **6a** — the doors. `examples/doors` and adventure get a town map of their own
+  with the gate (decision 15), `town_with_gate.tmx`. `town.tmx` loses its object
+  layer. Both games define `Door` and `Warp`, and `garden.tmx` and the new map
+  name them.
+- **6b** — `examples/moving_platforms`: `Raft` is tagged, and `platforms.tmx`
+  names it, sized by `deck_width` and `deck_height` (decision 18).
+- **6c** — topdownplatformer. `course.tmx` names `Raft`, `Flag`, `Crate` and
+  `Walker`, moves its `platforms` layer under `spawns`, and marks `spawns` as
+  `actors`.
+- **6d** — `MapObjects` goes: the class, its spec, its documentation, and its
+  Unreleased `CHANGELOG.md` entry.
+
+### Shape
+
+Game code, in each game's own module:
+
+```ruby
+# 6a — DoorsExample and Adventure alike. Adventure's also draws the object's name above it.
+class Door < Engine::Node2D
+  COLOR = Util::Color.new(150, 104, 56)
+
+  # A door built from a map. A hero's feet touching its box ask the world's
+  # rooms for a move, and the door stays where it is.
+  #
+  # @param to [Symbol] the room the door leads to
+  # @param entrance [String] the entrance in that room where the hero arrives
+  # @param party [Boolean] whether it moves every hero the world holds, rather than the one who touched it
+  def initialize(to:, entrance:, party: false, **)
+    super(**)
+    @to = to
+    @entrance = entrance
+    @party = party
+    add_component(Components::BoxCollider.new(width:, height:, offset_x: -width / 2.0, offset_y: -height,
+                                              layer: :door))
+    add_component(Components::Collectable.new(by: :hero, free: false)).on_collected { move(it.node) }
+  end
+
+  def _enter_tree = @rooms = system!(Engine::Scene::Rooms)
+
+  def _draw(renderer, _view) = renderer.rect(-width / 2.0, -height, width, height, color: self.class::COLOR)
+
+  private
+
+  def destination = @to
+
+  def move(hero) = @rooms.move(@party ? @rooms.node.heroes : hero, to: destination, entrance: @entrance)
+end
+
+# A warp pad: a door into the room it stands in. A room is its own scene.
+class Warp < Door
+  COLOR = Util::Color.new(150, 96, 210, 200)
+
+  # @param entrance [String] the entrance in this room where the hero arrives
+  def initialize(entrance:, **) = super(to: nil, entrance:, **)
+
+  private
+
+  def destination = scene.name
+end
+
+# 6b and 6c — Raft, in each game. `route:`, `width:` and `height:` go.
+# @param deck_width [Integer] the raft's width in pixels, a multiple of 16
+# @param deck_height [Integer] its height in pixels, a multiple of 16
+def initialize(deck_width:, deck_height:, **)
+  super(**)
+  path = Engine::Path.from_object(map_object)
+  # ... the BoxCollider, Platform and PathFollow as today, sized by the deck
+
+# 6c — Flag takes its name from its object, since a Tiled object's name is no property
+def initialize(**)
+  super
+  # ... other.node.reach(map_object.name)
+
+# 6c — the course keeps no slots and builds nothing itself
+@actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))[:actors]   # the spawns layer
+```
+
+What the maps hold afterwards:
+
+| Map | Classes that build | Change |
+|---|---|---|
+| `town.tmx` | none | its `doors` object layer goes; its tile layers stay |
+| `town_with_gate.tmx` | `Door` ×1 | a copy of `town.tmx`, with `door` renamed |
+| `garden.tmx` | `Door` ×2, `Warp` ×2 | renamed from `door` and `warp` |
+| `platforms.tmx` | `Raft` ×1 | renamed from `platform`; `width` and `height` become `deck_width` and `deck_height` |
+| `course.tmx` | `Raft` ×2, `Flag` ×3, `Crate`, `Walker` | renamed, as above; `platforms` under `spawns`; `spawns` marked `actors` |
+
+`course.tmx` has to reorder. Without it, the flags, the crate and the walker
+would build in `spawns`, under the rafts in `platforms`, and stop sorting with
+the heroes. The walker rides the ring, so it would disappear under it.
+`platforms.tmx` needs no reorder: its hero goes over every layer, as today.
+
+### The rules the tests pin
+
+1. **`town_with_gate.tmx` and `town.tmx` have the same tile layers**, cell for
+   cell, so an edit to one cannot silently leave the other behind.
+2. **`town.tmx` holds no capitalised class**, so the five examples that mount it
+   and define no `Door` keep mounting it.
+3. **Every door and warp names an entrance on the map its room is built from**,
+   and every entrance stays off every door's box, as today, with the classes
+   `Door` and `Warp` and the rooms' own town.
+4. **Each raft stops short of its bank by less than a hop**, as today, reading
+   `deck_width`.
+5. **`course.tmx`'s layer marked `actors` is above its `platforms` layer**, so a
+   later edit in Tiled cannot put the heroes under the rafts unnoticed.
+
+### Tests
+
+- `spec/example_assets_spec.rb`: rules 1–5, with the doors describe moved onto
+  `town_with_gate.tmx` and the classes `Door` and `Warp`.
+- `spec/rgame/engine/map_objects_spec.rb` goes in 6d.
+
+No spec loads an example's or a test project's classes, since each file starts
+its game when required. The drive runs below are what show that each class
+resolves under its scene, and builds with the settings its map gives it.
+
+### Verify
+
+- `rake spec`, `rake spec:core`, `rake drive:allocations`.
+- **Driven with `--seed 1 --texts` at the end of step 5 and after 6d**, at the
+  lengths step 2 used: `doors`, adventure for 1640 ticks under seeds 1 and
+  4242, `moving_platforms`, topdownplatformer for 1654 ticks under seeds 1 and
+  3, and the five examples that mount `town.tmx`. The scenes entered, the sounds
+  played and the texts drawn match.
+- **Each draw lands where it landed**, compared by a recorder that adds up the
+  translates and scales around each draw, as the y-sort plan's comparison did.
+  Only the doors move their origin, to the bottom centre of their box.
+- **The five `town.tmx` examples report their `world` band count one lower** per
+  frame and viewport than at the end of step 5, since the map lost its object
+  layer. That undoes step 5's growth for them.
+- `grep -rn MapObjects lib examples test_projects spec docs/api` finds nothing.
+  `docs/api/tile_maps.md`, `examples.md` and `internals.md` describe the new
+  path, and so does the header of `examples/doors/main.rb`. `CHANGELOG.md` has
+  no `MapObjects` entry, since none shipped.
+
+---
 
 ## Step 7 — Tiled's custom types, written from Ruby *(rough)*
 
 `RGame::Engine::MapTypes.write(path)` writes a Tiled class into a
-`.tiled-project` for each `Node2D` and `Component` subclass whose tags make any
-keyword settable. It
-replaces the classes it owns and keeps the designer's. An Array of Symbols
-becomes a Tiled enum.
+`.tiled-project` for each `Node2D` subclass whose tags make any keyword
+settable. It replaces the classes it owns and keeps the designer's. An Array of
+Symbols becomes a Tiled enum.
 
 To settle in the re-plan: open questions 2 and 5, where it runs and what default
-a member shows. The name it writes for a class inside a game's module, which
-follows from open question 6. Whether the generated project gains the task, and
+a member shows. Which classes it writes, now that open question 6 resolves a
+name from the scene's class: a project's maps may serve two games, as
+`garden.tmx` serves `DoorsExample` and `Adventure`, and each game has its own
+`Door` with its own tags. Whether the generated project gains the task, and
 `spec/rgame/cli/generated_project_spec.rb` with it. Whether its `.gitignore`
 leaves out `*.tiled-session`, as this repository's does since step 0.
 
@@ -651,13 +1074,20 @@ sketches:
   exported types: trees as tile objects in the marked layer, a chest whose state
   survives leaving the room, a value a node passes on to its component.
 
-`puzzle.tmx`, which has no object layer, covers the fallback slot.
+This is the first driven project with a tile object, so its
+`rake drive:allocations` budget is where `map_tile` is measured in a whole game.
+R19's comparison with Tiled's export, and R21's turned tile object, check
+step 4's box draw by eye. `puzzle.tmx`, which has no object layer, covers the
+place `mount` leaves for the actors on a map with no mark.
+
+---
 
 ## Step 9 — fold the plan back and delete it
 
 - **`docs/api/tile_maps.md`** says what a map builds and how: the class rule,
   data classes, the `@param` tags, tile objects, the `actors`
-  mark, `fact_key`. "Building nodes from objects" is rewritten for the new path.
+  mark, hidden layers and objects, `fact_key` and `places[name]`. Step 5 rewrote
+  "Building nodes from objects"; this step checks it against the code.
 - **`docs/api/components.md`** covers `MapTile` and `RandomSource`.
 - **`docs/api/scene_graph.md`** covers what `mount` builds for an object layer.
 - **`docs/plans/possible-todos.md`**:
@@ -671,7 +1101,8 @@ sketches:
 ### Verify
 
 `CHANGELOG.md` covers everything steps 1–8 shipped, per
-[update-changelog](../../../.claude/skills/update-changelog/SKILL.md): the
-capsule fix, the random source, map-built nodes, the `@param` convention, `map_tile`, and
-the removal of `MapObjects`. `rake` passes. `docs/plans/object-layers/` is gone,
+[update-changelog](../../../.claude/skills/update-changelog/SKILL.md): what the
+Tiled parser gained, the random source, map-built nodes and `places[name]`, the
+`@param` convention, `map_tile` and `MapTile`. It has no entry for `MapObjects`
+or `slots:`, which never shipped. `rake` passes. `docs/plans/object-layers/` is gone,
 and `grep -r object-layers docs/ .claude/` finds nothing.
