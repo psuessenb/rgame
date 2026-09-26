@@ -733,7 +733,7 @@ Five things the top-down platforming plan found and left. `Footing`, `Platform`,
   new room raises there. **Trigger:** a game with gaps in two rooms.
 - **Platforms as Tiled tile objects.** A platform draws its own tiles in code.
   Once a tile object draws as a node, a platform could draw the one a designer
-  placed. [research/object-layers.md](research/object-layers.md) collects what
+  placed. [object-layers/](object-layers/README.md) collects what
   that waits on. **Trigger:** tile objects drawing as nodes.
 
 ---
@@ -748,7 +748,7 @@ nodes. Tall scenery is split in two: a trunk below the actors' slot, and a
 canopy in a layer marked `above` that covers an actor wherever they stand. Tiled
 tile objects are the other answer: one picture at one position, sorting like an
 actor. They do not draw yet, and
-[research/object-layers.md](research/object-layers.md) says what they wait on.
+[object-layers/](object-layers/README.md) says what they wait on.
 
 **Why not now.** `Core::TileMapRenderer` would draw a layer a row at a time,
 interleaved with the nodes of the slot. That changes how a layer and a slot
@@ -784,7 +784,7 @@ Three things the y-sort plan left open. The sort is in
 
 What the Tiled format plan chose not to read, and two measurements it left open.
 What rgame reads and draws is in `docs/api/tile_maps.md`. Object layers have
-their own research in [research/object-layers.md](research/object-layers.md).
+their own plan in [object-layers/](object-layers/README.md).
 
 - **Isometric, staggered and hexagonal maps.** Each raises `Tiled::FormatError`.
   Every conversion between cells and pixels goes through `TileMap`'s seam
@@ -816,3 +816,51 @@ their own research in [research/object-layers.md](research/object-layers.md).
   for what invalidates it, for a transform that took about 35 ms on a
   250×250×6 map. A bulk fill of `Util::Tensor` in C comes first: it halves the
   dominant cost. **Trigger:** a scene load where building the map shows.
+
+---
+
+## A map that sets a component's values
+
+**What.** A Tiled property whose type is a component's class, such as a
+`BoxCollider` holding `width: 20`, sets that component's keywords on the node
+built from the object. The node class would not pass the value on itself.
+
+**What exists instead.** The object-layers plan lets a map set only a node's own
+keywords, the ones the `@param` tags above its `initialize` make settable. A node
+that lets a designer tune a component takes the value as its own keyword and
+passes it on, together with what it derives from it. The parse already keeps a
+class property's class, in `Properties#class_name`.
+
+**Why not now.** Nothing asks for it. Measured at `abb91ad`, none of the 7 node
+classes built from maps sets a component value per object: every value a map sets
+is the node's own, such as a size, a route or a destination. And in 4 of the 7,
+the two rafts, `Flag` and `Crate`, the code derives several of a component's
+values from one, such as a box's offsets from its width. A map overriding `width`
+would leave the offsets behind, and the box would sit off-centre without a word.
+
+**What it would take.** The object-layers plan drafted it before taking it out:
+
+- While a map-built node's `initialize` runs, `Component.new` merges the map's
+  values for exactly its own class into its keywords, the map's winning.
+  `Node2D.new` opens a scope of its own, so a child node's components take
+  nothing. With no build in progress, both forward with `(...)` and allocate
+  nothing extra.
+- Each value is taken exactly once. A component class the node never builds, or
+  builds twice, raises, naming the object.
+- Components get `@param` tags as nodes do. 29 of the 39 take only keywords
+  Tiled can express.
+- Still unsolved: a guard for derived values, so a component can say that other
+  values follow from one keyword.
+
+Rejected on the way there:
+
+- **Writers on each component.** That is up to 29 writers, each re-deriving what
+  its constructor derived.
+- **Running `initialize` again with the map's values.** It rebuilds what the
+  first run set up, signals included.
+- **Matching property names across components.** The Tiled format plan rejected
+  it: nothing checks the name, and two components with one attribute both
+  receive the value.
+
+**Trigger.** A map that wants a component value no node class passes on, from a
+node class whose derived values stay right under the override.

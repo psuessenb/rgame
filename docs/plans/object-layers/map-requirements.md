@@ -1,13 +1,11 @@
 # Requirements for the Tiled acceptance map
 
-**Status: waiting for the map, and for the plan that takes it over.** These
-requirements were step 0 of the Tiled format plan, and the check below was its
-step 8. That plan was folded back before the map arrived. The object-layer plan
-needs an authored map for the same reasons, so the work moved here (see
-[object-layers.md](object-layers.md)). That plan adds its own requirements before
-anyone opens Tiled. R15, R18 and R19 are the likeliest to change: they describe
-objects, which rgame parses today and never draws. Links into the Tiled format
-plan point at it as it stood in `dcb07f8`.
+**Status: being authored on `build-step-8-tiled-map`; step 0 revises it.**
+These requirements were step 0 of the Tiled format plan, and the check below was
+its step 8. [Step 0 of this plan](04-roadmap.md#step-0--the-requirements-for-tourtmx)
+adds what building nodes from objects needs, and carries over which requirements
+the authoring branch marks done. Links into the Tiled format plan point at it as
+it stood in `dcb07f8`.
 
 **A map authored in Tiled, saved by Tiled, and never edited by hand.** It is the
 one input the parser cannot have written itself. `TiledFixture` emits what the
@@ -32,8 +30,9 @@ Two halves, still rough:
   [write-example](../../../.claude/skills/write-example/SKILL.md) skill. It is
   the only tier where all three layers are present at once, and the only one
   that would catch a map that parses and draws wrong. What it should do depends
-  on what the map contains, and on the nodes the object-layer plan builds from
-  its objects.
+  on what the map contains, and on the nodes this plan builds from its objects.
+  It plays the second map, the level, whose requirements step 8 writes once
+  rgame exports its types (see the [roadmap](04-roadmap.md)).
 
 ## What to hand over
 
