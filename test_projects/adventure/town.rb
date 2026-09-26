@@ -81,9 +81,9 @@ module Adventure
 
         @actors.add_node(Coin.new(x: x, y: y, sparkles: sparkles)).collectable.on_collected { facts[taken] = true }
       end
-      @actors.add_node(Chest.new(x: CHEST.first, y: CHEST.last, facts: facts, key: :chest))
-      @actors.add_node(Lever.new(x: LEVER.first, y: LEVER.last, facts: facts, key: :lever))
-      @actors.add_node(Crate.new(x: CRATE.first, y: CRATE.last, facts: facts, key: :crate))
+      @actors.add_node(Chest.new(x: CHEST.first, y: CHEST.last, key: :chest))
+      @actors.add_node(Lever.new(x: LEVER.first, y: LEVER.last, key: :lever))
+      @actors.add_node(Crate.new(x: CRATE.first, y: CRATE.last, key: :crate))
 
       doors = Engine::MapObjects.new
       doors.define('door') { |o| Door.new(object: o, world: parent) }

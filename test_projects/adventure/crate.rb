@@ -12,10 +12,10 @@ module Adventure
   # It draws which way the last push moved it, as a word, so a driven run can tell
   # a push from a pull: "crate" until something moves it, then "east" or "west".
   #
-  # Where it stands and which way it last moved are kept in Facts, under keys
-  # made from the one the room names. It reads them as it is built, and writes
-  # them on each tick it has moved, so a room built anew puts the crate back where
-  # it was left.
+  # Where it stands and which way it last moved are kept in Facts, through one
+  # Components::Fact for each, under parts of the key the room names. It reads
+  # them as it enters the tree, and writes them on each tick it has moved, so a
+  # room built anew puts the crate back where it was left.
   class Crate < Engine::Node2D
     SIZE = 16
 
@@ -23,22 +23,25 @@ module Adventure
 
     LABELS = { still: 'crate', east: 'east', west: 'west' }.freeze
 
-    KEPT = %w[x y way].freeze
-
-    def initialize(facts:, key:, x:, y:)
-      @keys = KEPT.map { :"#{key}_#{it}" }.freeze
-      x_key, y_key, way_key = @keys
-      super(x: @kept_x = facts.fetch(x_key, x), y: @kept_y = facts.fetch(y_key, y))
+    def initialize(key:, x:, y:)
+      super(x:, y:)
       add_component(Components::BoxCollider.new(width: SIZE, height: SIZE, layer: :crate))
       @pushable = add_component(Components::Pushable.new(blocked_by: %i[tiles crate hero]))
-      @facts = facts
-      @way = facts.fetch(way_key, 'still').to_sym
+      @kept_x = add_component(Components::Fact.new(key:, part: :x, default: x), as: :x)
+      @kept_y = add_component(Components::Fact.new(key:, part: :y, default: y), as: :y)
+      @kept_way = add_component(Components::Fact.new(key:, part: :way, default: 'still'), as: :way)
+    end
+
+    def _enter_tree
+      self.x = @kept_x.value
+      self.y = @kept_y.value
+      @way = @kept_way.value.to_sym
     end
 
     def _update(_dt)
       pushed = @pushable.pushed_x
       @way = pushed.positive? ? :east : :west unless pushed.zero?
-      keep unless x == @kept_x && y == @kept_y
+      keep unless x == @kept_x.value && y == @kept_y.value
     end
 
     def _draw(renderer, _view)
@@ -49,10 +52,9 @@ module Adventure
     private
 
     def keep
-      x_key, y_key, way_key = @keys
-      @facts[x_key] = @kept_x = x
-      @facts[y_key] = @kept_y = y
-      @facts[way_key] = @way.name
+      @kept_x.value = x
+      @kept_y.value = y
+      @kept_way.value = @way.name
     end
   end
 end

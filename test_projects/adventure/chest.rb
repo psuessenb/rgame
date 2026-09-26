@@ -12,9 +12,9 @@ module Adventure
   # It draws its state as a word so a driven run can tell a tap from a hold. A
   # test project draws Strings; an example would draw a translation key.
   #
-  # Its state is kept in Facts under the key the room names, so a room built anew
-  # holds the chest as it was left. It reads the fact as it is built, and writes
-  # it at each change.
+  # Its state is kept in Facts, through a Components::Fact under the key the room
+  # names, so a room built anew holds the chest as it was left. It reads the fact
+  # as it enters the tree, and writes it at each change.
   class Chest < Engine::Node2D
     SIZE = 20
 
@@ -27,16 +27,16 @@ module Adventure
     STRAW = Util::Color.new(232, 200, 112)
     COLORS = { closed: CLOSED, open: OPEN, searched: SEARCHED }.freeze
 
-    def initialize(facts:, key:, **)
+    def initialize(key:, **)
       super(**)
       add_component(Components::BoxCollider.new(width: SIZE, height: SIZE,
                                                 layer: :interactable))
-      @facts = facts
-      @key = key
-      @state = facts.fetch(key, 'closed').to_sym
+      @kept = add_component(Components::Fact.new(key:, default: 'closed'))
     end
 
     attr_reader :state
+
+    def _enter_tree = @state = @kept.value.to_sym
 
     def open
       change(:open) if @state == :closed
@@ -61,7 +61,7 @@ module Adventure
 
     def change(state)
       @state = state
-      @facts[@key] = state.name
+      @kept.value = state.name
     end
   end
 end
