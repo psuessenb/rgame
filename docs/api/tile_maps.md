@@ -12,7 +12,6 @@ A game rarely builds one itself. The pieces that use it are:
 | [`TileWorld`](components.md#tileworld) | answer solidity and world-size questions for actors |
 | [`TileMapLayer`](components.md#tileworld) | draw one layer per node, and [build a node from each object](#building-nodes-from-objects) |
 | [`TileMapRenderer`](assets.md#tile-maps) | bake and draw the tiles |
-| [`MapObjects`](#building-from-data-classes-with-mapobjects) | build nodes from objects of a data class, for a scene that does so itself |
 | `RGame::Game`'s `:tilemap` asset loader | read a `.tmx`, build the map and slice its tileset images |
 
 Read on when a scene queries the map itself, or when you author maps for rgame.
@@ -319,7 +318,7 @@ and the repeat in the layer's properties in Tiled.
 ### Objects
 
 ```ruby
-map.objects                 # => every object of every object layer, as MapObjects
+map.objects                 # => every object of every object layer, each a MapObject
 map.object_named('gate_in') # => the one object named gate_in
 ```
 
@@ -412,7 +411,8 @@ An object of the class `Chest` with the property `contents: key` builds a
 - **A class receives `route:` and `name:` by naming them.** A class whose
   `initialize` names `route:` gets a polyline's or a polygon's route, as
   `Path.from_object` builds it. One that names `name:` gets the object's name,
-  or `''` when the designer gave none. Neither needs a tag.
+  or `''` when the designer gave none. Neither needs a tag. Only the class's own
+  `initialize` counts, so a subclass whose parent takes `name:` names it too.
 - **The node keeps its object's id** as `Node2D#map_object_id`, and nothing
   else of it. [`Components::Facts`](components.md#facts) keys the node's record
   by it, so the chest above, opened once, stays open when its room is built
@@ -441,30 +441,6 @@ with no mark, the actors get a node of their own below the first `above` layer.
 names one inside a group. An empty object layer in Tiled marks a place in the
 layer order. [`TileWorld`](components.md#tileworld) lists what `places` answers
 and what it raises.
-
-#### Building from data classes with `MapObjects`
-
-**`RGame::Engine::MapObjects` builds a node from each object whose class has a
-block**, for a scene that builds from data classes itself.
-
-```ruby
-# In a scene's _enter_tree, with `map` loaded and `places` from TileMapLayer.mount.
-objects = RGame::Engine::MapObjects.new
-objects.define('trap') { |o| Trap.new(x: o.x, y: o.y) }
-
-objects.spawn_into(places[:actors], map.objects) # => the traps it added
-```
-
-- **`define(class_name) { |object| ... }`** registers the block for one class and
-  returns the registry. It raises `ArgumentError` for a class defined twice, a
-  name that is not a String, or a missing block.
-- **`build(object)`** returns what the block for `object.class_name` returns, or
-  `nil` when no block was defined for that class.
-- **`spawn_into(parent, objects)`** builds each object in the order given, adds
-  every node that comes back under `parent`, and returns those nodes. A hidden
-  object is built too, so the block can read `visible?` itself.
-- **The block places the node.** An object's `(x, y)` is its top-left corner, and
-  the registry moves nothing.
 
 ### A door from the map
 

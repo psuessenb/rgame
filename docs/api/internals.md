@@ -409,7 +409,9 @@ class whose `initialize` names `route:` gets the route of a polyline or a
 polygon, as `Path.from_object` builds it, turned with the object. One that
 names `name:` gets the object's name, or `''` when the designer gave none. A
 class that requires `route:` raises `ArgumentError` when built from another
-shape, and a class that names neither gets neither.
+shape, and a class that names neither gets neither. The builder reads only the
+class's own `initialize`, so a subclass whose parent takes `name:` names it too,
+and passes it on.
 
 **Every tile object draws its tile.** The builder adds a
 [`Components::MapTile`](components.md#maptile) of the object's tile and
