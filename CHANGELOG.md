@@ -257,14 +257,17 @@ index, not the argument.
 - **A Tiled map can use what Tiled writes.** A map may have several tilesets,
   embedded or in `.tsx` files, any layer encoding but zstd, group, image and
   object layers, an infinite size, objects of every shape Tiled 1.12 draws, and
-  objects placed from templates. A map rgame cannot read raises
-  `RGame::Engine::Tiled::FormatError` naming the file.
+  objects placed from templates. A tile object sits where its tileset's object
+  alignment puts it, and has its tile's class and properties under its own. A
+  map rgame cannot read raises `RGame::Engine::Tiled::FormatError` naming the
+  file.
   See [docs/api/tile_maps.md](docs/api/tile_maps.md#what-rgame-reads-from-tiled).
 - **A tile map says what its tiles, layers and objects are.** `TileMap` answers
   `orientation`, `tile_class`, `tile_properties`, `layer`, `layer_index`,
   `image_layers` and `objects`, which are `RGame::Engine::MapObject`s in the
   game's coordinates. `object_named` finds the one object a designer named.
-  Custom properties are `RGame::Engine::Properties`. See
+  Custom properties are `RGame::Engine::Properties`, and a class property's
+  value answers `class_name`. See
   [docs/api/tile_maps.md](docs/api/tile_maps.md).
 - **A tile map draws what Tiled shows.** Turned and flipped tiles draw turned,
   hidden layers draw nothing, and a layer fades by its opacity. Tilesets with a

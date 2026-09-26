@@ -15,6 +15,12 @@ module RGame
       # tiles the file says something about, keyed by local id, so a plain
       # sheet tile has no entry and `tile` answers `nil` for it.
       #
+      # `object_alignment` says which point of a tile object from this tileset
+      # its position names: `:top_left`, `:top`, `:top_right`, `:left`,
+      # `:center`, `:right`, `:bottom_left`, `:bottom` or `:bottom_right`, or
+      # `:unspecified` when the file leaves it out, which an orthogonal map
+      # places as `:bottom_left`.
+      #
       # It has no `firstgid`: that pairing belongs to the map that uses the
       # tileset, and one `.tsx` can sit at a different `firstgid` in each map.
       class Tileset
@@ -32,9 +38,15 @@ module RGame
           end
         end
 
+        ALIGNMENTS = { 'unspecified' => :unspecified,
+                       'topleft' => :top_left, 'top' => :top, 'topright' => :top_right,
+                       'left' => :left, 'center' => :center, 'right' => :right,
+                       'bottomleft' => :bottom_left, 'bottom' => :bottom, 'bottomright' => :bottom_right }.freeze
+        private_constant :ALIGNMENTS
+
         attr_reader :name, :class_name, :tile_width, :tile_height,
                     :spacing, :margin, :tile_count, :columns,
-                    :image, :offset_x, :offset_y, :tiles, :properties
+                    :image, :offset_x, :offset_y, :object_alignment, :tiles, :properties
 
         # Reads the `.tsx` at `tsx_path`, resolving its paths against it.
         def self.load(tsx_path) = parse(File.read(tsx_path), source_path: tsx_path)
@@ -62,6 +74,7 @@ module RGame
               image: image && Image.parse(image, source_path: source_path),
               offset_x: offset ? Attributes.integer(offset, 'x', source_path, default: 0) : 0,
               offset_y: offset ? Attributes.integer(offset, 'y', source_path, default: 0) : 0,
+              object_alignment: alignment(element, source_path),
               tiles: element.get_elements('tile').to_h do |tile|
                 parsed = Tile.parse(tile, source_path: source_path)
                 [parsed.id, parsed]
@@ -70,8 +83,17 @@ module RGame
               source_path: source_path)
         end
 
+        def self.alignment(element, source_path)
+          value = element.attributes['objectalignment'] || 'unspecified'
+          ALIGNMENTS.fetch(value) do
+            Attributes.refuse(element, 'objectalignment', source_path,
+                              "is none of Tiled's alignments (#{ALIGNMENTS.keys.join(', ')})")
+          end
+        end
+        private_class_method :alignment
+
         def initialize(name:, class_name:, tile_width:, tile_height:, spacing:, margin:, tile_count:, columns:,
-                       image:, offset_x:, offset_y:, tiles:, properties:, source_path: nil)
+                       image:, offset_x:, offset_y:, object_alignment:, tiles:, properties:, source_path: nil)
           @name = name
           @class_name = class_name
           @tile_width = tile_width
@@ -81,6 +103,7 @@ module RGame
           @image = image
           @offset_x = offset_x
           @offset_y = offset_y
+          @object_alignment = object_alignment
           @tiles = tiles.dup.freeze
           @properties = properties
           @columns = columns || counted_columns(source_path)

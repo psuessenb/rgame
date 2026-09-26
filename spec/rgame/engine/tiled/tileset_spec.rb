@@ -92,6 +92,30 @@ RSpec.describe RGame::Engine::Tiled::Tileset do
     end
   end
 
+  describe 'the object alignment' do
+    {
+      'topleft' => :top_left, 'top' => :top, 'topright' => :top_right,
+      'left' => :left, 'center' => :center, 'right' => :right,
+      'bottomleft' => :bottom_left, 'bottom' => :bottom, 'bottomright' => :bottom_right
+    }.each do |written, read|
+      it "reads #{written} as #{read.inspect}" do
+        expect(parse(sheet, attributes: %(tilewidth="16" tileheight="16" objectalignment="#{written}"))
+                 .object_alignment).to eq(read)
+      end
+    end
+
+    it 'is :unspecified when the file leaves it out' do
+      expect(parse(sheet).object_alignment).to eq(:unspecified)
+    end
+
+    it 'raises on a value that is none of Tiled\'s, naming the attribute and the file' do
+      attributes = 'tilewidth="16" tileheight="16" objectalignment="middle"'
+
+      expect { parse(sheet, attributes: attributes, source_path: 't.tsx') }
+        .to raise_error(RGame::Engine::Tiled::FormatError, /t\.tsx has objectalignment="middle"/)
+    end
+  end
+
   describe 'a tile' do
     it 'is nil where the file says nothing about it' do
       expect(parse(sheet).tile(7)).to be_nil

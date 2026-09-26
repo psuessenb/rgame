@@ -91,6 +91,7 @@ element:
 | Custom properties | on the map, layers, tiles and objects, with Tiled's types |
 | Object templates | an object placed from a `.tx` gets the template's values, and its own win |
 | Object shapes | rectangle, ellipse, capsule, point, polygon, polyline, text and tile; any other raises |
+| Tile objects | placed by their tileset's object alignment, and given their tile's class and properties |
 
 ### How the map is drawn
 
@@ -317,20 +318,25 @@ unnamed in Tiled has the name `''`.
 
 **A `RGame::Engine::MapObject` is in the game's coordinates.** `x` and `y` are its
 top-left corner in pixels, for every shape, and `rotation` turns it clockwise, in
-degrees, about that corner. Tiled measures a tile object from its bottom-left
-corner; `from_tiled` moves it, so a tile object and a rectangle over the same
+degrees, about that corner. Tiled places a tile object by the point its tileset's
+**Object Alignment** names, and by its bottom-left corner when the tileset leaves
+that unset. `from_tiled` moves it, so a tile object and a rectangle over the same
 cells report the same corner.
+
+**A tile object inherits from its tile,** as Tiled shows it. With no class of
+its own, it has its tile's. Its properties hold its tile's, and its own win
+over them by name.
 
 | | |
 |---|---|
-| `id`, `name`, `class_name` | as set in Tiled |
+| `id`, `name`, `class_name` | as set in Tiled; a tile object with no class has its tile's |
 | `layer` | the index of the layer it sits in |
 | `x`, `y`, `width`, `height`, `rotation` | its box, as above |
 | `shape` | `:rectangle`, `:ellipse`, `:capsule`, `:point`, `:polygon`, `:polyline` or `:text` |
 | `points` | a polygon's or polyline's corners, in the same coordinates, before `rotation` |
 | `tile`, `orientation` | a tile object's tile id and how it is turned; `nil` and the identity for a shape |
 | `visible?` | false when the designer hid it |
-| `properties` | its custom properties |
+| `properties` | its custom properties, over its tile's for a tile object |
 
 ### Building nodes from objects
 
@@ -430,6 +436,8 @@ props.key?('speed')
 props.each { |name, value| }
 props.to_h
 props.empty?
+props['stats'].class_name   # => 'Stats', the custom class of a class property's value
+props.class_name            # => nil, for a bag that is no class's value
 ```
 
 | Tiled type | Ruby |
@@ -440,14 +448,15 @@ props.empty?
 | `bool` | `true` or `false` |
 | `color` | `RGame::Util::Color`, or `nil` when Tiled has no colour to write |
 | `file` | `String`, resolved against the file that states it |
-| `class` | a nested `Properties` |
+| `class` | a nested `Properties`, answering `class_name` |
 
 **A class member left at its default is absent.** Tiled writes only the members
 that differ from the class's defaults, and keeps the defaults in the project file,
 which rgame does not read. Read such a member with `fetch(name, default)`.
 
-A `Properties` is frozen and compares by its contents. "No properties" is
-`Properties::EMPTY`, never `nil`.
+A `Properties` is frozen, and two are equal when they hold the same values and
+are values of the same class. "No properties" is `Properties::EMPTY`, never
+`nil`.
 
 ## Testing against a map
 

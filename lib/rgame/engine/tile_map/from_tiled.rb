@@ -14,9 +14,12 @@ module RGame
     # - the group tree becomes the flat layer list;
     # - frame durations in milliseconds become the second each frame ends at,
     #   summed in whole milliseconds so that no rounding moves a boundary;
-    # - a tile object's bottom-left corner becomes its top-left, and every
-    #   position moves by the infinite-map origin so that cell `(0, 0)` is the
-    #   map's top-left;
+    # - a tile object's corner moves from the point its tileset's object
+    #   alignment names, bottom-left unless the tileset says otherwise, to its
+    #   top-left, and every position moves by the infinite-map origin so that
+    #   cell `(0, 0)` is the map's top-left;
+    # - a tile object with no class takes its tile's, and its tile's
+    #   properties sit under its own, as Tiled shows them;
     # - a tileset's drawing offset becomes each of its tiles' `tile_offset`.
     class TileMap
       # Builds a map from a `Tiled::Map`. The only way one is built.
@@ -25,6 +28,13 @@ module RGame
       # One run of the transform over one parsed map.
       class FromTiled
         FLIPS = [0, 4, 6, 2, 5, 1, 3, 7].freeze
+
+        # Where each alignment's point sits in a tile object's box, as the
+        # fraction of its width across and of its height down.
+        ANCHORS = { top_left: [0.0, 0.0], top: [0.5, 0.0], top_right: [1.0, 0.0],
+                    left: [0.0, 0.5], center: [0.5, 0.5], right: [1.0, 0.5],
+                    bottom_left: [0.0, 1.0], bottom: [0.5, 1.0], bottom_right: [1.0, 1.0],
+                    unspecified: [0.0, 1.0] }.freeze
 
         def initialize(tiled)
           @tiled = tiled
@@ -38,7 +48,7 @@ module RGame
         end
 
         def map
-          table = tile_table
+          @table = tile_table
           flatten(@tiled.layers, [])
           TileMap.new(width: @tiled.width, height: @tiled.height,
                       tile_width: @tiled.tile_width, tile_height: @tiled.tile_height,
@@ -46,7 +56,7 @@ module RGame
                       orientations: (@orientations if @orientations.any? { it&.any?(&:nonzero?) }),
                       objects: @objects, properties: @tiled.properties,
                       source: Source.new(path: @tiled.source_path, parser_version: Tiled::PARSER_VERSION),
-                      **table)
+                      **@table)
         end
 
         private
@@ -146,21 +156,41 @@ module RGame
         end
 
         def object(object, layer)
-          tile = object.gid && tile_of(object.gid) { "object #{object.id}" }
+          tile = object.gid && tile_of(object.gid) { "object #{object.id}" }&.nonzero?
           x = object.x - @shift_x
           y = object.y - @shift_y
           points = object.points.map { |px, py| [x + px, y + py].freeze }.freeze
-          x, y = top_left(x, y, object) if tile&.nonzero?
-          MapObject.new(id: object.id, name: object.name, class_name: object.class_name, layer: layer,
+          x, y = top_left(x, y, object, tile) if tile
+          MapObject.new(id: object.id, name: object.name, class_name: class_of(object, tile), layer: layer,
                         x: x, y: y, width: object.width, height: object.height, rotation: object.rotation,
-                        tile: tile&.nonzero?, orientation: Orientation::ALL[orientation_of(object.gid || 0)],
+                        tile: tile, orientation: Orientation::ALL[orientation_of(object.gid || 0)],
                         visible: object.visible?, shape: object.shape, points: points,
-                        properties: object.properties)
+                        properties: properties_of(object, tile))
         end
 
-        def top_left(x, y, object)
+        def class_of(object, tile)
+          return object.class_name unless tile && object.class_name.empty?
+
+          @table[:tile_classes][tile] || ''
+        end
+
+        def properties_of(object, tile)
+          inherited = tile ? @table[:tile_properties][tile] : Properties::EMPTY
+          return object.properties if inherited.empty?
+          return inherited if object.properties.empty?
+
+          Properties.new(inherited.to_h.merge(object.properties.to_h))
+        end
+
+        def top_left(x, y, object, tile)
+          tileset = @tiled.tilesets[@table[:tile_table][tile].tileset].tileset
+          across, down = ANCHORS.fetch(tileset.object_alignment)
+          dx = -across * object.width
+          dy = -down * object.height
           radians = object.rotation * Math::PI / 180.0
-          [x + (object.height * Math.sin(radians)), y - (object.height * Math.cos(radians))]
+          cos = Math.cos(radians)
+          sin = Math.sin(radians)
+          [x + (dx * cos) - (dy * sin), y + (dx * sin) + (dy * cos)]
         end
       end
       private_constant :FromTiled

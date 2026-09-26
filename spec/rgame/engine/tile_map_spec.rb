@@ -7,8 +7,8 @@ RSpec.describe RGame::Engine::TileMap do
   let(:tiled) { RGame::Engine::Tiled }
   let(:solid_shape) { '<objectgroup><object x="0" y="0" width="16" height="16"/></objectgroup>' }
 
-  def sheet(firstgid: 1, name: 'terrain', count: 4, tiles: '')
-    %(<tileset firstgid="#{firstgid}" name="#{name}" tilewidth="16" tileheight="16" ) +
+  def sheet(firstgid: 1, name: 'terrain', count: 4, tiles: '', attributes: '')
+    %(<tileset firstgid="#{firstgid}" name="#{name}" tilewidth="16" tileheight="16" #{attributes} ) +
       %(tilecount="#{count}" columns="2"><image source="#{name}.png" width="32" height="32"/>#{tiles}</tileset>)
   end
 
@@ -370,6 +370,78 @@ RSpec.describe RGame::Engine::TileMap do
       map = build(%(#{layer([0] * 4)}<objectgroup name="things"><object id="1" x="0" y="0"/></objectgroup>))
 
       expect(map.objects.first.layer).to eq(1)
+    end
+
+    describe 'a tile object and its tile' do
+      # Local tile 1, gid 2, is a tree with two properties.
+      let(:tree) do
+        props = '<property name="shade" type="int" value="3"/><property name="kind" value="oak"/>'
+        sheet(tiles: %(<tile id="1" type="tree"><properties>#{props}</properties></tile>))
+      end
+
+      def placed(attributes = '', body = '')
+        objects(%(<object id="1" gid="2" x="0" y="16" width="16" height="16" #{attributes}>#{body}</object>),
+                tilesets: [tree]).first
+      end
+
+      it "takes its tile's class when it has none" do
+        # Tiled writes the class only on the tile, and shows it on every
+        # object placed from it.
+        expect(placed.class_name).to eq('tree')
+      end
+
+      it "keeps its own class over its tile's" do
+        expect(placed('type="stump"').class_name).to eq('stump')
+      end
+
+      it "holds its tile's properties under its own" do
+        own = '<properties><property name="kind" value="birch"/></properties>'
+
+        expect([placed.properties.to_h, placed('', own).properties.to_h])
+          .to eq([{ 'shade' => 3, 'kind' => 'oak' }, { 'shade' => 3, 'kind' => 'birch' }])
+      end
+
+      it 'leaves a shape alone' do
+        shape = objects('<object id="1" x="0" y="0" width="16" height="16"/>', tilesets: [tree]).first
+
+        expect([shape.class_name, shape.properties]).to eq(['', RGame::Engine::Properties::EMPTY])
+      end
+    end
+
+    describe "a tile object placed by its tileset's alignment" do
+      # A 32 x 16 tile object with its point at (100, 200). The box is wider
+      # than it is tall, so an alignment that swapped the two lands elsewhere.
+      # Tiled turns an object about its point, so only a turned object shows
+      # whether the corner moved before the turn or after it.
+      def corner(alignment, rotation: 0)
+        attributes = alignment ? %(objectalignment="#{alignment}") : ''
+        object = objects(%(<object id="1" gid="1" x="100" y="200" width="32" height="16" rotation="#{rotation}"/>),
+                         tilesets: [sheet(attributes: attributes)]).first
+        [object.x.round(9), object.y.round(9)]
+      end
+
+      {
+        'topleft' => [[100, 200], [100, 200]], 'top' => [[84, 200], [100, 184]],
+        'topright' => [[68, 200], [100, 168]], 'left' => [[100, 192], [108, 200]],
+        'center' => [[84, 192], [108, 184]], 'right' => [[68, 192], [108, 168]],
+        'bottomleft' => [[100, 184], [116, 200]], 'bottom' => [[84, 184], [116, 184]],
+        'bottomright' => [[68, 184], [116, 168]]
+      }.each do |alignment, (unturned, turned)|
+        it "puts the top-left corner at #{unturned} for #{alignment}, and at #{turned} turned 90°" do
+          expect([corner(alignment), corner(alignment, rotation: 90)]).to eq([unturned, turned])
+        end
+      end
+
+      it 'places a tileset that leaves the alignment out as bottom-left' do
+        expect([corner(nil), corner(nil, rotation: 90)]).to eq([[100, 184], [116, 200]])
+      end
+
+      it 'leaves a shape where the file puts it' do
+        shape = objects('<object id="1" x="100" y="200" width="32" height="16"/>',
+                        tilesets: [sheet(attributes: 'objectalignment="center"')]).first
+
+        expect([shape.x, shape.y]).to eq([100.0, 200.0])
+      end
     end
   end
 

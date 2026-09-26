@@ -109,8 +109,29 @@ RSpec.describe RGame::Engine::Tiled::Properties do
       expect(props['enemy']['loot']['icon']).to eq('maps/coin.png')
     end
 
-    it 'reads a class with every member at its default as EMPTY' do
-      expect(value('<property name="p" type="class" propertytype="Enemy"/>')).to be(RGame::Engine::Properties::EMPTY)
+    it 'answers its class, two deep' do
+      expect([props['enemy'].class_name, props['enemy']['loot'].class_name]).to eq(%w[Enemy Loot])
+    end
+
+    it 'names no class for a bag that is no class value' do
+      expect([props.class_name, RGame::Engine::Properties::EMPTY.class_name]).to eq([nil, nil])
+    end
+
+    it 'reads a class with every member at its default as an empty bag of that class' do
+      bag = value('<property name="p" type="class" propertytype="Enemy"/>')
+
+      expect([bag.empty?, bag.class_name]).to eq([true, 'Enemy'])
+    end
+
+    it 'is not equal to a bag with the same values of another class' do
+      # A Sword and a Shield that both have `weight: 3` are different things,
+      # and a bag compared by its values alone would call them the same.
+      members = '<properties><property name="weight" type="int" value="3"/></properties>'
+      of = ->(type) { value(%(<property name="p" type="class" propertytype="#{type}">#{members}</property>)) }
+
+      sword = of['Sword']
+
+      expect([sword == of['Shield'], sword.eql?(of['Shield']), sword == of['Sword']]).to eq([false, false, true])
     end
   end
 
