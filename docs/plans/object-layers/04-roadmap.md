@@ -1,10 +1,9 @@
 # Roadmap
 
-**Steps 0–6 are implemented.** Step 7 is detailed, re-planned after step 3
-landed. Steps 8 and 9 are rough and get re-planned once the steps before
-them land. Step 5 was inserted after step 4 landed, and every step from 5 on
-moved up by one, landed notes included, so a number in this document is
-today's.
+**Steps 0–7 are implemented.** Steps 8 and 9 are rough and get re-planned
+once the steps before them land. Step 5 was inserted after step 4 landed, and
+every step from 5 on moved up by one, landed notes included, so a number in
+this document is today's.
 
 ## Dependency shape
 
@@ -1476,6 +1475,86 @@ resolves under its scene, and builds with the settings its map gives it.
   `docs/api/tile_maps.md`, `examples.md` and `internals.md` describe the new
   path, and so does the header of `examples/doors/main.rb`. `CHANGELOG.md` has
   no `MapObjects` entry, since none shipped.
+
+**Landed.** Five commits on `maps-build-their-nodes`: one the sketch did not
+plan, which reads a class's `@param` tags without a String per line of its
+file, then 7a to 7d as sketched. The maps hold what the table above says, and
+no scene builds from a map's objects. `rake spec` 4444 examples, 0 failures
+(4448 before: the 9 of `MapObjects` gone, 5 new). `rake spec:core` 533,
+0 failures. `rake docs:coverage`: 0 of 219 modules and classes with an
+undocumented name, one fewer with `MapObjects` gone. `rake drive:allocations`:
+all 43 projects within budget. `make test` was not run, as the step changes no
+C.
+
+Sixteen runs were driven with `--seed` and `--texts` on `main` and on the
+branch. That is `doors` for 240 ticks and for the 900 its script runs,
+adventure for 1640 ticks under seeds 1 and 4242, `moving_platforms`,
+topdownplatformer for 1654 ticks under seeds 1 and 3, and the seven runs of the
+five examples that mount `town.tmx`. Each enters the same scenes, plays the
+same sounds and draws the same texts as on `main`. A probe outside the
+repository added up the translates and scales around each draw. In all sixteen
+runs, every draw lands at the same screen position and in the same order:
+278,203 and 278,303 draws for adventure, 144,099 and 144,065 for
+topdownplatformer, and 7183 for `doors` over 900 ticks. The reports differ only
+in three places:
+
+- The doors draw their squares, names and debug boxes from the bottom centre,
+  so their local coordinates move by half a width and a height.
+- The five `town.tmx` examples call `layered` for the `world` band once fewer
+  per drawn viewport, which undoes step 6 exactly. collision_tiles falls from
+  1680 to 1440, cutscene from 2499 to 2219, and cutscene_skip from 3228 to 2867.
+- topdownplatformer's `world` count falls by 3297, from 54,407 to 51,110, its
+  count before step 6. The sketch did not predict it; see below.
+
+`doors` allocates 621 objects where `main` allocates 514, and adventure 1957
+where `main` allocates 1843, on the same 16 and 57 ticks. Each extra object
+comes from building a room. The builder reads `parameters` for each node it
+builds, 21 and 26 arrays, and the rest are the doors themselves.
+
+Where the sketch was wrong, or said too little:
+
+- **Reading a class's tags split its whole file into lines.** `MapSettings`
+  found the comment above `initialize` through `readlines`. `examples/doors`
+  first builds a `Warp` as the hero walks into the garden, after the drive's
+  warm-up, and reading its tags cost 216 Strings, one per line of `main.rb`.
+  `doors` failed its budget at 66.0 objects a second against 60. The tags are
+  now read from the file as one String, slicing out only the comment. A spec
+  holds a class 300 lines down a file to fewer than 40 objects, where the old
+  read took 335. The fix is its own commit, before 7a.
+- **No spec outside `test_projects/` may name a game.**
+  `spec/game_references_spec.rb` refused rule 3's adventure town and rule 5's
+  `course.tmx` in `spec/example_assets_spec.rb`, and 7a's first comments too.
+  The doors describe keys its maps by room, as `examples/doors` defines them.
+  Rule 5 became a rule over every map under `examples/` and `test_projects/`:
+  each `Raft` lies in a layer under the actors' place. With `platforms` moved
+  back over the marked `spawns`, it fails and names both rafts.
+- **A subclass gets `name:` only by naming it.** The builder reads only the
+  class's own `initialize`. Adventure's `Warp` passes `**` on to a `Door` that
+  takes `name:`, so it names `name:` too. Without it, Ruby raises "missing
+  keyword: :name" as the garden is built, naming neither the map nor the
+  object. `internals.md` and `tile_maps.md` say so, and
+  [open question 7](README.md#open-questions) asks whether the builder should
+  follow `**` instead.
+- **topdownplatformer's `world` count falls too.** The sketch named only the
+  five `town.tmx` examples. Marking `spawns` makes it the actors' place, so
+  `mount` builds no node of its own for them, one `layered` call fewer per
+  drawn viewport.
+- **`doors` at its default 240 ticks never reaches the gate.** The hero walks
+  into the garden at tick 289, so `doors` was driven for 900 ticks as well.
+- **Both door games dropped `World#rooms`.** Only the old `Door` read it, and a
+  map-built door finds `Scene::Rooms` with `system!`.
+- **A driven run can draw a frame fewer under load**, as steps 2 and 5 found.
+  Driven beside the suites, adventure drew 1639 of 1640 frames at each seed,
+  and one topdownplatformer run lost a frame's draws. Each matched when run
+  alone.
+
+Documented in `docs/api/tile_maps.md` (the door example on `Door` and `Warp`,
+the loading example on `town_with_gate.tmx`, how a subclass receives `name:`,
+and `MapObjects` gone), `docs/api/internals.md` (how a subclass receives
+`name:`), `docs/api/examples.md` (`doors` and `moving_platforms`),
+`examples/assets/README.md` (`town_with_gate.tmx`, and the classes and
+properties each map names) and the headers of `examples/doors/main.rb` and
+`examples/moving_platforms/main.rb`. `CHANGELOG.md` has no `MapObjects` entry.
 
 ---
 
