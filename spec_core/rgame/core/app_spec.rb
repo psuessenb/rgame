@@ -118,6 +118,11 @@ RSpec.describe RGame::Core::App do
   describe 'the frame lifecycle' do
     # A subclass overrides only the hooks it needs; the rest are inherited
     # no-ops. This one closes itself so the loop terminates.
+    #
+    # It closes once it has both updated five times and drawn. A first frame
+    # that takes 83 ms or more banks five ticks at once, the most one frame
+    # runs, so closing on the fifth update alone could end the run before any
+    # draw. A macOS CI runner did exactly that while creating the window.
     let(:probe_class) do
       Class.new(described_class) do
         attr_reader :log
@@ -134,7 +139,10 @@ RSpec.describe RGame::Core::App do
         def update(dt)
           @log[:update] += 1
           @log[:dt] = dt
-          close if @log[:update] >= 5
+          return unless @log[:update] >= 5 && @log[:draw].positive?
+
+          @log[:closed_at] = @log[:update]
+          close
         end
       end
     end
@@ -143,7 +151,8 @@ RSpec.describe RGame::Core::App do
       probe = probe_class.new
       probe.run
 
-      expect(probe.log[:update]).to eq(5)
+      expect(probe.log[:update]).to be >= 5
+      expect(probe.log[:update]).to eq(probe.log[:closed_at])
       expect(probe.log[:frame_begin]).to be_positive
       expect(probe.log[:draw]).to be_positive
       expect(probe.log[:needs_redraw]).to be_positive
