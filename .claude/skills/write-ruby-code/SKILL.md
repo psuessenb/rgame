@@ -1,6 +1,6 @@
 ---
 name: write-ruby-code
-description: The rules for Ruby in rgame that RuboCop cannot check — which prefix says a method is a signal, a hook, sealed machinery or none of these, why every engine node's ivar starts with rgame_, the tense each name takes, what the guards behind them miss, how a label built from a changing value is written, which Ruby allocates without showing it, and how game code names the engine through a module of its own. Use whenever writing or editing Ruby under lib/, examples/, test_projects/ or spec/, starting a game, an example or a test project, naming a method, signal or hook, subclassing Node2D or Component, adding a non-public method to either, answering a Game/NoInterpolationInHotPath, Game/NoNeedlessAllocation or Game/NoBlockExitInHotPath offense, writing code a game runs every frame, or writing a Ruby sketch in a plan.
+description: The rules for Ruby in rgame that RuboCop cannot check — which prefix says a method is a signal, a hook, sealed machinery or none of these, why every engine node's ivar starts with rgame_, the tense each name takes, what the guards behind them miss, how a label built from a changing value is written, what the @param tags above a map-built node's initialize decide, which Ruby allocates without showing it, and how game code names the engine through a module of its own. Use whenever writing or editing Ruby under lib/, examples/, test_projects/ or spec/, starting a game, an example or a test project, naming a method, signal or hook, subclassing Node2D or Component, adding a non-public method to either, writing a node class a map builds, answering a Game/NoInterpolationInHotPath, Game/NoNeedlessAllocation or Game/NoBlockExitInHotPath offense, writing code a game runs every frame, or writing a Ruby sketch in a plan.
 ---
 
 # Writing Ruby for rgame
@@ -177,6 +177,20 @@ Two shapes need no `with` at all:
 - **A value that never changes and is not words** is built once in `initialize`
   and kept in an ivar, as a `Sheep` in `examples/save_load_ids` keeps `id.to_s`.
   A number has nothing to translate.
+
+## A node class a map builds
+
+**The `@param` tags above `initialize` are what a map may set.** `MapSettings`
+reads them at runtime, so this comment is code. A keyword with no tag, or with a
+type outside [the
+table](../../../docs/api/internals.md#mapbuilder--a-node-from-a-maps-object),
+stays out of every map's reach, and a blank line above the `def` detaches the
+whole block. Do not tag `x`, `width` or another `Node2D` keyword: the object's
+box sets them, and the tag raises.
+
+**A designer's value for a component comes through the node.** Tag it on the
+node's own `initialize` and build the component from it, deriving what follows,
+such as a box's offsets from its size. A map never sets a component's keywords.
 
 ## What allocates without showing it
 

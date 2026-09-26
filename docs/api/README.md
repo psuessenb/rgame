@@ -33,7 +33,7 @@ The scene graph is `RGame::Engine`, the layer a game is written in:
 | [Dialogue and state machines](dialogue.md) | `StateGraph` and `StateMachine` — states, transitions with conditions and effects, visit counts; `Components::Facts`, the flags they read, and saving both as one entry; `Dialogue::Script` and `Dialogue` — beats, responses and conversations; `Dialogue::Transcript`, what one said; `Exploration`, which checks every path in a spec |
 | [Toolbox](toolbox.md) | What a game author reaches for directly: the text a node draws, pooling, paths and routes, timers and tweens, a fade over the screen, a cutscene's steps, the camera, collision boxes |
 | [Localization](localization.md) | `I18n` and translation tables — where they go, plurals, the fallback chain, the player's language, missing keys in specs |
-| [Internal building blocks](internals.md) | What components are built from: collision maths, the spatial index, animation playback |
+| [Internal building blocks](internals.md) | What components are built from: collision maths, the spatial index, animation playback, and building a node from a map's object |
 
 **The engine is a work in progress.** It opens a window, runs the loop, reads
 input, draws shapes, images and text, and plays sound. A scene graph with
