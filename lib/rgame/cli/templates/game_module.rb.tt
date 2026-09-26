@@ -1,0 +1,17 @@
+# frozen_string_literal: true
+
+require 'rgame'
+
+# The game's own module: every class the game defines lives in it. `Engine` and
+# `Util` inside it stand for `RGame::Engine` and `RGame::Util`, the two halves of
+# rgame that run without a window, so a node writes `Engine::Node2D` and
+# `Util::Color`. The game's own names stay off the top level, where Ruby's and
+# every gem's live, and a class of its own may share a name with the engine's:
+# `<%= game_module %>::Scene` is the game's, `Engine::Scene` the engine's.
+#
+# Ruby warns when a constant is assigned twice, so this is the one file that
+# assigns them. Every other Ruby file of the game requires it first.
+module <%= game_module %>
+  Engine = RGame::Engine
+  Util = RGame::Util
+end

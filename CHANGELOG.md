@@ -419,6 +419,17 @@ index, not the argument.
 
 ### Changed
 
+- **`rgame new` writes the game's classes into a module of its own.**
+  `rgame new tic_tac_toe` defines `module TicTacToe` in `tic_tac_toe.rb`, where
+  `Engine` and `Util` stand for `RGame::Engine` and `RGame::Util`. The game class
+  is `TicTacToe::Game` rather than `TicTacToeGame`, and the root node is
+  `TicTacToe::Root`. A name whose module Ruby already defines, such as `signal`,
+  is refused, and so are `game` and `main`. See
+  [docs/api/cli.md](docs/api/cli.md).
+- **The examples keep their classes in a module each**, such as `WalkExample`,
+  and write `Engine::Node2D` and `Util::Color` inside it. That is the shape
+  [A game's own module](docs/api/README.md#a-games-own-module) recommends for
+  every game.
 - **`WanderController` rolls from the game's `RandomSource` by default.** Its
   `rng:` defaults to `nil`, and it finds the root's source when it attaches,
   raising `KeyError` when the root has none. An `rng:` passed in still wins.

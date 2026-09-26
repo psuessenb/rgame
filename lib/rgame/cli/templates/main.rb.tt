@@ -8,4 +8,4 @@
 
 require_relative 'game'
 
-<%= game_class %>.new.start
+<%= game_module %>::Game.new.start

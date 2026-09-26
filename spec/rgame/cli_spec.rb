@@ -108,6 +108,7 @@ RSpec.describe RGame::CLI do
             spec/locales_spec.rb
             spec/nodes/root_spec.rb
             spec/spec_helper.rb
+            tictactoe.rb
           ]
         )
       end
@@ -126,8 +127,16 @@ RSpec.describe RGame::CLI do
       it 'substitutes the project name into the game class and its caption' do
         game = File.read(File.join(project, 'game.rb'))
 
-        expect(game).to include('class TictactoeGame < RGame::Game')
+        expect(game).to include("module Tictactoe\n  # The window", 'class Game < RGame::Game')
         expect(game).to include("caption: 'Tictactoe'")
+      end
+
+      it "defines the game's module, with Engine and Util, in a file named after the game" do
+        path = File.join(project, 'tictactoe.rb')
+
+        expect(code_of(path)).to include('module Tictactoe', 'Engine = RGame::Engine', 'Util = RGame::Util')
+        expect(File.read(File.join(project, 'nodes', 'root.rb')))
+          .to include("require_relative '../tictactoe'", 'class Root < Engine::Node2D')
       end
 
       it 'writes an English table that I18n loads, with the project name in its greeting' do
@@ -139,7 +148,7 @@ RSpec.describe RGame::CLI do
       end
 
       it 'boots the class it generated' do
-        expect(File.read(File.join(project, 'main.rb'))).to include('TictactoeGame.new.start')
+        expect(File.read(File.join(project, 'main.rb'))).to include('Tictactoe::Game.new.start')
       end
 
       it 'pins the engine to the version that generated it' do
@@ -177,12 +186,9 @@ RSpec.describe RGame::CLI do
     end
 
     describe 'multi-word names' do
-      it 'camelizes underscores and dashes into one class name' do
-        expect(File.read(File.join(generate('tic_tac_toe'), 'game.rb')))
-          .to include('class TicTacToeGame < RGame::Game')
-
-        expect(File.read(File.join(generate('tic-tac-toe'), 'game.rb')))
-          .to include('class TicTacToeGame < RGame::Game')
+      it 'camelizes underscores and dashes into one module name' do
+        expect(File.read(File.join(generate('tic_tac_toe'), 'tic_tac_toe.rb'))).to include('module TicTacToe')
+        expect(File.read(File.join(generate('tic-tac-toe'), 'tic_tac_toe.rb'))).to include('module TicTacToe')
       end
     end
 
@@ -192,8 +198,8 @@ RSpec.describe RGame::CLI do
         expect(err.string).to include('not a valid project name')
       end
 
-      # The class name is the project name camelized, so a name that starts with
-      # a digit would write `class 2048Game`, which does not parse.
+      # The module name is the project name camelized, so a name that starts with
+      # a digit would write `module 2048`, which does not parse.
       it 'refuses a name that starts with a digit' do
         expect { RGame::CLI::NewProject.new('2048', root: tmp) }
           .to raise_error(RGame::CLI::NewProject::Error, /not a valid project name/)
@@ -201,11 +207,29 @@ RSpec.describe RGame::CLI do
         expect(Dir.children(tmp)).to be_empty
       end
 
-      it 'accepts digits after the first letter, and writes a class that parses' do
-        game = File.join(generate('game_2048'), 'game.rb')
+      it 'accepts digits after the first letter, and writes a module that parses' do
+        path = File.join(generate('game_2048'), 'game_2048.rb')
 
-        expect(File.read(game)).to include('class Game2048Game < RGame::Game')
-        expect { RubyVM::AbstractSyntaxTree.parse_file(game) }.not_to raise_error
+        expect(File.read(path)).to include('module Game2048')
+        expect { RubyVM::AbstractSyntaxTree.parse_file(path) }.not_to raise_error
+      end
+
+      # `module Signal` would reopen Ruby's own, and `module Set` raises, since
+      # Set is a class.
+      it 'refuses a name whose module Ruby already defines' do
+        %w[signal set].each do |name|
+          expect { RGame::CLI::NewProject.new(name, root: tmp) }
+            .to raise_error(RGame::CLI::NewProject::Error, /which Ruby already defines/)
+        end
+      end
+
+      it "refuses a name whose module file would overwrite another of the project's files" do
+        %w[game main].each do |name|
+          expect { RGame::CLI::NewProject.new(name, root: tmp) }
+            .to raise_error(RGame::CLI::NewProject::Error, /would write the game's module to #{name}\.rb/)
+        end
+
+        expect(Dir.children(tmp)).to be_empty
       end
 
       it 'refuses a directory that already has something in it' do
