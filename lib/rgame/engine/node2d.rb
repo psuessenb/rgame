@@ -336,8 +336,20 @@ module RGame
         @rgame_draw_order = value ? @rgame_children.dup : nil
       end
 
+      # The Engine::MapObject a map built this node from, or `nil` for a node
+      # built in code.
+      #
+      # `fact_key` is the key this node keeps its state under in
+      # Components::Facts, so a chest opened once stays open when its room is
+      # built again. A node built from a map has its object's `fact` property as
+      # a Symbol, or `:"<tilemap id>#<object id>"` when the designer set none. A
+      # node built in code has the key it was given, or `nil`.
+      sealed_reader :map_object, :fact_key
+
       def initialize(x: 0, y: 0, z: 0, angle: 0, width: 0, height: 0, input_owner: nil,
-                     band: nil, y_sort: false)
+                     band: nil, y_sort: false, map_object: nil, fact_key: nil)
+        @rgame_map_object = map_object
+        @rgame_fact_key = fact_key
         @rgame_input_owner = input_owner
         @rgame_paused = false
         @rgame_suspensions = 0

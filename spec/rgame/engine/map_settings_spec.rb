@@ -72,6 +72,14 @@ class SpecMapFactChest < RGame::Engine::Node2D
   end
 end
 
+# Tags `fact_key`, which the builder sets.
+class SpecMapKeyedChest < RGame::Engine::Node2D
+  # @param fact_key [Symbol] where it keeps its state
+  def initialize(fact_key: nil, **)
+    super
+  end
+end
+
 # rubocop:enable Lint/UnusedMethodArgument
 
 RSpec.describe RGame::Engine::MapSettings do
@@ -118,6 +126,11 @@ RSpec.describe RGame::Engine::MapSettings do
     it "refuses a tag naming one of Node2D's own keywords" do
       expect { described_class.of(SpecMapWideChest) }
         .to raise_error(ArgumentError, /SpecMapWideChest#initialize tags @param width, a name no property may set/)
+    end
+
+    it 'refuses a tag naming map_object or fact_key, which the builder sets' do
+      expect { described_class.of(SpecMapKeyedChest) }
+        .to raise_error(ArgumentError, /@param fact_key, a name no property may set.*map_object, fact_key, fact\)/)
     end
 
     it 'refuses a tag naming fact, which becomes the fact_key' do
