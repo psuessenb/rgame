@@ -3,7 +3,8 @@
 module TopDownPlatformer
   # A raft of Tiny Town planks, centred on its node, that walks its route for good:
   # back and forth along a polyline, or round a polygon. Its box is the floor over
-  # the chasm, and its PathFollow is what carries its riders.
+  # the chasm, and its PathFollow is what carries its riders. The map builds it
+  # from the route, and the node starts on the route's first point.
   class Raft < Engine::Node2D
     TILES = 'tiles.json'
     TILE = 16
@@ -14,17 +15,19 @@ module TopDownPlatformer
 
     SPEED = 40.0
 
-    def initialize(route:, width:, height:)
-      super(x: route.x_at(0), y: route.y_at(0))
+    # @param deck_width [Integer] the raft's width in pixels, a multiple of 16
+    # @param deck_height [Integer] its height in pixels, a multiple of 16
+    def initialize(route:, deck_width:, deck_height:, **)
+      super(**)
       add_component(Components::BoxCollider.new(
-                      width: width, height: height, offset_x: -width / 2.0, offset_y: -height / 2.0
+                      width: deck_width, height: deck_height, offset_x: -deck_width / 2.0, offset_y: -deck_height / 2.0
                     ))
       add_component(Components::Platform.new)
       add_component(Components::PathFollow.new(speed: SPEED, path: route, loop: true))
-      @columns = width / TILE
-      @rows = height / TILE
-      @left = -width / 2.0
-      @top = -height / 2.0
+      @columns = deck_width / TILE
+      @rows = deck_height / TILE
+      @left = -deck_width / 2.0
+      @top = -deck_height / 2.0
     end
 
     def _draw(renderer, _view)

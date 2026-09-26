@@ -7,13 +7,17 @@
      tile wide in columns 16, 20 and 24, a chasm in columns 34 to 49 (x 544 to
      800), and one in columns 58 to 81 (x 928 to 1312).
 
-     `start` is where the first hero stands. `first`, `second` and `last` are
-     points of class `checkpoint`, `crate` of class `crate` and `walker` of
-     class `walker`. In the `platforms` layer, `shuttle` is a polyline of class
-     `platform` that its centre walks back and forth, stopping 12 px short of
-     each bank, and `ring` a polygon it walks round, never touching a bank. The
-     ring's west and east legs run 12 px from a bank. Each carries its size in
-     its width and height properties. -->
+     The `platforms` layer lies under `spawns`, which is marked `actors`, so a
+     hero draws over the raft they ride and sorts against what stands in
+     `spawns`. In `platforms`, `shuttle` is a polyline of class `Raft` that
+     its centre walks back and forth, stopping 12 px short of each bank, and
+     `ring` a polygon it walks round, never touching a bank. The ring's west
+     and east legs run 12 px from a bank. Each carries its size in its
+     deck_width and deck_height properties.
+
+     In `spawns`, `start` is where the first hero stands. `first`, `second`
+     and `last` are points of class `Flag`, `crate` of class `Crate` and
+     `walker` of class `Walker`, which rides the ring. -->
 <map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="100" height="30" tilewidth="16" tileheight="16" infinite="0" nextlayerid="6" nextobjectid="9">
  <tileset firstgid="1" source="../../examples/assets/tileset.tsx"/>
  <tileset firstgid="133" source="../../examples/assets/pits.tsx"/>
@@ -26,40 +30,43 @@
  <layer id="3" name="obstacles" width="100" height="30">
   <data encoding="base64" compression="zlib">eJzt2jERADAMA7FQCH+yBRAA/UG6M4JfvTOzlhoNerTo0aJHix4terTo0aJHix4terTo0aJHix4terTo0aJHix4terTo0aJHix4terTo0aJHix4terTo0aJHy+/fsN092DIRAQ==</data>
  </layer>
- <objectgroup id="4" name="spawns">
-  <object id="1" name="start" x="96" y="248">
-   <point/>
-  </object>
-  <object id="2" name="first" class="checkpoint" x="472" y="248">
-   <point/>
-  </object>
-  <object id="3" name="second" class="checkpoint" x="872" y="248">
-   <point/>
-  </object>
-  <object id="4" name="last" class="checkpoint" x="1448" y="248">
-   <point/>
-  </object>
-  <object id="5" name="crate" class="crate" x="520" y="168">
-   <point/>
-  </object>
-  <object id="6" name="walker" class="walker" x="988" y="200">
-   <point/>
-  </object>
- </objectgroup>
  <objectgroup id="5" name="platforms">
-  <object id="7" name="shuttle" class="platform" x="588" y="248">
+  <object id="7" name="shuttle" class="Raft" x="588" y="248">
    <properties>
-    <property name="height" type="int" value="32"/>
-    <property name="width" type="int" value="64"/>
+    <property name="deck_height" type="int" value="32"/>
+    <property name="deck_width" type="int" value="64"/>
    </properties>
    <polyline points="0,0 168,0"/>
   </object>
-  <object id="8" name="ring" class="platform" x="988" y="200">
+  <object id="8" name="ring" class="Raft" x="988" y="200">
    <properties>
-    <property name="height" type="int" value="64"/>
-    <property name="width" type="int" value="96"/>
+    <property name="deck_height" type="int" value="64"/>
+    <property name="deck_width" type="int" value="96"/>
    </properties>
    <polygon points="0,0 264,0 264,96 0,96"/>
+  </object>
+ </objectgroup>
+ <objectgroup id="4" name="spawns">
+  <properties>
+   <property name="actors" type="bool" value="true"/>
+  </properties>
+  <object id="1" name="start" x="96" y="248">
+   <point/>
+  </object>
+  <object id="2" name="first" class="Flag" x="472" y="248">
+   <point/>
+  </object>
+  <object id="3" name="second" class="Flag" x="872" y="248">
+   <point/>
+  </object>
+  <object id="4" name="last" class="Flag" x="1448" y="248">
+   <point/>
+  </object>
+  <object id="5" name="crate" class="Crate" x="520" y="168">
+   <point/>
+  </object>
+  <object id="6" name="walker" class="Walker" x="988" y="200">
+   <point/>
   </object>
  </objectgroup>
 </map>

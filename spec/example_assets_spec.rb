@@ -341,6 +341,36 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
     end
   end
 
+  # A hero draws over the raft they ride only while the raft's layer lies under
+  # the place the actors walk in. Nothing fails when a designer drags the two
+  # apart in Tiled: the hero draws under the raft. So every map the examples and
+  # the test projects play is held to it, and none is named here.
+  describe 'every Raft on a map under examples/ or test_projects/' do
+    let(:root) { File.expand_path('..', __dir__) }
+    let(:maps) do
+      Dir.glob('{examples,test_projects}/**/*.tmx', base: root).sort.to_h do |path|
+        [path, RGame::Engine::TileMap.from_tiled(RGame::Engine::Tiled::Map.load(File.join(root, path)))]
+      end
+    end
+    let(:rafts) { maps.flat_map { |path, map| map.objects.select { it.class_name == 'Raft' }.map { [path, map, it] } } }
+
+    # Where TileMapLayer.mount puts the actors: the layer marked `actors`, or
+    # on a map with no mark, before the first `above` layer, or over every layer.
+    def actors_place(map)
+      map.actors_layer || (0...map.layer_count).find { map.layer(it).above? } || map.layer_count
+    end
+
+    it 'finds a raft to check' do
+      expect(rafts).not_to be_empty
+    end
+
+    it 'lies in a layer under the actors, so a hero draws over the raft they ride' do
+      over = rafts.reject { |_, map, raft| raft.layer < actors_place(map) }
+
+      expect(over.map { |path, _, raft| "#{path} #{raft.name}" }).to be_empty
+    end
+  end
+
   describe 'tiles.json' do
     let(:descriptor) { JSON.parse(File.read(File.join(assets, 'tiles.json')), symbolize_names: true) }
 

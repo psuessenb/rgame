@@ -5,8 +5,9 @@ module TopDownPlatformer
   # on its node's origin, where a hero who reached it comes back.
   #
   # Its Checkpoint moves the Respawn point of the hero who touched it, then says so,
-  # and the flag hands its name to that hero for their status line. A flag over a
-  # gap raises as the course loads.
+  # and the flag hands its name to that hero for their status line. The map builds
+  # it from a point and passes the point's name. A flag over a gap raises as the
+  # course loads.
   class Flag < Engine::Node2D
     TILES = 'tiles.json'
     SIZE = 16
