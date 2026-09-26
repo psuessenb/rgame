@@ -1,8 +1,8 @@
 # Roadmap
 
-**Steps 0–3 are implemented.** Steps 4–6 are detailed, re-planned after step 3
-landed. Steps 7 and 8 are rough and get re-planned once the steps before them
-land.
+**Steps 0–4 are implemented.** Steps 5 and 6 are detailed, re-planned after
+step 3 landed. Steps 7 and 8 are rough and get re-planned once the steps before
+them land.
 
 ## Dependency shape
 
@@ -769,6 +769,53 @@ end
 - `docs/api/drawing.md` documents `map_tile` beside `tilemap`, and
   `docs/api/components.md` documents `MapTile`. `CHANGELOG.md` has an Added entry
   for both. The Unreleased entry on Tiled maps names the two refusals.
+
+**Landed.** Three commits on `map-tile`, 4a to 4c as sketched. `rake spec`
+4385 examples, 0 failures (4369 before, 16 new). `rake spec:core` 533, 0
+failures (522 before, 11 new). `rake docs:coverage`: 0 of 219 modules and
+classes with an undocumented name. `rake drive:allocations`: all 43 projects
+within budget, at the figures step 3 measured give or take a tenth. `make test`
+was not run, as the step changes no C.
+
+The 12 projects that draw a map were driven with `--seed 1 --texts` for 240
+ticks, on `main` and on the branch, 18 runs with every tiled_world script and
+both cutscene scripts. 17 reports match byte for byte. topdownplatformer's
+differs only in its map id, which is the map's absolute path in each checkout.
+The recorder counts `tilemap` calls but not the tiles drawn inside one, so the
+layer side rests on `tile_map_renderer_spec.rb`: its 58 examples pass
+unchanged, the eight orientations read back pixel for pixel through a real
+window among them. `draw_tile` allocates nothing for a still, a mirrored, a
+turned and an animated tile, and `MapTile#_draw` nothing either. The spec
+fails when an Array is added to `draw_tile`. `tour.tmx` from the authoring
+branch still loads, with its two tile objects.
+
+Where the sketch was wrong, or said too little:
+
+- **A quarter-turned tile is stretched before it turns, not after.** Rule 4
+  said its image is scaled to the box's height by its width. Tiled's
+  `CellRenderer::render` scales by the box's width over the image's and its
+  height over the image's, then moves the centre by half the difference of the
+  box's sides and turns. The turned tile keeps the box's bottom-left corner,
+  which is what a layer already drew. So a layer's cell passes a box the size of
+  its image, not its turned footprint as the sketch said.
+- **Two drives at once are no comparison.** The first comparison ran `main` and
+  the branch side by side. Seven of the 36 runs crashed or wrote no report, and
+  six more drew up to 8 frames fewer than 240. Run one after the other, they
+  match.
+- **`StubTileMap#frame_tile` allocated**, returning from inside a block, so an
+  allocation spec through it measured the stub. It walks the frames in a
+  `while` loop now.
+- **`MapTile` is lifted by its node's elevation**, as a `Sprite` is. The sketch
+  left it out, and a hopping node placed as a tile object would have left its
+  picture on the ground.
+- **The drawing offset stays out of the cull rect**, as rule 13 said. A tile
+  object's offset is stretched with it, so a large stretch moves it further
+  than the few pixels a layer tile moves.
+
+Documented in `docs/api/components.md` (`MapTile`), `docs/api/drawing.md`
+(`map_tile`) and `docs/api/tile_maps.md` (the two refusals, and the
+`MapObject` table pointing at `MapTile`). `CHANGELOG.md` has an Added entry
+for both, and the Unreleased entry on Tiled maps names the refusals.
 
 ---
 
