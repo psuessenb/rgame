@@ -11,10 +11,10 @@ module Asteroids
 
     def initialize
       super
-      @velocity = add_component(Engine::Components::Velocity.new)
-      add_component(Engine::Components::DespawnOffscreen.new(margin: RADIUS * 2))
-      add_component(Engine::Components::Sprite.new(id: :bullet, anchor: :center))
-      collider = add_component(Engine::Components::CircleCollider.new(radius: RADIUS, layer: :bullet))
+      @velocity = add_component(Components::Velocity.new)
+      add_component(Components::DespawnOffscreen.new(margin: RADIUS * 2))
+      add_component(Components::Sprite.new(id: :bullet, anchor: :center))
+      collider = add_component(Components::CircleCollider.new(radius: RADIUS, layer: :bullet))
       collider.on_hit { |other| queue_free if other.layer == :rock }
     end
 

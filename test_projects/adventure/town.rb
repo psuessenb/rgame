@@ -65,10 +65,10 @@ module Adventure
 
     def _enter_tree
       @map = root.context.assets.tilemap(MAP).map
-      facts = system!(Engine::Components::Facts)
+      facts = system!(Components::Facts)
 
-      add_component(Engine::Components::TileWorld.new(map: @map, tilemap_id: MAP))
-      add_component(Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
+      add_component(Components::TileWorld.new(map: @map, tilemap_id: MAP))
+      add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
 
       slots = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new),
                                          slots: { doors: nil, actors: nil })
@@ -113,13 +113,13 @@ module Adventure
       facts[:opened] = true
       @caption = add_node(Caption.new)
       camera = Engine::Camera.new
-      get_component(Engine::Components::TileWorld).bound(camera)
+      get_component(Components::TileWorld).bound(camera)
       start = @map.object_named('start')
       lookout = @actors.add_node(Engine::Node2D.new(x: start.x, y: start.y))
-      lookout.add_component(Engine::Components::CameraFollow.new(camera:))
-      @look = lookout.add_component(Engine::Components::PathFollow.new(speed: 60.0))
-      add_component(Engine::Components::Cutscene.new(OPENING, context: self, camera:, pause: parent.heroes,
-                                                              skip: :skip))
+      lookout.add_component(Components::CameraFollow.new(camera:))
+      @look = lookout.add_component(Components::PathFollow.new(speed: 60.0))
+      add_component(Components::Cutscene.new(OPENING, context: self, camera:, pause: parent.heroes,
+                                                      skip: :skip))
     end
   end
 end

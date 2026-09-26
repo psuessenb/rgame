@@ -32,8 +32,8 @@ module Adventure
 
     def _enter_tree
       @map = root.context.assets.tilemap(MAP).map
-      add_component(Engine::Components::TileWorld.new(map: @map, tilemap_id: MAP))
-      add_component(Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
+      add_component(Components::TileWorld.new(map: @map, tilemap_id: MAP))
+      add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
 
       slots = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new),
                                          slots: { doors: nil, actors: nil })
@@ -56,7 +56,7 @@ module Adventure
     private
 
     def read_the_sign(hero)
-      facts = system!(Engine::Components::Facts)
+      facts = system!(Components::Facts)
       return if facts[:sign_read]
 
       facts[:sign_read] = true

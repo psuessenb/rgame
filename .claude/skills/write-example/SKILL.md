@@ -41,6 +41,8 @@ require 'rgame/game'
 module <Name>Example
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   # <constants and classes>
 
@@ -58,7 +60,7 @@ end
 
 - **The module is `<Name>Example`**, from the directory's name. `Timer`,
   `Cutscene` and `Dialogue` are engine names, and `examples/quick_wheel` defines
-  a `QuickWheel` class. The suffix keeps every example clear of both. The two
+  a `QuickWheel` class. The suffix keeps every example clear of both. The four
   constants follow [write-ruby-code](../write-ruby-code/SKILL.md#game-code-names-the-engine-through-its-own-module).
 - **The wiring is `start`, at the bottom of the module.** `game` is then a local
   of a method, which no block elsewhere in the file can capture. See the trap

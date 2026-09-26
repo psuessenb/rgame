@@ -131,10 +131,11 @@ RSpec.describe RGame::CLI do
         expect(game).to include("caption: 'Tictactoe'")
       end
 
-      it "defines the game's module, with Engine and Util, in a file named after the game" do
+      it "defines the game's module, naming rgame's namespaces, in a file named after the game" do
         path = File.join(project, 'tictactoe.rb')
 
-        expect(code_of(path)).to include('module Tictactoe', 'Engine = RGame::Engine', 'Util = RGame::Util')
+        expect(code_of(path)).to include('module Tictactoe', 'Engine = RGame::Engine', 'Util = RGame::Util',
+                                         'UI = Engine::UI', 'Components = Engine::Components')
         expect(File.read(File.join(project, 'nodes', 'root.rb')))
           .to include("require_relative '../tictactoe'", 'class Root < Engine::Node2D')
       end

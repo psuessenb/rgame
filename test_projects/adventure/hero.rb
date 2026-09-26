@@ -49,22 +49,22 @@ module Adventure
 
     def initialize(camera:, **)
       super(**)
-      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-      add_component(Engine::Components::FeetCollider.new(
+      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::FeetCollider.new(
                       width: FEET_WIDTH, height: FEET_HEIGHT, layer: :hero
                     ))
-      add_component(Engine::Components::CharacterBody.new(
+      add_component(Components::CharacterBody.new(
                       speed: SPEED, blocked_by: %i[tiles crate], pushes: [:crate]
                     ))
-      add_component(Engine::Components::PlayerController.new)
-      add_component(Engine::Components::CameraFollow.new(
+      add_component(Components::PlayerController.new)
+      add_component(Components::CameraFollow.new(
                       camera: camera, offset_y: CAMERA_OFFSET_Y
                     ))
-      @interactor = add_component(Engine::Components::Interactor.new(
+      @interactor = add_component(Components::Interactor.new(
                                     range: REACH, layer: :interactable
                                   ))
       @interactor.on_interacted(&:open)
-      add_component(Engine::Components::Grab.new(range: GRIP, layer: :crate))
+      add_component(Components::Grab.new(range: GRIP, layer: :crate))
       @carried = []
       @worn = {}
       @revision = 0

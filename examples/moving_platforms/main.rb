@@ -43,12 +43,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module MovingPlatformsExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -78,14 +81,14 @@ module MovingPlatformsExample
   class Hero < Engine::Node2D
     def initialize(camera:, **)
       super(**)
-      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-      add_component(Engine::Components::FeetCollider.new(width: FEET_WIDTH, height: FEET_HEIGHT))
-      add_component(Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
-      add_component(Engine::Components::PlayerController.new)
-      add_component(Engine::Components::Hop.new(peak: HOP_PEAK, duration: HOP_DURATION))
-      add_component(Engine::Components::Footing.new)
-      add_component(Engine::Components::Respawn.new(flash: 1.0))
-      add_component(Engine::Components::CameraFollow.new(camera: camera, offset_y: CAMERA_OFFSET_Y))
+      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::FeetCollider.new(width: FEET_WIDTH, height: FEET_HEIGHT))
+      add_component(Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
+      add_component(Components::PlayerController.new)
+      add_component(Components::Hop.new(peak: HOP_PEAK, duration: HOP_DURATION))
+      add_component(Components::Footing.new)
+      add_component(Components::Respawn.new(flash: 1.0))
+      add_component(Components::CameraFollow.new(camera: camera, offset_y: CAMERA_OFFSET_Y))
     end
   end
 
@@ -100,11 +103,11 @@ module MovingPlatformsExample
 
     def initialize(route:, width:, height:)
       super(x: route.x_at(0), y: route.y_at(0))
-      add_component(Engine::Components::BoxCollider.new(
+      add_component(Components::BoxCollider.new(
                       width: width, height: height, offset_x: -width / 2.0, offset_y: -height / 2.0
                     ))
-      add_component(Engine::Components::Platform.new)
-      add_component(Engine::Components::PathFollow.new(speed: RAFT_SPEED, path: route, loop: true))
+      add_component(Components::Platform.new)
+      add_component(Components::PathFollow.new(speed: RAFT_SPEED, path: route, loop: true))
       @columns = width / TILE
       @rows = height / TILE
       @left = -width / 2.0
@@ -141,7 +144,7 @@ module MovingPlatformsExample
     def _enter_tree
       map = root.context.assets.tilemap(MAP).map
       players = root.system(Engine::Players)
-      add_component(Engine::Components::TileWorld.new(
+      add_component(Components::TileWorld.new(
                       map: map, tilemap_id: MAP, cameras: players.map(&:camera)
                     ))
 

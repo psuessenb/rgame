@@ -6,6 +6,8 @@ require 'rgame/game'
 module HelloWorld
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   class Scene < Engine::Node2D
     def _draw(renderer, _view)

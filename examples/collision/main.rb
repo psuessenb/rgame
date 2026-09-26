@@ -116,12 +116,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module CollisionExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -155,7 +158,7 @@ module CollisionExample
     def initialize(**)
       super(width: RADIUS * 2, height: RADIUS * 2, **)
       @touching = 0
-      collider = add_component(Engine::Components::CircleCollider.new(radius: RADIUS, layer: :mover))
+      collider = add_component(Components::CircleCollider.new(radius: RADIUS, layer: :mover))
       # Both edges are reported to both colliders, each handed the other, so this is
       # written entirely from this node's side. The guard is the example's subject:
       # same-layer pairs are reported and these lines drop them. It has to be the
@@ -178,8 +181,8 @@ module CollisionExample
   class Drifter < Mover
     def initialize(vx:, vy:, spin: 0.0, **)
       super(**)
-      add_component(Engine::Components::Velocity.new(vx: vx, vy: vy, spin: spin))
-      add_component(Engine::Components::ScreenWrap.new(margin: RADIUS))
+      add_component(Components::Velocity.new(vx: vx, vy: vy, spin: spin))
+      add_component(Components::ScreenWrap.new(margin: RADIUS))
     end
   end
 
@@ -187,9 +190,9 @@ module CollisionExample
   class Walker < Mover
     def initialize(**)
       super
-      add_component(Engine::Components::CharacterBody.new(speed: WALK_SPEED))
-      add_component(Engine::Components::PlayerController.new)
-      add_component(Engine::Components::ScreenWrap.new(margin: RADIUS))
+      add_component(Components::CharacterBody.new(speed: WALK_SPEED))
+      add_component(Components::PlayerController.new)
+      add_component(Components::ScreenWrap.new(margin: RADIUS))
     end
   end
 
@@ -218,7 +221,7 @@ module CollisionExample
       # centre already is — so both shapes here are drawn and collide about the
       # same point. A sprite that wants a small box at its feet moves the offset
       # instead; nothing says the box has to be centred.
-      collider = add_component(Engine::Components::BoxCollider.new(
+      collider = add_component(Components::BoxCollider.new(
                                  width: width, height: height,
                                  offset_x: -width / 2, offset_y: -height / 2, layer: :wall
                                ))
@@ -268,8 +271,8 @@ module CollisionExample
       @help_walk = Engine::Text.new('help.walk')
       @help_crate = Engine::Text.new('help.crate')
       @help_circles = Engine::Text.new('help.circles')
-      add_component(Engine::Components::World.new(width: WIDTH, height: HEIGHT))
-      add_component(Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
+      add_component(Components::World.new(width: WIDTH, height: HEIGHT))
+      add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
     end
 
     def _enter_tree

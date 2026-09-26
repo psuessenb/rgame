@@ -15,9 +15,9 @@ module TopDownPlatformer
 
     def initialize(name:, **)
       super(**)
-      add_component(Engine::Components::BoxCollider.new(width: SIZE, height: SIZE, offset_x: -SIZE / 2,
-                                                        offset_y: -SIZE, layer: :checkpoint))
-      add_component(Engine::Components::Checkpoint.new(by: :hero)).on_reached do |other|
+      add_component(Components::BoxCollider.new(width: SIZE, height: SIZE, offset_x: -SIZE / 2,
+                                                offset_y: -SIZE, layer: :checkpoint))
+      add_component(Components::Checkpoint.new(by: :hero)).on_reached do |other|
         @tile = BANNER
         other.node.reach(name)
       end

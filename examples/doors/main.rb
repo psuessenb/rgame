@@ -54,12 +54,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module DoorsExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -76,11 +79,11 @@ module DoorsExample
   class Hero < Engine::Node2D
     def initialize(camera:, **)
       super(**)
-      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-      add_component(Engine::Components::FeetCollider.new(width: FEET_WIDTH, height: FEET_HEIGHT, layer: :hero))
-      add_component(Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
-      add_component(Engine::Components::PlayerController.new)
-      add_component(Engine::Components::CameraFollow.new(camera: camera))
+      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Components::FeetCollider.new(width: FEET_WIDTH, height: FEET_HEIGHT, layer: :hero))
+      add_component(Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
+      add_component(Components::PlayerController.new)
+      add_component(Components::CameraFollow.new(camera: camera))
     end
   end
 
@@ -101,9 +104,9 @@ module DoorsExample
       @color = COLORS.fetch(object.class_name)
       entrance = object.properties.fetch('entrance')
       party = object.properties.fetch('party', false)
-      add_component(Engine::Components::BoxCollider.new(width: object.width, height: object.height,
-                                                        layer: :door))
-      add_component(Engine::Components::Collectable.new(by: :hero, free: false)).on_collected do |other|
+      add_component(Components::BoxCollider.new(width: object.width, height: object.height,
+                                                layer: :door))
+      add_component(Components::Collectable.new(by: :hero, free: false)).on_collected do |other|
         world.rooms.move(party ? world.heroes : other.node, to:, entrance:)
       end
     end
@@ -122,8 +125,8 @@ module DoorsExample
 
     def _enter_tree
       @map = root.context.assets.tilemap(@map_id).map
-      add_component(Engine::Components::TileWorld.new(map: @map, tilemap_id: @map_id))
-      add_component(Engine::Components::CollisionWorld.new(cell_size: 32))
+      add_component(Components::TileWorld.new(map: @map, tilemap_id: @map_id))
+      add_component(Components::CollisionWorld.new(cell_size: 32))
       slots = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new),
                                          slots: { doors: nil, actors: nil })
       @actors = slots[:actors]

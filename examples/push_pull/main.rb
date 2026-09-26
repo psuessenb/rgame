@@ -46,12 +46,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module PushPullExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -80,7 +83,7 @@ module PushPullExample
       super(**)
       @width = width
       @height = height
-      add_component(Engine::Components::BoxCollider.new(width:, height:, layer: :wall))
+      add_component(Components::BoxCollider.new(width:, height:, layer: :wall))
     end
 
     def _draw(renderer, _view) = renderer.rect(0, 0, @width, @height, color: WALLS)
@@ -94,10 +97,10 @@ module PushPullExample
     def initialize(**)
       super
       @held = false
-      add_component(Engine::Components::BoxCollider.new(width: CRATE_SIZE, height: CRATE_SIZE,
-                                                        layer: :crate))
-      add_component(Engine::Components::Pushable.new(blocked_by: %i[wall crate hero],
-                                                     pushes: [:crate]))
+      add_component(Components::BoxCollider.new(width: CRATE_SIZE, height: CRATE_SIZE,
+                                                layer: :crate))
+      add_component(Components::Pushable.new(blocked_by: %i[wall crate hero],
+                                             pushes: [:crate]))
     end
 
     def _draw(renderer, _view) = renderer.rect(0, 0, CRATE_SIZE, CRATE_SIZE, color: @held ? HELD : CRATE)
@@ -110,13 +113,13 @@ module PushPullExample
 
     def initialize(**)
       super
-      add_component(Engine::Components::BoxCollider.new(width: HERO_SIZE, height: HERO_SIZE,
-                                                        offset_x: -HALF, offset_y: -HALF,
-                                                        layer: :hero))
-      add_component(Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: %i[wall crate],
-                                                          pushes: [:crate]))
-      add_component(Engine::Components::PlayerController.new)
-      @grab = add_component(Engine::Components::Grab.new(layer: :crate, range: REACH))
+      add_component(Components::BoxCollider.new(width: HERO_SIZE, height: HERO_SIZE,
+                                                offset_x: -HALF, offset_y: -HALF,
+                                                layer: :hero))
+      add_component(Components::CharacterBody.new(speed: SPEED, blocked_by: %i[wall crate],
+                                                  pushes: [:crate]))
+      add_component(Components::PlayerController.new)
+      @grab = add_component(Components::Grab.new(layer: :crate, range: REACH))
     end
 
     # The crate in hand, or nil.
@@ -143,7 +146,7 @@ module PushPullExample
 
     def initialize
       super
-      add_component(Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
+      add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
       @help_walk = Engine::Text.new('help.walk')
       @help_grab = Engine::Text.new('help.grab')
       @held = nil

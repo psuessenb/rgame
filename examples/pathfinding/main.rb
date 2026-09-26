@@ -71,12 +71,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module PathfindingExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -110,11 +113,11 @@ module PathfindingExample
 
     def initialize(**)
       super
-      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-      @collider = add_component(Engine::Components::FeetCollider.new(
+      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      @collider = add_component(Components::FeetCollider.new(
                                   width: FEET_WIDTH, height: FEET_HEIGHT
                                 ))
-      @navigator = add_component(Engine::Components::Navigator.new(
+      @navigator = add_component(Components::Navigator.new(
                                    speed: SPEED, blocked_by: [:tiles]
                                  ))
     end
@@ -141,11 +144,11 @@ module PathfindingExample
       @height = world.tile_height
       # ActionTrigger fires on the tick a direction goes down and again every
       # CURSOR_REPEAT while it stays down — which is a key repeat, per action.
-      repeat = add_component(Engine::Components::ActionTrigger.new(
+      repeat = add_component(Components::ActionTrigger.new(
                                STEPS.keys.to_h { |action| [action, CURSOR_REPEAT] }
                              ))
       repeat.on_triggered { |action| step(*STEPS.fetch(action)) }
-      add_component(Engine::Components::CameraFollow.new(
+      add_component(Components::CameraFollow.new(
                       camera: camera, offset_x: @width / 2, offset_y: @height / 2
                     ))
       step(0, 0)
@@ -240,7 +243,7 @@ module PathfindingExample
     def _enter_tree
       map = root.context.assets.tilemap(MAP).map
       players = root.system(Engine::Players)
-      world = add_component(Engine::Components::TileWorld.new(
+      world = add_component(Components::TileWorld.new(
                               map: map, tilemap_id: MAP, cameras: players.map(&:camera)
                             ))
 

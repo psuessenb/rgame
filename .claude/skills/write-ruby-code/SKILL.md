@@ -16,12 +16,14 @@ exactly as written.
 ## Game code names the engine through its own module
 
 A game, an example and a test project keep their classes in a module of their
-own, and the module starts with two constants:
+own, and the module starts with four constants:
 
 ```ruby
 module WalkExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   class Hero < Engine::Node2D
 ```
@@ -33,7 +35,7 @@ module WalkExample
   Ruby's `Signal` and turn a game's own `class Scene` into a `TypeError`.
   [A game's own module](../../../docs/api/README.md#a-games-own-module) has the
   cases.
-- **Assign the two constants in one file**, since Ruby warns on a second
+- **Assign the four constants in one file**, since Ruby warns on a second
   assignment. A generated project keeps them in the file named after the game,
   which every node requires. A test project's `main.rb` assigns them before its
   first `require_relative`.

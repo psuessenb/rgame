@@ -11,11 +11,11 @@ module TopDownPlatformer
 
     def initialize(**)
       super
-      add_component(Engine::Components::BoxCollider.new(width: SIZE, height: SIZE, offset_x: -SIZE / 2,
-                                                        offset_y: -SIZE / 2, layer: :crate))
-      add_component(Engine::Components::Pushable.new(blocked_by: %i[tiles crate hero]))
-      add_component(Engine::Components::Footing.new(coyote: 0))
-      add_component(Engine::Components::Respawn.new(flash: 0.5))
+      add_component(Components::BoxCollider.new(width: SIZE, height: SIZE, offset_x: -SIZE / 2,
+                                                offset_y: -SIZE / 2, layer: :crate))
+      add_component(Components::Pushable.new(blocked_by: %i[tiles crate hero]))
+      add_component(Components::Footing.new(coyote: 0))
+      add_component(Components::Respawn.new(flash: 0.5))
     end
 
     def _draw(renderer, _view)

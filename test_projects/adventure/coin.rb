@@ -16,15 +16,15 @@ module Adventure
 
     def initialize(sparkles:, **)
       super(**)
-      add_component(Engine::Components::CircleCollider.new(radius: RADIUS, layer: :pickup))
-      add_component(Engine::Components::Collectable.new(by: :hero, sound: 'blip.ogg'))
+      add_component(Components::CircleCollider.new(radius: RADIUS, layer: :pickup))
+      add_component(Components::Collectable.new(by: :hero, sound: 'blip.ogg'))
         .on_collected do |other|
           other.node.carry(Item.new('coin'))
           sparkles.burst(x, y)
         end
     end
 
-    def collectable = get_component(Engine::Components::Collectable)
+    def collectable = get_component(Components::Collectable)
 
     def _draw(renderer, _view) = renderer.circle(0, 0, RADIUS, color: COLOR)
   end

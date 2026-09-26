@@ -29,8 +29,8 @@ module Adventure
       @keys = KEPT.map { :"#{key}_#{it}" }.freeze
       x_key, y_key, way_key = @keys
       super(x: @kept_x = facts.fetch(x_key, x), y: @kept_y = facts.fetch(y_key, y))
-      add_component(Engine::Components::BoxCollider.new(width: SIZE, height: SIZE, layer: :crate))
-      @pushable = add_component(Engine::Components::Pushable.new(blocked_by: %i[tiles crate hero]))
+      add_component(Components::BoxCollider.new(width: SIZE, height: SIZE, layer: :crate))
+      @pushable = add_component(Components::Pushable.new(blocked_by: %i[tiles crate hero]))
       @facts = facts
       @way = facts.fetch(way_key, 'still').to_sym
     end

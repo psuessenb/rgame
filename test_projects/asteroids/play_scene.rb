@@ -37,12 +37,12 @@ module Asteroids
       @spawn_timer = SPAWN_INTERVAL
       @rock_pool   = Engine::Pool.new { Rock.new }
       @bullet_pool = Engine::Pool.new { Bullet.new }
-      add_component(Engine::Components::World.new(width: width, height: height))
-      add_component(Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
+      add_component(Components::World.new(width: width, height: height))
+      add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
     end
 
     def _enter_tree
-      @rng = system!(Engine::Components::RandomSource)
+      @rng = system!(Components::RandomSource)
       @score_label = add_node(ScoreLabel.new(x: SCORE_MARGIN, y: 10))
       refresh_score
       @ship = add_node(Ship.new)

@@ -78,12 +78,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module SignalsExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   Controls = Util::Controls
 
@@ -203,7 +206,7 @@ module SignalsExample
 
     def _enter_tree
       trigger = add_component(
-        Engine::Components::ActionTrigger.new(fire: FIRE_COOLDOWN, poke: POKE_COOLDOWN)
+        Components::ActionTrigger.new(fire: FIRE_COOLDOWN, poke: POKE_COOLDOWN)
       )
       # The payload is what makes one listener enough. Without it this would need
       # a signal per action, and the component is allowed only one of itself per

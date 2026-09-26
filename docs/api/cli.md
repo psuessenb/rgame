@@ -33,7 +33,7 @@ tictactoe/
 ├── .gitignore  .rspec  .rubocop.yml
 ├── main.rb           boots the game and nothing else
 ├── game.rb           class Tictactoe::Game < RGame::Game
-├── tictactoe.rb      module Tictactoe, where Engine and Util stand for rgame's two headless layers
+├── tictactoe.rb      module Tictactoe, where Engine, Util, UI and Components name rgame's namespaces
 ├── assets/           the game's media_root
 │   └── locales/
 │       └── en.yml    the English translation table
@@ -98,6 +98,8 @@ require 'rgame'
 module Tictactoe
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 end
 ```
 

@@ -46,7 +46,7 @@ module TiledWorld
     def _enter_tree
       @players = root.system(Engine::Players)
       self.input_owner = @players.everyone
-      system(Engine::Components::TileWorld).bound(@camera)
+      system(Components::TileWorld).bound(@camera)
     end
 
     def _control(actions)
@@ -74,9 +74,9 @@ module TiledWorld
     end
 
     def start
-      remove_component(Engine::Components::Cutscene)
+      remove_component(Components::Cutscene)
       @camera.center_on(*midpoint)
-      scene = Engine::Components::Cutscene.new(SCENE, context: self, camera: @camera, pause: [@world_view])
+      scene = Components::Cutscene.new(SCENE, context: self, camera: @camera, pause: [@world_view])
       scene.on_ended { close }
       add_component(scene)
     end

@@ -23,9 +23,9 @@ module Adventure
       @color = COLORS.fetch(object.class_name)
       entrance = object.properties.fetch('entrance')
       party = object.properties.fetch('party', false)
-      add_component(Engine::Components::BoxCollider.new(width: object.width, height: object.height,
-                                                        layer: :door))
-      add_component(Engine::Components::Collectable.new(by: :hero, free: false)).on_collected do |other|
+      add_component(Components::BoxCollider.new(width: object.width, height: object.height,
+                                                layer: :door))
+      add_component(Components::Collectable.new(by: :hero, free: false)).on_collected do |other|
         world.rooms.move(party ? world.heroes : other.node, to:, entrance:)
       end
     end

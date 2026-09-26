@@ -52,12 +52,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module JumpTopdownExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -100,17 +103,17 @@ module JumpTopdownExample
 
     def initialize(camera:, **)
       super(**)
-      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-      @collider = add_component(Engine::Components::FeetCollider.new(
+      add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      @collider = add_component(Components::FeetCollider.new(
                                   width: FEET_WIDTH, height: FEET_HEIGHT
                                 ))
-      add_component(Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
-      add_component(Engine::Components::PlayerController.new)
+      add_component(Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
+      add_component(Components::PlayerController.new)
       # The one line that differs from `examples/collision_tiles`. It needs nothing
       # from its siblings and none of them know it is here: it writes the node's
       # elevation, and the sprite already draws lifted by whatever that is.
-      @hop = add_component(Engine::Components::Hop.new(peak: HOP_PEAK, duration: HOP_DURATION))
-      add_component(Engine::Components::CameraFollow.new(
+      @hop = add_component(Components::Hop.new(peak: HOP_PEAK, duration: HOP_DURATION))
+      add_component(Components::CameraFollow.new(
                       camera: camera, offset_y: CAMERA_OFFSET_Y
                     ))
     end
@@ -154,7 +157,7 @@ module JumpTopdownExample
       map = root.context.assets.tilemap(MAP).map
       players = root.system(Engine::Players)
 
-      add_component(Engine::Components::TileWorld.new(
+      add_component(Components::TileWorld.new(
                       map: map, tilemap_id: MAP, cameras: players.map(&:camera)
                     ))
 

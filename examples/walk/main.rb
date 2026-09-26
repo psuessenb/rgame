@@ -32,12 +32,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module WalkExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -89,9 +92,9 @@ module WalkExample
       # attach — nothing is loaded or registered by hand. hero.json names its own
       # image and its animations; AnimatedSprite picks between them by reading the
       # body's intent, so :walk_left and friends are looked up by name.
-      hero.add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-      hero.add_component(Engine::Components::CharacterBody.new(speed: SPEED))
-      hero.add_component(Engine::Components::PlayerController.new)
+      hero.add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))
+      hero.add_component(Components::CharacterBody.new(speed: SPEED))
+      hero.add_component(Components::PlayerController.new)
       hero
     end
   end

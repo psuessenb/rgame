@@ -84,12 +84,15 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-# The example's own module. `Engine` and `Util` inside it are short for
-# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
-# the top level. docs/api/README.md says why, under "A game's own module".
+# The example's own module. `Engine`, `Util`, `UI` and `Components` inside it
+# stand for rgame's namespaces of the same names, and every name the example
+# defines stays off the top level. docs/api/README.md says why, under "A game's
+# own module".
 module TimerExample
   Engine = RGame::Engine
   Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
 
   WIDTH  = 640
   HEIGHT = 480
@@ -138,9 +141,9 @@ module TimerExample
     # Two timers, two slots. Without the names the second would be refused, and
     # `get_component(Components::Timer)` would have no single answer to give.
     def _enter_tree
-      add_component(Engine::Components::Timer.new(BEAT), as: :beat)
+      add_component(Components::Timer.new(BEAT), as: :beat)
         .on_elapsed { @beats += 1 }
-      add_component(Engine::Components::Timer.new(CHIME), as: :chime)
+      add_component(Components::Timer.new(CHIME), as: :chime)
         .on_elapsed { @chimed = !@chimed }
     end
 
@@ -216,7 +219,7 @@ module TimerExample
     end
 
     def _enter_tree
-      @fuse = add_component(Engine::Components::Tween.new(FUSE, from: BANNER_W, to: 0))
+      @fuse = add_component(Components::Tween.new(FUSE, from: BANNER_W, to: 0))
       @fuse.on_finished { queue_free }
     end
 
