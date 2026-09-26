@@ -70,128 +70,141 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module VelocityExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-# The world is the window minus a band along the bottom for the text. It is
-# shorter by more than the wrap margin, so a shape leaving through the bottom edge
-# is put back before it reaches the text.
-WORLD_W = WIDTH
-WORLD_H = 360
-TEXT_Y  = 410
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-# How far past the edge a shape travels before it is put back on the other side.
-# Without it a rectangle jumps while half of it is still showing.
-WRAP_MARGIN = 40.0
+  # The world is the window minus a band along the bottom for the text. It is
+  # shorter by more than the wrap margin, so a shape leaving through the bottom edge
+  # is put back before it reaches the text.
+  WORLD_W = WIDTH
+  WORLD_H = 360
+  TEXT_Y  = 410
 
-WALK_SPEED = 140.0
+  # How far past the edge a shape travels before it is put back on the other side.
+  # Without it a rectangle jumps while half of it is still showing.
+  WRAP_MARGIN = 40.0
 
-# A rectangle that moves because it was given a velocity, and for no other
-# reason. Everything that makes it move is a component; this class is a shape.
-class Drifter < RGame::Engine::Node2D
-  BOX_W = 38
-  BOX_H = 20
+  WALK_SPEED = 140.0
 
-  def initialize(color:, vx:, vy:, spin: 0.0, **)
-    super(width: BOX_W, height: BOX_H, **)
-    @color = color
-    @vx = vx
-    @vy = vy
-    @spin = spin
-  end
+  # A rectangle that moves because it was given a velocity, and for no other
+  # reason. Everything that makes it move is a component; this class is a shape.
+  class Drifter < Engine::Node2D
+    BOX_W = 38
+    BOX_H = 20
 
-  def _enter_tree
-    add_component(RGame::Engine::Components::Velocity.new(vx: @vx, vy: @vy, spin: @spin))
-    add_component(RGame::Engine::Components::ScreenWrap.new(margin: WRAP_MARGIN))
-  end
-
-  # Centred on the node's own origin, which is where the traversal has already
-  # put the renderer — so a spinning node turns this rectangle about its middle
-  # and this method never learns of it.
-  def _draw(renderer, _view)
-    renderer.rect(-BOX_W / 2, -BOX_H / 2, BOX_W, BOX_H, color: @color)
-  end
-end
-
-# The one with an intent. Same wrap, same world, different reason to move.
-class Walker < RGame::Engine::Node2D
-  BODY = RGame::Util::Color.new(236, 233, 220)
-  RADIUS = 13
-
-  def initialize(**)
-    super(width: RADIUS * 2, height: RADIUS * 2, **)
-  end
-
-  # CharacterBody first: PlayerController drives a sibling body and asks for it
-  # by class when it attaches, and a component added from `_enter_tree` can only see
-  # the ones already there.
-  def _enter_tree
-    add_component(RGame::Engine::Components::CharacterBody.new(speed: WALK_SPEED))
-    add_component(RGame::Engine::Components::PlayerController.new)
-    add_component(RGame::Engine::Components::ScreenWrap.new(margin: RADIUS))
-  end
-
-  def _draw(renderer, _view) = renderer.circle(0, 0, RADIUS, color: BODY)
-end
-
-class Scene < RGame::Engine::Node2D
-  BACKDROP = RGame::Util::Color.new(28, 32, 42)
-  FLOOR    = RGame::Util::Color.new(44, 50, 64)
-  EDGE     = RGame::Util::Color.new(120, 200, 255)
-  THICK    = 2
-
-  # vx, vy, spin (degrees per second), colour. Fixed rather than random: two runs
-  # of this example should be able to be compared without a seed.
-  DRIFTERS = [
-    [90.0, 34.0, 0.0, [235, 145, 90]],
-    [-70.0, 58.0, 110.0, [130, 210, 150]],
-    [48.0, -76.0, 0.0, [225, 205, 110]],
-    [-104.0, -26.0, -150.0, [190, 150, 235]],
-    [62.0, 90.0, 0.0, [120, 200, 255]]
-  ].freeze
-
-  # Mounted here rather than in `_enter_tree` for a reason worth knowing: a node
-  # assembled outside the tree collects every component before any of them
-  # attaches, so nothing depends on the order. Added from `_enter_tree` the node is
-  # already live, each component attaches as it arrives, and the wraps below
-  # would resolve their bounds before this existed.
-  def initialize
-    super
-    @help_walk = RGame::Engine::Text.new('help.walk')
-    @help_wrap = RGame::Engine::Text.new('help.wrap')
-    @help_spin = RGame::Engine::Text.new('help.spin')
-    add_component(RGame::Engine::Components::World.new(width: WORLD_W, height: WORLD_H))
-  end
-
-  def _enter_tree
-    DRIFTERS.each_with_index do |(vx, vy, spin, rgb), index|
-      add_node(Drifter.new(color: RGame::Util::Color.new(*rgb), vx: vx, vy: vy, spin: spin,
-                           x: 60 + (index * 120), y: 40 + (index * 60)))
+    def initialize(color:, vx:, vy:, spin: 0.0, **)
+      super(width: BOX_W, height: BOX_H, **)
+      @color = color
+      @vx = vx
+      @vy = vy
+      @spin = spin
     end
 
-    add_node(Walker.new(x: WORLD_W / 2, y: WORLD_H / 2))
+    def _enter_tree
+      add_component(Engine::Components::Velocity.new(vx: @vx, vy: @vy, spin: @spin))
+      add_component(Engine::Components::ScreenWrap.new(margin: WRAP_MARGIN))
+    end
+
+    # Centred on the node's own origin, which is where the traversal has already
+    # put the renderer — so a spinning node turns this rectangle about its middle
+    # and this method never learns of it.
+    def _draw(renderer, _view)
+      renderer.rect(-BOX_W / 2, -BOX_H / 2, BOX_W, BOX_H, color: @color)
+    end
   end
 
-  def _draw(renderer, view)
-    renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
-    renderer.rect(0, 0, WORLD_W, WORLD_H, color: FLOOR)
-    renderer.rect(0, WORLD_H - THICK, WORLD_W, THICK, color: EDGE)
+  # The one with an intent. Same wrap, same world, different reason to move.
+  class Walker < Engine::Node2D
+    BODY = Util::Color.new(236, 233, 220)
+    RADIUS = 13
 
-    renderer.text(@help_walk, 12, TEXT_Y)
-    renderer.text(@help_wrap, 12, TEXT_Y + 22)
-    renderer.text(@help_spin, 12, TEXT_Y + 44)
+    def initialize(**)
+      super(width: RADIUS * 2, height: RADIUS * 2, **)
+    end
+
+    # CharacterBody first: PlayerController drives a sibling body and asks for it
+    # by class when it attaches, and a component added from `_enter_tree` can only see
+    # the ones already there.
+    def _enter_tree
+      add_component(Engine::Components::CharacterBody.new(speed: WALK_SPEED))
+      add_component(Engine::Components::PlayerController.new)
+      add_component(Engine::Components::ScreenWrap.new(margin: RADIUS))
+    end
+
+    def _draw(renderer, _view) = renderer.circle(0, 0, RADIUS, color: BODY)
+  end
+
+  class Scene < Engine::Node2D
+    BACKDROP = Util::Color.new(28, 32, 42)
+    FLOOR    = Util::Color.new(44, 50, 64)
+    EDGE     = Util::Color.new(120, 200, 255)
+    THICK    = 2
+
+    # vx, vy, spin (degrees per second), colour. Fixed rather than random: two runs
+    # of this example should be able to be compared without a seed.
+    DRIFTERS = [
+      [90.0, 34.0, 0.0, [235, 145, 90]],
+      [-70.0, 58.0, 110.0, [130, 210, 150]],
+      [48.0, -76.0, 0.0, [225, 205, 110]],
+      [-104.0, -26.0, -150.0, [190, 150, 235]],
+      [62.0, 90.0, 0.0, [120, 200, 255]]
+    ].freeze
+
+    # Mounted here rather than in `_enter_tree` for a reason worth knowing: a node
+    # assembled outside the tree collects every component before any of them
+    # attaches, so nothing depends on the order. Added from `_enter_tree` the node is
+    # already live, each component attaches as it arrives, and the wraps below
+    # would resolve their bounds before this existed.
+    def initialize
+      super
+      @help_walk = Engine::Text.new('help.walk')
+      @help_wrap = Engine::Text.new('help.wrap')
+      @help_spin = Engine::Text.new('help.spin')
+      add_component(Engine::Components::World.new(width: WORLD_W, height: WORLD_H))
+    end
+
+    def _enter_tree
+      DRIFTERS.each_with_index do |(vx, vy, spin, rgb), index|
+        add_node(Drifter.new(color: Util::Color.new(*rgb), vx: vx, vy: vy, spin: spin,
+                             x: 60 + (index * 120), y: 40 + (index * 60)))
+      end
+
+      add_node(Walker.new(x: WORLD_W / 2, y: WORLD_H / 2))
+    end
+
+    def _draw(renderer, view)
+      renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
+      renderer.rect(0, 0, WORLD_W, WORLD_H, color: FLOOR)
+      renderer.rect(0, WORLD_H - THICK, WORLD_W, THICK, color: EDGE)
+
+      renderer.text(@help_walk, 12, TEXT_Y)
+      renderer.text(@help_wrap, 12, TEXT_Y + 22)
+      renderer.text(@help_spin, 12, TEXT_Y + 44)
+    end
+  end
+
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Scene.new,
+      caption: 'Velocity',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES
+    )
+
+    game.start
   end
 end
 
-game = RGame::Game.new(
-  root: Scene.new,
-  caption: 'Velocity',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES
-)
-
-game.start
+VelocityExample.start

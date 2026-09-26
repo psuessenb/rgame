@@ -102,206 +102,219 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module SplitScreenExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-# Bigger than the window on both axes, so a camera has somewhere to go and the
-# two halves can be looking at genuinely different places.
-WORLD_W = 1280
-WORLD_H = 960
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-SPEED = 120.0
+  # Bigger than the window on both axes, so a camera has somewhere to go and the
+  # two halves can be looking at genuinely different places.
+  WORLD_W = 1280
+  WORLD_H = 960
 
-# Where the camera looks: the middle of the 16x22 sprite, half its height above
-# the feet it stands on.
-CAMERA_OFFSET_Y = -11
+  SPEED = 120.0
 
-# One player, one colour. Their walker carries it as a banner and their badge
-# prints their name in it, which is the only way to tell two halves apart at a
-# glance.
-TINTS = [RGame::Util::Color.new(255, 190, 90), RGame::Util::Color.new(120, 200, 255)].freeze
+  # Where the camera looks: the middle of the 16x22 sprite, half its height above
+  # the feet it stands on.
+  CAMERA_OFFSET_Y = -11
 
-# Where each player's walker starts: side by side, so each of them is in the
-# other's half of the screen until the two of them walk apart.
-STARTS = [[528.0, 482.0], [708.0, 522.0]].freeze
+  # One player, one colour. Their walker carries it as a banner and their badge
+  # prints their name in it, which is the only way to tell two halves apart at a
+  # glance.
+  TINTS = [Util::Color.new(255, 190, 90), Util::Color.new(120, 200, 255)].freeze
 
-# The world: a floor, a grid to make movement visible, and landmarks to tell one
-# part of it from another. It is a single node under the WorldView, so this
-# `_draw` runs once per viewport and knows nothing about that.
-class Ground < RGame::Engine::Node2D
-  FLOOR = RGame::Util::Color.new(38, 54, 44)
-  GRID  = RGame::Util::Color.new(50, 70, 58)
-  CELL  = 64
+  # Where each player's walker starts: side by side, so each of them is in the
+  # other's half of the screen until the two of them walk apart.
+  STARTS = [[528.0, 482.0], [708.0, 522.0]].freeze
 
-  # x, y and a colour: four blocks in four quarters of the world, so which half
-  # of the screen is looking where is obvious.
-  LANDMARKS = [
-    [200, 200, RGame::Util::Color.new(196, 92, 72)],
-    [980, 240, RGame::Util::Color.new(92, 148, 196)],
-    [260, 700, RGame::Util::Color.new(214, 196, 96)],
-    [1000, 740, RGame::Util::Color.new(140, 110, 196)]
-  ].freeze
-  BLOCK = 64
+  # The world: a floor, a grid to make movement visible, and landmarks to tell one
+  # part of it from another. It is a single node under the WorldView, so this
+  # `_draw` runs once per viewport and knows nothing about that.
+  class Ground < Engine::Node2D
+    FLOOR = Util::Color.new(38, 54, 44)
+    GRID  = Util::Color.new(50, 70, 58)
+    CELL  = 64
 
-  def _draw(renderer, _view)
-    renderer.rect(0, 0, WORLD_W, WORLD_H, color: FLOOR)
-    draw_grid(renderer)
-    LANDMARKS.each { |x, y, color| renderer.rect(x, y, BLOCK, BLOCK, color: color) }
+    # x, y and a colour: four blocks in four quarters of the world, so which half
+    # of the screen is looking where is obvious.
+    LANDMARKS = [
+      [200, 200, Util::Color.new(196, 92, 72)],
+      [980, 240, Util::Color.new(92, 148, 196)],
+      [260, 700, Util::Color.new(214, 196, 96)],
+      [1000, 740, Util::Color.new(140, 110, 196)]
+    ].freeze
+    BLOCK = 64
+
+    def _draw(renderer, _view)
+      renderer.rect(0, 0, WORLD_W, WORLD_H, color: FLOOR)
+      draw_grid(renderer)
+      LANDMARKS.each { |x, y, color| renderer.rect(x, y, BLOCK, BLOCK, color: color) }
+    end
+
+    private
+
+    # While loops rather than ranges: this runs once per viewport per frame, and a
+    # fresh Range every time is the allocation the hot-path cops refuse.
+    #
+    # hot-path
+    def draw_grid(renderer)
+      x = CELL
+      while x < WORLD_W
+        renderer.rect(x, 0, 1, WORLD_H, color: GRID)
+        x += CELL
+      end
+
+      y = CELL
+      while y < WORLD_H
+        renderer.rect(0, y, WORLD_W, 1, color: GRID)
+        y += CELL
+      end
+    end
   end
 
-  private
+  # A player's avatar: `examples/walk`'s hero with a camera on it and a banner in
+  # their colour. Nothing in it refers to a player — the scene sets `input_owner`
+  # once, and the controller below reads whatever that resolves to.
+  class Walker < Engine::Node2D
+    BANNER_H = 4
 
-  # While loops rather than ranges: this runs once per viewport per frame, and a
-  # fresh Range every time is the allocation the hot-path cops refuse.
+    def initialize(tint:, camera:, **)
+      super(**)
+      @tint = tint
+      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Engine::Components::CharacterBody.new(speed: SPEED))
+      add_component(Engine::Components::PlayerController.new)
+      add_component(Engine::Components::CameraFollow.new(
+                      camera: camera, offset_y: CAMERA_OFFSET_Y
+                    ))
+    end
+
+    # Keep them on the floor. A plain CharacterBody walks wherever the intent
+    # points; the cameras stop at the world's edges on their own, and a walker that
+    # kept going would leave its half of the screen showing a player pushing a key
+    # with nothing happening. The walker stands on its origin, so the picture
+    # reaches half its width to either side and its whole height above.
+    def _update(_dt)
+      self.x = x.clamp(width / 2.0, WORLD_W - (width / 2.0))
+      self.y = y.clamp(height, WORLD_H)
+    end
+
+    # Over the walker's head, which is the sprite's height above its feet.
+    def _draw(renderer, _view) = renderer.rect(-width / 2.0, -height - BANNER_H - 2, width, BANNER_H, color: @tint)
+  end
+
+  # One player's badge, in their own corner of the screen.
   #
-  # hot-path
-  def draw_grid(renderer)
-    x = CELL
-    while x < WORLD_W
-      renderer.rect(x, 0, 1, WORLD_H, color: GRID)
-      x += CELL
+  # Written as though there were one player, because from in here there is. It
+  # hangs under a PlayerLayer, so it is drawn inside that player's region, laid out
+  # from that region's corner, and `_control` is handed that player's actions.
+  class Badge < Engine::Node2D
+    PANEL = Util::Color.new(20, 26, 34, 190)
+    INK   = Util::Color.new(226, 230, 238)
+    W = 108
+    H = 46
+
+    def initialize(number:, tint:, **)
+      super(**)
+      @name = Engine::Text.new('hud.player', :number)
+      @name.with(number: number)
+      @tint = tint
+      @waves = 0
+      @label = Engine::Text.new('hud.waves', :count)
     end
 
-    y = CELL
-    while y < WORLD_H
-      renderer.rect(0, y, WORLD_W, 1, color: GRID)
-      y += CELL
+    def _control(actions)
+      @waves += 1 if actions.pressed?(:fire)
+    end
+
+    def _draw(renderer, _view)
+      renderer.rect(0, 0, W, H, color: PANEL)
+      renderer.rect(0, 0, W, 3, color: @tint)
+      renderer.text(@name, 8, 8, color: @tint)
+      renderer.text(@label.with(count: @waves), 8, 26, color: INK)
     end
   end
-end
 
-# A player's avatar: `examples/walk`'s hero with a camera on it and a banner in
-# their colour. Nothing in it refers to a player — the scene sets `input_owner`
-# once, and the controller below reads whatever that resolves to.
-class Walker < RGame::Engine::Node2D
-  BANNER_H = 4
+  class Scene < Engine::Node2D
+    MARGIN = 16
 
-  def initialize(tint:, camera:, **)
-    super(**)
-    @tint = tint
-    add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-    add_component(RGame::Engine::Components::CharacterBody.new(speed: SPEED))
-    add_component(RGame::Engine::Components::PlayerController.new)
-    add_component(RGame::Engine::Components::CameraFollow.new(
-                    camera: camera, offset_y: CAMERA_OFFSET_Y
-                  ))
+    def initialize
+      super(band: :overlay)
+      @help_keys = Engine::Text.new('help.keys')
+      @help_join = Engine::Text.new('help.join')
+    end
+
+    def _enter_tree
+      @players = root.system(Engine::Players)
+      # Every camera, including the empty seat's: a camera that does not know how
+      # big the world is will happily show the void past its edge, and the seat is
+      # filled later by somebody who should not have to remember this.
+      @players.each { |player| bound(player.camera) }
+
+      # World space begins here. Everything under it is drawn once per viewport,
+      # through that viewport's camera.
+      @view = add_node(Engine::WorldView.new)
+      @view.add_node(Ground.new)
+
+      # One walker and one badge per player who is already playing, and one more
+      # when somebody joins. The scene never asks whether anybody has — the
+      # registry tells it.
+      @players.each_active { |player| spawn(player) }
+      @players.on_joined { |player| spawn(player) }
+    end
+
+    # The global overlay: once across the whole window, wherever the split is. The
+    # scene is in the `:overlay` band so the ground, which draws after it, does
+    # not cover it; the WorldView and each PlayerLayer declare their own bands.
+    def _draw(renderer, view)
+      renderer.text(@help_keys, MARGIN, view.height - 52)
+      renderer.text(@help_join, MARGIN, view.height - 30)
+    end
+
+    private
+
+    def bound(camera)
+      camera.world_width = WORLD_W
+      camera.world_height = WORLD_H
+    end
+
+    def spawn(player)
+      x, y = STARTS[player.id]
+      walker = Walker.new(x: x, y: y, tint: TINTS[player.id], camera: player.camera)
+      # The only line in this file about who owns what. It is inherited by the
+      # whole subtree, which is why nothing under it needs telling.
+      walker.input_owner = player
+      @view.add_node(walker)
+
+      layer = add_node(Engine::PlayerLayer.new(player: player))
+      layer.add_node(Badge.new(number: player.id + 1, tint: TINTS[player.id],
+                               x: MARGIN, y: MARGIN))
+    end
   end
 
-  # Keep them on the floor. A plain CharacterBody walks wherever the intent
-  # points; the cameras stop at the world's edges on their own, and a walker that
-  # kept going would leave its half of the screen showing a player pushing a key
-  # with nothing happening. The walker stands on its origin, so the picture
-  # reaches half its width to either side and its whole height above.
-  def _update(_dt)
-    self.x = x.clamp(width / 2.0, WORLD_W - (width / 2.0))
-    self.y = y.clamp(height, WORLD_H)
-  end
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Scene.new,
+      caption: 'Split screen',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES,
+      # Two seats. The second stays empty until somebody picks up a controller and
+      # presses confirm, and until then this is an ordinary one-player game.
+      players: 2
+    )
 
-  # Over the walker's head, which is the sprite's height above its feet.
-  def _draw(renderer, _view) = renderer.rect(-width / 2.0, -height - BANNER_H - 2, width, BANNER_H, color: @tint)
-end
-
-# One player's badge, in their own corner of the screen.
-#
-# Written as though there were one player, because from in here there is. It
-# hangs under a PlayerLayer, so it is drawn inside that player's region, laid out
-# from that region's corner, and `_control` is handed that player's actions.
-class Badge < RGame::Engine::Node2D
-  PANEL = RGame::Util::Color.new(20, 26, 34, 190)
-  INK   = RGame::Util::Color.new(226, 230, 238)
-  W = 108
-  H = 46
-
-  def initialize(number:, tint:, **)
-    super(**)
-    @name = RGame::Engine::Text.new('hud.player', :number)
-    @name.with(number: number)
-    @tint = tint
-    @waves = 0
-    @label = RGame::Engine::Text.new('hud.waves', :count)
-  end
-
-  def _control(actions)
-    @waves += 1 if actions.pressed?(:fire)
-  end
-
-  def _draw(renderer, _view)
-    renderer.rect(0, 0, W, H, color: PANEL)
-    renderer.rect(0, 0, W, 3, color: @tint)
-    renderer.text(@name, 8, 8, color: @tint)
-    renderer.text(@label.with(count: @waves), 8, 26, color: INK)
-  end
-end
-
-class Scene < RGame::Engine::Node2D
-  MARGIN = 16
-
-  def initialize
-    super(band: :overlay)
-    @help_keys = RGame::Engine::Text.new('help.keys')
-    @help_join = RGame::Engine::Text.new('help.join')
-  end
-
-  def _enter_tree
-    @players = root.system(RGame::Engine::Players)
-    # Every camera, including the empty seat's: a camera that does not know how
-    # big the world is will happily show the void past its edge, and the seat is
-    # filled later by somebody who should not have to remember this.
-    @players.each { |player| bound(player.camera) }
-
-    # World space begins here. Everything under it is drawn once per viewport,
-    # through that viewport's camera.
-    @view = add_node(RGame::Engine::WorldView.new)
-    @view.add_node(Ground.new)
-
-    # One walker and one badge per player who is already playing, and one more
-    # when somebody joins. The scene never asks whether anybody has — the
-    # registry tells it.
-    @players.each_active { |player| spawn(player) }
-    @players.on_joined { |player| spawn(player) }
-  end
-
-  # The global overlay: once across the whole window, wherever the split is. The
-  # scene is in the `:overlay` band so the ground, which draws after it, does
-  # not cover it; the WorldView and each PlayerLayer declare their own bands.
-  def _draw(renderer, view)
-    renderer.text(@help_keys, MARGIN, view.height - 52)
-    renderer.text(@help_join, MARGIN, view.height - 30)
-  end
-
-  private
-
-  def bound(camera)
-    camera.world_width = WORLD_W
-    camera.world_height = WORLD_H
-  end
-
-  def spawn(player)
-    x, y = STARTS[player.id]
-    walker = Walker.new(x: x, y: y, tint: TINTS[player.id], camera: player.camera)
-    # The only line in this file about who owns what. It is inherited by the
-    # whole subtree, which is why nothing under it needs telling.
-    walker.input_owner = player
-    @view.add_node(walker)
-
-    layer = add_node(RGame::Engine::PlayerLayer.new(player: player))
-    layer.add_node(Badge.new(number: player.id + 1, tint: TINTS[player.id],
-                             x: MARGIN, y: MARGIN))
+    game.start
   end
 end
 
-game = RGame::Game.new(
-  root: Scene.new,
-  caption: 'Split screen',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES,
-  # Two seats. The second stays empty until somebody picks up a controller and
-  # presses confirm, and until then this is an ordinary one-player game.
-  players: 2
-)
-
-game.start
+SplitScreenExample.start

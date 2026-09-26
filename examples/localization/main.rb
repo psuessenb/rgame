@@ -57,103 +57,116 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-UI = RGame::Engine::UI
-I18n = RGame::Engine::I18n
-Text = RGame::Engine::Text
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module LocalizationExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-WIDTH  = 640
-HEIGHT = 360
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__)
+  UI = Engine::UI
+  I18n = Engine::I18n
+  Text = Engine::Text
 
-# The language on screen, and the file that remembers a player's choice.
-#
-# `RGame::Game` picks a language from the OS before `start`. A choice saved
-# here wins over that, and "use the system language" forgets the choice again.
-class Language
-  def initialize(save, preferred)
-    @save = save
-    @preferred = preferred
+  WIDTH  = 640
+  HEIGHT = 360
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__)
+
+  # The language on screen, and the file that remembers a player's choice.
+  #
+  # `RGame::Game` picks a language from the OS before `start`. A choice saved
+  # here wins over that, and "use the system language" forgets the choice again.
+  class Language
+    def initialize(save, preferred)
+      @save = save
+      @preferred = preferred
+    end
+
+    # Called between `Game.new`, which loaded the tables, and `start`. `choose`
+    # takes the saved locale if a table covers it, and the OS's otherwise, so a
+    # hand-edited file holding a language this game lacks changes nothing.
+    def restore
+      saved = @save.read[:language]
+      I18n.locale = I18n.choose([saved, *@preferred]) if saved.is_a?(String) && !saved.empty?
+    end
+
+    def pick(locale)
+      I18n.locale = locale
+      @save.write(language: locale.name)
+    end
+
+    def follow_system
+      @save.delete
+      I18n.locale = I18n.choose(@preferred)
+    end
   end
 
-  # Called between `Game.new`, which loaded the tables, and `start`. `choose`
-  # takes the saved locale if a table covers it, and the OS's otherwise, so a
-  # hand-edited file holding a language this game lacks changes nothing.
-  def restore
-    saved = @save.read[:language]
-    I18n.locale = I18n.choose([saved, *@preferred]) if saved.is_a?(String) && !saved.empty?
+  # The whole screen: a heading, three lines of text and the language menu.
+  class Screen < Engine::Node2D
+    MARGIN = 40
+    MENU_Y = 196
+    ITEM_WIDTH = 280
+    ITEM_HEIGHT = 34
+
+    def initialize(language:, **)
+      super(**)
+      @language = language
+      @apples_held = 3
+      @title = Text.new('title')
+      @apples = Text.new('hud.apples', :count)
+      @locale = Text.new('hud.locale', :locale)
+      @hint = Text.new('hud.hint')
+      @heading = Text.new('language.title')
+    end
+
+    def _enter_tree
+      menu = add_node(UI::Menu.new(x: MARGIN, y: MENU_Y, scope: 'language',
+                                   layout: UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT)))
+      menu.add(UI::PanelButton.new(label: Text.literal('English'))).on_activated { @language.pick(:en) }
+      menu.add(UI::PanelButton.new(label: Text.literal('Deutsch'))).on_activated { @language.pick(:de) }
+      menu.add(UI::PanelButton.new(label: 'system')).on_activated { @language.follow_system }
+    end
+
+    def _control(actions)
+      @apples_held += 1 if actions.pressed?(:ui_right)
+      @apples_held -= 1 if actions.pressed?(:ui_left) && @apples_held.positive?
+    end
+
+    def _draw(renderer, _view)
+      renderer.text(@title, MARGIN, 24)
+      renderer.text(@apples.with(count: @apples_held), MARGIN, 72)
+      renderer.text(@locale.with(locale: I18n.locale.name), MARGIN, 96)
+      renderer.text(@hint, MARGIN, 120)
+      renderer.text(@heading, MARGIN, MENU_Y - 30)
+    end
   end
 
-  def pick(locale)
-    I18n.locale = locale
-    @save.write(language: locale.name)
-  end
+  # Builds the game and runs it until the window closes.
+  def self.start
+    # `dir:` is normally left out and the file lands in the platform's own data
+    # directory. It is overridable so a driven run writes somewhere disposable.
+    save = Util::SaveFile.new('language.json', game: 'rgame-examples',
+                                               dir: ENV.fetch('RGAME_SAVE_DIR', nil))
+    language = Language.new(save, RGame::Core.preferred_locales)
 
-  def follow_system
-    @save.delete
-    I18n.locale = I18n.choose(@preferred)
+    game = RGame::Game.new(
+      root: Screen.new(language: language),
+      caption: 'Localization',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES
+    )
+
+    language.restore
+
+    # The buttons draw nine-slices, which name elements of an atlas rather than
+    # files, so the atlas is registered before the first frame.
+    game.renderer.register_ui_atlas(game.assets.ui_atlas('ui.json'))
+
+    game.start
   end
 end
 
-# The whole screen: a heading, three lines of text and the language menu.
-class Screen < RGame::Engine::Node2D
-  MARGIN = 40
-  MENU_Y = 196
-  ITEM_WIDTH = 280
-  ITEM_HEIGHT = 34
-
-  def initialize(language:, **)
-    super(**)
-    @language = language
-    @apples_held = 3
-    @title = Text.new('title')
-    @apples = Text.new('hud.apples', :count)
-    @locale = Text.new('hud.locale', :locale)
-    @hint = Text.new('hud.hint')
-    @heading = Text.new('language.title')
-  end
-
-  def _enter_tree
-    menu = add_node(UI::Menu.new(x: MARGIN, y: MENU_Y, scope: 'language',
-                                 layout: UI::Column.new(item_width: ITEM_WIDTH, item_height: ITEM_HEIGHT)))
-    menu.add(UI::PanelButton.new(label: Text.literal('English'))).on_activated { @language.pick(:en) }
-    menu.add(UI::PanelButton.new(label: Text.literal('Deutsch'))).on_activated { @language.pick(:de) }
-    menu.add(UI::PanelButton.new(label: 'system')).on_activated { @language.follow_system }
-  end
-
-  def _control(actions)
-    @apples_held += 1 if actions.pressed?(:ui_right)
-    @apples_held -= 1 if actions.pressed?(:ui_left) && @apples_held.positive?
-  end
-
-  def _draw(renderer, _view)
-    renderer.text(@title, MARGIN, 24)
-    renderer.text(@apples.with(count: @apples_held), MARGIN, 72)
-    renderer.text(@locale.with(locale: I18n.locale.name), MARGIN, 96)
-    renderer.text(@hint, MARGIN, 120)
-    renderer.text(@heading, MARGIN, MENU_Y - 30)
-  end
-end
-
-# `dir:` is normally left out and the file lands in the platform's own data
-# directory. It is overridable so a driven run writes somewhere disposable.
-save = RGame::Util::SaveFile.new('language.json', game: 'rgame-examples',
-                                                  dir: ENV.fetch('RGAME_SAVE_DIR', nil))
-language = Language.new(save, RGame::Core.preferred_locales)
-
-game = RGame::Game.new(
-  root: Screen.new(language: language),
-  caption: 'Localization',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES
-)
-
-language.restore
-
-# The buttons draw nine-slices, which name elements of an atlas rather than
-# files, so the atlas is registered before the first frame.
-game.renderer.register_ui_atlas(game.assets.ui_atlas('ui.json'))
-
-game.start
+LocalizationExample.start

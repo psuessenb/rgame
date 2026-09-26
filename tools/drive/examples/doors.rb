@@ -8,16 +8,16 @@
 #
 # What the report should show:
 #
-#   - **scenes reading `build :town`, `move Hero to :town`, then `build
-#     :garden`, `move Hero to :garden`, `free :town`**, for the gate. The garden
-#     is built in the sweep the move lands in, and the town is freed in the same
-#     sweep, because nobody is left in it;
-#   - **two more `move Hero to :garden` and nothing built or freed between
-#     them**, for the pads. A move into the room the hero stands in only places
-#     it again;
-#   - **`build :town`, `move Hero to :town`, `free :garden`** for the way back.
-#     The town is built anew: a room is a recipe, and nothing it held survived
-#     the trip;
+#   - **scenes reading `build :town`, `move DoorsExample::Hero to :town`, then
+#     `build :garden`, `move DoorsExample::Hero to :garden`, `free :town`**, for
+#     the gate. The garden is built in the sweep the move lands in, and the town
+#     is freed in the same sweep, because nobody is left in it;
+#   - **two more `move DoorsExample::Hero to :garden` and nothing built or freed
+#     between them**, for the pads. A move into the room the hero stands in only
+#     places it again;
+#   - **`build :town`, `move DoorsExample::Hero to :town`, `free :garden`** for
+#     the way back. The town is built anew: a room is a recipe, and nothing it
+#     held survived the trip;
 #   - **"In the town" from tick 1 and "In the garden" from tick 289**, the line
 #     the world draws from `room_of`. It changes as the move lands, under the
 #     cover;

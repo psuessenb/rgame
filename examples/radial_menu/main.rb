@@ -74,111 +74,124 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module RadialMenuExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-# The wheel and what it chooses. The wheel itself — backdrop, dead zone, pointer
-# and buttons — is a UI::RadialMenu; the chosen icon is a node added after it,
-# because between nodes the tree decides what lands on top, and anything this
-# node drew itself would sit under the menu's backdrop.
-class QuickMenu < RGame::Engine::Node2D
-  UI = RGame::Engine::UI
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-  RADIUS = 150
-  SLOT = 64
+  # The wheel and what it chooses. The wheel itself — backdrop, dead zone, pointer
+  # and buttons — is a UI::RadialMenu; the chosen icon is a node added after it,
+  # because between nodes the tree decides what lands on top, and anything this
+  # node drew itself would sit under the menu's backdrop.
+  class QuickMenu < Engine::Node2D
+    UI = Engine::UI
 
-  # Clockwise from the top. Each image names an entry of icons.json's `images`.
-  ICONS = [
-    %i[home home],
-    %i[settings gear],
-    %i[save save],
-    %i[favourite star],
-    %i[trophies trophy],
-    %i[sound audio_on],
-    %i[music music_on],
-    %i[locked locked]
-  ].freeze
+    RADIUS = 150
+    SLOT = 64
 
-  DISC = UI::ShapeStyle.new(shape: :disc)
+    # Clockwise from the top. Each image names an entry of icons.json's `images`.
+    ICONS = [
+      %i[home home],
+      %i[settings gear],
+      %i[save save],
+      %i[favourite star],
+      %i[trophies trophy],
+      %i[sound audio_on],
+      %i[music music_on],
+      %i[locked locked]
+    ].freeze
 
-  attr_reader :chosen, :chosen_image
+    DISC = UI::ShapeStyle.new(shape: :disc)
 
-  def initialize(**)
-    super
-    @chosen = nil
-    @chosen_image = nil
-    @menu = add_node(UI::RadialMenu.new(radius: RADIUS, button_width: SLOT))
-    ICONS.each { |key, image| add_icon(key, image) }
-    add_node(ChosenIcon.new(menu: self))
-  end
+    attr_reader :chosen, :chosen_image
 
-  private
+    def initialize(**)
+      super
+      @chosen = nil
+      @chosen_image = nil
+      @menu = add_node(UI::RadialMenu.new(radius: RADIUS, button_width: SLOT))
+      ICONS.each { |key, image| add_icon(key, image) }
+      add_node(ChosenIcon.new(menu: self))
+    end
 
-  def add_icon(key, image)
-    button = @menu.add(UI::IconButton.new(image: image, style: DISC, enabled: image != :locked))
-    button.on_activated do
-      @chosen = key
-      @chosen_image = image
+    private
+
+    def add_icon(key, image)
+      button = @menu.add(UI::IconButton.new(image: image, style: DISC, enabled: image != :locked))
+      button.on_activated do
+        @chosen = key
+        @chosen_image = image
+      end
     end
   end
+
+  # The chosen icon, doubled, in the middle of the wheel.
+  class ChosenIcon < Engine::Node2D
+    SCALE = 2
+
+    def initialize(menu:, **)
+      super(**)
+      @menu = menu
+    end
+
+    def _draw(renderer, _view)
+      image = @menu.chosen_image
+      renderer.image(image, 0, 0, scale: SCALE) if image
+    end
+  end
+
+  # The captions. Added after the wheel, so it draws last and its final line is
+  # the last text of every frame — which is what the drive script reads.
+  class Caption < Engine::Node2D
+    NAMES = QuickMenu::ICONS.to_h { |key, _| [key, Engine::Text.new(key, scope: 'items')] }.freeze
+
+    def initialize(menu:, **)
+      super(**)
+      @menu = menu
+      @help = Engine::Text.new('help.point')
+      @nothing = Engine::Text.new('status.nothing')
+      @chosen = Engine::Text.new('status.chosen', :item)
+    end
+
+    def _draw(renderer, _view)
+      renderer.text(@help, 12, 12)
+      chosen = @menu.chosen
+      renderer.text(chosen ? @chosen.with(item: NAMES.fetch(chosen).to_s) : @nothing, 12, HEIGHT - 30)
+    end
+  end
+
+  class Scene < Engine::Node2D
+    def _enter_tree
+      menu = add_node(QuickMenu.new(x: WIDTH / 2, y: (HEIGHT / 2) + 6))
+      add_node(Caption.new(menu: menu))
+    end
+  end
+
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Scene.new,
+      caption: 'Radial menu',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES
+    )
+
+    # An image id that is a Symbol is a name rather than a path, so the icons are
+    # registered once, by hand: the atlas cuts each from the strip and registers it
+    # under its name.
+    game.renderer.register_ui_atlas(game.assets.ui_atlas('icons.json'))
+
+    game.start
+  end
 end
 
-# The chosen icon, doubled, in the middle of the wheel.
-class ChosenIcon < RGame::Engine::Node2D
-  SCALE = 2
-
-  def initialize(menu:, **)
-    super(**)
-    @menu = menu
-  end
-
-  def _draw(renderer, _view)
-    image = @menu.chosen_image
-    renderer.image(image, 0, 0, scale: SCALE) if image
-  end
-end
-
-# The captions. Added after the wheel, so it draws last and its final line is
-# the last text of every frame — which is what the drive script reads.
-class Caption < RGame::Engine::Node2D
-  NAMES = QuickMenu::ICONS.to_h { |key, _| [key, RGame::Engine::Text.new(key, scope: 'items')] }.freeze
-
-  def initialize(menu:, **)
-    super(**)
-    @menu = menu
-    @help = RGame::Engine::Text.new('help.point')
-    @nothing = RGame::Engine::Text.new('status.nothing')
-    @chosen = RGame::Engine::Text.new('status.chosen', :item)
-  end
-
-  def _draw(renderer, _view)
-    renderer.text(@help, 12, 12)
-    chosen = @menu.chosen
-    renderer.text(chosen ? @chosen.with(item: NAMES.fetch(chosen).to_s) : @nothing, 12, HEIGHT - 30)
-  end
-end
-
-class Scene < RGame::Engine::Node2D
-  def _enter_tree
-    menu = add_node(QuickMenu.new(x: WIDTH / 2, y: (HEIGHT / 2) + 6))
-    add_node(Caption.new(menu: menu))
-  end
-end
-
-game = RGame::Game.new(
-  root: Scene.new,
-  caption: 'Radial menu',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES
-)
-
-# An image id that is a Symbol is a name rather than a path, so the icons are
-# registered once, by hand: the atlas cuts each from the strip and registers it
-# under its name.
-game.renderer.register_ui_atlas(game.assets.ui_atlas('icons.json'))
-
-game.start
+RadialMenuExample.start

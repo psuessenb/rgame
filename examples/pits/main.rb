@@ -50,111 +50,124 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module PitsExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-MAP   = 'pits.tmx'
-SPEED = 80.0 # px/s
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-# The hop from `examples/jump_topdown`: half a second at walking speed carries the
-# hero 40px, across a one-tile trench from anywhere near its edge.
-HOP_PEAK = 18.0
-HOP_DURATION = 0.5
+  MAP   = 'pits.tmx'
+  SPEED = 80.0 # px/s
 
-# Celeste's grace time: six ticks at 60 a second.
-COYOTE = 0.1
+  # The hop from `examples/jump_topdown`: half a second at walking speed carries the
+  # hero 40px, across a one-tile trench from anywhere near its edge.
+  HOP_PEAK = 18.0
+  HOP_DURATION = 0.5
 
-FEET_WIDTH  = 12
-FEET_HEIGHT = 6
+  # Celeste's grace time: six ticks at 60 a second.
+  COYOTE = 0.1
 
-Controls = RGame::Util::Controls
+  FEET_WIDTH  = 12
+  FEET_HEIGHT = 6
 
-# A walker that hops, falls and comes back. Every part of that is a component;
-# the hero only turns coyote time off and on.
-class Hero < RGame::Engine::Node2D
-  attr_reader :footing
+  Controls = Util::Controls
 
-  def initialize(**)
-    super
-    add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-    add_component(RGame::Engine::Components::FeetCollider.new(width: FEET_WIDTH, height: FEET_HEIGHT))
-    add_component(RGame::Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
-    add_component(RGame::Engine::Components::PlayerController.new)
-    add_component(RGame::Engine::Components::Hop.new(peak: HOP_PEAK, duration: HOP_DURATION))
-    @footing = add_component(RGame::Engine::Components::Footing.new(coyote: COYOTE))
-    add_component(RGame::Engine::Components::Respawn.new(flash: 1.0))
+  # A walker that hops, falls and comes back. Every part of that is a component;
+  # the hero only turns coyote time off and on.
+  class Hero < Engine::Node2D
+    attr_reader :footing
+
+    def initialize(**)
+      super
+      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Engine::Components::FeetCollider.new(width: FEET_WIDTH, height: FEET_HEIGHT))
+      add_component(Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
+      add_component(Engine::Components::PlayerController.new)
+      add_component(Engine::Components::Hop.new(peak: HOP_PEAK, duration: HOP_DURATION))
+      @footing = add_component(Engine::Components::Footing.new(coyote: COYOTE))
+      add_component(Engine::Components::Respawn.new(flash: 1.0))
+    end
+
+    def _control(actions)
+      @footing.coyote = @footing.coyote.zero? ? COYOTE : 0 if actions.pressed?(:coyote)
+    end
   end
 
-  def _control(actions)
-    @footing.coyote = @footing.coyote.zero? ? COYOTE : 0 if actions.pressed?(:coyote)
+  # The map, the hero on its `start` point, and the help over them. It draws the
+  # help and the coyote bar itself, in the `:overlay` band, once across the window
+  # over everything else.
+  class Scene < Engine::Node2D
+    COYOTE_STATE = { true => Engine::Text.new('status.coyote_on'),
+                     false => Engine::Text.new('status.coyote_off') }.freeze
+
+    BAR_X = 12
+    BAR_Y = 84
+    BAR_WIDTH = 120
+    BAR_HEIGHT = 6
+    BAR_EMPTY = Util::Color.rgba(0, 0, 0, 120)
+    BAR_FULL = Util::Color.rgba(255, 214, 90, 255)
+
+    def initialize
+      super(band: :overlay)
+      @help_walk = Engine::Text.new('help.walk')
+      @help_fall = Engine::Text.new('help.fall')
+      @help_coyote = Engine::Text.new('help.coyote')
+    end
+
+    def _enter_tree
+      map = root.context.assets.tilemap(MAP).map
+      players = root.system(Engine::Players)
+      add_component(Engine::Components::TileWorld.new(
+                      map: map, tilemap_id: MAP, cameras: players.map(&:camera)
+                    ))
+
+      start = map.object_named('start')
+      view = add_node(Engine::WorldView.new)
+      actors = Engine::TileMapLayer.mount(view)[:actors]
+      @hero = actors.add_node(Hero.new(x: start.x, y: start.y))
+    end
+
+    # The bar is `coyote_left` as a share of the full coyote time: full while the
+    # hero stands, running down off an edge, empty in the air and with coyote time
+    # off.
+    def _draw(renderer, _view)
+      renderer.text(@help_walk, 12, 12)
+      renderer.text(@help_fall, 12, 34)
+      renderer.text(@help_coyote, 12, 56)
+      footing = @hero.footing
+      renderer.text(COYOTE_STATE[footing.coyote.positive?], 140, 78)
+      renderer.rect(BAR_X, BAR_Y, BAR_WIDTH, BAR_HEIGHT, color: BAR_EMPTY)
+      return if footing.coyote.zero?
+
+      renderer.rect(BAR_X, BAR_Y, BAR_WIDTH * footing.coyote_left / footing.coyote, BAR_HEIGHT, color: BAR_FULL)
+    end
+  end
+
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Scene.new,
+      caption: 'Pits',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES,
+      # :jump and :coyote are this game's own actions. Space is also in the default
+      # map as :fire and :ui_confirm, and Y as :grab, which nothing here reads.
+      input_map: Engine::InputMap.default.merge(
+        jump: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] },
+        coyote: { buttons: [Controls::KEY_C, Controls::PAD_Y] }
+      )
+    )
+
+    game.start
   end
 end
 
-# The map, the hero on its `start` point, and the help over them. It draws the
-# help and the coyote bar itself, in the `:overlay` band, once across the window
-# over everything else.
-class Scene < RGame::Engine::Node2D
-  COYOTE_STATE = { true => RGame::Engine::Text.new('status.coyote_on'),
-                   false => RGame::Engine::Text.new('status.coyote_off') }.freeze
-
-  BAR_X = 12
-  BAR_Y = 84
-  BAR_WIDTH = 120
-  BAR_HEIGHT = 6
-  BAR_EMPTY = RGame::Util::Color.rgba(0, 0, 0, 120)
-  BAR_FULL = RGame::Util::Color.rgba(255, 214, 90, 255)
-
-  def initialize
-    super(band: :overlay)
-    @help_walk = RGame::Engine::Text.new('help.walk')
-    @help_fall = RGame::Engine::Text.new('help.fall')
-    @help_coyote = RGame::Engine::Text.new('help.coyote')
-  end
-
-  def _enter_tree
-    map = root.context.assets.tilemap(MAP).map
-    players = root.system(RGame::Engine::Players)
-    add_component(RGame::Engine::Components::TileWorld.new(
-                    map: map, tilemap_id: MAP, cameras: players.map(&:camera)
-                  ))
-
-    start = map.object_named('start')
-    view = add_node(RGame::Engine::WorldView.new)
-    actors = RGame::Engine::TileMapLayer.mount(view)[:actors]
-    @hero = actors.add_node(Hero.new(x: start.x, y: start.y))
-  end
-
-  # The bar is `coyote_left` as a share of the full coyote time: full while the
-  # hero stands, running down off an edge, empty in the air and with coyote time
-  # off.
-  def _draw(renderer, _view)
-    renderer.text(@help_walk, 12, 12)
-    renderer.text(@help_fall, 12, 34)
-    renderer.text(@help_coyote, 12, 56)
-    footing = @hero.footing
-    renderer.text(COYOTE_STATE[footing.coyote.positive?], 140, 78)
-    renderer.rect(BAR_X, BAR_Y, BAR_WIDTH, BAR_HEIGHT, color: BAR_EMPTY)
-    return if footing.coyote.zero?
-
-    renderer.rect(BAR_X, BAR_Y, BAR_WIDTH * footing.coyote_left / footing.coyote, BAR_HEIGHT, color: BAR_FULL)
-  end
-end
-
-game = RGame::Game.new(
-  root: Scene.new,
-  caption: 'Pits',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES,
-  # :jump and :coyote are this game's own actions. Space is also in the default
-  # map as :fire and :ui_confirm, and Y as :grab, which nothing here reads.
-  input_map: RGame::Engine::InputMap.default.merge(
-    jump: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] },
-    coyote: { buttons: [Controls::KEY_C, Controls::PAD_Y] }
-  )
-)
-
-game.start
+PitsExample.start

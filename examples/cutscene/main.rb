@@ -47,161 +47,174 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module CutsceneExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-SPEED = 80.0 # px/s
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-# Where the heroes start on town.tmx, one per seat.
-STARTS = [[376, 262], [424, 262]].freeze
+  SPEED = 80.0 # px/s
 
-# A player's hero: `examples/walk`'s hero, with a camera on it.
-class Hero < RGame::Engine::Node2D
-  def initialize(camera:, **)
-    super(**)
-    add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-    add_component(RGame::Engine::Components::FeetCollider.new(width: 12, height: 6))
-    add_component(RGame::Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
-    add_component(RGame::Engine::Components::PlayerController.new)
-    add_component(RGame::Engine::Components::CameraFollow.new(camera: camera))
+  # Where the heroes start on town.tmx, one per seat.
+  STARTS = [[376, 262], [424, 262]].freeze
+
+  # A player's hero: `examples/walk`'s hero, with a camera on it.
+  class Hero < Engine::Node2D
+    def initialize(camera:, **)
+      super(**)
+      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Engine::Components::FeetCollider.new(width: 12, height: 6))
+      add_component(Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
+      add_component(Engine::Components::PlayerController.new)
+      add_component(Engine::Components::CameraFollow.new(camera: camera))
+    end
+  end
+
+  # The crier: a hero's sprite with a bell over it, walked along a path, and
+  # followed by the cutscene's camera.
+  class Crier < Engine::Node2D
+    BELL = Util::Color.new(236, 196, 64)
+    ROUTE = Engine::Path.new([[552.0, 128.0], [552.0, 232.0], [456.0, 232.0]])
+
+    attr_reader :walk
+
+    def initialize(camera:)
+      super(x: 552, y: 128)
+      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Engine::Components::CameraFollow.new(camera: camera))
+      @walk = add_component(Engine::Components::PathFollow.new(speed: 40.0))
+    end
+
+    # Walks to the square, and hands the walk to the step that waits on it.
+    def walk_to_square = @walk.tap { it.follow(ROUTE) }
+
+    def _draw(renderer, _view) = renderer.rect(-3, -30, 6, 6, color: BELL)
+  end
+
+  # The gate to the garden, on the square town.tmx keeps for it. It draws while
+  # it is shut.
+  class Gate < Engine::Node2D
+    COLOR = Util::Color.new(150, 104, 56)
+
+    attr_accessor :open
+
+    def initialize
+      super(x: 544, y: 80, width: 16, height: 16)
+      @open = false
+    end
+
+    def _draw(renderer, _view)
+      renderer.rect(0, 0, width, height, color: COLOR) unless @open
+    end
+  end
+
+  # The town: the map, the heroes, the crier and the gate, and the cutscene that
+  # ties them together. It draws the help and the gate's state over everything.
+  class Town < Engine::Node2D
+    CRIER = Engine::Dialogue::Script.build(start: :news, scope: 'crier') do
+      beat :news, speaker: :crier, line: 'news', to: :gate
+      beat :gate, speaker: :crier, line: 'gate'
+    end
+
+    NEWS = Engine::Cutscene::Script.build do
+      wait 0.5
+      hold(&:walk_crier)
+      talk { it.say(CRIER) }
+      press
+      run(&:open_gate)
+    end
+
+    STATE = {
+      shut: Engine::Text.new('gate.shut'),
+      open: Engine::Text.new('gate.open')
+    }.freeze
+
+    def initialize
+      super(band: :overlay)
+      @help = Engine::Text.new('help.keys')
+      @heroes = []
+      @camera = Engine::Camera.new
+    end
+
+    def _enter_tree
+      map = root.context.assets.tilemap('town.tmx').map
+      world = add_component(Engine::Components::TileWorld.new(map:, tilemap_id: 'town.tmx'))
+      add_component(Engine::Components::CollisionWorld.new(cell_size: 32))
+      @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new),
+                                           slots: { actors: nil })[:actors]
+      @gate = @actors.add_node(Gate.new)
+      @crier = @actors.add_node(Crier.new(camera: @camera))
+      players = system!(Engine::Players)
+      players.each { world.bound(it.camera) }
+      world.bound(@camera)
+      players.each_active { spawn(it) }
+      players.on_joined { spawn(it) }
+    end
+
+    # hot-path
+    def _control(actions)
+      return unless @cutscene.nil? && actions.pressed?(:interact)
+
+      @cutscene = add_component(Engine::Components::Cutscene.new(
+                                  NEWS, context: self, camera: @camera, pause: @heroes, skip: :skip
+                                ))
+    end
+
+    def _draw(renderer, view)
+      renderer.text(@help, 12, view.height - 30)
+      renderer.text(@gate.open ? STATE[:open] : STATE[:shut], 12, 12)
+    end
+
+    # Walks the crier to the square, and hands the walk to the step that waits
+    # on it.
+    def walk_crier = @crier.walk_to_square
+
+    # Puts the crier's words up, and hands their dialogue to the step that waits
+    # on it.
+    def say(script)
+      dialogue = Engine::Dialogue.new(script)
+      add_node(Engine::UI::DialogueBox.new(dialogue:, unavailable: :hide, width: 480, reveal: nil, x: 80,
+                                           y: 330))
+      dialogue
+    end
+
+    def open_gate = @gate.open = true
+
+    private
+
+    def spawn(player)
+      x, y = STARTS.fetch(player.id)
+      hero = Hero.new(camera: player.camera, x:, y:)
+      hero.input_owner = player
+      @heroes << hero
+      @actors.add_node(hero)
+    end
+  end
+
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Town.new,
+      caption: 'Cutscene',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES,
+      players: 2,
+      input_map: Engine::InputMap.default.merge(
+        # Held, so a stray press does not throw the scene away.
+        skip: { buttons: [Util::Controls::KEY_TAB, Util::Controls::PAD_Y], hold: 0.6 }
+      )
+    )
+
+    game.start
   end
 end
 
-# The crier: a hero's sprite with a bell over it, walked along a path, and
-# followed by the cutscene's camera.
-class Crier < RGame::Engine::Node2D
-  BELL = RGame::Util::Color.new(236, 196, 64)
-  ROUTE = RGame::Engine::Path.new([[552.0, 128.0], [552.0, 232.0], [456.0, 232.0]])
-
-  attr_reader :walk
-
-  def initialize(camera:)
-    super(x: 552, y: 128)
-    add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-    add_component(RGame::Engine::Components::CameraFollow.new(camera: camera))
-    @walk = add_component(RGame::Engine::Components::PathFollow.new(speed: 40.0))
-  end
-
-  # Walks to the square, and hands the walk to the step that waits on it.
-  def walk_to_square = @walk.tap { it.follow(ROUTE) }
-
-  def _draw(renderer, _view) = renderer.rect(-3, -30, 6, 6, color: BELL)
-end
-
-# The gate to the garden, on the square town.tmx keeps for it. It draws while
-# it is shut.
-class Gate < RGame::Engine::Node2D
-  COLOR = RGame::Util::Color.new(150, 104, 56)
-
-  attr_accessor :open
-
-  def initialize
-    super(x: 544, y: 80, width: 16, height: 16)
-    @open = false
-  end
-
-  def _draw(renderer, _view)
-    renderer.rect(0, 0, width, height, color: COLOR) unless @open
-  end
-end
-
-# The town: the map, the heroes, the crier and the gate, and the cutscene that
-# ties them together. It draws the help and the gate's state over everything.
-class Town < RGame::Engine::Node2D
-  CRIER = RGame::Engine::Dialogue::Script.build(start: :news, scope: 'crier') do
-    beat :news, speaker: :crier, line: 'news', to: :gate
-    beat :gate, speaker: :crier, line: 'gate'
-  end
-
-  NEWS = RGame::Engine::Cutscene::Script.build do
-    wait 0.5
-    hold(&:walk_crier)
-    talk { it.say(CRIER) }
-    press
-    run(&:open_gate)
-  end
-
-  STATE = {
-    shut: RGame::Engine::Text.new('gate.shut'),
-    open: RGame::Engine::Text.new('gate.open')
-  }.freeze
-
-  def initialize
-    super(band: :overlay)
-    @help = RGame::Engine::Text.new('help.keys')
-    @heroes = []
-    @camera = RGame::Engine::Camera.new
-  end
-
-  def _enter_tree
-    map = root.context.assets.tilemap('town.tmx').map
-    world = add_component(RGame::Engine::Components::TileWorld.new(map:, tilemap_id: 'town.tmx'))
-    add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 32))
-    @actors = RGame::Engine::TileMapLayer.mount(add_node(RGame::Engine::WorldView.new),
-                                                slots: { actors: nil })[:actors]
-    @gate = @actors.add_node(Gate.new)
-    @crier = @actors.add_node(Crier.new(camera: @camera))
-    players = system!(RGame::Engine::Players)
-    players.each { world.bound(it.camera) }
-    world.bound(@camera)
-    players.each_active { spawn(it) }
-    players.on_joined { spawn(it) }
-  end
-
-  # hot-path
-  def _control(actions)
-    return unless @cutscene.nil? && actions.pressed?(:interact)
-
-    @cutscene = add_component(RGame::Engine::Components::Cutscene.new(
-                                NEWS, context: self, camera: @camera, pause: @heroes, skip: :skip
-                              ))
-  end
-
-  def _draw(renderer, view)
-    renderer.text(@help, 12, view.height - 30)
-    renderer.text(@gate.open ? STATE[:open] : STATE[:shut], 12, 12)
-  end
-
-  # Walks the crier to the square, and hands the walk to the step that waits
-  # on it.
-  def walk_crier = @crier.walk_to_square
-
-  # Puts the crier's words up, and hands their dialogue to the step that waits
-  # on it.
-  def say(script)
-    dialogue = RGame::Engine::Dialogue.new(script)
-    add_node(RGame::Engine::UI::DialogueBox.new(dialogue:, unavailable: :hide, width: 480, reveal: nil, x: 80,
-                                                y: 330))
-    dialogue
-  end
-
-  def open_gate = @gate.open = true
-
-  private
-
-  def spawn(player)
-    x, y = STARTS.fetch(player.id)
-    hero = Hero.new(camera: player.camera, x:, y:)
-    hero.input_owner = player
-    @heroes << hero
-    @actors.add_node(hero)
-  end
-end
-
-game = RGame::Game.new(
-  root: Town.new,
-  caption: 'Cutscene',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES,
-  players: 2,
-  input_map: RGame::Engine::InputMap.default.merge(
-    # Held, so a stray press does not throw the scene away.
-    skip: { buttons: [RGame::Util::Controls::KEY_TAB, RGame::Util::Controls::PAD_Y], hold: 0.6 }
-  )
-)
-
-game.start
+CutsceneExample.start

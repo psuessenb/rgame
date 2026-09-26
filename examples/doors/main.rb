@@ -54,135 +54,148 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module DoorsExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-SPEED = 80.0 # px/s
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-# The feet: twelve wide and six tall, at the bottom of the 16x22 sprite.
-FEET_WIDTH  = 12
-FEET_HEIGHT = 6
+  SPEED = 80.0 # px/s
 
-# A sprite, a feet box on the `:hero` layer, a body the map stops, and a camera.
-class Hero < RGame::Engine::Node2D
-  def initialize(camera:, **)
-    super(**)
-    add_component(RGame::Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
-    add_component(RGame::Engine::Components::FeetCollider.new(width: FEET_WIDTH, height: FEET_HEIGHT, layer: :hero))
-    add_component(RGame::Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
-    add_component(RGame::Engine::Components::PlayerController.new)
-    add_component(RGame::Engine::Components::CameraFollow.new(camera: camera))
-  end
-end
+  # The feet: twelve wide and six tall, at the bottom of the 16x22 sprite.
+  FEET_WIDTH  = 12
+  FEET_HEIGHT = 6
 
-# A door or a warp pad, built from one object on the map. A hero's feet box
-# touching its box asks the rooms for a move, and the door stays where it is.
-#
-# `to` is the room the object's properties name, or the room the pad stands in
-# for a warp, which the room hands over. A door marked `party` moves every hero
-# the world holds, and any other door moves the one who touched it.
-class Door < RGame::Engine::Node2D
-  COLORS = {
-    'door' => RGame::Util::Color.new(150, 104, 56),
-    'warp' => RGame::Util::Color.new(150, 96, 210, 200)
-  }.freeze
-
-  def initialize(object:, world:, to: object.properties.fetch('to').to_sym)
-    super(x: object.x, y: object.y, width: object.width, height: object.height)
-    @color = COLORS.fetch(object.class_name)
-    entrance = object.properties.fetch('entrance')
-    party = object.properties.fetch('party', false)
-    add_component(RGame::Engine::Components::BoxCollider.new(width: object.width, height: object.height,
-                                                             layer: :door))
-    add_component(RGame::Engine::Components::Collectable.new(by: :hero, free: false)).on_collected do |other|
-      world.rooms.move(party ? world.heroes : other.node, to:, entrance:)
+  # A sprite, a feet box on the `:hero` layer, a body the map stops, and a camera.
+  class Hero < Engine::Node2D
+    def initialize(camera:, **)
+      super(**)
+      add_component(Engine::Components::AnimatedSprite.new(sheet: 'hero.json'))
+      add_component(Engine::Components::FeetCollider.new(width: FEET_WIDTH, height: FEET_HEIGHT, layer: :hero))
+      add_component(Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: [:tiles]))
+      add_component(Engine::Components::PlayerController.new)
+      add_component(Engine::Components::CameraFollow.new(camera: camera))
     end
   end
 
-  def _draw(renderer, _view) = renderer.rect(0, 0, width, height, color: @color)
+  # A door or a warp pad, built from one object on the map. A hero's feet box
+  # touching its box asks the rooms for a move, and the door stays where it is.
+  #
+  # `to` is the room the object's properties name, or the room the pad stands in
+  # for a warp, which the room hands over. A door marked `party` moves every hero
+  # the world holds, and any other door moves the one who touched it.
+  class Door < Engine::Node2D
+    COLORS = {
+      'door' => Util::Color.new(150, 104, 56),
+      'warp' => Util::Color.new(150, 96, 210, 200)
+    }.freeze
+
+    def initialize(object:, world:, to: object.properties.fetch('to').to_sym)
+      super(x: object.x, y: object.y, width: object.width, height: object.height)
+      @color = COLORS.fetch(object.class_name)
+      entrance = object.properties.fetch('entrance')
+      party = object.properties.fetch('party', false)
+      add_component(Engine::Components::BoxCollider.new(width: object.width, height: object.height,
+                                                        layer: :door))
+      add_component(Engine::Components::Collectable.new(by: :hero, free: false)).on_collected do |other|
+        world.rooms.move(party ? world.heroes : other.node, to:, entrance:)
+      end
+    end
+
+    def _draw(renderer, _view) = renderer.rect(0, 0, width, height, color: @color)
+  end
+
+  # One room: the map, the world it makes solid, and a door for each door object
+  # on it. The doors go in a slot of their own, under the actors, so a hero walks
+  # over them rather than behind them.
+  class Grounds < Engine::Scene::Room
+    def initialize(map_id)
+      super()
+      @map_id = map_id
+    end
+
+    def _enter_tree
+      @map = root.context.assets.tilemap(@map_id).map
+      add_component(Engine::Components::TileWorld.new(map: @map, tilemap_id: @map_id))
+      add_component(Engine::Components::CollisionWorld.new(cell_size: 32))
+      slots = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new),
+                                         slots: { doors: nil, actors: nil })
+      @actors = slots[:actors]
+
+      doors = Engine::MapObjects.new
+      doors.define('door') { |o| Door.new(object: o, world: parent) }
+      doors.define('warp') { |o| Door.new(object: o, world: parent, to: name) }
+      doors.spawn_into(slots[:doors], @map.objects)
+    end
+
+    # A hero arrives standing on the entrance the move named.
+    def _arrive(node, entrance)
+      spot = @map.object_named(entrance)
+      node.x = spot.x
+      node.y = spot.y
+      @actors.add_node(node)
+    end
+  end
+
+  # The root: the rooms, the heroes, and which room the player stands in, as a
+  # line of text over everything.
+  class World < Engine::Node2D
+    FADE = Engine::Scene::Fade.new(cover: 0.25, reveal: 0.25)
+
+    MAPS = { town: 'town.tmx', garden: 'garden.tmx' }.freeze
+
+    PLACES = {
+      town: Engine::Text.new('place.town'),
+      garden: Engine::Text.new('place.garden')
+    }.freeze
+
+    attr_reader :rooms, :heroes
+
+    def initialize
+      super(band: :overlay)
+      @rooms = add_component(Engine::Scene::Rooms.new)
+      MAPS.each { |name, map_id| @rooms.define(name) { Grounds.new(map_id) } }
+      @rooms.transition = FADE
+      @heroes = []
+      @help = Engine::Text.new('help.walk')
+    end
+
+    # Loads every room's map before anyone walks, so a door parses nothing: the
+    # asset manager keeps a map once it is loaded, and a room built again reads
+    # the one it kept.
+    def _enter_tree
+      MAPS.each_value { root.context.assets.tilemap(it) }
+      @player = system!(Engine::Players).primary
+      @heroes << Hero.new(camera: @player.camera)
+      @rooms.move(@heroes.first, to: :town, entrance: 'start')
+    end
+
+    def _draw(renderer, _view)
+      renderer.text(@help, 12, 12)
+      room = @rooms.room_of(@player)
+      renderer.text(PLACES.fetch(room.name), 12, 34) if room
+    end
+  end
+
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: World.new,
+      caption: 'Doors',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES
+    )
+
+    game.start
+  end
 end
 
-# One room: the map, the world it makes solid, and a door for each door object
-# on it. The doors go in a slot of their own, under the actors, so a hero walks
-# over them rather than behind them.
-class Grounds < RGame::Engine::Scene::Room
-  def initialize(map_id)
-    super()
-    @map_id = map_id
-  end
-
-  def _enter_tree
-    @map = root.context.assets.tilemap(@map_id).map
-    add_component(RGame::Engine::Components::TileWorld.new(map: @map, tilemap_id: @map_id))
-    add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 32))
-    slots = RGame::Engine::TileMapLayer.mount(add_node(RGame::Engine::WorldView.new),
-                                              slots: { doors: nil, actors: nil })
-    @actors = slots[:actors]
-
-    doors = RGame::Engine::MapObjects.new
-    doors.define('door') { |o| Door.new(object: o, world: parent) }
-    doors.define('warp') { |o| Door.new(object: o, world: parent, to: name) }
-    doors.spawn_into(slots[:doors], @map.objects)
-  end
-
-  # A hero arrives standing on the entrance the move named.
-  def _arrive(node, entrance)
-    spot = @map.object_named(entrance)
-    node.x = spot.x
-    node.y = spot.y
-    @actors.add_node(node)
-  end
-end
-
-# The root: the rooms, the heroes, and which room the player stands in, as a
-# line of text over everything.
-class World < RGame::Engine::Node2D
-  FADE = RGame::Engine::Scene::Fade.new(cover: 0.25, reveal: 0.25)
-
-  MAPS = { town: 'town.tmx', garden: 'garden.tmx' }.freeze
-
-  PLACES = {
-    town: RGame::Engine::Text.new('place.town'),
-    garden: RGame::Engine::Text.new('place.garden')
-  }.freeze
-
-  attr_reader :rooms, :heroes
-
-  def initialize
-    super(band: :overlay)
-    @rooms = add_component(RGame::Engine::Scene::Rooms.new)
-    MAPS.each { |name, map_id| @rooms.define(name) { Grounds.new(map_id) } }
-    @rooms.transition = FADE
-    @heroes = []
-    @help = RGame::Engine::Text.new('help.walk')
-  end
-
-  # Loads every room's map before anyone walks, so a door parses nothing: the
-  # asset manager keeps a map once it is loaded, and a room built again reads
-  # the one it kept.
-  def _enter_tree
-    MAPS.each_value { root.context.assets.tilemap(it) }
-    @player = system!(RGame::Engine::Players).primary
-    @heroes << Hero.new(camera: @player.camera)
-    @rooms.move(@heroes.first, to: :town, entrance: 'start')
-  end
-
-  def _draw(renderer, _view)
-    renderer.text(@help, 12, 12)
-    room = @rooms.room_of(@player)
-    renderer.text(PLACES.fetch(room.name), 12, 34) if room
-  end
-end
-
-game = RGame::Game.new(
-  root: World.new,
-  caption: 'Doors',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES
-)
-
-game.start
+DoorsExample.start

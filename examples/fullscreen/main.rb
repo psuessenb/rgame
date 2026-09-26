@@ -101,116 +101,129 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-Controls = RGame::Util::Controls
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module FullscreenExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-# Deliberately not a shape any display has — see the note above on why an
-# example about scale modes wants a resolution that scales *badly*.
-WIDTH  = 512
-HEIGHT = 320
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+  Controls = Util::Controls
 
-# Set in the environment so one file can demonstrate both openings without being
-# edited. A real game reads this from its settings file — see the plan's
-# `examples/save_load`.
-START_FULLSCREEN = ENV.fetch('RGAME_FULLSCREEN', '0') != '0'
+  # Deliberately not a shape any display has — see the note above on why an
+  # example about scale modes wants a resolution that scales *badly*.
+  WIDTH  = 512
+  HEIGHT = 320
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-# :letterbox (what RGame::Game does unless told otherwise), :integer, :stretch
-# or :disabled. A real game reads this from its settings the same way it reads
-# the fullscreen flag. This one starts on `:disabled` so that pressing right
-# walks the list in the order the prose above discusses them.
-SCALE_MODE = ENV.fetch('RGAME_SCALE', 'disabled').to_sym
+  # Set in the environment so one file can demonstrate both openings without being
+  # edited. A real game reads this from its settings file — see the plan's
+  # `examples/save_load`.
+  START_FULLSCREEN = ENV.fetch('RGAME_FULLSCREEN', '0') != '0'
 
-class Scene < RGame::Engine::Node2D
-  INSET  = 24
-  MARK   = 40
-  THICK  = 3
-  EDGE   = RGame::Util::Color.new(120, 200, 255)
-  CORNER = RGame::Util::Color.new(255, 210, 120)
+  # :letterbox (what RGame::Game does unless told otherwise), :integer, :stretch
+  # or :disabled. A real game reads this from its settings the same way it reads
+  # the fullscreen flag. This one starts on `:disabled` so that pressing right
+  # walks the list in the order the prose above discusses them.
+  SCALE_MODE = ENV.fetch('RGAME_SCALE', 'disabled').to_sym
 
-  DISC = RGame::Util::Color.new(180, 160, 240)
+  class Scene < Engine::Node2D
+    INSET  = 24
+    MARK   = 40
+    THICK  = 3
+    EDGE   = Util::Color.new(120, 200, 255)
+    CORNER = Util::Color.new(255, 210, 120)
 
-  # Taken from the engine rather than written out, so this example cannot fall
-  # behind the modes that actually exist.
-  MODES = RGame::Engine::Presentation::MODES
+    DISC = Util::Color.new(180, 160, 240)
 
-  # One Text per state rather than a string built per frame: a label made with
-  # interpolation in a draw method allocates a String every frame, which is what
-  # Game/NoInterpolationInHotPath refuses. Each mode's line is keyed by the mode.
-  STATE = { true => RGame::Engine::Text.new('state.fullscreen'),
-            false => RGame::Engine::Text.new('state.windowed') }.freeze
-  MODE_LABEL = MODES.to_h { |mode| [mode, RGame::Engine::Text.new(mode, scope: 'modes')] }.freeze
+    # Taken from the engine rather than written out, so this example cannot fall
+    # behind the modes that actually exist.
+    MODES = Engine::Presentation::MODES
 
-  def initialize(**)
-    super
-    @mode_index = MODES.index(SCALE_MODE) || 0
-  end
+    # One Text per state rather than a string built per frame: a label made with
+    # interpolation in a draw method allocates a String every frame, which is what
+    # Game/NoInterpolationInHotPath refuses. Each mode's line is keyed by the mode.
+    STATE = { true => Engine::Text.new('state.fullscreen'),
+              false => Engine::Text.new('state.windowed') }.freeze
+    MODE_LABEL = MODES.to_h { |mode| [mode, Engine::Text.new(mode, scope: 'modes')] }.freeze
 
-  def _control(actions)
-    # `context` is the Game, which is an App. A node may not *name* RGame::Core,
-    # but it may call methods on an object it is handed — the same duck-typing a
-    # node uses on the renderer.
-    if actions.pressed?(:fullscreen)
-      app = root.context
-      app.fullscreen = !app.fullscreen?
+    def initialize(**)
+      super
+      @mode_index = MODES.index(SCALE_MODE) || 0
     end
 
-    # ui_left and ui_right come from the default map, so cycling needs no action
-    # of its own.
-    cycle_mode(-1) if actions.pressed?(:ui_left)
-    cycle_mode(1) if actions.pressed?(:ui_right)
+    def _control(actions)
+      # `context` is the Game, which is an App. A node may not *name* RGame::Core,
+      # but it may call methods on an object it is handed — the same duck-typing a
+      # node uses on the renderer.
+      if actions.pressed?(:fullscreen)
+        app = root.context
+        app.fullscreen = !app.fullscreen?
+      end
+
+      # ui_left and ui_right come from the default map, so cycling needs no action
+      # of its own.
+      cycle_mode(-1) if actions.pressed?(:ui_left)
+      cycle_mode(1) if actions.pressed?(:ui_right)
+    end
+
+    # `view` is the region being drawn into. Under fullscreen it is the screen;
+    # windowed it is the window. Reading it rather than WIDTH/HEIGHT is the whole
+    # reason the border below keeps up.
+    def _draw(renderer, view)
+      right = view.width - INSET
+      bottom = view.height - INSET
+
+      renderer.line(INSET, INSET, right, INSET, thickness: THICK, color: EDGE)
+      renderer.line(INSET, bottom, right, bottom, thickness: THICK, color: EDGE)
+      renderer.line(INSET, INSET, INSET, bottom, thickness: THICK, color: EDGE)
+      renderer.line(right, INSET, right, bottom, thickness: THICK, color: EDGE)
+
+      # Corner marks, so the border is not just a rectangle of unknown size: they
+      # stay put while the edges between them move.
+      renderer.rect(INSET, INSET, MARK, THICK, color: CORNER)
+      renderer.rect(INSET, INSET, THICK, MARK, color: CORNER)
+      renderer.rect(right - MARK, bottom - THICK, MARK, THICK, color: CORNER)
+      renderer.rect(right - THICK, bottom - MARK, THICK, MARK, color: CORNER)
+
+      # Round under every mode but :stretch, which scales the axes by different
+      # factors and turns it into an ellipse. One shape says more about what a
+      # mode does than the two lines of text below it.
+      renderer.circle(view.width / 2, view.height / 2, view.height / 5, color: DISC)
+
+      renderer.text(STATE.fetch(root.context.fullscreen?), INSET + 12, INSET + 12)
+      renderer.text(MODE_LABEL.fetch(MODES[@mode_index]), INSET + 12, INSET + 34)
+    end
+
+    private
+
+    def cycle_mode(step)
+      @mode_index = (@mode_index + step) % MODES.length
+      root.context.scale_mode = MODES[@mode_index]
+    end
   end
 
-  # `view` is the region being drawn into. Under fullscreen it is the screen;
-  # windowed it is the window. Reading it rather than WIDTH/HEIGHT is the whole
-  # reason the border below keeps up.
-  def _draw(renderer, view)
-    right = view.width - INSET
-    bottom = view.height - INSET
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Scene.new,
+      caption: 'Fullscreen',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES,
+      fullscreen: START_FULLSCREEN,
+      scale_mode: SCALE_MODE,
+      # :fullscreen is this game's own action; everything else comes from the
+      # default map. F is a convention players already know.
+      input_map: Engine::InputMap.default.merge(
+        fullscreen: { buttons: [Controls::KEY_F, Controls::PAD_Y] }
+      )
+    )
 
-    renderer.line(INSET, INSET, right, INSET, thickness: THICK, color: EDGE)
-    renderer.line(INSET, bottom, right, bottom, thickness: THICK, color: EDGE)
-    renderer.line(INSET, INSET, INSET, bottom, thickness: THICK, color: EDGE)
-    renderer.line(right, INSET, right, bottom, thickness: THICK, color: EDGE)
-
-    # Corner marks, so the border is not just a rectangle of unknown size: they
-    # stay put while the edges between them move.
-    renderer.rect(INSET, INSET, MARK, THICK, color: CORNER)
-    renderer.rect(INSET, INSET, THICK, MARK, color: CORNER)
-    renderer.rect(right - MARK, bottom - THICK, MARK, THICK, color: CORNER)
-    renderer.rect(right - THICK, bottom - MARK, THICK, MARK, color: CORNER)
-
-    # Round under every mode but :stretch, which scales the axes by different
-    # factors and turns it into an ellipse. One shape says more about what a
-    # mode does than the two lines of text below it.
-    renderer.circle(view.width / 2, view.height / 2, view.height / 5, color: DISC)
-
-    renderer.text(STATE.fetch(root.context.fullscreen?), INSET + 12, INSET + 12)
-    renderer.text(MODE_LABEL.fetch(MODES[@mode_index]), INSET + 12, INSET + 34)
-  end
-
-  private
-
-  def cycle_mode(step)
-    @mode_index = (@mode_index + step) % MODES.length
-    root.context.scale_mode = MODES[@mode_index]
+    game.start
   end
 end
 
-game = RGame::Game.new(
-  root: Scene.new,
-  caption: 'Fullscreen',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES,
-  fullscreen: START_FULLSCREEN,
-  scale_mode: SCALE_MODE,
-  # :fullscreen is this game's own action; everything else comes from the
-  # default map. F is a convention players already know.
-  input_map: RGame::Engine::InputMap.default.merge(
-    fullscreen: { buttons: [Controls::KEY_F, Controls::PAD_Y] }
-  )
-)
-
-game.start
+FullscreenExample.start

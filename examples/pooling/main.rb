@@ -91,174 +91,187 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module PoolingExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-SPAWN_EVERY = 0.05 # seconds
-PER_BURST   = 4
-SPEED_MIN   = 70.0
-SPEED_MAX   = 210.0
-SAMPLE      = 1.0 # how often the allocation readout is taken
-DEFAULT_SEED = 0x9001
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-# Far enough out that a mote is well off the screen before it is retired, so the
-# despawn is never something you can see happening.
-DESPAWN_MARGIN = 30.0
+  SPAWN_EVERY = 0.05 # seconds
+  PER_BURST   = 4
+  SPEED_MIN   = 70.0
+  SPEED_MAX   = 210.0
+  SAMPLE      = 1.0 # how often the allocation readout is taken
+  DEFAULT_SEED = 0x9001
 
-# A blank when the factory builds it, a particular mote when `reset` is done with
-# it. Both of its components are added here rather than in `_enter_tree`, because a
-# pooled node re-enters the tree on every spawn and `_enter_tree` fires every time.
-class Mote < RGame::Engine::Node2D
-  SIZE = 7
+  # Far enough out that a mote is well off the screen before it is retired, so the
+  # despawn is never something you can see happening.
+  DESPAWN_MARGIN = 30.0
 
-  def initialize
-    super(width: SIZE, height: SIZE)
-    @velocity = add_component(RGame::Engine::Components::Velocity.new)
-    add_component(RGame::Engine::Components::DespawnOffscreen.new(margin: DESPAWN_MARGIN))
-    @color = RGame::Util::Color.new(255, 255, 255)
+  # A blank when the factory builds it, a particular mote when `reset` is done with
+  # it. Both of its components are added here rather than in `_enter_tree`, because a
+  # pooled node re-enters the tree on every spawn and `_enter_tree` fires every time.
+  class Mote < Engine::Node2D
+    SIZE = 7
+
+    def initialize
+      super(width: SIZE, height: SIZE)
+      @velocity = add_component(Engine::Components::Velocity.new)
+      add_component(Engine::Components::DespawnOffscreen.new(margin: DESPAWN_MARGIN))
+      @color = Util::Color.new(255, 255, 255)
+    end
+
+    # Run by the spawner before this node enters the tree, which is the seam a
+    # factory that builds blanks needs. Returns self so a fresh mote can be built
+    # and placed in one expression.
+    def reset(x, y, vx, vy, color)
+      self.x = x
+      self.y = y
+      @velocity.vx = vx
+      @velocity.vy = vy
+      @color = color
+      self
+    end
+
+    def _draw(renderer, _view) = renderer.rect(-SIZE / 2, -SIZE / 2, SIZE, SIZE, color: @color)
   end
 
-  # Run by the spawner before this node enters the tree, which is the seam a
-  # factory that builds blanks needs. Returns self so a fresh mote can be built
-  # and placed in one expression.
-  def reset(x, y, vx, vy, color)
-    self.x = x
-    self.y = y
-    @velocity.vx = vx
-    @velocity.vy = vy
-    @color = color
-    self
-  end
+  # Emits motes on a cadence, either from a pool or by building each one, and the
+  # only difference between the two paths is the line that gets the node.
+  class Spawner < Engine::Node2D
+    POOLED = Util::Color.new(120, 210, 150)
+    FRESH  = Util::Color.new(235, 120, 100)
 
-  def _draw(renderer, _view) = renderer.rect(-SIZE / 2, -SIZE / 2, SIZE, SIZE, color: @color)
-end
+    def initialize(**)
+      super
+      @pooled = true
+    end
 
-# Emits motes on a cadence, either from a pool or by building each one, and the
-# only difference between the two paths is the line that gets the node.
-class Spawner < RGame::Engine::Node2D
-  POOLED = RGame::Util::Color.new(120, 210, 150)
-  FRESH  = RGame::Util::Color.new(235, 120, 100)
+    def pooled? = @pooled
+    def toggle = @pooled = !@pooled
+    # Children, not `@pool.size`: both paths attach the mote as a child of this
+    # node, and only one of them involves a pool. Counting the pool would make the
+    # bar vanish in fresh mode and hide the thing being compared.
+    def live = children.size
 
-  def initialize(**)
-    super
-    @pooled = true
-  end
+    def _enter_tree
+      @rng = system!(Engine::Components::RandomSource)
+      @pool = add_component(Engine::Components::Pool.new { Mote.new })
+      add_component(Engine::Components::Timer.new(SPAWN_EVERY))
+        .on_elapsed { PER_BURST.times { emit } }
+    end
 
-  def pooled? = @pooled
-  def toggle = @pooled = !@pooled
-  # Children, not `@pool.size`: both paths attach the mote as a child of this
-  # node, and only one of them involves a pool. Counting the pool would make the
-  # bar vanish in fresh mode and hide the thing being compared.
-  def live = children.size
+    private
 
-  def _enter_tree
-    @rng = system!(RGame::Engine::Components::RandomSource)
-    @pool = add_component(RGame::Engine::Components::Pool.new { Mote.new })
-    add_component(RGame::Engine::Components::Timer.new(SPAWN_EVERY))
-      .on_elapsed { PER_BURST.times { emit } }
-  end
+    def emit
+      if @pooled
+        # Acquire, initialise, attach — one call, and the reclaim is already
+        # arranged for.
+        @pool.spawn { |mote| place(mote) }
+      else
+        # The same three steps written out, and a new object every single time.
+        # Nothing else about the mote or the frame differs.
+        add_node(place(Mote.new))
+      end
+    end
 
-  private
-
-  def emit
-    if @pooled
-      # Acquire, initialise, attach — one call, and the reclaim is already
-      # arranged for.
-      @pool.spawn { |mote| place(mote) }
-    else
-      # The same three steps written out, and a new object every single time.
-      # Nothing else about the mote or the frame differs.
-      add_node(place(Mote.new))
+    def place(mote)
+      angle = @rng.rand * Math::PI * 2
+      speed = SPEED_MIN + (@rng.rand * (SPEED_MAX - SPEED_MIN))
+      mote.reset(0, 0, Math.cos(angle) * speed, Math.sin(angle) * speed,
+                 @pooled ? POOLED : FRESH)
     end
   end
 
-  def place(mote)
-    angle = @rng.rand * Math::PI * 2
-    speed = SPEED_MIN + (@rng.rand * (SPEED_MAX - SPEED_MIN))
-    mote.reset(0, 0, Math.cos(angle) * speed, Math.sin(angle) * speed,
-               @pooled ? POOLED : FRESH)
+  # Samples the allocation counter once a second and shows the difference.
+  #
+  # A per-frame readout is the one thing a cached Text cannot help with — a value
+  # that changes every frame has to be rebuilt every frame. Sampling on a slow
+  # timer makes it a value that changes once a second, which is exactly what the
+  # cache is for, and it is also the only way the number means anything: a single
+  # frame's allocations are noise.
+  class Meter < Engine::Node2D
+    INK = Util::Color.new(255, 255, 255)
+
+    def initialize(**)
+      super
+      @label = Engine::Text.new('hud.allocated', :count)
+      @count = 0
+      @last = 0
+    end
+
+    def _enter_tree
+      @last = GC.stat(:total_allocated_objects)
+      add_component(Engine::Components::Timer.new(SAMPLE)).on_elapsed { sample }
+    end
+
+    def _draw(renderer, _view) = renderer.text(@label.with(count: @count), 0, 0, color: INK)
+
+    private
+
+    def sample
+      now = GC.stat(:total_allocated_objects)
+      @count = now - @last
+      @last = now
+    end
+  end
+
+  class Scene < Engine::Node2D
+    BACKDROP = Util::Color.new(26, 30, 38)
+    BAR = Util::Color.new(90, 100, 124)
+    BAR_X = 12
+    BAR_Y = 86
+    BAR_H = 14
+    BAR_SCALE = 2.4 # pixels per live mote
+
+    MODE = { true => Engine::Text.new('status.pooled'),
+             false => Engine::Text.new('status.fresh') }.freeze
+
+    def initialize
+      super
+      # Mounted outside the tree, so every DespawnOffscreen that attaches later
+      # finds it — the same ordering the wrap in `examples/velocity` depends on.
+      add_component(Engine::Components::World.new(width: WIDTH, height: HEIGHT))
+    end
+
+    def _enter_tree
+      @spawner = add_node(Spawner.new(x: WIDTH / 2, y: HEIGHT / 2))
+      @meter = add_node(Meter.new(x: 12, y: 34))
+    end
+
+    def _control(actions)
+      @spawner.toggle if actions.pressed?(:fire)
+    end
+
+    def _draw(renderer, view)
+      renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
+      renderer.text(MODE.fetch(@spawner.pooled?), 12, 12)
+      # The live count as a bar rather than a number: it changes most frames, and
+      # a label rebuilt every frame is the allocation this example is about.
+      renderer.rect(BAR_X, BAR_Y, @spawner.live * BAR_SCALE, BAR_H, color: BAR)
+    end
+  end
+
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Scene.new,
+      caption: 'Pooling',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES,
+      seed: DEFAULT_SEED
+    )
+
+    game.start
   end
 end
 
-# Samples the allocation counter once a second and shows the difference.
-#
-# A per-frame readout is the one thing a cached Text cannot help with — a value
-# that changes every frame has to be rebuilt every frame. Sampling on a slow
-# timer makes it a value that changes once a second, which is exactly what the
-# cache is for, and it is also the only way the number means anything: a single
-# frame's allocations are noise.
-class Meter < RGame::Engine::Node2D
-  INK = RGame::Util::Color.new(255, 255, 255)
-
-  def initialize(**)
-    super
-    @label = RGame::Engine::Text.new('hud.allocated', :count)
-    @count = 0
-    @last = 0
-  end
-
-  def _enter_tree
-    @last = GC.stat(:total_allocated_objects)
-    add_component(RGame::Engine::Components::Timer.new(SAMPLE)).on_elapsed { sample }
-  end
-
-  def _draw(renderer, _view) = renderer.text(@label.with(count: @count), 0, 0, color: INK)
-
-  private
-
-  def sample
-    now = GC.stat(:total_allocated_objects)
-    @count = now - @last
-    @last = now
-  end
-end
-
-class Scene < RGame::Engine::Node2D
-  BACKDROP = RGame::Util::Color.new(26, 30, 38)
-  BAR = RGame::Util::Color.new(90, 100, 124)
-  BAR_X = 12
-  BAR_Y = 86
-  BAR_H = 14
-  BAR_SCALE = 2.4 # pixels per live mote
-
-  MODE = { true => RGame::Engine::Text.new('status.pooled'),
-           false => RGame::Engine::Text.new('status.fresh') }.freeze
-
-  def initialize
-    super
-    # Mounted outside the tree, so every DespawnOffscreen that attaches later
-    # finds it — the same ordering the wrap in `examples/velocity` depends on.
-    add_component(RGame::Engine::Components::World.new(width: WIDTH, height: HEIGHT))
-  end
-
-  def _enter_tree
-    @spawner = add_node(Spawner.new(x: WIDTH / 2, y: HEIGHT / 2))
-    @meter = add_node(Meter.new(x: 12, y: 34))
-  end
-
-  def _control(actions)
-    @spawner.toggle if actions.pressed?(:fire)
-  end
-
-  def _draw(renderer, view)
-    renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
-    renderer.text(MODE.fetch(@spawner.pooled?), 12, 12)
-    # The live count as a bar rather than a number: it changes most frames, and
-    # a label rebuilt every frame is the allocation this example is about.
-    renderer.rect(BAR_X, BAR_Y, @spawner.live * BAR_SCALE, BAR_H, color: BAR)
-  end
-end
-
-game = RGame::Game.new(
-  root: Scene.new,
-  caption: 'Pooling',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES,
-  seed: DEFAULT_SEED
-)
-
-game.start
+PoolingExample.start

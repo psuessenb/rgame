@@ -60,149 +60,162 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-Controls = RGame::Util::Controls
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module SaveLoadExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+  Controls = Util::Controls
 
-DOG_SPEED   = 150.0
-SHEEP_SPEED = 40.0
-SHEEP_COUNT = 8
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-# Seeded, so a fresh run with no save always lays the flock out the same way and
-# two driven runs can be compared.
-DEFAULT_SEED = 0x5EED
+  DOG_SPEED   = 150.0
+  SHEEP_SPEED = 40.0
+  SHEEP_COUNT = 8
 
-class Pasture < RGame::Engine::Node2D
-  GRASS = RGame::Util::Color.new(96, 140, 84)
-  DOG   = RGame::Util::Color.new(70, 50, 40)
-  SHEEP = RGame::Util::Color.new(240, 240, 235)
-  DOG_R = 11
-  SHEEP_R = 9
+  # Seeded, so a fresh run with no save always lays the flock out the same way and
+  # two driven runs can be compared.
+  DEFAULT_SEED = 0x5EED
 
-  STATUS = { saved: RGame::Engine::Text.new('status.saved'),
-             loaded: RGame::Engine::Text.new('status.loaded'),
-             deleted: RGame::Engine::Text.new('status.deleted'),
-             fresh: RGame::Engine::Text.new('status.fresh'),
-             restored: RGame::Engine::Text.new('status.restored') }.freeze
+  class Pasture < Engine::Node2D
+    GRASS = Util::Color.new(96, 140, 84)
+    DOG   = Util::Color.new(70, 50, 40)
+    SHEEP = Util::Color.new(240, 240, 235)
+    DOG_R = 11
+    SHEEP_R = 9
 
-  def initialize(save:, **)
-    super(**)
-    @save = save
-    @help = RGame::Engine::Text.new('help.walk')
-    @keys = RGame::Engine::Text.new('help.keys')
-    @flock = []
-    @status = :fresh
-  end
+    STATUS = { saved: Engine::Text.new('status.saved'),
+               loaded: Engine::Text.new('status.loaded'),
+               deleted: Engine::Text.new('status.deleted'),
+               fresh: Engine::Text.new('status.fresh'),
+               restored: Engine::Text.new('status.restored') }.freeze
 
-  def _enter_tree
-    rng = system!(RGame::Engine::Components::RandomSource)
-    # Built first, always, and identically. The save does not decide what exists
-    # — only where it is.
-    @dog = add_node(build_walker(RGame::Engine::Components::PlayerController.new,
-                                 DOG_SPEED, WIDTH / 2, HEIGHT / 2))
-    SHEEP_COUNT.times do
-      @flock << add_node(build_walker(
-                           RGame::Engine::Components::WanderController.new,
-                           SHEEP_SPEED, rng.rand(WIDTH - 40) + 20, rng.rand(HEIGHT - 80) + 60
-                         ))
+    def initialize(save:, **)
+      super(**)
+      @save = save
+      @help = Engine::Text.new('help.walk')
+      @keys = Engine::Text.new('help.keys')
+      @flock = []
+      @status = :fresh
     end
 
-    return unless @save.exist?
+    def _enter_tree
+      rng = system!(Engine::Components::RandomSource)
+      # Built first, always, and identically. The save does not decide what exists
+      # — only where it is.
+      @dog = add_node(build_walker(Engine::Components::PlayerController.new,
+                                   DOG_SPEED, WIDTH / 2, HEIGHT / 2))
+      SHEEP_COUNT.times do
+        @flock << add_node(build_walker(
+                             Engine::Components::WanderController.new,
+                             SHEEP_SPEED, rng.rand(WIDTH - 40) + 20, rng.rand(HEIGHT - 80) + 60
+                           ))
+      end
 
-    load_state
-    @status = :restored
+      return unless @save.exist?
+
+      load_state
+      @status = :restored
+    end
+
+    def _control(actions)
+      save_state if actions.pressed?(:save)
+      load_state if actions.pressed?(:load)
+      drop_save if actions.pressed?(:drop)
+    end
+
+    def _draw(renderer, view)
+      renderer.rect(0, 0, view.width, view.height, color: GRASS)
+      @flock.each { |sheep| renderer.circle(sheep.x, sheep.y, SHEEP_R, color: SHEEP) }
+      renderer.circle(@dog.x, @dog.y, DOG_R, color: DOG)
+
+      renderer.text(@help, 12, 12)
+      renderer.text(@keys, 12, 34)
+      renderer.text(STATUS.fetch(@status), 12, 56)
+    end
+
+    private
+
+    # The whole save: two facts, written as plain numbers.
+    #
+    # Reading `sheep.x` from outside the node is fine here and is not the thing
+    # Game/DrawInLocalSpace forbids — that rule is about a node reading its *own*
+    # position while drawing, when its transform has already been applied.
+    def save_state
+      @save.write(dog: [@dog.x, @dog.y], sheep: @flock.map { |sheep| [sheep.x, sheep.y] })
+      @status = :saved
+    end
+
+    def load_state
+      state = @save.read
+      place(@dog, state[:dog])
+      # `zip` stops at the shorter of the two, so a save written when the flock
+      # was a different size restores what it can instead of raising. That is the
+      # cheap half of the versioning problem; the expensive half is a save whose
+      # *shape* changed, which needs a version number in the file.
+      @flock.zip(state.fetch(:sheep, [])) { |sheep, position| place(sheep, position) }
+      @status = :loaded
+    end
+
+    def drop_save
+      @save.delete
+      @status = :deleted
+    end
+
+    def place(node, position)
+      return if position.nil?
+
+      node.x, node.y = position
+    end
+
+    def build_walker(controller, speed, x, y)
+      node = Engine::Node2D.new(x: x, y: y)
+      node.add_component(Engine::Components::CharacterBody.new(speed: speed))
+      node.add_component(controller)
+      node
+    end
   end
 
-  def _control(actions)
-    save_state if actions.pressed?(:save)
-    load_state if actions.pressed?(:load)
-    drop_save if actions.pressed?(:drop)
-  end
+  # Builds the game and runs it until the window closes.
+  def self.start
+    # `dir:` is normally left out, and the file lands in the platform's own data
+    # directory — ~/.local/share, Application Support or %APPDATA%. It is overridable
+    # here so a driven run can write somewhere disposable instead of into the home
+    # directory of whoever happens to be running it.
+    save = Util::SaveFile.new('pasture.json', game: 'rgame-examples',
+                                              dir: ENV.fetch('RGAME_SAVE_DIR', nil))
 
-  def _draw(renderer, view)
-    renderer.rect(0, 0, view.width, view.height, color: GRASS)
-    @flock.each { |sheep| renderer.circle(sheep.x, sheep.y, SHEEP_R, color: SHEEP) }
-    renderer.circle(@dog.x, @dog.y, DOG_R, color: DOG)
+    game = RGame::Game.new(
+      root: Pasture.new(save: save),
+      caption: 'Save and load',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES,
+      seed: DEFAULT_SEED,
+      # F5 and F9 rather than S and L, and the reason is worth knowing: **a key
+      # already in the default map keeps doing its default job too.** `move_y` is
+      # bound to W and S, so an action added on S saves *and* walks the dog
+      # downwards — both fire, because two actions may read one key. Nothing is
+      # broken and nothing warns; the game just moves when you asked it to save.
+      #
+      # F5 and F9 are free, and are what a player already expects quicksave and
+      # quickload to be. F1 and F2 are not free: RGame::Game keeps those for the
+      # debug overlay and quit.
+      input_map: Engine::InputMap.default.merge(
+        save: { buttons: [Controls::KEY_F5] },
+        load: { buttons: [Controls::KEY_F9] },
+        drop: { buttons: [Controls::KEY_DELETE] }
+      )
+    )
 
-    renderer.text(@help, 12, 12)
-    renderer.text(@keys, 12, 34)
-    renderer.text(STATUS.fetch(@status), 12, 56)
-  end
-
-  private
-
-  # The whole save: two facts, written as plain numbers.
-  #
-  # Reading `sheep.x` from outside the node is fine here and is not the thing
-  # Game/DrawInLocalSpace forbids — that rule is about a node reading its *own*
-  # position while drawing, when its transform has already been applied.
-  def save_state
-    @save.write(dog: [@dog.x, @dog.y], sheep: @flock.map { |sheep| [sheep.x, sheep.y] })
-    @status = :saved
-  end
-
-  def load_state
-    state = @save.read
-    place(@dog, state[:dog])
-    # `zip` stops at the shorter of the two, so a save written when the flock
-    # was a different size restores what it can instead of raising. That is the
-    # cheap half of the versioning problem; the expensive half is a save whose
-    # *shape* changed, which needs a version number in the file.
-    @flock.zip(state.fetch(:sheep, [])) { |sheep, position| place(sheep, position) }
-    @status = :loaded
-  end
-
-  def drop_save
-    @save.delete
-    @status = :deleted
-  end
-
-  def place(node, position)
-    return if position.nil?
-
-    node.x, node.y = position
-  end
-
-  def build_walker(controller, speed, x, y)
-    node = RGame::Engine::Node2D.new(x: x, y: y)
-    node.add_component(RGame::Engine::Components::CharacterBody.new(speed: speed))
-    node.add_component(controller)
-    node
+    game.start
   end
 end
 
-# `dir:` is normally left out, and the file lands in the platform's own data
-# directory — ~/.local/share, Application Support or %APPDATA%. It is overridable
-# here so a driven run can write somewhere disposable instead of into the home
-# directory of whoever happens to be running it.
-save = RGame::Util::SaveFile.new('pasture.json', game: 'rgame-examples',
-                                                 dir: ENV.fetch('RGAME_SAVE_DIR', nil))
-
-game = RGame::Game.new(
-  root: Pasture.new(save: save),
-  caption: 'Save and load',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES,
-  seed: DEFAULT_SEED,
-  # F5 and F9 rather than S and L, and the reason is worth knowing: **a key
-  # already in the default map keeps doing its default job too.** `move_y` is
-  # bound to W and S, so an action added on S saves *and* walks the dog
-  # downwards — both fire, because two actions may read one key. Nothing is
-  # broken and nothing warns; the game just moves when you asked it to save.
-  #
-  # F5 and F9 are free, and are what a player already expects quicksave and
-  # quickload to be. F1 and F2 are not free: RGame::Game keeps those for the
-  # debug overlay and quit.
-  input_map: RGame::Engine::InputMap.default.merge(
-    save: { buttons: [Controls::KEY_F5] },
-    load: { buttons: [Controls::KEY_F9] },
-    drop: { buttons: [Controls::KEY_DELETE] }
-  )
-)
-
-game.start
+SaveLoadExample.start

@@ -128,7 +128,7 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
         source = File.read(File.expand_path("../examples/#{example}/main.rb", __dir__))
         # Anchored at the start of a line, so the header's prose cannot be read
         # as the table.
-        table = source[/^  ICONS = \[(.+?)\]\.freeze/m, 1]
+        table = source[/^\s*ICONS = \[(.+?)\]\.freeze/m, 1]
         # Each row is `%i[key image]`: the translation key, then the icon.
         named = table.scan(/%i\[\w+ (\w+)\]/).flatten.map(&:to_sym)
 
@@ -158,7 +158,7 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
       source = File.read(File.expand_path('../examples/skill_bar/main.rb', __dir__))
       # Anchored at the start of a line, so the header's prose cannot be read
       # as the table.
-      table = source[/^  SKILLS = \[(.+?)\]\.freeze/m, 1]
+      table = source[/^\s*SKILLS = \[(.+?)\]\.freeze/m, 1]
       # Each row is `%i[key image hotkey]`: the image is the second word.
       named = table.scan(/%i\[\w+ (\w+) \w+\]/).flatten.map(&:to_sym)
 
@@ -179,7 +179,7 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
       source = File.read(File.expand_path('../examples/input_glyphs/main.rb', __dir__))
       # Anchored at the start of a line: the file's own header quotes the table
       # in prose, and an unanchored match reads the comment instead.
-      table = source[/^GLYPH_COLUMN = \{(.+?)\}\.freeze/m, 1]
+      table = source[/^\s*GLYPH_COLUMN = \{(.+?)\}\.freeze/m, 1]
       table.scan(/Controls::(\w+)\s*=>\s*(\d+)/).to_h { |name, column| [name, Integer(column)] }
     end
 
@@ -230,7 +230,7 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
       # of one fact, free to drift the moment the track is replaced. It was
       # replaced once already.
       source = File.read(File.expand_path('../examples/music/main.rb', __dir__))
-      declared = source[/^LOOP_SECONDS\s*=\s*([0-9.]+)/, 1].to_f
+      declared = source[/^\s*LOOP_SECONDS\s*=\s*([0-9.]+)/, 1].to_f
 
       expect(ogg_seconds(File.join(assets, 'music.ogg'))).to be_within(0.05).of(declared)
     end

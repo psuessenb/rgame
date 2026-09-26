@@ -50,77 +50,90 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml and de.yml
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module IntroExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-HOLD_SECONDS = 1.0 # how long a page stays up once shown, before its characters are counted
-HOLD_PER_CHARACTER = 0.02
-REVEAL = 40 # characters a second
-TEXT_WIDTH = 440
-LINES_PER_PAGE = 3
+  WIDTH  = 640
+  HEIGHT = 480
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml and de.yml
 
-# The black screen, the story on it, and the hint beneath.
-class Intro < RGame::Engine::Node2D
-  BLACK = RGame::Util::Color.new(0, 0, 0)
-  HINT_COLOR = RGame::Util::Color.new(120, 116, 128)
-  FACE = RGame::Util::Typeface.default(24)
+  HOLD_SECONDS = 1.0 # how long a page stays up once shown, before its characters are counted
+  HOLD_PER_CHARACTER = 0.02
+  REVEAL = 40 # characters a second
+  TEXT_WIDTH = 440
+  LINES_PER_PAGE = 3
 
-  def initialize
-    super
-    @story = add_node(RGame::Engine::UI::Label.new(
-                        text: 'intro.story', x: (WIDTH - TEXT_WIDTH) / 2,
-                        y: (HEIGHT - (LINES_PER_PAGE * FACE.height)) / 2, width: TEXT_WIDTH,
-                        typeface: FACE, lines_per_page: LINES_PER_PAGE, align: :center, reveal: REVEAL
-                      ))
-    @hint = RGame::Engine::Text.new('hint.next')
-    @turn = add_component(RGame::Engine::Components::Tween.new(HOLD_SECONDS))
-    @turn.on_finished { turn_page }
+  # The black screen, the story on it, and the hint beneath.
+  class Intro < Engine::Node2D
+    BLACK = Util::Color.new(0, 0, 0)
+    HINT_COLOR = Util::Color.new(120, 116, 128)
+    FACE = Util::Typeface.default(24)
+
+    def initialize
+      super
+      @story = add_node(Engine::UI::Label.new(
+                          text: 'intro.story', x: (WIDTH - TEXT_WIDTH) / 2,
+                          y: (HEIGHT - (LINES_PER_PAGE * FACE.height)) / 2, width: TEXT_WIDTH,
+                          typeface: FACE, lines_per_page: LINES_PER_PAGE, align: :center, reveal: REVEAL
+                        ))
+      @hint = Engine::Text.new('hint.next')
+      @turn = add_component(Engine::Components::Tween.new(HOLD_SECONDS))
+      @turn.on_finished { turn_page }
+    end
+
+    def _enter_tree = hold_for_page
+
+    def _control(actions)
+      return unless actions.pressed?(:ui_confirm)
+
+      @story.revealed? ? turn_page : @story.reveal_all
+    end
+
+    def _update(_dt)
+      @turn.start if @turn.stopped? && @story.revealed?
+    end
+
+    def _draw(renderer, view)
+      renderer.rect(0, 0, view.width, view.height, color: BLACK)
+      return if @story.last_page?
+
+      renderer.text(@hint, (view.width - renderer.text_width(@hint)) / 2, view.height - 48, color: HINT_COLOR)
+    end
+
+    private
+
+    def turn_page
+      @story.page += 1
+      hold_for_page
+    end
+
+    def hold_for_page
+      @turn.duration = HOLD_SECONDS + (HOLD_PER_CHARACTER * @story.page_length)
+      @turn.stop
+    end
   end
 
-  def _enter_tree = hold_for_page
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Intro.new,
+      caption: 'Intro',
+      width: WIDTH,
+      height: HEIGHT,
+      locales: LOCALES
+    )
 
-  def _control(actions)
-    return unless actions.pressed?(:ui_confirm)
+    # The language follows the operating system. Un-comment the next line to see the
+    # intro in German whatever the system is set to; it must come after Game.new,
+    # which picks the language as it loads the tables.
+    # Engine::I18n.locale = :de
 
-    @story.revealed? ? turn_page : @story.reveal_all
-  end
-
-  def _update(_dt)
-    @turn.start if @turn.stopped? && @story.revealed?
-  end
-
-  def _draw(renderer, view)
-    renderer.rect(0, 0, view.width, view.height, color: BLACK)
-    return if @story.last_page?
-
-    renderer.text(@hint, (view.width - renderer.text_width(@hint)) / 2, view.height - 48, color: HINT_COLOR)
-  end
-
-  private
-
-  def turn_page
-    @story.page += 1
-    hold_for_page
-  end
-
-  def hold_for_page
-    @turn.duration = HOLD_SECONDS + (HOLD_PER_CHARACTER * @story.page_length)
-    @turn.stop
+    game.start
   end
 end
 
-game = RGame::Game.new(
-  root: Intro.new,
-  caption: 'Intro',
-  width: WIDTH,
-  height: HEIGHT,
-  locales: LOCALES
-)
-
-# The language follows the operating system. Un-comment the next line to see the
-# intro in German whatever the system is set to; it must come after Game.new,
-# which picks the language as it loads the tables.
-# RGame::Engine::I18n.locale = :de
-
-game.start
+IntroExample.start

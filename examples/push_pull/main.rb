@@ -46,131 +46,144 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-LOCALES = File.expand_path('locales', __dir__)
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module PushPullExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-Color = RGame::Util::Color
+  WIDTH  = 640
+  HEIGHT = 480
+  LOCALES = File.expand_path('locales', __dir__)
 
-CELL_SIZE = 64
-SPEED = 90.0
-HERO_SIZE = 16
-CRATE_SIZE = 24
-WALL = 16
-REACH = 30.0
+  Color = Util::Color
 
-BACKDROP = Color.new(34, 36, 44)
-WALLS    = Color.new(90, 94, 110)
-CRATE    = Color.new(176, 128, 72)
-HELD     = Color.new(226, 180, 96)
-HERO     = Color.new(110, 170, 240)
-HUD      = Color.new(220, 224, 236)
+  CELL_SIZE = 64
+  SPEED = 90.0
+  HERO_SIZE = 16
+  CRATE_SIZE = 24
+  WALL = 16
+  REACH = 30.0
 
-# A wall: a box on the `:wall` layer, drawn as itself. Everything that moves in
-# this room declares `:wall` in `blocked_by:`.
-class Wall < RGame::Engine::Node2D
-  def initialize(width:, height:, **)
-    super(**)
-    @width = width
-    @height = height
-    add_component(RGame::Engine::Components::BoxCollider.new(width:, height:, layer: :wall))
+  BACKDROP = Color.new(34, 36, 44)
+  WALLS    = Color.new(90, 94, 110)
+  CRATE    = Color.new(176, 128, 72)
+  HELD     = Color.new(226, 180, 96)
+  HERO     = Color.new(110, 170, 240)
+  HUD      = Color.new(220, 224, 236)
+
+  # A wall: a box on the `:wall` layer, drawn as itself. Everything that moves in
+  # this room declares `:wall` in `blocked_by:`.
+  class Wall < Engine::Node2D
+    def initialize(width:, height:, **)
+      super(**)
+      @width = width
+      @height = height
+      add_component(Engine::Components::BoxCollider.new(width:, height:, layer: :wall))
+    end
+
+    def _draw(renderer, _view) = renderer.rect(0, 0, @width, @height, color: WALLS)
   end
 
-  def _draw(renderer, _view) = renderer.rect(0, 0, @width, @height, color: WALLS)
-end
+  # A crate: a box, and a Pushable that says what stops it. `held` is set by the
+  # room so the crate in hand draws brighter.
+  class Crate < Engine::Node2D
+    attr_writer :held
 
-# A crate: a box, and a Pushable that says what stops it. `held` is set by the
-# room so the crate in hand draws brighter.
-class Crate < RGame::Engine::Node2D
-  attr_writer :held
+    def initialize(**)
+      super
+      @held = false
+      add_component(Engine::Components::BoxCollider.new(width: CRATE_SIZE, height: CRATE_SIZE,
+                                                        layer: :crate))
+      add_component(Engine::Components::Pushable.new(blocked_by: %i[wall crate hero],
+                                                     pushes: [:crate]))
+    end
 
-  def initialize(**)
-    super
-    @held = false
-    add_component(RGame::Engine::Components::BoxCollider.new(width: CRATE_SIZE, height: CRATE_SIZE,
-                                                             layer: :crate))
-    add_component(RGame::Engine::Components::Pushable.new(blocked_by: %i[wall crate hero],
+    def _draw(renderer, _view) = renderer.rect(0, 0, CRATE_SIZE, CRATE_SIZE, color: @held ? HELD : CRATE)
+  end
+
+  # The hero: a square whose origin is its centre, so Grab's range — measured from
+  # the node's origin — reaches as far on every side.
+  class Hero < Engine::Node2D
+    HALF = HERO_SIZE / 2
+
+    def initialize(**)
+      super
+      add_component(Engine::Components::BoxCollider.new(width: HERO_SIZE, height: HERO_SIZE,
+                                                        offset_x: -HALF, offset_y: -HALF,
+                                                        layer: :hero))
+      add_component(Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: %i[wall crate],
                                                           pushes: [:crate]))
+      add_component(Engine::Components::PlayerController.new)
+      @grab = add_component(Engine::Components::Grab.new(layer: :crate, range: REACH))
+    end
+
+    # The crate in hand, or nil.
+    def holding = @grab.holding
+
+    def _draw(renderer, _view) = renderer.rect(-HALF, -HALF, HERO_SIZE, HERO_SIZE, color: HERO)
   end
 
-  def _draw(renderer, _view) = renderer.rect(0, 0, CRATE_SIZE, CRATE_SIZE, color: @held ? HELD : CRATE)
-end
+  # The room: four walls and a pillar, six crates, the hero, and the line that
+  # says what the hero is holding.
+  class Room < Engine::Node2D
+    WALLS = [
+      [0, 64, WIDTH, WALL], [0, HEIGHT - WALL, WIDTH, WALL],
+      [0, 64, WALL, HEIGHT - 64], [WIDTH - WALL, 64, WALL, HEIGHT - 64],
+      [300, 200, 40, 120]
+    ].freeze
 
-# The hero: a square whose origin is its centre, so Grab's range — measured from
-# the node's origin — reaches as far on every side.
-class Hero < RGame::Engine::Node2D
-  HALF = HERO_SIZE / 2
+    CRATES = [[200, 150], [440, 150], [120, 300], [200, 420], [224, 420], [248, 420]].freeze
 
-  def initialize(**)
-    super
-    add_component(RGame::Engine::Components::BoxCollider.new(width: HERO_SIZE, height: HERO_SIZE,
-                                                             offset_x: -HALF, offset_y: -HALF,
-                                                             layer: :hero))
-    add_component(RGame::Engine::Components::CharacterBody.new(speed: SPEED, blocked_by: %i[wall crate],
-                                                               pushes: [:crate]))
-    add_component(RGame::Engine::Components::PlayerController.new)
-    @grab = add_component(RGame::Engine::Components::Grab.new(layer: :crate, range: REACH))
+    STATUS = {
+      free: Engine::Text.new('hud.free'),
+      holding: Engine::Text.new('hud.holding')
+    }.freeze
+
+    def initialize
+      super
+      add_component(Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
+      @help_walk = Engine::Text.new('help.walk')
+      @help_grab = Engine::Text.new('help.grab')
+      @held = nil
+    end
+
+    def _enter_tree
+      WALLS.each { |x, y, width, height| add_node(Wall.new(x:, y:, width:, height:)) }
+      @crates = CRATES.map { |x, y| add_node(Crate.new(x:, y:)) }
+      @hero = add_node(Hero.new(x: 120, y: 160))
+    end
+
+    def _update(_dt)
+      holding = @hero.holding
+      return if holding.equal?(@held)
+
+      @held&.held = false
+      holding&.held = true
+      @held = holding
+    end
+
+    def _draw(renderer, view)
+      renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
+      renderer.text(@help_walk, 12, 10, color: HUD)
+      renderer.text(@help_grab, 12, 30, color: HUD)
+      renderer.text(STATUS.fetch(@held ? :holding : :free), 440, 30, color: HUD)
+    end
   end
 
-  # The crate in hand, or nil.
-  def holding = @grab.holding
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Room.new,
+      caption: 'Push and pull',
+      width: WIDTH,
+      height: HEIGHT,
+      locales: LOCALES
+    )
 
-  def _draw(renderer, _view) = renderer.rect(-HALF, -HALF, HERO_SIZE, HERO_SIZE, color: HERO)
-end
-
-# The room: four walls and a pillar, six crates, the hero, and the line that
-# says what the hero is holding.
-class Room < RGame::Engine::Node2D
-  WALLS = [
-    [0, 64, WIDTH, WALL], [0, HEIGHT - WALL, WIDTH, WALL],
-    [0, 64, WALL, HEIGHT - 64], [WIDTH - WALL, 64, WALL, HEIGHT - 64],
-    [300, 200, 40, 120]
-  ].freeze
-
-  CRATES = [[200, 150], [440, 150], [120, 300], [200, 420], [224, 420], [248, 420]].freeze
-
-  STATUS = {
-    free: RGame::Engine::Text.new('hud.free'),
-    holding: RGame::Engine::Text.new('hud.holding')
-  }.freeze
-
-  def initialize
-    super
-    add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: CELL_SIZE))
-    @help_walk = RGame::Engine::Text.new('help.walk')
-    @help_grab = RGame::Engine::Text.new('help.grab')
-    @held = nil
-  end
-
-  def _enter_tree
-    WALLS.each { |x, y, width, height| add_node(Wall.new(x:, y:, width:, height:)) }
-    @crates = CRATES.map { |x, y| add_node(Crate.new(x:, y:)) }
-    @hero = add_node(Hero.new(x: 120, y: 160))
-  end
-
-  def _update(_dt)
-    holding = @hero.holding
-    return if holding.equal?(@held)
-
-    @held&.held = false
-    holding&.held = true
-    @held = holding
-  end
-
-  def _draw(renderer, view)
-    renderer.rect(0, 0, view.width, view.height, color: BACKDROP)
-    renderer.text(@help_walk, 12, 10, color: HUD)
-    renderer.text(@help_grab, 12, 30, color: HUD)
-    renderer.text(STATUS.fetch(@held ? :holding : :free), 440, 30, color: HUD)
+    game.start
   end
 end
 
-game = RGame::Game.new(
-  root: Room.new,
-  caption: 'Push and pull',
-  width: WIDTH,
-  height: HEIGHT,
-  locales: LOCALES
-)
-
-game.start
+PushPullExample.start

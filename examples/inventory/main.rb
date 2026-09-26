@@ -51,166 +51,179 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __dir__)
 require 'rgame/game'
 
-WIDTH  = 640
-HEIGHT = 480
-ASSETS = File.expand_path('../assets', __dir__)
-LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
+# The example's own module. `Engine` and `Util` inside it are short for
+# `RGame::Engine` and `RGame::Util`, and every name the example defines stays off
+# the top level. docs/api/README.md says why, under "A game's own module".
+module InventoryExample
+  Engine = RGame::Engine
+  Util = RGame::Util
 
-# One thing a page holds: its name, a translation under `items`, and its
-# picture, an entry of skills.json's or icons.json's `images`.
-class Item
-  attr_reader :name, :image
+  WIDTH  = 640
+  HEIGHT = 480
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__) # the text on screen: locales/en.yml
 
-  def initialize(key, image)
-    @name = RGame::Engine::Text.new(key.to_s, scope: 'items')
-    @image = image
+  # One thing a page holds: its name, a translation under `items`, and its
+  # picture, an entry of skills.json's or icons.json's `images`.
+  class Item
+    attr_reader :name, :image
+
+    def initialize(key, image)
+      @name = Engine::Text.new(key.to_s, scope: 'items')
+      @image = image
+    end
+  end
+
+  # The panel under a page's menu. It names the item last focused there, and
+  # keeps it while focus is in another menu.
+  class NamePanel < Engine::Node2D
+    attr_accessor :item
+
+    def initialize(menu:, items:, **)
+      super(**)
+      @menu = menu
+      @items = items
+      @item = nil
+      @nothing = Engine::Text.new('panel.nothing')
+    end
+
+    def _update(_dt)
+      @item = @items[@menu.focused_index] if @menu.focused
+    end
+
+    def _draw(renderer, _view)
+      renderer.nine_slice(:panel, 0, 0, 306, 56)
+      renderer.text(@item ? @item.name : @nothing, 16, 18)
+    end
+  end
+
+  # An arrow above a menu while rows are out of view above it, and one below while
+  # rows are out of view below.
+  class ScrollMarks < Engine::Node2D
+    COLOR = Util::Color::LIGHT_GRAY
+
+    def initialize(menu:, **)
+      super(**)
+      @menu = menu
+    end
+
+    def _draw(renderer, _view)
+      renderer.triangle(0, 12, 8, 0, 16, 12, color: COLOR) if @menu.rows_above.positive?
+      bottom = @menu.bounds_height
+      renderer.triangle(0, bottom - 12, 16, bottom - 12, 8, bottom, color: COLOR) if @menu.rows_below.positive?
+    end
+  end
+
+  # The tabs, the two pages under them, and the status line.
+  class Inventory < Engine::Node2D
+    UI = Engine::UI
+
+    SLOT = 64
+    ITEMS = {
+      wand: :wand, wrench: :wrench, torch: :torch, hammer: :hammer,
+      watering_can: :watering_can, star: :star, trophy: :trophy, gear: :gear,
+      oak_staff: :wand, spanner: :wrench, lantern: :torch, mallet: :hammer,
+      copper_can: :watering_can, star_shard: :star, silver_cup: :trophy, cog: :gear,
+      birch_wand: :wand, pipe_wrench: :wrench, candle: :torch, sledgehammer: :hammer
+    }.freeze
+    KEY_ITEMS = { house_key: :home, cellar_key: :locked, music_box: :music_on, horn: :audio_on }.freeze
+    SLOT_STYLE = UI::ShapeStyle.new
+    CLICK = 'blip.ogg'
+
+    def initialize(**)
+      super
+      @carried = ITEMS.map { |key, image| Item.new(key, image) }
+      @help = Engine::Text.new('help.keys')
+      @ready = Engine::Text.new('status.ready')
+      @used = Engine::Text.new('status.used', :item)
+      @dropped = Engine::Text.new('status.dropped', :item)
+      @status = @ready
+      @status_item = nil
+      tabs = add_node(UI::Tabs.new(x: 16, y: 40, layout: UI::Row.new(item_width: 120, item_height: 28), scope: 'tabs'))
+      tabs.add(UI::PanelButton.new(label: 'items'), bag_page)
+      tabs.add(UI::PanelButton.new(label: 'key_items'), key_page)
+      fill_bag
+    end
+
+    def _update(_dt)
+      @status.with(item: @status_item.name.to_s) if @status_item
+    end
+
+    def _draw(renderer, _view)
+      renderer.text(@help, 16, 12)
+      renderer.text(@status, 16, HEIGHT - 32)
+    end
+
+    private
+
+    def bag_page
+      page = Engine::Node2D.new
+      group = page.add_node(UI::FocusGroup.new)
+      grid = UI::Grid.new(columns: 4, item_width: SLOT, item_height: SLOT, spacing: 6, visible_rows: 3)
+      @bag = group.add_node(UI::PanelMenu.new(x: 16, y: 32, layout: grid))
+      verbs = group.add_node(UI::PanelMenu.new(x: 384, y: 32, layout: UI::Column.new(item_width: 160, item_height: 32),
+                                               scope: 'verbs'))
+      verbs.add(UI::PanelButton.new(label: 'use')).on_activated { use }
+      verbs.add(UI::PanelButton.new(label: 'drop')).on_activated { drop }
+      page.add_node(ScrollMarks.new(menu: @bag, x: 314, y: 32))
+      @bag_panel = page.add_node(NamePanel.new(menu: @bag, items: @carried, y: 272))
+      page
+    end
+
+    def key_page
+      page = Engine::Node2D.new
+      keys = KEY_ITEMS.map { |key, image| Item.new(key, image) }
+      grid = UI::Grid.new(columns: 4, item_width: SLOT, item_height: SLOT, spacing: 6)
+      menu = page.add_node(UI::PanelMenu.new(x: 16, y: 32, layout: grid))
+      keys.each { |item| menu.add(UI::IconButton.new(image: item.image, style: SLOT_STYLE)) }
+      page.add_node(NamePanel.new(menu: menu, items: keys, y: 272))
+      page
+    end
+
+    def fill_bag
+      @bag.clear
+      @carried.each { |item| @bag.add(UI::IconButton.new(image: item.image, style: SLOT_STYLE)) }
+    end
+
+    def use
+      report(@used) if @bag_panel.item
+    end
+
+    def drop
+      return unless @bag_panel.item
+
+      report(@dropped)
+      @carried.delete(@bag_panel.item)
+      @bag_panel.item = nil
+      fill_bag
+    end
+
+    def report(status)
+      @status = status
+      @status_item = @bag_panel.item
+      system!(Engine::AudioOut).play_sound(CLICK)
+    end
+  end
+
+  # Builds the game and runs it until the window closes.
+  def self.start
+    game = RGame::Game.new(
+      root: Inventory.new,
+      caption: 'Inventory',
+      width: WIDTH,
+      height: HEIGHT,
+      media_root: ASSETS,
+      locales: LOCALES
+    )
+
+    # The panels are nine-slices and the items are images, and each is a Symbol
+    # naming an atlas element, so all three atlases are registered once.
+    game.renderer.register_ui_atlas(game.assets.ui_atlas('ui.json'))
+    game.renderer.register_ui_atlas(game.assets.ui_atlas('skills.json'))
+    game.renderer.register_ui_atlas(game.assets.ui_atlas('icons.json'))
+
+    game.start
   end
 end
 
-# The panel under a page's menu. It names the item last focused there, and
-# keeps it while focus is in another menu.
-class NamePanel < RGame::Engine::Node2D
-  attr_accessor :item
-
-  def initialize(menu:, items:, **)
-    super(**)
-    @menu = menu
-    @items = items
-    @item = nil
-    @nothing = RGame::Engine::Text.new('panel.nothing')
-  end
-
-  def _update(_dt)
-    @item = @items[@menu.focused_index] if @menu.focused
-  end
-
-  def _draw(renderer, _view)
-    renderer.nine_slice(:panel, 0, 0, 306, 56)
-    renderer.text(@item ? @item.name : @nothing, 16, 18)
-  end
-end
-
-# An arrow above a menu while rows are out of view above it, and one below while
-# rows are out of view below.
-class ScrollMarks < RGame::Engine::Node2D
-  COLOR = RGame::Util::Color::LIGHT_GRAY
-
-  def initialize(menu:, **)
-    super(**)
-    @menu = menu
-  end
-
-  def _draw(renderer, _view)
-    renderer.triangle(0, 12, 8, 0, 16, 12, color: COLOR) if @menu.rows_above.positive?
-    bottom = @menu.bounds_height
-    renderer.triangle(0, bottom - 12, 16, bottom - 12, 8, bottom, color: COLOR) if @menu.rows_below.positive?
-  end
-end
-
-# The tabs, the two pages under them, and the status line.
-class Inventory < RGame::Engine::Node2D
-  UI = RGame::Engine::UI
-
-  SLOT = 64
-  ITEMS = {
-    wand: :wand, wrench: :wrench, torch: :torch, hammer: :hammer,
-    watering_can: :watering_can, star: :star, trophy: :trophy, gear: :gear,
-    oak_staff: :wand, spanner: :wrench, lantern: :torch, mallet: :hammer,
-    copper_can: :watering_can, star_shard: :star, silver_cup: :trophy, cog: :gear,
-    birch_wand: :wand, pipe_wrench: :wrench, candle: :torch, sledgehammer: :hammer
-  }.freeze
-  KEY_ITEMS = { house_key: :home, cellar_key: :locked, music_box: :music_on, horn: :audio_on }.freeze
-  SLOT_STYLE = UI::ShapeStyle.new
-  CLICK = 'blip.ogg'
-
-  def initialize(**)
-    super
-    @carried = ITEMS.map { |key, image| Item.new(key, image) }
-    @help = RGame::Engine::Text.new('help.keys')
-    @ready = RGame::Engine::Text.new('status.ready')
-    @used = RGame::Engine::Text.new('status.used', :item)
-    @dropped = RGame::Engine::Text.new('status.dropped', :item)
-    @status = @ready
-    @status_item = nil
-    tabs = add_node(UI::Tabs.new(x: 16, y: 40, layout: UI::Row.new(item_width: 120, item_height: 28), scope: 'tabs'))
-    tabs.add(UI::PanelButton.new(label: 'items'), bag_page)
-    tabs.add(UI::PanelButton.new(label: 'key_items'), key_page)
-    fill_bag
-  end
-
-  def _update(_dt)
-    @status.with(item: @status_item.name.to_s) if @status_item
-  end
-
-  def _draw(renderer, _view)
-    renderer.text(@help, 16, 12)
-    renderer.text(@status, 16, HEIGHT - 32)
-  end
-
-  private
-
-  def bag_page
-    page = RGame::Engine::Node2D.new
-    group = page.add_node(UI::FocusGroup.new)
-    grid = UI::Grid.new(columns: 4, item_width: SLOT, item_height: SLOT, spacing: 6, visible_rows: 3)
-    @bag = group.add_node(UI::PanelMenu.new(x: 16, y: 32, layout: grid))
-    verbs = group.add_node(UI::PanelMenu.new(x: 384, y: 32, layout: UI::Column.new(item_width: 160, item_height: 32),
-                                             scope: 'verbs'))
-    verbs.add(UI::PanelButton.new(label: 'use')).on_activated { use }
-    verbs.add(UI::PanelButton.new(label: 'drop')).on_activated { drop }
-    page.add_node(ScrollMarks.new(menu: @bag, x: 314, y: 32))
-    @bag_panel = page.add_node(NamePanel.new(menu: @bag, items: @carried, y: 272))
-    page
-  end
-
-  def key_page
-    page = RGame::Engine::Node2D.new
-    keys = KEY_ITEMS.map { |key, image| Item.new(key, image) }
-    grid = UI::Grid.new(columns: 4, item_width: SLOT, item_height: SLOT, spacing: 6)
-    menu = page.add_node(UI::PanelMenu.new(x: 16, y: 32, layout: grid))
-    keys.each { |item| menu.add(UI::IconButton.new(image: item.image, style: SLOT_STYLE)) }
-    page.add_node(NamePanel.new(menu: menu, items: keys, y: 272))
-    page
-  end
-
-  def fill_bag
-    @bag.clear
-    @carried.each { |item| @bag.add(UI::IconButton.new(image: item.image, style: SLOT_STYLE)) }
-  end
-
-  def use
-    report(@used) if @bag_panel.item
-  end
-
-  def drop
-    return unless @bag_panel.item
-
-    report(@dropped)
-    @carried.delete(@bag_panel.item)
-    @bag_panel.item = nil
-    fill_bag
-  end
-
-  def report(status)
-    @status = status
-    @status_item = @bag_panel.item
-    system!(RGame::Engine::AudioOut).play_sound(CLICK)
-  end
-end
-
-game = RGame::Game.new(
-  root: Inventory.new,
-  caption: 'Inventory',
-  width: WIDTH,
-  height: HEIGHT,
-  media_root: ASSETS,
-  locales: LOCALES
-)
-
-# The panels are nine-slices and the items are images, and each is a Symbol
-# naming an atlas element, so all three atlases are registered once.
-game.renderer.register_ui_atlas(game.assets.ui_atlas('ui.json'))
-game.renderer.register_ui_atlas(game.assets.ui_atlas('skills.json'))
-game.renderer.register_ui_atlas(game.assets.ui_atlas('icons.json'))
-
-game.start
+InventoryExample.start
