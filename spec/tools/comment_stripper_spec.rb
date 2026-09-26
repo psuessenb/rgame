@@ -72,6 +72,26 @@ RSpec.describe CommentStripper do
       expect(strip(source)).to eq(source)
     end
 
+    it 'keeps the @param tags above an initialize, which say what a map may set' do
+      # Ruby makes every initialize private, and RGame::Engine::MapSettings
+      # reads these tags from the source. Stripping them would leave a map
+      # nothing it may set, with no failing line anywhere.
+      source = <<~RUBY
+        class Chest
+          # A chest the hero opens once.
+          #
+          # @param contents [String] the item inside
+          # @param locked [Boolean] whether it takes a key to open
+          def initialize(contents:, locked: false)
+            @contents = contents
+            @locked = locked
+          end
+        end
+      RUBY
+
+      expect(strip(source)).to eq(source)
+    end
+
     it 'keeps the description above a public DSL declaration in a class body' do
       source = <<~RUBY
         class Thing
