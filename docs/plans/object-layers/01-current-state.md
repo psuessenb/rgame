@@ -160,8 +160,11 @@ without the variable. Two engine components default to an unseeded `Random.new`:
   draws at a cell. The single-tile draw opens it to a position.
 - **`Renderer#tilemap` forwards to the registered map.** `map_tile` forwards the
   same way, in the live renderer and in the fake.
-- **`Signal::DSL` and `Engine::Hooks` declare at class level, and the engine
-  checks.** `map_settings` is a third declaration of that shape.
+- **`spec/support/api_docs.rb` already reads the comment above a definition.**
+  Its `tagged?` walks back from a `source_location` through the comment lines
+  above it, looking for `@api private`. Reading `@param` tags above
+  `initialize` is the same walk, and `tools/strip_comments.rb` keeps that block
+  above a public method.
 - **`Facts` is a system on the root that `RGame::Game` mounts.** The random
   source is a second one.
 

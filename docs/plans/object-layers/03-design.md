@@ -12,8 +12,8 @@ Five stages, each owned by one piece:
 3. **`TileMapLayer.mount` builds the tree.** An object layer becomes a node in
    its place among the layers, and each object in it goes to `MapBuilder`.
 4. **`MapBuilder` builds one node.** It resolves the class, checks every property
-   against what the class declares, constructs the node with its component
-   values applied, and gives a tile object its picture.
+   against the `@param` tags above the class's `initialize`, constructs the node
+   with its component values applied, and gives a tile object its picture.
 5. **The node finds the rest in the tree.** Its room, its facts and its random
    source are systems, reached with `system!` in `_enter_tree`.
 
@@ -70,15 +70,17 @@ constants start with a capital, so the rule needs no list. The terrain class
 builds nothing. Each raise names the map's tilemap id, the object's id and name,
 and the class, and says the rule.
 
-## What a map may set: `map_settings`
+## What a map may set: the constructor's `@param` tags
 
-A class declares what a map may set, with a Tiled type for each keyword of its
-`initialize`:
+A map may set a keyword of a class's `initialize` when the comment directly above
+the `def` documents it with a type Tiled can hold:
 
 ```ruby
 class Chest < RGame::Engine::Node2D
-  map_settings contents: :string, locked: :bool
-
+  # A chest the hero opens once. It keeps its state in Facts under its fact_key.
+  #
+  # @param contents [String] the item inside
+  # @param locked [Boolean] whether it takes a key to open
   def initialize(contents:, locked: false, **)
     super(**)
     @contents = contents
@@ -91,35 +93,60 @@ end
 
 module RGame::Engine::Components
   class BoxCollider < Collider
-    map_settings width: :float, height: :float, offset_x: :float, offset_y: :float, layer: :symbol
+    # @param width [Float] the box's width, in pixels
+    # @param height [Float] its height
+    # @param offset_x [Float] how far the box's left edge sits from the origin
+    # @param offset_y [Float] how far its top edge sits from the origin
+    # @param layer [Symbol] the collision layer it is found on
+    def initialize(width:, height:, offset_x: 0, offset_y: 0, layer: :default)
+      # ...as today
+    end
   end
 end
 ```
 
-| Declared | Tiled type | Ruby value |
+| Tag type | Tiled type | Ruby value |
 |---|---|---|
-| `:int` | `int` | Integer |
-| `:float` | `float`; an `int` is accepted | Float |
-| `:bool` | `bool` | `true` or `false` |
-| `:string` | `string` | String |
-| `:symbol` | `string` | Symbol |
-| an Array of Symbols, such as `Anchor::NAMES` | a string enum of those values | one of the Symbols |
-| `:color` | `color` | `Util::Color` |
-| `:file` | `file` | String, resolved against the map |
+| `[String]` | `string` | String |
+| `[Integer]` | `int` | Integer |
+| `[Float]` | `float`; an `int` is accepted | Float |
+| `[Boolean]` | `bool` | `true` or `false` |
+| `[Symbol]` | `string` | Symbol |
+| a list of Symbols, such as `[:center, :bottom, :top_left]` | a string enum of those values | one of the Symbols |
+| `[Util::Color]` | `color` | `Util::Color` |
 
-- **Every declared name is a keyword of the class's own `initialize`.** Ruby
-  cannot report that at the declaration, which comes before the `def`, so the
-  check runs the first time the class is built or exported. A spec runs it over
-  every engine class that declares settings, so an engine declaration cannot
-  drift from its constructor.
-- **`Node2D`'s own keywords are reserved**: `x`, `y`, `z`, `angle`, `width`,
-  `height`, `input_owner`, `band`, `y_sort`, `map_object` and `fact_key`. The
-  map already sets the first six, and the last two are the builder's. So is the
-  property name `fact`.
-- **A declaration is not inherited.** `FeetCollider < BoxCollider` takes three of
-  `BoxCollider`'s five keywords, so an inherited list would name two its
-  constructor lacks. Each class declares what its own `initialize` takes. See
-  [open question 1](README.md#open-questions).
+- **The comment is read from the source.**
+  `Chest.instance_method(:initialize).source_location` names the file and the
+  line of the `def`. The tags are the unbroken run of comment lines directly
+  above it. That is the block `spec/support/api_docs.rb` reads for
+  `@api private`, and the block `tools/strip_comments.rb` keeps above a public
+  method. It is read once per class, at the first build or export, and cached.
+  Only YARD's `@param name [Type]` syntax is read. The YARD gem is not needed.
+- **The tags are the allow-list.** A keyword with no tag cannot be set from a
+  map. Neither can one tagged with a type outside the table, such as
+  `@param rng [Random]`. That keeps a camera, a script or an RNG out of any map's
+  reach.
+- **A tag must name a keyword the `initialize` takes.** Reading one that does not
+  raises, naming the class, the tag and the keywords. A spec reads the tags of
+  every engine class that has any, so an engine comment cannot drift from its
+  constructor unnoticed.
+- **Reserved names raise too**: `Node2D`'s own keywords (`x`, `y`, `z`, `angle`,
+  `width`, `height`, `input_owner`, `band` and `y_sort`), `map_object`,
+  `fact_key`, and the property `fact`. The map sets the first six, and the
+  builder the next three.
+- **The tags come with the constructor.** A subclass without an `initialize` of
+  its own uses its parent's, comment and all. `FeetCollider` has its own
+  `initialize`, so only its own three tags count, not `BoxCollider`'s five.
+- **A class needs its source.** A class defined by `eval`, or in C, has no source
+  location, and building one from a map raises, naming it.
+- **The pre-commit hook keeps the block.** `tools/strip_comments.rb` treats a
+  `def initialize` in a public section as public, which was checked on a probe
+  file. Step 3 adds that case to `spec/tools/comment_stripper_spec.rb`, so a
+  change to the stripper cannot delete a class's settings without a failing
+  spec.
+- **Tiled's `file` type is not mapped.** Tiled resolves a file property against
+  the map's directory, while a game names an asset by its key under the media
+  root. So an asset key is a `[String]`.
 
 ## Building one node
 
@@ -136,8 +163,9 @@ node.add_component(Components::MapTile.new(tile: object.tile, orientation: objec
 ```
 
 **The node's own settings are keywords of its constructor.** Each flat property
-must be one the class declares, of the declared type, and arrives cast. An
-undeclared name raises, listing the names the class declares.
+must be a keyword the class's tags make settable, of the tagged type, and
+arrives as the Ruby value the table gives. Anything else raises, listing the
+keywords the class's tags make settable.
 
 **The origin is the bottom centre of the object's box** (decision 10), turned
 with the object:
@@ -152,8 +180,8 @@ object's origin is its point. A polygon or polyline has no box in Tiled, so its
 origin is its own `(x, y)` and its points stay relative to it.
 
 **A component's values apply while the node builds it.** Each class property
-names a component class that declares `map_settings`, and its members must be
-declared there. While the node's `initialize` runs, a component of that class
+names a component class, and its members must be keywords that component's own
+tags make settable. While the node's `initialize` runs, a component of that class
 built by that `initialize` takes the map's values as keywords, the map's winning
 over the ones the code passed:
 
@@ -257,8 +285,8 @@ node.system!(RGame::Engine::Components::RandomSource).rand(3)
 RGame::Engine::MapTypes.write('examples/assets/tiled_tour/tour.tiled-project')
 ```
 
-It walks the `Node2D` and `Component` subclasses that declare `map_settings`,
-and writes a Tiled class for each: `useAs` object for a node class, `useAs`
+It walks the `Node2D` and `Component` subclasses whose tags make any keyword
+settable, and writes a Tiled class for each: `useAs` object for a node class, `useAs`
 property for a component. It replaces the classes it owns and keeps the ones the
 designer wrote, such as `entrance`. Where it runs from, and what default each
 member shows, are open questions [2](README.md#open-questions) and
@@ -274,6 +302,18 @@ member shows, are open questions [2](README.md#open-questions) and
 - **`Random.new(ENV.fetch('RGAME_SEED', DEFAULT_SEED).to_i)`**, in 9 projects.
 
 ## Considered and rejected
+
+- **A `map_settings` declaration** on each class, listing its settable keywords
+  and their types. An earlier draft of this plan used one. It says what the
+  constructor's documentation says, in a second place that must agree with the
+  `initialize` below it. Every constructor change then has two lines to change,
+  and the second is the one that gets forgotten.
+- **The YARD gem.** It would be a second runtime dependency, which CLAUDE.md
+  treats as a deliberate decision, to read one tag.
+- **Types inferred from default values.** Prism can read `locked: false` from the
+  signature. But required keywords such as `width:` and `contents:` have no
+  default, a default like `-Math::PI / 2` has no literal type, and changing a
+  default's literal would quietly change an exported type.
 
 - **Writers on each component**, so the builder sets values after construction.
   It needs up to 29 writers, and each must re-derive what the constructor

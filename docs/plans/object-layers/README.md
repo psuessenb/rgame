@@ -32,9 +32,10 @@ builds a `Chest`. A class starting with a lower-case letter, or none, is data an
 builds nothing, except that a tile object always draws its tile. A node's own
 properties arrive as keywords of its constructor. A property whose Tiled type is
 a component's class sets that component's keywords while the node's own
-`initialize` builds it. Both kinds are declared in Ruby with `map_settings`,
-checked at load, and written out as Tiled custom types, so the designer picks
-from the game's real names.
+`initialize` builds it. What a map may set is what the `@param` tags above a
+class's `initialize` document, with a type Tiled can hold. It is checked at
+load, and written out as Tiled custom types, so the designer picks from the
+game's real names.
 
 **An object layer is a y-sorted node in the place Tiled draws it**, so a tree
 placed as a tile object sorts against the actors in its layer. The layer a
@@ -111,6 +112,11 @@ plan.
     `build-step-8-tiled-map`.
 13. **A capsule reads as `:capsule`**, and any shape the parser does not know
     raises.
+14. **What a map may set is read from the `@param` tags above `initialize`**, not
+    declared a second time. A keyword is settable when its tag gives a type
+    Tiled can hold. The comment is found through `source_location`, and the
+    pre-commit hook keeps it. An earlier draft declared the same thing with
+    `map_settings`, and the conversation rejected the second list.
 
 ## What was measured before planning
 
@@ -131,6 +137,7 @@ Taken at `abb91ad`, and on `origin/build-step-8-tiled-map` for `tour.tmx`.
 | Engine components defaulting to an unseeded `Random` | 2: `Particles`, `WanderController` |
 | Silent gaps in the parse and the transform | 6 |
 | `tour.tmx` requirements marked done | 10 of 19 |
+| `@param` tags under `lib/` | 0; the tags are a new convention, needed only on constructors a map builds |
 
 ## What this plan does not deliver
 
@@ -148,10 +155,10 @@ Taken at `abb91ad`, and on `origin/build-step-8-tiled-map` for `tour.tmx`.
 
 ## Open questions
 
-1. **Are map settings inherited?** The design says no, because
-   `FeetCollider < BoxCollider` takes three of its parent's five keywords.
-   Inheriting with a check per subclass is the alternative. *Waits on step 3's
-   implementation.*
+1. ~~**Are map settings inherited?**~~ **Settled by decision 14 — with the
+   constructor.** A subclass without an `initialize` of its own uses its
+   parent's, comment and all, and one with its own uses only its own tags. See
+   [the design](03-design.md#what-a-map-may-set-the-constructors-param-tags).
 2. **Where does the export run?** `exe/rgame` may not require `rgame`, so it
    cannot load a game's classes. A rake task in the generated project, or a
    method on `RGame::Game`, are the candidates. *Waits on step 7's re-plan.*
@@ -160,9 +167,10 @@ Taken at `abb91ad`, and on `origin/build-step-8-tiled-map` for `tour.tmx`.
    counts the scenes still passing `slots:`.*
 4. **Does a hidden object layer build its objects?** The design says yes, and
    draws none of them, as a hidden tile layer still blocks. *Settled in step 5.*
-5. **What default does the export show for a member?** Ruby cannot read a
-   keyword's default, so either the declaration carries it or the export leaves
-   the member unset. *Waits on step 7's re-plan.*
+5. **What default does the export show for a member?** Ruby cannot report a
+   keyword's default. Prism, a default gem, can read a literal one from the
+   signature, such as `locked: false`. A computed default, such as
+   `-Math::PI / 2`, would show as unset. *Waits on step 7's re-plan.*
 
 ## Reading order
 

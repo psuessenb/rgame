@@ -262,7 +262,7 @@ Particles.new(rng: nil, ...)
 
 ---
 
-## Step 3 — `map_settings`, and building a node from an object *(Engine, pure)*
+## Step 3 — the settings a map may set, and building a node from an object *(Engine, pure)*
 
 The mechanism, with no caller yet: step 5 wires it into `mount`. Building it
 first, against records parsed from `.tmx` strings, lets its rules be pinned
@@ -270,8 +270,9 @@ without a scene.
 
 ### Sub-steps
 
-- **3a** — `map_settings` on `Node2D` and `Component`, the types, and the check
-  against `initialize`. `BoxCollider` and `FeetCollider` declare theirs.
+- **3a** — `Engine::MapSettings` reads the `@param` tags above a class's
+  `initialize`: the types, the allow-list and the checks. `BoxCollider` and
+  `FeetCollider` get their tags.
 - **3b** — `Node2D` takes `map_object:` and `fact_key:`, and component values
   apply while a node builds its components.
 - **3c** — `Engine::MapBuilder`: class resolution, property checks and casts,
@@ -280,75 +281,90 @@ without a scene.
 ### Shape
 
 ```ruby
-# 3a — a class macro on Node2D and Component
+# 3a — @api private; read from the comment above Chest#initialize
 class Chest < RGame::Engine::Node2D
-  map_settings contents: :string, locked: :bool
+  # @param contents [String] the item inside
+  # @param locked [Boolean] whether it takes a key to open
+  def initialize(contents:, locked: false, **)
+    # ...
+  end
 end
-Chest.map_settings                  # => { contents: :string, locked: :bool }, frozen
+RGame::Engine::MapSettings.of(Chest)   # => { contents: :string, locked: :bool }, frozen and cached
 
 # 3b — Node2D
 Node2D.new(map_object: nil, fact_key: nil, **)   # alongside the keywords it takes today
-node.map_object                     # sealed_reader; nil for a node built in code
-node.fact_key                       # sealed_reader
+node.map_object                        # sealed_reader; nil for a node built in code
+node.fact_key                          # sealed_reader
 
 # 3c — @api private; step 5's mount is its caller
 builder = RGame::Engine::MapBuilder.new(tilemap_id: 'map/town.tmx')
-builder.build(object)               # => a Chest, or nil for an object whose class is data
+builder.build(object)                  # => a Chest, or nil for an object whose class is data
 ```
 
 ### The rules the tests pin
 
 **3a**
 
-1. **A declared name must be a keyword of the class's own `initialize`.** The
-   check runs the first time the class is built, and raises naming the class,
-   the name and the keywords `initialize` takes.
-2. **An unknown type, and a reserved name, raise at the declaration.** The
-   reserved names are `Node2D`'s own keywords, `map_object`, `fact_key` and
+1. **The tags are the unbroken run of comment lines directly above the
+   `def initialize` the class uses.** A blank line detaches a comment, as it
+   does for `tools/strip_comments.rb` and `spec/support/api_docs.rb`.
+2. **`@param name [Type]` with a type from the design's table makes `name`
+   settable, with that type.** Any other type, such as `[Random]`, and a keyword
+   with no tag, leave it unsettable.
+3. **A tag naming something `initialize` does not take raises when it is read**,
+   naming the class, the tag and the keywords `initialize` takes. So does a tag
+   naming a reserved name: `Node2D`'s own keywords, `map_object`, `fact_key` or
    `fact`.
-3. **A declaration is not inherited.** A subclass with none declares nothing.
-4. **Every engine class that declares settings passes the check**, run by a spec
-   over all of them.
+4. **A subclass without its own `initialize` reads its parent's tags.** One with
+   its own reads only its own: `FeetCollider` has three settable keywords, not
+   `BoxCollider`'s five.
+5. **A class with no source location raises when it is read**, naming the class.
+6. **A class's tags are read once and cached.**
+7. **Every engine class with tags reads without raising**, checked by a spec over
+   all of them.
+8. **The comment stripper keeps the tag block above a `def initialize`.**
 
 **3b**
 
-5. **A component built by a node's `initialize` takes the map's values for its
+9. **A component built by a node's `initialize` takes the map's values for its
    class**, and they win over the keywords the code passed.
-6. **The class must match exactly.** A value for `BoxCollider` does not reach a
-   `FeetCollider`.
-7. **A child node built inside that `initialize` takes nothing** from its
-   parent's values, and a component built after `initialize` returns takes
-   nothing either.
-8. **With no build in progress, `Node2D.new` and `Component.new` allocate what
-   they allocate today**, measured per call.
+10. **The class must match exactly.** A value for `BoxCollider` does not reach a
+    `FeetCollider`.
+11. **A child node built inside that `initialize` takes nothing** from its
+    parent's values, and a component built after `initialize` returns takes
+    nothing either.
+12. **With no build in progress, `Node2D.new` and `Component.new` allocate what
+    they allocate today**, measured per call.
 
 **3c**
 
-9. **A class starting with a capital resolves to a constant**, `Town::Chest`
-   included. No such constant raises `NameError`, and a constant that is not a
-   `Node2D` subclass raises `TypeError`. Each message names the tilemap id, the
-   object's id and name, and the class.
-10. **Any other class, or none, builds nothing.** `build` returns `nil`.
-11. **A flat property must be a declared setting of the class, of its type**,
-    and arrives cast, a String becoming a Symbol for `:symbol`. Anything else
-    raises, listing what the class declares.
-12. **A class property must name a component class that declares settings, and
-    each member must be one of them.** The raise names the object and the member.
-13. **The origin is the bottom centre of the object's box, turned with it.** A
+13. **A class starting with a capital resolves to a constant**, `Town::Chest`
+    included. No such constant raises `NameError`, and a constant that is not a
+    `Node2D` subclass raises `TypeError`. Each message names the tilemap id, the
+    object's id and name, and the class.
+14. **Any other class, or none, builds nothing.** `build` returns `nil`.
+15. **A flat property must be a keyword the class's tags make settable, of the
+    tagged type**, and arrives as the design's table says, a String becoming a
+    Symbol for `[Symbol]`. Anything else raises, listing the settable keywords.
+16. **A class property's members must be keywords its component's tags make
+    settable.** The raise names the object, the component and the member.
+17. **The origin is the bottom centre of the object's box, turned with it.** A
     point object's origin is its point, and a polygon's or polyline's is its own
     corner. `angle` is the object's rotation, and `width` and `height` its size.
-14. **`fact_key` is the `fact` property as a Symbol**, and otherwise
+18. **`fact_key` is the `fact` property as a Symbol**, and otherwise
     `:"<tilemap id>#<object id>"`. `map_object` is the record it was built from.
-15. **Every component value is taken exactly once.** None taken raises,
+19. **Every component value is taken exactly once.** None taken raises,
     "`Chest` built no `FeetCollider`", and two taken raises too.
 
 ### Tests
 
-- `spec/rgame/engine/map_settings_spec.rb`: rules 1–4.
+- `spec/rgame/engine/map_settings_spec.rb`: rules 1–7, with its classes defined
+  in the spec itself, and one built by `eval` for rule 5.
+- `spec/tools/comment_stripper_spec.rb`: rule 8.
 - `spec/rgame/engine/node2d_spec.rb` and a new
-  `spec/rgame/engine/map_settings_construction_spec.rb`: rules 5–7.
-- An allocation example beside `node2d_control_allocation_spec.rb`: rule 8.
-- `spec/rgame/engine/map_builder_spec.rb`: rules 9–15, its records parsed from
+  `spec/rgame/engine/map_settings_construction_spec.rb`: rules 9–11.
+- An allocation example beside `node2d_control_allocation_spec.rb`: rule 12.
+- `spec/rgame/engine/map_builder_spec.rb`: rules 13–19, its records parsed from
   `.tmx` strings through `TiledFixture` rather than built with `MapObject.new`.
 - **The caller that uses both**, in the same file: a node class that builds a
   `FeetCollider` and a child node with its own `BoxCollider`, from an object
@@ -358,11 +374,14 @@ builder.build(object)               # => a Chest, or nil for an object whose cla
 ### Verify
 
 - `rake spec`.
-- `rake drive:allocations`: no project allocates more, because rule 8 holds for
+- `rake drive:allocations`: no project allocates more, because rule 12 holds for
   every node and component a game builds.
-- `docs/api/scene_graph.md` or `components.md` documents `map_settings`,
-  `map_object` and `fact_key`. `MapBuilder` is `@api private`, and nothing uses
-  it yet, so `CHANGELOG.md` waits for step 5.
+- `docs/api/` documents the `@param` convention, `map_object` and `fact_key`.
+  `MapSettings` and `MapBuilder` are `@api private`, and nothing uses them yet,
+  so `CHANGELOG.md` waits for step 5.
+- [write-ruby-code](../../../.claude/skills/write-ruby-code/SKILL.md) says that
+  a constructor a map builds documents its settable keywords with `@param`, and
+  that the tags are what the map may set.
 
 ---
 
@@ -396,7 +415,7 @@ step.
 ## Step 6 — every map and project on the new path *(rough)*
 
 13 objects in 4 maps take a Ruby class's name. `Door` ×2, `Raft` ×2, `Flag`,
-`Crate` and `Walker` declare their settings, put their origin at the bottom
+`Crate` and `Walker` tag their settable keywords, put their origin at the bottom
 centre, and find their room or random source in the tree. `Warp` joins `examples/doors` and
 `test_projects/adventure`. The 5 scenes lose `MapObjects` and `spawn_into`, and
 `MapObjects` goes, with a Removed entry in `CHANGELOG.md`.
@@ -407,8 +426,9 @@ project these maps reach.
 
 ## Step 7 — Tiled's custom types, written from Ruby *(rough)*
 
-`RGame::Engine::MapTypes.write(path)` writes a Tiled class for each `Node2D` and
-`Component` subclass that declares `map_settings` into a `.tiled-project`. It
+`RGame::Engine::MapTypes.write(path)` writes a Tiled class into a
+`.tiled-project` for each `Node2D` and `Component` subclass whose tags make any
+keyword settable. It
 replaces the classes it owns and keeps the designer's. An Array of Symbols
 becomes a Tiled enum.
 
@@ -433,7 +453,7 @@ sketches:
 ## Step 9 — fold the plan back and delete it
 
 - **`docs/api/tile_maps.md`** says what a map builds and how: the class rule,
-  data classes, `map_settings`, component values, tile objects, the `actors`
+  data classes, the `@param` tags, component values, tile objects, the `actors`
   mark, `fact_key`. "Building nodes from objects" is rewritten for the new path.
 - **`docs/api/components.md`** covers `MapTile` and `RandomSource`.
 - **`docs/api/scene_graph.md`** covers what `mount` builds for an object layer.
@@ -449,6 +469,6 @@ sketches:
 
 `CHANGELOG.md` covers everything steps 1–8 shipped, per
 [update-changelog](../../../.claude/skills/update-changelog/SKILL.md): the
-capsule fix, the random source, map-built nodes, `map_settings`, `map_tile`, and
+capsule fix, the random source, map-built nodes, the `@param` convention, `map_tile`, and
 the removal of `MapObjects`. `rake` passes. `docs/plans/object-layers/` is gone,
 and `grep -r object-layers docs/ .claude/` finds nothing.
