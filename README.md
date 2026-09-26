@@ -57,21 +57,30 @@ The simplest "game" you can write, all in one file:
 ```ruby
 require 'rgame/game'
 
-class Scene < RGame::Engine::Node2D
-  def _draw(renderer, _view)
-    renderer.text('Hello world!', 250, 200)
+module HelloWorld
+  Engine = RGame::Engine
+  Util = RGame::Util
+
+  class Scene < Engine::Node2D
+    def _draw(renderer, _view)
+      renderer.text('Hello world!', 250, 200)
+    end
   end
 end
 
 game = RGame::Game.new(
-  root: Scene.new,
+  root: HelloWorld::Scene.new,
   caption: 'Hello world!'
 )
 
 game.start
 ```
 
-You can learn more about how it works in the [documentation](docs/api/README.md).
+The game keeps its classes in a module of its own. `Engine` and `Util` inside it
+are short for `RGame::Engine` and `RGame::Util`, the two layers a game is written
+against. [A game's own module](docs/api/README.md#a-games-own-module) says why
+it takes this shape. You can learn more about how it works in the
+[documentation](docs/api/README.md).
 
 ## Examples
 

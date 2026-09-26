@@ -1,6 +1,6 @@
 ---
 name: write-ruby-code
-description: The rules for Ruby in rgame that RuboCop cannot check — which prefix says a method is a signal, a hook, sealed machinery or none of these, why every engine node's ivar starts with rgame_, the tense each name takes, what the guards behind them miss, how a label built from a changing value is written, and which Ruby allocates without showing it. Use whenever writing or editing Ruby under lib/, examples/, test_projects/ or spec/, naming a method, signal or hook, subclassing Node2D or Component, adding a non-public method to either, answering a Game/NoInterpolationInHotPath, Game/NoNeedlessAllocation or Game/NoBlockExitInHotPath offense, writing code a game runs every frame, or writing a Ruby sketch in a plan.
+description: The rules for Ruby in rgame that RuboCop cannot check — which prefix says a method is a signal, a hook, sealed machinery or none of these, why every engine node's ivar starts with rgame_, the tense each name takes, what the guards behind them miss, how a label built from a changing value is written, which Ruby allocates without showing it, and how game code names the engine through a module of its own. Use whenever writing or editing Ruby under lib/, examples/, test_projects/ or spec/, starting a game, an example or a test project, naming a method, signal or hook, subclassing Node2D or Component, adding a non-public method to either, answering a Game/NoInterpolationInHotPath, Game/NoNeedlessAllocation or Game/NoBlockExitInHotPath offense, writing code a game runs every frame, or writing a Ruby sketch in a plan.
 ---
 
 # Writing Ruby for rgame
@@ -12,6 +12,34 @@ sees.
 **Apply it to a plan's sketch too.** Names get decided there: `on_portrait` came
 from a dialogue plan's `def on_portrait(renderer, speaker); end` and was built
 exactly as written.
+
+## Game code names the engine through its own module
+
+A game, an example and a test project keep their classes in a module of their
+own, and the module starts with two constants:
+
+```ruby
+module WalkExample
+  Engine = RGame::Engine
+  Util = RGame::Util
+
+  class Hero < Engine::Node2D
+```
+
+- **`include RGame::Engine` is not the shortcut, and neither are top-level
+  aliases.** The include reaches the module body and no class inside it, so
+  `Text` in a nested class raises `NameError`. It was recommended and built for
+  all 38 examples before a driven run showed that. Top-level aliases replace
+  Ruby's `Signal` and turn a game's own `class Scene` into a `TypeError`.
+  [A game's own module](../../../docs/api/README.md#a-games-own-module) has the
+  cases.
+- **Assign the two constants in one file**, since Ruby warns on a second
+  assignment. A generated project keeps them in the file named after the game,
+  which every node requires. A test project's `main.rb` assigns them before its
+  first `require_relative`.
+- **A sketch of game code in a plan takes the same shape**, `Engine::Node2D`
+  rather than `RGame::Engine::Node2D`. Engine code inside `module RGame` reads
+  the same without the constants.
 
 ## A name says which mechanism it is
 
