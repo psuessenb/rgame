@@ -402,7 +402,8 @@ size. A point object's node stands on its point, and a polygon's or polyline's
 on its own `(x, y)`.
 
 **The builder hands the node values, and keeps the object.** Every node gets
-its object's id as `map_object_id`, which is `nil` on a node built in code. A
+its object's id as `map_object_id`, which is `nil` on a node built in code.
+[`Components::Fact`](components.md#fact) keys a node's state by it. A
 class whose `initialize` names `route:` gets the route of a polyline or a
 polygon, as `Path.from_object` builds it, turned with the object. One that
 names `name:` gets the object's name, or `''` when the designer gave none. A

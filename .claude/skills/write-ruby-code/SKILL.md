@@ -212,6 +212,7 @@ shows it. Measured on this Ruby, per call:
 | a method returning `[a, b]` that its caller takes apart | 1 | one method per part | `Game/NoNeedlessAllocation`, on a per-frame path |
 | `-0.0`, or any Float outside about 1e-77 to 1e77, which Ruby cannot keep inline | 1 | work it out once, outside the frame | nothing |
 | `*args`, `**opts`, `Symbol#to_s`, `Integer#to_s` | 1 | explicit parameters; build the String once | nothing |
+| `def fetch(key, ...)`: a parameter before `...` | 1 | `(...)` alone, or explicit parameters | nothing |
 
 Free: `next`, `each`, `each_index`, `any?`/`all?`/`find`/`count`/`sum` on an
 Array, `min`/`max` with or without a block, `[a, b].min`, destructuring an

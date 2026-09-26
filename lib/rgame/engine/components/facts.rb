@@ -4,7 +4,9 @@ module RGame
   module Engine
     module Components
       # A store for flags that belong to no object — "met the smith", "the bridge
-      # is down" — and the one entry a game writes to its save.
+      # is down" — and the one entry a game writes to its save. A node's own
+      # value, such as whether a chest is open, is kept here too, through
+      # Components::Fact.
       #
       #   root.add_component(Engine::Components::Facts.new)
       #
