@@ -1,23 +1,27 @@
 # Roadmap
 
-**Steps 0–4 are implemented.** Steps 5 and 6 are detailed, re-planned after
-step 3 landed. Steps 7 and 8 are rough and get re-planned once the steps before
-them land.
+**Steps 0–4 are implemented.** Step 5 is detailed, inserted after step 4
+landed, and so are steps 6 and 7, re-planned after step 3 landed. Steps 8 and 9
+are rough and get re-planned once the steps before them land. Every step from 5
+on moved up by one, landed notes included, so a number in this document is
+today's.
 
 ## Dependency shape
 
 ```
-0 tour.tmx requirements ───────────────────────────────────────────────────────────┐  authoring runs in parallel
-                                                                                   │
-1 parse + transform ─→ 3 map settings + builder ─┐                                 │
-                       4 one tile drawn ─────────┴─→ 5 mount builds ─┐             │
-2 random source ─────────────────────────────────────────────────────┴─→ 6 migrate ─→ 7 export ─→ 8 checked + played ─→ 9 fold back
+0 tour.tmx requirements ──────────────────────────────────────────────────────────────────────────┐  authoring runs in parallel
+                                                                                                  │
+1 parse + transform ─→ 3 map settings + builder ─→ 5 id + Fact ─┐                                 │
+                       4 one tile drawn ────────────────────────┴─→ 6 mount builds ─┐             │
+2 random source ────────────────────────────────────────────────────────────────────┴─→ 7 migrate ─→ 8 export ─→ 9 checked + played ─→ 10 fold back
 ```
 
 Steps 1, 2 and 4 depend on nothing in this plan and can land in any order. Step 3
-needs step 1, because the class it resolves may come from the object's tile. Step 6 needs step 2, because a `Walker` built from a map finds its
-random source in the tree. Step 8 needs step 7: the level's designer picks
-classes from the exported types, rather than typing them.
+needs step 1, because the class it resolves may come from the object's tile.
+Step 5 needs step 3, whose builder and `Node2D` keywords it changes, and step 6
+builds every node on what step 5 leaves. Step 7 needs step 2, because a `Walker`
+built from a map finds its random source in the tree. Step 9 needs step 8: the
+level's designer picks classes from the exported types, rather than typing them.
 
 ## The invariant every step preserves
 
@@ -27,7 +31,7 @@ classes from the exported types, rather than typing them.
 
 A report cannot match byte for byte across a step that moves a node's origin,
 because it records each draw in local coordinates (see
-[verify](../../../.claude/skills/verify/SKILL.md)). Steps 5 and 6 move origins,
+[verify](../../../.claude/skills/verify/SKILL.md)). Steps 6 and 7 move origins,
 so they compare where each draw lands on screen.
 
 And the standing one from the Tiled format plan:
@@ -40,16 +44,17 @@ And the standing one from the Tiled format plan:
 | 1 | A capsule reads as a rectangle; a tile object loses its tile's class; `objectalignment` places objects where Tiled does not |
 | 2 | `Particles` and `WanderController` draw from an unseeded `Random`; 9 projects each read `RGAME_SEED` themselves |
 | 4 | Nothing can draw one tile of a map outside a tile layer; a tileset that preserves its tiles' aspect, or draws them at the grid's size, draws differently from Tiled without a word |
+| 5 | Every node carries a key for `Facts` and its object's whole record, though a node reads neither once built; adventure's chest, lever and crate each find `Facts` through their room and build their keys by hand |
 
-Step 3 has no caller until step 5, so it lands for step 5 rather than alone.
+Step 3 has no caller until step 6, so it lands for step 6 rather than alone.
 
 ---
 
 ## Step 0 — the requirements for `tour.tmx`
 
 Authoring is half done, and step 1 changes what the parser reads. So the
-requirements settle first, and you keep authoring against them while steps 1–7
-are built. The level map gets its own requirements in step 8, once the exported
+requirements settle first, and you keep authoring against them while steps 1–8
+are built. The level map gets its own requirements in step 9, once the exported
 types exist to author it with.
 
 ### Shape
@@ -123,7 +128,7 @@ Where the sketch was wrong, or said too little:
   `build-step-8-tiled-map` committed one, and needs
   `git rm --cached examples/assets/tiled_tour/tour.tiled-session` once.
 - **A game made by `rgame new` would still commit its session.** The generated
-  `.gitignore` has no entry. Step 7 decides the generated project's Tiled
+  `.gitignore` has no entry. Step 8 decides the generated project's Tiled
   workflow, so the question moved there.
 
 Found on the authoring branch while checking the marks, and left for the
@@ -261,8 +266,8 @@ Where the sketch was wrong, or said too little:
   [update-changelog](../../../.claude/skills/update-changelog/SKILL.md) skill
   says a fix to an unreleased feature is not a fix, so the two Unreleased
   entries on Tiled maps describe the capsule, the alignment, the tile's class
-  and properties, `class_name` and the object layers. **For steps 6 and 9:**
-  `MapObjects` is unreleased too. Unless a release ships it first, step 6
+  and properties, `class_name` and the object layers. **For steps 7 and 10:**
+  `MapObjects` is unreleased too. Unless a release ships it first, step 7
   deletes its Added entry rather than adding a Removed one.
 - **A class value with every member at its default is no longer `EMPTY`.** It
   keeps its class's name, so it is an empty bag answering `class_name`. The
@@ -407,7 +412,7 @@ Where the sketch was wrong, or said too little:
   one, as `Random.new` did.
 - **The API reference check needed `RGAME_SEED` on its allow-list.** It reads
   a backticked upper-case word as a constant.
-- **For step 6:** topdownplatformer's `Walker` already finds its random source
+- **For step 7:** topdownplatformer's `Walker` already finds its random source
   in the tree, through `WanderController`'s default, and takes no `rng:`.
 
 Documented in `docs/api/components.md` (`RandomSource`, and `rng:` on
@@ -421,7 +426,7 @@ and CLAUDE.md's `--seed` row say where the seed goes.
 
 ## Step 3 — the settings a map may set, and building a node from an object *(Engine, pure)*
 
-The mechanism, with no caller yet: step 5 wires it into `mount`. Building it
+The mechanism, with no caller yet: step 6 wires it into `mount`. Building it
 first, against records parsed from `.tmx` strings, lets its rules be pinned
 without a scene.
 
@@ -451,7 +456,7 @@ Node2D.new(map_object: nil, fact_key: nil, **)   # alongside the keywords it tak
 node.map_object                        # sealed_reader; nil for a node built in code
 node.fact_key                          # sealed_reader
 
-# 3c — @api private; step 5's mount is its caller
+# 3c — @api private; step 6's mount is its caller
 builder = RGame::Engine::MapBuilder.new(tilemap_id: 'map/town.tmx')
 builder.build(object)                  # => a Chest, or nil for an object whose class is data
 ```
@@ -516,7 +521,7 @@ builder.build(object)                  # => a Chest, or nil for an object whose 
 - `rake spec`.
 - `docs/api/` documents the `@param` convention, `map_object` and `fact_key`.
   `MapSettings` and `MapBuilder` are `@api private`, and nothing uses them yet,
-  so `CHANGELOG.md` waits for step 5.
+  so `CHANGELOG.md` waits for step 6.
 - [write-ruby-code](../../../.claude/skills/write-ruby-code/SKILL.md) says that
   a constructor a map builds documents its settable keywords with `@param`, that
   the tags are what the map may set, and that a node passes a designer's value on
@@ -544,13 +549,13 @@ Where the sketch was wrong, or said too little:
   `BoxCollider` stays axis-aligned in the world, by design. So the spec checks
   the collider's box on an unturned object, and its corners through the node's
   frame on a turned one. No object in the repository's maps is turned, and
-  `tour.tmx`'s one turned object is R21's tile object. **For steps 5 and 6:** a
+  `tour.tmx`'s one turned object is R21's tile object. **For steps 6 and 7:** a
   map-built node on a turned object collides as if unturned.
 - **A required keyword no property sets raises**, naming the map, the object and
   the keyword. Ruby's own "missing keyword" names neither the map nor the
   object. The first version counted only the properties, so it refused a class
   that requires `width:`, which the object's box sets. A spec with a `Raft` of
-  that shape pins the fix. **For step 6:** `Raft` may require `width:` and
+  that shape pins the fix. **For step 7:** `Raft` may require `width:` and
   `height:`, and may not tag them.
 - **The name resolves along the scope's name, not where the class was
   written.** Ruby, inside `class Adventure::Town`, does not look in
@@ -571,9 +576,9 @@ Where the sketch was wrong, or said too little:
   long form, and a tag of it would otherwise leave the keyword unsettable
   without a word.
 - **The documentation went to `internals.md`, not `tile_maps.md`.** Nothing calls
-  `MapBuilder` until step 5, and `tile_maps.md` documents what a game does today,
+  `MapBuilder` until step 6, and `tile_maps.md` documents what a game does today,
   with `MapObjects`. It gained `map_object:` and `fact_key:`, which a
-  `MapObjects` block may pass. **For step 5:** "Building nodes from objects"
+  `MapObjects` block may pass. **For step 6:** "Building nodes from objects"
   moves onto the new path, and so does what `internals.md` says a game author
   writes.
 
@@ -583,11 +588,11 @@ as the design asks. None has a tag yet, so it guards the first.
 Documented in `docs/api/internals.md` (`MapBuilder`, the tag table and its
 rules), `docs/api/tile_maps.md` (`map_object:` and `fact_key:`) and the
 write-ruby-code skill (a node class a map builds). `CHANGELOG.md` waits for
-step 5, as planned.
+step 6, as planned.
 
 ---
 
-## What was measured before re-planning steps 4–6
+## What was measured before re-planning steps 4, 6 and 7
 
 Taken at `f116a92`, after step 3 landed, and on
 `origin/build-step-8-tiled-map` at `e9726f1` for `tour.tmx`.
@@ -597,7 +602,7 @@ Taken at `f116a92`, after step 3 landed, and on
 | Scenes mounting `town.tmx` | 7; 2 of them define a `Door` (`examples/doors`, adventure) |
 | Those 5 others reading `town.tmx`'s objects | 0 |
 | Scenes passing `slots:` to `mount` | 6: `doors`, adventure's `Town` and `Garden`, `moving_platforms`, `Course`, `cutscene` |
-| Scenes passing a slot other than `:actors`, once step 6 lands | 0 |
+| Scenes passing a slot other than `:actors`, once step 7 lands | 0 |
 | Projects passing `mount(y_sort: false)` | 0 |
 | Object layers in tracked maps | 7 in 5 maps: `town`, `garden` and `pits` 1 each, `platforms` and `course` 2 each |
 | Tracked maps with an `above` layer, among those with an object layer | 0, so every slot sits over every layer |
@@ -605,7 +610,7 @@ Taken at `f116a92`, after step 3 landed, and on
 | Tile objects in tracked maps | 0. `tour.tmx` has 2: one turned 90°, one flipped horizontally |
 | Tilesets setting `fillmode` or `tilerendersize` | 0, tracked or on the authoring branch |
 | Raft objects | 3: 2 polylines and 1 polygon, sized by `width` and `height` properties that step 3 refuses |
-| Map-built node classes whose origin moves at step 6 | 1, `Door` ×2. The flags, the crate and the walker stand on points; a raft's origin is its route's first point, as today |
+| Map-built node classes whose origin moves at step 7 | 1, `Door` ×2. The flags, the crate and the walker stand on points; a raft's origin is its route's first point, as today |
 | `MapObjects` in a release | none: its `CHANGELOG.md` entry is under Unreleased |
 | `slots:` in a release | none: v0.4.0 had `under:` |
 
@@ -627,7 +632,7 @@ and `orthogonalrenderer.cpp`, and its TMX reference)*:
 
 A tile object is one picture of a map's tile at one position, and nothing can
 draw that today. `TileMapRenderer` draws a whole layer, and its one-tile draw is
-private and bound to a cell. Step 5 gives every tile object a `MapTile`, so the
+private and bound to a cell. Step 6 gives every tile object a `MapTile`, so the
 drawing comes first. The step depends on nothing earlier in the plan.
 
 It also closes two silent gaps the research found. A tileset that preserves its
@@ -697,7 +702,7 @@ end
   differs is the part `Sprite` does not have: a map id, a clock from the
   `TileWorld`, an orientation and a stretch to the box.
 - **The tile draws under everything else its node draws**, at `Z_MIN` in the
-  node's slot. Components draw in the order they were added, and step 5 adds a
+  node's slot. Components draw in the order they were added, and step 6 adds a
   `MapTile` after the class's `initialize`, so it would otherwise cover the
   class's own `Sprite`.
 
@@ -764,7 +769,7 @@ end
   animated tiles now draw through `draw_tile` every frame.
 - **Every driven project reports the same under `--seed 1`, before and after.**
   No project draws a tile object yet, and a layer draws the calls it drew.
-- No driven project reaches `map_tile` until step 8, so rules 10 and 15 are what
+- No driven project reaches `map_tile` until step 9, so rules 10 and 15 are what
   decide its allocations.
 - `docs/api/drawing.md` documents `map_tile` beside `tilemap`, and
   `docs/api/components.md` documents `MapTile`. `CHANGELOG.md` has an Added entry
@@ -819,37 +824,304 @@ for both, and the Unreleased entry on Tiled maps names the refusals.
 
 ---
 
-## Step 5 — `mount` builds the object layers, and they replace named slots *(Engine, pure)*
+## What was measured before planning step 5
 
-Step 3 built one node from one object, and step 4 drew one tile. This step joins
-them to the tree: a map's object layers become nodes in their place, and a scene
+Taken at `c881136`, after step 4 landed.
+
+| | |
+|---|---|
+| Readers of `Node2D#fact_key` | 0 in `examples/` and `test_projects/`. `MapBuilder` sets it, and 2 specs and 2 pages of `docs/api/` read it back |
+| Readers of `Node2D#map_object` once a node is built | 0. `MapBuilder` reads the object itself while it builds |
+| What step 7's sketches read from `map_object` | a route and a name, each while building: `Raft`'s route through `Path.from_object`, in two games, and the name for `Flag` and adventure's `Door` |
+| Classes taking a route or a name from their object today | `Raft` takes `route:` in both games, and `Flag` takes `name:`, each from a `MapObjects` block |
+| Keywords of `Node2D#initialize` | 11, `map_object:` and `fact_key:` among them |
+| `object_id` | Ruby's `Kernel#object_id`. Defining it makes Ruby warn "redefining 'object_id' may cause serious problems" *(measured)* |
+| Nodes keeping their own state in `Facts` | 3, in adventure, all built in code. `Chest` and `Lever` keep one value under the `key:` their room passes. `Crate` keeps three, under keys it derives from one: `:crate_x`, `:crate_y` and `:crate_way`. Each also takes `facts:` from its room |
+| Saves in adventure | none. Nothing in it writes a `SaveFile`, so a renamed key loses no one's state |
+| Adventure, `--seed 4242 --texts`, 1640 ticks | in each half of the split screen, `chest`, `lever` and `crate` draw 119, 501 and 80 times. That is from tick 143 until the crate moves at 223, the chest opens at 262 and the lever is pulled at 644. None of the three draws after the town is built a second time *(measured)* |
+
+---
+
+## Step 5 — a node keeps its object's id, and `Components::Fact` keeps its state *(Engine, pure)*
+
+Step 3 gave every node two keywords that a map fills: `map_object:`, the
+object's whole record, and `fact_key:`, a key for `Facts`. After step 4 landed,
+the conversation turned both down. In the user's words: "Giving _every_ node a
+facts key because _some_ nodes might need it is bad design. That's what
+components are for." And once a node is built, "it shouldn't matter _how_ it was
+constructed", apart from its object's id. Decisions 19 and 20 hold what replaces
+them. Nothing outside `lib/`, `spec/` and `docs/` reads either keyword yet.
+Step 6 builds every map-built node through `MapBuilder`, and step 7 writes the
+classes that read them, so the change comes before both.
+
+What it resembles:
+
+- **Reused.** `Components::Facts` holds the values, and `Facts.check_value`
+  checks a default. `system!` finds `Facts` and the `TileWorld`.
+  `Path.from_object` builds a route.
+- **Extended.** The builder already reads `initialize`'s parameters for the
+  keywords it requires. It reads them for `route:` and `name:` as well.
+  `MapSettings` reserves what the builder sets, so its list changes with the
+  keywords.
+- **Genuinely new.** `Components::Fact`, one of a node's values in `Facts`.
+  Adventure's three nodes each do it by hand today, with a `facts:` and a `key:`
+  from their room. `Components::Identity` is the nearest existing thing. The
+  design rejected it for this job: its ids are the game's to hand out, and an
+  Integer id cannot key a fact.
+
+### Sub-steps
+
+- **5a** — `MapBuilder` hands a node values, never its record. `Node2D` loses
+  `map_object:` and `fact_key:` and takes `map_object_id:`. A class whose
+  `initialize` names `route:` or `name:` receives it. The property `fact` is no
+  longer special.
+- **5b** — `Components::Fact`.
+- **5c** — adventure's `Chest`, `Lever` and `Crate` keep their state through
+  `Components::Fact`, and stop taking `facts:`.
+
+### Shape
+
+```ruby
+# 5a — Node2D. map_object: and fact_key: go.
+Node2D.new(map_object_id: nil, **)   # alongside the keywords it takes today
+node.map_object_id                   # sealed_reader: the object's id, or nil for a node built in code
+
+# 5a — what MapBuilder passes, besides the box, the id and the tagged properties
+class Raft < Engine::Node2D
+  def initialize(route:, **)         # an Engine::Path, for a polyline or a polygon
+class Flag < Engine::Node2D
+  def initialize(name:, **)          # the object's name, '' when the designer gave none
+
+# 5b — Engine
+module RGame
+  module Engine
+    module Components
+      # One value of its node's, kept in the root's Facts, so it outlives the
+      # room the node stands in.
+      class Fact < Engine::Component
+        def initialize(default: nil, key: nil, part: nil)
+          super()
+          @rgame_default = Facts.check_value(default) { 'a Fact default' }
+          @rgame_given = key
+          @rgame_part = part
+        end
+
+        def _attach
+          @rgame_facts = node.system!(Facts)
+          @rgame_key ||= derived_key
+        end
+
+        # The Symbol the value is kept under.
+        def key
+          attached
+          @rgame_key
+        end
+
+        def value = attached.fetch(@rgame_key, @rgame_default)
+
+        def value=(value)
+          attached[@rgame_key] = value
+        end
+
+        private
+
+        def derived_key
+          base = @rgame_given || map_key or raise ArgumentError, '...'   # rule 10
+          @rgame_part ? :"#{base}.#{@rgame_part}" : base
+        end
+
+        def map_key
+          id = node.map_object_id or return
+          :"#{node.system!(TileWorld).tilemap_id}##{id}"
+        end
+
+        def attached = @rgame_facts || raise(...)   # rule 13
+      end
+    end
+  end
+end
+```
+
+Adventure, in its own module:
+
+```ruby
+# 5c — Chest, before and after. Lever changes the same way.
+def initialize(facts:, key:, **)
+  # ...
+  @facts = facts
+  @key = key
+  @state = facts.fetch(key, 'closed').to_sym
+end
+
+def initialize(key:, **)
+  super(**)
+  add_component(Components::BoxCollider.new(width: SIZE, height: SIZE, layer: :interactable))
+  @kept = add_component(Components::Fact.new(key:, default: 'closed'))
+end
+
+def _enter_tree = @state = @kept.value.to_sym
+
+# 5c — Crate keeps three values, one Fact each, and moves to where it was left
+@kept_x = add_component(Components::Fact.new(key:, part: :x, default: x))
+@kept_y = add_component(Components::Fact.new(key:, part: :y, default: y))
+@kept_way = add_component(Components::Fact.new(key:, part: :way, default: 'still'))
+
+def _enter_tree
+  self.x = @kept_x.value
+  self.y = @kept_y.value
+  @way = @kept_way.value.to_sym
+end
+
+# 5c — the town passes no facts
+@actors.add_node(Chest.new(x: CHEST.first, y: CHEST.last, key: :chest))
+```
+
+- **The key is derived at the first `_attach`, not in `initialize`.** A node
+  has no scene before it enters a tree, so there is no `TileWorld` to name the
+  map. So `Chest` and `Lever` read their state in `_enter_tree`, and `Crate`
+  moves to where it was left there. `CollisionWorld` indexes its colliders in
+  its own `_update`, so a crate moved in `_enter_tree` collides where it stands.
+- **A node keeping several values adds a `Fact` for each**, with a `part:`.
+  `Crate`'s keys become `:"crate.x"`, `:"crate.y"` and `:"crate.way"`. Nothing
+  saves the old ones.
+- **`route:` and `name:` go only to a class whose `initialize` names them.**
+  Every class forwards `**` to `Node2D`, which takes neither, so passing them to
+  every class would raise. They need no `@param` tag, as `width` and `height`
+  need none: the designer draws a route and types a name, and sets neither in a
+  property field.
+- **`Fact` has no `watch`.** A node that must follow a restore watches
+  `fact.key` in `Facts` itself.
+
+### The rules the tests pin
+
+**5a**
+
+1. **`Node2D#map_object_id` reads back what was passed, and is `nil` on a node
+   built in code.**
+2. **The builder sets `map_object_id` to the object's id** on every node it
+   builds.
+3. **A class whose `initialize` names `route:` receives the object's route**, as
+   `Path.from_object` builds it: open for a polyline, closed for a polygon, and
+   turned with the object. A class that requires `route:`, built from any other
+   shape, raises `ArgumentError` naming the object, its shape and the class. A
+   class whose `route:` is optional receives none from another shape.
+4. **A class whose `initialize` names `name:` receives the object's name**, or
+   `''` when the designer gave none.
+5. **A class that names neither receives neither**, though it forwards `**` to
+   `Node2D`.
+6. **`MapSettings` refuses a tag naming `route` or `name`**, and one naming
+   `map_object_id`, as one of `Node2D`'s own keywords. It no longer refuses
+   `fact`.
+7. **A `fact` property is a property like any other.** It sets a keyword `fact`
+   that the class tags, and raises otherwise, listing the settable keywords.
+
+**5b**
+
+8. **With `key:`, the key is `key:`**, or `:"<key>.<part>"` with a `part:`.
+9. **Without `key:`, the key is `:"<tilemap id>#<map_object_id>"`**, with
+   `.<part>` for a part. That is decision 9's default, moved here. The tilemap id
+   is the scene's `TileWorld`'s, read at the first `_attach`.
+10. **With neither `key:` nor a `map_object_id`, `_attach` raises
+    `ArgumentError`**, naming the node's class and saying to pass `key:`.
+11. **The key is derived once.** A node that leaves the tree and enters it
+    under a scene with another `TileWorld` keeps its key.
+12. **`value` is the fact, or `default` for a key never set.** `value=` writes
+    the fact, and `Facts` emits `on_changed` and calls its watchers, as for any
+    write.
+13. **`key`, `value` and `value=` raise before the node first enters a tree**,
+    saying why, as `Particles#burst` does since step 2.
+14. **A `default` that `Facts` would refuse raises `TypeError` as the component
+    is built**, a Symbol included. So do a `key:` and a `part:` that are not
+    Symbols.
+15. **Two `Fact`s on one node, with different parts, keep two values.**
+16. **`value` allocates nothing, and neither does `value=` writing the value
+    already held.**
+
+**5c**
+
+17. **Adventure's town, built a second time, holds the chest, the lever and the
+    crate as the first one left them**, the crate where it was pushed. No spec
+    loads a test project's classes, so the drive under Verify decides it.
+
+### Tests
+
+- `spec/rgame/engine/node2d_spec.rb`: rule 1, in place of
+  `#map_object and #fact_key`.
+- `spec/rgame/engine/map_builder_spec.rb`: rules 2–5 and 7, from `.tmx` strings
+  through `TiledFixture`. "The fact key and the record" becomes "the object
+  id". A new describe covers `route:` and `name:`: a polyline, a polygon, a
+  turned polyline, a rectangle for a class that requires a route, and one for a
+  class whose route is optional.
+- `spec/rgame/engine/map_settings_spec.rb`: rule 6. `SpecMapKeyedChest` tags
+  `route` and raises. `SpecMapFactChest`'s `fact` tag now reads.
+- `spec/rgame/engine/components/fact_spec.rb`: rules 8–16.
+- **The caller that uses both**, in `fact_spec.rb`: a chest class that adds a
+  `Fact`, built by `MapBuilder` from a `.tmx` string under a scene with a
+  `TileWorld`. Beside it stands the same class built in code with `key: :chest`.
+  Both are opened. The scene is freed and built again from the same map, and
+  each new chest reads `open`: one under `:"map/town.tmx#7"`, the other under
+  `:chest`.
+
+### Verify
+
+- `rake spec`, `rake spec:core` and `rake drive:allocations`.
+  `Node2D#initialize` sets one ivar where it set two, and the crate writes its
+  facts from `_update`.
+- **Adventure, driven with `--seed 4242 --texts` and `--seed 1 --texts` for 1640
+  ticks, before and after.** The scenes entered, the sounds played, and the
+  texts with their first ticks match, give or take the frame step 2 found varies
+  between runs. At seed 4242, `chest`, `lever` and `crate` still draw 119, 501
+  and 80 times in each half of the split screen, and none of them draws after
+  the town is built again. A count grown by the ticks after that rebuild would
+  mean a lost state. The draw calls' spans and the translates pushed match, so
+  the crate stands where it was left.
+- `grep -rnw -e fact_key -e map_object lib spec examples test_projects docs/api .claude`
+  finds only `tile_map.rb`'s `require_relative 'map_object'`, where it found 31
+  lines at `c881136`.
+- `docs/api/components.md` documents `Fact`, between `DespawnOffscreen` and
+  `FeetCollider`. The Facts section of `docs/api/dialogue.md`, and
+  `Components::Facts`' class comment, say where a node's own state goes.
+  `docs/api/internals.md`'s `MapBuilder` section describes `map_object_id`,
+  `route:` and `name:`, and drops `fact`. `docs/api/tile_maps.md`'s `MapObjects`
+  bullet names `map_object_id:`. The write-ruby-code skill's "A node class a map
+  builds" says a class names `route:` or `name:` to receive them, untagged.
+- `CHANGELOG.md` has an Added entry for `Components::Fact` and
+  `Node2D#map_object_id`. `map_object:` and `fact_key:` have no entry to remove,
+  since step 3 left the changelog to step 6.
+
+---
+
+## Step 6 — `mount` builds the object layers, and they replace named slots *(Engine, pure)*
+
+Step 3 built one node from one object, step 4 drew one tile, and step 5 settled
+what a node keeps of its object. This step joins them to the tree: a map's object layers become nodes in their place, and a scene
 writes no line for what they hold. An object layer also marks a place in the
 layer order, so named slots go (decision 17).
 
 Nothing in a tracked map builds yet. Every class there stays lower-case until
-step 6, so the step can land, and be driven, against projects that do not change.
+step 7, so the step can land, and be driven, against projects that do not change.
 
 ### Sub-steps
 
-- **5a** — `MapBuilder` gives a tile object its tile, and a hidden object
+- **6a** — `MapBuilder` gives a tile object its tile, and a hidden object
   opacity 0.
-- **5b** — `mount` builds each object layer as a node in its place, and the
+- **6b** — `mount` builds each object layer as a node in its place, and the
   layer marked `actors` is where the actors go.
-- **5c** — object layers replace named slots: `mount` returns
+- **6c** — object layers replace named slots: `mount` returns
   `TileMapLayer::Places`, `slots:` goes, and the six scenes that pass it move
   off it.
 
 ### Shape
 
 ```ruby
-# 5a — MapBuilder, as step 3 left it, and:
+# 6a — MapBuilder, as step 3 left it, and:
 builder.build(tile_object)     # its class's node with a MapTile added, or a plain Node2D with one for a data class
 builder.build(hidden_object)   # the node it would build, at opacity 0
 
-# 5b — Engine
+# 6b — Engine
 world.objects                  # TileWorld forwards TileMap#objects, as it forwards #layer
 
-# 5c — Engine
+# 6c — Engine
 places = RGame::Engine::TileMapLayer.mount(view)  # y_sort: true, as today
 places[:actors]    # the layer marked `actors`; on a map with none, a node under the first `above` layer
 places['doors']    # the object layer named 'doors', or a 'Group/layer' path, as TileMap#layer_index takes them
@@ -863,7 +1135,7 @@ slots = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new), slots: { doo
 doors.spawn_into(slots[:doors], @map.objects)
 
 places = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))
-doors.spawn_into(places['doors'], @map.objects)   # until step 6 lets the map build them
+doors.spawn_into(places['doors'], @map.objects)   # until step 7 lets the map build them
 ```
 
 `moving_platforms` and `Course` spawn their rafts into `places['platforms']`,
@@ -873,18 +1145,17 @@ nothing changes place on screen.
 
 ### The rules the tests pin
 
-**5a**
+**6a**
 
 1. **A tile object whose class builds a node gets a `MapTile`** of its tile and
    orientation, added after the class's `initialize`.
 2. **A tile object whose class is data builds a plain `Node2D`**, placed as step
-   3's rule 12 places any node, with its `map_object`, its `fact_key` and a
-   `MapTile`.
+   3's rule 12 places any node, with its `map_object_id` and a `MapTile`.
 3. **A shape object whose class is data still builds nothing.**
 4. **An object hidden in Tiled builds, at opacity 0** (decision 16). It updates
    and collides, and draws nothing.
 
-**5b**
+**6b**
 
 5. **Each object layer becomes a `Node2D` in its place among the layers**,
    y-sorted when `y_sort?` says so. Its opacity is the layer's, and 0 when the
@@ -900,7 +1171,7 @@ nothing changes place on screen.
 9. **A second `mount` over the same `TileWorld` raises**, naming its node. It
    would build every object twice.
 
-**5c**
+**6c**
 
 10. **`places[:actors]` answers rule 7's node, and `places[name]` the object
     layer a name or path names.** A tile or image layer's name raises
@@ -941,32 +1212,33 @@ nothing changes place on screen.
 - `docs/api/tile_maps.md` rewrites "Building nodes from objects" for the new
   path. That covers the class rule, data classes, the `@param` tags (linking
   `internals.md` for the table), tile objects, the `actors` mark, hidden layers
-  and objects, `fact_key` and `places[name]`. `MapObjects` keeps a short section
-  until step 6 removes it. `docs/api/scene_graph.md` and `internals.md` follow.
+  and objects, `route:` and `name:`, `map_object_id` and `Components::Fact`, and
+  `places[name]`. `MapObjects` keeps a short section
+  until step 7 removes it. `docs/api/scene_graph.md` and `internals.md` follow.
 - `CHANGELOG.md` has an Added entry for map-built nodes. The Unreleased entry
   on `slots:` becomes one on `places[name]`, since `slots:` never shipped.
 
 ---
 
-## Step 6 — every map and project on the new path
+## Step 7 — every map and project on the new path
 
-Step 5 built the path, and nothing uses it yet. This step renames the classes in
+Step 6 built the path, and nothing uses it yet. This step renames the classes in
 four maps, tags the constructors they name, and deletes `MapObjects`. Its
 sub-steps follow the projects, because two games share `garden.tmx` and must
 move together.
 
 ### Sub-steps
 
-- **6a** — the doors. `examples/doors` and adventure get a town map of their own
+- **7a** — the doors. `examples/doors` and adventure get a town map of their own
   with the gate (decision 15), `town_with_gate.tmx`. `town.tmx` loses its object
   layer. Both games define `Door` and `Warp`, and `garden.tmx` and the new map
   name them.
-- **6b** — `examples/moving_platforms`: `Raft` is tagged, and `platforms.tmx`
+- **7b** — `examples/moving_platforms`: `Raft` is tagged, and `platforms.tmx`
   names it, sized by `deck_width` and `deck_height` (decision 18).
-- **6c** — topdownplatformer. `course.tmx` names `Raft`, `Flag`, `Crate` and
+- **7c** — topdownplatformer. `course.tmx` names `Raft`, `Flag`, `Crate` and
   `Walker`, moves its `platforms` layer under `spawns`, and marks `spawns` as
   `actors`.
-- **6d** — `MapObjects` goes: the class, its spec, its documentation, and its
+- **7d** — `MapObjects` goes: the class, its spec, its documentation, and its
   Unreleased `CHANGELOG.md` entry.
 
 ### Shape
@@ -974,7 +1246,7 @@ move together.
 Game code, in each game's own module:
 
 ```ruby
-# 6a — DoorsExample and Adventure alike. Adventure's also draws the object's name above it.
+# 7a — DoorsExample and Adventure alike. Adventure's also takes name:, the object's name, and draws it above the door.
 class Door < Engine::Node2D
   COLOR = Util::Color.new(150, 104, 56)
 
@@ -1017,20 +1289,20 @@ class Warp < Door
   def destination = scene.name
 end
 
-# 6b and 6c — Raft, in each game. `route:`, `width:` and `height:` go.
+# 7b and 7c — Raft, in each game. `width:` and `height:` go; the builder passes route: (step 5).
 # @param deck_width [Integer] the raft's width in pixels, a multiple of 16
 # @param deck_height [Integer] its height in pixels, a multiple of 16
-def initialize(deck_width:, deck_height:, **)
+def initialize(route:, deck_width:, deck_height:, **)
   super(**)
-  path = Engine::Path.from_object(map_object)
   # ... the BoxCollider, Platform and PathFollow as today, sized by the deck
 
-# 6c — Flag takes its name from its object, since a Tiled object's name is no property
-def initialize(**)
-  super
-  # ... other.node.reach(map_object.name)
+# 7c — Flag takes name: as today, and the builder passes the object's name (step 5)
+def initialize(name:, **)
+  super(**)
+  @name = name
+  # ... other.node.reach(@name)
 
-# 6c — the course keeps no slots and builds nothing itself
+# 7c — the course keeps no slots and builds nothing itself
 @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))[:actors]   # the spawns layer
 ```
 
@@ -1067,7 +1339,7 @@ the heroes. The walker rides the ring, so it would disappear under it.
 
 - `spec/example_assets_spec.rb`: rules 1–5, with the doors describe moved onto
   `town_with_gate.tmx` and the classes `Door` and `Warp`.
-- `spec/rgame/engine/map_objects_spec.rb` goes in 6d.
+- `spec/rgame/engine/map_objects_spec.rb` goes in 7d.
 
 No spec loads an example's or a test project's classes, since each file starts
 its game when required. The drive runs below are what show that each class
@@ -1076,7 +1348,7 @@ resolves under its scene, and builds with the settings its map gives it.
 ### Verify
 
 - `rake spec`, `rake spec:core`, `rake drive:allocations`.
-- **Driven with `--seed 1 --texts` at the end of step 5 and after 6d**, at the
+- **Driven with `--seed 1 --texts` at the end of step 6 and after 7d**, at the
   lengths step 2 used: `doors`, adventure for 1640 ticks under seeds 1 and
   4242, `moving_platforms`, topdownplatformer for 1654 ticks under seeds 1 and
   3, and the five examples that mount `town.tmx`. The scenes entered, the sounds
@@ -1085,8 +1357,8 @@ resolves under its scene, and builds with the settings its map gives it.
   translates and scales around each draw, as the y-sort plan's comparison did.
   Only the doors move their origin, to the bottom centre of their box.
 - **The five `town.tmx` examples report their `world` band count one lower** per
-  frame and viewport than at the end of step 5, since the map lost its object
-  layer. That undoes step 5's growth for them.
+  frame and viewport than at the end of step 6, since the map lost its object
+  layer. That undoes step 6's growth for them.
 - `grep -rn MapObjects lib examples test_projects spec docs/api` finds nothing.
   `docs/api/tile_maps.md`, `examples.md` and `internals.md` describe the new
   path, and so does the header of `examples/doors/main.rb`. `CHANGELOG.md` has
@@ -1094,7 +1366,7 @@ resolves under its scene, and builds with the settings its map gives it.
 
 ---
 
-## Step 7 — Tiled's custom types, written from Ruby *(rough)*
+## Step 8 — Tiled's custom types, written from Ruby *(rough)*
 
 `RGame::Engine::MapTypes.write(path)` writes a Tiled class into a
 `.tiled-project` for each `Node2D` subclass whose tags make any keyword
@@ -1109,7 +1381,7 @@ name from the scene's class: a project's maps may serve two games, as
 `spec/rgame/cli/generated_project_spec.rb` with it. Whether its `.gitignore`
 leaves out `*.tiled-session`, as this repository's does since step 0.
 
-## Step 8 — the maps checked, and the level played *(rough)*
+## Step 9 — the maps checked, and the level played *(rough)*
 
 Two halves, as [map-requirements.md](map-requirements.md#the-check-and-the-example-that-plays-the-map)
 sketches:
@@ -1129,13 +1401,14 @@ place `mount` leaves for the actors on a map with no mark.
 
 ---
 
-## Step 9 — fold the plan back and delete it
+## Step 10 — fold the plan back and delete it
 
 - **`docs/api/tile_maps.md`** says what a map builds and how: the class rule,
   data classes, the `@param` tags, tile objects, the `actors`
-  mark, hidden layers and objects, `fact_key` and `places[name]`. Step 5 rewrote
+  mark, hidden layers and objects, `route:` and `name:`, `map_object_id` and
+  `Components::Fact`, and `places[name]`. Step 6 rewrote
   "Building nodes from objects"; this step checks it against the code.
-- **`docs/api/components.md`** covers `MapTile` and `RandomSource`.
+- **`docs/api/components.md`** covers `Fact`, `MapTile` and `RandomSource`.
 - **`docs/api/scene_graph.md`** covers what `mount` builds for an object layer.
 - **`docs/plans/possible-todos.md`**:
   - "Platforms as Tiled tile objects" is answered, or its trigger updated.
@@ -1147,9 +1420,10 @@ place `mount` leaves for the actors on a map with no mark.
 
 ### Verify
 
-`CHANGELOG.md` covers everything steps 1–8 shipped, per
+`CHANGELOG.md` covers everything steps 1–9 shipped, per
 [update-changelog](../../../.claude/skills/update-changelog/SKILL.md): what the
 Tiled parser gained, the random source, map-built nodes and `places[name]`, the
-`@param` convention, `map_tile` and `MapTile`. It has no entry for `MapObjects`
-or `slots:`, which never shipped. `rake` passes. `docs/plans/object-layers/` is gone,
+`@param` convention, `map_tile` and `MapTile`, and `Components::Fact` with
+`map_object_id`. It has no entry for `MapObjects`, `slots:`, `map_object:` or
+`fact_key:`, which never shipped. `rake` passes. `docs/plans/object-layers/` is gone,
 and `grep -r object-layers docs/ .claude/` finds nothing.

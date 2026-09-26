@@ -13,9 +13,11 @@ Five stages, each owned by one piece:
    its place among the layers, and each object in it goes to `MapBuilder`.
 4. **`MapBuilder` builds one node.** It resolves the class, checks every property
    against the `@param` tags above the class's `initialize`, constructs the
-   node, and gives a tile object its picture.
+   node, and gives a tile object its picture. It hands the node values and keeps
+   the record: the node keeps only its object's id (decision 19).
 5. **The node finds the rest in the tree.** Its room, its facts and its random
-   source are systems, reached with `system!` in `_enter_tree`.
+   source are systems, reached with `system!` in `_enter_tree`. A
+   `Components::Fact` keeps its state in the facts (decision 20).
 
 Stages 1 and 2 are pure and game-agnostic: a `TileMap` knows no game class.
 Classes resolve in stage 4, when the scene mounts the map and the game's code is
@@ -80,7 +82,7 @@ this document sit inside the game's own module, where `Engine` stands for
 
 ```ruby
 class Chest < Engine::Node2D
-  # A chest the hero opens once. It keeps its state in Facts under its fact_key.
+  # A chest the hero opens once.
   #
   # @param contents [String] the item inside
   # @param locked [Boolean] whether it takes a key to open
@@ -121,9 +123,9 @@ end
   every engine class that has any, so an engine comment cannot drift from its
   constructor unnoticed.
 - **Reserved names raise too**: `Node2D`'s own keywords (`x`, `y`, `z`, `angle`,
-  `width`, `height`, `input_owner`, `band` and `y_sort`), `map_object`,
-  `fact_key`, and the property `fact`. The map sets the first six, and the
-  builder the next three.
+  `width`, `height`, `input_owner`, `band`, `y_sort` and `map_object_id`), and
+  `route` and `name`. The object's box sets `x`, `y`, `angle`, `width` and
+  `height`, and the builder sets `map_object_id`, `route` and `name`.
 - **The tags come with the constructor.** A subclass without an `initialize` of
   its own, such as `class LockedChest < Chest; end`, uses its parent's, comment
   and all. A subclass with its own `initialize` uses only its own tags.
@@ -145,10 +147,28 @@ For object 7, a `Chest` tile object in `map/town.tmx` with the property
 
 ```ruby
 Chest.new(x: 184.0, y: 312.0, width: 16.0, height: 16.0, angle: 0.0,
-          map_object: object, fact_key: :"map/town.tmx#7",
-          contents: 'key')
+          map_object_id: 7, contents: 'key')
 node.add_component(Components::MapTile.new(tile: object.tile, orientation: object.orientation))
 ```
+
+**The builder hands the node values and keeps the record** (decision 19). Once a
+node is built, how it was built does not matter, except for its object's id:
+
+| Field of the `MapObject` | What the builder does with it |
+|---|---|
+| `class_name` | picks the class |
+| `layer` | picks the parent |
+| `x`, `y`, `width`, `height`, `rotation` | `Node2D`'s keywords `x:`, `y:`, `angle:`, `width:` and `height:` |
+| `properties` | the class's tagged keywords |
+| `tile`, `orientation` | a `MapTile` |
+| `visible` | opacity 0 when hidden |
+| `shape`, `points` | `route:`, an `Engine::Path` from `Path.from_object`, for a polyline or a polygon |
+| `name` | `name:`, a String |
+| `id` | `map_object_id:`, on every node it builds |
+
+`route:` and `name:` go only to a class whose `initialize` names them. Every
+class forwards `**` to `Node2D`, which takes neither. A class that requires
+`route:` raises when built from another shape, naming the object.
 
 **The node's own settings are keywords of its constructor.** Each flat property
 must be a keyword the class's tags make settable, of the tagged type, and
@@ -188,20 +208,29 @@ The map never sets a component's keywords itself (decision 3). An override of
 class built from a map today wants one. `docs/plans/possible-todos.md` keeps the
 design this plan drafted for it.
 
-**The key in `Facts`** is the object's `fact` property as a Symbol when it has
-one, and `:"<tilemap id>#<object id>"` otherwise. The tilemap id is the asset key
-`TileWorld` was given, `'map/town.tmx'`, not the file path, which is absolute in
-a game and differs between machines. `fact_key` and `map_object` are `nil` on a
-node built in code.
+**A node keeps its state in `Facts` through a `Components::Fact`** (decision
+20). Its key is `key:` when the node passes one, and otherwise
+`:"<tilemap id>#<object id>"`, derived at the component's first `_attach`. The
+tilemap id is the asset key `TileWorld` was given, `'map/town.tmx'`, not the
+file path, which is absolute in a game and differs between machines.
+`map_object_id` is `nil` on a node built in code, which passes `key:` instead.
 
 ```ruby
 class Chest < Engine::Node2D
-  def _enter_tree
-    @facts = system!(Components::Facts)
-    @state = @facts.fetch(fact_key, 'closed').to_sym
+  def initialize(**)
+    super
+    @kept = add_component(Components::Fact.new(default: 'closed'))
   end
+
+  def _enter_tree = @state = @kept.value.to_sym
+
+  def open = @kept.value = 'open'
 end
 ```
+
+A class that lets a designer name the key tags a keyword of its own, such as
+`@param fact [Symbol]`, and passes it on as `key:`. The property `fact` is no
+longer special.
 
 ## Tile objects
 
@@ -295,8 +324,12 @@ member shows, are open questions [2](README.md#open-questions) and
   the map. `MapObjects` never shipped, so its Unreleased `CHANGELOG.md` entry
   goes rather than gaining a Removed one.
 - **`mount`'s named slots**, which object layers replace (decision 17). After
-  step 6 no project passes a slot other than `:actors`.
+  step 7 no project passes a slot other than `:actors`.
 - **`Random.new(ENV.fetch('RGAME_SEED', DEFAULT_SEED).to_i)`**, in 9 projects.
+- **`Node2D`'s `map_object:` and `fact_key:`**, which step 3 added. The id stays
+  as `map_object_id`, and `Components::Fact` makes the key.
+- **The `facts:` that adventure's `Chest`, `Lever` and `Crate` take from their
+  room**, and the keys `Crate` derives by hand.
 
 ## Considered and rejected
 
@@ -325,9 +358,18 @@ member shows, are open questions [2](README.md#open-questions) and
 - **The engine picking the only object layer for actors** (Q6 C). It would move
   tiled_world's actors above the canopy, because `beach_large.tmx` keeps its
   `Objects` layer on top.
-- **An `Identity` for every map-built node.** `Identity`'s own comment says ids
-  are the game's business. A derived key serves `Facts`, which is where a node's
-  state goes, and a game may still set `fact` itself.
+- **An `Identity` for every map-built node** (step 5's Q1 C). `Identity`'s own
+  comment says ids are the game's business, and `save_load_ids` gives its sheep
+  Integer ids, which cannot key a fact. A derived key serves `Facts`, which is
+  where a node's state goes, and a class may still take a designer's key.
+- **The object's record on every node** (`map_object:`, step 5's Q1). Nothing
+  read it once a node was built. The three classes that would read it wanted a
+  route or a name, while building, and the builder now passes those.
+- **The id only for a class that asks** (step 5's Q1 B). `Node2D` would hold
+  nothing of the map, but a class adding a `Fact` would have to remember to
+  take the id and pass it on.
+- **A component holding only the key** (step 5's Q2 B). Every node would repeat
+  the lookup in `Facts`, and `Crate` would still build its three keys by hand.
 - **The origin at the top-left corner** (Q11 B). A tree with no collider would
   sort by its top edge.
 - **A `Random` per node** (Q12 B). Seeded, every walker draws the same sequence.

@@ -61,7 +61,7 @@ Two halves, still rough:
   the only tier where all three layers are present at once, and the only one
   that would catch a map that parses and draws wrong. What it should do depends
   on what the map contains, and on the nodes this plan builds from its objects.
-  It plays the second map, the level, whose requirements step 8 writes once
+  It plays the second map, the level, whose requirements step 9 writes once
   rgame exports its types (see the [roadmap](04-roadmap.md)).
 
 ## What to hand over
@@ -97,7 +97,7 @@ These apply to every file above.
   prints the `tiledversion` attribute it found.
 - **Every class starts with a lower-case letter**, such as `tree`: on the map,
   a layer, a tileset, a tile or an object, and in the Custom Types Editor. From
-  [step 5](04-roadmap.md#step-5--mount-builds-the-object-layers-rough) on, a
+  [step 6](04-roadmap.md#step-6--mount-builds-the-object-layers-and-they-replace-named-slots-engine-pure) on, a
   scene that mounts a map builds a node for each object whose class starts with
   a capital letter. This map is a format checklist, and it should build nothing.
 - **Tiled saves every file, and nobody edits one afterwards.** A hand edit makes
@@ -474,7 +474,7 @@ placement.**
   cells, whose frame the export does not fix. It leaves the object layers out,
   as the export does: Tiled draws every shape, and rgame draws none. rgame draws
   tile objects from
-  [step 5](04-roadmap.md#step-5--mount-builds-the-object-layers-rough) of this
+  [step 6](04-roadmap.md#step-6--mount-builds-the-object-layers-and-they-replace-named-slots-engine-pure) of this
   plan on, and they are checked where they are played, in the level.
 - **The check reports:** "R19: the drawn map differs from tour_reference.png at
   pixel (x, y), in cell (c, r) of layer X."
@@ -493,7 +493,7 @@ own.**
   the class only on the tile. A loader that reads the object alone finds none.
   [Step 1b](04-roadmap.md#step-1--the-parse-and-the-transform-enginetiled-and-tilemap-pure)
   gives such an object its tile's class, and from
-  [step 5](04-roadmap.md#step-5--mount-builds-the-object-layers-rough) on the class
+  [step 6](04-roadmap.md#step-6--mount-builds-the-object-layers-and-they-replace-named-slots-engine-pure) on the class
   decides what the object builds. The object's own class wins, and only the second
   object shows which side won, as the override does in [R18](#r18).
 - **The check reports:** "R20: no tile object without a class comes from a tile
@@ -530,7 +530,7 @@ object.**
   out for *Top Down*, so each layer takes a different branch of the parse.
   [Step 1c](04-roadmap.md#step-1--the-parse-and-the-transform-enginetiled-and-tilemap-pure)
   reads the order as `y_sort?`. From
-  [step 5](04-roadmap.md#step-5--mount-builds-the-object-layers-rough) on, a *Top Down*
+  [step 6](04-roadmap.md#step-6--mount-builds-the-object-layers-and-they-replace-named-slots-engine-pure) on, a *Top Down*
   layer sorts its nodes by y, and a *Manual* one keeps Tiled's list order.
 - **The check reports:** "R22: no object layer is drawn Manual" or "R22: no object
   layer is drawn Top Down."
@@ -543,8 +543,8 @@ set to `true`, and no other layer does.**
 - **In Tiled:** select the layer and add a property with the **+** in the
   Properties panel. Name it `actors`, choose `bool`, and tick it.
 - **Why:** the mark says where the heroes a scene spawns in code go. From
-  [step 5](04-roadmap.md#step-5--mount-builds-the-object-layers-rough) on,
-  `slots[:actors]` is the marked layer's node, so the heroes sort by y
+  [step 6](04-roadmap.md#step-6--mount-builds-the-object-layers-and-they-replace-named-slots-engine-pure) on,
+  `places[:actors]` is the marked layer's node, so the heroes sort by y
   against the objects placed in it. That is why the mark belongs on a *Top Down*
   layer.
   [Step 1c](04-roadmap.md#step-1--the-parse-and-the-transform-enginetiled-and-tilemap-pure)
