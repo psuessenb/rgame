@@ -15,17 +15,20 @@
 #   - Scene::Room and its `_arrive` hook — placing whatever a move brings;
 #   - Scene::Fade — the cover and reveal every move runs;
 #   - TileMap#object_named — the entrance a door names, read off the map;
-#   - MapObjects — a door built from each door object on the map;
+#   - TileMapLayer.mount — a Door or a Warp built from each object of that
+#     class on the map, set up by the object's properties;
 #   - Components::Collectable with `free: false` — a door touched and kept.
 #
 # ## The map says where the doors are
 #
-# Nothing in this file says where a door is. `town.tmx` and `garden.tmx` each
-# carry an object layer, `doors`, and every object in it has a class. An
-# `entrance` is a point where a hero arrives. A `door` is a box whose
-# properties say which room it leads to and at which entrance. A `warp` is a
-# door into its own room, so it names only the entrance. Moving a door is a
-# change in Tiled.
+# Nothing in this file says where a door is. `town_with_gate.tmx` and
+# `garden.tmx` each carry an object layer, `doors`, and every object in it has a
+# class. An `entrance` is a point where a hero arrives. Its class starts with a
+# lower-case letter, so it stays data. A `Door` is a box, and mounting the map
+# builds a `Door` node over it. The object's properties `to`, `entrance` and
+# `party` arrive as the keywords the `@param` tags above `Door#initialize` name.
+# A `Warp` is a door into its own room, so it names only the entrance. Moving a
+# door is a change in Tiled.
 #
 # ## One room class for both maps
 #
@@ -87,36 +90,52 @@ module DoorsExample
     end
   end
 
-  # A door or a warp pad, built from one object on the map. A hero's feet box
-  # touching its box asks the rooms for a move, and the door stays where it is.
-  #
-  # `to` is the room the object's properties name, or the room the pad stands in
-  # for a warp, which the room hands over. A door marked `party` moves every hero
-  # the world holds, and any other door moves the one who touched it.
+  # A door built from the map. A hero's feet box touching its box asks the
+  # world's rooms for a move, and the door stays where it is. The box stands on
+  # the node's origin, the bottom centre of the object Tiled shows.
   class Door < Engine::Node2D
-    COLORS = {
-      'door' => Util::Color.new(150, 104, 56),
-      'warp' => Util::Color.new(150, 96, 210, 200)
-    }.freeze
+    COLOR = Util::Color.new(150, 104, 56)
 
-    def initialize(object:, world:, to: object.properties.fetch('to').to_sym)
-      super(x: object.x, y: object.y, width: object.width, height: object.height)
-      @color = COLORS.fetch(object.class_name)
-      entrance = object.properties.fetch('entrance')
-      party = object.properties.fetch('party', false)
-      add_component(Components::BoxCollider.new(width: object.width, height: object.height,
+    # @param to [Symbol] the room the door leads to
+    # @param entrance [String] the entrance in that room where the hero arrives
+    # @param party [Boolean] whether it moves every hero the world holds, rather than the one who touched it
+    def initialize(to:, entrance:, party: false, **)
+      super(**)
+      @to = to
+      @entrance = entrance
+      @party = party
+      add_component(Components::BoxCollider.new(width:, height:, offset_x: -width / 2.0, offset_y: -height,
                                                 layer: :door))
-      add_component(Components::Collectable.new(by: :hero, free: false)).on_collected do |other|
-        world.rooms.move(party ? world.heroes : other.node, to:, entrance:)
-      end
+      add_component(Components::Collectable.new(by: :hero, free: false)).on_collected { move(it.node) }
     end
 
-    def _draw(renderer, _view) = renderer.rect(0, 0, width, height, color: @color)
+    def _enter_tree = @rooms = system!(Engine::Scene::Rooms)
+
+    def _draw(renderer, _view) = renderer.rect(-width / 2.0, -height, width, height, color: self.class::COLOR)
+
+    private
+
+    def destination = @to
+
+    def move(hero) = @rooms.move(@party ? @rooms.node.heroes : hero, to: destination, entrance: @entrance)
   end
 
-  # One room: the map, the world it makes solid, and a door for each door object
-  # on it. The doors go in the map's `doors` layer, which draws under the actors,
-  # so a hero walks over them rather than behind them.
+  # A warp pad: a door into the room it stands in. A room is its own scene, so
+  # the pad leads to the scene's name.
+  class Warp < Door
+    COLOR = Util::Color.new(150, 96, 210, 200)
+
+    # @param entrance [String] the entrance in this room where the hero arrives
+    def initialize(entrance:, **) = super(to: nil, entrance:, **)
+
+    private
+
+    def destination = scene.name
+  end
+
+  # One room: the map and the world it makes solid. Mounting the map builds its
+  # doors, in its `doors` layer. That layer draws under the actors, so a hero
+  # walks over a door rather than behind it.
   class Grounds < Engine::Scene::Room
     def initialize(map_id)
       super()
@@ -127,13 +146,7 @@ module DoorsExample
       @map = root.context.assets.tilemap(@map_id).map
       add_component(Components::TileWorld.new(map: @map, tilemap_id: @map_id))
       add_component(Components::CollisionWorld.new(cell_size: 32))
-      places = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))
-      @actors = places[:actors]
-
-      doors = Engine::MapObjects.new
-      doors.define('door') { |o| Door.new(object: o, world: parent) }
-      doors.define('warp') { |o| Door.new(object: o, world: parent, to: name) }
-      doors.spawn_into(places['doors'], @map.objects)
+      @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))[:actors]
     end
 
     # A hero arrives standing on the entrance the move named.
@@ -150,14 +163,14 @@ module DoorsExample
   class World < Engine::Node2D
     FADE = Engine::Scene::Fade.new(cover: 0.25, reveal: 0.25)
 
-    MAPS = { town: 'town.tmx', garden: 'garden.tmx' }.freeze
+    MAPS = { town: 'town_with_gate.tmx', garden: 'garden.tmx' }.freeze
 
     PLACES = {
       town: Engine::Text.new('place.town'),
       garden: Engine::Text.new('place.garden')
     }.freeze
 
-    attr_reader :rooms, :heroes
+    attr_reader :heroes
 
     def initialize
       super(band: :overlay)

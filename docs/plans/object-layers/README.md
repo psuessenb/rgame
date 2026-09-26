@@ -1,10 +1,9 @@
 # Object layers
 
-**Status: steps 0–6 are implemented.** Step 7 of
-[the roadmap](04-roadmap.md) is detailed. Step 5 was inserted after step 4
-landed, and the steps after it moved up by one. Steps 8 and 9 are rough and get
-re-planned as the steps before them land. Step 10 folds the plan back and
-deletes it.
+**Status: steps 0–7 are implemented.** Steps 8 and 9 of
+[the roadmap](04-roadmap.md) are rough and get re-planned as the steps before
+them land. Step 5 was inserted after step 4 landed, and the steps after it
+moved up by one. Step 10 folds the plan back and deletes it.
 
 ## The request
 
@@ -271,6 +270,15 @@ Taken at `abb91ad`, and on `origin/build-step-8-tiled-map` for `tour.tmx`.
    - **C — `RGame::Game.new(namespace: Adventure)`.** One place, but a game that
      leaves it out gets a `NameError` for a class it defined, and a game whose
      classes span several modules still needs B's spelling.
+7. **Should the builder follow `**` to a parent's `name:` and `route:`?** It
+   passes each only to a class whose own `initialize` names it, as it reads
+   only that `initialize`'s tags. A subclass that passes `**` on to a parent
+   taking `name:` must name `name:` too. Otherwise Ruby raises "missing
+   keyword" as the room is built, naming neither the map nor the object. Step 7
+   found it in adventure's `Warp`. Following `**` up the chain would remove the
+   rule, and naming the map and the object would at least say where it broke.
+   *Waits on step 10, which moves it to `possible-todos.md` if no step takes
+   it.*
 
 ## Reading order
 

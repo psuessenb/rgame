@@ -12,8 +12,8 @@
 #     carries whoever stands on it;
 #   - Components::PathFollow with `loop: true` — the raft going back and forth
 #     along its route for good;
-#   - Path.from_object and MapObjects — the route and the raft read off the
-#     map, where a designer draws them;
+#   - TileMapLayer.mount — the raft built from the map, over the route a
+#     designer draws, sized by its `deck_width` and `deck_height`;
 #   - Components::Footing — boarding the raft, and the fall off it;
 #   - Components::Respawn, Components::Hop and Components::CameraFollow — the way
 #     back, the jump, and a camera that rides along;
@@ -93,7 +93,9 @@ module MovingPlatformsExample
   end
 
   # A raft of Tiny Town planks, centred on its node, that walks its route for good.
-  # Its box is the floor, and its `PathFollow` is what carries its riders.
+  # Its box is the floor, and its `PathFollow` is what carries its riders. The
+  # map builds it from a polyline, the route its centre shuttles along, and the
+  # node starts on the route's first point.
   class Raft < Engine::Node2D
     TILE = 16
     PLANK_ROW = 6
@@ -101,17 +103,19 @@ module MovingPlatformsExample
     MIDDLE = 1
     RIGHT = 3
 
-    def initialize(route:, width:, height:)
-      super(x: route.x_at(0), y: route.y_at(0))
+    # @param deck_width [Integer] the raft's width in pixels, a multiple of 16
+    # @param deck_height [Integer] its height in pixels, a multiple of 16
+    def initialize(route:, deck_width:, deck_height:, **)
+      super(**)
       add_component(Components::BoxCollider.new(
-                      width: width, height: height, offset_x: -width / 2.0, offset_y: -height / 2.0
+                      width: deck_width, height: deck_height, offset_x: -deck_width / 2.0, offset_y: -deck_height / 2.0
                     ))
       add_component(Components::Platform.new)
       add_component(Components::PathFollow.new(speed: RAFT_SPEED, path: route, loop: true))
-      @columns = width / TILE
-      @rows = height / TILE
-      @left = -width / 2.0
-      @top = -height / 2.0
+      @columns = deck_width / TILE
+      @rows = deck_height / TILE
+      @left = -deck_width / 2.0
+      @top = -deck_height / 2.0
     end
 
     def _draw(renderer, _view)
@@ -131,9 +135,9 @@ module MovingPlatformsExample
     end
   end
 
-  # The map, the raft its `platform` object describes, and the hero on its
-  # `start` point. The raft goes in the map's `platforms` layer, under the
-  # actors', so the hero draws over it. The help draws in the `:overlay` band, over the world.
+  # The map, which builds the raft in its `platforms` layer, and the hero on its
+  # `start` point. That layer draws under the actors', so the hero draws over
+  # the raft. The help draws in the `:overlay` band, over the world.
   class Scene < Engine::Node2D
     def initialize
       super(band: :overlay)
@@ -148,25 +152,14 @@ module MovingPlatformsExample
                       map: map, tilemap_id: MAP, cameras: players.map(&:camera)
                     ))
 
-      view = add_node(Engine::WorldView.new)
-      places = Engine::TileMapLayer.mount(view)
-      rafts.spawn_into(places['platforms'], map.objects)
+      actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))[:actors]
       start = map.object_named('start')
-      places[:actors].add_node(Hero.new(camera: players.primary.camera, x: start.x, y: start.y))
+      actors.add_node(Hero.new(camera: players.primary.camera, x: start.x, y: start.y))
     end
 
     def _draw(renderer, _view)
       renderer.text(@help_walk, 12, 12)
       renderer.text(@help_board, 12, 34)
-    end
-
-    private
-
-    def rafts
-      Engine::MapObjects.new.define('platform') do |object|
-        Raft.new(route: Engine::Path.from_object(object),
-                 width: object.properties.fetch('width'), height: object.properties.fetch('height'))
-      end
     end
   end
 

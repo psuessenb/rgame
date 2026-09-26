@@ -290,9 +290,6 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
     end
   end
 
-  # The doors between the town and the garden live in the maps, so a designer
-  # who moves one in Tiled can break a room nobody has walked into yet. These
-  # hold the files themselves, before any example runs.
   # A gap is a tile's class in Tiled, and nothing else says so: a pit tile that
   # lost its class draws a hole the hero walks straight over.
   describe 'pits.tsx and pits.tmx' do
@@ -320,7 +317,7 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
   # end of its route: that gap is the whole point of examples/moving_platforms.
   describe 'platforms.tmx' do
     let(:map) { RGame::Engine::TileMap.from_tiled(RGame::Engine::Tiled::Map.load(File.join(assets, 'platforms.tmx'))) }
-    let(:raft) { map.objects.find { it.class_name == 'platform' } }
+    let(:raft) { map.objects.find { it.class_name == 'Raft' } }
     let(:hop) { 40 }
 
     # Where the chasm's floor ends on each side of the raft's row, in pixels.
@@ -337,10 +334,40 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
 
     it 'stops each end of the raft’s route short of its bank by less than a hop' do
       route = RGame::Engine::Path.from_object(raft)
-      half = raft.properties.fetch('width') / 2.0
+      half = raft.properties.fetch('deck_width') / 2.0
       west, east = banks
       gaps = [route.x_at(0) - half - west, east - (route.x_at(1) + half)]
       expect(gaps).to all(be_between(1, hop - 1))
+    end
+  end
+
+  # A hero draws over the raft they ride only while the raft's layer lies under
+  # the place the actors walk in. Nothing fails when a designer drags the two
+  # apart in Tiled: the hero draws under the raft. So every map the examples and
+  # the test projects play is held to it, and none is named here.
+  describe 'every Raft on a map under examples/ or test_projects/' do
+    let(:root) { File.expand_path('..', __dir__) }
+    let(:maps) do
+      Dir.glob('{examples,test_projects}/**/*.tmx', base: root).sort.to_h do |path|
+        [path, RGame::Engine::TileMap.from_tiled(RGame::Engine::Tiled::Map.load(File.join(root, path)))]
+      end
+    end
+    let(:rafts) { maps.flat_map { |path, map| map.objects.select { it.class_name == 'Raft' }.map { [path, map, it] } } }
+
+    # Where TileMapLayer.mount puts the actors: the layer marked `actors`, or
+    # on a map with no mark, before the first `above` layer, or over every layer.
+    def actors_place(map)
+      map.actors_layer || (0...map.layer_count).find { map.layer(it).above? } || map.layer_count
+    end
+
+    it 'finds a raft to check' do
+      expect(rafts).not_to be_empty
+    end
+
+    it 'lies in a layer under the actors, so a hero draws over the raft they ride' do
+      over = rafts.reject { |_, map, raft| raft.layer < actors_place(map) }
+
+      expect(over.map { |path, _, raft| "#{path} #{raft.name}" }).to be_empty
     end
   end
 
@@ -354,28 +381,47 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
     end
   end
 
-  describe 'the doors in town.tmx and garden.tmx' do
-    let(:maps) do
-      %w[town garden].to_h do |name|
-        [name, RGame::Engine::TileMap.from_tiled(RGame::Engine::Tiled::Map.load(File.join(assets, "#{name}.tmx")))]
-      end
-    end
+  # The doors between the town and the garden live in the maps, so a designer
+  # who moves one in Tiled can break a room nobody has walked into yet. These
+  # hold the files themselves, before any example runs. Each map is keyed by the
+  # room built over it, as examples/doors defines its rooms.
+  describe 'the doors in town_with_gate.tmx and garden.tmx' do
+    let(:maps) { { 'town' => loaded('town_with_gate.tmx'), 'garden' => loaded('garden.tmx') } }
 
     # How far a feet box reaches from the point a node stands on: half a hero's
     # 12 px width, rounded up to half a tile.
     let(:reach) { 8 }
 
+    def loaded(file) = RGame::Engine::TileMap.from_tiled(RGame::Engine::Tiled::Map.load(File.join(assets, file)))
+
+    # Every tile layer's name, visibility and cells, in the map's order.
+    def tile_layers(map)
+      layers = (0...map.layer_count).map { map.layer(it) }.select { it.kind == :tile }
+      layers.map do |layer|
+        cells = (0...map.height).flat_map { |row| (0...map.width).map { |col| map.tile(layer.index, col, row) } }
+        [layer.path, layer.visible?, layer.opacity, layer.above?, cells]
+      end
+    end
+
     def all_of(class_names)
       maps.flat_map { |room, map| map.objects.select { class_names.include?(it.class_name) }.map { [room, it] } }
+    end
+
+    it 'gives the gated town the tile layers of town.tmx, cell for cell, so an edit to one is an edit to both' do
+      expect(tile_layers(maps['town'])).to eq(tile_layers(loaded('town.tmx')))
+    end
+
+    it 'leaves town.tmx with no class that builds, since five examples mount it and define no Door' do
+      expect(loaded('town.tmx').objects.map(&:class_name).grep(/\A[[:upper:]]/)).to be_empty
     end
 
     it 'loads the garden, the size of the window' do
       expect([maps['garden'].pixel_width, maps['garden'].pixel_height]).to eq([640, 480])
     end
 
-    it "names, on every door and warp, an entrance on the map the door's to names" do
-      targets = all_of(%w[door warp]).map do |room, door|
-        to = door.class_name == 'warp' ? room : door.properties.fetch('to')
+    it "names, on every Door and Warp, an entrance on the map the door's to names" do
+      targets = all_of(%w[Door Warp]).map do |room, door|
+        to = door.class_name == 'Warp' ? room : door.properties.fetch('to')
         maps.fetch(to).object_named(door.properties.fetch('entrance')).class_name
       end
 
@@ -384,7 +430,7 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
 
     it "puts every entrance off every door's and pad's box, so nobody arrives on one" do
       on_a_door = all_of(%w[entrance]).select do |room, entrance|
-        maps[room].objects.select { %w[door warp].include?(it.class_name) }.any? do |door|
+        maps[room].objects.select { %w[Door Warp].include?(it.class_name) }.any? do |door|
           entrance.x.between?(door.x - reach, door.x + door.width + reach) &&
             entrance.y.between?(door.y - reach, door.y + door.height + reach)
         end
@@ -394,7 +440,7 @@ RSpec.describe 'examples/assets' do # rubocop:disable RSpec/DescribeClass -- the
     end
 
     it 'puts every entrance and every door on walkable ground' do
-      blocked = all_of(%w[entrance door warp]).select do |room, object|
+      blocked = all_of(%w[entrance Door Warp]).select do |room, object|
         [[object.x, object.y], [object.x + object.width, object.y + object.height]].any? do |x, y|
           maps[room].solid_at?(x, [y - 1, object.y].max)
         end

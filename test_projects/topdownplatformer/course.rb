@@ -2,9 +2,8 @@
 
 module TopDownPlatformer
   # The one scene: a course crossed west to east over trenches and two chasms, for
-  # two players. It mounts the map and both worlds, builds the platforms, the
-  # checkpoints, the crate and the walker from the map's objects, and a hero for
-  # each player.
+  # two players. It mounts both worlds and the map, which builds the rafts, the
+  # flags, the crate and the walker, and it spawns a hero for each player.
   #
   # The map lives beside this file rather than in `examples/assets`, and names that
   # directory's tilesets by relative path. The asset manager takes its absolute path
@@ -17,9 +16,11 @@ module TopDownPlatformer
   # point: the last checkpoint that hero reached. That point is ground, since a
   # Respawn refuses any other, so a join never puts a hero over a gap.
   #
-  # The platforms go in the map's `platforms` layer, under the actors', so a hero
-  # draws over the raft they ride. The course listens to `Players#on_joined` for as long as it
-  # is in the tree, and ends that as it leaves.
+  # The map marks its `spawns` layer `actors`, so the heroes go there and sort
+  # against the flags, the crate and the walker. The rafts are in the
+  # `platforms` layer under it, so a hero draws over the raft they ride. The
+  # course listens to `Players#on_joined` for as long as it is in the tree, and
+  # ends that as it leaves.
   class Course < Engine::Node2D
     MAP = File.expand_path('course.tmx', __dir__)
 
@@ -32,10 +33,7 @@ module TopDownPlatformer
                       map: @map, tilemap_id: MAP, cameras: @players.map(&:camera)
                     ))
       add_component(Components::CollisionWorld.new(cell_size: CELL_SIZE))
-      places = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))
-      @actors = places[:actors]
-      rafts.spawn_into(places['platforms'], @map.objects)
-      things.spawn_into(@actors, @map.objects)
+      @actors = Engine::TileMapLayer.mount(add_node(Engine::WorldView.new))[:actors]
       @heroes = {}
       @players.each_active { spawn(it) }
       @joining = @players.on_joined { spawn(it) }
@@ -44,20 +42,6 @@ module TopDownPlatformer
     def _exit_tree = @players.disconnect_joined(@joining)
 
     private
-
-    def rafts
-      Engine::MapObjects.new.define('platform') do |object|
-        Raft.new(route: Engine::Path.from_object(object),
-                 width: object.properties.fetch('width'), height: object.properties.fetch('height'))
-      end
-    end
-
-    def things
-      Engine::MapObjects.new
-                        .define('checkpoint') { Flag.new(name: it.name, x: it.x, y: it.y) }
-                        .define('crate') { Crate.new(x: it.x, y: it.y) }
-                        .define('walker') { Walker.new(x: it.x, y: it.y) }
-    end
 
     def spawn(player)
       point = @heroes[@players.primary]&.get_component(Components::Respawn)

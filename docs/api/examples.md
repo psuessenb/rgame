@@ -126,13 +126,13 @@ A raft shuttling across a chasm, boarded with a timed hop. The raft stops 12 px
 short of each bank and a hop carries 40 px, so a hop timed for when it comes
 close lands on it. On board, the raft carries the hero and the camera follows.
 Walking off its edge, or a hop that misses, falls into the chasm. The raft and
-its route are a polyline object on the map, and it draws its planks from a sheet
-over Tiny Town's tiles.
+its route are a polyline object of the class `Raft` on the map, which builds it,
+and it draws its planks from a sheet over Tiny Town's tiles.
 
 **Uses:** `Components::Platform`, `Components::PathFollow` with `loop: true`,
-`Path.from_object`, `MapObjects`, `Components::Footing`, `Components::Respawn`,
-`Components::Hop`, `Components::CameraFollow`, `TileMapLayer.mount` and an object
-layer as a place.
+`Components::Footing`, `Components::Respawn`, `Components::Hop`,
+`Components::CameraFollow`, `TileMapLayer.mount` with a map-built node and its
+`route:`.
 
 ### push_pull
 
@@ -162,15 +162,16 @@ slides it there. The push is the example's own rule, written against
 ### doors
 
 A gate between the town and a garden, and a pair of warp pads. Each room is a
-`Scene::Room` built over its map, and the doors come from the map's object
-layer. A door is a box with a `Collectable` that asks the rooms for a move, to
-the room and the entrance its properties name. The garden is built as the hero
-walks in and the town freed, since nobody is left in it. A pad moves the hero
-within the garden, which only places it again.
+`Scene::Room` built over its map, and mounting the map builds its doors: a
+`Door` or a `Warp` for each object of that class. A door is a box with a
+`Collectable` that asks the rooms for a move, to the room and the entrance its
+properties name. The garden is built as the hero walks in and the town freed,
+since nobody is left in it. A pad moves the hero within the garden, which only
+places it again.
 
 **Uses:** `Scene::Rooms`, `Scene::Room`, `Scene::Fade`, `TileMap#object_named`,
-`MapObjects`, `Components::Collectable` with `free: false`,
-`Components::TileWorld`, `TileMapLayer.mount`, `Engine::Text`.
+`Components::Collectable` with `free: false`, `Components::TileWorld`,
+`TileMapLayer.mount` with map-built nodes, `Engine::Text`.
 
 ### pathfinding
 

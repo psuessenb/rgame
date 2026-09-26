@@ -1,7 +1,7 @@
 # Example assets
 
-Everything the examples draw and play. Twenty-two files besides this one, about
-133 KB in total — of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
+Everything the examples draw and play. Twenty-three files besides this one, about
+135 KB in total — of which the music is 93 KB, and the reason for `tools/shrink_ogg.c`.
 
 ## Why these files and not the ones in `media/`
 
@@ -54,7 +54,7 @@ new examples need them.
 60x40 tiles = 960x640 pixels, deliberately larger than the 640x480 window on
 both axes so a camera has somewhere to scroll. Two tile layers, `ground`
 (entirely walkable) and `obstacles` (a tree border, a fence across the middle,
-scattered trees), and an object layer, `doors`.
+scattered trees), and no object layer.
 
 Layer data is **base64 + zlib**, which is what `RGame::Engine::TileMap.parse`
 reads — it inflates the layer and unpacks little-endian `uint32` gids. CSV will
@@ -74,17 +74,26 @@ placement is the point, and it took two tries to get right:
   that one instead. It now runs x=1..58, and the fence row is solid everywhere
   except the three gap tiles.
 
-The `doors` layer holds what `examples/doors` moves a hero through. Each object
-has a class, and a door names where it goes in its properties:
+`spec/fixtures/town_solidity.txt` pins every solid cell.
+
+### `town_with_gate.tmx` — ours
+
+`town.tmx` with the gate to the garden, for `examples/doors`, whose rooms
+build a `Door` from the gate. The five examples that mount `town.tmx` define no
+`Door`, so each would raise on it. The tile layers are `town.tmx`'s, cell for cell, and
+`spec/example_assets_spec.rb` holds the two maps to that. Edit the tiles of
+both, or neither.
+
+Its object layer, `doors`, holds what a hero moves through. Each object has a
+class, and a door names where it goes in its properties:
 
 | Object | Class | Properties |
 |---|---|---|
 | `start`, `square`, `gate_out` | `entrance` | |
-| `garden_gate` | `door` | `to: garden`, `entrance: gate_in` |
+| `garden_gate` | `Door` | `to: garden`, `entrance: gate_in` |
 
-An entrance is a point, where a node arriving stands. A door draws itself, so
-the layer changes no tile, and `spec/fixtures/town_solidity.txt` still pins
-every solid cell.
+An entrance is a point, where a node arriving stands, and its lower-case class
+keeps it data. A door draws itself, so the layer changes no tile.
 
 ### `garden.tmx` — ours
 
@@ -99,15 +108,15 @@ like the others. Its `doors` layer:
 | Object | Class | Properties |
 |---|---|---|
 | `start`, `gate_in`, `beside_a`, `beside_b` | `entrance` | |
-| `gate` | `door` | `to: town`, `entrance: gate_out` |
-| `pad_a`, `pad_b` | `warp` | `entrance: beside_b`, `entrance: beside_a` |
-| `horn` | `door` | `to: town`, `entrance: square`, `party: true` |
+| `gate` | `Door` | `to: town`, `entrance: gate_out` |
+| `pad_a`, `pad_b` | `Warp` | `entrance: beside_b`, `entrance: beside_a` |
+| `horn` | `Door` | `to: town`, `entrance: square`, `party: true` |
 
 A warp is a door into its own room, so it names only an entrance. A door marked
 `party` moves every hero, and any other door moves the hero who touched it.
-`spec/example_assets_spec.rb` holds both maps to three rules: a door's
-entrance exists on the map it leads to, no entrance lies on a door, and every
-door and entrance stands on walkable ground.
+`spec/example_assets_spec.rb` holds this map and `town_with_gate.tmx` to three
+rules: a door's entrance exists on the map it leads to, no entrance lies on a
+door, and every door and entrance stands on walkable ground.
 
 ### `puzzle.tmx` — ours
 
@@ -153,8 +162,9 @@ like the others.
 window, so the camera follows the hero across. A meadow walled with trees
 (tile 16), and a chasm sixteen tiles wide, x = 352 to 608, on the `pits` layer
 over `pits.tsx`. The object `raft` in the `platforms` layer is a polyline of
-class `platform`: the route the raft's centre shuttles along, from x = 396 to
-564 at y = 240, with the raft's size in its `width` and `height` properties.
+class `Raft`: the route the raft's centre shuttles along, from x = 396 to
+564 at y = 240, with the raft's size in its `deck_width` and `deck_height`
+properties.
 Each end stops 12 px short of a bank, less than the 40 px a hop carries. The
 point `start` in the `spawns` layer is where the hero first stands.
 `spec/example_assets_spec.rb` holds the start to standing on floor, and the

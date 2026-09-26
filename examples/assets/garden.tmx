@@ -20,18 +20,18 @@
   <object id="2" name="gate_in" type="entrance" x="72" y="240">
    <point/>
   </object>
-  <object id="3" name="gate" type="door" x="16" y="224" width="16" height="16">
+  <object id="3" name="gate" type="Door" x="16" y="224" width="16" height="16">
    <properties>
     <property name="to" value="town"/>
     <property name="entrance" value="gate_out"/>
    </properties>
   </object>
-  <object id="4" name="pad_a" type="warp" x="160" y="96" width="16" height="16">
+  <object id="4" name="pad_a" type="Warp" x="160" y="96" width="16" height="16">
    <properties>
     <property name="entrance" value="beside_b"/>
    </properties>
   </object>
-  <object id="5" name="pad_b" type="warp" x="464" y="352" width="16" height="16">
+  <object id="5" name="pad_b" type="Warp" x="464" y="352" width="16" height="16">
    <properties>
     <property name="entrance" value="beside_a"/>
    </properties>
@@ -42,7 +42,7 @@
   <object id="7" name="beside_b" type="entrance" x="472" y="400">
    <point/>
   </object>
-  <object id="8" name="horn" type="door" x="560" y="320" width="16" height="16">
+  <object id="8" name="horn" type="Door" x="560" y="320" width="16" height="16">
    <properties>
     <property name="to" value="town"/>
     <property name="entrance" value="square"/>

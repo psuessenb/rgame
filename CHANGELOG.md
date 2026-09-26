@@ -306,10 +306,6 @@ index, not the argument.
   properties a map may set, and a property they do not allow raises. Every tile
   object draws its tile, and a hidden object builds and draws nothing. See
   [docs/api/tile_maps.md](docs/api/tile_maps.md#building-nodes-from-objects).
-- **A map's objects become nodes by block.** `RGame::Engine::MapObjects` takes a
-  block per Tiled class and builds a node from each object of that class.
-  `spawn_into` adds them under a parent. See
-  [docs/api/tile_maps.md](docs/api/tile_maps.md#building-from-data-classes-with-mapobjects).
 - **`Image#tiles` cuts a sheet with gaps.** It takes `margin:`, `spacing:`,
   `columns:` and `count:`. See [docs/api/images.md](docs/api/images.md).
 - **A quest can be a state machine.** `RGame::Engine::StateGraph.build`

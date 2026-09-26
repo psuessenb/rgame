@@ -12,7 +12,6 @@ A game rarely builds one itself. The pieces that use it are:
 | [`TileWorld`](components.md#tileworld) | answer solidity and world-size questions for actors |
 | [`TileMapLayer`](components.md#tileworld) | draw one layer per node, and [build a node from each object](#building-nodes-from-objects) |
 | [`TileMapRenderer`](assets.md#tile-maps) | bake and draw the tiles |
-| [`MapObjects`](#building-from-data-classes-with-mapobjects) | build nodes from objects of a data class, for a scene that does so itself |
 | `RGame::Game`'s `:tilemap` asset loader | read a `.tmx`, build the map and slice its tileset images |
 
 Read on when a scene queries the map itself, or when you author maps for rgame.
@@ -31,7 +30,7 @@ Headless, as in a spec, read the file and build the map in two calls:
 ```ruby
 require 'rgame'
 
-parsed = RGame::Engine::Tiled::Map.load('examples/assets/town.tmx')
+parsed = RGame::Engine::Tiled::Map.load('examples/assets/town_with_gate.tmx')
 map = RGame::Engine::TileMap.from_tiled(parsed)
 
 map.width         # => 60 — in tiles
@@ -319,7 +318,7 @@ and the repeat in the layer's properties in Tiled.
 ### Objects
 
 ```ruby
-map.objects                 # => every object of every object layer, as MapObjects
+map.objects                 # => every object of every object layer, each a MapObject
 map.object_named('gate_in') # => the one object named gate_in
 ```
 
@@ -412,7 +411,8 @@ An object of the class `Chest` with the property `contents: key` builds a
 - **A class receives `route:` and `name:` by naming them.** A class whose
   `initialize` names `route:` gets a polyline's or a polygon's route, as
   `Path.from_object` builds it. One that names `name:` gets the object's name,
-  or `''` when the designer gave none. Neither needs a tag.
+  or `''` when the designer gave none. Neither needs a tag. Only the class's own
+  `initialize` counts, so a subclass whose parent takes `name:` names it too.
 - **The node keeps its object's id** as `Node2D#map_object_id`, and nothing
   else of it. [`Components::Facts`](components.md#facts) keys the node's record
   by it, so the chest above, opened once, stays open when its room is built
@@ -442,37 +442,14 @@ names one inside a group. An empty object layer in Tiled marks a place in the
 layer order. [`TileWorld`](components.md#tileworld) lists what `places` answers
 and what it raises.
 
-#### Building from data classes with `MapObjects`
-
-**`RGame::Engine::MapObjects` builds a node from each object whose class has a
-block**, for a scene that builds from data classes itself.
-
-```ruby
-# In a scene's _enter_tree, with `map` loaded and `places` from TileMapLayer.mount.
-objects = RGame::Engine::MapObjects.new
-objects.define('trap') { |o| Trap.new(x: o.x, y: o.y) }
-
-objects.spawn_into(places[:actors], map.objects) # => the traps it added
-```
-
-- **`define(class_name) { |object| ... }`** registers the block for one class and
-  returns the registry. It raises `ArgumentError` for a class defined twice, a
-  name that is not a String, or a missing block.
-- **`build(object)`** returns what the block for `object.class_name` returns, or
-  `nil` when no block was defined for that class.
-- **`spawn_into(parent, objects)`** builds each object in the order given, adds
-  every node that comes back under `parent`, and returns those nodes. A hidden
-  object is built too, so the block can read `visible?` itself.
-- **The block places the node.** An object's `(x, y)` is its top-left corner, and
-  the registry moves nothing.
-
 ### A door from the map
 
-**A door is an object whose properties say where it leads.** In `town.tmx`, the
-object `garden_gate` has the class `door` and the properties `to: garden` and
-`entrance: gate_in`. `gate_in` is a point object in `garden.tmx`, with the class
-`entrance`. A room built over each map turns the doors into nodes and places
-whatever arrives on the entrance named:
+**A door is an object of the class `Door`, whose properties say where it
+leads.** In `town_with_gate.tmx`, the object `garden_gate` has the class `Door`
+and the properties `to: garden` and `entrance: gate_in`. `gate_in` is a point
+object in `garden.tmx`. Its class, `entrance`, starts with a lower-case letter,
+so it stays data. A room built over each map mounts it, and the map builds the
+doors:
 
 ```ruby
 # A Scene::Room of a world whose Scene::Rooms defines :town and :garden.
@@ -481,13 +458,7 @@ class Grounds < RGame::Engine::Scene::Room
     @map = root.context.assets.tilemap(@map_id).map
     add_component(RGame::Engine::Components::TileWorld.new(map: @map, tilemap_id: @map_id))
     add_component(RGame::Engine::Components::CollisionWorld.new(cell_size: 32))
-    places = RGame::Engine::TileMapLayer.mount(add_node(RGame::Engine::WorldView.new))
-    @actors = places[:actors]
-
-    doors = RGame::Engine::MapObjects.new
-    doors.define('door') { |o| Door.new(object: o, world: parent) }
-    doors.define('warp') { |o| Door.new(object: o, world: parent, to: name) }
-    doors.spawn_into(places['doors'], @map.objects)
+    @actors = RGame::Engine::TileMapLayer.mount(add_node(RGame::Engine::WorldView.new))[:actors]
   end
 
   def _arrive(node, entrance)
@@ -500,25 +471,46 @@ end
 
 # A box that asks the world's rooms for a move when a hero's feet touch it.
 class Door < RGame::Engine::Node2D
-  def initialize(object:, world:, to: object.properties.fetch('to').to_sym)
-    super(x: object.x, y: object.y, width: object.width, height: object.height)
-    entrance = object.properties.fetch('entrance')
-    add_component(RGame::Engine::Components::BoxCollider.new(width: object.width, height: object.height,
-                                                             layer: :door))
+  # @param to [Symbol] the room the door leads to
+  # @param entrance [String] the entrance in that room where the hero arrives
+  def initialize(to:, entrance:, **)
+    super(**)
+    @to = to
+    @entrance = entrance
+    add_component(RGame::Engine::Components::BoxCollider.new(width:, height:, offset_x: -width / 2.0,
+                                                             offset_y: -height, layer: :door))
     add_component(RGame::Engine::Components::Collectable.new(by: :hero, free: false))
-      .on_collected { |other| world.rooms.move(other.node, to:, entrance:) }
+      .on_collected { |other| @rooms.move(other.node, to: destination, entrance: @entrance) }
   end
+
+  def _enter_tree = @rooms = system!(RGame::Engine::Scene::Rooms)
+
+  private
+
+  def destination = @to
+end
+
+# A door into the room it stands in.
+class Warp < Door
+  # @param entrance [String] the entrance in this room where the hero arrives
+  def initialize(entrance:, **) = super(to: nil, entrance:, **)
+
+  private
+
+  def destination = scene.name
 end
 ```
 
-- **A `warp` is a door into its own room**, so the room hands over its own
-  `name` as `to`, and the map names only the entrance. A move into the room a
-  node stands in only places it again.
+- **The box goes back over the object.** A map-built node stands at the bottom
+  centre of its object, so the collider's offsets are half the width to the left
+  and the whole height up.
+- **A `Warp` is a door into its own room**, so the map names only the entrance.
+  A room is its own `scene`, and a move into the room a node stands in only
+  places it again.
+- **A door finds the rooms in the tree**, with `system!`, as any map-built node
+  finds what it needs. The map passes it nothing but its object's settings.
 - **An entrance lies off every door's box.** A hero arriving on a door would
   leave through it on its next step.
-- **The world passes itself to each door**, as `parent` of the room, so a door
-  reaches the rooms without looking them up. A door that moves every hero asks
-  the world for them.
 
 `examples/doors` is this code with a hero walking it, and
 [Rooms](scene_graph.md#rooms-scenerooms) says how a move runs.
