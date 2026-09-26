@@ -285,11 +285,12 @@ index, not the argument.
   node's size and turned as a tile object is in Tiled, under everything else
   the node draws. `renderer.map_tile` is the draw it calls. See
   [docs/api/components.md](docs/api/components.md#maptile).
-- **A node keeps its own state in `FactsDatabase`.** `Components::Fact` holds one of
-  its node's values under the key the node passes, or under one made from the
-  map object the node was built from. So a chest opened once stays open when its
-  room is built again. `Node2D#map_object_id` is that object's id. See
-  [docs/api/components.md](docs/api/components.md#fact).
+- **A node keeps its own facts.** `Components::Facts` keeps a record of named
+  fields, each with a default, in the facts database under the key the node
+  passes, or under one made from the map object the node was built from. So a
+  chest opened once stays open when its room is built again. A field reads and
+  writes without allocating. `Node2D#map_object_id` is that object's id. See
+  [docs/api/components.md](docs/api/components.md#facts).
 - **A tile map converts between cells and pixels.** `TileMap` and
   `Components::TileWorld` answer `cell_x`, `cell_y`, `col_at` and `row_at`, and
   `TileWorld` answers `cell_centre_x` and `cell_centre_y`. See

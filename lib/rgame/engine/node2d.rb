@@ -338,7 +338,7 @@ module RGame
 
       # The id of the map object a map built this node from, or `nil` for a
       # node built in code. An id is unique within its map. It is all a node
-      # keeps of its object: Components::Fact keys the node's state by it.
+      # keeps of its object: Components::Facts keys the node's record by it.
       sealed_reader :map_object_id
 
       def initialize(x: 0, y: 0, z: 0, angle: 0, width: 0, height: 0, input_owner: nil,

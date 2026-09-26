@@ -279,9 +279,10 @@ facts.key?(:bridge_down)  # => false
 
 A state machine built with `facts:` reads them in its conditions as `m.facts`.
 
-**A node keeps its own state here through
-[`Components::Fact`](components.md#fact)**, under a key of its own: a chest
-opened once, or a lever pulled. A room built again finds it.
+**A node keeps its own facts here through
+[`Components::Facts`](components.md#facts)**, as one record under a key of its
+own: a chest opened once, a lever pulled, where a crate was left. A room built
+again finds them.
 
 **The store takes only what a save brings back unchanged.** Keys are Symbols.
 Values are nil, true, false, an Integer, a Float, a String, or a record of
