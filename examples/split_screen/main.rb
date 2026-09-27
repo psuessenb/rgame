@@ -10,7 +10,7 @@
 # player two joins: the screen splits, a second walker appears, and each half
 # follows its own player. Space (or A) waves, and only the waver's own badge
 # counts it. It exercises:
-#   - Game.new(players: 2) — two seats, the second of them empty at the start;
+#   - Game::Configuration's `players: 2` — two seats, the second empty at the start;
 #   - Engine::Players — who is playing, and the `on_joined` signal that says
 #     somebody now is;
 #   - Engine::WorldView — the world, drawn once per viewport through that

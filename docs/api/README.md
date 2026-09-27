@@ -172,7 +172,11 @@ module MyGame
   end
 end
 
-RGame::Game.new(root: MyGame::Scene.new, width: 800, height: 600, caption: 'My Game').start
+RGame::Game.new(
+  root: MyGame::Scene.new,
+  caption: 'My Game',
+  configuration: RGame::Game::Configuration.new(width: 800, height: 600)
+).start
 ```
 
 Subclass `Node2D` and override the hooks you need: `_control`, `_update`,
@@ -184,9 +188,9 @@ every hook. [Game](game.md) describes what `Game` builds around the tree: the
 window, the renderer, the asset manager, the sound device, the input mapper and
 the players.
 
-Without an `input_map:`, `Game` uses the default map shown above. It binds
-eight-way `move_x` / `move_y` to the arrows, WASD, the d-pad and the left stick,
-and adds `fire`. See [Input](input.md).
+Without an `input_map` in its configuration, `Game` uses the default map shown
+above. It binds eight-way `move_x` / `move_y` to the arrows, WASD, the d-pad and
+the left stick, and adds `fire`. See [Input](input.md).
 
 ## A game's own module
 

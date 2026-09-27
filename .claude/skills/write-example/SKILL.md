@@ -177,10 +177,10 @@ fullscreen switch with nothing listening for the change.
 elapsed seconds in `update(dt)` and hands the number to the renderer.
 
 **Text a player reads comes from a table.** Every example has
-`locales/en.yml` beside its `main.rb` and passes
-`locales: File.expand_path('locales', __dir__)` to `Game.new`; group keys by
-what the text is for (`help.*`, `status.*`, `hud.*`), and name them after what a
-line says, never its position. Build an `Engine::Text` in `initialize` and pass
+`locales/en.yml` beside its `main.rb` and sets
+`locales: File.expand_path('locales', __dir__)` in its `Game::Configuration`.
+Group keys by what the text is for (`help.*`, `status.*`, `hud.*`), and name
+them after what a line says, never its position. Build an `Engine::Text` in `initialize` and pass
 it to `renderer.text` as it is; `Game/NoLiteralText` refuses a String literal
 there. A table of text chosen by state holds `Text`s, and a sentence around a
 name is one key with the name as a variable (`"Chosen: %{item}"`). Drive the
@@ -268,8 +268,8 @@ assertion, and it is the part to get right:
   across two runs, as `tools/drive/examples/localization_saved.rb` does. Do not
   override `XDG_DATA_HOME` instead: that breaks mise's Ruby.
 - **Draw from the game's `RandomSource`**, not a `Random` of the example's own,
-  and pass `seed: DEFAULT_SEED` to `RGame::Game.new`. A run with nothing saved is
-  then reproducible, and `--seed N` overrides it through `RGAME_SEED`.
+  and set `seed: DEFAULT_SEED` in its `Game::Configuration`. A run with nothing
+  saved is then reproducible, and `--seed N` overrides it through `RGAME_SEED`.
 - **Time a dialogue box's presses from a trace, not from the text.** A Down
   pressed while a line still types does nothing: the box shows only its ▼
   marker until the responses appear, and the next Enter picks the first one.

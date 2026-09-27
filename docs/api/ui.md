@@ -1373,7 +1373,7 @@ game's `InputMap`:
 
 ```ruby
 input_map = RGame::Engine::InputMap.default.merge(log: { buttons: [Controls::KEY_L, Controls::PAD_Y] })
-game = RGame::Game.new(root: Village.new, input_map: input_map)
+game = RGame::Game.new(root: Village.new, configuration: RGame::Game::Configuration.new(input_map:))
 
 # in a scene
 layer.add_node(UI::DialogueBox.new(dialogue: talk, unavailable: :hide, width: 600, log: :log))

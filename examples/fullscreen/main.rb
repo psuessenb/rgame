@@ -12,7 +12,7 @@
 # four scale modes. Watch the circle: it is round in three of them and an ellipse
 # in `:stretch`, which is the whole difference between uniform and per-axis
 # scaling in one shape. It exercises:
-#   - RGame::Game.new(fullscreen:) — the window opens that way;
+#   - Game::Configuration's `fullscreen` — the window opens that way;
 #   - App#fullscreen? / #fullscreen= — switching at any time;
 #   - RGame::Game#scale_mode= — switching that at any time too;
 #   - the `view` a node is drawn with — where its size comes from;
@@ -20,12 +20,12 @@
 #
 # ## Two ways in, because games need both
 #
-# **Opening fullscreen is a constructor argument, not a switch afterwards.**
+# **Opening fullscreen is part of the configuration, not a switch afterwards.**
 # Both end up fullscreen, but a switch made after the window is up shows one
-# windowed frame first — the flash that reads as a broken startup. Passing
-# `fullscreen: true` creates the window fullscreen and there is no first frame
-# to see. A game whose settings file says fullscreen should pass the setting
-# here, not apply it on the first tick.
+# windowed frame first — the flash that reads as a broken startup. Setting
+# `fullscreen: true` in the configuration creates the window fullscreen, and
+# there is no first frame to see. A game whose settings file says fullscreen
+# should set it there, not apply it on the first tick.
 #
 # **A game need not offer a way back.** Nothing here is required: leave the
 # toggle out and the game runs fullscreen for its whole life, which is a

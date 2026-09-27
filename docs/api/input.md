@@ -33,8 +33,10 @@ class MyRoot < RGame::Engine::Node2D; end
 
 RGame::Game.new(
   root: MyRoot.new,
-  input_map: RGame::Engine::InputMap.new(
-    fire: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] }
+  configuration: RGame::Game::Configuration.new(
+    input_map: RGame::Engine::InputMap.new(
+      fire: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] }
+    )
   )
 ).start
 ```
@@ -222,7 +224,7 @@ both tab actions while it is held.
 `InputMap.default` is the UI set plus eight-way movement, `fire`, `interact` and
 `grab`.
 `move_x` and `move_y` sit on the arrows, WASD, the d-pad and the left stick. A
-game that wants exactly this passes no `input_map:`.
+game that wants exactly this leaves `input_map` out of its configuration.
 
 `interact` is E and the pad's X, which is what
 [`Components::Interactor`](components.md#interactor) reads. It shares a button
@@ -387,12 +389,12 @@ hero.shots # => 1 — the next press is the hero's own
 Players share the game's action *names* but not the buttons behind them.
 
 ```ruby
-RGame::Game.new(root: MyRoot.new, players: 2)
+RGame::Game.new(root: MyRoot.new, configuration: RGame::Game::Configuration.new(players: 2))
 ```
 
-`players:` sets how many **seats** the game has, which is the most people who
-can play. Player 0 starts on `Game`'s `device:`, the keyboard by default; the
-other seats start empty. An empty
+`players` sets how many **seats** the game has, which is the most people who
+can play. Player 0 starts on the configuration's `device`, the keyboard by
+default; the other seats start empty. An empty
 seat draws no viewport. A two-seat game with one player looks like an ordinary
 full-screen game.
 

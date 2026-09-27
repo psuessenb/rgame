@@ -331,7 +331,7 @@ smooth.
 Two players in one world. `WorldView` draws the world once per viewport, through
 that viewport's camera. The world never knows how often it is drawn.
 
-**Uses:** `Game.new(players: 2)`, `Engine::Players`, `Engine::WorldView`,
+**Uses:** `Game::Configuration`'s `players`, `Engine::Players`, `Engine::WorldView`,
 `Engine::PlayerLayer`, `Engine::Camera`, `Components::CameraFollow`,
 `input_owner`.
 
@@ -360,7 +360,7 @@ example counts a second for itself.
 Opening fullscreen, switching while the game runs, and all four scale modes with
 the layout following each.
 
-**Uses:** `RGame::Game.new(fullscreen:)`, `App#fullscreen?` / `#fullscreen=`,
+**Uses:** `Game::Configuration`'s `fullscreen`, `App#fullscreen?` / `#fullscreen=`,
 `RGame::Game#scale_mode=`, the `view` a node is drawn with,
 `InputMap.default.merge`.
 
@@ -374,7 +374,7 @@ that line falls back to English. The player's language choice overrides the
 operating system's and is saved.
 
 **Uses:** `Engine::I18n`, `Engine::Text` and `Text.literal`, `UI::Menu`'s
-`scope:`, `RGame::Game.new(locales:)`, `RGame::Core.preferred_locales`,
+`scope:`, `Game::Configuration`'s `locales`, `RGame::Core.preferred_locales`,
 `Util::SaveFile`.
 
 ### intro
