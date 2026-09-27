@@ -38,7 +38,8 @@ static void ck_vertex_uv(const rgame_canvas *c, unsigned int index, float u, flo
 /* A 64x32 sheet with a memorable GL name, and a whole-sheet view of it. The
  * caller owns the view and must destroy it. */
 static rgame_texture test_texture(unsigned int name, int width, int height) {
-    rgame_texture_sheet *sheet = rgame_texture_sheet_create(name, width, height);
+    rgame_texture_sheet *sheet =
+        rgame_texture_sheet_create(name, width, height, RGAME_TEXTURE_NEAREST);
     rgame_texture view = rgame_texture_whole(sheet);
     rgame_texture_sheet_release(sheet, NULL);
     return view;

@@ -45,8 +45,43 @@ end
 Greyscale and palette PNGs load too. The loader converts them to RGBA, so the
 engine handles one pixel format.
 
-**Images always use nearest-neighbour sampling**, with no setting to change it.
-The engine draws pixel art, and pixel art should never blur when scaled up.
+## Filtering
+
+**An image is sampled with its app's `texture_filter`.** A game sets it in its
+[`Game::Configuration`](game.md#configuration--what-a-game-sets-at-startup), and
+a plain `App` in `App.new`. It stays fixed while the app runs. Every image the
+app loads takes it, whether through `Image.new`, the asset manager, a sprite
+sheet, a UI atlas or a tile map. Subimages and tiles share their image's.
+
+| | |
+|---|---|
+| `:nearest` | The default. Each screen pixel shows the one image pixel under it, so pixel art keeps hard edges at any scale. |
+| `:linear` | Each screen pixel blends the four image pixels around it, so art drawn with anti-aliased edges stays smooth at a scale that is not a whole number. |
+
+```ruby
+require 'rgame/game'
+
+class Root < RGame::Engine::Node2D; end
+
+configuration = RGame::Game::Configuration.new(width: 1280, height: 720, texture_filter: :linear)
+game = RGame::Game.new(root: Root.new, caption: 'Smooth', configuration:)
+game.texture_filter   # => :linear
+```
+
+**A transparent pixel's colour never shows.** The engine multiplies every
+pixel's colour by its alpha as the image loads, so a fully transparent pixel
+adds nothing to a blend, whatever colour the file stored. Anti-aliased art gets
+no dark fringe under `:linear`, and an exporter need not bleed edge colours into
+the transparent pixels.
+
+**A subimage or tile never samples its neighbours on the sheet.** Under
+`:linear`, each of its edges that lies inside the sheet moves half a pixel in,
+so the blend at that edge takes only the region's own edge pixel. An edge on
+the sheet's border stays where it is. Two tiles of a tile map therefore meet in
+a hard step, as under `:nearest`. For tiles that should blend into each other,
+export the tileset with each tile's edge pixels repeated outward.
+
+Text is always filtered linearly, whatever the setting.
 
 ## Slicing: subimages and tiles
 

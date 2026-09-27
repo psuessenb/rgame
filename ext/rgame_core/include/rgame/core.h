@@ -20,6 +20,16 @@ extern "C" {
 typedef struct rgame_app rgame_app;
 
 /*
+ * How an image is sampled when it is drawn at a size other than its own.
+ *
+ * NEAREST takes the one texel under each pixel, so pixel art keeps hard edges
+ * at any scale. LINEAR blends the four texels around each pixel, so art drawn
+ * with smooth, anti-aliased edges stays smooth at a scale that is not a whole
+ * number.
+ */
+typedef enum { RGAME_TEXTURE_NEAREST = 0, RGAME_TEXTURE_LINEAR = 1 } rgame_texture_filter;
+
+/*
  * Creates the window, GL context and internal state. Returns NULL on failure.
  *
  * `fullscreen` non-zero opens the window fullscreen straight away, rather than
@@ -30,8 +40,19 @@ typedef struct rgame_app rgame_app;
  * `width` and `height` still matter when starting fullscreen — they are the
  * size the window returns to when it leaves fullscreen, and the size SDL keeps
  * for it in the meantime.
+ *
+ * `filter` is how every image this app loads is sampled; see
+ * rgame_app_texture_filter.
  */
-rgame_app *rgame_app_create(int width, int height, const char *title, int fullscreen);
+rgame_app *rgame_app_create(int width, int height, const char *title, int fullscreen,
+                            rgame_texture_filter filter);
+
+/*
+ * The filter every image this app loads is sampled with. Fixed when the app is
+ * created, because the asset cache would otherwise hold images made under two.
+ * Font pages are always linear, whatever it says.
+ */
+rgame_texture_filter rgame_app_texture_filter(const rgame_app *app);
 
 /* Destroys the GL context/window and frees the app. Safe to call with NULL. */
 void rgame_app_destroy(rgame_app *app);

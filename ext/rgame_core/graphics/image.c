@@ -9,8 +9,8 @@
  * pixels is pure too, in pixels.{c,h}, and test/test_pixels.c covers it. What
  * is left here is a file read, one stb call and four GL calls, and it is kept
  * this thin precisely so that "we don't unit-test it directly" is an honest
- * position rather than a gap. `spec_core/rgame/core/image_spec.rb` exercises it end to end against a
- * real GL context under Xvfb.
+ * position rather than a gap. `spec_core/rgame/core/image_spec.rb` exercises
+ * it end to end against a real GL context under Xvfb.
  *
  * ---------------------------------------------------------------------------
  * What a handle is
@@ -111,7 +111,8 @@ static unsigned char *read_whole_file(const char *path, long *out_size) {
  * in, and the order texture.c's UVs assume (v increases downwards). Uploading
  * bottom-up instead is the classic way every sprite ends up mirrored.
  */
-static unsigned int upload_rgba(const unsigned char *pixels, int width, int height) {
+static unsigned int upload_rgba(const unsigned char *pixels, int width, int height,
+                                rgame_texture_filter filter) {
     unsigned int name = 0;
     glGenTextures(1, &name);
     if (name == 0) {
@@ -125,10 +126,12 @@ static unsigned int upload_rgba(const unsigned char *pixels, int width, int heig
      * 3-byte or 1-byte pixels; saying 1 makes the upload independent of it. */
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-    /* Nearest-neighbour, always: this engine draws pixel art, and there is no
-     * case where blurring it on scale-up is what was wanted. */
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    /* The app's filter, for both directions. Linear filtering is also why the
+     * pixels arrive premultiplied, and why texture.c insets a linear view's
+     * UVs: without either, edges would darken or show their neighbours. */
+    GLint gl_filter = filter == RGAME_TEXTURE_LINEAR ? GL_LINEAR : GL_NEAREST;
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter);
 
     /* Clamp rather than repeat. Sprites come from a shared sheet, so a UV that
      * slips a hair past an edge should pick up that edge's own pixel — with
@@ -205,7 +208,8 @@ rgame_image *rgame_image_load(rgame_app *app, const char *path, char *err, size_
     /* Every texture holds premultiplied colour, as every vertex does; see
      * pixels.h. */
     rgame_pixels_premultiply(pixels, (size_t)width * (size_t)height);
-    unsigned int name = upload_rgba(pixels, width, height);
+    rgame_texture_filter filter = rgame_app_texture_filter(app);
+    unsigned int name = upload_rgba(pixels, width, height, filter);
     stbi_image_free(pixels);
     if (name == 0) {
         rgame_app_gl_restore(&saved);
@@ -213,7 +217,7 @@ rgame_image *rgame_image_load(rgame_app *app, const char *path, char *err, size_
         return NULL;
     }
 
-    rgame_texture_sheet *sheet = rgame_texture_sheet_create(name, width, height);
+    rgame_texture_sheet *sheet = rgame_texture_sheet_create(name, width, height, filter);
     if (!sheet) {
         glDeleteTextures(1, &name);
         rgame_app_gl_restore(&saved);

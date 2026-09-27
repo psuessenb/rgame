@@ -14,6 +14,13 @@ index, not the argument.
 
 ### Added
 
+- **Smooth art.** `texture_filter: :linear` in a game's `Game::Configuration`,
+  or in `App.new`, samples every image the game loads linearly, so art drawn
+  with anti-aliased edges stays smooth at a scale that is not a whole number.
+  Images are premultiplied as they load, so an edge gets no dark fringe from
+  the transparent pixels around it, and a tile samples none of its neighbours
+  on the sheet. `:nearest` stays the default, and `App#texture_filter` reads
+  the setting back. See [docs/api/images.md](docs/api/images.md#filtering).
 - **Checkpoints.** `Components::Checkpoint` moves the respawn point of a node
   on its `by` layer to itself when that node's collider touches it, and emits
   `on_reached`. It raises over a gap, and for a toucher with no `Respawn`. See

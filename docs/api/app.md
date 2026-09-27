@@ -14,8 +14,10 @@ MyGame.new.run   # returns when the loop stops
 ```
 
 `App.new` takes keyword arguments only. It requires `width:`, `height:` and
-`caption:`. `media_root:` is optional and defaults to `'media'`. The constructor
-opens a real window at once.
+`caption:`. `media_root:` defaults to `'media'`, `fullscreen:` to `false`, and
+`texture_filter:` to `:nearest`; see [Filtering](images.md#filtering). The
+constructor opens a real window at once, and raises `ArgumentError` before
+opening it for a filter other than `:nearest` or `:linear`.
 
 ## What the app owns
 
@@ -44,6 +46,8 @@ never opens a sound device; the first sound request opens it.
 
 `media_root` is read-only and fixed at construction. It has no writer: changing
 the root after a load would leave one cache keyed against two roots.
+`texture_filter` is read-only for the same reason: the cache would hold images
+made under two filters.
 
 [Assets](assets.md) describes the asset manager.
 

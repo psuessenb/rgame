@@ -14,7 +14,8 @@ long rgame_texture_live_sheets(void) {
     return live_sheets;
 }
 
-rgame_texture_sheet *rgame_texture_sheet_create(unsigned int name, int width, int height) {
+rgame_texture_sheet *rgame_texture_sheet_create(unsigned int name, int width, int height,
+                                                rgame_texture_filter filter) {
     if (width <= 0 || height <= 0) {
         return NULL;
     }
@@ -27,6 +28,7 @@ rgame_texture_sheet *rgame_texture_sheet_create(unsigned int name, int width, in
     sheet->name = name;
     sheet->width = width;
     sheet->height = height;
+    sheet->filter = filter;
     sheet->refs = 1;
     live_sheets++;
     return sheet;
@@ -166,13 +168,37 @@ void rgame_texture_uv(const rgame_texture *view, float *uv8) {
      * so a 16px tile in a 512px sheet spans 1/32 of the coordinate space, not
      * all of it. Dividing by the view size instead is the mistake this
      * function exists to make impossible to repeat. */
-    float sheet_w = (float)view->sheet->width;
-    float sheet_h = (float)view->sheet->height;
+    const rgame_texture_sheet *sheet = view->sheet;
+    float sheet_w = (float)sheet->width;
+    float sheet_h = (float)sheet->height;
 
-    float u0 = (float)view->rect.x / sheet_w;
-    float v0 = (float)view->rect.y / sheet_h;
-    float u1 = (float)(view->rect.x + view->rect.w) / sheet_w;
-    float v1 = (float)(view->rect.y + view->rect.h) / sheet_h;
+    /* The edges in texels, moved half a texel in where a linear sheet goes on
+     * past them; see the header. */
+    int right_edge = view->rect.x + view->rect.w;
+    int bottom_edge = view->rect.y + view->rect.h;
+    float left = (float)view->rect.x;
+    float top = (float)view->rect.y;
+    float right = (float)right_edge;
+    float bottom = (float)bottom_edge;
+    if (sheet->filter == RGAME_TEXTURE_LINEAR) {
+        if (view->rect.x > 0) {
+            left += 0.5f;
+        }
+        if (view->rect.y > 0) {
+            top += 0.5f;
+        }
+        if (right_edge < sheet->width) {
+            right -= 0.5f;
+        }
+        if (bottom_edge < sheet->height) {
+            bottom -= 0.5f;
+        }
+    }
+
+    float u0 = left / sheet_w;
+    float v0 = top / sheet_h;
+    float u1 = right / sheet_w;
+    float v1 = bottom / sheet_h;
 
     uv8[0] = u0; uv8[1] = v0; /* top-left */
     uv8[2] = u1; uv8[3] = v0; /* top-right */

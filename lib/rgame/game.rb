@@ -48,7 +48,8 @@ module RGame
     # RGame::Game::Configuration.
     def initialize(root:, caption: 'RGame', configuration: Configuration.new)
       super(width: configuration.width, height: configuration.height, caption: caption,
-            media_root: configuration.media_root, fullscreen: configuration.fullscreen)
+            media_root: configuration.media_root, fullscreen: configuration.fullscreen,
+            texture_filter: configuration.texture_filter)
 
       @root = root
       @renderer = RGame::Core::Renderer.new(self)
