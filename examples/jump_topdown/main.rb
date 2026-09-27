@@ -179,14 +179,16 @@ module JumpTopdownExample
     game = RGame::Game.new(
       root: Scene.new,
       caption: 'Jump top-down',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES,
-      # :jump is this game's own action. Space is also in the default map as :fire and
-      # :ui_confirm, which nothing in this scene reads.
-      input_map: Engine::InputMap.default.merge(
-        jump: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] }
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES,
+        # :jump is this game's own action. Space is also in the default map as :fire and
+        # :ui_confirm, which nothing in this scene reads.
+        input_map: Engine::InputMap.default.merge(
+          jump: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] }
+        )
       )
     )
 

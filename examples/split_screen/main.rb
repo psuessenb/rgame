@@ -307,13 +307,15 @@ module SplitScreenExample
     game = RGame::Game.new(
       root: Scene.new,
       caption: 'Split screen',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES,
-      # Two seats. The second stays empty until somebody picks up a controller and
-      # presses confirm, and until then this is an ordinary one-player game.
-      players: 2
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES,
+        # Two seats. The second stays empty until somebody picks up a controller and
+        # presses confirm, and until then this is an ordinary one-player game.
+        players: 2
+      )
     )
 
     game.start

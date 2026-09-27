@@ -211,10 +211,12 @@ module InventoryExample
     game = RGame::Game.new(
       root: Inventory.new,
       caption: 'Inventory',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES
+      )
     )
 
     # The panels are nine-slices and the items are images, and each is a Symbol

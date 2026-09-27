@@ -169,11 +169,13 @@ module GameMenuExample
     game = RGame::Game.new(
       root: Scene.new,
       caption: 'Game menu',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES,
-      seed: DEFAULT_SEED
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES,
+        seed: DEFAULT_SEED
+      )
     )
 
     # The one thing that has to be registered by hand: a nine-slice id names an

@@ -212,16 +212,18 @@ module FullscreenExample
     game = RGame::Game.new(
       root: Scene.new,
       caption: 'Fullscreen',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES,
-      fullscreen: START_FULLSCREEN,
-      scale_mode: SCALE_MODE,
-      # :fullscreen is this game's own action; everything else comes from the
-      # default map. F is a convention players already know.
-      input_map: Engine::InputMap.default.merge(
-        fullscreen: { buttons: [Controls::KEY_F, Controls::PAD_Y] }
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES,
+        fullscreen: START_FULLSCREEN,
+        scale_mode: SCALE_MODE,
+        # :fullscreen is this game's own action; everything else comes from the
+        # default map. F is a convention players already know.
+        input_map: Engine::InputMap.default.merge(
+          fullscreen: { buttons: [Controls::KEY_F, Controls::PAD_Y] }
+        )
       )
     )
 

@@ -44,8 +44,9 @@ RSpec.describe 'RGame::Game tile map loader' do # rubocop:disable RSpec/Describe
       require 'rgame/game'
       require 'json'
 
-      game = RGame::Game.new(root: RGame::Engine::Node2D.new, width: 64, height: 48,
-                             caption: 'tile map loader spec', media_root: #{media.inspect})
+      configuration = RGame::Game::Configuration.new(width: 64, height: 48, media_root: #{media.inspect})
+      game = RGame::Game.new(root: RGame::Engine::Node2D.new, caption: 'tile map loader spec',
+                             configuration:)
       tiles = game.assets.tilemap('map.tmx').instance_variable_get(#{of.inspect})
       game.close
       puts JSON.generate(tiles.map { it && [it.class.name, it.width, it.height] })

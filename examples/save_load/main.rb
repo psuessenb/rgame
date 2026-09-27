@@ -196,24 +196,26 @@ module SaveLoadExample
     game = RGame::Game.new(
       root: Pasture.new(save: save),
       caption: 'Save and load',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES,
-      seed: DEFAULT_SEED,
-      # F5 and F9 rather than S and L, and the reason is worth knowing: **a key
-      # already in the default map keeps doing its default job too.** `move_y` is
-      # bound to W and S, so an action added on S saves *and* walks the dog
-      # downwards — both fire, because two actions may read one key. Nothing is
-      # broken and nothing warns; the game just moves when you asked it to save.
-      #
-      # F5 and F9 are free, and are what a player already expects quicksave and
-      # quickload to be. F1 and F2 are not free: RGame::Game keeps those for the
-      # debug overlay and quit.
-      input_map: Engine::InputMap.default.merge(
-        save: { buttons: [Controls::KEY_F5] },
-        load: { buttons: [Controls::KEY_F9] },
-        drop: { buttons: [Controls::KEY_DELETE] }
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES,
+        seed: DEFAULT_SEED,
+        # F5 and F9 rather than S and L, and the reason is worth knowing: **a key
+        # already in the default map keeps doing its default job too.** `move_y` is
+        # bound to W and S, so an action added on S saves *and* walks the dog
+        # downwards — both fire, because two actions may read one key. Nothing is
+        # broken and nothing warns; the game just moves when you asked it to save.
+        #
+        # F5 and F9 are free, and are what a player already expects quicksave and
+        # quickload to be. F1 and F2 are not free: RGame::Game keeps those for the
+        # debug overlay and quit.
+        input_map: Engine::InputMap.default.merge(
+          save: { buttons: [Controls::KEY_F5] },
+          load: { buttons: [Controls::KEY_F9] },
+          drop: { buttons: [Controls::KEY_DELETE] }
+        )
       )
     )
 

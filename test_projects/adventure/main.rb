@@ -44,17 +44,19 @@ module Adventure
     game = RGame::Game.new(
       root: Shell.new,
       caption: 'Adventure',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      seed: DEFAULT_SEED,
-      players: 2,
-      input_map: Engine::InputMap.default.merge(
-        bag: { buttons: [Controls::KEY_I, Controls::PAD_START] },
-        debug: { buttons: [Controls::KEY_F4, Controls::PAD_BACK] },
-        interact: { buttons: [Controls::KEY_E, Controls::PAD_X], tap: 0.3 },
-        search: { buttons: [Controls::KEY_E, Controls::PAD_X], hold: 0.6 },
-        skip: { buttons: [Controls::KEY_TAB, Controls::PAD_Y], hold: 0.6 }
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        seed: DEFAULT_SEED,
+        players: 2,
+        input_map: Engine::InputMap.default.merge(
+          bag: { buttons: [Controls::KEY_I, Controls::PAD_START] },
+          debug: { buttons: [Controls::KEY_F4, Controls::PAD_BACK] },
+          interact: { buttons: [Controls::KEY_E, Controls::PAD_X], tap: 0.3 },
+          search: { buttons: [Controls::KEY_E, Controls::PAD_X], hold: 0.6 },
+          skip: { buttons: [Controls::KEY_TAB, Controls::PAD_Y], hold: 0.6 }
+        )
       )
     )
 

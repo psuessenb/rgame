@@ -33,13 +33,15 @@ module TopDownPlatformer
     game = RGame::Game.new(
       root: Course.new,
       caption: 'Top-down platformer',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      seed: DEFAULT_SEED,
-      players: 2,
-      input_map: Engine::InputMap.default.merge(
-        jump: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] }
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        seed: DEFAULT_SEED,
+        players: 2,
+        input_map: Engine::InputMap.default.merge(
+          jump: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] }
+        )
       )
     )
 

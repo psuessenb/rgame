@@ -157,15 +157,17 @@ module PitsExample
     game = RGame::Game.new(
       root: Scene.new,
       caption: 'Pits',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES,
-      # :jump and :coyote are this game's own actions. Space is also in the default
-      # map as :fire and :ui_confirm, and Y as :grab, which nothing here reads.
-      input_map: Engine::InputMap.default.merge(
-        jump: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] },
-        coyote: { buttons: [Controls::KEY_C, Controls::PAD_Y] }
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES,
+        # :jump and :coyote are this game's own actions. Space is also in the default
+        # map as :fire and :ui_confirm, and Y as :grab, which nothing here reads.
+        input_map: Engine::InputMap.default.merge(
+          jump: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] },
+          coyote: { buttons: [Controls::KEY_C, Controls::PAD_Y] }
+        )
       )
     )
 

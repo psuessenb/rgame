@@ -155,10 +155,12 @@ module LocalizationExample
     game = RGame::Game.new(
       root: Screen.new(language: language),
       caption: 'Localization',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES
+      )
     )
 
     language.restore

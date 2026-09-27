@@ -104,10 +104,12 @@ module WalkExample
     game = RGame::Game.new(
       root: Root.new,
       caption: 'Walk',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES
+      )
     )
 
     game.start

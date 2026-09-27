@@ -342,16 +342,18 @@ module QuestsAndDialogueExample
     game = RGame::Game.new(
       root: Village.new(save:),
       caption: 'Quests and dialogue',
-      width: WIDTH,
-      height: HEIGHT,
-      locales: LOCALES,
-      # L and F5/F9 are free in the default map. The arrows are not: they walk the
-      # hero and move a menu's focus both, which is why the hero pauses while a
-      # conversation runs.
-      input_map: Engine::InputMap.default.merge(
-        log: { buttons: [Controls::KEY_L, Controls::PAD_Y] },
-        save: { buttons: [Controls::KEY_F5] },
-        load: { buttons: [Controls::KEY_F9] }
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        locales: LOCALES,
+        # L and F5/F9 are free in the default map. The arrows are not: they walk the
+        # hero and move a menu's focus both, which is why the hero pauses while a
+        # conversation runs.
+        input_map: Engine::InputMap.default.merge(
+          log: { buttons: [Controls::KEY_L, Controls::PAD_Y] },
+          save: { buttons: [Controls::KEY_F5] },
+          load: { buttons: [Controls::KEY_F9] }
+        )
       )
     )
 

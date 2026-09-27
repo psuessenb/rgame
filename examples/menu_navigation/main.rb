@@ -347,12 +347,14 @@ module MenuNavigationExample
     game = RGame::Game.new(
       root: Shell.new(settings: settings),
       caption: 'Menu navigation',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES,
-      fullscreen: settings[:fullscreen],
-      scale_mode: settings[:scale]
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES,
+        fullscreen: settings[:fullscreen],
+        scale_mode: settings[:scale]
+      )
     )
 
     game.audio.volume = settings.volume_gain

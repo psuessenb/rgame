@@ -38,14 +38,16 @@ module TiledWorld
     game = RGame::Game.new(
       root: Root.new,
       caption: 'Tiled World',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: MEDIA,
-      seed: DEFAULT_SEED,
-      input_map: Engine::InputMap.default.merge(
-        cutscene: { buttons: [Controls::KEY_TAB, Controls::PAD_START] }
-      ),
-      players: 2
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: MEDIA,
+        seed: DEFAULT_SEED,
+        input_map: Engine::InputMap.default.merge(
+          cutscene: { buttons: [Controls::KEY_TAB, Controls::PAD_START] }
+        ),
+        players: 2
+      )
     )
 
     game.renderer.register_ui_atlas(game.assets.ui_atlas('ui/ui_atlas.json'))

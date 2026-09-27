@@ -136,9 +136,11 @@ module DialogueExample
     game = RGame::Game.new(
       root: Inn.new,
       caption: 'Dialogue',
-      width: WIDTH,
-      height: HEIGHT,
-      locales: LOCALES
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        locales: LOCALES
+      )
     )
 
     game.start
