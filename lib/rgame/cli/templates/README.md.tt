@@ -42,8 +42,16 @@ nodes/            the scene tree: game logic, graphics-free
   root.rb         the root node, drawn every frame
 assets/           images, sounds, maps — RGame::Game's media_root
   locales/        translation tables, one file per language
+<%- if tiled? -%>
+  <%= module_file %>.tiled-project
+                  the node classes Tiled offers a designer
+<%- end -%>
 spec/             specs for nodes/, run with no display
   locales_spec.rb every language has every key en.yml has
+<%- if tiled? -%>
+  tiled_project_spec.rb
+                  the Tiled project lists every placeable class
+<%- end -%>
 ```
 
 ### Why `game.rb` and `nodes/` are separate
@@ -100,6 +108,32 @@ cannot load `game.rb`. Move that directory and update both.
 
 The [localization guide](https://github.com/psuessenb/rgame/blob/main/docs/api/localization.md)
 covers plurals, variables and the fallback between languages.
+
+## Maps
+
+Maps are made in [Tiled](https://www.mapeditor.org/) and kept in `assets/`. A
+map builds a node for each object whose class names one of the game's node
+classes, such as `Chest`, set up by the object's properties.
+
+Open `assets/<%= module_file %>.tiled-project` in Tiled. Its list of classes
+holds every node class a designer may place, with a member for each setting.
+<%- unless tiled? -%>
+This project was made without it, and `bundle exec rake tiled` creates it.
+<%- end -%>
+
+- **A class is placeable** when the comment above its `initialize` carries
+  `@placeable`. Its `@param` tags say what a map may set.
+- **`bundle exec rake tiled` writes the classes into the project.** Reopen the
+  project in Tiled to see them.
+<%- if tiled? -%>
+- **`bundle exec rspec` fails** while the project lacks a placeable class, or a
+  setting one gained, and names the command.
+<%- end -%>
+- **A map needs no project.** A class and properties typed by hand in Tiled
+  build the same, and so does a class without `@placeable`.
+
+The [tile maps guide](https://github.com/psuessenb/rgame/blob/main/docs/api/tile_maps.md#building-nodes-from-objects)
+covers how a map builds its nodes, and what each setting's type is in Tiled.
 
 ## Where to look next
 

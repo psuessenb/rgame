@@ -313,6 +313,12 @@ index, not the argument.
   keyword's default. It replaces only the types whose names start with a capital
   letter, and `changes` reports what a write would do. See
   [docs/api/tile_maps.md](docs/api/tile_maps.md#tileds-custom-types).
+- **`rgame new` writes a Tiled project.** A new game gets
+  `assets/<name>.tiled-project`, and `bundle exec rake tiled` writes its
+  placeable node classes into it. `spec/tiled_project_spec.rb` fails while the
+  project falls behind them, and `.gitignore` leaves out Tiled's session file.
+  `rgame new NAME --no-tiled` leaves out the project and its spec. See
+  [docs/api/cli.md](docs/api/cli.md#maps-and-the-tiled-project).
 - **`Image#tiles` cuts a sheet with gaps.** It takes `margin:`, `spacing:`,
   `columns:` and `count:`. See [docs/api/images.md](docs/api/images.md).
 - **A quest can be a state machine.** `RGame::Engine::StateGraph.build`

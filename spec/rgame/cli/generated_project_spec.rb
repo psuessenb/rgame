@@ -120,6 +120,64 @@ RSpec.describe 'a generated project' do # rubocop:disable RSpec/DescribeClass --
     expect(output).to include('nodes/hud.rb:7 would change RGame::Engine::UI::Hud')
   end
 
+  # The Tiled project the generator promises: `rake tiled` writes each class
+  # carrying @placeable into it, and the suite fails until it does.
+  describe 'its Tiled project' do
+    def add_chest
+      File.write(File.join(project, 'nodes', 'chest.rb'), <<~RUBY)
+        # frozen_string_literal: true
+
+        require_relative '../tictactoe'
+
+        module Tictactoe
+          # A chest a designer places in Tiled.
+          class Chest < Engine::Node2D
+            # @placeable
+            # @param contents [String] the item inside
+            def initialize(contents: 'gold', **)
+              super(**)
+              @contents = contents
+            end
+          end
+        end
+      RUBY
+    end
+
+    it 'fails its suite, naming the class and rake tiled, once a placeable class is added' do
+      add_chest
+
+      output, status = run_in_project('rspec')
+
+      expect(status).not_to be_success
+      expect(output).to include('added      Chest  contents', 'Run `bundle exec rake tiled`')
+    end
+
+    it 'writes the class with rake tiled, and passes its suite after' do
+      add_chest
+
+      written, = run_in_project('rake', 'tiled')
+      output, status = run_in_project('rspec')
+
+      expect(written).to include('added      Chest  contents',
+                                 'A class is written when the comment above its initialize carries @placeable.')
+      expect(status).to be_success, "rspec failed:\n#{output}"
+    end
+  end
+
+  describe 'a project made with --no-tiled' do
+    let(:project) do
+      RGame::CLI::NewProject.new('tictactoe', out: StringIO.new, root: tmp, tiled: false).generate
+      File.join(tmp, 'tictactoe')
+    end
+
+    it 'passes its own spec suite and is clean under its RuboCop configuration' do
+      specs, specs_status = run_in_project('rspec')
+      cops, cops_status = run_in_project('rubocop')
+
+      expect([specs_status, cops_status]).to all(be_success), "#{specs}\n#{cops}"
+    end
+  end
+
   # The translation setup the generator promises: specs read the tables in
   # assets/locales/, fail on a key a language lacks, and fail on a key no table
   # has. Each example edits the generated project and runs its suite.

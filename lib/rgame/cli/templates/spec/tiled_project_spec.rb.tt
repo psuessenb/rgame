@@ -1,0 +1,14 @@
+# frozen_string_literal: true
+
+# The Tiled project in assets/, checked against the node classes. A class that
+# gains @placeable, or a placeable class whose settings change, fails here
+# until `rake tiled` writes it, rather than going missing from the list a
+# designer picks from in Tiled.
+RSpec.describe RGame::Engine::MapTypes do
+  it 'finds every placeable node class in assets/<%= module_file %>.tiled-project, as rake tiled writes it' do
+    project = File.expand_path('../assets/<%= module_file %>.tiled-project', __dir__)
+    changes = described_class.new(<%= game_module %>).changes(project)
+
+    expect(changes).to be_current, "#{changes}\nRun `bundle exec rake tiled` to write the project."
+  end
+end

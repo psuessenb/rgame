@@ -7,3 +7,13 @@ RSpec::Core::RakeTask.new(:spec)
 RuboCop::RakeTask.new
 
 task default: %i[spec rubocop]
+
+# The node classes whose initialize carries @placeable, written into the Tiled
+# project as custom types, so a designer picks them from a list. Tiled reads the
+# project when it opens it, so reopen it there afterwards.
+desc 'Write the node classes a map may place into assets/<%= module_file %>.tiled-project, for Tiled'
+task :tiled do
+  require_relative '<%= module_file %>'
+  Dir[File.join(__dir__, 'nodes/**/*.rb')].each { require it }
+  puts RGame::Engine::MapTypes.new(<%= game_module %>).write('assets/<%= module_file %>.tiled-project')
+end

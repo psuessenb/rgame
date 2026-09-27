@@ -612,6 +612,10 @@ out. `missing` says the project did not exist, and `written` that this write
 changed the file. `to_s` prints them as above. `types` gives what `write`
 writes, as Hashes in the shape of Tiled's project file.
 
+**A game made by `rgame new` writes its project with `bundle exec rake tiled`**,
+and its suite fails while the project falls behind the classes. See
+[Maps and the Tiled project](cli.md#maps-and-the-tiled-project).
+
 **A map needs no project.** Nothing at load reads a `.tiled-project`, so a map
 builds the same beside a stale project, and with none. A class and properties
 typed by hand build as they would if picked from the list, and a class without

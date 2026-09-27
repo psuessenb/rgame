@@ -10,11 +10,13 @@ rgame new tictactoe
 | Command | Does |
 |---|---|
 | `rgame new NAME` | Creates the directory `NAME` and writes a runnable project into it |
+| `rgame new NAME --no-tiled` | The same, without the Tiled project and its spec, for a game without maps |
 | `rgame version` | Prints the installed engine version |
 | `rgame help` | Prints usage |
 
 `rgame new` accepts a name made of letters, digits, underscores and dashes,
-starting with a letter, and refuses anything else. It also refuses a
+starting with a letter, and refuses anything else, and any option but
+`--no-tiled`. It also refuses a
 path that exists and is not a directory, and a directory that holds anything. It
 writes into an existing *empty* directory.
 
@@ -27,7 +29,7 @@ and `main` would write it over `game.rb` or `main.rb`.
 ```
 tictactoe/
 ├── Gemfile           rgame, plus rspec and rubocop for development
-├── Rakefile          rake spec, rake rubocop, rake
+├── Rakefile          rake spec, rake rubocop, rake tiled, rake
 ├── README.md
 ├── .ruby-version     the Ruby that ran `rgame new`
 ├── .gitignore  .rspec  .rubocop.yml
@@ -35,6 +37,7 @@ tictactoe/
 ├── game.rb           class Tictactoe::Game < RGame::Game
 ├── tictactoe.rb      module Tictactoe, where Engine, Util, UI and Components name rgame's namespaces
 ├── assets/           the game's media_root
+│   ├── tictactoe.tiled-project   the node classes a designer picks from in Tiled
 │   └── locales/
 │       └── en.yml    the English translation table
 ├── nodes/
@@ -42,6 +45,7 @@ tictactoe/
 └── spec/
     ├── spec_helper.rb
     ├── locales_spec.rb
+    ├── tiled_project_spec.rb
     └── nodes/
         └── root_spec.rb
 ```
@@ -230,14 +234,37 @@ loaded locale. Its failure names each locale and its missing keys, such as
 `{de: ["root.greeting"]}`. In the game itself, a missing key falls back to the
 default locale's text, and a key no table has shows as itself.
 
+## Maps and the Tiled project
+
+**`assets/tictactoe.tiled-project` is the project to open in Tiled.** Its list
+of classes holds each node class whose `initialize` comment carries
+`@placeable`, with a member for each setting its `@param` tags allow. A designer
+picks a class there rather than typing it.
+[Tiled's custom types](tile_maps.md#tileds-custom-types) says what each member
+shows and what the project keeps.
+
+**`bundle exec rake tiled` writes the classes into the project**, and prints a
+line for each class it writes. It loads `tictactoe.rb` and every file under
+`nodes/`, and calls `RGame::Engine::MapTypes#write`. Tiled reads the project
+when it opens it, so reopen the project there afterwards.
+
+**`spec/tiled_project_spec.rb` fails while the project falls behind the
+classes**, such as when a class gains `@placeable` or a setting. Its failure
+lists what the task would write and names the command. A map builds without a
+project all the same, so the spec only keeps the designer's list honest.
+
+**`--no-tiled` leaves out the project and the spec.** The `tiled` task stays,
+and creates the project if it runs. Either way, `.gitignore` ignores
+`*.tiled-session`, where Tiled keeps each person's open files and window layout.
+
 ## The generated RuboCop configuration
 
 The generator loads `rubocop-performance`, `rubocop-rspec` and rgame's own cops,
 relaxes the `Metrics/*` cops for a game's long `update` and `draw` methods, and
 allows short coordinate names. `RSpec/SpecFilePathFormat` maps the game's module
 to `nodes/`, so a spec of `Tictactoe::Root` is `spec/nodes/root_spec.rb`. It skips
-`spec/locales_spec.rb`, which describes `I18n` but checks the tables rather than a
-source file.
+`spec/locales_spec.rb` and `spec/tiled_project_spec.rb`, which describe `I18n` and
+`MapTypes` but check files in `assets/` rather than a source file.
 
 **The gem ships its cops as a RuboCop plugin.** The generated `.rubocop.yml`
 loads it by path and class:
@@ -288,8 +315,10 @@ a generated project needs a new template and nothing else; there is no manifest.
 The generator writes only files, so it creates a directory only by writing a
 template into it.
 Templates are ERB and may call `app_name`, `game_module`, `module_file`,
-`caption`, `ruby_version` and `rgame_requirement`. The template `game_module.rb.tt`
-is written to the file `module_file` names, such as `tictactoe.rb`.
+`caption`, `ruby_version`, `rgame_requirement` and `tiled?`. A template whose name
+starts with `game_module.` is written under the name `module_file` gives, so
+`game_module.rb.tt` becomes `tictactoe.rb`. `NewProject::TILED` lists the
+templates `--no-tiled` leaves out.
 
 **No template may have a name starting with a dot.** The gemspec packages
 `lib/**/*` with `Dir.glob`, which skips dotfiles. A template called `.gitignore`
