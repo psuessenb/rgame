@@ -319,10 +319,12 @@ module EquipmentExample
     game = RGame::Game.new(
       root: Wardrobe.new,
       caption: 'Equipment',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES
+      )
     )
 
     # The panels and the slots are nine-slices, each a Symbol naming an element of

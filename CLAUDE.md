@@ -186,13 +186,14 @@ half under `lib/` is backed by a second, graphics-free extension. The gem
 packages both and is published on RubyGems.
 
 **Split-screen, and the input layer with it.** A game has *seats*
-(`Game.new(players: 2)`); an `RGame::Engine::Player` owns a device, a binding
-table, a camera and a region of the screen; the shared world is updated once and
-drawn once per viewport by a `WorldView`; players may stand in different rooms
-of it, which `Scene::Rooms` runs side by side, each drawn only into its own
-players' views; and which player a node answers to is
-inherited down the tree like its transform. A device is seated when somebody uses
-it, not when it is plugged in. See `docs/api/scene_graph.md`, `input.md`, `ui.md`.
+(`Game::Configuration.new(players: 2)`); an `RGame::Engine::Player` owns a
+device, a binding table, a camera and a region of the screen; the shared world
+is updated once and drawn once per viewport by a `WorldView`; players may stand
+in different rooms of it, which `Scene::Rooms` runs side by side, each drawn
+only into its own players' views; and which player a node answers to is
+inherited down the tree like its transform. A device is seated when somebody
+uses it, not when it is plugged in. See `docs/api/scene_graph.md`, `input.md`,
+`ui.md`.
 
 **The UI package is menus, not a toolkit.** `PlayerLayer` and `UI::Menu`
 cover a region per player, focus and activation. A menu lays its buttons out in
@@ -579,8 +580,9 @@ ruby tools/drive_test_project.rb examples/collision_tiles/main.rb --ticks 240
 ```
 
 `tools/drive_test_project.rb` boots the project unmodified, feeds it a scripted
-input backend through `RGame::Game`'s `input:` keyword, stops on a tick budget,
-and reports draw calls, clips, sounds, scenes entered and ticks against frames.
+input backend through the `input` member of `RGame::Game::Configuration`, stops
+on a tick budget, and reports draw calls, clips, sounds, scenes entered and
+ticks against frames.
 A script holds **one timeline per device**, so a two-player run is two `on`
 blocks playing at once, every track absolute from tick 0.
 

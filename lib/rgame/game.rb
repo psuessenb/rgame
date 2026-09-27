@@ -3,6 +3,7 @@
 require_relative 'boot'
 require_relative 'core'
 require_relative 'engine'
+require_relative 'game/configuration'
 
 module RGame
   # The entry point of a game, and the one class that knows both halves.
@@ -40,93 +41,40 @@ module RGame
   class Game < RGame::Core::App
     Controls = RGame::Util::Controls
 
-    WIDTH = 640
-    HEIGHT = 480
-
     attr_reader :root, :renderer
 
-    # `input_map:` is what physical inputs mean — one entry per action, naming
-    # ids from RGame::Util::Controls. It is merged over the universal UI set, so
-    # `ui_confirm` and friends work whether or not a game declares them, and it
-    # defaults to RGame::Engine::InputMap::DEFAULT_ACTIONS, so a game wanting
-    # eight-way movement and a fire button declares nothing.
-    #
-    # `device:` is which device drives it — the keyboard, or
-    # `Controls.gamepad(slot)` for a controller.
-    #
-    # `input:` overrides the input backend. It exists so a harness can drive a
-    # game from a script instead of from hardware — see
-    # tools/drive_test_project.rb, and "The test projects are the acceptance test
-    # for wiring", which is why driving one has to be possible at all. A game passes nothing and gets the real thing.
-    # `audio:` overrides the sound device the same way, for the same harness,
-    # which wraps the real one to record what plays. It is handed this game's
-    # asset manager with `assets=`, as the device `App` builds is, so a path id
-    # resolves and the manager decodes samples through it.
-    # `players:` is how many seats the game has, and therefore the most people
-    # who can play it. Player 0 starts on `device:`; the rest start empty and
-    # are filled when someone uses a controller — see RGame::Engine::Players for
-    # why that is a press rather than a plug.
-    # `fullscreen:` opens the window fullscreen rather than switching after it is
-    # already up, so a game that always runs fullscreen never flashes a windowed
-    # frame at startup. `width` and `height` still matter: they are the size the
-    # window takes when it leaves fullscreen, whether or not this game offers a
-    # way to do that.
-    #
-    # `scale_mode:` decides what `width` and `height` *mean*, and the default
-    # answer is "the resolution the game is designed in". Under `:letterbox` the
-    # view a node draws into is always that size, whatever the window is doing,
-    # so a layout written against fixed numbers keeps working at any window size
-    # and in fullscreen — which is what almost every game wants and what nothing
-    # in the engine can supply for it afterwards.
-    #
-    # `:disabled` is the opt-out, and it is the right answer for something that
-    # should genuinely use whatever space it is given: a tool, a HUD-shaped
-    # program, an editor. It hands the window straight through as the view, and
-    # skips the clip, translate and scale that every other mode pushes. See
-    # RGame::Engine::Presentation.
-    #
-    # `locales:` is the directory the translation tables are in, relative to
-    # `media_root` unless absolute. Every `.yml` under it is loaded through the
-    # asset manager here, in sorted order, and the language is chosen from the
-    # player's OS preferences — so a game writes no i18n setup, and a language
-    # the player saved is set after `new` and before `start`. A directory that
-    # does not exist loads nothing, and every key shows as itself.
-    #
-    # `seed:` seeds the game's random source, so a run with nothing saved plays
-    # the same each time. `RGAME_SEED` wins when it is set, which is how
-    # `tools/drive_test_project.rb --seed N` repeats a run. With neither, the
-    # game picks a fresh seed, and `random_source.seed` reads it back.
-    def initialize(root:, width: WIDTH, height: HEIGHT, caption: 'RGame',
-                   media_root: 'media', input_map: nil, device: Controls::KEYBOARD,
-                   players: 1, input: nil, audio: nil, fullscreen: false, scale_mode: :letterbox,
-                   locales: 'locales', seed: nil)
-      super(width: width, height: height, caption: caption, media_root: media_root,
-            fullscreen: fullscreen)
+    # `root` is the node tree the game drives, and `caption` the window's title.
+    # Everything else a game sets at startup is a member of `configuration`; see
+    # RGame::Game::Configuration.
+    def initialize(root:, caption: 'RGame', configuration: Configuration.new)
+      super(width: configuration.width, height: configuration.height, caption: caption,
+            media_root: configuration.media_root, fullscreen: configuration.fullscreen)
 
       @root = root
       @renderer = RGame::Core::Renderer.new(self)
-      @input = input || RGame::Core::Input.new(self)
-      @audio_device = audio
-      audio&.assets = assets
+      @input = configuration.input || RGame::Core::Input.new(self)
+      @audio_device = configuration.audio
+      configuration.audio&.assets = assets
       @players = RGame::Engine::Players.new(
-        Array.new(players) do |id|
-          RGame::Engine::Player.new(id: id, device: id.zero? ? device : nil,
-                                    input_map: input_map)
+        Array.new(configuration.players) do |id|
+          RGame::Engine::Player.new(id: id, device: id.zero? ? configuration.device : nil,
+                                    input_map: configuration.input_map)
         end
       )
-      @presentation = RGame::Engine::Presentation.new(width: width, height: height,
-                                                      mode: scale_mode)
-      @presentation.fit(self.width, self.height)
+      @presentation = RGame::Engine::Presentation.new(width: configuration.width,
+                                                      height: configuration.height,
+                                                      mode: configuration.scale_mode)
+      @presentation.fit(width, height)
       @viewports = RGame::Engine::Viewports.new(@players, width: @presentation.width,
                                                           height: @presentation.height)
       @facts = RGame::Engine::Components::FactsDatabase.new
-      @random_source = RGame::Engine::Components::RandomSource.new(seed: chosen_seed(seed))
+      @random_source = RGame::Engine::Components::RandomSource.new(seed: chosen_seed(configuration.seed))
       @debug = RGame::Engine::Debug.new
       @debug_keys = true
       @dirty = true
 
       install_asset_loaders
-      load_locales(locales)
+      load_locales(configuration.locales)
     end
 
     # The player registry, also reachable from any node as
@@ -163,7 +111,7 @@ module RGame
     # still wants a channel switches it itself.
     attr_accessor :debug_keys
 
-    # The sound device: the one passed as `audio:`, or the one `App` builds on
+    # The sound device: the configuration's `audio`, or the one `App` builds on
     # first use. Nodes reach it through the RGame::Engine::AudioOut system on
     # the root, which `start` mounts.
     def audio = @audio_device || super

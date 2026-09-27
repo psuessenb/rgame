@@ -1,6 +1,6 @@
 # Smooth art
 
-**Nothing is implemented yet.** Steps 1–3 are detailed. Steps 4 and 5 are rough,
+**Step 1 is implemented.** Steps 2 and 3 are detailed. Steps 4 and 5 are rough,
 and get re-planned before they start.
 
 ## Verdict
@@ -394,6 +394,46 @@ Sub-steps:
 is empty for every driven project, which proves each caller moved every
 keyword. A grep for each old keyword next to `Game.new(` finds nothing outside
 `CHANGELOG.md`.
+
+**Landed.** `RGame::Game::Configuration` lives in `lib/rgame/game/configuration.rb`
+as sketched, with twelve members, and `Game#initialize` takes `root:`,
+`caption:` and `configuration:`. The 38 examples, 4 test projects, the template,
+the harness and the three child-process specs build their game through one; the
+fifth test project, `hello_world`, passes only `root` and `caption`. The
+template and the harness took the sketch's shape unchanged. 1a is `f481136`
+and 1b is `9b7f260`.
+
+- **`game.md`'s section on `Configuration` landed in 1a, not 1b.**
+  `spec_core/api_docs/coverage_spec.rb` fails on a public class no page names,
+  so 1a would not have been green without it. 1b kept the other prose.
+- **The invariant's report diff cannot be literally empty.** A `--seed` run
+  under load drops a frame now and then, so 14 of the 57 reports differed in
+  their frame count and in every draw count that scales with it. Their scenes,
+  sounds, distinct strings and kinds of draw call all matched. `examples/pooling`
+  draws its own allocation rate, which also moves with the frame count; at 600
+  frames of 600 it read the same at `main` and at the head. Steps 2 and 3 should
+  compare those frame-independent parts, or rerun a report that differs with
+  fewer runs at once. CLAUDE.md's "two runs are byte-identical" holds only when
+  every tick draws.
+- **The probes read the logical size, not the window.** The probe game opens
+  fullscreen, so `game.width` reads the screen. `width` and `height` are read
+  through `game.viewports.width` and `height` instead. The defaults example
+  still reads `game.width`.
+- **Two unreleased CHANGELOG entries named keywords no release had.** `seed:`
+  and `audio:` arrived after v0.4.0, so their "Added" entries now describe
+  members, and the "Changed" entry lists only the ten members that were
+  keywords in v0.4.0.
+
+`make test` 412 checks, `rake spec` 4,515 examples (one more: `game.md`'s new
+snippet) in 35.7 s, and `rake spec:core` 539 (the six in
+`game_configuration_spec.rb`, 1.5 s of them), all passing.
+`rake drive:allocations` passed for all 43 projects. Two mutations fail the new
+spec as intended: `Game` ignoring `players` fails "hands every member to the
+game", and a thirteenth member with no probe fails "probes every member". The
+grep for an old keyword next to `Game.new(` finds only the spec that expects
+`width: 800` to raise. `docs/api/game.md` documents `Configuration` under
+"`Configuration` — what a game sets at startup", and `CHANGELOG.md` has the
+"Changed" entry.
 
 ---
 

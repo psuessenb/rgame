@@ -209,16 +209,18 @@ module InputHoldsExample
     game = RGame::Game.new(
       root: Scene.new,
       caption: 'Input holds',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES,
-      input_map: Engine::InputMap.default.merge(
-        open: { buttons: [Controls::KEY_E, Controls::PAD_A], tap: TAP_WITHIN },
-        search: { buttons: [Controls::KEY_E, Controls::PAD_A], hold: HOLD_FOR },
-        block: { buttons: [Controls::KEY_L, Controls::PAD_LEFT_SHOULDER] },
-        swap: { all: [[Controls::KEY_L, Controls::KEY_R],
-                      [Controls::PAD_LEFT_SHOULDER, Controls::PAD_RIGHT_SHOULDER]] }
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES,
+        input_map: Engine::InputMap.default.merge(
+          open: { buttons: [Controls::KEY_E, Controls::PAD_A], tap: TAP_WITHIN },
+          search: { buttons: [Controls::KEY_E, Controls::PAD_A], hold: HOLD_FOR },
+          block: { buttons: [Controls::KEY_L, Controls::PAD_LEFT_SHOULDER] },
+          swap: { all: [[Controls::KEY_L, Controls::KEY_R],
+                        [Controls::PAD_LEFT_SHOULDER, Controls::PAD_RIGHT_SHOULDER]] }
+        )
       )
     )
 

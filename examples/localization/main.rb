@@ -12,7 +12,7 @@
 #   - Engine::I18n — tables in locales/, a fallback to English, CLDR plurals;
 #   - Engine::Text — a key built once, with a `count` and with a variable;
 #   - UI::Menu's `scope:`, and `Text.literal` for text that is never translated;
-#   - RGame::Game's `locales:`, and the language it picks from the OS;
+#   - Game::Configuration's `locales`, and the language Game picks from the OS;
 #   - Util::SaveFile, holding the language a player picked.
 #
 # ## Nothing is looked up while drawing
@@ -25,9 +25,9 @@
 #
 # ## The tables sit beside this file
 #
-# `Game.new(locales: File.join(__dir__, 'locales'))` loads `en.yml` and `de.yml`
-# from here. Every example shares `examples/assets/` as its media root, so a
-# table there would be loaded into every example.
+# `Game::Configuration.new(locales: LOCALES)` makes `Game.new` load `en.yml` and
+# `de.yml` from here. Every example shares `examples/assets/` as its media root,
+# so a table there would be loaded into every example.
 #
 # ## German lacks a key, on purpose
 #
@@ -155,10 +155,12 @@ module LocalizationExample
     game = RGame::Game.new(
       root: Screen.new(language: language),
       caption: 'Localization',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES
+      )
     )
 
     language.restore

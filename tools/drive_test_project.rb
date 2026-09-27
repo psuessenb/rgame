@@ -474,10 +474,10 @@ module DriveTestProject
     end
   end
 
-  # The audio server, passed to the game as `audio:`. `Engine::AudioOut` calls
-  # it by name, so a delegator is all it takes. Only playback is recorded — the asset manager
-  # also decodes through this object (`sample`, `song`), and a file being loaded
-  # is not a sound being heard.
+  # The audio server, passed to the game as its configuration's `audio`.
+  # `Engine::AudioOut` calls it by name, so a delegator is all it takes. Only
+  # playback is recorded — the asset manager also decodes through this object
+  # (`sample`, `song`), and a file being loaded is not a sound being heard.
   class AudioProbe < Probe
     def play_sound(id, **)
       @report.record_sound('sound', id)
@@ -780,10 +780,10 @@ module DriveTestProject
     def game_probe(report, input, budget, pad)
       recording = report.allocations.nil?
       Module.new do
-        define_method(:initialize) do |**kwargs|
+        define_method(:initialize) do |configuration: RGame::Game::Configuration.new, **kwargs|
           extra = pad ? { device: RGame::Util::Controls.gamepad(0) } : { input: input }
           extra[:audio] = AudioProbe.new(RGame::Core::Audio.new, report) if recording
-          super(**kwargs, **extra)
+          super(**kwargs, configuration: configuration.with(**extra))
           @renderer = RendererProbe.new(@renderer, report) if recording
         end
 

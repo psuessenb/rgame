@@ -179,12 +179,14 @@ module QuickWheelExample
     game = RGame::Game.new(
       root: Scene.new,
       caption: 'Quick wheel',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES,
-      input_map: Engine::InputMap.default.merge(
-        quick_menu: { buttons: [Controls::KEY_TAB, Controls::PAD_LEFT_SHOULDER] }
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES,
+        input_map: Engine::InputMap.default.merge(
+          quick_menu: { buttons: [Controls::KEY_TAB, Controls::PAD_LEFT_SHOULDER] }
+        )
       )
     )
 

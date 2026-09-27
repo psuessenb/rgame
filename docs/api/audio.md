@@ -456,7 +456,7 @@ out.claimed_music     # => :garden
 ```
 
 **`RGame::Game` mounts it in `start`**, holding `Game#audio`: the device `App`
-builds, or the one passed as `audio:`. A node that is not in the tree, or a tree
+builds, or the configuration's `audio`. A node that is not in the tree, or a tree
 with no `AudioOut`, makes `system!` raise `KeyError` naming `AudioOut`. A node
 without a tree cannot play a sound, so a quest effect or other code that is not
 a node needs a node handed to it.

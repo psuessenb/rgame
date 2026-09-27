@@ -180,9 +180,11 @@ module PushPullExample
     game = RGame::Game.new(
       root: Room.new,
       caption: 'Push and pull',
-      width: WIDTH,
-      height: HEIGHT,
-      locales: LOCALES
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        locales: LOCALES
+      )
     )
 
     game.start

@@ -1562,8 +1562,9 @@ while they overlap. Two players pushing side by side move it as far as one would
 ### `RandomSource`
 
 **The game's one seeded source of random numbers**, a system on the root.
-`RGame::Game` mounts one, seeded from `seed:` or `RGAME_SEED`; see
-[`seed:`](game.md). Every node finds it without being handed it:
+`RGame::Game` mounts one, seeded from its configuration's `seed` or from
+`RGAME_SEED`; see [`Configuration`](game.md#configuration--what-a-game-sets-at-startup).
+Every node finds it without being handed it:
 
 ```ruby
 require 'rgame'

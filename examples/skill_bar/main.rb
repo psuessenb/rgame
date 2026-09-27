@@ -149,16 +149,18 @@ module SkillBarExample
     game = RGame::Game.new(
       root: Scene.new,
       caption: 'Skill bar',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES,
-      input_map: Engine::InputMap.default.merge(
-        skill1: { buttons: [Controls::KEY_1] },
-        skill2: { buttons: [Controls::KEY_2] },
-        skill3: { buttons: [Controls::KEY_3] },
-        skill4: { buttons: [Controls::KEY_4] },
-        skill5: { buttons: [Controls::KEY_5] }
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES,
+        input_map: Engine::InputMap.default.merge(
+          skill1: { buttons: [Controls::KEY_1] },
+          skill2: { buttons: [Controls::KEY_2] },
+          skill3: { buttons: [Controls::KEY_3] },
+          skill4: { buttons: [Controls::KEY_4] },
+          skill5: { buttons: [Controls::KEY_5] }
+        )
       )
     )
 

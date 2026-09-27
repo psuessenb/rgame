@@ -199,15 +199,17 @@ module EffectsExample
     game = RGame::Game.new(
       root: Room.new,
       caption: 'Effects',
-      width: WIDTH,
-      height: HEIGHT,
-      locales: LOCALES,
-      seed: DEFAULT_SEED,
-      # Space is `fire` in the default map, and nothing else here reads it. Enter
-      # is also `ui_confirm` and L is free; there is no menu to confirm.
-      input_map: Engine::InputMap.default.merge(
-        fade: { buttons: [Controls::KEY_RETURN, Controls::PAD_B] },
-        strike: { buttons: [Controls::KEY_L, Controls::PAD_Y] }
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        locales: LOCALES,
+        seed: DEFAULT_SEED,
+        # Space is `fire` in the default map, and nothing else here reads it. Enter
+        # is also `ui_confirm` and L is free; there is no menu to confirm.
+        input_map: Engine::InputMap.default.merge(
+          fade: { buttons: [Controls::KEY_RETURN, Controls::PAD_B] },
+          strike: { buttons: [Controls::KEY_L, Controls::PAD_Y] }
+        )
       )
     )
 

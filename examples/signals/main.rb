@@ -264,19 +264,21 @@ module SignalsExample
     game = RGame::Game.new(
       root: Scene.new,
       caption: 'Signals',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES,
-      # `stand_on_plate` rather than reading `ui_confirm` directly, and the reason is
-      # the trap that costs an afternoon: **a key already in the default map keeps
-      # doing its old job too.** `ui_confirm` is Enter *and* Space, and Space is
-      # `fire`, which the ActionTrigger below reads — so a plate on `ui_confirm`
-      # would also be pressed by the key that is supposed to only feed the repeater.
-      # Two actions may read one key, both fire, and nothing warns.
-      input_map: Engine::InputMap.default.merge(
-        stand_on_plate: { buttons: [Controls::KEY_RETURN] },
-        poke: { buttons: [Controls::KEY_E] }
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES,
+        # `stand_on_plate` rather than reading `ui_confirm` directly, and the reason is
+        # the trap that costs an afternoon: **a key already in the default map keeps
+        # doing its old job too.** `ui_confirm` is Enter *and* Space, and Space is
+        # `fire`, which the ActionTrigger below reads — so a plate on `ui_confirm`
+        # would also be pressed by the key that is supposed to only feed the repeater.
+        # Two actions may read one key, both fire, and nothing warns.
+        input_map: Engine::InputMap.default.merge(
+          stand_on_plate: { buttons: [Controls::KEY_RETURN] },
+          poke: { buttons: [Controls::KEY_E] }
+        )
       )
     )
 

@@ -19,11 +19,12 @@ renderer, the asset manager, the sound device, the input mapper and the debug
 layer.
 
 ```ruby
-RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
-                media_root: 'media', input_map: nil, device: Controls::KEYBOARD,
-                players: 1, input: nil, audio: nil, fullscreen: false,
-                scale_mode: :letterbox, locales: 'locales', seed: nil)
+RGame::Game.new(root:, caption: 'RGame', configuration: RGame::Game::Configuration.new)
 ```
+
+`root` is the node tree, and `caption` the window's title. Every other setting
+is a member of `configuration`; see
+[`Configuration`](#configuration--what-a-game-sets-at-startup).
 
 | Reader | |
 |---|---|
@@ -34,7 +35,7 @@ RGame::Game.new(root:, width: 640, height: 480, caption: 'RGame',
 | `facts` | the flags and named state machines a game saves; see [Facts](dialogue.md#facts) |
 | `random_source` | the seeded random numbers every node draws from; see [`RandomSource`](components.md#randomsource) |
 | `scale_mode`, `scale_mode=` | how the logical size maps onto the window; switchable while the game runs |
-| `audio` | the sound device: the one passed as `audio:`, or the one [App](app.md) builds on first use |
+| `audio` | the sound device: the configuration's `audio`, or the one [App](app.md) builds on first use |
 | `assets`, `media_root`, `width`, `height`, `fps` | inherited from [App](app.md) |
 
 A node reaches the first four as systems: `node.system(RGame::Engine::Players)`,
@@ -43,19 +44,60 @@ A node reaches the first four as systems: `node.system(RGame::Engine::Players)`,
 `node.system!(RGame::Engine::Components::RandomSource)`. It plays sound through a
 fifth, `RGame::Engine::AudioOut`, which holds `audio`; see [Audio](audio.md).
 
-`seed:` seeds `random_source`, so a run with nothing saved plays the same each
+`start` brings the tree live. It hands the game to the root as its `context`,
+mounts `Players`, `Viewports`, `Components::FactsDatabase`,
+`Components::RandomSource`, `Debug` and `AudioOut` on the root. It then calls
+`enter_tree` and runs the loop until the window closes.
+
+Each tick, `Game` polls input, runs `control` and `update` on the tree, and sweeps
+freed nodes. It redraws only when a tick ran or the `:stats` channel is on.
+
+## `Configuration` — what a game sets at startup
+
+`RGame::Game::Configuration` holds every setting but the root and the caption.
+It is a frozen `Data` value with a default for every member, so a game names
+only what it changes:
+
+```ruby
+require 'rgame/game'
+
+class Root < RGame::Engine::Node2D; end
+
+configuration = RGame::Game::Configuration.new(width: 320, height: 180, scale_mode: :integer)
+RGame::Game.new(root: Root.new, caption: 'Tiny', configuration:).start
+```
+
+| Member | Default | |
+|---|---|---|
+| `width`, `height` | `640`, `480` | the logical size; see [`scale_mode`](#scale_mode--what-width-and-height-mean) |
+| `scale_mode` | `:letterbox` | how the logical size maps onto the window |
+| `fullscreen` | `false` | whether the window opens fullscreen |
+| `media_root` | `'media'` | the directory `assets` resolves paths against |
+| `locales` | `'locales'` | the directory of translation tables; see [Translations](#translations-and-the-players-language) |
+| `players` | `1` | how many seats the game has; see [Input](#input) |
+| `device` | `Controls::KEYBOARD` | the device that drives player one |
+| `input_map` | `nil`, for `InputMap.default` | the actions every player reads |
+| `seed` | `nil`, for a fresh seed | what seeds `random_source` |
+| `input` | `nil`, for the real input backend | a replacement input backend |
+| `audio` | `nil`, for the device `App` builds | a replacement sound device |
+
+`with` derives one configuration from another:
+`configuration.with(players: 2)`. `new` and `with` both raise `ArgumentError` on
+a misspelt member, naming it. `Game.new` takes no member as a keyword of its
+own, and raises `ArgumentError` on one.
+
+`seed` seeds `random_source`, so a run with nothing saved plays the same each
 time. The environment variable `RGAME_SEED` wins when it is set, and must hold an
 Integer: `Game.new` raises `ArgumentError` on anything else. With neither, `Game`
 picks a fresh seed, and `random_source.seed` reads back which.
 `tools/drive_test_project.rb --seed N`, in a checkout, sets `RGAME_SEED`.
 
-`input:` replaces the input backend, and `audio:` the sound device. A test
-harness passes a scripted backend and a recording device here, to drive a game
-without hardware and list what it played. `Game` hands the device its asset
-manager with `assets=`, as `App` does its own, so path ids resolve through it. A
-game passes neither.
+`input` replaces the input backend, and `audio` the sound device. A test
+harness sets them through `with`, to drive a game without hardware and list what
+it played. `Game` hands the device its asset manager with `assets=`, as `App`
+does its own, so path ids resolve through it. A game leaves both `nil`.
 
-### `scale_mode:` — what `width` and `height` mean
+### `scale_mode` — what `width` and `height` mean
 
 **`width` and `height` are the logical size**: the resolution the game is
 designed in. `Game` maps the whole frame onto the window, whatever its size. The
@@ -82,7 +124,8 @@ require 'rgame/game'
 
 class Root < RGame::Engine::Node2D; end
 
-RGame::Game.new(root: Root.new, width: 320, height: 180, scale_mode: :integer).start
+configuration = RGame::Game::Configuration.new(width: 320, height: 180, scale_mode: :integer)
+RGame::Game.new(root: Root.new, configuration:).start
 ```
 
 **Choose `:integer` for pixel art.** A whole-number factor draws every source
@@ -97,20 +140,12 @@ and camera clamps already use logical units.
 
 `examples/fullscreen` runs in every mode, chosen by an environment variable.
 
-`fullscreen:` opens the window fullscreen, so the game shows no windowed frame
+`fullscreen` opens the window fullscreen, so the game shows no windowed frame
 at startup. `width` and `height` then give the size the window returns to, if
 the game offers a way back. See [Fullscreen](app.md#fullscreen) and
 `examples/fullscreen`.
 
-`start` brings the tree live. It hands the game to the root as its `context`,
-mounts `Players`, `Viewports`, `Components::FactsDatabase`,
-`Components::RandomSource`, `Debug` and `AudioOut` on the root. It then calls
-`enter_tree` and runs the loop until the window closes.
-
-Each tick, `Game` polls input, runs `control` and `update` on the tree, and sweeps
-freed nodes. It redraws only when a tick ran or the `:stats` channel is on.
-
-### The development keys
+## The development keys
 
 `F1` toggles the `:stats` channel, `F3` toggles `:shapes`, and `F2` quits.
 `game.debug_keys = false` turns all three off, for a build a player runs; a game
@@ -150,7 +185,7 @@ the other. `Game` installs the loader that joins them, so
 ## Translations and the player's language
 
 **`Game.new` loads every translation table and picks the player's language**, so
-a game writes no i18n setup. It lists every `.yml` under `locales:` with
+a game writes no i18n setup. It lists every `.yml` under `locales` with
 `AssetManager#glob`, sorted by path, and loads each through the asset manager's
 `:locale` loader into [`RGame::Engine::I18n`](localization.md).
 Two files that define one locale merge in that order, so a key the later file
@@ -158,11 +193,11 @@ sets wins. It then sets `I18n.locale` to
 `I18n.choose(RGame::Core.preferred_locales)`: the first locale the OS prefers
 that a table covers, unshortened, or the default.
 
-`locales:` is relative to `media_root` unless it is absolute. A directory that
+`locales` is relative to `media_root` unless it is absolute. A directory that
 does not exist loads nothing, and every key then shows as itself.
 
 ```ruby
-game = MyGame.new(root: Root.new, media_root: 'media')   # loads media/locales/**/*.yml
+game = RGame::Game.new(root: Root.new)   # loads media/locales/**/*.yml
 RGame::Engine::I18n.locale = saved_language if saved_language
 game.start
 ```
@@ -185,7 +220,7 @@ A component reaches the same object as `context`.
 
 ## Input
 
-`input_map:` names a game's actions in terms of physical ids from
+`input_map` names a game's actions in terms of physical ids from
 [`RGame::Util::Controls`](input.md):
 
 ```ruby
@@ -197,10 +232,12 @@ class Root < RGame::Engine::Node2D; end
 
 RGame::Game.new(
   root: Root.new,
-  input_map: RGame::Engine::InputMap.new(
-    move_x: { axis: [Controls::KEY_LEFT, Controls::KEY_RIGHT],  # -1.0 .. 1.0
-              stick: Controls::AXIS_LEFT_X },
-    fire:   { buttons: [Controls::KEY_SPACE, Controls::PAD_A] } # held / pressed / released
+  configuration: RGame::Game::Configuration.new(
+    input_map: RGame::Engine::InputMap.new(
+      move_x: { axis: [Controls::KEY_LEFT, Controls::KEY_RIGHT],  # -1.0 .. 1.0
+                stick: Controls::AXIS_LEFT_X },
+      fire:   { buttons: [Controls::KEY_SPACE, Controls::PAD_A] } # held / pressed / released
+    )
   )
 ).start
 ```
@@ -210,10 +247,10 @@ eight-way `move_x` / `move_y` to the arrows, WASD, the d-pad and the left stick,
 and adds `fire`. Every map merges over the universal UI set, so `ui_confirm` and
 `ui_cancel` work without a declaration.
 
-`device:` picks the device that drives player one. It defaults to the keyboard;
+`device` picks the device that drives player one. It defaults to the keyboard;
 pass `Controls.gamepad(slot)` for a controller.
 
-`players:` sets how many seats the game has (default 1). Extra seats start
+`players` sets how many seats the game has (default 1). Extra seats start
 empty. A seat fills when someone picks up a controller and presses confirm. An
 empty seat draws no viewport, so one person playing a two-seat game sees an
 ordinary full-screen game. See
@@ -243,10 +280,23 @@ behaviour around the tree; it does not replace the shell.
 ```ruby
 require 'rgame/game'
 
+class Root < RGame::Engine::Node2D; end
+
 class MyGame < RGame::Game
+  CONFIGURATION = Configuration.new(width: 320, height: 180, media_root: 'assets')
+
+  def initialize(configuration: CONFIGURATION)
+    super(root: Root.new, caption: 'My Game', configuration:)
+  end
+
   def button_down(id)
     super                      # keeps F1 and F2 working
     @paused = !@paused if id == RGame::Util::Controls::KEY_SPACE
   end
 end
 ```
+
+A subclass names `Configuration` with no prefix, because Ruby finds the
+constant through the subclass's ancestors. Keeping the configuration in a
+constant lets a test harness change one member of it:
+`MyGame.new(configuration: MyGame::CONFIGURATION.with(input: scripted))`.

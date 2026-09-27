@@ -8,8 +8,9 @@ require 'json'
 # a child process — see game_locales_spec.rb. The child is also what lets an
 # example set `RGAME_SEED` without changing it for the rest of the suite.
 RSpec.describe 'RGame::Game random source' do # rubocop:disable RSpec/DescribeClass -- the subject is Game, which this suite may not load
-  # Builds a Game with `options`, under `RGAME_SEED=env_seed` or with it unset,
-  # and returns what `body` returns against it as `game`, through JSON.
+  # Builds a Game with `options` in its configuration, under
+  # `RGAME_SEED=env_seed` or with it unset, and returns what `body` returns
+  # against it as `game`, through JSON.
   def with_game(body, env_seed: nil, options: '')
     script = <<~RUBY
       require 'rgame/game'
@@ -19,7 +20,8 @@ RSpec.describe 'RGame::Game random source' do # rubocop:disable RSpec/DescribeCl
         def _update(_dt) = context.close
       end
 
-      game = RGame::Game.new(root: Root.new, width: 64, height: 48, caption: 'random source spec'#{options})
+      configuration = RGame::Game::Configuration.new(width: 64, height: 48#{options})
+      game = RGame::Game.new(root: Root.new, caption: 'random source spec', configuration:)
       result = (#{body})
       game.close
       puts JSON.generate(result)

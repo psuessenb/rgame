@@ -275,10 +275,12 @@ module BlockPuzzleExample
     game = RGame::Game.new(
       root: Room.new,
       caption: 'Block puzzle',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES
+      )
     )
 
     game.start

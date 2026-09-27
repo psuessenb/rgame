@@ -34,8 +34,9 @@ RSpec.describe 'RGame::Game locales' do # rubocop:disable RSpec/DescribeClass --
       end
 
       i18n = RGame::Engine::I18n
-      game = RGame::Game.new(root: Root.new, width: 64, height: 48, caption: 'locales spec',
-                             media_root: #{media.inspect}#{options})
+      configuration = RGame::Game::Configuration.new(width: 64, height: 48,
+                                                     media_root: #{media.inspect}#{options})
+      game = RGame::Game.new(root: Root.new, caption: 'locales spec', configuration:)
       #{'game.start' if start}
       result = (#{body})
       game.close

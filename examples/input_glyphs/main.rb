@@ -220,10 +220,12 @@ module InputGlyphsExample
     game = RGame::Game.new(
       root: Scene.new,
       caption: 'Input glyphs',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES
+      )
     )
 
     game.start

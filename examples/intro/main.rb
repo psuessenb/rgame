@@ -125,9 +125,11 @@ module IntroExample
     game = RGame::Game.new(
       root: Intro.new,
       caption: 'Intro',
-      width: WIDTH,
-      height: HEIGHT,
-      locales: LOCALES
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        locales: LOCALES
+      )
     )
 
     # The language follows the operating system. Un-comment the next line to see the

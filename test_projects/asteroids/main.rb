@@ -47,13 +47,15 @@ module Asteroids
     game = RGame::Game.new(
       root: Root.new,
       caption: 'Asteroids',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: MEDIA,
-      input_map: Engine::InputMap.new(
-        turn: { axis: [Controls::KEY_LEFT, Controls::KEY_RIGHT], stick: Controls::AXIS_LEFT_X },
-        thrust: { axis: [Controls::KEY_DOWN, Controls::KEY_UP], stick: Controls::AXIS_TRIGGER_RIGHT },
-        fire: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] }
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: MEDIA,
+        input_map: Engine::InputMap.new(
+          turn: { axis: [Controls::KEY_LEFT, Controls::KEY_RIGHT], stick: Controls::AXIS_LEFT_X },
+          thrust: { axis: [Controls::KEY_DOWN, Controls::KEY_UP], stick: Controls::AXIS_TRIGGER_RIGHT },
+          fire: { buttons: [Controls::KEY_SPACE, Controls::PAD_A] }
+        )
       )
     )
 

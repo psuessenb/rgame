@@ -266,11 +266,13 @@ module PoolingExample
     game = RGame::Game.new(
       root: Scene.new,
       caption: 'Pooling',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES,
-      seed: DEFAULT_SEED
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES,
+        seed: DEFAULT_SEED
+      )
     )
 
     game.start

@@ -122,14 +122,11 @@ module Tictactoe
   class Game < RGame::Game
     WIDTH = 640
     HEIGHT = 480
+    CONFIGURATION = Configuration.new(width: WIDTH, height: HEIGHT,
+                                      media_root: File.join(__dir__, 'assets'))
 
-    def initialize(**)
-      super(root: Root.new,
-            caption: 'Tictactoe',
-            width: WIDTH,
-            height: HEIGHT,
-            media_root: File.join(__dir__, 'assets'),
-            **)
+    def initialize(configuration: CONFIGURATION)
+      super(root: Root.new, caption: 'Tictactoe', configuration:)
     end
   end
 end
@@ -137,9 +134,11 @@ end
 
 `main.rb` starts it with `Tictactoe::Game.new.start`.
 
-The bare `**` forwards every keyword to `RGame::Game`, so all its options still
-work. Pass `players: 2` for split-screen. Pass `input:` to drive the game from a
-scripted input backend with no hardware attached.
+`CONFIGURATION` holds every setting but the root and the caption; see
+[`Configuration`](game.md#configuration--what-a-game-sets-at-startup). Add
+`players: 2` to it for split-screen. A test harness passes
+`CONFIGURATION.with(input: scripted)` to drive the game from a scripted input
+backend with no hardware attached.
 
 **`nodes/` requires `tictactoe.rb`, which requires `rgame`,** the
 graphics-free half. That loads `RGame::Util` and `RGame::Engine`, and no graphics

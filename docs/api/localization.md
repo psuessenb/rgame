@@ -41,9 +41,9 @@ de:
       other: "%{count} Äpfel"
 ```
 
-`Game.new` lists every `.yml` under `locales:` and loads each through the asset
-manager, sorted by path. `locales:` defaults to `'locales'`. It is relative to
-`media_root` unless it is absolute. A directory that does not exist loads
+`Game.new` lists every `.yml` under its configuration's `locales` and loads each
+through the asset manager, sorted by path. `locales` defaults to `'locales'`. It
+is relative to `media_root` unless it is absolute. A directory that does not exist loads
 nothing, and every key then shows as itself. See
 [Game](game.md#translations-and-the-players-language) for the loading order.
 

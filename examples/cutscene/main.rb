@@ -204,14 +204,16 @@ module CutsceneExample
     game = RGame::Game.new(
       root: Town.new,
       caption: 'Cutscene',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES,
-      players: 2,
-      input_map: Engine::InputMap.default.merge(
-        # Held, so a stray press does not throw the scene away.
-        skip: { buttons: [Util::Controls::KEY_TAB, Util::Controls::PAD_Y], hold: 0.6 }
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES,
+        players: 2,
+        input_map: Engine::InputMap.default.merge(
+          # Held, so a stray press does not throw the scene away.
+          skip: { buttons: [Util::Controls::KEY_TAB, Util::Controls::PAD_Y], hold: 0.6 }
+        )
       )
     )
 

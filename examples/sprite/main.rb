@@ -182,10 +182,12 @@ module SpriteExample
     game = RGame::Game.new(
       root: Scene.new,
       caption: 'Sprite',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES
+      )
     )
 
     # The other id space. A Symbol is a name this game chose, so nothing can resolve

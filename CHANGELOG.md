@@ -337,9 +337,9 @@ index, not the argument.
   [docs/api/dialogue.md](docs/api/dialogue.md#facts).
 - **A game has one seeded source of random numbers.**
   `RGame::Engine::Components::RandomSource` answers `rand` as `Random#rand`
-  does, and `RGame::Game` mounts one as `game.random_source`, seeded from
-  `seed:` or, when it is set, `RGAME_SEED`. With neither, the game picks a seed,
-  and `random_source.seed` reads it back. See
+  does, and `RGame::Game` mounts one as `game.random_source`, seeded from its
+  configuration's `seed` or, when it is set, `RGAME_SEED`. With neither, the
+  game picks a seed, and `random_source.seed` reads it back. See
   [docs/api/components.md](docs/api/components.md#randomsource).
 - **A game can hold a branching conversation.**
   `RGame::Engine::Dialogue::Script.build` declares beats, each a speaker saying
@@ -384,9 +384,9 @@ index, not the argument.
   finds a system as `system` does, and raises `KeyError` naming the class and
   where it looked, rather than returning nil. See
   [docs/api/systems.md](docs/api/systems.md#looking-a-system-up).
-- **`RGame::Game` takes the sound device as `audio:`**, as it takes the input
-  backend as `input:`, so a harness can record what a game plays. See
-  [docs/api/game.md](docs/api/game.md).
+- **A game's configuration can replace the sound device**, through its `audio`
+  member, as `input` replaces the input backend. A harness uses it to record
+  what a game plays. See [docs/api/game.md](docs/api/game.md).
 - **A subclass cannot replace what `signal` generated.** Defining a signal's
   connect method or emit reader in a subclass, such as a `def on_activated`
   meant as a hook, raises `NameError` when the class is defined, naming the
@@ -450,6 +450,14 @@ index, not the argument.
 
 ### Changed
 
+- **`RGame::Game.new` takes `root:`, `caption:` and `configuration:`.** Every
+  other setting moved into `RGame::Game::Configuration`, a frozen value with a
+  default for each member: `width`, `height`, `scale_mode`, `fullscreen`,
+  `media_root`, `locales`, `players`, `device`, `input_map` and `input`. Where a
+  game passed `width: 800`, it passes
+  `configuration: RGame::Game::Configuration.new(width: 800)`. An old keyword
+  raises `ArgumentError`. `Game::WIDTH` and `Game::HEIGHT` are gone. See
+  [docs/api/game.md](docs/api/game.md#configuration--what-a-game-sets-at-startup).
 - **`rgame new` writes the game's classes into a module of its own.**
   `rgame new tic_tac_toe` defines `module TicTacToe` in `tic_tac_toe.rb`, where
   `Engine`, `Util`, `UI` and `Components` stand for `RGame::Engine`,

@@ -181,8 +181,9 @@ of the change through that one path. So a scene reads the `view` it is drawn
 with, not the width it passed to `new`.
 
 A layout written against fixed numbers will not follow a bigger view.
-[`scale_mode:`](game.md#scale_mode--what-width-and-height-mean) on `RGame::Game`
-offers the alternative: keep a logical size and scale it onto the window.
+[`scale_mode`](game.md#scale_mode--what-width-and-height-mean) in a game's
+configuration offers the alternative: keep a logical size and scale it onto the
+window.
 
 `examples/fullscreen` shows both ways to open, the switch, and every scale mode.
 

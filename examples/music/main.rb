@@ -186,14 +186,16 @@ module MusicExample
     game = RGame::Game.new(
       root: Scene.new,
       caption: 'Music',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES,
-      # P and Start are free in the default map. The arrows also move a hero and a
-      # menu, and nothing here reads either.
-      input_map: Engine::InputMap.default.merge(
-        pause: { buttons: [Util::Controls::KEY_P, Util::Controls::PAD_START] }
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES,
+        # P and Start are free in the default map. The arrows also move a hero and a
+        # menu, and nothing here reads either.
+        input_map: Engine::InputMap.default.merge(
+          pause: { buttons: [Util::Controls::KEY_P, Util::Controls::PAD_START] }
+        )
       )
     )
 

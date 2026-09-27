@@ -309,26 +309,28 @@ module SaveLoadIdsExample
     game = RGame::Game.new(
       root: Pasture.new(save: save),
       caption: 'Save and load with ids',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES,
-      seed: DEFAULT_SEED,
-      # F5 and F9 rather than S and L: **a key already in the default map keeps
-      # doing its default job too.** `move_y` is bound to W and S, so a save action
-      # on S would save *and* walk the dog downwards — two actions may read one key,
-      # both fire, and nothing warns. F1 and F2 are not free either; RGame::Game
-      # keeps them for the debug overlay and quit.
-      #
-      # Space is a deliberate exception: the default map has it on `fire` and
-      # `ui_confirm`, and nothing here reads either, so sharing it costs nothing.
-      input_map: Engine::InputMap.default.merge(
-        target_next: { buttons: [Controls::KEY_TAB] },
-        shear: { buttons: [Controls::KEY_SPACE] },
-        spawn: { buttons: [Controls::KEY_N] },
-        save: { buttons: [Controls::KEY_F5] },
-        load: { buttons: [Controls::KEY_F9] },
-        drop: { buttons: [Controls::KEY_DELETE] }
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES,
+        seed: DEFAULT_SEED,
+        # F5 and F9 rather than S and L: **a key already in the default map keeps
+        # doing its default job too.** `move_y` is bound to W and S, so a save action
+        # on S would save *and* walk the dog downwards — two actions may read one key,
+        # both fire, and nothing warns. F1 and F2 are not free either; RGame::Game
+        # keeps them for the debug overlay and quit.
+        #
+        # Space is a deliberate exception: the default map has it on `fire` and
+        # `ui_confirm`, and nothing here reads either, so sharing it costs nothing.
+        input_map: Engine::InputMap.default.merge(
+          target_next: { buttons: [Controls::KEY_TAB] },
+          shear: { buttons: [Controls::KEY_SPACE] },
+          spawn: { buttons: [Controls::KEY_N] },
+          save: { buttons: [Controls::KEY_F5] },
+          load: { buttons: [Controls::KEY_F9] },
+          drop: { buttons: [Controls::KEY_DELETE] }
+        )
       )
     )
 

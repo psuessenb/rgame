@@ -180,10 +180,12 @@ module RadialMenuExample
     game = RGame::Game.new(
       root: Scene.new,
       caption: 'Radial menu',
-      width: WIDTH,
-      height: HEIGHT,
-      media_root: ASSETS,
-      locales: LOCALES
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES
+      )
     )
 
     # An image id that is a Symbol is a name rather than a path, so the icons are
