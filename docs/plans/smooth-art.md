@@ -116,13 +116,13 @@ up for re-litigation inside this plan.
 5. ~~**Where do step 4's tileset and nine-slice panel come from?**~~
    **Settled: step 4 needs neither.** See decision 11 under
    [Decisions already taken](#decisions-already-taken).
-6. **Does switching to fullscreen resize GL's drawable outside Xvfb?** Blocks
-   nothing in this plan. Under Xvfb, after the switch only the window's old
-   1280x720 of the back buffer draws, and leaving fullscreen keeps the screen's
-   size; see step 4's landed note. Xvfb has no window manager, so a desktop may
-   well behave. Running `examples/smooth_art` on one and pressing F twice
-   answers it. If the desktop shows the same, it is a bug in `App#fullscreen=`
-   and gets a branch of its own; if not, step 5 drops the question.
+6. ~~**Does switching to fullscreen resize GL's drawable outside Xvfb?**~~
+   **Settled: yes.** On a real desktop, `examples/smooth_art` switches to
+   fullscreen and back with F and draws the whole scene each way. Only Xvfb,
+   which has no window manager, leaves GL drawing into the window's old
+   1280x720 after the switch, and keeps the screen's size after leaving; see
+   step 4's landed note. `App#fullscreen=` needs no change. A frame shot
+   fullscreen under Xvfb comes from a game started fullscreen.
 
 ## What was measured before planning
 
@@ -930,9 +930,9 @@ re-plan is `0e89e4d`, 4a `eb9233f` and 4b `8ada662`.
   1920x1080 Xvfb screen, after F only the bottom-left 1280x720 of the back
   buffer held an image, at the right scale, and the rest read black for as
   long as the run went on. Leaving fullscreen kept the screen's size, while
-  `fullscreen?` answered false. `examples/fullscreen` takes the same path, so
-  nothing here is new; see open question 6. The frames below were shot with the
-  game started fullscreen, as step 3's were.
+  `fullscreen?` answered false. On a real desktop both directions work, so
+  this is Xvfb's alone; see open question 6. The frames below were shot with
+  the game started fullscreen, as step 3's were.
 - **`Figure` takes `scale:`**, for the woman at 2.5 times, and passes it to
   `Components::Sprite`. `Tilting` and `Gliding` subclass it.
 - **The status line reads `App#texture_filter`** through `root.context`,
