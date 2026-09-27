@@ -34,9 +34,13 @@ module RGame
     # the builder sets already, and for an `initialize` with no source file. A
     # class's tags are read once and cached.
     #
-    # The same comment says whether a designer may place the class, with a
-    # `@placeable` line. MapTypes writes each placeable class for Tiled, and
-    # nothing else reads the tag: a map builds a class without it all the same.
+    # A `@placeable` line says a designer may place the class. It sits in the
+    # comment above the class itself, or in the one above the `initialize` the
+    # class uses. Above the class it covers that class alone. Above
+    # `initialize` it comes with the constructor, as the `@param` tags do, so a
+    # subclass that takes the constructor is placeable too. MapTypes writes each
+    # placeable class for Tiled, and nothing else reads the tag: a map builds a
+    # class without it all the same.
     #
     # @api private
     module MapSettings
@@ -61,14 +65,16 @@ module RGame
 
       @cache = {}.compare_by_identity
       @defaults = {}.compare_by_identity
+      @classes = {}.compare_by_identity
 
       # The keywords a map may set on `node_class`, each with its type from the
       # table above, as a frozen Hash.
       def self.of(node_class) = comment(node_class).settings
 
-      # Whether the comment above the `initialize` `node_class` uses carries
-      # `@placeable`, which asks for the class to be written for Tiled.
-      def self.placeable?(node_class) = comment(node_class).placeable
+      # Whether the comment above `node_class`, or above the `initialize` it
+      # uses, carries `@placeable`, which asks for the class to be written for
+      # Tiled. An anonymous class has no comment of its own to read.
+      def self.placeable?(node_class) = tagged?(node_class) || comment(node_class).placeable
 
       # The default of each settable keyword that has one, as Ruby would pass it,
       # read from the source with Prism. A literal is its value, and a constant
@@ -121,6 +127,20 @@ module RGame
       def self.comment(node_class)
         method = node_class.instance_method(:initialize)
         @cache[method.owner] ||= read(method)
+      end
+
+      def self.tagged?(node_class)
+        return @classes[node_class] if @classes.key?(node_class)
+
+        @classes[node_class] = class_tagged?(node_class)
+      end
+
+      def self.class_tagged?(node_class)
+        name = node_class.name or return false
+        file, line = Object.const_source_location(name)
+        return false unless file && File.file?(file)
+
+        comment_lines(file, line).any? { it.match?(PLACEABLE) }
       end
 
       def self.read(method)
@@ -244,8 +264,8 @@ module RGame
         else value.is_a?(String) && type.include?(value.to_sym)
         end
       end
-      private_class_method :reserved, :comment, :read, :source, :comment_lines, :read_defaults, :definition,
-                           :default, :constant, :unreadable, :type_of, :check, :fits?
+      private_class_method :reserved, :comment, :tagged?, :class_tagged?, :read, :source, :comment_lines,
+                           :read_defaults, :definition, :default, :constant, :unreadable, :type_of, :check, :fits?
     end
   end
 end

@@ -521,8 +521,8 @@ end
 
 **`RGame::Engine::MapTypes` writes a game's node classes into a Tiled project**,
 so a designer picks `Chest` from Tiled's list of classes and fills in its
-members, rather than typing both. A class is written when the comment above its
-`initialize` carries `@placeable`:
+members, rather than typing both. A class is written when it carries
+`@placeable`, in the comment above the class or above its `initialize`:
 
 ```ruby
 module MyGame
@@ -539,23 +539,33 @@ module MyGame
       super(**)
     end
   end
+
+  # A rock the hero walks round. It has nothing to set.
+  #
+  # @placeable
+  class Rock < Engine::Node2D
+    def _draw(renderer, _view) = renderer.rect(-8, -16, 16, 16)
+  end
 end
 
 puts RGame::Engine::MapTypes.new(MyGame).write('assets/my_game.tiled-project')
 # assets/my_game.tiled-project
 #   added      Chest  contents, lid, locked
+#   added      Rock
 # Tiled shows the change once the project is reopened.
-# A class is written when the comment above its initialize carries @placeable.
+# A class is written when the comment above it, or above its initialize, carries @placeable.
 ```
 
 - **The export walks the game's module**, and every module and class defined
   inside it. It follows no constant that names a module defined elsewhere, such
   as `Engine = RGame::Engine`.
-- **`@placeable` comes with the constructor**, as the `@param` tags do. A
-  subclass without an `initialize` of its own is placeable when its parent is.
-  A class with nothing to set defines `def initialize(**) = super` to carry the
-  tag. RuboCop's `Lint/UselessMethodDefinition` flags that line, so disable the
-  cop on it and say why.
+- **A class with no `initialize` of its own carries the tag above the class**,
+  as `Rock` does. There it covers that class alone, and no subclass.
+- **A class with an `initialize` carries it beside its `@param` tags**, as
+  `Chest` does. There it comes with the constructor, so a subclass without an
+  `initialize` of its own is placeable when its parent is. An `initialize` that
+  only calls `super` carries the tag too, but RuboCop's
+  `Lint/UselessMethodDefinition` flags it.
 - **Each class is named by its path under the module**, such as `Chest` or
   `Town::Chest`, which is the name a map uses to build it from any scene of the
   game. Tiled offers it for an object and for a tile. Its members are the

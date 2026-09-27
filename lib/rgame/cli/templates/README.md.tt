@@ -121,8 +121,9 @@ holds every node class a designer may place, with a member for each setting.
 This project was made without it, and `bundle exec rake tiled` creates it.
 <%- end -%>
 
-- **A class is placeable** when the comment above its `initialize` carries
-  `@placeable`. Its `@param` tags say what a map may set.
+- **A class is placeable** when it carries `@placeable`: in the comment above
+  the class when it has no `initialize`, and otherwise beside the `@param` tags
+  above `initialize`, which say what a map may set.
 - **`bundle exec rake tiled` writes the classes into the project.** Reopen the
   project in Tiled to see them.
 <%- if tiled? -%>

@@ -158,8 +158,7 @@ RSpec.describe 'a generated project' do # rubocop:disable RSpec/DescribeClass --
       written, = run_in_project('rake', 'tiled')
       output, status = run_in_project('rspec')
 
-      expect(written).to include('added      Chest  contents',
-                                 'A class is written when the comment above its initialize carries @placeable.')
+      expect(written).to include('added      Chest  contents', 'carries @placeable.')
       expect(status).to be_success, "rspec failed:\n#{output}"
     end
   end

@@ -307,11 +307,11 @@ index, not the argument.
   object draws its tile, and a hidden object builds and draws nothing. See
   [docs/api/tile_maps.md](docs/api/tile_maps.md#building-nodes-from-objects).
 - **A game writes its node classes into a Tiled project.**
-  `RGame::Engine::MapTypes#write` writes each class whose `initialize` comment
-  carries `@placeable` as a Tiled class, so a designer picks it from a list. Its
-  members are the keywords the `@param` tags let a map set, each showing the
-  keyword's default. It replaces only the types whose names start with a capital
-  letter, and `changes` reports what a write would do. See
+  `RGame::Engine::MapTypes#write` writes each class tagged `@placeable`, above
+  the class or above its `initialize`, as a Tiled class, so a designer picks it
+  from a list. Its members are the keywords the `@param` tags let a map set,
+  each showing the keyword's default. It replaces only the types whose names
+  start with a capital letter, and `changes` reports what a write would do. See
   [docs/api/tile_maps.md](docs/api/tile_maps.md#tileds-custom-types).
 - **`rgame new` writes a Tiled project.** A new game gets
   `assets/<name>.tiled-project`, and `bundle exec rake tiled` writes its

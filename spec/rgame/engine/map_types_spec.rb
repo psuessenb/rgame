@@ -11,10 +11,16 @@ require 'tmpdir'
 
 # rubocop:disable Lint/UnusedMethodArgument -- a signature is what MapTypes reads
 
-# A module defined outside the game, which the game names with a constant.
+# A module defined outside the game, which the game names with a constant, and
+# the two ways a class with nothing to set carries @placeable.
 module SpecTypesElsewhere
-  # A class the game's constant reaches, and no class of the game's.
-  class Barrel < RGame::Engine::Node2D
+  # A barrel, tagged above the class.
+  #
+  # @placeable
+  class Barrel < RGame::Engine::Node2D; end
+
+  # A crate, tagged above an initialize that only carries the tag.
+  class Crate < RGame::Engine::Node2D
     # @placeable
     def initialize(**) = super # rubocop:disable Lint/UselessMethodDefinition -- it carries the comment above it
   end
@@ -211,7 +217,12 @@ RSpec.describe RGame::Engine::MapTypes do
     end
 
     it 'follows no constant naming a module defined elsewhere' do
-      expect(types_of(SpecTypesGame).map { it['name'] }).not_to include('Elsewhere::Barrel', 'Barrel')
+      expect(types_of(SpecTypesGame).map { it['name'] })
+        .not_to include('Elsewhere::Barrel', 'Barrel', 'Elsewhere::Crate', 'Crate')
+    end
+
+    it 'writes a class tagged above itself, and one tagged above an initialize that only calls super' do
+      expect(types_of(SpecTypesElsewhere).map { [it['name'], it['members']] }).to eq([['Barrel', []], ['Crate', []]])
     end
 
     it 'writes a class Tiled uses for an object and a tile, with its members sorted by name' do
@@ -459,7 +470,7 @@ RSpec.describe RGame::Engine::MapTypes do
             unchanged  Town::Chest  count, label, lid, locked, tint, weight, wood
             removed    Barrel
           Tiled shows the change once the project is reopened.
-          A class is written when the comment above its initialize carries @placeable.
+          A class is written when the comment above it, or above its initialize, carries @placeable.
         REPORT
       end
 
@@ -468,7 +479,7 @@ RSpec.describe RGame::Engine::MapTypes do
 
         expect(exporter.write(path).to_s.lines.last(2).map(&:chomp))
           .to eq(['  unchanged  Town::Chest  count, label, lid, locked, tint, weight, wood',
-                  'A class is written when the comment above its initialize carries @placeable.'])
+                  'A class is written when the comment above it, or above its initialize, carries @placeable.'])
       end
 
       it 'says a project was created, and that a missing one would be' do
@@ -480,7 +491,7 @@ RSpec.describe RGame::Engine::MapTypes do
         File.write(path, JSON.generate('propertyTypes' => []))
 
         expect(described_class.new(SpecTypesUntagged).write(path).to_s)
-          .to eq("#{path}\nA class is written when the comment above its initialize carries @placeable.")
+          .to eq("#{path}\nA class is written when the comment above it, or above its initialize, carries @placeable.")
       end
     end
   end

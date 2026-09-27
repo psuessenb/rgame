@@ -237,9 +237,9 @@ default locale's text, and a key no table has shows as itself.
 ## Maps and the Tiled project
 
 **`assets/tictactoe.tiled-project` is the project to open in Tiled.** Its list
-of classes holds each node class whose `initialize` comment carries
-`@placeable`, with a member for each setting its `@param` tags allow. A designer
-picks a class there rather than typing it.
+of classes holds each node class that carries `@placeable`, above the class or
+above its `initialize`, with a member for each setting its `@param` tags allow.
+A designer picks a class there rather than typing it.
 [Tiled's custom types](tile_maps.md#tileds-custom-types) says what each member
 shows and what the project keeps.
 

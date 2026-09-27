@@ -391,9 +391,10 @@ tag of a type from this table:
   The builder sets those.
 - **A class needs a source file.** A class defined by `eval`, in IRB or with
   `ruby -e` has none, and building it raises `ArgumentError`.
-- **`@placeable` in the same comment asks for the class to be written for
-  Tiled**, which [`MapTypes`](tile_maps.md#tileds-custom-types) does. The
-  builder builds a class with or without it.
+- **`@placeable`, in the same comment or in the one above the class, asks for
+  the class to be written for Tiled**, which
+  [`MapTypes`](tile_maps.md#tileds-custom-types) does. The builder builds a
+  class with or without it.
 
 **Each property sets the keyword of its name.** A property no tag makes
 settable raises `ArgumentError`, listing the keywords that are. A property of

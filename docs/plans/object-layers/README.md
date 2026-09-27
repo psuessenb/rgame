@@ -192,8 +192,9 @@ before step 8 was planned in detail. Not reopened inside this plan.
 21. **A class says a designer may place it with `@placeable`** (step 8's Q1).
     The tag sits in the comment above `initialize`, beside the `@param` tags,
     and follows `initialize` as they do. A subclass with no `initialize` of its
-    own is placeable when its parent is. The export writes each
-    placeable class, and nothing else reads the tag. The builder still builds
+    own is placeable when its parent is. [Decision 26](#decisions-already-taken)
+    adds the class comment, for a class with no `initialize`. The export writes
+    each placeable class, and nothing else reads the tag. The builder still builds
     any class whose constructor fits, tagged or not (hard constraint 7). Three
     alternatives were rejected:
     - **Every class with a `@param` tag.** A class with nothing to set could
@@ -233,6 +234,16 @@ before step 8 was planned in detail. Not reopened inside this plan.
     project belongs to one game, and the export writes one module's classes.
     `examples/assets/` serves many examples, and a project there would need a
     merge no game needs. Step 9's level brings the first.
+26. **A class with no `initialize` of its own carries `@placeable` in its class
+    comment** (step 8's review, settling open question 8). In the user's words:
+    "Allow `@placeable` to be set on the class, and change the docs to recommend
+    that way for classes without initializer. The current format (use
+    `def initialize(**) = super`, attach the tag to that and disable the cop)
+    should still work." Above the class, the tag covers that class alone, and a
+    subclass is tagged again: it is another thing a designer places, and Ruby
+    names each class's own definition. Above `initialize`, it still comes with
+    the constructor. Switching `Lint/UselessMethodDefinition` off in the
+    generated `.rubocop.yml` was the option not taken.
 
 ## What was measured before planning
 
@@ -334,15 +345,11 @@ Taken at `abb91ad`, and on `origin/build-step-8-tiled-map` for `tour.tmx`.
    rule, and naming the map and the object would at least say where it broke.
    *Waits on step 10, which moves it to `possible-todos.md` if no step takes
    it.*
-8. **How should a class with nothing to set carry `@placeable`?** The tag
-   follows `initialize`, so such a class defines `def initialize(**) = super`
-   to carry it, and RuboCop's `Lint/UselessMethodDefinition` flags the line. A
-   game disables the cop there today, as step 8 found. The generated
-   `.rubocop.yml` could switch the cop off, at the cost of a check a game
-   loses everywhere. Or a class with no `initialize` of its own could carry the
-   tag in its class comment, which a subclass that inherits one could not.
-   *Waits on step 9, whose level may be the first to place such a class. Step
-   10 moves it to `possible-todos.md` if no step takes it.*
+8. ~~**How should a class with nothing to set carry `@placeable`?**~~
+   **Settled in step 8's review by decision 26 — in its class comment.** The
+   tag followed only `initialize`, so such a class defined
+   `def initialize(**) = super` to carry it, and RuboCop's
+   `Lint/UselessMethodDefinition` flagged the line. That form still works.
 
 ## Reading order
 

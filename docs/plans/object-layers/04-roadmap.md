@@ -1820,8 +1820,8 @@ What `rgame new` writes:
   reopens the project, and the task's report says so.
 - **`rgame tiled-export`**, a command in the gem (decision 24).
 
-**Landed.** Four commits on `tiled-custom-types`, 8a to 8d as sketched.
-`rake spec` 4507 examples, 0 failures (4444 before, 63 new). `rake spec:core`
+**Landed.** Four commits on `tiled-custom-types`, 8a to 8d as sketched, and
+one from review. `rake spec` 4514 examples, 0 failures (4444 before, 70 new). `rake spec:core`
 533, 0 failures. `rake docs:coverage`: 0 of 221 modules and classes with an
 undocumented name, `MapTypes` and `MapTypes::Report` among them.
 `rake drive:allocations`: all 43 projects within budget. On the same ticks as
@@ -1857,12 +1857,15 @@ Where the sketch was wrong, or said too little:
   the project is reopened" would have appeared in the spec's failure, where
   nothing was written. `Report` also holds `missing` and `written`, and its
   first line reads `created` or `missing` after the path.
-- **A class with nothing to set carries `@placeable` on
+- **A class with nothing to set had to carry `@placeable` on
   `def initialize(**) = super`, and RuboCop's `Lint/UselessMethodDefinition`
   flags that line.** The nine classes have bodies, so none met it. The spec
-  classes did, and each disables the cop on the line. `tile_maps.md` and the
-  write-ruby-code skill say to do the same.
-  [Open question 8](README.md#open-questions) asks whether a game should.
+  classes did. Review settled [open question 8](README.md#open-questions) with
+  decision 26: a class with no `initialize` of its own carries the tag in its
+  class comment, where it covers that class alone. `MapSettings` finds the
+  comment through `Object.const_source_location`, and the comment stripper
+  keeps it, as a spec now pins. The old form still works, and a spec keeps it
+  working. The docs recommend the class comment.
 - **The fixture is the export, saved again by Tiled**, not built by a script
   from nothing. Tiled's scripting API turns a whole JavaScript number into an
   `int` member, so no script can make a `float` member of `0`, as a required

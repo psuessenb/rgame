@@ -17,11 +17,20 @@ module RGame
     #       # @param lid [:flat, :round] the shape of its lid
     #       def initialize(contents:, lid: :flat, **)
     #
-    #   RGame::Engine::MapTypes.new(MyGame).types
-    #   # => the class Chest, with the members contents and lid, and the enum Chest.lid
+    #     # A rock a designer places. It has nothing to set, and no initialize.
+    #     #
+    #     # @placeable
+    #     class Rock < Engine::Node2D; end
     #
-    # **A class is written when the comment above its `initialize` carries
-    # `@placeable`.** The export walks `scope`, and every module and class
+    #   RGame::Engine::MapTypes.new(MyGame).types
+    #   # => the class Chest, with the members contents and lid, the enum
+    #   #    Chest.lid, and the class Rock, with no members
+    #
+    # **A class is written when it carries `@placeable`**, in the comment above
+    # the class or in the one above its `initialize`. Above the class, the tag
+    # covers that class alone. Above `initialize`, it comes with the
+    # constructor, so a subclass that takes the constructor is written too. The
+    # export walks `scope`, and every module and class
     # defined under it, and follows no constant that names a module defined
     # elsewhere, such as a game's `Engine = RGame::Engine`. A map builds a class
     # without the tag all the same: the tag only puts it in the designer's list.
@@ -75,7 +84,7 @@ module RGame
         def to_s
           lines = [heading, *class_lines, *removed.map { "  removed    #{it}" }]
           lines << 'Tiled shows the change once the project is reopened.' if written && !missing
-          lines << 'A class is written when the comment above its initialize carries @placeable.'
+          lines << 'A class is written when the comment above it, or above its initialize, carries @placeable.'
           lines.join("\n")
         end
 

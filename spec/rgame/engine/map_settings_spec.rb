@@ -128,6 +128,29 @@ module SpecMapDefaultsGame
     def initialize(**) = super # rubocop:disable Lint/UselessMethodDefinition -- it carries the comment above it
   end
 
+  # A rock a designer may place, with nothing to set and no initialize.
+  #
+  # @placeable
+  class Rock < RGame::Engine::Node2D; end
+
+  # A rock of its own, which the tag above Rock does not reach.
+  class Pebble < Rock; end
+
+  # @placeable
+
+  # A boulder, whose tag a blank line detaches from it.
+  class Boulder < RGame::Engine::Node2D; end
+
+  # A crate tagged above the class, whose initialize says what a map may set.
+  #
+  # @placeable
+  class Crate < RGame::Engine::Node2D
+    # @param size [Float] its side, in pixels
+    def initialize(size: 16.0, **)
+      super(**)
+    end
+  end
+
   # A default no one can read without running it.
   class TurnedChest < RGame::Engine::Node2D
     # @param angle_offset [Float] how far it is turned, in radians
@@ -256,6 +279,30 @@ RSpec.describe RGame::Engine::MapSettings do
 
     it 'reads nothing above a blank line' do
       expect(described_class.placeable?(SpecMapDefaultsGame::DetachedChest)).to be(false)
+    end
+
+    describe 'in the comment above the class' do
+      it 'makes a class with no initialize of its own placeable' do
+        expect(described_class.placeable?(SpecMapDefaultsGame::Rock)).to be(true)
+      end
+
+      it 'covers that class alone, and no subclass' do
+        expect(described_class.placeable?(SpecMapDefaultsGame::Pebble)).to be(false)
+      end
+
+      it 'reads nothing above a blank line' do
+        expect(described_class.placeable?(SpecMapDefaultsGame::Boulder)).to be(false)
+      end
+
+      it "leaves the settings to initialize's @param tags" do
+        crate = SpecMapDefaultsGame::Crate
+
+        expect([described_class.placeable?(crate), described_class.of(crate)]).to eq([true, { size: :float }])
+      end
+
+      it 'is not there for an anonymous class' do
+        expect(described_class.placeable?(Class.new(RGame::Engine::Node2D))).to be(false)
+      end
     end
   end
 

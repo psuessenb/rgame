@@ -200,9 +200,10 @@ such as a box's offsets from its size. A map never sets a component's keywords.
 **`@placeable` in the same comment puts the class in the list a designer picks
 from.** Tag a class a designer places, and leave a scene, a hero or a HUD piece
 untagged. `MapTypes` writes the tagged classes for Tiled, and a map builds a
-class with or without the tag. A class with nothing to set defines
-`def initialize(**) = super` to carry it, with `Lint/UselessMethodDefinition`
-disabled on that line.
+class with or without the tag. A class with no `initialize` of its own carries
+the tag in its class comment instead, where it covers that class alone: a
+subclass is tagged again. Above `initialize`, a subclass that takes the
+constructor inherits it.
 
 ## What allocates without showing it
 

@@ -330,14 +330,16 @@ puts report
 #   unchanged  Door    entrance, party, to
 #   removed    Barrel
 # Tiled shows the change once the project is reopened.
-# A class is written when the comment above its initialize carries @placeable.
+# A class is written when the comment above it, or above its initialize, carries @placeable.
 ```
 
 **A class the designer may place carries `@placeable`** (decision 21). The
 export walks the game's module, and every module and class defined under it,
 and writes each placeable `Node2D` class. The tag is read as the `@param` tags
-are: from the comment above the `initialize` the class uses. Nothing else reads
-it. A map still builds a class without it (hard constraint 7).
+are: from the comment above the `initialize` the class uses. A class with no
+`initialize` of its own carries it in its class comment instead, where it
+covers that class alone (decision 26). Nothing else reads it. A map still
+builds a class without it (hard constraint 7).
 
 **Each placeable class becomes a Tiled class**, named by its path under the
 module, such as `Door` or `Town::Chest`. That is a name `MapBuilder` resolves
