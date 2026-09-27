@@ -47,10 +47,11 @@ engine handles one pixel format.
 
 ## Filtering
 
-**An image is sampled with its app's `texture_filter`**, which `App.new` sets
-once. Every image the app loads takes it, whether through `Image.new`, the asset
-manager, a sprite sheet, a UI atlas or a tile map. Subimages and tiles share
-their image's.
+**An image is sampled with its app's `texture_filter`.** A game sets it in its
+[`Game::Configuration`](game.md#configuration--what-a-game-sets-at-startup), and
+a plain `App` in `App.new`. It stays fixed while the app runs. Every image the
+app loads takes it, whether through `Image.new`, the asset manager, a sprite
+sheet, a UI atlas or a tile map. Subimages and tiles share their image's.
 
 | | |
 |---|---|
@@ -58,10 +59,13 @@ their image's.
 | `:linear` | Each screen pixel blends the four image pixels around it, so art drawn with anti-aliased edges stays smooth at a scale that is not a whole number. |
 
 ```ruby
-require 'rgame/core'
+require 'rgame/game'
 
-app = RGame::Core::App.new(width: 1280, height: 720, caption: 'Smooth', texture_filter: :linear)
-app.texture_filter   # => :linear
+class Root < RGame::Engine::Node2D; end
+
+configuration = RGame::Game::Configuration.new(width: 1280, height: 720, texture_filter: :linear)
+game = RGame::Game.new(root: Root.new, caption: 'Smooth', configuration:)
+game.texture_filter   # => :linear
 ```
 
 **A transparent pixel's colour never shows.** The engine multiplies every

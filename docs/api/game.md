@@ -71,6 +71,7 @@ RGame::Game.new(root: Root.new, caption: 'Tiny', configuration:).start
 |---|---|---|
 | `width`, `height` | `640`, `480` | the logical size; see [`scale_mode`](#scale_mode--what-width-and-height-mean) |
 | `scale_mode` | `:letterbox` | how the logical size maps onto the window |
+| `texture_filter` | `:nearest` | how images are sampled at another size; see [Filtering](images.md#filtering) |
 | `fullscreen` | `false` | whether the window opens fullscreen |
 | `media_root` | `'media'` | the directory `assets` resolves paths against |
 | `locales` | `'locales'` | the directory of translation tables; see [Translations](#translations-and-the-players-language) |
@@ -134,6 +135,10 @@ screen pixels and some three, and the unevenness crawls whenever anything moves.
 The mode can waste a lot of screen. A 640x480 design gets only 1x on a 1600x900
 window, because 2x needs 960 rows. `RGame::Engine::Presentation` holds the
 arithmetic and documents the measurements. It is pure and has its own specs.
+
+**Choose `:letterbox` and `texture_filter: :linear` for smooth art.** Art drawn
+with anti-aliased edges at the logical size then scales to any window with its
+lines kept smooth and even; see [Filtering](images.md#filtering).
 
 A resize refits the mode and changes nothing else. Viewports, split-screen rects
 and camera clamps already use logical units.

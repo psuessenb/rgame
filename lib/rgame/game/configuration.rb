@@ -18,6 +18,11 @@ module RGame
     # does. `:integer` and `:stretch` scale too, and `:disabled` hands the window
     # straight through as the view. See RGame::Engine::Presentation.
     #
+    # `texture_filter` is how every image the game loads is sampled when drawn
+    # at another size: `:nearest` keeps pixel art's hard edges, and `:linear`
+    # keeps anti-aliased art smooth at a scale that is not a whole number. See
+    # RGame::Core::App.
+    #
     # `fullscreen` opens the window fullscreen, so a game that always runs
     # fullscreen never shows a windowed frame at startup. `width` and `height`
     # still give the size the window returns to.
@@ -42,11 +47,11 @@ module RGame
     # a recording device through `with`, to drive a game with no hardware.
     # `Game` hands `audio` its asset manager with `assets=`, as `App` does its
     # own device, so a path id resolves through it.
-    Configuration = Data.define(:width, :height, :scale_mode, :fullscreen, :media_root,
-                                :locales, :players, :device, :input_map, :seed,
+    Configuration = Data.define(:width, :height, :scale_mode, :texture_filter, :fullscreen,
+                                :media_root, :locales, :players, :device, :input_map, :seed,
                                 :input, :audio) do
-      def initialize(width: 640, height: 480, scale_mode: :letterbox, fullscreen: false,
-                     media_root: 'media', locales: 'locales', players: 1,
+      def initialize(width: 640, height: 480, scale_mode: :letterbox, texture_filter: :nearest,
+                     fullscreen: false, media_root: 'media', locales: 'locales', players: 1,
                      device: RGame::Util::Controls::KEYBOARD, input_map: nil, seed: nil,
                      input: nil, audio: nil)
         super

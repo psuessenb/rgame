@@ -24,6 +24,7 @@ RSpec.describe 'RGame::Game configuration' do # rubocop:disable RSpec/DescribeCl
       width: ['96', 'game.viewports.width', 96],
       height: ['72', 'game.viewports.height', 72],
       scale_mode: [':integer', 'game.scale_mode', 'integer'],
+      texture_filter: [':linear', 'game.texture_filter', 'linear'],
       fullscreen: ['true', 'game.fullscreen?', true],
       media_root: [media.inspect, 'game.media_root', media],
       locales: ["'lang'", 'RGame::Engine::I18n.available', ['fr']],
