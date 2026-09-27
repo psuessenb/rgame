@@ -1,7 +1,7 @@
 # Smooth art
 
-**Steps 1 and 2 are implemented.** Step 3 is detailed. Steps 4 and 5 are rough,
-and get re-planned before they start.
+**Steps 1–3 are implemented.** Steps 4 and 5 are rough, and get re-planned
+before they start. Step 4 waits on open question 2.
 
 ## Verdict
 
@@ -693,6 +693,50 @@ Sub-steps:
 
 **Verify.** The disc readback passes. Under the default, the invariant's report
 diff is empty. `rake spec`, `rake spec:core` and `make test` pass.
+
+**Landed.** As sketched: the sheet's `filter`, the half-texel inset in
+`rgame_texture_uv`, `rgame_app_create`'s new argument with
+`rgame_app_texture_filter`, `App.new(texture_filter:)` with its reader, and the
+`Configuration` member, which `Game` passes to `App`. 3a is `4db2753`, 3b
+`7bdeed1` and 3c `70ffb99`.
+
+- **`app.md` and `images.md` landed in 3b, not 3c.** As in step 1, the
+  coverage spec fails on a public method no page names, here
+  `App#texture_filter`. `images.md`'s "always nearest-neighbour" would also have
+  been false from 3b on. 3c kept `game.md` and `CHANGELOG.md`. `ui.md` said
+  icon scales default to 1 because images are nearest; it now says so of the
+  default filter.
+- **Rule 5's "before the window opens" has no spec.** The binding checks the
+  Symbol before it calls `rgame_app_create`, so it holds by construction, but
+  Ruby can see no count of open windows. The spec checks the error and its
+  message.
+- **Rule 6 needed no code.** Font pages were linear already.
+- **The acceptance test draws the disc over black too.** Over white alone, a
+  disc that never drew would pass. Over black, its centre reads white and its
+  edge grey, so the test also shows the image was drawn and filtered.
+- **The Configuration probe was added last, to watch step 1's guard work.**
+  Without it, "probes every member" failed, naming `texture_filter`.
+
+The readbacks: under `:nearest` the 2×1 image's row reads eight 0s and eight
+255s, and under `:linear` it runs from 0 to 255 through greys. Every pixel of
+the red tile at 3.5 times reads pure red. Over white, the disc's lowest channel
+is at least 254. Three mutations fail them as intended: straight alpha (no
+premultiply at load, and `GL_SRC_ALPHA`) draws the disc's edge at 202 over
+white, a tile without the inset shows blue, and two UV mutations fail three and
+two Check tests.
+
+The invariant, compared as step 2 suggested: the back buffer at four ticks of
+each of the 57 driven runs, at `main` and at the head. All 215 frames are
+identical byte for byte, and every run exited 0. By eye, `examples/scroll_map`
+shot fullscreen at 800×600, a letterbox scale of 1.25, draws its tile map under
+`:linear` with no seam between tiles and no dark edge on the fence or the
+sand. The art is pixel art, so it looks soft, as it should.
+`examples/fullscreen` draws no images, so the filter changes none of its
+pixels.
+
+`make test` 428 checks (6 new), `rake spec` 4,516 examples (`images.md`'s new
+snippet), `rake spec:core` 551 (7 new), all passing, and
+`rake drive:allocations` passed for all 43 projects.
 
 ---
 
