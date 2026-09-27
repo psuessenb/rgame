@@ -1,6 +1,6 @@
 # Smooth art
 
-**Step 1 is implemented.** Steps 2 and 3 are detailed. Steps 4 and 5 are rough,
+**Steps 1 and 2 are implemented.** Step 3 is detailed. Steps 4 and 5 are rough,
 and get re-planned before they start.
 
 ## Verdict
@@ -536,6 +536,62 @@ landed note:
 `docs/api/drawing.md`'s "Blending and fading" makes no claim about the blend
 factors today. Search `docs/api/` once more for one, as
 [write-docs](../../.claude/skills/write-docs/SKILL.md) asks.
+
+**Landed.** `graphics/pixels.{c,h}`, and the four files switched together, as
+sketched. 2a is `8c284e7` and 2b is `ae5696b`.
+
+- **`rgame_pixels_scale` is `static inline` in `pixels.h`**, since the canvas
+  calls it for every colour it writes. Its Check test compares it with exact
+  rounding for all 65,536 pairs of bytes.
+- **The canvas works out a primitive's colour once, not once per vertex.**
+  Premultiplying in `write_vertex`, as sketched, took a million translucent
+  quads from 28.5 ms to about 37. A new `vertex_colour` fades and premultiplies
+  the colour once, and each vertex copies it. The replay's tint goes through it
+  too. That leaves the quads faster than before the step: 24.3 ms at best
+  against 27.2, and a median of 26.8 against 29.2.
+- **A tinted replay rounds where it truncated.** The old `modulate` truncated
+  `value * tint / 255`, and `rgame_pixels_scale` rounds, so a tint that is not
+  white can move a channel by 1.
+- **A fifth Check test asserted straight colour.**
+  `opacity_scales_alpha_to_the_nearest_byte_and_leaves_the_colour_alone`
+  checked that a fade leaves RGB alone. It is now
+  `..._and_the_colour_with_it`.
+- **The `GL_LUMINANCE` trap was already covered.** Uploading glyphs as
+  `GL_ALPHA` into the intensity pages fails ten existing text examples in
+  `renderer_spec.rb`, as well as the new one in `font_spec.rb`. The new one
+  adds that a glyph's edge blends by its coverage: over blue, red and blue sum
+  to 255 in every pixel.
+- **The invariant's report diff cannot see this step.** A drive report records
+  draw calls, and premultiplying changes none of them. A scratch script instead
+  prepended `frame_end` to `RGame::Game` and saved the back buffer with
+  `RenderedFrame.grab` at four ticks of each of the 57 driven runs, at `main`
+  and at the head. Of 215 frames, 174 are identical, and 41 differ by exactly
+  1 in at most 56 channels, 933 in all. None differs by more.
+  `examples/effects` is identical at all four ticks, which answers the plan's
+  "by eye". One `--gamepad` run among four at once caught a press a tick late;
+  run alone, it matched. **Step 3's invariant is about pixels too, so it should
+  compare frames the same way.**
+- **Framebuffer alpha now stays opaque.** `renderer_spec.rb` said half white
+  over black leaves 0.75 in the framebuffer's alpha on macOS. With `GL_ONE`,
+  that alpha is 1. The comment is rewritten; the spec compares colour only.
+- **No CHANGELOG entry.** Nothing a game sees changes by more than 1. The
+  "Added" entry for `texture_filter` in step 3 is where dark fringes belong.
+  `docs/api/` makes no claim about blend factors, and `faded`'s "keeps its
+  colour" still holds for what a player sees.
+
+Load cost, median of repeated `Image.new`: `examples/assets/tileset.png`
+(192×176, the largest image under `examples/`) went from 0.115 ms to 0.152 ms.
+A 2048×2048 PNG with every pixel translucent went from 22.1 ms to 30.3 ms.
+Premultiplying alone takes 2.4 ms for 4 million pixels of art that is opaque
+or fully transparent, and 6.9 ms when every pixel is translucent. A
+branch-free loop was no faster there, and three times slower on opaque art.
+
+`make test` 422 checks (10 new), `rake spec` 4,515 examples, `rake spec:core`
+544 (5 new), all passing, and `rake drive:allocations` passed for all 43
+projects. Four mutations fail as intended: a truncating scale fails three
+pixel tests, a replay that premultiplies again fails two recording tests,
+`GL_ALPHA` glyph uploads fail 11 `spec_core` examples, and `GL_SRC_ALPHA` as
+the source factor fails 8.
 
 ---
 
