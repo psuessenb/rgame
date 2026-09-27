@@ -152,6 +152,24 @@ RSpec.describe RGame::Core::Font do
     end
   end
 
+  describe 'drawn text' do
+    # Red text over blue. A glyph's edge covers part of a pixel, so every pixel
+    # reads red, blue, or a mix of the two whose channels sum to 255. A page
+    # that stored its coverage wrong shows here: text uploaded as GL_ALPHA into
+    # an intensity page vanishes, and one that ignores coverage in the alpha
+    # paints a black box around each glyph.
+    it 'draws red text red, blended into what is behind it by its coverage' do
+      frame = RenderedFrame.capture(width: 64, height: 32) do |renderer, capture_app|
+        renderer.rect(0, 0, 64, 32, color: RGame::Util::Color::BLUE)
+        renderer.text('MMMM', 0, 0, font: described_class.new(capture_app, 32), color: RGame::Util::Color::RED)
+      end
+      pixels = (0...64).to_a.product((0...32).to_a).map { |x, y| frame.at(x, y) }
+
+      expect(pixels.count { |red, green, blue, _| red >= 250 && green.zero? && blue <= 5 }).to be > 20
+      expect(pixels.map { |red, green, blue, _| [green, red + blue] }).to all(match([0, a_value_within(2).of(255)]))
+    end
+  end
+
   describe 'atlas pages' do
     # The counter that makes a leaked GPU page visible; nothing else would say.
     def live_pages

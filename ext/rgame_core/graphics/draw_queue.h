@@ -61,6 +61,9 @@ typedef enum { RGAME_BLEND_ALPHA = 0, RGAME_BLEND_ADD = 1 } rgame_blend;
  * them in memory order, and the bytes of a packed 0xRRGGBBAA come out A, B, G,
  * R on a little-endian machine — GL would read alpha as red. Storing bytes
  * sidesteps the question and is endian-independent. See rgame_color_bytes.
+ *
+ * The red, green and blue are premultiplied by the alpha, as every colour the
+ * engine hands GL is; see graphics/pixels.h.
  */
 typedef struct {
     float x, y; /* screen space: already transformed when it arrives here */

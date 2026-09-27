@@ -582,8 +582,8 @@ int rgame_app_push_blend(rgame_app *app, int blend);
 /*
  * Fades everything drawn until the matching pop, the replay of a recording
  * included: each vertex's alpha is multiplied by `opacity` and rounded to the
- * nearest byte, and its colour is left alone. Pushes multiply, so 0.5 inside
- * 0.5 draws at a quarter. Values outside 0..1 are clamped to it.
+ * nearest byte. A faded red still draws red, over less of what is behind it.
+ * Pushes multiply, so 0.5 inside 0.5 draws at a quarter. Values outside 0..1 are clamped to it.
  *
  * Unlike a clip or a blend mode it is allowed inside a recording, and is baked
  * into the vertices it fades.

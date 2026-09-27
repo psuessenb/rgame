@@ -299,6 +299,29 @@ RSpec.describe RGame::Core::Renderer do
       red, green, blue, = frame.at(32, 32)
       expect([red, green, blue]).to all(be_between(100, 155))
     end
+
+    # The engine blends premultiplied colour, and must draw what straight
+    # blending drew, within 1 per channel: `source * alpha + behind * (1 - alpha)`.
+    def straight(source, alpha, behind) = ((source * alpha) + (behind * (255 - alpha))) / 255.0
+
+    def half_red_over_the_clear_colour(mode)
+      frame = RenderedFrame.capture(width: 64, height: 64) do |renderer, _app|
+        renderer.blended(mode) { renderer.rect(0, 0, 64, 64, color: RGame::Util::Color.new(255, 0, 0, 128)) }
+      end
+      frame.at(32, 32).first(3)
+    end
+
+    it 'draws a half-transparent colour as straight blending does' do
+      expected = [255, 0, 0].zip(background).map { |source, behind| straight(source, 128, behind) }
+
+      expect(half_red_over_the_clear_colour(:alpha)).to match(expected.map { a_value_within(1).of(it) })
+    end
+
+    it 'adds a half-transparent colour at its alpha under :add' do
+      expected = [255, 0, 0].zip(background).map { |source, behind| (source * 128 / 255.0) + behind }
+
+      expect(half_red_over_the_clear_colour(:add)).to match(expected.map { a_value_within(1).of(it) })
+    end
   end
 
   describe 'clipping' do
@@ -437,11 +460,10 @@ RSpec.describe RGame::Core::Renderer do
 
   describe 'opacity' do
     # A faded draw is translucent, and blending writes the framebuffer's own
-    # alpha as well as its colour: half white over opaque black leaves 0.75
-    # there. macOS's framebuffer keeps that channel, so alpha reads back below
-    # 255, while Xvfb's visual has none and reads 255. The window is opaque
-    # either way, so only the colour is what a player sees, and only the
-    # colour is compared.
+    # alpha as well as its colour. Whether that channel exists depends on the
+    # visual: macOS's framebuffer keeps it, and Xvfb's has none and reads 255.
+    # The window is opaque either way, so only the colour is what a player
+    # sees, and only the colour is compared.
     def colour_at(frame) = frame.at(32, 32).first(3)
 
     def white_over_black(opacity)

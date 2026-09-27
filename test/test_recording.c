@@ -379,13 +379,13 @@ START_TEST(a_tint_multiplies_the_recorded_colours) {
 
     rgame_canvas c;
     begin(&c);
-    /* Half green, half alpha. */
+    /* Green at half alpha, which premultiplied is half green. */
     rgame_canvas_replay(&c, &recording, 0.0f, 0.0f, 0x00FF0080u, 0.0);
     rgame_canvas_end_frame(&c);
 
     const rgame_vertex *v = vertex(&c, 0);
     ck_assert_uint_eq(v->rgba[0], 0);
-    ck_assert_uint_eq(v->rgba[1], 255);
+    ck_assert_uint_eq(v->rgba[1], 128);
     ck_assert_uint_eq(v->rgba[2], 0);
     ck_assert_uint_eq(v->rgba[3], 128);
 
@@ -406,9 +406,10 @@ START_TEST(a_replay_inside_an_opacity_is_faded_after_its_tint) {
     rgame_canvas_pop(&c);
     rgame_canvas_end_frame(&c);
 
-    ck_assert_uint_eq(vertex(&c, 0)->rgba[0], 255);
+    ck_assert_uint_eq(vertex(&c, 0)->rgba[0], 128);
     ck_assert_uint_eq(vertex(&c, 0)->rgba[3], 128);
-    /* The tint's 128 of 255, then half of that: 64. */
+    /* The tint's 128 of 255, then half of that: 64, and the red with it. */
+    ck_assert_uint_eq(vertex(&c, 6)->rgba[0], 64);
     ck_assert_uint_eq(vertex(&c, 6)->rgba[3], 64);
 
     rgame_canvas_destroy(&c);
@@ -433,6 +434,31 @@ START_TEST(an_opacity_pushed_while_baking_is_baked_in) {
     rgame_canvas_replay(&c, &recording, 0.0f, 0.0f, RGAME_COLOR_WHITE, 0.0);
     rgame_canvas_end_frame(&c);
 
+    ck_assert_uint_eq(vertex(&c, 0)->rgba[0], 128);
+    ck_assert_uint_eq(vertex(&c, 0)->rgba[3], 128);
+
+    rgame_canvas_destroy(&c);
+    rgame_recording_destroy(&recording);
+}
+END_TEST
+
+static void one_translucent_red_rect(rgame_canvas *c) {
+    rgame_prim_rect(c, 0.0f, 0.0f, 10.0f, 10.0f, 0xFF000080u, 0.0);
+}
+
+START_TEST(a_translucent_baked_colour_is_not_premultiplied_twice) {
+    /* The baked vertex is premultiplied already. A replay that premultiplied it
+     * again would draw its red at 64 rather than 128. */
+    rgame_recording recording;
+    bake(&recording, one_translucent_red_rect);
+
+    rgame_canvas c;
+    begin(&c);
+    rgame_canvas_replay(&c, &recording, 0.0f, 0.0f, RGAME_COLOR_WHITE, 0.0);
+    rgame_canvas_end_frame(&c);
+
+    ck_assert_uint_eq(vertex(&c, 0)->rgba[0], 128);
+    ck_assert_uint_eq(vertex(&c, 0)->rgba[1], 0);
     ck_assert_uint_eq(vertex(&c, 0)->rgba[3], 128);
 
     rgame_canvas_destroy(&c);
@@ -567,6 +593,7 @@ Suite *recording_suite(void) {
     tcase_add_test(tc, a_white_tint_leaves_the_recorded_colours_alone);
     tcase_add_test(tc, a_tint_multiplies_the_recorded_colours);
     tcase_add_test(tc, a_replay_inside_an_opacity_is_faded_after_its_tint);
+    tcase_add_test(tc, a_translucent_baked_colour_is_not_premultiplied_twice);
     tcase_add_test(tc, an_opacity_pushed_while_baking_is_baked_in);
     tcase_add_test(tc, replaying_a_destroyed_or_missing_recording_draws_nothing);
     tcase_add_test(tc, a_recording_can_be_replayed_many_times_in_one_frame);

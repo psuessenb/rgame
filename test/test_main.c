@@ -60,6 +60,7 @@ static SRunner *create_main_runner(void) {
     srunner_add_suite(runner, canvas_suite());
     srunner_add_suite(runner, backend_suite());
     srunner_add_suite(runner, texture_suite());
+    srunner_add_suite(runner, pixels_suite());
     srunner_add_suite(runner, primitives_suite());
     srunner_add_suite(runner, recording_suite());
     srunner_add_suite(runner, atlas_suite());

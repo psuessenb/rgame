@@ -87,6 +87,8 @@
  * `push_opacity` fades everything drawn until the matching pop. The canvas
  * multiplies it into each vertex's alpha as it writes the vertex, as it applies
  * the transform, so the sort cannot move it and the batching never sees it.
+ * The vertex colour is premultiplied by that faded alpha (see
+ * graphics/pixels.h), so a fade scales its red, green and blue too.
  * Nested pushes multiply, so half inside half draws at a quarter: a node fades
  * with its parent and by its own amount at once. The stack starts at 1.
  *
@@ -192,7 +194,8 @@ rgame_blend rgame_canvas_blend(const rgame_canvas *canvas);
 /*
  * Fades everything drawn until the matching pop: each vertex's alpha is
  * multiplied by `opacity`, and by every opacity pushed around it, and rounded
- * to the nearest byte. Its colour is left alone.
+ * to the nearest byte. The colour is then premultiplied by that alpha, so it
+ * fades with it.
  *
  * 0 draws at alpha 0 and 1 changes nothing. A value outside 0..1 is clamped to
  * it, and NaN is taken as 1, as the queue takes a NaN z as 0.

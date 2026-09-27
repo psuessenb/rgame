@@ -12,20 +12,29 @@
  * it end to end against a real GL context.
  *
  * ---------------------------------------------------------------------------
- * Why the pages are GL_ALPHA
+ * Why the pages are GL_INTENSITY
  * ---------------------------------------------------------------------------
  *
  * A rasterised glyph is coverage: one byte per pixel saying how much ink is
  * there. Uploading that as RGBA would cost four times the memory to say the
  * same thing three redundant ways.
  *
- * An alpha texture under the fixed-function default (GL_MODULATE) gives
- * `rgb = the vertex colour, a = vertex alpha * coverage`, which is exactly what
- * coloured text is. No shader, no second code path in the backend — the glyph
- * quads go through the same textured-quad call sprites do.
+ * An intensity texture answers its one value in all four channels. Under the
+ * fixed-function default (GL_MODULATE) a glyph texel therefore gives
+ * `rgba = vertex rgba * coverage`. The vertex colour is premultiplied, like
+ * every colour the engine draws (see graphics/pixels.h), and scaling all four
+ * of its channels by the coverage keeps it premultiplied. No shader, no second
+ * code path in the backend — the glyph quads go through the same textured-quad
+ * call sprites do.
  *
- * Worth knowing for the day the project moves to core-profile GL: GL_ALPHA does
- * not exist there. The equivalent is GL_RED plus a swizzle in a shader.
+ * **The source format is GL_LUMINANCE, not GL_ALPHA.** GL turns the source into
+ * RGBA before storing it, and an intensity texture keeps the red. GL_ALPHA
+ * source becomes (0, 0, 0, a), so every glyph would store as zero and all text
+ * would vanish. GL_LUMINANCE source becomes (L, L, L, 1), whose red is the
+ * coverage.
+ *
+ * Worth knowing for the day the project moves to core-profile GL: GL_INTENSITY
+ * does not exist there. The equivalent is GL_RED plus a swizzle in a shader.
  */
 
 #include "rgame/core.h"
@@ -122,8 +131,8 @@ static int add_page(rgame_font *font) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, RGAME_FONT_PAGE_SIZE, RGAME_FONT_PAGE_SIZE, 0,
-                 GL_ALPHA, GL_UNSIGNED_BYTE, blank);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_INTENSITY, RGAME_FONT_PAGE_SIZE, RGAME_FONT_PAGE_SIZE, 0,
+                 GL_LUMINANCE, GL_UNSIGNED_BYTE, blank);
     glBindTexture(GL_TEXTURE_2D, 0);
 
     free(blank);
@@ -383,7 +392,7 @@ int rgame_font_glyph(rgame_font *font, int codepoint, rgame_glyph *out, unsigned
 
         glBindTexture(GL_TEXTURE_2D, font->pages[page].texture);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        glTexSubImage2D(GL_TEXTURE_2D, 0, placed.x, placed.y, placed.w, placed.h, GL_ALPHA,
+        glTexSubImage2D(GL_TEXTURE_2D, 0, placed.x, placed.y, placed.w, placed.h, GL_LUMINANCE,
                         GL_UNSIGNED_BYTE, font->scratch);
         glBindTexture(GL_TEXTURE_2D, 0);
 

@@ -14,12 +14,13 @@
 #define RGAME_CLEAR_G 0.1f
 #define RGAME_CLEAR_B 0.15f
 
-/* Both modes scale the source by its own alpha. ALPHA then keeps what is
- * behind in proportion to what the source leaves uncovered; ADD keeps all of
- * it, so the two sum. */
+/* Every colour arrives premultiplied (see graphics/pixels.h), so both modes
+ * take the source as it is: it has already been scaled by its own alpha. ALPHA
+ * then keeps what is behind in proportion to what the source leaves uncovered;
+ * ADD keeps all of it, so the two sum. */
 static void gl_set_blend(void *ctx, rgame_blend blend) {
     (void)ctx;
-    glBlendFunc(GL_SRC_ALPHA, blend == RGAME_BLEND_ADD ? GL_ONE : GL_ONE_MINUS_SRC_ALPHA);
+    glBlendFunc(GL_ONE, blend == RGAME_BLEND_ADD ? GL_ONE : GL_ONE_MINUS_SRC_ALPHA);
 }
 
 static void gl_begin_frame(void *ctx, int width, int height) {
