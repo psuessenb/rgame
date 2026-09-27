@@ -1,7 +1,7 @@
 # Object layers
 
-**Status: steps 0–7 are implemented, and step 8 is planned in detail.** Step 9
-of [the roadmap](04-roadmap.md) is rough and gets re-planned once step 8 lands.
+**Status: steps 0–8 are implemented.** Step 9 of [the roadmap](04-roadmap.md)
+is rough and gets re-planned before it starts.
 Step 5 was inserted after step 4 landed, and the steps after it moved up by
 one. Step 10 folds the plan back and deletes it.
 
@@ -334,6 +334,15 @@ Taken at `abb91ad`, and on `origin/build-step-8-tiled-map` for `tour.tmx`.
    rule, and naming the map and the object would at least say where it broke.
    *Waits on step 10, which moves it to `possible-todos.md` if no step takes
    it.*
+8. **How should a class with nothing to set carry `@placeable`?** The tag
+   follows `initialize`, so such a class defines `def initialize(**) = super`
+   to carry it, and RuboCop's `Lint/UselessMethodDefinition` flags the line. A
+   game disables the cop there today, as step 8 found. The generated
+   `.rubocop.yml` could switch the cop off, at the cost of a check a game
+   loses everywhere. Or a class with no `initialize` of its own could carry the
+   tag in its class comment, which a subclass that inherits one could not.
+   *Waits on step 9, whose level may be the first to place such a class. Step
+   10 moves it to `possible-todos.md` if no step takes it.*
 
 ## Reading order
 

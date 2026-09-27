@@ -1,7 +1,7 @@
 # Roadmap
 
-**Steps 0–7 are implemented, and step 8 is planned in detail.** Step 9 is
-rough and gets re-planned once step 8 lands. Step 5 was inserted after step 4
+**Steps 0–8 are implemented.** Step 9 is rough and gets re-planned before it
+starts. Step 5 was inserted after step 4
 landed, and every step from 5 on moved up by one, landed notes included, so a
 number in this document is today's.
 
@@ -1819,6 +1819,86 @@ What `rgame new` writes:
 - **Tiled seeing an export while it has the project open.** The designer
   reopens the project, and the task's report says so.
 - **`rgame tiled-export`**, a command in the gem (decision 24).
+
+**Landed.** Four commits on `tiled-custom-types`, 8a to 8d as sketched.
+`rake spec` 4507 examples, 0 failures (4444 before, 63 new). `rake spec:core`
+533, 0 failures. `rake docs:coverage`: 0 of 221 modules and classes with an
+undocumented name, `MapTypes` and `MapTypes::Report` among them.
+`rake drive:allocations`: all 43 projects within budget. On the same ticks as
+`main`, `doors` allocates 623 objects where `main` allocates 620, and adventure
+1960 where it allocates 1957: the record `MapSettings` keeps for each class it
+reads in play. `make test` was not run, as the step changes no C.
+
+Tiled 1.12.2 reads what the export writes. A scratch script loaded
+`examples/doors/main.rb` with `RGame::Game#initialize` and `#start` stubbed,
+and wrote `DoorsExample`'s types into a new project: `Door` and `Warp` added.
+`--resolve-types-and-properties` then exported `garden.tmx` with `to`,
+`entrance` and `party` on each door, `party` `false` on the gate, whose map sets
+none, and `true` on the horn. Each warp got `entrance`. The same script wrote
+`moving_platforms`' `Raft` and topdownplatformer's `Crate`, `Flag`, `Raft` and
+`Walker`, and adventure's `Door` and `Warp`: the nine classes. A Tiled script
+that adds and removes a type made Tiled save each of the four projects again,
+and no byte changed. `grep -rln '@placeable' examples test_projects` finds the
+eight files.
+
+`doors` for 900 ticks, adventure for 1640, `moving_platforms` and
+topdownplatformer for 1654 were driven with `--seed 1 --texts` on `main` and
+after 8c, one run after another. `moving_platforms` matches byte for byte, and
+topdownplatformer differs only in its map id, the map's absolute path in each
+checkout. `doors` and adventure matched once driven again on `main`, with the
+paths normalised: see below.
+
+Where the sketch was wrong, or said too little:
+
+- **The report needed two more fields.** With the sketch's five, a missing
+  project with no placeable class was `current?`, so `write` never created it,
+  and a generated game whose project was deleted still passed its spec. And
+  `to_s` could not tell a write from `changes`, so "Tiled shows the change once
+  the project is reopened" would have appeared in the spec's failure, where
+  nothing was written. `Report` also holds `missing` and `written`, and its
+  first line reads `created` or `missing` after the path.
+- **A class with nothing to set carries `@placeable` on
+  `def initialize(**) = super`, and RuboCop's `Lint/UselessMethodDefinition`
+  flags that line.** The nine classes have bodies, so none met it. The spec
+  classes did, and each disables the cop on the line. `tile_maps.md` and the
+  write-ruby-code skill say to do the same.
+  [Open question 8](README.md#open-questions) asks whether a game should.
+- **The fixture is the export, saved again by Tiled**, not built by a script
+  from nothing. Tiled's scripting API turns a whole JavaScript number into an
+  `int` member, so no script can make a `float` member of `0`, as a required
+  `[Float]` shows. So `MapTypes` wrote the spec game's types into a new project,
+  and a Tiled script added a project property, a lower-case enum and a
+  lower-case class. Adding a type makes Tiled save the project, and it wrote
+  back every byte of the export. The spec's comment gives the script.
+- **Qt writes a float its own way.** A whole number below 2⁶⁴ is written in
+  full, and anything else in its shortest form with a two-digit exponent:
+  `100`, `1e+20`, `1e-05`, `12345678901234567000`, where Ruby writes `100.0`,
+  `1.0e+20`, `1.0e-05` and `1.2345678901234567e+19`. A hand-written project
+  saved again by Tiled measured each. So the export writes its JSON in about 20
+  lines of its own, not with `JSON.pretty_generate`, and a spec holds each form.
+- **`MapSettings.resolve` joined `MapSettings.nesting`.** Sharing only the list
+  would have left the lookup in it, the innermost module and then what the
+  scope inherits, written in the builder and in the export.
+- **Rule 7 lives in the builder, as `MapBuilder.refusal`**, since what a map
+  passes every node is the builder's to know. It also refuses a class that
+  requires an argument, such as a room built with its map's id, which the
+  sketch did not name.
+- **A driven run on a `main` worktree lacks `media/`**, which is gitignored. So
+  adventure played no music there, and its report lacked three lines. With
+  `media/` linked into the worktree, it matches. `doors` on `main` first drew
+  899 of 900 frames, the variance steps 2, 5 and 7 found, and matched when
+  driven again.
+
+**For step 9:** an example's classes export through the scratch script above,
+which loads its `main.rb` with the game's window left shut.
+
+Documented in `docs/api/tile_maps.md` ("Tiled's custom types"),
+`docs/api/cli.md` ("Maps and the Tiled project", the generated tree, and
+`--no-tiled`), `docs/api/internals.md` (`@placeable`, `MapSettings.nesting` and
+`MapSettings.resolve`), `docs/api/README.md` (the tile maps row), the header of
+`examples/doors/main.rb`, the generated project's `README.md`, and the
+write-ruby-code skill. `CHANGELOG.md` has Added entries for `MapTypes` and for
+the Tiled project `rgame new` writes, with `--no-tiled`.
 
 ## Step 9 — the maps checked, and the level played *(rough)*
 
