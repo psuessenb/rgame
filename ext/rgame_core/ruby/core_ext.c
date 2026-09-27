@@ -62,6 +62,9 @@ static ID id_height;
 static ID id_caption;
 static ID id_media_root;
 static ID id_fullscreen;
+static ID id_texture_filter;
+static ID id_nearest;
+static ID id_linear;
 
 /* ------------------------------------------------------------------------- *
  * rgame_app lifetime, wrapped as a Ruby object
@@ -111,9 +114,27 @@ static VALUE app_alloc(VALUE klass) {
     return TypedData_Wrap_Struct(klass, &app_data_type, NULL);
 }
 
-/* App.new(width:, height:, caption:, media_root:, fullscreen:) — keyword
- * arguments, matching the shape a subclass's own initialize will forward to via
- * super. The first three are required; the last two have defaults. */
+/* The filter a `texture_filter:` Symbol names, :nearest when it is absent.
+ * Anything else raises ArgumentError naming the two it accepts, before the
+ * window opens. */
+static rgame_texture_filter texture_filter_from(VALUE value) {
+    if (value == Qundef) {
+        return RGAME_TEXTURE_NEAREST;
+    }
+    if (SYMBOL_P(value) && SYM2ID(value) == id_nearest) {
+        return RGAME_TEXTURE_NEAREST;
+    }
+    if (SYMBOL_P(value) && SYM2ID(value) == id_linear) {
+        return RGAME_TEXTURE_LINEAR;
+    }
+    rb_raise(rb_eArgError,
+             "unknown texture filter %" PRIsVALUE "; expected one of [:nearest, :linear]",
+             rb_inspect(value));
+}
+
+/* App.new(width:, height:, caption:, media_root:, fullscreen:, texture_filter:)
+ * — keyword arguments, matching the shape a subclass's own initialize will
+ * forward to via super. The first three are required; the rest have defaults. */
 static VALUE app_initialize(int argc, VALUE *argv, VALUE self) {
     VALUE opts = Qnil;
     rb_scan_args(argc, argv, "0:", &opts); /* no positional args, keywords only */
@@ -121,11 +142,13 @@ static VALUE app_initialize(int argc, VALUE *argv, VALUE self) {
         rb_raise(rb_eArgError, "missing keywords: :width, :height, :caption");
     }
 
-    const ID keys[5] = { id_width, id_height, id_caption, id_media_root, id_fullscreen };
-    VALUE values[5];
-    /* 3 required, 2 optional: raises on a missing or unknown keyword. An absent
+    const ID keys[6] = { id_width, id_height, id_caption, id_media_root, id_fullscreen,
+                         id_texture_filter };
+    VALUE values[6];
+    /* 3 required, 3 optional: raises on a missing or unknown keyword. An absent
      * optional comes back as Qundef. */
-    rb_get_kwargs(opts, keys, 3, 2, values);
+    rb_get_kwargs(opts, keys, 3, 3, values);
+    rgame_texture_filter filter = texture_filter_from(values[5]);
 
     /* Passed to create rather than set afterwards, so a game that starts
      * fullscreen never shows a windowed frame first. RTEST treats both nil and
@@ -133,7 +156,7 @@ static VALUE app_initialize(int argc, VALUE *argv, VALUE self) {
      * is missing. */
     rgame_app *app = rgame_app_create(NUM2INT(values[0]), NUM2INT(values[1]),
                                       StringValueCStr(values[2]),
-                                      values[4] != Qundef && RTEST(values[4]));
+                                      values[4] != Qundef && RTEST(values[4]), filter);
     if (!app) {
         rb_raise(rb_eRuntimeError, "failed to create rgame app");
     }
@@ -370,6 +393,15 @@ static VALUE app_set_caption(VALUE self, VALUE title) {
     return title;
 }
 
+/* :nearest or :linear, as given to App.new: how every image this app loads is
+ * sampled when drawn at another size. There is no writer, for the reason
+ * media_root has none: the asset cache would otherwise hold images made under
+ * two. */
+static VALUE app_texture_filter(VALUE self) {
+    rgame_texture_filter filter = rgame_app_texture_filter(rgame_app_unwrap(self));
+    return ID2SYM(filter == RGAME_TEXTURE_LINEAR ? id_linear : id_nearest);
+}
+
 static VALUE app_fullscreen_p(VALUE self) {
     return rgame_app_fullscreen(rgame_app_unwrap(self)) ? Qtrue : Qfalse;
 }
@@ -502,6 +534,9 @@ void Init_core_ext(void) {
     id_caption = rb_intern("caption");
     id_media_root = rb_intern("media_root");
     id_fullscreen = rb_intern("fullscreen");
+    id_texture_filter = rb_intern("texture_filter");
+    id_nearest = rb_intern("nearest");
+    id_linear = rb_intern("linear");
 
     /*
      * rb_define_module is idempotent — it returns the existing RGame if some
@@ -521,6 +556,7 @@ void Init_core_ext(void) {
     rb_define_method(cApp, "height", app_height, 0);
     rb_define_method(cApp, "caption", app_caption, 0);
     rb_define_method(cApp, "caption=", app_set_caption, 1);
+    rb_define_method(cApp, "texture_filter", app_texture_filter, 0);
     rb_define_method(cApp, "fullscreen?", app_fullscreen_p, 0);
     rb_define_method(cApp, "fullscreen=", app_set_fullscreen, 1);
     rb_define_method(cApp, "ticks_ms", app_ticks_ms, 0);

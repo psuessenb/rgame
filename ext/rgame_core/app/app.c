@@ -77,6 +77,8 @@ struct rgame_app {
      * why the image side can simply skip its glDeleteTextures.
      */
     int refs;
+    /* How every image this app loads is sampled; see rgame_app_texture_filter. */
+    rgame_texture_filter texture_filter;
     rgame_frame_loop frame_loop;
     rgame_fps_counter fps_counter;
     rgame_input_state input;
@@ -107,7 +109,8 @@ struct rgame_app {
  * so the creation flags and the runtime toggle cannot disagree. */
 #define RGAME_FULLSCREEN_FLAG SDL_WINDOW_FULLSCREEN_DESKTOP
 
-rgame_app *rgame_app_create(int width, int height, const char *title, int fullscreen) {
+rgame_app *rgame_app_create(int width, int height, const char *title, int fullscreen,
+                            rgame_texture_filter filter) {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) {
         SDL_Log("SDL_Init failed: %s", SDL_GetError());
         return NULL;
@@ -152,6 +155,7 @@ rgame_app *rgame_app_create(int width, int height, const char *title, int fullsc
 
     app->running = 1;
     app->refs = 1;
+    app->texture_filter = filter;
     app->drawing = 0;
     app->recording = 0;
     rgame_canvas_init(&app->canvas);
@@ -913,6 +917,10 @@ void rgame_app_set_fullscreen(rgame_app *app, int fullscreen) {
         return;
     }
     SDL_SetWindowFullscreen(app->window, fullscreen ? RGAME_FULLSCREEN_FLAG : 0u);
+}
+
+rgame_texture_filter rgame_app_texture_filter(const rgame_app *app) {
+    return app ? app->texture_filter : RGAME_TEXTURE_NEAREST;
 }
 
 int rgame_app_fullscreen(const rgame_app *app) {

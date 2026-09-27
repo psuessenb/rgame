@@ -40,8 +40,19 @@ typedef enum { RGAME_TEXTURE_NEAREST = 0, RGAME_TEXTURE_LINEAR = 1 } rgame_textu
  * `width` and `height` still matter when starting fullscreen — they are the
  * size the window returns to when it leaves fullscreen, and the size SDL keeps
  * for it in the meantime.
+ *
+ * `filter` is how every image this app loads is sampled; see
+ * rgame_app_texture_filter.
  */
-rgame_app *rgame_app_create(int width, int height, const char *title, int fullscreen);
+rgame_app *rgame_app_create(int width, int height, const char *title, int fullscreen,
+                            rgame_texture_filter filter);
+
+/*
+ * The filter every image this app loads is sampled with. Fixed when the app is
+ * created, because the asset cache would otherwise hold images made under two.
+ * Font pages are always linear, whatever it says.
+ */
+rgame_texture_filter rgame_app_texture_filter(const rgame_app *app);
 
 /* Destroys the GL context/window and frees the app. Safe to call with NULL. */
 void rgame_app_destroy(rgame_app *app);

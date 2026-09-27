@@ -151,6 +151,65 @@ RSpec.describe RGame::Core::Image do
     end
   end
 
+  describe 'filtering' do
+    # One black and one white pixel, side by side, drawn eight times their size:
+    # the middle row of what comes back, as red values.
+    def black_then_white(texture_filter)
+      path = PngFixture.write(2, 1) { |x, _y| x.zero? ? [0, 0, 0, 255] : [255, 255, 255, 255] }
+      frame = RenderedFrame.capture(width: 16, height: 8, texture_filter:) do |renderer, app|
+        renderer.image_at(described_class.new(app, path), 0, 0, scale_x: 8, scale_y: 8)
+      end
+      Array.new(16) { frame.at(it, 4)[0] }
+    end
+
+    it 'draws only the pixels the image holds under :nearest' do
+      expect(black_then_white(:nearest)).to eq([0] * 8 + [255] * 8)
+    end
+
+    it 'blends neighbouring pixels under :linear' do
+      row = black_then_white(:linear)
+
+      expect([row.first, row.last]).to eq([0, 255])
+      expect(row[7..8]).to all(be_between(60, 195))
+    end
+
+    it 'keeps a tile of a :linear sheet from sampling the tile beside it' do
+      # Tile 0 is red and tile 1 blue. Drawn at 3.5 times, the tile's right
+      # edge would blend in blue unless its UVs stop half a texel short.
+      sheet = PngFixture.write(8, 4) { |x, _y| x < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255] }
+      frame = RenderedFrame.capture(width: 14, height: 14, texture_filter: :linear) do |renderer, app|
+        renderer.image_at(described_class.new(app, sheet).tile(4, 4, 0), 0, 0, scale_x: 3.5, scale_y: 3.5)
+      end
+      pixels = (0...14).to_a.product((0...14).to_a).map { |x, y| frame.at(x, y).first(3) }
+
+      expect(pixels.uniq).to eq([[255, 0, 0]])
+    end
+
+    # **The plan's acceptance test: premultiplied alpha and linear filtering
+    # together.** A white disc with an anti-aliased edge, on transparent black,
+    # drawn at 2.5 times over white and over black. Straight alpha would filter
+    # the edge towards the black around it, and draw a grey ring over white.
+    it 'draws an anti-aliased edge with no dark fringe under :linear' do
+      disc = PngFixture.write(16, 16) do |x, y|
+        coverage = (6.5 - Math.hypot(x + 0.5 - 8, y + 0.5 - 8)).clamp(0.0, 1.0)
+        coverage.zero? ? [0, 0, 0, 0] : [255, 255, 255, (coverage * 255).round]
+      end
+      frame = RenderedFrame.capture(width: 88, height: 40, texture_filter: :linear) do |renderer, app|
+        image = described_class.new(app, disc)
+        renderer.rect(0, 0, 40, 40, color: RGame::Util::Color::WHITE)
+        renderer.rect(48, 0, 40, 40, color: RGame::Util::Color::BLACK)
+        renderer.image_at(image, 0, 0, scale_x: 2.5, scale_y: 2.5)
+        renderer.image_at(image, 48, 0, scale_x: 2.5, scale_y: 2.5)
+      end
+      over_white = (0...40).to_a.product((0...40).to_a).map { |x, y| frame.at(x, y).first(3).min }
+      over_black = (0...40).map { |x| frame.at(48 + x, 20)[0] }
+
+      expect(over_white.min).to be >= 254
+      expect([over_black.first, over_black[20]]).to eq([0, 255])
+      expect(over_black).to include(be_between(20, 235))
+    end
+  end
+
   describe 'tiles with a margin and spacing' do
     # Three columns and two rows of 2x2 tiles, with a 1 px margin and 1 px of
     # spacing. Tile n is filled with the grey value 40 * (n + 1), and every

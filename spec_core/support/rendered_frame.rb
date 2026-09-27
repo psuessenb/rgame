@@ -42,9 +42,10 @@ module RenderedFrame
 
   class << self
     # Runs `block` inside one real frame and returns the pixels it produced. The
-    # block receives the renderer and the app it belongs to.
-    def capture(width:, height:, &block)
-      app = capture_class.new(width, height, block)
+    # block receives the renderer and the app it belongs to, which samples every
+    # image it loads with `texture_filter`.
+    def capture(width:, height:, texture_filter: :nearest, &block)
+      app = capture_class.new(width, height, texture_filter, block)
       app.run
       app.frame
     end
@@ -98,8 +99,8 @@ module RenderedFrame
       @capture_class ||= Class.new(RGame::Core::App) do
         attr_reader :frame
 
-        def initialize(width, height, block)
-          super(width: width, height: height, caption: 'rendered frame')
+        def initialize(width, height, texture_filter, block)
+          super(width: width, height: height, caption: 'rendered frame', texture_filter: texture_filter)
           @renderer = RGame::Core::Renderer.new(self)
           @block = block
         end

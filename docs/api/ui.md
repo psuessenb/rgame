@@ -1109,8 +1109,9 @@ centre and a backdrop sized from the menu's bounds therefore work for icon butto
 as for any other.
 
 **Tint multiplies**, so draw the art in white. White shows each tint exactly; dark
-art takes none. **Scales default to 1** because images use nearest-neighbour
-sampling. A scale that is not a whole number doubles some pixel rows and not others.
+art takes none. **Scales default to 1** because under the default `:nearest`
+[filter](images.md#filtering), a scale that is not a whole number doubles some
+pixel rows and not others.
 Focus shows through the tint and the style instead. `tints:` and `scales:` must name
 every state, and raise `KeyError` at construction if one is missing.
 

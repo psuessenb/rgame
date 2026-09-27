@@ -115,6 +115,21 @@ RSpec.describe RGame::Core::App do
     end
   end
 
+  describe '#texture_filter' do
+    it 'samples images nearest unless told otherwise' do
+      expect(app.texture_filter).to eq(:nearest)
+    end
+
+    it 'reads back the filter it was made with' do
+      expect(app(texture_filter: :linear).texture_filter).to eq(:linear)
+    end
+
+    it 'refuses a filter it does not know, naming the two it takes' do
+      expect { app(texture_filter: :bilinear) }
+        .to raise_error(ArgumentError, 'unknown texture filter :bilinear; expected one of [:nearest, :linear]')
+    end
+  end
+
   describe 'the frame lifecycle' do
     # A subclass overrides only the hooks it needs; the rest are inherited
     # no-ops. This one closes itself so the loop terminates.
