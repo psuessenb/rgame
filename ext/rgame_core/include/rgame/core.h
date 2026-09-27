@@ -20,6 +20,16 @@ extern "C" {
 typedef struct rgame_app rgame_app;
 
 /*
+ * How an image is sampled when it is drawn at a size other than its own.
+ *
+ * NEAREST takes the one texel under each pixel, so pixel art keeps hard edges
+ * at any scale. LINEAR blends the four texels around each pixel, so art drawn
+ * with smooth, anti-aliased edges stays smooth at a scale that is not a whole
+ * number.
+ */
+typedef enum { RGAME_TEXTURE_NEAREST = 0, RGAME_TEXTURE_LINEAR = 1 } rgame_texture_filter;
+
+/*
  * Creates the window, GL context and internal state. Returns NULL on failure.
  *
  * `fullscreen` non-zero opens the window fullscreen straight away, rather than

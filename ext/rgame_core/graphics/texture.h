@@ -2,6 +2,7 @@
 #define RGAME_TEXTURE_H
 
 #include "graphics/clip.h"
+#include "rgame/core.h"
 
 /*
  * Textures: what part of an uploaded image a draw call should sample, and who
@@ -54,7 +55,8 @@
  * normalised texture coordinates, 0..1 across the whole texture. Converting
  * between them is one division that is easy to get subtly wrong (by the sheet
  * size, not the view size), so it happens in exactly one place:
- * `rgame_texture_uv`.
+ * `rgame_texture_uv`. That is also where a linearly filtered sheet keeps each
+ * view from sampling its neighbours, by moving its edges half a texel in.
  */
 
 typedef struct {
@@ -62,6 +64,7 @@ typedef struct {
      * carries the number so that release can hand it back for deletion. */
     unsigned int name;
     int width, height; /* the whole uploaded image, in pixels */
+    rgame_texture_filter filter; /* how the sheet was uploaded, and so how its UVs inset */
     int refs;
 } rgame_texture_sheet;
 
@@ -75,8 +78,10 @@ typedef struct {
  * Creates a sheet with one reference, or NULL if out of memory or given a
  * degenerate size. `name` is whatever the GL layer allocated; this module
  * treats it as an opaque token, so tests can pass any number they like.
+ * `filter` is the one the GL layer uploaded it with.
  */
-rgame_texture_sheet *rgame_texture_sheet_create(unsigned int name, int width, int height);
+rgame_texture_sheet *rgame_texture_sheet_create(unsigned int name, int width, int height,
+                                                rgame_texture_filter filter);
 
 void rgame_texture_sheet_retain(rgame_texture_sheet *sheet);
 
@@ -146,6 +151,17 @@ int rgame_texture_tile(const rgame_texture *view, int tile_width, int tile_heigh
  * v = 0. That holds because image.c uploads the decoded rows in the order stb
  * produces them (top row first), rather than flipping them the way a
  * bottom-left-origin convention would need.
+ *
+ * On a LINEAR sheet, each edge of the view that lies inside the sheet moves
+ * half a texel inward. Linear filtering blends the texels around each sample,
+ * so a sample on the view's own edge would blend in whatever is next to it on
+ * the sheet: a strip of the neighbouring sprite. Half a texel in, the outermost
+ * sample lands on the centre of the view's own edge texel. A view one texel
+ * wide therefore samples that texel's centre from both edges.
+ *
+ * An edge on the sheet's border stays where it is. GL_CLAMP_TO_EDGE already
+ * repeats the border texel outward, so a whole image keeps its UVs of 0 to 1.
+ * A NEAREST sheet's UVs are the view's edges exactly.
  */
 void rgame_texture_uv(const rgame_texture *view, float *uv8);
 

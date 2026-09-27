@@ -15,12 +15,33 @@
  * creator's reference here leaves the view holding the only one, which is what
  * an image handle actually looks like. */
 static rgame_texture whole_sheet(unsigned int name, int width, int height) {
-    rgame_texture_sheet *sheet = rgame_texture_sheet_create(name, width, height);
+    rgame_texture_sheet *sheet =
+        rgame_texture_sheet_create(name, width, height, RGAME_TEXTURE_NEAREST);
     ck_assert_ptr_nonnull(sheet);
 
     rgame_texture view = rgame_texture_whole(sheet);
     rgame_texture_sheet_release(sheet, NULL);
     return view;
+}
+
+/* A whole-sheet view of a sheet uploaded for linear filtering. */
+static rgame_texture linear_sheet(int width, int height) {
+    rgame_texture_sheet *sheet = rgame_texture_sheet_create(7, width, height, RGAME_TEXTURE_LINEAR);
+    ck_assert_ptr_nonnull(sheet);
+
+    rgame_texture view = rgame_texture_whole(sheet);
+    rgame_texture_sheet_release(sheet, NULL);
+    return view;
+}
+
+/* The four edges `rgame_texture_uv` wrote, in texels of a `size`-square
+ * sheet, so an expectation reads as 16.5 rather than 0.2578125. */
+static void ck_uv_texels(const float *uv, float size, float left, float top, float right,
+                         float bottom) {
+    ck_assert_float_eq(uv[0] * size, left);  ck_assert_float_eq(uv[1] * size, top);
+    ck_assert_float_eq(uv[2] * size, right); ck_assert_float_eq(uv[3] * size, top);
+    ck_assert_float_eq(uv[4] * size, right); ck_assert_float_eq(uv[5] * size, bottom);
+    ck_assert_float_eq(uv[6] * size, left);  ck_assert_float_eq(uv[7] * size, bottom);
 }
 
 static void ck_rect_eq(rgame_rect got, int x, int y, int w, int h) {
@@ -33,7 +54,7 @@ static void ck_rect_eq(rgame_rect got, int x, int y, int w, int h) {
 /* --- sheet lifetime --- */
 
 START_TEST(a_new_sheet_holds_one_reference_and_dies_on_release) {
-    rgame_texture_sheet *sheet = rgame_texture_sheet_create(7, 64, 32);
+    rgame_texture_sheet *sheet = rgame_texture_sheet_create(7, 64, 32, RGAME_TEXTURE_NEAREST);
     ck_assert_ptr_nonnull(sheet);
     ck_assert_int_eq(sheet->width, 64);
     ck_assert_int_eq(sheet->height, 32);
@@ -48,14 +69,14 @@ END_TEST
 START_TEST(a_sheet_with_a_degenerate_size_is_refused) {
     /* An image that decoded to nothing has no valid UV space; a zero divisor
      * downstream is worse than failing here. */
-    ck_assert_ptr_null(rgame_texture_sheet_create(1, 0, 32));
-    ck_assert_ptr_null(rgame_texture_sheet_create(1, 32, 0));
-    ck_assert_ptr_null(rgame_texture_sheet_create(1, -4, -4));
+    ck_assert_ptr_null(rgame_texture_sheet_create(1, 0, 32, RGAME_TEXTURE_NEAREST));
+    ck_assert_ptr_null(rgame_texture_sheet_create(1, 32, 0, RGAME_TEXTURE_NEAREST));
+    ck_assert_ptr_null(rgame_texture_sheet_create(1, -4, -4, RGAME_TEXTURE_NEAREST));
 }
 END_TEST
 
 START_TEST(a_retained_sheet_survives_a_release) {
-    rgame_texture_sheet *sheet = rgame_texture_sheet_create(7, 64, 32);
+    rgame_texture_sheet *sheet = rgame_texture_sheet_create(7, 64, 32, RGAME_TEXTURE_NEAREST);
     rgame_texture_sheet_retain(sheet);
 
     unsigned int freed = 99;
@@ -70,7 +91,7 @@ START_TEST(a_retained_sheet_survives_a_release) {
 END_TEST
 
 START_TEST(the_sheet_dies_only_when_the_last_view_goes_in_any_order) {
-    rgame_texture_sheet *sheet = rgame_texture_sheet_create(42, 32, 32);
+    rgame_texture_sheet *sheet = rgame_texture_sheet_create(42, 32, 32, RGAME_TEXTURE_NEAREST);
     rgame_texture a = rgame_texture_whole(sheet);
     rgame_texture b = {0};
     rgame_texture c = {0};
@@ -371,6 +392,96 @@ START_TEST(a_non_square_sheet_normalises_each_axis_by_its_own_size) {
 }
 END_TEST
 
+START_TEST(a_sheet_remembers_the_filter_it_was_uploaded_with) {
+    rgame_texture view = linear_sheet(8, 8);
+
+    ck_assert_int_eq(view.sheet->filter, RGAME_TEXTURE_LINEAR);
+
+    rgame_texture_destroy(&view, NULL);
+}
+END_TEST
+
+START_TEST(a_nearest_subimage_samples_right_up_to_its_edges) {
+    /* Rule 1 of the plan's step: under NEAREST nothing moves, bit for bit. */
+    rgame_texture view = whole_sheet(7, 64, 64);
+    rgame_texture sub = {0};
+    ck_assert_int_eq(rgame_texture_subimage(&view, 16, 32, 16, 16, &sub), 1);
+
+    float uv[8] = {0};
+    rgame_texture_uv(&sub, uv);
+
+    ck_uv_texels(uv, 64.0f, 16.0f, 32.0f, 32.0f, 48.0f);
+
+    rgame_texture_destroy(&sub, NULL);
+    rgame_texture_destroy(&view, NULL);
+}
+END_TEST
+
+START_TEST(a_linear_subimage_insets_every_edge_inside_the_sheet_by_half_a_texel) {
+    /* Without it, filtering at the edge blends in the next sprite along. */
+    rgame_texture view = linear_sheet(64, 64);
+    rgame_texture sub = {0};
+    ck_assert_int_eq(rgame_texture_subimage(&view, 16, 32, 16, 16, &sub), 1);
+
+    float uv[8] = {0};
+    rgame_texture_uv(&sub, uv);
+
+    ck_uv_texels(uv, 64.0f, 16.5f, 32.5f, 31.5f, 47.5f);
+
+    rgame_texture_destroy(&sub, NULL);
+    rgame_texture_destroy(&view, NULL);
+}
+END_TEST
+
+START_TEST(a_linear_edge_on_the_sheet_border_stays) {
+    /* GL_CLAMP_TO_EDGE repeats the border texel outward, so there is nothing
+     * past these edges to bleed in. */
+    rgame_texture view = linear_sheet(64, 64);
+    rgame_texture top_left = {0};
+    rgame_texture bottom_right = {0};
+    ck_assert_int_eq(rgame_texture_subimage(&view, 0, 0, 16, 16, &top_left), 1);
+    ck_assert_int_eq(rgame_texture_subimage(&view, 48, 48, 16, 16, &bottom_right), 1);
+
+    float uv[8] = {0};
+    rgame_texture_uv(&top_left, uv);
+    ck_uv_texels(uv, 64.0f, 0.0f, 0.0f, 15.5f, 15.5f);
+    rgame_texture_uv(&bottom_right, uv);
+    ck_uv_texels(uv, 64.0f, 48.5f, 48.5f, 64.0f, 64.0f);
+
+    rgame_texture_destroy(&top_left, NULL);
+    rgame_texture_destroy(&bottom_right, NULL);
+    rgame_texture_destroy(&view, NULL);
+}
+END_TEST
+
+START_TEST(a_linear_view_one_texel_wide_samples_that_texels_centre) {
+    rgame_texture view = linear_sheet(16, 16);
+    rgame_texture texel = {0};
+    ck_assert_int_eq(rgame_texture_subimage(&view, 5, 5, 1, 1, &texel), 1);
+
+    float uv[8] = {0};
+    rgame_texture_uv(&texel, uv);
+
+    ck_uv_texels(uv, 16.0f, 5.5f, 5.5f, 5.5f, 5.5f);
+
+    rgame_texture_destroy(&texel, NULL);
+    rgame_texture_destroy(&view, NULL);
+}
+END_TEST
+
+START_TEST(a_whole_linear_sheet_keeps_zero_to_one) {
+    rgame_texture view = linear_sheet(64, 32);
+    float uv[8] = {0};
+
+    rgame_texture_uv(&view, uv);
+
+    ck_assert_float_eq(uv[0], 0.0f); ck_assert_float_eq(uv[1], 0.0f);
+    ck_assert_float_eq(uv[4], 1.0f); ck_assert_float_eq(uv[5], 1.0f);
+
+    rgame_texture_destroy(&view, NULL);
+}
+END_TEST
+
 START_TEST(an_empty_view_has_no_size_and_degenerate_uvs) {
     rgame_texture empty = {0};
     float uv[8] = {9, 9, 9, 9, 9, 9, 9, 9};
@@ -436,6 +547,12 @@ Suite *texture_suite(void) {
     tcase_add_test(tc, a_subimages_uvs_are_normalised_against_the_sheet);
     tcase_add_test(tc, v_increases_downwards);
     tcase_add_test(tc, a_non_square_sheet_normalises_each_axis_by_its_own_size);
+    tcase_add_test(tc, a_sheet_remembers_the_filter_it_was_uploaded_with);
+    tcase_add_test(tc, a_nearest_subimage_samples_right_up_to_its_edges);
+    tcase_add_test(tc, a_linear_subimage_insets_every_edge_inside_the_sheet_by_half_a_texel);
+    tcase_add_test(tc, a_linear_edge_on_the_sheet_border_stays);
+    tcase_add_test(tc, a_linear_view_one_texel_wide_samples_that_texels_centre);
+    tcase_add_test(tc, a_whole_linear_sheet_keeps_zero_to_one);
     tcase_add_test(tc, an_empty_view_has_no_size_and_degenerate_uvs);
     tcase_add_test(tc, the_live_sheet_count_follows_the_last_reference);
 

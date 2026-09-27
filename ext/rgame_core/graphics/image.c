@@ -9,8 +9,8 @@
  * pixels is pure too, in pixels.{c,h}, and test/test_pixels.c covers it. What
  * is left here is a file read, one stb call and four GL calls, and it is kept
  * this thin precisely so that "we don't unit-test it directly" is an honest
- * position rather than a gap. `spec_core/rgame/core/image_spec.rb` exercises it end to end against a
- * real GL context under Xvfb.
+ * position rather than a gap. `spec_core/rgame/core/image_spec.rb` exercises
+ * it end to end against a real GL context under Xvfb.
  *
  * ---------------------------------------------------------------------------
  * What a handle is
@@ -213,7 +213,8 @@ rgame_image *rgame_image_load(rgame_app *app, const char *path, char *err, size_
         return NULL;
     }
 
-    rgame_texture_sheet *sheet = rgame_texture_sheet_create(name, width, height);
+    rgame_texture_sheet *sheet =
+        rgame_texture_sheet_create(name, width, height, RGAME_TEXTURE_NEAREST);
     if (!sheet) {
         glDeleteTextures(1, &name);
         rgame_app_gl_restore(&saved);

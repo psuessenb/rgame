@@ -62,7 +62,8 @@ static void nothing_at_all(rgame_canvas *c) {
  * been drawn: the draw copies its vertices (GL name included) into the queue,
  * so nothing downstream still needs it. */
 static rgame_texture sheet_named(unsigned int name, int width, int height) {
-    rgame_texture_sheet *sheet = rgame_texture_sheet_create(name, width, height);
+    rgame_texture_sheet *sheet =
+        rgame_texture_sheet_create(name, width, height, RGAME_TEXTURE_NEAREST);
     rgame_texture view = rgame_texture_whole(sheet);
     rgame_texture_sheet_release(sheet, NULL);
     return view;
