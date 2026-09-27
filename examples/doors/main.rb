@@ -30,6 +30,11 @@
 # A `Warp` is a door into its own room, so it names only the entrance. Moving a
 # door is a change in Tiled.
 #
+# `@placeable` in the same comment puts `Door` and `Warp` in the classes
+# `Engine::MapTypes` writes into a Tiled project, each with its settings as
+# members. A designer then picks a door from Tiled's list rather than typing its
+# class and properties. The maps build the same without the tag or a project.
+#
 # ## One room class for both maps
 #
 # `Grounds` is every room here: a map, the world it makes solid, and its doors.
@@ -96,6 +101,7 @@ module DoorsExample
   class Door < Engine::Node2D
     COLOR = Util::Color.new(150, 104, 56)
 
+    # @placeable
     # @param to [Symbol] the room the door leads to
     # @param entrance [String] the entrance in that room where the hero arrives
     # @param party [Boolean] whether it moves every hero the world holds, rather than the one who touched it
@@ -125,6 +131,7 @@ module DoorsExample
   class Warp < Door
     COLOR = Util::Color.new(150, 96, 210, 200)
 
+    # @placeable
     # @param entrance [String] the entrance in this room where the hero arrives
     def initialize(entrance:, **) = super(to: nil, entrance:, **)
 

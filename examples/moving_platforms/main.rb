@@ -103,6 +103,7 @@ module MovingPlatformsExample
     MIDDLE = 1
     RIGHT = 3
 
+    # @placeable
     # @param deck_width [Integer] the raft's width in pixels, a multiple of 16
     # @param deck_height [Integer] its height in pixels, a multiple of 16
     def initialize(route:, deck_width:, deck_height:, **)
