@@ -14,6 +14,29 @@ module SpecMountGame
 
     def _draw(renderer, _view) = renderer.text(@name, 0, 0)
   end
+
+  # A lamp a designer may place from the Tiled project.
+  class Lamp < RGame::Engine::Node2D
+    # @placeable
+    # @param lit [Boolean] whether it shines
+    def initialize(lit: false, **)
+      super(**)
+      @lit = lit
+    end
+
+    attr_reader :lit
+  end
+
+  # The same lamp, which no Tiled project lists.
+  class PlainLamp < RGame::Engine::Node2D
+    # @param lit [Boolean] whether it shines
+    def initialize(lit: false, **)
+      super(**)
+      @lit = lit
+    end
+
+    attr_reader :lit
+  end
 end
 
 # rubocop:disable RSpec/MultipleMemoizedHelpers -- drawing a layer needs map, world, camera, renderer, scene, mount
@@ -338,6 +361,40 @@ RSpec.describe RGame::Engine::TileMapLayer do
       hero.y = 56
 
       expect(drawn).to eq([0, :tree, :hero, 2] * 2)
+    end
+  end
+
+  # Nothing at load reads a .tiled-project. It only helps the designer pick a
+  # class, so a map builds the same beside a stale one, and with none.
+  describe 'a Tiled project beside the map' do
+    let(:directory) do
+      lamps = '<object id="1" type="Lamp" x="0" y="0"><point/></object>' \
+              '<object id="2" type="PlainLamp" x="0" y="0"><point/></object>'
+      map = '<map orientation="orthogonal" width="2" height="2" tilewidth="16" tileheight="16">' \
+            "#{tileset}#{object_layer('lamps', lamps)}</map>"
+      TiledFixture.write_files('map.tmx' => map)
+    end
+    let(:map) { RGame::Engine::TileMap.from_tiled(RGame::Engine::Tiled::Map.load(File.join(directory, 'map.tmx'))) }
+
+    # A project written for the game, then changed as a designer would change
+    # a default in Tiled's custom types editor.
+    def lit_by_default(path)
+      RGame::Engine::MapTypes.new(SpecMountGame).write(path)
+      project = JSON.parse(File.read(path))
+      project['propertyTypes'].find { it['name'] == 'Lamp' }['members'].first['value'] = true
+      File.write(path, JSON.generate(project))
+    end
+
+    def lamps = mount['lamps'].children
+
+    it "builds each node with Ruby's defaults, not the project's" do
+      lit_by_default(File.join(directory, 'map.tiled-project'))
+
+      expect(lamps.map(&:lit)).to eq([false, false])
+    end
+
+    it 'builds a class without @placeable as it builds one with it' do
+      expect(lamps.map { [it.class, it.lit] }).to eq([[SpecMountGame::Lamp, false], [SpecMountGame::PlainLamp, false]])
     end
   end
 

@@ -1,0 +1,264 @@
+{
+    "automappingRulesFile": "",
+    "commands": [
+    ],
+    "compatibilityVersion": 1100,
+    "extensionsPath": "extensions",
+    "folders": [
+        "."
+    ],
+    "properties": [
+        {
+            "name": "author",
+            "type": "string",
+            "value": "rgame"
+        }
+    ],
+    "propertyTypes": [
+        {
+            "color": "#ffa0a0a4",
+            "drawFill": true,
+            "id": 1,
+            "members": [
+                {
+                    "name": "contents",
+                    "type": "string",
+                    "value": ""
+                },
+                {
+                    "name": "count",
+                    "type": "int",
+                    "value": 3
+                },
+                {
+                    "name": "glow",
+                    "type": "color",
+                    "value": ""
+                },
+                {
+                    "name": "lid",
+                    "propertyType": "Chest.lid",
+                    "type": "string",
+                    "value": "round"
+                },
+                {
+                    "name": "locked",
+                    "type": "bool",
+                    "value": false
+                },
+                {
+                    "name": "tint",
+                    "type": "color",
+                    "value": "#ff966838"
+                },
+                {
+                    "name": "weight",
+                    "type": "float",
+                    "value": 2.5
+                },
+                {
+                    "name": "wood",
+                    "type": "string",
+                    "value": "oak"
+                }
+            ],
+            "name": "Chest",
+            "type": "class",
+            "useAs": [
+                "object",
+                "tile"
+            ]
+        },
+        {
+            "id": 2,
+            "name": "Chest.lid",
+            "storageType": "string",
+            "type": "enum",
+            "values": [
+                "flat",
+                "round"
+            ],
+            "valuesAsFlags": false
+        },
+        {
+            "color": "#ffa0a0a4",
+            "drawFill": true,
+            "id": 3,
+            "members": [
+            ],
+            "name": "Flag",
+            "type": "class",
+            "useAs": [
+                "object",
+                "tile"
+            ]
+        },
+        {
+            "color": "#ffa0a0a4",
+            "drawFill": true,
+            "id": 4,
+            "members": [
+                {
+                    "name": "contents",
+                    "type": "string",
+                    "value": ""
+                },
+                {
+                    "name": "count",
+                    "type": "int",
+                    "value": 3
+                },
+                {
+                    "name": "glow",
+                    "type": "color",
+                    "value": ""
+                },
+                {
+                    "name": "lid",
+                    "propertyType": "LockedChest.lid",
+                    "type": "string",
+                    "value": "round"
+                },
+                {
+                    "name": "locked",
+                    "type": "bool",
+                    "value": false
+                },
+                {
+                    "name": "tint",
+                    "type": "color",
+                    "value": "#ff966838"
+                },
+                {
+                    "name": "weight",
+                    "type": "float",
+                    "value": 2.5
+                },
+                {
+                    "name": "wood",
+                    "type": "string",
+                    "value": "oak"
+                }
+            ],
+            "name": "LockedChest",
+            "type": "class",
+            "useAs": [
+                "object",
+                "tile"
+            ]
+        },
+        {
+            "id": 5,
+            "name": "LockedChest.lid",
+            "storageType": "string",
+            "type": "enum",
+            "values": [
+                "flat",
+                "round"
+            ],
+            "valuesAsFlags": false
+        },
+        {
+            "color": "#ffa0a0a4",
+            "drawFill": true,
+            "id": 6,
+            "members": [
+                {
+                    "name": "count",
+                    "type": "int",
+                    "value": 0
+                },
+                {
+                    "name": "label",
+                    "type": "string",
+                    "value": ""
+                },
+                {
+                    "name": "lid",
+                    "propertyType": "Town::Chest.lid",
+                    "type": "string",
+                    "value": ""
+                },
+                {
+                    "name": "locked",
+                    "type": "bool",
+                    "value": false
+                },
+                {
+                    "name": "tint",
+                    "type": "color",
+                    "value": ""
+                },
+                {
+                    "name": "weight",
+                    "type": "float",
+                    "value": 0
+                },
+                {
+                    "name": "wood",
+                    "type": "string",
+                    "value": ""
+                }
+            ],
+            "name": "Town::Chest",
+            "type": "class",
+            "useAs": [
+                "object",
+                "tile"
+            ]
+        },
+        {
+            "id": 7,
+            "name": "Town::Chest.lid",
+            "storageType": "string",
+            "type": "enum",
+            "values": [
+                "flat",
+                "round"
+            ],
+            "valuesAsFlags": false
+        },
+        {
+            "id": 8,
+            "name": "facing",
+            "storageType": "string",
+            "type": "enum",
+            "values": [
+                "north",
+                "south"
+            ],
+            "valuesAsFlags": false
+        },
+        {
+            "color": "#ffa0a0a4",
+            "drawFill": true,
+            "id": 9,
+            "members": [
+                {
+                    "name": "facing",
+                    "propertyType": "facing",
+                    "type": "string",
+                    "value": "south"
+                },
+                {
+                    "name": "rise",
+                    "type": "float",
+                    "value": 0.5
+                }
+            ],
+            "name": "entrance",
+            "type": "class",
+            "useAs": [
+                "property",
+                "map",
+                "layer",
+                "object",
+                "tile",
+                "tileset",
+                "wangcolor",
+                "wangset",
+                "project"
+            ]
+        }
+    ]
+}

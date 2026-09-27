@@ -360,7 +360,9 @@ object stays a record in `map.objects`. The name resolves as Ruby would resolve 
 `scope`. `Chest` is `MyGame::Town::Chest`, then
 `MyGame::Chest`, then a constant `MyGame::Town` inherits, then `::Chest`. A
 path such as `Town::Chest` resolves the same way. So a map names no module, and
-two games can share one map, each with a `Chest` of its own. A name that
+two games can share one map, each with a `Chest` of its own. `MapSettings.nesting`
+lists the modules a name resolves in, innermost first, and `MapSettings.resolve`
+looks it up there, so `MapTypes` finds a default's constant the same way. A name that
 resolves to no constant raises `NameError`, and a constant that is not
 `Node2D` or a subclass of it raises `TypeError`.
 
@@ -389,6 +391,9 @@ tag of a type from this table:
   The builder sets those.
 - **A class needs a source file.** A class defined by `eval`, in IRB or with
   `ruby -e` has none, and building it raises `ArgumentError`.
+- **`@placeable` in the same comment asks for the class to be written for
+  Tiled**, which [`MapTypes`](tile_maps.md#tileds-custom-types) does. The
+  builder builds a class with or without it.
 
 **Each property sets the keyword of its name.** A property no tag makes
 settable raises `ArgumentError`, listing the keywords that are. A property of

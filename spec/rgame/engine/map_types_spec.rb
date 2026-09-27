@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
+require 'json'
 require 'open3'
+require 'tmpdir'
 
 # MapTypes reads the comments above each class's `initialize`, and Prism reads
 # its defaults, both from the source file. So each game's module it exports is
@@ -177,6 +179,24 @@ module SpecTypesPositional
   end
 end
 
+# A Float of each form Tiled writes otherwise than Ruby.
+module SpecTypesFloats
+  # A gauge with a Float default of each form.
+  class Gauge < RGame::Engine::Node2D
+    # @placeable
+    # @param whole [Float] a whole number
+    # @param huge [Float] beyond 2**64
+    # @param tenth [Float] a fraction
+    # @param tiny [Float] below 1e-4
+    # @param below [Float] a whole negative number
+    # @param long [Float] whole, below 2**64, with more digits than a Float keeps
+    def initialize(whole: 100.0, huge: 1e20, tenth: 0.1, tiny: 0.00001, below: -3.0,
+                   long: 12_345_678_901_234_567_890.0, **)
+      super(**)
+    end
+  end
+end
+
 # rubocop:enable Lint/UnusedMethodArgument
 
 RSpec.describe RGame::Engine::MapTypes do
@@ -273,6 +293,195 @@ RSpec.describe RGame::Engine::MapTypes do
 
     it 'writes nothing for a module with no placeable class' do
       expect(types_of(SpecTypesUntagged)).to eq([])
+    end
+  end
+
+  # The fixture is Tiled 1.12.2's own writing. MapTypes wrote SpecTypesGame's
+  # types into a new project, and this script, run as
+  # `tiled --project saved.tiled-project --evaluate saved.js`, added a
+  # project property, a lower-case enum and a lower-case class. Adding a type
+  # makes Tiled save the project, and it wrote every byte of the export back
+  # as it was.
+  #
+  #   var project = tiled.project;
+  #   project.setProperty("author", "rgame");
+  #   var facing = project.addEnumType("facing");
+  #   facing.addValue("north");
+  #   facing.addValue("south");
+  #   var entrance = project.addClassType("entrance");
+  #   entrance.setMember("facing", tiled.propertyValue("facing", "south"));
+  #   entrance.setMember("rise", 0.5);
+  describe 'a project' do
+    let(:dir) { Dir.mktmpdir('rgame-map-types') }
+    let(:saved) { File.read(File.expand_path('../../fixtures/saved.tiled-project', __dir__)) }
+    let(:path) { File.join(dir, 'game.tiled-project') }
+    let(:exporter) { described_class.new(SpecTypesGame) }
+
+    # The fixture with Chest's count at 4 rather than its default of 3, so a
+    # write has something to change.
+    let(:stale) { saved.sub('"value": 3', '"value": 4') }
+
+    after { FileUtils.remove_entry(dir) }
+
+    def project = JSON.parse(File.read(path))
+
+    def held = project['propertyTypes']
+
+    # The fixture changed by the block, written by Ruby's own JSON, so what a
+    # write leaves reads as MapTypes wrote it rather than as it came in.
+    def edited
+      parsed = JSON.parse(saved)
+      yield parsed['propertyTypes']
+      File.write(path, JSON.pretty_generate(parsed))
+    end
+
+    def type(name) = held.find { it['name'] == name }
+
+    describe '#write' do
+      it "creates a missing project, holding what Tiled's own new project holds" do
+        exporter.write(path)
+
+        expect(project.except('propertyTypes'))
+          .to eq('automappingRulesFile' => '', 'commands' => [], 'compatibilityVersion' => 1100,
+                 'extensionsPath' => 'extensions', 'folders' => ['.'], 'properties' => [])
+        expect(held.map { [it['id'], it['name']] }).to eq(exporter.types.each_with_index.map { |t, i|
+          [i + 1, t['name']]
+        })
+      end
+
+      it 'creates one for a game with no placeable class, holding no type' do
+        described_class.new(SpecTypesUntagged).write(path)
+
+        expect(held).to eq([])
+      end
+
+      it 'writes the file as Tiled does, so a project Tiled saved changes only where a type did' do
+        File.write(path, stale)
+        exporter.write(path)
+
+        expect(File.read(path)).to eq(saved)
+      end
+
+      # Tiled 1.12.2 wrote each value back this way, where Ruby writes -3.0,
+      # 1.0e+20, 1.2345678901234567e+19, 1.0e-05 and 100.0.
+      it 'writes a Float as Tiled writes it' do
+        described_class.new(SpecTypesFloats).write(path)
+
+        expect(File.read(path).scan(/"value": (.*)$/).flatten)
+          .to eq(%w[-3 1e+20 12345678901234567000 0.1 1e-05 100])
+      end
+
+      it 'leaves a project that holds the types untouched, however it is formatted' do
+        compact = JSON.generate(JSON.parse(saved))
+        File.write(path, compact)
+        exporter.write(path)
+
+        expect(File.read(path)).to eq(compact)
+      end
+
+      it 'replaces a type the game defines in its place, keeping the id, colour and fill Tiled holds' do
+        edited do |types|
+          chest = types.find { it['name'] == 'Chest' }
+          chest.merge!('color' => '#ff112233', 'drawFill' => false, 'members' => [])
+        end
+        exporter.write(path)
+
+        expect(held.first).to include('id' => 1, 'name' => 'Chest', 'color' => '#ff112233', 'drawFill' => false,
+                                      'members' => exporter.types.first['members'])
+      end
+
+      it 'removes a type starting with a capital letter that the game does not define' do
+        edited { it << { 'id' => 20, 'name' => 'Barrel', 'type' => 'class', 'members' => [], 'useAs' => [] } }
+        exporter.write(path)
+
+        expect(type('Barrel')).to be_nil
+      end
+
+      it 'keeps every type starting with a lower-case letter, and every other key of the project' do
+        edited { it.reject! { it['name'] == 'Flag' } }
+        exporter.write(path)
+
+        expect([type('entrance')['id'], type('facing')['id'], project['properties'].first['name']])
+          .to eq([9, 8, 'author'])
+      end
+
+      it 'adds a type the project lacks after the rest, with an id above the highest' do
+        edited { it.reject! { it['name'] == 'Flag' } }
+        exporter.write(path)
+
+        expect(held.last).to include('id' => 10, 'name' => 'Flag')
+      end
+    end
+
+    describe '#changes' do
+      it 'reports what write would, and writes nothing' do
+        File.write(path, stale)
+
+        expect([exporter.changes(path).changed.map { it['name'] }, File.read(path)]).to eq([['Chest'], stale])
+      end
+
+      it 'is current for a project holding the types, whatever id, colour or fill Tiled gave them' do
+        edited do |types|
+          types.each do |type|
+            type['id'] += 100
+            type['color'] = '#ff000000' if type['type'] == 'class'
+          end
+          types.first['drawFill'] = false
+        end
+
+        expect(exporter.changes(path)).to be_current
+      end
+
+      it 'counts a class changed when only an enum of its members did' do
+        edited { |types| types.find { it['name'] == 'Chest.lid' }['values'] = %w[flat] }
+
+        expect(exporter.changes(path).changed.map { it['name'] }).to eq(['Chest'])
+      end
+
+      it 'is not current for a missing project, even with no class to write' do
+        expect(described_class.new(SpecTypesUntagged).changes(path)).not_to be_current
+      end
+    end
+
+    describe 'the report' do
+      it 'lists every class, with its members and what the write did, then every type removed' do
+        edited do |types|
+          types.reject! { it['name'] == 'Flag' }
+          types.find { it['name'] == 'Chest' }['members'] = []
+          types << { 'id' => 20, 'name' => 'Barrel', 'type' => 'class', 'members' => [], 'useAs' => [] }
+        end
+
+        expect(exporter.write(path).to_s).to eq(<<~REPORT.chomp)
+          #{path}
+            changed    Chest        contents, count, glow, lid, locked, tint, weight, wood
+            added      Flag
+            unchanged  LockedChest  contents, count, glow, lid, locked, tint, weight, wood
+            unchanged  Town::Chest  count, label, lid, locked, tint, weight, wood
+            removed    Barrel
+          Tiled shows the change once the project is reopened.
+          A class is written when the comment above its initialize carries @placeable.
+        REPORT
+      end
+
+      it 'says only which classes are written, for a current project' do
+        File.write(path, saved)
+
+        expect(exporter.write(path).to_s.lines.last(2).map(&:chomp))
+          .to eq(['  unchanged  Town::Chest  count, label, lid, locked, tint, weight, wood',
+                  'A class is written when the comment above its initialize carries @placeable.'])
+      end
+
+      it 'says a project was created, and that a missing one would be' do
+        expect([exporter.changes(path).to_s.lines.first, exporter.write(path).to_s.lines.first])
+          .to eq(["#{path}, missing\n", "#{path}, created\n"])
+      end
+
+      it 'says only the rule, for a game with no placeable class' do
+        File.write(path, JSON.generate('propertyTypes' => []))
+
+        expect(described_class.new(SpecTypesUntagged).write(path).to_s)
+          .to eq("#{path}\nA class is written when the comment above its initialize carries @placeable.")
+      end
     end
   end
 

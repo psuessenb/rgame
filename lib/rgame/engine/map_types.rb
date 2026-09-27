@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require 'fileutils'
+require 'json'
+
 module RGame
   module Engine
     # Tiled's custom types for a game's node classes, so a designer picks a
@@ -44,7 +47,57 @@ module RGame
     # Tiled's empty value, and `nil` shows as empty for a String, a Symbol and
     # a colour. Any other default raises ArgumentError, naming the class and
     # the keyword, and so does a placeable class no map could build.
+    #
+    #   puts RGame::Engine::MapTypes.new(MyGame).write('assets/my_game.tiled-project')
+    #
+    # **`write` owns every type whose name starts with a capital letter**, as a
+    # capital letter in a map's class is the code's. It replaces those the game
+    # defines, keeping the id, colour and fill Tiled holds for each, removes
+    # the others, and adds new ones after the rest. The designer's lower-case
+    # types, and every other key of the project, stay as they are. It writes
+    # the file as Tiled does, so a project Tiled saved changes only where the
+    # types did, and a project that holds the types already is not written.
+    #
+    # Nothing at load reads the project. A map builds the same with it, with a
+    # stale one, and with none: the project only helps a designer pick.
     class MapTypes
+      # What a write changed, or would change, in one project. `added`,
+      # `changed` and `unchanged` hold classes as `types` gives them, each
+      # changed when an enum of its members changed, and `removed` holds the
+      # names of the types taken out. `missing` says the project did not exist,
+      # and `written` that this report's write changed the file.
+      Report = Data.define(:path, :missing, :added, :changed, :unchanged, :removed, :written) do
+        # Whether the project exists and holds every type already.
+        def current? = !missing && added.empty? && changed.empty? && removed.empty?
+
+        # A line per class written, with its members, a line per type removed,
+        # and the rule that decides which classes are written.
+        def to_s
+          lines = [heading, *class_lines, *removed.map { "  removed    #{it}" }]
+          lines << 'Tiled shows the change once the project is reopened.' if written && !missing
+          lines << 'A class is written when the comment above its initialize carries @placeable.'
+          lines.join("\n")
+        end
+
+        private
+
+        def heading
+          return path unless missing
+
+          written ? "#{path}, created" : "#{path}, missing"
+        end
+
+        def class_lines
+          classes = added.map { [it, 'added'] } + changed.map { [it, 'changed'] } + unchanged.map { [it, 'unchanged'] }
+          classes.sort_by! { |type, _status| type['name'] }
+          width = classes.map { |type, _status| type['name'].size }.max
+          classes.map do |type, status|
+            members = type['members'].map { it['name'] }.join(', ')
+            "  #{status.ljust(9)}  #{type['name'].ljust(width)}  #{members}".rstrip
+          end
+        end
+      end
+
       TILED = { string: 'string', symbol: 'string', integer: 'int', float: 'float', bool: 'bool',
                 color: 'color' }.freeze
       EMPTY = { string: '', symbol: '', integer: 0, float: 0.0, bool: false, color: '' }.freeze
@@ -54,7 +107,11 @@ module RGame
       # What Tiled gives a class it makes, and where a game's class may be used.
       COLOR = '#ffa0a0a4'
       USE_AS = %w[object tile].freeze
-      private_constant :TILED, :EMPTY, :WANTED, :COLOR, :USE_AS
+
+      OWNED = /\A[[:upper:]]/
+      KEPT = %w[color drawFill].freeze
+      INDENT = '    '
+      private_constant :TILED, :EMPTY, :WANTED, :COLOR, :USE_AS, :OWNED, :KEPT, :INDENT
 
       # `scope` is the game's module.
       def initialize(scope)
@@ -66,7 +123,99 @@ module RGame
       # name. A type has no `id` until it is written into a project.
       def types = placeable.flat_map { class_types(it) }.sort_by { it['name'] }
 
+      # Writes the types into the Tiled project at `path`, creating the project
+      # when it is missing, and returns the Report. A project that holds the
+      # types already stays untouched, whatever id, colour, fill or formatting
+      # Tiled gave them.
+      def write(path)
+        report, project = merged(path)
+        return report if report.current?
+
+        FileUtils.mkdir_p(File.dirname(path))
+        File.write(path, "#{json(project, '')}\n")
+        report.with(written: true)
+      end
+
+      # The Report `write` would return, writing nothing.
+      def changes(path) = merged(path).first
+
       private
+
+      def merged(path)
+        missing = !File.exist?(path)
+        project = missing ? new_project : JSON.parse(File.read(path))
+        held = project.fetch('propertyTypes', [])
+        written = types
+        wanted = written.to_h { [it['name'], it] }
+        statuses = {}
+        removed = []
+        kept = []
+        held.each do |type|
+          name = type['name']
+          if !name.match?(OWNED) then kept << type
+          elsif (replacement = wanted.delete(name)) then kept << replaced(type, replacement, statuses)
+          else removed << name
+          end
+        end
+        next_id = held.filter_map { it['id'] }.max.to_i
+        wanted.each_value do |type|
+          statuses[type['name']] = :added
+          kept << type.merge('id' => next_id += 1)
+        end
+        project['propertyTypes'] = kept
+        [report(path, missing, written, statuses, removed), project]
+      end
+
+      def new_project
+        { 'automappingRulesFile' => '', 'commands' => [], 'compatibilityVersion' => 1100,
+          'extensionsPath' => 'extensions', 'folders' => ['.'], 'properties' => [], 'propertyTypes' => [] }
+      end
+
+      def replaced(held, type, statuses)
+        statuses[type['name']] = held.except('id', *KEPT) == type.except(*KEPT) ? :unchanged : :changed
+        type.merge(held.slice('id', *(KEPT & type.keys)))
+      end
+
+      def report(path, missing, written, statuses, removed)
+        grouped = written.select { it['type'] == 'class' }.group_by { class_status(it, statuses) }
+        Report.new(path:, missing:, added: grouped.fetch(:added, []), changed: grouped.fetch(:changed, []),
+                   unchanged: grouped.fetch(:unchanged, []), removed:, written: false)
+      end
+
+      def class_status(type, statuses)
+        return :added if statuses[type['name']] == :added
+
+        same = statuses[type['name']] == :unchanged &&
+               type['members'].all? { !it['propertyType'] || statuses[it['propertyType']] == :unchanged }
+        same ? :unchanged : :changed
+      end
+
+      def json(value, indent)
+        inner = indent + INDENT
+        case value
+        when Hash then block('{', '}', value.sort.map { |key, item| "#{JSON.generate(key)}: #{json(item, inner)}" },
+                             indent)
+        when Array then block('[', ']', value.map { json(it, inner) }, indent)
+        when Float then number(value)
+        else JSON.generate(value)
+        end
+      end
+
+      def block(open, close, entries, indent)
+        return "#{open}\n#{indent}#{close}" if entries.empty?
+
+        "#{open}\n#{entries.map { "#{indent}#{INDENT}#{it}" }.join(",\n")}\n#{indent}#{close}"
+      end
+
+      def number(value)
+        mantissa, exponent = value.to_s.split('e')
+        mantissa = mantissa.delete_suffix('.0')
+        return mantissa unless exponent
+        return "#{mantissa}e#{exponent}" unless value == value.round && value.abs < 2**64
+
+        integer, fraction = mantissa.split('.')
+        "#{integer}#{fraction}#{'0' * (exponent.to_i - fraction.to_s.size)}"
+      end
 
       def placeable
         found = []

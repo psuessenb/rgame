@@ -27,7 +27,7 @@ The scene graph is `RGame::Engine`, the layer a game is written in:
 | [Scene graph](scene_graph.md) | `Node2D`, the tree, the lifecycle, transforms and the camera, the scene stack with its transitions, and the rooms players stand apart in |
 | [Components](components.md) | Reusable behaviour attached to a node |
 | [Systems](systems.md) | Services a subtree shares — collision worlds, tile worlds |
-| [Tile maps](tile_maps.md) | `TileMap` — a Tiled map as data: loading, cells, tiles, solidity, layers, objects and the nodes built from them, custom properties |
+| [Tile maps](tile_maps.md) | `TileMap` — a Tiled map as data: loading, cells, tiles, solidity, layers, objects and the nodes built from them, custom properties, and the custom types written for Tiled |
 | [UI](ui.md) | `PlayerLayer`, `UI::Menu`, `UI::Tabs`, `UI::Label` and `UI::DialogueBox` — a player's own screen, a list or wheel navigated by focus, pages shown one at a time under a bar of tabs, a translated paragraph drawn a page at a time, and a box that shows a conversation |
 | [Signals](signals.md) | The typed observer pattern nodes talk through |
 | [Dialogue and state machines](dialogue.md) | `StateGraph` and `StateMachine` — states, transitions with conditions and effects, visit counts; `Components::FactsDatabase`, the flags they read, and saving both as one entry; `Dialogue::Script` and `Dialogue` — beats, responses and conversations; `Dialogue::Transcript`, what one said; `Exploration`, which checks every path in a spec |

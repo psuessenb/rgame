@@ -403,7 +403,9 @@ An object of the class `Chest` with the property `contents: key` builds a
   settable, and a required keyword no property sets, each raise listing what a
   map may set. A value of the wrong type raises naming the Tiled type to use.
   [`MapBuilder`](internals.md#mapbuilder--a-node-from-a-maps-object) has the
-  table of types and the rest of the rules.
+  table of types and the rest of the rules, and
+  [Tiled's custom types](#tileds-custom-types) turns the tags into members a
+  designer fills in.
 - **The node stands at the bottom centre of the object's box**, turned with it.
   `angle` is the object's rotation, and `width` and `height` are its size. A
   point object's node stands on its point, and a polygon's or polyline's on its
@@ -514,6 +516,106 @@ end
 
 `examples/doors` is this code with a hero walking it, and
 [Rooms](scene_graph.md#rooms-scenerooms) says how a move runs.
+
+### Tiled's custom types
+
+**`RGame::Engine::MapTypes` writes a game's node classes into a Tiled project**,
+so a designer picks `Chest` from Tiled's list of classes and fills in its
+members, rather than typing both. A class is written when the comment above its
+`initialize` carries `@placeable`:
+
+```ruby
+module MyGame
+  Engine = RGame::Engine
+
+  class Chest < Engine::Node2D
+    # A chest the hero opens once.
+    #
+    # @placeable
+    # @param contents [String] the item inside
+    # @param locked [Boolean] whether it takes a key to open
+    # @param lid [:flat, :round] the shape of its lid
+    def initialize(contents:, locked: false, lid: :flat, **)
+      super(**)
+    end
+  end
+end
+
+puts RGame::Engine::MapTypes.new(MyGame).write('assets/my_game.tiled-project')
+# assets/my_game.tiled-project
+#   added      Chest  contents, lid, locked
+# Tiled shows the change once the project is reopened.
+# A class is written when the comment above its initialize carries @placeable.
+```
+
+- **The export walks the game's module**, and every module and class defined
+  inside it. It follows no constant that names a module defined elsewhere, such
+  as `Engine = RGame::Engine`.
+- **`@placeable` comes with the constructor**, as the `@param` tags do. A
+  subclass without an `initialize` of its own is placeable when its parent is.
+  A class with nothing to set defines `def initialize(**) = super` to carry the
+  tag. RuboCop's `Lint/UselessMethodDefinition` flags that line, so disable the
+  cop on it and say why.
+- **Each class is named by its path under the module**, such as `Chest` or
+  `Town::Chest`, which is the name a map uses to build it from any scene of the
+  game. Tiled offers it for an object and for a tile. Its members are the
+  keywords its `@param` tags let a map set, sorted by name. `name:` and `route:`
+  are no members, since the builder fills them from the object.
+
+| Tag | Member |
+|---|---|
+| `[String]`, `[Symbol]` | `string` |
+| `[Integer]` | `int` |
+| `[Float]` | `float` |
+| `[Boolean]` | `bool` |
+| `[Util::Color]` | `color` |
+| a list of Symbols, such as `[:flat, :round]` | `string`, of a string enum named `Chest.lid` that holds `flat` and `round` |
+
+**A member shows its keyword's default.** Tiled saves no member a designer
+leaves at its default, and the game then takes the keyword's default, so the
+two must agree. The export reads each default from the source:
+
+- A literal shows itself: `locked: false` shows `false`.
+- A constant shows its value, looked up from the class outward, as a map's class
+  name is.
+- A required keyword shows Tiled's empty value: `""`, `0`, `false` or an unset
+  colour. A map that leaves it unset raises when a scene mounts it.
+- `nil` shows as empty for a String, a Symbol and a colour.
+
+Any other default raises `ArgumentError` naming the class and the keyword: one
+the export cannot read without running it, such as `-Math::PI / 2`, one of
+another type than the tag's, and `nil` for any other type. Move such a value
+into a constant. A placeable class no map could build raises too, such as a hero
+whose `initialize` requires `camera:`.
+
+**`write` owns every type whose name starts with a capital letter**, as a
+capital letter in a map's class is the code's. It replaces each type the game
+defines in its place, keeping the id, colour and fill Tiled gave it. It removes
+the capitalised types the game no longer defines, and adds new ones after the
+rest. The designer's lower-case types, such as an `entrance` class, and every
+other setting of the project stay as they are.
+
+- **`write` creates a missing project**, holding what a new project in Tiled
+  holds.
+- **It writes the file as Tiled does**, so a project Tiled saved changes only
+  where the types changed. A project that holds the types already is not
+  written at all.
+- **Tiled reads the project when it opens it.** A project written while Tiled
+  has it open shows the change once it is reopened, and Tiled's next save of
+  the project overwrites it.
+
+**`changes(path)` returns the report `write` would**, and writes nothing. A
+`MapTypes::Report` is `current?` when the project exists and holds every type,
+whatever id, colour, fill or formatting Tiled gave them. Its `added`, `changed`
+and `unchanged` list the classes written, and `removed` names the types taken
+out. `missing` says the project did not exist, and `written` that this write
+changed the file. `to_s` prints them as above. `types` gives what `write`
+writes, as Hashes in the shape of Tiled's project file.
+
+**A map needs no project.** Nothing at load reads a `.tiled-project`, so a map
+builds the same beside a stale project, and with none. A class and properties
+typed by hand build as they would if picked from the list, and a class without
+`@placeable` builds all the same.
 
 ## `RGame::Engine::Properties`
 
