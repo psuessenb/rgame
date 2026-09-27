@@ -55,6 +55,6 @@ on controls.gamepad(0) do
   press controls::PAD_A       # join: seats player two, splits the screen
   idle 20
   hold controls::PAD_DPAD_DOWN, 90 # the other way, so the two halves diverge
-  press controls::PAD_A       # wave — player two's badge reads 1
+  press controls::PAD_A # wave — player two's badge reads 1
   idle 40
 end

@@ -118,10 +118,6 @@ Run RuboCop over the Ruby files you touched, as a finishing step:
 bundle exec rubocop path/to/changed_file.rb
 ```
 
-**Scope it to the files you changed.** There is a backlog of pre-existing
-offenses elsewhere in the project; leave those alone unless clearing them is
-the actual task, so unrelated churn stays out of the diff.
-
 `-a` (safe autocorrect) is fine unprompted. `-A` (unsafe autocorrect) can change
 semantics, so only with a deliberate look at what it did.
 
