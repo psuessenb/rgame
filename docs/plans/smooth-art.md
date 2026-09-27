@@ -1,0 +1,638 @@
+# Smooth art
+
+**Nothing is implemented yet.** Steps 1–3 are detailed. Steps 4 and 5 are rough,
+and get re-planned before they start.
+
+## Verdict
+
+rgame can draw anti-aliased art cleanly after three changes, none of which needs
+more than OpenGL 1.1.
+
+- **The engine premultiplies every image at load.** Filtering can then no longer
+  pull a transparent pixel's black into an edge, so no exporter has to remember
+  to bleed edge colours.
+- **A game-wide `texture_filter: :linear` switches sheets to linear filtering.**
+  A sprite sliced from a shared sheet samples half a texel inside its own edges,
+  so its neighbour never leaks in.
+- **`RGame::Game` first takes its settings as one `Game::Configuration`.**
+  Otherwise the filter would be its fifteenth keyword.
+
+Pixel-art games do not change. `:nearest` stays the default, and premultiplied
+blending draws the same pixels as straight blending, within 1 per channel.
+
+## Goal
+
+A game whose art is drawn with anti-aliasing at 1280×720 looks clean in a
+1920×1080 window under `:letterbox`. Lines keep an even thickness, edges have no
+dark fringe, and no sprite shows a strip of its neighbour on the sheet.
+
+The requirement, as it arrived:
+
+> rgame's docs say images always use nearest-neighbour sampling, with no setting
+> to change it. With anti-aliased art, any non-integer scaling (e.g. `:letterbox`
+> from 1280×720 to 1920×1080) makes lines jaggy and uneven in thickness.
+> Switching on linear filtering has its own trap: transparent pixels in PNGs are
+> usually black, so edges get dark fringes. The exporter can prevent that by
+> bleeding the edge colors into the transparent pixels (a cheap fix on the export
+> side).
+
+## Hard constraints
+
+1. **OpenGL 1.1, and no loader.** Every call and enum this plan adds exists in
+   1.1: `GL_LINEAR`, `GL_INTENSITY`, `GL_LUMINANCE`, and `glBlendFunc` with
+   `GL_ONE`.
+2. **A pixel-art game changes nothing in its code and nothing on screen.** The
+   default stays `:nearest`. Premultiplied blending matches straight blending
+   within 1 per channel.
+3. **`require "rgame"` still loads no graphics.** `Game::Configuration` lives
+   with `Game`, under `rgame/game`.
+4. **Nothing new allocates on a per-frame path.** Premultiplying a vertex colour
+   is C integer arithmetic on bytes the canvas already writes.
+
+## Decisions already taken
+
+These were settled in conversation and in one round of questions. They are not
+up for re-litigation inside this plan.
+
+1. **`root` and `caption` stay keywords on `Game`; everything else moves into
+   `RGame::Game::Configuration`, passed as `configuration:`.** The keyword list
+   is 14 long and grows with every setting. This refactor is step 1.
+2. **`width` and `height` move too**, although 43 of the 44 games in the
+   repository pass them. `scale_mode` decides what they mean (`game.rb:75`),
+   so the size and its mode belong in one object.
+3. **`input:` and `audio:` move too.** The drive harness writes
+   `configuration.with(input: scripted)` rather than adding a keyword. Otherwise
+   every future seam would grow the list again.
+4. **`Configuration` is a `Data.define` with a default for every member.**
+   `Configuration.new(width: 1280)` builds one, and `with` derives another. No
+   builder is written, and there is no `Configuration.default`, since it would
+   equal `Configuration.new`. It nests under `Game`, so `Game` stays the only
+   class directly under `RGame`, as CLAUDE.md states.
+5. **The engine premultiplies alpha at load, for every image.** Bleeding edge
+   colours was the alternative; see [Considered and
+   rejected](#considered-and-rejected).
+6. **The setting is `texture_filter: :nearest | :linear`, defaulting to
+   `:nearest`.** Godot, LÖVE, raylib and Unity use the same two words, and a
+   third value fits if mipmaps arrive.
+7. **One filter per game.** A per-image override waits for a game that mixes
+   both styles.
+8. **Shrinking art is out of scope.** Art drawn at under half its size needs
+   mipmaps, and nothing asks for that yet.
+9. **`Game` gets no `configuration` reader until a caller needs one.**
+   `scale_mode` and `fullscreen?` already answer for the live state, and a
+   stored configuration goes stale the moment `scale_mode=` runs.
+10. **The filter cannot be switched while the game runs, until a game needs
+    it.** A "crisp or smooth" setting is the trigger. After step 3 each sheet
+    knows its filter, so a switch would set two parameters on every live sheet.
+    Step 5 records this in `possible-todos.md`.
+
+## Open questions
+
+1. ~~**Does `Game` expose its configuration?**~~ **Settled: no, not until a
+   caller needs it.** See decision 9 under
+   [Decisions already taken](#decisions-already-taken).
+2. **Where does step 4's art come from?** Blocks step 4. It must be
+   anti-aliased and under a licence the [write-example](../../.claude/skills/write-example/SKILL.md)
+   skill accepts. Candidates are one of Kenney's CC0 packs that is not pixel
+   art, or art drawn for the example.
+3. ~~**Should the filter be switchable while the game runs?**~~ **Settled: no,
+   not until a game needs it.** See decision 10 under
+   [Decisions already taken](#decisions-already-taken).
+
+## What was measured before planning
+
+Taken at `78e7e4f`.
+
+| | |
+|---|---|
+| Keywords on `Game#initialize` | 14: `root`, `width`, `height`, `caption`, `media_root`, `input_map`, `device`, `players`, `input`, `audio`, `fullscreen`, `scale_mode`, `locales`, `seed` |
+| Places that construct a `Game` | 56: 38 examples, 5 test projects, the generated project's `game.rb.tt`, `README.md`, and 11 snippets in `docs/api/`. Three `spec_core` specs build one in a child process, and `tools/drive_test_project.rb:783-786` prepends to `initialize` |
+| Keywords passed, out of 56 | `root` 56, `caption` 49, `width` 47, `height` 47, `media_root` 41, `locales` 39, `input_map` 22, `seed` 9, `players` 7, `scale_mode` 4, `fullscreen` 3; `device`, `input` and `audio` 1 each, all in `game.md`'s full listing |
+| Files naming a `Game` keyword in prose | 18, among them `CLAUDE.md` (`Game.new(players: 2)`, "`RGame::Game`'s `input:` keyword"), 9 pages in `docs/api/`, and 2 drive scripts |
+| What the harness adds | `input:`, or `device:` under `--gamepad`, plus `audio:` when recording |
+| `Data.define` in `lib/` | 9 uses; the house idiom for a value |
+| `Metrics/ParameterLists` | disabled in `.rubocop.yml`, so a 13-keyword `initialize` needs no exception |
+| Filtering today | `GL_NEAREST`, hardcoded at `ext/rgame_core/graphics/image.c:128-129`. Font pages use `GL_LINEAR` and `GL_ALPHA` (`text/font_atlas.c:121-126` and `:386`) |
+| Blending today | straight alpha: `GL_SRC_ALPHA` as the source factor for both modes (`graphics/gl_backend.c:22`) |
+| Where vertex colours are written | two places, both in `graphics/canvas.c`: `write_vertex` (`:266-267`) and `rgame_canvas_replay` (`:334-336`) |
+| How a recording gets its colours | `rgame_recording_capture` copies the draw queue, so it holds what `write_vertex` wrote |
+| Check tests asserting a translucent vertex colour | 4: `the_colour_reaches_the_vertex_in_gl_byte_order` in `test_canvas.c`, and three replay tests in `test_recording.c` |
+| Callers of `rgame_texture_sheet_create` | `image.c`, and `test_texture.c`, `test_recording.c`, `test_primitives.c` |
+| Callers of `rgame_app_create` | 2: `src/main.c` and `ruby/core_ext.c` |
+| Pixel readback | `spec_core/support/rendered_frame.rb`, used by 6 specs, with PNGs written by `PngFixture` |
+| `make test` | 412 checks, 0 failures, 1.5 s |
+| `rake spec` | 4,514 examples, 0 failures, 36.8 s |
+| `rake spec:core` | 533 examples, 0 failures, 15.8 s |
+
+## What resembles this
+
+**Reuse it.**
+
+- `rgame_texture_uv` computes every UV in the engine, so the half-texel inset
+  changes one function.
+- `App`'s `media_root:` is set once at construction, with a reader and no
+  writer, because the asset cache would otherwise hold assets made under two
+  values. `texture_filter:` is the same kind of setting, for the same reason,
+  and takes the same shape.
+- `RenderedFrame` and `PngFixture` already read back pixels drawn from
+  generated PNGs.
+- `Presentation` keeps deciding scale and offset. Nothing in it changes.
+
+**Extend or generalise it.**
+
+- **The two blend modes share one source factor.** Under premultiplied alpha,
+  `:alpha` and `:add` both take `GL_ONE` and differ only in the destination
+  factor. The multiply mode in `possible-todos.md` fits the same shape.
+- **The font atlas becomes premultiplied like every other texture.** Its
+  `GL_ALPHA` pages are the one texture whose colour does not come from its
+  texels. `GL_INTENSITY` makes a glyph's coverage scale all four channels, as
+  a premultiplied texel does.
+
+**Genuinely new.**
+
+- `graphics/pixels.c`. Nothing touches decoded pixels between stb and the
+  upload today.
+- `Game::Configuration`. Nothing else groups a game's start-up settings. Its
+  nearest relative is `InputMap.default.merge`, a value derived from a default,
+  and `Data#with` gives `Configuration` the same idiom.
+
+## Prior art
+
+| Engine | Filter | Dark fringes |
+|---|---|---|
+| Godot 4 | a project-wide default, `default_texture_filter` (linear), with an override per `CanvasItem` | the importer's `fix_alpha_border` bleeds edges and is on by default; `premult_alpha` is off by default |
+| Unity | per texture: point, bilinear or trilinear | the importer's "Alpha Is Transparency" dilates colour into transparent pixels |
+| LÖVE | `love.graphics.setDefaultFilter`, read when an image is created, and `Image:setFilter` per image | left to the game: every blend mode takes `"alphamultiply"` or `"premultiplied"` |
+| XNA 4.0, MonoGame | per draw, through `SamplerState` | the content pipeline premultiplies at build time, and `BlendState.AlphaBlend` is `One, InverseSourceAlpha` |
+| raylib | `SetTextureFilter` per texture, point by default | left to the game |
+
+They agree on a default read when a texture is created, plus a way to override
+it. They split on fringes: XNA premultiplies, while Godot and Unity bleed edge
+colours at import.
+
+**None of them works without an import step.** Each fixes fringes in a pipeline
+that runs before the game, whether an importer or a content build. rgame loads a
+raw PNG at runtime, so load time is the only place the engine can fix it, and
+the fix must be cheap enough for every load. Premultiplying is one pass of three
+multiplies per pixel. Bleeding searches outward from every edge.
+
+Sources:
+[Godot, importing images](https://docs.godotengine.org/en/stable/tutorials/assets_pipeline/importing_images.html);
+[Godot, `default_texture_filter`](https://docs.godotengine.org/en/stable/classes/class_projectsettings.html#class-projectsettings-property-rendering-textures-canvas-textures-default-texture-filter);
+[Unity, default texture import settings](https://docs.unity3d.com/Manual/texture-type-default.html);
+[LÖVE, `setDefaultFilter`](https://love2d.org/wiki/love.graphics.setDefaultFilter);
+[LÖVE, `BlendAlphaMode`](https://love2d.org/wiki/BlendAlphaMode);
+[Shawn Hargreaves, premultiplied alpha in XNA 4.0](https://shawnhargreaves.com/blog/premultiplied-alpha-in-xna-game-studio-4-0.html);
+[raylib cheatsheet](https://www.raylib.com/cheatsheet/cheatsheet.html).
+
+## Considered and rejected
+
+- **Bleeding edge colours into transparent pixels at load.** It leaves
+  blending alone and is one function in `image.c`. But it fixes only pixels
+  that are fully transparent. An anti-aliased edge is partly transparent, and
+  straight-alpha filtering still weighs its colour wrongly. A render target
+  will need premultiplied alpha anyway.
+- **Extruding every sprite's border at load**, as TexturePacker's "extrude"
+  does. It would stop sheet bleeding without touching UVs. But the loader
+  cannot know where a sheet's sprites are: `subimage` and `tile` slice after
+  the upload, as views on one texture.
+- **A low-resolution render target, scaled linearly.** One filter would cover
+  the whole frame, with no setting per texture. But it is the loader threshold
+  `possible-todos.md` describes, it does nothing for fringes, and text would
+  stop rasterising at full resolution.
+- **`App` takes the configuration.** That would remove the overlap between
+  `App`'s keywords and `Configuration`'s members. But Core may not name a
+  `Game` type, and `spec_core` and `ext/rgame_core/example.rb` build an `App`
+  with keywords. `Game` stays the one place that unpacks one into the other.
+- **`Game.new(root:, caption:, **settings)`.** Callers would change least. But
+  a misspelt key would need a check of its own, and the list would be invisible
+  to readers and to the docs. `Data` raises on a misspelt member for free.
+- **A chainable builder, `pixel_art:`, and a filter per image.** Each was a
+  lettered choice in the question round; see decisions 4, 6 and 7.
+
+## What this plan does not deliver
+
+- Art drawn at under half its size. That needs mipmaps.
+- A filter per image, or a Tiled tileset choosing its own.
+- Switching the filter while the game runs; see decision 10.
+- A render target, or any post-processing.
+- Tiles that blend into each other at a non-integer scale. Each tile clamps to
+  its own edge texel, so two tiles meet in a step, much as they do under
+  `:nearest`.
+- Snapping positions to whole pixels.
+- Any change to how text looks. Glyphs are already filtered linearly, and only
+  their texture format changes.
+
+---
+
+## Roadmap
+
+### Dependency shape
+
+```
+1 Game::Configuration ───┐
+                         ├─→ 3 texture_filter ─→ 4 example ─→ 5 fold back
+2 premultiplied alpha ───┘
+```
+
+Steps 1 and 2 depend on nothing in this plan and can land in either order. Step
+3 needs step 1 for its configuration member. It needs step 2 because linear
+filtering without premultiplied alpha draws the fringes this plan removes.
+
+### The invariant every step preserves
+
+> **Under the default `:nearest`, every existing game draws what it drew
+> before.** Every driven project enters the same scenes, plays the same sounds
+> and makes the same draw calls. Every readback spec reads the same pixels,
+> within 1 per channel where alpha is partial.
+
+Check it by driving every example and test project with `--seed 1 --texts` at
+the step's parent commit and at its head, then diffing the reports.
+
+### What lands early, if the plan is abandoned
+
+| Step | Closes |
+|---|---|
+| 1 | a constructor of 14 keywords that grows with every setting |
+| 2 | straight-alpha blending, which a render target would composite wrongly and a multiply blend mode cannot be built on |
+
+---
+
+### Step 1 — `RGame::Game::Configuration`
+
+`Game#initialize` takes 14 keywords, and `texture_filter:` would be the 15th.
+Doing this first means step 3 adds a member rather than a keyword. It depends on
+nothing else in the plan.
+
+```ruby
+# lib/rgame/game/configuration.rb
+module RGame
+  class Game < RGame::Core::App
+    Configuration = Data.define(:width, :height, :scale_mode, :fullscreen, :media_root,
+                                :locales, :players, :device, :input_map, :seed,
+                                :input, :audio) do
+      def initialize(width: 640, height: 480, scale_mode: :letterbox, fullscreen: false,
+                     media_root: 'media', locales: 'locales', players: 1,
+                     device: RGame::Util::Controls::KEYBOARD, input_map: nil, seed: nil,
+                     input: nil, audio: nil)
+        super
+      end
+    end
+  end
+end
+```
+
+```ruby
+# lib/rgame/game.rb
+def initialize(root:, caption: 'RGame', configuration: Configuration.new)
+  super(width: configuration.width, height: configuration.height, caption:,
+        media_root: configuration.media_root, fullscreen: configuration.fullscreen)
+  # every other read goes through configuration
+end
+```
+
+`Game::WIDTH` and `Game::HEIGHT` go, and the defaults live on `Configuration`
+alone. An example passes one inline:
+
+```ruby
+RGame::Game.new(
+  root: Scene.new,
+  caption: 'Sprite',
+  configuration: RGame::Game::Configuration.new(width: WIDTH, height: HEIGHT,
+                                                media_root: ASSETS, locales: LOCALES)
+)
+```
+
+The generated project keeps its configuration in a constant. A subclass finds
+`Configuration` through its ancestors, so it needs no prefix:
+
+```ruby
+class Game < RGame::Game
+  WIDTH = 640
+  HEIGHT = 480
+  CONFIGURATION = Configuration.new(width: WIDTH, height: HEIGHT,
+                                    media_root: File.join(__dir__, 'assets'))
+
+  def initialize(configuration: CONFIGURATION)
+    super(root: Root.new, caption: '<%= caption %>', configuration:)
+  end
+end
+```
+
+The drive harness overrides the game's own configuration, whatever it holds:
+
+```ruby
+define_method(:initialize) do |configuration: RGame::Game::Configuration.new, **kwargs|
+  extra = pad ? { device: RGame::Util::Controls.gamepad(0) } : { input: input }
+  extra[:audio] = AudioProbe.new(RGame::Core::Audio.new, report) if recording
+  super(**kwargs, configuration: configuration.with(**extra))
+  # ...
+end
+```
+
+**The old keywords get no deprecation path.** `Game.new(root:, width: 800)`
+raises Ruby's own `ArgumentError: unknown keyword: :width`. No game outside this
+repository is known to exist yet, so a shim would guard nobody, and the error
+already fails loudly.
+
+Rules the tests pin:
+
+1. `Game.new(root:)` builds the same game as today, with every default
+   unchanged.
+2. Every member of `Configuration` reaches the game. A member `Game` forgets to
+   read fails a spec, rather than doing nothing for a player.
+3. A misspelt member raises `ArgumentError` from `Configuration.new` or `with`,
+   naming it.
+4. An old keyword passed to `Game.new` raises `ArgumentError`.
+5. The harness's `input:`, `device:` and `audio:` win over the game's own
+   configuration.
+
+Tests:
+
+- `spec_core/rgame/game_configuration_spec.rb`, which builds its game in a child
+  process as `game_random_source_spec.rb` does:
+  - `Game.new(root:)` alone opens 640×480, under `:letterbox`, with one player on
+    the keyboard and `'media'` as its media root.
+  - Every member reaches the game, read back through one probe per member:
+
+    | Member | Read back through |
+    |---|---|
+    | `width`, `height` | `game.width`, `game.height` |
+    | `scale_mode` | `game.scale_mode` |
+    | `fullscreen` | `game.fullscreen?` |
+    | `media_root` | `game.media_root` |
+    | `locales` | a table in that directory shows in `RGame::Engine::I18n.available` |
+    | `players` | `game.players.count` |
+    | `device` | `game.players.primary.device` |
+    | `input_map` | an action only this map declares, in `game.players.primary.input_map` |
+    | `seed` | `game.random_source.seed`, with `RGAME_SEED` unset |
+    | `input` | a stub backend that `game.update` polls |
+    | `audio` | `game.audio` is the object passed |
+
+  - The probes' keys equal `Configuration.members`. A member added without a
+    probe fails here, which is what makes rule 2 hold for members not yet
+    written.
+  - A misspelt member raises, naming it.
+  - `Game.new(root:, width: 800)` raises.
+- `game_random_source_spec.rb`, `game_locales_spec.rb` and `game_tilemap_spec.rb`
+  build their game through a configuration.
+- `spec/rgame/cli/generated_project_spec.rb` passes against the new template.
+
+Sub-steps:
+
+- **1a. `Configuration` and `Game`, with every caller moved in the same commit**:
+  38 examples, 5 test projects, the template, the harness and the three
+  `spec_core` specs. The new signature breaks all of them at once, so they move
+  together.
+- **1b. The prose.** `docs/api/game.md` documents `Configuration` member by
+  member, in place of the keyword list. The 10 other snippets in `docs/api/`,
+  `README.md`, `CLAUDE.md`, the skills and the example header comments stop
+  naming a keyword `Game` no longer takes. `CHANGELOG.md` gets a "Changed"
+  entry.
+
+**Verify.** `rake spec` and `rake spec:core` pass. The invariant's report diff
+is empty for every driven project, which proves each caller moved every
+keyword. A grep for each old keyword next to `Game.new(` finds nothing outside
+`CHANGELOG.md`.
+
+---
+
+### Step 2 — premultiplied alpha
+
+This step lands before linear filtering and alone. Under `:nearest` its only
+visible effect should be none, and a readback spec can prove that without
+filtering muddying the numbers.
+
+```c
+/* graphics/pixels.h — pure: bytes in, bytes out. */
+
+/* Multiplies each pixel's colour by its own alpha, in place. `rgba` is RGBA8,
+ * tightly packed, as stb decodes it. */
+void rgame_pixels_premultiply(unsigned char *rgba, size_t pixel_count);
+
+/* One byte scaled by another, rounded to the nearest byte. Scaling by 255
+ * returns `value` unchanged. */
+unsigned char rgame_pixels_scale(unsigned char value, unsigned char by);
+```
+
+`image.c` calls `rgame_pixels_premultiply` between the decode and
+`upload_rgba`. The count is `(size_t)width * (size_t)height`.
+
+`canvas.c` writes premultiplied colours. `write_vertex` fades the alpha by the
+opacity in effect, then scales the colour by that alpha. `rgame_canvas_replay`
+premultiplies and fades its tint once per replay, then scales all four baked
+channels by it. The baked vertices came through `write_vertex`, so they are
+premultiplied already and nothing is multiplied twice.
+
+`gl_backend.c` takes `GL_ONE` as the source factor for both modes:
+
+```c
+glBlendFunc(GL_ONE, blend == RGAME_BLEND_ADD ? GL_ONE : GL_ONE_MINUS_SRC_ALPHA);
+```
+
+`font_atlas.c` stores its pages as `GL_INTENSITY`. Under `GL_MODULATE` a glyph's
+coverage then scales the vertex colour's RGB as well as its alpha. **The source
+format must change with it, to `GL_LUMINANCE`,** in the page's `glTexImage2D`
+(`:125`) and in each glyph's `glTexSubImage2D` (`:386`). GL converts `GL_ALPHA`
+data to RGBA as `(0, 0, 0, a)`, and an intensity texture keeps the red, so every
+glyph would upload as zero and all text would vanish. The file's header comment,
+"Why the pages are GL_ALPHA", is rewritten to match.
+
+Rules the tests pin:
+
+1. An opaque colour at full opacity reaches the vertex byte for byte as before.
+2. A vertex's RGB is its colour times its alpha, after the opacity in effect has
+   faded that alpha.
+3. A replay's tint is premultiplied and faded once, and scales all four channels
+   of each baked vertex.
+4. A fully transparent pixel uploads as `0, 0, 0, 0`, whatever colour the file
+   stored.
+5. Every scale rounds to the nearest byte, and a scale by 255 changes nothing.
+   Rule 1 rests on this.
+6. Text keeps its colour.
+
+Tests:
+
+- `test/test_pixels.c`, new, added to the root `Makefile`'s `TEST_OBJS`,
+  `test/suites.h` and `test_main.c`:
+  - an opaque pixel is unchanged
+  - a fully transparent pixel becomes zero
+  - a half-transparent pixel halves its colour, rounded
+  - an empty buffer is left alone
+- `test/test_canvas.c`:
+  - `the_colour_reaches_the_vertex_in_gl_byte_order` expects premultiplied bytes
+  - an opaque colour at opacity 1 is written unchanged
+  - an opacity fades RGB along with alpha
+- `test/test_recording.c`:
+  - `a_tint_multiplies_the_recorded_colours`,
+    `a_replay_inside_an_opacity_is_faded_after_its_tint` and
+    `an_opacity_pushed_while_baking_is_baked_in` expect premultiplied RGB
+  - a translucent baked vertex replayed under a white tint is unchanged, which
+    is rule 3's "nothing twice"
+- Readback specs in `spec_core/rgame/core/`, each reading the value a straight
+  blend gives, within 1:
+  - `renderer_spec.rb`: a half-transparent red rect over the clear colour, and
+    the same rect under `blended(:add)`
+  - `image_spec.rb`: a half-transparent pixel from a PNG
+  - `font_spec.rb`: red text reads red, which catches the `GL_LUMINANCE` trap
+
+Sub-steps:
+
+- **2a. `graphics/pixels.c` and its Check tests.** Pure, and used by nothing
+  yet.
+- **2b. The pipeline switch: `canvas.c`, `image.c`, `gl_backend.c` and
+  `font_atlas.c` together,** with the Check and readback changes above. Any
+  subset of the four draws wrong colours.
+
+**Verify.** `make test` and `rake spec:core` pass, and every readback spec that
+existed before passes unchanged. The invariant's report diff is empty. By eye,
+`examples/effects` looks as it did, with its additive particles, translucent
+fades and text. Measure what the step adds, and record both numbers in its
+landed note:
+
+- the time to load the largest PNG under `examples/`, before and after
+- a loop of a million `rgame_canvas_quad` calls with a translucent colour
+
+`docs/api/drawing.md`'s "Blending and fading" makes no claim about the blend
+factors today. Search `docs/api/` once more for one, as
+[write-docs](../../.claude/skills/write-docs/SKILL.md) asks.
+
+---
+
+### Step 3 — `texture_filter:`
+
+Steps 1 and 2 leave one setting to add, and a sheet that has to know its filter.
+
+```c
+/* include/rgame/core.h */
+typedef enum { RGAME_TEXTURE_NEAREST, RGAME_TEXTURE_LINEAR } rgame_texture_filter;
+
+rgame_app *rgame_app_create(int width, int height, const char *title, int fullscreen,
+                            rgame_texture_filter filter);
+
+/* The filter every image this app loads is sampled with. Fixed when the app is
+ * created, because the asset cache would otherwise hold images made under two. */
+rgame_texture_filter rgame_app_texture_filter(const rgame_app *app);
+```
+
+```c
+/* graphics/texture.h, which includes rgame/core.h for the enum */
+typedef struct {
+    unsigned int name;
+    int width, height;
+    rgame_texture_filter filter; /* how this sheet was uploaded, and so how its UVs inset */
+    int refs;
+} rgame_texture_sheet;
+
+rgame_texture_sheet *rgame_texture_sheet_create(unsigned int name, int width, int height,
+                                                rgame_texture_filter filter);
+```
+
+`image.c` reads the app's filter, sets `GL_LINEAR` or `GL_NEAREST` in
+`upload_rgba` and hands the filter to the sheet. `rgame_texture_uv` insets under
+`:linear`. `src/main.c` passes `RGAME_TEXTURE_NEAREST`.
+
+```ruby
+RGame::Core::App.new(width:, height:, caption:, media_root: nil, fullscreen: false,
+                     texture_filter: :nearest)
+app.texture_filter   # => :nearest
+
+RGame::Game::Configuration.new(texture_filter: :linear)   # Game passes it to App
+```
+
+Rules the tests pin:
+
+1. Under `:nearest`, every UV and every texture parameter is what it is today,
+   bit for bit.
+2. Under `:linear`, each edge of a view that lies inside its sheet moves half a
+   texel inward. An edge on the sheet's border stays, since `GL_CLAMP_TO_EDGE`
+   covers it, so a whole image keeps its UVs of 0 to 1.
+3. A view one texel wide samples that texel's centre from both edges.
+4. Every image an app loads takes the app's filter. That covers assets, sprite
+   sheets, UI atlases, tilesets and image layers, because every one goes through
+   `rgame_image_load`.
+5. An unknown filter raises `ArgumentError` from `App.new` before the window
+   opens, naming the two it accepts.
+6. Font pages stay linear whatever the setting.
+
+Tests:
+
+- `test/test_texture.c`:
+  - UVs under `:nearest` are unchanged
+  - interior edges inset under `:linear`
+  - border edges stay
+  - a view one texel wide samples its centre
+  - a whole view keeps 0 to 1
+  
+  The other callers of `rgame_texture_sheet_create` pass `RGAME_TEXTURE_NEAREST`.
+- `spec_core/rgame/core/app_spec.rb`:
+  - the filter defaults to `:nearest`
+  - `texture_filter` reads back the value given
+  - an unknown symbol raises
+- Readback specs. `RenderedFrame.capture` grows a `texture_filter:` keyword for
+  them:
+  - A 2×1 black-and-white image drawn eight times wide. Under `:nearest` it
+    reads only black and white; under `:linear` it reads grey between them.
+  - Tile 0 of a sheet of two tiles, red and blue, drawn at 3.5× under
+    `:linear`. It reads no blue.
+  - A white disc with a transparent black surround, drawn at 2.5× under
+    `:linear` over a white rect. Every pixel reads white. A fringe would show
+    as a grey ring: straight alpha turns a half-covered edge texel into 75%
+    grey there. Over the dark clear colour the fringe is still brighter than
+    the background, so only a white background makes it measurable. **This is
+    the plan's acceptance test:** premultiplied alpha and linear filtering,
+    together.
+- `game_configuration_spec.rb` gets a probe for `texture_filter`. The guard from
+  step 1 fails until it exists.
+
+Sub-steps:
+
+- **3a. Sheets carry a filter, and `rgame_texture_uv` insets under `:linear`.**
+  Pure, with Check tests.
+- **3b. `App` and `Image` take the filter**: the C API, `App`'s keyword, and the
+  readback specs.
+- **3c. `Configuration` gains `texture_filter`, and `Game` passes it on.** Update
+  `docs/api/images.md`'s "Images always use nearest-neighbour sampling",
+  `app.md` and `game.md`. `CHANGELOG.md` gets an "Added" entry.
+
+**Verify.** The disc readback passes. Under the default, the invariant's report
+diff is empty. `rake spec`, `rake spec:core` and `make test` pass.
+
+---
+
+### Step 4 — an example in smooth art *(rough)*
+
+This step waits on open question 2 and is re-planned once step 3 has landed.
+
+The example must show what no test project exercises yet, all in one scene.
+Its art is authored at 1280×720 and runs under `:letterbox` and
+`texture_filter: :linear`:
+
+- sprites sliced from a shared sheet
+- a translucent sprite
+- text
+- additive particles
+- a tile map from a tileset with extruded edges
+- a nine-slice panel
+
+A drive script and an `en.yml` go with it, as for every example. It gets an
+allocation budget like the others, and a look by eye at 1920×1080 fullscreen.
+
+---
+
+### Step 5 — fold back and delete this plan *(rough)*
+
+- `possible-todos.md` gains three entries, each with its trigger: a filter per
+  image, mipmaps, and switching the filter while the game runs.
+- `possible-todos.md`'s render-target entry is updated: premultiplied alpha is in
+  place, and its sentence about "the filter and the factor" now names
+  `texture_filter`.
+- Its blend-modes entry is updated: under premultiplied alpha, multiply is
+  `glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA)`.
+- Run the pass over every step's landed notes that
+  [learn-from-mistakes](../../.claude/skills/learn-from-mistakes/SKILL.md)
+  describes.
+
+**Verify.** `CHANGELOG.md` is checked against everything the plan shipped,
+following [update-changelog](../../.claude/skills/update-changelog/SKILL.md).
+`docs/plans/smooth-art.md` is deleted, and no link in `docs/` points at it.
