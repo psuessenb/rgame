@@ -20,4 +20,17 @@ RSpec.describe ChildRuby do
       .to raise_error(ChildRuby::Timeout, /within 1s.*got this far/m)
     expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 10
   end
+
+  # The grandchild inherits the child's stdout and outlives it, so the pipe
+  # stays open after the child exits. On Unix the kill takes the grandchild
+  # with it. On Windows it cannot, since its parent is gone, and it sleeps out
+  # its 15 seconds.
+  it 'gives up on output that stays open after the child exits' do
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    script = "$stdout.sync = true; puts 'before the grandchild'; spawn(RbConfig.ruby, '-e', 'sleep 15')"
+
+    expect { described_class.capture(script, timeout: 1) }
+      .to raise_error(ChildRuby::Timeout, /still open after 1s.*before the grandchild/m)
+    expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 10
+  end
 end
