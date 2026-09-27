@@ -23,6 +23,7 @@ Suite *clip_suite(void);
 Suite *draw_queue_suite(void);
 Suite *canvas_suite(void);
 Suite *texture_suite(void);
+Suite *pixels_suite(void);
 Suite *primitives_suite(void);
 Suite *recording_suite(void);
 Suite *atlas_suite(void);

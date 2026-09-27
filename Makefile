@@ -103,6 +103,7 @@ CLIP_OBJ := $(BUILD_DIR)/clip.o
 DRAW_QUEUE_OBJ := $(BUILD_DIR)/draw_queue.o
 CANVAS_OBJ := $(BUILD_DIR)/canvas.o
 TEXTURE_OBJ := $(BUILD_DIR)/texture.o
+PIXELS_OBJ := $(BUILD_DIR)/pixels.o
 PRIMITIVES_OBJ := $(BUILD_DIR)/primitives.o
 GL_BACKEND_OBJ := $(BUILD_DIR)/gl_backend.o
 RECORDING_OBJ := $(BUILD_DIR)/recording.o
@@ -161,6 +162,7 @@ TEST_OBJS := $(BUILD_DIR)/test_main.o \
              $(BUILD_DIR)/test_canvas.o \
              $(BUILD_DIR)/test_backend.o \
              $(BUILD_DIR)/test_texture.o \
+             $(BUILD_DIR)/test_pixels.o \
              $(BUILD_DIR)/test_primitives.o \
              $(BUILD_DIR)/test_recording.o \
              $(BUILD_DIR)/test_atlas.o \
@@ -250,6 +252,9 @@ $(TEXTURE_OBJ): $(EXT_CORE_DIR)/graphics/texture.c $(EXT_CORE_DIR)/graphics/text
                 $(EXT_CORE_DIR)/graphics/clip.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
 
+$(PIXELS_OBJ): $(EXT_CORE_DIR)/graphics/pixels.c $(EXT_CORE_DIR)/graphics/pixels.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(INCLUDES) -c $< -o $@
+
 $(PRIMITIVES_OBJ): $(EXT_CORE_DIR)/graphics/primitives.c $(EXT_CORE_DIR)/graphics/primitives.h \
                    $(EXT_CORE_DIR)/graphics/canvas.h $(EXT_CORE_DIR)/graphics/texture.h \
                    $(EXT_UTIL_DIR)/color.h | $(BUILD_DIR)
@@ -302,7 +307,7 @@ $(BUILD_DIR)/%_impl.o: $(EXT_UTIL_DIR)/vendor/%_impl.c $(UTIL_VENDOR_SOURCES) | 
 
 $(CORE_LIB): $(APP_OBJ) $(FRAME_LOOP_OBJ) $(LOCALE_OBJ) $(DEVICE_SLOTS_OBJ) $(INPUT_OBJ) $(GAMEPAD_OBJ) $(VIRTUAL_GAMEPAD_OBJ) \
              $(TRANSFORM_OBJ) $(CLIP_OBJ) $(DRAW_QUEUE_OBJ) \
-             $(CANVAS_OBJ) $(BACKEND_OBJ) $(TEXTURE_OBJ) $(PRIMITIVES_OBJ) \
+             $(CANVAS_OBJ) $(BACKEND_OBJ) $(TEXTURE_OBJ) $(PIXELS_OBJ) $(PRIMITIVES_OBJ) \
              $(RECORDING_OBJ) $(ATLAS_OBJ) $(GLYPH_CACHE_OBJ) $(FONT_ATLAS_OBJ) $(VORBIS_DECODER_OBJ) $(AUDIO_OBJ) $(GL_BACKEND_OBJ) $(IMAGE_OBJ) $(VENDOR_OBJS) \
              $(TYPEFACE_OBJ) $(UTIL_VENDOR_OBJS)
 	ar rcs $@ $^
