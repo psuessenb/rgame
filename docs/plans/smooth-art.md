@@ -98,6 +98,16 @@ up for re-litigation inside this plan.
 3. ~~**Should the filter be switchable while the game runs?**~~ **Settled: no,
    not until a game needs it.** See decision 10 under
    [Decisions already taken](#decisions-already-taken).
+4. **Why did `ChildRuby`'s deadline not end a child that hung on Windows?**
+   Blocks nothing in this plan. In step 3's first CI run, the Windows job hung
+   for 15 minutes in `game_locales_spec.rb`'s "reads an absolute locales:
+   directory as it stands", until the job was cancelled. The example is
+   unchanged since step 1, and a re-run passed it in the usual time. Its child
+   goes through `ChildRuby.capture`, which kills a child after 60 seconds.
+   After the kill, it still waits on the process and on the child's output
+   with no limit, so a child that Windows does not end, or whose pipes stay
+   open, holds the suite regardless. It belongs on a branch of its own; step 5
+   moves it to `possible-todos.md` if nobody has taken it by then.
 
 ## What was measured before planning
 
@@ -737,6 +747,9 @@ pixels.
 `make test` 428 checks (6 new), `rake spec` 4,516 examples (`images.md`'s new
 snippet), `rake spec:core` 551 (7 new), all passing, and
 `rake drive:allocations` passed for all 43 projects.
+
+CI's first Windows run hung in an example this step does not touch, and a
+re-run passed; see open question 4.
 
 ---
 
