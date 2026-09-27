@@ -80,6 +80,86 @@ class SpecMapRoutedChest < RGame::Engine::Node2D
   end
 end
 
+# A game's module, for the defaults a constant gives and the nesting a name
+# resolves in.
+module SpecMapDefaultsGame
+  SIZE = 24.0
+
+  # A room of the game, and a module inside it.
+  class Room < RGame::Engine::Node2D
+    # A module of the room's own.
+    module Parts; end
+  end
+
+  # Defaults of every kind a map can show.
+  class Chest < RGame::Engine::Node2D
+    WOOD = :pine
+
+    # A chest a designer may place.
+    #
+    # @placeable
+    # @param key [String] the fact it keeps its state under
+    # @param wood [Symbol] what it is made of
+    # @param size [Float] its side, in pixels
+    # @param tint [Util::Color] the colour it is painted
+    # @param spin [Float] how fast it turns
+    # @param glow [Util::Color] the colour it shines
+    def initialize(key:, wood: WOOD, size: SIZE, tint: RGame::Util::Color::BROWN, spin: -1.5, glow: ::RGame::Util::Color::RED,
+                   rng: Random.new(4), **)
+      super(**)
+    end
+  end
+
+  # Takes its parent's initialize, @placeable and all.
+  class SmallChest < Chest; end
+
+  # Has an initialize of its own, and no @placeable.
+  class LidlessChest < Chest
+    # @param key [String] the fact it keeps its state under
+    def initialize(key: 'lidless', **)
+      super
+    end
+  end
+
+  # @placeable, detached from initialize by a blank line.
+  class DetachedChest < RGame::Engine::Node2D
+    # @placeable
+
+    def initialize(**) = super # rubocop:disable Lint/UselessMethodDefinition -- it carries the comment above it
+  end
+
+  # A rock a designer may place, with nothing to set and no initialize.
+  #
+  # @placeable
+  class Rock < RGame::Engine::Node2D; end
+
+  # A rock of its own, which the tag above Rock does not reach.
+  class Pebble < Rock; end
+
+  # @placeable
+
+  # A boulder, whose tag a blank line detaches from it.
+  class Boulder < RGame::Engine::Node2D; end
+
+  # A crate tagged above the class, whose initialize says what a map may set.
+  #
+  # @placeable
+  class Crate < RGame::Engine::Node2D
+    # @param size [Float] its side, in pixels
+    def initialize(size: 16.0, **)
+      super(**)
+    end
+  end
+
+  # A default no one can read without running it.
+  class TurnedChest < RGame::Engine::Node2D
+    # @param angle_offset [Float] how far it is turned, in radians
+    def initialize(angle_offset: -Math::PI / 2, **)
+      super(**)
+    end
+  end
+end
+
 # rubocop:enable Lint/UnusedMethodArgument
 
 RSpec.describe RGame::Engine::MapSettings do
@@ -177,6 +257,121 @@ RSpec.describe RGame::Engine::MapSettings do
       classes = descendants(RGame::Engine::Node2D).select { it.name&.start_with?('RGame::Engine::') }
 
       expect { classes.each { described_class.of(it) } }.not_to raise_error
+    end
+  end
+
+  describe '.placeable?' do
+    it 'is true when the comment above initialize carries @placeable' do
+      expect(described_class.placeable?(SpecMapDefaultsGame::Chest)).to be(true)
+    end
+
+    it 'is false for a comment without it' do
+      expect(described_class.placeable?(SpecMapChest)).to be(false)
+    end
+
+    it "follows a subclass that takes its parent's initialize" do
+      expect(described_class.placeable?(SpecMapDefaultsGame::SmallChest)).to be(true)
+    end
+
+    it 'reads only its own comment for a subclass with an initialize of its own' do
+      expect(described_class.placeable?(SpecMapDefaultsGame::LidlessChest)).to be(false)
+    end
+
+    it 'reads nothing above a blank line' do
+      expect(described_class.placeable?(SpecMapDefaultsGame::DetachedChest)).to be(false)
+    end
+
+    describe 'in the comment above the class' do
+      it 'makes a class with no initialize of its own placeable' do
+        expect(described_class.placeable?(SpecMapDefaultsGame::Rock)).to be(true)
+      end
+
+      it 'covers that class alone, and no subclass' do
+        expect(described_class.placeable?(SpecMapDefaultsGame::Pebble)).to be(false)
+      end
+
+      it 'reads nothing above a blank line' do
+        expect(described_class.placeable?(SpecMapDefaultsGame::Boulder)).to be(false)
+      end
+
+      it "leaves the settings to initialize's @param tags" do
+        crate = SpecMapDefaultsGame::Crate
+
+        expect([described_class.placeable?(crate), described_class.of(crate)]).to eq([true, { size: :float }])
+      end
+
+      it 'is not there for an anonymous class' do
+        expect(described_class.placeable?(Class.new(RGame::Engine::Node2D))).to be(false)
+      end
+    end
+  end
+
+  describe '.defaults' do
+    it 'reads a literal of each kind, and leaves out every keyword a map cannot set' do
+      expect(described_class.defaults(SpecMapChest))
+        .to eq(contents: '', count: 1, weight: 1.0, locked: false, wood: :oak, lid: :flat, tint: nil, glow: nil)
+    end
+
+    it 'leaves out a required keyword' do
+      expect(described_class.defaults(SpecMapDefaultsGame::Chest).keys).not_to include(:key)
+    end
+
+    it "looks a constant up in the class, then outward through its module, as a map's class name is" do
+      expect(described_class.defaults(SpecMapDefaultsGame::Chest))
+        .to include(wood: :pine, size: 24.0, tint: RGame::Util::Color::BROWN, glow: RGame::Util::Color::RED)
+    end
+
+    it 'reads a negative number as the number' do
+      expect(described_class.defaults(SpecMapDefaultsGame::Chest)).to include(spin: -1.5)
+    end
+
+    it "reads a subclass's defaults from the initialize it takes" do
+      expect(described_class.defaults(SpecMapDefaultsGame::SmallChest))
+        .to eq(described_class.defaults(SpecMapDefaultsGame::Chest))
+    end
+
+    it 'refuses a default it cannot read without running it, naming the keyword and a constant to write' do
+      expect { described_class.defaults(SpecMapDefaultsGame::TurnedChest) }
+        .to raise_error(ArgumentError, %r{TurnedChest#initialize defaults angle_offset to `-Math::PI / 2`.*ANGLE_OFF})
+    end
+
+    it 'reads a class once, and keeps what it read frozen' do
+      defaults = described_class.defaults(SpecMapChest)
+
+      expect([described_class.defaults(SpecMapChest).equal?(defaults), defaults.frozen?]).to eq([true, true])
+    end
+  end
+
+  describe '.nesting' do
+    it 'lists the class, then each module its name passes through' do
+      expect(described_class.nesting(SpecMapDefaultsGame::Room::Parts))
+        .to eq([SpecMapDefaultsGame::Room::Parts, SpecMapDefaultsGame::Room, SpecMapDefaultsGame])
+    end
+
+    it 'lists only an anonymous class itself' do
+      anonymous = Class.new
+
+      expect(described_class.nesting(anonymous)).to eq([anonymous])
+    end
+  end
+
+  describe '.resolve' do
+    let(:nesting) { described_class.nesting(SpecMapDefaultsGame::Room) }
+
+    it 'finds a name in the innermost module that defines it' do
+      expect(described_class.resolve('SIZE', nesting)).to eq(24.0)
+    end
+
+    it 'resolves a path the same way' do
+      expect(described_class.resolve('Chest::WOOD', nesting)).to eq(:pine)
+    end
+
+    it 'falls back on what the first module inherits, then the top level' do
+      expect(described_class.resolve('Comparable', nesting)).to be(Comparable)
+    end
+
+    it 'raises NameError for a name nothing defines' do
+      expect { described_class.resolve('Chset', nesting) }.to raise_error(NameError)
     end
   end
 end

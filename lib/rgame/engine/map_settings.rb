@@ -34,6 +34,14 @@ module RGame
     # the builder sets already, and for an `initialize` with no source file. A
     # class's tags are read once and cached.
     #
+    # A `@placeable` line says a designer may place the class. It sits in the
+    # comment above the class itself, or in the one above the `initialize` the
+    # class uses. Above the class it covers that class alone. Above
+    # `initialize` it comes with the constructor, as the `@param` tags do, so a
+    # subclass that takes the constructor is placeable too. MapTypes writes each
+    # placeable class for Tiled, and nothing else reads the tag: a map builds a
+    # class without it all the same.
+    #
     # @api private
     module MapSettings
       TYPES = { 'String' => :string, 'Integer' => :integer, 'Float' => :float, 'Boolean' => :bool,
@@ -46,19 +54,53 @@ module RGame
 
       COMMENT = /\A\s*#/
       TAG = /\A\s*#\s*@param\s+(\w+)(?:\s+\[([^\]]*)\])?/
+      PLACEABLE = /\A\s*#\s*@placeable\s*\z/
       SYMBOL = /\A:\w+\z/
 
       # What the builder passes a class that names it, beside Node2D's own.
       BUILT = %i[route name].freeze
-      private_constant :TYPES, :EXPECTED, :COMMENT, :TAG, :SYMBOL, :BUILT
+
+      Comment = Data.define(:settings, :placeable)
+      private_constant :TYPES, :EXPECTED, :COMMENT, :TAG, :PLACEABLE, :SYMBOL, :BUILT, :Comment
 
       @cache = {}.compare_by_identity
+      @defaults = {}.compare_by_identity
+      @classes = {}.compare_by_identity
 
       # The keywords a map may set on `node_class`, each with its type from the
       # table above, as a frozen Hash.
-      def self.of(node_class)
+      def self.of(node_class) = comment(node_class).settings
+
+      # Whether the comment above `node_class`, or above the `initialize` it
+      # uses, carries `@placeable`, which asks for the class to be written for
+      # Tiled. An anonymous class has no comment of its own to read.
+      def self.placeable?(node_class) = tagged?(node_class) || comment(node_class).placeable
+
+      # The default of each settable keyword that has one, as Ruby would pass it,
+      # read from the source with Prism. A literal is its value, and a constant
+      # is looked up outward from the class, as a map's class name is. A
+      # required keyword is absent. Any other default raises ArgumentError,
+      # naming the keyword. Loads Prism, which `require 'rgame'` leaves out.
+      def self.defaults(node_class)
         method = node_class.instance_method(:initialize)
-        @cache[method.owner] ||= read(method).freeze
+        @defaults[method.owner] ||= read_defaults(method).freeze
+      end
+
+      # The modules a name in `scope` resolves in, innermost first: `scope`
+      # itself, then each module its name passes through. `MyGame::Town` gives
+      # `[MyGame::Town, MyGame]`, and an anonymous class only itself.
+      def self.nesting(scope)
+        names = scope.name&.split('::') or return [scope]
+
+        names.size.downto(1).map { Object.const_get(names.first(it).join('::')) }
+      end
+
+      # The constant `name` names from inside the first module of `nesting`:
+      # the innermost module that defines it, then what that first module
+      # inherits, then the top level. Raises NameError for a name nothing defines.
+      def self.resolve(name, nesting)
+        home = nesting.find { it.const_defined?(name, false) }
+        home ? home.const_get(name, false) : nesting.first.const_get(name)
       end
 
       # `value` as a keyword of `type` receives it, or what the block returns
@@ -82,22 +124,48 @@ module RGame
 
       def self.reserved = @reserved ||= [*Node2D.instance_method(:initialize).parameters.map(&:last), *BUILT].freeze
 
-      def self.read(method)
-        owner = method.owner
-        file, line = method.source_location
-        unless file && File.file?(file)
-          raise ArgumentError, "#{owner}#initialize has no source file, so no @param tags say what a map may set; " \
-                               'define the class in a .rb file to build it from a map'
-        end
-
-        keywords = method.parameters.filter_map { |kind, name| name if %i[key keyreq].include?(kind) }
-        tags(file, line).each_with_object({}) do |(name, type), settings|
-          check(owner, name, keywords)
-          settings[name] = type if type
-        end
+      def self.comment(node_class)
+        method = node_class.instance_method(:initialize)
+        @cache[method.owner] ||= read(method)
       end
 
-      def self.tags(file, line)
+      def self.tagged?(node_class)
+        return @classes[node_class] if @classes.key?(node_class)
+
+        @classes[node_class] = class_tagged?(node_class)
+      end
+
+      def self.class_tagged?(node_class)
+        name = node_class.name or return false
+        file, line = Object.const_source_location(name)
+        return false unless file && File.file?(file)
+
+        comment_lines(file, line).any? { it.match?(PLACEABLE) }
+      end
+
+      def self.read(method)
+        owner = method.owner
+        file, line = source(method)
+        keywords = method.parameters.filter_map { |kind, name| name if %i[key keyreq].include?(kind) }
+        lines = comment_lines(file, line)
+        settings = lines.filter_map { TAG.match(it) }.each_with_object({}) do |tag, found|
+          name = tag[1].to_sym
+          type = type_of(tag[2])
+          check(owner, name, keywords)
+          found[name] = type if type
+        end
+        Comment.new(settings: settings.freeze, placeable: lines.any? { it.match?(PLACEABLE) })
+      end
+
+      def self.source(method)
+        file, line = method.source_location
+        return [file, line] if file && File.file?(file)
+
+        raise ArgumentError, "#{method.owner}#initialize has no source file, so no @param tags say what a map may " \
+                             'set; define the class in a .rb file to build it from a map'
+      end
+
+      def self.comment_lines(file, line)
         source = File.read(file)
         start = 0
         (line - 1).times { start = source.index("\n", start) + 1 }
@@ -110,7 +178,57 @@ module RGame
           comment.unshift(text)
           start = from
         end
-        comment.filter_map { TAG.match(it) }.map { [it[1].to_sym, type_of(it[2])] }
+        comment
+      end
+
+      def self.read_defaults(method)
+        require 'prism'
+
+        settable = of(method.owner)
+        file, line = source(method)
+        definition = definition(method, file, line)
+        (definition.parameters&.keywords || []).each_with_object({}) do |parameter, defaults|
+          next unless parameter.is_a?(Prism::OptionalKeywordParameterNode) && settable.key?(parameter.name)
+
+          defaults[parameter.name] = default(method.owner, parameter)
+        end
+      end
+
+      def self.definition(method, file, line)
+        found = Prism.parse_file(file).value.breadth_first_search do |node|
+          node.is_a?(Prism::DefNode) && node.name == :initialize && node.location.start_line == line
+        end
+        found or raise ArgumentError, "#{method.owner}#initialize is not written with def at #{file}:#{line}, " \
+                                      'so its defaults cannot be read'
+      end
+
+      def self.default(owner, parameter)
+        value = parameter.value
+        case value
+        when Prism::IntegerNode, Prism::FloatNode then value.value
+        when Prism::StringNode then value.unescaped
+        when Prism::SymbolNode then value.unescaped.to_sym
+        when Prism::TrueNode then true
+        when Prism::FalseNode then false
+        when Prism::NilNode then nil
+        when Prism::ConstantReadNode, Prism::ConstantPathNode then constant(owner, parameter)
+        else unreadable(owner, parameter)
+        end
+      end
+
+      def self.constant(owner, parameter)
+        name = parameter.value.full_name
+        return Object.const_get(name.delete_prefix('::')) if name.start_with?('::')
+
+        resolve(name, nesting(owner))
+      rescue Prism::ConstantPathNode::DynamicPartsInConstantPathError
+        unreadable(owner, parameter)
+      end
+
+      def self.unreadable(owner, parameter)
+        raise ArgumentError, "#{owner}#initialize defaults #{parameter.name} to `#{parameter.value.slice}`, which " \
+                             'cannot be read without running it; write a literal or a constant instead, such as ' \
+                             "#{parameter.name.upcase} = #{parameter.value.slice} above the class"
       end
 
       def self.type_of(text)
@@ -146,7 +264,8 @@ module RGame
         else value.is_a?(String) && type.include?(value.to_sym)
         end
       end
-      private_class_method :reserved, :read, :tags, :type_of, :check, :fits?
+      private_class_method :reserved, :comment, :tagged?, :class_tagged?, :read, :source, :comment_lines,
+                           :read_defaults, :definition, :default, :constant, :unreadable, :type_of, :check, :fits?
     end
   end
 end

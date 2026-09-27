@@ -48,14 +48,42 @@ module RGame
       UNBOXED = %i[point polygon polyline].freeze
       ROUTED = %i[polygon polyline].freeze
       NAMED = %i[key keyreq].freeze
-      private_constant :BUILDS, :UNBOXED, :ROUTED, :NAMED
+
+      # What every node gets from its object: the box and the id.
+      PLACED = %i[x y angle width height map_object_id].freeze
+
+      # What a class gets from its object when its initialize names it.
+      ASKED = %i[route name].freeze
+      private_constant :BUILDS, :UNBOXED, :ROUTED, :NAMED, :PLACED, :ASKED
+
+      # What stops any map building `node_class`, in words, or `nil` when a map
+      # can. A map passes only keywords: the object's box and id to every
+      # class, `route:` and `name:` to a class that names them, and the
+      # properties the class's tags make settable. So a class that requires an
+      # argument, or a keyword no map sets, or takes no `**`, is never built.
+      def self.refusal(node_class)
+        parameters = node_class.instance_method(:initialize).parameters
+        if (argument = parameters.find { |kind, _name| kind == :req })
+          return "its initialize requires the argument #{argument.last}, and a map passes only keywords"
+        end
+        unless parameters.any? { |kind, _name| kind == :keyrest } ||
+               PLACED.all? { |placed| parameters.any? { |kind, name| NAMED.include?(kind) && name == placed } }
+          return "its initialize takes no **, and a map passes every node #{PLACED.join(', ')}"
+        end
+
+        given = [*PLACED, *ASKED, *MapSettings.of(node_class).keys]
+        missing = parameters.filter_map { |kind, name| name if kind == :keyreq && !given.include?(name) }
+        return if missing.empty?
+
+        "its initialize requires #{missing.join(', ')}, which no @param tag lets a map set"
+      end
 
       # `tilemap_id` is the map's asset key, which each refusal names. `scope`
       # is the class the map's class names resolve in.
       def initialize(tilemap_id:, scope:)
         @tilemap_id = tilemap_id
         @scope = scope
-        @nesting = nesting_of(scope).freeze
+        @nesting = MapSettings.nesting(scope).freeze
       end
 
       # The node `object` names, placed and set up, or `nil` when its class is
@@ -83,16 +111,8 @@ module RGame
         node_class.new(**keywords)
       end
 
-      def nesting_of(scope)
-        names = scope.name&.split('::') or return [scope]
-
-        names.size.downto(1).map { Object.const_get(names.first(it).join('::')) }
-      end
-
       def resolve(object)
-        name = object.class_name
-        home = @nesting.find { it.const_defined?(name, false) }
-        value = home ? home.const_get(name, false) : @scope.const_get(name)
+        value = MapSettings.resolve(object.class_name, @nesting)
         return value if value.is_a?(Class) && value <= Node2D
 
         raise TypeError, "#{where(object)} names #{value.inspect}, which is not a Node2D class. #{rule}"

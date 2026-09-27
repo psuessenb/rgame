@@ -9,6 +9,7 @@
 # rather than quietly dragging SDL into a command that only writes files.
 
 require 'rgame/cli'
+require 'json'
 require 'ripper'
 require 'tmpdir'
 
@@ -102,12 +103,14 @@ RSpec.describe RGame::CLI do
             README.md
             Rakefile
             assets/locales/en.yml
+            assets/tictactoe.tiled-project
             game.rb
             main.rb
             nodes/root.rb
             spec/locales_spec.rb
             spec/nodes/root_spec.rb
             spec/spec_helper.rb
+            spec/tiled_project_spec.rb
             tictactoe.rb
           ]
         )
@@ -148,6 +151,20 @@ RSpec.describe RGame::CLI do
         expect(RGame::Engine::I18n.t('root.greeting')).to eq('Hello from tictactoe!')
       end
 
+      it 'writes a Tiled project holding what a new project in Tiled holds, and no type' do
+        written = JSON.parse(File.read(File.join(project, 'assets', 'tictactoe.tiled-project')))
+
+        expect(written).to eq('automappingRulesFile' => '', 'commands' => [], 'compatibilityVersion' => 1100,
+                              'extensionsPath' => 'extensions', 'folders' => ['.'], 'properties' => [],
+                              'propertyTypes' => [])
+      end
+
+      it "writes the game's placeable classes into it with rake tiled, and keeps Tiled's session out of git" do
+        expect(code_of(File.join(project, 'Rakefile')))
+          .to include('task :tiled', "MapTypes.new(Tictactoe).write('assets/tictactoe.tiled-project')")
+        expect(File.read(File.join(project, '.gitignore'))).to include('*.tiled-session')
+      end
+
       it 'boots the class it generated' do
         expect(File.read(File.join(project, 'main.rb'))).to include('Tictactoe::Game.new.start')
       end
@@ -183,6 +200,31 @@ RSpec.describe RGame::CLI do
           expect(code).not_to include("require 'rgame/game'"), "#{path} loads the graphics half"
           expect(code).not_to include('RGame::Core'), "#{path} names the graphics half"
         end
+      end
+    end
+
+    describe '--no-tiled' do
+      def run_new(*args) = Dir.chdir(tmp) { described_class.run(['new', *args], out: out, err: err) }
+
+      it 'leaves out the Tiled project and its spec' do
+        run_new('plain', '--no-tiled')
+        written = Dir.glob('**/*', base: File.join(tmp, 'plain'))
+
+        expect(written).to include('Rakefile', 'spec/locales_spec.rb')
+        expect(written).not_to include('assets/plain.tiled-project', 'spec/tiled_project_spec.rb')
+      end
+
+      it 'keeps rake tiled, which creates the project when it runs, and the ignored session' do
+        run_new('--no-tiled', 'plain')
+
+        expect(File.read(File.join(tmp, 'plain', 'Rakefile'))).to include('task :tiled')
+        expect(File.read(File.join(tmp, 'plain', '.gitignore'))).to include('*.tiled-session')
+      end
+
+      it 'is the one option new takes: another fails, naming it, and writes nothing' do
+        expect(run_new('plain', '--no-maps')).to eq(1)
+        expect(err.string).to include('rgame new: unknown option --no-maps')
+        expect(Dir.children(tmp)).to be_empty
       end
     end
 

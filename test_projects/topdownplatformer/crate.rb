@@ -9,6 +9,7 @@ module TopDownPlatformer
 
     COLOR = Util::Color.new(176, 128, 72)
 
+    # @placeable
     def initialize(**)
       super
       add_component(Components::BoxCollider.new(width: SIZE, height: SIZE, offset_x: -SIZE / 2,

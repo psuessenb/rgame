@@ -197,6 +197,14 @@ a polyline's or a polygon's route, and the object's name, only to a class whose
 node's own `initialize` and build the component from it, deriving what follows,
 such as a box's offsets from its size. A map never sets a component's keywords.
 
+**`@placeable` in the same comment puts the class in the list a designer picks
+from.** Tag a class a designer places, and leave a scene, a hero or a HUD piece
+untagged. `MapTypes` writes the tagged classes for Tiled, and a map builds a
+class with or without the tag. A class with no `initialize` of its own carries
+the tag in its class comment instead, where it covers that class alone: a
+subclass is tagged again. Above `initialize`, a subclass that takes the
+constructor inherits it.
+
 ## What allocates without showing it
 
 A per-frame path allocates nothing, and some Ruby allocates where no literal

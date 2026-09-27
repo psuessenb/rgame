@@ -92,6 +92,25 @@ RSpec.describe CommentStripper do
       expect(strip(source)).to eq(source)
     end
 
+    it 'keeps @placeable above a class, which says a designer may place it' do
+      # RGame::Engine::MapTypes reads the tag from the source, so a stripped
+      # one would drop the class from Tiled's list with no failing line.
+      source = <<~RUBY
+        module Game
+          class Room
+            private
+
+            # A lamp a designer places.
+            #
+            # @placeable
+            class Lamp < Node2D; end
+          end
+        end
+      RUBY
+
+      expect(strip(source)).to eq(source)
+    end
+
     it 'keeps the description above a public DSL declaration in a class body' do
       source = <<~RUBY
         class Thing

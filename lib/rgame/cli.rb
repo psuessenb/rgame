@@ -6,11 +6,14 @@ require_relative 'cli/new_project'
 module RGame
   # Argument parsing and dispatch. The work is in RGame::CLI::NewProject.
   module CLI
+    NEW_OPTIONS = %w[--no-tiled].freeze
+
     USAGE = <<~USAGE
       Usage: rgame COMMAND [ARGS]
 
       Commands:
         new NAME     Create a new game project in the directory NAME
+                     --no-tiled  leave out the Tiled project, for a game without maps
         version      Print the rgame version
         help         Print this message
 
@@ -47,14 +50,20 @@ module RGame
     end
 
     def self.new_project(args, out:, err:)
-      name = args.first
+      options, names = args.partition { it.start_with?('-') }
+      unknown = options - NEW_OPTIONS
+      unless unknown.empty?
+        err.puts("rgame new: unknown option #{unknown.first}", '', USAGE)
+        return 1
+      end
 
-      if name.nil? || name.start_with?('-')
+      name = names.first
+      if name.nil?
         err.puts('rgame new: expected a project name', '', USAGE)
         return 1
       end
 
-      NewProject.new(name, out: out).generate
+      NewProject.new(name, out: out, tiled: !options.include?('--no-tiled')).generate
       0
     rescue NewProject::Error => e
       err.puts("rgame new: #{e.message}")

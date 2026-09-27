@@ -10,3 +10,6 @@
 .DS_Store
 *.swp
 /.ruby-lsp/
+
+# Tiled's open files and window layout, one per person working on the maps
+*.tiled-session

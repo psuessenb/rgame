@@ -11,6 +11,7 @@ module TopDownPlatformer
 
     LABEL = 'NPC'
 
+    # @placeable
     def initialize(**)
       super
       add_component(Components::AnimatedSprite.new(sheet: 'hero.json'))

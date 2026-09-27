@@ -14,6 +14,7 @@ module TopDownPlatformer
     POST = [6, 11].freeze
     BANNER = [7, 11].freeze
 
+    # @placeable
     def initialize(name:, **)
       super(**)
       add_component(Components::BoxCollider.new(width: SIZE, height: SIZE, offset_x: -SIZE / 2,

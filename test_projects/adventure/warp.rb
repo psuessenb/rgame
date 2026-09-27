@@ -10,6 +10,7 @@ module Adventure
     # `name:` is named here, since the builder passes an object's name only to
     # a class whose own `initialize` names it.
     #
+    # @placeable
     # @param entrance [String] the entrance in this room where the hero arrives
     def initialize(entrance:, name:, **) = super(to: nil, entrance:, name:, **)
 

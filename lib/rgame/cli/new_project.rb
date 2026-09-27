@@ -21,6 +21,9 @@ module RGame
     #   - `nodes/` requires that file and names only RGame::Engine, so every node
     #     runs with no window.
     #   - `spec/` therefore loads `rgame` too, and the whole suite runs headless.
+    #   - `assets/<name>.tiled-project` is the Tiled project `rake tiled` writes
+    #     the placeable node classes into, and `spec/tiled_project_spec.rb`
+    #     fails when it falls behind them. `tiled: false` leaves out both.
     #
     # Getting a newcomer to that shape by default is most of the point: it is
     # the arrangement that keeps game logic spec-able, and it is not one anybody
@@ -41,16 +44,23 @@ module RGame
         'rubocop.yml' => '.rubocop.yml'
       }.freeze
 
-      # The template written to the file named after the game, which defines its
-      # module.
-      MODULE_TEMPLATE = 'game_module.rb'
+      # The prefix of a template written under the game's own name: the module
+      # in `<name>.rb`, and the Tiled project in `assets/<name>.tiled-project`.
+      MODULE_TEMPLATE = 'game_module'
+
+      # The templates a project without maps leaves out.
+      TILED = %w[assets/game_module.tiled-project.tt spec/tiled_project_spec.rb.tt].freeze
 
       NAME_PATTERN = /\A[a-z][a-z0-9_-]*\z/i
 
-      def initialize(name, out: $stdout, root: Dir.pwd)
+      # `tiled: false` writes no Tiled project and no spec for it, for a game
+      # without maps. The Rakefile's `tiled` task stays, and creates the
+      # project if it runs.
+      def initialize(name, out: $stdout, root: Dir.pwd, tiled: true)
         @name = name
         @out = out
         @target = File.expand_path(name, root)
+        @tiled = tiled
 
         validate_name!
       end
@@ -88,18 +98,24 @@ module RGame
       # manager reads it, and so does Bundler's `ruby file:`.
       def ruby_version = RUBY_VERSION
 
+      # Whether the project gets a Tiled project and the spec that keeps it
+      # current.
+      def tiled? = @tiled
+
       private
 
       def templates
-        Dir.glob('**/*.tt', base: TEMPLATE_ROOT).sort.map do |source|
-          [source, destination_for(source)]
-        end
+        sources = Dir.glob('**/*.tt', base: TEMPLATE_ROOT).sort
+        sources -= TILED unless @tiled
+        sources.map { |source| [source, destination_for(source)] }
       end
 
       def destination_for(source)
         dir = File.dirname(source)
         base = File.basename(source, '.tt')
-        base = base == MODULE_TEMPLATE ? "#{module_file}.rb" : DOTFILES.fetch(base, base)
+        base = if base.start_with?("#{MODULE_TEMPLATE}.") then base.sub(MODULE_TEMPLATE, module_file)
+               else DOTFILES.fetch(base, base)
+               end
 
         dir == '.' ? base : File.join(dir, base)
       end

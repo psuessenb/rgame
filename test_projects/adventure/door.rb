@@ -16,6 +16,7 @@ module Adventure
     # How far above its box a door writes its name, in pixels.
     NAME_RISE = 12
 
+    # @placeable
     # @param to [Symbol] the room the door leads to
     # @param entrance [String] the entrance in that room where the hero arrives
     # @param party [Boolean] whether it moves every hero the world holds, rather than the one who touched it
