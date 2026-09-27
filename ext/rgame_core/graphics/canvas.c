@@ -1,6 +1,9 @@
 #include "graphics/canvas.h"
 
+#include "graphics/pixels.h"
+
 #include <math.h>
+#include <string.h>
 
 /* What a recorded push has to undo. */
 enum {
@@ -255,23 +258,35 @@ static unsigned char faded_alpha(const rgame_canvas *canvas, int alpha) {
     return (unsigned char)(((float)alpha * opacity) + 0.5f);
 }
 
-/* Fills one vertex: map the point into screen space, copy through the texture
- * coordinate, and write the colour as the four bytes GL reads, its alpha faded
- * by the opacity in effect. */
+/* A colour as the four bytes GL reads. The alpha is faded by the opacity in
+ * effect first, and the colour is then premultiplied by that alpha, so a fade
+ * darkens the colour along with it. Worked out once per primitive rather than
+ * once per vertex, since every vertex of one shares it. */
+static void vertex_colour(const rgame_canvas *canvas, rgame_color color, unsigned char out[4]) {
+    unsigned char alpha = faded_alpha(canvas, rgame_color_a(color));
+    out[0] = rgame_pixels_scale((unsigned char)rgame_color_r(color), alpha);
+    out[1] = rgame_pixels_scale((unsigned char)rgame_color_g(color), alpha);
+    out[2] = rgame_pixels_scale((unsigned char)rgame_color_b(color), alpha);
+    out[3] = alpha;
+}
+
+/* Fills one vertex: map the point into screen space, and copy through the
+ * texture coordinate and the colour vertex_colour worked out. */
 static void write_vertex(const rgame_canvas *canvas, rgame_vertex *vertex, float x, float y,
-                         float u, float v, rgame_color color) {
+                         float u, float v, const unsigned char rgba[4]) {
     rgame_transform_apply(&canvas->transforms, x, y, &vertex->x, &vertex->y);
     vertex->u = u;
     vertex->v = v;
-    rgame_color_bytes(color, vertex->rgba);
-    vertex->rgba[3] = faded_alpha(canvas, vertex->rgba[3]);
+    memcpy(vertex->rgba, rgba, 4);
 }
 
 void rgame_canvas_triangle(rgame_canvas *canvas, const float *xy6, rgame_color color,
                            double z) {
+    unsigned char rgba[4];
+    vertex_colour(canvas, color, rgba);
     rgame_vertex *out = queue_alloc(canvas, 3, z, 0);
     for (int i = 0; i < 3; i++) {
-        write_vertex(canvas, &out[i], xy6[i * 2], xy6[(i * 2) + 1], 0.0f, 0.0f, color);
+        write_vertex(canvas, &out[i], xy6[i * 2], xy6[(i * 2) + 1], 0.0f, 0.0f, rgba);
     }
 }
 
@@ -279,28 +294,26 @@ void rgame_canvas_triangle(rgame_canvas *canvas, const float *xy6, rgame_color c
 static const int RGAME_QUAD_TRIANGLES[6] = { 0, 1, 2, 0, 2, 3 };
 
 void rgame_canvas_quad(rgame_canvas *canvas, const float *xy8, rgame_color color, double z) {
+    unsigned char rgba[4];
+    vertex_colour(canvas, color, rgba);
     rgame_vertex *out = queue_alloc(canvas, 6, z, 0);
     for (int i = 0; i < 6; i++) {
         int corner = RGAME_QUAD_TRIANGLES[i];
         write_vertex(canvas, &out[i], xy8[corner * 2], xy8[(corner * 2) + 1], 0.0f, 0.0f,
-                     color);
+                     rgba);
     }
 }
 
 void rgame_canvas_textured_quad(rgame_canvas *canvas, unsigned int texture, const float *xy8,
                                 const float *uv8, rgame_color color, double z) {
+    unsigned char rgba[4];
+    vertex_colour(canvas, color, rgba);
     rgame_vertex *out = queue_alloc(canvas, 6, z, texture);
     for (int i = 0; i < 6; i++) {
         int corner = RGAME_QUAD_TRIANGLES[i];
         write_vertex(canvas, &out[i], xy8[corner * 2], xy8[(corner * 2) + 1], uv8[corner * 2],
-                     uv8[(corner * 2) + 1], color);
+                     uv8[(corner * 2) + 1], rgba);
     }
-}
-
-/* Multiplies two colour components, 0..255 in and out: 255 leaves the other
- * untouched, which is what makes WHITE the "no tint" value. */
-static unsigned char modulate(unsigned char value, int tint) {
-    return (unsigned char)((value * tint) / 255);
 }
 
 void rgame_canvas_replay(rgame_canvas *canvas, const rgame_recording *recording, float dx,
@@ -309,8 +322,13 @@ void rgame_canvas_replay(rgame_canvas *canvas, const rgame_recording *recording,
         return;
     }
 
-    int tint[4] = { rgame_color_r(color), rgame_color_g(color), rgame_color_b(color),
-                    rgame_color_a(color) };
+    /* The tint is faded and premultiplied once, as a primitive's colour is. The
+     * baked vertices came through vertex_colour and are premultiplied already,
+     * so scaling all four of their channels by the tint multiplies nothing
+     * twice. White at opacity 1 is 255 in every channel, and leaves them as
+     * they were. */
+    unsigned char tint[4];
+    vertex_colour(canvas, color, tint);
 
     for (unsigned int b = 0; b < recording->batch_count; b++) {
         const rgame_recording_batch *batch = &recording->batches[b];
@@ -330,10 +348,9 @@ void rgame_canvas_replay(rgame_canvas *canvas, const rgame_recording *recording,
                                   &out[i].y);
             out[i].u = baked->u;
             out[i].v = baked->v;
-            for (int c = 0; c < 3; c++) {
-                out[i].rgba[c] = modulate(baked->rgba[c], tint[c]);
+            for (int c = 0; c < 4; c++) {
+                out[i].rgba[c] = rgame_pixels_scale(baked->rgba[c], tint[c]);
             }
-            out[i].rgba[3] = faded_alpha(canvas, modulate(baked->rgba[3], tint[3]));
         }
     }
 }

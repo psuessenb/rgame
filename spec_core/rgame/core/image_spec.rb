@@ -125,6 +125,32 @@ RSpec.describe RGame::Core::Image do
 
   # A sheet cut with a margin and spacing, read back through a real frame: the
   # size of a tile says nothing about which pixels it was cut from.
+  describe 'translucent pixels' do
+    # A half-transparent pixel drawn over white, at eight times its size. The
+    # engine premultiplies the file's pixels as it loads them, and must draw what
+    # straight blending drew, within 1 per channel.
+    it 'draws a half-transparent pixel as straight blending does' do
+      pixel = PngFixture.write(1, 1) { [200, 100, 50, 128] }
+      frame = RenderedFrame.capture(width: 16, height: 16) do |renderer, app|
+        renderer.rect(0, 0, 16, 16, color: RGame::Util::Color::WHITE)
+        renderer.image_at(described_class.new(app, pixel), 0, 0, scale_x: 8, scale_y: 8)
+      end
+      expected = [200, 100, 50].map { ((it * 128) + (255 * 127)) / 255.0 }
+
+      expect(frame.at(4, 4).first(3)).to match(expected.map { a_value_within(1).of(it) })
+    end
+
+    it 'draws nothing for a fully transparent pixel, whatever colour it stored' do
+      pixel = PngFixture.write(1, 1) { [255, 255, 255, 0] }
+      frame = RenderedFrame.capture(width: 16, height: 16) do |renderer, app|
+        renderer.rect(0, 0, 16, 16, color: RGame::Util::Color::BLACK)
+        renderer.image_at(described_class.new(app, pixel), 0, 0, scale_x: 8, scale_y: 8)
+      end
+
+      expect(frame.at(4, 4).first(3)).to eq([0, 0, 0])
+    end
+  end
+
   describe 'tiles with a margin and spacing' do
     # Three columns and two rows of 2x2 tiles, with a 1 px margin and 1 px of
     # spacing. Tile n is filled with the grey value 40 * (n + 1), and every

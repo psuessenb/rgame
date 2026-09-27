@@ -81,17 +81,57 @@ END_TEST
 
 START_TEST(the_colour_reaches_the_vertex_in_gl_byte_order) {
     /* The renderer's whole colour path in one assertion: a packed 0xRRGGBBAA
-     * must arrive as R, G, B, A bytes, not as the word's own byte layout. */
+     * must arrive as R, G, B, A bytes, not as the word's own byte layout. The
+     * colour is opaque, so premultiplying leaves every byte as it was. */
     rgame_canvas c;
     begin(&c);
 
-    quad_at(&c, 0.0f, 0.0f, rgame_color_rgba(0x11, 0x22, 0x33, 0x44), 0.0);
+    quad_at(&c, 0.0f, 0.0f, rgame_color_rgba(0x11, 0x22, 0x33, 0xFF), 0.0);
     rgame_canvas_end_frame(&c);
 
     ck_assert_uint_eq(vertex(&c, 0)->rgba[0], 0x11);
     ck_assert_uint_eq(vertex(&c, 0)->rgba[1], 0x22);
     ck_assert_uint_eq(vertex(&c, 0)->rgba[2], 0x33);
-    ck_assert_uint_eq(vertex(&c, 0)->rgba[3], 0x44);
+    ck_assert_uint_eq(vertex(&c, 0)->rgba[3], 0xFF);
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(an_opaque_colour_is_written_byte_for_byte) {
+    /* What keeps a pixel-art game drawing the pixels it always drew. */
+    rgame_canvas c;
+    begin(&c);
+
+    const rgame_color colours[4] = { 0x000000FFu, 0x010203FFu, 0x7F80FEFFu, RGAME_COLOR_WHITE };
+    for (unsigned int i = 0; i < 4; i++) {
+        quad_at(&c, 0.0f, 0.0f, colours[i], (double)i);
+    }
+    rgame_canvas_end_frame(&c);
+
+    for (unsigned int i = 0; i < 4; i++) {
+        unsigned char expected[4];
+        rgame_color_bytes(colours[i], expected);
+        for (unsigned int channel = 0; channel < 4; channel++) {
+            ck_assert_uint_eq(vertex(&c, i * 6)->rgba[channel], expected[channel]);
+        }
+    }
+
+    rgame_canvas_destroy(&c);
+}
+END_TEST
+
+START_TEST(a_translucent_colour_reaches_the_vertex_premultiplied) {
+    rgame_canvas c;
+    begin(&c);
+
+    quad_at(&c, 0.0f, 0.0f, rgame_color_rgba(255, 128, 64, 128), 0.0);
+    rgame_canvas_end_frame(&c);
+
+    ck_assert_uint_eq(vertex(&c, 0)->rgba[0], 128); /* 128.0 */
+    ck_assert_uint_eq(vertex(&c, 0)->rgba[1], 64);  /* 64.3 */
+    ck_assert_uint_eq(vertex(&c, 0)->rgba[2], 32);  /* 32.1 */
+    ck_assert_uint_eq(vertex(&c, 0)->rgba[3], 128);
 
     rgame_canvas_destroy(&c);
 }
@@ -596,7 +636,9 @@ static const unsigned char *rgba(const rgame_canvas *c, unsigned int index) {
     return vertex(c, index)->rgba;
 }
 
-START_TEST(opacity_scales_alpha_to_the_nearest_byte_and_leaves_the_colour_alone) {
+START_TEST(opacity_scales_alpha_to_the_nearest_byte_and_the_colour_with_it) {
+    /* The alpha fades first, and the colour is premultiplied by the faded
+     * alpha: 16, 32 and 48 times 100/255. */
     rgame_canvas c;
     begin(&c);
 
@@ -606,11 +648,12 @@ START_TEST(opacity_scales_alpha_to_the_nearest_byte_and_leaves_the_colour_alone)
     rgame_canvas_pop(&c);
     rgame_canvas_end_frame(&c);
 
-    ck_assert_uint_eq(rgba(&c, 0)[0], 0x10);
-    ck_assert_uint_eq(rgba(&c, 0)[1], 0x20);
-    ck_assert_uint_eq(rgba(&c, 0)[2], 0x30);
+    ck_assert_uint_eq(rgba(&c, 0)[0], 6);  /* 6.3 */
+    ck_assert_uint_eq(rgba(&c, 0)[1], 13); /* 12.55 */
+    ck_assert_uint_eq(rgba(&c, 0)[2], 19); /* 18.8 */
     ck_assert_uint_eq(rgba(&c, 0)[3], 100);
     /* 127.5 rounds up: truncating would draw every half-faded white at 127. */
+    ck_assert_uint_eq(rgba(&c, 6)[0], 128);
     ck_assert_uint_eq(rgba(&c, 6)[3], 128);
     for (unsigned int i = 0; i < 6; i++) {
         ck_assert_uint_eq(rgba(&c, i)[3], 100);
@@ -852,6 +895,8 @@ Suite *canvas_suite(void) {
     tcase_add_test(tc_prims, a_quad_becomes_two_triangles_in_loop_order);
     tcase_add_test(tc_prims, a_triangle_keeps_its_three_points);
     tcase_add_test(tc_prims, the_colour_reaches_the_vertex_in_gl_byte_order);
+    tcase_add_test(tc_prims, an_opaque_colour_is_written_byte_for_byte);
+    tcase_add_test(tc_prims, a_translucent_colour_reaches_the_vertex_premultiplied);
     tcase_add_test(tc_prims, a_textured_quad_carries_its_texture_and_uvs);
     suite_add_tcase(suite, tc_prims);
 
@@ -893,8 +938,7 @@ Suite *canvas_suite(void) {
     suite_add_tcase(suite, tc_blend);
 
     TCase *tc_opacity = tcase_create("opacity");
-    tcase_add_test(tc_opacity,
-                   opacity_scales_alpha_to_the_nearest_byte_and_leaves_the_colour_alone);
+    tcase_add_test(tc_opacity, opacity_scales_alpha_to_the_nearest_byte_and_the_colour_with_it);
     tcase_add_test(tc_opacity, opacity_inside_opacity_multiplies);
     tcase_add_test(tc_opacity, opacity_reaches_every_primitive);
     tcase_add_test(tc_opacity, zero_opacity_draws_at_alpha_zero_and_out_of_range_is_clamped);

@@ -5,10 +5,11 @@
  * real calls happen. Everything interesting about images — which rectangle of
  * a sheet a sprite covers, how that becomes texture coordinates, when the
  * shared upload may be deleted — is in texture.{c,h}, is pure, and is covered
- * by test/test_texture.c with no GPU in sight. What is left here is a file
- * read, one stb call and four GL calls, and it is kept this thin precisely so
- * that "we don't unit-test it directly" is an honest position rather than a
- * gap. `spec_core/rgame/core/image_spec.rb` exercises it end to end against a
+ * by test/test_texture.c with no GPU in sight. Premultiplying the decoded
+ * pixels is pure too, in pixels.{c,h}, and test/test_pixels.c covers it. What
+ * is left here is a file read, one stb call and four GL calls, and it is kept
+ * this thin precisely so that "we don't unit-test it directly" is an honest
+ * position rather than a gap. `spec_core/rgame/core/image_spec.rb` exercises it end to end against a
  * real GL context under Xvfb.
  *
  * ---------------------------------------------------------------------------
@@ -36,6 +37,7 @@
 #include "rgame/core.h"
 
 #include "app/app_gl.h"
+#include "graphics/pixels.h"
 #include "graphics/texture.h"
 #include "vendor/stb_image.h"
 
@@ -200,6 +202,9 @@ rgame_image *rgame_image_load(rgame_app *app, const char *path, char *err, size_
         return NULL;
     }
 
+    /* Every texture holds premultiplied colour, as every vertex does; see
+     * pixels.h. */
+    rgame_pixels_premultiply(pixels, (size_t)width * (size_t)height);
     unsigned int name = upload_rgba(pixels, width, height);
     stbi_image_free(pixels);
     if (name == 0) {
