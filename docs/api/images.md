@@ -83,6 +83,10 @@ export the tileset with each tile's edge pixels repeated outward.
 
 Text is always filtered linearly, whatever the setting.
 
+`examples/smooth_art` draws anti-aliased figures scaled, turned and moving by
+fractions of a pixel. Run it with `RGAME_FILTER=nearest` and without to compare
+the two filters.
+
 ## Slicing: subimages and tiles
 
 ```ruby

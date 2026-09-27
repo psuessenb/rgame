@@ -364,6 +364,15 @@ the layout following each.
 `RGame::Game#scale_mode=`, the `view` a node is drawn with,
 `InputMap.default.merge`.
 
+### smooth_art
+
+Two anti-aliased figures under `texture_filter: :linear`, at the window's
+scale, at a scale of their own, turned, and moving by fractions of a pixel.
+`RGAME_FILTER=nearest` runs the same scene unfiltered, to compare.
+
+**Uses:** `Game::Configuration`'s `texture_filter` and `scale_mode`,
+`Components::Sprite`, `Node2D#angle=`, `Node2D#opacity=`.
+
 ## Language
 
 ### localization

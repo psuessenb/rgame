@@ -120,6 +120,7 @@ it takes this shape. You can learn more about how it works in the
 | [input_glyphs](docs/api/examples.md#input_glyphs) | Prompts that match the device in your hands |
 | [input_holds](docs/api/examples.md#input_holds) | One button tapped and held, and a chord that silences it |
 | [fullscreen](docs/api/examples.md#fullscreen) | Fullscreen, switched at any time, and the scale modes |
+| [smooth_art](docs/api/examples.md#smooth_art) | Anti-aliased art scaled, turned and moved, and the filter that keeps it smooth |
 | [save_load](docs/api/examples.md#save_load) | Writing game state to disk and putting it back |
 | [save_load_ids](docs/api/examples.md#save_load_ids) | A save that has to name things, and why a reference forces ids |
 | [localization](docs/api/examples.md#localization) | The same screen in two languages, switched and remembered |

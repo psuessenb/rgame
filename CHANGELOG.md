@@ -21,6 +21,10 @@ index, not the argument.
   the transparent pixels around it, and a tile samples none of its neighbours
   on the sheet. `:nearest` stays the default, and `App#texture_filter` reads
   the setting back. See [docs/api/images.md](docs/api/images.md#filtering).
+- **A smooth art example.** `examples/smooth_art` draws two anti-aliased
+  figures under `texture_filter: :linear`, scaled, turned, and moving by
+  fractions of a pixel. `RGAME_FILTER=nearest` runs it unfiltered, to compare.
+  See [docs/api/examples.md](docs/api/examples.md#smooth_art).
 - **Checkpoints.** `Components::Checkpoint` moves the respawn point of a node
   on its `by` layer to itself when that node's collider touches it, and emits
   `on_reached`. It raises over a gap, and for a toucher with no `Respawn`. See
