@@ -231,6 +231,18 @@ which gcc                   # must be /ucrt64/bin/gcc, NOT /usr/bin/gcc
 pkg-config --cflags sdl2    # must print a ucrt64 include path
 ```
 
+**Git Bash is not the UCRT64 shell**, even with `/ucrt64/bin` first on its `PATH`.
+It carries its own copy of the MSYS runtime, and MSYS2's `make` started from it
+loses the temporary directory on the way to gcc. Every compile then fails with
+an error that points nowhere near the cause:
+
+```
+Cannot create temporary file in C:\WINDOWS\: Permission denied
+```
+
+From Git Bash, run the build through `ridk.cmd exec make ext` instead, or open
+the UCRT64 shell. Git Bash finds `ridk` only by its full name, `ridk.cmd`.
+
 One more Windows fact worth knowing up front: **Check has no usable fork
 there**, so the first segfault kills the whole test binary and the output stops
 mid-suite. Use a debugger rather than reading the log — `CK_FORK=no gdb --args
