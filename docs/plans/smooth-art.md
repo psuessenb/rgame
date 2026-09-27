@@ -1,7 +1,7 @@
 # Smooth art
 
-**Steps 1–3 are implemented.** Steps 4 and 5 are rough, and get re-planned
-before they start. Step 4 waits on open question 2.
+**Steps 1–3 are implemented.** Step 4 is detailed. Step 5 is rough, and gets
+re-planned before it starts.
 
 ## Verdict
 
@@ -85,16 +85,21 @@ up for re-litigation inside this plan.
     it.** A "crisp or smooth" setting is the trigger. After step 3 each sheet
     knows its filter, so a switch would set two parameters on every live sheet.
     Step 5 records this in `possible-todos.md`.
+11. **Step 4's example draws the two figures alone.** Drawing a smooth tileset
+    and a nine-slice panel would take far longer than the figures did. Neither
+    would show anything the figures and the readbacks do not: both draw through
+    `image_at`, as every image does. A readback on generated tiles pins the
+    tile map instead. Taken when step 4 was re-planned, after step 3 landed.
 
 ## Open questions
 
 1. ~~**Does `Game` expose its configuration?**~~ **Settled: no, not until a
    caller needs it.** See decision 9 under
    [Decisions already taken](#decisions-already-taken).
-2. **Where does step 4's art come from?** Blocks step 4. It must be
-   anti-aliased and under a licence the [write-example](../../.claude/skills/write-example/SKILL.md)
-   skill accepts. Candidates are one of Kenney's CC0 packs that is not pixel
-   art, or art drawn for the example.
+2. ~~**Where does step 4's art come from?**~~ **Settled for the figures: two
+   drawn for rgame**, `examples/assets/older-man@1x.png` and `woman@1x.png`.
+   See "Art" under [step 4](#step-4--examplessmooth_art-on-the-two-figures).
+   The tileset and the nine-slice panel still need art; see question 5.
 3. ~~**Should the filter be switchable while the game runs?**~~ **Settled: no,
    not until a game needs it.** See decision 10 under
    [Decisions already taken](#decisions-already-taken).
@@ -108,6 +113,9 @@ up for re-litigation inside this plan.
    with no limit, so a child that Windows does not end, or whose pipes stay
    open, holds the suite regardless. It belongs on a branch of its own; step 5
    moves it to `possible-todos.md` if nobody has taken it by then.
+5. ~~**Where do step 4's tileset and nine-slice panel come from?**~~
+   **Settled: step 4 needs neither.** See decision 11 under
+   [Decisions already taken](#decisions-already-taken).
 
 ## What was measured before planning
 
@@ -232,6 +240,9 @@ Sources:
 - Snapping positions to whole pixels.
 - Any change to how text looks. Glyphs are already filtered linearly, and only
   their texture format changes.
+- An example with a tile map or a nine-slice panel in smooth art. Both draw
+  through the path the figures take, and step 4's readback pins the tile map.
+  Such an example waits for the art; see decision 11.
 
 ---
 
@@ -753,23 +764,147 @@ re-run passed; see open question 4.
 
 ---
 
-### Step 4 — an example in smooth art *(rough)*
+### Step 4 — `examples/smooth_art`, on the two figures
 
-This step waits on open question 2 and is re-planned once step 3 has landed.
+Re-planned after step 3 landed, with the art in hand. The rough version listed
+six things for the example to show. The two figures show the point of this
+plan, and nothing else on the list needs art drawn for it:
 
-The example must show what no test project exercises yet, all in one scene.
-Its art is authored at 1280×720 and runs under `:letterbox` and
-`texture_filter: :linear`:
+| Rough list | What it would show | Now |
+|---|---|---|
+| sprites from a shared sheet | a sprite samples none of its neighbour | Pinned by `image_spec.rb`'s red and blue tiles. The figures cannot show it: each has a transparent margin of 2 to 4 pixels at its sides and top, so a neighbour on a sheet has nothing to bleed |
+| a translucent sprite | premultiplied texels, filtered and faded | In the example: one figure fades in and out |
+| text | glyphs beside filtered art | In the example, as in every example. Glyph pages were linear before this plan |
+| additive particles | premultiplied colour under `:add` | Dropped. `examples/effects` draws its particles as shapes, which no texture filter touches, and step 2's frames showed them unchanged |
+| a tile map from an extruded tileset | tiles of one sheet, side by side on screen | Dropped from the example. `TileMapRenderer` draws each tile with `image_at`, the path every image takes. 4a pins it with a readback on generated tiles |
+| a nine-slice panel | nine views of one image | Dropped. `NineSlice` draws subimages with `image_at` too, and shows nothing the tile map readback does not |
 
-- sprites sliced from a shared sheet
-- a translucent sprite
-- text
-- additive particles
-- a tile map from a tileset with extruded edges
-- a nine-slice panel
+The figures cannot show the dark fringe either: their edge is a near-black
+outline. `image_spec.rb`'s disc readback pins that, and stays this plan's
+acceptance test.
 
-A drive script and an `en.yml` go with it, as for every example. It gets an
-allocation budget like the others, and a look by eye at 1920×1080 fullscreen.
+**Art.** Two figures, drawn for rgame, are in `examples/assets/` but not
+committed yet. 4b commits them with an entry in `examples/assets/README.md`
+that records them as drawn for rgame.
+
+| | `older-man@1x.png` | `woman@1x.png` |
+|---|---|---|
+| Size | 64×150 | 56×132 |
+| Pixels at partial alpha | 386, at 59 levels | 426, at 69 levels |
+| Fully transparent pixels | 3,354, each storing black | 3,257, each storing black |
+| Pixels at partial alpha, average colour | 27, 27, 27 | 27, 27, 27 |
+
+Both are anti-aliased throughout, outlines and inner lines alike. Scaled 1.5
+times, from 1280×720 to 1920×1080, nearest sampling doubles some outline rows
+and not others, and linear sampling keeps them even. That is the requirement's
+"jaggy and uneven in thickness", on art drawn for this engine.
+
+#### 4a. A tile map from a `:linear` sheet *(pure readback)*
+
+A tile map puts a sheet's tiles side by side on screen, which is where a tile
+sampling its neighbour would show. Nothing checks that composition today:
+`image_spec.rb` draws one tile alone.
+
+Rules the test pins:
+
+1. Under `:linear`, a tile map drawn at a scale that is not a whole number
+   shows each tile's own pixels and none of its neighbour's on the sheet.
+
+Tests, in `spec_core/rgame/core/tile_map_renderer_spec.rb`:
+
+- A 32×16 sheet, a red tile then a blue one, and a 2×1 map showing blue then
+  red, drawn at 1.5 times under `:linear`. Every pixel reads pure red or pure
+  blue. The order is reversed so that each tile's edge beside its neighbour on
+  the sheet lies at the end of the map on screen, where a bleed would show as
+  purple.
+
+#### 4b. `examples/smooth_art`
+
+One scene at 1280×720 under `:letterbox`, in which each figure is resampled a
+different way:
+
+| On screen | Resampled by |
+|---|---|
+| both figures, as drawn, side by side | the window alone: 1.5 times in a 1920×1080 fullscreen, and not at all in a 1280×720 window |
+| the woman at 2.5 times | a scale in the scene, at any window size |
+| the man, tilting to and fro | rotation |
+| the woman, gliding slowly and fading in and out | movement by fractions of a pixel, and opacity |
+
+**F** switches fullscreen, as in `examples/fullscreen`. **`RGAME_FILTER=nearest`
+runs the same scene unfiltered.** The filter is fixed for the game's life
+(decision 10), so comparing the two means running it twice. A status line
+names the filter in use, and a help line names both switches.
+
+```ruby
+module SmoothArtExample
+  Engine = RGame::Engine
+  Util = RGame::Util
+  UI = Engine::UI
+  Components = Engine::Components
+
+  WIDTH = 1280
+  HEIGHT = 720
+  ASSETS = File.expand_path('../assets', __dir__)
+  LOCALES = File.expand_path('locales', __dir__)
+  TEXTURE_FILTER = ENV.fetch('RGAME_FILTER', 'linear').to_sym
+
+  # A figure standing on its node's origin. The node's size is the image's,
+  # which is what Components::Sprite's anchor measures from.
+  class Figure < Engine::Node2D
+    def initialize(image, width:, height:, **)
+      super(width:, height:, **)
+      add_component(Components::Sprite.new(id: image))
+    end
+  end
+
+  def self.start
+    game = RGame::Game.new(
+      root: Scene.new,
+      caption: 'Smooth art',
+      configuration: RGame::Game::Configuration.new(
+        width: WIDTH,
+        height: HEIGHT,
+        media_root: ASSETS,
+        locales: LOCALES,
+        texture_filter: TEXTURE_FILTER,
+        input_map: Engine::InputMap.default.merge(
+          fullscreen: { buttons: [Util::Controls::KEY_F, Util::Controls::PAD_Y] }
+        )
+      )
+    )
+    game.start
+  end
+end
+```
+
+The tilt, the glide and the fade accumulate their own elapsed time in
+`_update`, as CLAUDE.md requires of anything animated, and set the node's
+`angle`, `x` and `opacity`. Nothing in the example allocates once warm.
+
+Tests:
+
+- `tools/drive/examples/smooth_art.rb`. It presses F, and F again before the
+  run ends, since a fullscreen window left behind on Xvfb hangs the next run.
+  Its header says what the report shows: both images drawn every frame, the
+  status and help lines, and no missing translation.
+- The default allocation budget, under `rake drive:allocations`.
+- `docs/api/examples.md` gets a `### smooth_art` entry, which
+  `spec/api_docs/index_spec.rb` requires, and `README.md`'s examples table a
+  row.
+
+Sub-steps:
+
+- **4a. The tile map readback.** A spec only.
+- **4b. The example**, with the two images and their `examples/assets/README.md`
+  entry, `locales/en.yml`, the drive script, the `examples.md` entry, the
+  `README.md` row and a CHANGELOG "Added" entry.
+
+**Verify.** The 4a readback passes, and fails with the inset removed. The
+example's driven run exits 0 and stays within the default allocation budget.
+By eye, frames shot fullscreen on a 1920×1080 Xvfb screen, as steps 2 and 3
+shot theirs, show under `:nearest` outlines whose thickness varies at 1.5
+times, and under `:linear` outlines that stay even, with smooth edges on the
+tilting figure. `make test`, `rake spec` and `rake spec:core` pass.
 
 ---
 
